@@ -1,0 +1,16 @@
+# filename: .devcontainer/docker-compose.yml
+version: '3.8'
+
+services:
+  app:
+    build:
+      context: ..
+      dockerfile: .devcontainer/Dockerfile
+    volumes:
+      - ..:/workspace:cached
+      - ~/.ssh:/home/vscode/.ssh:ro
+    environment:
+      - DAGSTER_HOME=/workspace/.dagster
+      - DBT_PROFILES_DIR=/workspace/dbt
+    command: sleep infinity
+    network_mode: host

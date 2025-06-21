@@ -1,0 +1,126 @@
+# filename: .github/workflows/ci.yml
+name: CI Pipeline
+
+on:
+  push:
+    branches: [main, develop]
+  pull_request:
+    branches: [main]
+
+env:
+  PYTHON_VERSION: '3.11'
+  DAGSTER_HOME: .dagster
+
+jobs:
+  lint:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+      
+      - name: Cache dependencies
+        uses: actions/cache@v3
+        with:
+          path: ~/.cache/pip
+          key: ${{ runner.os }}-pip-${{ hashFiles('requirements*.txt') }}
+      
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+          pip install -r requirements-dev.txt
+      
+      - name: Run linting
+        run: |
+          black --check .
+          ruff check .
+          mypy planwise_navigator/ --ignore-missing-imports
+
+  test:
+    runs-on: ubuntu-latest
+    needs: lint
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+      
+      - name: Cache dependencies
+        uses: actions/cache@v3
+        with:
+          path: ~/.cache/pip
+          key: ${{ runner.os }}-pip-${{ hashFiles('requirements*.txt') }}
+      
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+          pip install -r requirements-dev.txt
+      
+      - name: Run Python tests
+        run: |
+          pytest tests/ -v --cov=planwise_navigator --cov-report=xml
+      
+      - name: Run dbt tests
+        run: |
+          cd dbt
+          dbt deps
+          dbt seed --profiles-dir .
+          dbt run --profiles-dir .
+          dbt test --profiles-dir .
+      
+      - name: Upload coverage
+        uses: codecov/codecov-action@v3
+        with:
+          file: ./coverage.xml
+          fail_ci_if_error: true
+
+  build:
+    runs-on: ubuntu-latest
+    needs: test
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Build Docker image
+        run: |
+          docker build -t planwise-navigator:${{ github.sha }} .
+      
+      - name: Run security scan
+        uses: aquasecurity/trivy-action@master
+        with:
+          image-ref: planwise-navigator:${{ github.sha }}
+          format: 'sarif'
+          output: 'trivy-results.sarif'
+      
+      - name: Upload scan results
+        uses: github/codeql-action/upload-sarif@v2
+        with:
+          sarif_file: 'trivy-results.sarif'
+
+  validate-models:
+    runs-on: ubuntu-latest
+    needs: lint
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+      
+      - name: Install dbt
+        run: |
+          pip install dbt-core==1.8.8 dbt-duckdb==1.8.1
+      
+      - name: Validate dbt project
+        run: |
+          cd dbt
+          dbt deps
+          dbt parse --profiles-dir .
+          dbt compile --profiles-dir .

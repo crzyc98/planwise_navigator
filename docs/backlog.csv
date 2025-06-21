@@ -1,0 +1,104 @@
+# filename: docs/backlog.csv
+epic_id,epic_name,story_id,story_title,description,acceptance_criteria,story_points,priority,sprint
+E001,Core Data Pipeline,S001,Create dbt staging models,Build staging models for census and config data,"1. All source tables have staging models
+2. Data types are properly cast
+3. Basic data quality tests pass",5,Must Have,1
+E001,Core Data Pipeline,S002,Build intermediate models,Create intermediate transformation models,"1. Hazard calculations implemented
+2. Event generation logic works
+3. Unit tests pass",8,Must Have,1
+E001,Core Data Pipeline,S003,Create mart models,Build final analytical models,"1. All metrics calculated correctly
+2. Performance < 30s for 10k employees
+3. Documentation complete",5,Must Have,2
+E001,Core Data Pipeline,S004,Add dbt tests,Comprehensive testing suite,"1. Unique/not null tests on keys
+2. Relationship tests
+3. Business logic tests",3,Must Have,2
+E002,Orchestration Layer,S005,Setup Dagster project,Initialize Dagster with resources,"1. Project structure created
+2. DuckDB resource configured
+3. Basic asset defined",3,Must Have,1
+E002,Orchestration Layer,S006,Create simulation assets,Build core simulation assets,"1. Config loading asset
+2. Single year simulation
+3. Multi-year orchestration",8,Must Have,2
+E002,Orchestration Layer,S007,Add monitoring,Implement run monitoring,"1. Asset health checks
+2. Failure alerts configured
+3. Performance tracking",5,Should Have,3
+E003,User Interface,S008,Streamlit app skeleton,Basic dashboard structure,"1. Multi-page layout
+2. Sidebar configuration
+3. Basic styling applied",3,Must Have,2
+E003,User Interface,S009,Executive summary page,Build executive dashboard,"1. Key metrics displayed
+2. Headcount projection chart
+3. Responsive layout",5,Must Have,3
+E003,User Interface,S010,Workforce analysis page,Detailed workforce views,"1. Level distribution charts
+2. Event analysis
+3. Drill-down capability",5,Must Have,3
+E003,User Interface,S011,Financial impact page,Financial projections view,"1. Compensation charts
+2. Cost breakdowns
+3. Export functionality",5,Must Have,4
+E003,User Interface,S012,Scenario planning,Scenario comparison feature,"1. Multiple scenario support
+2. Side-by-side comparison
+3. Sensitivity analysis",8,Should Have,4
+E003,User Interface,S013,Report generation,PDF/Excel report creation,"1. Template rendering works
+2. Charts included in PDF
+3. Data export to Excel",5,Should Have,5
+E004,Data Quality & Validation,S014,Input validation,Validate census data quality,"1. Schema validation
+2. Business rule checks
+3. Error reporting",5,Must Have,1
+E004,Data Quality & Validation,S015,Reconciliation reports,Legacy vs new comparison,"1. Daily reconciliation runs
+2. Variance reporting
+3. Alert on >2% difference",5,Must Have,3
+E004,Data Quality & Validation,S016,Data lineage tracking,Track data transformations,"1. Column-level lineage
+2. Transformation documentation
+3. Impact analysis",3,Nice to Have,6
+E005,Performance & Scale,S017,Benchmark suite,Performance testing framework,"1. Automated benchmarks
+2. Regression detection
+3. Scale testing to 100k",5,Should Have,4
+E005,Performance & Scale,S018,Query optimization,Optimize slow queries,"1. Identify bottlenecks
+2. Add appropriate indexes
+3. <2s response time",5,Should Have,5
+E005,Performance & Scale,S019,Caching layer,Add results caching,"1. Redis/memory cache
+2. Invalidation logic
+3. Cache hit tracking",5,Nice to Have,6
+E006,Security & Compliance,S020,PII masking,Implement data masking,"1. Masking functions work
+2. Role-based unmasking
+3. Export protection",8,Must Have,4
+E006,Security & Compliance,S021,Audit logging,Comprehensive audit trail,"1. All data access logged
+2. User actions tracked
+3. Retention policy",5,Must Have,5
+E006,Security & Compliance,S022,Access control,Role-based permissions,"1. User roles defined
+2. Permission checks
+3. UI elements hidden",5,Should Have,5
+E007,Integration & Migration,S023,Legacy data import,ETL from legacy system,"1. All tables mapped
+2. Data quality preserved
+3. < 5 min runtime",8,Must Have,1
+E007,Integration & Migration,S024,Export capabilities,Data export features,"1. CSV/Excel export
+2. API endpoint
+3. Scheduled exports",5,Should Have,4
+E007,Integration & Migration,S025,API development,REST API for data access,"1. OpenAPI spec
+2. Authentication
+3. Rate limiting",8,Nice to Have,6
+E008,Documentation & Training,S026,User documentation,End-user guide,"1. All features documented
+2. Screenshots included
+3. FAQ section",3,Must Have,5
+E008,Documentation & Training,S027,Admin guide,System administration docs,"1. Installation steps
+2. Configuration guide
+3. Troubleshooting",3,Must Have,5
+E008,Documentation & Training,S028,Video tutorials,Training videos,"1. 5 feature videos
+2. < 5 min each
+3. Hosted solution",3,Nice to Have,6
+E009,Testing & QA,S029,Unit test coverage,Comprehensive unit tests,"1. >80% code coverage
+2. All edge cases
+3. Mocked dependencies",5,Must Have,3
+E009,Testing & QA,S030,Integration tests,End-to-end testing,"1. Happy path tests
+2. Error scenarios
+3. Performance tests",5,Must Have,4
+E009,Testing & QA,S031,UAT support,User acceptance testing,"1. Test scenarios
+2. Issue tracking
+3. Sign-off process",3,Must Have,5
+E010,DevOps & Deployment,S032,CI/CD pipeline,Automated deployment,"1. GitHub Actions setup
+2. Test automation
+3. Deploy to staging",5,Must Have,2
+E010,DevOps & Deployment,S033,Containerization,Docker deployment,"1. Dockerfile works
+2. Docker Compose
+3. <1GB image size",3,Should Have,3
+E010,DevOps & Deployment,S034,Monitoring setup,Production monitoring,"1. Prometheus metrics
+2. Grafana dashboards
+3. Alert rules",5,Should Have,6
