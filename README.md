@@ -8,21 +8,25 @@ PlanWise Navigator is a performant, maintainable data platform for running workf
 
 ### Key Features
 
-- **Multi-year Workforce Simulation**: Model hiring, promotions, raises, and terminations over multiple years
-- **Interactive Analytics**: Streamlit dashboard for scenario analysis and visualization
-- **Event-driven Architecture**: Probabilistic modeling of workforce transitions
-- **Data Quality Assurance**: Comprehensive testing and validation frameworks
-- **On-premises Security**: All data processing occurs locally with no cloud dependencies
+- **Multi-year Workforce Simulation**: Model hiring, promotions, raises, and terminations over 1-10 years
+- **Interactive Analytics**: Sub-2-second dashboard queries for scenario analysis
+- **Event-driven Architecture**: Hazard-based probabilistic modeling of workforce transitions
+- **Data Quality Assurance**: 90%+ test coverage with comprehensive validation
+- **On-premises Security**: Zero cloud dependencies, all processing local
+- **Reproducible Results**: Random seed control for consistent simulations
+- **Scalable Performance**: Handle 100K+ employee records efficiently
 
 ## Technology Stack
 
 | Layer | Technology | Version | Purpose |
 |-------|------------|---------|---------|
 | **Storage** | DuckDB | 1.0.0 | In-process OLAP database engine |
-| **Transformation** | dbt | 1.9.2 | SQL-based data modeling and testing |
-| **Orchestration** | Dagster | 1.10.20 | Asset-based pipeline management |
-| **Dashboard** | Streamlit | 1.46 | Interactive analytics interface |
-| **Configuration** | Pydantic + YAML | - | Type-safe parameter management |
+| **Transformation** | dbt-core | 1.8.8 | SQL-based data modeling and testing |
+| **Adapter** | dbt-duckdb | 1.8.1 | Stable DuckDB integration |
+| **Orchestration** | Dagster | 1.8.12 | Asset-based pipeline management |
+| **Dashboard** | Streamlit | 1.39.0 | Interactive analytics interface |
+| **Configuration** | Pydantic | 2.7.4 | Type-safe parameter management |
+| **Python** | CPython | 3.11.x | Long-term support version |
 
 ## Architecture
 
@@ -220,14 +224,16 @@ Key configuration options in `config/simulation_config.yaml`:
 ## Performance Characteristics
 
 ### Scalability
-- **Dataset Size**: Optimized for 10,000-100,000 employee records
-- **Simulation Years**: Efficient multi-year processing
-- **Query Performance**: Sub-second analytical queries with DuckDB
+- **Dataset Size**: Handle 100K+ employee records without memory errors
+- **Simulation Runtime**: 5-year simulation in < 5 minutes for 10K employees
+- **Query Performance**: < 2 seconds response time (95th percentile)
+- **Concurrent Users**: Support 10 analysts simultaneously
 
 ### Resource Requirements
-- **Memory**: 4-8GB RAM for typical workloads
+- **Memory**: < 8GB RAM peak during simulation
 - **Storage**: ~1GB per 50,000 employees per simulation year
 - **CPU**: Multi-threaded processing with configurable thread counts
+- **Uptime**: 99.5% during business hours target
 
 ## Security & Compliance
 
@@ -258,13 +264,21 @@ Key configuration options in `config/simulation_config.yaml`:
 
 ### Common Issues
 
-#### DuckDB Serialization
+#### DuckDB Serialization (CRITICAL)
 ```python
-# WRONG: Returning DuckDB objects
-return conn.execute("SELECT * FROM table")
-
-# CORRECT: Convert to DataFrame
-return conn.execute("SELECT * FROM table").df()
+# ✅ CORRECT: DuckDB Asset Pattern
+@asset
+def workforce_data(context: AssetExecutionContext, duckdb: DuckDBResource) -> pd.DataFrame:
+    with duckdb.get_connection() as conn:
+        # Convert immediately to DataFrame - serializable
+        df = conn.execute("SELECT * FROM employees").df()
+        return df  # Safe to return
+        
+# ❌ WRONG: Never return DuckDB objects
+@asset
+def broken_asset():
+    conn = duckdb.connect("db.duckdb")
+    return conn.table("employees")  # DuckDBPyRelation - NOT SERIALIZABLE!
 ```
 
 #### Connection Management
@@ -283,11 +297,20 @@ class SimulationConfig(BaseModel):
     target_growth_rate: float = Field(0.03, ge=-0.5, le=0.5)
 ```
 
+#### Version Compatibility Issues
+```python
+# CRITICAL: Use only proven stable versions
+# DuckDB 1.0.0, dbt-core 1.8.8, dbt-duckdb 1.8.1
+# Dagster 1.8.12, Streamlit 1.39.0, Pydantic 2.7.4
+# Lock all versions in requirements.txt
+```
+
 ### Getting Help
 - Check Dagster logs in the web interface
 - Run `dbt debug` for connection issues
 - Validate configuration with Pydantic models
 - Review asset lineage in Dagster for dependency issues
+- Ensure DAGSTER_HOME is set: `launchctl getenv DAGSTER_HOME`
 
 ## Further Reading
 

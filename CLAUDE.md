@@ -18,11 +18,12 @@ Follow it verbatim to guarantee:
 
 Layer	Technology	Version	Responsibility
 Storage	DuckDB	1.0.0	Column-store warehouse; in-process OLAP engine
-Transformation	dbt	1.9.2	Declarative SQL models, tests, documentation
-Orchestration	Dagster	1.10.20	Asset-based pipeline for simulation workflow
-Dashboard	Streamlit	1.46	Interactive analytics and scenario comparison
-Configuration	Pydantic + YAML	-	Type-safe config management with validation
-Monitoring	Dagster Assets	-	Asset checks, sensors, and metadata for data quality
+Transformation	dbt-core	1.8.8	Declarative SQL models, tests, documentation
+Adapter	dbt-duckdb	1.8.1	Stable DuckDB integration
+Orchestration	Dagster	1.8.12	Asset-based pipeline for simulation workflow
+Dashboard	Streamlit	1.39.0	Interactive analytics and scenario comparison
+Configuration	Pydantic	2.7.4	Type-safe config management with validation
+Python	CPython	3.11.x	Long-term support version
 
 <details>
 <summary>Unified Simulation Pipeline</summary>
@@ -191,15 +192,23 @@ dagster asset check --select validate_simulation_results # Validate simulation o
 10  Common Troubleshooting Patterns
 
 # DuckDB Serialization Issues (CRITICAL)
-- **Problem**: DuckDB objects cannot be serialized by Dagster
-- **Solution**: Always convert to pandas DataFrames or Python dicts before returning from assets
-- **Pattern**: Use `.df()` method on DuckDB query results
+- **Problem**: DuckDB Relation objects are NOT serializable by Dagster
+- **Solution**: Always convert to pandas DataFrames or Python primitives before returning from assets
+- **Pattern**: Use `.df()` method on DuckDB query results and context managers for connections
 ```python
+# ✅ CORRECT: DuckDB Asset Pattern
 @asset
-def my_asset(context: AssetExecutionContext, duckdb_resource: DuckDBResource) -> pd.DataFrame:
-    with duckdb_resource.get_connection() as conn:
-        df = conn.execute("SELECT * FROM table").df()  # Convert immediately
-        return df  # Return serializable DataFrame
+def workforce_data(context: AssetExecutionContext, duckdb: DuckDBResource) -> pd.DataFrame:
+    with duckdb.get_connection() as conn:
+        # ✅ Convert immediately to DataFrame - serializable
+        df = conn.execute("SELECT * FROM employees").df()
+        return df  # Safe to return
+        
+# ❌ WRONG: Never return DuckDB objects
+@asset
+def broken_asset():
+    conn = duckdb.connect("db.duckdb")
+    return conn.table("employees")  # DuckDBPyRelation - NOT SERIALIZABLE!
 ```
 
 # Connection Management Patterns
@@ -252,6 +261,12 @@ current_active = baseline_count + total_hires - total_terminations
 - **Solution**: DAGSTER_HOME is set system-wide via launchctl
 - **Verification**: `launchctl getenv DAGSTER_HOME` should return `~/dagster_home_planwise`
 - **Setup**: Run `./scripts/set_dagster_home.sh` to configure system-wide environment
+
+# Version Compatibility Issues
+- **Problem**: Incompatible versions causing runtime errors
+- **Solution**: Use only proven stable versions from PRD v3.0
+- **Versions**: DuckDB 1.0.0, dbt-core 1.8.8, dbt-duckdb 1.8.1, Dagster 1.8.12, Streamlit 1.39.0
+- **Pattern**: Lock all dependency versions in requirements.txt
 
 ⸻
 

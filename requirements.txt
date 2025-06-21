@@ -1,0 +1,26 @@
+# Core Dependencies
+duckdb==1.0.0
+dbt-core==1.8.8
+dbt-duckdb==1.8.1
+dagster==1.8.12
+streamlit==1.39.0
+pydantic==2.7.4
+python-dotenv>=1.0.0
+pyyaml>=6.0.0
+pandas>=2.0.0
+numpy>=1.24.0
+
+# Development Dependencies
+pytest>=7.0.0
+black>=23.0.0
+isort>=5.12.0
+mypy>=1.0.0
+pylint>=2.17.0
+
+# Documentation
+mkdocs>=1.4.0
+mkdocs-material>=9.0.0
+
+# Testing
+pytest-cov>=4.0.0
+factory-boy>=3.2.0

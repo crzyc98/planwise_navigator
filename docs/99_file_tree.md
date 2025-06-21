@@ -1,6 +1,7 @@
-# PlanWise Navigator - Complete File Tree
+# PlanWise Navigator - Complete File Tree v3.0
 
-Generated on: 2025-06-21
+Generated on: 2025-06-21  
+Based on PRD v3.0 (2025-06-21)
 
 This document provides a comprehensive view of the PlanWise Navigator codebase structure, excluding temporary files, build artifacts, and generated content.
 
@@ -29,7 +30,8 @@ planwise_navigator/
 │   │   ├── get_config_value.sql
 │   │   ├── get_current_simulation_year.sql
 │   │   ├── get_random_seed.sql
-│   │   └── validate_simulation_year.sql
+│   │   ├── validate_simulation_year.sql
+│   │   └── generate_events.sql
 │   ├── models/
 │   │   ├── intermediate/
 │   │   │   ├── events/
