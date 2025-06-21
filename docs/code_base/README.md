@@ -11,7 +11,7 @@ The documentation is organized by functional area to mirror the system architect
 - **[simulation_pipeline.py](entry_points/simulation_pipeline.md)** - Core simulation orchestration
 - **[Dashboard.py](entry_points/dashboard.md)** - Streamlit dashboard entry point
 
-### ⚙️ Configuration & Settings  
+### ⚙️ Configuration & Settings
 - **[simulation_config.yaml](configuration/simulation_config.md)** - Primary simulation configuration
 - **[dbt_project.yml](configuration/dbt_project.md)** - dbt project configuration
 - **[profiles.yml](configuration/profiles.md)** - Database connection profiles

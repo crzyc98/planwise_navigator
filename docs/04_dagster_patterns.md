@@ -1,7 +1,7 @@
 # Dagster Asset Patterns for DuckDB Integration
 
-**Date**: 2025-06-21  
-**Version**: 2.0 (Rebuild Guidelines)  
+**Date**: 2025-06-21
+**Version**: 2.0 (Rebuild Guidelines)
 **Focus**: DuckDB serialization and asset definition best practices
 
 ---
@@ -22,22 +22,22 @@ def standard_asset_template(
     duckdb_resource: ConfigurableResource
 ) -> pd.DataFrame:
     """Template for standard DuckDB asset pattern."""
-    
+
     with duckdb_resource.get_connection() as conn:
         try:
             # 1. Execute SQL query
             query = """
-            SELECT 
+            SELECT
                 column1,
                 column2,
                 COUNT(*) as record_count
             FROM source_table
             GROUP BY column1, column2
             """
-            
+
             # 2. Convert to serializable format immediately
             result_df = conn.execute(query).df()
-            
+
             # 3. Log intermediate results
             context.log.info(f"Processed {len(result_df)} records")
             context.add_output_metadata({
@@ -45,10 +45,10 @@ def standard_asset_template(
                 "columns": list(result_df.columns),
                 "preview": result_df.head().to_dict('records')
             })
-            
+
             # 4. Return serializable object
             return result_df
-            
+
         except duckdb.Error as e:
             context.log.error(f"DuckDB error in {context.asset_key}: {str(e)}")
             raise
@@ -66,7 +66,7 @@ def standard_asset_template(
 @asset
 def dataframe_asset(context: AssetExecutionContext) -> pd.DataFrame:
     """Asset returning pandas DataFrame - most common pattern."""
-    
+
     with get_duckdb_connection("simulation.duckdb") as conn:
         # ✅ CORRECT: Convert to DataFrame immediately
         df = conn.execute("""
@@ -74,11 +74,11 @@ def dataframe_asset(context: AssetExecutionContext) -> pd.DataFrame:
             FROM fct_workforce_snapshot
             WHERE simulation_year = 2025
         """).df()
-        
+
         # Validate before returning
         if df.empty:
             context.log.warning("Query returned empty DataFrame")
-        
+
         context.log.info(f"Returning DataFrame with {len(df)} rows, {len(df.columns)} columns")
         return df
 
@@ -95,11 +95,11 @@ def broken_asset(context: AssetExecutionContext):
 @asset
 def summary_metrics_asset(context: AssetExecutionContext) -> Dict[str, Any]:
     """Asset returning dictionary of metrics."""
-    
+
     with get_duckdb_connection("simulation.duckdb") as conn:
         # Get summary statistics
         stats_query = """
-        SELECT 
+        SELECT
             COUNT(*) as total_employees,
             AVG(current_compensation) as avg_compensation,
             MIN(current_age) as min_age,
@@ -107,10 +107,10 @@ def summary_metrics_asset(context: AssetExecutionContext) -> Dict[str, Any]:
         FROM fct_workforce_snapshot
         WHERE simulation_year = (SELECT MAX(simulation_year) FROM fct_workforce_snapshot)
         """
-        
+
         # ✅ CORRECT: Convert to Python primitives
         result = conn.execute(stats_query).fetchone()
-        
+
         metrics = {
             "total_employees": int(result[0]),
             "avg_compensation": float(result[1]),
@@ -118,7 +118,7 @@ def summary_metrics_asset(context: AssetExecutionContext) -> Dict[str, Any]:
             "max_age": int(result[3]),
             "calculation_timestamp": pd.Timestamp.now().isoformat()
         }
-        
+
         context.log.info(f"Generated metrics: {metrics}")
         return metrics
 ```
@@ -128,7 +128,7 @@ def summary_metrics_asset(context: AssetExecutionContext) -> Dict[str, Any]:
 @asset
 def employee_list_asset(context: AssetExecutionContext) -> List[Dict[str, Any]]:
     """Asset returning list of records."""
-    
+
     with get_duckdb_connection("simulation.duckdb") as conn:
         query = """
         SELECT employee_id, level_id, current_compensation
@@ -136,11 +136,11 @@ def employee_list_asset(context: AssetExecutionContext) -> List[Dict[str, Any]]:
         WHERE level_id = 5  -- Executive level only
         ORDER BY current_compensation DESC
         """
-        
+
         # ✅ CORRECT: Convert to list of dictionaries
         df = conn.execute(query).df()
         records = df.to_dict('records')
-        
+
         context.log.info(f"Returning {len(records)} executive records")
         return records
 ```
@@ -150,15 +150,15 @@ def employee_list_asset(context: AssetExecutionContext) -> List[Dict[str, Any]]:
 @asset
 def headcount_asset(context: AssetExecutionContext) -> int:
     """Asset returning single primitive value."""
-    
+
     with get_duckdb_connection("simulation.duckdb") as conn:
         # ✅ CORRECT: Extract primitive value
         headcount = conn.execute("""
-            SELECT COUNT(*) 
-            FROM fct_workforce_snapshot 
+            SELECT COUNT(*)
+            FROM fct_workforce_snapshot
             WHERE simulation_year = 2025
         """).fetchone()[0]
-        
+
         context.log.info(f"Current headcount: {headcount}")
         return int(headcount)  # Ensure it's a Python int, not numpy int64
 ```
@@ -172,24 +172,24 @@ def headcount_asset(context: AssetExecutionContext) -> int:
 @asset
 def context_aware_asset(context: AssetExecutionContext) -> pd.DataFrame:
     """Proper AssetExecutionContext usage."""
-    
+
     # Access asset metadata
     asset_name = context.asset_key.path[-1]
     run_id = context.run_id
-    
+
     context.log.info(f"Starting execution of {asset_name} in run {run_id}")
-    
+
     with get_duckdb_connection("simulation.duckdb") as conn:
         # Log query for debugging
         query = f"""
         SELECT * FROM {asset_name}_source
         WHERE created_at >= CURRENT_DATE - INTERVAL '7 days'
         """
-        
+
         context.log.debug(f"Executing query: {query}")
-        
+
         df = conn.execute(query).df()
-        
+
         # Add execution metadata
         context.add_output_metadata({
             "execution_time": pd.Timestamp.now().isoformat(),
@@ -197,7 +197,7 @@ def context_aware_asset(context: AssetExecutionContext) -> pd.DataFrame:
             "row_count": len(df),
             "columns": list(df.columns)
         })
-        
+
         return df
 ```
 
@@ -209,7 +209,7 @@ from pydantic import Field
 class DuckDBResource(ConfigurableResource):
     database_path: str = Field(description="Path to DuckDB database")
     memory_limit: str = Field(default="2GB", description="Memory limit")
-    
+
     @contextmanager
     def get_connection(self):
         conn = None
@@ -223,20 +223,20 @@ class DuckDBResource(ConfigurableResource):
 
 @asset
 def resource_based_asset(
-    context: AssetExecutionContext, 
+    context: AssetExecutionContext,
     duckdb_resource: DuckDBResource
 ) -> pd.DataFrame:
     """Asset using ConfigurableResource."""
-    
+
     with duckdb_resource.get_connection() as conn:
         df = conn.execute("SELECT * FROM employees LIMIT 1000").df()
-        
+
         context.log.info(f"Loaded {len(df)} employees using resource")
         context.add_output_metadata({
             "database_path": duckdb_resource.database_path,
             "memory_limit": duckdb_resource.memory_limit
         })
-        
+
         return df
 ```
 
@@ -256,13 +256,13 @@ def config_driven_asset(
     config: SimulationConfig
 ) -> Dict[str, Any]:
     """Asset with configuration input."""
-    
+
     context.log.info(f"Running simulation from {config.start_year} to {config.end_year}")
-    
+
     with get_duckdb_connection("simulation.duckdb") as conn:
         # Use config in query
         query = f"""
-        SELECT 
+        SELECT
             simulation_year,
             COUNT(*) as headcount
         FROM fct_workforce_snapshot
@@ -270,9 +270,9 @@ def config_driven_asset(
         GROUP BY simulation_year
         ORDER BY simulation_year
         """
-        
+
         df = conn.execute(query).df()
-        
+
         # Return config + results
         return {
             "config": config.dict(),
@@ -290,55 +290,55 @@ def config_driven_asset(
 @asset
 def robust_error_handling_asset(context: AssetExecutionContext) -> pd.DataFrame:
     """Asset with comprehensive error handling."""
-    
+
     try:
         with get_duckdb_connection("simulation.duckdb") as conn:
             # Validate prerequisites
             table_exists = conn.execute("""
-                SELECT COUNT(*) FROM information_schema.tables 
+                SELECT COUNT(*) FROM information_schema.tables
                 WHERE table_name = 'employees'
             """).fetchone()[0]
-            
+
             if table_exists == 0:
                 raise ValueError("Required table 'employees' does not exist")
-            
+
             # Execute main query
             query = """
             SELECT employee_id, level_id, current_compensation
             FROM employees
             WHERE active_flag = true
             """
-            
+
             df = conn.execute(query).df()
-            
+
             # Validate results
             if df.empty:
                 context.log.warning("No active employees found")
                 return pd.DataFrame(columns=['employee_id', 'level_id', 'current_compensation'])
-            
+
             # Check data quality
             null_compensation = df['current_compensation'].isnull().sum()
             if null_compensation > 0:
                 context.log.warning(f"Found {null_compensation} employees with null compensation")
-            
+
             context.log.info(f"Successfully processed {len(df)} employees")
             return df
-            
+
     except duckdb.CatalogException as e:
         context.log.error(f"Database schema error: {str(e)}")
         context.log.error("Check that all required tables exist and have correct schema")
         raise
-    
+
     except duckdb.ConversionException as e:
         context.log.error(f"Data conversion error: {str(e)}")
         context.log.error("Check data types and formats in source tables")
         raise
-    
+
     except duckdb.Error as e:
         context.log.error(f"DuckDB error: {str(e)}")
         context.log.error(f"Query that failed: {query if 'query' in locals() else 'Unknown'}")
         raise
-    
+
     except Exception as e:
         context.log.error(f"Unexpected error in asset {context.asset_key}: {str(e)}")
         context.log.error(f"Asset execution context: {context}")
@@ -350,7 +350,7 @@ def robust_error_handling_asset(context: AssetExecutionContext) -> pd.DataFrame:
 @asset
 def fault_tolerant_asset(context: AssetExecutionContext) -> pd.DataFrame:
     """Asset with graceful degradation on partial failures."""
-    
+
     with get_duckdb_connection("simulation.duckdb") as conn:
         # Primary data source
         try:
@@ -359,12 +359,12 @@ def fault_tolerant_asset(context: AssetExecutionContext) -> pd.DataFrame:
                 FROM current_employees
                 WHERE active_flag = true
             """).df()
-            
+
             context.log.info(f"Loaded {len(primary_df)} records from primary source")
-            
+
         except duckdb.Error as e:
             context.log.warning(f"Primary source failed: {str(e)}, falling back to backup")
-            
+
             # Fallback to backup source
             try:
                 primary_df = conn.execute("""
@@ -372,21 +372,21 @@ def fault_tolerant_asset(context: AssetExecutionContext) -> pd.DataFrame:
                     FROM employee_backup
                     WHERE status = 'ACTIVE'
                 """).df()
-                
+
                 context.log.info(f"Loaded {len(primary_df)} records from backup source")
-                
+
             except duckdb.Error as backup_error:
                 context.log.error(f"Both primary and backup sources failed")
                 context.log.error(f"Primary error: {str(e)}")
                 context.log.error(f"Backup error: {str(backup_error)}")
-                
+
                 # Return empty DataFrame with correct schema
                 return pd.DataFrame(columns=['employee_id', 'level_id', 'current_compensation'])
-        
+
         # Enrich data if possible
         try:
             enriched_df = conn.execute("""
-                SELECT 
+                SELECT
                     p.employee_id,
                     p.level_id,
                     p.current_compensation,
@@ -394,10 +394,10 @@ def fault_tolerant_asset(context: AssetExecutionContext) -> pd.DataFrame:
                 FROM primary_df p
                 LEFT JOIN job_levels jl ON p.level_id = jl.level_id
             """).df()
-            
+
             context.log.info("Successfully enriched data with job levels")
             return enriched_df
-            
+
         except duckdb.Error as enrich_error:
             context.log.warning(f"Data enrichment failed: {str(enrich_error)}")
             context.log.warning("Returning primary data without enrichment")
@@ -420,19 +420,19 @@ def retry_on_duckdb_error(max_retries: int = 3, delay: float = 1.0):
                 except duckdb.Error as e:
                     if attempt == max_retries - 1:
                         raise
-                    
+
                     # Get context if available
-                    context = next((arg for arg in args 
+                    context = next((arg for arg in args
                                   if isinstance(arg, AssetExecutionContext)), None)
-                    
+
                     if context:
                         context.log.warning(
                             f"Attempt {attempt + 1} failed: {str(e)}. "
                             f"Retrying in {delay} seconds..."
                         )
-                    
+
                     time.sleep(delay * (2 ** attempt))  # Exponential backoff
-            
+
             return None
         return wrapper
     return decorator
@@ -440,7 +440,7 @@ def retry_on_duckdb_error(max_retries: int = 3, delay: float = 1.0):
 @asset
 def retry_enabled_asset(context: AssetExecutionContext) -> pd.DataFrame:
     """Asset with automatic retry on DuckDB errors."""
-    
+
     @retry_on_duckdb_error(max_retries=3, delay=1.0)
     def execute_query():
         with get_duckdb_connection("simulation.duckdb") as conn:
@@ -448,7 +448,7 @@ def retry_enabled_asset(context: AssetExecutionContext) -> pd.DataFrame:
                 SELECT * FROM potentially_locked_table
                 WHERE processing_date = CURRENT_DATE
             """).df()
-    
+
     df = execute_query()
     context.log.info(f"Successfully executed query with {len(df)} results")
     return df
@@ -471,11 +471,11 @@ def source_data(context: AssetExecutionContext) -> pd.DataFrame:
 @asset(deps=[source_data])
 def processed_data(context: AssetExecutionContext, source_data: pd.DataFrame) -> pd.DataFrame:
     """Asset that depends on source_data."""
-    
+
     # Process the input DataFrame
     processed_df = source_data.copy()
     processed_df['processed_at'] = pd.Timestamp.now()
-    
+
     # Store results in DuckDB
     with get_duckdb_connection("simulation.duckdb") as conn:
         conn.register('processed_temp', processed_df)
@@ -483,7 +483,7 @@ def processed_data(context: AssetExecutionContext, source_data: pd.DataFrame) ->
             CREATE OR REPLACE TABLE processed_employees AS
             SELECT * FROM processed_temp
         """)
-    
+
     context.log.info(f"Processed {len(processed_df)} records")
     return processed_df
 ```
@@ -496,7 +496,7 @@ def employee_data(context: AssetExecutionContext) -> pd.DataFrame:
     with get_duckdb_connection("simulation.duckdb") as conn:
         return conn.execute("SELECT * FROM employees").df()
 
-@asset  
+@asset
 def compensation_data(context: AssetExecutionContext) -> pd.DataFrame:
     """Compensation data."""
     with get_duckdb_connection("simulation.duckdb") as conn:
@@ -509,14 +509,14 @@ def enriched_employee_data(
     compensation_data: pd.DataFrame
 ) -> pd.DataFrame:
     """Enriched employee data combining multiple sources."""
-    
+
     # Merge DataFrames
     merged_df = employee_data.merge(
-        compensation_data, 
-        on='employee_id', 
+        compensation_data,
+        on='employee_id',
         how='left'
     )
-    
+
     # Store result
     with get_duckdb_connection("simulation.duckdb") as conn:
         conn.register('enriched_temp', merged_df)
@@ -524,7 +524,7 @@ def enriched_employee_data(
             CREATE OR REPLACE TABLE enriched_employees AS
             SELECT * FROM enriched_temp
         """)
-    
+
     context.log.info(f"Created enriched dataset with {len(merged_df)} records")
     return merged_df
 ```
@@ -534,18 +534,18 @@ def enriched_employee_data(
 @asset
 def conditional_processing_asset(context: AssetExecutionContext) -> pd.DataFrame:
     """Asset with conditional processing based on data availability."""
-    
+
     with get_duckdb_connection("simulation.duckdb") as conn:
         # Check if optional enhancement data exists
         enhancement_available = conn.execute("""
-            SELECT COUNT(*) FROM information_schema.tables 
+            SELECT COUNT(*) FROM information_schema.tables
             WHERE table_name = 'enhancement_data'
         """).fetchone()[0] > 0
-        
+
         if enhancement_available:
             context.log.info("Enhancement data available, using enriched query")
             query = """
-            SELECT 
+            SELECT
                 e.employee_id,
                 e.level_id,
                 e.current_compensation,
@@ -556,21 +556,21 @@ def conditional_processing_asset(context: AssetExecutionContext) -> pd.DataFrame
         else:
             context.log.info("Enhancement data not available, using basic query")
             query = """
-            SELECT 
+            SELECT
                 employee_id,
                 level_id,
                 current_compensation,
                 1.0 as enhancement_factor
             FROM employees
             """
-        
+
         df = conn.execute(query).df()
-        
+
         context.add_output_metadata({
             "enhancement_used": enhancement_available,
             "record_count": len(df)
         })
-        
+
         return df
 ```
 
@@ -583,29 +583,29 @@ def conditional_processing_asset(context: AssetExecutionContext) -> pd.DataFrame
 @asset
 def lazy_loading_asset(context: AssetExecutionContext) -> Dict[str, Any]:
     """Asset using lazy loading for large datasets."""
-    
+
     with get_duckdb_connection("simulation.duckdb") as conn:
         # Get metadata first
         metadata_query = """
-        SELECT 
+        SELECT
             COUNT(*) as total_records,
             MIN(created_date) as earliest_date,
             MAX(created_date) as latest_date
         FROM large_table
         """
-        
+
         metadata = conn.execute(metadata_query).fetchone()
-        
+
         context.log.info(f"Dataset contains {metadata[0]} records from {metadata[1]} to {metadata[2]}")
-        
+
         # Only load recent data
         recent_data_query = """
         SELECT * FROM large_table
         WHERE created_date >= CURRENT_DATE - INTERVAL '30 days'
         """
-        
+
         recent_df = conn.execute(recent_data_query).df()
-        
+
         return {
             "metadata": {
                 "total_records": int(metadata[0]),
@@ -622,20 +622,20 @@ def lazy_loading_asset(context: AssetExecutionContext) -> Dict[str, Any]:
 @asset
 def batch_processing_asset(context: AssetExecutionContext) -> pd.DataFrame:
     """Asset processing large datasets in batches."""
-    
+
     batch_size = 50000
     all_results = []
-    
+
     with get_duckdb_connection("simulation.duckdb") as conn:
         # Get total count
         total_count = conn.execute("SELECT COUNT(*) FROM large_employees_table").fetchone()[0]
-        
+
         context.log.info(f"Processing {total_count} records in batches of {batch_size}")
-        
+
         # Process in batches
         for offset in range(0, total_count, batch_size):
             batch_query = f"""
-            SELECT 
+            SELECT
                 employee_id,
                 level_id,
                 current_compensation,
@@ -645,26 +645,26 @@ def batch_processing_asset(context: AssetExecutionContext) -> pd.DataFrame:
             ORDER BY employee_id
             LIMIT {batch_size} OFFSET {offset}
             """
-            
+
             batch_df = conn.execute(batch_query).df()
-            
+
             # Process batch (your business logic here)
             processed_batch = batch_df.copy()
             processed_batch['batch_number'] = offset // batch_size + 1
             processed_batch['processed_at'] = pd.Timestamp.now()
-            
+
             all_results.append(processed_batch)
-            
+
             context.log.info(f"Processed batch {offset // batch_size + 1}: {len(batch_df)} records")
-        
+
         # Combine all batches
         final_df = pd.concat(all_results, ignore_index=True)
-        
+
         context.add_output_metadata({
             "total_batches": len(all_results),
             "final_record_count": len(final_df)
         })
-        
+
         return final_df
 ```
 
@@ -679,10 +679,10 @@ from dagster import materialize
 
 def test_asset_execution():
     """Test basic asset execution."""
-    
+
     # Setup test data
     test_db = "test_simulation.duckdb"
-    
+
     with get_duckdb_connection(test_db) as conn:
         conn.execute("""
             CREATE TABLE employees (
@@ -691,23 +691,23 @@ def test_asset_execution():
                 current_compensation DECIMAL
             )
         """)
-        
+
         conn.execute("""
             INSERT INTO employees VALUES
             ('E001', 1, 50000),
             ('E002', 2, 75000)
         """)
-    
+
     # Create test asset
     @asset
     def test_employee_asset():
         with get_duckdb_connection(test_db) as conn:
             return conn.execute("SELECT * FROM employees").df()
-    
+
     # Execute and validate
     result = materialize([test_employee_asset])
     assert result.success
-    
+
     output_df = result.output_for_node("test_employee_asset")
     assert len(output_df) == 2
     assert list(output_df.columns) == ['employee_id', 'level_id', 'current_compensation']
@@ -717,23 +717,23 @@ def test_asset_execution():
 ```python
 def test_asset_serialization():
     """Test that asset outputs are properly serializable."""
-    
+
     @asset
     def serializable_asset():
         with get_duckdb_connection("test.duckdb") as conn:
             # This should work - returns DataFrame
             return conn.execute("SELECT 1 as test_col").df()
-    
-    @asset  
+
+    @asset
     def non_serializable_asset():
         conn = duckdb.connect("test.duckdb")
         # This should fail - returns DuckDBPyRelation
         return conn.sql("SELECT 1 as test_col")
-    
+
     # Test serializable asset
     result = materialize([serializable_asset])
     assert result.success
-    
+
     # Test non-serializable asset (should fail)
     with pytest.raises(Exception):
         materialize([non_serializable_asset])
@@ -752,7 +752,7 @@ def test_asset_serialization():
 - **Always** validate data before processing
 - **Always** use AssetExecutionContext consistently
 
-### ❌ Don'ts  
+### ❌ Don'ts
 - **Never** return DuckDBPyRelation objects from assets
 - **Never** leave connections open without try/finally
 - **Never** ignore empty result sets without logging

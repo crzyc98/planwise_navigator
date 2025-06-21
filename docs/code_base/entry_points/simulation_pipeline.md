@@ -104,10 +104,10 @@ current_active = baseline_count + current_year_hires - current_year_terminations
 
 # CORRECT: Calculate cumulative from all events up to current year
 cumulative_events = conn.execute("""
-    SELECT 
+    SELECT
         SUM(CASE WHEN event_type = 'hire' THEN 1 ELSE 0 END) as total_hires,
         SUM(CASE WHEN event_type = 'termination' THEN 1 ELSE 0 END) as total_terminations
-    FROM fct_yearly_events 
+    FROM fct_yearly_events
     WHERE simulation_year <= ?
 """, [year]).fetchone()
 current_active = baseline_count + total_hires - total_terminations

@@ -16,24 +16,24 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      
+
       - name: Set up Python
         uses: actions/setup-python@v4
         with:
           python-version: ${{ env.PYTHON_VERSION }}
-      
+
       - name: Cache dependencies
         uses: actions/cache@v3
         with:
           path: ~/.cache/pip
           key: ${{ runner.os }}-pip-${{ hashFiles('requirements*.txt') }}
-      
+
       - name: Install dependencies
         run: |
           python -m pip install --upgrade pip
           pip install -r requirements.txt
           pip install -r requirements-dev.txt
-      
+
       - name: Run linting
         run: |
           black --check .
@@ -45,28 +45,28 @@ jobs:
     needs: lint
     steps:
       - uses: actions/checkout@v4
-      
+
       - name: Set up Python
         uses: actions/setup-python@v4
         with:
           python-version: ${{ env.PYTHON_VERSION }}
-      
+
       - name: Cache dependencies
         uses: actions/cache@v3
         with:
           path: ~/.cache/pip
           key: ${{ runner.os }}-pip-${{ hashFiles('requirements*.txt') }}
-      
+
       - name: Install dependencies
         run: |
           python -m pip install --upgrade pip
           pip install -r requirements.txt
           pip install -r requirements-dev.txt
-      
+
       - name: Run Python tests
         run: |
           pytest tests/ -v --cov=planwise_navigator --cov-report=xml
-      
+
       - name: Run dbt tests
         run: |
           cd dbt
@@ -74,7 +74,7 @@ jobs:
           dbt seed --profiles-dir .
           dbt run --profiles-dir .
           dbt test --profiles-dir .
-      
+
       - name: Upload coverage
         uses: codecov/codecov-action@v3
         with:
@@ -86,18 +86,18 @@ jobs:
     needs: test
     steps:
       - uses: actions/checkout@v4
-      
+
       - name: Build Docker image
         run: |
           docker build -t planwise-navigator:${{ github.sha }} .
-      
+
       - name: Run security scan
         uses: aquasecurity/trivy-action@master
         with:
           image-ref: planwise-navigator:${{ github.sha }}
           format: 'sarif'
           output: 'trivy-results.sarif'
-      
+
       - name: Upload scan results
         uses: github/codeql-action/upload-sarif@v2
         with:
@@ -108,16 +108,16 @@ jobs:
     needs: lint
     steps:
       - uses: actions/checkout@v4
-      
+
       - name: Set up Python
         uses: actions/setup-python@v4
         with:
           python-version: ${{ env.PYTHON_VERSION }}
-      
+
       - name: Install dbt
         run: |
           pip install dbt-core==1.8.8 dbt-duckdb==1.8.1
-      
+
       - name: Validate dbt project
         run: |
           cd dbt

@@ -158,12 +158,12 @@ The testing framework implements a multi-layered validation approach:
       {{ tolerance }} AS tolerance_threshold
     FROM {{ model }}
   ),
-  
+
   growth_rates AS (
     SELECT
       simulation_year,
-      CASE 
-        WHEN prev_headcount IS NOT NULL 
+      CASE
+        WHEN prev_headcount IS NOT NULL
         THEN (active_headcount - prev_headcount) * 1.0 / prev_headcount
         ELSE 0
       END AS actual_growth_rate,
@@ -172,7 +172,7 @@ The testing framework implements a multi-layered validation approach:
     FROM growth_validation
     WHERE prev_headcount IS NOT NULL
   )
-  
+
   SELECT *
   FROM growth_rates
   WHERE ABS(actual_growth_rate - target_rate) > tolerance_threshold
@@ -191,7 +191,7 @@ The testing framework implements a multi-layered validation approach:
     WHERE event_type = '{{ event_type }}'
     GROUP BY simulation_year
   )
-  
+
   SELECT *
   FROM event_counts
   WHERE event_count < {{ min_count }} OR event_count > {{ max_count }}
@@ -237,14 +237,14 @@ tests:
     description: "Ensure workforce changes match event volumes"
     sql: |
       WITH workforce_changes AS (
-        SELECT 
+        SELECT
           w.simulation_year,
           w.active_headcount - LAG(w.active_headcount) OVER (ORDER BY w.simulation_year) AS net_change,
           e.total_hires - e.total_terminations AS expected_change
         FROM {{ ref('fct_workforce_snapshot') }} w
         JOIN {{ ref('mart_workforce_summary') }} e ON w.simulation_year = e.simulation_year
       )
-      SELECT * FROM workforce_changes 
+      SELECT * FROM workforce_changes
       WHERE ABS(net_change - expected_change) > 5  -- Allow small rounding differences
 ```
 
@@ -268,9 +268,9 @@ tests:
       SELECT employee_id, simulation_year, event_sequence
       FROM {{ ref('fct_yearly_events') }}
       WHERE event_sequence != ROW_NUMBER() OVER (
-        PARTITION BY employee_id, simulation_year 
-        ORDER BY event_date, 
-        CASE event_type 
+        PARTITION BY employee_id, simulation_year
+        ORDER BY event_date,
+        CASE event_type
           WHEN 'termination' THEN 1
           WHEN 'hire' THEN 2
           WHEN 'promotion' THEN 3

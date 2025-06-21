@@ -1,7 +1,7 @@
 # DuckDB + Dagster Integration Patterns
 
-**Date**: 2025-06-21  
-**Version**: 2.0 (Rebuild Guidelines)  
+**Date**: 2025-06-21
+**Version**: 2.0 (Rebuild Guidelines)
 **Packages**: DuckDB 1.0.0, Dagster 1.10.20, dbt-duckdb 1.9.3
 
 ---
@@ -61,11 +61,11 @@ from typing import List, Dict, Any
 def workforce_snapshot(context: AssetExecutionContext) -> pd.DataFrame:
     """Generate workforce snapshot with proper connection handling."""
     database_path = "simulation.duckdb"
-    
+
     with get_duckdb_connection(database_path) as conn:
         # Execute query and fetch results
         query = """
-        SELECT 
+        SELECT
             employee_id,
             level_id,
             current_age,
@@ -75,13 +75,13 @@ def workforce_snapshot(context: AssetExecutionContext) -> pd.DataFrame:
         FROM fct_workforce_snapshot
         WHERE simulation_year = (SELECT MAX(simulation_year) FROM fct_workforce_snapshot)
         """
-        
+
         # Convert to DataFrame for serialization
         df = conn.execute(query).df()
-        
+
         # Log metrics for monitoring
         context.log.info(f"Generated workforce snapshot with {len(df)} employees")
-        
+
         return df
 ```
 
@@ -99,7 +99,7 @@ class SimulationConfig(BaseModel):
 def simulation_parameters(context: AssetExecutionContext, config: SimulationConfig) -> Dict[str, Any]:
     """Store simulation parameters in DuckDB for downstream use."""
     database_path = "simulation.duckdb"
-    
+
     with get_duckdb_connection(database_path) as conn:
         # Create parameters table if not exists
         conn.execute("""
@@ -109,24 +109,24 @@ def simulation_parameters(context: AssetExecutionContext, config: SimulationConf
             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
         )
         """)
-        
+
         # Clear existing parameters
         conn.execute("DELETE FROM simulation_parameters")
-        
+
         # Insert new parameters
         params = [
             ("start_year", str(config.start_year)),
             ("growth_rate", str(config.growth_rate)),
             ("random_seed", str(config.random_seed))
         ]
-        
+
         conn.executemany(
             "INSERT INTO simulation_parameters (parameter_name, parameter_value) VALUES (?, ?)",
             params
         )
-        
+
         context.log.info(f"Stored {len(params)} simulation parameters")
-        
+
         # Return serializable config dict
         return config.dict()
 ```
@@ -137,19 +137,19 @@ def simulation_parameters(context: AssetExecutionContext, config: SimulationConf
 def baseline_workforce(context: AssetExecutionContext) -> pd.DataFrame:
     """Load baseline workforce data with parameter validation."""
     database_path = "simulation.duckdb"
-    
+
     with get_duckdb_connection(database_path) as conn:
         # Validate parameters exist
         param_count = conn.execute(
             "SELECT COUNT(*) FROM simulation_parameters"
         ).fetchone()[0]
-        
+
         if param_count == 0:
             raise ValueError("Simulation parameters not found. Run simulation_parameters asset first.")
-        
+
         # Load baseline data
         query = """
-        SELECT 
+        SELECT
             employee_id,
             level_id,
             age,
@@ -159,15 +159,15 @@ def baseline_workforce(context: AssetExecutionContext) -> pd.DataFrame:
         FROM stg_census_data
         WHERE active_flag = true
         """
-        
+
         df = conn.execute(query).df()
-        
+
         # Validate data quality
         if df.empty:
             raise ValueError("No active employees found in baseline data")
-        
+
         context.log.info(f"Loaded baseline workforce: {len(df)} employees")
-        
+
         return df
 ```
 
@@ -183,35 +183,35 @@ def process_large_simulation(context: AssetExecutionContext) -> Dict[str, int]:
     database_path = "simulation.duckdb"
     chunk_size = 10000
     total_processed = 0
-    
+
     with get_duckdb_connection(database_path) as conn:
         # Get total count
         total_count = conn.execute(
             "SELECT COUNT(*) FROM employees"
         ).fetchone()[0]
-        
+
         # Process in chunks
         for offset in range(0, total_count, chunk_size):
             chunk_query = f"""
             SELECT * FROM employees
             LIMIT {chunk_size} OFFSET {offset}
             """
-            
+
             chunk_df = conn.execute(chunk_query).df()
-            
+
             # Process chunk (your business logic here)
             processed_chunk = process_employee_chunk(chunk_df)
-            
+
             # Write results back to DuckDB
             conn.register('processed_chunk', processed_chunk)
             conn.execute("""
-            INSERT INTO processed_employees 
+            INSERT INTO processed_employees
             SELECT * FROM processed_chunk
             """)
-            
+
             total_processed += len(processed_chunk)
             context.log.info(f"Processed chunk: {offset}-{offset + len(chunk_df)}")
-    
+
     return {"total_processed": total_processed}
 ```
 
@@ -222,28 +222,28 @@ from typing import Any
 
 class DuckDBIOManager(IOManager):
     """Custom IOManager for DuckDB table persistence."""
-    
+
     def __init__(self, database_path: str):
         self.database_path = database_path
-    
+
     def handle_output(self, context, obj: pd.DataFrame) -> None:
         """Store DataFrame as DuckDB table."""
         table_name = context.asset_key.path[-1]  # Use asset name as table name
-        
+
         with get_duckdb_connection(self.database_path) as conn:
             # Register DataFrame and create table
             conn.register('temp_df', obj)
             conn.execute(f"""
-            CREATE OR REPLACE TABLE {table_name} AS 
+            CREATE OR REPLACE TABLE {table_name} AS
             SELECT * FROM temp_df
             """)
-            
+
             context.log.info(f"Stored {len(obj)} rows in table {table_name}")
-    
+
     def load_input(self, context) -> pd.DataFrame:
         """Load DataFrame from DuckDB table."""
         table_name = context.asset_key.path[-1]
-        
+
         with get_duckdb_connection(self.database_path) as conn:
             df = conn.execute(f"SELECT * FROM {table_name}").df()
             context.log.info(f"Loaded {len(df)} rows from table {table_name}")
@@ -260,25 +260,25 @@ def duckdb_io_manager():
 def robust_simulation_asset(context: AssetExecutionContext) -> pd.DataFrame:
     """Robust asset with comprehensive error handling."""
     database_path = "simulation.duckdb"
-    
+
     try:
         with get_duckdb_connection(database_path) as conn:
             # Validate database state
             tables = conn.execute("""
-            SELECT table_name FROM information_schema.tables 
+            SELECT table_name FROM information_schema.tables
             WHERE table_schema = 'main'
             """).fetchall()
-            
+
             required_tables = ['employees', 'job_levels', 'hazard_tables']
             existing_tables = [t[0] for t in tables]
-            
+
             missing_tables = set(required_tables) - set(existing_tables)
             if missing_tables:
                 raise ValueError(f"Missing required tables: {missing_tables}")
-            
+
             # Execute main query with timeout
             query = """
-            SELECT 
+            SELECT
                 e.employee_id,
                 e.level_id,
                 jl.level_name,
@@ -287,22 +287,22 @@ def robust_simulation_asset(context: AssetExecutionContext) -> pd.DataFrame:
             JOIN job_levels jl ON e.level_id = jl.level_id
             WHERE e.active_flag = true
             """
-            
+
             df = conn.execute(query).df()
-            
+
             # Validate results
             if df.empty:
                 context.log.warning("Query returned no results")
                 return pd.DataFrame()
-            
+
             # Check for data quality issues
             null_compensation = df['current_compensation'].isnull().sum()
             if null_compensation > 0:
                 context.log.warning(f"Found {null_compensation} employees with null compensation")
-            
+
             context.log.info(f"Successfully processed {len(df)} employees")
             return df
-            
+
     except duckdb.Error as e:
         context.log.error(f"DuckDB error: {str(e)}")
         raise
@@ -322,20 +322,20 @@ from dagster_dbt import DbtCliResource, dbt_assets
 @dbt_assets(manifest=dbt_manifest_path)
 def dbt_simulation_models(context: AssetExecutionContext, dbt: DbtCliResource):
     """Execute dbt models with proper connection handling."""
-    
+
     # Run dbt with explicit connection management
     dbt_run_invocation = dbt.cli(["run", "--select", "marts"], context=context).wait()
-    
+
     # Check execution status
     if dbt_run_invocation.process is None or dbt_run_invocation.process.returncode != 0:
         raise RuntimeError("dbt run failed")
-    
+
     # Run tests
     dbt_test_invocation = dbt.cli(["test", "--select", "marts"], context=context).wait()
-    
+
     if dbt_test_invocation.process is None or dbt_test_invocation.process.returncode != 0:
         context.log.warning("dbt tests failed - check data quality")
-    
+
     return dbt_run_invocation
 ```
 
@@ -345,11 +345,11 @@ def dbt_simulation_models(context: AssetExecutionContext, dbt: DbtCliResource):
 def post_dbt_analysis(context: AssetExecutionContext) -> pd.DataFrame:
     """Perform Python analysis on dbt model outputs."""
     database_path = "simulation.duckdb"
-    
+
     with get_duckdb_connection(database_path) as conn:
         # Query dbt model output
         query = """
-        SELECT 
+        SELECT
             simulation_year,
             level_id,
             COUNT(*) as headcount,
@@ -358,15 +358,15 @@ def post_dbt_analysis(context: AssetExecutionContext) -> pd.DataFrame:
         GROUP BY simulation_year, level_id
         ORDER BY simulation_year, level_id
         """
-        
+
         df = conn.execute(query).df()
-        
+
         # Perform Python analysis
         df['compensation_growth'] = df.groupby('level_id')['avg_compensation'].pct_change()
         df['headcount_growth'] = df.groupby('level_id')['headcount'].pct_change()
-        
+
         context.log.info(f"Calculated growth metrics for {len(df)} level-year combinations")
-        
+
         return df
 ```
 
@@ -381,21 +381,21 @@ from pydantic import Field
 
 class DuckDBResource(ConfigurableResource):
     """DuckDB connection resource with configuration."""
-    
+
     database_path: str = Field(description="Path to DuckDB database file")
     memory_limit: str = Field(default="2GB", description="Memory limit for DuckDB")
     threads: int = Field(default=4, description="Number of threads for DuckDB")
-    
+
     def get_connection(self):
         """Get configured DuckDB connection."""
         conn = duckdb.connect(self.database_path)
-        
+
         # Apply configuration
         conn.execute(f"SET memory_limit = '{self.memory_limit}'")
         conn.execute(f"SET threads = {self.threads}")
-        
+
         return conn
-    
+
     @contextmanager
     def get_connection_context(self):
         """Get connection with automatic cleanup."""
@@ -422,7 +422,7 @@ def duckdb_resource():
 @asset
 def resource_based_asset(context: AssetExecutionContext, duckdb: DuckDBResource) -> pd.DataFrame:
     """Asset using DuckDB resource."""
-    
+
     with duckdb.get_connection_context() as conn:
         df = conn.execute("SELECT * FROM employees LIMIT 1000").df()
         context.log.info(f"Loaded {len(df)} employees using resource")
@@ -440,10 +440,10 @@ from dagster import materialize
 
 def test_workforce_snapshot_asset():
     """Test workforce snapshot asset execution."""
-    
+
     # Setup test database
     test_db = "test_simulation.duckdb"
-    
+
     with get_duckdb_connection(test_db) as conn:
         # Create test data
         conn.execute("""
@@ -454,17 +454,17 @@ def test_workforce_snapshot_asset():
             simulation_year INTEGER
         )
         """)
-        
+
         conn.execute("""
         INSERT INTO fct_workforce_snapshot VALUES
         ('E001', 1, 25, 2025),
         ('E002', 2, 30, 2025)
         """)
-    
+
     # Test asset execution
     result = materialize([workforce_snapshot])
     assert result.success
-    
+
     # Validate output
     output_df = result.output_for_node("workforce_snapshot")
     assert len(output_df) == 2
@@ -475,23 +475,23 @@ def test_workforce_snapshot_asset():
 ```python
 def test_full_simulation_pipeline():
     """Test complete simulation pipeline."""
-    
+
     # Setup test configuration
     config = SimulationConfig(
         start_year=2025,
         growth_rate=0.03,
         random_seed=42
     )
-    
+
     # Execute pipeline
     result = materialize([
         simulation_parameters,
         baseline_workforce,
         workforce_snapshot
     ], run_config={"ops": {"simulation_parameters": {"config": config}}})
-    
+
     assert result.success
-    
+
     # Validate pipeline outputs
     assert result.output_for_node("simulation_parameters")["start_year"] == 2025
     assert len(result.output_for_node("baseline_workforce")) > 0
@@ -540,7 +540,7 @@ def safe_asset():
 @asset
 def schema_safe_asset(context: AssetExecutionContext) -> pd.DataFrame:
     """Handle schema changes gracefully."""
-    
+
     with get_duckdb_connection("simulation.duckdb") as conn:
         # Check if new column exists
         try:
@@ -549,13 +549,13 @@ def schema_safe_asset(context: AssetExecutionContext) -> pd.DataFrame:
         except duckdb.CatalogException:
             has_new_column = False
             context.log.info("New column not found, using legacy schema")
-        
+
         # Adapt query based on schema
         if has_new_column:
             query = "SELECT employee_id, level_id, new_column FROM employees"
         else:
             query = "SELECT employee_id, level_id, NULL as new_column FROM employees"
-        
+
         return conn.execute(query).df()
 ```
 
@@ -568,11 +568,11 @@ def schema_safe_asset(context: AssetExecutionContext) -> pd.DataFrame:
 @asset
 def optimized_asset(context: AssetExecutionContext) -> pd.DataFrame:
     """Optimized DuckDB queries for performance."""
-    
+
     with get_duckdb_connection("simulation.duckdb") as conn:
         # Use columnar advantages
         query = """
-        SELECT 
+        SELECT
             level_id,
             COUNT(*) as headcount,
             AVG(current_compensation) as avg_comp,
@@ -582,16 +582,16 @@ def optimized_asset(context: AssetExecutionContext) -> pd.DataFrame:
         GROUP BY level_id
         ORDER BY level_id
         """
-        
+
         # Enable query profiling
         conn.execute("PRAGMA enable_profiling")
-        
+
         df = conn.execute(query).df()
-        
+
         # Get query statistics
         profile = conn.execute("PRAGMA profiling_output").fetchall()
         context.log.info(f"Query executed in {profile}")
-        
+
         return df
 ```
 
@@ -600,41 +600,41 @@ def optimized_asset(context: AssetExecutionContext) -> pd.DataFrame:
 @asset
 def memory_efficient_asset(context: AssetExecutionContext) -> pd.DataFrame:
     """Process large datasets with memory efficiency."""
-    
+
     with get_duckdb_connection("simulation.duckdb") as conn:
         # Configure memory settings
         conn.execute("SET memory_limit = '2GB'")
         conn.execute("SET max_memory = '2GB'")
-        
+
         # Use streaming for large results
         query = """
         SELECT * FROM large_table
         WHERE processing_date >= '2025-01-01'
         """
-        
+
         # Process in streaming fashion
         cursor = conn.cursor()
         cursor.execute(query)
-        
+
         # Fetch in batches
         batch_size = 50000
         all_results = []
-        
+
         while True:
             batch = cursor.fetchmany(batch_size)
             if not batch:
                 break
-            
+
             # Process batch
             batch_df = pd.DataFrame(batch, columns=[desc[0] for desc in cursor.description])
             processed_batch = process_batch(batch_df)
             all_results.append(processed_batch)
-            
+
             context.log.info(f"Processed batch of {len(batch)} rows")
-        
+
         # Combine results
         final_df = pd.concat(all_results, ignore_index=True)
-        
+
         return final_df
 ```
 
@@ -649,7 +649,7 @@ from dagster import asset_check, AssetCheckResult
 @asset_check(asset=workforce_snapshot)
 def check_workforce_data_quality(context: AssetExecutionContext) -> AssetCheckResult:
     """Validate workforce snapshot data quality."""
-    
+
     with get_duckdb_connection("simulation.duckdb") as conn:
         # Check for null values
         null_check = conn.execute("""
@@ -657,33 +657,33 @@ def check_workforce_data_quality(context: AssetExecutionContext) -> AssetCheckRe
         FROM fct_workforce_snapshot
         WHERE employee_id IS NULL OR level_id IS NULL
         """).fetchone()[0]
-        
+
         # Check for duplicate employees
         duplicate_check = conn.execute("""
         SELECT COUNT(*) - COUNT(DISTINCT employee_id) as duplicate_count
         FROM fct_workforce_snapshot
         WHERE simulation_year = (SELECT MAX(simulation_year) FROM fct_workforce_snapshot)
         """).fetchone()[0]
-        
+
         # Check compensation ranges
         comp_check = conn.execute("""
-        SELECT 
+        SELECT
             MIN(current_compensation) as min_comp,
             MAX(current_compensation) as max_comp
         FROM fct_workforce_snapshot
         """).fetchone()
-        
+
         # Validate results
         issues = []
         if null_check > 0:
             issues.append(f"Found {null_check} rows with null critical fields")
-        
+
         if duplicate_check > 0:
             issues.append(f"Found {duplicate_check} duplicate employees")
-        
+
         if comp_check[0] < 0 or comp_check[1] > 1000000:
             issues.append(f"Compensation out of range: {comp_check[0]} - {comp_check[1]}")
-        
+
         if issues:
             return AssetCheckResult(
                 success=False,
@@ -691,7 +691,7 @@ def check_workforce_data_quality(context: AssetExecutionContext) -> AssetCheckRe
             )
         else:
             return AssetCheckResult(
-                success=True, 
+                success=True,
                 description="All data quality checks passed"
             )
 ```

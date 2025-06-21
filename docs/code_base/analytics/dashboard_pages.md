@@ -33,28 +33,28 @@ def main():
         page_icon="📈",
         layout="wide"
     )
-    
+
     st.title("📈 Workforce Growth Overview")
     st.markdown("Monitor workforce growth trends and target achievement")
-    
+
     # Initialize data loader
     data_loader = DataLoader()
-    
+
     # Sidebar filters
     with st.sidebar:
         st.header("Filters")
-        
+
         # Year range selector
         years = create_year_filter(data_loader.get_available_years())
-        
+
         # Scenario selector
         scenarios = create_scenario_selector(data_loader.get_scenarios())
-        
+
         # Refresh data button
         if st.button("🔄 Refresh Data"):
             st.cache_data.clear()
             st.rerun()
-    
+
     # Load workforce summary data
     @st.cache_data(ttl=300)
     def load_growth_data(year_range, scenario_list):
@@ -63,66 +63,66 @@ def main():
             end_year=year_range[1],
             scenarios=scenario_list
         )
-    
+
     df_summary = load_growth_data(years, scenarios)
-    
+
     if df_summary.empty:
         st.warning("No data available for selected filters")
         return
-    
+
     # Key metrics row
     col1, col2, col3, col4 = st.columns(4)
-    
+
     current_year_data = df_summary[df_summary['simulation_year'] == years[1]]
-    
+
     with col1:
         if not current_year_data.empty:
             current_headcount = current_year_data['active_headcount'].iloc[0]
             prev_headcount = df_summary[df_summary['simulation_year'] == years[1]-1]['active_headcount'].iloc[0] if len(df_summary) > 1 else None
             delta = current_headcount - prev_headcount if prev_headcount else 0
-            
+
             st.metric(
                 label="Current Workforce",
                 value=f"{current_headcount:,}",
                 delta=f"{delta:+,}" if delta != 0 else None
             )
-    
+
     with col2:
         if not current_year_data.empty:
             growth_rate = current_year_data['growth_rate_percent'].iloc[0]
             target_rate = 3.0  # From config
-            
+
             st.metric(
                 label="Growth Rate",
                 value=f"{growth_rate:.1f}%",
                 delta=f"{growth_rate - target_rate:+.1f}% vs target"
             )
-    
+
     with col3:
         if not current_year_data.empty:
             turnover_rate = current_year_data['turnover_rate_percent'].iloc[0]
             target_turnover = 12.0  # From config
-            
+
             st.metric(
                 label="Turnover Rate",
                 value=f"{turnover_rate:.1f}%",
                 delta=f"{turnover_rate - target_turnover:+.1f}% vs target"
             )
-    
+
     with col4:
         if not current_year_data.empty:
             total_comp = current_year_data['total_compensation'].iloc[0]
             comp_change = current_year_data['compensation_change'].iloc[0]
-            
+
             st.metric(
                 label="Total Compensation",
                 value=f"${total_comp/1e6:.1f}M",
                 delta=f"${comp_change/1e6:+.1f}M"
             )
-    
+
     # Main visualization area
     tab1, tab2, tab3 = st.tabs(["📊 Growth Trends", "🎯 Target Analysis", "💰 Financial Impact"])
-    
+
     with tab1:
         # Workforce growth over time
         fig_growth = make_subplots(
@@ -131,7 +131,7 @@ def main():
             specs=[[{"secondary_y": False}, {"secondary_y": False}],
                    [{"secondary_y": True}, {"secondary_y": False}]]
         )
-        
+
         # Headcount trend
         fig_growth.add_trace(
             go.Scatter(
@@ -143,7 +143,7 @@ def main():
             ),
             row=1, col=1
         )
-        
+
         # Growth rate
         fig_growth.add_trace(
             go.Scatter(
@@ -155,34 +155,34 @@ def main():
             ),
             row=1, col=2
         )
-        
+
         # Target line
         fig_growth.add_hline(
             y=3.0, line_dash="dash", line_color="red",
             annotation_text="Target (3%)",
             row=1, col=2
         )
-        
+
         fig_growth.update_layout(
             height=600,
             showlegend=True,
             title_text="Workforce Growth Analysis"
         )
-        
+
         st.plotly_chart(fig_growth, use_container_width=True)
-    
+
     with tab2:
         # Target vs actual analysis
         st.subheader("Target Achievement Analysis")
-        
+
         target_comparison = df_summary.copy()
         target_comparison['growth_target'] = 3.0
         target_comparison['turnover_target'] = 12.0
         target_comparison['growth_variance'] = target_comparison['growth_rate_percent'] - target_comparison['growth_target']
         target_comparison['turnover_variance'] = target_comparison['turnover_rate_percent'] - target_comparison['turnover_target']
-        
+
         col1, col2 = st.columns(2)
-        
+
         with col1:
             fig_growth_target = px.bar(
                 target_comparison,
@@ -196,7 +196,7 @@ def main():
                 }
             )
             st.plotly_chart(fig_growth_target, use_container_width=True)
-        
+
         with col2:
             fig_turnover_target = px.bar(
                 target_comparison,
@@ -210,16 +210,16 @@ def main():
                 }
             )
             st.plotly_chart(fig_turnover_target, use_container_width=True)
-    
+
     with tab3:
         # Financial impact analysis
         st.subheader("Financial Impact Analysis")
-        
+
         fig_financial = make_subplots(
             rows=1, cols=2,
             subplot_titles=('Total Compensation Over Time', 'Annual Compensation Changes')
         )
-        
+
         fig_financial.add_trace(
             go.Scatter(
                 x=df_summary['simulation_year'],
@@ -230,7 +230,7 @@ def main():
             ),
             row=1, col=1
         )
-        
+
         fig_financial.add_trace(
             go.Bar(
                 x=df_summary['simulation_year'],
@@ -240,19 +240,19 @@ def main():
             ),
             row=1, col=2
         )
-        
+
         fig_financial.update_layout(
             height=400,
             showlegend=True
         )
-        
+
         st.plotly_chart(fig_financial, use_container_width=True)
-        
+
         # Financial metrics table
         financial_metrics = df_summary[['simulation_year', 'total_compensation', 'cost_per_employee', 'cost_per_hire']].copy()
         financial_metrics['total_compensation'] = (financial_metrics['total_compensation'] / 1e6).round(1)
         financial_metrics.columns = ['Year', 'Total Comp ($M)', 'Cost/Employee ($)', 'Cost/Hire ($)']
-        
+
         st.subheader("Financial Metrics Summary")
         st.dataframe(financial_metrics, use_container_width=True)
 
@@ -279,21 +279,21 @@ if __name__ == "__main__":
 def create_scenario_comparison():
     """Create scenario comparison interface"""
     st.header("🎯 Scenario Planning & Analysis")
-    
+
     # Scenario configuration interface
     with st.expander("📋 Configure New Scenario", expanded=False):
         col1, col2 = st.columns(2)
-        
+
         with col1:
             scenario_name = st.text_input("Scenario Name", value="Custom Scenario 1")
             growth_rate = st.slider("Target Growth Rate (%)", -5.0, 15.0, 3.0, 0.1)
             termination_rate = st.slider("Termination Rate (%)", 5.0, 25.0, 12.0, 0.5)
-        
+
         with col2:
             promotion_rate = st.slider("Promotion Rate (%)", 5.0, 25.0, 15.0, 0.5)
             merit_budget = st.slider("Merit Budget (% of payroll)", 1.0, 8.0, 4.0, 0.1)
             years_to_simulate = st.selectbox("Years to Simulate", [1, 3, 5, 10], index=2)
-        
+
         if st.button("🚀 Run Scenario"):
             # Trigger scenario execution
             run_custom_scenario(scenario_name, {
@@ -303,19 +303,19 @@ def create_scenario_comparison():
                 'merit_budget': merit_budget,
                 'years': years_to_simulate
             })
-    
+
     # Scenario comparison
     saved_scenarios = load_saved_scenarios()
-    
+
     if len(saved_scenarios) >= 2:
         st.subheader("📊 Compare Scenarios")
-        
+
         selected_scenarios = st.multiselect(
             "Select scenarios to compare",
             options=saved_scenarios['scenario_name'].tolist(),
             default=saved_scenarios['scenario_name'].tolist()[:2]
         )
-        
+
         if len(selected_scenarios) >= 2:
             comparison_data = load_scenario_comparison(selected_scenarios)
             create_comparison_charts(comparison_data)
@@ -374,13 +374,13 @@ def create_workforce_trend_chart(data, metric_column, title):
         markers=True,
         line_shape='linear'
     )
-    
+
     fig.update_layout(
         height=400,
         hovermode='x unified',
         showlegend=True
     )
-    
+
     return fig
 
 def create_composition_pie_chart(data, values_col, names_col, title):
@@ -392,7 +392,7 @@ def create_composition_pie_chart(data, values_col, names_col, title):
         title=title,
         hole=0.3
     )
-    
+
     fig.update_traces(textposition='inside', textinfo='percent+label')
     return fig
 ```
@@ -405,7 +405,7 @@ def create_composition_pie_chart(data, values_col, names_col, title):
 class DataLoader:
     def __init__(self, db_path="simulation.duckdb"):
         self.db_path = db_path
-    
+
     @st.cache_data(ttl=300)
     def get_workforce_summary(self, start_year=None, end_year=None, scenarios=None):
         """Load workforce summary data with caching"""
@@ -413,22 +413,22 @@ class DataLoader:
         SELECT * FROM mart_workforce_summary
         WHERE 1=1
         """
-        
+
         params = []
         if start_year:
             query += " AND simulation_year >= ?"
             params.append(start_year)
-        
+
         if end_year:
             query += " AND simulation_year <= ?"
             params.append(end_year)
-        
+
         return self._execute_query(query, params)
-    
+
     def _execute_query(self, query, params=None):
         """Execute database query with connection management"""
         import duckdb
-        
+
         try:
             with duckdb.connect(self.db_path) as conn:
                 if params:

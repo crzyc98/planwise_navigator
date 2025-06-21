@@ -32,7 +32,7 @@ Python	CPython	3.11.x	Long-term support version
 graph TD
     config[config/simulation_config.yaml] --> dagster[Dagster Pipeline]
     census[census_raw] --> baseline[int_baseline_workforce]
-    baseline --> snapshot[prepare_year_snapshot] 
+    baseline --> snapshot[prepare_year_snapshot]
     snapshot --> prev_year[int_previous_year_workforce]
     prev_year --> events[Event Models]
     events --> yearly_events[fct_yearly_events]
@@ -203,7 +203,7 @@ def workforce_data(context: AssetExecutionContext, duckdb: DuckDBResource) -> pd
         # ✅ Convert immediately to DataFrame - serializable
         df = conn.execute("SELECT * FROM employees").df()
         return df  # Safe to return
-        
+
 # ❌ WRONG: Never return DuckDB objects
 @asset
 def broken_asset():
@@ -242,10 +242,10 @@ current_active = baseline_count + current_year_hires - current_year_terminations
 
 # CORRECT: Calculate cumulative from all events up to current year
 cumulative_events = conn.execute("""
-    SELECT 
+    SELECT
         SUM(CASE WHEN event_type = 'hire' THEN 1 ELSE 0 END) as total_hires,
         SUM(CASE WHEN event_type = 'termination' THEN 1 ELSE 0 END) as total_terminations
-    FROM fct_yearly_events 
+    FROM fct_yearly_events
     WHERE simulation_year <= ?
 """, [year]).fetchone()
 current_active = baseline_count + total_hires - total_terminations

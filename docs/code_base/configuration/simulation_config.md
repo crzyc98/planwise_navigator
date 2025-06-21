@@ -14,7 +14,7 @@ This configuration file uses a hierarchical YAML structure with validation throu
 ```yaml
 simulation:
   start_year: 2025              # Simulation starting year
-  end_year: 2029                # Final simulation year  
+  end_year: 2029                # Final simulation year
   random_seed: 42               # Reproducibility seed
   validation_enabled: true      # Enable/disable validation checks
 ```
@@ -134,7 +134,7 @@ simulation:
   end_year: 2030
   random_seed: null  # Use random seed
   validation_enabled: true
-  
+
 workforce:
   target_growth_rate: 0.035
   total_termination_rate: 0.125
@@ -152,8 +152,8 @@ scenarios:
     workforce:
       target_growth_rate: 0.015
       total_termination_rate: 0.15
-  
-  # Aggressive growth scenario  
+
+  # Aggressive growth scenario
   aggressive:
     workforce:
       target_growth_rate: 0.05
@@ -182,7 +182,7 @@ scenarios:
 # Example validation error
 workforce:
   target_growth_rate: 1.5  # ERROR: >100% growth not realistic
-  
+
 # Corrected version
 workforce:
   target_growth_rate: 0.15  # 15% growth is reasonable

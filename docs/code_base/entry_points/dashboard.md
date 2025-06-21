@@ -41,7 +41,7 @@ dashboard:
   title: "PlanWise Navigator - Workforce Analytics"
   theme: "light"
   sidebar_state: "expanded"
-  
+
 data:
   refresh_interval: 30  # seconds
   cache_ttl: 300       # seconds

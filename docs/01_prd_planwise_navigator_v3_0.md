@@ -1,8 +1,8 @@
 # PlanWise Navigator - Product Requirements Document v3.0
 
-**Date**: 2025-06-21  
-**Version**: 3.0 (Complete Rebuild)  
-**Status**: Ready for Implementation  
+**Date**: 2025-06-21
+**Version**: 3.0 (Complete Rebuild)
+**Status**: Ready for Implementation
 **Target GA**: Q1 2025
 
 ---
@@ -13,7 +13,7 @@ PlanWise Navigator is Fidelity's on-premises workforce simulation platform that 
 
 ### Key Objectives
 - **Simulate** multi-year workforce scenarios with configurable parameters
-- **Project** headcount, compensation costs, and organizational structure changes  
+- **Project** headcount, compensation costs, and organizational structure changes
 - **Analyze** impact of policy changes (promotion rates, termination rates, hiring targets)
 - **Deliver** interactive dashboards and reports for strategic decision-making
 
@@ -43,22 +43,22 @@ PlanWise Navigator is Fidelity's on-premises workforce simulation platform that 
 ```mermaid
 graph TB
     subgraph "Data Layer"
-        A[DuckDB 1.0.0<br/>Column Store] 
+        A[DuckDB 1.0.0<br/>Column Store]
         B[dbt-core 1.8.8<br/>Transformations]
         C[Seeds/Config<br/>CSV Files]
     end
-    
+
     subgraph "Orchestration Layer"
         D[Dagster 1.8.12<br/>Asset Pipeline]
         E[DuckDBResource<br/>Connection Mgmt]
         F[Config Validation<br/>Pydantic 2.7.4]
     end
-    
+
     subgraph "Application Layer"
         G[Streamlit 1.39.0<br/>Dashboard]
         H[Export APIs<br/>CSV/PDF]
     end
-    
+
     C --> B
     B --> A
     A --> E
@@ -67,7 +67,7 @@ graph TB
     D --> A
     A --> G
     G --> H
-    
+
     style A fill:#f9f,stroke:#333,stroke-width:4px
     style D fill:#bbf,stroke:#333,stroke-width:4px
 ```
@@ -80,24 +80,24 @@ graph LR
         R[Raw Census Data]
         C[Config Seeds]
     end
-    
+
     subgraph "Staging"
         S[stg_census_data]
         SC[stg_config_*]
     end
-    
+
     subgraph "Intermediate"
         IB[int_baseline_workforce]
         IH[int_hazard_tables]
         IE[int_*_events]
     end
-    
+
     subgraph "Marts"
         FW[fct_workforce_snapshot]
         FE[fct_yearly_events]
         MA[mart_analytics]
     end
-    
+
     R --> S
     C --> SC
     S --> IB
@@ -207,7 +207,7 @@ def workforce_data(context: AssetExecutionContext, duckdb: DuckDBResource) -> pd
         # ✅ CORRECT: Convert immediately to DataFrame
         df = conn.execute("SELECT * FROM employees").df()
         return df  # Serializable
-        
+
 # ❌ WRONG: Never do this
 @asset
 def broken_asset():
@@ -371,12 +371,12 @@ simulation:
   start_year: 2025
   end_year: 2029
   random_seed: 42
-  
+
 workforce:
   target_growth_rate: 0.03
   total_termination_rate: 0.12
   new_hire_termination_rate: 0.25
-  
+
 compensation:
   cola_rate: 0.025
   merit_budget: 0.04

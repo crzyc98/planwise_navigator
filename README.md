@@ -273,7 +273,7 @@ def workforce_data(context: AssetExecutionContext, duckdb: DuckDBResource) -> pd
         # Convert immediately to DataFrame - serializable
         df = conn.execute("SELECT * FROM employees").df()
         return df  # Safe to return
-        
+
 # ❌ WRONG: Never return DuckDB objects
 @asset
 def broken_asset():

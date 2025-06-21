@@ -23,15 +23,15 @@ WITH workforce_progression AS (
   -- Start with baseline workforce
   SELECT * FROM {{ ref('int_baseline_workforce') }}
   WHERE simulation_year = {{ var('baseline_year') }}
-  
+
   UNION ALL
-  
+
   -- Apply all events cumulatively through target year
   SELECT
     COALESCE(w.employee_id, e.employee_id) AS employee_id,
     COALESCE(w.employee_ssn, e.employee_ssn) AS employee_ssn,
     {{ var('current_simulation_year') }} AS simulation_year,
-    CASE 
+    CASE
       WHEN e.event_type = 'termination' THEN 'terminated'
       WHEN e.event_type = 'hire' THEN 'active'
       ELSE COALESCE(w.employment_status, 'active')
@@ -48,7 +48,7 @@ WITH workforce_progression AS (
       ELSE w.current_compensation * (1 + {{ var('cola_rate', 0.025) }})
     END AS current_compensation
   FROM {{ ref('int_previous_year_workforce') }} w
-  FULL OUTER JOIN {{ ref('fct_yearly_events') }} e 
+  FULL OUTER JOIN {{ ref('fct_yearly_events') }} e
     ON w.employee_id = e.employee_id
     AND e.simulation_year <= {{ var('current_simulation_year') }}
 )
@@ -103,9 +103,9 @@ WITH unified_events AS (
     hire_date AS event_date,
     'new_hire' AS event_subtype
   FROM {{ ref('int_hiring_events') }}
-  
+
   UNION ALL
-  
+
   -- Promotion events
   SELECT
     employee_id,
@@ -117,9 +117,9 @@ WITH unified_events AS (
     effective_date AS event_date,
     'career_advancement' AS event_subtype
   FROM {{ ref('int_promotion_events') }}
-  
+
   UNION ALL
-  
+
   -- Termination events
   SELECT
     employee_id,
@@ -131,9 +131,9 @@ WITH unified_events AS (
     termination_date AS event_date,
     termination_reason AS event_subtype
   FROM {{ ref('int_termination_events') }}
-  
+
   UNION ALL
-  
+
   -- Merit raise events
   SELECT
     employee_id,
@@ -158,9 +158,9 @@ SELECT
   event_date,
   -- Event sequencing
   ROW_NUMBER() OVER (
-    PARTITION BY employee_id, simulation_year 
-    ORDER BY event_date, 
-    CASE event_type 
+    PARTITION BY employee_id, simulation_year
+    ORDER BY event_date,
+    CASE event_type
       WHEN 'termination' THEN 1
       WHEN 'hire' THEN 2
       WHEN 'promotion' THEN 3
@@ -192,23 +192,23 @@ WITH workforce_metrics AS (
     COUNT(*) AS total_headcount,
     COUNT(*) FILTER (WHERE employment_status = 'active') AS active_headcount,
     COUNT(*) FILTER (WHERE employment_status = 'terminated') AS terminated_headcount,
-    
+
     -- Level distribution
     COUNT(*) FILTER (WHERE level_id = 1) AS level_1_count,
     COUNT(*) FILTER (WHERE level_id = 2) AS level_2_count,
     COUNT(*) FILTER (WHERE level_id = 3) AS level_3_count,
     COUNT(*) FILTER (WHERE level_id = 4) AS level_4_count,
     COUNT(*) FILTER (WHERE level_id = 5) AS level_5_count,
-    
+
     -- Compensation metrics
     SUM(current_compensation) AS total_compensation,
     AVG(current_compensation) AS avg_compensation,
     PERCENTILE_CONT(0.5) WITHIN GROUP (ORDER BY current_compensation) AS median_compensation,
-    
+
     -- Demographics
     AVG(current_age) AS avg_age,
     AVG(current_tenure) / 12.0 AS avg_tenure_years,
-    
+
     -- Diversity metrics
     COUNT(*) FILTER (WHERE age_band IN ('< 30', '30-39')) AS early_career_count,
     COUNT(*) FILTER (WHERE age_band IN ('40-49', '50-59')) AS mid_career_count,
@@ -225,13 +225,13 @@ event_metrics AS (
     COUNT(*) FILTER (WHERE event_type = 'promotion') AS total_promotions,
     COUNT(*) FILTER (WHERE event_type = 'termination') AS total_terminations,
     COUNT(*) FILTER (WHERE event_type = 'merit_raise') AS total_merit_raises,
-    
+
     -- Financial impacts
     SUM(financial_impact) FILTER (WHERE event_type = 'hire') AS hiring_cost,
     SUM(financial_impact) FILTER (WHERE event_type = 'promotion') AS promotion_cost,
     SUM(financial_impact) FILTER (WHERE event_type = 'merit_raise') AS merit_cost,
     ABS(SUM(financial_impact) FILTER (WHERE event_type = 'termination')) AS termination_savings,
-    
+
     -- Rates and ratios
     COUNT(*) FILTER (WHERE event_type = 'termination' AND event_subtype = 'voluntary') AS voluntary_terms,
     COUNT(*) FILTER (WHERE event_type = 'termination' AND event_subtype = 'involuntary') AS involuntary_terms
@@ -247,29 +247,29 @@ SELECT
   w.avg_compensation,
   w.avg_age,
   w.avg_tenure_years,
-  
+
   -- Growth metrics
   w.active_headcount - LAG(w.active_headcount) OVER (ORDER BY w.simulation_year) AS headcount_change,
   ROUND(
-    (w.active_headcount - LAG(w.active_headcount) OVER (ORDER BY w.simulation_year)) * 100.0 / 
+    (w.active_headcount - LAG(w.active_headcount) OVER (ORDER BY w.simulation_year)) * 100.0 /
     LAG(w.active_headcount) OVER (ORDER BY w.simulation_year), 2
   ) AS growth_rate_percent,
-  
+
   -- Event summary
   e.total_hires,
   e.total_promotions,
   e.total_terminations,
   e.total_merit_raises,
-  
+
   -- Turnover analysis
   ROUND(e.total_terminations * 100.0 / w.active_headcount, 2) AS turnover_rate_percent,
   ROUND(e.voluntary_terms * 100.0 / NULLIF(e.total_terminations, 0), 2) AS voluntary_turnover_percent,
-  
+
   -- Financial analysis
   e.hiring_cost + e.promotion_cost + e.merit_cost AS total_compensation_investment,
   e.termination_savings,
   w.total_compensation - LAG(w.total_compensation) OVER (ORDER BY w.simulation_year) AS compensation_change,
-  
+
   -- Efficiency metrics
   ROUND(w.total_compensation / w.active_headcount, 0) AS cost_per_employee,
   ROUND(e.hiring_cost / NULLIF(e.total_hires, 0), 0) AS cost_per_hire
@@ -348,11 +348,11 @@ Each mart model includes comprehensive data quality checks:
 ### Dashboard Queries
 ```sql
 -- Get current year workforce summary
-SELECT * FROM mart_workforce_summary 
+SELECT * FROM mart_workforce_summary
 WHERE simulation_year = 2025;
 
 -- Compare growth across years
-SELECT 
+SELECT
   simulation_year,
   active_headcount,
   growth_rate_percent,
@@ -364,7 +364,7 @@ ORDER BY simulation_year;
 ### Analysis Queries
 ```sql
 -- Analyze promotion patterns
-SELECT 
+SELECT
   from_level,
   to_level,
   COUNT(*) as promotion_count,

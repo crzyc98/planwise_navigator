@@ -22,7 +22,7 @@ These models implement a sophisticated event-driven workforce simulation using:
 ```sql
 -- Calculate total hiring need
 hiring_need AS (
-  SELECT 
+  SELECT
     target_growth_hires + replacement_hires + strategic_hires AS total_need,
     LEAST(total_need, budget_constraint, capacity_constraint) AS actual_hires
   FROM workforce_planning
@@ -56,7 +56,7 @@ hire_events AS (
 ```sql
 -- Identify promotion-eligible employees
 eligible_employees AS (
-  SELECT 
+  SELECT
     employee_id,
     current_level,
     tenure_months,
@@ -80,8 +80,8 @@ promotion_events AS (
   FROM eligible_employees
   WHERE RANDOM() < promotion_probability
     AND employee_id IN (
-      SELECT employee_id 
-      FROM eligible_employees 
+      SELECT employee_id
+      FROM eligible_employees
       ORDER BY promotion_probability DESC
       LIMIT promotion_budget_slots
     )
@@ -106,7 +106,7 @@ termination_risk AS (
   SELECT
     employee_id,
     base_termination_rate * age_multiplier * tenure_multiplier * performance_multiplier AS termination_probability,
-    CASE 
+    CASE
       WHEN tenure_months <= 12 THEN new_hire_termination_rate
       ELSE total_termination_rate
     END AS applicable_rate
@@ -119,7 +119,7 @@ termination_events AS (
   SELECT
     employee_id,
     'termination' AS event_type,
-    CASE 
+    CASE
       WHEN RANDOM() < 0.7 THEN 'voluntary'
       ELSE 'involuntary'
     END AS termination_reason,

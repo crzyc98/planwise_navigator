@@ -36,16 +36,16 @@ WITH quality_checks AS (
     COUNT(*) AS current_value,
     {{ var('expected_workforce_size') }} AS expected_value,
     ABS(COUNT(*) - {{ var('expected_workforce_size') }}) * 100.0 / {{ var('expected_workforce_size') }} AS variance_percent,
-    CASE 
-      WHEN ABS(COUNT(*) - {{ var('expected_workforce_size') }}) * 100.0 / {{ var('expected_workforce_size') }} < 5 
-      THEN 'PASS' 
-      ELSE 'FAIL' 
+    CASE
+      WHEN ABS(COUNT(*) - {{ var('expected_workforce_size') }}) * 100.0 / {{ var('expected_workforce_size') }} < 5
+      THEN 'PASS'
+      ELSE 'FAIL'
     END AS status
   FROM {{ ref('fct_workforce_snapshot') }}
   WHERE simulation_year = {{ var('current_simulation_year') }}
-  
+
   UNION ALL
-  
+
   -- Null value checks
   SELECT
     CURRENT_DATE AS check_date,
@@ -56,9 +56,9 @@ WITH quality_checks AS (
     CASE WHEN COUNT(*) FILTER (WHERE employee_id IS NULL) = 0 THEN 0 ELSE 100 END AS variance_percent,
     CASE WHEN COUNT(*) FILTER (WHERE employee_id IS NULL) = 0 THEN 'PASS' ELSE 'FAIL' END AS status
   FROM {{ ref('fct_workforce_snapshot') }}
-  
+
   UNION ALL
-  
+
   -- Distribution checks for compensation
   SELECT
     CURRENT_DATE AS check_date,
@@ -67,16 +67,16 @@ WITH quality_checks AS (
     ROUND(AVG(current_compensation), 0) AS current_value,
     {{ var('expected_avg_compensation', 75000) }} AS expected_value,
     ABS(AVG(current_compensation) - {{ var('expected_avg_compensation', 75000) }}) * 100.0 / {{ var('expected_avg_compensation', 75000) }} AS variance_percent,
-    CASE 
-      WHEN ABS(AVG(current_compensation) - {{ var('expected_avg_compensation', 75000) }}) * 100.0 / {{ var('expected_avg_compensation', 75000) }} < 10 
-      THEN 'PASS' 
-      ELSE 'WARN' 
+    CASE
+      WHEN ABS(AVG(current_compensation) - {{ var('expected_avg_compensation', 75000) }}) * 100.0 / {{ var('expected_avg_compensation', 75000) }} < 10
+      THEN 'PASS'
+      ELSE 'WARN'
     END AS status
   FROM {{ ref('fct_workforce_snapshot') }}
   WHERE employment_status = 'active'
-  
+
   UNION ALL
-  
+
   -- Event volume validation
   SELECT
     CURRENT_DATE AS check_date,
@@ -95,9 +95,9 @@ WITH quality_checks AS (
       WHEN 'promotion' THEN ABS(COUNT(*) - ROUND({{ var('baseline_workforce_count') }} * {{ var('promotion_base_rate', 0.15) }})) * 100.0 / ROUND({{ var('baseline_workforce_count') }} * {{ var('promotion_base_rate', 0.15) }})
       ELSE 0
     END AS variance_percent,
-    CASE 
-      WHEN event_type IN ('hire', 'termination', 'promotion') 
-        AND ABS(COUNT(*) - expected_value) * 100.0 / expected_value < 15 
+    CASE
+      WHEN event_type IN ('hire', 'termination', 'promotion')
+        AND ABS(COUNT(*) - expected_value) * 100.0 / expected_value < 15
       THEN 'PASS'
       WHEN event_type IN ('hire', 'termination', 'promotion')
         AND ABS(COUNT(*) - expected_value) * 100.0 / expected_value < 25
@@ -140,10 +140,10 @@ SELECT
   s.overall_status,
   -- Trend analysis
   LAG(q.current_value) OVER (
-    PARTITION BY q.model_name, q.check_type 
+    PARTITION BY q.model_name, q.check_type
     ORDER BY q.check_date
   ) AS previous_value,
-  CASE 
+  CASE
     WHEN LAG(q.current_value) OVER (PARTITION BY q.model_name, q.check_type ORDER BY q.check_date) IS NOT NULL
     THEN ROUND((q.current_value - LAG(q.current_value) OVER (PARTITION BY q.model_name, q.check_type ORDER BY q.check_date)) * 100.0 / LAG(q.current_value) OVER (PARTITION BY q.model_name, q.check_type ORDER BY q.check_date), 2)
     ELSE NULL
@@ -179,7 +179,7 @@ WITH execution_metrics AS (
     thread_id,
     CURRENT_TIMESTAMP AS recorded_at
   FROM {{ ref('dbt_run_results') }}  -- Assuming dbt run results are captured
-  
+
   {% if is_incremental() %}
     WHERE run_started_at > (SELECT MAX(run_started_at) FROM {{ this }})
   {% endif %}
@@ -202,14 +202,14 @@ performance_analysis AS (
       ELSE 'VERY_SLOW'
     END AS performance_category,
     -- Efficiency metrics
-    CASE 
+    CASE
       WHEN rows_affected > 0 THEN ROUND(execution_time_seconds / rows_affected * 1000, 2)
       ELSE NULL
     END AS seconds_per_1k_rows,
     -- Historical comparison
     AVG(execution_time_seconds) OVER (
-      PARTITION BY node_id 
-      ORDER BY run_started_at 
+      PARTITION BY node_id
+      ORDER BY run_started_at
       ROWS BETWEEN 6 PRECEDING AND 1 PRECEDING
     ) AS avg_historical_time,
     recorded_at
@@ -226,18 +226,18 @@ alerts AS (
     performance_category,
     -- Performance degradation alerts
     CASE
-      WHEN avg_historical_time IS NOT NULL 
-        AND execution_time_seconds > avg_historical_time * 2 
+      WHEN avg_historical_time IS NOT NULL
+        AND execution_time_seconds > avg_historical_time * 2
       THEN 'PERFORMANCE_DEGRADATION'
-      WHEN status != 'success' 
+      WHEN status != 'success'
       THEN 'EXECUTION_FAILURE'
-      WHEN performance_category = 'VERY_SLOW' 
+      WHEN performance_category = 'VERY_SLOW'
       THEN 'SLOW_EXECUTION'
       ELSE NULL
     END AS alert_type,
     CASE
-      WHEN avg_historical_time IS NOT NULL 
-        AND execution_time_seconds > avg_historical_time * 2 
+      WHEN avg_historical_time IS NOT NULL
+        AND execution_time_seconds > avg_historical_time * 2
       THEN ROUND((execution_time_seconds - avg_historical_time) * 100.0 / avg_historical_time, 1)
       ELSE NULL
     END AS performance_degradation_percent
@@ -278,7 +278,7 @@ SELECT
   check_type,
   status,
   variance_percent,
-  'CRITICAL: ' || model_name || ' ' || check_type || ' check failed with ' || 
+  'CRITICAL: ' || model_name || ' ' || check_type || ' check failed with ' ||
   ROUND(variance_percent, 1) || '% variance' AS alert_message,
   CASE
     WHEN status = 'FAIL' AND check_type LIKE '%row_count%' THEN 'HIGH'
@@ -380,7 +380,7 @@ ORDER BY execution_date DESC;
     FROM {{ model }}
     WHERE DATE(created_at) = CURRENT_DATE
   ),
-  
+
   baseline_stats AS (
     SELECT
       AVG({{ column_name }}) AS baseline_mean,
@@ -389,7 +389,7 @@ ORDER BY execution_date DESC;
     FROM {{ model }}
     WHERE DATE(created_at) = '{{ baseline_date }}'
   )
-  
+
   SELECT
     ABS(c.current_mean - b.baseline_mean) / b.baseline_mean AS mean_drift,
     ABS(c.current_stddev - b.baseline_stddev) / b.baseline_stddev AS stddev_drift
@@ -407,7 +407,7 @@ ORDER BY execution_date DESC;
 def send_quality_alert(alert_data):
     """Send data quality alerts to Slack channel"""
     webhook_url = os.getenv('SLACK_WEBHOOK_URL')
-    
+
     message = {
         "text": f"🚨 Data Quality Alert: {alert_data['model_name']}",
         "attachments": [
@@ -451,7 +451,7 @@ def send_quality_alert(alert_data):
 
 ## Implementation Notes
 
-### Best Practices 
+### Best Practices
 1. **Baseline Establishment**: Set realistic quality and performance baselines
 2. **Alert Fatigue Prevention**: Tune thresholds to minimize false positives
 3. **Historical Tracking**: Maintain sufficient history for trend analysis
