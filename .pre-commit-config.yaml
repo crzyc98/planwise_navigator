@@ -32,7 +32,12 @@ repos:
     rev: v1.8.0
     hooks:
       - id: mypy
-        additional_dependencies: [types-all]
+        additional_dependencies:
+          - types-python-dateutil
+          - types-pytz
+          - types-requests
+          - types-six
+          - types-urllib3
         exclude: ^tests/
 
   - repo: https://github.com/sqlfluff/sqlfluff

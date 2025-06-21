@@ -1,0 +1,20 @@
+packages:
+  # Core utilities for dbt projects
+  - package: dbt-labs/dbt_utils
+    version: 1.1.1
+
+  # Data quality and testing utilities
+  - package: calogica/dbt_expectations
+    version: 0.10.1
+
+  # Unit testing framework for dbt models
+  - package: EqualExperts/dbt_unit_testing
+    version: 0.4.0
+
+  # Audit and logging utilities
+  - package: dbt-labs/audit_helper
+    version: 0.9.0
+
+  # Date and time utilities
+  - package: calogica/dbt_date
+    version: 0.10.1

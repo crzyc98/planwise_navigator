@@ -1,3 +1,37 @@
+# Virtual Environment
+venv/
+.venv/
+env/
+
+# DuckDB
+simulation.duckdb
+simulation.duckdb.wal
+*.duckdb
+*.duckdb.wal
+
+# Environment variables
+.env
+.env.*
+!.env.example
+
+# IDE specific files
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+.DS_Store
+
+# dbt specific
+dbt/target/
+dbt/dbt_packages/
+dbt/logs/
+dbt/dbt_project.yml
+dbt/profiles.yml
+dbt/.user_*
+dbt/.dbt/
+dbt/macros/packages/
+
 # Byte-compiled / optimized / DLL files
 __pycache__/
 *.py[cod]
@@ -174,9 +208,9 @@ cython_debug/
 .abstra/
 
 # Visual Studio Code
-#  Visual Studio Code specific template is maintained in a separate VisualStudioCode.gitignore 
+#  Visual Studio Code specific template is maintained in a separate VisualStudioCode.gitignore
 #  that can be found at https://github.com/github/gitignore/blob/main/Global/VisualStudioCode.gitignore
-#  and can be added to the global gitignore or merged into this file. However, if you prefer, 
+#  and can be added to the global gitignore or merged into this file. However, if you prefer,
 #  you could uncomment the following to ignore the enitre vscode folder
 # .vscode/
 
