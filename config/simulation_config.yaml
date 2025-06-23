@@ -1,0 +1,25 @@
+# Asset-level configuration (used by simulation_config asset)
+simulation:
+  start_year: 2025
+  end_year: 2029
+  random_seed: 42
+  target_growth_rate: 0.03
+
+workforce:
+  total_termination_rate: 0.12
+  new_hire_termination_rate: 0.25
+
+compensation:
+  cola_rate: 0.025
+  merit_budget: 0.04
+
+# Dagster op configuration
+ops:
+  run_multi_year_simulation:
+    config:
+      start_year: 2025
+      end_year: 2029
+      target_growth_rate: 0.03
+      total_termination_rate: 0.12
+      new_hire_termination_rate: 0.25
+      random_seed: 42

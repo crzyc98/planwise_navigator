@@ -25,7 +25,8 @@
       "Bash(cp:*)",
       "Bash(dagster asset materialize:*)",
       "Bash(dagster asset:*)",
-      "Bash(dagster job execute:*)"
+      "Bash(dagster job execute:*)",
+      "Bash(dbt list:*)"
     ],
     "deny": []
   }
