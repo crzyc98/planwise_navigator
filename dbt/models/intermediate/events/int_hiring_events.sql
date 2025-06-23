@@ -31,15 +31,19 @@ total_expected_departures AS (
   SELECT
     pywc.workforce_count,
     -- Experienced employee terminations (12% of existing workforce)
-    ROUND(pywc.workforce_count * {{ var('total_termination_rate', 0.12) }}) AS experienced_terminations,
+    CEIL(pywc.workforce_count * {{ var('total_termination_rate', 0.12) }}) AS experienced_terminations,
     -- We need to solve for total_hires such that:
     -- workforce_next = workforce_current - experienced_terms + total_hires - (total_hires * new_hire_term_rate)
     -- workforce_next = workforce_current * (1 + growth_rate)
     -- This gives us: total_hires = (experienced_terms + workforce_current * growth_rate) / (1 - new_hire_term_rate)
-    ROUND(
-      (ROUND(pywc.workforce_count * {{ var('total_termination_rate', 0.12) }}) +
-       ROUND(pywc.workforce_count * {{ var('target_growth_rate', 0.03) }})) /
+    CEIL(
+      (CEIL(pywc.workforce_count * {{ var('total_termination_rate', 0.12) }}) +
+       CEIL(pywc.workforce_count * {{ var('target_growth_rate', 0.03) }})) /
+      {% if simulation_year == 2025 %}
+      (1 - ({{ var('new_hire_termination_rate', 0.25) }} / 2))
+      {% else %}
       (1 - {{ var('new_hire_termination_rate', 0.25) }})
+      {% endif %}
     ) AS total_hires_needed
   FROM previous_year_workforce_count pywc
 ),
@@ -53,15 +57,15 @@ hiring_calculation AS (
     sc.target_growth_rate,
 
     -- Expected new hire terminations
-    ROUND(td.total_hires_needed * {{ var('new_hire_termination_rate', 0.25) }}) AS expected_new_hire_terminations,
+    CEIL(td.total_hires_needed * {{ var('new_hire_termination_rate', 0.25) }}) AS expected_new_hire_terminations,
 
     -- Validation: net workforce change should equal target growth
     (td.total_hires_needed - td.experienced_terminations -
-     ROUND(td.total_hires_needed * {{ var('new_hire_termination_rate', 0.25) }})) AS net_workforce_change,
+     CEIL(td.total_hires_needed * {{ var('new_hire_termination_rate', 0.25) }})) AS net_workforce_change,
 
     -- Expected final workforce
     pywc.workforce_count + (td.total_hires_needed - td.experienced_terminations -
-                           ROUND(td.total_hires_needed * {{ var('new_hire_termination_rate', 0.25) }})) AS expected_final_workforce
+                           CEIL(td.total_hires_needed * {{ var('new_hire_termination_rate', 0.25) }})) AS expected_final_workforce
 
   FROM previous_year_workforce_count pywc
   CROSS JOIN total_expected_departures td
@@ -84,7 +88,7 @@ hires_per_level AS (
   SELECT
     ld.level_id,
     ld.distribution_weight,
-    ROUND(hc.total_hires_needed * ld.distribution_weight) AS hires_for_level
+    CEIL(hc.total_hires_needed * ld.distribution_weight) AS hires_for_level
   FROM hiring_calculation hc
   CROSS JOIN level_distribution ld
 ),

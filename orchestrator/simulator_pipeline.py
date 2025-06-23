@@ -579,14 +579,77 @@ def validate_year_results(
             context.log.warning(f"No terminations found for year {year}")
             validation_passed = False
 
-        # Log detailed metrics
-        context.log.info(f"Year {year} metrics:")
-        context.log.info(f"  Active employees: {current_active}")
+        # Get detailed workforce breakdown
+        workforce_breakdown = conn.execute(
+            """
+            SELECT
+                detailed_status_code,
+                COUNT(*) as count
+            FROM fct_workforce_snapshot
+            WHERE simulation_year = ?
+            GROUP BY detailed_status_code
+            ORDER BY detailed_status_code
+        """,
+            [year],
+        ).fetchall()
+
+        # Get detailed event breakdown
+        detailed_events = conn.execute(
+            """
+            SELECT
+                event_type,
+                CASE
+                    WHEN event_details LIKE '%new_hire%' OR event_details LIKE '%NEW_%' THEN 'new_hire'
+                    WHEN event_details LIKE '%experienced%' OR event_details LIKE '%hazard%' THEN 'experienced'
+                    ELSE 'other'
+                END as employee_category,
+                COUNT(*) as count
+            FROM fct_yearly_events
+            WHERE simulation_year = ?
+            GROUP BY event_type, employee_category
+            ORDER BY event_type, employee_category
+        """,
+            [year],
+        ).fetchall()
+
+        # Calculate detailed metrics
+        total_hires = events_dict.get("hire", 0)
+        experienced_terminations = 0
+        new_hire_terminations = 0
+
+        for event_type, category, count in detailed_events:
+            if event_type == "termination":
+                if category == "experienced":
+                    experienced_terminations += count
+                elif category == "new_hire":
+                    new_hire_terminations += count
+
+        net_new_hires = total_hires - new_hire_terminations
+
+        # Enhanced logging with detailed breakdown
+        context.log.info(f"Year {year} detailed breakdown:")
+        context.log.info(f"  Starting active: {previous_active}")
+        context.log.info(f"  Experienced terminations: {experienced_terminations}")
+        context.log.info(f"  Total new hires: {total_hires}")
+        context.log.info(f"  New hire terminations: {new_hire_terminations}")
+        context.log.info(f"  Net new hires: {net_new_hires}")
+        context.log.info(f"  Ending active: {current_active}")
+        context.log.info(f"  Net change: {current_active - previous_active}")
         context.log.info(
             f"  Growth rate: {growth_rate:.1%} (target: {config['target_growth_rate']:.1%})"
         )
-        context.log.info(f"  Total terminations: {total_terminations}")
-        context.log.info(f"  Total hires: {events_dict.get('hire', 0)}")
+
+        # Log workforce status breakdown
+        context.log.info("  Workforce status breakdown:")
+        for status, count in workforce_breakdown:
+            context.log.info(f"    {status}: {count}")
+
+        # Log validation formula check
+        expected_ending = previous_active - experienced_terminations + net_new_hires
+        if expected_ending != current_active:
+            context.log.warning(
+                f"  Formula mismatch: expected {expected_ending}, actual {current_active}"
+            )
 
         conn.close()
 
@@ -595,11 +658,11 @@ def validate_year_results(
             success=True,
             active_employees=current_active,
             total_terminations=total_terminations,
-            experienced_terminations=0,  # Will be enhanced when detailed status is implemented
-            new_hire_terminations=0,  # Will be enhanced when detailed status is implemented
+            experienced_terminations=experienced_terminations,
+            new_hire_terminations=new_hire_terminations,
             total_hires=events_dict.get("hire", 0),
             growth_rate=growth_rate,
-            validation_passed=validation_passed,  # Both snapshot and events guaranteed to exist
+            validation_passed=validation_passed,
         )
 
     except Exception as e:

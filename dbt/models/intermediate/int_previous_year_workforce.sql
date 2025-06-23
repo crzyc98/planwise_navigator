@@ -7,8 +7,9 @@
 
 {% set simulation_year = var('simulation_year', 2025) %}
 
+-- For 2025 (first simulation year), use baseline census data exclusively
+-- For subsequent years, use previous year's final snapshot from fct_workforce_snapshot
 {% if simulation_year == 2025 %}
--- For 2025 (first simulation year), use baseline census data
 SELECT
     employee_id,
     employee_ssn,
@@ -24,7 +25,6 @@ FROM {{ ref('int_baseline_workforce') }}
 WHERE employment_status = 'active'
 
 {% else %}
--- For subsequent years, use previous year's final snapshot from fct_workforce_snapshot
 -- Break circular dependency by using direct table reference instead of ref()
 SELECT
     employee_id,

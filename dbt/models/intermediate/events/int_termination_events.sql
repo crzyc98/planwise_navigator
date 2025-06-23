@@ -2,6 +2,7 @@
 
 {% set simulation_year = var('simulation_year') %}
 {% set start_year = var('start_year', var('simulation_year')) | int %}
+{% set exp_term_rate = var('total_termination_rate', 0.12) %}
 
 -- Generate termination events implementing Epic 11.5 precise sequence:
 -- 1. Process experienced employee terminations first
@@ -11,7 +12,7 @@
 WITH simulation_config AS (
     SELECT
         {{ simulation_year }} AS current_year,
-        {{ var('total_termination_rate', 0.12) }} AS total_termination_rate,
+        {{ exp_term_rate }} AS experienced_termination_rate,
         {{ var('target_growth_rate', 0.03) }} AS target_growth_rate
 ),
 
@@ -75,31 +76,36 @@ workforce_with_bands AS (
     FROM active_workforce
 ),
 
--- Step 1: Calculate allowed terminations for all active employees based on total_termination_rate
-termination_cap AS (
-    SELECT
-        ROUND(COUNT(*) * (SELECT total_termination_rate FROM simulation_config)) ::INT AS allowed_terminations
-    FROM active_workforce
+-- Get experienced population (hired before current simulation year)
+experienced_population AS (
+    SELECT w.*
+    FROM workforce_with_bands w
+    WHERE w.employee_type = 'experienced'
 ),
 
--- Step 2: Generate experienced employee terminations using hazard rates
+-- Calculate termination quota
+quota AS (
+    SELECT CEIL(COUNT(*) * {{ exp_term_rate }}) AS target_terminations
+    FROM experienced_population
+),
+
+-- Generate hazard-based terminations
 experienced_workforce_with_hazards AS (
     SELECT
         w.*,
         h.termination_rate,
         -- Simple deterministic "random" value based on employee_id hash
         (ABS(HASH(w.employee_id)) % 1000) / 1000.0 AS random_value
-    FROM workforce_with_bands w
+    FROM experienced_population w
     JOIN {{ ref('dim_hazard_table') }} h
         ON w.level_id = h.level_id
         AND w.age_band = h.age_band
         AND w.tenure_band = h.tenure_band
         AND h.year = {{ simulation_year }}
-    -- Remove employee_type filter so cap applies to all employees
 ),
 
--- Capped sample of experienced hazards (apply termination cap)
-capped_hazard_sample AS (
+-- Hazard sample (probabilistic terminations)
+hazard_sample AS (
     SELECT
         ewh.*,
         (CAST('{{ simulation_year }}-01-01' AS DATE) + INTERVAL ((ABS(HASH(ewh.employee_id)) % 365)) DAY) AS effective_date,
@@ -108,13 +114,57 @@ capped_hazard_sample AS (
     WHERE ewh.random_value < ewh.termination_rate
 ),
 
-capped_hazard_sample_limited AS (
+-- Cap hazard sample to quota if it exceeds
+capped_hazard_sample AS (
     SELECT *
-    FROM capped_hazard_sample
-    WHERE rn <= (SELECT allowed_terminations FROM termination_cap)
+    FROM hazard_sample
+    WHERE rn <= (SELECT target_terminations FROM quota)
 ),
 
-/* ------------- experienced terminations (capped) ------------- */
+-- Count actual hazard terminations vs quota
+counts AS (
+    SELECT
+        (SELECT target_terminations FROM quota) AS quota_needed,
+        COUNT(*) AS hazard_count
+    FROM capped_hazard_sample
+),
+
+-- Calculate shortfall
+shortfall AS (
+    SELECT
+        quota_needed,
+        hazard_count,
+        GREATEST(0, quota_needed - hazard_count) AS additional_needed
+    FROM counts
+),
+
+-- Fill shortfall with random additional terminations
+extra_terms AS (
+    SELECT
+        ep.employee_id,
+        ep.employee_ssn,
+        'termination' AS event_type,
+        sc.current_year AS simulation_year,
+        (CAST('{{ simulation_year }}-01-01' AS DATE) + INTERVAL ((ABS(HASH(ep.employee_id)) % 365)) DAY) AS effective_date,
+        'quota_fill' AS termination_reason,
+        ep.employee_gross_compensation AS final_compensation,
+        ep.current_age,
+        ep.current_tenure,
+        ep.level_id,
+        ep.age_band,
+        ep.tenure_band,
+        ep.employee_type,
+        NULL AS termination_rate,
+        (ABS(HASH(ep.employee_id)) % 1000) / 1000.0 AS random_value,
+        'additional_termination' AS termination_type
+    FROM experienced_population ep
+    CROSS JOIN simulation_config sc
+    LEFT JOIN capped_hazard_sample chs ON ep.employee_id = chs.employee_id
+    WHERE chs.employee_id IS NULL  -- Not already in hazard sample
+    QUALIFY ROW_NUMBER() OVER (ORDER BY ABS(HASH(ep.employee_id)) + 1000) <= (SELECT additional_needed FROM shortfall)
+),
+
+-- Combine hazard terminations with quota fill
 experienced_terminations AS (
     SELECT
         chs.employee_id,
@@ -133,68 +183,13 @@ experienced_terminations AS (
         chs.termination_rate,
         chs.random_value,
         'experienced_termination' AS termination_type
-    FROM capped_hazard_sample_limited chs
+    FROM capped_hazard_sample chs
     CROSS JOIN simulation_config sc
-),
 
+    UNION ALL
 
--- Step 3: Calculate if additional terminations are needed to meet total rate
-termination_gap_analysis AS (
-    SELECT
-        COUNT(*) AS total_workforce,
-        COUNT(CASE WHEN employee_type = 'experienced' THEN 1 END) AS experienced_workforce,
-        (SELECT COUNT(*) FROM experienced_terminations) AS experienced_terminations,
-        -- Calculate target total terminations for the year
-        ROUND(COUNT(*) * (SELECT total_termination_rate FROM simulation_config)) AS target_total_terminations,
-        -- Calculate additional terminations needed
-        GREATEST(0,
-            ROUND(COUNT(*) * (SELECT total_termination_rate FROM simulation_config)) -
-            (SELECT COUNT(*) FROM experienced_terminations)
-        ) AS additional_terminations_needed
-    FROM active_workforce
-),
-
--- Step 4: Generate additional terminations if needed (from remaining experienced workforce)
-remaining_experienced_workforce AS (
-    SELECT w.*
-    FROM workforce_with_bands w
-    LEFT JOIN experienced_terminations et ON w.employee_id = et.employee_id
-    WHERE w.employee_type = 'experienced'
-      AND et.employee_id IS NULL -- Not already terminated
-),
-
-/* ------------- additional terminations (to meet target) ------------- */
-ranked_remaining AS (
-    SELECT
-        rew.*,
-        ROW_NUMBER() OVER (ORDER BY ABS(HASH(rew.employee_id))) AS rn
-    FROM remaining_experienced_workforce rew
-),
-
-additional_terminations AS (
-    SELECT
-        rw.employee_id,
-        rw.employee_ssn,
-        'termination' AS event_type,
-        sc.current_year AS simulation_year,
-        (CAST('{{ simulation_year }}-01-01' AS DATE) + INTERVAL ((ABS(HASH(rw.employee_id)) % 365)) DAY) AS effective_date,
-        'additional_to_meet_target_rate' AS termination_reason,
-        rw.employee_gross_compensation AS final_compensation,
-        rw.current_age,
-        rw.current_tenure,
-        rw.level_id,
-        rw.age_band,
-        rw.tenure_band,
-        rw.employee_type,
-        NULL AS termination_rate,
-        (ABS(HASH(rw.employee_id)) % 1000) / 1000.0 AS random_value,
-        'additional_termination' AS termination_type
-    FROM ranked_remaining rw
-    CROSS JOIN simulation_config sc
-    WHERE rw.rn <= (SELECT additional_terminations_needed FROM termination_gap_analysis)
+    SELECT * FROM extra_terms
 )
 
--- Combine all terminations for this year (experienced only - new hire terminations handled separately)
+-- Return only experienced terminations (capped at experienced_termination_rate)
 SELECT * FROM experienced_terminations
-UNION ALL
-SELECT * FROM additional_terminations
