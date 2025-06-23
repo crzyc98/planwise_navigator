@@ -1,7 +1,14 @@
 # filename: orchestrator/assets.py
 """PlanWise Navigator Dagster asset definitions."""
 
-from dagster import asset, AssetExecutionContext, AssetIn, multi_asset, AssetOut, Output
+from dagster import (
+    asset,
+    AssetExecutionContext,
+    AssetIn,
+    multi_asset,
+    AssetOut,
+    Output,
+)
 from dagster_dbt import DbtCliResource, dbt_assets
 import pandas as pd
 from typing import Dict, Any, Generator
@@ -12,16 +19,19 @@ from config.schema import SimulationConfig
 
 # dbt asset integration
 DBT_PROJECT_DIR = Path(__file__).parent.parent / "dbt"
-DBT_PROFILES_DIR = DBT_PROJECT_DIR
 
 
+# The dbt CLI resource (configured in `definitions.py`) now provides the project and
+# profiles directories, so we only need to supply the compiled `manifest.json`.
 @dbt_assets(
     manifest=DBT_PROJECT_DIR / "target" / "manifest.json",
-    project_dir=DBT_PROJECT_DIR,
-    profiles_dir=DBT_PROFILES_DIR,
 )
 def planwise_dbt_assets(context: AssetExecutionContext, dbt: DbtCliResource):
-    """Execute dbt models for PlanWise Navigator."""
+    """Collection of dbt assets representing the transformation pipeline.
+
+    This uses the @dbt_assets factory to automatically parse the dbt manifest
+    and create Dagster assets for all dbt models, with proper dependencies.
+    """
     yield from dbt.cli(["build"], context=context).stream()
 
 
@@ -88,14 +98,28 @@ def census_data_validation(
         return validation_results
 
 
+# Updated multi_asset definition for run_single_year_simulation
 @multi_asset(
-    ins={"simulation_config": AssetIn(), "planwise_dbt_assets": AssetIn()},
-    outs={"single_year_simulation": AssetOut(), "simulation_year_state": AssetOut()},
+    # 'simulation_config' is an input received as an argument.
+    ins={"simulation_config": AssetIn()},
+    # Outputs of this multi_asset.
+    outs={
+        "single_year_simulation": AssetOut(),
+        "simulation_year_state": AssetOut(),
+    },
+    # Dependencies: These assets must be materialized *before* this multi_asset runs.
+    # The 'planwise_dbt_assets' function itself represents the collection of dbt models.
+    # Listing it in `deps` ensures all dbt models are built before this asset's execution.
+    deps=[
+        planwise_dbt_assets  # This ensures the entire dbt pipeline runs before this asset.
+    ],
 )
 def run_single_year_simulation(
     context: AssetExecutionContext,
     duckdb_resource: DuckDBResource,
     simulation_config: Dict[str, Any],
+    # Removed 'planwise_dbt_assets: Any' from function signature.
+    # The dbt model data is accessed directly from DuckDB via `duckdb_resource`.
 ) -> Generator[Output[Any], None, None]:
     """Execute single year of workforce simulation."""
     year = simulation_config["start_year"]  # TODO: Support multi-year
@@ -105,10 +129,9 @@ def run_single_year_simulation(
         conn.execute(f"SET VARIABLE simulation_year = {year}")
         conn.execute(f"SET VARIABLE random_seed = {simulation_config['random_seed']}")
 
-        # Run simulation by triggering dbt models
-        # (Already executed via dbt asset dependency)
-
-        # Fetch results
+        # dbt models (like fct_workforce_snapshot, fct_yearly_events) are guaranteed to be built
+        # because 'planwise_dbt_assets' is declared as a dependency in the 'deps' list.
+        # Now fetch results directly from DuckDB using the DuckDB resource.
         workforce_df = conn.execute(
             f"""
             SELECT * FROM fct_workforce_snapshot

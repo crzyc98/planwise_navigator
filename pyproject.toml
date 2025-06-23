@@ -1,0 +1,21 @@
+[tool.poetry]
+name = "planwise-navigator"
+version = "0.1.0"
+description = "Workforce planning and simulation tool"
+authors = ["Your Name <your.email@example.com>"]
+readme = "README.md"
+packages = [{include = "orchestrator"}]
+
+[tool.poetry.dependencies]
+python = "^3.11"
+
+[build-system]
+requires = ["poetry-core>=1.0.0"]
+build-backend = "poetry.core.masonry.api"
+
+[tool.dagster]
+# The python file where dagster.Definitions is defined
+module_name = "definitions"
+# The variable defined in that file that is an instance of dagster.Definitions
+python_file = "definitions.py"
+working_directory = "."

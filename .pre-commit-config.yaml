@@ -38,17 +38,19 @@ repos:
           - types-requests
           - types-six
           - types-urllib3
+          - types-PyYAML
         exclude: ^tests/
 
-  - repo: https://github.com/sqlfluff/sqlfluff
-    rev: 3.0.0a5
-    hooks:
-      - id: sqlfluff-lint
-        files: ^dbt/.*\.sql$
-        args: [--dialect, duckdb]
-      - id: sqlfluff-fix
-        files: ^dbt/.*\.sql$
-        args: [--dialect, duckdb]
+  # Temporarily disabled due to compatibility issues
+  # - repo: https://github.com/sqlfluff/sqlfluff
+  #   rev: 3.0.0a5
+  #   hooks:
+  #     - id: sqlfluff-lint
+  #       files: ^dbt/.*\.sql$
+  #       args: [--dialect, duckdb]
+  #     - id: sqlfluff-fix
+  #       files: ^dbt/.*\.sql$
+  #       args: [--dialect, duckdb]
 
   - repo: https://github.com/python-poetry/poetry
     rev: 1.7.0

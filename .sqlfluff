@@ -1,0 +1,42 @@
+[sqlfluff]
+# Use the duckdb dialect for dbt models
+dialect = "duckdb"
+
+# Allow line length up to 100 characters
+max_line_length = 100
+
+# Disable all rules by default
+[sqlfluff:rules]
+comma_style = "trailing"
+allow_space_in_identifier = true
+
+# Only enable specific rules we care about
+[sqlfluff:rules:aliasing.table]
+enabled = false
+
+[sqlfluff:rules:aliasing.column]
+enabled = false
+
+[sqlfluff:rules:capitalisation.keywords]
+enabled = false
+
+[sqlfluff:rules:capitalisation.functions]
+enabled = false
+
+[sqlfluff:rules:capitalisation.identifiers]
+enabled = false
+
+[sqlfluff:rules:convention.quoted_literals]
+enabled = false
+
+[sqlfluff:rules:convention.terminator]
+enabled = false
+
+[sqlfluff:rules:layout.long_lines]
+enabled = false
+
+[sqlfluff:rules:structure.column_order]
+enabled = false
+
+[sqlfluff:rules:structure.else_null]
+enabled = false

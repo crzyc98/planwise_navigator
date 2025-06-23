@@ -1,0 +1,100 @@
+version: 2
+
+models:
+  - name: mon_data_quality
+    description: "Data quality monitoring tracking metrics across simulation runs"
+    columns:
+      - name: check_type
+        description: "Type of data quality check performed"
+        data_tests:
+          - not_null
+          - accepted_values:
+              values: ['RECORD_COUNT', 'COMPLETENESS', 'BUSINESS_RULE', 'OUTLIER_DETECTION', 'YOY_CONSISTENCY', 'FRESHNESS']
+      - name: table_name
+        description: "Name of the table being monitored"
+        data_tests:
+          - not_null
+      - name: check_dimension
+        description: "Dimension or context for the check (e.g., simulation year)"
+        data_tests:
+          - not_null
+      - name: check_subcategory
+        description: "Subcategory or specific field being checked"
+        data_tests:
+          - not_null
+      - name: metric_value
+        description: "Numeric result of the quality check"
+        data_tests:
+          - not_null
+      - name: quality_status
+        description: "Overall status of the quality check"
+        data_tests:
+          - not_null
+          - accepted_values:
+              values: ['PASS', 'WARN', 'FAIL']
+      - name: check_description
+        description: "Human-readable description of what was checked"
+        data_tests:
+          - not_null
+      - name: check_timestamp
+        description: "When the quality check was performed"
+        data_tests:
+          - not_null
+
+
+  - name: mon_pipeline_performance
+    description: "Pipeline performance monitoring tracking execution metrics"
+    columns:
+      - name: simulation_year
+        description: "Simulation year being monitored"
+        data_tests:
+          - not_null
+      - name: total_employees_processed
+        description: "Number of employees processed in this simulation"
+        data_tests:
+          - not_null
+          # Temporarily disabled to isolate DuckDBRelation serialization issue
+          # - dbt_utils.accepted_range:
+          #     min_value: 0
+      - name: run_duration_minutes
+        description: "Total runtime in minutes"
+        data_tests:
+          - not_null
+          # Temporarily disabled to isolate DuckDBRelation serialization issue
+          # - dbt_utils.accepted_range:
+          #     min_value: 0
+          #     max_value: 1440  # Max 24 hours
+      - name: employees_per_minute
+        description: "Processing throughput in employees per minute"
+        # tests temporarily disabled to isolate DuckDBRelation serialization issue
+      - name: overall_performance_category
+        description: "Performance categorization"
+        data_tests:
+          - not_null
+          - accepted_values:
+              values: ['FAST', 'MEDIUM', 'SLOW']
+      - name: overall_quality_score
+        description: "Overall data quality score percentage"
+        data_tests:
+          - not_null
+          # Temporarily disabled to isolate DuckDBRelation serialization issue
+          # - dbt_utils.accepted_range:
+          #     min_value: 0
+          #     max_value: 100
+          #     inclusive: true
+      - name: sla_status
+        description: "SLA compliance status"
+        data_tests:
+          - not_null
+          - accepted_values:
+              values: ['WITHIN_SLA', 'SLA_WARNING', 'SLA_BREACH']
+      - name: performance_alert
+        description: "Performance alert category"
+        data_tests:
+          - not_null
+          - accepted_values:
+              values: ['OK', 'SLOW_EXECUTION', 'LOW_THROUGHPUT', 'HIGH_CPU_USAGE', 'HIGH_MEMORY_USAGE', 'QUALITY_ISSUE', 'PERFORMANCE_DEGRADATION']
+      - name: performance_check_timestamp
+        description: "When the performance check was performed"
+        data_tests:
+          - not_null

@@ -32,6 +32,9 @@ dbt/.user_*
 dbt/.dbt/
 dbt/macros/packages/
 
+# dagster specific
+.dagster
+
 # Byte-compiled / optimized / DLL files
 __pycache__/
 *.py[cod]

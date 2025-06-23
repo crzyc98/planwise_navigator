@@ -1,0 +1,32 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(dbt seed:*)",
+      "Bash(dbt run:*)",
+      "Bash(dbt test:*)",
+      "Bash(dbt parse:*)",
+      "Bash(rm:*)",
+      "Bash(dbt clean:*)",
+      "Bash(dbt deps:*)",
+      "Bash(dbt compile:*)",
+      "Bash(mkdir:*)",
+      "Bash(find:*)",
+      "Bash(mv:*)",
+      "Bash(grep:*)",
+      "Bash(dbt show:*)",
+      "Bash(sed:*)",
+      "Bash(python -m dbt run:*)",
+      "Bash(ls:*)",
+      "Bash(python3 -c:*)",
+      "Bash(source:*)",
+      "Bash(dbt build:*)",
+      "Bash(cat:*)",
+      "Bash(python:*)",
+      "Bash(cp:*)",
+      "Bash(dagster asset materialize:*)",
+      "Bash(dagster asset:*)",
+      "Bash(dagster job execute:*)"
+    ],
+    "deny": []
+  }
+}

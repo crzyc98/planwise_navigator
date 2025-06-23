@@ -1,0 +1,285 @@
+{{ config(
+  materialized='incremental',
+  unique_key=['employee_id', 'simulation_year', 'event_sequence'],
+  on_schema_change='sync_all_columns',
+  incremental_strategy='delete+insert'
+) }}
+
+{% set simulation_year = var('simulation_year') %}
+
+-- Unified fact table containing all workforce events for a simulation year
+-- Consolidates terminations, promotions, hires, and merit increases with common schema
+-- Following PRD v3.0 requirements and CLAUDE.md DuckDB patterns
+
+WITH termination_events AS (
+  SELECT
+    employee_id,
+    employee_ssn,
+    event_type,
+    simulation_year,
+    effective_date,
+    termination_reason AS event_details,
+    final_compensation AS compensation_amount,
+    NULL AS previous_compensation,
+    current_age AS employee_age,
+    current_tenure AS employee_tenure,
+    level_id,
+    age_band,
+    tenure_band,
+    termination_rate AS event_probability,
+    'experienced_termination' AS event_category
+  FROM {{ ref('int_termination_events') }}
+  {% if is_incremental() %}
+    WHERE simulation_year = {{ simulation_year }}
+  {% endif %}
+),
+
+new_hire_termination_events AS (
+  SELECT
+    employee_id,
+    employee_ssn,
+    event_type,
+    simulation_year,
+    effective_date,
+    termination_reason AS event_details,
+    final_compensation AS compensation_amount,
+    NULL AS previous_compensation,
+    current_age AS employee_age,
+    current_tenure AS employee_tenure,
+    level_id,
+    age_band,
+    tenure_band,
+    termination_rate AS event_probability,
+    'new_hire_termination' AS event_category
+  FROM {{ ref('int_new_hire_termination_events') }}
+  {% if is_incremental() %}
+    WHERE simulation_year = {{ simulation_year }}
+  {% endif %}
+),
+
+promotion_events AS (
+  SELECT
+    employee_id,
+    employee_ssn,
+    event_type,
+    simulation_year,
+    effective_date,
+    'Level ' || from_level || ' -> ' || to_level AS event_details,
+    new_salary AS compensation_amount,
+    previous_salary AS previous_compensation,
+    current_age AS employee_age,
+    current_tenure AS employee_tenure,
+    from_level AS level_id,
+    age_band,
+    tenure_band,
+    promotion_rate AS event_probability,
+    'promotion' AS event_category
+  FROM {{ ref('int_promotion_events') }}
+  {% if is_incremental() %}
+    WHERE simulation_year = {{ simulation_year }}
+  {% endif %}
+),
+
+hiring_events AS (
+  SELECT
+    employee_id,
+    employee_ssn,
+    event_type,
+    simulation_year,
+    effective_date,
+    'New hire - Level ' || level_id AS event_details,
+    compensation_amount,
+    NULL AS previous_compensation,
+    employee_age,
+    0 AS employee_tenure, -- New hires have 0 tenure
+    level_id,
+    -- Calculate age/tenure bands for new hires
+    CASE
+      WHEN employee_age < 25 THEN '< 25'
+      WHEN employee_age < 35 THEN '25-34'
+      WHEN employee_age < 45 THEN '35-44'
+      WHEN employee_age < 55 THEN '45-54'
+      WHEN employee_age < 65 THEN '55-64'
+      ELSE '65+'
+    END AS age_band,
+    '< 2' AS tenure_band, -- All new hires start in lowest tenure band
+    NULL AS event_probability, -- Hiring is deterministic based on departures
+    'hiring' AS event_category
+  FROM {{ ref('int_hiring_events') }}
+  {% if is_incremental() %}
+    WHERE simulation_year = {{ simulation_year }}
+  {% endif %}
+),
+
+-- Temporarily disabled until int_merit_events is fixed
+-- merit_events AS (
+--   SELECT
+--     employee_id,
+--     employee_ssn,
+--     event_type,
+--     simulation_year,
+--     effective_date,
+--     'Merit: ' || ROUND(merit_percentage * 100, 1) || '% + COLA: ' ||
+--     ROUND(cola_percentage * 100, 1) || '%' AS event_details,
+--     new_salary AS compensation_amount,
+--     previous_salary AS previous_compensation,
+--     current_age AS employee_age,
+--     current_tenure AS employee_tenure,
+--     level_id,
+--     age_band,
+--     tenure_band,
+--     merit_percentage AS event_probability,
+--     'merit_increase' AS event_category
+--   FROM int_merit_events_table_name
+--   {% if is_incremental() %}
+--     WHERE simulation_year = {{ simulation_year }}
+--   {% endif %}
+-- ),
+
+-- Union all event types with consistent schema
+all_events AS (
+  SELECT
+    employee_id,
+    employee_ssn,
+    event_type,
+    simulation_year,
+    effective_date,
+    event_details,
+    compensation_amount,
+    previous_compensation,
+    employee_age,
+    employee_tenure,
+    level_id,
+    age_band,
+    tenure_band,
+    event_probability,
+    event_category
+  FROM termination_events
+
+  UNION ALL
+
+  SELECT
+    employee_id,
+    employee_ssn,
+    event_type,
+    simulation_year,
+    effective_date,
+    event_details,
+    compensation_amount,
+    previous_compensation,
+    employee_age,
+    employee_tenure,
+    level_id,
+    age_band,
+    tenure_band,
+    event_probability,
+    event_category
+  FROM new_hire_termination_events
+
+  UNION ALL
+
+  SELECT
+    employee_id,
+    employee_ssn,
+    event_type,
+    simulation_year,
+    effective_date,
+    event_details,
+    compensation_amount,
+    previous_compensation,
+    employee_age,
+    employee_tenure,
+    level_id,
+    age_band,
+    tenure_band,
+    event_probability,
+    event_category
+  FROM promotion_events
+
+  UNION ALL
+
+  SELECT
+    employee_id,
+    employee_ssn,
+    event_type,
+    simulation_year,
+    effective_date,
+    event_details,
+    compensation_amount,
+    previous_compensation,
+    employee_age,
+    employee_tenure,
+    level_id,
+    age_band,
+    tenure_band,
+    event_probability,
+    event_category
+  FROM hiring_events
+
+  -- Temporarily disabled merit_events until fixed
+  -- UNION ALL
+
+  -- SELECT
+  --   employee_id,
+  --   employee_ssn,
+  --   event_type,
+  --   simulation_year,
+  --   effective_date,
+  --   event_details,
+  --   compensation_amount,
+  --   previous_compensation,
+  --   employee_age,
+  --   employee_tenure,
+  --   level_id,
+  --   age_band,
+  --   tenure_band,
+  --   event_probability,
+  --   event_category
+  -- FROM merit_events
+)
+
+-- Final selection with event sequencing for conflict resolution
+SELECT
+  employee_id,
+  employee_ssn,
+  event_type,
+  simulation_year,
+  effective_date,
+  event_details,
+  compensation_amount,
+  previous_compensation,
+  employee_age,
+  employee_tenure,
+  level_id,
+  age_band,
+  tenure_band,
+  event_probability,
+  event_category,
+  -- Add event sequencing for conflict resolution
+  -- Priority: termination > promotion > merit_increase > hire
+  ROW_NUMBER() OVER (
+    PARTITION BY employee_id, simulation_year
+    ORDER BY
+      CASE event_type
+        WHEN 'termination' THEN 1
+        WHEN 'promotion' THEN 2
+        WHEN 'merit_increase' THEN 3
+        WHEN 'hire' THEN 4
+      END,
+      effective_date
+  ) AS event_sequence,
+  -- Add metadata for audit trail
+  CURRENT_TIMESTAMP AS created_at,
+  -- Add data validation flags
+  CASE
+    WHEN employee_id IS NULL THEN 'INVALID_EMPLOYEE_ID'
+    WHEN simulation_year IS NULL THEN 'INVALID_SIMULATION_YEAR'
+    WHEN effective_date IS NULL THEN 'INVALID_EFFECTIVE_DATE'
+    WHEN compensation_amount IS NULL AND event_type != 'termination' THEN 'INVALID_COMPENSATION'
+    ELSE 'VALID'
+  END AS data_quality_flag
+FROM all_events
+{% if is_incremental() %}
+  WHERE simulation_year = {{ simulation_year }}
+{% endif %}
+ORDER BY employee_id, effective_date, event_sequence

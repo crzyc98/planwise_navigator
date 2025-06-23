@@ -1,0 +1,167 @@
+version: 2
+
+models:
+  - name: stg_census_data
+    description: >
+      Staging model for raw census employee data.
+      Cleans and standardizes employee records for simulation processing.
+    columns:
+      - name: employee_id
+        description: Unique identifier for each employee
+        data_tests:
+          - unique
+          - not_null
+
+  - name: stg_config_job_levels
+    description: >
+      Job levels configuration with compensation bands and career progression parameters.
+      Includes promotion probabilities and merit increase rates by level.
+    columns:
+      - name: level_id
+        description: Unique identifier for job level
+        data_tests:
+          - unique
+          - not_null
+      - name: level_name
+        description: Display name for the job level
+        data_tests:
+          - not_null
+      - name: min_compensation
+        description: Minimum compensation for this level
+        data_tests:
+          - not_null
+      - name: max_compensation
+        description: Maximum compensation for this level
+      - name: avg_annual_merit_increase
+        description: Average annual merit increase rate for this level
+        data_tests:
+          - not_null
+          - dbt_utils.accepted_range:
+              min_value: 0
+              max_value: 0.2
+      - name: promotion_probability
+        description: Annual probability of promotion from this level
+        data_tests:
+          - not_null
+          - dbt_utils.accepted_range:
+              min_value: 0
+              max_value: 1
+
+  - name: stg_config_cola_by_year
+    description: >
+      Cost of Living Adjustment rates by simulation year.
+      Used for annual compensation adjustments.
+    columns:
+      - name: year
+        description: Simulation year
+        data_tests:
+          - unique
+          - not_null
+      - name: cola_rate
+        description: COLA rate for the year
+        data_tests:
+          - not_null
+          - dbt_utils.accepted_range:
+              min_value: -0.1
+              max_value: 0.1
+
+  - name: stg_config_termination_hazard_base
+    description: Base termination hazard rate configuration
+    columns:
+      - name: base_rate_for_new_hire
+        description: Base termination rate for new hires
+        data_tests:
+          - not_null
+          - dbt_utils.accepted_range:
+              min_value: 0
+              max_value: 1
+
+  - name: stg_config_termination_hazard_age_multipliers
+    description: Age-based multipliers for termination hazard rates
+    columns:
+      - name: age_band
+        description: Age band category
+        data_tests:
+          - unique
+          - not_null
+      - name: multiplier
+        description: Multiplier for the age band
+        data_tests:
+          - not_null
+          - dbt_utils.accepted_range:
+              min_value: 0
+              max_value: 5
+
+  - name: stg_config_termination_hazard_tenure_multipliers
+    description: Tenure-based multipliers for termination hazard rates
+    columns:
+      - name: tenure_band
+        description: Tenure band category
+        data_tests:
+          - unique
+          - not_null
+      - name: multiplier
+        description: Multiplier for the tenure band
+        data_tests:
+          - not_null
+          - dbt_utils.accepted_range:
+              min_value: 0
+              max_value: 5
+
+  - name: stg_config_promotion_hazard_base
+    description: Base promotion hazard rate configuration
+    columns:
+      - name: base_rate
+        description: Base promotion rate
+        data_tests:
+          - not_null
+          - dbt_utils.accepted_range:
+              min_value: 0
+              max_value: 1
+      - name: level_dampener_factor
+        description: Factor to reduce promotion probability at higher levels
+        data_tests:
+          - not_null
+
+  - name: stg_config_promotion_hazard_age_multipliers
+    description: Age-based multipliers for promotion hazard rates
+    columns:
+      - name: age_band
+        description: Age band category
+        data_tests:
+          - unique
+          - not_null
+      - name: multiplier
+        description: Multiplier for the age band
+        data_tests:
+          - not_null
+          - dbt_utils.accepted_range:
+              min_value: 0
+              max_value: 5
+
+  - name: stg_config_promotion_hazard_tenure_multipliers
+    description: Tenure-based multipliers for promotion hazard rates
+    columns:
+      - name: tenure_band
+        description: Tenure band category
+        data_tests:
+          - unique
+          - not_null
+      - name: multiplier
+        description: Multiplier for the tenure band
+        data_tests:
+          - not_null
+          - dbt_utils.accepted_range:
+              min_value: 0
+              max_value: 5
+
+  - name: stg_config_raises_hazard
+    description: Merit raises hazard configuration
+    columns:
+      - name: merit_base
+        description: Base merit raise rate
+        data_tests:
+          - not_null
+          - dbt_utils.accepted_range:
+              min_value: 0
+              max_value: 0.2

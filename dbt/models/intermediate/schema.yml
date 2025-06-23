@@ -1,0 +1,104 @@
+version: 2
+
+models:
+  - name: int_baseline_workforce
+    description: >
+      Baseline workforce for simulation start, driven by simulation parameters.
+      This model provides the initial state of the workforce for multi-year simulations.
+
+      Key features:
+      - Calculates age and tenure based on simulation_effective_date
+      - Assigns level_id based on compensation bands
+      - Creates age and tenure bands for analysis
+      - Only includes active employees (no termination date)
+
+    columns:
+      - name: employee_id
+        description: Unique identifier for each employee
+        data_tests:
+          - unique
+          - not_null
+
+      - name: employee_ssn
+        description: Employee social security number (masked/encrypted in production)
+        data_tests:
+          - not_null
+
+      - name: employee_birth_date
+        description: Employee birth date
+        data_tests:
+          - not_null
+
+      - name: employee_hire_date
+        description: Employee hire date
+        data_tests:
+          - not_null
+
+      - name: current_compensation
+        description: Employee current gross compensation
+        data_tests:
+          - not_null
+          - dbt_utils.accepted_range:
+              min_value: 0
+              inclusive: false
+
+      - name: current_age
+        description: Employee age as of simulation_effective_date
+        data_tests:
+          - not_null
+          - dbt_utils.accepted_range:
+              min_value: 16
+              max_value: 100
+
+      - name: current_tenure
+        description: Employee tenure in years as of simulation_effective_date
+        data_tests:
+          - not_null
+          - dbt_utils.accepted_range:
+              min_value: 0
+              max_value: 60
+
+      - name: level_id
+        description: Job level ID based on compensation bands
+        data_tests:
+          - not_null
+          - relationships:
+              to: ref('stg_config_job_levels')
+              field: level_id
+
+      - name: age_band
+        description: Age band for analysis (< 25, 25-34, 35-44, 45-54, 55-64, 65+)
+        data_tests:
+          - not_null
+          - accepted_values:
+              values: ['< 25', '25-34', '35-44', '45-54', '55-64', '65+']
+
+      - name: tenure_band
+        description: Tenure band for analysis (< 2, 2-4, 5-9, 10-19, 20+)
+        data_tests:
+          - not_null
+          - accepted_values:
+              values: ['< 2', '2-4', '5-9', '10-19', '20+']
+
+      - name: employment_status
+        description: Employment status (always 'active' for baseline)
+        data_tests:
+          - not_null
+          - accepted_values:
+              values: ['active']
+
+      - name: termination_date
+        description: Termination date (NULL for baseline workforce)
+
+      - name: termination_reason
+        description: Termination reason (NULL for baseline workforce)
+
+      - name: simulation_year
+        description: The simulation year this baseline represents
+        data_tests:
+          - not_null
+
+      - name: snapshot_created_at
+        description: Timestamp when this snapshot was created
+        data_tests:
+          - not_null

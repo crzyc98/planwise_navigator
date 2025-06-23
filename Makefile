@@ -4,7 +4,7 @@
 PYTHON := python3.11
 VENV := venv
 DBT_DIR := dbt
-DAGSTER_HOME := .dagster
+DAGSTER_HOME := $(shell pwd)/.dagster
 
 help: ## Show this help message
 	@echo 'Usage: make [target]'
@@ -47,6 +47,10 @@ clean: ## Clean build artifacts
 	rm -rf $(DAGSTER_HOME)/storage
 
 run-simulation: ## Run workforce simulation
+	mkdir -p $(DAGSTER_HOME)
+	@echo "DAGSTER_HOME set to: $(DAGSTER_HOME)"
+	PYTHONPATH=$(shell pwd)/$(VENV)/lib/$(PYTHON)/site-packages:$(PYTHONPATH) \
+	DAGSTER_HOME="$(DAGSTER_HOME)" \
 	$(VENV)/bin/dagster dev -f definitions.py
 
 run-dashboard: ## Launch Streamlit dashboard
