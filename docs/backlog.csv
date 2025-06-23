@@ -102,3 +102,33 @@ E010,DevOps & Deployment,S033,Containerization,Docker deployment,"1. Dockerfile 
 E010,DevOps & Deployment,S034,Monitoring setup,Production monitoring,"1. Prometheus metrics
 2. Grafana dashboards
 3. Alert rules",5,Should Have,6,Not Started
+E011,Workforce Simulation Validation,S035,Workforce simulation data analysis,Analyze current simulation data to identify new hire status issues,"1. Query hire events from fct_yearly_events by year ✅
+2. Trace new hire records through fct_workforce_snapshot pipeline ✅
+3. Identify where employment_status becomes incorrect ✅
+4. Document findings with SQL queries and data samples ✅
+5. Create debugging dashboard/queries for validation ✅",5,Must Have,3,Complete
+E011,Workforce Simulation Validation,S036,Fix new_hire_active classification,Fix employment status and classification logic for new hires,"1. New hires without termination show detailed_status_code = new_hire_active ✅
+2. New hires with termination show detailed_status_code = new_hire_termination ✅
+3. Employment status correctly set to active for non-terminated new hires ✅
+4. Year extraction logic works correctly for hire date comparisons ✅
+5. All existing functionality remains intact (no regressions) ✅",8,Must Have,3,Complete
+E011,Workforce Simulation Validation,S037,Validate cumulative growth calculations,URGENT: Fix declining workforce (-7% to -12% annually instead of +3% growth),"1. Year-over-year active workforce growth matches 3% target (±0.5% tolerance) ❌
+2. Cumulative growth calculation accounts for all previous year events ❌
+3. Baseline workforce count correctly used for growth calculations ❌
+4. Multi-year growth compounds correctly (not flat 3% each year) ❌
+5. Growth validation tests pass for 5-year simulation ❌",5,Must Have,3,In Progress
+E011,Workforce Simulation Validation,S038,Fix workforce status determination,Review and fix workforce processing pipeline for consistent status,"1. All CTEs in fct_workforce_snapshot maintain correct employment status
+2. New hire records preserve hire dates and status through transformations
+3. Status transitions (active → terminated) work correctly for all employees
+4. Deduplication logic preserves most accurate employee record
+5. Previous year workforce correctly carries over active employees only",8,Must Have,3,Not Started
+E011,Workforce Simulation Validation,S039,Add simulation validation tests,Create comprehensive test suite to validate simulation accuracy,"1. dbt tests validate all expected status codes present each year
+2. Growth rate validation tests ensure targets met (±0.5% tolerance)
+3. Termination rate tests validate against configuration parameters
+4. Data quality tests check for NULLs duplicates and invalid states
+5. End-to-end simulation tests validate 5-year projection accuracy",5,Must Have,3,Not Started
+E011,Workforce Simulation Validation,S040,Create workforce metrics dashboard,Build validation dashboard to monitor simulation accuracy,"1. Real-time dashboard shows current simulation status by year
+2. Workforce composition charts show all status categories
+3. Growth rate tracking with target vs actual comparison
+4. Termination rate monitoring with configuration benchmarks
+5. Data quality indicators and validation status",3,Should Have,3,Not Started

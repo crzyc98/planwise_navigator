@@ -54,6 +54,7 @@ class SimulationConfig(Config):
     total_termination_rate: float = 0.12
     new_hire_termination_rate: float = 0.25
     random_seed: int = 42
+    full_refresh: bool = False
 
 
 class YearResult(BaseModel):
@@ -218,6 +219,7 @@ def prepare_year_snapshot(
         "total_termination_rate": float,
         "new_hire_termination_rate": float,
         "random_seed": int,
+        "full_refresh": bool,
     },
 )
 def run_year_simulation(context: OpExecutionContext) -> YearResult:
@@ -228,8 +230,13 @@ def run_year_simulation(context: OpExecutionContext) -> YearResult:
     # Get configuration from op config
     config = context.op_config
     year = config["start_year"]
+    full_refresh = config.get("full_refresh", False)
 
     context.log.info(f"Starting simulation for year {year}")
+    if full_refresh:
+        context.log.info(
+            "🔄 Full refresh enabled - will rebuild all incremental models from scratch"
+        )
 
     # Clean existing data for this year to prevent duplicates
     context.log.info(f"Cleaning existing data for year {year}")
@@ -730,6 +737,7 @@ def single_year_simulation():
         "total_termination_rate": float,
         "new_hire_termination_rate": float,
         "random_seed": int,
+        "full_refresh": bool,
     },
 )
 def run_multi_year_simulation(
@@ -745,8 +753,13 @@ def run_multi_year_simulation(
     config = context.op_config
     start_year = config["start_year"]
     end_year = config["end_year"]
+    full_refresh = config.get("full_refresh", False)
 
     context.log.info(f"Starting multi-year simulation from {start_year} to {end_year}")
+    if full_refresh:
+        context.log.info(
+            "🔄 Full refresh enabled - will rebuild all incremental models from scratch"
+        )
 
     # Clean all data for the simulation years to ensure fresh start
     context.log.info(f"Cleaning existing data for years {start_year}-{end_year}")
@@ -803,16 +816,17 @@ def run_multi_year_simulation(
 
             # Step 2: First run int_previous_year_workforce to establish workforce base for event generation
             context.log.info(f"Running int_previous_year_workforce for year {year}")
-            invocation = dbt.cli(
-                [
-                    "run",
-                    "--select",
-                    "int_previous_year_workforce",
-                    "--vars",
-                    f"{{simulation_year: {year}}}",
-                ],
-                context=context,
-            ).wait()
+            dbt_command = [
+                "run",
+                "--select",
+                "int_previous_year_workforce",
+                "--vars",
+                f"{{simulation_year: {year}}}",
+            ]
+            if full_refresh:
+                dbt_command.append("--full-refresh")
+
+            invocation = dbt.cli(dbt_command, context=context).wait()
 
             if invocation.process is None or invocation.process.returncode != 0:
                 stdout = invocation.get_stdout() or ""
@@ -834,9 +848,11 @@ def run_multi_year_simulation(
                 context.log.info(
                     f"Running {model} for year {year} with vars: {vars_string}"
                 )
-                invocation = dbt.cli(
-                    ["run", "--select", model, "--vars", vars_string], context=context
-                ).wait()
+                dbt_command = ["run", "--select", model, "--vars", vars_string]
+                if full_refresh:
+                    dbt_command.append("--full-refresh")
+
+                invocation = dbt.cli(dbt_command, context=context).wait()
 
                 if invocation.process is None or invocation.process.returncode != 0:
                     stdout = invocation.get_stdout() or ""
@@ -846,16 +862,17 @@ def run_multi_year_simulation(
 
             # Step 4: Consolidate events
             context.log.info(f"Running fct_yearly_events for year {year}")
-            invocation = dbt.cli(
-                [
-                    "run",
-                    "--select",
-                    "fct_yearly_events",
-                    "--vars",
-                    f"{{simulation_year: {year}}}",
-                ],
-                context=context,
-            ).wait()
+            dbt_command = [
+                "run",
+                "--select",
+                "fct_yearly_events",
+                "--vars",
+                f"{{simulation_year: {year}}}",
+            ]
+            if full_refresh:
+                dbt_command.append("--full-refresh")
+
+            invocation = dbt.cli(dbt_command, context=context).wait()
 
             if invocation.process is None or invocation.process.returncode != 0:
                 stdout = invocation.get_stdout() or ""
@@ -881,16 +898,17 @@ def run_multi_year_simulation(
 
             # Step 5b: Generate final workforce snapshot
             context.log.info(f"Running fct_workforce_snapshot for year {year}")
-            invocation = dbt.cli(
-                [
-                    "run",
-                    "--select",
-                    "fct_workforce_snapshot",
-                    "--vars",
-                    f"{{simulation_year: {year}}}",
-                ],
-                context=context,
-            ).wait()
+            dbt_command = [
+                "run",
+                "--select",
+                "fct_workforce_snapshot",
+                "--vars",
+                f"{{simulation_year: {year}}}",
+            ]
+            if full_refresh:
+                dbt_command.append("--full-refresh")
+
+            invocation = dbt.cli(dbt_command, context=context).wait()
 
             if invocation.process is None or invocation.process.returncode != 0:
                 stdout = invocation.get_stdout() or ""

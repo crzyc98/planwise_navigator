@@ -26,7 +26,10 @@
       "Bash(dagster asset materialize:*)",
       "Bash(dagster asset:*)",
       "Bash(dagster job execute:*)",
-      "Bash(dbt list:*)"
+      "Bash(dbt list:*)",
+      "Bash(sqlite3:*)",
+      "Bash(duckdb:*)",
+      "Bash(rg:*)"
     ],
     "deny": []
   }

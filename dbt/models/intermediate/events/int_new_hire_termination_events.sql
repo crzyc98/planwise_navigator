@@ -8,7 +8,7 @@
 WITH simulation_config AS (
     SELECT
         {{ simulation_year }} AS current_year,
-        {{ var('new_hire_termination_rate', 0.1) }} AS new_hire_termination_rate
+        {{ var('new_hire_termination_rate', 0.25) }} AS new_hire_termination_rate
 ),
 
 -- Get all new hires for current simulation year
@@ -29,10 +29,14 @@ new_hires_cohort AS (
 new_hire_terminations AS (
     SELECT
         nh.*,
-        -- Simple deterministic "random" value based on employee_id length
-        (LENGTH(nh.employee_id) % 10) / 10.0 AS random_value,
-        (SELECT new_hire_termination_rate FROM simulation_config) AS termination_rate
+        -- Fixed: Use hash-like approach for better randomization
+        -- Combine multiple digits and add offset to spread values more evenly
+        ((CAST(SUBSTR(nh.employee_id, -2) AS INTEGER) * 17 +
+          CAST(SUBSTR(nh.employee_id, -4, 2) AS INTEGER) * 31 +
+          sc.current_year * 7) % 100) / 100.0 AS random_value,
+        sc.new_hire_termination_rate AS termination_rate
     FROM new_hires_cohort nh
+    CROSS JOIN simulation_config sc
 ),
 
 -- Filter based on termination probability
@@ -47,9 +51,9 @@ SELECT
     employee_ssn,
     'termination' AS event_type,
     (SELECT current_year FROM simulation_config) AS simulation_year,
-    -- New hire terminations occur later in the year (after 3-9 months)
-    -- Use deterministic date based on employee_id length
-    (CAST('{{ simulation_year }}-04-01' AS DATE) + INTERVAL ((LENGTH(employee_id) % 275)) DAY) AS effective_date,
+    -- New hire terminations occur 3-9 months after start of year (spread throughout year)
+    -- Use last digits of employee_id for date variation (90-275 days = ~3-9 months)
+    (CAST('{{ simulation_year }}-01-01' AS DATE) + INTERVAL (90 + (CAST(SUBSTR(employee_id, -3) AS INTEGER) % 185)) DAY) AS effective_date,
     'new_hire_departure' AS termination_reason,
     compensation_amount AS final_compensation,
     employee_age AS current_age,

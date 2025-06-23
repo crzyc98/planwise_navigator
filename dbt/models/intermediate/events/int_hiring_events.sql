@@ -25,10 +25,22 @@ previous_year_workforce_count AS (
 {% endif %}
 ),
 
--- Calculate total expected terminations based on target termination rate (12%)
+-- Calculate total expected departures including both experienced and new hire terminations
+-- This is the key fix: account for new hire terminations that will happen AFTER hiring
 total_expected_departures AS (
   SELECT
-    ROUND(pywc.workforce_count * {{ var('total_termination_rate', 0.12) }}) AS total_terminations
+    pywc.workforce_count,
+    -- Experienced employee terminations (12% of existing workforce)
+    ROUND(pywc.workforce_count * {{ var('total_termination_rate', 0.12) }}) AS experienced_terminations,
+    -- We need to solve for total_hires such that:
+    -- workforce_next = workforce_current - experienced_terms + total_hires - (total_hires * new_hire_term_rate)
+    -- workforce_next = workforce_current * (1 + growth_rate)
+    -- This gives us: total_hires = (experienced_terms + workforce_current * growth_rate) / (1 - new_hire_term_rate)
+    ROUND(
+      (ROUND(pywc.workforce_count * {{ var('total_termination_rate', 0.12) }}) +
+       ROUND(pywc.workforce_count * {{ var('target_growth_rate', 0.03) }})) /
+      (1 - {{ var('new_hire_termination_rate', 0.25) }})
+    ) AS total_hires_needed
   FROM previous_year_workforce_count pywc
 ),
 
@@ -36,17 +48,21 @@ total_expected_departures AS (
 hiring_calculation AS (
   SELECT
     pywc.workforce_count,
-    td.total_terminations,
+    td.experienced_terminations,
+    td.total_hires_needed,
     sc.target_growth_rate,
 
-    -- Replacement hires to maintain current workforce
-    td.total_terminations AS replacement_hires,
+    -- Expected new hire terminations
+    ROUND(td.total_hires_needed * {{ var('new_hire_termination_rate', 0.25) }}) AS expected_new_hire_terminations,
 
-    -- Growth hires to achieve target growth rate (based on previous year workforce)
-    ROUND(pywc.workforce_count * sc.target_growth_rate) AS growth_hires,
+    -- Validation: net workforce change should equal target growth
+    (td.total_hires_needed - td.experienced_terminations -
+     ROUND(td.total_hires_needed * {{ var('new_hire_termination_rate', 0.25) }})) AS net_workforce_change,
 
-    -- Total hires needed
-    td.total_terminations + ROUND(pywc.workforce_count * sc.target_growth_rate) AS total_hires_needed
+    -- Expected final workforce
+    pywc.workforce_count + (td.total_hires_needed - td.experienced_terminations -
+                           ROUND(td.total_hires_needed * {{ var('new_hire_termination_rate', 0.25) }})) AS expected_final_workforce
+
   FROM previous_year_workforce_count pywc
   CROSS JOIN total_expected_departures td
   CROSS JOIN simulation_config sc
@@ -92,8 +108,21 @@ compensation_ranges AS (
   SELECT
     level_id,
     min_compensation,
-    max_compensation,
-    (min_compensation + max_compensation) / 2 AS avg_compensation
+    -- Cap max compensation at reasonable levels to avoid extreme outliers
+    CASE
+      WHEN level_id <= 3 THEN max_compensation
+      WHEN level_id = 4 THEN LEAST(max_compensation, 250000)  -- Cap Level 4 at $250K
+      WHEN level_id = 5 THEN LEAST(max_compensation, 350000)  -- Cap Level 5 at $350K
+      ELSE max_compensation
+    END AS max_compensation,
+    -- Calculate average based on capped values
+    (min_compensation +
+     CASE
+       WHEN level_id <= 3 THEN max_compensation
+       WHEN level_id = 4 THEN LEAST(max_compensation, 250000)
+       WHEN level_id = 5 THEN LEAST(max_compensation, 350000)
+       ELSE max_compensation
+     END) / 2 AS avg_compensation
   FROM {{ ref('stg_config_job_levels') }}
 ),
 
@@ -169,8 +198,11 @@ new_hire_assignments AS (
       END * 365
     ) DAY AS birth_date,
 
-    -- Simple hire date (spread throughout year deterministically)
-    CAST('{{ simulation_year }}-01-01' AS DATE) + INTERVAL (hs.hire_sequence_num * 30) DAY AS hire_date,
+    -- Hire date spread throughout year, capped at year end
+    LEAST(
+        CAST('{{ simulation_year }}-01-01' AS DATE) + INTERVAL (hs.hire_sequence_num * 30) DAY,
+        CAST('{{ simulation_year }}-12-31' AS DATE)
+    ) AS hire_date,
 
     -- Simple compensation assignment (based on level with small variance)
     ROUND(cr.avg_compensation * (0.9 + (hs.hire_sequence_num % 10) * 0.02), 2) AS compensation_amount
