@@ -14,8 +14,8 @@ WITH raw_data AS (
       employee_gross_compensation,
       active,
 
-      -- Read plan year compensation if available, otherwise use gross compensation
-      COALESCE(employee_plan_year_compensation, employee_gross_compensation) AS raw_plan_year_compensation,
+      -- Use gross compensation as plan year compensation when specific column missing
+      employee_gross_compensation AS raw_plan_year_compensation,
 
       -- Add missing columns with defaults for simulation compatibility
       CAST(NULL AS DECIMAL(12,2)) AS employee_capped_compensation,

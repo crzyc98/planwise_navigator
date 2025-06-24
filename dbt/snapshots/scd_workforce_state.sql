@@ -2,7 +2,6 @@
 
 {{
   config(
-    target_database='main',
     target_schema='snapshots',
     unique_key='employee_id',
     strategy='timestamp',

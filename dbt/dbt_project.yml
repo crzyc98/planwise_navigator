@@ -69,7 +69,7 @@ vars:
   census_parquet_path: '/Users/nicholasamaral/planwise_navigator/data/census_preprocessed.parquet'
 
   # Simulation parameters
-  simulation_year: 2024
+  simulation_year: 2025
   simulation_effective_date: '2024-12-31'
   simulation_start_year: 2025
   simulation_end_year: 2029
