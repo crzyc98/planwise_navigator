@@ -24,9 +24,10 @@ SELECT
     level_id,
     termination_date,
     employment_status,
-    {{ var('simulation_year', 2025) }} AS simulation_year,
+    simulation_year,
     CURRENT_TIMESTAMP AS snapshot_created_at
-FROM {{ ref('int_baseline_workforce') }}
+FROM {{ ref('fct_workforce_snapshot') }}
 WHERE employment_status = 'active'
+  AND simulation_year = {{ var('simulation_year', 2025) }}
 
 {% endsnapshot %}

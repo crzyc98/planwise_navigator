@@ -958,7 +958,32 @@ def run_multi_year_simulation(
                     )
                     continue  # Skip to next year instead of aborting entirely
 
-            # Step 2: First run int_previous_year_workforce to establish workforce base for event generation
+            # Step 2: Ensure previous year's workforce state snapshot is available
+            if year > start_year:
+                context.log.info(f"Running dbt snapshot for end of year {year - 1}")
+                snapshot_cmd = [
+                    "snapshot",
+                    "--select",
+                    "scd_workforce_state",
+                    "--vars",
+                    f"{{simulation_year: {year - 1}}}",
+                ]
+                if full_refresh and year == start_year + 1:
+                    snapshot_cmd.append("--full-refresh")
+
+                snap_invocation = dbt.cli(snapshot_cmd, context=context).wait()
+
+                if (
+                    snap_invocation.process is None
+                    or snap_invocation.process.returncode != 0
+                ):
+                    stdout = snap_invocation.get_stdout() or ""
+                    stderr = snap_invocation.get_stderr() or ""
+                    raise Exception(
+                        f"Failed to run dbt snapshot for year {year - 1}. STDOUT: {stdout}, STDERR: {stderr}"
+                    )
+
+            # Step 3: First run int_previous_year_workforce to establish workforce base for event generation
             context.log.info(f"Running int_previous_year_workforce for year {year}")
             dbt_command = [
                 "run",
@@ -1130,6 +1155,26 @@ def run_multi_year_simulation(
                 stderr = invocation.get_stderr() or ""
                 error_message = f"Failed to run fct_workforce_snapshot for year {year}. Exit code: {invocation.process.returncode}\\n\\nSTDOUT:\\n{stdout}\\n\\nSTDERR:\\n{stderr}"
                 raise Exception(error_message)
+
+            # Step 5c: Snapshot final workforce state for current year for use in next iteration
+            context.log.info(f"Running dbt snapshot for end of year {year}")
+            snapshot_cmd_curr = [
+                "snapshot",
+                "--select",
+                "scd_workforce_state",
+                "--vars",
+                f"{{simulation_year: {year}}}",
+            ]
+            snap_invocation_curr = dbt.cli(snapshot_cmd_curr, context=context).wait()
+            if (
+                snap_invocation_curr.process is None
+                or snap_invocation_curr.process.returncode != 0
+            ):
+                stdout = snap_invocation_curr.get_stdout() or ""
+                stderr = snap_invocation_curr.get_stderr() or ""
+                raise Exception(
+                    f"Failed to run dbt snapshot for year {year}. STDOUT: {stdout}, STDERR: {stderr}"
+                )
 
             # Step 6: Validate results
             year_result = validate_year_results(context, year, config)
