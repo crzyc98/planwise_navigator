@@ -112,17 +112,15 @@ workforce_after_promotions AS (
     ) p ON w.employee_id = p.employee_id
 ),
 
--- Apply merit increases
+-- **REMOVED MERIT PROCESSING**: Merit increases now handled by compensation_periods calculation
+-- This prevents double-processing and conflicts with prorated compensation logic
 workforce_after_merit AS (
     SELECT
         w.employee_id,
         w.employee_ssn,
         w.employee_birth_date,
         w.employee_hire_date,
-        CASE
-            WHEN m.employee_id IS NOT NULL THEN m.compensation_amount
-            ELSE w.employee_gross_compensation
-        END AS employee_gross_compensation,
+        w.employee_gross_compensation, -- Keep original compensation, let periods calculation handle merit
         w.current_age,
         w.current_tenure,
         w.level_id,
@@ -130,9 +128,6 @@ workforce_after_merit AS (
         w.employment_status,
         w.termination_reason
     FROM workforce_after_promotions w
-    LEFT JOIN current_year_events m
-        ON w.employee_id = m.employee_id
-        AND m.event_type = 'merit_increase'
 ),
 
 -- Add new hires from hiring events (use fct_yearly_events for persistence across years)
@@ -260,54 +255,117 @@ final_workforce_corrected AS (
 ),
 
 -- CTEs for prorated compensation calculation
-employee_compensation_events AS (
+comp_events_for_periods AS (
     SELECT
         employee_id,
         event_type,
         effective_date,
         compensation_amount,
         previous_compensation,
-        -- **FIX**: Use consistent alias event_sequence_in_year for event sequence
         ROW_NUMBER() OVER (
             PARTITION BY employee_id
-            ORDER BY effective_date, event_type -- Add event_type for stable ordering on same date
+            ORDER BY effective_date, event_type
         ) AS event_sequence_in_year
     FROM current_year_events
     WHERE event_type IN ('hire', 'promotion', 'merit_increase', 'termination')
 ),
 
--- **FIX**: Create compensation periods with corrected column references
+-- **DIRECT FIX**: Simple approach - create explicit periods for merit increases
+all_compensation_periods AS (
+    -- For merit increases: create BEFORE period (start of year to merit date - 1)
+    SELECT
+        employee_id,
+        1 AS period_sequence,
+        'merit_before' AS period_type,
+        '{{ simulation_year }}-01-01'::DATE AS period_start,
+        effective_date - INTERVAL 1 DAY AS period_end,
+        previous_compensation AS period_salary
+    FROM comp_events_for_periods
+    WHERE event_type = 'merit_increase'
+      AND previous_compensation IS NOT NULL
+      AND previous_compensation > 0
+
+    UNION ALL
+
+    -- For merit increases: create AFTER period (merit date to end of year)
+    SELECT
+        employee_id,
+        2 AS period_sequence,
+        'merit_after' AS period_type,
+        effective_date AS period_start,
+        '{{ simulation_year }}-12-31'::DATE AS period_end,
+        compensation_amount AS period_salary
+    FROM comp_events_for_periods
+    WHERE event_type = 'merit_increase'
+      AND compensation_amount > 0
+
+    UNION ALL
+
+    -- For hire events: period from hire date to end of year (or next event)
+    SELECT
+        employee_id,
+        1 AS period_sequence,
+        'hire' AS period_type,
+        effective_date AS period_start,
+        COALESCE(
+            LEAD(effective_date - INTERVAL 1 DAY) OVER (PARTITION BY employee_id ORDER BY effective_date),
+            '{{ simulation_year }}-12-31'::DATE
+        ) AS period_end,
+        compensation_amount AS period_salary
+    FROM comp_events_for_periods
+    WHERE event_type = 'hire'
+
+    UNION ALL
+
+    -- For promotion events: period from promotion date to end of year (or next event)
+    SELECT
+        employee_id,
+        1 AS period_sequence,
+        'promotion' AS period_type,
+        effective_date AS period_start,
+        COALESCE(
+            LEAD(effective_date - INTERVAL 1 DAY) OVER (PARTITION BY employee_id ORDER BY effective_date),
+            '{{ simulation_year }}-12-31'::DATE
+        ) AS period_end,
+        compensation_amount AS period_salary
+    FROM comp_events_for_periods
+    WHERE event_type = 'promotion'
+
+    UNION ALL
+
+    -- For termination events: period from start of year (or last event) to termination
+    SELECT
+        employee_id,
+        1 AS period_sequence,
+        'termination' AS period_type,
+        COALESCE(
+            LAG(effective_date + INTERVAL 1 DAY) OVER (PARTITION BY employee_id ORDER BY effective_date),
+            '{{ simulation_year }}-01-01'::DATE
+        ) AS period_start,
+        effective_date AS period_end,
+        COALESCE(previous_compensation, compensation_amount) AS period_salary
+    FROM comp_events_for_periods
+    WHERE event_type = 'termination'
+      AND previous_compensation IS NOT NULL
+),
+
+-- Validate and clean periods
 compensation_periods AS (
     SELECT
         employee_id,
-        event_sequence_in_year,
-        event_type,
-        effective_date,
-        compensation_amount,
-        previous_compensation,
-
-        -- Determine period start date
-        CASE
-            WHEN event_sequence_in_year = 1 AND event_type = 'hire' THEN effective_date
-            WHEN event_sequence_in_year = 1 AND event_type != 'hire' THEN '{{ simulation_year }}-01-01'::DATE
-            ELSE LAG(effective_date) OVER (PARTITION BY employee_id ORDER BY event_sequence_in_year) + INTERVAL 1 DAY
-        END AS period_start,
-
-        -- Determine period end date
-        CASE
-            WHEN event_type = 'termination' THEN effective_date
-            WHEN LEAD(effective_date) OVER (PARTITION BY employee_id ORDER BY event_sequence_in_year) IS NOT NULL
-                THEN LEAD(effective_date) OVER (PARTITION BY employee_id ORDER BY event_sequence_in_year) - INTERVAL 1 DAY -- Corrected: Lead is exclusive, so subtract 1 day
-            ELSE '{{ simulation_year }}-12-31'::DATE
-        END AS period_end,
-
-        -- Determine salary for this period
-        CASE
-            WHEN event_type IN ('hire', 'promotion', 'merit_increase') THEN compensation_amount
-            WHEN event_type = 'termination' AND previous_compensation IS NOT NULL THEN previous_compensation
-            ELSE compensation_amount
-        END AS period_salary
-    FROM employee_compensation_events
+        period_sequence,
+        period_type,
+        period_start,
+        period_end,
+        period_salary
+    FROM all_compensation_periods
+    WHERE period_start IS NOT NULL
+      AND period_end IS NOT NULL
+      AND period_salary IS NOT NULL
+      AND period_salary > 0
+      AND period_start <= period_end
+      AND period_start >= '{{ simulation_year }}-01-01'::DATE
+      AND period_end <= '{{ simulation_year }}-12-31'::DATE
 ),
 
 -- Calculate prorated compensation for employees with events
@@ -321,8 +379,9 @@ employees_with_events_prorated AS (
     WHERE period_start IS NOT NULL
       AND period_end IS NOT NULL
       AND period_salary IS NOT NULL
-      -- Ensure period_start is not after period_end
       AND period_start <= period_end
+      AND period_salary > 0
+      AND DATE_DIFF('day', period_start, period_end) >= 0
     GROUP BY employee_id
 ),
 
@@ -344,7 +403,7 @@ employees_without_events_prorated AS (
             ELSE fwc.employee_gross_compensation
         END AS prorated_annual_compensation
     FROM final_workforce_corrected fwc
-    WHERE fwc.employee_id NOT IN (SELECT employee_id FROM employee_compensation_events)
+    WHERE fwc.employee_id NOT IN (SELECT employee_id FROM comp_events_for_periods)
       AND fwc.employment_status = 'active' -- Only calculate for active employees without events
 ),
 
@@ -363,7 +422,14 @@ final_workforce AS (
         fwc.employee_birth_date,
         fwc.employee_hire_date,
         fwc.employee_gross_compensation AS current_compensation,
-        COALESCE(epc.prorated_annual_compensation, fwc.employee_gross_compensation) AS prorated_annual_compensation,
+        -- **SIMPLIFIED DIRECT FIX**: Use LEFT JOIN instead of EXISTS for merit calculation
+        COALESCE(
+            -- Merit increase calculation: before period + after period
+            merit_calc.before_contrib + merit_calc.after_contrib,
+            -- Fallback to original logic
+            epc.prorated_annual_compensation,
+            fwc.employee_gross_compensation
+        ) AS prorated_annual_compensation,
         fwc.current_age,
         fwc.current_tenure,
         fwc.level_id,
@@ -422,6 +488,17 @@ final_workforce AS (
     FROM final_workforce_corrected fwc
     CROSS JOIN simulation_parameters sp
     LEFT JOIN employee_prorated_compensation epc ON fwc.employee_id = epc.employee_id
+    -- **MERIT FIX**: Direct merit calculation via LEFT JOIN
+    LEFT JOIN (
+        SELECT
+            employee_id,
+            -- Before merit period: previous salary × days before merit
+            COALESCE(previous_compensation, 0) * (DATE_DIFF('day', '{{ simulation_year }}-01-01'::DATE, effective_date - INTERVAL 1 DAY) + 1) / 365.0 AS before_contrib,
+            -- After merit period: new salary × days after merit
+            compensation_amount * (DATE_DIFF('day', effective_date, '{{ simulation_year }}-12-31'::DATE) + 1) / 365.0 AS after_contrib
+        FROM current_year_events
+        WHERE event_type = 'merit_increase'
+    ) merit_calc ON fwc.employee_id = merit_calc.employee_id
 )
 
 SELECT

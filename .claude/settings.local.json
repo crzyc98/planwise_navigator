@@ -36,7 +36,13 @@
       "Bash(venv/bin/dbt run --select \"int_termination_events int_hiring_events fct_yearly_events fct_workforce_snapshot\" --vars '{simulation_year: 2025}' --project-dir dbt)",
       "Bash(PYTHONPATH=. ./venv/bin/python3 -m dbt.cli.main run --select \"int_termination_events int_hiring_events fct_yearly_events fct_workforce_snapshot\" --vars '{simulation_year: 2025}' --project-dir dbt)",
       "Bash(dagster dev:*)",
-      "Bash(/usr/bin/python3 -m dbt:*)"
+      "Bash(/usr/bin/python3 -m dbt:*)",
+      "Bash(pip3 install:*)",
+      "Bash(/Users/nicholasamaral/Library/Python/3.9/bin/dbt run)",
+      "Bash(/Users/nicholasamaral/Library/Python/3.9/bin/dbt run --select fct_workforce_snapshot)",
+      "Bash(/Users/nicholasamaral/Library/Python/3.9/bin/dbt run --select fct_compensation_growth)",
+      "Bash(/Users/nicholasamaral/Library/Python/3.9/bin/dbt run --select fct_compensation_growth --vars '{simulation_year: 2026}')",
+      "Bash(/Users/nicholasamaral/Library/Python/3.9/bin/dbt run --select fct_policy_optimization --vars '{simulation_year: 2026, test_scenario: \"scenario_001\"}')"
     ],
     "deny": []
   }

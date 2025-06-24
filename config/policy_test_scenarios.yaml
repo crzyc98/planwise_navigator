@@ -1,0 +1,233 @@
+# S052 Policy Parameter Optimization Test Scenarios
+# Systematic testing of COLA rates (2.5%-4.5%) and Merit budgets (4%-10%)
+
+# Test Matrix: 5 COLA rates × 7 Merit budgets = 35 scenarios
+scenarios:
+  # Conservative COLA (2.5%) with varying Merit
+  scenario_001:
+    name: "Baseline_Current"
+    cola_rate: 0.025
+    merit_budget: 0.040
+    category: "baseline"
+
+  scenario_002:
+    name: "Conservative_COLA_Merit_Boost_1"
+    cola_rate: 0.025
+    merit_budget: 0.050
+    category: "conservative"
+
+  scenario_003:
+    name: "Conservative_COLA_Merit_Boost_2"
+    cola_rate: 0.025
+    merit_budget: 0.060
+    category: "conservative"
+
+  scenario_004:
+    name: "Conservative_COLA_Merit_Boost_3"
+    cola_rate: 0.025
+    merit_budget: 0.070
+    category: "moderate"
+
+  scenario_005:
+    name: "Conservative_COLA_Merit_Boost_4"
+    cola_rate: 0.025
+    merit_budget: 0.080
+    category: "moderate"
+
+  scenario_006:
+    name: "Conservative_COLA_Merit_Boost_5"
+    cola_rate: 0.025
+    merit_budget: 0.090
+    category: "aggressive"
+
+  scenario_007:
+    name: "Conservative_COLA_Merit_Max"
+    cola_rate: 0.025
+    merit_budget: 0.100
+    category: "aggressive"
+
+  # Low-Moderate COLA (3.0%) with varying Merit
+  scenario_008:
+    name: "Low_Mod_COLA_Merit_Base"
+    cola_rate: 0.030
+    merit_budget: 0.040
+    category: "conservative"
+
+  scenario_009:
+    name: "Low_Mod_COLA_Merit_Boost_1"
+    cola_rate: 0.030
+    merit_budget: 0.050
+    category: "conservative"
+
+  scenario_010:
+    name: "Low_Mod_COLA_Merit_Boost_2"
+    cola_rate: 0.030
+    merit_budget: 0.060
+    category: "target_candidate"
+
+  scenario_011:
+    name: "Low_Mod_COLA_Merit_Boost_3"
+    cola_rate: 0.030
+    merit_budget: 0.070
+    category: "target_candidate"
+
+  scenario_012:
+    name: "Low_Mod_COLA_Merit_Boost_4"
+    cola_rate: 0.030
+    merit_budget: 0.080
+    category: "moderate"
+
+  scenario_013:
+    name: "Low_Mod_COLA_Merit_Boost_5"
+    cola_rate: 0.030
+    merit_budget: 0.090
+    category: "aggressive"
+
+  scenario_014:
+    name: "Low_Mod_COLA_Merit_Max"
+    cola_rate: 0.030
+    merit_budget: 0.100
+    category: "aggressive"
+
+  # Moderate COLA (3.5%) with varying Merit
+  scenario_015:
+    name: "Mod_COLA_Merit_Base"
+    cola_rate: 0.035
+    merit_budget: 0.040
+    category: "conservative"
+
+  scenario_016:
+    name: "Mod_COLA_Merit_Boost_1"
+    cola_rate: 0.035
+    merit_budget: 0.050
+    category: "target_candidate"
+
+  scenario_017:
+    name: "Mod_COLA_Merit_Boost_2"
+    cola_rate: 0.035
+    merit_budget: 0.060
+    category: "target_candidate"
+
+  scenario_018:
+    name: "Mod_COLA_Merit_Boost_3"
+    cola_rate: 0.035
+    merit_budget: 0.070
+    category: "target_candidate"
+
+  scenario_019:
+    name: "Mod_COLA_Merit_Boost_4"
+    cola_rate: 0.035
+    merit_budget: 0.080
+    category: "moderate"
+
+  scenario_020:
+    name: "Mod_COLA_Merit_Boost_5"
+    cola_rate: 0.035
+    merit_budget: 0.090
+    category: "aggressive"
+
+  scenario_021:
+    name: "Mod_COLA_Merit_Max"
+    cola_rate: 0.035
+    merit_budget: 0.100
+    category: "aggressive"
+
+  # High-Moderate COLA (4.0%) with varying Merit
+  scenario_022:
+    name: "High_Mod_COLA_Merit_Base"
+    cola_rate: 0.040
+    merit_budget: 0.040
+    category: "conservative"
+
+  scenario_023:
+    name: "High_Mod_COLA_Merit_Boost_1"
+    cola_rate: 0.040
+    merit_budget: 0.050
+    category: "target_candidate"
+
+  scenario_024:
+    name: "High_Mod_COLA_Merit_Boost_2"
+    cola_rate: 0.040
+    merit_budget: 0.060
+    category: "target_candidate"
+
+  scenario_025:
+    name: "High_Mod_COLA_Merit_Boost_3"
+    cola_rate: 0.040
+    merit_budget: 0.070
+    category: "moderate"
+
+  scenario_026:
+    name: "High_Mod_COLA_Merit_Boost_4"
+    cola_rate: 0.040
+    merit_budget: 0.080
+    category: "moderate"
+
+  scenario_027:
+    name: "High_Mod_COLA_Merit_Boost_5"
+    cola_rate: 0.040
+    merit_budget: 0.090
+    category: "aggressive"
+
+  scenario_028:
+    name: "High_Mod_COLA_Merit_Max"
+    cola_rate: 0.040
+    merit_budget: 0.100
+    category: "aggressive"
+
+  # Aggressive COLA (4.5%) with varying Merit
+  scenario_029:
+    name: "Aggressive_COLA_Merit_Base"
+    cola_rate: 0.045
+    merit_budget: 0.040
+    category: "moderate"
+
+  scenario_030:
+    name: "Aggressive_COLA_Merit_Boost_1"
+    cola_rate: 0.045
+    merit_budget: 0.050
+    category: "target_candidate"
+
+  scenario_031:
+    name: "Aggressive_COLA_Merit_Boost_2"
+    cola_rate: 0.045
+    merit_budget: 0.060
+    category: "moderate"
+
+  scenario_032:
+    name: "Aggressive_COLA_Merit_Boost_3"
+    cola_rate: 0.045
+    merit_budget: 0.070
+    category: "moderate"
+
+  scenario_033:
+    name: "Aggressive_COLA_Merit_Boost_4"
+    cola_rate: 0.045
+    merit_budget: 0.080
+    category: "aggressive"
+
+  scenario_034:
+    name: "Aggressive_COLA_Merit_Boost_5"
+    cola_rate: 0.045
+    merit_budget: 0.090
+    category: "aggressive"
+
+  scenario_035:
+    name: "Aggressive_COLA_Merit_Max"
+    cola_rate: 0.045
+    merit_budget: 0.100
+    category: "aggressive"
+
+# Scenario Categories for Analysis
+categories:
+  baseline: "Current policy (2.5% COLA, 4% Merit)"
+  conservative: "Minimal adjustment scenarios"
+  target_candidate: "Scenarios likely to achieve 2% ± 0.5% target"
+  moderate: "Moderate policy adjustments"
+  aggressive: "Maximum policy adjustments"
+
+# Expected Results Prediction
+# Based on S051 finding that Method A needs +3% points to reach 2% target:
+# - Current (2.5% + 4% = 6.5% effective) → 1.36% growth
+# - Target scenarios should achieve: ~9.5% effective raise for 2% growth
+# - Target combinations: 3.0%+6%, 3.5%+5%, 4.0%+5%, 4.5%+4.5%

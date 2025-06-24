@@ -1,0 +1,146 @@
+# S052 Revised Policy Parameter Optimization Test Scenarios
+# Based on initial findings that current policy combinations are too aggressive
+# Testing smaller, more realistic policy adjustments to achieve 2% target
+
+# Findings from initial testing:
+# - Baseline (2.5% COLA + 4% Merit) produces 7.84% growth (Method A), 15.66% (Method C)
+# - All tested scenarios exceeded target range significantly
+# - Need to test much smaller policy adjustments
+
+# Revised Test Matrix: Lower COLA rates and smaller Merit adjustments
+scenarios:
+  # Ultra-Conservative: Test very small adjustments
+  scenario_r001:
+    name: "Ultra_Conservative_Baseline"
+    cola_rate: 0.000  # No COLA
+    merit_budget: 0.020  # 2% Merit only
+    category: "ultra_conservative"
+
+  scenario_r002:
+    name: "Ultra_Conservative_Merit_25"
+    cola_rate: 0.000
+    merit_budget: 0.025  # 2.5% Merit only
+    category: "ultra_conservative"
+
+  scenario_r003:
+    name: "Ultra_Conservative_Merit_30"
+    cola_rate: 0.000
+    merit_budget: 0.030  # 3% Merit only
+    category: "ultra_conservative"
+
+  scenario_r004:
+    name: "Minimal_COLA_Merit_20"
+    cola_rate: 0.005  # 0.5% COLA
+    merit_budget: 0.020  # 2% Merit
+    category: "minimal"
+
+  scenario_r005:
+    name: "Minimal_COLA_Merit_25"
+    cola_rate: 0.005
+    merit_budget: 0.025
+    category: "minimal"
+
+  scenario_r006:
+    name: "Minimal_COLA_Merit_30"
+    cola_rate: 0.005
+    merit_budget: 0.030
+    category: "minimal"
+
+  scenario_r007:
+    name: "Low_COLA_Merit_20"
+    cola_rate: 0.010  # 1% COLA
+    merit_budget: 0.020
+    category: "low_adjustment"
+
+  scenario_r008:
+    name: "Low_COLA_Merit_25"
+    cola_rate: 0.010
+    merit_budget: 0.025
+    category: "low_adjustment"
+
+  scenario_r009:
+    name: "Low_COLA_Merit_30"
+    cola_rate: 0.010
+    merit_budget: 0.030
+    category: "target_candidate"
+
+  scenario_r010:
+    name: "Low_COLA_Merit_35"
+    cola_rate: 0.010
+    merit_budget: 0.035
+    category: "target_candidate"
+
+  scenario_r011:
+    name: "Low_Moderate_COLA_Merit_15"
+    cola_rate: 0.015  # 1.5% COLA
+    merit_budget: 0.015  # 1.5% Merit
+    category: "target_candidate"
+
+  scenario_r012:
+    name: "Low_Moderate_COLA_Merit_20"
+    cola_rate: 0.015
+    merit_budget: 0.020
+    category: "target_candidate"
+
+  scenario_r013:
+    name: "Low_Moderate_COLA_Merit_25"
+    cola_rate: 0.015
+    merit_budget: 0.025
+    category: "target_candidate"
+
+  scenario_r014:
+    name: "Low_Moderate_COLA_Merit_30"
+    cola_rate: 0.015
+    merit_budget: 0.030
+    category: "moderate"
+
+  scenario_r015:
+    name: "Moderate_COLA_Merit_10"
+    cola_rate: 0.020  # 2% COLA
+    merit_budget: 0.010  # 1% Merit
+    category: "target_candidate"
+
+  scenario_r016:
+    name: "Moderate_COLA_Merit_15"
+    cola_rate: 0.020
+    merit_budget: 0.015
+    category: "target_candidate"
+
+  scenario_r017:
+    name: "Moderate_COLA_Merit_20"
+    cola_rate: 0.020
+    merit_budget: 0.020
+    category: "target_candidate"
+
+  scenario_r018:
+    name: "Moderate_COLA_Merit_25"
+    cola_rate: 0.020
+    merit_budget: 0.025
+    category: "moderate"
+
+  scenario_r019:
+    name: "Current_Policy_COLA_Merit_40"
+    cola_rate: 0.025  # Current 2.5% COLA
+    merit_budget: 0.040  # Current 4% Merit (for comparison)
+    category: "current_baseline"
+
+  scenario_r020:
+    name: "Slightly_Reduced_COLA_Merit_35"
+    cola_rate: 0.025
+    merit_budget: 0.035  # Slightly reduced Merit
+    category: "moderate"
+
+# Target Achievement Predictions:
+# Based on baseline analysis showing 1.36% baseline growth (Method A):
+# - Need to add ~0.64% to reach 2% target
+# - Current 6.5% effective increase produces 7.84% growth
+# - Suggests we need ~1% effective increase to reach target
+# - Target scenarios: 1.5% COLA + 1.5% Merit, 2% COLA + 1% Merit, etc.
+
+categories:
+  ultra_conservative: "No COLA or minimal Merit only"
+  minimal: "Very small policy adjustments (0.5% COLA)"
+  low_adjustment: "Small policy adjustments (1% COLA)"
+  target_candidate: "Most likely to achieve 2% ± 0.5% target"
+  moderate: "Moderate policy adjustments"
+  current_baseline: "Current policy for comparison"

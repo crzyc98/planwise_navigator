@@ -12,6 +12,9 @@ workforce:
 compensation:
   cola_rate: 0.025
   merit_budget: 0.04
+  growth_target: 0.02
+  growth_tolerance: 0.005
+  calculation_methodology: "current"  # options: current, continuous, full_year_equivalent
 
 # Dagster op configuration
 ops:
