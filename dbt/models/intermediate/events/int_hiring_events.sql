@@ -127,44 +127,17 @@ compensation_ranges AS (
   FROM {{ ref('stg_config_job_levels') }}
 ),
 
--- Generate hire sequence using manual expansion to handle large hire counts
+-- Generate hire sequence using GENERATE_SERIES to handle arbitrary hire counts
 hire_sequence AS (
   SELECT
-    ROW_NUMBER() OVER (ORDER BY level_id, hire_num) AS hire_sequence_num,
-    level_id
-  FROM (
-    -- Generate multiple rows for each hire needed per level
-    SELECT level_id, 1 as hire_num FROM hires_per_level WHERE hires_for_level >= 1
-    UNION ALL SELECT level_id, 2 FROM hires_per_level WHERE hires_for_level >= 2
-    UNION ALL SELECT level_id, 3 FROM hires_per_level WHERE hires_for_level >= 3
-    UNION ALL SELECT level_id, 4 FROM hires_per_level WHERE hires_for_level >= 4
-    UNION ALL SELECT level_id, 5 FROM hires_per_level WHERE hires_for_level >= 5
-    UNION ALL SELECT level_id, 6 FROM hires_per_level WHERE hires_for_level >= 6
-    UNION ALL SELECT level_id, 7 FROM hires_per_level WHERE hires_for_level >= 7
-    UNION ALL SELECT level_id, 8 FROM hires_per_level WHERE hires_for_level >= 8
-    UNION ALL SELECT level_id, 9 FROM hires_per_level WHERE hires_for_level >= 9
-    UNION ALL SELECT level_id, 10 FROM hires_per_level WHERE hires_for_level >= 10
-    UNION ALL SELECT level_id, 11 FROM hires_per_level WHERE hires_for_level >= 11
-    UNION ALL SELECT level_id, 12 FROM hires_per_level WHERE hires_for_level >= 12
-    UNION ALL SELECT level_id, 13 FROM hires_per_level WHERE hires_for_level >= 13
-    UNION ALL SELECT level_id, 14 FROM hires_per_level WHERE hires_for_level >= 14
-    UNION ALL SELECT level_id, 15 FROM hires_per_level WHERE hires_for_level >= 15
-    UNION ALL SELECT level_id, 16 FROM hires_per_level WHERE hires_for_level >= 16
-    UNION ALL SELECT level_id, 17 FROM hires_per_level WHERE hires_for_level >= 17
-    UNION ALL SELECT level_id, 18 FROM hires_per_level WHERE hires_for_level >= 18
-    UNION ALL SELECT level_id, 19 FROM hires_per_level WHERE hires_for_level >= 19
-    UNION ALL SELECT level_id, 20 FROM hires_per_level WHERE hires_for_level >= 20
-    UNION ALL SELECT level_id, 21 FROM hires_per_level WHERE hires_for_level >= 21
-    UNION ALL SELECT level_id, 22 FROM hires_per_level WHERE hires_for_level >= 22
-    UNION ALL SELECT level_id, 23 FROM hires_per_level WHERE hires_for_level >= 23
-    UNION ALL SELECT level_id, 24 FROM hires_per_level WHERE hires_for_level >= 24
-    UNION ALL SELECT level_id, 25 FROM hires_per_level WHERE hires_for_level >= 25
-    UNION ALL SELECT level_id, 26 FROM hires_per_level WHERE hires_for_level >= 26
-    UNION ALL SELECT level_id, 27 FROM hires_per_level WHERE hires_for_level >= 27
-    UNION ALL SELECT level_id, 28 FROM hires_per_level WHERE hires_for_level >= 28
-    UNION ALL SELECT level_id, 29 FROM hires_per_level WHERE hires_for_level >= 29
-    UNION ALL SELECT level_id, 30 FROM hires_per_level WHERE hires_for_level >= 30
-  ) expanded_levels
+    ROW_NUMBER() OVER (ORDER BY hpl.level_id, s.i) AS hire_sequence_num,
+    hpl.level_id
+  FROM hires_per_level hpl
+  CROSS JOIN GENERATE_SERIES(
+      1,
+      (SELECT MAX(hires_for_level) FROM hires_per_level)
+  ) AS s(i)
+  WHERE s.i <= hpl.hires_for_level
 ),
 
 -- Assign attributes to each new hire
