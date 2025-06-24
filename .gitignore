@@ -26,11 +26,10 @@ simulation.duckdb.wal
 dbt/target/
 dbt/dbt_packages/
 dbt/logs/
-dbt/dbt_project.yml
-dbt/profiles.yml
 dbt/.user_*
 dbt/.dbt/
 dbt/macros/packages/
+results/
 
 # dagster specific
 .dagster

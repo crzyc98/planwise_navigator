@@ -1,0 +1,14 @@
+planwise_navigator:
+  target: dev
+  outputs:
+    dev:
+      type: duckdb
+      path: "/Users/nicholasamaral/planwise_navigator/simulation.duckdb"
+      schema: main  # Explicitly set the schema here
+      threads: 1
+      extensions:
+        - parquet
+        - httpfs
+      settings:
+        threads: 1
+        memory_limit: '2GB'

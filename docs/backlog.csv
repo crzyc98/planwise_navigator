@@ -176,4 +176,29 @@ E012,Compensation System Integrity,S049,Validate compensation system end-to-end,
 2. Prorated compensation accurately reflects employment periods
 3. No extreme outliers (>$500K) in any simulation year
 4. Multi-year simulation maintains compensation consistency
-5. Dashboard analytics show realistic compensation trends",5,Must Have,4,Not Started
+5. Dashboard analytics show realistic compensation trends",5,Must Have,4,Complete
+E012,Compensation System Integrity,S050,Analyze compensation dilution root cause,Quantify impact of new hire compensation dilution on overall average growth,"1. Calculate current year-over-year average compensation growth (baseline: -0.02%)
+2. Decompose growth impact by employee segment (continuous_active vs new_hire_active)
+3. Quantify dilution effect: new hire volume vs existing employee raises
+4. Identify primary levers: COLA/merit rates vs new hire baseline compensation
+5. Document current compensation policy effectiveness against 2% growth target",3,Must Have,5,Not Started
+E012,Compensation System Integrity,S051,Design compensation growth calibration framework,Create systematic process to tune compensation parameters for target average growth,"1. Define primary tuning levers (cola_rate merit_budget promotion_increase)
+2. Define secondary levers (job_levels baseline compensation new_hire_termination_rate)
+3. Design iterative calibration workflow with feedback loops
+4. Create parameter sensitivity analysis methodology
+5. Document target tolerances and validation criteria",5,Must Have,5,Not Started
+E012,Compensation System Integrity,S052,Implement compensation policy adjustment tooling,Build automated tools to adjust compensation parameters and measure impact,"1. Create parameter adjustment script for simulation_config.yaml
+2. Implement automated simulation pipeline for calibration runs
+3. Build compensation growth analysis dashboard/queries
+4. Add asset checks for compensation growth targets (1.8%-2.2% tolerance)
+5. Integration with existing Dagster monitoring and validation",8,Must Have,5,Not Started
+E012,Compensation System Integrity,S053,Calibrate compensation parameters for 2% target growth,Execute iterative tuning to achieve sustained 2% average compensation growth,"1. Run baseline analysis with current parameters (expected: negative growth)
+2. Iteratively adjust COLA/merit rates to counteract new hire dilution
+3. Fine-tune new hire baseline compensation (config_job_levels min/max values)
+4. Validate 2% average growth sustained across 5-year simulation
+5. Document final calibrated parameter set and rationale",8,Must Have,5,Not Started
+E012,Compensation System Integrity,S054,Implement advanced compensation monitoring,Deploy comprehensive monitoring for compensation growth and policy effectiveness,"1. Real-time dashboard tracking average compensation growth vs 2% target
+2. Segment-specific growth monitoring (continuous vs new_hire impact)
+3. Early warning alerts for compensation dilution trends
+4. Automated policy recommendation engine based on growth deviations
+5. Integration with executive reporting and workforce planning dashboards",5,Should Have,5,Not Started

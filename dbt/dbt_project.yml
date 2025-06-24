@@ -1,0 +1,111 @@
+name: 'planwise_navigator'
+version: '1.0.0'
+config-version: 2
+
+# Profile configuration
+profile: 'planwise_navigator'
+
+# Directory configuration
+model-paths: ["models"]
+analysis-paths: ["analyses"]
+test-paths: ["tests"]
+seed-paths: ["seeds"]
+macro-paths: ["macros"]
+snapshot-paths: ["snapshots"]
+
+target-path: "target"
+clean-targets:
+  - "target"
+  - "dbt_packages"
+
+# Model configuration
+models:
+  planwise_navigator:
+    # Global model settings
+    +materialized: table
+
+    # Staging models - raw data cleaning
+    staging:
+      +materialized: table
+      +docs:
+        node_color: "#E8F4FD"
+
+    # Intermediate models - business logic
+    intermediate:
+      +materialized: table
+      +docs:
+        node_color: "#FFF2CC"
+
+    # Mart models - final outputs
+    marts:
+      +materialized: table
+      +docs:
+        node_color: "#D5E8D4"
+
+# Seeds configuration
+seeds:
+  planwise_navigator:
+    +column_types:
+      id: varchar
+      created_at: timestamp
+      updated_at: timestamp
+
+# Snapshot configuration
+snapshots:
+  planwise_navigator:
+    +target_schema: main
+    +strategy: timestamp
+    +updated_at: updated_at
+
+# Test configuration
+tests:
+  planwise_navigator:
+    +store_failures: true
+    +schema: main
+
+# Variables
+vars:
+  # File paths
+  census_parquet_path: '/Users/nicholasamaral/planwise_navigator/data/census_preprocessed.parquet'
+
+  # Simulation parameters
+  simulation_year: 2024
+  simulation_effective_date: '2024-12-31'
+  simulation_start_year: 2025
+  simulation_end_year: 2029
+  target_growth_rate: 0.03
+  random_seed: 42
+
+  # Data quality thresholds
+  accepted_diff_pct: 0.5
+  max_termination_rate: 0.50
+  min_headcount_threshold: 100
+
+  # Database configuration
+  database_name: 'planwise_navigator'
+  schema_prefix: 'dbt_'
+
+# Macros
+dispatch:
+  - macro_namespace: dbt_utils
+    search_order: ['dbt_utils']
+
+# Quoting configuration (DuckDB specific)
+quoting:
+  database: false
+  schema: false
+  identifier: false
+
+# Hooks temporarily disabled to isolate DuckDBRelation serialization issue
+# on-run-start:
+#   - "{{ log('Starting dbt run for PlanWise Navigator', info=True) }}"
+
+# on-run-end:
+#   - "{{ log('Completed dbt run for PlanWise Navigator', info=True) }}"
+
+# Freshness configuration
+sources:
+  planwise_navigator:
+    +freshness:
+      warn_after: {count: 24, period: hour}
+      error_after: {count: 48, period: hour}
