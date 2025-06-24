@@ -593,14 +593,16 @@ def validate_year_results(
             [year],
         ).fetchall()
 
-        # Get detailed event breakdown
+        # Get detailed event breakdown - fixed to use correct termination source
         detailed_events = conn.execute(
             """
             SELECT
                 event_type,
                 CASE
-                    WHEN event_details LIKE '%new_hire%' OR event_details LIKE '%NEW_%' THEN 'new_hire'
-                    WHEN event_details LIKE '%experienced%' OR event_details LIKE '%hazard%' THEN 'experienced'
+                    WHEN event_type = 'termination' AND event_category = 'experienced_termination' THEN 'experienced'
+                    WHEN event_type = 'termination' AND event_category = 'new_hire_termination' THEN 'new_hire'
+                    WHEN event_type = 'termination' AND employee_id LIKE 'NH_%' THEN 'new_hire'
+                    WHEN event_type = 'hire' THEN 'new_hire'
                     ELSE 'other'
                 END as employee_category,
                 COUNT(*) as count
@@ -644,11 +646,21 @@ def validate_year_results(
         for status, count in workforce_breakdown:
             context.log.info(f"    {status}: {count}")
 
-        # Log validation formula check
-        expected_ending = previous_active - experienced_terminations + net_new_hires
-        if expected_ending != current_active:
+        # Log validation formula check - aligned with dbt target_ending_workforce_count
+        # Use the same formula as dbt: ROUND(workforce_count * (1 + target_growth_rate))
+        expected_ending_dbt = round(
+            previous_active * (1 + config["target_growth_rate"])
+        )
+
+        # Allow small variance due to discrete employee counts and rounding
+        variance_threshold = 2
+        if abs(expected_ending_dbt - current_active) > variance_threshold:
             context.log.warning(
-                f"  Formula mismatch: expected {expected_ending}, actual {current_active}"
+                f"  Growth target variance: target {expected_ending_dbt}, actual {current_active} (diff: {current_active - expected_ending_dbt})"
+            )
+        else:
+            context.log.info(
+                f"  ✅ Growth target achieved: target {expected_ending_dbt}, actual {current_active}"
             )
 
         conn.close()

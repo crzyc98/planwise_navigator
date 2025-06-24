@@ -30,20 +30,18 @@ previous_year_workforce_count AS (
 total_expected_departures AS (
   SELECT
     pywc.workforce_count,
-    -- Experienced employee terminations (12% of existing workforce)
-    CEIL(pywc.workforce_count * {{ var('total_termination_rate', 0.12) }}) AS experienced_terminations,
+    -- Align with int_termination_events.sql's CEIL behavior for experienced terminations
+    CEIL(pywc.workforce_count * {{ var('total_termination_rate', 0.12) }}) AS expected_experienced_terminations_count,
+    pywc.workforce_count * {{ var('target_growth_rate', 0.03) }} AS target_growth_amount_decimal,
     -- We need to solve for total_hires such that:
     -- workforce_next = workforce_current - experienced_terms + total_hires - (total_hires * new_hire_term_rate)
     -- workforce_next = workforce_current * (1 + growth_rate)
     -- This gives us: total_hires = (experienced_terms + workforce_current * growth_rate) / (1 - new_hire_term_rate)
+    -- Use CEIL here to mirror actual terminations from int_termination_events.sql
     CEIL(
-      (CEIL(pywc.workforce_count * {{ var('total_termination_rate', 0.12) }}) +
-       CEIL(pywc.workforce_count * {{ var('target_growth_rate', 0.03) }})) /
-      {% if simulation_year == 2025 %}
-      (1 - ({{ var('new_hire_termination_rate', 0.25) }} / 2))
-      {% else %}
+      (CEIL(pywc.workforce_count * {{ var('total_termination_rate', 0.12) }}) + -- Use CEIL here to mirror actual terms
+       pywc.workforce_count * {{ var('target_growth_rate', 0.03) }}) /
       (1 - {{ var('new_hire_termination_rate', 0.25) }})
-      {% endif %}
     ) AS total_hires_needed
   FROM previous_year_workforce_count pywc
 ),
@@ -51,21 +49,20 @@ total_expected_departures AS (
 -- Calculate hiring target
 hiring_calculation AS (
   SELECT
-    pywc.workforce_count,
-    td.experienced_terminations,
+    pywc.workforce_count AS starting_active_workforce, -- Rename for clarity
+    td.expected_experienced_terminations_count AS experienced_terminations, -- Use the CEILed value
     td.total_hires_needed,
     sc.target_growth_rate,
 
-    -- Expected new hire terminations
-    CEIL(td.total_hires_needed * {{ var('new_hire_termination_rate', 0.25) }}) AS expected_new_hire_terminations,
+    -- Expected new hire terminations - use ROUND for better balance (this matches int_new_hire_termination_events logic)
+    ROUND(td.total_hires_needed * {{ var('new_hire_termination_rate', 0.25) }}) AS expected_new_hire_terminations,
 
-    -- Validation: net workforce change should equal target growth
-    (td.total_hires_needed - td.experienced_terminations -
-     CEIL(td.total_hires_needed * {{ var('new_hire_termination_rate', 0.25) }})) AS net_workforce_change,
+    -- Calculate net change based on these aligned values
+    (td.total_hires_needed - td.expected_experienced_terminations_count -
+     ROUND(td.total_hires_needed * {{ var('new_hire_termination_rate', 0.25) }})) AS net_workforce_change_actual,
 
-    -- Expected final workforce
-    pywc.workforce_count + (td.total_hires_needed - td.experienced_terminations -
-                           CEIL(td.total_hires_needed * {{ var('new_hire_termination_rate', 0.25) }})) AS expected_final_workforce
+    -- Target ending workforce based purely on growth rate, for comparison
+    ROUND(pywc.workforce_count * (1 + sc.target_growth_rate)) AS target_ending_workforce_count
 
   FROM previous_year_workforce_count pywc
   CROSS JOIN total_expected_departures td
@@ -176,8 +173,8 @@ new_hire_assignments AS (
     hs.hire_sequence_num,
     hs.level_id,
 
-    -- Generate unique employee ID for new hire (avoid conflicts with existing)
-    'NEW_' || LPAD(CAST(10000 + hs.hire_sequence_num AS VARCHAR), 8, '0') AS employee_id,
+    -- Generate globally unique employee ID for new hire across all simulation years
+    'NH_' || CAST((SELECT current_year FROM simulation_config) AS VARCHAR) || '_' || LPAD(CAST(hs.hire_sequence_num AS VARCHAR), 6, '0') AS employee_id,
 
     -- Generate SSN
     'SSN-' || LPAD(CAST(100000000 + hs.hire_sequence_num AS VARCHAR), 9, '0') AS employee_ssn,

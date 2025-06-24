@@ -34,7 +34,8 @@
       "Bash(venv/bin/dagster asset materialize --select simulation_year_state)",
       "Bash(./venv/bin/dagster asset materialize --select simulation_year_state)",
       "Bash(venv/bin/dbt run --select \"int_termination_events int_hiring_events fct_yearly_events fct_workforce_snapshot\" --vars '{simulation_year: 2025}' --project-dir dbt)",
-      "Bash(PYTHONPATH=. ./venv/bin/python3 -m dbt.cli.main run --select \"int_termination_events int_hiring_events fct_yearly_events fct_workforce_snapshot\" --vars '{simulation_year: 2025}' --project-dir dbt)"
+      "Bash(PYTHONPATH=. ./venv/bin/python3 -m dbt.cli.main run --select \"int_termination_events int_hiring_events fct_yearly_events fct_workforce_snapshot\" --vars '{simulation_year: 2025}' --project-dir dbt)",
+      "Bash(dagster dev:*)"
     ],
     "deny": []
   }
