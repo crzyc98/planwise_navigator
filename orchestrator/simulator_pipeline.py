@@ -272,13 +272,13 @@ def run_year_simulation(context: OpExecutionContext) -> YearResult:
             finally:
                 conn.close()
 
-        # Step 2: First run int_previous_year_workforce to establish workforce base for event generation
-        context.log.info(f"Running int_previous_year_workforce for year {year}")
+        # Step 2: First run int_workforce_previous_year to establish workforce base for event generation
+        context.log.info(f"Running int_workforce_previous_year for year {year}")
         invocation = dbt.cli(
             [
                 "run",
                 "--select",
-                "int_previous_year_workforce",
+                "int_workforce_previous_year",
                 "--vars",
                 f"{{simulation_year: {year}}}",
             ],
@@ -288,7 +288,7 @@ def run_year_simulation(context: OpExecutionContext) -> YearResult:
         if invocation.process is None or invocation.process.returncode != 0:
             stdout = invocation.get_stdout() or ""
             stderr = invocation.get_stderr() or ""
-            error_message = f"Failed to run int_previous_year_workforce for year {year}. Exit code: {invocation.process.returncode}\n\nSTDOUT:\n{stdout}\n\nSTDERR:\n{stderr}"
+            error_message = f"Failed to run int_workforce_previous_year for year {year}. Exit code: {invocation.process.returncode}\n\nSTDOUT:\n{stdout}\n\nSTDERR:\n{stderr}"
             raise Exception(error_message)
 
         # Step 3: Run event generation models in proper Epic 11.5 sequence
@@ -908,12 +908,12 @@ def run_multi_year_simulation(
                         f"Failed to run dbt snapshot for year {year - 1}. STDOUT: {stdout}, STDERR: {stderr}"
                     )
 
-            # Step 3: First run int_previous_year_workforce to establish workforce base for event generation
-            context.log.info(f"Running int_previous_year_workforce for year {year}")
+            # Step 3: First run int_workforce_previous_year to establish workforce base for event generation
+            context.log.info(f"Running int_workforce_previous_year for year {year}")
             dbt_command = [
                 "run",
                 "--select",
-                "int_previous_year_workforce",
+                "int_workforce_previous_year",
                 "--vars",
                 f"{{simulation_year: {year}}}",
             ]
@@ -925,7 +925,7 @@ def run_multi_year_simulation(
             if invocation.process is None or invocation.process.returncode != 0:
                 stdout = invocation.get_stdout() or ""
                 stderr = invocation.get_stderr() or ""
-                error_message = f"Failed to run int_previous_year_workforce for year {year}. Exit code: {invocation.process.returncode}\\n\\nSTDOUT:\\n{stdout}\\n\\nSTDERR:\\n{stderr}"
+                error_message = f"Failed to run int_workforce_previous_year for year {year}. Exit code: {invocation.process.returncode}\\n\\nSTDOUT:\\n{stdout}\\n\\nSTDERR:\\n{stderr}"
                 raise Exception(error_message)
 
             # Step 3: Run event generation models in proper sequence

@@ -2,25 +2,41 @@ version: 2
 
 sources:
   - name: snapshots
-    description: >
-      Snapshot tables that capture historical state of workforce data.
-      Used to break circular dependencies in multi-year simulations.
-    database: main
+    description: "dbt snapshots schema containing historical workforce state"
     schema: main
     tables:
       - name: scd_workforce_state
-        description: >
-          Workforce state snapshot capturing end-of-simulation-year data.
-          This table is materialized by the scd_workforce_state snapshot
-          and provides historical workforce state for subsequent year simulations.
+        description: "Slowly changing dimension table capturing workforce state at the end of each simulation year"
         columns:
           - name: employee_id
-            description: Unique identifier for each employee
-          - name: simulation_year
-            description: The simulation year this snapshot represents
+            description: "Unique identifier for each employee"
+          - name: employee_ssn
+            description: "Employee social security number"
+          - name: employee_birth_date
+            description: "Employee birth date"
+          - name: employee_hire_date
+            description: "Employee hire date"
+          - name: employee_gross_compensation
+            description: "Employee gross compensation"
+          - name: current_age
+            description: "Employee age at snapshot time"
+          - name: current_tenure
+            description: "Employee tenure at snapshot time"
+          - name: level_id
+            description: "Job level ID"
+          - name: termination_date
+            description: "Termination date if applicable"
           - name: employment_status
-            description: Employment status (active/terminated)
+            description: "Employment status (active/terminated)"
+          - name: simulation_year
+            description: "Simulation year this snapshot represents"
+          - name: snapshot_created_at
+            description: "Timestamp when snapshot was taken"
+          - name: dbt_scd_id
+            description: "dbt snapshot ID"
+          - name: dbt_updated_at
+            description: "dbt snapshot update timestamp"
           - name: dbt_valid_from
-            description: Timestamp when this record became valid (snapshot metadata)
+            description: "dbt snapshot valid from timestamp"
           - name: dbt_valid_to
-            description: Timestamp when this record became invalid, NULL for current (snapshot metadata)
+            description: "dbt snapshot valid to timestamp"
