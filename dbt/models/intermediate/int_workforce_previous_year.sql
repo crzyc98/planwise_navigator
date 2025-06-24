@@ -34,7 +34,7 @@ SELECT
     level_id,
     termination_date,
     employment_status
-FROM {{ ref('scd_workforce_state') }}
+FROM {{ source('snapshots', 'scd_workforce_state') }}
 WHERE simulation_year = {{ simulation_year - 1 }}
   AND employment_status = 'active'
   AND dbt_valid_to IS NULL  -- Get current/latest version from snapshot
