@@ -6,7 +6,7 @@ sources:
       Snapshot tables that capture historical state of workforce data.
       Used to break circular dependencies in multi-year simulations.
     database: main
-    schema: snapshots
+    schema: main
     tables:
       - name: scd_workforce_state
         description: >
