@@ -127,17 +127,13 @@ compensation_ranges AS (
   FROM {{ ref('stg_config_job_levels') }}
 ),
 
--- Generate hire sequence using GENERATE_SERIES to handle arbitrary hire counts
+-- Generate hire sequence using UNNEST(sequence()) to handle arbitrary hire counts without constant-bound limitations
 hire_sequence AS (
   SELECT
-    ROW_NUMBER() OVER (ORDER BY hpl.level_id, s.i) AS hire_sequence_num,
+    ROW_NUMBER() OVER (ORDER BY hpl.level_id, seq.i) AS hire_sequence_num,
     hpl.level_id
   FROM hires_per_level hpl
-  CROSS JOIN GENERATE_SERIES(
-      1,
-      (SELECT MAX(hires_for_level) FROM hires_per_level)
-  ) AS s(i)
-  WHERE s.i <= hpl.hires_for_level
+  CROSS JOIN UNNEST(range(1::BIGINT, CAST(hpl.hires_for_level AS BIGINT))) AS seq(i)
 ),
 
 -- Assign attributes to each new hire
