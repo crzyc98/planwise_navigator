@@ -14,8 +14,10 @@ WITH raw_data AS (
       employee_gross_compensation,
       active,
 
+      -- Read plan year compensation if available, otherwise use gross compensation
+      COALESCE(employee_plan_year_compensation, employee_gross_compensation) AS raw_plan_year_compensation,
+
       -- Add missing columns with defaults for simulation compatibility
-      CAST(NULL AS DECIMAL(12,2)) AS employee_plan_year_compensation,
       CAST(NULL AS DECIMAL(12,2)) AS employee_capped_compensation,
       0.0 AS employee_deferral_rate,
       0.0 AS employee_contribution,
@@ -30,6 +32,41 @@ WITH raw_data AS (
       ) AS rn
 
   FROM read_parquet('{{ var("census_parquet_path") }}')
+),
+
+-- Calculate annualized compensation for partial year workers
+annualized_data AS (
+  SELECT
+      *,
+      -- **NEW**: Annualize plan year compensation for partial year workers
+      CASE
+          -- New hire during plan year: gross up based on hire date to plan year end
+          WHEN employee_hire_date > '{{ var("plan_year_start_date", "2024-01-01") }}'::DATE
+               AND employee_hire_date <= '{{ var("plan_year_end_date", "2024-12-31") }}'::DATE
+          THEN raw_plan_year_compensation * 365.0 /
+               GREATEST(1, DATE_DIFF('day', employee_hire_date, '{{ var("plan_year_end_date", "2024-12-31") }}'::DATE) + 1)
+
+          -- Terminated during plan year: gross up based on termination date
+          WHEN employee_termination_date IS NOT NULL
+               AND employee_termination_date >= '{{ var("plan_year_start_date", "2024-01-01") }}'::DATE
+               AND employee_termination_date < '{{ var("plan_year_end_date", "2024-12-31") }}'::DATE
+          THEN raw_plan_year_compensation * 365.0 /
+               GREATEST(1, DATE_DIFF('day', '{{ var("plan_year_start_date", "2024-01-01") }}'::DATE, employee_termination_date) + 1)
+
+          -- Mid-year hire AND termination in same plan year
+          WHEN employee_hire_date > '{{ var("plan_year_start_date", "2024-01-01") }}'::DATE
+               AND employee_termination_date IS NOT NULL
+               AND employee_termination_date < '{{ var("plan_year_end_date", "2024-12-31") }}'::DATE
+               AND employee_hire_date <= employee_termination_date
+          THEN raw_plan_year_compensation * 365.0 /
+               GREATEST(1, DATE_DIFF('day', employee_hire_date, employee_termination_date) + 1)
+
+          -- Full year worker: plan year compensation IS the annualized amount
+          ELSE raw_plan_year_compensation
+      END AS employee_annualized_compensation
+
+  FROM raw_data
+  WHERE rn = 1
 )
 
 -- **FIX**: Select only the first occurrence of each employee_id after deduplication
@@ -41,7 +78,9 @@ SELECT
     employee_termination_date,
     employee_gross_compensation,
     active,
-    employee_plan_year_compensation,
+    -- **NEW**: Include both raw plan year compensation and annualized version
+    raw_plan_year_compensation AS employee_plan_year_compensation,
+    employee_annualized_compensation,
     employee_capped_compensation,
     employee_deferral_rate,
     employee_contribution,
@@ -49,5 +88,4 @@ SELECT
     employer_match_contribution,
     eligibility_entry_date
 
-FROM raw_data
-WHERE rn = 1
+FROM annualized_data

@@ -11,7 +11,9 @@ SELECT
     stg.employee_ssn,
     stg.employee_birth_date,
     stg.employee_hire_date,
-    stg.employee_gross_compensation AS current_compensation,
+    -- **NEW**: Use annualized compensation for more accurate baseline
+    -- This eliminates proration bias from partial year workers in the starting workforce
+    COALESCE(stg.employee_annualized_compensation, stg.employee_gross_compensation) AS current_compensation,
     -- Calculate age and tenure based on the simulation_effective_date
     EXTRACT(YEAR FROM '{{ simulation_effective_date_str }}'::DATE) - EXTRACT(YEAR FROM stg.employee_birth_date) AS current_age,
     EXTRACT(YEAR FROM '{{ simulation_effective_date_str }}'::DATE) - EXTRACT(YEAR FROM stg.employee_hire_date) AS current_tenure,
@@ -44,12 +46,12 @@ LEFT JOIN (
     SELECT
         stg.employee_id,
         -- Select the level with the smallest min_compensation that still matches
-        -- This ensures we get the most appropriate level for overlapping ranges
+        -- **NEW**: Use annualized compensation for level matching instead of gross compensation
         MIN(levels.level_id) as level_id
     FROM {{ ref('stg_census_data') }} stg
     LEFT JOIN {{ ref('stg_config_job_levels') }} levels
-        ON stg.employee_gross_compensation >= levels.min_compensation
-       AND (stg.employee_gross_compensation < levels.max_compensation OR levels.max_compensation IS NULL)
+        ON COALESCE(stg.employee_annualized_compensation, stg.employee_gross_compensation) >= levels.min_compensation
+       AND (COALESCE(stg.employee_annualized_compensation, stg.employee_gross_compensation) < levels.max_compensation OR levels.max_compensation IS NULL)
     GROUP BY stg.employee_id
 ) level_match ON stg.employee_id = level_match.employee_id
 WHERE

@@ -1,0 +1,22 @@
+load_from:
+  - python_file:
+      relative_path: definitions.py
+      working_directory: .
+      location_name: "planwise_navigator"
+  - grpc_server:
+      host: "127.0.0.1"
+      port: 4000
+  - dagster_webserver:
+    host: "127.0.0.1"
+    port: 3000
+
+# Optional: Configure logging
+# python_logs:
+#   managed_python_loggers:
+#     - dagster
+#     - planwise_navigator
+#   python_log_level: INFO
+
+# Optional: Configure telemetry
+# telemetry:
+#   enabled: false

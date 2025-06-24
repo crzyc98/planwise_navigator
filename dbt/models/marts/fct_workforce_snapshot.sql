@@ -30,20 +30,20 @@ base_workforce AS (
         employment_status
     FROM {{ ref('int_baseline_workforce') }}
     {% else %}
-    -- Subsequent years: Use int_previous_year_workforce which creates explicit snapshot
-    -- Note: int_previous_year_workforce should ensure it only contains active employees
+    -- Subsequent years: Use int_workforce_previous_year which creates explicit snapshot
+    -- Note: int_workforce_previous_year should ensure it only contains active employees
     SELECT
         employee_id,
         employee_ssn,
         employee_birth_date,
         employee_hire_date,
         employee_gross_compensation,
-        current_age + 1 AS current_age, -- Age by one year
-        current_tenure + 1 AS current_tenure, -- Add one year tenure
+        current_age,  -- Age already incremented in int_workforce_previous_year
+        current_tenure,  -- Tenure already incremented in int_workforce_previous_year
         level_id,
         termination_date,
         employment_status
-    FROM {{ ref('int_previous_year_workforce') }}
+    FROM {{ ref('int_workforce_previous_year') }}
     WHERE employment_status = 'active' -- Ensure only active employees are carried over
     {% endif %}
 ),
@@ -437,6 +437,9 @@ final_workforce AS (
         fwc.termination_date,
         fwc.termination_reason,
         sp.current_year AS simulation_year,
+        -- **NEW**: Add data needed for full_year_equivalent calculation
+        merit_calc.compensation_amount AS merit_new_salary,
+        promo_calc.compensation_amount AS promo_new_salary,
         -- Recalculate bands with updated age/tenure (these are indeed static for a given year here)
         CASE
             WHEN fwc.current_age < 25 THEN '< 25'
@@ -492,6 +495,7 @@ final_workforce AS (
     LEFT JOIN (
         SELECT
             employee_id,
+            compensation_amount,
             -- Before merit period: previous salary × days before merit
             COALESCE(previous_compensation, 0) * (DATE_DIFF('day', '{{ simulation_year }}-01-01'::DATE, effective_date - INTERVAL 1 DAY) + 1) / 365.0 AS before_contrib,
             -- After merit period: new salary × days after merit
@@ -499,6 +503,14 @@ final_workforce AS (
         FROM current_year_events
         WHERE event_type = 'merit_increase'
     ) merit_calc ON fwc.employee_id = merit_calc.employee_id
+    -- **PROMO FIX**: Add promotion calculation for full_year_equivalent
+    LEFT JOIN (
+        SELECT
+            employee_id,
+            compensation_amount
+        FROM current_year_events
+        WHERE event_type = 'promotion'
+    ) promo_calc ON fwc.employee_id = promo_calc.employee_id
 )
 
 SELECT
@@ -508,6 +520,22 @@ SELECT
     employee_hire_date,
     current_compensation,
     prorated_annual_compensation,
+    -- **NEW**: Full-year equivalent compensation - annualizes all compensation periods
+    -- This eliminates proration-based dilution by calculating what each employee
+    -- would earn if they worked the full year at their effective rates
+    CASE
+        -- For employees with merit increases: use the post-merit salary as full-year equivalent
+        WHEN merit_new_salary IS NOT NULL THEN merit_new_salary
+
+        -- For promoted employees: use post-promotion salary as full-year equivalent
+        WHEN promo_new_salary IS NOT NULL THEN promo_new_salary
+
+        -- For new hires: use their hired salary as full-year equivalent
+        WHEN EXTRACT(YEAR FROM employee_hire_date) = simulation_year THEN current_compensation
+
+        -- For continuous employees: use current salary as full-year equivalent
+        ELSE current_compensation
+    END AS full_year_equivalent_compensation,
     current_age,
     current_tenure,
     level_id,

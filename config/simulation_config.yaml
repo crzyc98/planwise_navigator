@@ -16,6 +16,11 @@ compensation:
   growth_tolerance: 0.005
   calculation_methodology: "full_year_equivalent"  # options: current, continuous, full_year_equivalent
 
+plan_year:
+  start_date: "2024-01-01"  # Plan year start date for compensation calculations
+  end_date: "2024-12-31"    # Plan year end date for compensation calculations
+  annualization_method: "calendar_days"  # Method for annualizing partial year compensation (calendar_days vs work_days)
+
 # Dagster op configuration
 ops:
   run_multi_year_simulation:

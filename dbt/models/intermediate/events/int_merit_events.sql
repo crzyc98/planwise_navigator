@@ -8,7 +8,7 @@
 -- Applies merit raise percentages from dim_hazard_table to eligible employees
 
 WITH active_workforce AS (
-    -- Use int_previous_year_workforce which handles the dependency logic properly
+    -- Use int_workforce_previous_year which handles the dependency logic properly
     SELECT
         employee_id,
         employee_ssn,
@@ -18,7 +18,7 @@ WITH active_workforce AS (
         current_age,
         current_tenure,
         level_id
-    FROM {{ ref('int_previous_year_workforce') }}
+    FROM {{ ref('int_workforce_previous_year') }}
     WHERE employment_status = 'active'
 ),
 
