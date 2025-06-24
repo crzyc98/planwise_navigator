@@ -111,30 +111,29 @@ hiring_events AS (
   {% endif %}
 ),
 
--- Temporarily disabled until int_merit_events is fixed
--- merit_events AS (
---   SELECT
---     employee_id,
---     employee_ssn,
---     event_type,
---     simulation_year,
---     effective_date,
---     'Merit: ' || ROUND(merit_percentage * 100, 1) || '% + COLA: ' ||
---     ROUND(cola_percentage * 100, 1) || '%' AS event_details,
---     new_salary AS compensation_amount,
---     previous_salary AS previous_compensation,
---     current_age AS employee_age,
---     current_tenure AS employee_tenure,
---     level_id,
---     age_band,
---     tenure_band,
---     merit_percentage AS event_probability,
---     'merit_increase' AS event_category
---   FROM int_merit_events_table_name
---   {% if is_incremental() %}
---     WHERE simulation_year = {{ simulation_year }}
---   {% endif %}
--- ),
+merit_events AS (
+  SELECT
+    employee_id,
+    employee_ssn,
+    event_type,
+    simulation_year,
+    effective_date,
+    'Merit: ' || ROUND(merit_percentage * 100, 1) || '% + COLA: ' ||
+    ROUND(cola_percentage * 100, 1) || '%' AS event_details,
+    new_salary AS compensation_amount,
+    previous_salary AS previous_compensation,
+    current_age AS employee_age,
+    current_tenure AS employee_tenure,
+    level_id,
+    age_band,
+    tenure_band,
+    merit_percentage AS event_probability,
+    'merit_increase' AS event_category
+  FROM {{ ref('int_merit_events') }}
+  {% if is_incremental() %}
+    WHERE simulation_year = {{ simulation_year }}
+  {% endif %}
+),
 
 -- Union all event types with consistent schema
 all_events AS (
@@ -216,26 +215,25 @@ all_events AS (
     event_category
   FROM hiring_events
 
-  -- Temporarily disabled merit_events until fixed
-  -- UNION ALL
+  UNION ALL
 
-  -- SELECT
-  --   employee_id,
-  --   employee_ssn,
-  --   event_type,
-  --   simulation_year,
-  --   effective_date,
-  --   event_details,
-  --   compensation_amount,
-  --   previous_compensation,
-  --   employee_age,
-  --   employee_tenure,
-  --   level_id,
-  --   age_band,
-  --   tenure_band,
-  --   event_probability,
-  --   event_category
-  -- FROM merit_events
+  SELECT
+    employee_id,
+    employee_ssn,
+    event_type,
+    simulation_year,
+    effective_date,
+    event_details,
+    compensation_amount,
+    previous_compensation,
+    employee_age,
+    employee_tenure,
+    level_id,
+    age_band,
+    tenure_band,
+    event_probability,
+    event_category
+  FROM merit_events
 )
 
 -- Final selection with event sequencing for conflict resolution

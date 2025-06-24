@@ -112,11 +112,11 @@ E011,Workforce Simulation Validation,S036,Fix new_hire_active classification,Fix
 3. Employment status correctly set to active for non-terminated new hires ✅
 4. Year extraction logic works correctly for hire date comparisons ✅
 5. All existing functionality remains intact (no regressions) ✅",8,Must Have,3,Complete
-E011,Workforce Simulation Validation,S037,Validate cumulative growth calculations,URGENT: Fix declining workforce (-7% to -12% annually instead of +3% growth),"1. Year-over-year active workforce growth matches 3% target (±0.5% tolerance) ❌
-2. Cumulative growth calculation accounts for all previous year events ❌
-3. Baseline workforce count correctly used for growth calculations ❌
-4. Multi-year growth compounds correctly (not flat 3% each year) ❌
-5. Growth validation tests pass for 5-year simulation ❌",5,Must Have,3,In Progress
+E011,Workforce Simulation Validation,S037,Validate cumulative growth calculations,URGENT: Fix declining workforce (-7% to -12% annually instead of +3% growth),"1. Year-over-year active workforce growth matches 3% target (±0.5% tolerance) ✅
+2. Cumulative growth calculation accounts for all previous year events ✅
+3. Baseline workforce count correctly used for growth calculations ✅
+4. Multi-year growth compounds correctly (not flat 3% each year) ✅
+5. Growth validation tests pass for 5-year simulation ✅",5,Must Have,3,Complete
 E011,Workforce Simulation Validation,S038,Fix workforce status determination,Review and fix workforce processing pipeline for consistent status,"1. All CTEs in fct_workforce_snapshot maintain correct employment status
 2. New hire records preserve hire dates and status through transformations
 3. Status transitions (active → terminated) work correctly for all employees
@@ -132,3 +132,48 @@ E011,Workforce Simulation Validation,S040,Create workforce metrics dashboard,Bui
 3. Growth rate tracking with target vs actual comparison
 4. Termination rate monitoring with configuration benchmarks
 5. Data quality indicators and validation status",3,Should Have,3,Not Started
+E011,Workforce Simulation Validation,S041,Fix mathematical consistency between hiring and termination models,Align CEIL/ROUND logic between int_hiring_events.sql and int_termination_events.sql,"1. Both models use identical CEIL calculation for experienced terminations ✅
+2. Hiring expectations exactly match actual termination generation ✅
+3. Total_hires_needed formula uses consistent termination counts ✅
+4. Growth calculations mathematically sound across all models ✅
+5. No more formula mismatch between hiring and termination logic ✅",8,Must Have,3,Complete
+E011,Workforce Simulation Validation,S042,Fix zero experienced terminations issue,Resolve int_termination_events.sql producing 0 terminations despite active workforce,"1. int_previous_year_workforce properly populated with simulation_year variable ✅
+2. Termination quota applied to entire active_workforce instead of empty experienced_population ✅
+3. Quota-first approach ensures reliable termination generation ✅
+4. Target_terminations calculation produces expected counts (CEIL(workforce * 0.12)) ✅
+5. Experienced terminations consistently generated across all simulation years ✅",8,Must Have,3,Complete
+E011,Workforce Simulation Validation,S043,Fix employee ID uniqueness across simulation years,Prevent duplicate employee_id generation across different simulation years,"1. Employee ID format includes simulation year: NH_YYYY_XXXXXX ✅
+2. No collisions possible between different simulation years ✅
+3. All hire events have globally unique employee_id values ✅
+4. New format maintains readability and structure ✅
+5. Downstream models process unique IDs correctly ✅",5,Must Have,3,Complete
+E011,Workforce Simulation Validation,S044,Fix Python orchestration logging and validation,Correct misleading termination logging and false formula mismatch warnings,"1. Python queries use correct event_category column for termination classification ✅
+2. Experienced terminations logging shows actual counts not 0 ✅
+3. Growth validation aligned with dbt target_ending_workforce_count formula ✅
+4. False formula mismatch warnings eliminated ✅
+5. Success messages shown when growth targets achieved ✅",5,Must Have,3,Complete
+E012,Compensation System Integrity,S045,Diagnose compensation anomaly root cause,Investigate $18K average new hire compensation anomaly and trace through compensation calculation pipeline,"1. Query fct_yearly_events for hire compensation amounts by level_id
+2. Identify Level 4/5 new hires with compensation > $500K
+3. Trace compensation flow from config_job_levels → int_hiring_events → fct_workforce_snapshot
+4. Document specific line numbers and calculations causing distortion
+5. Create diagnostic queries for ongoing validation",3,Must Have,4,Not Started
+E012,Compensation System Integrity,S046,Fix job levels configuration data,Correct extreme max_compensation values in config_job_levels.csv that create unrealistic salary calculations,"1. Level 4 max_compensation: 10000000 → 300000
+2. Level 5 max_compensation: 15000000 → 500000
+3. Compensation progression remains logical across all levels
+4. No breaking changes to existing promotion/merit logic
+5. Validate realistic avg_compensation calculations result",2,Must Have,4,Not Started
+E012,Compensation System Integrity,S047,Fix compensation range calculation logic,Update int_hiring_events.sql to use capped max values in avg_compensation calculation,"1. avg_compensation uses capped max values for levels 4-5
+2. Compensation assignment produces realistic new hire salaries ($60K-$350K range)
+3. Level distribution maintains intended variance logic
+4. No regression in lower level compensation calculations
+5. Code follows existing patterns and style",5,Must Have,4,Not Started
+E012,Compensation System Integrity,S048,Add compensation validation checks,Implement asset checks to prevent future compensation calculation errors,"1. Asset check: No hire events with compensation > $500K
+2. Asset check: Average new hire compensation between $60K-$120K
+3. Asset check: Compensation progression logical across levels 1-5
+4. Asset check: Prorated compensation within reasonable bounds
+5. Integration with existing Dagster monitoring",3,Must Have,4,Not Started
+E012,Compensation System Integrity,S049,Validate compensation system end-to-end,Comprehensive testing of fixed compensation system across multi-year simulation,"1. New hire average compensation: $75K-$85K (validated across all levels)
+2. Prorated compensation accurately reflects employment periods
+3. No extreme outliers (>$500K) in any simulation year
+4. Multi-year simulation maintains compensation consistency
+5. Dashboard analytics show realistic compensation trends",5,Must Have,4,Not Started

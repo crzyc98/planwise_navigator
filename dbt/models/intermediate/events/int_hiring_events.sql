@@ -116,7 +116,7 @@ compensation_ranges AS (
       WHEN level_id = 5 THEN LEAST(max_compensation, 350000)  -- Cap Level 5 at $350K
       ELSE max_compensation
     END AS max_compensation,
-    -- Calculate average based on capped values
+    -- Calculate average based on capped values to prevent extreme compensation assignments
     (min_compensation +
      CASE
        WHEN level_id <= 3 THEN max_compensation
