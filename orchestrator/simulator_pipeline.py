@@ -380,6 +380,75 @@ def run_year_simulation(context: OpExecutionContext) -> YearResult:
             context.log.info(
                 f"Running {model} for year {year} with vars: {vars_string}"
             )
+
+            # Add detailed logging for hiring calculation before running int_hiring_events
+            if model == "int_hiring_events":
+                context.log.info("🔍 HIRING CALCULATION DEBUG:")
+                conn = duckdb.connect(str(DB_PATH))
+                try:
+                    # Calculate workforce count
+                    if year == 2025:
+                        workforce_count = conn.execute(
+                            "SELECT COUNT(*) FROM int_baseline_workforce WHERE employment_status = 'active'"
+                        ).fetchone()[0]
+                    else:
+                        workforce_count = conn.execute(
+                            "SELECT COUNT(*) FROM int_workforce_previous_year WHERE employment_status = 'active'"
+                        ).fetchone()[0]
+
+                    # Calculate formula inputs
+                    target_growth_rate = config["target_growth_rate"]
+                    total_termination_rate = config["total_termination_rate"]
+                    new_hire_termination_rate = config["new_hire_termination_rate"]
+
+                    # Apply exact formula from int_hiring_events.sql
+                    import math
+
+                    experienced_terms = math.ceil(
+                        workforce_count * total_termination_rate
+                    )
+                    growth_amount = workforce_count * target_growth_rate
+                    total_hires_needed = math.ceil(
+                        (experienced_terms + growth_amount)
+                        / (1 - new_hire_termination_rate)
+                    )
+                    expected_new_hire_terms = round(
+                        total_hires_needed * new_hire_termination_rate
+                    )
+
+                    context.log.info(
+                        f"  📊 Starting workforce: {workforce_count} active employees"
+                    )
+                    context.log.info(
+                        f"  📊 Target growth rate: {target_growth_rate:.1%}"
+                    )
+                    context.log.info(
+                        f"  📊 Total termination rate: {total_termination_rate:.1%}"
+                    )
+                    context.log.info(
+                        f"  📊 New hire termination rate: {new_hire_termination_rate:.1%}"
+                    )
+                    context.log.info(
+                        f"  📊 Expected experienced terminations: {experienced_terms}"
+                    )
+                    context.log.info(f"  📊 Growth amount needed: {growth_amount:.1f}")
+                    context.log.info(
+                        f"  🎯 TOTAL HIRES CALLING FOR: {total_hires_needed}"
+                    )
+                    context.log.info(
+                        f"  📊 Expected new hire terminations: {expected_new_hire_terms}"
+                    )
+                    context.log.info(
+                        f"  📊 Net hiring impact: {total_hires_needed - expected_new_hire_terms}"
+                    )
+                    context.log.info(
+                        f"  📊 Formula: CEIL(({experienced_terms} + {growth_amount:.1f}) / (1 - {new_hire_termination_rate})) = {total_hires_needed}"
+                    )
+
+                except Exception as e:
+                    context.log.warning(f"Error calculating hiring debug info: {e}")
+                finally:
+                    conn.close()
             invocation = dbt.cli(
                 ["run", "--select", model, "--vars", vars_string], context=context
             ).wait()
@@ -923,6 +992,77 @@ def run_multi_year_simulation(
                 context.log.info(
                     f"Running {model} for year {year} with vars: {vars_string}"
                 )
+
+                # Add detailed logging for hiring calculation before running int_hiring_events
+                if model == "int_hiring_events":
+                    context.log.info("🔍 HIRING CALCULATION DEBUG:")
+                    conn = duckdb.connect(str(DB_PATH))
+                    try:
+                        # Calculate workforce count
+                        if year == start_year:
+                            workforce_count = conn.execute(
+                                "SELECT COUNT(*) FROM int_baseline_workforce WHERE employment_status = 'active'"
+                            ).fetchone()[0]
+                        else:
+                            workforce_count = conn.execute(
+                                "SELECT COUNT(*) FROM int_workforce_previous_year WHERE employment_status = 'active'"
+                            ).fetchone()[0]
+
+                        # Calculate formula inputs
+                        target_growth_rate = config["target_growth_rate"]
+                        total_termination_rate = config["total_termination_rate"]
+                        new_hire_termination_rate = config["new_hire_termination_rate"]
+
+                        # Apply exact formula from int_hiring_events.sql
+                        import math
+
+                        experienced_terms = math.ceil(
+                            workforce_count * total_termination_rate
+                        )
+                        growth_amount = workforce_count * target_growth_rate
+                        total_hires_needed = math.ceil(
+                            (experienced_terms + growth_amount)
+                            / (1 - new_hire_termination_rate)
+                        )
+                        expected_new_hire_terms = round(
+                            total_hires_needed * new_hire_termination_rate
+                        )
+
+                        context.log.info(
+                            f"  📊 Starting workforce: {workforce_count} active employees"
+                        )
+                        context.log.info(
+                            f"  📊 Target growth rate: {target_growth_rate:.1%}"
+                        )
+                        context.log.info(
+                            f"  📊 Total termination rate: {total_termination_rate:.1%}"
+                        )
+                        context.log.info(
+                            f"  📊 New hire termination rate: {new_hire_termination_rate:.1%}"
+                        )
+                        context.log.info(
+                            f"  📊 Expected experienced terminations: {experienced_terms}"
+                        )
+                        context.log.info(
+                            f"  📊 Growth amount needed: {growth_amount:.1f}"
+                        )
+                        context.log.info(
+                            f"  🎯 TOTAL HIRES CALLING FOR: {total_hires_needed}"
+                        )
+                        context.log.info(
+                            f"  📊 Expected new hire terminations: {expected_new_hire_terms}"
+                        )
+                        context.log.info(
+                            f"  📊 Net hiring impact: {total_hires_needed - expected_new_hire_terms}"
+                        )
+                        context.log.info(
+                            f"  📊 Formula: CEIL(({experienced_terms} + {growth_amount:.1f}) / (1 - {new_hire_termination_rate})) = {total_hires_needed}"
+                        )
+
+                    except Exception as e:
+                        context.log.warning(f"Error calculating hiring debug info: {e}")
+                    finally:
+                        conn.close()
                 dbt_command = ["run", "--select", model, "--vars", vars_string]
                 if full_refresh:
                     dbt_command.append("--full-refresh")
