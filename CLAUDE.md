@@ -1,6 +1,6 @@
 PlanWise Navigator – Claude Code-Generation Playbook
 
-A concise, opinionated reference for generating maintainable, production-ready code.
+A comprehensive, opinionated reference for generating enterprise-grade, production-ready code for workforce simulation and event sourcing.
 
 ⸻
 
@@ -8,16 +8,17 @@ A concise, opinionated reference for generating maintainable, production-ready c
 
 This playbook tells Claude exactly how to turn high-level feature requests into ready-to-ship artifacts for PlanWise Navigator, Fidelity’s on-premises workforce-simulation platform.
 Follow it verbatim to guarantee:
-	•	Architecture consistency (DuckDB + dbt + Dagster + Streamlit).
-	•	Readable, test-covered code.
-	•	Smooth deployment to the analytics server.
+	•	Event-sourced architecture with immutable audit trails
+	•	Modular, maintainable components with single-responsibility design
+	•	Enterprise-grade transparency and reproducibility
+	•	Production-ready deployment to analytics servers
 
 ⸻
 
 2  System Overview
 
 Layer	Technology	Version	Responsibility
-Storage	DuckDB	1.0.0	Column-store warehouse; in-process OLAP engine
+Storage	DuckDB	1.0.0	Immutable event store; column-store OLAP engine
 Transformation	dbt-core	1.8.8	Declarative SQL models, tests, documentation
 Adapter	dbt-duckdb	1.8.1	Stable DuckDB integration
 Orchestration	Dagster	1.8.12	Asset-based pipeline for simulation workflow
@@ -45,6 +46,33 @@ graph TD
 </details>
 
 
+
+⸻
+
+2.5  Event Sourcing Architecture
+
+PlanWise Navigator implements enterprise-grade event sourcing with immutable audit trails:
+
+**Event Types**:
+- **HIRE**: New employee onboarding with UUID and timestamp
+- **TERMINATION**: Employee departure with reason codes
+- **PROMOTION**: Level/band changes with compensation adjustments
+- **RAISE**: Salary modifications (COLA, merit, market adjustment)
+- **BENEFIT_ENROLLMENT**: Plan participation changes
+
+**Core Principles**:
+- **Immutability**: Every event is permanently recorded with UUID
+- **Auditability**: Complete workforce history reconstruction from events
+- **Reproducibility**: Identical scenarios with same random seed
+- **Transparency**: Full visibility into every simulation decision
+
+**Modular Engines**:
+- **Compensation Engine**: COLA, merit, and promotion-based adjustments
+- **Termination Engine**: Hazard-based turnover modeling
+- **Hiring Engine**: Growth-driven recruitment with realistic sampling
+- **Promotion Engine**: Band-aware advancement probabilities
+
+**Snapshot Reconstruction**: Any workforce state can be instantly reconstructed from the event log for historical analysis, regulatory compliance, and scenario validation.
 
 ⸻
 
@@ -78,8 +106,9 @@ planwise_navigator/
 
 4  Naming Conventions
 	•	dbt models: tier_entity_purpose (e.g., fct_workforce_snapshot, int_termination_events).
+	•	Event tables: fct_yearly_events (immutable), fct_workforce_snapshot (point-in-time).
+	•	Modular operations: action_entity (e.g., clean_duckdb_data, run_year_simulation).
 	•	Dagster assets: snake_case, descriptive (simulation_year_state, dbt_simulation_assets).
-	•	Dagster ops: action_entity_op (prepare_year_snapshot, run_simulation_year_op).
 	•	Python: PEP 8; type-hints mandatory; Pydantic models for config.
 	•	Configuration: snake_case in YAML, hierarchical structure.
 

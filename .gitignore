@@ -14,6 +14,10 @@ simulation.duckdb.wal
 .env.*
 !.env.example
 
+#scripts
+scripts/policy_optimization_testing.py
+scripts/policy_optimization_focused_testing.py
+
 # IDE specific files
 .idea/
 .vscode/
@@ -30,6 +34,8 @@ dbt/.user_*
 dbt/.dbt/
 dbt/macros/packages/
 results/
+dbt/dbt_project.yml
+dbt/profiles.yml
 
 # dagster specific
 .dagster

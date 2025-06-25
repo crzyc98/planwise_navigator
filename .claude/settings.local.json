@@ -44,7 +44,8 @@
       "Bash(/Users/nicholasamaral/Library/Python/3.9/bin/dbt run --select fct_compensation_growth --vars '{simulation_year: 2026}')",
       "Bash(/Users/nicholasamaral/Library/Python/3.9/bin/dbt run --select fct_policy_optimization --vars '{simulation_year: 2026, test_scenario: \"scenario_001\"}')",
       "Bash(./scripts/lint:*)",
-      "Bash(dbt snapshot:*)"
+      "Bash(dbt snapshot:*)",
+      "Bash(dagster job:*)"
     ],
     "deny": []
   }

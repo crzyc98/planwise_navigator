@@ -1,20 +1,24 @@
 # PlanWise Navigator
 
-**A modern, on-premises workforce simulation platform built with DuckDB, dbt, Dagster, and Streamlit.**
+**An enterprise-grade, on-premises workforce simulation platform with immutable event sourcing, built on DuckDB, dbt, Dagster, and Streamlit.**
 
 ## Overview
 
-PlanWise Navigator is a performant, maintainable data platform for running workforce simulations and projections. It replaces legacy Pandas-based pipelines with a modern data stack optimized for analytical workloads.
+PlanWise Navigator represents a paradigm shift from rigid spreadsheets to a dynamic, fully transparent simulation engine—essentially a workforce "time machine" that captures every employee lifecycle event with UUID-stamped precision and enables instant scenario replay.
+
+This enterprise-grade platform replaces legacy Pandas-based pipelines with an immutable event-sourced architecture optimized for analytical workloads, audit trails, and regulatory compliance.
 
 ### Key Features
 
+- **Immutable Event Sourcing**: Every workforce event permanently recorded with UUID and timestamp
 - **Multi-year Workforce Simulation**: Model hiring, promotions, raises, and terminations over 1-10 years
+- **Modular Architecture**: Single-responsibility engines for compensation, termination, hiring, and promotions
 - **Interactive Analytics**: Sub-2-second dashboard queries for scenario analysis
-- **Event-driven Architecture**: Hazard-based probabilistic modeling of workforce transitions
-- **Data Quality Assurance**: 90%+ test coverage with comprehensive validation
-- **On-premises Security**: Zero cloud dependencies, all processing local
-- **Reproducible Results**: Random seed control for consistent simulations
-- **Scalable Performance**: Handle 100K+ employee records efficiently
+- **Audit Trail Transparency**: Complete workforce history reconstruction from event logs
+- **Scenario Time Machine**: Instantly replay and compare multiple simulation scenarios
+- **Enterprise Security**: Zero cloud dependencies, comprehensive audit logging
+- **Reproducible Results**: Random seed control for identical simulation outcomes
+- **Scalable Performance**: Handle 100K+ employee records with minimal memory footprint
 
 ## Technology Stack
 

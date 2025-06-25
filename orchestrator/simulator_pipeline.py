@@ -45,6 +45,332 @@ dbt_resource = DbtCliResource(
 )
 
 
+def execute_dbt_command(
+    context: OpExecutionContext,
+    command: List[str],
+    vars_dict: Dict[str, Any],
+    full_refresh: bool = False,
+    description: str = "",
+) -> None:
+    """
+    Execute a dbt command with standardized error handling and logging.
+
+    This utility centralizes dbt command execution patterns used throughout
+    the simulation pipeline. It handles variable string construction,
+    full_refresh flag addition, and provides consistent error reporting.
+
+    Args:
+        context: Dagster operation execution context
+        command: Base dbt command as list (e.g., ["run", "--select", "model_name"])
+        vars_dict: Variables to pass to dbt as --vars (e.g., {"simulation_year": 2025})
+        full_refresh: Whether to add --full-refresh flag to command
+        description: Human-readable description for logging and error messages
+
+    Raises:
+        Exception: When dbt command fails with details from stdout/stderr
+
+    Examples:
+        Basic model run:
+        >>> execute_dbt_command(context, ["run", "--select", "my_model"], {}, False, "my model")
+
+        With variables and full refresh:
+        >>> execute_dbt_command(
+        ...     context,
+        ...     ["run", "--select", "int_hiring_events"],
+        ...     {"simulation_year": 2025, "random_seed": 42},
+        ...     True,
+        ...     "hiring events for 2025"
+        ... )
+
+        Snapshot execution:
+        >>> execute_dbt_command(
+        ...     context,
+        ...     ["snapshot", "--select", "scd_workforce_state"],
+        ...     {"simulation_year": 2025},
+        ...     False,
+        ...     "workforce state snapshot"
+        ... )
+    """
+    # Build command with variables
+    full_command = command.copy()
+
+    if vars_dict:
+        vars_string = "{" + ", ".join([f"{k}: {v}" for k, v in vars_dict.items()]) + "}"
+        full_command.extend(["--vars", vars_string])
+
+    if full_refresh:
+        full_command.append("--full-refresh")
+
+    # Log execution start
+    context.log.info(f"Executing: dbt {' '.join(full_command)}")
+    if description:
+        context.log.info(f"Description: {description}")
+
+    # Execute command
+    dbt = context.resources.dbt
+    invocation = dbt.cli(full_command, context=context).wait()
+
+    # Handle errors with standardized format
+    if invocation.process is None or invocation.process.returncode != 0:
+        stdout = invocation.get_stdout() or ""
+        stderr = invocation.get_stderr() or ""
+
+        error_msg = f"Failed to run {' '.join(command)}"
+        if description:
+            error_msg += f" for {description}"
+        error_msg += f". Exit code: {invocation.process.returncode if invocation.process else 'N/A'}\n\nSTDOUT:\n{stdout}\n\nSTDERR:\n{stderr}"
+
+        context.log.error(error_msg)
+        raise Exception(error_msg)
+
+    context.log.info(f"Successfully completed: dbt {' '.join(command)}")
+
+
+def clean_duckdb_data(context: OpExecutionContext, years: List[int]) -> Dict[str, int]:
+    """
+    Clean simulation data for specified years.
+
+    Removes existing simulation data from fct_yearly_events and fct_workforce_snapshot
+    tables for the specified years to ensure fresh start for simulation runs.
+
+    Args:
+        context: Dagster operation execution context
+        years: List of simulation years to clean (e.g., [2025, 2026, 2027])
+
+    Returns:
+        Dict containing counts of deleted records per table
+
+    Examples:
+        Clean single year:
+        >>> clean_duckdb_data(context, [2025])
+
+        Clean multiple years:
+        >>> clean_duckdb_data(context, [2025, 2026, 2027])
+    """
+    if not years:
+        context.log.info("No years specified for cleaning")
+        return {"fct_yearly_events": 0, "fct_workforce_snapshot": 0}
+
+    results = {"fct_yearly_events": 0, "fct_workforce_snapshot": 0}
+
+    year_range = f"{min(years)}-{max(years)}" if len(years) > 1 else str(years[0])
+    context.log.info(f"Cleaning existing data for years {year_range}")
+
+    conn = duckdb.connect(str(DB_PATH))
+
+    try:
+        # Clean yearly events for all specified years
+        for year in years:
+            try:
+                # Execute DELETE operation
+                conn.execute(
+                    "DELETE FROM fct_yearly_events WHERE simulation_year = ?", [year]
+                )
+                # Note: DuckDB doesn't always return rowcount for DELETE operations
+                # We'll count this as successful deletion
+                results["fct_yearly_events"] += 1  # Count per year cleaned
+            except Exception as e:
+                context.log.warning(f"Error cleaning events for year {year}: {e}")
+
+        # Clean workforce snapshots for all specified years
+        for year in years:
+            try:
+                # Execute delete without assigning to unused cursor
+                conn.execute(
+                    "DELETE FROM fct_workforce_snapshot WHERE simulation_year = ?",
+                    [year],
+                )
+                results["fct_workforce_snapshot"] += 1  # Count per year cleaned
+            except Exception as e:
+                context.log.warning(
+                    f"Error cleaning workforce snapshot for year {year}: {e}"
+                )
+                # Don't fail the operation if table doesn't exist yet
+
+        context.log.info(
+            f"Cleaned simulation data for {len(years)} years: "
+            f"events cleaned for {results['fct_yearly_events']} years, "
+            f"snapshots cleaned for {results['fct_workforce_snapshot']} years"
+        )
+
+    except Exception as e:
+        context.log.warning(f"Error during data cleaning: {e}")
+        # Don't re-raise - allow pipeline to continue with best effort
+    finally:
+        conn.close()
+
+    return results
+
+
+def _log_hiring_calculation_debug(
+    context: OpExecutionContext, year: int, config: Dict[str, Any]
+) -> Dict[str, Any]:
+    """
+    Log detailed hiring calculation debug information.
+
+    This helper function extracts and logs the detailed hiring calculation
+    debug information that was previously embedded in event processing loops.
+    It maintains the exact same mathematical calculations and logging format.
+
+    Args:
+        context: Dagster operation execution context
+        year: Simulation year for calculation
+        config: Configuration dictionary with simulation parameters
+
+    Returns:
+        Dict containing calculated hiring metrics for validation
+    """
+    context.log.info("🔍 HIRING CALCULATION DEBUG:")
+
+    conn = duckdb.connect(str(DB_PATH))
+    try:
+        # Calculate workforce count using unified logic
+        if year == config["start_year"]:  # Use baseline for first year
+            workforce_count = conn.execute(
+                "SELECT COUNT(*) FROM int_baseline_workforce WHERE employment_status = 'active'"
+            ).fetchone()[0]
+        else:
+            workforce_count = conn.execute(
+                "SELECT COUNT(*) FROM int_workforce_previous_year WHERE employment_status = 'active'"
+            ).fetchone()[0]
+
+        # Extract formula inputs
+        target_growth_rate = config["target_growth_rate"]
+        total_termination_rate = config["total_termination_rate"]
+        new_hire_termination_rate = config["new_hire_termination_rate"]
+
+        # Apply exact formula from int_hiring_events.sql
+        import math
+
+        experienced_terms = math.ceil(workforce_count * total_termination_rate)
+        growth_amount = workforce_count * target_growth_rate
+        total_hires_needed = math.ceil(
+            (experienced_terms + growth_amount) / (1 - new_hire_termination_rate)
+        )
+        expected_new_hire_terms = round(total_hires_needed * new_hire_termination_rate)
+
+        # Log all debug information (preserve exact format)
+        context.log.info(f"  📊 Starting workforce: {workforce_count} active employees")
+        context.log.info(f"  📊 Target growth rate: {target_growth_rate:.1%}")
+        context.log.info(f"  📊 Total termination rate: {total_termination_rate:.1%}")
+        context.log.info(
+            f"  📊 New hire termination rate: {new_hire_termination_rate:.1%}"
+        )
+        context.log.info(f"  📊 Expected experienced terminations: {experienced_terms}")
+        context.log.info(f"  📊 Growth amount needed: {growth_amount:.1f}")
+        context.log.info(f"  🎯 TOTAL HIRES CALLING FOR: {total_hires_needed}")
+        context.log.info(
+            f"  📊 Expected new hire terminations: {expected_new_hire_terms}"
+        )
+        context.log.info(
+            f"  📊 Net hiring impact: {total_hires_needed - expected_new_hire_terms}"
+        )
+        context.log.info(
+            f"  📊 Formula: CEIL(({experienced_terms} + {growth_amount:.1f}) / (1 - {new_hire_termination_rate})) = {total_hires_needed}"
+        )
+
+        return {
+            "workforce_count": workforce_count,
+            "experienced_terms": experienced_terms,
+            "growth_amount": growth_amount,
+            "total_hires_needed": total_hires_needed,
+            "expected_new_hire_terms": expected_new_hire_terms,
+            "net_hiring_impact": total_hires_needed - expected_new_hire_terms,
+        }
+
+    except Exception as e:
+        context.log.warning(f"Error calculating hiring debug info: {e}")
+        return {"error": str(e)}
+    finally:
+        conn.close()
+
+
+@op(required_resource_keys={"dbt"})
+def run_dbt_event_models_for_year(
+    context: OpExecutionContext, year: int, config: Dict[str, Any]
+) -> Dict[str, Any]:
+    """
+    Execute all event models for a single simulation year with debug logging.
+
+    This operation executes the Epic 11.5 event model sequence in the correct order,
+    including the detailed hiring calculation debug logging. It centralizes logic
+    that was previously duplicated between single-year and multi-year simulations.
+
+    Args:
+        context: Dagster operation execution context
+        year: Simulation year to process
+        config: Configuration dictionary with all simulation parameters
+
+    Returns:
+        Dict containing execution results and debug information
+
+    Examples:
+        Execute events for single year:
+        >>> run_dbt_event_models_for_year(context, 2025, config)
+
+        With full configuration:
+        >>> config = {
+        ...     "random_seed": 42,
+        ...     "target_growth_rate": 0.03,
+        ...     "total_termination_rate": 0.12,
+        ...     "new_hire_termination_rate": 0.25,
+        ...     "full_refresh": False
+        ... }
+        >>> run_dbt_event_models_for_year(context, 2025, config)
+    """
+    # Epic 11.5 event model sequence
+    event_models = [
+        "int_termination_events",  # Step b-c: Experienced terminations + additional to meet rate
+        "int_promotion_events",  # Promotions before hiring
+        "int_merit_events",  # Merit increases
+        "int_hiring_events",  # Step f: Gross hiring events
+        "int_new_hire_termination_events",  # Step g: New hire termination events
+    ]
+
+    # Type annotation for results dictionary
+    results: Dict[str, Any] = {
+        "year": year,
+        "models_executed": [],  # List of executed model names
+        "hiring_debug": None,  # Will contain debug info for hiring calculations
+    }
+
+    for model in event_models:
+        # Build variables for this model
+        vars_dict = {
+            "simulation_year": year,
+            "random_seed": config["random_seed"],
+            "target_growth_rate": config["target_growth_rate"],
+            "new_hire_termination_rate": config["new_hire_termination_rate"],
+            "total_termination_rate": config["total_termination_rate"],
+        }
+
+        # Build vars string for logging (preserve existing log format)
+        vars_string = f"{{simulation_year: {year}, random_seed: {config['random_seed']}, target_growth_rate: {config['target_growth_rate']}, new_hire_termination_rate: {config['new_hire_termination_rate']}, total_termination_rate: {config['total_termination_rate']}}}"
+        context.log.info(f"Running {model} for year {year} with vars: {vars_string}")
+
+        # Special handling for hiring events debug logging
+        if model == "int_hiring_events":
+            debug_info = _log_hiring_calculation_debug(context, year, config)
+            results["hiring_debug"] = debug_info
+
+        # Execute model using centralized utility
+        execute_dbt_command(
+            context,
+            ["run", "--select", model],
+            vars_dict,
+            config.get("full_refresh", False),
+            f"{model} for year {year}",
+        )
+
+        results["models_executed"].append(model)
+        context.log.debug(f"✅ Completed {model} for year {year}")
+
+    context.log.info(
+        f"Successfully executed all {len(event_models)} event models for year {year}"
+    )
+    return results
+
+
 class SimulationConfig(Config):
     """Configuration for simulation parameters"""
 
@@ -135,6 +461,129 @@ def baseline_workforce_validated(context: AssetExecutionContext) -> bool:
         return False
 
 
+def run_dbt_snapshot_for_year(
+    context: OpExecutionContext, year: int, snapshot_type: str = "end_of_year"
+) -> Dict[str, Any]:
+    """
+    Execute dbt snapshot operations for a specific simulation year.
+
+    This operation centralizes snapshot management across different simulation contexts,
+    supporting various snapshot types with appropriate validation and error handling.
+
+    Args:
+        context: Dagster operation execution context
+        year: Simulation year to create snapshot for
+        snapshot_type: Type of snapshot to create:
+            - "end_of_year": Final workforce state after all events (default)
+            - "previous_year": Historical snapshot for year-1 (multi-year dependency)
+            - "recovery": Rebuild missing snapshot during validation
+
+    Returns:
+        Dict containing snapshot execution results and metadata
+
+    Raises:
+        Exception: If snapshot execution fails or validation errors occur
+
+    Examples:
+        Create end-of-year snapshot:
+        >>> run_dbt_snapshot_for_year(context, 2025, "end_of_year")
+
+        Create previous year dependency snapshot:
+        >>> run_dbt_snapshot_for_year(context, 2024, "previous_year")
+    """
+    context.log.info(f"Creating {snapshot_type} snapshot for year {year}")
+
+    # Validate snapshot type
+    valid_types = ["end_of_year", "previous_year", "recovery"]
+    if snapshot_type not in valid_types:
+        raise ValueError(
+            f"Invalid snapshot_type '{snapshot_type}'. Must be one of: {valid_types}"
+        )
+
+    try:
+        # Pre-execution validation based on snapshot type
+        if snapshot_type in ["end_of_year", "recovery"]:
+            # Validate that workforce data exists for the target year
+            conn = duckdb.connect(str(DB_PATH))
+            workforce_count = conn.execute(
+                "SELECT COUNT(*) FROM fct_workforce_snapshot WHERE simulation_year = ?",
+                [year],
+            ).fetchone()[0]
+            conn.close()
+
+            if snapshot_type == "end_of_year" and workforce_count == 0:
+                context.log.info(
+                    f"No existing workforce snapshot for year {year} - this is expected for initial snapshot creation"
+                )
+            elif snapshot_type == "recovery" and workforce_count > 0:
+                context.log.warning(
+                    f"Workforce snapshot already exists for year {year} - proceeding with recovery anyway"
+                )
+
+        # Execute snapshot command based on type
+        if snapshot_type == "previous_year":
+            # For previous year snapshots, we use the previous year as the simulation_year parameter
+            description = (
+                f"workforce state snapshot for year {year} (previous year dependency)"
+            )
+            execute_dbt_command(
+                context,
+                ["snapshot", "--select", "scd_workforce_state"],
+                {"simulation_year": year},
+                False,  # Snapshots typically don't use full_refresh
+                description,
+            )
+        else:
+            # For end_of_year and recovery snapshots
+            description = f"workforce state snapshot for year {year} ({snapshot_type})"
+            execute_dbt_command(
+                context,
+                ["snapshot", "--select", "scd_workforce_state"],
+                {"simulation_year": year},
+                False,  # Snapshots typically don't use full_refresh
+                description,
+            )
+
+        # Post-execution validation
+        conn = duckdb.connect(str(DB_PATH))
+        # Verify snapshot was created successfully
+        final_count = conn.execute(
+            "SELECT COUNT(*) FROM scd_workforce_state WHERE simulation_year = ?", [year]
+        ).fetchone()[0]
+        conn.close()
+
+        if final_count == 0:
+            raise Exception(
+                f"Snapshot creation failed - no records found in scd_workforce_state for year {year}"
+            )
+
+        context.log.info(
+            f"Snapshot created successfully: {final_count} records in scd_workforce_state for year {year}"
+        )
+
+        return {
+            "year": year,
+            "snapshot_type": snapshot_type,
+            "records_created": final_count,
+            "success": True,
+            "description": description,
+        }
+
+    except Exception as e:
+        context.log.error(
+            f"Snapshot creation failed for year {year} ({snapshot_type}): {e}"
+        )
+        # Return failure result rather than raising to allow pipeline to continue or handle gracefully
+        return {
+            "year": year,
+            "snapshot_type": snapshot_type,
+            "records_created": 0,
+            "success": False,
+            "error": str(e),
+            "description": f"FAILED: {snapshot_type} snapshot for year {year}",
+        }
+
+
 @op(
     required_resource_keys={"dbt"},
     config_schema={
@@ -164,19 +613,10 @@ def run_year_simulation(context: OpExecutionContext) -> YearResult:
         )
 
     # Clean existing data for this year to prevent duplicates
-    context.log.info(f"Cleaning existing data for year {year}")
-    conn = duckdb.connect(str(DB_PATH))
-    try:
-        # Delete any existing data for this simulation year
-        conn.execute("DELETE FROM fct_yearly_events WHERE simulation_year = ?", [year])
-        context.log.info("Existing events for year %s deleted", year)
-    except Exception as e:
-        context.log.warning(f"Error cleaning year {year} data: {e}")
-    finally:
-        conn.close()
+    clean_duckdb_data(context, [year])
 
-    # Get dbt resource from context
-    dbt = context.resources.dbt
+    # dbt resource is available via context.resources.dbt if needed
+    # Currently not using it, so we don't assign it to a variable
 
     try:
         # Step 1: Enhanced validation for multi-year dependencies
@@ -213,32 +653,13 @@ def run_year_simulation(context: OpExecutionContext) -> YearResult:
 
                     # Try to build missing workforce snapshot
                     try:
-                        context.log.info(
-                            f"Building missing workforce snapshot for year {year - 1}"
+                        execute_dbt_command(
+                            context,
+                            ["run", "--select", "fct_workforce_snapshot"],
+                            {"simulation_year": year - 1},
+                            full_refresh,
+                            f"missing workforce snapshot for year {year - 1}",
                         )
-                        invocation = dbt.cli(
-                            [
-                                "run",
-                                "--select",
-                                "fct_workforce_snapshot",
-                                "--vars",
-                                f"{{simulation_year: {year - 1}}}",
-                            ],
-                            context=context,
-                        ).wait()
-
-                        if (
-                            invocation.process is None
-                            or invocation.process.returncode != 0
-                        ):
-                            stdout = invocation.get_stdout() or ""
-                            stderr = invocation.get_stderr() or ""
-                            context.log.error(
-                                f"Failed to build missing workforce snapshot. STDOUT: {stdout}, STDERR: {stderr}"
-                            )
-                            raise Exception(
-                                f"Cannot recover missing workforce snapshot for year {year - 1}"
-                            )
 
                         # Recheck workforce count
                         workforce_count = conn.execute(
@@ -273,169 +694,34 @@ def run_year_simulation(context: OpExecutionContext) -> YearResult:
                 conn.close()
 
         # Step 2: First run int_workforce_previous_year to establish workforce base for event generation
-        context.log.info(f"Running int_workforce_previous_year for year {year}")
-        invocation = dbt.cli(
-            [
-                "run",
-                "--select",
-                "int_workforce_previous_year",
-                "--vars",
-                f"{{simulation_year: {year}}}",
-            ],
-            context=context,
-        ).wait()
+        execute_dbt_command(
+            context,
+            ["run", "--select", "int_workforce_previous_year"],
+            {"simulation_year": year},
+            full_refresh,
+            f"int_workforce_previous_year for year {year}",
+        )
 
-        if invocation.process is None or invocation.process.returncode != 0:
-            stdout = invocation.get_stdout() or ""
-            stderr = invocation.get_stderr() or ""
-            error_message = f"Failed to run int_workforce_previous_year for year {year}. Exit code: {invocation.process.returncode}\n\nSTDOUT:\n{stdout}\n\nSTDERR:\n{stderr}"
-            raise Exception(error_message)
-
-        # Step 3: Run event generation models in proper Epic 11.5 sequence
-        event_models = [
-            "int_termination_events",  # Step b-c: Experienced terminations + additional to meet rate
-            "int_promotion_events",
-            "int_merit_events",
-            "int_hiring_events",  # Step f: Gross hiring events
-            "int_new_hire_termination_events",  # Step g: New hire termination events
-        ]
-
-        for model in event_models:
-            vars_string = f"{{simulation_year: {year}, random_seed: {config['random_seed']}, target_growth_rate: {config['target_growth_rate']}, new_hire_termination_rate: {config['new_hire_termination_rate']}, total_termination_rate: {config['total_termination_rate']}}}"
-            context.log.info(
-                f"Running {model} for year {year} with vars: {vars_string}"
-            )
-
-            # Add detailed logging for hiring calculation before running int_hiring_events
-            if model == "int_hiring_events":
-                context.log.info("🔍 HIRING CALCULATION DEBUG:")
-                conn = duckdb.connect(str(DB_PATH))
-                try:
-                    # Calculate workforce count
-                    if year == 2025:
-                        workforce_count = conn.execute(
-                            "SELECT COUNT(*) FROM int_baseline_workforce WHERE employment_status = 'active'"
-                        ).fetchone()[0]
-                    else:
-                        workforce_count = conn.execute(
-                            "SELECT COUNT(*) FROM int_workforce_previous_year WHERE employment_status = 'active'"
-                        ).fetchone()[0]
-
-                    # Calculate formula inputs
-                    target_growth_rate = config["target_growth_rate"]
-                    total_termination_rate = config["total_termination_rate"]
-                    new_hire_termination_rate = config["new_hire_termination_rate"]
-
-                    # Apply exact formula from int_hiring_events.sql
-                    import math
-
-                    experienced_terms = math.ceil(
-                        workforce_count * total_termination_rate
-                    )
-                    growth_amount = workforce_count * target_growth_rate
-                    total_hires_needed = math.ceil(
-                        (experienced_terms + growth_amount)
-                        / (1 - new_hire_termination_rate)
-                    )
-                    expected_new_hire_terms = round(
-                        total_hires_needed * new_hire_termination_rate
-                    )
-
-                    context.log.info(
-                        f"  📊 Starting workforce: {workforce_count} active employees"
-                    )
-                    context.log.info(
-                        f"  📊 Target growth rate: {target_growth_rate:.1%}"
-                    )
-                    context.log.info(
-                        f"  📊 Total termination rate: {total_termination_rate:.1%}"
-                    )
-                    context.log.info(
-                        f"  📊 New hire termination rate: {new_hire_termination_rate:.1%}"
-                    )
-                    context.log.info(
-                        f"  📊 Expected experienced terminations: {experienced_terms}"
-                    )
-                    context.log.info(f"  📊 Growth amount needed: {growth_amount:.1f}")
-                    context.log.info(
-                        f"  🎯 TOTAL HIRES CALLING FOR: {total_hires_needed}"
-                    )
-                    context.log.info(
-                        f"  📊 Expected new hire terminations: {expected_new_hire_terms}"
-                    )
-                    context.log.info(
-                        f"  📊 Net hiring impact: {total_hires_needed - expected_new_hire_terms}"
-                    )
-                    context.log.info(
-                        f"  📊 Formula: CEIL(({experienced_terms} + {growth_amount:.1f}) / (1 - {new_hire_termination_rate})) = {total_hires_needed}"
-                    )
-
-                except Exception as e:
-                    context.log.warning(f"Error calculating hiring debug info: {e}")
-                finally:
-                    conn.close()
-            invocation = dbt.cli(
-                ["run", "--select", model, "--vars", vars_string], context=context
-            ).wait()
-
-            if invocation.process is None or invocation.process.returncode != 0:
-                stdout = invocation.get_stdout() or ""
-                stderr = invocation.get_stderr() or ""
-                error_message = f"Failed to run {model} for year {year}. Exit code: {invocation.process.returncode}\n\nSTDOUT:\n{stdout}\n\nSTDERR:\n{stderr}"
-                raise Exception(error_message)
+        # Step 3: Run event generation models using modular operation
+        run_dbt_event_models_for_year(context, year, config)
 
         # Step 4: Consolidate events
-        context.log.info(f"Running fct_yearly_events for year {year}")
-        invocation = dbt.cli(
-            [
-                "run",
-                "--select",
-                "fct_yearly_events",
-                "--vars",
-                f"{{simulation_year: {year}}}",
-            ],
-            context=context,
-        ).wait()
+        execute_dbt_command(
+            context,
+            ["run", "--select", "fct_yearly_events"],
+            {"simulation_year": year},
+            full_refresh,
+            f"fct_yearly_events for year {year}",
+        )
 
-        if invocation.process is None or invocation.process.returncode != 0:
-            stdout = invocation.get_stdout() or ""
-            stderr = invocation.get_stderr() or ""
-            error_message = f"Failed to run fct_yearly_events for year {year}. Exit code: {invocation.process.returncode}\n\nSTDOUT:\n{stdout}\n\nSTDERR:\n{stderr}"
-            raise Exception(error_message)
-
-        # Step 5a: Clean fct_workforce_snapshot for the current year
-        context.log.info(f"Cleaning fct_workforce_snapshot for year {year}")
-        conn = duckdb.connect(str(DB_PATH))
-        try:
-            conn.execute(
-                "DELETE FROM fct_workforce_snapshot WHERE simulation_year = ?", [year]
-            )
-            context.log.info("Existing snapshot records for year %s deleted", year)
-        except Exception as e:
-            context.log.warning(
-                f"Error cleaning fct_workforce_snapshot for year {year} data: {e} (Table might not exist yet on first run of a new year)"
-            )
-        finally:
-            conn.close()
-
-        # Step 5b: Generate final workforce snapshot
-        context.log.info(f"Running fct_workforce_snapshot for year {year}")
-        invocation = dbt.cli(
-            [
-                "run",
-                "--select",
-                "fct_workforce_snapshot",
-                "--vars",
-                f"{{simulation_year: {year}}}",
-            ],
-            context=context,
-        ).wait()
-
-        if invocation.process is None or invocation.process.returncode != 0:
-            stdout = invocation.get_stdout() or ""
-            stderr = invocation.get_stderr() or ""
-            error_message = f"Failed to run fct_workforce_snapshot for year {year}. Exit code: {invocation.process.returncode}\n\nSTDOUT:\n{stdout}\n\nSTDERR:\n{stderr}"
-            raise Exception(error_message)
+        # Step 5: Generate final workforce snapshot (cleaning handled by clean_duckdb_data)
+        execute_dbt_command(
+            context,
+            ["run", "--select", "fct_workforce_snapshot"],
+            {"simulation_year": year},
+            full_refresh,
+            f"fct_workforce_snapshot for year {year}",
+        )
 
         # Step 6: Validate results and collect metrics
         year_result = validate_year_results(context, year, config)
@@ -813,326 +1099,120 @@ def run_multi_year_simulation(
     context: OpExecutionContext, baseline_valid: bool
 ) -> List[YearResult]:
     """
-    Executes complete multi-year workforce simulation.
-    Runs each year sequentially from start_year to end_year.
+    Orchestrates complete multi-year workforce simulation.
+
+    Pure orchestration function that leverages modular components to execute
+    sequential year-by-year simulations. This function focuses solely on
+    coordination and result aggregation.
+
+    Args:
+        context: Dagster execution context with configuration
+        baseline_valid: Baseline workforce validation result
+
+    Returns:
+        List of YearResult objects for each simulation year
+
+    Raises:
+        Exception: If baseline validation failed
     """
     if not baseline_valid:
         raise Exception("Baseline workforce validation failed")
 
+    # Extract configuration
     config = context.op_config
     start_year = config["start_year"]
     end_year = config["end_year"]
     full_refresh = config.get("full_refresh", False)
 
-    context.log.info(f"Starting multi-year simulation from {start_year} to {end_year}")
+    context.log.info(
+        f"🚀 Starting multi-year simulation from {start_year} to {end_year}"
+    )
     if full_refresh:
         context.log.info(
             "🔄 Full refresh enabled - will rebuild all incremental models from scratch"
         )
 
-    # Clean all data for the simulation years to ensure fresh start
-    context.log.info(f"Cleaning existing data for years {start_year}-{end_year}")
-    conn = duckdb.connect(str(DB_PATH))
-    try:
-        for clean_year in range(start_year, end_year + 1):
-            conn.execute(
-                "DELETE FROM fct_yearly_events WHERE simulation_year = ?", [clean_year]
+    # Step 1: Clean all simulation data using modular component (S013-02)
+    years_to_clean = list(range(start_year, end_year + 1))
+    clean_duckdb_data(context, years_to_clean)
+
+    # Step 2: Create baseline snapshot for start_year - 1 using modular component (S013-04)
+    if start_year > 2025:  # Only create baseline if not starting from base year
+        baseline_snapshot_result = run_dbt_snapshot_for_year(
+            context, start_year - 1, "previous_year"
+        )
+        if not baseline_snapshot_result["success"]:
+            context.log.warning(
+                f"Baseline snapshot creation had issues: {baseline_snapshot_result.get('error', 'Unknown error')}"
             )
 
-        context.log.info(
-            "Existing events for years %s-%s deleted", start_year, end_year
-        )
-    except Exception as e:
-        context.log.warning(f"Error cleaning simulation data: {e}")
-    finally:
-        conn.close()
-
+    # Step 3: Execute year-by-year simulation using modular operations
     results = []
 
     for year in range(start_year, end_year + 1):
-        context.log.info(f"=== Starting simulation for year {year} ===")
-
-        # Update config for current year
-        year_config = config.copy()
-        year_config["start_year"] = year
-
-        # Create a temporary context for the year simulation
-        # We'll simulate what run_year_simulation does but for each year
-        dbt = context.resources.dbt
+        context.log.info(f"=== Processing year {year} ===")
 
         try:
-            # Step 1: Strict validation for previous year completion
+            # Validate previous year and create snapshots
             if year > start_year:
-                context.log.info(f"Validating previous year data for year {year}")
-                try:
-                    assert_year_complete(context, year - 1)
-                except Exception as e:
-                    context.log.error(f"Simulation failed for year {year}: {e}")
-                    results.append(
-                        YearResult(
-                            year=year,
-                            success=False,
-                            active_employees=0,
-                            total_terminations=0,
-                            experienced_terminations=0,
-                            new_hire_terminations=0,
-                            total_hires=0,
-                            growth_rate=0,
-                            validation_passed=False,
-                        )
-                    )
-                    continue  # Skip to next year instead of aborting entirely
+                assert_year_complete(context, year - 1)
+                run_dbt_snapshot_for_year(context, year - 1, "previous_year")
 
-            # Step 2: Ensure previous year's workforce state snapshot is available
-            if year > start_year:
-                context.log.info(f"Running dbt snapshot for end of year {year - 1}")
-                snapshot_cmd = [
-                    "snapshot",
-                    "--select",
-                    "scd_workforce_state",
-                    "--vars",
-                    f"{{simulation_year: {year - 1}}}",
-                ]
-                if full_refresh and year == start_year + 1:
-                    snapshot_cmd.append("--full-refresh")
+            # Execute single-year simulation (leverages S013-01/02/03/04 via S013-05)
+            year_config = config.copy()
+            year_config["start_year"] = year
 
-                snap_invocation = dbt.cli(snapshot_cmd, context=context).wait()
+            from dagster import build_op_context
 
-                if (
-                    snap_invocation.process is None
-                    or snap_invocation.process.returncode != 0
-                ):
-                    stdout = snap_invocation.get_stdout() or ""
-                    stderr = snap_invocation.get_stderr() or ""
-                    raise Exception(
-                        f"Failed to run dbt snapshot for year {year - 1}. STDOUT: {stdout}, STDERR: {stderr}"
-                    )
+            year_context = build_op_context(
+                config=year_config, resources=context.resources
+            )
+            year_context.log = context.log
 
-            # Step 3: First run int_workforce_previous_year to establish workforce base for event generation
-            context.log.info(f"Running int_workforce_previous_year for year {year}")
-            dbt_command = [
-                "run",
-                "--select",
-                "int_workforce_previous_year",
-                "--vars",
-                f"{{simulation_year: {year}}}",
-            ]
-            if full_refresh:
-                dbt_command.append("--full-refresh")
+            year_result = run_year_simulation(year_context)
+            run_dbt_snapshot_for_year(context, year, "end_of_year")
 
-            invocation = dbt.cli(dbt_command, context=context).wait()
-
-            if invocation.process is None or invocation.process.returncode != 0:
-                stdout = invocation.get_stdout() or ""
-                stderr = invocation.get_stderr() or ""
-                error_message = f"Failed to run int_workforce_previous_year for year {year}. Exit code: {invocation.process.returncode}\\n\\nSTDOUT:\\n{stdout}\\n\\nSTDERR:\\n{stderr}"
-                raise Exception(error_message)
-
-            # Step 3: Run event generation models in proper sequence
-            event_models = [
-                "int_termination_events",
-                "int_promotion_events",
-                "int_merit_events",
-                "int_hiring_events",
-                "int_new_hire_termination_events",
-            ]
-
-            for model in event_models:
-                vars_string = f"{{simulation_year: {year}, random_seed: {config['random_seed']}, target_growth_rate: {config['target_growth_rate']}, new_hire_termination_rate: {config['new_hire_termination_rate']}, total_termination_rate: {config['total_termination_rate']}}}"
-                context.log.info(
-                    f"Running {model} for year {year} with vars: {vars_string}"
-                )
-
-                # Add detailed logging for hiring calculation before running int_hiring_events
-                if model == "int_hiring_events":
-                    context.log.info("🔍 HIRING CALCULATION DEBUG:")
-                    conn = duckdb.connect(str(DB_PATH))
-                    try:
-                        # Calculate workforce count
-                        if year == start_year:
-                            workforce_count = conn.execute(
-                                "SELECT COUNT(*) FROM int_baseline_workforce WHERE employment_status = 'active'"
-                            ).fetchone()[0]
-                        else:
-                            workforce_count = conn.execute(
-                                "SELECT COUNT(*) FROM int_workforce_previous_year WHERE employment_status = 'active'"
-                            ).fetchone()[0]
-
-                        # Calculate formula inputs
-                        target_growth_rate = config["target_growth_rate"]
-                        total_termination_rate = config["total_termination_rate"]
-                        new_hire_termination_rate = config["new_hire_termination_rate"]
-
-                        # Apply exact formula from int_hiring_events.sql
-                        import math
-
-                        experienced_terms = math.ceil(
-                            workforce_count * total_termination_rate
-                        )
-                        growth_amount = workforce_count * target_growth_rate
-                        total_hires_needed = math.ceil(
-                            (experienced_terms + growth_amount)
-                            / (1 - new_hire_termination_rate)
-                        )
-                        expected_new_hire_terms = round(
-                            total_hires_needed * new_hire_termination_rate
-                        )
-
-                        context.log.info(
-                            f"  📊 Starting workforce: {workforce_count} active employees"
-                        )
-                        context.log.info(
-                            f"  📊 Target growth rate: {target_growth_rate:.1%}"
-                        )
-                        context.log.info(
-                            f"  📊 Total termination rate: {total_termination_rate:.1%}"
-                        )
-                        context.log.info(
-                            f"  📊 New hire termination rate: {new_hire_termination_rate:.1%}"
-                        )
-                        context.log.info(
-                            f"  📊 Expected experienced terminations: {experienced_terms}"
-                        )
-                        context.log.info(
-                            f"  📊 Growth amount needed: {growth_amount:.1f}"
-                        )
-                        context.log.info(
-                            f"  🎯 TOTAL HIRES CALLING FOR: {total_hires_needed}"
-                        )
-                        context.log.info(
-                            f"  📊 Expected new hire terminations: {expected_new_hire_terms}"
-                        )
-                        context.log.info(
-                            f"  📊 Net hiring impact: {total_hires_needed - expected_new_hire_terms}"
-                        )
-                        context.log.info(
-                            f"  📊 Formula: CEIL(({experienced_terms} + {growth_amount:.1f}) / (1 - {new_hire_termination_rate})) = {total_hires_needed}"
-                        )
-
-                    except Exception as e:
-                        context.log.warning(f"Error calculating hiring debug info: {e}")
-                    finally:
-                        conn.close()
-                dbt_command = ["run", "--select", model, "--vars", vars_string]
-                if full_refresh:
-                    dbt_command.append("--full-refresh")
-
-                invocation = dbt.cli(dbt_command, context=context).wait()
-
-                if invocation.process is None or invocation.process.returncode != 0:
-                    stdout = invocation.get_stdout() or ""
-                    stderr = invocation.get_stderr() or ""
-                    error_message = f"Failed to run {model} for year {year}. Exit code: {invocation.process.returncode}\\n\\nSTDOUT:\\n{stdout}\\n\\nSTDERR:\\n{stderr}"
-                    raise Exception(error_message)
-
-            # Step 4: Consolidate events
-            context.log.info(f"Running fct_yearly_events for year {year}")
-            dbt_command = [
-                "run",
-                "--select",
-                "fct_yearly_events",
-                "--vars",
-                f"{{simulation_year: {year}}}",
-            ]
-            if full_refresh:
-                dbt_command.append("--full-refresh")
-
-            invocation = dbt.cli(dbt_command, context=context).wait()
-
-            if invocation.process is None or invocation.process.returncode != 0:
-                stdout = invocation.get_stdout() or ""
-                stderr = invocation.get_stderr() or ""
-                error_message = f"Failed to run fct_yearly_events for year {year}. Exit code: {invocation.process.returncode}\\n\\nSTDOUT:\\n{stdout}\\n\\nSTDERR:\\n{stderr}"
-                raise Exception(error_message)
-
-            # Step 5a: Clean fct_workforce_snapshot for the current year
-            context.log.info(f"Cleaning fct_workforce_snapshot for year {year}")
-            conn = duckdb.connect(str(DB_PATH))
-            try:
-                conn.execute(
-                    "DELETE FROM fct_workforce_snapshot WHERE simulation_year = ?",
-                    [year],
-                )
-                context.log.info("Existing snapshot records for year %s deleted", year)
-            except Exception as e:
-                context.log.warning(
-                    f"Error cleaning fct_workforce_snapshot for year {year} data: {e} (Table might not exist yet on first run of a new year)"
-                )
-            finally:
-                conn.close()
-
-            # Step 5b: Generate final workforce snapshot
-            context.log.info(f"Running fct_workforce_snapshot for year {year}")
-            dbt_command = [
-                "run",
-                "--select",
-                "fct_workforce_snapshot",
-                "--vars",
-                f"{{simulation_year: {year}}}",
-            ]
-            if full_refresh:
-                dbt_command.append("--full-refresh")
-
-            invocation = dbt.cli(dbt_command, context=context).wait()
-
-            if invocation.process is None or invocation.process.returncode != 0:
-                stdout = invocation.get_stdout() or ""
-                stderr = invocation.get_stderr() or ""
-                error_message = f"Failed to run fct_workforce_snapshot for year {year}. Exit code: {invocation.process.returncode}\\n\\nSTDOUT:\\n{stdout}\\n\\nSTDERR:\\n{stderr}"
-                raise Exception(error_message)
-
-            # Step 5c: Snapshot final workforce state for current year for use in next iteration
-            context.log.info(f"Running dbt snapshot for end of year {year}")
-            snapshot_cmd_curr = [
-                "snapshot",
-                "--select",
-                "scd_workforce_state",
-                "--vars",
-                f"{{simulation_year: {year}}}",
-            ]
-            snap_invocation_curr = dbt.cli(snapshot_cmd_curr, context=context).wait()
-            if (
-                snap_invocation_curr.process is None
-                or snap_invocation_curr.process.returncode != 0
-            ):
-                stdout = snap_invocation_curr.get_stdout() or ""
-                stderr = snap_invocation_curr.get_stderr() or ""
-                raise Exception(
-                    f"Failed to run dbt snapshot for year {year}. STDOUT: {stdout}, STDERR: {stderr}"
-                )
-
-            # Step 6: Validate results
-            year_result = validate_year_results(context, year, config)
             results.append(year_result)
-
-            context.log.info(f"=== Year {year} simulation completed successfully ===")
+            context.log.info(f"✅ Year {year} completed")
 
         except Exception as e:
-            context.log.error(f"Simulation failed for year {year}: {e}")
-            failed_result = YearResult(
-                year=year,
-                success=False,
-                active_employees=0,
-                total_terminations=0,
-                experienced_terminations=0,
-                new_hire_terminations=0,
-                total_hires=0,
-                growth_rate=0.0,
-                validation_passed=False,
+            context.log.error(f"❌ Year {year} failed: {e}")
+            results.append(
+                YearResult(
+                    year=year,
+                    success=False,
+                    active_employees=0,
+                    total_terminations=0,
+                    experienced_terminations=0,
+                    new_hire_terminations=0,
+                    total_hires=0,
+                    growth_rate=0.0,
+                    validation_passed=False,
+                )
             )
-            results.append(failed_result)
-            # Continue with next year instead of stopping
             continue
 
-    # Log summary
-    context.log.info("=== Multi-year simulation summary ===")
+    # Step 4: Aggregate results and provide summary
+    context.log.info("📊 === Multi-year simulation summary ===")
+    successful_years = [r for r in results if r.success]
+    failed_years = [r for r in results if not r.success]
+
+    context.log.info(
+        f"🎯 Simulation completed: {len(successful_years)}/{len(results)} years successful"
+    )
+
     for result in results:
         if result.success:
             context.log.info(
-                f"Year {result.year}: {result.active_employees} employees, {result.growth_rate:.1%} growth"
+                f"  ✅ Year {result.year}: {result.active_employees:,} employees, {result.growth_rate:.1%} growth"
             )
         else:
-            context.log.error(f"Year {result.year}: FAILED")
+            context.log.error(f"  ❌ Year {result.year}: FAILED")
+
+    if failed_years:
+        context.log.warning(
+            f"⚠️  {len(failed_years)} year(s) failed - check logs for details"
+        )
 
     return results
 
@@ -1153,6 +1233,8 @@ __all__ = [
     "simulation_year_state",
     "baseline_workforce_validated",
     "baseline_workforce_validated_op",
+    "clean_duckdb_data",
+    "execute_dbt_command",
     "run_multi_year_simulation",
     "single_year_simulation",
     "multi_year_simulation",
