@@ -371,6 +371,66 @@ def run_dbt_event_models_for_year(
     return results
 
 
+def _run_dbt_event_models_for_year_internal(
+    context: OpExecutionContext, year: int, config: Dict[str, Any]
+) -> Dict[str, Any]:
+    """
+    Internal helper function that executes all event models for a single simulation year.
+    This is the non-decorated version of run_dbt_event_models_for_year for internal use.
+    """
+    # Epic 11.5 event model sequence
+    event_models = [
+        "int_termination_events",  # Step b-c: Experienced terminations + additional to meet rate
+        "int_promotion_events",  # Promotions before hiring
+        "int_merit_events",  # Merit increases
+        "int_hiring_events",  # Step f: Gross hiring events
+        "int_new_hire_termination_events",  # Step g: New hire termination events
+    ]
+
+    # Type annotation for results dictionary
+    results: Dict[str, Any] = {
+        "year": year,
+        "models_executed": [],  # List of executed model names
+        "hiring_debug": None,  # Will contain debug info for hiring calculations
+    }
+
+    for model in event_models:
+        # Build variables for this model
+        vars_dict = {
+            "simulation_year": year,
+            "random_seed": config["random_seed"],
+            "target_growth_rate": config["target_growth_rate"],
+            "new_hire_termination_rate": config["new_hire_termination_rate"],
+            "total_termination_rate": config["total_termination_rate"],
+        }
+
+        # Build vars string for logging (preserve existing log format)
+        vars_string = f"{{simulation_year: {year}, random_seed: {config['random_seed']}, target_growth_rate: {config['target_growth_rate']}, new_hire_termination_rate: {config['new_hire_termination_rate']}, total_termination_rate: {config['total_termination_rate']}}}"
+        context.log.info(f"Running {model} for year {year} with vars: {vars_string}")
+
+        # Special handling for hiring events debug logging
+        if model == "int_hiring_events":
+            debug_info = _log_hiring_calculation_debug(context, year, config)
+            results["hiring_debug"] = debug_info
+
+        # Execute model using centralized utility
+        execute_dbt_command(
+            context,
+            ["run", "--select", model],
+            vars_dict,
+            config.get("full_refresh", False),
+            f"{model} for year {year}",
+        )
+
+        results["models_executed"].append(model)
+        context.log.debug(f"✅ Completed {model} for year {year}")
+
+    context.log.info(
+        f"Successfully executed all {len(event_models)} event models for year {year}"
+    )
+    return results
+
+
 class SimulationConfig(Config):
     """Configuration for simulation parameters"""
 
@@ -703,7 +763,7 @@ def run_year_simulation(context: OpExecutionContext) -> YearResult:
         )
 
         # Step 3: Run event generation models using modular operation
-        run_dbt_event_models_for_year(context, year, config)
+        _run_dbt_event_models_for_year_internal(context, year, config)
 
         # Step 4: Consolidate events
         execute_dbt_command(
@@ -972,6 +1032,120 @@ def validate_year_results(
         )
 
 
+def run_year_simulation_for_multi_year(
+    context: OpExecutionContext, year: int
+) -> YearResult:
+    """
+    Helper function for multi-year simulation that runs a single year simulation.
+    This bypasses the op config limitations by creating a temporary config context.
+
+    Args:
+        context: Original execution context
+        year: Simulation year to run
+    """
+    # Create a modified config with the specific year
+    original_config = context.op_config
+    temp_config = original_config.copy()
+    temp_config["start_year"] = year
+
+    # Temporarily replace the context's config for this call
+    # We do this by directly calling the simulation logic
+    config = temp_config
+    full_refresh = config.get("full_refresh", False)
+
+    context.log.info(f"Starting simulation for year {year}")
+    if full_refresh:
+        context.log.info(
+            "🔄 Full refresh enabled - will rebuild all incremental models from scratch"
+        )
+
+    # Clean existing data for this year to prevent duplicates
+    clean_duckdb_data(context, [year])
+
+    try:
+        # Step 1: Enhanced validation for multi-year dependencies
+        if year > 2025:
+            # Ensure previous year data exists by checking both events and workforce tables
+            conn = duckdb.connect(str(DB_PATH))
+            try:
+                # Check both events and workforce from previous year
+                events_count = conn.execute(
+                    """
+                    SELECT COUNT(*) FROM fct_yearly_events
+                    WHERE simulation_year = ?
+                """,
+                    [year - 1],
+                ).fetchone()[0]
+
+                workforce_count = conn.execute(
+                    """
+                    SELECT COUNT(*) FROM fct_workforce_snapshot
+                    WHERE simulation_year = ? AND employment_status = 'active'
+                """,
+                    [year - 1],
+                ).fetchone()[0]
+
+                # Apply same recovery logic as in multi-year function
+                if events_count == 0 and workforce_count == 0:
+                    raise Exception(
+                        f"No previous year data found for year {year - 1} (events: {events_count}, workforce: {workforce_count})"
+                    )
+
+                context.log.info(
+                    f"✅ Previous year validation passed: {events_count} events, {workforce_count} active employees"
+                )
+            finally:
+                conn.close()
+
+        # Step 2: Prepare previous year workforce with S013-04 snapshot integration
+        execute_dbt_command(
+            context,
+            ["run", "--select", "int_workforce_previous_year"],
+            {"simulation_year": year},
+            full_refresh,
+            f"int_workforce_previous_year for year {year}",
+        )
+
+        # Step 3: Run event generation models using modular operation
+        _run_dbt_event_models_for_year_internal(context, year, config)
+
+        # Step 4: Consolidate events
+        execute_dbt_command(
+            context,
+            ["run", "--select", "fct_yearly_events"],
+            {"simulation_year": year},
+            full_refresh,
+            f"fct_yearly_events for year {year}",
+        )
+
+        # Step 5: Generate final workforce snapshot (cleaning handled by clean_duckdb_data)
+        execute_dbt_command(
+            context,
+            ["run", "--select", "fct_workforce_snapshot"],
+            {"simulation_year": year},
+            full_refresh,
+            f"fct_workforce_snapshot for year {year}",
+        )
+
+        # Step 6: Comprehensive validation and metrics using robust fallback validation
+        year_result = validate_year_results(context, year, config)
+        return year_result
+
+    except Exception as e:
+        context.log.error(f"Validation failed for year {year}: {e}")
+        return YearResult(
+            year=year,
+            success=False,
+            active_employees=0,
+            total_terminations=0,
+            experienced_terminations=0,
+            new_hire_terminations=0,
+            total_hires=0,
+            growth_rate=0.0,
+            validation_passed=False,
+        )
+
+
 @asset_check(asset=baseline_workforce_validated)
 def validate_growth_rates(context) -> AssetCheckResult:
     """
@@ -1159,17 +1333,8 @@ def run_multi_year_simulation(
                 run_dbt_snapshot_for_year(context, year - 1, "previous_year")
 
             # Execute single-year simulation (leverages S013-01/02/03/04 via S013-05)
-            year_config = config.copy()
-            year_config["start_year"] = year
-
-            from dagster import build_op_context
-
-            year_context = build_op_context(
-                config=year_config, resources=context.resources
-            )
-            year_context.log = context.log
-
-            year_result = run_year_simulation(year_context)
+            # Use helper function to avoid resource serialization issues
+            year_result = run_year_simulation_for_multi_year(context, year)
             run_dbt_snapshot_for_year(context, year, "end_of_year")
 
             results.append(year_result)

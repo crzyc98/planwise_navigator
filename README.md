@@ -24,7 +24,7 @@ This enterprise-grade platform replaces legacy Pandas-based pipelines with an im
 
 | Layer | Technology | Version | Purpose |
 |-------|------------|---------|---------|
-| **Storage** | DuckDB | 1.0.0 | In-process OLAP database engine |
+| **Storage** | DuckDB | 1.0.0 | Immutable event store; in-process OLAP engine |
 | **Transformation** | dbt-core | 1.8.8 | SQL-based data modeling and testing |
 | **Adapter** | dbt-duckdb | 1.8.1 | Stable DuckDB integration |
 | **Orchestration** | Dagster | 1.8.12 | Asset-based pipeline management |
@@ -34,16 +34,24 @@ This enterprise-grade platform replaces legacy Pandas-based pipelines with an im
 
 ## Architecture
 
+### Event-Sourced Data Flow
 ```
-Raw Census Data → Staging Models → Intermediate Models → Marts → Dashboard
-                     (stg_*)         (int_*)            (fct_*, dim_*)
+Raw Census Data → Staging Models → Event Generation → Immutable Event Store → Snapshots → Dashboard
+                     (stg_*)         (Modular Engines)   (fct_yearly_events)   (point-in-time)
 ```
 
 ### Data Flow
-1. **Staging Layer**: Clean and validate raw employee data
-2. **Intermediate Layer**: Generate workforce events (hiring, termination, promotion, raises)
-3. **Marts Layer**: Aggregate into final analytical tables
-4. **Dashboard Layer**: Interactive visualization and scenario comparison
+1. **Staging Layer**: Clean and validate raw employee master data
+2. **Event Generation**: Modular engines create immutable workforce events (UUID-stamped)
+3. **Event Store**: Permanent, tamper-proof audit trail in `fct_yearly_events`
+4. **Snapshot Layer**: Point-in-time workforce states reconstructed from events
+5. **Dashboard Layer**: Interactive scenario analysis with time-machine capabilities
+
+### Modular Engine Architecture
+- **Compensation Engine**: COLA, merit, and promotion-based salary adjustments
+- **Termination Engine**: Hazard-based turnover modeling with age/tenure factors
+- **Hiring Engine**: Growth-driven recruitment with realistic demographic sampling
+- **Promotion Engine**: Band-aware advancement with configurable probabilities
 
 ## Directory Structure
 
@@ -169,15 +177,23 @@ dagster asset check --select validate_simulation_results
 
 ## Key Components
 
-### Simulation Engine
-- **Event Generation**: Probabilistic modeling of workforce transitions
-- **Hazard Tables**: Risk models based on age, tenure, and job level
-- **Multi-year Processing**: Cumulative simulation with state persistence
+### Event Sourcing Engine
+- **Immutable Events**: UUID-stamped workforce transitions (HIRE, TERMINATION, PROMOTION, RAISE)
+- **Audit Trail**: Complete historical record for regulatory compliance and auditing
+- **Snapshot Reconstruction**: Any point-in-time workforce state rebuilt from event log
+- **Reproducible Scenarios**: Identical results with same random seed for validation
+
+### Modular Simulation Architecture
+- **Compensation Engine**: Multi-tier salary adjustments (COLA, merit, promotion-based)
+- **Termination Engine**: Sophisticated hazard modeling with age/tenure/level factors
+- **Hiring Engine**: Growth-driven recruitment with realistic demographic sampling
+- **Promotion Engine**: Band-aware advancement with configurable transition matrices
 
 ### Data Models
-- **Staging**: `stg_census_data` - Clean employee master data
-- **Intermediate**: Event generation models (`int_*_events`)
-- **Marts**: Final outputs (`fct_workforce_snapshot`, `fct_yearly_events`)
+- **Staging**: `stg_census_data` - Clean employee master data with schema validation
+- **Events**: `fct_yearly_events` - Immutable event store with UUID and timestamp
+- **Snapshots**: `fct_workforce_snapshot` - Point-in-time reconstructed workforce states
+- **Analytics**: Derived metrics and trend analysis for strategic planning
 
 ### Analytics
 - **Interactive Dashboard**: Streamlit-based scenario analysis
