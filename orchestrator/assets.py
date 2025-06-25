@@ -509,3 +509,741 @@ def check_prorated_compensation_bounds(
             passed=False,
             description=f"Error executing prorated compensation bounds check: {str(e)}",
         )
+
+
+# === GROWTH RATE VALIDATION ASSET CHECKS ===
+
+
+@asset_check(
+    asset=AssetKey(["fct_workforce_snapshot"]), name="growth_rate_tolerance_check"
+)
+def check_growth_rate_tolerance(
+    context: AssetExecutionContext, duckdb_resource: DuckDBResource
+) -> AssetCheckResult:
+    """Asset check: Year-over-year growth rate within ±0.5% tolerance of target (3%)."""
+    try:
+        with duckdb_resource.get_connection() as conn:
+            # Verify table exists first
+            table_exists = conn.execute(
+                """
+                SELECT COUNT(*)
+                FROM information_schema.tables
+                WHERE table_name = 'fct_workforce_snapshot'
+                """
+            ).fetchone()[0]
+
+            if table_exists == 0:
+                return AssetCheckResult(
+                    passed=False,
+                    description="fct_workforce_snapshot table not found - dbt model may not be materialized",
+                )
+
+            # Get growth rate data by year
+            growth_data = conn.execute(
+                """
+                WITH workforce_by_year AS (
+                    SELECT
+                        simulation_year,
+                        COUNT(*) as active_count
+                    FROM fct_workforce_snapshot
+                    WHERE employment_status = 'active'
+                    GROUP BY simulation_year
+                    ORDER BY simulation_year
+                ),
+                growth_rates AS (
+                    SELECT
+                        simulation_year,
+                        active_count,
+                        LAG(active_count) OVER (ORDER BY simulation_year) as prev_year_count,
+                        CASE
+                            WHEN LAG(active_count) OVER (ORDER BY simulation_year) IS NOT NULL
+                            THEN (active_count - LAG(active_count) OVER (ORDER BY simulation_year)) /
+                                 LAG(active_count) OVER (ORDER BY simulation_year)::FLOAT
+                            ELSE NULL
+                        END as actual_growth_rate
+                    FROM workforce_by_year
+                )
+                SELECT
+                    simulation_year,
+                    active_count,
+                    prev_year_count,
+                    actual_growth_rate,
+                    ABS(actual_growth_rate - 0.03) as deviation_from_target
+                FROM growth_rates
+                WHERE actual_growth_rate IS NOT NULL
+                ORDER BY simulation_year
+                """
+            ).df()
+
+            if growth_data.empty:
+                return AssetCheckResult(
+                    passed=False,
+                    description="No multi-year workforce data found for growth rate validation",
+                )
+
+            # Check if any year exceeds tolerance (±0.5% = ±0.005)
+            tolerance = 0.005
+            violations = growth_data[growth_data["deviation_from_target"] > tolerance]
+
+            if not violations.empty:
+                violation_details = []
+                for _, row in violations.iterrows():
+                    violation_details.append(
+                        {
+                            "year": int(row["simulation_year"]),
+                            "actual_growth": round(
+                                float(row["actual_growth_rate"]) * 100, 2
+                            ),
+                            "target_growth": 3.0,
+                            "deviation": round(
+                                float(row["deviation_from_target"]) * 100, 2
+                            ),
+                        }
+                    )
+
+                return AssetCheckResult(
+                    passed=False,
+                    description=f"Growth rate tolerance violation: {len(violations)} years exceed ±0.5% tolerance",
+                    metadata={
+                        "violations": violation_details,
+                        "tolerance_percent": 0.5,
+                        "target_growth_percent": 3.0,
+                    },
+                )
+
+            # Calculate average deviation for passing case
+            avg_deviation = growth_data["deviation_from_target"].mean()
+
+            return AssetCheckResult(
+                passed=True,
+                description=f"All years within growth rate tolerance (avg deviation: {avg_deviation*100:.2f}%)",
+                metadata={
+                    "years_validated": len(growth_data),
+                    "avg_deviation_percent": round(avg_deviation * 100, 2),
+                    "tolerance_percent": 0.5,
+                },
+            )
+
+    except Exception as e:
+        return AssetCheckResult(
+            passed=False,
+            description=f"Error executing growth rate tolerance check: {str(e)}",
+        )
+
+
+@asset_check(
+    asset=AssetKey(["fct_workforce_snapshot"]),
+    name="cumulative_growth_validation_check",
+)
+def check_cumulative_growth_validation(
+    context: AssetExecutionContext, duckdb_resource: DuckDBResource
+) -> AssetCheckResult:
+    """Asset check: Cumulative multi-year growth matches expected compound growth."""
+    try:
+        with duckdb_resource.get_connection() as conn:
+            # Verify table exists first
+            table_exists = conn.execute(
+                """
+                SELECT COUNT(*)
+                FROM information_schema.tables
+                WHERE table_name = 'fct_workforce_snapshot'
+                """
+            ).fetchone()[0]
+
+            if table_exists == 0:
+                return AssetCheckResult(
+                    passed=False,
+                    description="fct_workforce_snapshot table not found - dbt model may not be materialized",
+                )
+
+            # Get baseline and final workforce counts for cumulative validation
+            cumulative_data = conn.execute(
+                """
+                WITH workforce_bounds AS (
+                    SELECT
+                        MIN(simulation_year) as start_year,
+                        MAX(simulation_year) as end_year
+                    FROM fct_workforce_snapshot
+                    WHERE employment_status = 'active'
+                ),
+                baseline_final AS (
+                    SELECT
+                        wb.start_year,
+                        wb.end_year,
+                        baseline.active_count as baseline_workforce,
+                        final.active_count as final_workforce,
+                        (wb.end_year - wb.start_year) as years_elapsed
+                    FROM workforce_bounds wb
+                    LEFT JOIN (
+                        SELECT simulation_year, COUNT(*) as active_count
+                        FROM fct_workforce_snapshot
+                        WHERE employment_status = 'active'
+                        GROUP BY simulation_year
+                    ) baseline ON baseline.simulation_year = wb.start_year
+                    LEFT JOIN (
+                        SELECT simulation_year, COUNT(*) as active_count
+                        FROM fct_workforce_snapshot
+                        WHERE employment_status = 'active'
+                        GROUP BY simulation_year
+                    ) final ON final.simulation_year = wb.end_year
+                )
+                SELECT
+                    start_year,
+                    end_year,
+                    baseline_workforce,
+                    final_workforce,
+                    years_elapsed,
+                    -- Expected final workforce with 3% compound growth
+                    ROUND(baseline_workforce * POWER(1.03, years_elapsed)) as expected_final,
+                    -- Actual cumulative growth rate
+                    CASE
+                        WHEN years_elapsed > 0 AND baseline_workforce > 0
+                        THEN POWER(final_workforce::FLOAT / baseline_workforce, 1.0/years_elapsed) - 1
+                        ELSE NULL
+                    END as actual_cumulative_rate
+                FROM baseline_final
+                """
+            ).fetchone()
+
+            if cumulative_data is None or cumulative_data[2] is None:
+                return AssetCheckResult(
+                    passed=False,
+                    description="Insufficient data for cumulative growth validation",
+                )
+
+            (
+                start_year,
+                end_year,
+                baseline,
+                final,
+                years,
+                expected_final,
+                actual_rate,
+            ) = cumulative_data
+
+            if years < 2:
+                return AssetCheckResult(
+                    passed=True,
+                    description="Single year simulation - cumulative validation not applicable",
+                )
+
+            # Check if cumulative growth is within tolerance
+            tolerance = 0.005  # ±0.5%
+            target_rate = 0.03
+            deviation = (
+                abs(actual_rate - target_rate) if actual_rate is not None else 1.0
+            )
+
+            if deviation > tolerance:
+                return AssetCheckResult(
+                    passed=False,
+                    description="Cumulative growth rate deviation exceeds tolerance",
+                    metadata={
+                        "start_year": int(start_year),
+                        "end_year": int(end_year),
+                        "baseline_workforce": int(baseline),
+                        "final_workforce": int(final),
+                        "expected_final": int(expected_final),
+                        "years_elapsed": int(years),
+                        "actual_cumulative_rate_percent": round(actual_rate * 100, 2)
+                        if actual_rate
+                        else None,
+                        "target_rate_percent": 3.0,
+                        "deviation_percent": round(deviation * 100, 2),
+                    },
+                )
+
+            return AssetCheckResult(
+                passed=True,
+                description=f"Cumulative growth within tolerance over {years} years (actual: {actual_rate*100:.2f}%)",
+                metadata={
+                    "years_validated": int(years),
+                    "actual_cumulative_rate_percent": round(actual_rate * 100, 2),
+                    "target_rate_percent": 3.0,
+                    "deviation_percent": round(deviation * 100, 2),
+                },
+            )
+
+    except Exception as e:
+        return AssetCheckResult(
+            passed=False,
+            description=f"Error executing cumulative growth validation: {str(e)}",
+        )
+
+
+# === TERMINATION RATE VALIDATION ASSET CHECKS ===
+
+
+@asset_check(asset=AssetKey(["fct_yearly_events"]), name="total_termination_rate_check")
+def check_total_termination_rate(
+    context: AssetExecutionContext, duckdb_resource: DuckDBResource
+) -> AssetCheckResult:
+    """Asset check: Total termination rate matches configured rate (12%) within tolerance."""
+    try:
+        with duckdb_resource.get_connection() as conn:
+            # Verify table exists first
+            table_exists = conn.execute(
+                """
+                SELECT COUNT(*)
+                FROM information_schema.tables
+                WHERE table_name = 'fct_yearly_events'
+                """
+            ).fetchone()[0]
+
+            if table_exists == 0:
+                return AssetCheckResult(
+                    passed=False,
+                    description="fct_yearly_events table not found - dbt model may not be materialized",
+                )
+
+            # Get termination rate data by year
+            termination_data = conn.execute(
+                """
+                WITH yearly_workforce AS (
+                    -- Get active workforce at start of each year
+                    SELECT
+                        simulation_year,
+                        COUNT(*) as start_active_workforce
+                    FROM fct_workforce_snapshot
+                    WHERE employment_status = 'active'
+                    GROUP BY simulation_year
+                ),
+                yearly_terminations AS (
+                    -- Get total terminations by year
+                    SELECT
+                        simulation_year,
+                        COUNT(*) as total_terminations
+                    FROM fct_yearly_events
+                    WHERE event_type = 'termination'
+                    GROUP BY simulation_year
+                )
+                SELECT
+                    yw.simulation_year,
+                    yw.start_active_workforce,
+                    COALESCE(yt.total_terminations, 0) as total_terminations,
+                    CASE
+                        WHEN yw.start_active_workforce > 0
+                        THEN COALESCE(yt.total_terminations, 0)::FLOAT / yw.start_active_workforce
+                        ELSE 0.0
+                    END as actual_termination_rate,
+                    ABS((COALESCE(yt.total_terminations, 0)::FLOAT / yw.start_active_workforce) - 0.12) as deviation_from_target
+                FROM yearly_workforce yw
+                LEFT JOIN yearly_terminations yt ON yw.simulation_year = yt.simulation_year
+                WHERE yw.start_active_workforce > 0
+                ORDER BY yw.simulation_year
+                """
+            ).df()
+
+            if termination_data.empty:
+                return AssetCheckResult(
+                    passed=False,
+                    description="No termination data found for rate validation",
+                )
+
+            # Check if any year exceeds tolerance (±5% of target rate)
+            tolerance = 0.012  # 5% of 12% = 0.6% absolute tolerance
+            violations = termination_data[
+                termination_data["deviation_from_target"] > tolerance
+            ]
+
+            if not violations.empty:
+                violation_details = []
+                for _, row in violations.iterrows():
+                    violation_details.append(
+                        {
+                            "year": int(row["simulation_year"]),
+                            "workforce": int(row["start_active_workforce"]),
+                            "terminations": int(row["total_terminations"]),
+                            "actual_rate": round(
+                                float(row["actual_termination_rate"]) * 100, 2
+                            ),
+                            "target_rate": 12.0,
+                            "deviation": round(
+                                float(row["deviation_from_target"]) * 100, 2
+                            ),
+                        }
+                    )
+
+                return AssetCheckResult(
+                    passed=False,
+                    description=f"Termination rate tolerance violation: {len(violations)} years exceed tolerance",
+                    metadata={
+                        "violations": violation_details,
+                        "tolerance_percent": 1.2,  # 5% of 12%
+                        "target_rate_percent": 12.0,
+                    },
+                )
+
+            # Calculate average deviation for passing case
+            avg_deviation = termination_data["deviation_from_target"].mean()
+            avg_actual_rate = termination_data["actual_termination_rate"].mean()
+
+            return AssetCheckResult(
+                passed=True,
+                description=f"All years within termination rate tolerance (avg rate: {avg_actual_rate*100:.2f}%)",
+                metadata={
+                    "years_validated": len(termination_data),
+                    "avg_actual_rate_percent": round(avg_actual_rate * 100, 2),
+                    "target_rate_percent": 12.0,
+                    "avg_deviation_percent": round(avg_deviation * 100, 2),
+                },
+            )
+
+    except Exception as e:
+        return AssetCheckResult(
+            passed=False,
+            description=f"Error executing total termination rate check: {str(e)}",
+        )
+
+
+@asset_check(
+    asset=AssetKey(["fct_yearly_events"]), name="new_hire_termination_rate_check"
+)
+def check_new_hire_termination_rate(
+    context: AssetExecutionContext, duckdb_resource: DuckDBResource
+) -> AssetCheckResult:
+    """Asset check: New hire termination rate matches configured rate (25%) within tolerance."""
+    try:
+        with duckdb_resource.get_connection() as conn:
+            # Verify table exists first
+            table_exists = conn.execute(
+                """
+                SELECT COUNT(*)
+                FROM information_schema.tables
+                WHERE table_name = 'fct_yearly_events'
+                """
+            ).fetchone()[0]
+
+            if table_exists == 0:
+                return AssetCheckResult(
+                    passed=False,
+                    description="fct_yearly_events table not found - dbt model may not be materialized",
+                )
+
+            # Get new hire termination rate data by year
+            new_hire_data = conn.execute(
+                """
+                WITH yearly_new_hires AS (
+                    -- Get new hires by year
+                    SELECT
+                        simulation_year,
+                        COUNT(*) as total_new_hires
+                    FROM fct_yearly_events
+                    WHERE event_type = 'hire'
+                    GROUP BY simulation_year
+                ),
+                yearly_new_hire_terminations AS (
+                    -- Get new hire terminations by year
+                    SELECT
+                        simulation_year,
+                        COUNT(*) as new_hire_terminations
+                    FROM fct_yearly_events
+                    WHERE event_type = 'termination'
+                    AND event_category = 'new_hire_termination'
+                    GROUP BY simulation_year
+                )
+                SELECT
+                    ynh.simulation_year,
+                    ynh.total_new_hires,
+                    COALESCE(ynht.new_hire_terminations, 0) as new_hire_terminations,
+                    CASE
+                        WHEN ynh.total_new_hires > 0
+                        THEN COALESCE(ynht.new_hire_terminations, 0)::FLOAT / ynh.total_new_hires
+                        ELSE 0.0
+                    END as actual_new_hire_termination_rate,
+                    ABS((COALESCE(ynht.new_hire_terminations, 0)::FLOAT / ynh.total_new_hires) - 0.25) as deviation_from_target
+                FROM yearly_new_hires ynh
+                LEFT JOIN yearly_new_hire_terminations ynht ON ynh.simulation_year = ynht.simulation_year
+                WHERE ynh.total_new_hires > 0
+                ORDER BY ynh.simulation_year
+                """
+            ).df()
+
+            if new_hire_data.empty:
+                return AssetCheckResult(
+                    passed=False,
+                    description="No new hire termination data found for rate validation",
+                )
+
+            # Check if any year exceeds tolerance (±5% of target rate)
+            tolerance = 0.025  # 5% of 25% = 1.25% absolute tolerance
+            violations = new_hire_data[
+                new_hire_data["deviation_from_target"] > tolerance
+            ]
+
+            if not violations.empty:
+                violation_details = []
+                for _, row in violations.iterrows():
+                    violation_details.append(
+                        {
+                            "year": int(row["simulation_year"]),
+                            "new_hires": int(row["total_new_hires"]),
+                            "new_hire_terminations": int(row["new_hire_terminations"]),
+                            "actual_rate": round(
+                                float(row["actual_new_hire_termination_rate"]) * 100, 2
+                            ),
+                            "target_rate": 25.0,
+                            "deviation": round(
+                                float(row["deviation_from_target"]) * 100, 2
+                            ),
+                        }
+                    )
+
+                return AssetCheckResult(
+                    passed=False,
+                    description=f"New hire termination rate tolerance violation: {len(violations)} years exceed tolerance",
+                    metadata={
+                        "violations": violation_details,
+                        "tolerance_percent": 2.5,  # 5% of 25%
+                        "target_rate_percent": 25.0,
+                    },
+                )
+
+            # Calculate average deviation for passing case
+            avg_deviation = new_hire_data["deviation_from_target"].mean()
+            avg_actual_rate = new_hire_data["actual_new_hire_termination_rate"].mean()
+
+            return AssetCheckResult(
+                passed=True,
+                description=f"All years within new hire termination rate tolerance (avg rate: {avg_actual_rate*100:.2f}%)",
+                metadata={
+                    "years_validated": len(new_hire_data),
+                    "avg_actual_rate_percent": round(avg_actual_rate * 100, 2),
+                    "target_rate_percent": 25.0,
+                    "avg_deviation_percent": round(avg_deviation * 100, 2),
+                },
+            )
+
+    except Exception as e:
+        return AssetCheckResult(
+            passed=False,
+            description=f"Error executing new hire termination rate check: {str(e)}",
+        )
+
+
+# === MULTI-YEAR CONSISTENCY VALIDATION ASSET CHECKS ===
+
+
+@asset_check(
+    asset=AssetKey(["fct_workforce_snapshot", "fct_yearly_events"]),
+    name="simulation_consistency_check",
+)
+def check_simulation_consistency(
+    context: AssetExecutionContext, duckdb_resource: DuckDBResource
+) -> AssetCheckResult:
+    """Asset check: Multi-year simulation mathematical and business rule consistency."""
+    try:
+        with duckdb_resource.get_connection() as conn:
+            # Verify both tables exist
+            tables_exist = conn.execute(
+                """
+                SELECT
+                    SUM(CASE WHEN table_name = 'fct_workforce_snapshot' THEN 1 ELSE 0 END) as workforce_exists,
+                    SUM(CASE WHEN table_name = 'fct_yearly_events' THEN 1 ELSE 0 END) as events_exists
+                FROM information_schema.tables
+                WHERE table_name IN ('fct_workforce_snapshot', 'fct_yearly_events')
+                """
+            ).fetchone()
+
+            if tables_exist[0] == 0 or tables_exist[1] == 0:
+                return AssetCheckResult(
+                    passed=False,
+                    description="Required tables not found - fct_workforce_snapshot or fct_yearly_events missing",
+                )
+
+            # Comprehensive consistency validation
+            consistency_data = conn.execute(
+                """
+                WITH simulation_bounds AS (
+                    SELECT
+                        MIN(simulation_year) as start_year,
+                        MAX(simulation_year) as end_year,
+                        COUNT(DISTINCT simulation_year) as total_years
+                    FROM fct_workforce_snapshot
+                ),
+                workforce_evolution AS (
+                    SELECT
+                        simulation_year,
+                        COUNT(*) as total_employees,
+                        COUNT(CASE WHEN employment_status = 'active' THEN 1 END) as active_employees,
+                        COUNT(CASE WHEN employment_status = 'terminated' THEN 1 END) as terminated_employees
+                    FROM fct_workforce_snapshot
+                    GROUP BY simulation_year
+                    ORDER BY simulation_year
+                ),
+                event_totals AS (
+                    SELECT
+                        simulation_year,
+                        COUNT(CASE WHEN event_type = 'hire' THEN 1 END) as total_hires,
+                        COUNT(CASE WHEN event_type = 'termination' THEN 1 END) as total_terminations,
+                        COUNT(CASE WHEN event_type = 'promotion' THEN 1 END) as total_promotions,
+                        COUNT(CASE WHEN event_type = 'merit' THEN 1 END) as total_merit
+                    FROM fct_yearly_events
+                    GROUP BY simulation_year
+                    ORDER BY simulation_year
+                ),
+                status_distribution AS (
+                    SELECT
+                        simulation_year,
+                        COUNT(CASE WHEN detailed_status_code = 'continuous_active' THEN 1 END) as continuous_active,
+                        COUNT(CASE WHEN detailed_status_code = 'new_hire_active' THEN 1 END) as new_hire_active,
+                        COUNT(CASE WHEN detailed_status_code = 'experienced_termination' THEN 1 END) as experienced_termination,
+                        COUNT(CASE WHEN detailed_status_code = 'new_hire_termination' THEN 1 END) as new_hire_termination
+                    FROM fct_workforce_snapshot
+                    GROUP BY simulation_year
+                    ORDER BY simulation_year
+                )
+                SELECT
+                    sb.total_years,
+                    sb.start_year,
+                    sb.end_year,
+                    -- Mathematical consistency: active employees should match hires - terminations pattern
+                    we_start.active_employees as baseline_active,
+                    we_end.active_employees as final_active,
+                    SUM(et.total_hires) as cumulative_hires,
+                    SUM(et.total_terminations) as cumulative_terminations,
+                    -- Expected final = baseline + hires - terminations
+                    (we_start.active_employees + SUM(et.total_hires) - SUM(et.total_terminations)) as expected_final,
+                    -- Growth rate consistency
+                    CASE
+                        WHEN we_start.active_employees > 0 AND sb.total_years > 1
+                        THEN POWER(we_end.active_employees::FLOAT / we_start.active_employees, 1.0/(sb.total_years-1)) - 1
+                        ELSE NULL
+                    END as actual_compound_growth_rate,
+                    -- Status distribution consistency
+                    SUM(sd.continuous_active + sd.new_hire_active) as total_active_from_status,
+                    SUM(sd.experienced_termination + sd.new_hire_termination) as total_terminated_from_status,
+                    -- Event totals validation
+                    SUM(et.total_promotions) as total_promotions,
+                    SUM(et.total_merit) as total_merit_events
+                FROM simulation_bounds sb
+                CROSS JOIN workforce_evolution we_start
+                CROSS JOIN workforce_evolution we_end
+                CROSS JOIN event_totals et
+                CROSS JOIN status_distribution sd
+                WHERE we_start.simulation_year = sb.start_year
+                AND we_end.simulation_year = sb.end_year
+                AND et.simulation_year BETWEEN sb.start_year AND sb.end_year
+                AND sd.simulation_year BETWEEN sb.start_year AND sb.end_year
+                GROUP BY sb.total_years, sb.start_year, sb.end_year,
+                         we_start.active_employees, we_end.active_employees
+                """
+            ).fetchone()
+
+            if consistency_data is None:
+                return AssetCheckResult(
+                    passed=False,
+                    description="Insufficient data for multi-year consistency validation",
+                )
+
+            (
+                total_years,
+                start_year,
+                end_year,
+                baseline_active,
+                final_active,
+                cumulative_hires,
+                cumulative_terminations,
+                expected_final,
+                actual_growth_rate,
+                total_active_status,
+                total_terminated_status,
+                total_promotions,
+                total_merit,
+            ) = consistency_data
+
+            validation_issues = []
+
+            # 1. Mathematical consistency check
+            math_variance = abs(final_active - expected_final)
+            if math_variance > 5:  # Allow small variance for rounding
+                validation_issues.append(
+                    {
+                        "type": "mathematical_inconsistency",
+                        "description": f"Final workforce ({final_active}) != baseline + hires - terminations ({expected_final})",
+                        "variance": math_variance,
+                    }
+                )
+
+            # 2. Growth rate consistency check (if multi-year)
+            if total_years > 1 and actual_growth_rate is not None:
+                target_growth = 0.03
+                growth_deviation = abs(actual_growth_rate - target_growth)
+                if growth_deviation > 0.005:  # ±0.5% tolerance
+                    validation_issues.append(
+                        {
+                            "type": "growth_rate_deviation",
+                            "description": f"Compound growth rate ({actual_growth_rate:.3f}) deviates from target (0.03)",
+                            "deviation": growth_deviation,
+                        }
+                    )
+
+            # 3. Status distribution consistency
+            if total_active_status != final_active:
+                validation_issues.append(
+                    {
+                        "type": "status_inconsistency",
+                        "description": f"Active employees from status codes ({total_active_status}) != final active ({final_active})",
+                    }
+                )
+
+            # 4. Event volume reasonableness checks
+            if total_years > 1:
+                avg_hires_per_year = cumulative_hires / total_years
+                avg_workforce = (baseline_active + final_active) / 2
+
+                # Hires should be reasonable relative to workforce size
+                hire_rate = (
+                    avg_hires_per_year / avg_workforce if avg_workforce > 0 else 0
+                )
+                if hire_rate > 0.5:  # More than 50% turnover seems excessive
+                    validation_issues.append(
+                        {
+                            "type": "excessive_hiring_rate",
+                            "description": f"Average hiring rate ({hire_rate:.3f}) exceeds reasonable threshold (0.5)",
+                        }
+                    )
+
+            # Return results
+            if validation_issues:
+                return AssetCheckResult(
+                    passed=False,
+                    description=f"Simulation consistency violations: {len(validation_issues)} issues found",
+                    metadata={
+                        "validation_issues": validation_issues,
+                        "summary": {
+                            "years": int(total_years),
+                            "baseline_workforce": int(baseline_active),
+                            "final_workforce": int(final_active),
+                            "cumulative_hires": int(cumulative_hires),
+                            "cumulative_terminations": int(cumulative_terminations),
+                            "actual_growth_rate": round(actual_growth_rate * 100, 2)
+                            if actual_growth_rate
+                            else None,
+                        },
+                    },
+                )
+
+            return AssetCheckResult(
+                passed=True,
+                description=f"Multi-year simulation consistency validated over {total_years} years",
+                metadata={
+                    "years_validated": int(total_years),
+                    "mathematical_variance": int(math_variance),
+                    "growth_rate_percent": round(actual_growth_rate * 100, 2)
+                    if actual_growth_rate
+                    else None,
+                    "cumulative_events": {
+                        "hires": int(cumulative_hires),
+                        "terminations": int(cumulative_terminations),
+                        "promotions": int(total_promotions),
+                        "merit_increases": int(total_merit),
+                    },
+                },
+            )
+
+    except Exception as e:
+        return AssetCheckResult(
+            passed=False,
+            description=f"Error executing simulation consistency check: {str(e)}",
+        )

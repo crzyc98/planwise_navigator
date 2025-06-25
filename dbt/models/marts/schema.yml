@@ -106,12 +106,16 @@ models:
     description: "Year-end workforce snapshot showing current state after all events"
     # Note: Removed dbt_utils.expression_is_true tests to prevent DuckDBRelation serialization issues
     # Basic data quality is validated through column-level tests below
+    data_tests:
+      # Test composite uniqueness: employee appears once per simulation year
+      - unique:
+          column_name: "employee_id || '_' || simulation_year"
+          name: "unique_employee_per_simulation_year"
     columns:
       - name: employee_id
-        description: "Unique employee identifier"
+        description: "Unique employee identifier within simulation year"
         data_tests:
           - not_null
-          - unique
       - name: employee_ssn
         description: "Employee SSN identifier"
         data_tests:
@@ -162,3 +166,53 @@ models:
         description: "Simulation year for this snapshot"
         data_tests:
           - not_null
+
+  # Additional validation tests for S039 completion
+  - name: fct_yearly_events
+    description: "Additional relationship and validation tests"
+    data_tests:
+      # Test that all simulation years are within reasonable bounds
+      - dbt_utils.expression_is_true:
+          expression: "simulation_year BETWEEN 2020 AND 2050"
+          name: "simulation_year_within_bounds"
+      # Test that compensation amounts are positive
+      - dbt_utils.expression_is_true:
+          expression: "compensation_amount >= 0"
+          name: "compensation_positive_amounts"
+      # Test that hire events have reasonable compensation (basic range check)
+      - dbt_utils.expression_is_true:
+          expression: "event_type != 'hire' OR compensation_amount BETWEEN 20000 AND 500000"
+          name: "hire_compensation_reasonable_range"
+
+  - name: fct_workforce_snapshot
+    description: "Additional validation and relationship tests"
+    data_tests:
+      # Test that simulation years are within reasonable bounds
+      - dbt_utils.expression_is_true:
+          expression: "simulation_year BETWEEN 2020 AND 2050"
+          name: "workforce_simulation_year_bounds"
+      # Test that active employees have positive compensation
+      - dbt_utils.expression_is_true:
+          expression: "employment_status != 'active' OR current_compensation > 0"
+          name: "active_employees_have_compensation"
+      # Test that detailed status codes align with employment status
+      - dbt_utils.expression_is_true:
+          expression: "(employment_status = 'active' AND detailed_status_code IN ('continuous_active', 'new_hire_active')) OR (employment_status = 'terminated' AND detailed_status_code IN ('experienced_termination', 'new_hire_termination'))"
+          name: "status_codes_align_with_employment_status"
+      # Test that tenure is reasonable relative to age
+      - dbt_utils.expression_is_true:
+          expression: "current_tenure <= (current_age - 16)"
+          name: "tenure_reasonable_relative_to_age"
+
+  # Cross-model relationship tests
+  - name: fct_compensation_growth
+    description: "Compensation growth fact table validation"
+    data_tests:
+      # Test that growth rates are within reasonable bounds (-50% to +50%)
+      - dbt_utils.expression_is_true:
+          expression: "yoy_growth_rate BETWEEN -0.5 AND 0.5"
+          name: "compensation_growth_reasonable_bounds"
+      # Test that simulation years are consistent
+      - dbt_utils.expression_is_true:
+          expression: "simulation_year BETWEEN 2020 AND 2050"
+          name: "compensation_simulation_year_bounds"

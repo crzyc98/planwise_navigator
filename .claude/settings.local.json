@@ -45,7 +45,12 @@
       "Bash(/Users/nicholasamaral/Library/Python/3.9/bin/dbt run --select fct_policy_optimization --vars '{simulation_year: 2026, test_scenario: \"scenario_001\"}')",
       "Bash(./scripts/lint:*)",
       "Bash(dbt snapshot:*)",
-      "Bash(dagster job:*)"
+      "Bash(dagster job:*)",
+      "Bash(python3 -c \"\nprint('🔍 ANALYZING VARIANCE SOURCES')\nprint('')\nprint('Variance pattern: +86 to +103 employees above target')\nprint('Variance percentage: ~2% over target')\nprint('')\nprint('Potential sources:')\nprint('1. New hire terminations (probabilistic)')\nprint('2. Hiring calculation rounding')\nprint('3. Promotion effects not accounted in growth formula')\nprint('4. Merit increase timing effects')\nprint('')\nprint('Next: Check each component for variance...')\n\")",
+      "Bash(dbt ls:*)",
+      "Bash(ruff check:*)",
+      "Bash(git add:*)",
+      "Bash(git commit:*)"
     ],
     "deny": []
   }

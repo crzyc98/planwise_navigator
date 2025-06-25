@@ -225,14 +225,10 @@ def _log_hiring_calculation_debug(
     conn = duckdb.connect(str(DB_PATH))
     try:
         # Calculate workforce count using unified logic
-        if year == config["start_year"]:  # Use baseline for first year
-            workforce_count = conn.execute(
-                "SELECT COUNT(*) FROM int_baseline_workforce WHERE employment_status = 'active'"
-            ).fetchone()[0]
-        else:
-            workforce_count = conn.execute(
-                "SELECT COUNT(*) FROM int_workforce_previous_year WHERE employment_status = 'active'"
-            ).fetchone()[0]
+        # Always use int_workforce_previous_year as it handles first year vs subsequent year logic internally
+        workforce_count = conn.execute(
+            "SELECT COUNT(*) FROM int_workforce_previous_year WHERE employment_status = 'active'"
+        ).fetchone()[0]
 
         # Extract formula inputs
         target_growth_rate = config["target_growth_rate"]

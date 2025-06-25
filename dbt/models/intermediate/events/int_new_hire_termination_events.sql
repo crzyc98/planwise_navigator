@@ -25,12 +25,11 @@ new_hires_cohort AS (
     WHERE simulation_year = (SELECT current_year FROM simulation_config)
 ),
 
--- Apply new hire termination rate
+-- DETERMINISTIC APPROACH: Calculate exact target and select top N
 new_hire_terminations AS (
     SELECT
         nh.*,
-        -- Fixed: Use hash-like approach for better randomization
-        -- Combine multiple digits and add offset to spread values more evenly
+        -- Generate consistent random value for ordering
         ((CAST(SUBSTR(nh.employee_id, -2) AS INTEGER) * 17 +
           CAST(SUBSTR(nh.employee_id, -4, 2) AS INTEGER) * 31 +
           sc.current_year * 7) % 100) / 100.0 AS random_value,
@@ -39,11 +38,17 @@ new_hire_terminations AS (
     CROSS JOIN simulation_config sc
 ),
 
--- Filter based on termination probability
+-- Calculate exact target and select deterministically
+target_calculation AS (
+    SELECT ROUND(COUNT(*) * (SELECT new_hire_termination_rate FROM simulation_config)) AS target_terminations
+    FROM new_hires_cohort
+),
+
 filtered_terminations AS (
-    SELECT *
-    FROM new_hire_terminations
-    WHERE random_value < termination_rate
+    SELECT nh.*
+    FROM new_hire_terminations nh
+    CROSS JOIN target_calculation tc
+    QUALIFY ROW_NUMBER() OVER (ORDER BY nh.random_value) <= tc.target_terminations
 )
 
 SELECT

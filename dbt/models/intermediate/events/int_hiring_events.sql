@@ -25,22 +25,21 @@ previous_year_workforce_count AS (
 {% endif %}
 ),
 
--- Calculate total expected departures including both experienced and new hire terminations
--- This is the key fix: account for new hire terminations that will happen AFTER hiring
+-- DETERMINISTIC APPROACH: Use exact termination count from int_termination_events
 total_expected_departures AS (
   SELECT
     pywc.workforce_count,
-    -- Align with int_termination_events.sql's CEIL behavior for experienced terminations
-    CEIL(pywc.workforce_count * {{ var('total_termination_rate', 0.12) }}) AS expected_experienced_terminations_count,
+    -- Get ACTUAL experienced terminations count from int_termination_events (not estimated)
+    (SELECT COUNT(*) FROM {{ ref('int_termination_events') }}
+     WHERE simulation_year = {{ simulation_year }}) AS expected_experienced_terminations_count,
     pywc.workforce_count * {{ var('target_growth_rate', 0.03) }} AS target_growth_amount_decimal,
-    -- We need to solve for total_hires such that:
-    -- workforce_next = workforce_current - experienced_terms + total_hires - (total_hires * new_hire_term_rate)
-    -- workforce_next = workforce_current * (1 + growth_rate)
-    -- This gives us: total_hires = (experienced_terms + workforce_current * growth_rate) / (1 - new_hire_term_rate)
-    -- Use CEIL here to mirror actual terminations from int_termination_events.sql
-    CEIL(
-      (CEIL(pywc.workforce_count * {{ var('total_termination_rate', 0.12) }}) + -- Use CEIL here to mirror actual terms
-       pywc.workforce_count * {{ var('target_growth_rate', 0.03) }}) /
+    -- Calculate exact hires needed for perfect 3% growth
+    -- Formula: hires = (target_net_growth + experienced_terms) / (1 - new_hire_term_rate)
+    -- Where target_net_growth = ROUND(workforce * growth_rate)
+    ROUND(
+      (ROUND(pywc.workforce_count * {{ var('target_growth_rate', 0.03) }}) +
+       (SELECT COUNT(*) FROM {{ ref('int_termination_events') }}
+        WHERE simulation_year = {{ simulation_year }})) /
       (1 - {{ var('new_hire_termination_rate', 0.25) }})
     ) AS total_hires_needed
   FROM previous_year_workforce_count pywc
