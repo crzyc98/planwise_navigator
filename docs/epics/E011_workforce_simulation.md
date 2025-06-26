@@ -321,6 +321,31 @@ Actual:   95 → 83 → 78 → 70 → 65 (declining workforce!)
 - Add termination rate monitoring
 - Create data quality indicator widgets
 
+---
+
+### S041: Audit and Fix New Hire Active Participant Issues
+**Story Points**: 8
+**Priority**: Must Have
+**Sprint**: 3
+**Status**: Pending
+
+**Description**: Comprehensive audit and remediation of new hire active participant data integrity issues discovered in the workforce simulation, focusing on data quality, status classification accuracy, and participant tracking consistency.
+
+**Acceptance Criteria**:
+1. All new hire active participants are correctly identified and tracked through the simulation pipeline
+2. No data integrity issues (orphaned records, incorrect statuses, missing classifications)
+3. Participant status transitions are accurately recorded and auditable
+4. New hire retention rates align with configured parameters
+5. Comprehensive validation tests prevent future participant tracking issues
+
+**Technical Tasks**:
+- Audit new hire participant data flow through entire simulation pipeline
+- Identify and fix data integrity issues in participant status tracking
+- Validate employment status classification logic for new hire actives
+- Ensure proper participant record linkage across simulation years
+- Add comprehensive data quality checks for participant consistency
+- Create participant-specific validation tests and monitoring
+
 ## Dependencies
 
 ### Technical Dependencies
