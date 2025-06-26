@@ -148,7 +148,7 @@ models:
         data_tests:
           - not_null
           - accepted_values:
-              values: ['hazard_termination']
+              values: ['hazard_termination', 'gap_filling_termination']
 
       - name: termination_rate
         description: Probability rate used for this employee's termination
@@ -195,4 +195,4 @@ models:
         data_tests:
           - not_null
           - accepted_values:
-              values: ['hazard_termination']
+              values: ['hazard_termination', 'gap_filling']

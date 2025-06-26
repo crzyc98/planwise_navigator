@@ -240,6 +240,20 @@ def broken_asset():
     return conn.table("employees")  # DuckDBPyRelation - NOT SERIALIZABLE!
 ```
 
+# Environment and Database Paths (CRITICAL)
+- **Database Location**: `/Users/nicholasamaral/planwise_navigator/simulation.duckdb`
+- **Schema**: `main` (always use this schema)
+- **dbt Commands**: Run from `/Users/nicholasamaral/planwise_navigator/dbt`
+- **Dagster Commands**: Run from `/Users/nicholasamaral/planwise_navigator/`
+- **Start Simulation**: `make run-simulation` (launches Dagster UI)
+- **Multi-year Simulation**: Use Dagster UI to run `multi_year_simulation` asset
+
+# Database State Management
+- **Persistence**: DuckDB file persists between sessions
+- **Key Tables**: `fct_workforce_snapshot`, `fct_yearly_events`, `scd_workforce_state`
+- **Clean Data**: Use `clean_duckdb_data()` operation to reset simulation years
+- **Snapshots**: Required for multi-year dependencies via `int_workforce_previous_year`
+
 # Connection Management Patterns
 - **Problem**: DuckDB connections must be properly managed
 - **Solution**: Always use context managers for database connections

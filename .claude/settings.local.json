@@ -56,7 +56,15 @@
       "Bash(pre-commit install:*)",
       "Bash(./scripts/run_ci_tests.sh:*)",
       "Bash(kill:*)",
-      "Bash(echo:*)"
+      "Bash(echo:*)",
+      "Bash(git restore:*)",
+      "Bash(git checkout:*)",
+      "Bash(git stash:*)",
+      "Bash(for year in 2026 2027 2028 2029)",
+      "Bash(do)",
+      "Bash(done)",
+      "Bash(make:*)",
+      "Bash(pkill:*)"
     ],
     "deny": []
   }

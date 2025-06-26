@@ -27,7 +27,7 @@ SELECT
     simulation_year,
     CURRENT_TIMESTAMP AS snapshot_created_at
 FROM {{ ref('fct_workforce_snapshot') }}
-WHERE employment_status = 'active'
-  AND simulation_year = {{ var('simulation_year', 2025) }}
+WHERE simulation_year = {{ var('simulation_year', 2025) }}
+  AND (employment_status = 'active' OR employment_status = 'terminated')
 
 {% endsnapshot %}

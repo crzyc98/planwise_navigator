@@ -29,17 +29,20 @@ previous_year_workforce_count AS (
 total_expected_departures AS (
   SELECT
     pywc.workforce_count,
-    -- Get ACTUAL experienced terminations count from int_termination_events (not estimated)
+    -- Get ACTUAL experienced terminations count (exclude previous year new hires to avoid over-hiring)
     (SELECT COUNT(*) FROM {{ ref('int_termination_events') }}
-     WHERE simulation_year = {{ simulation_year }}) AS expected_experienced_terminations_count,
+     WHERE simulation_year = {{ simulation_year }}
+     AND employee_type = 'experienced') AS expected_experienced_terminations_count,
     pywc.workforce_count * {{ var('target_growth_rate', 0.03) }} AS target_growth_amount_decimal,
     -- Calculate exact hires needed for perfect 3% growth
-    -- Formula: hires = (target_net_growth + experienced_terms) / (1 - new_hire_term_rate)
-    -- Where target_net_growth = ROUND(workforce * growth_rate)
+    -- Formula: hires = (target_net_growth + TRUE_experienced_terms) / (1 - new_hire_term_rate)
+    -- KEY FIX: Only count terminations of truly experienced employees (hired 2+ years ago)
+    -- Previous year new hire terminations are NOT workforce losses that need experienced replacement
     ROUND(
       (ROUND(pywc.workforce_count * {{ var('target_growth_rate', 0.03) }}) +
        (SELECT COUNT(*) FROM {{ ref('int_termination_events') }}
-        WHERE simulation_year = {{ simulation_year }})) /
+        WHERE simulation_year = {{ simulation_year }}
+        AND employee_type = 'experienced')) /
       (1 - {{ var('new_hire_termination_rate', 0.25) }})
     ) AS total_hires_needed
   FROM previous_year_workforce_count pywc

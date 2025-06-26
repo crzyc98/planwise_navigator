@@ -92,9 +92,9 @@ eligible_for_termination AS (
         AND h.year = {{ simulation_year }}
 ),
 
--- SIMPLIFIED APPROACH: Direct calculation to achieve exactly 12% termination rate
+-- SOPHISTICATED APPROACH: Hazard-based terminations + quota gap-filling to achieve exactly 12%
 final_experienced_terminations AS (
-    -- Calculate exactly how many terminations we need (12% of ALL experienced workforce)
+    -- Calculate exactly how many terminations we need (12% of experienced employees only)
     WITH target_calculation AS (
         SELECT ROUND(
             (SELECT COUNT(*) FROM workforce_with_bands WHERE employee_type = 'experienced') * {{ exp_term_rate }}
@@ -126,6 +126,7 @@ final_experienced_terminations AS (
     FROM workforce_with_bands w
     LEFT JOIN eligible_for_termination e ON w.employee_id = e.employee_id
     CROSS JOIN target_calculation
+    -- FIXED: Apply only to experienced employees (previous year new hires handled separately)
     WHERE w.employee_type = 'experienced'
     QUALIFY ROW_NUMBER() OVER (
         ORDER BY
