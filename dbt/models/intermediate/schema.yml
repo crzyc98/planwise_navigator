@@ -196,3 +196,102 @@ models:
           - not_null
           - accepted_values:
               values: ['hazard_termination', 'gap_filling']
+
+  - name: int_hiring_events
+    description: >
+      New employee hiring events generated to replace departures and achieve target growth.
+      Uses modulo-based date distribution for even hiring throughout the year.
+
+      Key features:
+      - Even distribution of hire dates across all 365 days of the year
+      - Deterministic behavior preserved (same sequence_num = same date)
+      - No clustering at December 31st
+      - Realistic hiring patterns for workforce simulation
+
+    columns:
+      - name: employee_id
+        description: Unique identifier for new hire
+        data_tests:
+          - unique
+          - not_null
+
+      - name: employee_ssn
+        description: Generated SSN for new hire
+        data_tests:
+          - unique
+          - not_null
+
+      - name: event_type
+        description: Type of event (always 'hire')
+        data_tests:
+          - not_null
+          - accepted_values:
+              values: ['hire']
+
+      - name: simulation_year
+        description: Year when hire occurs
+        data_tests:
+          - not_null
+
+      - name: effective_date
+        description: Specific date when hire is effective
+        data_tests:
+          - not_null
+          - dbt_expectations.expect_column_values_to_be_between:
+              min_value: "cast('{{ var('simulation_year') }}-01-01' as date)"
+              max_value: "cast('{{ var('simulation_year') }}-12-31' as date)"
+
+      - name: employee_age
+        description: Age of new hire
+        data_tests:
+          - not_null
+          - dbt_utils.accepted_range:
+              min_value: 18
+              max_value: 70
+
+      - name: birth_date
+        description: Birth date of new hire
+        data_tests:
+          - not_null
+
+      - name: level_id
+        description: Job level assigned to new hire
+        data_tests:
+          - not_null
+          - relationships:
+              to: ref('stg_config_job_levels')
+              field: level_id
+
+      - name: compensation_amount
+        description: Starting compensation for new hire
+        data_tests:
+          - not_null
+          - dbt_utils.accepted_range:
+              min_value: 30000
+              max_value: 500000
+
+      - name: hire_source
+        description: Source of hire (always 'external_hire')
+        data_tests:
+          - not_null
+          - accepted_values:
+              values: ['external_hire']
+
+      - name: created_at
+        description: Timestamp when record was created
+        data_tests:
+          - not_null
+
+    # Custom data quality tests to prevent date clustering regression
+    data_tests:
+      - dbt_utils.expression_is_true:
+          expression: "(select round(count(case when extract(month from effective_date) = 12 then 1 end) * 100.0 / count(*), 2) from int_hiring_events) <= 15.0"
+          config:
+            severity: error
+            error_if: ">= 1"
+
+      - dbt_utils.expression_is_true:
+          expression: "(select count(distinct effective_date) from int_hiring_events) >= 300"
+          config:
+            severity: error
+            error_if: ">= 1"

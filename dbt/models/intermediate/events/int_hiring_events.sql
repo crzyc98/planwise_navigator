@@ -172,11 +172,8 @@ new_hire_assignments AS (
       END * 365
     ) DAY AS birth_date,
 
-    -- Hire date spread throughout year, capped at year end
-    LEAST(
-        CAST('{{ simulation_year }}-01-01' AS DATE) + INTERVAL (hs.hire_sequence_num * 30) DAY,
-        CAST('{{ simulation_year }}-12-31' AS DATE)
-    ) AS hire_date,
+    -- Hire date evenly distributed throughout year using modulo for cycling
+    CAST('{{ simulation_year }}-01-01' AS DATE) + INTERVAL (hs.hire_sequence_num % 365) DAY AS hire_date,
 
     -- Simple compensation assignment (based on level with small variance)
     ROUND(cr.avg_compensation * (0.9 + (hs.hire_sequence_num % 10) * 0.02), 2) AS compensation_amount
