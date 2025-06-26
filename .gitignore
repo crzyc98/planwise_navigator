@@ -9,6 +9,9 @@ simulation.duckdb.wal
 *.duckdb
 *.duckdb.wal
 
+# Claude
+.claude/
+
 # Environment variables
 .env
 .env.*
