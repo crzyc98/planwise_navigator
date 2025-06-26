@@ -74,7 +74,7 @@ cola_adjustments AS (
 SELECT
     e.employee_id,
     e.employee_ssn,
-    'merit_increase' AS event_type,
+    'RAISE' AS event_type,
     {{ simulation_year }} AS simulation_year,
     -- Merit increases typically effective January 1st or July 1st
     -- Use deterministic pattern based on employee_id length instead of HASH

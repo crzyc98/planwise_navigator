@@ -112,15 +112,17 @@ workforce_after_promotions AS (
     ) p ON w.employee_id = p.employee_id
 ),
 
--- **REMOVED MERIT PROCESSING**: Merit increases now handled by compensation_periods calculation
--- This prevents double-processing and conflicts with prorated compensation logic
+-- Apply merit increases (RAISE events) to update current compensation
 workforce_after_merit AS (
     SELECT
         w.employee_id,
         w.employee_ssn,
         w.employee_birth_date,
         w.employee_hire_date,
-        w.employee_gross_compensation, -- Keep original compensation, let periods calculation handle merit
+        CASE
+            WHEN r.employee_id IS NOT NULL THEN r.compensation_amount
+            ELSE w.employee_gross_compensation
+        END AS employee_gross_compensation,
         w.current_age,
         w.current_tenure,
         w.level_id,
@@ -128,6 +130,9 @@ workforce_after_merit AS (
         w.employment_status,
         w.termination_reason
     FROM workforce_after_promotions w
+    LEFT JOIN current_year_events r
+        ON w.employee_id = r.employee_id
+        AND r.event_type = 'RAISE'
 ),
 
 -- Add new hires from hiring events (use fct_yearly_events for persistence across years)
@@ -267,36 +272,36 @@ comp_events_for_periods AS (
             ORDER BY effective_date, event_type
         ) AS event_sequence_in_year
     FROM current_year_events
-    WHERE event_type IN ('hire', 'promotion', 'merit_increase', 'termination')
+    WHERE event_type IN ('hire', 'promotion', 'RAISE', 'termination')
 ),
 
 -- **DIRECT FIX**: Simple approach - create explicit periods for merit increases
 all_compensation_periods AS (
-    -- For merit increases: create BEFORE period (start of year to merit date - 1)
+    -- For RAISE events: create BEFORE period (start of year to raise date - 1)
     SELECT
         employee_id,
         1 AS period_sequence,
-        'merit_before' AS period_type,
+        'raise_before' AS period_type,
         '{{ simulation_year }}-01-01'::DATE AS period_start,
         effective_date - INTERVAL 1 DAY AS period_end,
         previous_compensation AS period_salary
     FROM comp_events_for_periods
-    WHERE event_type = 'merit_increase'
+    WHERE event_type = 'RAISE'
       AND previous_compensation IS NOT NULL
       AND previous_compensation > 0
 
     UNION ALL
 
-    -- For merit increases: create AFTER period (merit date to end of year)
+    -- For RAISE events: create AFTER period (raise date to end of year)
     SELECT
         employee_id,
         2 AS period_sequence,
-        'merit_after' AS period_type,
+        'raise_after' AS period_type,
         effective_date AS period_start,
         '{{ simulation_year }}-12-31'::DATE AS period_end,
         compensation_amount AS period_salary
     FROM comp_events_for_periods
-    WHERE event_type = 'merit_increase'
+    WHERE event_type = 'RAISE'
       AND compensation_amount > 0
 
     UNION ALL
@@ -422,11 +427,8 @@ final_workforce AS (
         fwc.employee_birth_date,
         fwc.employee_hire_date,
         fwc.employee_gross_compensation AS current_compensation,
-        -- **SIMPLIFIED DIRECT FIX**: Use LEFT JOIN instead of EXISTS for merit calculation
+        -- Use the standard prorated compensation from the periods calculation
         COALESCE(
-            -- Merit increase calculation: before period + after period
-            merit_calc.before_contrib + merit_calc.after_contrib,
-            -- Fallback to original logic
             epc.prorated_annual_compensation,
             fwc.employee_gross_compensation
         ) AS prorated_annual_compensation,
@@ -501,7 +503,7 @@ final_workforce AS (
             -- After merit period: new salary × days after merit
             compensation_amount * (DATE_DIFF('day', effective_date, '{{ simulation_year }}-12-31'::DATE) + 1) / 365.0 AS after_contrib
         FROM current_year_events
-        WHERE event_type = 'merit_increase'
+        WHERE event_type = 'RAISE'
     ) merit_calc ON fwc.employee_id = merit_calc.employee_id
     -- **PROMO FIX**: Add promotion calculation for full_year_equivalent
     LEFT JOIN (

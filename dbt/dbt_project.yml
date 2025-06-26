@@ -57,8 +57,8 @@ snapshots:
     +strategy: timestamp
     +updated_at: updated_at
 
-# Test configuration
-tests:
+# Data test configuration
+data_tests:
   planwise_navigator:
     +store_failures: true
     +schema: main

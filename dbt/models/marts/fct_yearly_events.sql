@@ -128,7 +128,7 @@ merit_events AS (
     age_band,
     tenure_band,
     merit_percentage AS event_probability,
-    'merit_increase' AS event_category
+    'RAISE' AS event_category
   FROM {{ ref('int_merit_events') }}
   {% if is_incremental() %}
     WHERE simulation_year = {{ simulation_year }}
@@ -261,7 +261,7 @@ SELECT
       CASE event_type
         WHEN 'termination' THEN 1
         WHEN 'promotion' THEN 2
-        WHEN 'merit_increase' THEN 3
+        WHEN 'RAISE' THEN 3
         WHEN 'hire' THEN 4
       END,
       effective_date

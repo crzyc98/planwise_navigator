@@ -54,7 +54,9 @@
       "Bash(chmod:*)",
       "Bash(touch:*)",
       "Bash(pre-commit install:*)",
-      "Bash(./scripts/run_ci_tests.sh:*)"
+      "Bash(./scripts/run_ci_tests.sh:*)",
+      "Bash(kill:*)",
+      "Bash(echo:*)"
     ],
     "deny": []
   }
