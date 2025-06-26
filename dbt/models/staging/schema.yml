@@ -5,11 +5,44 @@ models:
     description: >
       Staging model for raw census employee data.
       Cleans and standardizes employee records for simulation processing.
+      Deduplicates on employee_id, keeping most recent hire date.
     columns:
       - name: employee_id
-        description: Unique identifier for each employee
+        description: Unique identifier for each employee (primary key)
         data_tests:
           - unique
+          - not_null
+      - name: employee_ssn
+        description: Social Security Number for each employee (for compliance/reporting)
+        data_tests:
+          - not_null
+
+  - name: stg_census_duplicates_audit
+    description: >
+      Audit table tracking duplicate employee_ids found in raw census data.
+      Used for data quality monitoring and source system debugging.
+    columns:
+      - name: employee_id
+        description: Employee identifier (may have duplicates in this audit table)
+        data_tests:
+          - not_null
+      - name: duplicate_count
+        description: Total number of times this employee_id appears in raw data
+        data_tests:
+          - not_null
+      - name: occurrence_rank
+        description: Rank of this occurrence (1 = kept, >1 = dropped)
+        data_tests:
+          - not_null
+      - name: dedup_status
+        description: Whether this record was KEPT or DROPPED during deduplication
+        data_tests:
+          - not_null
+          - accepted_values:
+              values: ['KEPT', 'DROPPED']
+      - name: audit_timestamp
+        description: Timestamp when this audit record was created
+        data_tests:
           - not_null
 
   - name: stg_config_job_levels

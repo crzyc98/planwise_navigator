@@ -1,0 +1,39 @@
+version: 2
+
+models:
+  - name: dq_employee_id_validation
+    description: >
+      Data quality validation model for employee ID integrity.
+      Checks for duplicates, format violations, and SSN conflicts across all workforce data.
+    columns:
+      - name: check_type
+        description: Type of data quality check performed
+        data_tests:
+          - not_null
+          - accepted_values:
+              values: ['DUPLICATE_IDS', 'INVALID_FORMAT', 'LEGACY_FORMAT', 'SSN_SHARED']
+      - name: severity
+        description: Severity level of the issue (ERROR, WARNING, INFO)
+        data_tests:
+          - not_null
+          - accepted_values:
+              values: ['ERROR', 'WARNING', 'INFO']
+      - name: issue_count
+        description: Number of records with this specific issue
+        data_tests:
+          - not_null
+      - name: description
+        description: Human-readable description of the issue
+        data_tests:
+          - not_null
+      - name: details
+        description: JSON array containing detailed information about each issue
+
+    data_tests:
+      - dbt_utils.expression_is_true:
+          expression: "issue_count = 0"
+          where: "severity = 'ERROR'"
+          error_if: ">0"
+          warn_if: "=0"
+          meta:
+            description: "Fail if any ERROR-level data quality issues are found"

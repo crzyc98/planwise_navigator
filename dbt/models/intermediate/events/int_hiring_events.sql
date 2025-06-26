@@ -141,8 +141,10 @@ new_hire_assignments AS (
     hs.hire_sequence_num,
     hs.level_id,
 
-    -- Generate globally unique employee ID for new hire across all simulation years
-    'NH_' || CAST((SELECT current_year FROM simulation_config) AS VARCHAR) || '_' || LPAD(CAST(hs.hire_sequence_num AS VARCHAR), 6, '0') AS employee_id,
+    -- Generate globally unique employee ID using UUID for guaranteed uniqueness
+    'NH_' || CAST((SELECT current_year FROM simulation_config) AS VARCHAR) || '_' ||
+    SUBSTR(CAST(gen_random_uuid() AS VARCHAR), 1, 8) || '_' ||
+    LPAD(CAST(hs.hire_sequence_num AS VARCHAR), 6, '0') AS employee_id,
 
     -- Generate SSN
     'SSN-' || LPAD(CAST(100000000 + hs.hire_sequence_num AS VARCHAR), 9, '0') AS employee_ssn,

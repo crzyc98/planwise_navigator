@@ -242,3 +242,38 @@ E013,Dagster Pipeline Modularization,S062,Documentation and Cleanup,Create compr
 3. Migration guide completed with before/after code mappings ✅
 4. Troubleshooting guide with component-specific debugging procedures ✅
 5. All new operations have comprehensive docstrings with examples ✅",2,Must Have,7,Complete
+E014,Layered Defense Strategy,S063,Developer-Initiated CI Script,Create comprehensive CI script for local validation before commits,"1. Script (./scripts/run_ci_tests.sh) exists and is executable
+2. Includes dbt compilation tests linting and basic schema checks
+3. Provides clear pass/fail feedback with actionable error messages
+4. Completes in under 2 minutes for developer productivity
+5. Documentation for running the script is available in README",5,Must Have,8,Not Started
+E014,Layered Defense Strategy,S064,Tag Critical dbt Models,Tag critical and locked dbt models for enhanced protection and testing,"1. Definition of critical and locked models is established and documented
+2. At least 5 critical dbt models identified and tagged (fct_workforce_snapshot fct_yearly_events stg_census_data)
+3. Tag-based test selection works (dbt test --select tag:critical)
+4. Documentation on tagging convention added to developer guide
+5. Tagged models receive enhanced validation in CI pipeline",3,Must Have,8,Not Started
+E014,Layered Defense Strategy,S065,Implement dbt Contracts for Core Models,Define and enforce dbt contracts for core data models to prevent breaking schema changes,"1. Contract schema defined for 3+ core models (stg_census_data fct_workforce_snapshot fct_yearly_events)
+2. dbt contracts enforced with data types and constraints
+3. CI pipeline fails gracefully when contract violations detected
+4. Schema change process documented for contracted models
+5. Backward compatibility maintained for existing downstream consumers",10,Must Have,9,Not Started
+E014,Layered Defense Strategy,S066,Integrate Pre-Commit Hooks for Code Quality,Install and configure pre-commit hooks to catch common errors before commits,"1. pre-commit installed and configured for the repository
+2. Hooks for SQLFluff (dbt linting) and Python linting configured
+3. dbt compilation check runs on .sql and .yml file changes
+4. Developers receive clear actionable feedback on hook failures
+5. Hooks can be bypassed in emergency situations with --no-verify flag",8,Must Have,10,Not Started
+E014,Layered Defense Strategy,S067,Automate Weekly Regression Tests,Deploy automated regression testing to proactively identify data issues,"1. Comprehensive pytest regression test suite (tests/test_regression.py) implemented
+2. Tests validate employee ID uniqueness event sourcing integrity and simulation accuracy
+3. Automated weekly execution via CI/CD scheduler (GitHub Actions/Airflow)
+4. Failed tests trigger alerts to #data-alerts Slack channel or email notifications
+5. Test results archived and trends tracked for continuous improvement",13,Must Have,11,Not Started
+E014,Layered Defense Strategy,S068,Develop Snapshot-Based Testing for Critical Outputs,Implement snapshot testing to detect data regressions in critical models,"1. Framework for generating and comparing data snapshots implemented
+2. At least 2 critical dbt models have snapshot tests configured
+3. Snapshot test failures integrated into CI/CD pipeline and block deployments
+4. Historical baseline snapshots captured for regression comparison
+5. Automated snapshot refresh process for evolving data expectations",8,Should Have,12,Not Started
+E014,Layered Defense Strategy,S069,Research and Plan Feature Flag Implementation,Research feature flagging strategy for controlled rollout of major changes,"1. Recommendation for feature flagging tool/strategy presented (LaunchDarkly Flagsmith or custom)
+2. Basic proof-of-concept for feature flagging a dbt model demonstrated
+3. High-level integration plan for CI/CD pipeline outlined
+4. Cost-benefit analysis completed for recommended solution
+5. Rollback and monitoring strategy documented for feature flag usage",7,Should Have,13,Not Started

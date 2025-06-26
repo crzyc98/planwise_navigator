@@ -2,12 +2,13 @@
 
 -- Standardize raw census data column names to PlanWise Navigator's canonical schema.
 -- Handles multiple possible raw column names via COALESCE() where necessary.
--- **FIX**: Added deduplication logic to handle duplicate employee_ids
+-- **DEDUPLICATION**: Removes duplicate employee_ids, keeping most recent hire date.
+-- See stg_census_duplicates_audit for full duplicate tracking and data quality monitoring.
 
 WITH raw_data AS (
   SELECT
       employee_id,
-      'SSN-' || LPAD(REPLACE(employee_id, 'NEW_', ''), 9, '0') AS employee_ssn,
+      employee_ssn,
       employee_birth_date,
       employee_hire_date,
       employee_termination_date,

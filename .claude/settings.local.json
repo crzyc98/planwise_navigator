@@ -50,7 +50,11 @@
       "Bash(dbt ls:*)",
       "Bash(ruff check:*)",
       "Bash(git add:*)",
-      "Bash(git commit:*)"
+      "Bash(git commit:*)",
+      "Bash(chmod:*)",
+      "Bash(touch:*)",
+      "Bash(pre-commit install:*)",
+      "Bash(./scripts/run_ci_tests.sh:*)"
     ],
     "deny": []
   }
