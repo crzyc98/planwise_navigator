@@ -272,6 +272,21 @@ E014,Layered Defense Strategy,S068,Develop Snapshot-Based Testing for Critical O
 3. Snapshot test failures integrated into CI/CD pipeline and block deployments
 4. Historical baseline snapshots captured for regression comparison
 5. Automated snapshot refresh process for evolving data expectations",8,Should Have,12,Not Started
+E012,Compensation System Integrity,S055,Audit Current Raise Timing Implementation,Audit current raise timing implementation to understand January 1st clustering issue,"1. Document exact location of RAISE event generation logic ✅
+2. Identify all hard-coded timing assignments ✅
+3. Map complete data flow from RAISE events to final calculations ✅
+4. Research realistic corporate raise timing patterns ✅
+5. Document findings and prepare foundation for realistic timing design ✅",2,Must Have,8,Complete
+E012,Compensation System Integrity,S056,Design Realistic Raise Timing System,Create technical specification for configurable realistic raise timing patterns,"1. Design hash-based monthly distribution algorithm ✅
+2. Create configuration framework for timing methodology selection ✅
+3. Define backward compatibility approach with legacy mode ✅
+4. Specify validation criteria and testing strategy ✅
+5. Document comprehensive technical design specification ✅",3,Must Have,8,Complete
+E012,Compensation System Integrity,S057,Implement Realistic Raise Timing Distribution,Implement realistic raise timing distribution and fix S041 debug consistency,"1. Implement dual-mode timing system (legacy/realistic) ✅
+2. Create hash-based distribution algorithm with monthly percentages ✅
+3. Add configuration framework and variable passing ✅
+4. Fix S041 workforce count debug inconsistency (5747→4506) ✅
+5. Comprehensive testing framework and session documentation ✅",8,Must Have,8,Complete
 E014,Layered Defense Strategy,S069,Research and Plan Feature Flag Implementation,Research feature flagging strategy for controlled rollout of major changes,"1. Recommendation for feature flagging tool/strategy presented (LaunchDarkly Flagsmith or custom)
 2. Basic proof-of-concept for feature flagging a dbt model demonstrated
 3. High-level integration plan for CI/CD pipeline outlined
