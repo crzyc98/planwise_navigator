@@ -68,7 +68,11 @@
       "Bash(DAGSTER_HOME=/Users/nicholasamaral/dagster_home_planwise dagster asset materialize -m definitions int_hiring_events)",
       "Bash(git merge:*)",
       "Bash(git push:*)",
-      "Bash(git branch:*)"
+      "Bash(git branch:*)",
+      "Bash(time dbt run:*)",
+      "Bash(awk:*)",
+      "mcp__ide__executeCode",
+      "Bash(dagster definitions list:*)"
     ],
     "deny": []
   }

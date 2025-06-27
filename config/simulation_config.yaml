@@ -1,7 +1,7 @@
 # Asset-level configuration (used by simulation_config asset)
 simulation:
   start_year: 2025
-  end_year: 2029
+  end_year: 2026
   random_seed: 42
   target_growth_rate: 0.03
 
@@ -15,6 +15,12 @@ compensation:
   growth_target: 0.02
   growth_tolerance: 0.005
   calculation_methodology: "full_year_equivalent"  # options: current, continuous, full_year_equivalent
+
+raise_timing:
+  methodology: "realistic"  # Options: "legacy", "realistic", "custom"
+  distribution_profile: "general_corporate"  # Future: "technology", "finance", "government"
+  validation_tolerance: 0.02  # ±2% tolerance for monthly distribution
+  deterministic_behavior: true  # Ensure reproducible results
 
 plan_year:
   start_date: "2024-01-01"  # Plan year start date for compensation calculations

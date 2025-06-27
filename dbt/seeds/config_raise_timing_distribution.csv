@@ -1,0 +1,13 @@
+month,percentage,business_justification,industry_profile
+1,0.28,"Calendar year alignment, budget implementation","general_corporate"
+2,0.03,"Minor adjustments","general_corporate"
+3,0.07,"Q1 end adjustments, some fiscal years","general_corporate"
+4,0.18,"Merit increase cycles, Q2 budget implementation","general_corporate"
+5,0.04,"Minor adjustments","general_corporate"
+6,0.05,"Mid-year adjustments","general_corporate"
+7,0.23,"Fiscal year starts, educational institutions","general_corporate"
+8,0.03,"Minor adjustments","general_corporate"
+9,0.04,"Q3 end, some fiscal years","general_corporate"
+10,0.08,"Federal fiscal year, some corporate cycles","general_corporate"
+11,0.02,"Minor adjustments","general_corporate"
+12,0.02,"Year-end adjustments","general_corporate"
