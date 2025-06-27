@@ -23,10 +23,12 @@ from dagster import (
     asset_check,
     AssetCheckResult,
     AssetCheckSeverity,
+    DependsOn,
 )
 from dagster_dbt import DbtCliResource
 from pydantic import BaseModel
 import os
+import yaml
 
 # Project configuration
 PROJECT_ROOT = Path(__file__).parent.parent
@@ -1138,7 +1140,7 @@ def validate_year_results(
 
 
 def run_year_simulation_for_multi_year(
-    context: OpExecutionContext, year: int
+    context: OpExecutionContext, year: int, config: Dict[str, Any] = None
 ) -> YearResult:
     """
     Helper function for multi-year simulation that runs a single year simulation.
@@ -1147,15 +1149,19 @@ def run_year_simulation_for_multi_year(
     Args:
         context: Original execution context
         year: Simulation year to run
+        config: Optional configuration dict. If not provided, uses context.op_config
     """
-    # Create a modified config with the specific year
-    original_config = context.op_config
-    temp_config = original_config.copy()
-    temp_config["start_year"] = year
-
-    # Temporarily replace the context's config for this call
-    # We do this by directly calling the simulation logic
-    config = temp_config
+    # Use provided config or fall back to context.op_config
+    if config is None:
+        # Create a modified config with the specific year
+        original_config = context.op_config
+        temp_config = original_config.copy()
+        temp_config["start_year"] = year
+        config = temp_config
+    else:
+        # Use provided config and ensure start_year is set correctly
+        config = config.copy()
+        config["start_year"] = year
     full_refresh = config.get("full_refresh", False)
 
     context.log.info(f"Starting simulation for year {year}")
@@ -1487,6 +1493,201 @@ def run_multi_year_simulation(
     return results
 
 
+def load_simulation_config() -> Dict[str, Any]:
+    """Load simulation configuration from YAML file."""
+    try:
+        with open(CONFIG_PATH, 'r') as f:
+            config = yaml.safe_load(f)
+        return config
+    except Exception as e:
+        # Return default config if file doesn't exist or can't be loaded
+        return {
+            'start_year': 2025,
+            'end_year': 2029,
+            'target_growth_rate': 0.03,
+            'total_termination_rate': 0.12,
+            'new_hire_termination_rate': 0.25,
+            'random_seed': 42,
+            'full_refresh': False
+        }
+
+
+def create_simulation_year_asset(year: int, previous_year: int = None):
+    """Factory function to create a simulation asset for a specific year."""
+
+    # Set up dependencies based on year
+    if previous_year is None:
+        # First year depends on baseline
+        deps = [baseline_workforce_validated]
+    else:
+        # Subsequent years depend on previous year
+        deps = [f"simulation_year_{previous_year}"]
+
+    @asset(
+        name=f"simulation_year_{year}",
+        deps=deps
+    )
+    def simulation_year_asset(context: AssetExecutionContext) -> YearResult:
+        f"""
+        Execute workforce simulation for year {year}.
+
+        This asset runs the complete simulation pipeline for a single year,
+        including event generation, workforce snapshot creation, and validation.
+        """
+        # Load configuration from file
+        config = load_simulation_config()
+
+        context.log.info(f"Starting simulation for year {year}")
+
+        # Use the existing single-year simulation logic
+        try:
+            year_result = run_year_simulation_for_multi_year(context, year, config)
+
+            # Create snapshot for this year
+            snapshot_result = run_dbt_snapshot_for_year(context, year, "end_of_year")
+            if not snapshot_result["success"]:
+                context.log.warning(f"Snapshot creation had issues: {snapshot_result.get('error', 'Unknown error')}")
+
+            context.log.info(f"✅ Year {year} simulation completed: {year_result.active_employees:,} employees, {year_result.growth_rate:.1%} growth")
+            return year_result
+
+        except Exception as e:
+            context.log.error(f"❌ Year {year} simulation failed: {e}")
+            return YearResult(
+                year=year,
+                success=False,
+                active_employees=0,
+                total_terminations=0,
+                experienced_terminations=0,
+                new_hire_terminations=0,
+                total_hires=0,
+                growth_rate=0.0,
+                validation_passed=False,
+            )
+
+    return simulation_year_asset
+
+
+def create_simulation_assets():
+    """Create all simulation year assets based on configuration."""
+    config = load_simulation_config()
+    start_year = config.get('start_year', 2025)
+    end_year = config.get('end_year', 2029)
+
+    assets = []
+    previous_year = None
+
+    for year in range(start_year, end_year + 1):
+        asset_func = create_simulation_year_asset(year, previous_year)
+        assets.append(asset_func)
+        previous_year = year
+
+    return assets
+
+
+# Generate simulation year assets dynamically
+simulation_year_assets = create_simulation_assets()
+
+
+@asset(deps=simulation_year_assets)
+def multi_year_simulation_summary(context: AssetExecutionContext) -> Dict[str, Any]:
+    """
+    Aggregate results from all simulation years and provide comprehensive summary.
+
+    This asset depends on all individual year simulation assets and provides
+    the same summary information that was previously generated by the monolithic
+    multi-year simulation operation.
+    """
+    config = load_simulation_config()
+    start_year = config.get('start_year', 2025)
+    end_year = config.get('end_year', 2029)
+
+    context.log.info("📊 === Multi-year simulation summary ===")
+
+    # Collect results from all years by querying the database
+    # (since we can't directly access the other assets' return values)
+    conn = duckdb.connect(str(DB_PATH))
+    results = []
+
+    try:
+        for year in range(start_year, end_year + 1):
+            try:
+                # Get metrics for this year
+                workforce_metrics = conn.execute("""
+                    SELECT
+                        COUNT(CASE WHEN employment_status = 'active' THEN 1 END) as active_employees
+                    FROM fct_workforce_snapshot
+                    WHERE simulation_year = ?
+                """, [year]).fetchone()
+
+                event_metrics = conn.execute("""
+                    SELECT
+                        SUM(CASE WHEN event_type = 'hire' THEN 1 ELSE 0 END) as total_hires,
+                        SUM(CASE WHEN event_type = 'termination' THEN 1 ELSE 0 END) as total_terminations
+                    FROM fct_yearly_events
+                    WHERE simulation_year = ?
+                """, [year]).fetchone()
+
+                if workforce_metrics and workforce_metrics[0] > 0:
+                    active_employees = workforce_metrics[0]
+                    total_hires = event_metrics[0] if event_metrics else 0
+                    total_terminations = event_metrics[1] if event_metrics else 0
+
+                    # Calculate growth rate
+                    if year == start_year:
+                        baseline_count = conn.execute("""
+                            SELECT COUNT(*) FROM int_baseline_workforce
+                            WHERE employment_status = 'active'
+                        """).fetchone()[0]
+                        previous_active = baseline_count
+                    else:
+                        previous_active = conn.execute("""
+                            SELECT COUNT(*) FROM fct_workforce_snapshot
+                            WHERE simulation_year = ? AND employment_status = 'active'
+                        """, [year - 1]).fetchone()[0]
+
+                    growth_rate = ((active_employees - previous_active) / previous_active) if previous_active > 0 else 0
+
+                    results.append({
+                        'year': year,
+                        'success': True,
+                        'active_employees': active_employees,
+                        'total_hires': total_hires,
+                        'total_terminations': total_terminations,
+                        'growth_rate': growth_rate
+                    })
+
+                    context.log.info(f"  ✅ Year {year}: {active_employees:,} employees, {growth_rate:.1%} growth")
+                else:
+                    context.log.error(f"  ❌ Year {year}: No data found")
+                    results.append({'year': year, 'success': False})
+
+            except Exception as e:
+                context.log.error(f"  ❌ Year {year}: Failed to retrieve metrics - {e}")
+                results.append({'year': year, 'success': False})
+
+    finally:
+        conn.close()
+
+    successful_years = [r for r in results if r.get('success', False)]
+    failed_years = [r for r in results if not r.get('success', False)]
+
+    context.log.info(f"🎯 Simulation completed: {len(successful_years)}/{len(results)} years successful")
+
+    if failed_years:
+        context.log.warning(f"⚠️  {len(failed_years)} year(s) failed - check individual year asset logs for details")
+
+    summary = {
+        'total_years': len(results),
+        'successful_years': len(successful_years),
+        'failed_years': len(failed_years),
+        'results': results,
+        'config': config
+    }
+
+    return summary
+
+
 @job(resource_defs={"dbt": dbt_resource})
 def multi_year_simulation():
     """
@@ -1496,6 +1697,21 @@ def multi_year_simulation():
     # First validate baseline workforce; result is passed to main op to enforce ordering
     baseline_ok = baseline_workforce_validated_op()
     run_multi_year_simulation(baseline_ok)
+
+
+@job(resource_defs={"dbt": dbt_resource})
+def asset_based_multi_year_simulation():
+    """
+    NEW: Asset-based multi-year simulation job.
+
+    This job uses individual year assets that can be materialized independently,
+    providing better observability, restart capability, and debugging experience.
+    Each year is a separate asset with proper dependency chaining.
+    """
+    # This job doesn't need explicit op calls since Dagster will materialize
+    # the assets based on their dependency graph. The summary asset depends
+    # on all year assets, so materializing it will trigger the full simulation.
+    pass
 
 
 # Export all definitions for Dagster
@@ -1508,8 +1724,13 @@ __all__ = [
     "run_multi_year_simulation",
     "single_year_simulation",
     "multi_year_simulation",
+    "asset_based_multi_year_simulation",
     "validate_growth_rates",
     "dbt_resource",
     "SimulationConfig",
     "YearResult",
+    "simulation_year_assets",
+    "multi_year_simulation_summary",
+    "load_simulation_config",
+    "create_simulation_assets",
 ]

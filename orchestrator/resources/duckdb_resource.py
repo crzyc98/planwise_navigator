@@ -21,11 +21,13 @@ class DuckDBResource(ConfigurableResource):
         )
 
         try:
-            # Load Parquet extension for all connections
+            # Try to load Parquet extension (should work if installed globally)
             conn.execute("LOAD parquet;")
             logger.debug("Parquet extension loaded successfully")
-        except Exception as e:
-            logger.warning(f"Failed to load Parquet extension: {e}")
+        except Exception as load_error:
+            # If loading fails, log warning but don't try to install to avoid network issues
+            logger.warning(f"Parquet extension not available: {load_error}")
+            logger.info("Run 'python scripts/setup_duckdb_extensions.py' to install extensions")
             # Continue without failing - some operations may not need Parquet
 
         return conn

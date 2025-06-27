@@ -62,13 +62,11 @@ eligible_for_merit AS (
         AND merit_raise > 0 -- Must have a merit increase defined
 ),
 
--- Apply COLA adjustments from seed data
+-- Apply COLA adjustments using dynamic parameter system
 cola_adjustments AS (
     SELECT
-        year,
-        cola_rate
-    FROM {{ ref('config_cola_by_year') }}
-    WHERE year = {{ simulation_year }}
+        {{ simulation_year }} AS year,
+        {{ get_parameter_value('1', 'RAISE', 'cola_rate', simulation_year) }} AS cola_rate
 )
 
 SELECT
@@ -79,14 +77,14 @@ SELECT
     -- Use macro system for raise timing (supports both legacy and realistic modes)
     {{ get_realistic_raise_date('e.employee_id', simulation_year) }} AS effective_date,
     e.employee_gross_compensation AS previous_salary,
-    -- Apply merit increase plus COLA
+    -- Apply merit increase plus COLA (both now dynamically resolved)
     ROUND(
         e.employee_gross_compensation *
-        (1 + e.merit_raise + COALESCE(c.cola_rate, 0.03)), -- Default 3% COLA if not specified
+        (1 + e.merit_raise + c.cola_rate),
         2
     ) AS new_salary,
     e.merit_raise AS merit_percentage,
-    COALESCE(c.cola_rate, 0.03) AS cola_percentage,
+    c.cola_rate AS cola_percentage,
     e.current_age,
     e.current_tenure,
     e.level_id,

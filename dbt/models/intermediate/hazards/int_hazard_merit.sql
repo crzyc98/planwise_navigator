@@ -1,7 +1,7 @@
 {{ config(materialized='table') }}
 
 -- Merit raise hazard model: calculates expected merit raise % by combination.
--- For now, apply a flat merit_base value; tenure & level adjustments can be added later.
+-- Enhanced to use dynamic parameter system with job-level specific merit rates.
 
 WITH years AS (
     SELECT DISTINCT year FROM {{ ref('stg_config_cola_by_year') }}
@@ -15,17 +15,26 @@ tenure AS (
 age AS (
     SELECT DISTINCT age_band FROM {{ ref('stg_config_termination_hazard_age_multipliers') }}
 ),
-base AS (
-    SELECT merit_base FROM {{ ref('stg_config_raises_hazard') }}
+-- Dynamic parameter resolution for merit rates by job level
+parameter_resolution AS (
+    SELECT
+        y.year,
+        l.level_id,
+        -- Use dynamic parameter lookup with fallback to hardcoded defaults
+        {{ get_parameter_value('l.level_id', 'RAISE', 'merit_base', 'y.year') }} AS merit_rate
+    FROM years y
+    CROSS JOIN levels l
 )
 SELECT
     y.year,
     l.level_id,
     t.tenure_band,
     a.age_band,
-    b.merit_base AS merit_raise
+    pr.merit_rate AS merit_raise
 FROM years y
 CROSS JOIN levels l
 CROSS JOIN tenure t
 CROSS JOIN age a
-CROSS JOIN base b
+JOIN parameter_resolution pr
+    ON y.year = pr.year
+    AND l.level_id = pr.level_id
