@@ -76,6 +76,11 @@ vars:
   target_growth_rate: 0.03
   random_seed: 42
 
+  # Raise timing configuration
+  raise_timing_methodology: "realistic"  # Options: "legacy", "realistic", "custom"
+  raise_timing_profile: "general_corporate"  # Distribution profile to use
+  timing_tolerance: 2.0  # ±2% tolerance for monthly distribution validation
+
   # Data quality thresholds
   accepted_diff_pct: 0.5
   max_termination_rate: 0.50

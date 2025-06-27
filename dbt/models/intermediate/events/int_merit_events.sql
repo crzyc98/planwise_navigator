@@ -76,12 +76,8 @@ SELECT
     e.employee_ssn,
     'RAISE' AS event_type,
     {{ simulation_year }} AS simulation_year,
-    -- Merit increases typically effective January 1st or July 1st
-    -- Use deterministic pattern based on employee_id length instead of HASH
-    CASE
-        WHEN (LENGTH(e.employee_id) % 2) = 0 THEN CAST({{ simulation_year }} || '-01-01' AS DATE)
-        ELSE CAST({{ simulation_year }} || '-07-01' AS DATE)
-    END AS effective_date,
+    -- Use macro system for raise timing (supports both legacy and realistic modes)
+    {{ get_realistic_raise_date('e.employee_id', simulation_year) }} AS effective_date,
     e.employee_gross_compensation AS previous_salary,
     -- Apply merit increase plus COLA
     ROUND(

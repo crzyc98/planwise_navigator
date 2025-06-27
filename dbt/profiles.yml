@@ -1,14 +1,36 @@
+# ~/.dbt/profiles.yml
+
 planwise_navigator:
-  target: dev
+  target: dev_m4 # Use a distinct target name for your M4 optimizations
   outputs:
-    dev:
+    dev_m4:
       type: duckdb
       path: "/Users/nicholasamaral/planwise_navigator/simulation.duckdb"
-      schema: main  # Explicitly set the schema here
-      threads: 1
+      schema: main
+      # dbt's parallelism: Leverage your M4's cores.
+      # M4 has 4 performance cores + 6 efficiency cores.
+      # 8-10 is a good starting point for threads.
+      threads: 10 # Increased from 8. Experiment with 8, 10, 12.
       extensions:
         - parquet
         - httpfs
       settings:
-        threads: 1
-        memory_limit: '2GB'
+        # DuckDB's internal query parallelism. Often, dbt's 'threads' is enough.
+        # If you set this, consider matching dbt threads or slightly higher.
+        # Removing it lets DuckDB auto-detect optimal threads.
+        # For simplicity and letting DuckDB manage, you can remove this line.
+        # threads: 10 # (Optional: Match dbt threads or remove to let DuckDB auto-manage)
+
+        # CRITICAL: Allocate significantly more memory to DuckDB.
+        # Adjust based on your Mac's total RAM (e.g., '8GB', '12GB', or '50%').
+        # '50%' is a good general recommendation if you have 16GB+.
+        memory_limit: '8GB' # Increased significantly from 2GB.
+                            # If you have 16GB RAM, '8GB' is a good start.
+                            # If you have 8GB RAM, try '4GB'.
+                            # You can also use '50%' to dynamically use half your system RAM.
+
+        # Optional: Further DuckDB settings for large workloads
+        # checkpoint_wal_size: 268435456 # Increase WAL checkpoint size (e.g., 256MB)
+                                       # Default is 10MB. Reduces disk flushes.
+        # enable_object_cache: true # If reading from S3 frequently
+        # allow_unsigned_extensions: true # If you use custom DuckDB extensions

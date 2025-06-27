@@ -317,11 +317,23 @@ def _log_hiring_calculation_debug(
 
     conn = duckdb.connect(str(DB_PATH))
     try:
-        # Calculate workforce count using unified logic
-        # Always use int_workforce_previous_year as it handles first year vs subsequent year logic internally
-        workforce_count = conn.execute(
-            "SELECT COUNT(*) FROM int_workforce_previous_year WHERE employment_status = 'active'"
-        ).fetchone()[0]
+        # Calculate workforce count using same logic as validate_year_results
+        # This ensures consistency between debug output and validation metrics
+        if year == 2025:
+            # For first simulation year, use baseline workforce
+            workforce_count = conn.execute(
+                "SELECT COUNT(*) FROM int_baseline_workforce WHERE employment_status = 'active'"
+            ).fetchone()[0]
+        else:
+            # For subsequent years, use previous year's workforce snapshot
+            workforce_count = conn.execute(
+                """
+                SELECT COUNT(*)
+                FROM fct_workforce_snapshot
+                WHERE simulation_year = ? AND employment_status = 'active'
+            """,
+                [year - 1],
+            ).fetchone()[0]
 
         # Extract formula inputs
         target_growth_rate = config["target_growth_rate"]
@@ -491,10 +503,14 @@ def _run_dbt_event_models_for_year_internal(
             "target_growth_rate": config["target_growth_rate"],
             "new_hire_termination_rate": config["new_hire_termination_rate"],
             "total_termination_rate": config["total_termination_rate"],
+            # Add raise timing configuration variables
+            "raise_timing_methodology": config.get("raise_timing", {}).get("methodology", "realistic"),
+            "raise_timing_profile": config.get("raise_timing", {}).get("distribution_profile", "general_corporate"),
+            "timing_tolerance": config.get("raise_timing", {}).get("validation_tolerance", 0.02),
         }
 
-        # Build vars string for logging (preserve existing log format)
-        vars_string = f"{{simulation_year: {year}, random_seed: {config['random_seed']}, target_growth_rate: {config['target_growth_rate']}, new_hire_termination_rate: {config['new_hire_termination_rate']}, total_termination_rate: {config['total_termination_rate']}}}"
+        # Build vars string for logging (include new raise timing variables)
+        vars_string = f"{{simulation_year: {year}, random_seed: {config['random_seed']}, target_growth_rate: {config['target_growth_rate']}, new_hire_termination_rate: {config['new_hire_termination_rate']}, total_termination_rate: {config['total_termination_rate']}, raise_timing_methodology: {vars_dict['raise_timing_methodology']}, raise_timing_profile: {vars_dict['raise_timing_profile']}}}"
         context.log.info(f"Running {model} for year {year} with vars: {vars_string}")
 
         # Special handling for hiring events debug logging
