@@ -6,7 +6,7 @@
 **Story Points**: 2
 **Priority**: Must Have
 **Sprint**: TBD
-**Status**: Not Started
+**Status**: Complete
 **Assigned To**: Engineering Team
 **Business Owner**: Analytics Team
 
