@@ -1,0 +1,5 @@
+rule_name,rule_type,target_value,tolerance,enforcement_level
+monthly_distribution_sum,sum_validation,1.0,0.001,error
+monthly_variance_tolerance,variance_validation,0.02,0.01,warning
+minimum_month_percentage,minimum_validation,0.01,0.005,warning
+maximum_month_percentage,maximum_validation,0.35,0.05,warning
