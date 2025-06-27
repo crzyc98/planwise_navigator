@@ -21,11 +21,18 @@ class DuckDBResource(ConfigurableResource):
         )
 
         try:
-            # Load Parquet extension for all connections
+            # Try to load Parquet extension first
             conn.execute("LOAD parquet;")
             logger.debug("Parquet extension loaded successfully")
-        except Exception as e:
-            logger.warning(f"Failed to load Parquet extension: {e}")
-            # Continue without failing - some operations may not need Parquet
+        except Exception as load_error:
+            try:
+                # If loading fails, try to install it first (one-time setup)
+                logger.info("Installing Parquet extension...")
+                conn.execute("INSTALL parquet;")
+                conn.execute("LOAD parquet;")
+                logger.info("Parquet extension installed and loaded successfully")
+            except Exception as install_error:
+                logger.warning(f"Failed to install/load Parquet extension: {install_error}")
+                # Continue without failing - some operations may not need Parquet
 
         return conn
