@@ -27,7 +27,7 @@ class DuckDBResource(ConfigurableResource):
         except Exception as load_error:
             try:
                 # If loading fails, try to install it first (one-time setup)
-                logger.info("Installing Parquet extension...")
+                logger.info(f"Parquet extension not loaded ({load_error}), attempting to install...")
                 conn.execute("INSTALL parquet;")
                 conn.execute("LOAD parquet;")
                 logger.info("Parquet extension installed and loaded successfully")
