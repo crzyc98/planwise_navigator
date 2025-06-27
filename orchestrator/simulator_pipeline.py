@@ -202,6 +202,99 @@ def clean_duckdb_data(context: OpExecutionContext, years: List[int]) -> Dict[str
     return results
 
 
+def clean_orphaned_data_outside_range(context: OpExecutionContext, simulation_range: List[int]) -> Dict[str, int]:
+    """
+    Clean orphaned simulation data OUTSIDE the specified year range.
+
+    Provides a clean analyst experience by removing data from previous simulation runs
+    that fall outside the current simulation range, while preserving year-to-year
+    dependencies within the range.
+
+    Args:
+        context: Dagster operation execution context
+        simulation_range: List of years in current simulation (e.g., [2025, 2026, 2027])
+
+    Returns:
+        Dict containing counts of orphaned records cleaned
+
+    Examples:
+        Clean orphaned data outside 2025-2026 range:
+        >>> clean_orphaned_data_outside_range(context, [2025, 2026])
+        # Removes years < 2025 OR > 2026, preserves 2025-2026 dependencies
+    """
+    if not simulation_range:
+        context.log.info("No simulation range specified - no orphaned data cleanup")
+        return {"fct_yearly_events": 0, "fct_workforce_snapshot": 0}
+
+    min_year = min(simulation_range)
+    max_year = max(simulation_range)
+    range_str = f"{min_year}-{max_year}" if min_year != max_year else str(min_year)
+
+    context.log.info(f"Cleaning orphaned data outside simulation range {range_str}")
+
+    results = {"fct_yearly_events": 0, "fct_workforce_snapshot": 0}
+    conn = duckdb.connect(str(DB_PATH))
+
+    try:
+        # Clean yearly events OUTSIDE the simulation range
+        try:
+            orphaned_events = conn.execute(
+                "SELECT COUNT(*) FROM fct_yearly_events WHERE simulation_year < ? OR simulation_year > ?",
+                [min_year, max_year]
+            ).fetchone()[0]
+
+            if orphaned_events > 0:
+                conn.execute(
+                    "DELETE FROM fct_yearly_events WHERE simulation_year < ? OR simulation_year > ?",
+                    [min_year, max_year]
+                )
+                results["fct_yearly_events"] = orphaned_events
+                context.log.info(f"Cleaned {orphaned_events} orphaned events outside range {range_str}")
+            else:
+                context.log.info(f"No orphaned events found outside range {range_str}")
+        except Exception as e:
+            context.log.warning(f"Error cleaning orphaned events: {e}")
+
+        # Clean workforce snapshots OUTSIDE the simulation range
+        try:
+            orphaned_snapshots = conn.execute(
+                "SELECT COUNT(*) FROM fct_workforce_snapshot WHERE simulation_year < ? OR simulation_year > ?",
+                [min_year, max_year]
+            ).fetchone()[0]
+
+            if orphaned_snapshots > 0:
+                conn.execute(
+                    "DELETE FROM fct_workforce_snapshot WHERE simulation_year < ? OR simulation_year > ?",
+                    [min_year, max_year]
+                )
+                results["fct_workforce_snapshot"] = orphaned_snapshots
+                context.log.info(f"Cleaned {orphaned_snapshots} orphaned snapshots outside range {range_str}")
+            else:
+                context.log.info(f"No orphaned snapshots found outside range {range_str}")
+        except Exception as e:
+            context.log.warning(f"Error cleaning orphaned snapshots: {e}")
+
+        # Log what we preserved
+        kept_events = conn.execute(
+            "SELECT COUNT(*) FROM fct_yearly_events WHERE simulation_year BETWEEN ? AND ?",
+            [min_year, max_year]
+        ).fetchone()[0]
+        kept_snapshots = conn.execute(
+            "SELECT COUNT(*) FROM fct_workforce_snapshot WHERE simulation_year BETWEEN ? AND ?",
+            [min_year, max_year]
+        ).fetchone()[0]
+
+        context.log.info(f"Preserved {kept_events} events and {kept_snapshots} snapshots within range {range_str}")
+
+    except Exception as e:
+        context.log.warning(f"Error during orphaned data cleanup: {e}")
+    finally:
+        conn.close()
+
+    return results
+
+
+
 def _log_hiring_calculation_debug(
     context: OpExecutionContext, year: int, config: Dict[str, Any]
 ) -> Dict[str, Any]:
@@ -668,7 +761,7 @@ def run_year_simulation(context: OpExecutionContext) -> YearResult:
             "🔄 Full refresh enabled - will rebuild all incremental models from scratch"
         )
 
-    # Clean existing data for this year to prevent duplicates
+    # Clean existing data for this specific year only (preserves other years for dependencies)
     clean_duckdb_data(context, [year])
 
     # dbt resource is available via context.resources.dbt if needed
@@ -1055,7 +1148,7 @@ def run_year_simulation_for_multi_year(
             "🔄 Full refresh enabled - will rebuild all incremental models from scratch"
         )
 
-    # Clean existing data for this year to prevent duplicates
+    # Clean existing data for this specific year only (preserves other years for dependencies)
     clean_duckdb_data(context, [year])
 
     try:
