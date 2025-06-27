@@ -23,6 +23,7 @@ WHERE employment_status = 'active'
 
 {% else %}
 -- For subsequent years, get previous year's active workforce from snapshot
+-- Use simulation_year to get exactly the right year's data - no complex snapshot logic needed
 SELECT
     employee_id,
     employee_ssn,
@@ -37,6 +38,5 @@ SELECT
 FROM {{ source('snapshots', 'scd_workforce_state') }}
 WHERE simulation_year = {{ simulation_year - 1 }}
   AND employment_status = 'active'
-  AND dbt_valid_to IS NULL  -- Get current/latest version from snapshot
 
 {% endif %}
