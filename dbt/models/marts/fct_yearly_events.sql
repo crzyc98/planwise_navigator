@@ -268,6 +268,9 @@ SELECT
   ) AS event_sequence,
   -- Add metadata for audit trail
   CURRENT_TIMESTAMP AS created_at,
+  -- Add parameter tracking for dynamic compensation system
+  '{{ var("scenario_id", "default") }}' AS parameter_scenario_id,
+  'dynamic' AS parameter_source,
   -- Add data validation flags
   CASE
     WHEN employee_id IS NULL THEN 'INVALID_EMPLOYEE_ID'

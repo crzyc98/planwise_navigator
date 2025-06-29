@@ -198,3 +198,105 @@ models:
           - dbt_utils.accepted_range:
               min_value: 0
               max_value: 0.2
+
+  - name: stg_comp_levers
+    description: >
+      Compensation parameter levers for dynamic scenario-based modeling.
+      Enables analysts to adjust compensation parameters without code changes.
+    columns:
+      - name: scenario_id
+        description: Unique identifier for the parameter scenario
+        data_tests:
+          - not_null
+      - name: fiscal_year
+        description: Fiscal year for which these parameters apply
+        data_tests:
+          - not_null
+      - name: job_level
+        description: Job level (1-5) for which these parameters apply
+        data_tests:
+          - not_null
+          - dbt_utils.accepted_range:
+              min_value: 1
+              max_value: 5
+      - name: event_type
+        description: Type of workforce event (RAISE, PROMOTION, etc.)
+        data_tests:
+          - not_null
+          - accepted_values:
+              values: ['RAISE', 'PROMOTION', 'TERMINATION', 'HIRE']
+      - name: parameter_name
+        description: Name of the parameter being configured
+        data_tests:
+          - not_null
+      - name: parameter_value
+        description: Value of the parameter
+        data_tests:
+          - not_null
+          - dbt_utils.accepted_range:
+              min_value: 0
+              max_value: 1
+      - name: is_locked
+        description: Whether this parameter is locked from further changes
+        data_tests:
+          - not_null
+
+  - name: stg_comp_targets
+    description: >
+      Compensation and workforce targets for scenario optimization.
+      Defines target metrics and acceptable tolerance ranges.
+    columns:
+      - name: scenario_id
+        description: Unique identifier for the target scenario
+        data_tests:
+          - not_null
+      - name: fiscal_year
+        description: Fiscal year for which these targets apply
+        data_tests:
+          - not_null
+      - name: metric_name
+        description: Name of the target metric
+        data_tests:
+          - not_null
+      - name: target_value
+        description: Target value for the metric
+        data_tests:
+          - not_null
+      - name: tolerance_pct
+        description: Acceptable percentage tolerance around the target
+        data_tests:
+          - not_null
+          - dbt_utils.accepted_range:
+              min_value: 0
+              max_value: 1
+      - name: priority
+        description: Priority level for optimization (high, medium, low)
+        data_tests:
+          - not_null
+          - accepted_values:
+              values: ['high', 'medium', 'low']
+
+  - name: stg_scenario_meta
+    description: >
+      Metadata for parameter scenarios including creation tracking and status.
+      Supports scenario management and audit trail.
+    columns:
+      - name: scenario_id
+        description: Unique identifier for the scenario
+        data_tests:
+          - unique
+          - not_null
+      - name: scenario_name
+        description: Human-readable name for the scenario
+        data_tests:
+          - not_null
+      - name: status
+        description: Current status of the scenario
+        data_tests:
+          - not_null
+          - accepted_values:
+              values: ['draft', 'published', 'archived']
+      - name: created_by
+        description: User who created the scenario
+        data_tests:
+          - not_null

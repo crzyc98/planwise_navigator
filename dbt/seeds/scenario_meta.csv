@@ -1,0 +1,5 @@
+scenario_id,scenario_name,description,created_by,status,base_scenario_id,created_at,updated_at
+default,Default Baseline,Default compensation parameters matching existing hardcoded values,system,published,,2025-06-27,2025-06-27
+conservative_growth,Conservative Growth,Conservative compensation growth scenario with reduced merit increases,analyst,draft,default,2025-06-27,2025-06-27
+aggressive_retention,Aggressive Retention,Higher compensation increases to improve employee retention,analyst,draft,default,2025-06-27,2025-06-27
+budget_constrained,Budget Constrained,Reduced compensation growth to meet tight budget constraints,analyst,draft,default,2025-06-27,2025-06-27
