@@ -23,7 +23,6 @@ from dagster import (
     asset_check,
     AssetCheckResult,
     AssetCheckSeverity,
-    DependsOn,
 )
 from dagster_dbt import DbtCliResource
 from pydantic import BaseModel

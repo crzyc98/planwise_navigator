@@ -33,7 +33,8 @@
       WHEN '{{ parameter_name }}' = 'merit_base' AND {{ job_level }} = 5 THEN 0.055
       WHEN '{{ parameter_name }}' = 'cola_rate' THEN 0.025
       WHEN '{{ parameter_name }}' = 'promotion_raise' THEN 0.12
-      ELSE 0.0
+      WHEN '{{ parameter_name }}' = 'new_hire_salary_adjustment' THEN 1.18
+      ELSE 1.0
     END
   )
 

@@ -74,7 +74,8 @@
       "mcp__ide__executeCode",
       "Bash(dagster definitions list:*)",
       "Bash(dbt debug:*)",
-      "Bash(dbt:*)"
+      "Bash(dbt:*)",
+      "Bash(curl:*)"
     ],
     "deny": []
   }

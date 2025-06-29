@@ -176,7 +176,9 @@ new_hire_assignments AS (
     CAST('{{ simulation_year }}-01-01' AS DATE) + INTERVAL (hs.hire_sequence_num % 365) DAY AS hire_date,
 
     -- Simple compensation assignment (based on level with small variance)
-    ROUND(cr.avg_compensation * (0.9 + (hs.hire_sequence_num % 10) * 0.02), 2) AS compensation_amount
+    -- Apply new hire salary adjustment parameter
+    ROUND(cr.avg_compensation * (0.9 + (hs.hire_sequence_num % 10) * 0.02) *
+          COALESCE({{ get_parameter_value('hs.level_id', 'hire', 'new_hire_salary_adjustment', simulation_year) }}, 1.0), 2) AS compensation_amount
 
   FROM hire_sequence hs
   LEFT JOIN compensation_ranges cr ON hs.level_id = cr.level_id
