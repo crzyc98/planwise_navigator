@@ -72,7 +72,11 @@
       "Bash(time dbt run:*)",
       "Bash(awk:*)",
       "mcp__ide__executeCode",
-      "Bash(dagster definitions list:*)"
+      "Bash(dagster definitions list:*)",
+      "Bash(dbt debug:*)",
+      "Bash(dbt:*)",
+      "Bash(curl:*)",
+      "Bash(git pull:*)"
     ],
     "deny": []
   }

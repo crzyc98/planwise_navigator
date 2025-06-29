@@ -295,3 +295,76 @@ models:
           config:
             severity: error
             error_if: ">= 1"
+
+  - name: int_effective_parameters
+    description: >
+      Parameter resolution model that determines effective parameters per scenario, year, level, and event type.
+      Provides dynamic parameter lookup with scenario-based overrides and fallback to defaults.
+
+      Key features:
+      - Scenario-based parameter resolution with fallback hierarchy
+      - Support for parameter locking to prevent changes
+      - Audit trail of parameter sources (scenario, default, hardcoded)
+      - Optimized for real-time parameter lookup during simulation
+
+    columns:
+      - name: parameter_key
+        description: Unique key for parameter combination
+        data_tests:
+          - unique
+          - not_null
+
+      - name: scenario_id
+        description: Scenario identifier for this parameter set
+        data_tests:
+          - not_null
+
+      - name: fiscal_year
+        description: Fiscal year for which this parameter applies
+        data_tests:
+          - not_null
+
+      - name: job_level
+        description: Job level (1-5) for which this parameter applies
+        data_tests:
+          - not_null
+          - dbt_utils.accepted_range:
+              min_value: 1
+              max_value: 5
+
+      - name: event_type
+        description: Workforce event type for this parameter
+        data_tests:
+          - not_null
+          - accepted_values:
+              values: ['RAISE', 'PROMOTION', 'TERMINATION', 'HIRE']
+
+      - name: parameter_name
+        description: Name of the parameter
+        data_tests:
+          - not_null
+
+      - name: parameter_value
+        description: Resolved parameter value
+        data_tests:
+          - not_null
+          - dbt_utils.accepted_range:
+              min_value: 0
+              max_value: 1
+
+      - name: is_locked
+        description: Whether this parameter is locked from changes
+        data_tests:
+          - not_null
+
+      - name: parameter_source
+        description: Source of the parameter value (scenario, default, hardcoded)
+        data_tests:
+          - not_null
+          - accepted_values:
+              values: ['scenario', 'default', 'hardcoded']
+
+      - name: resolved_at
+        description: Timestamp when parameter was resolved
+        data_tests:
+          - not_null
