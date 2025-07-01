@@ -79,7 +79,9 @@
       "Bash(git pull:*)",
       "Bash(pip install:*)",
       "Bash(streamlit run:*)",
-      "Bash(DAGSTER_HOME:*)"
+      "Bash(DAGSTER_HOME:*)",
+      "Bash(gh pr create:*)",
+      "Bash(git remote get-url:*)"
     ],
     "deny": []
   }
