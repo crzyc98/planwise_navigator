@@ -76,7 +76,10 @@
       "Bash(dbt debug:*)",
       "Bash(dbt:*)",
       "Bash(curl:*)",
-      "Bash(git pull:*)"
+      "Bash(git pull:*)",
+      "Bash(pip install:*)",
+      "Bash(streamlit run:*)",
+      "Bash(DAGSTER_HOME:*)"
     ],
     "deny": []
   }
