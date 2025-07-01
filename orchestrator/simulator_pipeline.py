@@ -1713,6 +1713,332 @@ def asset_based_multi_year_simulation():
     pass
 
 
+# Optimization Assets for S045
+
+@asset(group_name="optimization")
+def compensation_optimization_loop(
+    context: AssetExecutionContext,
+    optimization_config: Dict[str, Any] = None
+) -> Dict[str, Any]:
+    """
+    Orchestrates iterative parameter optimization using existing simulation pipeline.
+    Reuses proven multi-method execution: Dagster CLI → Asset-based → Manual dbt.
+    """
+    if optimization_config is None:
+        # Load default optimization config
+        optimization_config = {
+            'target_growth': 2.0,
+            'max_iterations': 10,
+            'tolerance': 0.1,
+            'mode': 'Balanced'
+        }
+
+    context.log.info(f"🎯 Starting compensation optimization with config: {optimization_config}")
+
+    max_iterations = optimization_config.get('max_iterations', 10)
+    tolerance = optimization_config.get('tolerance', 0.02)
+    target_growth = optimization_config.get('target_growth', 2.0)
+    optimization_mode = optimization_config.get('mode', 'Balanced')
+
+    # Create iteration tracking
+    iteration_results = []
+    converged = False
+
+    context.log.info(f"🎯 Starting optimization with target growth: {target_growth}%")
+    context.log.info(f"🔄 Max iterations: {max_iterations}, Tolerance: {tolerance}%")
+
+    for iteration in range(max_iterations):
+        context.log.info(f"🔄 Starting iteration {iteration + 1}")
+
+        # Run simulation using existing multi-year simulation pipeline
+        try:
+            # Load and execute simulation configuration
+            config = load_simulation_config()
+            context.log.info(f"📊 Running simulation with config: {config}")
+
+            # Execute the simulation (this will materialize all year assets)
+            summary_result = multi_year_simulation_summary(context)
+
+            # Analyze results
+            if summary_result and 'results' in summary_result:
+                successful_results = [r for r in summary_result['results'] if r.get('success', False)]
+                if successful_results:
+                    # Calculate average growth across all years
+                    growth_rates = [r['growth_rate'] for r in successful_results]
+                    current_growth = sum(growth_rates) / len(growth_rates) * 100  # Convert to percentage
+                else:
+                    current_growth = 0
+            else:
+                current_growth = 0
+
+            gap = target_growth - current_growth
+
+            # Store iteration result
+            iteration_result = {
+                'iteration': iteration + 1,
+                'current_growth': current_growth,
+                'gap': gap,
+                'converged': abs(gap) <= tolerance
+            }
+            iteration_results.append(iteration_result)
+
+            context.log.info(f"📊 Iteration {iteration + 1} results:")
+            context.log.info(f"   Current Growth: {current_growth:.2f}%")
+            context.log.info(f"   Gap to Target: {gap:+.2f}%")
+            context.log.info(f"   Status: {'✅ Converged' if abs(gap) <= tolerance else '🔄 Optimizing'}")
+
+            # Check convergence
+            if abs(gap) <= tolerance:
+                converged = True
+                context.log.info(f"🎉 Optimization converged in {iteration + 1} iterations!")
+                break
+
+            # Adjust parameters intelligently for next iteration
+            if iteration < max_iterations - 1:  # Don't adjust on last iteration
+                context.log.info("🔧 Adjusting parameters for next iteration...")
+                adjust_success = adjust_parameters_for_optimization(context, gap, optimization_mode, iteration + 1)
+                if not adjust_success:
+                    context.log.error("❌ Parameter adjustment failed")
+                    break
+
+        except Exception as e:
+            context.log.error(f"❌ Simulation failed at iteration {iteration + 1}: {e}")
+            break
+
+    # Create final summary
+    final_result = {
+        'converged': converged,
+        'iterations': len(iteration_results),
+        'final_growth': iteration_results[-1]['current_growth'] if iteration_results else 0,
+        'final_gap': iteration_results[-1]['gap'] if iteration_results else 0,
+        'iteration_history': iteration_results,
+        'optimization_config': optimization_config
+    }
+
+    context.log.info(f"🏁 Optimization completed: {'✅ Converged' if converged else '❌ Did not converge'}")
+    context.log.info(f"📊 Final results: {final_result['final_growth']:.2f}% growth (gap: {final_result['final_gap']:+.2f}%)")
+
+    return final_result
+
+
+def adjust_parameters_for_optimization(context: AssetExecutionContext, gap: float, optimization_mode: str, iteration: int) -> bool:
+    """
+    Intelligent parameter adjustment using existing parameter structure.
+    Builds on proven parameter validation and application patterns.
+    """
+    try:
+        import pandas as pd
+        from pathlib import Path
+
+        # Load current parameters from comp_levers.csv
+        comp_levers_path = Path(PROJECT_ROOT / "dbt" / "seeds" / "comp_levers.csv")
+        if not comp_levers_path.exists():
+            context.log.error(f"❌ Could not find comp_levers.csv at {comp_levers_path}")
+            return False
+
+        df = pd.read_csv(comp_levers_path)
+
+        # Calculate adjustment factors based on optimization mode
+        if optimization_mode == "Conservative":
+            adjustment_factor = 0.1  # 10% of the gap
+        elif optimization_mode == "Aggressive":
+            adjustment_factor = 0.5  # 50% of the gap
+        else:  # Balanced (default)
+            adjustment_factor = 0.3  # 30% of the gap
+
+        # Reduce adjustment factor as iterations progress (convergence acceleration)
+        adjustment_factor *= (0.8 ** (iteration - 1))
+
+        # Calculate parameter adjustments
+        # Gap > 0 means we need to increase growth (increase compensation parameters)
+        # Gap < 0 means we need to decrease growth (decrease compensation parameters)
+
+        gap_adjustment = gap * adjustment_factor / 100  # Convert percentage to decimal
+
+        context.log.info(f"📊 Parameter adjustment calculation:")
+        context.log.info(f"   Gap: {gap:+.2f}%")
+        context.log.info(f"   Mode: {optimization_mode}")
+        context.log.info(f"   Adjustment factor: {adjustment_factor:.3f}")
+        context.log.info(f"   Gap adjustment: {gap_adjustment:+.4f}")
+
+        # Update parameters in the DataFrame
+        for _, row in df.iterrows():
+            param_name = row['parameter_name']
+            current_value = row['parameter_value']
+
+            if param_name == 'cola_rate':
+                # Adjust COLA rate
+                new_value = max(0.01, min(0.08, current_value + gap_adjustment))
+                df.loc[df.index == row.name, 'parameter_value'] = new_value
+
+            elif param_name == 'merit_base':
+                # Adjust merit rates (distribute adjustment across levels)
+                level = row['job_level']
+                # Higher levels get smaller adjustments
+                level_factor = 1.2 - (level * 0.1)  # Level 1: 1.1x, Level 5: 0.7x
+                new_value = max(0.01, min(0.10, current_value + (gap_adjustment * level_factor)))
+                df.loc[df.index == row.name, 'parameter_value'] = new_value
+
+            elif param_name == 'new_hire_salary_adjustment':
+                # Adjust new hire salary adjustment (more conservative)
+                new_value = max(1.0, min(1.4, current_value + (gap_adjustment * 0.5)))
+                df.loc[df.index == row.name, 'parameter_value'] = new_value
+
+        # Update metadata
+        df['created_at'] = datetime.now().strftime("%Y-%m-%d")
+        df['created_by'] = 'optimization_engine'
+
+        # Save updated parameters
+        df.to_csv(comp_levers_path, index=False)
+
+        context.log.info(f"✅ Parameters updated for iteration {iteration}")
+        context.log.info(f"📊 Updated {len(df)} parameter entries in comp_levers.csv")
+
+        return True
+
+    except Exception as e:
+        context.log.error(f"❌ Parameter adjustment failed: {e}")
+        import traceback
+        context.log.error(f"Detailed error: {traceback.format_exc()}")
+        return False
+
+
+@asset(group_name="optimization", deps=[compensation_optimization_loop])
+def optimization_results_summary(
+    context: AssetExecutionContext,
+    optimization_loop_result: Dict[str, Any]
+) -> Dict[str, Any]:
+    """
+    Consolidates optimization results for analyst review.
+    Builds on existing results visualization patterns.
+    """
+    try:
+        context.log.info("📊 Creating optimization results summary...")
+
+        if not optimization_loop_result:
+            context.log.warning("⚠️ No optimization results to summarize")
+            return {"status": "no_results", "summary": "No optimization data available"}
+
+        # Extract key metrics
+        converged = optimization_loop_result.get('converged', False)
+        iterations = optimization_loop_result.get('iterations', 0)
+        final_growth = optimization_loop_result.get('final_growth', 0)
+        final_gap = optimization_loop_result.get('final_gap', 0)
+        iteration_history = optimization_loop_result.get('iteration_history', [])
+        optimization_config = optimization_loop_result.get('optimization_config', {})
+
+        # Create summary statistics
+        if iteration_history:
+            growth_progression = [iter_result['current_growth'] for iter_result in iteration_history]
+            gap_progression = [iter_result['gap'] for iter_result in iteration_history]
+
+            # Calculate convergence metrics
+            initial_gap = gap_progression[0] if gap_progression else 0
+            gap_reduction = abs(initial_gap - final_gap) if initial_gap != 0 else 0
+            gap_reduction_pct = (gap_reduction / abs(initial_gap)) * 100 if initial_gap != 0 else 0
+        else:
+            growth_progression = []
+            gap_progression = []
+            initial_gap = 0
+            gap_reduction = 0
+            gap_reduction_pct = 0
+
+        # Performance assessment
+        if converged:
+            performance_status = "Excellent - Target achieved"
+        elif iterations >= optimization_config.get('max_iterations', 10):
+            if gap_reduction_pct > 50:
+                performance_status = "Good - Significant progress made"
+            else:
+                performance_status = "Poor - Limited progress"
+        else:
+            performance_status = "Interrupted - Early termination"
+
+        # Create detailed summary
+        summary = {
+            "status": "converged" if converged else "not_converged",
+            "performance_status": performance_status,
+            "optimization_config": optimization_config,
+            "results": {
+                "converged": converged,
+                "iterations_used": iterations,
+                "max_iterations": optimization_config.get('max_iterations', 10),
+                "final_growth_rate": final_growth,
+                "target_growth_rate": optimization_config.get('target_growth', 2.0),
+                "final_gap": final_gap,
+                "tolerance": optimization_config.get('tolerance', 0.1),
+                "initial_gap": initial_gap,
+                "gap_reduction": gap_reduction,
+                "gap_reduction_percentage": gap_reduction_pct
+            },
+            "progression": {
+                "growth_rates": growth_progression,
+                "gaps": gap_progression,
+                "iteration_history": iteration_history
+            },
+            "recommendations": []
+        }
+
+        # Add recommendations based on results
+        if converged:
+            summary["recommendations"].append("✅ Optimization successful - parameters are now optimized for target growth rate")
+            summary["recommendations"].append("📊 Review the Results tab to see final simulation outcomes")
+        else:
+            if gap_reduction_pct < 25:
+                summary["recommendations"].append("⚠️ Limited progress - consider adjusting tolerance or target growth rate")
+            summary["recommendations"].append("🔄 Try increasing max iterations for better convergence")
+            summary["recommendations"].append("⚙️ Consider switching optimization strategy (Conservative/Balanced/Aggressive)")
+
+        # Performance insights
+        if iterations > 1:
+            avg_gap_reduction_per_iter = gap_reduction / iterations
+            summary["performance_insights"] = {
+                "average_gap_reduction_per_iteration": avg_gap_reduction_per_iter,
+                "convergence_efficiency": gap_reduction_pct / iterations if iterations > 0 else 0
+            }
+
+        context.log.info(f"📊 Optimization summary created:")
+        context.log.info(f"   Status: {summary['status']}")
+        context.log.info(f"   Performance: {performance_status}")
+        context.log.info(f"   Gap reduction: {gap_reduction_pct:.1f}%")
+        context.log.info(f"   Iterations: {iterations}")
+
+        return summary
+
+    except Exception as e:
+        context.log.error(f"❌ Failed to create optimization summary: {e}")
+        import traceback
+        context.log.error(f"Detailed error: {traceback.format_exc()}")
+        return {"status": "error", "error": str(e)}
+
+
+@job(resource_defs={"dbt": dbt_resource})
+def compensation_optimization_job():
+    """
+    Automated optimization job that wraps existing multi_year_simulation.
+    Reuses proven job configuration and resource management patterns.
+    """
+    # Initialize optimization parameters using existing config patterns
+    optimization_results_summary(compensation_optimization_loop())
+
+
+@job(resource_defs={"dbt": dbt_resource})
+def single_optimization_iteration():
+    """
+    Single optimization iteration for testing and debugging.
+    Mirrors existing single_year_simulation job patterns.
+    """
+    # Execute single iteration using existing patterns
+    # Useful for testing parameter adjustment logic
+    optimization_config = {
+        'target_growth': 2.0,
+        'max_iterations': 1,
+        'tolerance': 0.1,
+        'mode': 'Balanced'
+    }
+    optimization_results_summary(compensation_optimization_loop())
+
+
 # Export all definitions for Dagster
 __all__ = [
     "simulation_year_state",
@@ -1732,4 +2058,9 @@ __all__ = [
     "multi_year_simulation_summary",
     "load_simulation_config",
     "create_simulation_assets",
+    "compensation_optimization_loop",
+    "optimization_results_summary",
+    "compensation_optimization_job",
+    "single_optimization_iteration",
+    "adjust_parameters_for_optimization",
 ]

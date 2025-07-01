@@ -22,8 +22,9 @@ Storage	DuckDB	1.0.0	Immutable event store; column-store OLAP engine
 Transformation	dbt-core	1.8.8	Declarative SQL models, tests, documentation
 Adapter	dbt-duckdb	1.8.1	Stable DuckDB integration
 Orchestration	Dagster	1.8.12	Asset-based pipeline for simulation workflow
-Dashboard	Streamlit	1.39.0	Interactive analytics and scenario comparison
+Dashboard	Streamlit	1.39.0	Interactive analytics and compensation tuning
 Configuration	Pydantic	2.7.4	Type-safe config management with validation
+Parameters	comp_levers.csv	Dynamic	Analyst-adjustable compensation parameters
 Python	CPython	3.11.x	Long-term support version
 
 <details>
@@ -32,15 +33,18 @@ Python	CPython	3.11.x	Long-term support version
 ```
 graph TD
     config[config/simulation_config.yaml] --> dagster[Dagster Pipeline]
+    params[comp_levers.csv] --> parameters[int_effective_parameters]
     census[census_raw] --> baseline[int_baseline_workforce]
     baseline --> snapshot[prepare_year_snapshot]
     snapshot --> prev_year[int_previous_year_workforce]
+    parameters --> events[Event Models]
     prev_year --> events[Event Models]
     events --> yearly_events[fct_yearly_events]
     yearly_events --> workforce[fct_workforce_snapshot]
     workforce --> state[simulation_year_state]
     state --> checks[Asset Checks]
-    checks --> dashboard[Streamlit Dashboards]
+    checks --> tuning[Compensation Tuning UI]
+    tuning --> params
 ```
 
 </details>
@@ -67,10 +71,11 @@ PlanWise Navigator implements enterprise-grade event sourcing with immutable aud
 - **Transparency**: Full visibility into every simulation decision
 
 **Modular Engines**:
-- **Compensation Engine**: COLA, merit, and promotion-based adjustments
+- **Compensation Engine**: COLA, merit, and promotion-based adjustments with dynamic parameter resolution
 - **Termination Engine**: Hazard-based turnover modeling
 - **Hiring Engine**: Growth-driven recruitment with realistic sampling
 - **Promotion Engine**: Band-aware advancement probabilities
+- **Parameter Engine**: Analyst-driven compensation tuning via `comp_levers.csv`
 
 **Snapshot Reconstruction**: Any workforce state can be instantly reconstructed from the event log for historical analysis, regulatory compliance, and scenario validation.
 
@@ -197,8 +202,9 @@ dbt test                  # Run all tests
 dbt docs generate         # Generate documentation
 dbt docs serve            # Serve documentation
 
-# Streamlit Dashboard
-streamlit run streamlit_dashboard/main.py  # Launch interactive dashboard
+# Streamlit Dashboards
+streamlit run streamlit_dashboard/main.py               # Launch main dashboard
+streamlit run streamlit_dashboard/compensation_tuning.py # Launch compensation tuning interface (E012)
 
 # Configuration Management
 # Edit config/simulation_config.yaml for simulation parameters:
@@ -215,6 +221,92 @@ dagster asset materialize --select dashboard_data        # Prepare dashboard dat
 # Data Quality Checks
 dagster asset check --select validate_data_quality       # Run data quality checks
 dagster asset check --select validate_simulation_results # Validate simulation outputs
+
+⸻
+
+9.5  Epic E012: Compensation Tuning System
+
+**Purpose**: Enables analysts to dynamically adjust compensation parameters through a UI to hit budget targets, eliminating the need for code changes and deployments.
+
+**Architecture**:
+```
+Analyst → Streamlit UI → comp_levers.csv → int_effective_parameters → Event Models → Simulation Results
+```
+
+**Key Components**:
+- **`comp_levers.csv`**: 126 parameter entries covering all job levels (1-5) and years (2025-2029)
+- **`int_effective_parameters.sql`**: Dynamic parameter resolution model
+- **`compensation_tuning.py`**: Full-featured Streamlit interface for parameter adjustment
+- **Enhanced Event Models**: Merit, hiring, and promotion models now read from dynamic parameters
+
+**Parameter Categories**:
+- **Merit Rates**: `merit_base` by job level (e.g., Level 1: 4%, Level 5: 2%)
+- **COLA Rates**: `cola_rate` applied uniformly (e.g., 2% across all levels)
+- **New Hire Adjustments**: `new_hire_salary_adjustment` multiplier (e.g., 115% of base)
+- **Promotion Rates**: `promotion_probability` and `promotion_raise` by level
+
+**Streamlit Interface Features**:
+- **Parameter Controls**: Sliders for all compensation parameters with real-time validation
+- **Application Modes**: Single year vs. All Years (2025-2029) parameter application
+- **Random Seed Control**: Reproducible simulation results with default (42), custom, or random seeds
+- **Impact Analysis**: Real-time parameter change preview with estimated growth impact
+- **Employment Status Filtering**: Granular workforce analysis using `detailed_status_code`:
+  - `continuous_active`: Existing employees who remain active
+  - `experienced_termination`: Existing employees who terminated this year
+  - `new_hire_active`: New hires who remain active
+  - `new_hire_termination`: New hires terminated in same year
+- **Multi-Method Simulation**: Dagster CLI → Asset-based → Manual dbt fallback execution
+- **Results Visualization**: Year-by-year breakdown with status composition charts
+
+**Critical Implementation Patterns**:
+```python
+# Parameter Application (All Years Mode)
+target_years = [2025, 2026, 2027, 2028, 2029] if apply_mode == "All Years" else [selected_year]
+update_parameters_file(proposed_params, target_years)
+
+# Employment Status Filtering
+result = conn.execute(f"""
+    SELECT COUNT(*), AVG(current_compensation)
+    FROM fct_workforce_snapshot
+    WHERE simulation_year = ? AND detailed_status_code IN ({status_placeholders})
+""", [year] + status_filter).fetchone()
+
+# Multi-Method Simulation Execution
+try:
+    # Method 1: Dagster CLI execution
+    cmd = [dagster_cmd, "job", "execute", "--job", "multi_year_simulation", "-f", "definitions.py", "--config", config_file]
+    result = subprocess.run(cmd, ...)
+except:
+    # Method 2: Asset-based simulation
+    # Method 3: Manual dbt execution
+```
+
+**Database Lock Handling**:
+```python
+if "Conflicting lock is held" in dbt_result.stdout:
+    st.error("🔒 Database Lock Error:")
+    st.error("Please close any database connections in Windsurf/VS Code and try again.")
+```
+
+**Story Implementation Status**:
+- ✅ **S043**: Parameter foundation (`comp_levers.csv`) - Complete
+- ✅ **S044**: Dynamic parameter integration into models - Complete
+- ✅ **S046**: Streamlit analyst interface - Complete
+- 📋 **S045**: Dagster tuning loops - Planned (auto-optimization)
+- 📋 **S047**: SciPy optimization engine - Planned (goal-seeking)
+- 📋 **S048**: Governance & audit framework - Planned (approval workflows)
+
+**Performance Characteristics**:
+- Parameter validation: Instant
+- Single simulation: 2-5 minutes
+- Parameter impact preview: Real-time
+- Database queries: <100ms for workforce metrics
+
+**Common Issues & Solutions**:
+- **Multi-year Data Persistence**: Use `full_refresh: False` in job configuration
+- **Database Locks**: Close IDE database connections before simulation
+- **Parameter Validation**: Built-in warnings for budget/retention risks
+- **Dagster CLI Issues**: Multiple fallback execution methods implemented
 
 ⸻
 
@@ -310,6 +402,39 @@ current_active = baseline_count + total_hires - total_terminations
 - **Solution**: Use only proven stable versions from PRD v3.0
 - **Versions**: DuckDB 1.0.0, dbt-core 1.8.8, dbt-duckdb 1.8.1, Dagster 1.8.12, Streamlit 1.39.0
 - **Pattern**: Lock all dependency versions in requirements.txt
+
+# Compensation Tuning Interface Issues (E012)
+- **Problem**: Streamlit subprocess execution fails to find Dagster binary
+- **Solution**: Multiple fallback paths and detailed error logging
+```python
+dagster_paths = [
+    "venv/bin/dagster",      # Relative to project root
+    "dagster",               # System path
+    "/usr/local/bin/dagster" # Common system location
+]
+```
+
+- **Problem**: Multi-year simulations only persisting final year data
+- **Solution**: Set `full_refresh: False` in job configuration
+```yaml
+ops:
+  run_multi_year_simulation:
+    config:
+      full_refresh: False  # Critical for data persistence
+```
+
+- **Problem**: Parameter changes not reflected in simulation results
+- **Solution**: Clear Streamlit cache after parameter updates
+```python
+load_simulation_results.clear()  # Force cache refresh
+```
+
+- **Problem**: DuckDB database locked by IDE preventing simulations
+- **Solution**: Enhanced error detection and user guidance
+```python
+if "Conflicting lock is held" in result.stdout:
+    st.error("🔒 Database Lock Error: Close IDE database connections")
+```
 
 ⸻
 

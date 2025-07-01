@@ -81,7 +81,8 @@
       "Bash(streamlit run:*)",
       "Bash(DAGSTER_HOME:*)",
       "Bash(gh pr create:*)",
-      "Bash(git remote get-url:*)"
+      "Bash(git remote get-url:*)",
+      "Bash(gh auth:*)"
     ],
     "deny": []
   }
