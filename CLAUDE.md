@@ -77,7 +77,7 @@ PlanWise Navigator implements enterprise-grade event sourcing with immutable aud
 - **Promotion Engine**: Band-aware advancement probabilities
 - **Parameter Engine**: Analyst-driven compensation tuning via `comp_levers.csv`
 
-**Snapshot Reconstruction**: Any workforce state can be instantly reconstructed from the event log for historical analysis, regulatory compliance, and scenario validation.
+**Snapshot Reconstruction**: Any workforce state can be instantly reconstructed from the event log for historical analysis and scenario validation.
 
 ⸻
 
@@ -294,7 +294,6 @@ if "Conflicting lock is held" in dbt_result.stdout:
 - ✅ **S046**: Streamlit analyst interface - Complete
 - 📋 **S045**: Dagster tuning loops - Planned (auto-optimization)
 - 📋 **S047**: SciPy optimization engine - Planned (goal-seeking)
-- 📋 **S048**: Governance & audit framework - Planned (approval workflows)
 
 **Performance Characteristics**:
 - Parameter validation: Instant

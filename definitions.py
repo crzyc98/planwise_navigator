@@ -10,6 +10,10 @@ from orchestrator.assets import (
     run_single_year_simulation,
     workforce_analytics,
     simulation_report_data,
+    # S047 Optimization Engine assets
+    advanced_optimization_engine,
+    optimization_sensitivity_analysis,
+    optimization_evidence_report,
 )
 from orchestrator.resources.duckdb_resource import DuckDBResource
 from pathlib import Path
@@ -37,6 +41,10 @@ defs = Definitions(
         run_single_year_simulation,
         workforce_analytics,
         simulation_report_data,
+        # S047 Optimization Engine assets
+        advanced_optimization_engine,
+        optimization_sensitivity_analysis,
+        optimization_evidence_report,
     ],
     # ADD THE JOBS HERE
     jobs=[
