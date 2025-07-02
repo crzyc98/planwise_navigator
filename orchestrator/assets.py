@@ -19,6 +19,15 @@ from pathlib import Path
 
 from orchestrator.resources.duckdb_resource import DuckDBResource
 from config.schema import SimulationConfig
+from orchestrator.optimization import (
+    CompensationOptimizer,
+    OptimizationRequest,
+    OptimizationResult,
+    OptimizationError
+)
+from typing import Union
+from orchestrator.optimization.evidence_generator import EvidenceGenerator
+from orchestrator.optimization.sensitivity_analysis import SensitivityAnalyzer
 
 # dbt asset integration
 DBT_PROJECT_DIR = Path(__file__).parent.parent / "dbt"
@@ -1247,3 +1256,367 @@ def check_simulation_consistency(
             passed=False,
             description=f"Error executing simulation consistency check: {str(e)}",
         )
+
+
+# === S047 OPTIMIZATION ENGINE ASSETS ===
+
+
+@asset(
+    deps=[planwise_dbt_assets],
+    group_name="optimization_engine"
+)
+def advanced_optimization_engine(
+    context: AssetExecutionContext,
+    duckdb_resource: DuckDBResource,
+) -> Dict[str, Any]:
+    """Advanced multi-objective optimization with monitoring."""
+
+    # Try to get scenario_id from partition_key or default
+    try:
+        scenario_id = context.partition_key or "optimization_run"
+    except:
+        scenario_id = "optimization_run"
+
+    # Get optimization configuration from various sources
+    optimization_config = {}
+
+    # Try to read from temporary config file first (for Streamlit integration)
+    temp_config_path = Path("/tmp/planwise_optimization_config.yaml")
+    if temp_config_path.exists():
+        try:
+            import yaml
+            with open(temp_config_path, 'r') as f:
+                file_config = yaml.safe_load(f)
+                optimization_config = file_config.get("optimization", {})
+            # Clean up the temporary file
+            temp_config_path.unlink()
+            context.log.info(f"Loaded optimization config from temporary file")
+        except Exception as e:
+            context.log.warning(f"Could not read temporary config file: {e}")
+
+    # If no config found, use run_config as fallback
+    if not optimization_config:
+        optimization_config = context.run_config.get("optimization", {})
+
+    if not optimization_config:
+        # Use default optimization configuration
+        optimization_config = {
+            "scenario_id": "default_optimization",
+            "initial_parameters": {
+                "merit_rate_level_1": 0.045,
+                "merit_rate_level_2": 0.040,
+                "merit_rate_level_3": 0.035,
+                "merit_rate_level_4": 0.035,
+                "merit_rate_level_5": 0.040,
+                "cola_rate": 0.025,
+                "new_hire_salary_adjustment": 1.15,
+                "promotion_probability_level_1": 0.12,
+                "promotion_probability_level_2": 0.08,
+                "promotion_probability_level_3": 0.05,
+                "promotion_probability_level_4": 0.02,
+                "promotion_probability_level_5": 0.01,
+                "promotion_raise_level_1": 0.12,
+                "promotion_raise_level_2": 0.12,
+                "promotion_raise_level_3": 0.12,
+                "promotion_raise_level_4": 0.12,
+                "promotion_raise_level_5": 0.12,
+            },
+            "objectives": {"cost": 0.4, "equity": 0.3, "targets": 0.3},
+            "method": "SLSQP",
+            "max_evaluations": 200,
+            "timeout_minutes": 30,
+            "random_seed": 42,
+            "use_synthetic": True  # Default to synthetic for safety
+        }
+
+    request = OptimizationRequest(**optimization_config)
+    scenario_id = request.scenario_id
+
+    # Initialize optimizer with monitoring and use_synthetic flag from request
+    optimizer = CompensationOptimizer(duckdb_resource, scenario_id, use_synthetic=request.use_synthetic)
+
+    context.log.info(f"Starting optimization for scenario: {scenario_id}")
+    context.log.info(f"Algorithm: {request.method}, Max evaluations: {request.max_evaluations}")
+    if request.use_synthetic:
+        context.log.info(f"🧪 SYNTHETIC MODE: Using fast synthetic objective functions")
+    else:
+        context.log.info(f"🔄 REAL SIMULATION MODE: Each evaluation will run full dbt simulation (~30-60s each)")
+        context.log.info(f"⏱️ Estimated total time: {(request.max_evaluations * 45) / 60:.1f} - {(request.max_evaluations * 90) / 60:.1f} minutes")
+
+    # Verify simulation data exists
+    try:
+        with duckdb_resource.get_connection() as conn:
+            # Check if required tables exist
+            tables_check = conn.execute("""
+                SELECT COUNT(*) as table_count
+                FROM information_schema.tables
+                WHERE table_name IN ('fct_workforce_snapshot', 'fct_yearly_events', 'comp_levers')
+            """).fetchone()
+
+            if tables_check[0] < 3:
+                context.log.warning("Required simulation tables not found. Running basic optimization...")
+    except Exception as e:
+        context.log.warning(f"Could not verify simulation tables: {e}")
+
+    # Run optimization
+    try:
+        result = optimizer.optimize(
+            initial_parameters=request.initial_parameters,
+            objectives=request.objectives,
+            method=request.method,
+            max_evaluations=request.max_evaluations,
+            timeout_minutes=request.timeout_minutes,
+            random_seed=request.random_seed
+        )
+
+        # Check if result is an OptimizationError (returned directly, not thrown)
+        if isinstance(result, OptimizationError):
+            context.log.error(f"Optimization returned error: {result.error_message}")
+            # Return error as dict with error flag
+            result_dict = result.dict()
+            result_dict["optimization_failed"] = True
+            return result_dict
+
+        # Handle successful OptimizationResult
+        context.log.info(f"Optimization converged: {result.converged}")
+        context.log.info(f"Function evaluations: {result.function_evaluations}")
+        context.log.info(f"Runtime: {result.runtime_seconds:.2f}s")
+        context.log.info(f"Risk assessment: {result.risk_assessment}")
+
+        if hasattr(result, 'estimated_cost_impact'):
+            cost_impact = result.estimated_cost_impact.get('value', 0)
+            context.log.info(f"Cost impact: ${cost_impact:,.0f}")
+
+        # Convert to dict for Dagster compatibility
+        result_dict = result.dict()
+
+        # Save results to temporary file for Streamlit UI access
+        try:
+            import pickle
+            temp_result_path = "/tmp/planwise_optimization_result.pkl"
+            with open(temp_result_path, 'wb') as f:
+                pickle.dump(result_dict, f)
+            context.log.info(f"✅ Saved optimization results to {temp_result_path} for UI access")
+        except Exception as e:
+            context.log.warning(f"Could not save temporary result file: {e}")
+
+        return result_dict
+
+    except Exception as e:
+        context.log.error(f"Optimization failed: {str(e)}")
+        error_result = OptimizationError(
+            scenario_id=scenario_id,
+            error_type="NUMERICAL",
+            error_message=str(e),
+            best_found_solution=None,
+            recommendations=["Check parameter bounds", "Try different algorithm"]
+        )
+        # Return error as dict with error flag
+        result_dict = error_result.dict()
+        result_dict["optimization_failed"] = True
+
+        # Save error results to temporary file for Streamlit UI access
+        try:
+            import pickle
+            temp_result_path = "/tmp/planwise_optimization_result.pkl"
+            with open(temp_result_path, 'wb') as f:
+                pickle.dump(result_dict, f)
+            context.log.info(f"✅ Saved optimization error to {temp_result_path} for UI access")
+        except Exception as e:
+            context.log.warning(f"Could not save temporary error file: {e}")
+
+        return result_dict
+
+
+@asset(
+    deps=[advanced_optimization_engine],
+    group_name="optimization_engine"
+)
+def optimization_sensitivity_analysis(
+    context: AssetExecutionContext,
+    duckdb_resource: DuckDBResource,
+    advanced_optimization_engine: Dict[str, Any],
+) -> Dict[str, Any]:
+    """Generate sensitivity analysis for optimization results."""
+
+    try:
+        scenario_id = context.partition_key or "sensitivity_analysis"
+    except:
+        scenario_id = "sensitivity_analysis"
+
+    # Initialize sensitivity analyzer
+    analyzer = SensitivityAnalyzer(duckdb_resource, scenario_id)
+
+    # Get optimization configuration for objectives
+    optimization_config = context.run_config.get("optimization", {})
+    objectives = optimization_config.get("objectives", {"cost": 0.4, "equity": 0.3, "targets": 0.3})
+
+    context.log.info("Calculating parameter sensitivities...")
+
+    try:
+        # Generate sensitivity report
+        if not advanced_optimization_engine.get("optimization_failed", False):
+            sensitivity_report = analyzer.generate_sensitivity_report(
+                parameters=advanced_optimization_engine.get("optimal_parameters", {}),
+                objectives=objectives
+            )
+
+            context.log.info(f"Generated sensitivity analysis for {len(sensitivity_report['parameter_sensitivities'])} parameters")
+
+            # Log top sensitive parameters
+            most_sensitive = sensitivity_report.get('most_sensitive_parameters', [])[:3]
+            if most_sensitive:
+                context.log.info(f"Most sensitive parameters: {[param[0] for param in most_sensitive]}")
+
+            return sensitivity_report
+        else:
+            context.log.warning("Optimization did not succeed, skipping sensitivity analysis")
+            return {"error": "Optimization failed", "sensitivities": {}}
+
+    except Exception as e:
+        context.log.error(f"Sensitivity analysis failed: {str(e)}")
+        return {"error": str(e), "sensitivities": {}}
+
+
+@asset(
+    deps=[advanced_optimization_engine],
+    group_name="optimization_engine"
+)
+def optimization_evidence_report(
+    context: AssetExecutionContext,
+    advanced_optimization_engine: Dict[str, Any],
+) -> Dict[str, str]:
+    """Generate evidence report for optimization results."""
+
+    context.log.info("Generating optimization evidence report...")
+
+    try:
+        if not advanced_optimization_engine.get("optimization_failed", False):
+            # Create OptimizationResult object for evidence generator
+            result_obj = OptimizationResult(**advanced_optimization_engine)
+            evidence_generator = EvidenceGenerator(result_obj)
+            report_path = evidence_generator.generate_mdx_report()
+
+            context.log.info(f"Generated evidence report: {report_path}")
+
+            return {
+                "report_path": report_path,
+                "scenario_id": advanced_optimization_engine.get("scenario_id", "unknown"),
+                "generated_at": pd.Timestamp.now().isoformat()
+            }
+        else:
+            context.log.warning("Optimization did not succeed, skipping evidence report")
+            return {"error": "Optimization failed", "report_path": None}
+
+    except Exception as e:
+        context.log.error(f"Evidence report generation failed: {str(e)}")
+        return {"error": str(e), "report_path": None}
+
+
+# Asset checks for optimization engine
+@asset_check(asset=advanced_optimization_engine)
+def optimization_convergence_check(
+    context: AssetExecutionContext,
+    advanced_optimization_engine: Dict[str, Any]
+) -> AssetCheckResult:
+    """Asset check: Optimization convergence and performance validation."""
+
+    if advanced_optimization_engine.get("optimization_failed", False):
+        return AssetCheckResult(
+            passed=False,
+            description=f"Optimization failed: {advanced_optimization_engine.get('error_message', 'Unknown error')}",
+            metadata={
+                "error_type": advanced_optimization_engine.get("error_type", "UNKNOWN"),
+                "recommendations": advanced_optimization_engine.get("recommendations", [])
+            }
+        )
+
+    if not advanced_optimization_engine.get("converged", False):
+        return AssetCheckResult(
+            passed=False,
+            description=f"Optimization did not converge after {advanced_optimization_engine.get('function_evaluations', 0)} evaluations",
+            metadata={
+                "algorithm": advanced_optimization_engine.get("algorithm_used", "unknown"),
+                "evaluations": advanced_optimization_engine.get("function_evaluations", 0),
+                "runtime_seconds": advanced_optimization_engine.get("runtime_seconds", 0)
+            }
+        )
+
+    # Performance threshold checks
+    function_evaluations = advanced_optimization_engine.get("function_evaluations", 0)
+    if function_evaluations > 300:
+        return AssetCheckResult(
+            passed=False,
+            description=f"Optimization required {function_evaluations} evaluations (threshold: 300)",
+            metadata={
+                "runtime_seconds": advanced_optimization_engine.get("runtime_seconds", 0),
+                "algorithm": advanced_optimization_engine.get("algorithm_used", "unknown")
+            }
+        )
+
+    # Quality score check
+    quality_score = advanced_optimization_engine.get("solution_quality_score", 0.0)
+    if quality_score < 0.7:
+        return AssetCheckResult(
+            passed=False,
+            description=f"Solution quality score {quality_score:.2f} below threshold (0.7)",
+            metadata={
+                "quality_score": quality_score,
+                "risk_assessment": advanced_optimization_engine.get("risk_assessment", "unknown")
+            }
+        )
+
+    return AssetCheckResult(
+        passed=True,
+        description="Optimization completed successfully",
+        metadata={
+            "converged": advanced_optimization_engine.get("converged", False),
+            "evaluations": function_evaluations,
+            "runtime_seconds": advanced_optimization_engine.get("runtime_seconds", 0),
+            "quality_score": quality_score,
+            "risk_assessment": advanced_optimization_engine.get("risk_assessment", "unknown")
+        }
+    )
+
+
+@asset_check(asset=advanced_optimization_engine)
+def optimization_parameter_bounds_check(
+    context: AssetExecutionContext,
+    advanced_optimization_engine: Dict[str, Any]
+) -> AssetCheckResult:
+    """Asset check: Optimal parameters within acceptable bounds."""
+
+    if advanced_optimization_engine.get("optimization_failed", False):
+        return AssetCheckResult(passed=True, description="Skipping bounds check for failed optimization")
+
+    from orchestrator.optimization.optimization_schemas import PARAMETER_SCHEMA
+
+    violations = []
+    optimal_parameters = advanced_optimization_engine.get("optimal_parameters", {})
+
+    for param_name, value in optimal_parameters.items():
+        if param_name in PARAMETER_SCHEMA:
+            bounds = PARAMETER_SCHEMA[param_name]["range"]
+            if not (bounds[0] <= value <= bounds[1]):
+                violations.append({
+                    "parameter": param_name,
+                    "value": value,
+                    "bounds": bounds,
+                    "violation": "below_minimum" if value < bounds[0] else "above_maximum"
+                })
+
+    if violations:
+        return AssetCheckResult(
+            passed=False,
+            description=f"Parameter bounds violations: {len(violations)} parameters outside acceptable ranges",
+            metadata={"violations": violations}
+        )
+
+    return AssetCheckResult(
+        passed=True,
+        description="All optimal parameters within acceptable bounds",
+        metadata={
+            "parameters_validated": len(optimal_parameters),
+            "constraint_violations": advanced_optimization_engine.get("constraint_violations", {})
+        }
+    )

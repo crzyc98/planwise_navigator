@@ -82,7 +82,11 @@
       "Bash(DAGSTER_HOME:*)",
       "Bash(gh pr create:*)",
       "Bash(git remote get-url:*)",
-      "Bash(gh auth:*)"
+      "Bash(gh auth:*)",
+      "Bash(timeout 10s streamlit run:*)",
+      "Bash(/dev/null)",
+      "Bash(dagster run list:*)",
+      "Bash(dagster run status:*)"
     ],
     "deny": []
   }
