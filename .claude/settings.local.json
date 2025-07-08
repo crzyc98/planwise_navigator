@@ -86,7 +86,18 @@
       "Bash(timeout 10s streamlit run:*)",
       "Bash(/dev/null)",
       "Bash(dagster run list:*)",
-      "Bash(dagster run status:*)"
+      "Bash(dagster run status:*)",
+      "Bash(pip show:*)",
+      "Bash(venv/bin/dagster asset materialize --select advanced_optimization_engine -f definitions.py)",
+      "Bash(venv/bin/dagster asset list -f definitions.py)",
+      "Bash(venv/bin/dagster asset materialize --select single_year_simulation -f definitions.py)",
+      "Bash(venv/bin/dagster asset materialize --select \"simulation_year_state,single_year_simulation\" -f definitions.py)",
+      "Bash(venv/bin/dagster asset materialize --select \"simulation_config\" -f definitions.py)",
+      "Bash(/Users/nicholasamaral/planwise_navigator/venv/bin/dagster job list -m definitions)",
+      "Bash(/Users/nicholasamaral/planwise_navigator/venv/bin/python -c \"\nimport duckdb\nconn = duckdb.connect(''simulation.duckdb'')\ntables = conn.execute(''SELECT table_name FROM information_schema.tables WHERE table_schema = \"\"main\"\"'').fetchall()\nprint(''Tables in database:'')\nfor table in tables:\n    print(f''  - {table[0]}'')\n    \n# Check specifically for workforce tables\ntry:\n    count = conn.execute(''SELECT COUNT(*) FROM fct_workforce_snapshot'').fetchone()[0]\n    print(f''fct_workforce_snapshot: {count} rows'')\nexcept Exception as e:\n    print(f''fct_workforce_snapshot: NOT FOUND ({e})'')\n    \ntry:\n    count = conn.execute(''SELECT COUNT(*) FROM fct_yearly_events'').fetchone()[0]\n    print(f''fct_yearly_events: {count} rows'')\nexcept Exception as e:\n    print(f''fct_yearly_events: NOT FOUND ({e})'')\n\nconn.close()\n\")",
+      "Bash(/Users/nicholasamaral/planwise_navigator/venv/bin/python -c \"\nimport duckdb\nconn = duckdb.connect(''simulation.duckdb'')\ntables = conn.execute(''SELECT table_name FROM information_schema.tables'').fetchall()\nprint(''Tables in database:'')\nfor table in tables:\n    print(f''  - {table[0]}'')\n    \nprint(f''Total tables: {len(tables)}'')\n\n# Check specifically for workforce tables\ntry:\n    count = conn.execute(''SELECT COUNT(*) FROM fct_workforce_snapshot'').fetchone()[0]\n    years = conn.execute(''SELECT DISTINCT simulation_year FROM fct_workforce_snapshot ORDER BY simulation_year'').fetchall()\n    print(f''fct_workforce_snapshot: {count} rows, years: {[y[0] for y in years]}'')\nexcept Exception as e:\n    print(f''fct_workforce_snapshot: NOT FOUND ({e})'')\n    \ntry:\n    count = conn.execute(''SELECT COUNT(*) FROM fct_yearly_events'').fetchone()[0]\n    years = conn.execute(''SELECT DISTINCT simulation_year FROM fct_yearly_events ORDER BY simulation_year'').fetchall()\n    print(f''fct_yearly_events: {count} rows, years: {[y[0] for y in years]}'')\nexcept Exception as e:\n    print(f''fct_yearly_events: NOT FOUND ({e})'')\n\nconn.close()\n\")",
+      "Bash(/Users/nicholasamaral/planwise_navigator/venv/bin/python:*)",
+      "Bash(git reset:*)"
     ],
     "deny": []
   }

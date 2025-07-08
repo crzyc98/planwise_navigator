@@ -6,7 +6,7 @@ A comprehensive, opinionated reference for generating enterprise-grade, producti
 
 1  Purpose
 
-This playbook tells Claude exactly how to turn high-level feature requests into ready-to-ship artifacts for PlanWise Navigator, Fidelity’s on-premises workforce-simulation platform.
+This playbook tells Claude exactly how to turn high-level feature requests into ready-to-ship artifacts for PlanWise Navigator, Fidelity's on-premises workforce-simulation platform.
 Follow it verbatim to guarantee:
 	•	Event-sourced architecture with immutable audit trails
 	•	Modular, maintainable components with single-responsibility design
@@ -464,4 +464,35 @@ The CI pipeline (GitHub Actions) performs:
 
 ⸻
 
+14  Memory of Actions
+
+• Added a memory section to track key actions and interactions with the project
+• Implemented memory tracking for future reference and project continuity
+
 When in doubt: ask questions before you code. Precision beats assumption.
+
+## Troubleshooting: Virtual Environment Issues
+
+**Problem**: `ModuleNotFoundError: No module named 'dbt.cli'` when running dagster commands
+
+**Root Cause**: Using system-installed dagster (`/opt/homebrew/bin/dagster`) instead of virtual environment's dagster
+
+**Solution**:
+1. Always activate virtual environment first:
+   ```bash
+   source venv/bin/activate
+   ```
+
+2. Or use virtual environment's dagster directly:
+   ```bash
+   venv/bin/dagster asset materialize --select advanced_optimization_engine -f definitions.py
+   ```
+
+**Current Working Versions**:
+- dbt-core: 1.9.8
+- dagster: 1.10.21
+- dagster-dbt: 0.26.21
+
+These versions are compatible and work correctly together.
+
+EOF < /dev/null

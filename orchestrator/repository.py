@@ -43,6 +43,7 @@ class IngestionConfig(Config):
 dbt_resource = DbtCliResource(
     project_dir=str(DBT_PROJECT_DIR),
     profiles_dir=str(DBT_PROFILES_DIR),
+    dbt_executable=str(Path(__file__).parent.parent / "venv" / "bin" / "dbt"),
 )
 
 
