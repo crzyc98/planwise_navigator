@@ -1,0 +1,26 @@
+story_id,epic,title,status,priority,completion_date,assignee,estimated_effort,dependencies,description,deliverables,notes
+S013-01,E013,dbt Command Utility Creation,not_started,medium,,TBD,3d,,Create reusable dbt command utilities for common operations,dbt utility functions,Part of pipeline modularization
+S013-02,E013,Data Cleaning Separation,not_started,medium,,TBD,2d,S013-01,Separate data cleaning logic from main pipeline,Clean data processing module,
+S013-03,E013,Event Processing Modularization,not_started,high,,TBD,5d,S013-02,Modularize event processing into discrete components,Event processing modules,
+S013-04,E013,Snapshot Management,not_started,medium,,TBD,3d,S013-03,Implement proper snapshot management system,Snapshot management utilities,
+S013-05,E013,Single Year Refactoring,not_started,high,,TBD,4d,S013-04,Refactor single year simulation logic,Refactored single year processing,
+S013-06,E013,Multi-Year Orchestration,not_started,high,,TBD,5d,S013-05,Implement multi-year orchestration improvements,Multi-year orchestration system,
+S013-07,E013,Validation Testing,not_started,medium,,TBD,3d,S013-06,Add comprehensive validation testing,Validation test suite,
+S013-08,E013,Documentation Cleanup,not_started,low,,TBD,2d,S013-07,Clean up and organize documentation,Updated documentation,
+s013-09,E013,Fix Turnover Growth,completed,high,2024-Q4,Claude,2d,,Resolve exponential growth issue in workforce simulation,Fixed growth calculations,Investigation completed - growth is now stable at 3%
+S041,E012,Fix New Hire Date Distribution,completed,high,2024-Q4,Claude,1d,,Fix new hire active participants date distribution issue,Fixed date distribution logic,
+S043,E012,Parameter Tables Foundation,planned,high,,TBD,3d,,Create foundational parameter tables for compensation tuning,comp_levers.csv and parameter management,Foundation for optimization system
+S044,E012,Model Integration Dynamic Parameters,planned,high,,TBD,4d,S043,Integrate dynamic parameters into dbt models,Parameter-driven models,
+S045,E012,Dagster Enhancement Tuning Loops,completed,high,2024-Q4,Claude,3d,S044,Enhance Dagster with tuning loop capabilities,Dagster tuning integration,
+S046,E012,Analyst Interface Streamlit,planned,high,,TBD,5d,S044,Create Streamlit interface for analysts,Streamlit compensation tuning UI,
+S047,E012,Optimization Engine,completed,high,2024-Q4,Claude,4d,S045,Implement core optimization engine,SciPy-based optimization engine,Post-completion bug fix completed
+S048,E012,Governance Audit Framework,planned,medium,,TBD,3d,S046,Implement governance and audit framework,Audit and governance system,
+S049,E012,Optimization Engine Robustness,not_started,high,,TBD,4d,S047,Address thread-safety and performance issues,Robust optimization engine,Critical for production use
+S050,E012,Advanced Optimization Features,not_started,medium,,TBD,5d,S049,Implement advanced optimization features,Advanced optimization capabilities,
+S051,E012,Optimization Monitoring Observability,not_started,medium,,TBD,3d,S050,Add monitoring and observability for optimization,Monitoring and observability system,
+S055,E012,Audit Raise Timing Implementation,completed,medium,2024-Q4,Claude,2d,,Audit current raise timing implementation,Raise timing audit report,
+S056,E012,Design Realistic Raise Timing,completed,medium,2024-Q4,Claude,3d,S055,Design realistic raise timing system,Raise timing design specification,
+S057,E012,Implement Realistic Raise Timing,completed,medium,2024-Q4,Claude,4d,S056,Implement realistic raise timing distribution,Realistic raise timing implementation,
+S063,E014,Developer CI Script,completed,high,2024-Q4,Claude,3d,,Create developer-initiated CI script,Enhanced CI script with tag-based validation,Recently enhanced with 5-layer defense strategy
+S064,E014,Tag Critical Models,completed,high,2024-Q4,Claude,2d,,Tag critical dbt models for better organization,Comprehensive model tagging system,
+S065,E014,dbt Contracts Core Models,completed,high,2024-Q4,Claude,3d,S064,Implement dbt contracts for core models,Contract-enforced models with schema validation,
