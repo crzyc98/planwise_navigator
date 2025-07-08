@@ -1,4 +1,9 @@
-{{ config(materialized='table') }}
+{{ config(
+    materialized='table',
+    contract={
+        "enforced": true
+    }
+) }}
 
 -- Standardize raw census data column names to PlanWise Navigator's canonical schema.
 -- Handles multiple possible raw column names via COALESCE() where necessary.

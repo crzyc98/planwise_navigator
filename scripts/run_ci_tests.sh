@@ -133,6 +133,15 @@ run_test "dbt dependencies" "dbt deps"
 # Check compilation
 run_test "dbt compilation" "dbt compile"
 
+# Validate dbt contracts
+log_info "🔒 dbt contract validation..."
+if dbt ls --select "tag:contract" > /dev/null 2>&1; then
+    run_test "dbt contract validation" "dbt compile --select tag:contract"
+    log_success "Contract-enabled models compiled successfully"
+else
+    log_warning "No contract-enabled models found"
+fi
+
 # Run fast tests (excluding slow ones) - optional since they depend on data
 run_test "dbt fast tests" "dbt test --exclude tag:slow" "true"
 

@@ -1,8 +1,11 @@
 {{ config(
     materialized='incremental',
     unique_key=['employee_id', 'simulation_year'],
-    on_schema_change='sync_all_columns',
-    incremental_strategy='delete+insert'
+    on_schema_change='fail',
+    incremental_strategy='delete+insert',
+    contract={
+        "enforced": true
+    }
 ) }}
 
 {% set simulation_year = var('simulation_year', 2025) %}
