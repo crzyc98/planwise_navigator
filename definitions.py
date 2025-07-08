@@ -56,6 +56,7 @@ defs = Definitions(
         "dbt": DbtCliResource(
             project_dir=str(DBT_PROJECT_DIR),
             profiles_dir=str(DBT_PROFILES_DIR),
+            dbt_executable=str(PROJECT_ROOT / "venv" / "bin" / "dbt"),
         ),
         "duckdb_resource": DuckDBResource(
             database_path=str(PROJECT_ROOT / "simulation.duckdb"),

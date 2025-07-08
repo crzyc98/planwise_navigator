@@ -1429,7 +1429,6 @@ def advanced_optimization_engine(
 
 
 @asset(
-    deps=[advanced_optimization_engine],
     group_name="optimization_engine"
 )
 def optimization_sensitivity_analysis(
@@ -1479,7 +1478,6 @@ def optimization_sensitivity_analysis(
 
 
 @asset(
-    deps=[advanced_optimization_engine],
     group_name="optimization_engine"
 )
 def optimization_evidence_report(

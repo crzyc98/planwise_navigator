@@ -41,8 +41,15 @@ CONFIG_PATH = PROJECT_ROOT / "config" / "simulation_config.yaml"
 # Initialize dbt project path for asset discovery
 
 # Define dbt CLI resource once and reuse in job definitions
+# Use absolute path to dbt executable in virtual environment
+from pathlib import Path
+PROJECT_ROOT = Path(__file__).parent.parent
+DBT_EXECUTABLE = PROJECT_ROOT / "venv" / "bin" / "dbt"
+
 dbt_resource = DbtCliResource(
-    project_dir=os.fspath(DBT_PROJECT_PATH), profiles_dir=os.fspath(DBT_PROFILES_PATH)
+    project_dir=os.fspath(DBT_PROJECT_PATH),
+    profiles_dir=os.fspath(DBT_PROFILES_PATH),
+    dbt_executable=str(DBT_EXECUTABLE)
 )
 
 
