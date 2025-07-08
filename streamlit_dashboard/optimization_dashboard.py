@@ -17,6 +17,7 @@ import plotly.express as px
 import plotly.graph_objects as go
 from datetime import datetime, timedelta
 import json
+import time
 from pathlib import Path
 
 from optimization_results_manager import get_optimization_results_manager
