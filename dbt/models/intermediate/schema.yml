@@ -11,6 +11,8 @@ models:
       - Assigns level_id based on compensation bands
       - Creates age and tenure bands for analysis
       - Only includes active employees (no termination date)
+    config:
+      tags: ["foundation", "critical"]
 
     columns:
       - name: employee_id
@@ -103,6 +105,27 @@ models:
         data_tests:
           - not_null
 
+  - name: int_workforce_previous_year
+    description: >
+      Previous year workforce state for multi-year simulation continuity.
+      Provides the workforce foundation for subsequent simulation years.
+    config:
+      tags: ["foundation", "critical"]
+    columns:
+      - name: employee_id
+        description: Unique identifier for each employee
+        data_tests:
+          - unique
+          - not_null
+      - name: employment_status
+        description: Employment status (active/terminated)
+        data_tests:
+          - not_null
+      - name: simulation_year
+        description: Simulation year this workforce represents
+        data_tests:
+          - not_null
+
   - name: int_termination_events
     description: >
       Hazard-based termination events for workforce simulation.
@@ -113,6 +136,8 @@ models:
       - Deterministic randomization with employee_id hash for reproducibility
       - Demographically-aware modeling (higher turnover for new hires)
       - Consistent with promotion event selection pattern
+    config:
+      tags: ["event_sourcing"]
 
     # data_tests will be validated at the column level
 
@@ -207,6 +232,8 @@ models:
       - Deterministic behavior preserved (same sequence_num = same date)
       - No clustering at December 31st
       - Realistic hiring patterns for workforce simulation
+    config:
+      tags: ["event_sourcing"]
 
     columns:
       - name: employee_id
@@ -306,6 +333,8 @@ models:
       - Support for parameter locking to prevent changes
       - Audit trail of parameter sources (scenario, default, hardcoded)
       - Optimized for real-time parameter lookup during simulation
+    config:
+      tags: ["critical", "foundation"]
 
     columns:
       - name: parameter_key
