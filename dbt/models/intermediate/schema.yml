@@ -233,7 +233,7 @@ models:
       - No clustering at December 31st
       - Realistic hiring patterns for workforce simulation
     config:
-      tags: ["event_sourcing"]
+      tags: ["event_sourcing", "critical"]
 
     columns:
       - name: employee_id
@@ -395,5 +395,95 @@ models:
 
       - name: resolved_at
         description: Timestamp when parameter was resolved
+        data_tests:
+          - not_null
+
+  - name: int_merit_events
+    description: >
+      Merit-based compensation increases applied to eligible employees.
+      Uses dynamic parameter resolution for merit rates by job level and year.
+    config:
+      tags: ["event_sourcing", "critical"]
+    columns:
+      - name: employee_id
+        description: Unique identifier for employee receiving merit increase
+        data_tests:
+          - not_null
+      - name: event_type
+        description: Type of event (always 'RAISE')
+        data_tests:
+          - not_null
+          - accepted_values:
+              values: ['RAISE']
+      - name: simulation_year
+        description: Year when merit increase occurs
+        data_tests:
+          - not_null
+      - name: effective_date
+        description: Date when merit increase becomes effective
+        data_tests:
+          - not_null
+      - name: compensation_amount
+        description: New compensation amount after merit increase
+        data_tests:
+          - not_null
+
+  - name: int_promotion_events
+    description: >
+      Promotion events for employees advancing to higher job levels.
+      Uses hazard-based probability models with demographic factors.
+    config:
+      tags: ["event_sourcing", "critical"]
+    columns:
+      - name: employee_id
+        description: Unique identifier for promoted employee
+        data_tests:
+          - not_null
+      - name: event_type
+        description: Type of event (always 'promotion')
+        data_tests:
+          - not_null
+          - accepted_values:
+              values: ['promotion']
+      - name: simulation_year
+        description: Year when promotion occurs
+        data_tests:
+          - not_null
+      - name: effective_date
+        description: Date when promotion becomes effective
+        data_tests:
+          - not_null
+      - name: new_level_id
+        description: New job level after promotion
+        data_tests:
+          - not_null
+      - name: compensation_amount
+        description: New compensation amount after promotion
+        data_tests:
+          - not_null
+
+  - name: int_new_hire_termination_events
+    description: >
+      Termination events for employees hired in the same simulation year.
+      Applies higher turnover rates to new hires for realistic modeling.
+    config:
+      tags: ["event_sourcing"]
+    columns:
+      - name: employee_id
+        description: Unique identifier for terminated new hire
+        data_tests:
+          - not_null
+      - name: event_type
+        description: Type of event (always 'termination')
+        data_tests:
+          - not_null
+          - accepted_values:
+              values: ['termination']
+      - name: simulation_year
+        description: Year when termination occurs
+        data_tests:
+          - not_null
+      - name: effective_date
+        description: Date when termination becomes effective
         data_tests:
           - not_null
