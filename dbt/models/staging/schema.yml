@@ -6,6 +6,8 @@ models:
       Staging model for raw census employee data.
       Cleans and standardizes employee records for simulation processing.
       Deduplicates on employee_id, keeping most recent hire date.
+    config:
+      tags: ["foundation", "locked"]
     columns:
       - name: employee_id
         description: Unique identifier for each employee (primary key)
@@ -203,6 +205,8 @@ models:
     description: >
       Compensation parameter levers for dynamic scenario-based modeling.
       Enables analysts to adjust compensation parameters without code changes.
+    config:
+      tags: ["critical", "locked"]
     columns:
       - name: scenario_id
         description: Unique identifier for the parameter scenario
