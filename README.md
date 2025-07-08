@@ -155,6 +155,29 @@ streamlit run streamlit_dashboard/main.py
 
 ### Development Workflow
 
+#### Pre-Commit Validation
+**Always run the CI script before committing changes:**
+```bash
+# Run comprehensive validation suite
+./scripts/run_ci_tests.sh
+
+# Expected output:
+# ✅ Python import validation passed
+# ✅ Ruff linting (critical errors only) passed
+# ✅ dbt compilation passed
+# ✅ dbt fast tests passed
+# ✅ All CI tests passed! 🎉
+```
+
+The CI script performs:
+- **Python validation**: Import checks and critical error linting
+- **dbt compilation**: Ensures all models compile successfully
+- **Fast tests**: Runs dbt tests (excluding slow/long-running ones)
+- **Critical model validation**: Tests core business models
+- **Configuration validation**: Checks YAML configuration files
+
+**Performance**: Completes in under 2 minutes for optimal developer productivity.
+
 #### dbt Development
 ```bash
 cd dbt
@@ -325,12 +348,37 @@ class SimulationConfig(BaseModel):
 # Lock all versions in requirements.txt
 ```
 
+#### CI Script Issues
+```bash
+# If CI script fails, common fixes:
+# 1. Install development tools
+pip install -r requirements-dev.txt
+
+# 2. Fix Python linting errors
+ruff check orchestrator/ streamlit_dashboard/
+# Fix imports and syntax issues
+
+# 3. Fix dbt compilation errors
+cd dbt && dbt compile
+# Check model syntax and dependencies
+
+# 4. dbt test failures
+dbt test --exclude tag:slow
+# Review test failures and fix data issues
+
+# 5. Missing virtual environment
+python3.11 -m venv venv
+source venv/bin/activate
+pip install -r requirements.txt
+```
+
 ### Getting Help
 - Check Dagster logs in the web interface
 - Run `dbt debug` for connection issues
 - Validate configuration with Pydantic models
 - Review asset lineage in Dagster for dependency issues
 - Ensure DAGSTER_HOME is set: `launchctl getenv DAGSTER_HOME`
+- **CI Issues**: Run `./scripts/run_ci_tests.sh` for detailed error messages
 
 ## Further Reading
 

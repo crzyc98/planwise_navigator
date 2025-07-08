@@ -97,7 +97,22 @@
       "Bash(/Users/nicholasamaral/planwise_navigator/venv/bin/python -c \"\nimport duckdb\nconn = duckdb.connect(''simulation.duckdb'')\ntables = conn.execute(''SELECT table_name FROM information_schema.tables WHERE table_schema = \"\"main\"\"'').fetchall()\nprint(''Tables in database:'')\nfor table in tables:\n    print(f''  - {table[0]}'')\n    \n# Check specifically for workforce tables\ntry:\n    count = conn.execute(''SELECT COUNT(*) FROM fct_workforce_snapshot'').fetchone()[0]\n    print(f''fct_workforce_snapshot: {count} rows'')\nexcept Exception as e:\n    print(f''fct_workforce_snapshot: NOT FOUND ({e})'')\n    \ntry:\n    count = conn.execute(''SELECT COUNT(*) FROM fct_yearly_events'').fetchone()[0]\n    print(f''fct_yearly_events: {count} rows'')\nexcept Exception as e:\n    print(f''fct_yearly_events: NOT FOUND ({e})'')\n\nconn.close()\n\")",
       "Bash(/Users/nicholasamaral/planwise_navigator/venv/bin/python -c \"\nimport duckdb\nconn = duckdb.connect(''simulation.duckdb'')\ntables = conn.execute(''SELECT table_name FROM information_schema.tables'').fetchall()\nprint(''Tables in database:'')\nfor table in tables:\n    print(f''  - {table[0]}'')\n    \nprint(f''Total tables: {len(tables)}'')\n\n# Check specifically for workforce tables\ntry:\n    count = conn.execute(''SELECT COUNT(*) FROM fct_workforce_snapshot'').fetchone()[0]\n    years = conn.execute(''SELECT DISTINCT simulation_year FROM fct_workforce_snapshot ORDER BY simulation_year'').fetchall()\n    print(f''fct_workforce_snapshot: {count} rows, years: {[y[0] for y in years]}'')\nexcept Exception as e:\n    print(f''fct_workforce_snapshot: NOT FOUND ({e})'')\n    \ntry:\n    count = conn.execute(''SELECT COUNT(*) FROM fct_yearly_events'').fetchone()[0]\n    years = conn.execute(''SELECT DISTINCT simulation_year FROM fct_yearly_events ORDER BY simulation_year'').fetchall()\n    print(f''fct_yearly_events: {count} rows, years: {[y[0] for y in years]}'')\nexcept Exception as e:\n    print(f''fct_yearly_events: NOT FOUND ({e})'')\n\nconn.close()\n\")",
       "Bash(/Users/nicholasamaral/planwise_navigator/venv/bin/python:*)",
-      "Bash(git reset:*)"
+      "Bash(git reset:*)",
+      "Bash(timeout:*)",
+      "Bash(pip check)",
+      "Bash(/Users/nicholasamaral/planwise_navigator/venv/bin/dbt parse)",
+      "Bash(/Users/nicholasamaral/planwise_navigator/venv/bin/dbt ls --select tag:critical)",
+      "Bash(/Users/nicholasamaral/planwise_navigator/venv/bin/dbt ls --select tag:foundation)",
+      "Bash(/Users/nicholasamaral/planwise_navigator/venv/bin/dbt ls --select tag:locked)",
+      "Bash(/Users/nicholasamaral/planwise_navigator/venv/bin/dbt ls --select tag:event_sourcing)",
+      "Bash(/Users/nicholasamaral/planwise_navigator/venv/bin/dbt ls --select tag:critical,tag:foundation)",
+      "Bash(/Users/nicholasamaral/planwise_navigator/venv/bin/dbt ls --select tag:critical --resource-type model)",
+      "Bash(/Users/nicholasamaral/planwise_navigator/venv/bin/dbt test --select tag:critical --dry-run)",
+      "Bash(/Users/nicholasamaral/planwise_navigator/venv/bin/dbt docs generate)",
+      "Bash(/Users/nicholasamaral/planwise_navigator/venv/bin/dbt clean)",
+      "Bash(/Users/nicholasamaral/planwise_navigator/venv/bin/dbt deps)",
+      "Bash(/Users/nicholasamaral/planwise_navigator/venv/bin/dbt ls --select tag:critical,tag:foundation,tag:locked,tag:event_sourcing --resource-type model)",
+      "Bash(/Users/nicholasamaral/planwise_navigator/venv/bin/dbt ls --select \"tag:critical or tag:foundation or tag:locked or tag:event_sourcing\" --resource-type model)"
     ],
     "deny": []
   }
