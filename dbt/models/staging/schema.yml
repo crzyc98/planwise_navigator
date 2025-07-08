@@ -3,21 +3,81 @@ version: 2
 models:
   - name: stg_census_data
     description: >
-      Staging model for raw census employee data.
-      Cleans and standardizes employee records for simulation processing.
-      Deduplicates on employee_id, keeping most recent hire date.
+      LOCKED CONTRACT: Primary census data foundation model.
+
+      This model serves as the foundation for all workforce simulation and must maintain
+      schema stability. Changes to this contract require architecture review as it
+      affects all downstream models in the simulation pipeline.
     config:
-      tags: ["foundation", "locked"]
+      tags: ["foundation", "locked", "contract"]
     columns:
       - name: employee_id
-        description: Unique identifier for each employee (primary key)
+        description: "PRIMARY KEY - Unique identifier for each employee. NEVER change this field."
+        data_type: varchar
+        constraints:
+          - type: not_null
+          - type: unique
         data_tests:
           - unique
           - not_null
       - name: employee_ssn
-        description: Social Security Number for each employee (for compliance/reporting)
+        description: "Social Security Number for compliance and reporting. Required for audit trails."
+        data_type: varchar
+        constraints:
+          - type: not_null
         data_tests:
           - not_null
+      - name: employee_birth_date
+        description: "Employee birth date for age calculations in simulation models."
+        data_type: date
+        constraints:
+          - type: not_null
+      - name: employee_hire_date
+        description: "Employee hire date for tenure calculations and baseline establishment."
+        data_type: date
+        constraints:
+          - type: not_null
+      - name: employee_termination_date
+        description: "Termination date if applicable. NULL for active employees."
+        data_type: date
+      - name: employee_gross_compensation
+        description: "Gross annual compensation used for level assignment and simulation baseline."
+        data_type: decimal
+        constraints:
+          - type: not_null
+      - name: active
+        description: "Active status flag from source system."
+        data_type: boolean
+      - name: employee_plan_year_compensation
+        description: "Plan year compensation (may be partial year)."
+        data_type: decimal
+        constraints:
+          - type: not_null
+      - name: employee_annualized_compensation
+        description: "Annualized compensation calculated for partial year workers."
+        data_type: decimal
+        constraints:
+          - type: not_null
+      - name: employee_capped_compensation
+        description: "Capped compensation for benefit calculations."
+        data_type: decimal
+      - name: employee_deferral_rate
+        description: "Employee deferral rate for benefit modeling."
+        data_type: double
+      - name: employee_contribution
+        description: "Employee contribution amount."
+        data_type: double
+      - name: employer_core_contribution
+        description: "Employer core contribution amount."
+        data_type: double
+      - name: employer_match_contribution
+        description: "Employer match contribution amount."
+        data_type: double
+      - name: eligibility_entry_date
+        description: "Benefit eligibility entry date."
+        data_type: date
+        constraints:
+          - type: not_null
 
   - name: stg_census_duplicates_audit
     description: >

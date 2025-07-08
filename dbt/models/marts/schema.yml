@@ -50,7 +50,7 @@ models:
   - name: fct_yearly_events
     description: "Consolidated fact table of all workforce events by simulation year"
     config:
-      tags: ["critical", "locked", "event_sourcing"]
+      tags: ["critical", "locked", "event_sourcing", "contract"]
     # Note: Removed dbt_utils.expression_is_true tests to prevent DuckDBRelation serialization issues
     # Basic data quality is validated through column-level tests below
     columns:
@@ -122,7 +122,7 @@ models:
   - name: fct_workforce_snapshot
     description: "Year-end workforce snapshot showing current state after all events"
     config:
-      tags: ["critical", "foundation"]
+      tags: ["critical", "foundation", "contract"]
     # Note: Removed dbt_utils.expression_is_true tests to prevent DuckDBRelation serialization issues
     # Basic data quality is validated through column-level tests below
     data_tests:
