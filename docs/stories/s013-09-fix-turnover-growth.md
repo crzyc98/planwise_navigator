@@ -1,3 +1,35 @@
+# Story S013-09: Fix Turnover Growth
+
+**Epic**: E013 - Dagster Simulation Pipeline Modularization
+**Priority**: High
+**Estimate**: 2 story points
+**Status**: ✅ COMPLETED (2025-07-09)
+
+## User Story
+
+**As a** PlanWise Navigator developer
+**I want** to resolve the exponential growth issue in workforce simulation
+**So that** the simulation produces consistent 3% annual growth as intended
+
+## ✅ RESOLUTION SUMMARY
+
+**Issue**: Workforce simulation was experiencing exponential growth instead of target 3% annual growth:
+- 2026: 3.1% growth ✅
+- 2027: 6.8% growth ⚠️
+- 2028: 9.3% growth ❌
+- 2029: 17.5% growth ❌❌
+
+**Root Cause**: Mathematical error in hiring calculation formula due to workforce count discrepancy
+
+**Final Status**: ✅ **RESOLVED** - Growth rates now consistent at target 3% annually:
+- 2027: 3.0% growth ✅
+- 2028: 3.0% growth ✅
+- 2029: 3.0% growth ✅
+
+---
+
+## Original Investigation Documentation
+
 Workforce Simulation Exponential Growth Issue - Investigation Story
 
   Problem Statement
