@@ -852,6 +852,7 @@ def run_year_simulation(context: OpExecutionContext) -> YearResult:
     """
     Executes complete simulation for a single year.
     Implements the precise sequence from Epic 11.5.
+    Refactored to use modular components per S013-05.
     """
     # Get configuration from op config
     config = context.op_config
@@ -866,9 +867,6 @@ def run_year_simulation(context: OpExecutionContext) -> YearResult:
 
     # Clean existing data for this specific year only (preserves other years for dependencies)
     clean_duckdb_data(context, [year])
-
-    # dbt resource is available via context.resources.dbt if needed
-    # Currently not using it, so we don't assign it to a variable
 
     try:
         # Step 1: Enhanced validation for multi-year dependencies
@@ -903,7 +901,7 @@ def run_year_simulation(context: OpExecutionContext) -> YearResult:
                         f"Previous year {year - 1} has events ({events_count}) but no workforce snapshot. Attempting to build missing snapshot..."
                     )
 
-                    # Try to build missing workforce snapshot
+                    # Try to build missing workforce snapshot using modular utility
                     try:
                         execute_dbt_command(
                             context,
@@ -945,7 +943,8 @@ def run_year_simulation(context: OpExecutionContext) -> YearResult:
             finally:
                 conn.close()
 
-        # Step 2: First run int_workforce_previous_year to establish workforce base for event generation
+        # Step 2: Establish workforce base for event generation
+        context.log.info(f"Running int_workforce_previous_year for year {year}")
         execute_dbt_command(
             context,
             ["run", "--select", "int_workforce_previous_year"],
@@ -955,9 +954,11 @@ def run_year_simulation(context: OpExecutionContext) -> YearResult:
         )
 
         # Step 3: Run event generation models using modular operation
+        context.log.info(f"Running event models for year {year}")
         _run_dbt_event_models_for_year_internal(context, year, config)
 
-        # Step 4: Consolidate events
+        # Step 4: Consolidate all events into yearly events table
+        context.log.info(f"Running fct_yearly_events for year {year}")
         execute_dbt_command(
             context,
             ["run", "--select", "fct_yearly_events"],
@@ -966,7 +967,8 @@ def run_year_simulation(context: OpExecutionContext) -> YearResult:
             f"fct_yearly_events for year {year}",
         )
 
-        # Step 5: Generate final workforce snapshot (cleaning handled by clean_duckdb_data)
+        # Step 5: Generate final workforce snapshot
+        context.log.info(f"Running fct_workforce_snapshot for year {year}")
         execute_dbt_command(
             context,
             ["run", "--select", "fct_workforce_snapshot"],
