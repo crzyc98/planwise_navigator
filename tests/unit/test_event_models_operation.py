@@ -1,5 +1,5 @@
 """
-Unit tests for S013-03: run_dbt_event_models_for_year operation
+Unit tests for S013-03: _run_dbt_event_models_for_year_internal function
 
 Comprehensive test suite for the event processing modularization,
 covering Epic 11.5 sequence validation, hiring calculations, and debug logging.
@@ -9,11 +9,11 @@ import pytest
 from unittest.mock import Mock, patch
 from dagster import OpExecutionContext
 
-from orchestrator.simulator_pipeline import run_dbt_event_models_for_year
+from orchestrator.simulator_pipeline import _run_dbt_event_models_for_year_internal
 
 
 class TestEventModelsOperation:
-    """Test suite for run_dbt_event_models_for_year operation."""
+    """Test suite for _run_dbt_event_models_for_year_internal function."""
 
     @pytest.fixture
     def mock_context(self):
@@ -62,7 +62,7 @@ class TestEventModelsOperation:
         mock_duckdb_connection.fetchone.return_value = [1000]  # Mock hire count
 
         # Execute and verify the function runs without errors
-        run_dbt_event_models_for_year(mock_context, year, sample_config)
+        _run_dbt_event_models_for_year_internal(mock_context, year, sample_config)
 
         # Verify Epic 11.5 sequence models are executed in correct order
         expected_models = [
@@ -102,30 +102,25 @@ class TestEventModelsOperation:
     ):
         """Test hiring calculation debug logging functionality."""
         year = 2025
-        expected_hire_count = 150
+        expected_workforce_count = 150
 
         # Mock database connection for debug query
         mock_duckdb_connect.return_value = mock_duckdb_connection
-        mock_duckdb_connection.fetchone.return_value = [expected_hire_count]
+        mock_duckdb_connection.fetchone.return_value = [expected_workforce_count]
 
         # Execute and verify debug query was executed
-        result = run_dbt_event_models_for_year(mock_context, year, sample_config)
-        expected_debug_query = """
-            SELECT COUNT(*) as hire_count
-            FROM int_hiring_events
-            WHERE simulation_year = ?
-        """
-        mock_duckdb_connection.execute.assert_called_with(expected_debug_query, [year])
+        result = _run_dbt_event_models_for_year_internal(mock_context, year, sample_config)
+        expected_debug_query = "SELECT COUNT(*) FROM int_baseline_workforce WHERE employment_status = 'active'"
+        mock_duckdb_connection.execute.assert_called_with(expected_debug_query)
 
         # Verify debug logging
         mock_context.log.info.assert_any_call("🔍 HIRING CALCULATION DEBUG:")
         mock_context.log.info.assert_any_call(
-            f"   Year {year} generated {expected_hire_count} hiring events"
+            f"  📊 Starting workforce: {expected_workforce_count} active employees"
         )
 
-        # Verify hire count is included in result
-        assert result["hiring_debug"]["hire_count"] == expected_hire_count
-        assert result["hiring_debug"]["year"] == year
+        # Verify workforce count is included in result
+        assert result["hiring_debug"]["workforce_count"] == expected_workforce_count
 
     @patch("orchestrator.simulator_pipeline.execute_dbt_command")
     @patch("orchestrator.simulator_pipeline.duckdb.connect")
@@ -143,7 +138,7 @@ class TestEventModelsOperation:
         mock_duckdb_connection.fetchone.return_value = [75]
 
         # Execute and verify configuration parameters
-        run_dbt_event_models_for_year(mock_context, year, sample_config)
+        _run_dbt_event_models_for_year_internal(mock_context, year, sample_config)
 
         # Verify each execute_dbt_command call received correct configuration
         for call_args in mock_execute_dbt.call_args_list:
@@ -176,12 +171,12 @@ class TestEventModelsOperation:
     ):
         """Test that return structure contains all required elements."""
         year = 2025
-        hire_count = 200
+        workforce_count = 200
 
         mock_duckdb_connect.return_value = mock_duckdb_connection
-        mock_duckdb_connection.fetchone.return_value = [hire_count]
+        mock_duckdb_connection.fetchone.return_value = [workforce_count]
 
-        result = run_dbt_event_models_for_year(mock_context, year, sample_config)
+        result = _run_dbt_event_models_for_year_internal(mock_context, year, sample_config)
 
         # Verify return structure
         assert "year" in result
@@ -194,9 +189,9 @@ class TestEventModelsOperation:
         # Verify hiring debug structure
         hiring_debug = result["hiring_debug"]
         assert "year" in hiring_debug
-        assert "hire_count" in hiring_debug
+        assert "workforce_count" in hiring_debug
         assert hiring_debug["year"] == year
-        assert hiring_debug["hire_count"] == hire_count
+        assert hiring_debug["workforce_count"] == workforce_count
 
     @patch("orchestrator.simulator_pipeline.execute_dbt_command")
     @patch("orchestrator.simulator_pipeline.duckdb.connect")
@@ -221,7 +216,7 @@ class TestEventModelsOperation:
 
         # Should raise the exception
         with pytest.raises(Exception) as exc_info:
-            run_dbt_event_models_for_year(mock_context, year, sample_config)
+            _run_dbt_event_models_for_year_internal(mock_context, year, sample_config)
 
         assert "Merit events model failed" in str(exc_info.value)
 
@@ -238,7 +233,7 @@ class TestEventModelsOperation:
 
         # Should raise the exception
         with pytest.raises(Exception) as exc_info:
-            run_dbt_event_models_for_year(mock_context, year, sample_config)
+            _run_dbt_event_models_for_year_internal(mock_context, year, sample_config)
 
         assert "Database connection failed" in str(exc_info.value)
 
@@ -259,15 +254,15 @@ class TestEventModelsOperation:
         mock_duckdb_connect.return_value = mock_duckdb_connection
         mock_duckdb_connection.fetchone.return_value = [0]
 
-        result = run_dbt_event_models_for_year(mock_context, year, sample_config)
+        result = _run_dbt_event_models_for_year_internal(mock_context, year, sample_config)
 
         # Verify debug logging handles zero case
         mock_context.log.info.assert_any_call(
-            f"   Year {year} generated 0 hiring events"
+            f"  📊 Starting workforce: 0 active employees"
         )
 
         # Verify result structure
-        assert result["hiring_debug"]["hire_count"] == 0
+        assert result["hiring_debug"]["workforce_count"] == 0
 
     @patch("orchestrator.simulator_pipeline.execute_dbt_command")
     @patch("orchestrator.simulator_pipeline.duckdb.connect")
@@ -281,17 +276,17 @@ class TestEventModelsOperation:
     ):
         """Test scenario with large number of hiring events."""
         year = 2025
-        large_hire_count = 10000
+        large_workforce_count = 10000
 
         mock_duckdb_connect.return_value = mock_duckdb_connection
-        mock_duckdb_connection.fetchone.return_value = [large_hire_count]
+        mock_duckdb_connection.fetchone.return_value = [large_workforce_count]
 
-        result = run_dbt_event_models_for_year(mock_context, year, sample_config)
+        result = _run_dbt_event_models_for_year_internal(mock_context, year, sample_config)
 
         # Verify large numbers are handled correctly
-        assert result["hiring_debug"]["hire_count"] == large_hire_count
+        assert result["hiring_debug"]["workforce_count"] == large_workforce_count
         mock_context.log.info.assert_any_call(
-            f"   Year {year} generated {large_hire_count} hiring events"
+            f"  📊 Starting workforce: {large_workforce_count} active employees"
         )
 
     @pytest.mark.parametrize("year", [2020, 2025, 2030, 2050])
@@ -310,7 +305,7 @@ class TestEventModelsOperation:
         mock_duckdb_connect.return_value = mock_duckdb_connection
         mock_duckdb_connection.fetchone.return_value = [100]
 
-        result = run_dbt_event_models_for_year(mock_context, year, sample_config)
+        result = _run_dbt_event_models_for_year_internal(mock_context, year, sample_config)
 
         # Verify year is correctly passed through
         assert result["year"] == year
@@ -353,10 +348,17 @@ class TestEventModelsOperation:
         test_config[config_key] = config_value
 
         # Execute with configuration and verify it was passed correctly
-        run_dbt_event_models_for_year(mock_context, year, sample_config)
-        for call_args in mock_execute_dbt.call_args_list:
-            vars_dict = call_args[0][2]
-            assert vars_dict[config_key] == config_value
+        _run_dbt_event_models_for_year_internal(mock_context, year, test_config)
+
+        # For full_refresh, check the execute_dbt_command call parameter instead of vars_dict
+        if config_key == "full_refresh":
+            for call_args in mock_execute_dbt.call_args_list:
+                full_refresh_param = call_args[0][3]  # 4th parameter is full_refresh
+                assert full_refresh_param == config_value
+        else:
+            for call_args in mock_execute_dbt.call_args_list:
+                vars_dict = call_args[0][2]
+                assert vars_dict[config_key] == config_value
 
 
 class TestEventModelsOperationIntegration:
@@ -393,7 +395,7 @@ class TestEventModelsOperationIntegration:
     ):
         """Test realistic multi-year event processing workflow."""
         years = [2023, 2024, 2025]
-        hire_counts = [120, 135, 150]  # Increasing hiring over years
+        workforce_counts = [120, 135, 150]  # Increasing hiring over years
 
         mock_conn = Mock()
         mock_conn.close = Mock()
@@ -402,9 +404,9 @@ class TestEventModelsOperationIntegration:
         results = []
         for i, year in enumerate(years):
             # Mock different hire counts for each year
-            mock_conn.fetchone.return_value = [hire_counts[i]]
+            mock_conn.fetchone.return_value = [workforce_counts[i]]
 
-            result = run_dbt_event_models_for_year(
+            result = _run_dbt_event_models_for_year_internal(
                 integration_context, year, realistic_config
             )
             results.append(result)
@@ -412,7 +414,7 @@ class TestEventModelsOperationIntegration:
         # Verify all years processed correctly
         for i, result in enumerate(results):
             assert result["year"] == years[i]
-            assert result["hiring_debug"]["hire_count"] == hire_counts[i]
+            assert result["hiring_debug"]["workforce_count"] == workforce_counts[i]
             assert len(result["models_executed"]) == 5
 
         # Verify total dbt command executions (5 models * 3 years)
@@ -437,7 +439,7 @@ class TestEventModelsOperationIntegration:
 
         # Execute multiple times
         for _ in range(3):
-            run_dbt_event_models_for_year(integration_context, year, realistic_config)
+            _run_dbt_event_models_for_year_internal(integration_context, year, realistic_config)
 
         # Verify sequence order is maintained in all executions
         expected_sequence = [
