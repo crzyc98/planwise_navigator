@@ -75,7 +75,7 @@ class TestSnapshotManagementOperation:
         )
 
         # Verify database connections were closed
-        assert mock_duckdb_connection.close.call_count == 2  # Pre-check and post-check
+        assert mock_duckdb_connection.close.call_count == 3  # Pre-validation, cleanup, and post-validation
 
         # Verify logging
         mock_context.log.info.assert_any_call(
@@ -336,8 +336,11 @@ class TestSnapshotOperationIntegration:
 
         results = []
         for i, year in enumerate(years):
-            # Reset side_effect for each iteration
-            mock_conn.execute.return_value.fetchone.side_effect = [0, record_counts[i]]
+            # Reset side_effect for each iteration (3 connections: pre-validation, cleanup, post-validation)
+            mock_conn.execute.return_value.fetchone.side_effect = [
+                [record_counts[i]],  # Pre-validation: workforce count
+                [record_counts[i]]   # Post-validation: final snapshot count
+            ]
 
             result = run_dbt_snapshot_for_year(integration_context, year, "end_of_year")
             results.append(result)
