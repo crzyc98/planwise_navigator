@@ -134,6 +134,73 @@ def execute_dbt_command(
     context.log.info(f"Successfully completed: dbt {' '.join(command)}")
 
 
+def execute_dbt_command_streaming(
+    context: OpExecutionContext,
+    command: List[str],
+    vars_dict: Dict[str, Any] = None,
+    full_refresh: bool = False,
+    description: str = "",
+):
+    """
+    Execute a dbt command with streaming output and standardized error handling.
+
+    This utility provides streaming execution for dbt commands, particularly useful
+    for long-running operations like full builds. It maintains the same interface
+    as execute_dbt_command but yields results as they become available.
+
+    Args:
+        context: Dagster operation execution context
+        command: Base dbt command as list (e.g., ["build"])
+        vars_dict: Variables to pass to dbt as --vars (optional)
+        full_refresh: Whether to add --full-refresh flag to command
+        description: Human-readable description for logging and error messages
+
+    Yields:
+        Results from dbt command execution as they become available
+
+    Examples:
+        Basic build with streaming:
+        >>> yield from execute_dbt_command_streaming(context, ["build"], {}, False, "full dbt build")
+
+        With variables:
+        >>> yield from execute_dbt_command_streaming(
+        ...     context,
+        ...     ["run", "--select", "model_name"],
+        ...     {"simulation_year": 2025},
+        ...     False,
+        ...     "model execution with streaming"
+        ... )
+    """
+    # Build command with variables
+    full_command = command.copy()
+
+    if vars_dict:
+        vars_string = "{" + ", ".join([f"{k}: {v}" for k, v in vars_dict.items()]) + "}"
+        full_command.extend(["--vars", vars_string])
+
+    if full_refresh:
+        full_command.append("--full-refresh")
+
+    # Log execution start
+    context.log.info(f"Executing (streaming): dbt {' '.join(full_command)}")
+    if description:
+        context.log.info(f"Description: {description}")
+
+    # Execute command with streaming
+    dbt = context.resources.dbt
+    try:
+        yield from dbt.cli(full_command, context=context).stream()
+        context.log.info(f"Successfully completed (streaming): dbt {' '.join(command)}")
+    except Exception as e:
+        error_msg = f"Failed to run {' '.join(command)}"
+        if description:
+            error_msg += f" for {description}"
+        error_msg += f". Error: {str(e)}"
+
+        context.log.error(error_msg)
+        raise Exception(error_msg) from e
+
+
 def clean_duckdb_data(context: OpExecutionContext, years: List[int]) -> Dict[str, int]:
     """
     Clean simulation data for specified years.
@@ -692,6 +759,18 @@ def run_dbt_snapshot_for_year(
                 context.log.warning(
                     f"Workforce snapshot already exists for year {year} - proceeding with recovery anyway"
                 )
+
+        # Clean existing snapshot data for this year to prevent accumulation
+        conn = duckdb.connect(str(DB_PATH))
+        try:
+            conn.execute(
+                "DELETE FROM scd_workforce_state WHERE simulation_year = ?", [year]
+            )
+            context.log.info(f"Cleaned existing snapshot data for year {year}")
+        except Exception as e:
+            context.log.info(f"No existing snapshot data to clean for year {year}: {e}")
+        finally:
+            conn.close()
 
         # Execute snapshot command based on type
         if snapshot_type == "previous_year":
@@ -2053,6 +2132,7 @@ __all__ = [
     "baseline_workforce_validated_op",
     "clean_duckdb_data",
     "execute_dbt_command",
+    "execute_dbt_command_streaming",
     "run_multi_year_simulation",
     "single_year_simulation",
     "multi_year_simulation",

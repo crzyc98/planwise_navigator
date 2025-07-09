@@ -33,6 +33,8 @@ incumbent_pool AS (
 
 active_workforce AS (
     -- Use int_workforce_previous_year which handles the dependency logic properly
+    -- FIXED: All employees who survived to the start of the simulation year should be treated as experienced
+    -- This includes baseline workforce members hired in 2024 who are part of the Year 1 starting workforce
     SELECT
         employee_id,
         employee_ssn,
@@ -42,12 +44,9 @@ active_workforce AS (
         current_age,
         current_tenure,
         level_id,
-        -- Flag new hires vs experienced employees (hired in previous year vs earlier)
-        CASE
-            WHEN EXTRACT(YEAR FROM employee_hire_date) = (SELECT current_year - 1 FROM simulation_config)
-            THEN 'new_hire'
-            ELSE 'experienced'
-        END AS employee_type
+        -- FIXED: All employees in int_workforce_previous_year have survived to simulation start
+        -- Therefore they should ALL be subject to experienced termination rates
+        'experienced' AS employee_type
     FROM incumbent_pool
     WHERE employment_status = 'active'
 ),

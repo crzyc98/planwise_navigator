@@ -1,4 +1,4 @@
-{{ config(materialized='table') }}
+{{ config(materialized='view') }}
 
 -- Workforce Previous Year - Replaces int_previous_year_workforce
 -- Uses snapshot to get previous year's workforce without circular dependency
