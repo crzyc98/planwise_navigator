@@ -1,0 +1,16 @@
+{
+    "enabled": true,
+    "auto_consult": true,
+    "cli_command": "gemini",
+    "timeout": 30,
+    "rate_limit_delay": 5.0,
+    "log_consultations": true,
+    "model": "gemini-2.5-pro",
+    "sandbox_mode": true,
+    "debug_mode": false,
+    "uncertainty_thresholds": {
+      "uncertainty_patterns": true,
+      "complex_decisions": true,
+      "critical_operations": true
+    }
+  }
