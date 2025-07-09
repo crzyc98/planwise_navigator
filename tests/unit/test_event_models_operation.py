@@ -105,13 +105,14 @@ class TestEventModelsOperation:
         expected_workforce_count = 150
 
         # Mock database connection for debug query
-        mock_duckdb_connect.return_value = mock_duckdb_connection
-        mock_duckdb_connection.fetchone.return_value = [expected_workforce_count]
+        mock_conn = Mock()
+        mock_conn.execute.return_value.fetchone.return_value = [expected_workforce_count]
+        mock_duckdb_connect.return_value = mock_conn
 
         # Execute and verify debug query was executed
         result = _run_dbt_event_models_for_year_internal(mock_context, year, sample_config)
         expected_debug_query = "SELECT COUNT(*) FROM int_baseline_workforce WHERE employment_status = 'active'"
-        mock_duckdb_connection.execute.assert_called_with(expected_debug_query)
+        mock_conn.execute.assert_called_with(expected_debug_query)
 
         # Verify debug logging
         mock_context.log.info.assert_any_call("🔍 HIRING CALCULATION DEBUG:")
@@ -173,8 +174,10 @@ class TestEventModelsOperation:
         year = 2025
         workforce_count = 200
 
-        mock_duckdb_connect.return_value = mock_duckdb_connection
-        mock_duckdb_connection.fetchone.return_value = [workforce_count]
+        # Mock database connection for debug query
+        mock_conn = Mock()
+        mock_conn.execute.return_value.fetchone.return_value = [workforce_count]
+        mock_duckdb_connect.return_value = mock_conn
 
         result = _run_dbt_event_models_for_year_internal(mock_context, year, sample_config)
 
@@ -188,9 +191,12 @@ class TestEventModelsOperation:
 
         # Verify hiring debug structure
         hiring_debug = result["hiring_debug"]
-        assert "year" in hiring_debug
         assert "workforce_count" in hiring_debug
-        assert hiring_debug["year"] == year
+        assert "experienced_terms" in hiring_debug
+        assert "growth_amount" in hiring_debug
+        assert "total_hires_needed" in hiring_debug
+        assert "expected_new_hire_terms" in hiring_debug
+        assert "net_hiring_impact" in hiring_debug
         assert hiring_debug["workforce_count"] == workforce_count
 
     @patch("orchestrator.simulator_pipeline.execute_dbt_command")
@@ -250,9 +256,10 @@ class TestEventModelsOperation:
         """Test scenario where no hiring events are generated."""
         year = 2025
 
-        # Mock zero hiring events
-        mock_duckdb_connect.return_value = mock_duckdb_connection
-        mock_duckdb_connection.fetchone.return_value = [0]
+        # Mock zero hiring events - Mock database connection for debug query
+        mock_conn = Mock()
+        mock_conn.execute.return_value.fetchone.return_value = [0]
+        mock_duckdb_connect.return_value = mock_conn
 
         result = _run_dbt_event_models_for_year_internal(mock_context, year, sample_config)
 
@@ -278,8 +285,10 @@ class TestEventModelsOperation:
         year = 2025
         large_workforce_count = 10000
 
-        mock_duckdb_connect.return_value = mock_duckdb_connection
-        mock_duckdb_connection.fetchone.return_value = [large_workforce_count]
+        # Mock database connection for debug query
+        mock_conn = Mock()
+        mock_conn.execute.return_value.fetchone.return_value = [large_workforce_count]
+        mock_duckdb_connect.return_value = mock_conn
 
         result = _run_dbt_event_models_for_year_internal(mock_context, year, sample_config)
 
@@ -302,8 +311,10 @@ class TestEventModelsOperation:
         year,
     ):
         """Test operation with various simulation years."""
-        mock_duckdb_connect.return_value = mock_duckdb_connection
-        mock_duckdb_connection.fetchone.return_value = [100]
+        # Mock database connection for debug query
+        mock_conn = Mock()
+        mock_conn.execute.return_value.fetchone.return_value = [100]
+        mock_duckdb_connect.return_value = mock_conn
 
         result = _run_dbt_event_models_for_year_internal(mock_context, year, sample_config)
 
@@ -404,7 +415,7 @@ class TestEventModelsOperationIntegration:
         results = []
         for i, year in enumerate(years):
             # Mock different hire counts for each year
-            mock_conn.fetchone.return_value = [workforce_counts[i]]
+            mock_conn.execute.return_value.fetchone.return_value = [workforce_counts[i]]
 
             result = _run_dbt_event_models_for_year_internal(
                 integration_context, year, realistic_config
@@ -435,7 +446,7 @@ class TestEventModelsOperationIntegration:
         mock_conn = Mock()
         mock_conn.close = Mock()
         mock_duckdb_connect.return_value = mock_conn
-        mock_conn.fetchone.return_value = [100]
+        mock_conn.execute.return_value.fetchone.return_value = [100]
 
         # Execute multiple times
         for _ in range(3):

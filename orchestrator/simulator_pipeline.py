@@ -39,11 +39,6 @@ DB_PATH = PROJECT_ROOT / "simulation.duckdb"
 CONFIG_PATH = PROJECT_ROOT / "config" / "simulation_config.yaml"
 
 # Initialize dbt project path for asset discovery
-
-# Define dbt CLI resource once and reuse in job definitions
-# Use absolute path to dbt executable in virtual environment
-from pathlib import Path
-PROJECT_ROOT = Path(__file__).parent.parent
 DBT_EXECUTABLE = PROJECT_ROOT / "venv" / "bin" / "dbt"
 
 dbt_resource = DbtCliResource(
@@ -446,6 +441,7 @@ def _log_hiring_calculation_debug(
         )
 
         return {
+            "year": year,
             "workforce_count": workforce_count,
             "experienced_terms": experienced_terms,
             "growth_amount": growth_amount,
@@ -1471,11 +1467,10 @@ def run_multi_year_simulation(
     context: OpExecutionContext, baseline_valid: bool
 ) -> List[YearResult]:
     """
-    Orchestrates complete multi-year workforce simulation.
+    Pure orchestrator for multi-year workforce simulation.
 
-    Pure orchestration function that leverages modular components to execute
-    sequential year-by-year simulations. This function focuses solely on
-    coordination and result aggregation.
+    Transformed per S013-06 to focus solely on coordination while leveraging
+    all modular components (S013-01 through S013-05).
 
     Args:
         context: Dagster execution context with configuration
@@ -1484,100 +1479,105 @@ def run_multi_year_simulation(
     Returns:
         List of YearResult objects for each simulation year
 
-    Raises:
-        Exception: If baseline validation failed
+    Example:
+        >>> from dagster import build_op_context
+        >>> config = {
+        ...     "start_year": 2025,
+        ...     "end_year": 2027,
+        ...     "target_growth_rate": 0.03,
+        ...     "total_termination_rate": 0.12,
+        ...     "new_hire_termination_rate": 0.25,
+        ...     "random_seed": 42,
+        ...     "full_refresh": True
+        ... }
+        >>> context = build_op_context(op_config=config)
+        >>> results = run_multi_year_simulation(context, baseline_valid=True)
+        >>> for result in results:
+        ...     print(f"Year {result.year}: {result.active_employees} employees")
     """
     if not baseline_valid:
         raise Exception("Baseline workforce validation failed")
 
-    # Extract configuration
+    # Configuration and setup
     config = context.op_config
-    start_year = config["start_year"]
-    end_year = config["end_year"]
+    start_year, end_year = config["start_year"], config["end_year"]
     full_refresh = config.get("full_refresh", False)
 
-    context.log.info(
-        f"🚀 Starting multi-year simulation from {start_year} to {end_year}"
-    )
+    context.log.info(f"🚀 Starting multi-year simulation from {start_year} to {end_year}")
     if full_refresh:
-        context.log.info(
-            "🔄 Full refresh enabled - will rebuild all incremental models from scratch"
-        )
+        context.log.info("🔄 Full refresh enabled - will rebuild all incremental models from scratch")
 
-    # Step 1: Clean all simulation data using modular component (S013-02)
-    years_to_clean = list(range(start_year, end_year + 1))
-    clean_duckdb_data(context, years_to_clean)
+    # Step 1: Clean all data using modular component (S013-02)
+    clean_duckdb_data(context, list(range(start_year, end_year + 1)))
 
-    # Step 2: Create baseline snapshot for start_year - 1 using modular component (S013-04)
-    if start_year > 2025:  # Only create baseline if not starting from base year
-        baseline_snapshot_result = run_dbt_snapshot_for_year(
-            context, start_year - 1, "previous_year"
-        )
-        if not baseline_snapshot_result["success"]:
-            context.log.warning(
-                f"Baseline snapshot creation had issues: {baseline_snapshot_result.get('error', 'Unknown error')}"
-            )
+    # Step 2: Create baseline snapshot if needed (S013-04)
+    if start_year > 2025:
+        _create_baseline_snapshot(context, start_year - 1)
 
     # Step 3: Execute year-by-year simulation using modular operations
     results = []
-
     for year in range(start_year, end_year + 1):
         context.log.info(f"=== Processing year {year} ===")
+        year_result = _execute_single_year_with_recovery(context, year, start_year)
+        results.append(year_result)
+        context.log.info(f"{'✅' if year_result.success else '❌'} Year {year} {'completed' if year_result.success else 'failed'}")
 
-        try:
-            # Validate previous year and create snapshots
-            if year > start_year:
-                assert_year_complete(context, year - 1)
-                run_dbt_snapshot_for_year(context, year - 1, "previous_year")
+    # Step 4: Provide summary
+    _log_simulation_summary(context, results)
+    return results
 
-            # Execute single-year simulation (leverages S013-01/02/03/04 via S013-05)
-            # Use helper function to avoid resource serialization issues
-            year_result = run_year_simulation_for_multi_year(context, year)
-            run_dbt_snapshot_for_year(context, year, "end_of_year")
 
-            results.append(year_result)
-            context.log.info(f"✅ Year {year} completed")
+def _create_baseline_snapshot(context: OpExecutionContext, baseline_year: int) -> None:
+    """Create baseline snapshot with error handling."""
+    result = run_dbt_snapshot_for_year(context, baseline_year, "previous_year")
+    if not result["success"]:
+        context.log.warning(f"Baseline snapshot creation had issues: {result.get('error', 'Unknown error')}")
 
-        except Exception as e:
-            context.log.error(f"❌ Year {year} failed: {e}")
-            results.append(
-                YearResult(
-                    year=year,
-                    success=False,
-                    active_employees=0,
-                    total_terminations=0,
-                    experienced_terminations=0,
-                    new_hire_terminations=0,
-                    total_hires=0,
-                    growth_rate=0.0,
-                    validation_passed=False,
-                )
-            )
-            continue
 
-    # Step 4: Aggregate results and provide summary
-    context.log.info("📊 === Multi-year simulation summary ===")
+def _execute_single_year_with_recovery(context: OpExecutionContext, year: int, start_year: int) -> YearResult:
+    """Execute single year with validation and recovery."""
+    try:
+        # Validate previous year if not first year
+        if year > start_year:
+            assert_year_complete(context, year - 1)
+            run_dbt_snapshot_for_year(context, year - 1, "previous_year")
+
+        # Execute single-year simulation (leverages S013-01/02/03/04 via S013-05)
+        year_result = run_year_simulation_for_multi_year(context, year)
+        run_dbt_snapshot_for_year(context, year, "end_of_year")
+        return year_result
+
+    except Exception as e:
+        context.log.error(f"❌ Year {year} failed: {e}")
+        return YearResult(
+            year=year,
+            success=False,
+            active_employees=0,
+            total_terminations=0,
+            experienced_terminations=0,
+            new_hire_terminations=0,
+            total_hires=0,
+            growth_rate=0.0,
+            validation_passed=False,
+        )
+
+
+def _log_simulation_summary(context: OpExecutionContext, results: List[YearResult]) -> None:
+    """Log comprehensive simulation summary."""
     successful_years = [r for r in results if r.success]
     failed_years = [r for r in results if not r.success]
 
-    context.log.info(
-        f"🎯 Simulation completed: {len(successful_years)}/{len(results)} years successful"
-    )
+    context.log.info("📊 === Multi-year simulation summary ===")
+    context.log.info(f"🎯 Simulation completed: {len(successful_years)}/{len(results)} years successful")
 
     for result in results:
         if result.success:
-            context.log.info(
-                f"  ✅ Year {result.year}: {result.active_employees:,} employees, {result.growth_rate:.1%} growth"
-            )
+            context.log.info(f"  ✅ Year {result.year}: {result.active_employees:,} employees, {result.growth_rate:.1%} growth")
         else:
             context.log.error(f"  ❌ Year {result.year}: FAILED")
 
     if failed_years:
-        context.log.warning(
-            f"⚠️  {len(failed_years)} year(s) failed - check logs for details"
-        )
-
-    return results
+        context.log.warning(f"⚠️  {len(failed_years)} year(s) failed - check logs for details")
 
 
 def load_simulation_config() -> Dict[str, Any]:

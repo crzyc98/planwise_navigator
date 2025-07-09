@@ -14,7 +14,7 @@ from unittest.mock import Mock, patch
 import pandas as pd
 from dagster import OpExecutionContext
 
-from orchestrator.simulator_pipeline import run_dbt_event_models_for_year
+from orchestrator.simulator_pipeline import _run_dbt_event_models_for_year_internal
 
 
 class TestHazardBasedTermination:
@@ -35,6 +35,7 @@ class TestHazardBasedTermination:
         return {
             "random_seed": 42,
             "total_termination_rate": 0.12,
+            "new_hire_termination_rate": 0.25,
             "target_growth_rate": 0.03,
             "full_refresh": False,
         }
@@ -99,11 +100,11 @@ class TestHazardBasedTermination:
 
         # Mock DuckDB connection
         mock_conn = Mock()
-        mock_conn.fetchone.return_value = [50]  # Mock hiring count
+        mock_conn.execute.return_value.fetchone.return_value = [50]  # Mock hiring count
         mock_duckdb_connect.return_value = mock_conn
 
         # Execute termination events
-        run_dbt_event_models_for_year(mock_context, year, termination_config)
+        _run_dbt_event_models_for_year_internal(mock_context, year, termination_config)
 
         # Verify termination events model was executed (first in Epic 11.5 sequence)
         first_call = mock_execute_dbt.call_args_list[0]
@@ -150,11 +151,11 @@ class TestHazardBasedTermination:
         year = 2025
 
         mock_conn = Mock()
-        mock_conn.fetchone.return_value = [30]
+        mock_conn.execute.return_value.fetchone.return_value = [30]
         mock_duckdb_connect.return_value = mock_conn
 
         # Execute and verify no errors
-        result = run_dbt_event_models_for_year(mock_context, year, termination_config)
+        result = _run_dbt_event_models_for_year_internal(mock_context, year, termination_config)
 
         # Verify execution completed successfully
         assert result["year"] == year
@@ -176,11 +177,11 @@ class TestHazardBasedTermination:
         termination_config["total_termination_rate"] = termination_rate
 
         mock_conn = Mock()
-        mock_conn.fetchone.return_value = [25]
+        mock_conn.execute.return_value.fetchone.return_value = [25]
         mock_duckdb_connect.return_value = mock_conn
 
         # Execute with different rates
-        result = run_dbt_event_models_for_year(mock_context, year, termination_config)
+        result = _run_dbt_event_models_for_year_internal(mock_context, year, termination_config)
 
         # Verify rate was passed correctly
         termination_call = mock_execute_dbt.call_args_list[0]
@@ -203,11 +204,11 @@ class TestHazardBasedTermination:
         year = 2025
 
         mock_conn = Mock()
-        mock_conn.fetchone.return_value = [75]
+        mock_conn.execute.return_value.fetchone.return_value = [75]
         mock_duckdb_connect.return_value = mock_conn
 
         # Execute the full Epic 11.5 sequence
-        run_dbt_event_models_for_year(mock_context, year, termination_config)
+        _run_dbt_event_models_for_year_internal(mock_context, year, termination_config)
 
         # Verify termination events is first in sequence (Epic 11.5)
         expected_sequence = [
@@ -262,11 +263,11 @@ class TestHazardBasedTermination:
         year = 2025
 
         mock_conn = Mock()
-        mock_conn.fetchone.return_value = [40]
+        mock_conn.execute.return_value.fetchone.return_value = [40]
         mock_duckdb_connect.return_value = mock_conn
 
         # Execute with standard configuration
-        result = run_dbt_event_models_for_year(mock_context, year, termination_config)
+        result = _run_dbt_event_models_for_year_internal(mock_context, year, termination_config)
 
         # Verify termination model execution
         termination_call = mock_execute_dbt.call_args_list[0]
@@ -293,19 +294,20 @@ class TestHazardBasedTermination:
         year = 2025
 
         mock_conn = Mock()
-        mock_conn.fetchone.return_value = [60]
+        mock_conn.execute.return_value.fetchone.return_value = [60]
         mock_duckdb_connect.return_value = mock_conn
 
         # Execute with previous configuration format
         legacy_config = {
             "random_seed": 42,
             "total_termination_rate": 0.12,  # Legacy parameter name
+            "new_hire_termination_rate": 0.25,
             "target_growth_rate": 0.03,
             "full_refresh": False,
         }
 
         # Should execute without errors
-        result = run_dbt_event_models_for_year(mock_context, year, legacy_config)
+        result = _run_dbt_event_models_for_year_internal(mock_context, year, legacy_config)
         assert result["year"] == year
 
         # Verify termination events model was called
