@@ -39,11 +39,6 @@ DB_PATH = PROJECT_ROOT / "simulation.duckdb"
 CONFIG_PATH = PROJECT_ROOT / "config" / "simulation_config.yaml"
 
 # Initialize dbt project path for asset discovery
-
-# Define dbt CLI resource once and reuse in job definitions
-# Use absolute path to dbt executable in virtual environment
-from pathlib import Path
-PROJECT_ROOT = Path(__file__).parent.parent
 DBT_EXECUTABLE = PROJECT_ROOT / "venv" / "bin" / "dbt"
 
 dbt_resource = DbtCliResource(
@@ -1482,6 +1477,22 @@ def run_multi_year_simulation(
 
     Returns:
         List of YearResult objects for each simulation year
+
+    Example:
+        >>> from dagster import build_op_context
+        >>> config = {
+        ...     "start_year": 2025,
+        ...     "end_year": 2027,
+        ...     "target_growth_rate": 0.03,
+        ...     "total_termination_rate": 0.12,
+        ...     "new_hire_termination_rate": 0.25,
+        ...     "random_seed": 42,
+        ...     "full_refresh": True
+        ... }
+        >>> context = build_op_context(op_config=config)
+        >>> results = run_multi_year_simulation(context, baseline_valid=True)
+        >>> for result in results:
+        ...     print(f"Year {result.year}: {result.active_employees} employees")
     """
     if not baseline_valid:
         raise Exception("Baseline workforce validation failed")
