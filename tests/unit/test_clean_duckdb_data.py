@@ -64,7 +64,7 @@ class TestCleanDuckDBData:
 
         # Verify logging
         mock_context.log.info.assert_any_call(
-            "🧹 Cleaning existing data for years [2025]"
+            "Cleaning existing data for years 2025"
         )
 
     @patch("orchestrator.simulator_pipeline.duckdb.connect")
@@ -109,8 +109,8 @@ class TestCleanDuckDBData:
         # No delete operations should be performed
         mock_duckdb_connection.execute.assert_not_called()
 
-        # Connection should still be properly closed
-        mock_duckdb_connection.close.assert_called_once()
+        # No connection should be opened when years list is empty
+        mock_duckdb_connect.assert_not_called()
 
     @patch("orchestrator.simulator_pipeline.duckdb.connect")
     def test_large_year_range(
@@ -153,13 +153,13 @@ class TestCleanDuckDBData:
 
         mock_duckdb_connect.return_value = mock_duckdb_connection
 
-        # Mock execute to fail on second year for first table
+        # Mock execute to fail on second year for events table
         call_count = 0
 
         def mock_execute(sql, params):
             nonlocal call_count
             call_count += 1
-            if call_count == 3:  # Third call (second year, first table)
+            if call_count == 2:  # Second call (second year, events table)
                 raise Exception("Delete operation failed")
 
         mock_duckdb_connection.execute.side_effect = mock_execute
@@ -167,8 +167,8 @@ class TestCleanDuckDBData:
         result = clean_duckdb_data(mock_context, years)
 
         # Should continue processing despite failure
-        # First year: 2 successful operations
-        # Second year: 1 failed + 1 successful = 1 counted
+        # Events: Year 1 succeeds, Year 2 fails = 1 success
+        # Snapshots: Both years succeed = 2 successes
         assert result["fct_yearly_events"] == 1  # Only first year succeeded
         assert result["fct_workforce_snapshot"] == 2  # Both years succeeded
 
