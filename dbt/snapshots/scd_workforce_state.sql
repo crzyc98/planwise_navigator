@@ -3,7 +3,7 @@
 {{
   config(
     target_schema='main',
-    unique_key='employee_id',
+    unique_key=['employee_id', 'simulation_year'],
     strategy='timestamp',
     updated_at='snapshot_created_at'
   )

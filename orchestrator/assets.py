@@ -13,6 +13,7 @@ from dagster import (
     AssetKey,
 )
 from dagster_dbt import DbtCliResource, dbt_assets
+from orchestrator.simulator_pipeline import execute_dbt_command_streaming
 import pandas as pd
 from typing import Dict, Any, Generator
 from pathlib import Path
@@ -44,7 +45,13 @@ def planwise_dbt_assets(context: AssetExecutionContext, dbt: DbtCliResource):
     This uses the @dbt_assets factory to automatically parse the dbt manifest
     and create Dagster assets for all dbt models, with proper dependencies.
     """
-    yield from dbt.cli(["build"], context=context).stream()
+    yield from execute_dbt_command_streaming(
+        context,
+        ["build"],
+        {},
+        False,
+        "full dbt build pipeline"
+    )
 
 
 @asset

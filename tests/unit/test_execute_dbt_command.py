@@ -9,7 +9,7 @@ import pytest
 from unittest.mock import Mock
 from dagster import OpExecutionContext
 
-from orchestrator.simulator_pipeline import execute_dbt_command
+from orchestrator.simulator_pipeline import execute_dbt_command, execute_dbt_command_streaming
 
 
 class TestExecuteDbtCommand:
@@ -23,9 +23,15 @@ class TestExecuteDbtCommand:
         context.log.info = Mock()
         context.log.error = Mock()
 
-        # Mock dbt resource
+        # Mock dbt resource with proper invocation chain
         dbt_resource = Mock()
-        dbt_resource.cli = Mock()
+        mock_invocation = Mock()
+        mock_invocation.process = Mock()
+        mock_invocation.process.returncode = 0  # Success
+        mock_invocation.get_stdout.return_value = "Success output"
+        mock_invocation.get_stderr.return_value = ""
+
+        dbt_resource.cli.return_value.wait.return_value = mock_invocation
         context.resources = Mock()
         context.resources.dbt = dbt_resource
 
@@ -41,14 +47,15 @@ class TestExecuteDbtCommand:
         execute_dbt_command(mock_context, command, vars_dict, False, description)
 
         # Verify dbt.cli was called correctly
+        expected_command = ["run", "--select", "test_model", "--vars", "{simulation_year: 2025}"]
         mock_context.resources.dbt.cli.assert_called_once_with(
-            ["run", "--select", "test_model"], vars=vars_dict
+            expected_command, context=mock_context
         )
 
         # Verify logging
-        mock_context.log.info.assert_called_with(
-            "✅ dbt command completed: test model execution"
-        )
+        mock_context.log.info.assert_any_call("Executing: dbt run --select test_model --vars {simulation_year: 2025}")
+        mock_context.log.info.assert_any_call("Description: test model execution")
+        mock_context.log.info.assert_any_call("Successfully completed: dbt run --select test_model")
 
     def test_full_refresh_parameter(self, mock_context):
         """Test full_refresh parameter adds --full-refresh flag."""
@@ -328,3 +335,147 @@ class TestExecuteDbtCommandIntegration:
 
         # Verify execution pattern
         assert integration_context.resources.dbt.cli.call_count == 3
+
+
+class TestExecuteDbtCommandStreaming:
+    """Test suite for execute_dbt_command_streaming utility."""
+
+    @pytest.fixture
+    def mock_context(self):
+        """Create a mock Dagster execution context."""
+        context = Mock(spec=OpExecutionContext)
+        context.log = Mock()
+        context.log.info = Mock()
+        context.log.error = Mock()
+
+        # Mock dbt resource
+        dbt_resource = Mock()
+        dbt_resource.cli = Mock()
+        context.resources = Mock()
+        context.resources.dbt = dbt_resource
+
+        return context
+
+    def test_basic_streaming_build_command(self, mock_context):
+        """Test basic streaming build command execution."""
+        command = ["build"]
+        description = "full dbt build pipeline"
+
+        # Mock streaming response
+        mock_stream = Mock()
+        mock_stream.stream.return_value = iter(["result1", "result2"])
+        mock_context.resources.dbt.cli.return_value = mock_stream
+
+        # Execute and collect results
+        results = list(execute_dbt_command_streaming(mock_context, command, {}, False, description))
+
+        # Verify dbt.cli was called correctly
+        mock_context.resources.dbt.cli.assert_called_once_with(
+            ["build"], context=mock_context
+        )
+
+        # Verify streaming results
+        assert results == ["result1", "result2"]
+
+        # Verify logging
+        mock_context.log.info.assert_any_call("Executing (streaming): dbt build")
+        mock_context.log.info.assert_any_call(f"Description: {description}")
+        mock_context.log.info.assert_any_call("Successfully completed (streaming): dbt build")
+
+    def test_streaming_with_variables(self, mock_context):
+        """Test streaming command with variables."""
+        command = ["run", "--select", "test_model"]
+        vars_dict = {"simulation_year": 2025, "random_seed": 42}
+        description = "test model with variables"
+
+        # Mock streaming response
+        mock_stream = Mock()
+        mock_stream.stream.return_value = iter(["result"])
+        mock_context.resources.dbt.cli.return_value = mock_stream
+
+        # Execute
+        results = list(execute_dbt_command_streaming(mock_context, command, vars_dict, False, description))
+
+        # Verify dbt.cli was called with variables
+        expected_command = ["run", "--select", "test_model", "--vars", "{simulation_year: 2025, random_seed: 42}"]
+        mock_context.resources.dbt.cli.assert_called_once_with(expected_command, context=mock_context)
+
+        # Verify results
+        assert results == ["result"]
+
+    def test_streaming_with_full_refresh(self, mock_context):
+        """Test streaming command with full refresh flag."""
+        command = ["run", "--select", "test_model"]
+
+        # Mock streaming response
+        mock_stream = Mock()
+        mock_stream.stream.return_value = iter(["result"])
+        mock_context.resources.dbt.cli.return_value = mock_stream
+
+        # Execute
+        results = list(execute_dbt_command_streaming(mock_context, command, {}, True, "full refresh test"))
+
+        # Verify dbt.cli was called with full refresh
+        expected_command = ["run", "--select", "test_model", "--full-refresh"]
+        mock_context.resources.dbt.cli.assert_called_once_with(expected_command, context=mock_context)
+
+        # Verify results
+        assert results == ["result"]
+
+    def test_streaming_error_handling(self, mock_context):
+        """Test error handling in streaming execution."""
+        command = ["build"]
+        description = "failing build"
+
+        # Mock streaming failure
+        mock_stream = Mock()
+        mock_stream.stream.side_effect = Exception("Stream failed")
+        mock_context.resources.dbt.cli.return_value = mock_stream
+
+        # Execute and expect exception
+        with pytest.raises(Exception) as exc_info:
+            list(execute_dbt_command_streaming(mock_context, command, {}, False, description))
+
+        # Verify error message
+        assert "Failed to run build for failing build" in str(exc_info.value)
+        assert "Stream failed" in str(exc_info.value)
+
+        # Verify error logging
+        mock_context.log.error.assert_called_once()
+
+    def test_streaming_no_variables(self, mock_context):
+        """Test streaming command with no variables (None case)."""
+        command = ["build"]
+
+        # Mock streaming response
+        mock_stream = Mock()
+        mock_stream.stream.return_value = iter(["result"])
+        mock_context.resources.dbt.cli.return_value = mock_stream
+
+        # Execute with None variables
+        results = list(execute_dbt_command_streaming(mock_context, command, None, False, "no vars test"))
+
+        # Verify dbt.cli was called without variables
+        mock_context.resources.dbt.cli.assert_called_once_with(["build"], context=mock_context)
+
+        # Verify results
+        assert results == ["result"]
+
+    def test_streaming_empty_description(self, mock_context):
+        """Test streaming command with empty description."""
+        command = ["build"]
+
+        # Mock streaming response
+        mock_stream = Mock()
+        mock_stream.stream.return_value = iter(["result"])
+        mock_context.resources.dbt.cli.return_value = mock_stream
+
+        # Execute with empty description
+        results = list(execute_dbt_command_streaming(mock_context, command, {}, False, ""))
+
+        # Verify logging (description should not be logged)
+        mock_context.log.info.assert_any_call("Executing (streaming): dbt build")
+        mock_context.log.info.assert_any_call("Successfully completed (streaming): dbt build")
+
+        # Verify results
+        assert results == ["result"]
