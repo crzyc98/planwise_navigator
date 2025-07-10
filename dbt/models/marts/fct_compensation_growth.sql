@@ -45,18 +45,21 @@ methodology_a_current AS (
         COUNT(CASE WHEN detailed_status_code = 'continuous_active' THEN 1 END) as continuous_employees,
         COUNT(CASE WHEN detailed_status_code = 'new_hire_active' THEN 1 END) as new_hire_employees,
         AVG(prorated_annual_compensation) as avg_compensation,
-        -- Calculate growth vs previous year
-        COALESCE(
-            (AVG(prorated_annual_compensation) -
-             (SELECT AVG(prorated_annual_compensation)
-              FROM previous_workforce prev
-              WHERE prev.detailed_status_code IN ('continuous_active', 'new_hire_active'))
-            ) /
-            (SELECT AVG(prorated_annual_compensation)
-             FROM previous_workforce prev
-             WHERE prev.detailed_status_code IN ('continuous_active', 'new_hire_active')) * 100,
-            NULL
-        ) as yoy_growth_pct
+        -- Calculate growth vs previous year with division-by-zero protection
+        CASE
+            WHEN (SELECT AVG(prorated_annual_compensation)
+                  FROM previous_workforce prev
+                  WHERE prev.detailed_status_code IN ('continuous_active', 'new_hire_active')) > 0
+            THEN (AVG(prorated_annual_compensation) -
+                  (SELECT AVG(prorated_annual_compensation)
+                   FROM previous_workforce prev
+                   WHERE prev.detailed_status_code IN ('continuous_active', 'new_hire_active'))
+                 ) /
+                 (SELECT AVG(prorated_annual_compensation)
+                  FROM previous_workforce prev
+                  WHERE prev.detailed_status_code IN ('continuous_active', 'new_hire_active')) * 100
+            ELSE NULL  -- Return NULL if previous year average is zero or NULL
+        END as yoy_growth_pct
     FROM current_workforce
     WHERE detailed_status_code IN ('continuous_active', 'new_hire_active')
 ),
@@ -70,18 +73,21 @@ methodology_b_continuous AS (
         COUNT(*) as continuous_employees,
         0 as new_hire_employees,
         AVG(prorated_annual_compensation) as avg_compensation,
-        -- Calculate growth vs previous year continuous employees only
-        COALESCE(
-            (AVG(prorated_annual_compensation) -
-             (SELECT AVG(prorated_annual_compensation)
-              FROM previous_workforce prev
-              WHERE prev.detailed_status_code = 'continuous_active')
-            ) /
-            (SELECT AVG(prorated_annual_compensation)
-             FROM previous_workforce prev
-             WHERE prev.detailed_status_code = 'continuous_active') * 100,
-            NULL
-        ) as yoy_growth_pct
+        -- Calculate growth vs previous year continuous employees only with division-by-zero protection
+        CASE
+            WHEN (SELECT AVG(prorated_annual_compensation)
+                  FROM previous_workforce prev
+                  WHERE prev.detailed_status_code = 'continuous_active') > 0
+            THEN (AVG(prorated_annual_compensation) -
+                  (SELECT AVG(prorated_annual_compensation)
+                   FROM previous_workforce prev
+                   WHERE prev.detailed_status_code = 'continuous_active')
+                 ) /
+                 (SELECT AVG(prorated_annual_compensation)
+                  FROM previous_workforce prev
+                  WHERE prev.detailed_status_code = 'continuous_active') * 100
+            ELSE NULL  -- Return NULL if previous year average is zero or NULL
+        END as yoy_growth_pct
     FROM current_workforce
     WHERE detailed_status_code = 'continuous_active'
 ),
@@ -102,24 +108,27 @@ methodology_c_full_year AS (
             THEN current_compensation -- Use full annual salary instead of prorated
             ELSE 0
         END) / COUNT(*)) as avg_compensation,
-        -- Calculate growth using full-year equivalent methodology
-        COALESCE(
-            ((SUM(CASE
-                WHEN detailed_status_code = 'continuous_active'
-                THEN prorated_annual_compensation
-                WHEN detailed_status_code = 'new_hire_active'
-                THEN current_compensation
-                ELSE 0
-            END) / COUNT(*)) -
-             (SELECT AVG(prorated_annual_compensation)
-              FROM previous_workforce prev
-              WHERE prev.detailed_status_code IN ('continuous_active', 'new_hire_active'))
-            ) /
-            (SELECT AVG(prorated_annual_compensation)
-             FROM previous_workforce prev
-             WHERE prev.detailed_status_code IN ('continuous_active', 'new_hire_active')) * 100,
-            NULL
-        ) as yoy_growth_pct
+        -- Calculate growth using full-year equivalent methodology with division-by-zero protection
+        CASE
+            WHEN (SELECT AVG(prorated_annual_compensation)
+                  FROM previous_workforce prev
+                  WHERE prev.detailed_status_code IN ('continuous_active', 'new_hire_active')) > 0
+            THEN ((SUM(CASE
+                    WHEN detailed_status_code = 'continuous_active'
+                    THEN prorated_annual_compensation
+                    WHEN detailed_status_code = 'new_hire_active'
+                    THEN current_compensation
+                    ELSE 0
+                END) / COUNT(*)) -
+                 (SELECT AVG(prorated_annual_compensation)
+                  FROM previous_workforce prev
+                  WHERE prev.detailed_status_code IN ('continuous_active', 'new_hire_active'))
+                ) /
+                (SELECT AVG(prorated_annual_compensation)
+                 FROM previous_workforce prev
+                 WHERE prev.detailed_status_code IN ('continuous_active', 'new_hire_active')) * 100
+            ELSE NULL  -- Return NULL if previous year average is zero or NULL
+        END as yoy_growth_pct
     FROM current_workforce
     WHERE detailed_status_code IN ('continuous_active', 'new_hire_active')
 ),
