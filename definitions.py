@@ -15,6 +15,16 @@ from orchestrator.assets import (
     optimization_sensitivity_analysis,
     optimization_evidence_report,
 )
+
+# Import S050 assets
+from orchestrator.s050_assets import (
+    s050_warm_start_cache,
+    s050_enhanced_sensitivity_analysis,
+    s050_business_constraints_validation,
+    s050_ab_testing_framework,
+    s050_configurable_merit_distribution,
+    s050_advanced_optimization_integration,
+)
 from orchestrator.resources.duckdb_resource import DuckDBResource
 from pathlib import Path
 
@@ -45,6 +55,13 @@ defs = Definitions(
         advanced_optimization_engine,
         optimization_sensitivity_analysis,
         optimization_evidence_report,
+        # S050 Advanced Optimization Features
+        s050_warm_start_cache,
+        s050_enhanced_sensitivity_analysis,
+        s050_business_constraints_validation,
+        s050_ab_testing_framework,
+        s050_configurable_merit_distribution,
+        s050_advanced_optimization_integration,
     ],
     # ADD THE JOBS HERE
     jobs=[
