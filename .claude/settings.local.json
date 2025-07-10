@@ -115,7 +115,10 @@
       "Bash(/Users/nicholasamaral/planwise_navigator/venv/bin/dbt ls --select \"tag:critical or tag:foundation or tag:locked or tag:event_sourcing\" --resource-type model)",
       "Bash(CI_MODE=fast ./scripts/run_ci_tests.sh)",
       "Bash(CI_MODE=fast timeout 60 ./scripts/run_ci_tests.sh)",
-      "Bash(CI_MODE=contract-only ./scripts/run_ci_tests.sh)"
+      "Bash(CI_MODE=contract-only ./scripts/run_ci_tests.sh)",
+      "Bash(PYTHONPATH=/Users/nicholasamaral/planwise_navigator python -m pytest tests/optimization/test_thread_safe_optimization.py::TestRobustNumericalCalculations::test_safe_growth_rate_division_by_zero_protection -v)",
+      "Bash(PYTHONPATH=/Users/nicholasamaral/planwise_navigator /Users/nicholasamaral/planwise_navigator/venv/bin/python -m pytest tests/optimization/test_thread_safe_optimization.py::TestRobustNumericalCalculations::test_safe_growth_rate_division_by_zero_protection -v)",
+      "Bash(PYTHONPATH=/Users/nicholasamaral/planwise_navigator /Users/nicholasamaral/planwise_navigator/venv/bin/python -m pytest tests/optimization/test_thread_safe_optimization.py::TestThreadSafeParameterCache::test_concurrent_cache_access -v)"
     ],
     "deny": []
   }
