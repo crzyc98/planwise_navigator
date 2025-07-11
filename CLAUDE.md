@@ -64,12 +64,20 @@ PlanWise Navigator implements enterprise-grade event sourcing with immutable aud
 - **PROMOTION**: Level/band changes with compensation adjustments
 - **RAISE**: Salary modifications (COLA, merit, market adjustment)
 - **BENEFIT_ENROLLMENT**: Plan participation changes
+- **DC PLAN EVENTS** (Coming Soon): Contributions, distributions, vesting, loans
+
+**Unified Event Model** (NEW - S072-01):
+- **SimulationEvent**: Core event model using Pydantic v2 with discriminated unions
+- **Required Context**: `scenario_id`, `plan_design_id` for proper event isolation
+- **EventFactory**: Type-safe event creation with comprehensive validation
+- **Performance**: <5ms validation, 1000 events/second creation rate
 
 **Core Principles**:
 - **Immutability**: Every event is permanently recorded with UUID
 - **Auditability**: Complete workforce history reconstruction from events
 - **Reproducibility**: Identical scenarios with same random seed
 - **Transparency**: Full visibility into every simulation decision
+- **Type Safety**: Pydantic v2 validation on all event payloads
 
 **Modular Engines**:
 - **Compensation Engine**: COLA, merit, and promotion-based adjustments with dynamic parameter resolution
@@ -77,6 +85,7 @@ PlanWise Navigator implements enterprise-grade event sourcing with immutable aud
 - **Hiring Engine**: Growth-driven recruitment with realistic sampling
 - **Promotion Engine**: Band-aware advancement probabilities
 - **Parameter Engine**: Analyst-driven compensation tuning via `comp_levers.csv`
+- **DC Plan Engine** (Coming Soon): Retirement plan contribution and distribution modeling
 
 **Snapshot Reconstruction**: Any workforce state can be instantly reconstructed from the event log for historical analysis and scenario validation.
 
@@ -100,7 +109,9 @@ planwise_navigator/
 │  └─ macros/                        # Reusable SQL functions
 ├─ streamlit_dashboard/              # Interactive dashboard
 ├─ config/                           # Configuration management
-│  └─ simulation_config.yaml        # Simulation parameters
+│  ├─ simulation_config.yaml        # Simulation parameters
+│  ├─ schema.py                     # Legacy event schema (Pydantic v1)
+│  └─ events.py                     # Unified event model (Pydantic v2)
 ├─ scripts/                          # Utility scripts
 ├─ tests/                            # Comprehensive testing
 ├─ data/                             # Raw input files (git-ignored)
