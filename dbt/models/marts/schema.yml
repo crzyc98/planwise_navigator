@@ -279,6 +279,187 @@ models:
         data_type: timestamp with time zone
 
 
+  - name: fct_participant_balance_snapshots
+    description: "Weekly participant balance snapshots for optimized DC plan queries - S072-06"
+    config:
+      tags: ["critical", "performance", "dc_plan", "contract"]
+      contract:
+        enforced: true
+    data_tests:
+      # Test composite uniqueness: participant appears once per plan per snapshot date
+      - unique:
+          column_name: "participant_id || '_' || plan_id || '_' || snapshot_date"
+          name: "unique_participant_plan_snapshot"
+      # Test that all balances are non-negative
+      - dbt_utils.expression_is_true:
+          expression: "total_employee_contributions >= 0 AND total_employer_contributions >= 0 AND gross_account_balance >= 0"
+          name: "non_negative_balances"
+      # Test vesting percentage constraints
+      - dbt_utils.expression_is_true:
+          expression: "current_vested_percentage BETWEEN 0.0000 AND 1.0000"
+          name: "valid_vesting_percentage_range"
+      # Test that vested balance <= gross balance
+      - dbt_utils.expression_is_true:
+          expression: "vested_account_balance <= gross_account_balance"
+          name: "vested_balance_not_exceeding_gross"
+      # Test that enrolled participants have enrollment dates
+      - dbt_utils.expression_is_true:
+          expression: "NOT is_enrolled OR enrollment_date IS NOT NULL"
+          name: "enrolled_participants_have_enrollment_date"
+      # Test snapshot date consistency (Fridays only)
+      - dbt_utils.expression_is_true:
+          expression: "EXTRACT(DAYOFWEEK FROM snapshot_date) = 6"  # Friday = 6 in DuckDB
+          name: "snapshots_taken_on_fridays"
+    columns:
+      - name: participant_id
+        description: "Unique participant identifier (employee_id)"
+        data_type: varchar
+        data_tests:
+          - not_null
+      - name: plan_id
+        description: "DC plan identifier"
+        data_type: varchar
+        data_tests:
+          - not_null
+      - name: scenario_id
+        description: "Simulation scenario identifier"
+        data_type: varchar
+        data_tests:
+          - not_null
+      - name: plan_design_id
+        description: "Plan design configuration identifier"
+        data_type: varchar
+        data_tests:
+          - not_null
+      - name: snapshot_date
+        description: "Weekly snapshot date (always Friday)"
+        data_type: date
+        data_tests:
+          - not_null
+      - name: total_employee_contributions
+        description: "Cumulative employee contributions as of snapshot date"
+        data_type: decimal(18,6)
+        data_tests:
+          - not_null
+          - dbt_utils.accepted_range:
+              min_value: 0
+              max_value: 1000000
+      - name: total_employer_contributions
+        description: "Cumulative employer contributions as of snapshot date"
+        data_type: decimal(18,6)
+        data_tests:
+          - not_null
+          - dbt_utils.accepted_range:
+              min_value: 0
+              max_value: 1000000
+      - name: total_forfeitures
+        description: "Cumulative forfeiture amounts as of snapshot date"
+        data_type: decimal(18,6)
+        data_tests:
+          - not_null
+          - dbt_utils.accepted_range:
+              min_value: 0
+              max_value: 1000000
+      - name: gross_account_balance
+        description: "Total account balance before forfeitures"
+        data_type: decimal(18,6)
+        data_tests:
+          - not_null
+          - dbt_utils.accepted_range:
+              min_value: 0
+              max_value: 2000000
+      - name: vested_account_balance
+        description: "Vested portion of account balance"
+        data_type: decimal(18,6)
+        data_tests:
+          - not_null
+          - dbt_utils.accepted_range:
+              min_value: 0
+              max_value: 2000000
+      - name: unvested_balance
+        description: "Unvested portion of employer contributions"
+        data_type: decimal(18,6)
+        data_tests:
+          - not_null
+          - dbt_utils.accepted_range:
+              min_value: 0
+              max_value: 1000000
+      - name: net_account_balance
+        description: "Account balance after forfeitures"
+        data_type: decimal(18,6)
+        data_tests:
+          - not_null
+          - dbt_utils.accepted_range:
+              min_value: 0
+              max_value: 2000000
+      - name: current_vested_percentage
+        description: "Current vesting percentage (0.0000 to 1.0000)"
+        data_type: decimal(8,4)
+        data_tests:
+          - not_null
+          - dbt_utils.accepted_range:
+              min_value: 0.0000
+              max_value: 1.0000
+      - name: service_years
+        description: "Years of service for vesting calculation"
+        data_type: decimal(8,2)
+        data_tests:
+          - not_null
+          - dbt_utils.accepted_range:
+              min_value: 0.00
+              max_value: 50.00
+      - name: is_enrolled
+        description: "Whether participant is enrolled in plan"
+        data_type: boolean
+        data_tests:
+          - not_null
+      - name: current_deferral_percentage
+        description: "Current deferral percentage (0.0000 to 1.0000)"
+        data_type: decimal(8,4)
+        data_tests:
+          - not_null
+          - dbt_utils.accepted_range:
+              min_value: 0.0000
+              max_value: 1.0000
+      - name: contribution_event_count
+        description: "Number of contribution events as of snapshot"
+        data_type: bigint
+        data_tests:
+          - not_null
+          - dbt_utils.accepted_range:
+              min_value: 0
+              max_value: 1000
+      - name: eligibility_date
+        description: "Date participant became eligible for plan"
+        data_type: date
+      - name: enrollment_date
+        description: "Date participant enrolled in plan"
+        data_type: date
+      - name: participation_status
+        description: "Detailed participation status classification"
+        data_type: varchar
+        data_tests:
+          - not_null
+          - accepted_values:
+              values: ['active_participant', 'enrolled_zero_deferral', 'eligible_not_enrolled', 'not_eligible', 'unknown_status']
+      - name: data_quality_flag
+        description: "Data quality validation flag"
+        data_type: varchar
+        data_tests:
+          - not_null
+          - accepted_values:
+              values: ['valid', 'negative_employee_balance', 'negative_employer_balance', 'invalid_vesting_percentage', 'enrolled_no_contributions', 'contributions_not_enrolled']
+      - name: is_current_week
+        description: "Flag indicating if this is current week snapshot"
+        data_type: boolean
+        data_tests:
+          - not_null
+      - name: snapshot_created_at
+        description: "Timestamp when snapshot was created"
+        data_type: timestamp with time zone
+        data_tests:
+          - not_null
+
   # Cross-model relationship tests
   - name: fct_compensation_growth
     description: "Compensation growth fact table validation"
