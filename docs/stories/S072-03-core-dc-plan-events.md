@@ -10,11 +10,11 @@
 
 **As a** DC plan administrator
 **I want** core retirement plan events for participant lifecycle management
-**So that** I can track eligibility, enrollment, contributions, distributions, and vesting with complete audit trail
+**So that** I can track eligibility, enrollment, contributions, and vesting with complete audit trail
 
 ## Business Context
 
-This story implements the 5 most critical DC plan events that form the core of participant lifecycle management: eligibility determination, plan enrollment, contribution processing, distribution handling, and vesting calculations. These events represent the primary participant interactions with the retirement plan.
+This story implements the 4 core DC plan events that form the foundation of participant lifecycle management: eligibility determination, plan enrollment, contribution processing, and vesting calculations. These events represent the essential participant interactions with the retirement plan.
 
 ## Acceptance Criteria
 
