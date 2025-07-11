@@ -1,5 +1,41 @@
 # filename: config/events.py
-"""Unified event model with Pydantic v2 discriminated unions for DC plan and workforce events."""
+"""
+Unified event model with Pydantic v2 discriminated unions for DC plan and workforce events.
+
+This module implements the enterprise-grade event sourcing architecture for PlanWise Navigator,
+providing type-safe event creation, validation, and processing for all workforce simulation
+and DC plan administration scenarios.
+
+Event Categories:
+- Workforce Events: HIRE, PROMOTION, TERMINATION, MERIT (workforce simulation)
+- DC Plan Events: ELIGIBILITY, ENROLLMENT, CONTRIBUTION, VESTING (S072-03)
+- Plan Administration Events: FORFEITURE, HCE_STATUS, COMPLIANCE (S072-04)
+
+Key Features:
+- Pydantic v2 discriminated unions for automatic event type routing
+- Enterprise-grade validation with decimal precision and business rule enforcement
+- Type-safe factory patterns for event creation
+- Immutable audit trail with UUID tracking and scenario isolation
+- Comprehensive regulatory compliance support for IRS and ERISA requirements
+
+Usage:
+    # Create workforce events
+    hire_event = WorkforceEventFactory.create_hire_event(...)
+
+    # Create DC plan events
+    contribution_event = DCPlanEventFactory.create_contribution_event(...)
+
+    # Create plan administration events (S072-04)
+    forfeiture_event = PlanAdministrationEventFactory.create_forfeiture_event(...)
+    hce_event = PlanAdministrationEventFactory.create_hce_status_event(...)
+    compliance_event = PlanAdministrationEventFactory.create_compliance_monitoring_event(...)
+
+Architecture:
+- SimulationEvent: Core event model with discriminated union payload routing
+- EventFactory: Base factory class with validation and schema checking
+- Specialized Factories: Type-safe event creation for each domain
+- Payload Classes: Domain-specific event data with comprehensive validation
+"""
 
 from typing import Annotated, Union, Optional, Any, Literal, Dict
 from pydantic import BaseModel, Field, ConfigDict, field_validator
@@ -280,7 +316,7 @@ class SimulationEvent(BaseModel):
         Annotated[ForfeiturePayload, Field(discriminator='event_type')],
         Annotated[HCEStatusPayload, Field(discriminator='event_type')],
         Annotated[ComplianceEventPayload, Field(discriminator='event_type')],
-        # Placeholder for additional DC plan events (S072-05)
+        # Additional event types can be added here as needed
     ] = Field(..., discriminator='event_type')
 
     # Optional correlation for event tracing
@@ -606,7 +642,53 @@ class DCPlanEventFactory(EventFactory):
 
 
 class PlanAdministrationEventFactory(EventFactory):
-    """Factory for creating plan administration events"""
+    """
+    Factory for creating plan administration events (S072-04).
+
+    Provides type-safe creation methods for essential plan governance and compliance
+    monitoring events including forfeiture processing, HCE determination, and basic
+    IRS limit monitoring.
+
+    Event Types Supported:
+    - Forfeiture: Unvested employer contribution recapture
+    - HCE Status: Highly compensated employee determination
+    - Compliance: Basic IRS limit monitoring (402g, 415c, catch-up)
+
+    All events include comprehensive validation for regulatory compliance:
+    - Decimal precision (18,6) for monetary amounts
+    - Percentage precision (4 decimal places) for vesting
+    - Source validation (employer contributions only for forfeitures)
+    - Required plan context and scenario isolation
+
+    Usage:
+        # Create forfeiture event for terminated employee
+        forfeiture_event = PlanAdministrationEventFactory.create_forfeiture_event(
+            employee_id="EMP_001",
+            plan_id="401K_PLAN",
+            scenario_id="SCENARIO_2025",
+            plan_design_id="STANDARD_DESIGN",
+            forfeited_from_source="employer_match",
+            amount=Decimal("2500.00"),
+            reason="unvested_termination",
+            vested_percentage=Decimal("0.25"),
+            effective_date=date(2025, 6, 30)
+        )
+
+        # Create HCE determination event
+        hce_event = PlanAdministrationEventFactory.create_hce_status_event(
+            employee_id="EMP_002",
+            plan_id="401K_PLAN",
+            scenario_id="SCENARIO_2025",
+            plan_design_id="STANDARD_DESIGN",
+            determination_method="prior_year",
+            ytd_compensation=Decimal("130000.00"),
+            annualized_compensation=Decimal("156000.00"),
+            hce_threshold=Decimal("135000.00"),
+            is_hce=True,
+            determination_date=date(2025, 1, 1),
+            prior_year_hce=False
+        )
+    """
 
     @staticmethod
     def create_forfeiture_event(
