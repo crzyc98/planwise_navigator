@@ -8,7 +8,7 @@ from decimal import Decimal
 from typing import Any, Dict
 from pydantic import ValidationError
 
-from config.events import SimulationEvent, EventFactory
+from config.events import SimulationEvent, EventFactory, WorkforceEventFactory, HirePayload
 
 
 class TestSimulationEvent:
@@ -16,35 +16,44 @@ class TestSimulationEvent:
 
     def test_event_creation_with_required_fields(self):
         """Test creating event with all required fields"""
-        event_data = {
-            'employee_id': 'EMP001',
-            'effective_date': date(2025, 1, 15),
-            'scenario_id': 'SCENARIO_001',
-            'plan_design_id': 'PLAN_001',
-            'source_system': 'test_system'
-        }
-
-        event = SimulationEvent(**event_data)
+        # Use WorkforceEventFactory to create a valid event with payload
+        event = WorkforceEventFactory.create_hire_event(
+            employee_id='EMP001',
+            scenario_id='SCENARIO_001',
+            plan_design_id='PLAN_001',
+            hire_date=date(2025, 1, 15),
+            department='Test Dept',
+            job_level=3,
+            annual_compensation=Decimal('100000')
+        )
 
         assert event.employee_id == 'EMP001'
         assert event.effective_date == date(2025, 1, 15)
         assert event.scenario_id == 'SCENARIO_001'
         assert event.plan_design_id == 'PLAN_001'
-        assert event.source_system == 'test_system'
+        assert event.source_system == 'workforce_simulation'
         assert isinstance(event.event_id, UUID)
         assert isinstance(event.created_at, datetime)
-        # payload will be added in subsequent stories
+        assert isinstance(event.payload, HirePayload)
         assert event.correlation_id is None
 
     def test_event_creation_with_optional_fields(self):
         """Test creating event with optional fields"""
+        # Create event with payload and correlation ID
         event_data = {
             'employee_id': 'EMP002',
             'effective_date': date(2025, 1, 15),
             'scenario_id': 'SCENARIO_002',
             'plan_design_id': 'PLAN_002',
             'source_system': 'test_system',
-            'correlation_id': 'CORR_001'
+            'correlation_id': 'CORR_001',
+            'payload': {
+                'event_type': 'hire',
+                'hire_date': date(2025, 1, 15),
+                'department': 'Test Dept',
+                'job_level': 2,
+                'annual_compensation': Decimal('80000')
+            }
         }
 
         event = SimulationEvent(**event_data)
@@ -53,20 +62,24 @@ class TestSimulationEvent:
 
     def test_uuid_generation(self):
         """Test that unique UUIDs are generated for each event"""
-        event1 = SimulationEvent(
+        event1 = WorkforceEventFactory.create_hire_event(
             employee_id='EMP001',
-            effective_date=date(2025, 1, 15),
             scenario_id='SCENARIO_001',
             plan_design_id='PLAN_001',
-            source_system='test_system'
+            hire_date=date(2025, 1, 15),
+            department='Test Dept',
+            job_level=3,
+            annual_compensation=Decimal('100000')
         )
 
-        event2 = SimulationEvent(
+        event2 = WorkforceEventFactory.create_hire_event(
             employee_id='EMP002',
-            effective_date=date(2025, 1, 15),
             scenario_id='SCENARIO_001',
             plan_design_id='PLAN_001',
-            source_system='test_system'
+            hire_date=date(2025, 1, 15),
+            department='Test Dept',
+            job_level=3,
+            annual_compensation=Decimal('100000')
         )
 
         assert event1.event_id != event2.event_id
@@ -75,12 +88,14 @@ class TestSimulationEvent:
 
     def test_timestamp_generation(self):
         """Test that timestamps are automatically generated"""
-        event = SimulationEvent(
+        event = WorkforceEventFactory.create_hire_event(
             employee_id='EMP001',
-            effective_date=date(2025, 1, 15),
             scenario_id='SCENARIO_001',
             plan_design_id='PLAN_001',
-            source_system='test_system'
+            hire_date=date(2025, 1, 15),
+            department='Test Dept',
+            job_level=3,
+            annual_compensation=Decimal('100000')
         )
 
         assert isinstance(event.created_at, datetime)
@@ -99,7 +114,14 @@ class TestSimulationEvent:
                 effective_date=date(2025, 1, 15),
                 scenario_id='SCENARIO_001',
                 plan_design_id='PLAN_001',
-                source_system='test_system'
+                source_system='test_system',
+                payload={
+                    'event_type': 'hire',
+                    'hire_date': date(2025, 1, 15),
+                    'department': 'Test',
+                    'job_level': 1,
+                    'annual_compensation': Decimal('50000')
+                }
             )
 
     def test_whitespace_employee_id_validation(self):
@@ -110,7 +132,14 @@ class TestSimulationEvent:
                 effective_date=date(2025, 1, 15),
                 scenario_id='SCENARIO_001',
                 plan_design_id='PLAN_001',
-                source_system='test_system'
+                source_system='test_system',
+                payload={
+                    'event_type': 'hire',
+                    'hire_date': date(2025, 1, 15),
+                    'department': 'Test',
+                    'job_level': 1,
+                    'annual_compensation': Decimal('50000')
+                }
             )
 
     def test_empty_scenario_id_validation(self):
@@ -121,7 +150,14 @@ class TestSimulationEvent:
                 effective_date=date(2025, 1, 15),
                 scenario_id='',
                 plan_design_id='PLAN_001',
-                source_system='test_system'
+                source_system='test_system',
+                payload={
+                    'event_type': 'hire',
+                    'hire_date': date(2025, 1, 15),
+                    'department': 'Test',
+                    'job_level': 1,
+                    'annual_compensation': Decimal('50000')
+                }
             )
 
     def test_empty_plan_design_id_validation(self):
@@ -132,7 +168,14 @@ class TestSimulationEvent:
                 effective_date=date(2025, 1, 15),
                 scenario_id='SCENARIO_001',
                 plan_design_id='',
-                source_system='test_system'
+                source_system='test_system',
+                payload={
+                    'event_type': 'hire',
+                    'hire_date': date(2025, 1, 15),
+                    'department': 'Test',
+                    'job_level': 1,
+                    'annual_compensation': Decimal('50000')
+                }
             )
 
     def test_string_trimming(self):
@@ -142,7 +185,14 @@ class TestSimulationEvent:
             effective_date=date(2025, 1, 15),
             scenario_id='  SCENARIO_001  ',
             plan_design_id='  PLAN_001  ',
-            source_system='test_system'
+            source_system='test_system',
+            payload={
+                'event_type': 'hire',
+                'hire_date': date(2025, 1, 15),
+                'department': 'Test',
+                'job_level': 1,
+                'annual_compensation': Decimal('50000')
+            }
         )
 
         assert event.employee_id == 'EMP001'
@@ -158,17 +208,26 @@ class TestSimulationEvent:
                 scenario_id='SCENARIO_001',
                 plan_design_id='PLAN_001',
                 source_system='test_system',
+                payload={
+                    'event_type': 'hire',
+                    'hire_date': date(2025, 1, 15),
+                    'department': 'Test',
+                    'job_level': 1,
+                    'annual_compensation': Decimal('50000')
+                },
                 unexpected_field='should_fail'
             )
 
     def test_serialization_to_dict(self):
         """Test serialization to dictionary"""
-        event = SimulationEvent(
+        event = WorkforceEventFactory.create_hire_event(
             employee_id='EMP001',
-            effective_date=date(2025, 1, 15),
             scenario_id='SCENARIO_001',
             plan_design_id='PLAN_001',
-            source_system='test_system'
+            hire_date=date(2025, 1, 15),
+            department='Test Dept',
+            job_level=3,
+            annual_compensation=Decimal('100000')
         )
 
         event_dict = event.model_dump()
@@ -177,9 +236,10 @@ class TestSimulationEvent:
         assert event_dict['effective_date'] == date(2025, 1, 15)
         assert event_dict['scenario_id'] == 'SCENARIO_001'
         assert event_dict['plan_design_id'] == 'PLAN_001'
-        assert event_dict['source_system'] == 'test_system'
+        assert event_dict['source_system'] == 'workforce_simulation'
         assert 'event_id' in event_dict
         assert 'created_at' in event_dict
+        assert 'payload' in event_dict
 
     def test_deserialization_from_dict(self):
         """Test deserialization from dictionary"""
@@ -191,7 +251,14 @@ class TestSimulationEvent:
             'scenario_id': 'SCENARIO_001',
             'plan_design_id': 'PLAN_001',
             'source_system': 'test_system',
-            'correlation_id': 'CORR_001'
+            'correlation_id': 'CORR_001',
+            'payload': {
+                'event_type': 'hire',
+                'hire_date': '2025-01-15',
+                'department': 'Test',
+                'job_level': 3,
+                'annual_compensation': '100000'
+            }
         }
 
         event = SimulationEvent.model_validate(event_data)
@@ -213,7 +280,14 @@ class TestEventFactory:
             'effective_date': '2025-01-15',
             'scenario_id': 'SCENARIO_001',
             'plan_design_id': 'PLAN_001',
-            'source_system': 'test_system'
+            'source_system': 'test_system',
+            'payload': {
+                'event_type': 'hire',
+                'hire_date': '2025-01-15',
+                'department': 'Test',
+                'job_level': 3,
+                'annual_compensation': '100000'
+            }
         }
 
         event = EventFactory.create_event(event_data)
@@ -229,7 +303,14 @@ class TestEventFactory:
             'effective_date': '2025-01-15',
             'scenario_id': 'SCENARIO_001',
             'plan_design_id': 'PLAN_001',
-            'source_system': 'test_system'
+            'source_system': 'test_system',
+            'payload': {
+                'event_type': 'hire',
+                'hire_date': '2025-01-15',
+                'department': 'Test',
+                'job_level': 3,
+                'annual_compensation': '100000'
+            }
         }
 
         validated_data = EventFactory.validate_schema(event_data)
@@ -239,34 +320,15 @@ class TestEventFactory:
         assert 'event_id' in validated_data
         assert 'created_at' in validated_data
 
-    def test_create_basic_event(self):
-        """Test creating basic event with factory"""
-        event = EventFactory.create_basic_event(
-            employee_id='EMP001',
-            effective_date=date(2025, 1, 15),
-            scenario_id='SCENARIO_001',
-            plan_design_id='PLAN_001'
-        )
-
-        assert isinstance(event, SimulationEvent)
-        assert event.employee_id == 'EMP001'
-        assert event.effective_date == date(2025, 1, 15)
-        assert event.scenario_id == 'SCENARIO_001'
-        assert event.plan_design_id == 'PLAN_001'
-        assert event.source_system == 'event_factory'
-        assert event.correlation_id is None
-
-    def test_create_basic_event_with_correlation(self):
-        """Test creating basic event with correlation ID"""
-        event = EventFactory.create_basic_event(
-            employee_id='EMP001',
-            effective_date=date(2025, 1, 15),
-            scenario_id='SCENARIO_001',
-            plan_design_id='PLAN_001',
-            correlation_id='CORR_001'
-        )
-
-        assert event.correlation_id == 'CORR_001'
+    def test_create_basic_event_deprecated(self):
+        """Test that create_basic_event is deprecated"""
+        with pytest.raises(NotImplementedError, match="create_basic_event is deprecated"):
+            EventFactory.create_basic_event(
+                employee_id='EMP001',
+                effective_date=date(2025, 1, 15),
+                scenario_id='SCENARIO_001',
+                plan_design_id='PLAN_001'
+            )
 
     def test_invalid_data_handling(self):
         """Test handling of invalid data"""
@@ -275,7 +337,14 @@ class TestEventFactory:
             'effective_date': '2025-01-15',
             'scenario_id': 'SCENARIO_001',
             'plan_design_id': 'PLAN_001',
-            'source_system': 'test_system'
+            'source_system': 'test_system',
+            'payload': {
+                'event_type': 'hire',
+                'hire_date': '2025-01-15',
+                'department': 'Test',
+                'job_level': 3,
+                'annual_compensation': '100000'
+            }
         }
 
         with pytest.raises(ValidationError, match="String should have at least 1 character"):
@@ -293,12 +362,14 @@ class TestPerformance:
 
         events = []
         for i in range(1000):
-            event = SimulationEvent(
+            event = WorkforceEventFactory.create_hire_event(
                 employee_id=f'EMP{i:06d}',
-                effective_date=date(2025, 1, 15),
                 scenario_id='SCENARIO_001',
                 plan_design_id='PLAN_001',
-                source_system='test_system'
+                hire_date=date(2025, 1, 15),
+                department='Test',
+                job_level=3,
+                annual_compensation=Decimal('100000')
             )
             events.append(event)
 
@@ -315,12 +386,14 @@ class TestPerformance:
 
         events = []
         for i in range(100):
-            event = SimulationEvent(
+            event = WorkforceEventFactory.create_hire_event(
                 employee_id=f'EMP{i:06d}',
-                effective_date=date(2025, 1, 15),
                 scenario_id='SCENARIO_001',
                 plan_design_id='PLAN_001',
-                source_system='test_system'
+                hire_date=date(2025, 1, 15),
+                department='Test',
+                job_level=3,
+                annual_compensation=Decimal('100000')
             )
             events.append(event)
 
