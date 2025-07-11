@@ -2,7 +2,7 @@
 """Unified event model with Pydantic v2 discriminated unions for DC plan and workforce events."""
 
 from typing import Annotated, Union, Optional, Any, Literal, Dict
-from pydantic import BaseModel, Field, ConfigDict, field_validator, model_validator
+from pydantic import BaseModel, Field, ConfigDict, field_validator
 from datetime import date, datetime
 from decimal import Decimal
 from uuid import UUID, uuid4
@@ -105,7 +105,8 @@ class EnrollmentPayload(BaseModel):
     auto_enrollment: bool = False
     opt_out_window_expires: Optional[date] = None
 
-    @field_validator('pre_tax_contribution_rate', 'roth_contribution_rate', 'after_tax_contribution_rate')
+    @field_validator('pre_tax_contribution_rate', 'roth_contribution_rate',
+                     'after_tax_contribution_rate')
     @classmethod
     def validate_contribution_rate(cls, v: Decimal) -> Decimal:
         """Ensure contribution rate has proper precision"""
@@ -137,7 +138,6 @@ class ContributionPayload(BaseModel):
         return v.quantize(Decimal('0.000001'))
 
 
-
 class VestingPayload(BaseModel):
     """Service-based employer contribution vesting"""
 
@@ -166,7 +166,82 @@ class VestingPayload(BaseModel):
     @classmethod
     def validate_source_balances(cls, v: Dict[str, Decimal]) -> Dict[str, Decimal]:
         """Ensure source balances have proper precision"""
-        return {source: amount.quantize(Decimal('0.000001')) for source, amount in v.items()}
+        return {source: amount.quantize(Decimal('0.000001'))
+                for source, amount in v.items()}
+
+
+# Plan Administration Event Payloads (S072-04)
+class ForfeiturePayload(BaseModel):
+    """Unvested employer contribution recapture"""
+
+    event_type: Literal["forfeiture"] = "forfeiture"
+    plan_id: str = Field(..., min_length=1)
+    forfeited_from_source: Literal[
+        "employer_match",
+        "employer_nonelective",
+        "employer_profit_sharing"
+    ]
+    amount: Decimal = Field(..., gt=0, decimal_places=6)
+    reason: Literal["unvested_termination", "break_in_service"]
+    vested_percentage: Decimal = Field(..., ge=0, le=1, decimal_places=4)
+
+    @field_validator('amount')
+    @classmethod
+    def validate_amount(cls, v: Decimal) -> Decimal:
+        """Ensure amount has proper precision (18,6)"""
+        return v.quantize(Decimal('0.000001'))
+
+    @field_validator('vested_percentage')
+    @classmethod
+    def validate_vested_percentage(cls, v: Decimal) -> Decimal:
+        """Ensure vested percentage has proper precision"""
+        return v.quantize(Decimal('0.0001'))
+
+
+class HCEStatusPayload(BaseModel):
+    """Highly compensated employee determination"""
+
+    event_type: Literal["hce_status"] = "hce_status"
+    plan_id: str = Field(..., min_length=1)
+    determination_method: Literal["prior_year", "current_year"]
+    ytd_compensation: Decimal = Field(..., ge=0, decimal_places=6)
+    annualized_compensation: Decimal = Field(..., ge=0, decimal_places=6)
+    hce_threshold: Decimal = Field(..., gt=0, decimal_places=6)
+    is_hce: bool
+    determination_date: date
+    prior_year_hce: Optional[bool] = None
+
+    @field_validator('ytd_compensation', 'annualized_compensation', 'hce_threshold')
+    @classmethod
+    def validate_compensation(cls, v: Decimal) -> Decimal:
+        """Ensure compensation has proper precision (18,6)"""
+        return v.quantize(Decimal('0.000001'))
+
+
+class ComplianceEventPayload(BaseModel):
+    """Basic IRS limit monitoring"""
+
+    event_type: Literal["compliance"] = "compliance"
+    plan_id: str = Field(..., min_length=1)
+    compliance_type: Literal[
+        "402g_limit_approach",    # Approaching elective deferral limit
+        "415c_limit_approach",    # Approaching annual additions limit
+        "catch_up_eligible"       # Participant becomes catch-up eligible
+    ]
+    limit_type: Literal[
+        "elective_deferral",
+        "annual_additions",
+        "catch_up"
+    ]
+    applicable_limit: Decimal = Field(..., gt=0, decimal_places=6)
+    current_amount: Decimal = Field(..., ge=0, decimal_places=6)
+    monitoring_date: date
+
+    @field_validator('applicable_limit', 'current_amount')
+    @classmethod
+    def validate_amount(cls, v: Decimal) -> Decimal:
+        """Ensure amounts have proper precision (18,6)"""
+        return v.quantize(Decimal('0.000001'))
 
 
 class SimulationEvent(BaseModel):
@@ -201,7 +276,11 @@ class SimulationEvent(BaseModel):
         Annotated[EnrollmentPayload, Field(discriminator='event_type')],
         Annotated[ContributionPayload, Field(discriminator='event_type')],
         Annotated[VestingPayload, Field(discriminator='event_type')],
-        # Placeholder for additional DC plan events (S072-04, S072-05)
+        # Plan Administration Events (S072-04)
+        Annotated[ForfeiturePayload, Field(discriminator='event_type')],
+        Annotated[HCEStatusPayload, Field(discriminator='event_type')],
+        Annotated[ComplianceEventPayload, Field(discriminator='event_type')],
+        # Placeholder for additional DC plan events (S072-05)
     ] = Field(..., discriminator='event_type')
 
     # Optional correlation for event tracing
@@ -330,7 +409,9 @@ class WorkforceEventFactory(EventFactory):
         scenario_id: str,
         plan_design_id: str,
         effective_date: date,
-        termination_reason: Literal["voluntary", "involuntary", "retirement", "death", "disability"],
+        termination_reason: Literal[
+            "voluntary", "involuntary", "retirement", "death", "disability"
+        ],
         final_pay_date: date,
         plan_id: Optional[str] = None
     ) -> SimulationEvent:
@@ -486,7 +567,6 @@ class DCPlanEventFactory(EventFactory):
             payload=payload
         )
 
-
     @staticmethod
     def create_vesting_event(
         employee_id: str,
@@ -521,6 +601,111 @@ class DCPlanEventFactory(EventFactory):
             plan_design_id=plan_design_id,
             effective_date=service_computation_date,
             source_system="dc_plan_administration",
+            payload=payload
+        )
+
+
+class PlanAdministrationEventFactory(EventFactory):
+    """Factory for creating plan administration events"""
+
+    @staticmethod
+    def create_forfeiture_event(
+        employee_id: str,
+        plan_id: str,
+        scenario_id: str,
+        plan_design_id: str,
+        forfeited_from_source: Literal[
+            "employer_match", "employer_nonelective", "employer_profit_sharing"
+        ],
+        amount: Decimal,
+        reason: Literal["unvested_termination", "break_in_service"],
+        vested_percentage: Decimal,
+        effective_date: date
+    ) -> SimulationEvent:
+        """Create forfeiture event for unvested contributions"""
+
+        payload = ForfeiturePayload(
+            plan_id=plan_id,
+            forfeited_from_source=forfeited_from_source,
+            amount=amount,
+            reason=reason,
+            vested_percentage=vested_percentage
+        )
+
+        return SimulationEvent(
+            employee_id=employee_id,
+            scenario_id=scenario_id,
+            plan_design_id=plan_design_id,
+            effective_date=effective_date,
+            source_system="plan_administration",
+            payload=payload
+        )
+
+    @staticmethod
+    def create_hce_status_event(
+        employee_id: str,
+        plan_id: str,
+        scenario_id: str,
+        plan_design_id: str,
+        determination_method: Literal["prior_year", "current_year"],
+        ytd_compensation: Decimal,
+        annualized_compensation: Decimal,
+        hce_threshold: Decimal,
+        is_hce: bool,
+        determination_date: date,
+        prior_year_hce: Optional[bool] = None
+    ) -> SimulationEvent:
+        """Create HCE status determination event"""
+
+        payload = HCEStatusPayload(
+            plan_id=plan_id,
+            determination_method=determination_method,
+            ytd_compensation=ytd_compensation,
+            annualized_compensation=annualized_compensation,
+            hce_threshold=hce_threshold,
+            is_hce=is_hce,
+            determination_date=determination_date,
+            prior_year_hce=prior_year_hce
+        )
+
+        return SimulationEvent(
+            employee_id=employee_id,
+            scenario_id=scenario_id,
+            plan_design_id=plan_design_id,
+            effective_date=determination_date,
+            source_system="hce_determination",
+            payload=payload
+        )
+
+    @staticmethod
+    def create_compliance_monitoring_event(
+        employee_id: str,
+        plan_id: str,
+        scenario_id: str,
+        plan_design_id: str,
+        compliance_type: Literal["402g_limit_approach", "415c_limit_approach", "catch_up_eligible"],
+        limit_type: Literal["elective_deferral", "annual_additions", "catch_up"],
+        applicable_limit: Decimal,
+        current_amount: Decimal,
+        monitoring_date: date
+    ) -> SimulationEvent:
+        """Create compliance monitoring event for limit tracking"""
+
+        payload = ComplianceEventPayload(
+            plan_id=plan_id,
+            compliance_type=compliance_type,
+            limit_type=limit_type,
+            applicable_limit=applicable_limit,
+            current_amount=current_amount,
+            monitoring_date=monitoring_date
+        )
+
+        return SimulationEvent(
+            employee_id=employee_id,
+            scenario_id=scenario_id,
+            plan_design_id=plan_design_id,
+            effective_date=monitoring_date,
+            source_system="compliance_monitoring",
             payload=payload
         )
 
