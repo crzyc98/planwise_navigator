@@ -1,8 +1,8 @@
 # filename: config/events.py
 """Unified event model with Pydantic v2 discriminated unions for DC plan and workforce events."""
 
-from typing import Annotated, Union, Optional, Any, Literal
-from pydantic import BaseModel, Field, ConfigDict, field_validator
+from typing import Annotated, Union, Optional, Any, Literal, Dict
+from pydantic import BaseModel, Field, ConfigDict, field_validator, model_validator
 from datetime import date, datetime
 from decimal import Decimal
 from uuid import UUID, uuid4
@@ -75,6 +75,100 @@ class MeritPayload(BaseModel):
         return v.quantize(Decimal('0.0001'))
 
 
+# DC Plan Event Payloads
+class EligibilityPayload(BaseModel):
+    """Plan participation qualification tracking"""
+
+    event_type: Literal["eligibility"] = "eligibility"
+    plan_id: str = Field(..., min_length=1)
+    eligible: bool
+    eligibility_date: date
+    reason: Literal[
+        "age_and_service",
+        "immediate",
+        "hours_requirement",
+        "rehire"
+    ]
+
+
+class EnrollmentPayload(BaseModel):
+    """Deferral election and auto-enrollment handling"""
+
+    event_type: Literal["enrollment"] = "enrollment"
+    plan_id: str = Field(..., min_length=1)
+    enrollment_date: date
+    pre_tax_contribution_rate: Decimal = Field(..., ge=0, le=1, decimal_places=4)
+    roth_contribution_rate: Decimal = Field(..., ge=0, le=1, decimal_places=4)
+    after_tax_contribution_rate: Decimal = Field(
+        default=Decimal('0'), ge=0, le=1, decimal_places=4
+    )
+    auto_enrollment: bool = False
+    opt_out_window_expires: Optional[date] = None
+
+    @field_validator('pre_tax_contribution_rate', 'roth_contribution_rate', 'after_tax_contribution_rate')
+    @classmethod
+    def validate_contribution_rate(cls, v: Decimal) -> Decimal:
+        """Ensure contribution rate has proper precision"""
+        return v.quantize(Decimal('0.0001'))
+
+
+class ContributionPayload(BaseModel):
+    """All contribution sources with IRS categorization"""
+
+    event_type: Literal["contribution"] = "contribution"
+    plan_id: str = Field(..., min_length=1)
+    source: Literal[
+        "employee_pre_tax", "employee_roth", "employee_after_tax", "employee_catch_up",
+        "employer_match", "employer_match_true_up", "employer_nonelective",
+        "employer_profit_sharing", "forfeiture_allocation"
+    ]
+    amount: Decimal = Field(..., gt=0, decimal_places=6)
+    pay_period_end: date
+    contribution_date: date  # Date funds are deposited - critical for performance
+    ytd_amount: Decimal = Field(..., ge=0, decimal_places=6)
+    payroll_id: str = Field(..., min_length=1)  # Required for audit trail
+    irs_limit_applied: bool = False
+    inferred_value: bool = False
+
+    @field_validator('amount', 'ytd_amount')
+    @classmethod
+    def validate_amount(cls, v: Decimal) -> Decimal:
+        """Ensure amounts have proper precision (18,6)"""
+        return v.quantize(Decimal('0.000001'))
+
+
+
+class VestingPayload(BaseModel):
+    """Service-based employer contribution vesting"""
+
+    event_type: Literal["vesting"] = "vesting"
+    plan_id: str = Field(..., min_length=1)
+    vested_percentage: Decimal = Field(..., ge=0, le=1, decimal_places=4)
+
+    # The balance in each source to which the new percentage is applied
+    source_balances_vested: Dict[
+        Literal["employer_match", "employer_nonelective", "employer_profit_sharing"],
+        Decimal
+    ]
+
+    vesting_schedule_type: Literal["graded", "cliff", "immediate"]
+    service_computation_date: date
+    service_credited_hours: int = Field(..., ge=0)  # Required for audit
+    service_period_end_date: date  # Required for audit
+
+    @field_validator('vested_percentage')
+    @classmethod
+    def validate_vested_percentage(cls, v: Decimal) -> Decimal:
+        """Ensure vested percentage has proper precision"""
+        return v.quantize(Decimal('0.0001'))
+
+    @field_validator('source_balances_vested')
+    @classmethod
+    def validate_source_balances(cls, v: Dict[str, Decimal]) -> Dict[str, Decimal]:
+        """Ensure source balances have proper precision"""
+        return {source: amount.quantize(Decimal('0.000001')) for source, amount in v.items()}
+
+
 class SimulationEvent(BaseModel):
     """Unified event model for all workforce and DC plan events"""
 
@@ -97,11 +191,17 @@ class SimulationEvent(BaseModel):
 
     # Discriminated union payload for event-specific data
     payload: Union[
+        # Workforce Events
         Annotated[HirePayload, Field(discriminator='event_type')],
         Annotated[PromotionPayload, Field(discriminator='event_type')],
         Annotated[TerminationPayload, Field(discriminator='event_type')],
         Annotated[MeritPayload, Field(discriminator='event_type')],
-        # Placeholder for DC plan events (S072-03, S072-04, S072-05)
+        # DC Plan Events (S072-03) - Core 4 events
+        Annotated[EligibilityPayload, Field(discriminator='event_type')],
+        Annotated[EnrollmentPayload, Field(discriminator='event_type')],
+        Annotated[ContributionPayload, Field(discriminator='event_type')],
+        Annotated[VestingPayload, Field(discriminator='event_type')],
+        # Placeholder for additional DC plan events (S072-04, S072-05)
     ] = Field(..., discriminator='event_type')
 
     # Optional correlation for event tracing
@@ -275,6 +375,152 @@ class WorkforceEventFactory(EventFactory):
             plan_design_id=plan_design_id,
             effective_date=effective_date,
             source_system="workforce_simulation",
+            payload=payload
+        )
+
+
+class DCPlanEventFactory(EventFactory):
+    """Factory for creating DC plan events with validation"""
+
+    @staticmethod
+    def create_eligibility_event(
+        employee_id: str,
+        plan_id: str,
+        scenario_id: str,
+        plan_design_id: str,
+        eligible: bool,
+        eligibility_date: date,
+        reason: Literal["age_and_service", "immediate", "hours_requirement", "rehire"]
+    ) -> SimulationEvent:
+        """Create eligibility event for plan participation tracking"""
+
+        payload = EligibilityPayload(
+            plan_id=plan_id,
+            eligible=eligible,
+            eligibility_date=eligibility_date,
+            reason=reason
+        )
+
+        return SimulationEvent(
+            employee_id=employee_id,
+            scenario_id=scenario_id,
+            plan_design_id=plan_design_id,
+            effective_date=eligibility_date,
+            source_system="dc_plan_administration",
+            payload=payload
+        )
+
+    @staticmethod
+    def create_enrollment_event(
+        employee_id: str,
+        plan_id: str,
+        scenario_id: str,
+        plan_design_id: str,
+        enrollment_date: date,
+        pre_tax_contribution_rate: Decimal,
+        roth_contribution_rate: Decimal,
+        after_tax_contribution_rate: Decimal = Decimal('0'),
+        auto_enrollment: bool = False,
+        opt_out_window_expires: Optional[date] = None
+    ) -> SimulationEvent:
+        """Create enrollment event for deferral elections"""
+
+        payload = EnrollmentPayload(
+            plan_id=plan_id,
+            enrollment_date=enrollment_date,
+            pre_tax_contribution_rate=pre_tax_contribution_rate,
+            roth_contribution_rate=roth_contribution_rate,
+            after_tax_contribution_rate=after_tax_contribution_rate,
+            auto_enrollment=auto_enrollment,
+            opt_out_window_expires=opt_out_window_expires
+        )
+
+        return SimulationEvent(
+            employee_id=employee_id,
+            scenario_id=scenario_id,
+            plan_design_id=plan_design_id,
+            effective_date=enrollment_date,
+            source_system="dc_plan_administration",
+            payload=payload
+        )
+
+    @staticmethod
+    def create_contribution_event(
+        employee_id: str,
+        plan_id: str,
+        scenario_id: str,
+        plan_design_id: str,
+        source: Literal[
+            "employee_pre_tax", "employee_roth", "employee_after_tax", "employee_catch_up",
+            "employer_match", "employer_match_true_up", "employer_nonelective",
+            "employer_profit_sharing", "forfeiture_allocation"
+        ],
+        amount: Decimal,
+        pay_period_end: date,
+        contribution_date: date,
+        ytd_amount: Decimal,
+        payroll_id: str,
+        irs_limit_applied: bool = False,
+        inferred_value: bool = False
+    ) -> SimulationEvent:
+        """Create contribution event with required audit fields"""
+
+        payload = ContributionPayload(
+            plan_id=plan_id,
+            source=source,
+            amount=amount,
+            pay_period_end=pay_period_end,
+            contribution_date=contribution_date,
+            ytd_amount=ytd_amount,
+            payroll_id=payroll_id,
+            irs_limit_applied=irs_limit_applied,
+            inferred_value=inferred_value
+        )
+
+        return SimulationEvent(
+            employee_id=employee_id,
+            scenario_id=scenario_id,
+            plan_design_id=plan_design_id,
+            effective_date=contribution_date,
+            source_system="dc_plan_administration",
+            payload=payload
+        )
+
+
+    @staticmethod
+    def create_vesting_event(
+        employee_id: str,
+        plan_id: str,
+        scenario_id: str,
+        plan_design_id: str,
+        vested_percentage: Decimal,
+        source_balances_vested: Dict[
+            Literal["employer_match", "employer_nonelective", "employer_profit_sharing"],
+            Decimal
+        ],
+        vesting_schedule_type: Literal["graded", "cliff", "immediate"],
+        service_computation_date: date,
+        service_credited_hours: int,
+        service_period_end_date: date
+    ) -> SimulationEvent:
+        """Create vesting event with service hour tracking"""
+
+        payload = VestingPayload(
+            plan_id=plan_id,
+            vested_percentage=vested_percentage,
+            source_balances_vested=source_balances_vested,
+            vesting_schedule_type=vesting_schedule_type,
+            service_computation_date=service_computation_date,
+            service_credited_hours=service_credited_hours,
+            service_period_end_date=service_period_end_date
+        )
+
+        return SimulationEvent(
+            employee_id=employee_id,
+            scenario_id=scenario_id,
+            plan_design_id=plan_design_id,
+            effective_date=service_computation_date,
+            source_system="dc_plan_administration",
             payload=payload
         )
 
