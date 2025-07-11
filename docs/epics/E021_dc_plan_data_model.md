@@ -55,12 +55,68 @@ This approach ensures E021 leverages existing event infrastructure while adding 
 
 ## User Stories
 
-### Story 1: Define Retirement Plan Event Schema (18 points)
+### ✅ Epic E021-A: DC Plan Event Schema Foundation (Completed Stories)
+
+**Epic E021-A breaks down the original Story 1 (18 points) into 7 focused stories:**
+
+#### ✅ Story S072-01: Core Event Model & Pydantic v2 Architecture (5 points) [COMPLETED]
+**As a** platform engineer
+**I want** a unified event model with Pydantic v2 discriminated unions
+**So that** all workforce and DC plan events share a consistent, type-safe architecture
+
+**Status**: ✅ **COMPLETED** (2025-07-11)
+**Implementation**: `config/events.py`
+**Tests**: `tests/unit/test_simulation_event.py` (20 tests, 100% pass rate)
+
+**Delivered**:
+- Unified `SimulationEvent` model with Pydantic v2 ConfigDict pattern
+- Required context fields: `scenario_id`, `plan_design_id`, `source_system`
+- EventFactory pattern for validated event creation
+- Automatic UUID and timestamp generation
+- Field validation with proper string trimming
+- Performance benchmarks exceeded (1000 events < 1s)
+- Foundation ready for discriminated union payload expansion
+
+#### Story S072-02: Workforce Event Integration (3 points) [PENDING]
+**As a** platform engineer
+**I want** to integrate existing workforce events into the unified model
+**So that** hire, promotion, termination, and merit events use the same architecture
+
+#### Story S072-03: Core DC Plan Events (5 points) [PENDING]
+**As a** benefits analyst
+**I want** core DC plan event types for contributions and distributions
+**So that** we can track participant deferrals, matches, and withdrawals
+
+#### Story S072-04: Plan Administration Events (5 points) [PENDING]
+**As a** plan administrator
+**I want** administrative event types for vesting and compliance
+**So that** we can track forfeitures, HCE status, and regulatory compliance
+
+#### Story S072-05: Loan & Investment Events (3 points) [PENDING]
+**As a** participant services specialist
+**I want** event types for loans and investment elections
+**So that** we can track participant-directed transactions
+
+#### Story S072-06: Performance & Validation Framework (8 points) [PENDING]
+**As a** platform architect
+**I want** high-performance event processing with comprehensive validation
+**So that** we can handle 100K+ events/sec with <10ms validation
+
+#### Story S072-07: ERISA Compliance Review & Documentation (3 points) [PENDING]
+**As a** compliance officer
+**I want** comprehensive ERISA compliance validation
+**So that** our event schema meets all regulatory requirements
+
+---
+
+### Story 1: Define Retirement Plan Event Schema (18 points) [SUPERSEDED BY E021-A]
 **As a** platform architect
 **I want** comprehensive event types for all DC plan activities
 **So that** we can track every participant interaction and calculation
 
-**Acceptance Criteria:**
+**Note**: This story has been broken down into Epic E021-A with 7 focused stories (see above).
+
+**Original Acceptance Criteria:**
 - Event types cover: eligibility, enrollment, contributions, distributions, vesting, forfeitures
 - Type-safe event payloads using Pydantic discriminated unions
 - Events are immutable once written with complete audit trail
