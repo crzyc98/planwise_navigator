@@ -221,8 +221,9 @@ dbt docs generate         # Generate documentation
 dbt docs serve            # Serve documentation
 
 # Streamlit Dashboards
-streamlit run streamlit_dashboard/main.py               # Launch main dashboard
-streamlit run streamlit_dashboard/compensation_tuning.py # Launch compensation tuning interface (E012)
+make run-dashboard                                       # Launch main dashboard (port 8501)
+make run-compensation-tuning                             # Launch compensation tuning interface (port 8502)
+make run-optimization-dashboard                          # Launch optimization dashboard (port 8503)
 
 # Configuration Management
 # Edit config/simulation_config.yaml for simulation parameters:
@@ -254,7 +255,7 @@ Analyst → Streamlit UI → comp_levers.csv → int_effective_parameters → Ev
 **Key Components**:
 - **`comp_levers.csv`**: 126 parameter entries covering all job levels (1-5) and years (2025-2029)
 - **`int_effective_parameters.sql`**: Dynamic parameter resolution model
-- **`compensation_tuning.py`**: Full-featured Streamlit interface for parameter adjustment
+- **`pages/1_Compensation_Tuning.py`**: Full-featured Streamlit interface for parameter adjustment
 - **Enhanced Event Models**: Merit, hiring, and promotion models now read from dynamic parameters
 
 **Parameter Categories**:
