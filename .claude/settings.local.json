@@ -28,7 +28,8 @@
       "Bash(git fetch:*)",
       "Bash(git pull:*)",
       "Bash(dbt run:*)",
-      "Bash(dagster asset materialize:*)"
+      "Bash(dagster asset materialize:*)",
+      "Bash(dbt compile:*)"
     ],
     "deny": []
   }
