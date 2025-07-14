@@ -20,7 +20,11 @@
       "Bash(git commit:*)",
       "Bash(gh issue comment:*)",
       "Bash(chmod:*)",
-      "Bash(dbt build:*)"
+      "Bash(dbt build:*)",
+      "Bash(git merge:*)",
+      "Bash(git stash:*)",
+      "Bash(git reset:*)",
+      "Bash(git branch:*)"
     ],
     "deny": []
   }
