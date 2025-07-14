@@ -19,7 +19,8 @@
       "Bash(gh run list:*)",
       "Bash(git commit:*)",
       "Bash(gh issue comment:*)",
-      "Bash(chmod:*)"
+      "Bash(chmod:*)",
+      "Bash(dbt build:*)"
     ],
     "deny": []
   }
