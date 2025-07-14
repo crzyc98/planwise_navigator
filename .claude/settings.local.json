@@ -6,17 +6,20 @@
       "Bash(find:*)",
       "Bash(ls:*)",
       "Bash(grep:*)",
-      "Bash(find:*)",
       "Bash(source:*)",
       "Bash(python:*)",
-      "Bash(source:*)",
       "Bash(pip install:*)",
-      "Bash(python:*)",
       "Bash(git checkout:*)",
       "Bash(git add:*)",
       "Bash(rm:*)",
       "Bash(git push:*)",
-      "Bash(grep:*)"
+      "Bash(gh secret:*)",
+      "Bash(gh auth:*)",
+      "Bash(gh issue create:*)",
+      "Bash(gh run list:*)",
+      "Bash(git commit:*)",
+      "Bash(gh issue comment:*)",
+      "Bash(chmod:*)"
     ],
     "deny": []
   }

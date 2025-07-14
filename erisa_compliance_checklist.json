@@ -1,0 +1,220 @@
+{
+  "checklist_version": "1.0",
+  "review_date": "2025-07-14",
+  "reviewed_by": "[Pending Benefits Counsel Assignment]",
+  "plan_sponsor": "Fidelity Investments",
+  "requirements": [
+    {
+      "requirement_id": "ERISA_404_A",
+      "section_reference": "ERISA Section 404 - Fiduciary Duties",
+      "irs_code_reference": null,
+      "description": "Fiduciary acts solely in interest of participants",
+      "compliance_level": "compliant",
+      "event_types_covered": [
+        "contribution",
+        "distribution",
+        "investment_election",
+        "forfeiture",
+        "compliance"
+      ],
+      "validation_notes": "All events include complete audit trail with timestamps and source tracking",
+      "reviewer_name": null,
+      "review_date": null,
+      "remediation_required": false,
+      "remediation_notes": null,
+      "implementation_status": "implemented",
+      "test_coverage": true,
+      "documentation_complete": true
+    },
+    {
+      "requirement_id": "ERISA_404_C",
+      "section_reference": "ERISA Section 404(c) - Participant Direction",
+      "irs_code_reference": null,
+      "description": "Participant direction of investments",
+      "compliance_level": "compliant",
+      "event_types_covered": [
+        "investment_election"
+      ],
+      "validation_notes": "Investment elections include source_of_change and participant validation",
+      "reviewer_name": null,
+      "review_date": null,
+      "remediation_required": false,
+      "remediation_notes": null,
+      "implementation_status": "implemented",
+      "test_coverage": true,
+      "documentation_complete": true
+    },
+    {
+      "requirement_id": "ERISA_101_A",
+      "section_reference": "ERISA Section 101 - Reporting and Disclosure",
+      "irs_code_reference": null,
+      "description": "Summary Plan Description accuracy",
+      "compliance_level": "compliant",
+      "event_types_covered": [
+        "eligibility",
+        "enrollment",
+        "vesting"
+      ],
+      "validation_notes": "Event schema supports all SPD provisions with plan_id linkage",
+      "reviewer_name": null,
+      "review_date": null,
+      "remediation_required": false,
+      "remediation_notes": null,
+      "implementation_status": "implemented",
+      "test_coverage": true,
+      "documentation_complete": true
+    },
+    {
+      "requirement_id": "ERISA_402_A",
+      "section_reference": "ERISA Section 402 - Establishment of Plan",
+      "irs_code_reference": null,
+      "description": "Plan document compliance",
+      "compliance_level": "compliant",
+      "event_types_covered": [
+        "eligibility",
+        "enrollment",
+        "contribution",
+        "vesting",
+        "distribution",
+        "forfeiture",
+        "loan_initiated"
+      ],
+      "validation_notes": "All events reference plan_design_id ensuring plan document alignment",
+      "reviewer_name": null,
+      "review_date": null,
+      "remediation_required": false,
+      "remediation_notes": null,
+      "implementation_status": "implemented",
+      "test_coverage": true,
+      "documentation_complete": true
+    },
+    {
+      "requirement_id": "ERISA_203_A",
+      "section_reference": "ERISA Section 203 - Minimum Vesting Standards",
+      "irs_code_reference": "IRC Section 401(a) - Qualified Plans",
+      "description": "Vesting schedule compliance",
+      "compliance_level": "compliant",
+      "event_types_covered": [
+        "vesting",
+        "forfeiture"
+      ],
+      "validation_notes": "Vesting events include service_credited_hours and schedule_type validation",
+      "reviewer_name": null,
+      "review_date": null,
+      "remediation_required": false,
+      "remediation_notes": null,
+      "implementation_status": "implemented",
+      "test_coverage": true,
+      "documentation_complete": true
+    },
+    {
+      "requirement_id": "ERISA_204_H",
+      "section_reference": "ERISA Section 204 - Benefit Accrual Requirements",
+      "irs_code_reference": null,
+      "description": "Benefit reduction notice requirements",
+      "compliance_level": "compliant",
+      "event_types_covered": [
+        "plan_compliance_test"
+      ],
+      "validation_notes": "Plan amendment events tracked with effective dates for notice compliance",
+      "reviewer_name": null,
+      "review_date": null,
+      "remediation_required": false,
+      "remediation_notes": null,
+      "implementation_status": "implemented",
+      "test_coverage": true,
+      "documentation_complete": true
+    },
+    {
+      "requirement_id": "ERISA_406_A",
+      "section_reference": "ERISA Section 406 - Prohibited Transactions",
+      "irs_code_reference": null,
+      "description": "Prohibited transaction prevention",
+      "compliance_level": "compliant",
+      "event_types_covered": [
+        "loan_initiated",
+        "distribution"
+      ],
+      "validation_notes": "Loan events include compliance validation and term limits",
+      "reviewer_name": null,
+      "review_date": null,
+      "remediation_required": false,
+      "remediation_notes": null,
+      "implementation_status": "implemented",
+      "test_coverage": true,
+      "documentation_complete": true
+    },
+    {
+      "requirement_id": "ERISA_107_A",
+      "section_reference": "ERISA Section 107 - Recordkeeping",
+      "irs_code_reference": null,
+      "description": "Recordkeeping requirements",
+      "compliance_level": "compliant",
+      "event_types_covered": [
+        "hire",
+        "termination",
+        "contribution",
+        "distribution",
+        "vesting",
+        "forfeiture",
+        "hce_status",
+        "compliance"
+      ],
+      "validation_notes": "All events preserved with UUID, timestamps, and immutable audit trail",
+      "reviewer_name": null,
+      "review_date": null,
+      "remediation_required": false,
+      "remediation_notes": null,
+      "implementation_status": "implemented",
+      "test_coverage": true,
+      "documentation_complete": true
+    },
+    {
+      "requirement_id": "IRS_402G",
+      "section_reference": "ERISA Section 101 - Reporting and Disclosure",
+      "irs_code_reference": "IRC Section 402(g) - Elective Deferral Limits",
+      "description": "Elective deferral limit compliance",
+      "compliance_level": "compliant",
+      "event_types_covered": [
+        "contribution",
+        "compliance"
+      ],
+      "validation_notes": "Contribution events validate against 402(g) limits with catch-up provisions",
+      "reviewer_name": null,
+      "review_date": null,
+      "remediation_required": false,
+      "remediation_notes": null,
+      "implementation_status": "implemented",
+      "test_coverage": true,
+      "documentation_complete": true
+    },
+    {
+      "requirement_id": "IRS_415C",
+      "section_reference": "ERISA Section 101 - Reporting and Disclosure",
+      "irs_code_reference": "IRC Section 415(c) - DC Plan Limits",
+      "description": "Annual additions limit compliance",
+      "compliance_level": "compliant",
+      "event_types_covered": [
+        "contribution",
+        "forfeiture",
+        "compliance"
+      ],
+      "validation_notes": "All contribution sources tracked against 415(c) limits",
+      "reviewer_name": null,
+      "review_date": null,
+      "remediation_required": false,
+      "remediation_notes": null,
+      "implementation_status": "implemented",
+      "test_coverage": true,
+      "documentation_complete": true
+    }
+  ],
+  "overall_compliance": "needs_review",
+  "approval_granted": false,
+  "approval_conditions": [],
+  "counsel_signature": null,
+  "signature_date": null,
+  "next_review_date": null,
+  "compliance_percentage": 100.0,
+  "critical_gaps": []
+}
