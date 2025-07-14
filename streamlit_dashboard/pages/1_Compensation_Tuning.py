@@ -1,4 +1,4 @@
-# filename: streamlit_dashboard/compensation_tuning.py
+# filename: streamlit_dashboard/pages/1_Compensation_Tuning.py
 """
 Streamlit Compensation Tuning Interface for E012 - Analyst-Driven Parameter Adjustment
 Enables analysts to adjust compensation parameters and run simulations to hit budget targets.
