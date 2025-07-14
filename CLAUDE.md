@@ -218,6 +218,26 @@ dbt docs generate # Generate documentation
 
 # Streamlit Dashboards
 streamlit run streamlit_dashboard/main.py
+# Or use Make targets for convenience:
+make run-dashboard                                       # Launch main dashboard (port 8501)
+make run-compensation-tuning                             # Launch compensation tuning interface (port 8502)
+make run-optimization-dashboard                          # Launch optimization dashboard (port 8503)
+
+# Configuration Management
+# Edit config/simulation_config.yaml for simulation parameters:
+# - start_year, end_year
+# - target_growth_rate
+# - termination_rates
+# - random_seed for reproducibility
+
+# Asset-based Development Pattern
+dagster asset materialize --select dbt_models             # Run all dbt models
+dagster asset materialize --select workforce_simulation   # Run simulation assets
+dagster asset materialize --select dashboard_data        # Prepare dashboard data
+
+# Data Quality Checks
+dagster asset check --select validate_data_quality       # Run data quality checks
+dagster asset check --select validate_simulation_results # Validate simulation outputs
 ```
 
 -----
