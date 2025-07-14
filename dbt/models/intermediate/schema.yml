@@ -49,6 +49,55 @@ models:
           - dbt_utils.accepted_range:
               min_value: 0
 
+  - name: int_partitioned_workforce_data
+    description: >
+      Optimized partitioned workforce data with proper indexing and data types.
+      Serves as a performance-optimized base for SCD processing with hash-based change detection.
+    config:
+      tags: ["performance", "scd", "optimization"]
+    columns:
+      - name: employee_id
+        description: Unique employee identifier
+        data_tests:
+          - not_null
+          - unique
+      - name: simulation_year
+        description: Simulation year for the data
+        data_tests:
+          - not_null
+      - name: current_compensation
+        description: Current employee compensation
+        data_tests:
+          - not_null
+          - dbt_utils.accepted_range:
+              min_value: 0
+      - name: record_hash
+        description: Hash of key fields for efficient change detection
+        data_tests:
+          - not_null
+
+  - name: int_workforce_changes
+    description: >
+      Hash-based change detection for efficient SCD processing.
+      Only processes employees with actual changes since last snapshot.
+    config:
+      tags: ["performance", "scd", "change_detection"]
+    columns:
+      - name: employee_id
+        description: Unique employee identifier
+        data_tests:
+          - not_null
+      - name: change_type
+        description: Type of change detected
+        data_tests:
+          - not_null
+          - accepted_values:
+              values: ['NEW_EMPLOYEE', 'CHANGED', 'UNCHANGED']
+      - name: record_hash
+        description: Current record hash for change detection
+        data_tests:
+          - not_null
+
   - name: int_year_snapshot_preparation
     description: >
       Year snapshot preparation enhancement with validation hooks.
