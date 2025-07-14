@@ -1,0 +1,209 @@
+name: ERISA Compliance Validation
+
+on:
+  push:
+    branches: [ main, develop ]
+    paths:
+      - 'config/erisa_compliance.py'
+      - 'tests/compliance/**'
+      - 'scripts/compliance_monitoring.py'
+      - '.github/workflows/erisa-compliance-validation.yml'
+  pull_request:
+    branches: [ main, develop ]
+    paths:
+      - 'config/erisa_compliance.py'
+      - 'tests/compliance/**'
+      - 'scripts/compliance_monitoring.py'
+  schedule:
+    # Run daily compliance check at 8 AM UTC
+    - cron: '0 8 * * *'
+  workflow_dispatch:
+    inputs:
+      run_full_audit:
+        description: 'Run full compliance audit'
+        required: false
+        type: boolean
+        default: false
+
+jobs:
+  compliance-validation:
+    name: ERISA Compliance Validation
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Set up Python
+      uses: actions/setup-python@v4
+      with:
+        python-version: '3.11'
+        cache: 'pip'
+
+    - name: Install dependencies
+      run: |
+        python -m pip install --upgrade pip
+        pip install -r requirements.txt
+        pip install pytest pytest-cov pytest-xdist
+
+    - name: Validate compliance framework
+      run: |
+        echo "🔍 Validating ERISA compliance framework..."
+        python config/erisa_compliance.py
+
+    - name: Run compliance tests
+      run: |
+        echo "🧪 Running compliance framework tests..."
+        python -m pytest tests/compliance/ -v --tb=short --no-header
+
+    - name: Run compliance monitoring check
+      run: |
+        echo "📊 Running compliance monitoring check..."
+        python scripts/compliance_monitoring.py --check
+
+    - name: Run data classification check
+      run: |
+        echo "🔐 Running data classification check..."
+        python scripts/compliance_monitoring.py --classification
+
+    - name: Generate compliance report
+      run: |
+        echo "📋 Generating compliance report..."
+        python scripts/compliance_monitoring.py --report 30 --output compliance_report.md
+
+    - name: Check for compliance alerts
+      run: |
+        echo "🚨 Checking for compliance alerts..."
+        python scripts/compliance_monitoring.py --alerts
+
+    - name: Upload compliance artifacts
+      uses: actions/upload-artifact@v3
+      if: always()
+      with:
+        name: compliance-reports-${{ github.run_number }}
+        path: |
+          compliance_report.md
+          compliance_monitoring.db
+          erisa_compliance_checklist.json
+        retention-days: 90
+
+    - name: Run full audit (manual trigger)
+      if: github.event.inputs.run_full_audit == 'true'
+      run: |
+        echo "🔍 Running full compliance audit..."
+        python -c "
+        from config.erisa_compliance import ERISAComplianceValidator
+        from scripts.compliance_monitoring import ComplianceMonitor
+
+        print('Full ERISA Compliance Audit')
+        print('=' * 50)
+
+        # Run comprehensive validation
+        validator = ERISAComplianceValidator()
+        coverage = validator.validate_event_coverage()
+
+        print(f'Total Requirements: {coverage[\"total_requirements\"]}')
+        print(f'Compliant Requirements: {coverage[\"compliant_requirements\"]}')
+        print(f'Compliance Percentage: {coverage[\"compliance_percentage\"]:.1f}%')
+        print(f'Critical Gaps: {len(coverage[\"coverage_gaps\"])}')
+
+        # Generate full report
+        report = validator.generate_compliance_report()
+        with open('full_audit_report.md', 'w') as f:
+            f.write(report)
+
+        # Run monitoring checks
+        monitor = ComplianceMonitor()
+        compliance_result = monitor.run_compliance_check()
+        classification_result = monitor.run_data_classification_check()
+
+        print(f'Monitoring Status: {compliance_result[\"status\"]}')
+        print(f'Classification Compliance: {classification_result[\"compliance_percentage\"]:.1f}%')
+
+        # Check for any non-compliance
+        if coverage[\"compliance_percentage\"] < 100 or compliance_result[\"status\"] != \"COMPLIANT\":
+            print('❌ COMPLIANCE ISSUES DETECTED')
+            exit(1)
+        else:
+            print('✅ FULL COMPLIANCE VERIFIED')
+        "
+
+    - name: Upload full audit report
+      if: github.event.inputs.run_full_audit == 'true'
+      uses: actions/upload-artifact@v3
+      with:
+        name: full-audit-report-${{ github.run_number }}
+        path: full_audit_report.md
+        retention-days: 365
+
+  notification:
+    name: Compliance Notification
+    runs-on: ubuntu-latest
+    needs: compliance-validation
+    if: failure() && github.event_name == 'schedule'
+
+    steps:
+    - name: Send compliance failure notification
+      run: |
+        echo "🚨 ERISA Compliance validation failed on scheduled run"
+        echo "This indicates a potential compliance issue that requires immediate attention."
+        echo "Please review the compliance validation logs and take corrective action."
+        # In a real environment, this would send notifications via Slack, email, etc.
+
+  benefits-counsel-review:
+    name: Benefits Counsel Review Check
+    runs-on: ubuntu-latest
+    if: github.ref == 'refs/heads/main' && contains(github.event.head_commit.message, '[benefits-counsel-review]')
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Set up Python
+      uses: actions/setup-python@v4
+      with:
+        python-version: '3.11'
+
+    - name: Install dependencies
+      run: |
+        python -m pip install --upgrade pip
+        pip install -r requirements.txt
+
+    - name: Generate benefits counsel package
+      run: |
+        echo "📦 Generating benefits counsel review package..."
+        python -c "
+        from config.erisa_compliance import ERISAComplianceValidator, AuditTrailManager
+        import os
+
+        # Create review package directory
+        os.makedirs('benefits_counsel_package', exist_ok=True)
+
+        # Generate compliance report
+        validator = ERISAComplianceValidator()
+        report = validator.generate_compliance_report()
+        with open('benefits_counsel_package/compliance_report.md', 'w') as f:
+            f.write(report)
+
+        # Generate audit procedures
+        procedures = AuditTrailManager.generate_audit_procedures()
+        with open('benefits_counsel_package/audit_procedures.md', 'w') as f:
+            f.write(procedures)
+
+        # Export compliance checklist
+        validator.export_checklist('benefits_counsel_package/compliance_checklist.json')
+
+        # Create review summary
+        with open('benefits_counsel_package/review_summary.md', 'w') as f:
+            f.write('# Benefits Counsel Review Package\\n\\nReview package ready for benefits counsel approval.')
+
+        print('✅ Benefits counsel review package generated')
+        "
+
+    - name: Upload benefits counsel package
+      uses: actions/upload-artifact@v3
+      with:
+        name: benefits-counsel-review-package-${{ github.run_number }}
+        path: benefits_counsel_package/
+        retention-days: 2555  # 7 years for ERISA compliance

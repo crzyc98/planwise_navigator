@@ -11,15 +11,33 @@
 
 | Story | Title | Points | Owner | Sprint | Status | Dependencies |
 |-------|-------|--------|-------|---------|--------|--------------|
-| **S072-01** | Core Event Model & Pydantic v2 Architecture | 5 | Platform | 1 | ✅ Created | None |
-| **S072-02** | Workforce Event Integration | 3 | Platform | 1 | ✅ Created | S072-01 |
-| **S072-03** | Core DC Plan Events | 5 | DC Plan | 2 | ✅ Created | S072-01 |
-| **S072-04** | Plan Administration Events | 5 | DC Plan | 2 | ✅ Created | S072-01 |
-| **S072-05** | Loan & Investment Events | 3 | DC Plan | 2 | ✅ Created | S072-01 |
-| **S072-06** | Performance & Validation Framework | 8 | Platform | 3 | ✅ Created | S072-01,02,03,04,05 |
-| **S072-07** | ERISA Compliance Review & Documentation | 3 | Compliance | 3 | ✅ Created | S072-06 |
+| **S072-01** | Core Event Model & Pydantic v2 Architecture | 5 | Platform | 1 | ✅ Completed | None |
+| **S072-02** | Workforce Event Integration | 3 | Platform | 1 | ✅ Completed | S072-01 |
+| **S072-03** | Core DC Plan Events | 5 | DC Plan | 2 | ✅ Completed | S072-01 |
+| **S072-04** | Plan Administration Events | 5 | DC Plan | 2 | ✅ Completed | S072-01 |
+| **S072-05** | Loan & Investment Events | 3 | DC Plan | 2 | ❌ Not Started | S072-01 |
+| **S072-06** | Performance & Validation Framework | 8 | Platform | 3 | ✅ Completed | S072-01,02,03,04,05 |
+| **S072-07** | ERISA Compliance Review & Documentation | 3 | Compliance | 3 | ❌ Not Started | S072-06 |
 
 **Total**: 32 points across 7 stories (vs original 18 points in 1 story)
+
+## Current Status
+
+**Epic Status**: 🟡 Partially Complete (5 of 7 stories completed)
+- **Completed**: 26 points (81%)
+- **Remaining**: 6 points (19%)
+- **Completion Date**: July 11, 2025 (5 stories)
+
+**Completed Stories (5)**:
+- ✅ S072-01: Core Event Model & Pydantic v2 Architecture
+- ✅ S072-02: Workforce Event Integration
+- ✅ S072-03: Core DC Plan Events
+- ✅ S072-04: Plan Administration Events
+- ✅ S072-06: Performance & Validation Framework
+
+**Outstanding Stories (2)**:
+- ❌ S072-05: Loan & Investment Events (3 points)
+- ❌ S072-07: ERISA Compliance Review & Documentation (3 points)
 
 ## Created Artifacts
 

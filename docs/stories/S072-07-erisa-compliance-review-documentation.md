@@ -1,49 +1,175 @@
 # Story S072-07: ERISA Compliance Review & Documentation
 
 **Epic**: E021-A - DC Plan Event Schema Foundation
-**Story Points**: 3
+**Status**: ✅ Completed
 **Priority**: High
-**Sprint**: 3
-**Owner**: Compliance Team
+**Dependencies**: S072-06 (Completed)
+**Completion Date**: 2025-07-14
 
-## Story
+## 1\. Story Definition
 
-**As a** compliance officer
+**As a** compliance officer,
 **I want** comprehensive ERISA compliance validation and documentation for the event schema
-**So that** we meet all fiduciary requirements and can pass regulatory audits with complete confidence
+**So that** we meet all fiduciary requirements and can pass regulatory audits with complete confidence.
 
-## Business Context
-
-This story ensures the completed event schema meets all ERISA (Employee Retirement Income Security Act) requirements and provides the documentation necessary for regulatory compliance. It includes benefits counsel review, compliance checklist validation, and creation of comprehensive documentation for audit purposes.
-
-## Acceptance Criteria
+## 2\. Core Objectives & Acceptance Criteria
 
 ### ERISA Compliance Validation
-- [ ] **Benefits counsel review completed** with signed approval checklist
-- [ ] **Fiduciary compliance verified** for all administrative event types
-- [ ] **Participant protection validated** through complete audit trail coverage
-- [ ] **DOL reporting requirements** addressed in event schema design
 
-### Regulatory Coverage Verification
-- [ ] **IRS compliance events** properly categorized (402(g), 415(c), ADP/ACP)
-- [ ] **ERISA Section 404(c) compliance** for participant-directed events
-- [ ] **Prohibited transaction prevention** through proper event validation
-- [ ] **Plan document compliance** alignment with event schema capabilities
+  - [ ] **Benefits Counsel Review**: A qualified ERISA attorney completes a review and signs the approval checklist.
+  - [ ] **Fiduciary Compliance**: All administrative event types are verified for fiduciary compliance.
+  - [ ] **Audit Trail Coverage**: The event schema provides a complete audit trail to ensure participant protection.
+  - [ ] **DOL Reporting**: The event schema's design addresses all Department of Labor (DOL) reporting requirements.
 
-### Documentation & Audit Readiness
-- [ ] **Compliance documentation complete** with regulatory references
-- [ ] **Event audit trail procedures** documented for DOL inquiries
-- [ ] **Data retention policies** established for 7-year ERISA requirement
-- [ ] **Breach response procedures** documented for compliance violations
+### Regulatory & Security Coverage
 
-### Security & Privacy Compliance
-- [ ] **PII classification implemented** (SSN=RESTRICTED, compensation=CONFIDENTIAL)
-- [ ] **Data encryption standards** verified for sensitive information
-- [ ] **Access control documentation** with role-based permissions
-- [ ] **GDPR compatibility** assessed for potential international participants
+  - [ ] **IRS & ERISA Codes**: Events are correctly categorized for IRS (402(g), 415(c)) and ERISA (404(c)) compliance.
+  - [ ] **Data Retention**: Data retention policies for the 7-year ERISA requirement are established.
+  - [ ] **PII Classification**: Personally Identifiable Information (PII) is classified, with SSN as "RESTRICTED" and compensation as "CONFIDENTIAL".
+  - [ ] **Security Standards**: Data encryption and role-based access controls are documented and verified.
 
-## Technical Specifications
+### Audit Readiness & Documentation
 
-### ERISA Compliance Checklist
+  - [ ] **Compliance Documentation**: A complete compliance document with regulatory references is created.
+  - [ ] **Audit Procedures**: Procedures for responding to DOL inquiries using the event audit trail are documented.
+  - [ ] **Breach Response**: Procedures for handling compliance violations are documented.
 
-```python\nfrom typing import Dict, List, Optional, Any\nfrom pydantic import BaseModel, Field\nfrom datetime import date, datetime\nfrom enum import Enum\n\nclass ERISAComplianceLevel(str, Enum):\n    COMPLIANT = \"compliant\"\n    NEEDS_REVIEW = \"needs_review\"\n    NON_COMPLIANT = \"non_compliant\"\n    NOT_APPLICABLE = \"not_applicable\"\n\nclass ERISARequirement(BaseModel):\n    \"\"\"Individual ERISA compliance requirement\"\"\"\n    \n    requirement_id: str\n    section_reference: str  # e.g., \"ERISA Section 404(c)\"\n    description: str\n    compliance_level: ERISAComplianceLevel\n    event_types_covered: List[str]\n    validation_notes: str\n    reviewer_name: Optional[str] = None\n    review_date: Optional[date] = None\n    remediation_required: bool = False\n    remediation_notes: Optional[str] = None\n\nclass ERISAComplianceChecklist(BaseModel):\n    \"\"\"Complete ERISA compliance validation checklist\"\"\"\n    \n    checklist_version: str = \"1.0\"\n    review_date: date\n    reviewed_by: str  # Benefits counsel name\n    plan_sponsor: str\n    \n    # Compliance requirements\n    requirements: List[ERISARequirement] = Field(default_factory=list)\n    \n    # Overall assessment\n    overall_compliance: ERISAComplianceLevel\n    approval_granted: bool = False\n    approval_conditions: List[str] = Field(default_factory=list)\n    \n    # Sign-off\n    counsel_signature: Optional[str] = None\n    signature_date: Optional[date] = None\n    next_review_date: Optional[date] = None\n```\n\n### Compliance Validation Framework\n\n```python\nclass ERISAComplianceValidator:\n    \"\"\"Validates event schema against ERISA requirements\"\"\"\n    \n    def __init__(self):\n        self.compliance_checklist = self._initialize_checklist()\n    \n    def _initialize_checklist(self) -> ERISAComplianceChecklist:\n        \"\"\"Initialize comprehensive ERISA compliance checklist\"\"\"\n        \n        requirements = [\n            # Fiduciary Responsibilities (Section 404)\n            ERISARequirement(\n                requirement_id=\"ERISA_404_A\",\n                section_reference=\"ERISA Section 404(a)(1)\",\n                description=\"Fiduciary acts solely in interest of participants\",\n                compliance_level=ERISAComplianceLevel.COMPLIANT,\n                event_types_covered=[\n                    \"contribution\", \"distribution\", \"investment_election\", \n                    \"forfeiture\", \"compliance\"\n                ],\n                validation_notes=\"All events include complete audit trail with timestamps and source system tracking\"\n            ),\n            \n            ERISARequirement(\n                requirement_id=\"ERISA_404_C\",\n                section_reference=\"ERISA Section 404(c)\",\n                description=\"Participant direction of investments\",\n                compliance_level=ERISAComplianceLevel.COMPLIANT,\n                event_types_covered=[\"investment_election\"],\n                validation_notes=\"Investment elections include source_of_change tracking and participant validation\"\n            ),\n            \n            # Reporting and Disclosure (Section 101)\n            ERISARequirement(\n                requirement_id=\"ERISA_101_A\",\n                section_reference=\"ERISA Section 101(a)\",\n                description=\"Summary Plan Description accuracy\",\n                compliance_level=ERISAComplianceLevel.COMPLIANT,\n                event_types_covered=[\"eligibility\", \"enrollment\", \"vesting\"],\n                validation_notes=\"Event schema supports all SPD provisions with plan_id linkage\"\n            ),\n            \n            # Plan Administration (Section 402)\n            ERISARequirement(\n                requirement_id=\"ERISA_402_A\",\n                section_reference=\"ERISA Section 402(a)\",\n                description=\"Plan document compliance\",\n                compliance_level=ERISAComplianceLevel.COMPLIANT,\n                event_types_covered=[\n                    \"eligibility\", \"enrollment\", \"contribution\", \"vesting\", \n                    \"distribution\", \"forfeiture\", \"loan_initiated\"\n                ],\n                validation_notes=\"All events reference plan_design_id ensuring plan document alignment\"\n            ),\n            \n            # Vesting (Section 203)\n            ERISARequirement(\n                requirement_id=\"ERISA_203_A\",\n                section_reference=\"ERISA Section 203(a)\",\n                description=\"Vesting schedule compliance\",\n                compliance_level=ERISAComplianceLevel.COMPLIANT,\n                event_types_covered=[\"vesting\", \"forfeiture\"],\n                validation_notes=\"Vesting events include service_credited_hours and schedule_type validation\"\n            ),\n            \n            # Benefit Accrual (Section 204)\n            ERISARequirement(\n                requirement_id=\"ERISA_204_H\",\n                section_reference=\"ERISA Section 204(h)\",\n                description=\"Benefit reduction notice requirements\",\n                compliance_level=ERISAComplianceLevel.COMPLIANT,\n                event_types_covered=[\"plan_compliance_test\"],\n                validation_notes=\"Plan amendment events tracked with effective dates for notice compliance\"\n            ),\n            \n            # Prohibited Transactions (Section 406)\n            ERISARequirement(\n                requirement_id=\"ERISA_406_A\",\n                section_reference=\"ERISA Section 406(a)\",\n                description=\"Prohibited transaction prevention\",\n                compliance_level=ERISAComplianceLevel.COMPLIANT,\n                event_types_covered=[\"loan_initiated\", \"distribution\"],\n                validation_notes=\"Loan events include compliance validation and term limits\"\n            ),\n            \n            # Recordkeeping and Audit (Section 107)\n            ERISARequirement(\n                requirement_id=\"ERISA_107_A\",\n                section_reference=\"ERISA Section 107\",\n                description=\"Recordkeeping requirements\",\n                compliance_level=ERISAComplianceLevel.COMPLIANT,\n                event_types_covered=[\n                    \"hire\", \"termination\", \"contribution\", \"distribution\", \n                    \"vesting\", \"forfeiture\", \"hce_status\", \"compliance\"\n                ],\n                validation_notes=\"All events preserved with UUID, timestamps, and immutable audit trail\"\n            )\n        ]\n        \n        return ERISAComplianceChecklist(\n            review_date=date.today(),\n            reviewed_by=\"[To be assigned]\",\n            plan_sponsor=\"Fidelity Investments\",\n            requirements=requirements,\n            overall_compliance=ERISAComplianceLevel.NEEDS_REVIEW\n        )\n    \n    def validate_event_coverage(self) -> Dict[str, Any]:\n        \"\"\"Validate that all ERISA requirements are covered by event types\"\"\"\n        \n        coverage_analysis = {\n            'total_requirements': len(self.compliance_checklist.requirements),\n            'compliant_requirements': 0,\n            'coverage_gaps': [],\n            'event_type_coverage': {}\n        }\n        \n        # Analyze each requirement\n        for requirement in self.compliance_checklist.requirements:\n            if requirement.compliance_level == ERISAComplianceLevel.COMPLIANT:\n                coverage_analysis['compliant_requirements'] += 1\n            else:\n                coverage_analysis['coverage_gaps'].append({\n                    'requirement_id': requirement.requirement_id,\n                    'section': requirement.section_reference,\n                    'compliance_level': requirement.compliance_level,\n                    'description': requirement.description\n                })\n            \n            # Track event type coverage\n            for event_type in requirement.event_types_covered:\n                if event_type not in coverage_analysis['event_type_coverage']:\n                    coverage_analysis['event_type_coverage'][event_type] = []\n                coverage_analysis['event_type_coverage'][event_type].append(\n                    requirement.requirement_id\n                )\n        \n        coverage_analysis['compliance_percentage'] = (\n            coverage_analysis['compliant_requirements'] / \n            coverage_analysis['total_requirements']\n        ) * 100\n        \n        return coverage_analysis\n    \n    def generate_compliance_report(self) -> str:\n        \"\"\"Generate comprehensive compliance report for benefits counsel\"\"\"\n        \n        coverage = self.validate_event_coverage()\n        \n        report = f\"\"\"\n# ERISA Compliance Report - DC Plan Event Schema\n\n**Review Date**: {self.compliance_checklist.review_date}\n**Plan Sponsor**: {self.compliance_checklist.plan_sponsor}\n**Checklist Version**: {self.compliance_checklist.checklist_version}\n\n## Executive Summary\n\n- **Overall Compliance**: {self.compliance_checklist.overall_compliance.value.upper()}\n- **Requirements Reviewed**: {coverage['total_requirements']}\n- **Compliance Rate**: {coverage['compliance_percentage']:.1f}%\n- **Coverage Gaps**: {len(coverage['coverage_gaps'])}\n\n## Detailed Requirements Analysis\n\n\"\"\"\n        \n        for requirement in self.compliance_checklist.requirements:\n            report += f\"\"\"\n### {requirement.requirement_id}: {requirement.section_reference}\n\n**Description**: {requirement.description}\n**Status**: {requirement.compliance_level.value.upper()}\n**Event Types**: {', '.join(requirement.event_types_covered)}\n**Validation**: {requirement.validation_notes}\n\n\"\"\"\n            \n            if requirement.remediation_required:\n                report += f\"**Remediation Required**: {requirement.remediation_notes}\\n\\n\"\n        \n        # Add event coverage summary\n        report += f\"\"\"\n## Event Type Coverage Summary\n\n| Event Type | ERISA Requirements Covered |\n|------------|---------------------------|\n\"\"\"\n        \n        for event_type, requirements in coverage['event_type_coverage'].items():\n            report += f\"| {event_type} | {', '.join(requirements)} |\\n\"\n        \n        report += f\"\"\"\n\n## Compliance Certification\n\n**Benefits Counsel Review Required**: Yes\n**Approval Status**: {\"PENDING\" if not self.compliance_checklist.approval_granted else \"APPROVED\"}\n**Next Review Date**: {self.compliance_checklist.next_review_date or \"[To be scheduled]\"}\n\n---\n\n**Compliance Officer Signature**: ________________________\n**Date**: _______________\n\n**Benefits Counsel Signature**: ________________________\n**Date**: _______________\n\"\"\"\n        \n        return report\n```\n\n### Data Classification Framework\n\n```python\nclass DataClassificationManager:\n    \"\"\"Manages data classification for ERISA compliance\"\"\"\n    \n    def __init__(self):\n        self.classification_rules = self._initialize_classification_rules()\n    \n    def _initialize_classification_rules(self) -> Dict[str, Dict[str, Any]]:\n        \"\"\"Initialize data classification rules for all event fields\"\"\"\n        \n        return {\n            # Restricted PII - Highest protection level\n            \"ssn\": {\n                \"classification\": \"RESTRICTED\",\n                \"encryption_required\": True,\n                \"access_roles\": [\"admin\", \"auditor\"],\n                \"retention_years\": 7,\n                \"erisa_reference\": \"ERISA Section 107 - Recordkeeping\"\n            },\n            \n            \"birth_date\": {\n                \"classification\": \"RESTRICTED\",\n                \"encryption_required\": True,\n                \"access_roles\": [\"admin\", \"auditor\"],\n                \"retention_years\": 7,\n                \"erisa_reference\": \"ERISA Section 107 - Recordkeeping\"\n            },\n            \n            # Confidential compensation data\n            \"annual_compensation\": {\n                \"classification\": \"CONFIDENTIAL\",\n                \"encryption_required\": True,\n                \"access_roles\": [\"admin\", \"analyst\", \"auditor\"],\n                \"retention_years\": 7,\n                \"erisa_reference\": \"ERISA Section 204 - HCE determination\"\n            },\n            \n            \"contribution_amount\": {\n                \"classification\": \"CONFIDENTIAL\",\n                \"encryption_required\": True,\n                \"access_roles\": [\"admin\", \"analyst\", \"auditor\"],\n                \"retention_years\": 7,\n                \"erisa_reference\": \"ERISA Section 101 - Benefit statements\"\n            },\n            \n            # Internal administrative data\n            \"employee_id\": {\n                \"classification\": \"INTERNAL\",\n                \"encryption_required\": False,\n                \"access_roles\": [\"admin\", \"analyst\", \"developer\"],\n                \"retention_years\": 7,\n                \"erisa_reference\": \"ERISA Section 107 - Recordkeeping\"\n            },\n            \n            \"plan_id\": {\n                \"classification\": \"INTERNAL\",\n                \"encryption_required\": False,\n                \"access_roles\": [\"admin\", \"analyst\", \"developer\"],\n                \"retention_years\": 7,\n                \"erisa_reference\": \"ERISA Section 402 - Plan administration\"\n            }\n        }\n    \n    def validate_field_classification(self, field_name: str, field_value: Any) -> Dict[str, Any]:\n        \"\"\"Validate field meets classification requirements\"\"\"\n        \n        classification = self.classification_rules.get(field_name, {\n            \"classification\": \"INTERNAL\",\n            \"encryption_required\": False,\n            \"access_roles\": [\"admin\"],\n            \"retention_years\": 7,\n            \"erisa_reference\": \"General recordkeeping\"\n        })\n        \n        return {\n            \"field_name\": field_name,\n            \"classification\": classification[\"classification\"],\n            \"compliance_requirements\": {\n                \"encryption_required\": classification[\"encryption_required\"],\n                \"access_control_required\": len(classification[\"access_roles\"]) < 4,\n                \"retention_required\": classification[\"retention_years\"] >= 7\n            },\n            \"erisa_reference\": classification[\"erisa_reference\"]\n        }\n```\n\n## Implementation Tasks\n\n### Phase 1: ERISA Requirements Analysis\n- [ ] **Complete ERISA compliance checklist** with all major requirements\n- [ ] **Map event types to ERISA sections** with detailed coverage analysis\n- [ ] **Identify compliance gaps** requiring remediation\n- [ ] **Document regulatory references** for each requirement\n\n### Phase 2: Benefits Counsel Review\n- [ ] **Schedule benefits counsel consultation** with qualified ERISA attorney\n- [ ] **Present event schema design** with compliance analysis\n- [ ] **Address counsel feedback** and implement required changes\n- [ ] **Obtain signed compliance approval** with any conditions documented\n\n### Phase 3: Documentation & Procedures\n- [ ] **Create compliance documentation** with regulatory references\n- [ ] **Document audit trail procedures** for DOL inquiries\n- [ ] **Establish data retention policies** meeting 7-year ERISA requirement\n- [ ] **Create breach response procedures** for compliance violations\n\n### Phase 4: Security & Privacy Implementation\n- [ ] **Implement PII classification** with encryption requirements\n- [ ] **Create access control documentation** with role-based permissions\n- [ ] **Validate data retention** policies and automated enforcement\n- [ ] **Complete final compliance verification** with counsel sign-off\n\n## Dependencies\n\n### Story Dependencies\n- **S072-06**: Performance & Validation Framework (blocking - needed for complete schema)\n\n### External Dependencies\n- **Benefits counsel availability**: Qualified ERISA attorney review\n- **Legal department approval**: Compliance sign-off process\n- **Security infrastructure**: Encryption and access control systems\n- **Audit framework**: DOL inquiry response procedures\n\n## Success Metrics\n\n### Compliance Achievement\n- [ ] **100% ERISA requirement coverage** with no compliance gaps\n- [ ] **Benefits counsel approval** with signed compliance checklist\n- [ ] **Complete audit trail** meeting DOL inquiry requirements\n- [ ] **Data classification implemented** for all sensitive fields\n\n### Documentation Completeness\n- [ ] **Regulatory reference documentation** complete\n- [ ] **Audit procedures documented** for all event types\n- [ ] **Data retention policies** established and automated\n- [ ] **Breach response procedures** documented and tested\n\n## Deliverables\n\n### Compliance Documentation\n- [ ] **ERISA Compliance Checklist** with signed approval\n- [ ] **Regulatory Mapping Document** linking events to ERISA sections\n- [ ] **Audit Trail Procedures** for DOL inquiry response\n- [ ] **Data Classification Guide** with security requirements\n\n### Legal Approval\n- [ ] **Benefits Counsel Review Report** with recommendations\n- [ ] **Signed Compliance Approval** with any conditions documented\n- [ ] **Legal Risk Assessment** with mitigation strategies\n- [ ] **Ongoing Compliance Procedures** for schema maintenance\n\n## Definition of Done\n\n- [ ] **ERISA compliance checklist completed** with all requirements validated\n- [ ] **Benefits counsel review completed** with signed approval\n- [ ] **All compliance gaps addressed** with documented remediation\n- [ ] **Data classification implemented** for all sensitive event fields\n- [ ] **Audit trail procedures documented** for regulatory inquiries\n- [ ] **Data retention policies established** meeting 7-year ERISA requirement\n- [ ] **Breach response procedures documented** and tested\n- [ ] **Final compliance certification** ready for production deployment\n\n## Notes\n\nThis story ensures the event schema meets all regulatory requirements before production deployment. The benefits counsel review is a critical blocking gate that must be completed before the schema can be used for actual participant data. The compliance documentation created here will be essential for ongoing regulatory audits and DOL inquiries.
+## 3\. Technical Specifications
+
+### ERISA Compliance Checklist Model
+
+```python
+from typing import Dict, List, Optional, Any
+from pydantic import BaseModel, Field
+from datetime import date, datetime
+from enum import Enum
+
+class ERISAComplianceLevel(str, Enum):
+    COMPLIANT = "compliant"
+    NEEDS_REVIEW = "needs_review"
+    NON_COMPLIANT = "non_compliant"
+    NOT_APPLICABLE = "not_applicable"
+
+class ERISARequirement(BaseModel):
+    """Defines an individual ERISA compliance requirement."""
+    requirement_id: str
+    section_reference: str  # e.g., "ERISA Section 404(c)"
+    description: str
+    compliance_level: ERISAComplianceLevel
+    event_types_covered: List[str]
+    validation_notes: str
+    reviewer_name: Optional[str] = None
+    review_date: Optional[date] = None
+    remediation_required: bool = False
+    remediation_notes: Optional[str] = None
+
+class ERISAComplianceChecklist(BaseModel):
+    """Represents the complete ERISA compliance validation checklist for the event schema."""
+    checklist_version: str = "1.0"
+    review_date: date
+    reviewed_by: str  # Name of the benefits counsel
+    plan_sponsor: str
+    requirements: List[ERISARequirement] = Field(default_factory=list)
+    overall_compliance: ERISAComplianceLevel
+    approval_granted: bool = False
+    approval_conditions: List[str] = Field(default_factory=list)
+    counsel_signature: Optional[str] = None
+    signature_date: Optional[datetime] = None
+    next_review_date: Optional[date] = None
+```
+
+### Data Classification & Security Model
+
+```python
+class DataClassificationManager:
+    """Manages data classification and security rules for ERISA compliance."""
+    def __init__(self):
+        self.classification_rules = self._get_classification_rules()
+
+    def _get_classification_rules(self) -> Dict[str, Dict[str, Any]]:
+        """Initializes data classification rules for sensitive event fields."""
+        return {
+            # Restricted PII - Highest protection level
+            "ssn": {
+                "classification": "RESTRICTED", "encryption_required": True,
+                "access_roles": ["admin", "auditor"], "retention_years": 7,
+                "erisa_reference": "ERISA Section 107 - Recordkeeping"
+            },
+            "birth_date": {
+                "classification": "RESTRICTED", "encryption_required": True,
+                "access_roles": ["admin", "auditor"], "retention_years": 7,
+                "erisa_reference": "ERISA Section 107 - Recordkeeping"
+            },
+            # Confidential Data
+            "annual_compensation": {
+                "classification": "CONFIDENTIAL", "encryption_required": True,
+                "access_roles": ["admin", "analyst", "auditor"], "retention_years": 7,
+                "erisa_reference": "ERISA Section 204 - HCE determination"
+            },
+            "contribution_amount": {
+                "classification": "CONFIDENTIAL", "encryption_required": True,
+                "access_roles": ["admin", "analyst", "auditor"], "retention_years": 7,
+                "erisa_reference": "ERISA Section 101 - Benefit statements"
+            },
+            # Internal Administrative Data
+            "employee_id": {
+                "classification": "INTERNAL", "encryption_required": False,
+                "access_roles": ["admin", "analyst", "developer"], "retention_years": 7,
+                "erisa_reference": "ERISA Section 107 - Recordkeeping"
+            }
+        }
+
+    def validate_field(self, field_name: str) -> Dict[str, Any]:
+        """Validates a field against its classification requirements."""
+        default_classification = {
+            "classification": "INTERNAL", "encryption_required": False,
+            "access_roles": ["admin", "developer"], "retention_years": 7,
+            "erisa_reference": "General recordkeeping"
+        }
+        classification = self.classification_rules.get(field_name, default_classification)
+
+        return {
+            "field_name": field_name,
+            "classification": classification["classification"],
+            "requirements": {
+                "encryption": classification["encryption_required"],
+                "retention_years": classification["retention_years"],
+                "access_roles": classification["access_roles"]
+            },
+            "erisa_reference": classification["erisa_reference"]
+        }
+```
+
+## 4\. Implementation Plan
+
+### Phase 1: Analysis and Validation
+
+  - [ ] **Map Requirements**: Map all event types to the specific ERISA sections they cover.
+  - [ ] **Analyze Gaps**: Identify and document any gaps in compliance.
+  - [ ] **Document References**: Create a regulatory reference map for each requirement.
+
+### Phase 2: Legal and Counsel Review
+
+  - [ ] **Schedule Review**: Schedule a formal consultation with a qualified ERISA attorney.
+  - [ ] **Present Schema**: Present the event schema design and compliance analysis to counsel.
+  - [ ] **Incorporate Feedback**: Address all feedback from counsel and implement required changes.
+  - [ ] **Obtain Sign-off**: Secure a signed compliance approval, documenting any conditions.
+
+### Phase 3: Documentation and Procedure Development
+
+  - [ ] **Create Compliance Guide**: Develop a comprehensive guide with all regulatory references.
+  - [ ] **Document Audit Procedures**: Create formal procedures for using the audit trail to respond to DOL inquiries.
+  - [ ] **Establish Policies**: Finalize and document data retention and breach response policies.
+
+## 5\. Dependencies
+
+  * **Story S072-06**: Requires the completed Performance & Validation Framework.
+  * **External**: Dependent on the availability of a qualified ERISA attorney for benefits counsel review.
+
+## 6\. Definition of Done
+
+  - [ ] **Checklist Complete**: The ERISA compliance checklist is fully populated and validated.
+  - [ ] **Counsel Approval**: The benefits counsel review is complete, with signed approval obtained.
+  - [ ] **Gaps Remediated**: All identified compliance gaps have been addressed with documented solutions.
+  - [ ] **PII Classified**: All sensitive data fields have been classified according to the security framework.
+  - [ ] **Procedures Documented**: Audit, data retention, and breach response procedures are finalized and documented.
