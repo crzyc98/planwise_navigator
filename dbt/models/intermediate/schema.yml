@@ -1,6 +1,89 @@
 version: 2
 
 models:
+  - name: int_cold_start_detection
+    description: >
+      Cold start detection logic with table existence check.
+      Determines if this is a cold start or continuation of existing simulation.
+      Uses table existence check to safely handle empty databases.
+    config:
+      tags: ["foundation", "critical"]
+    columns:
+      - name: is_cold_start
+        description: Boolean flag indicating if this is a cold start scenario
+        data_tests:
+          - not_null
+          - accepted_values:
+              values: [true, false]
+      - name: last_completed_year
+        description: The last completed simulation year (0 if cold start)
+        data_tests:
+          - not_null
+
+  - name: int_simulation_run_log
+    description: >
+      Simulation run log for tracking completed years.
+      Only inserts when a simulation year completes successfully.
+    config:
+      tags: ["monitoring", "incremental"]
+    columns:
+      - name: simulation_year
+        description: The completed simulation year
+        data_tests:
+          - unique
+          - not_null
+      - name: completion_timestamp
+        description: When the simulation year completed
+        data_tests:
+          - not_null
+      - name: run_status
+        description: Status of the simulation run
+        data_tests:
+          - not_null
+          - accepted_values:
+              values: ['COMPLETED', 'FAILED']
+      - name: total_employees_processed
+        description: Total number of employees processed in this year
+        data_tests:
+          - not_null
+          - dbt_utils.accepted_range:
+              min_value: 0
+
+  - name: int_year_snapshot_preparation
+    description: >
+      Year snapshot preparation enhancement with validation hooks.
+      Prepares workforce data for the current simulation year with validation.
+    config:
+      tags: ["foundation", "critical"]
+    columns:
+      - name: employee_id
+        description: Unique identifier for each employee
+        data_tests:
+          - unique
+          - not_null
+      - name: simulation_year
+        description: The simulation year this snapshot represents
+        data_tests:
+          - not_null
+      - name: employment_status
+        description: Employment status (active for snapshot preparation)
+        data_tests:
+          - not_null
+          - accepted_values:
+              values: ['active']
+      - name: is_cold_start
+        description: Boolean flag indicating if this is a cold start scenario
+        data_tests:
+          - not_null
+      - name: baseline_active_count
+        description: Number of active employees in baseline
+        data_tests:
+          - not_null
+      - name: baseline_total_count
+        description: Total number of employees in baseline
+        data_tests:
+          - not_null
+
   - name: int_baseline_workforce
     description: >
       Baseline workforce for simulation start, driven by simulation parameters.
@@ -105,10 +188,25 @@ models:
         data_tests:
           - not_null
 
+      - name: is_from_census
+        description: Boolean flag indicating if this employee originated from census data
+        data_tests:
+          - not_null
+
+      - name: is_cold_start
+        description: Boolean flag indicating if this is a cold start scenario
+        data_tests:
+          - not_null
+
+      - name: last_completed_year
+        description: The last completed simulation year before this baseline
+        data_tests:
+          - not_null
+
   - name: int_workforce_previous_year
     description: >
-      Previous year workforce state for multi-year simulation continuity.
-      Provides the workforce foundation for subsequent simulation years.
+      Enhanced previous year workforce model with fallback handling.
+      Gracefully handles missing prior year data without errors.
     config:
       tags: ["foundation", "critical"]
     columns:
@@ -123,6 +221,22 @@ models:
           - not_null
       - name: simulation_year
         description: Simulation year this workforce represents
+        data_tests:
+          - not_null
+      - name: is_from_census
+        description: Boolean flag indicating if this employee originated from census data
+        data_tests:
+          - not_null
+      - name: is_cold_start
+        description: Boolean flag indicating if this is a cold start scenario
+        data_tests:
+          - not_null
+      - name: active_employees
+        description: Total number of active employees in this workforce
+        data_tests:
+          - not_null
+      - name: total_employees
+        description: Total number of employees in this workforce
         data_tests:
           - not_null
 

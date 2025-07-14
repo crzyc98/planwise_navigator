@@ -1,25 +1,36 @@
-{{ config(materialized='table') }}
+{{ config(
+    materialized='table',
+    indexes=[
+        {'columns': ['simulation_year'], 'type': 'btree'},
+        {'columns': ['employee_id', 'simulation_year'], 'type': 'btree'}
+    ]
+) }}
 
--- Baseline workforce for simulation start, driven by simulation parameters.
--- This model provides the initial state of the workforce for multi-year simulations.
+-- Robust Baseline Workforce Preparation with Cold Start Detection
+-- Handles both cold start (from census) and continuing simulation scenarios
 
-{% set simulation_year = var('simulation_year', 2024) %} -- Default to 2024 if not provided
-{% set simulation_effective_date_str = var('simulation_effective_date', '2024-12-31') %} -- Default for age/tenure calculation
+{% set simulation_year = var('simulation_year', 2024) %}
+{% set simulation_effective_date_str = var('simulation_effective_date', '2024-12-31') %}
 
+-- Simplified approach: use census data for baseline workforce
+-- For cold start detection, use the int_cold_start_detection model
+WITH cold_start_check AS (
+    SELECT is_cold_start, last_completed_year
+    FROM {{ ref('int_cold_start_detection') }}
+)
 SELECT
     stg.employee_id,
     stg.employee_ssn,
     stg.employee_birth_date,
     stg.employee_hire_date,
-    -- **NEW**: Use annualized compensation for more accurate baseline
-    -- This eliminates proration bias from partial year workers in the starting workforce
+    -- Use annualized compensation for more accurate baseline
     COALESCE(stg.employee_annualized_compensation, stg.employee_gross_compensation) AS current_compensation,
     -- Calculate age and tenure based on the simulation_effective_date
     EXTRACT(YEAR FROM '{{ simulation_effective_date_str }}'::DATE) - EXTRACT(YEAR FROM stg.employee_birth_date) AS current_age,
     EXTRACT(YEAR FROM '{{ simulation_effective_date_str }}'::DATE) - EXTRACT(YEAR FROM stg.employee_hire_date) AS current_tenure,
-    -- **FIX**: Dynamically assign level_id with fallback for unmatched compensation ranges
+    -- Dynamically assign level_id with fallback for unmatched compensation ranges
     COALESCE(level_match.level_id, 1) AS level_id,
-    -- Calculate age and tenure bands based on current_age and current_tenure
+    -- Calculate age and tenure bands
     CASE
         WHEN (EXTRACT(YEAR FROM '{{ simulation_effective_date_str }}'::DATE) - EXTRACT(YEAR FROM stg.employee_birth_date)) < 25 THEN '< 25'
         WHEN (EXTRACT(YEAR FROM '{{ simulation_effective_date_str }}'::DATE) - EXTRACT(YEAR FROM stg.employee_birth_date)) < 35 THEN '25-34'
@@ -38,23 +49,25 @@ SELECT
     'active' AS employment_status,
     NULL AS termination_date,
     NULL AS termination_reason,
-    {{ simulation_year }} AS simulation_year, -- Dynamic simulation year
-    CURRENT_TIMESTAMP AS snapshot_created_at
+    {{ simulation_year }} AS simulation_year,
+    CURRENT_TIMESTAMP AS snapshot_created_at,
+    true as is_from_census,
+    c.is_cold_start,
+    c.last_completed_year
 FROM {{ ref('stg_census_data') }} stg
--- **FIX**: Use a subquery to find the best matching level_id for each employee
+CROSS JOIN cold_start_check c
+-- Use a subquery to find the best matching level_id for each employee
 LEFT JOIN (
     SELECT
-        stg.employee_id,
+        stg_inner.employee_id,
         -- Select the level with the smallest min_compensation that still matches
-        -- **NEW**: Use annualized compensation for level matching instead of gross compensation
         MIN(levels.level_id) as level_id
-    FROM {{ ref('stg_census_data') }} stg
+    FROM {{ ref('stg_census_data') }} stg_inner
     LEFT JOIN {{ ref('stg_config_job_levels') }} levels
-        ON COALESCE(stg.employee_annualized_compensation, stg.employee_gross_compensation) >= levels.min_compensation
-       AND (COALESCE(stg.employee_annualized_compensation, stg.employee_gross_compensation) < levels.max_compensation OR levels.max_compensation IS NULL)
-    GROUP BY stg.employee_id
+        ON COALESCE(stg_inner.employee_annualized_compensation, stg_inner.employee_gross_compensation) >= levels.min_compensation
+       AND (COALESCE(stg_inner.employee_annualized_compensation, stg_inner.employee_gross_compensation) < levels.max_compensation OR levels.max_compensation IS NULL)
+    GROUP BY stg_inner.employee_id
 ) level_match ON stg.employee_id = level_match.employee_id
-WHERE
-    stg.employee_termination_date IS NULL
-ORDER BY
-    stg.employee_id
+WHERE stg.employee_termination_date IS NULL
+
+ORDER BY stg.employee_id
