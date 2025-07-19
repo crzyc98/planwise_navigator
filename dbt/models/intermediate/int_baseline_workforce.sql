@@ -6,18 +6,12 @@
     ]
 ) }}
 
--- Robust Baseline Workforce Preparation with Cold Start Detection
--- Handles both cold start (from census) and continuing simulation scenarios
+-- Simplified Baseline Workforce Preparation
+-- Creates baseline workforce directly from census data without complex cold start detection
 
-{% set simulation_year = var('simulation_year', 2024) %}
+{% set simulation_year = var('simulation_year', 2025) %}
 {% set simulation_effective_date_str = var('simulation_effective_date', '2024-12-31') %}
 
--- Simplified approach: use census data for baseline workforce
--- For cold start detection, use the int_cold_start_detection model
-WITH cold_start_check AS (
-    SELECT is_cold_start, last_completed_year
-    FROM {{ ref('int_cold_start_detection') }}
-)
 SELECT
     stg.employee_id,
     stg.employee_ssn,
@@ -52,10 +46,10 @@ SELECT
     {{ simulation_year }} AS simulation_year,
     CURRENT_TIMESTAMP AS snapshot_created_at,
     true as is_from_census,
-    c.is_cold_start,
-    c.last_completed_year
+    -- Simplified: assume this is always a cold start from census data
+    true as is_cold_start,
+    NULL as last_completed_year
 FROM {{ ref('stg_census_data') }} stg
-CROSS JOIN cold_start_check c
 -- Use a subquery to find the best matching level_id for each employee
 LEFT JOIN (
     SELECT
