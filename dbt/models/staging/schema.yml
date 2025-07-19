@@ -42,7 +42,7 @@ models:
         data_type: date
       - name: employee_gross_compensation
         description: "Gross annual compensation used for level assignment and simulation baseline."
-        data_type: decimal
+        data_type: double
         constraints:
           - type: not_null
       - name: active
@@ -50,29 +50,29 @@ models:
         data_type: boolean
       - name: employee_plan_year_compensation
         description: "Plan year compensation (may be partial year)."
-        data_type: decimal
+        data_type: double
         constraints:
           - type: not_null
       - name: employee_annualized_compensation
         description: "Annualized compensation calculated for partial year workers."
-        data_type: decimal
+        data_type: double
         constraints:
           - type: not_null
       - name: employee_capped_compensation
         description: "Capped compensation for benefit calculations."
-        data_type: decimal
+        data_type: decimal(12,2)
       - name: employee_deferral_rate
         description: "Employee deferral rate for benefit modeling."
-        data_type: double
+        data_type: decimal(2,1)
       - name: employee_contribution
         description: "Employee contribution amount."
-        data_type: double
+        data_type: decimal(2,1)
       - name: employer_core_contribution
         description: "Employer core contribution amount."
-        data_type: double
+        data_type: decimal(2,1)
       - name: employer_match_contribution
         description: "Employer match contribution amount."
-        data_type: double
+        data_type: decimal(2,1)
       - name: eligibility_entry_date
         description: "Benefit eligibility entry date."
         data_type: date

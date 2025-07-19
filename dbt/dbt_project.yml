@@ -46,7 +46,6 @@ models:
 seeds:
   planwise_navigator:
     +column_types:
-      id: varchar
       created_at: timestamp
       updated_at: timestamp
 

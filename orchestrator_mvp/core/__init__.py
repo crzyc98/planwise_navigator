@@ -11,6 +11,11 @@ from .database_manager import (
     drop_tables_with_retry,
     clear_database,
 )
+from .event_emitter import (
+    generate_experienced_termination_events,
+    generate_and_store_termination_events,
+    validate_events_in_database,
+)
 
 __all__ = [
     "DUCKDB_PATH",
@@ -22,4 +27,7 @@ __all__ = [
     "drop_foreign_key_constraints",
     "drop_tables_with_retry",
     "clear_database",
+    "generate_experienced_termination_events",
+    "generate_and_store_termination_events",
+    "validate_events_in_database",
 ]
