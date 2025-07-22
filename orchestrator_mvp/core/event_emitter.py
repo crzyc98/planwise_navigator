@@ -643,15 +643,40 @@ def generate_new_hire_termination_events(
 
     events = []
     for hire_event in selected_for_termination:
-        # New hire terminations occur 3-9 months after hire
-        # Use employee_id for date variation
-        id_hash = sum(ord(c) for c in hire_event['employee_id'][-3:])
-        days_after_hire = 90 + (id_hash % 185)  # 90-275 days
-        termination_date = hire_event['effective_date'] + timedelta(days=days_after_hire)
+        # Calculate remaining days in simulation year from hire date
+        hire_date = hire_event['effective_date']
+        year_end = date(simulation_year, 12, 31)
+        days_remaining = (year_end - hire_date).days
 
-        # Ensure termination is within simulation year
-        if termination_date.year > simulation_year:
-            termination_date = date(simulation_year, 12, 31)
+        # Use employee_id for deterministic date variation
+        id_hash = sum(ord(c) for c in hire_event['employee_id'][-3:])
+
+        # Adaptive termination window based on hire timing
+        if days_remaining < 90:  # Late-year hire (less than 3 months remaining)
+            # Use shorter 1-6 month window for late hires
+            max_possible = min(180, days_remaining - 1)
+            days_after_hire = 30 + (id_hash % (max_possible - 29)) if max_possible > 30 else 1
+        else:
+            # Use standard 3-9 month window, but cap at available days
+            max_possible = min(275, days_remaining - 1)
+            if max_possible >= 90:
+                days_after_hire = 90 + (id_hash % (max_possible - 89))
+            else:
+                # Fallback for edge cases
+                days_after_hire = 30 + (id_hash % (max_possible - 29)) if max_possible > 30 else 1
+
+        termination_date = hire_date + timedelta(days=days_after_hire)
+
+        # Validate termination date doesn't exceed simulation year
+        if termination_date > year_end:
+            # Fallback: distribute within remaining days using hash for variation
+            if days_remaining > 1:
+                # Use hash to vary within available days, ensuring some spread
+                fallback_days = 1 + (id_hash % max(1, days_remaining - 1))
+                termination_date = hire_date + timedelta(days=fallback_days)
+            else:
+                # Extreme edge case: hire on Dec 31 or very close
+                termination_date = hire_date + timedelta(days=1)
 
         event = {
             'employee_id': hire_event['employee_id'],
