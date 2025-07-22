@@ -16,6 +16,12 @@ from .event_emitter import (
     generate_and_store_termination_events,
     validate_events_in_database,
 )
+from .simulation_checklist import (
+    SimulationChecklist,
+    StepSequenceError,
+    SimulationStep
+)
+from .multi_year_orchestrator import MultiYearSimulationOrchestrator
 
 __all__ = [
     "DUCKDB_PATH",
@@ -30,4 +36,8 @@ __all__ = [
     "generate_experienced_termination_events",
     "generate_and_store_termination_events",
     "validate_events_in_database",
+    "SimulationChecklist",
+    "StepSequenceError",
+    "SimulationStep",
+    "MultiYearSimulationOrchestrator",
 ]

@@ -1,582 +1,388 @@
 """
-Unit tests for S013-06: Multi-Year Orchestration Transformation
+Unit tests for Multi-Year Simulation with Enhanced Data Persistence
 
-Comprehensive test suite for the transformed run_multi_year_simulation function,
-validating that it operates as a pure orchestrator leveraging modular components.
+Updated test suite for multi-year simulation functions, focusing on the new
+data persistence behavior and enhanced validation functionality.
 """
 
 import pytest
-from unittest.mock import Mock, patch
-from dagster import build_op_context
+import unittest.mock
+from unittest.mock import Mock, patch, MagicMock
 
-from orchestrator.simulator_pipeline import (
-    run_multi_year_simulation,
-    _create_baseline_snapshot,
-    _execute_single_year_with_recovery,
-    _log_simulation_summary,
-    YearResult
+from orchestrator_mvp.core.multi_year_simulation import (
+    validate_year_transition,
+    get_previous_year_workforce_count,
+    validate_multi_year_data_integrity
 )
+from orchestrator_mvp.core.multi_year_orchestrator import MultiYearSimulationOrchestrator
 
 
-class TestRunMultiYearSimulation:
-    """Test suite for the transformed run_multi_year_simulation orchestrator."""
-
-    @pytest.fixture
-    def mock_context(self):
-        """Create a proper Dagster execution context."""
-        dbt_resource = Mock()
-        mock_invocation = Mock()
-        mock_invocation.process = Mock()
-        mock_invocation.process.returncode = 0
-        mock_invocation.get_stdout.return_value = "Success output"
-        mock_invocation.get_stderr.return_value = ""
-
-        dbt_resource.cli.return_value.wait.return_value = mock_invocation
-
-        context = build_op_context(
-            op_config={
-                "start_year": 2025,
-                "end_year": 2027,
-                "target_growth_rate": 0.03,
-                "total_termination_rate": 0.12,
-                "new_hire_termination_rate": 0.25,
-                "random_seed": 42,
-                "full_refresh": False,
-            },
-            resources={"dbt": dbt_resource}
-        )
-
-        return context
-
-    @patch('orchestrator.simulator_pipeline.clean_duckdb_data')
-    @patch('orchestrator.simulator_pipeline._create_baseline_snapshot')
-    @patch('orchestrator.simulator_pipeline._execute_single_year_with_recovery')
-    @patch('orchestrator.simulator_pipeline._log_simulation_summary')
-    def test_pure_orchestration_pattern(
-        self,
-        mock_log_summary,
-        mock_execute_year,
-        mock_create_baseline,
-        mock_clean_data,
-        mock_context
-    ):
-        """Test that the function operates as a pure orchestrator."""
-        # Setup successful year results
-        mock_execute_year.side_effect = [
-            YearResult(year=2025, success=True, active_employees=1030, total_terminations=120,
-                      experienced_terminations=100, new_hire_terminations=20, total_hires=150,
-                      growth_rate=0.03, validation_passed=True),
-            YearResult(year=2026, success=True, active_employees=1061, total_terminations=125,
-                      experienced_terminations=105, new_hire_terminations=20, total_hires=156,
-                      growth_rate=0.03, validation_passed=True),
-            YearResult(year=2027, success=True, active_employees=1093, total_terminations=130,
-                      experienced_terminations=110, new_hire_terminations=20, total_hires=162,
-                      growth_rate=0.03, validation_passed=True)
-        ]
-
-        # Execute
-        results = run_multi_year_simulation(mock_context, True)
-
-        # Verify orchestration sequence
-        mock_clean_data.assert_called_once_with(mock_context, [2025, 2026, 2027])
-        mock_create_baseline.assert_not_called()  # start_year is 2025
-        assert mock_execute_year.call_count == 3
-        mock_log_summary.assert_called_once()
-
-        # Verify results
-        assert len(results) == 3
-        assert all(r.success for r in results)
-        assert [r.year for r in results] == [2025, 2026, 2027]
-
-    @patch('orchestrator.simulator_pipeline.clean_duckdb_data')
-    @patch('orchestrator.simulator_pipeline._create_baseline_snapshot')
-    @patch('orchestrator.simulator_pipeline._execute_single_year_with_recovery')
-    @patch('orchestrator.simulator_pipeline._log_simulation_summary')
-    def test_baseline_snapshot_creation(
-        self,
-        mock_log_summary,
-        mock_execute_year,
-        mock_create_baseline,
-        mock_clean_data,
-        mock_context
-    ):
-        """Test baseline snapshot creation when start_year > 2025."""
-        # Setup for year 2026 start
-        mock_context.op_config["start_year"] = 2026
-        mock_context.op_config["end_year"] = 2027
-
-        mock_execute_year.side_effect = [
-            YearResult(year=2026, success=True, active_employees=1061, total_terminations=125,
-                      experienced_terminations=105, new_hire_terminations=20, total_hires=156,
-                      growth_rate=0.03, validation_passed=True),
-            YearResult(year=2027, success=True, active_employees=1093, total_terminations=130,
-                      experienced_terminations=110, new_hire_terminations=20, total_hires=162,
-                      growth_rate=0.03, validation_passed=True)
-        ]
-
-        # Execute
-        results = run_multi_year_simulation(mock_context, True)
-
-        # Verify baseline snapshot was created
-        mock_create_baseline.assert_called_once_with(mock_context, 2025)
-        mock_clean_data.assert_called_once_with(mock_context, [2026, 2027])
-        assert mock_execute_year.call_count == 2
-
-        # Verify results
-        assert len(results) == 2
-        assert all(r.success for r in results)
-
-    @patch('orchestrator.simulator_pipeline.clean_duckdb_data')
-    @patch('orchestrator.simulator_pipeline._create_baseline_snapshot')
-    @patch('orchestrator.simulator_pipeline._execute_single_year_with_recovery')
-    @patch('orchestrator.simulator_pipeline._log_simulation_summary')
-    def test_error_handling_and_continuation(
-        self,
-        mock_log_summary,
-        mock_execute_year,
-        mock_create_baseline,
-        mock_clean_data,
-        mock_context
-    ):
-        """Test error handling and continuation after failures."""
-        # Setup mixed success/failure results
-        mock_execute_year.side_effect = [
-            YearResult(year=2025, success=True, active_employees=1030, total_terminations=120,
-                      experienced_terminations=100, new_hire_terminations=20, total_hires=150,
-                      growth_rate=0.03, validation_passed=True),
-            YearResult(year=2026, success=False, active_employees=0, total_terminations=0,
-                      experienced_terminations=0, new_hire_terminations=0, total_hires=0,
-                      growth_rate=0.0, validation_passed=False),
-            YearResult(year=2027, success=True, active_employees=1093, total_terminations=130,
-                      experienced_terminations=110, new_hire_terminations=20, total_hires=162,
-                      growth_rate=0.03, validation_passed=True)
-        ]
-
-        # Execute
-        results = run_multi_year_simulation(mock_context, True)
-
-        # Verify all years were processed despite failure
-        assert len(results) == 3
-        assert results[0].success is True
-        assert results[1].success is False
-        assert results[2].success is True
-
-        # Verify orchestration continued
-        assert mock_execute_year.call_count == 3
-        mock_log_summary.assert_called_once()
-
-    def test_baseline_validation_failure(self, mock_context):
-        """Test that function raises exception when baseline validation fails."""
-        with pytest.raises(Exception, match="Baseline workforce validation failed"):
-            run_multi_year_simulation(mock_context, False)
-
-    @patch('orchestrator.simulator_pipeline.clean_duckdb_data')
-    @patch('orchestrator.simulator_pipeline._create_baseline_snapshot')
-    @patch('orchestrator.simulator_pipeline._execute_single_year_with_recovery')
-    @patch('orchestrator.simulator_pipeline._log_simulation_summary')
-    def test_full_refresh_handling(
-        self,
-        mock_log_summary,
-        mock_execute_year,
-        mock_create_baseline,
-        mock_clean_data,
-        mock_context
-    ):
-        """Test full_refresh flag handling."""
-        # Setup with full_refresh enabled
-        mock_context.op_config["full_refresh"] = True
-
-        mock_execute_year.return_value = YearResult(
-            year=2025, success=True, active_employees=1030, total_terminations=120,
-            experienced_terminations=100, new_hire_terminations=20, total_hires=150,
-            growth_rate=0.03, validation_passed=True
-        )
-
-        # Execute
-        results = run_multi_year_simulation(mock_context, True)
-
-        # Verify orchestration occurred
-        mock_clean_data.assert_called_once()
-        mock_execute_year.assert_called()
-        mock_log_summary.assert_called_once()
-
-        # Verify results
-        assert len(results) == 3  # 2025-2027
-
-    @patch('orchestrator.simulator_pipeline.clean_duckdb_data')
-    @patch('orchestrator.simulator_pipeline._execute_single_year_with_recovery')
-    @patch('orchestrator.simulator_pipeline._log_simulation_summary')
-    def test_single_year_range(
-        self,
-        mock_log_summary,
-        mock_execute_year,
-        mock_clean_data,
-        mock_context
-    ):
-        """Test orchestration with single year range."""
-        # Setup for single year
-        mock_context.op_config["start_year"] = 2025
-        mock_context.op_config["end_year"] = 2025
-
-        mock_execute_year.return_value = YearResult(
-            year=2025, success=True, active_employees=1030, total_terminations=120,
-            experienced_terminations=100, new_hire_terminations=20, total_hires=150,
-            growth_rate=0.03, validation_passed=True
-        )
-
-        # Execute
-        results = run_multi_year_simulation(mock_context, True)
-
-        # Verify single year orchestration
-        mock_clean_data.assert_called_once_with(mock_context, [2025])
-        mock_execute_year.assert_called_once()
-        mock_log_summary.assert_called_once()
-
-        # Verify results
-        assert len(results) == 1
-        assert results[0].year == 2025
-
-
-class TestCreateBaselineSnapshot:
-    """Test suite for _create_baseline_snapshot helper function."""
+class TestEnhancedYearTransitionValidation:
+    """Test suite for enhanced year transition validation."""
 
     @pytest.fixture
-    def mock_context(self):
-        """Create a mock context for testing."""
-        context = Mock()
-        context.log = Mock()
-        return context
-
-    @patch('orchestrator.simulator_pipeline.run_dbt_snapshot_for_year')
-    def test_successful_baseline_snapshot(self, mock_snapshot, mock_context):
-        """Test successful baseline snapshot creation."""
-        # Setup successful snapshot result
-        mock_snapshot.return_value = {"success": True, "records_created": 1000}
-
-        # Execute
-        _create_baseline_snapshot(mock_context, 2024)
-
-        # Verify snapshot was called correctly
-        mock_snapshot.assert_called_once_with(mock_context, 2024, "previous_year")
-
-        # Verify no warnings logged
-        mock_context.log.warning.assert_not_called()
-
-    @patch('orchestrator.simulator_pipeline.run_dbt_snapshot_for_year')
-    def test_failed_baseline_snapshot(self, mock_snapshot, mock_context):
-        """Test failed baseline snapshot creation."""
-        # Setup failed snapshot result
-        mock_snapshot.return_value = {"success": False, "error": "Database connection failed"}
-
-        # Execute
-        _create_baseline_snapshot(mock_context, 2024)
-
-        # Verify snapshot was called correctly
-        mock_snapshot.assert_called_once_with(mock_context, 2024, "previous_year")
-
-        # Verify warning was logged
-        mock_context.log.warning.assert_called_once_with(
-            "Baseline snapshot creation had issues: Database connection failed"
+    def mock_connection(self):
+        """Create a mock database connection."""
+        mock_conn = Mock()
+        mock_conn.execute.return_value.fetchone.return_value = (
+            1000, 950, 50,  # total, active, terminated employees
+            42.5, 5.2,      # avg age, tenure
+            75000,          # avg compensation
+            45000, 120000,  # min, max compensation
+            3               # distinct levels
         )
+        mock_conn.close.return_value = None
+        return mock_conn
+
+    @patch('orchestrator_mvp.core.multi_year_simulation.get_connection')
+    def test_enhanced_validation_success(self, mock_get_conn, mock_connection):
+        """Test enhanced year transition validation with comprehensive data."""
+        mock_get_conn.return_value = mock_connection
+
+        # Mock all required query results
+        mock_connection.execute.return_value.fetchone.side_effect = [
+            # Snapshot query result
+            (1000, 950, 50, 42.5, 5.2, 75000, 45000, 120000, 3),
+            # Events query result
+            (500, 100, 80, 50, 200, 480),  # total, hire, term, promo, raise, valid events
+            # Consistency check result
+            (100, 80, 20, 25, 5)  # hires, terms, expected_change, actual_change, variance
+        ]
+
+        # Execute
+        result = validate_year_transition(2025, 2026)
+
+        # Verify
+        assert result is True
+        assert mock_get_conn.called
+        assert mock_connection.execute.call_count >= 3  # snapshot, events, consistency queries
+        mock_connection.close.assert_called_once()
+
+    @patch('orchestrator_mvp.core.multi_year_simulation.get_connection')
+    def test_enhanced_validation_failure_missing_data(self, mock_get_conn, mock_connection):
+        """Test validation failure when previous year data is missing."""
+        mock_get_conn.return_value = mock_connection
+
+        # Mock missing data - empty result
+        mock_connection.execute.return_value.fetchone.return_value = None
+
+        # Execute
+        result = validate_year_transition(2025, 2026)
+
+        # Verify
+        assert result is False
+        mock_connection.close.assert_called_once()
+
+    @patch('orchestrator_mvp.core.multi_year_simulation.get_connection')
+    def test_enhanced_validation_data_quality_issues(self, mock_get_conn, mock_connection):
+        """Test validation with data quality concerns but still passing."""
+        mock_get_conn.return_value = mock_connection
+
+        # Mock low quality data that still passes minimum thresholds
+        mock_connection.execute.return_value.fetchone.side_effect = [
+            # Snapshot with low employee count but > 0
+            (25, 20, 5, 35.0, 3.0, 55000, 35000, 85000, 2),
+            # Events exist
+            (50, 5, 8, 2, 15, 45),
+            # Consistency within acceptable range
+            (5, 8, -3, -2, 1)  # Small variance
+        ]
+
+        # Execute
+        result = validate_year_transition(2025, 2026)
+
+        # Verify - should still pass with warnings
+        assert result is True
 
 
-class TestExecuteSingleYearWithRecovery:
-    """Test suite for _execute_single_year_with_recovery helper function."""
+class TestEnhancedWorkforceCountRetrieval:
+    """Test suite for enhanced workforce count retrieval with better error handling."""
 
     @pytest.fixture
-    def mock_context(self):
-        """Create a mock context for testing."""
-        context = Mock()
-        context.log = Mock()
-        return context
+    def mock_connection(self):
+        """Create a mock database connection."""
+        mock_conn = Mock()
+        mock_conn.close.return_value = None
+        return mock_conn
 
-    @patch('orchestrator.simulator_pipeline.assert_year_complete')
-    @patch('orchestrator.simulator_pipeline.run_dbt_snapshot_for_year')
-    @patch('orchestrator.simulator_pipeline.run_year_simulation_for_multi_year')
-    def test_successful_year_execution(
-        self,
-        mock_simulation,
-        mock_snapshot,
-        mock_assert_year,
-        mock_context
-    ):
-        """Test successful year execution."""
-        # Setup successful simulation result
-        expected_result = YearResult(
-            year=2025, success=True, active_employees=1030, total_terminations=120,
-            experienced_terminations=100, new_hire_terminations=20, total_hires=150,
-            growth_rate=0.03, validation_passed=True
+    @patch('orchestrator_mvp.core.multi_year_simulation.get_connection')
+    @patch('orchestrator_mvp.core.multi_year_simulation.get_baseline_workforce_count')
+    def test_successful_previous_year_retrieval(self, mock_baseline, mock_get_conn, mock_connection):
+        """Test successful retrieval of previous year workforce count."""
+        mock_get_conn.return_value = mock_connection
+
+        # Mock successful query result with comprehensive data
+        mock_connection.execute.return_value.fetchone.return_value = (
+            950,    # active_count
+            42.5,   # avg_age
+            75000,  # avg_compensation
+            3,      # distinct_levels
+            '2025-12-31 23:59:59'  # snapshot_date
         )
-        mock_simulation.return_value = expected_result
-
-        # Execute first year (no previous year validation)
-        result = _execute_single_year_with_recovery(mock_context, 2025, 2025)
-
-        # Verify no previous year validation
-        mock_assert_year.assert_not_called()
-
-        # Verify simulation was called
-        mock_simulation.assert_called_once_with(mock_context, 2025)
-
-        # Verify end-of-year snapshot was created
-        mock_snapshot.assert_called_once_with(mock_context, 2025, "end_of_year")
-
-        # Verify result
-        assert result == expected_result
-
-    @patch('orchestrator.simulator_pipeline.assert_year_complete')
-    @patch('orchestrator.simulator_pipeline.run_dbt_snapshot_for_year')
-    @patch('orchestrator.simulator_pipeline.run_year_simulation_for_multi_year')
-    def test_subsequent_year_execution(
-        self,
-        mock_simulation,
-        mock_snapshot,
-        mock_assert_year,
-        mock_context
-    ):
-        """Test subsequent year execution with previous year validation."""
-        # Setup successful simulation result
-        expected_result = YearResult(
-            year=2026, success=True, active_employees=1061, total_terminations=125,
-            experienced_terminations=105, new_hire_terminations=20, total_hires=156,
-            growth_rate=0.03, validation_passed=True
-        )
-        mock_simulation.return_value = expected_result
-
-        # Execute subsequent year
-        result = _execute_single_year_with_recovery(mock_context, 2026, 2025)
-
-        # Verify previous year validation
-        mock_assert_year.assert_called_once_with(mock_context, 2025)
-
-        # Verify previous year snapshot was created
-        assert mock_snapshot.call_count == 2
-        mock_snapshot.assert_any_call(mock_context, 2025, "previous_year")
-        mock_snapshot.assert_any_call(mock_context, 2026, "end_of_year")
-
-        # Verify simulation was called
-        mock_simulation.assert_called_once_with(mock_context, 2026)
-
-        # Verify result
-        assert result == expected_result
-
-    @patch('orchestrator.simulator_pipeline.assert_year_complete')
-    @patch('orchestrator.simulator_pipeline.run_dbt_snapshot_for_year')
-    @patch('orchestrator.simulator_pipeline.run_year_simulation_for_multi_year')
-    def test_year_execution_failure(
-        self,
-        mock_simulation,
-        mock_snapshot,
-        mock_assert_year,
-        mock_context
-    ):
-        """Test year execution failure handling."""
-        # Setup simulation failure
-        mock_simulation.side_effect = Exception("Simulation processing failed")
 
         # Execute
-        result = _execute_single_year_with_recovery(mock_context, 2025, 2025)
+        result = get_previous_year_workforce_count(2026)
 
-        # Verify error was logged
-        mock_context.log.error.assert_called_once_with("❌ Year 2025 failed: Simulation processing failed")
+        # Verify
+        assert result == 950
+        mock_connection.execute.assert_called_once()
+        mock_connection.close.assert_called_once()
+        mock_baseline.assert_not_called()  # Should not fallback
 
-        # Verify failure result
-        assert result.success is False
-        assert result.year == 2025
-        assert result.active_employees == 0
-        assert result.validation_passed is False
+    @patch('orchestrator_mvp.core.multi_year_simulation.get_connection')
+    @patch('orchestrator_mvp.core.multi_year_simulation.get_baseline_workforce_count')
+    def test_fallback_to_baseline_missing_data(self, mock_baseline, mock_get_conn, mock_connection):
+        """Test fallback to baseline when previous year data is missing."""
+        mock_get_conn.return_value = mock_connection
+        mock_baseline.return_value = 1000
 
-    @patch('orchestrator.simulator_pipeline.assert_year_complete')
-    @patch('orchestrator.simulator_pipeline.run_dbt_snapshot_for_year')
-    @patch('orchestrator.simulator_pipeline.run_year_simulation_for_multi_year')
-    def test_previous_year_validation_failure(
-        self,
-        mock_simulation,
-        mock_snapshot,
-        mock_assert_year,
-        mock_context
-    ):
-        """Test previous year validation failure."""
-        # Setup assertion failure
-        mock_assert_year.side_effect = Exception("Previous year data missing")
+        # Mock missing data scenario
+        mock_connection.execute.return_value.fetchone.return_value = None
 
         # Execute
-        result = _execute_single_year_with_recovery(mock_context, 2026, 2025)
+        result = get_previous_year_workforce_count(2026)
 
-        # Verify error was logged
-        mock_context.log.error.assert_called_once_with("❌ Year 2026 failed: Previous year data missing")
+        # Verify
+        assert result == 1000
+        mock_baseline.assert_called_once()
+        mock_connection.close.assert_called_once()
 
-        # Verify simulation was not called
-        mock_simulation.assert_not_called()
+    @patch('orchestrator_mvp.core.multi_year_simulation.get_connection')
+    @patch('orchestrator_mvp.core.multi_year_simulation.get_baseline_workforce_count')
+    def test_fallback_to_baseline_zero_count(self, mock_baseline, mock_get_conn, mock_connection):
+        """Test fallback when previous year has zero employees."""
+        mock_get_conn.return_value = mock_connection
+        mock_baseline.return_value = 1000
 
-        # Verify failure result
-        assert result.success is False
-        assert result.year == 2026
+        # Mock zero count scenario
+        mock_connection.execute.return_value.fetchone.return_value = (
+            0, 0, 0, 0, None  # All zeros/nulls
+        )
 
+        # Execute
+        result = get_previous_year_workforce_count(2026)
 
-class TestLogSimulationSummary:
-    """Test suite for _log_simulation_summary helper function."""
+        # Verify fallback occurred
+        assert result == 1000
+        mock_baseline.assert_called_once()
+
+    @patch('orchestrator_mvp.core.multi_year_simulation.get_connection')
+    @patch('orchestrator_mvp.core.multi_year_simulation.get_baseline_workforce_count')
+    def test_data_quality_warnings(self, mock_baseline, mock_get_conn, mock_connection):
+        """Test data quality validation and warnings."""
+        mock_get_conn.return_value = mock_connection
+
+        # Mock data with quality issues but still valid
+        mock_connection.execute.return_value.fetchone.return_value = (
+            5,      # very low active_count (triggers warning)
+            15.0,   # suspicious avg_age (triggers warning)
+            25000,  # suspicious avg_compensation (triggers warning)
+            1,      # too few distinct_levels (triggers warning)
+            '2025-12-31 23:59:59'
+        )
+
+        # Execute - should succeed but with warnings
+        result = get_previous_year_workforce_count(2026)
+
+        # Verify still returns the count despite warnings
+        assert result == 5
+        mock_baseline.assert_not_called()  # Should not fallback
+
+    @patch('orchestrator_mvp.core.multi_year_simulation.get_connection')
+    @patch('orchestrator_mvp.core.multi_year_simulation.get_baseline_workforce_count')
+    def test_exception_handling(self, mock_baseline, mock_get_conn, mock_connection):
+        """Test exception handling with fallback to baseline."""
+        mock_get_conn.return_value = mock_connection
+        mock_baseline.return_value = 1000
+
+        # Mock database exception
+        mock_connection.execute.side_effect = Exception("Database connection lost")
+
+        # Execute
+        result = get_previous_year_workforce_count(2026)
+
+        # Verify fallback occurred
+        assert result == 1000
+        mock_baseline.assert_called_once()
+        mock_connection.close.assert_called_once()
+
+    @patch('orchestrator_mvp.core.multi_year_simulation.get_connection')
+    @patch('orchestrator_mvp.core.multi_year_simulation.get_baseline_workforce_count')
+    def test_critical_failure_both_sources(self, mock_baseline, mock_get_conn, mock_connection):
+        """Test critical failure when both previous year and baseline fail."""
+        mock_get_conn.return_value = mock_connection
+        mock_baseline.side_effect = Exception("Baseline data also unavailable")
+
+        # Mock database exception for previous year
+        mock_connection.execute.side_effect = Exception("Database connection lost")
+
+        # Execute and expect ValueError
+        with pytest.raises(ValueError, match="Critical error: Cannot retrieve workforce data"):
+            get_previous_year_workforce_count(2026)
+
+class TestMultiYearDataIntegrityValidation:
+    """Test suite for multi-year data integrity validation."""
 
     @pytest.fixture
-    def mock_context(self):
-        """Create a mock context for testing."""
-        context = Mock()
-        context.log = Mock()
-        return context
+    def mock_connection(self):
+        """Create a mock database connection."""
+        mock_conn = Mock()
+        mock_conn.close.return_value = None
+        return mock_conn
 
-    def test_all_successful_years(self, mock_context):
-        """Test summary logging for all successful years."""
-        results = [
-            YearResult(year=2025, success=True, active_employees=1030, total_terminations=120,
-                      experienced_terminations=100, new_hire_terminations=20, total_hires=150,
-                      growth_rate=0.03, validation_passed=True),
-            YearResult(year=2026, success=True, active_employees=1061, total_terminations=125,
-                      experienced_terminations=105, new_hire_terminations=20, total_hires=156,
-                      growth_rate=0.03, validation_passed=True),
+    @patch('orchestrator_mvp.core.multi_year_simulation.get_connection')
+    def test_successful_integrity_validation(self, mock_get_conn, mock_connection):
+        """Test successful multi-year data integrity validation."""
+        mock_get_conn.return_value = mock_connection
+
+        # Mock baseline availability
+        mock_connection.execute.return_value.fetchone.side_effect = [
+            (1000,),  # baseline_count > 0
+        ]
+
+        # Mock existing years query
+        mock_connection.execute.return_value.fetchall.return_value = [
+            (2025, 950), (2026, 980)  # (year, employee_count)
         ]
 
         # Execute
-        _log_simulation_summary(mock_context, results)
+        result = validate_multi_year_data_integrity(2025, 2027)
 
-        # Verify summary logging
-        mock_context.log.info.assert_any_call("📊 === Multi-year simulation summary ===")
-        mock_context.log.info.assert_any_call("🎯 Simulation completed: 2/2 years successful")
-        mock_context.log.info.assert_any_call("  ✅ Year 2025: 1,030 employees, 3.0% growth")
-        mock_context.log.info.assert_any_call("  ✅ Year 2026: 1,061 employees, 3.0% growth")
+        # Verify
+        assert result['baseline_available'] is True
+        assert len(result['existing_years']) == 2
+        assert result['data_gaps'] == [2027]
+        assert result['can_proceed'] is True
+        mock_connection.close.assert_called_once()
 
-        # Verify no warnings
-        mock_context.log.warning.assert_not_called()
+    @patch('orchestrator_mvp.core.multi_year_simulation.get_connection')
+    def test_missing_baseline_validation(self, mock_get_conn, mock_connection):
+        """Test validation when baseline is missing."""
+        mock_get_conn.return_value = mock_connection
 
-    def test_mixed_success_failure_years(self, mock_context):
-        """Test summary logging for mixed success/failure years."""
-        results = [
-            YearResult(year=2025, success=True, active_employees=1030, total_terminations=120,
-                      experienced_terminations=100, new_hire_terminations=20, total_hires=150,
-                      growth_rate=0.03, validation_passed=True),
-            YearResult(year=2026, success=False, active_employees=0, total_terminations=0,
-                      experienced_terminations=0, new_hire_terminations=0, total_hires=0,
-                      growth_rate=0.0, validation_passed=False),
-            YearResult(year=2027, success=True, active_employees=1093, total_terminations=130,
-                      experienced_terminations=110, new_hire_terminations=20, total_hires=162,
-                      growth_rate=0.03, validation_passed=True),
+        # Mock missing baseline
+        mock_connection.execute.return_value.fetchone.return_value = (0,)  # No baseline data
+        mock_connection.execute.return_value.fetchall.return_value = []  # No existing years
+
+        # Execute
+        result = validate_multi_year_data_integrity(2025, 2027)
+
+        # Verify
+        assert result['baseline_available'] is False
+        assert result['can_proceed'] is False
+        assert 'Generate baseline workforce data' in result['recommendations'][0]
+
+    @patch('orchestrator_mvp.core.multi_year_simulation.get_connection')
+    def test_partial_data_validation(self, mock_get_conn, mock_connection):
+        """Test validation with partial multi-year data."""
+        mock_get_conn.return_value = mock_connection
+
+        # Mock baseline exists
+        mock_connection.execute.return_value.fetchone.return_value = (1000,)
+
+        # Mock partial existing years
+        mock_connection.execute.return_value.fetchall.return_value = [
+            (2025, 950)  # Only 2025 exists
         ]
 
         # Execute
-        _log_simulation_summary(mock_context, results)
+        result = validate_multi_year_data_integrity(2025, 2027)
 
-        # Verify summary logging
-        mock_context.log.info.assert_any_call("📊 === Multi-year simulation summary ===")
-        mock_context.log.info.assert_any_call("🎯 Simulation completed: 2/3 years successful")
-        mock_context.log.info.assert_any_call("  ✅ Year 2025: 1,030 employees, 3.0% growth")
-        mock_context.log.error.assert_any_call("  ❌ Year 2026: FAILED")
-        mock_context.log.info.assert_any_call("  ✅ Year 2027: 1,093 employees, 3.0% growth")
+        # Verify
+        assert result['baseline_available'] is True
+        assert len(result['existing_years']) == 1
+        assert result['existing_years'][0]['year'] == 2025
+        assert result['data_gaps'] == [2026, 2027]
+        assert result['can_proceed'] is True  # Can proceed with baseline
 
-        # Verify failure warning
-        mock_context.log.warning.assert_called_once_with("⚠️  1 year(s) failed - check logs for details")
-
-    def test_all_failed_years(self, mock_context):
-        """Test summary logging for all failed years."""
-        results = [
-            YearResult(year=2025, success=False, active_employees=0, total_terminations=0,
-                      experienced_terminations=0, new_hire_terminations=0, total_hires=0,
-                      growth_rate=0.0, validation_passed=False),
-            YearResult(year=2026, success=False, active_employees=0, total_terminations=0,
-                      experienced_terminations=0, new_hire_terminations=0, total_hires=0,
-                      growth_rate=0.0, validation_passed=False),
-        ]
+    @patch('orchestrator_mvp.core.multi_year_simulation.get_connection')
+    def test_database_connection_failure(self, mock_get_conn, mock_connection):
+        """Test handling of database connection failures."""
+        mock_get_conn.return_value = mock_connection
+        mock_connection.execute.side_effect = Exception("Connection failed")
 
         # Execute
-        _log_simulation_summary(mock_context, results)
+        result = validate_multi_year_data_integrity(2025, 2027)
 
-        # Verify summary logging
-        mock_context.log.info.assert_any_call("📊 === Multi-year simulation summary ===")
-        mock_context.log.info.assert_any_call("🎯 Simulation completed: 0/2 years successful")
-        mock_context.log.error.assert_any_call("  ❌ Year 2025: FAILED")
-        mock_context.log.error.assert_any_call("  ❌ Year 2026: FAILED")
-
-        # Verify failure warning
-        mock_context.log.warning.assert_called_once_with("⚠️  2 year(s) failed - check logs for details")
-
-    def test_empty_results(self, mock_context):
-        """Test summary logging for empty results."""
-        results = []
-
-        # Execute
-        _log_simulation_summary(mock_context, results)
-
-        # Verify summary logging
-        mock_context.log.info.assert_any_call("📊 === Multi-year simulation summary ===")
-        mock_context.log.info.assert_any_call("🎯 Simulation completed: 0/0 years successful")
-
-        # Verify no warnings
-        mock_context.log.warning.assert_not_called()
+        # Verify
+        assert result['baseline_available'] is False
+        assert result['can_proceed'] is False
+        assert 'Resolve database connectivity issues' in result['recommendations']
+        mock_connection.close.assert_called_once()
 
 
-class TestMultiYearSimulationIntegration:
-    """Integration tests for the transformed multi-year simulation."""
+class TestMultiYearOrchestratorDataManagement:
+    """Test suite for MultiYearSimulationOrchestrator data management modes."""
 
-    @pytest.fixture
-    def integration_context(self):
-        """Create a realistic context for integration testing."""
-        dbt_resource = Mock()
+    def test_preserve_data_mode_initialization(self):
+        """Test orchestrator initialization with data preservation."""
+        config = {
+            'target_growth_rate': 0.03,
+            'workforce': {'total_termination_rate': 0.12}
+        }
 
-        context = build_op_context(
-            op_config={
-                "start_year": 2025,
-                "end_year": 2026,
-                "target_growth_rate": 0.03,
-                "total_termination_rate": 0.12,
-                "new_hire_termination_rate": 0.25,
-                "random_seed": 42,
-                "full_refresh": False,
-            },
-            resources={"dbt": dbt_resource}
+        orchestrator = MultiYearSimulationOrchestrator(
+            2025, 2027, config, force_clear=False, preserve_data=True
         )
 
-        return context
+        assert orchestrator.force_clear is False
+        assert orchestrator.preserve_data is True
+        assert orchestrator.start_year == 2025
+        assert orchestrator.end_year == 2027
 
-    @patch('orchestrator.simulator_pipeline.clean_duckdb_data')
-    @patch('orchestrator.simulator_pipeline.run_dbt_snapshot_for_year')
-    @patch('orchestrator.simulator_pipeline.assert_year_complete')
-    @patch('orchestrator.simulator_pipeline.run_year_simulation_for_multi_year')
-    def test_complete_orchestration_workflow(
-        self,
-        mock_simulation,
-        mock_assert_year,
-        mock_snapshot,
-        mock_clean_data,
-        integration_context
-    ):
-        """Test complete orchestration workflow with realistic integration."""
-        # Setup successful simulation results
-        mock_simulation.side_effect = [
-            YearResult(year=2025, success=True, active_employees=1030, total_terminations=120,
-                      experienced_terminations=100, new_hire_terminations=20, total_hires=150,
-                      growth_rate=0.03, validation_passed=True),
-            YearResult(year=2026, success=True, active_employees=1061, total_terminations=125,
-                      experienced_terminations=105, new_hire_terminations=20, total_hires=156,
-                      growth_rate=0.03, validation_passed=True)
+    def test_force_clear_mode_initialization(self):
+        """Test orchestrator initialization with force clear."""
+        config = {
+            'target_growth_rate': 0.03,
+            'workforce': {'total_termination_rate': 0.12}
+        }
+
+        orchestrator = MultiYearSimulationOrchestrator(
+            2025, 2027, config, force_clear=True, preserve_data=False
+        )
+
+        assert orchestrator.force_clear is True
+        assert orchestrator.preserve_data is False
+
+    @patch('orchestrator_mvp.core.multi_year_orchestrator.get_connection')
+    def test_selective_year_clearing(self, mock_get_conn):
+        """Test selective clearing of specific years."""
+        mock_conn = Mock()
+        mock_conn.execute.return_value.rowcount = 100  # Mock deleted rows
+        mock_get_conn.return_value = mock_conn
+
+        config = {'target_growth_rate': 0.03, 'workforce': {'total_termination_rate': 0.12}}
+        orchestrator = MultiYearSimulationOrchestrator(2025, 2027, config)
+
+        # Execute selective clearing
+        orchestrator.clear_specific_years([2026])
+
+        # Verify specific year was targeted
+        expected_calls = [
+            unittest.mock.call("DELETE FROM fct_yearly_events WHERE simulation_year = ?", [2026]),
+            unittest.mock.call("DELETE FROM fct_workforce_snapshot WHERE simulation_year = ?", [2026])
         ]
+        mock_conn.execute.assert_has_calls(expected_calls, any_order=False)
+        mock_conn.close.assert_called_once()
 
-        # Execute complete workflow
-        results = run_multi_year_simulation(integration_context, True)
+    def test_rollback_year_functionality(self):
+        """Test rollback year with selective clearing."""
+        config = {'target_growth_rate': 0.03, 'workforce': {'total_termination_rate': 0.12}}
+        orchestrator = MultiYearSimulationOrchestrator(2025, 2027, config)
 
-        # Verify complete orchestration sequence
-        mock_clean_data.assert_called_once_with(integration_context, [2025, 2026])
+        # Add some mock completed years
+        orchestrator.results['years_completed'] = [2025, 2026]
+        orchestrator.results['step_details'] = {2025: {}, 2026: {}}
 
-        # Verify year-by-year execution
-        assert mock_simulation.call_count == 2
-        mock_simulation.assert_any_call(integration_context, 2025)
-        mock_simulation.assert_any_call(integration_context, 2026)
+        with patch('orchestrator_mvp.core.multi_year_orchestrator.get_connection') as mock_get_conn:
+            mock_conn = Mock()
+            mock_conn.execute.return_value.rowcount = 50
+            mock_get_conn.return_value = mock_conn
 
-        # Verify previous year validation for second year
-        mock_assert_year.assert_called_once_with(integration_context, 2025)
+            # Execute rollback
+            orchestrator.rollback_year(2026)
 
-        # Verify snapshots were created
-        assert mock_snapshot.call_count == 3  # previous_year 2025, end_of_year 2025, end_of_year 2026
-
-        # Verify results
-        assert len(results) == 2
-        assert all(r.success for r in results)
-        assert [r.year for r in results] == [2025, 2026]
-        assert [r.active_employees for r in results] == [1030, 1061]
+            # Verify year was removed from tracking
+            assert 2026 not in orchestrator.results['years_completed']
+            assert 2026 not in orchestrator.results['step_details']
+            assert 2025 in orchestrator.results['years_completed']  # Other years preserved

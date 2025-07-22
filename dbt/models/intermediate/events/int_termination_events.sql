@@ -27,12 +27,12 @@ incumbent_pool AS (
         level_id,
         employment_status,
         termination_date
-    FROM {{ ref('int_workforce_previous_year') }}
+    FROM {{ ref('int_workforce_previous_year_v2') }}
     WHERE employment_status = 'active'
 ),
 
 active_workforce AS (
-    -- Use int_workforce_previous_year which handles the dependency logic properly
+    -- Use int_workforce_previous_year_v2 which handles the dependency logic properly
     -- FIXED: All employees who survived to the start of the simulation year should be treated as experienced
     -- This includes baseline workforce members hired in 2024 who are part of the Year 1 starting workforce
     SELECT
@@ -44,7 +44,7 @@ active_workforce AS (
         current_age,
         current_tenure,
         level_id,
-        -- FIXED: All employees in int_workforce_previous_year have survived to simulation start
+        -- FIXED: All employees in int_workforce_previous_year_v2 have survived to simulation start
         -- Therefore they should ALL be subject to experienced termination rates
         'experienced' AS employee_type
     FROM incumbent_pool

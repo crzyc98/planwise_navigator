@@ -6,7 +6,7 @@
 -- Applies promotion rates from dim_hazard_table to current workforce
 
 WITH active_workforce AS (
-    -- Use int_workforce_previous_year which handles the dependency logic properly
+    -- Use int_workforce_previous_year_v2 which handles the dependency logic properly
     SELECT
         employee_id,
         employee_ssn,
@@ -16,7 +16,7 @@ WITH active_workforce AS (
         current_age,
         current_tenure,
         level_id
-    FROM {{ ref('int_workforce_previous_year') }}
+    FROM {{ ref('int_workforce_previous_year_v2') }}
     WHERE employment_status = 'active'
 ),
 
@@ -71,8 +71,17 @@ SELECT
     level_id AS from_level,
     level_id + 1 AS to_level, -- Single level promotion
     employee_gross_compensation AS previous_salary,
-    -- Calculate new salary with promotion increase (15-25% increase)
-    ROUND(employee_gross_compensation * (1.15 + ((ABS(HASH(employee_id)) % 100) / 1000.0)), 2) AS new_salary,
+    -- Calculate new salary with promotion increase (FIXED: 15-25% with caps)
+    ROUND(
+        LEAST(
+            -- Cap at 30% increase maximum
+            employee_gross_compensation * 1.30,
+            -- Cap at $500K absolute increase maximum
+            employee_gross_compensation + 500000,
+            -- Original calculation (15-25% increase)
+            employee_gross_compensation * (1.15 + ((ABS(HASH(employee_id)) % 100) / 1000.0))
+        ), 2
+    ) AS new_salary,
     current_age,
     current_tenure,
     age_band,

@@ -1,16 +1,28 @@
 # MVP Orchestrator for PlanWise Navigator
 
-A modular, interactive tool for debugging dbt models by running them individually and inspecting results at each step.
+A modular, interactive tool for debugging dbt models and running comprehensive workforce simulations with **systematic checklist enforcement**. Supports both single-year debugging and multi-year workforce simulation with year-over-year analysis, ensuring proper step sequencing and preventing common errors.
 
 ## Overview
 
 This MVP orchestrator provides a streamlined workflow for:
-- Clearing the DuckDB database to start fresh
-- Running dbt models one at a time with full visibility
-- Inspecting and validating model outputs with detailed reports
-- Debugging data quality issues step by step
-- Generating workforce snapshots by applying simulation events
-- Analyzing workforce metrics and validating growth targets
+
+- **Single-Year Mode with Checklist**: Debugging dbt models step-by-step with systematic validation
+  - Clearing the DuckDB database to start fresh
+  - Running dbt models one at a time with detailed inspection
+  - **Checklist enforcement** ensures proper step sequencing
+  - Validating model outputs and debugging data quality issues
+  - Generating workforce snapshots by applying simulation events
+  - Analyzing workforce metrics and validating growth targets
+
+- **Multi-Year Mode with Checklist**: Comprehensive workforce simulation with step sequence enforcement
+  - Running complete multi-year simulations (e.g., 2025-2029)
+  - **7-step workflow validation** for each simulation year
+  - **Resume capability** from any completed checkpoint
+  - **Step sequence errors** with clear guidance on missing prerequisites
+  - Year-over-year workforce transitions with proper data handoff
+  - Cumulative growth validation against targets
+  - Multi-year event consistency analysis
+  - Workforce aging and demographic trend analysis
 
 ## Architecture
 
@@ -19,32 +31,42 @@ The orchestrator is organized into modular components:
 ```
 orchestrator_mvp/
 ├── __init__.py                 # Main package with convenient imports
-├── run_mvp.py                  # Main interactive entry point
+├── run_mvp.py                  # Main interactive entry point (single-year + multi-year)
 ├── README.md                   # This documentation
 ├── core/                       # Core infrastructure
 │   ├── __init__.py            # Core module exports
 │   ├── config.py              # Configuration and path management
 │   ├── database_manager.py    # Database operations and table management
-│   ├── workforce_calculations.py  # Workforce growth calculations
-│   ├── event_emitter.py       # Event generation and storage
-│   └── workforce_snapshot.py  # Workforce snapshot generation
+│   ├── workforce_calculations.py  # Year-aware workforce growth calculations
+│   ├── event_emitter.py       # Multi-year compatible event generation
+│   ├── workforce_snapshot.py  # Multi-year workforce snapshot generation
+│   ├── multi_year_simulation.py   # Multi-year simulation orchestration
+│   ├── simulation_checklist.py    # Step sequencing and validation system
+│   └── multi_year_orchestrator.py # Checklist-enforced orchestration
 ├── loaders/                    # Data loading operations
 │   ├── __init__.py            # Loader module exports
 │   └── staging_loader.py      # dbt model execution and staging operations
 └── inspectors/                 # Validation and inspection
     ├── __init__.py            # Inspector module exports
     ├── staging_inspector.py   # Data validation and inspection utilities
-    └── workforce_inspector.py # Workforce snapshot validation and metrics
+    ├── workforce_inspector.py # Workforce snapshot validation and metrics
+    └── multi_year_inspector.py    # Multi-year analysis and validation
 ```
 
 ### Benefits of This Structure
 
-- **Modular**: Each operation type is in its own subfolder
+- **Modular**: Each operation type is in its own subfolder with clear boundaries
 - **Extensible**: Easy to add new inspectors, loaders, or core utilities
+- **Multi-Year Capable**: Supports both single-year debugging and multi-year simulation
+- **Year-Aware**: All components understand simulation years and transitions
 - **Reusable**: Modules can be imported and used independently
-- **Maintainable**: Clear separation of concerns
-- **Testable**: Each module can be tested individually
+- **Maintainable**: Clear separation of concerns between single-year and multi-year logic
+- **Testable**: Each module can be tested individually with mock data
+- **Scalable**: Handles small debugging runs to large multi-year simulations
 - **Dagster-ready**: Functions can easily be converted to Dagster assets later
+- **Step-Safe**: **Checklist enforcement prevents common errors** and ensures proper sequencing
+- **Resumable**: **Resume capability** allows recovery from interruptions
+- **Auditable**: **Complete step-by-step audit trail** for compliance and debugging
 
 ## Prerequisites
 
@@ -67,7 +89,9 @@ Before using the orchestrator, ensure you have:
 
 ## Usage
 
-### Basic Workflow
+### Single-Year Simulation with Checklist Enforcement
+
+For debugging dbt models and single-year workforce simulation with step validation:
 
 1. **Navigate to project root**:
    ```bash
@@ -79,14 +103,65 @@ Before using the orchestrator, ensure you have:
    source venv/bin/activate
    ```
 
-3. **Run the orchestrator**:
+3. **Run the checklist-enforced orchestrator**:
    ```bash
+   # Interactive mode with checklist validation (default)
    python orchestrator_mvp/run_mvp.py
+
+   # Non-interactive mode with checklist validation
+   python orchestrator_mvp/run_mvp.py --no-breaks
+   python orchestrator_mvp/run_mvp.py -n
+
+   # Override checklist validation for specific step (emergency only)
+   python orchestrator_mvp/run_mvp.py --force-step workforce_snapshot
    ```
 
-### Interactive Steps
+### Multi-Year Simulation with Checklist Enforcement
 
-The orchestrator will guide you through these steps:
+For comprehensive multi-year workforce simulation with systematic step validation:
+
+```bash
+# Interactive checklist-enforced multi-year simulation
+python orchestrator_mvp/run_mvp.py --multi-year
+python orchestrator_mvp/run_mvp.py -m
+
+# Non-interactive checklist-enforced multi-year simulation
+python orchestrator_mvp/run_mvp.py --multi-year --no-breaks
+python orchestrator_mvp/run_mvp.py -m -n
+
+# Resume multi-year simulation from a specific year
+python orchestrator_mvp/run_mvp.py --multi-year --resume-from 2027
+
+# Validate prerequisites without running simulation
+python orchestrator_mvp/run_mvp.py --multi-year --validate-only
+
+# Emergency override for specific step (use with caution)
+python orchestrator_mvp/run_mvp.py --multi-year --force-step event_generation
+```
+
+#### Multi-Year Configuration
+
+Multi-year simulations read settings from `config/test_config.yaml`:
+
+```yaml
+simulation:
+  start_year: 2025    # First simulation year
+  end_year: 2029      # Last simulation year
+  random_seed: 42     # For reproducible results
+  target_growth_rate: 0.03  # 3% annual growth
+
+workforce:
+  total_termination_rate: 0.12      # 12% termination rate
+  new_hire_termination_rate: 0.25   # 25% new hire turnover
+
+compensation:
+  cola_rate: 0.025    # 2.5% cost of living adjustment
+  merit_budget: 0.04  # 4% merit increase budget
+```
+
+### Single-Year Mode Workflow with Checklist Enforcement
+
+The orchestrator guides you through these steps with systematic validation in single-year mode:
 
 1. **Welcome Message**: Displays tool purpose and overview
 
@@ -139,31 +214,88 @@ The orchestrator will guide you through these steps:
 
 11. **Completion**: Displays success message with next steps
 
+### Multi-Year Mode Workflow with Checklist Enforcement
+
+Multi-year simulations follow this systematic, validated workflow with a **7-step process** for each simulation year:
+
+1. **Setup Phase**: Same initial steps as single-year (clear database, load census data, etc.)
+
+2. **Configuration Loading**: Reads multi-year settings from `config/test_config.yaml`
+
+3. **Checklist-Enforced Year-by-Year Simulation**: For each year (e.g., 2025-2029), the **7-step process** with validation:
+   - **Step 1 - Year Transition Validation**: Ensures proper data handoff from previous year (with prerequisite checking)
+   - **Step 2 - Workforce Baseline Preparation**: Uses previous year's active employees or baseline for year 1 (validates prerequisites)
+   - **Step 3 - Workforce Requirements Calculation**: Calculates terminations and hires needed (validates baseline completion)
+   - **Step 4 - Event Generation Pipeline**: Creates all 5 event types and stores in fct_yearly_events (validates requirements completion)
+   - **Step 5 - Workforce Snapshot Generation**: Runs fct_workforce_snapshot model (validates event generation completion)
+   - **Step 6 - Validation & Metrics**: Validates results and calculates metrics (validates snapshot completion)
+   - **Step 7 - Year Completion**: Records success and prepares for next year
+
+4. **Multi-Year Analysis**:
+   - **Year-over-Year Comparison**: Workforce growth, compensation trends, event patterns
+   - **Growth Validation**: Actual vs. target CAGR with deviation analysis
+   - **Event Consistency**: Validates realistic event patterns across years
+   - **Demographic Analysis**: Tracks workforce aging and tenure progression
+
 ### Using Individual Modules
 
-You can also import and use individual components:
+You can import and use components individually:
 
 ```python
-# Use database operations
-from orchestrator_mvp.core import clear_database, list_tables, get_connection
-
-# Use data loading
+# Single-year functionality with checklist enforcement
+from orchestrator_mvp.core import (
+    clear_database, list_tables, get_connection,
+    SimulationChecklist, MultiYearSimulationOrchestrator, StepSequenceError
+)
 from orchestrator_mvp.loaders import run_dbt_model, run_staging_models
-
-# Use inspection utilities
 from orchestrator_mvp.inspectors import inspect_stg_census_data
-
-# Use workforce snapshot generation
 from orchestrator_mvp import generate_workforce_snapshot, inspect_workforce_snapshot
 
-# Run specific operations
+# Multi-year simulation with checklist enforcement
+from orchestrator_mvp import (
+    run_multi_year_simulation,
+    MultiYearSimulationOrchestrator,
+    compare_year_over_year_metrics,
+    validate_cumulative_growth,
+    display_multi_year_summary
+)
+
+# Example: Run single-year components
 clear_database()
 run_dbt_model("stg_census_data")
 inspect_stg_census_data()
 
-# Generate and inspect workforce snapshot
-snapshot_result = generate_workforce_snapshot(simulation_year=2025)
-inspect_workforce_snapshot(simulation_year=2025)
+# Example: Run checklist-enforced multi-year simulation programmatically
+config = {
+    'target_growth_rate': 0.03,
+    'workforce': {
+        'total_termination_rate': 0.12,
+        'new_hire_termination_rate': 0.25
+    },
+    'random_seed': 42
+}
+
+# Use checklist-enforced orchestrator
+orchestrator = MultiYearSimulationOrchestrator(2025, 2029, config)
+
+# Check progress before starting
+print(orchestrator.get_progress_summary())
+
+# Run with resume capability
+results = orchestrator.run_simulation(skip_breaks=True)
+
+# Analyze results
+compare_year_over_year_metrics(2025, 2029)
+validate_cumulative_growth(2025, 2029, 0.03)
+display_multi_year_summary(2025, 2029)
+
+# Example: Handle step sequence errors
+try:
+    checklist = SimulationChecklist(2025, 2025)
+    checklist.assert_step_ready('workforce_snapshot', 2025)
+except StepSequenceError as e:
+    print(f"Step sequence error: {e}")
+    # Error provides clear guidance on missing prerequisites
 ```
 
 ### Expected Console Output
@@ -175,6 +307,7 @@ inspect_workforce_snapshot(simulation_year=2025)
 
 This tool will help you debug dbt models by running them
 individually and inspecting the results at each step.
+Single-year mode includes checklist validation for key steps.
 
 📋 Press Enter to clear the database...
 
@@ -343,8 +476,13 @@ Variance:           +0 (+0.0%)
 ✅ Workforce snapshot inspection complete
 
 ============================================================
-✅ MVP ORCHESTRATOR COMPLETED SUCCESSFULLY!
+✅ CHECKLIST-ENFORCED MVP ORCHESTRATOR COMPLETED SUCCESSFULLY!
 ============================================================
+
+Checklist-enforced single-year simulation completed:
+  • All steps validated in proper sequence
+  • Workforce snapshot generated and validated
+  • Complete audit trail of step completion
 
 You can now:
   1. Run additional models with run_dbt_model()
@@ -352,12 +490,180 @@ You can now:
   3. Query the database directly with DuckDB
   4. Analyze workforce snapshots with inspect_workforce_snapshot()
 
+📋 Single-Year Checklist Status:
+Simulation Progress Summary:
+========================================
+✓ Pre-simulation setup
+✓ Year 2025
+  ✓ Year Transition
+  ✓ Workforce Baseline
+  ✓ Workforce Requirements
+  ✓ Event Generation
+  ✓ Workforce Snapshot
+  ✓ Validation Metrics
+
+Happy debugging! 🎉
+```
+
+### Multi-Year Simulation Output with Checklist Enforcement
+
+Checklist-enforced multi-year mode produces enhanced output with step validation and comprehensive analysis:
+
+```
+============================================================
+🚀 PLANWISE NAVIGATOR - MVP ORCHESTRATOR
+============================================================
+
+🗓️ MULTI-YEAR SIMULATION MODE WITH CHECKLIST ENFORCEMENT
+This tool will run a complete multi-year workforce simulation
+using the configuration parameters from test_config.yaml
+Each step will be validated to ensure proper sequencing.
+
+🗓️ Multi-year simulation configured for 2025-2029
+
+📋 Press Enter to run multi-year simulation (2025-2029)...
+
+🚀 Starting multi-year simulation: 2025-2029
+
+📋 Initial Progress Status:
+Simulation Progress Summary:
+========================================
+○ Pre-simulation setup
+○ Year 2025
+○ Year 2026
+○ Year 2027
+○ Year 2028
+○ Year 2029
+
+🗓️  SIMULATING YEAR 2025
+==================================================
+📋 Step 1: Year Transition Validation (skip for first year)
+📋 Step 2: Workforce Baseline Preparation
+📊 Year 2025: Using baseline workforce
+Starting workforce for 2025: 4,500 employees
+📋 Step 3: Workforce Requirements Calculation
+📈 Growth calculation: +621 hires, -360 terminations
+📋 Step 4: Event Generation Pipeline
+🎲 Generating events for year 2025 with seed 42
+📋 Step 5: Workforce Snapshot Generation
+📸 Generating workforce snapshot for year 2025
+📋 Step 6: Validation & Metrics
+✅ Year 2025 completed in 12.3s
+
+📋 Press Enter to continue to year 2026...
+
+🗓️  SIMULATING YEAR 2026
+==================================================
+🔍 Validating year transition: 2025 → 2026
+📊 Year 2025 snapshot: 5,121 total, 4,725 active employees
+📊 Average age: 42.3, tenure: 8.7 years
+✅ Year transition validation passed: 2025 → 2026
+📊 Year 2026: Using previous year workforce
+Starting workforce for 2026: 4,725 employees
+✅ Year 2026 completed in 11.8s
+
+[... continues for years 2027-2029 ...]
+
+✅ Checklist-enforced multi-year simulation completed successfully!
+Years simulated: 2025-2029
+Total runtime: 58.4s
+
+📋 Final Progress Status:
+Simulation Progress Summary:
+========================================
+✓ Pre-simulation setup
+✓ Year 2025
+✓ Year 2026
+✓ Year 2027
+✓ Year 2028
+✓ Year 2029
+
+============================================================
+📊 MULTI-YEAR ANALYSIS
+============================================================
+
+📊 YEAR-OVER-YEAR WORKFORCE COMPARISON
+============================================================
+Year 2025:
+  • Active workforce: 4,725
+  • Total compensation: $425,250,000
+  • Average compensation: $90,000
+  • Total events: 1,017
+
+Year 2026:
+  • Active workforce: 4,867
+  • Total compensation: $448,130,000
+  • Average compensation: $92,070
+  • Total events: 1,049
+
+[... continues for all years ...]
+
+📈 SUMMARY:
+  • Workforce growth: 4,725 → 5,321
+  • Total growth rate: +12.6%
+  • Average annual: +3.0%
+
+📈 CUMULATIVE GROWTH VALIDATION
+==================================================
+Status: ✅ PASS
+Target annual growth: 3.0%
+Actual CAGR: 3.0%
+Workforce: 4,725 → 5,321
+Deviation: +0.0%
+
+📋 MULTI-YEAR SIMULATION SUMMARY
+============================================================
+Simulation range: 2025-2029
+Total years: 5
+
+🔍 Key Insights:
+  • Overall workforce grew 12.6% over simulation period
+  • Average compensation increased 8.4%
+  • Event generation remained consistent across years
+  • No significant demographic shifts detected
+
+============================================================
+✅ CHECKLIST-ENFORCED MULTI-YEAR SIMULATION COMPLETED SUCCESSFULLY!
+============================================================
+
+Checklist-enforced multi-year simulation artifacts created:
+  • Workforce snapshots for each year
+  • Event logs across all simulation years
+  • Year-over-year analysis results
+  • Growth validation reports
+  • Complete step-by-step audit trail
+
 Happy debugging! 🎉
 ```
 
 ## Troubleshooting
 
 ### Common Issues
+
+#### Checklist Enforcement Issues
+
+7. **Step sequence errors**: If you see messages like `Cannot execute step 'workforce_snapshot' for year 2025. Missing prerequisites: event_generation`, this means you're trying to run steps out of order:
+   ```bash
+   # Check what steps are missing
+   python orchestrator_mvp/run_mvp.py --multi-year --validate-only
+
+   # Use resume functionality to continue from correct point
+   python orchestrator_mvp/run_mvp.py --multi-year --resume-from 2025
+
+   # Emergency override (use with caution)
+   python orchestrator_mvp/run_mvp.py --force-step workforce_snapshot
+   ```
+
+8. **Cannot resume from checkpoint**: Ensure the previous steps for that year are actually completed in the database:
+   ```python
+   from orchestrator_mvp.core import get_connection
+   conn = get_connection()
+   # Check if events exist for the year
+   result = conn.execute("SELECT COUNT(*) FROM fct_yearly_events WHERE simulation_year = 2025").fetchone()
+   print(f"Events for 2025: {result[0]}")
+   ```
+
+#### Original Issues
 
 1. **ModuleNotFoundError**: Ensure virtual environment is activated
    ```bash
@@ -388,29 +694,63 @@ Happy debugging! 🎉
 
 You can extend the orchestrator by:
 
-1. **Adding new inspector functions**: Create functions in `inspectors/staging_inspector.py` or new files
+1. **Adding multi-year inspector functions**: Create custom analysis in `inspectors/multi_year_inspector.py`
    ```python
-   def inspect_int_baseline_workforce():
-       # Custom validation logic for baseline workforce
+   def analyze_compensation_equity(start_year: int, end_year: int):
+       # Custom analysis for pay equity trends across years
    ```
 
-2. **Adding new loader functions**: Create functions in `loaders/staging_loader.py` or new files
+2. **Custom multi-year simulations**: Use the multi-year simulation framework programmatically
    ```python
-   def run_intermediate_models():
-       # Custom logic to run multiple intermediate models
+   from orchestrator_mvp import run_multi_year_simulation
+
+   # Custom scenario analysis
+   scenarios = {
+       'conservative': {'target_growth_rate': 0.02},
+       'aggressive': {'target_growth_rate': 0.05}
+   }
+
+   for scenario_name, config in scenarios.items():
+       results = run_multi_year_simulation(2025, 2029, config)
+       print(f"{scenario_name}: {results['total_runtime_seconds']:.1f}s")
    ```
 
-3. **Adding new core utilities**: Create functions in `core/database_manager.py` or new files
+3. **Year transition logic**: Customize workforce transitions between years
    ```python
-   def backup_database():
-       # Logic to backup the current database state
+   from orchestrator_mvp.core.multi_year_simulation import validate_year_transition
+
+   # Add custom transition validation
+   def custom_year_validation(from_year: int, to_year: int):
+       # Custom logic for year transitions
+       return validate_year_transition(from_year, to_year)
    ```
 
-4. **Custom validation**: Query the database directly
+4. **Custom event patterns**: Extend event generation for specific scenarios
+   ```python
+   from orchestrator_mvp.core.event_emitter import generate_and_store_all_events
+
+   # Generate events with custom parameters per year
+   for year in range(2025, 2030):
+       custom_config = get_year_specific_config(year)
+       generate_and_store_all_events(calc_result, year, random_seed)
+   ```
+
+5. **Multi-year database queries**: Analyze data across multiple years
    ```python
    from orchestrator_mvp.core import get_connection
+
    conn = get_connection()
-   df = conn.execute("SELECT * FROM main.stg_census_data").df()
+   # Compare workforce across all years
+   df = conn.execute("""
+       SELECT
+           simulation_year,
+           COUNT(*) as total_employees,
+           AVG(current_compensation) as avg_comp
+       FROM fct_workforce_snapshot
+       WHERE employment_status = 'active'
+       GROUP BY simulation_year
+       ORDER BY simulation_year
+   """).df()
    ```
 
 ## Migration to Dagster
@@ -422,16 +762,62 @@ The modular structure makes migration to Dagster straightforward:
 - **`inspectors.staging_inspector.inspect_stg_census_data()`** → `@asset_check`
 - **Interactive prompts** → Dagster job with explicit dependencies
 
+### Troubleshooting Multi-Year Simulations
+
+**Common multi-year issues:**
+
+1. **Year transition failures**: Check that previous year's workforce snapshot exists
+   ```bash
+   # Verify snapshots exist for all years
+   python -c "from orchestrator_mvp.core import get_connection;
+   conn = get_connection();
+   print(conn.execute('SELECT simulation_year, COUNT(*) FROM fct_workforce_snapshot GROUP BY simulation_year').fetchall())"
+   ```
+
+2. **Configuration errors**: Validate `config/test_config.yaml` settings
+   ```yaml
+   # Ensure all required fields are present:
+   simulation:
+     start_year: 2025  # Must be integer
+     end_year: 2029    # Must be >= start_year
+     random_seed: 42   # For reproducibility
+   ```
+
+3. **Memory issues with large simulations**: Use non-interactive mode for long simulations
+   ```bash
+   # Run multi-year without prompts for better performance
+   python orchestrator_mvp/run_mvp.py -m -n
+   ```
+
+4. **Inconsistent event generation**: Check random seed configuration
+   ```python
+   # Verify reproducible results
+   results1 = run_multi_year_simulation(2025, 2027, config)
+   results2 = run_multi_year_simulation(2025, 2027, config)
+   assert results1['years_completed'] == results2['years_completed']
+   ```
+
 ## Next Steps
 
 After running the MVP orchestrator, you can:
 
+**Single-Year Mode:**
 1. Continue running additional dbt models using the loader functions
-2. Use the Dagster UI for full pipeline orchestration
-3. Explore data with the Streamlit dashboards
-4. Modify and test individual dbt models
-5. Add new inspection and validation functions
-6. Analyze workforce snapshots across multiple years
-7. Validate event application and growth target achievement
+2. Add new inspection and validation functions for debugging
+3. Modify and test individual dbt models
+4. Query the database directly for custom analysis
+
+**Multi-Year Mode:**
+1. Analyze multi-year trends with the inspector functions
+2. Run scenario analysis with different growth parameters
+3. Validate workforce planning assumptions across years
+4. Export multi-year data for external reporting
+5. Create custom multi-year validation rules
+
+**Integration:**
+1. Use the Dagster UI for full pipeline orchestration
+2. Explore data with the Streamlit dashboards
+3. Integrate with external workforce planning tools
+4. Set up automated multi-year simulation schedules
 
 For more information, see the main project documentation in `/docs/`.

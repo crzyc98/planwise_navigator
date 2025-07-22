@@ -5,6 +5,7 @@ Handles running dbt staging models and related operations.
 
 import os
 import subprocess
+import json
 from pathlib import Path
 
 from ..core.config import DBT_PROJECT_DIR
@@ -184,7 +185,7 @@ def run_dbt_command(command_args: list) -> None:
         os.chdir(original_dir)
 
 
-def run_dbt_model_with_vars(model_name: str, vars_dict: dict) -> dict:
+def run_dbt_model_with_vars(model_name: str, vars_dict: dict, full_refresh: bool = False) -> dict:
     """Run a specific dbt model with variable parameters.
 
     Args:
@@ -209,10 +210,15 @@ def run_dbt_model_with_vars(model_name: str, vars_dict: dict) -> dict:
         # Construct dbt command with variables
         cmd = ["dbt", "run", "--select", model_name]
 
+        # Add full-refresh flag if requested
+        if full_refresh:
+            cmd.append("--full-refresh")
+
         # Add variables if provided
         if vars_dict:
-            vars_string = ",".join([f"{k}={v}" for k, v in vars_dict.items()])
-            cmd.extend(["--vars", f"{{{vars_string}}}"])
+            # Format vars as a JSON string for proper parsing
+            vars_json = json.dumps(vars_dict)
+            cmd.extend(["--vars", vars_json])
 
         print(f"\nExecuting command: {' '.join(cmd)}")
         print(f"Working directory: {DBT_PROJECT_DIR}")

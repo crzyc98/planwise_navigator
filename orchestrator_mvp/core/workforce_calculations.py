@@ -8,6 +8,8 @@ monolithic pipeline for use in the modular MVP orchestrator.
 
 import math
 from typing import Dict, Any
+from .database_manager import get_connection
+from .database_manager import get_connection
 
 
 def calculate_workforce_requirements(
@@ -163,3 +165,133 @@ def validate_workforce_calculation_inputs(
         validation_results['valid'] = False
 
     return validation_results
+
+
+def get_previous_year_workforce_count(simulation_year: int) -> int:
+    """
+    Retrieve the active employee count from the previous year's workforce snapshot.
+
+    Args:
+        simulation_year: Current simulation year
+
+    Returns:
+        Number of active employees from previous year
+
+    Raises:
+        ValueError: If previous year workforce data not found
+    """
+    previous_year = simulation_year - 1
+
+    try:
+        conn = get_connection()
+        try:
+            query = """
+                SELECT COUNT(*) as active_count
+                FROM fct_workforce_snapshot
+                WHERE simulation_year = ?
+                AND employment_status = 'active'
+            """
+
+            result = conn.execute(query, [previous_year]).fetchone()
+
+            if result is None or result[0] == 0:
+                # Fallback to baseline if previous year not found
+                return get_baseline_workforce_count()
+
+            return result[0]
+
+        finally:
+            conn.close()
+
+    except Exception as e:
+        # Fallback to baseline workforce
+        return get_baseline_workforce_count()
+
+
+def show_workforce_calculation(simulation_year: int = 2025) -> Dict[str, Any]:
+    """
+    Display workforce calculation details for debugging, with year-aware workforce counting.
+
+    Args:
+        simulation_year: Year for which to show calculations
+
+    Returns:
+        Dictionary containing calculation details and workforce metrics
+    """
+    print(f"\n📊 Workforce Calculation for Year {simulation_year}")
+    print("=" * 50)
+
+    try:
+        # Determine starting workforce count based on year
+        if simulation_year == 2025:  # Assume 2025 is the baseline year
+            workforce_count = get_baseline_workforce_count()
+            print(f"📈 Using baseline workforce: {workforce_count:,} employees")
+        else:
+            workforce_count = get_previous_year_workforce_count(simulation_year)
+            print(f"📈 Using previous year ({simulation_year - 1}) workforce: {workforce_count:,} employees")
+
+        # Sample configuration for demonstration
+        sample_config = {
+            'target_growth_rate': 0.03,
+            'total_termination_rate': 0.12,
+            'new_hire_termination_rate': 0.25
+        }
+
+        # Calculate workforce requirements
+        calc_result = calculate_workforce_requirements_from_config(
+            workforce_count,
+            sample_config
+        )
+
+        # Display results
+        print(f"\n🔢 Calculation Results:")
+        print(f"   Starting workforce: {workforce_count:,}")
+        print(f"   Target growth rate: {sample_config['target_growth_rate']:.1%}")
+        print(f"   Expected terminations: {calc_result['experienced_terminations']:,}")
+        print(f"   Gross hires needed: {calc_result['total_hires_needed']:,}")
+        print(f"   Expected new hire terminations: {calc_result['expected_new_hire_terminations']:,}")
+        print(f"   Net hiring impact: +{calc_result['net_hiring_impact']:,}")
+
+        # Add year context to result
+        calc_result['simulation_year'] = simulation_year
+        calc_result['starting_workforce_source'] = 'baseline' if simulation_year == 2025 else f'year_{simulation_year - 1}_snapshot'
+
+        return calc_result
+
+    except Exception as e:
+        print(f"❌ Error in workforce calculation: {str(e)}")
+        raise
+
+
+def get_baseline_workforce_count() -> int:
+    """
+    Get the baseline workforce count for the first simulation year.
+
+    Returns:
+        Number of employees in the baseline workforce
+
+    Raises:
+        ValueError: If baseline workforce data not found
+    """
+    try:
+        conn = get_connection()
+        try:
+            # Query the baseline workforce table
+            query = """
+                SELECT COUNT(*) as baseline_count
+                FROM int_baseline_workforce
+                WHERE employment_status = 'active'
+            """
+
+            result = conn.execute(query).fetchone()
+
+            if result is None or result[0] == 0:
+                raise ValueError("No baseline workforce data found")
+
+            return result[0]
+
+        finally:
+            conn.close()
+
+    except Exception as e:
+        raise ValueError(f"Failed to get baseline workforce count: {str(e)}")

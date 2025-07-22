@@ -8,7 +8,7 @@
 -- Applies merit raise percentages from dim_hazard_table to eligible employees
 
 WITH active_workforce AS (
-    -- Use int_workforce_previous_year which handles the dependency logic properly
+    -- Use int_workforce_previous_year_v2 which handles the dependency logic properly
     SELECT
         employee_id,
         employee_ssn,
@@ -18,7 +18,7 @@ WITH active_workforce AS (
         current_age,
         current_tenure,
         level_id
-    FROM {{ ref('int_workforce_previous_year') }}
+    FROM {{ ref('int_workforce_previous_year_v2') }}
     WHERE employment_status = 'active'
 ),
 
@@ -77,11 +77,20 @@ SELECT
     -- Use macro system for raise timing (supports both legacy and realistic modes)
     {{ get_realistic_raise_date('e.employee_id', simulation_year) }} AS effective_date,
     e.employee_gross_compensation AS previous_salary,
-    -- Apply merit increase plus COLA (both now dynamically resolved)
+    -- Apply merit increase plus COLA (FIXED: with caps to prevent extreme values)
     ROUND(
-        e.employee_gross_compensation *
-        (1 + e.merit_raise + c.cola_rate),
-        2
+        LEAST(
+            -- Cap at 50% total increase maximum
+            e.employee_gross_compensation * 1.50,
+            -- Cap at $250K absolute increase maximum for merit/COLA
+            e.employee_gross_compensation + 250000,
+            -- Validate input parameters are reasonable before applying
+            CASE
+                WHEN (e.merit_raise + c.cola_rate) > 0.50 THEN e.employee_gross_compensation * 1.50
+                WHEN (e.merit_raise + c.cola_rate) < 0 THEN e.employee_gross_compensation
+                ELSE e.employee_gross_compensation * (1 + e.merit_raise + c.cola_rate)
+            END
+        ), 2
     ) AS new_salary,
     e.merit_raise AS merit_percentage,
     c.cola_rate AS cola_percentage,

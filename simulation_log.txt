@@ -1,0 +1,806 @@
+
+============================================================
+🚀 PLANWISE NAVIGATOR - MVP ORCHESTRATOR
+============================================================
+
+🗓️ MULTI-YEAR SIMULATION MODE WITH CHECKLIST ENFORCEMENT
+This tool will run a complete multi-year workforce simulation
+using the configuration parameters from test_config.yaml
+Each step will be validated to ensure proper sequencing.
+
+⚡ Running in non-interactive mode (skipping all breaks)
+
+============================================================
+CLEARING DATABASE
+============================================================
+
+Found 11 tables to drop:
+  - comp_levers
+  - config_cola_by_year
+  - config_job_levels
+  - config_promotion_hazard_age_multipliers
+  - config_promotion_hazard_base
+  - config_promotion_hazard_tenure_multipliers
+  - fct_yearly_events
+  - int_baseline_workforce
+  - int_workforce_previous_year
+  - stg_census_data
+  - stg_config_job_levels
+
+Dropping foreign key constraints...
+  ⚠️  Could not query foreign key constraints: Binder Error: Referenced column "table_schema" not found in FROM clause!
+Candidate bindings: "duckdb_constraints.table_name"
+LINE 5:         AND table_schema = 'main'
+                    ^
+  ✓ No foreign key constraints found or dropped
+
+Dropping tables...
+  ✓ Dropped comp_levers
+  ✓ Dropped config_cola_by_year
+  ✓ Dropped config_job_levels
+  ✓ Dropped config_promotion_hazard_age_multipliers
+  ✓ Dropped config_promotion_hazard_base
+  ✓ Dropped config_promotion_hazard_tenure_multipliers
+  ✓ Dropped fct_yearly_events
+  ✓ Dropped int_baseline_workforce
+  ✓ Dropped int_workforce_previous_year
+  ✓ Dropped stg_census_data
+  ✓ Dropped stg_config_job_levels
+
+✅ Database completely cleared!
+
+============================================================
+RUNNING DBT MODEL: stg_census_data
+============================================================
+
+Executing command: dbt run --select stg_census_data
+Working directory: /Users/nicholasamaral/planwise_navigator/dbt
+----------------------------------------
+[0m14:52:00  Running with dbt=1.9.8
+[0m14:52:00  Registered adapter: duckdb=1.8.1
+[0m14:52:00  Found 43 models, 2 snapshots, 14 seeds, 311 data tests, 1 source, 900 macros
+[0m14:52:00
+[0m14:52:00  Concurrency: 10 threads (target='dev_m4')
+[0m14:52:00
+[0m14:52:01  1 of 1 START sql table model main.stg_census_data .............................. [RUN]
+[0m14:52:01  1 of 1 OK created sql table model main.stg_census_data ......................... [[32mOK[0m in 0.11s]
+[0m14:52:01
+[0m14:52:01  Finished running 1 table model in 0 hours 0 minutes and 0.34 seconds (0.34s).
+[0m14:52:01
+[0m14:52:01  [32mCompleted successfully[0m
+[0m14:52:01
+[0m14:52:01  Done. PASS=1 WARN=0 ERROR=0 SKIP=0 TOTAL=1
+
+
+✅ Successfully ran stg_census_data
+
+============================================================
+INSPECTING: stg_census_data
+============================================================
+✓ Table main.stg_census_data exists
+✓ Table contains 5,000 rows
+✓ No NULL values in employee_id column
+
+Table has 15 columns:
+  - employee_id: VARCHAR
+  - employee_ssn: VARCHAR
+  - employee_birth_date: DATE
+  - employee_hire_date: DATE
+  - employee_termination_date: DATE
+  - employee_gross_compensation: DOUBLE
+  - active: BOOLEAN
+  - employee_plan_year_compensation: DOUBLE
+  - employee_annualized_compensation: DOUBLE
+  - employee_capped_compensation: DECIMAL(12,2)
+  - employee_deferral_rate: DECIMAL(2,1)
+  - employee_contribution: DECIMAL(2,1)
+  - employer_core_contribution: DECIMAL(2,1)
+  - employer_match_contribution: DECIMAL(2,1)
+  - eligibility_entry_date: DATE
+
+Sample data (first 5 rows):
+| employee_id   | employee_ssn   | employee_birth_date   | employee_hire_date   | employee_termination_date   |   employee_gross_compensation | active   |   employee_plan_year_compensation |   employee_annualized_compensation |   employee_capped_compensation |   employee_deferral_rate |   employee_contribution |   employer_core_contribution |   employer_match_contribution | eligibility_entry_date   |
+|:--------------|:---------------|:----------------------|:---------------------|:----------------------------|------------------------------:|:---------|----------------------------------:|-----------------------------------:|-------------------------------:|-------------------------:|------------------------:|-----------------------------:|------------------------------:|:-------------------------|
+| EMP_000030    | SSN-744385868  | 1994-12-08 00:00:00   | 2021-10-04 00:00:00  | 2024-10-18 00:00:00         |                        252400 | False    |                            252400 |                             315500 |                            nan |                        0 |                       0 |                            0 |                             0 | 2021-10-04 00:00:00      |
+| EMP_000087    | SSN-715721845  | 1985-09-09 00:00:00   | 2024-08-02 00:00:00  | NaT                         |                         90600 | True     |                             90600 |                             217559 |                            nan |                        0 |                       0 |                            0 |                             0 | 2024-08-02 00:00:00      |
+| EMP_000091    | SSN-987835379  | 1980-07-22 00:00:00   | 2014-10-04 00:00:00  | NaT                         |                         89800 | True     |                             89800 |                              89800 |                            nan |                        0 |                       0 |                            0 |                             0 | 2014-10-04 00:00:00      |
+| EMP_000142    | SSN-751744809  | 2002-05-19 00:00:00   | 2017-08-11 00:00:00  | NaT                         |                         85900 | True     |                             85900 |                              85900 |                            nan |                        0 |                       0 |                            0 |                             0 | 2017-08-11 00:00:00      |
+| EMP_000149    | SSN-898154089  | 1993-11-20 00:00:00   | 2019-09-02 00:00:00  | NaT                         |                         98000 | True     |                             98000 |                              98000 |                            nan |                        0 |                       0 |                            0 |                             0 | 2019-09-02 00:00:00      |
+
+Basic Statistics:
+  - Unique employees: 5,000
+  - Total rows: 5,000
+  - Unique SSNs: 5,000
+  - Hire date range: 1994-02-09 to 2024-12-28
+  - Active employees: 4,378
+  - Terminated employees: 622
+  - Avg compensation: $92,387.00
+  - Compensation range: $50,000.00 to $350,000.00
+
+✅ All validations passed for stg_census_data!
+
+✨ Foundational data looks good!
+Now let's build on top of it...
+Loading config_job_levels...
+
+============================================================
+LOADING DBT SEED: config_job_levels
+============================================================
+
+Executing command: dbt seed --select config_job_levels
+Working directory: /Users/nicholasamaral/planwise_navigator/dbt
+----------------------------------------
+[0m14:52:02  Running with dbt=1.9.8
+[0m14:52:02  Registered adapter: duckdb=1.8.1
+[0m14:52:02  Found 43 models, 2 snapshots, 14 seeds, 311 data tests, 1 source, 900 macros
+[0m14:52:02
+[0m14:52:02  Concurrency: 10 threads (target='dev_m4')
+[0m14:52:02
+[0m14:52:02  1 of 1 START seed file main.config_job_levels .................................. [RUN]
+[0m14:52:02  1 of 1 OK loaded seed file main.config_job_levels .............................. [[32mINSERT 5[0m in 0.08s]
+[0m14:52:02
+[0m14:52:02  Finished running 1 seed in 0 hours 0 minutes and 0.29 seconds (0.29s).
+[0m14:52:02
+[0m14:52:02  [32mCompleted successfully[0m
+[0m14:52:02
+[0m14:52:02  Done. PASS=1 WARN=0 ERROR=0 SKIP=0 TOTAL=1
+
+
+✅ Successfully loaded seed config_job_levels
+Loading comp_levers...
+
+============================================================
+LOADING DBT SEED: comp_levers
+============================================================Initialized simulation checklist for years 2025-2029
+Initialized MultiYearSimulationOrchestrator for years 2025-2029
+Configuration validated successfully
+🚀 Starting multi-year simulation: 2025-2029
+🔧 Executing pre-simulation setup
+🧹 Clearing previous simulation data
+⚠️  Error clearing previous data: Catalog Error: Table with name fct_workforce_snapshot does not exist!
+Did you mean "snapshots.scd_workforce_state"?
+LINE 1: DELETE FROM fct_workforce_snapshot WHERE simulation...
+                    ^
+🔍 Validating seed data availability
+✅ Seed data validation passed
+👥 Preparing baseline workforce
+📊 Retrieving baseline workforce count
+📊 Baseline workforce count: 4,378 employees
+✅ Baseline workforce prepared: 4,378 employees
+Marked step 'pre_simulation' as complete
+✅ Pre-simulation setup completed
+
+🗓️  SIMULATING YEAR 2025
+==================================================
+Beginning simulation year 2025
+Marked step 'year_transition' for year 2025 as complete
+📋 Step 2: Workforce Baseline Preparation
+📊 Year 2025: Using baseline workforce
+📊 Retrieving baseline workforce count
+📊 Baseline workforce count: 4,378 employees
+Starting workforce for 2025: 4,378 employees
+Marked step 'workforce_baseline' for year 2025 as complete
+✅ Workforce baseline preparation completed (0.02s)
+📋 Step 3: Workforce Requirements Calculation
+📈 Growth calculation: +877 hires, -526 terminations
+Marked step 'workforce_requirements' for year 2025 as complete
+✅ Workforce requirements calculation completed (0.00s)
+📋 Step 4: Event Generation Pipeline
+🎲 Generating events for year 2025 with seed 42
+
+
+Executing command: dbt seed --select comp_levers
+Working directory: /Users/nicholasamaral/planwise_navigator/dbt
+----------------------------------------
+[0m14:52:03  Running with dbt=1.9.8
+[0m14:52:03  Registered adapter: duckdb=1.8.1
+[0m14:52:04  Found 43 models, 2 snapshots, 14 seeds, 311 data tests, 1 source, 900 macros
+[0m14:52:04
+[0m14:52:04  Concurrency: 10 threads (target='dev_m4')
+[0m14:52:04
+[0m14:52:04  1 of 1 START seed file main.comp_levers ........................................ [RUN]
+[0m14:52:04  1 of 1 OK loaded seed file main.comp_levers .................................... [[32mINSERT 125[0m in 0.07s]
+[0m14:52:04
+[0m14:52:04  Finished running 1 seed in 0 hours 0 minutes and 0.27 seconds (0.27s).
+[0m14:52:04
+[0m14:52:04  [32mCompleted successfully[0m
+[0m14:52:04
+[0m14:52:04  Done. PASS=1 WARN=0 ERROR=0 SKIP=0 TOTAL=1
+
+
+STDERR:
+/Users/nicholasamaral/planwise_navigator/venv/lib/python3.11/site-packages/agate/type_tester.py:92: RuntimeWarning: "updated_at" does not match the name of any column in this table.
+  warnings.warn('"%s" does not match the name of any column in this table.' % name, RuntimeWarning)
+
+
+✅ Successfully loaded seed comp_levers
+Loading config_cola_by_year...
+
+============================================================
+LOADING DBT SEED: config_cola_by_year
+============================================================
+
+Executing command: dbt seed --select config_cola_by_year
+Working directory: /Users/nicholasamaral/planwise_navigator/dbt
+----------------------------------------
+[0m14:52:05  Running with dbt=1.9.8
+[0m14:52:05  Registered adapter: duckdb=1.8.1
+[0m14:52:05  Found 43 models, 2 snapshots, 14 seeds, 311 data tests, 1 source, 900 macros
+[0m14:52:05
+[0m14:52:05  Concurrency: 10 threads (target='dev_m4')
+[0m14:52:05
+[0m14:52:06  1 of 1 START seed file main.config_cola_by_year ................................ [RUN]
+[0m14:52:06  1 of 1 OK loaded seed file main.config_cola_by_year ............................ [[32mINSERT 6[0m in 0.06s]
+[0m14:52:06
+[0m14:52:06  Finished running 1 seed in 0 hours 0 minutes and 0.27 seconds (0.27s).
+[0m14:52:06
+[0m14:52:06  [32mCompleted successfully[0m
+[0m14:52:06
+[0m14:52:06  Done. PASS=1 WARN=0 ERROR=0 SKIP=0 TOTAL=1
+
+
+STDERR:
+/Users/nicholasamaral/planwise_navigator/venv/lib/python3.11/site-packages/agate/type_tester.py:92: RuntimeWarning: "created_at" does not match the name of any column in this table.
+  warnings.warn('"%s" does not match the name of any column in this table.' % name, RuntimeWarning)
+/Users/nicholasamaral/planwise_navigator/venv/lib/python3.11/site-packages/agate/type_tester.py:92: RuntimeWarning: "updated_at" does not match the name of any column in this table.
+  warnings.warn('"%s" does not match the name of any column in this table.' % name, RuntimeWarning)
+
+
+✅ Successfully loaded seed config_cola_by_year
+Loading promotion hazard configuration...
+
+============================================================
+LOADING DBT SEED: config_promotion_hazard_base
+============================================================
+
+Executing command: dbt seed --select config_promotion_hazard_base
+Working directory: /Users/nicholasamaral/planwise_navigator/dbt
+----------------------------------------
+[0m14:52:07  Running with dbt=1.9.8
+[0m14:52:07  Registered adapter: duckdb=1.8.1
+[0m14:52:07  Found 43 models, 2 snapshots, 14 seeds, 311 data tests, 1 source, 900 macros
+[0m14:52:07
+[0m14:52:07  Concurrency: 10 threads (target='dev_m4')
+[0m14:52:07
+[0m14:52:07  1 of 1 START seed file main.config_promotion_hazard_base ....................... [RUN]
+[0m14:52:07  1 of 1 OK loaded seed file main.config_promotion_hazard_base ................... [[32mINSERT 1[0m in 0.06s]
+[0m14:52:07
+[0m14:52:07  Finished running 1 seed in 0 hours 0 minutes and 0.27 seconds (0.27s).
+[0m14:52:07
+[0m14:52:07  [32mCompleted successfully[0m
+[0m14:52:07
+[0m14:52:07  Done. PASS=1 WARN=0 ERROR=0 SKIP=0 TOTAL=1
+
+
+STDERR:
+/Users/nicholasamaral/planwise_navigator/venv/lib/python3.11/site-packages/agate/type_tester.py:92: RuntimeWarning: "created_at" does not match the name of any column in this table.
+  warnings.warn('"%s" does not match the name of any column in this table.' % name, RuntimeWarning)
+/Users/nicholasamaral/planwise_navigator/venv/lib/python3.11/site-packages/agate/type_tester.py:92: RuntimeWarning: "updated_at" does not match the name of any column in this table.
+  warnings.warn('"%s" does not match the name of any column in this table.' % name, RuntimeWarning)
+
+
+✅ Successfully loaded seed config_promotion_hazard_base
+
+============================================================
+LOADING DBT SEED: config_promotion_hazard_age_multipliers
+============================================================
+
+Executing command: dbt seed --select config_promotion_hazard_age_multipliers
+Working directory: /Users/nicholasamaral/planwise_navigator/dbt
+----------------------------------------
+[0m14:52:08  Running with dbt=1.9.8
+[0m14:52:08  Registered adapter: duckdb=1.8.1
+[0m14:52:09  Found 43 models, 2 snapshots, 14 seeds, 311 data tests, 1 source, 900 macros
+[0m14:52:09
+[0m14:52:09  Concurrency: 10 threads (target='dev_m4')
+[0m14:52:09
+[0m14:52:09  1 of 1 START seed file main.config_promotion_hazard_age_multipliers ............ [RUN]
+[0m14:52:09  1 of 1 OK loaded seed file main.config_promotion_hazard_age_multipliers ........ [[32mINSERT 6[0m in 0.07s]
+[0m14:52:09
+[0m14:52:09  Finished running 1 seed in 0 hours 0 minutes and 0.27 seconds (0.27s).
+[0m14:52:09
+[0m14:52:09  [32mCompleted successfully[0m
+[0m14:52:09
+[0m14:52:09  Done. PASS=1 WARN=0 ERROR=0 SKIP=0 TOTAL=1
+
+
+STDERR:
+/Users/nicholasamaral/planwise_navigator/venv/lib/python3.11/site-packages/agate/type_tester.py:92: RuntimeWarning: "created_at" does not match the name of any column in this table.
+  warnings.warn('"%s" does not match the name of any column in this table.' % name, RuntimeWarning)
+/Users/nicholasamaral/planwise_navigator/venv/lib/python3.11/site-packages/agate/type_tester.py:92: RuntimeWarning: "updated_at" does not match the name of any column in this table.
+  warnings.warn('"%s" does not match the name of any column in this table.' % name, RuntimeWarning)
+
+
+✅ Successfully loaded seed config_promotion_hazard_age_multipliers
+
+============================================================
+LOADING DBT SEED: config_promotion_hazard_tenure_multipliers
+============================================================
+
+Executing command: dbt seed --select config_promotion_hazard_tenure_multipliers
+Working directory: /Users/nicholasamaral/planwise_navigator/dbt
+----------------------------------------
+[0m14:52:10  Running with dbt=1.9.8
+[0m14:52:10  Registered adapter: duckdb=1.8.1
+[0m14:52:10  Found 43 models, 2 snapshots, 14 seeds, 311 data tests, 1 source, 900 macros
+[0m14:52:10
+[0m14:52:10  Concurrency: 10 threads (target='dev_m4')
+[0m14:52:10
+[0m14:52:10  1 of 1 START seed file main.config_promotion_hazard_tenure_multipliers ......... [RUN]
+[0m14:52:10  1 of 1 OK loaded seed file main.config_promotion_hazard_tenure_multipliers ..... [[32mINSERT 5[0m in 0.07s]
+[0m14:52:10
+[0m14:52:10  Finished running 1 seed in 0 hours 0 minutes and 0.26 seconds (0.26s).
+[0m14:52:11
+[0m14:52:11  [32mCompleted successfully[0m
+[0m14:52:11
+[0m14:52:11  Done. PASS=1 WARN=0 ERROR=0 SKIP=0 TOTAL=1
+
+
+STDERR:
+/Users/nicholasamaral/planwise_navigator/venv/lib/python3.11/site-packages/agate/type_tester.py:92: RuntimeWarning: "created_at" does not match the name of any column in this table.
+  warnings.warn('"%s" does not match the name of any column in this table.' % name, RuntimeWarning)
+/Users/nicholasamaral/planwise_navigator/venv/lib/python3.11/site-packages/agate/type_tester.py:92: RuntimeWarning: "updated_at" does not match the name of any column in this table.
+  warnings.warn('"%s" does not match the name of any column in this table.' % name, RuntimeWarning)
+
+
+✅ Successfully loaded seed config_promotion_hazard_tenure_multipliers
+
+============================================================
+RUNNING DBT MODEL: stg_config_job_levelsMarked step 'event_generation' for year 2025 as complete
+✅ Event generation pipeline completed (2.84s)
+📋 Step 5: Workforce Snapshot Generation
+📸 Generating workforce snapshot for year 2025
+Marked step 'workforce_snapshot' for year 2025 as complete
+✅ Workforce snapshot generation completed (3.02s)
+📋 Step 6: Validation & Metrics
+   Snapshot: 5,255 total, 4,510 active employees
+   Events: 5,628 total, 5,628 valid
+📊 Validation results for year 2025:
+   • Workforce continuity: ✅
+   • Data quality: ✅
+   • Growth metrics: ✅
+Marked step 'validation_metrics' for year 2025 as complete
+✅ Validation & metrics completed (0.02s)
+Marked step 'validation_metrics' for year 2025 as complete
+✅ Year 2025 completed in 5.9s
+
+🗓️  SIMULATING YEAR 2026
+==================================================
+Beginning simulation year 2026
+📋 Step 1: Year Transition Validation (2025 → 2026)
+🔍 Validating year transition: 2025 → 2026
+📊 Year 2025 snapshot: 5,255 total, 4,510 active employees
+📊 Average age: 36.8, tenure: 3.8 years
+📊 Found 5,628 events for year 2025
+✅ Year transition validation passed: 2025 → 2026
+Marked step 'year_transition' for year 2026 as complete
+✅ Year transition validation completed (0.02s)
+📋 Step 2: Workforce Baseline Preparation
+📊 Year 2026: Using previous year workforce
+📊 Retrieving workforce count from year 2025
+📊 Previous year (2025) workforce count: 4,510 employees
+Starting workforce for 2026: 4,510 employees
+Marked step 'workforce_baseline' for year 2026 as complete
+✅ Workforce baseline preparation completed (0.02s)
+📋 Step 3: Workforce Requirements Calculation
+📈 Growth calculation: +904 hires, -542 terminations
+Marked step 'workforce_requirements' for year 2026 as complete
+✅ Workforce requirements calculation completed (0.00s)
+📋 Step 4: Event Generation Pipeline
+🎲 Generating events for year 2026 with seed 43
+Marked step 'event_generation' for year 2026 as complete
+✅ Event generation pipeline completed (2.99s)
+📋 Step 5: Workforce Snapshot Generation
+📸 Generating workforce snapshot for year 2026
+Marked step 'workforce_snapshot' for year 2026 as complete
+✅ Workforce snapshot generation completed (5.77s)
+📋 Step 6: Validation & Metrics
+   Events: 5,685 total, 5,685 valid
+📊 Validation results for year 2026:
+   • Workforce continuity: ❌
+   • Data quality: ✅
+   • Growth metrics: ❌
+Marked step 'validation_metrics' for year 2026 as complete
+✅ Validation & metrics completed (0.02s)
+Marked step 'validation_metrics' for year 2026 as complete
+✅ Year 2026 completed in 8.8s
+
+🗓️  SIMULATING YEAR 2027
+==================================================
+Beginning simulation year 2027
+📋 Step 1: Year Transition Validation (2026 → 2027)
+🔍 Validating year transition: 2026 → 2027
+❌ No workforce snapshot found for year 2026
+📊 Found 5,685 events for year 2026
+❌ Year transition validation failed: 2026 → 2027
+❌ Year transition validation failed: Year transition validation failed for 2027
+❌ Year 2027 simulation failed: Year transition validation failed for 2027
+💥 Multi-year simulation failed: Year transition validation failed for 2027
+
+============================================================
+
+Executing command: dbt run --select stg_config_job_levels
+Working directory: /Users/nicholasamaral/planwise_navigator/dbt
+----------------------------------------
+[0m14:52:11  Running with dbt=1.9.8
+[0m14:52:12  Registered adapter: duckdb=1.8.1
+[0m14:52:12  Found 43 models, 2 snapshots, 14 seeds, 311 data tests, 1 source, 900 macros
+[0m14:52:12
+[0m14:52:12  Concurrency: 10 threads (target='dev_m4')
+[0m14:52:12
+[0m14:52:12  1 of 1 START sql table model main.stg_config_job_levels ........................ [RUN]
+[0m14:52:12  1 of 1 OK created sql table model main.stg_config_job_levels ................... [[32mOK[0m in 0.07s]
+[0m14:52:12
+[0m14:52:12  Finished running 1 table model in 0 hours 0 minutes and 0.27 seconds (0.27s).
+[0m14:52:12
+[0m14:52:12  [32mCompleted successfully[0m
+[0m14:52:12
+[0m14:52:12  Done. PASS=1 WARN=0 ERROR=0 SKIP=0 TOTAL=1
+
+
+✅ Successfully ran stg_config_job_levels
+
+============================================================
+RUNNING DBT MODEL: int_baseline_workforce
+============================================================
+
+Executing command: dbt run --select int_baseline_workforce
+Working directory: /Users/nicholasamaral/planwise_navigator/dbt
+----------------------------------------
+[0m14:52:13  Running with dbt=1.9.8
+[0m14:52:13  Registered adapter: duckdb=1.8.1
+[0m14:52:13  Found 43 models, 2 snapshots, 14 seeds, 311 data tests, 1 source, 900 macros
+[0m14:52:13
+[0m14:52:13  Concurrency: 10 threads (target='dev_m4')
+[0m14:52:13
+[0m14:52:14  1 of 1 START sql table model main.int_baseline_workforce ....................... [RUN]
+[0m14:52:14  1 of 1 OK created sql table model main.int_baseline_workforce .................. [[32mOK[0m in 0.09s]
+[0m14:52:14
+[0m14:52:14  Finished running 1 table model in 0 hours 0 minutes and 0.30 seconds (0.30s).
+[0m14:52:14
+[0m14:52:14  [32mCompleted successfully[0m
+[0m14:52:14
+[0m14:52:14  Done. PASS=1 WARN=0 ERROR=0 SKIP=0 TOTAL=1
+
+
+✅ Successfully ran int_baseline_workforce
+
+============================================================
+RUNNING DBT MODEL: int_workforce_previous_year
+============================================================
+
+Executing command: dbt run --select int_workforce_previous_year
+Working directory: /Users/nicholasamaral/planwise_navigator/dbt
+----------------------------------------
+[0m14:52:15  Running with dbt=1.9.8
+[0m14:52:15  Registered adapter: duckdb=1.8.1
+[0m14:52:15  Found 43 models, 2 snapshots, 14 seeds, 311 data tests, 1 source, 900 macros
+[0m14:52:15
+[0m14:52:15  Concurrency: 10 threads (target='dev_m4')
+[0m14:52:15
+[0m14:52:15  1 of 1 START sql table model main.int_workforce_previous_year .................. [RUN]
+[0m14:52:15  1 of 1 OK created sql table model main.int_workforce_previous_year ............. [[32mOK[0m in 0.08s]
+[0m14:52:15
+[0m14:52:15  Finished running 1 table model in 0 hours 0 minutes and 0.29 seconds (0.29s).
+[0m14:52:15
+[0m14:52:15  [32mCompleted successfully[0m
+[0m14:52:15
+[0m14:52:15  Done. PASS=1 WARN=0 ERROR=0 SKIP=0 TOTAL=1
+
+
+✅ Successfully ran int_workforce_previous_year
+
+============================================================
+📊 WORKFORCE CALCULATION RESULTS
+============================================================
+
+✅ Baseline workforce loaded: 4,378 active employees
+
+📋 SIMULATION PARAMETERS:
+   • Target growth rate: 3.0%
+   • Total termination rate: 12.0%
+   • New hire termination rate: 25.0%
+
+📊 NEXT YEAR REQUIREMENTS:
+   • Starting workforce: 4,378
+   • Terminations needed: 526
+   • Gross hires needed: 877
+   • Expected new hire terminations: 219
+   • Net workforce growth: +658
+
+🧮 CALCULATION FORMULAS:
+   • experienced_formula: CEIL(4378 * 0.12) = 526
+   • growth_formula: 4378 * 0.03 = 131.34
+   • hiring_formula: CEIL((526 + 131.34) / (1 - 0.25)) = 877
+   • new_hire_term_formula: ROUND(877 * 0.25) = 219
+
+✅ Workforce calculation completed successfully!
+
+============================================================
+🎯 SIMULATION EVENT GENERATION
+============================================================
+
+📋 EVENT GENERATION PARAMETERS:
+   • Experienced terminations: 526
+   • Total hires needed: 877
+   • Expected new hire terminations: 219
+   • Simulation year: 2025
+   • Random seed: 42 (for reproducibility)
+
+🎯 GENERATING ALL SIMULATION EVENTS for year 2025
+   Using random seed: 42
+
+📋 Generating 526 experienced termination events...
+   ✅ Generated 526 termination events
+
+📋 Generating 877 hiring events...
+   ✅ Generated 877 hiring events
+
+📋 Generating ~219 new hire termination events (rate: 25.0%)...
+   ✅ Generated 219 new hire termination events
+
+📋 Generating merit raise events for eligible employees...
+   ✅ Generated 3569 merit raise events
+
+📋 Generating promotion events for eligible employees...
+✅ Hazard configuration loaded in 0.001 seconds
+🔍 DEBUG: Found 3506 employees eligible for promotion
+🔍 DEBUG: Promotion decisions made for 3506 employees
+   Total promoted: 437
+📊 Promotion results by level:
+   Level 1: 258/1922 promoted (13.4% actual vs 16.5% expected)
+     Random values: min=0.000, max=0.999, mean=0.513
+   Level 2: 154/1170 promoted (13.2% actual vs 14.0% expected)
+     Random values: min=0.002, max=1.000, mean=0.496
+   Level 3: 13/192 promoted (6.8% actual vs 3.9% expected)
+     Random values: min=0.009, max=0.998, mean=0.515
+   Level 4: 12/222 promoted (5.4% actual vs 6.9% expected)
+     Random values: min=0.006, max=0.999, mean=0.525
+
+⏱️  Promotion event generation completed in 0.078 seconds
+   Performance: 5608.1 events/second
+   ✅ Generated 437 promotion events
+
+💾 Storing all 5628 events in database...
+✅ Stored 5628 events in fct_yearly_events
+
+✅ EVENT GENERATION SUMMARY:
+   • Experienced terminations: 526
+   • New hires: 877
+   • New hire terminations: 219
+   • Merit raises: 3569
+   • Promotions: 437
+   • Total events: 5628
+   • Net workforce change: 132
+   • Expected net change: 132
+
+🔍 Validating all generated events...
+
+📊 EVENT VALIDATION RESULTS for fct_yearly_events
+   Total events: 5628
+   Events by type:
+     • raise: 3569
+     • hire: 877
+     • termination: 745
+     • promotion: 437
+   Data quality:
+     • VALID: 5628
+
+✅ Event generation completed successfully!
+
+📋 Initial Progress Status:
+Simulation Progress Summary:
+========================================
+○ Pre-simulation setup
+○ Year 2025
+  ○ Year Transition
+  ○ Workforce Baseline
+  ○ Workforce Requirements
+  ○ Event Generation
+  ○ Workforce Snapshot
+  ○ Validation Metrics
+○ Year 2026
+  ○ Year Transition
+  ○ Workforce Baseline
+  ○ Workforce Requirements
+  ○ Event Generation
+  ○ Workforce Snapshot
+  ○ Validation Metrics
+○ Year 2027
+  ○ Year Transition
+  ○ Workforce Baseline
+  ○ Workforce Requirements
+  ○ Event Generation
+  ○ Workforce Snapshot
+  ○ Validation Metrics
+○ Year 2028
+  ○ Year Transition
+  ○ Workforce Baseline
+  ○ Workforce Requirements
+  ○ Event Generation
+  ○ Workforce Snapshot
+  ○ Validation Metrics
+○ Year 2029
+  ○ Year Transition
+  ○ Workforce Baseline
+  ○ Workforce Requirements
+  ○ Event Generation
+  ○ Workforce Snapshot
+  ○ Validation Metrics
+
+🎯 GENERATING ALL SIMULATION EVENTS for year 2025
+   Using random seed: 42
+
+📋 Generating 526 experienced termination events...
+   ✅ Generated 526 termination events
+
+📋 Generating 877 hiring events...
+   ✅ Generated 877 hiring events
+
+📋 Generating ~219 new hire termination events (rate: 25.0%)...
+   ✅ Generated 219 new hire termination events
+
+📋 Generating merit raise events for eligible employees...
+   ✅ Generated 3569 merit raise events
+
+📋 Generating promotion events for eligible employees...
+✅ Hazard configuration loaded in 0.001 seconds
+🔍 DEBUG: Found 3506 employees eligible for promotion
+🔍 DEBUG: Promotion decisions made for 3506 employees
+   Total promoted: 437
+📊 Promotion results by level:
+   Level 1: 258/1922 promoted (13.4% actual vs 16.5% expected)
+     Random values: min=0.000, max=0.999, mean=0.513
+   Level 2: 154/1170 promoted (13.2% actual vs 14.0% expected)
+     Random values: min=0.002, max=1.000, mean=0.496
+   Level 3: 13/192 promoted (6.8% actual vs 3.9% expected)
+     Random values: min=0.009, max=0.998, mean=0.515
+   Level 4: 12/222 promoted (5.4% actual vs 6.9% expected)
+     Random values: min=0.006, max=0.999, mean=0.525
+
+⏱️  Promotion event generation completed in 0.073 seconds
+   Performance: 6007.9 events/second
+   ✅ Generated 437 promotion events
+
+💾 Storing all 5628 events in database...
+✅ Stored 5628 events in fct_yearly_events
+
+✅ EVENT GENERATION SUMMARY:
+   • Experienced terminations: 526
+   • New hires: 877
+   • New hire terminations: 219
+   • Merit raises: 3569
+   • Promotions: 437
+   • Total events: 5628
+   • Net workforce change: 132
+   • Expected net change: 132
+
+🔄 Generating workforce snapshot for year 2025...
+   Starting workforce: 4,378 employees
+
+   Running fct_workforce_snapshot model...
+
+============================================================
+RUNNING DBT MODEL WITH VARS: fct_workforce_snapshot
+Variables: {'simulation_year': 2025}
+============================================================
+
+Executing command: dbt run --select fct_workforce_snapshot --vars {simulation_year=2025}
+Working directory: /Users/nicholasamaral/planwise_navigator/dbt
+----------------------------------------
+[0m14:52:22  Running with dbt=1.9.8
+[0m14:52:22  Registered adapter: duckdb=1.8.1
+[0m14:52:22  Unable to do partial parsing because config vars, config profile, or config target have changed
+[0m14:52:23  The configured adapter does not support metadata-based freshness. A loaded_at_field must be specified for source 'snapshots.scd_workforce_state'.
+[0m14:52:24  Found 43 models, 2 snapshots, 14 seeds, 311 data tests, 1 source, 900 macros
+[0m14:52:24
+[0m14:52:24  Concurrency: 10 threads (target='dev_m4')
+[0m14:52:24
+[0m14:52:24  1 of 1 START sql table model main.fct_workforce_snapshot ....................... [RUN]
+[0m14:52:24  1 of 1 OK created sql table model main.fct_workforce_snapshot .................. [[32mOK[0m in 0.16s]
+[0m14:52:24
+[0m14:52:24  Finished running 1 table model in 0 hours 0 minutes and 0.38 seconds (0.38s).
+[0m14:52:24
+[0m14:52:24  [32mCompleted successfully[0m
+[0m14:52:24
+[0m14:52:24  Done. PASS=1 WARN=0 ERROR=0 SKIP=0 TOTAL=1
+
+
+STDERR:
+2025-07-22 10:52:24.201 Python[5211:1515600] CFPropertyListCreateFromXMLData(): Old-style plist parser: missing semicolon in dictionary on line 1. Parsing will be abandoned. Break on _CFPropertyListMissingSemicolon to debug.
+2025-07-22 10:52:24.201 Python[5211:1515600] CFPropertyListCreateFromXMLData(): Old-style plist parser: missing semicolon in dictionary on line 1. Parsing will be abandoned. Break on _CFPropertyListMissingSemicolon to debug.
+
+
+✅ Successfully ran fct_workforce_snapshot with variables
+
+🎯 GENERATING ALL SIMULATION EVENTS for year 2026
+   Using random seed: 43
+
+📋 Generating 542 experienced termination events...
+   ✅ Generated 542 termination events
+
+📋 Generating 904 hiring events...
+   ✅ Generated 904 hiring events
+
+📋 Generating ~226 new hire termination events (rate: 25.0%)...
+   ✅ Generated 226 new hire termination events
+
+📋 Generating merit raise events for eligible employees...
+   ✅ Generated 3569 merit raise events
+
+📋 Generating promotion events for eligible employees...
+✅ Hazard configuration loaded in 0.000 seconds
+🔍 DEBUG: Found 3506 employees eligible for promotion
+🔍 DEBUG: Promotion decisions made for 3506 employees
+   Total promoted: 444
+📊 Promotion results by level:
+   Level 1: 279/1922 promoted (14.5% actual vs 16.5% expected)
+     Random values: min=0.000, max=1.000, mean=0.500
+   Level 2: 135/1170 promoted (11.5% actual vs 14.0% expected)
+     Random values: min=0.002, max=0.999, mean=0.498
+   Level 3: 18/192 promoted (9.4% actual vs 3.9% expected)
+     Random values: min=0.004, max=0.992, mean=0.488
+   Level 4: 12/222 promoted (5.4% actual vs 6.9% expected)
+     Random values: min=0.002, max=1.000, mean=0.512
+
+⏱️  Promotion event generation completed in 0.081 seconds
+   Performance: 5458.6 events/second
+   ✅ Generated 444 promotion events
+
+💾 Storing all 5685 events in database...
+✅ Stored 5685 events in fct_yearly_events
+
+✅ EVENT GENERATION SUMMARY:
+   • Experienced terminations: 542
+   • New hires: 904
+   • New hire terminations: 226
+   • Merit raises: 3569
+   • Promotions: 444
+   • Total events: 5685
+   • Net workforce change: 136
+   • Expected net change: 136
+
+🔄 Generating workforce snapshot for year 2026...
+   Starting workforce: 4,510 employees
+
+   Running fct_workforce_snapshot model...
+   Preparing previous year workforce data for year 2026...
+   ✅ Successfully prepared previous year workforce data
+
+============================================================
+RUNNING DBT MODEL WITH VARS: fct_workforce_snapshot
+Variables: {'simulation_year': 2026}
+============================================================
+
+Executing command: dbt run --select fct_workforce_snapshot --vars {simulation_year=2026}
+Working directory: /Users/nicholasamaral/planwise_navigator/dbt
+----------------------------------------
+[0m14:52:31  Running with dbt=1.9.8
+[0m14:52:31  Registered adapter: duckdb=1.8.1
+[0m14:52:31  Unable to do partial parsing because config vars, config profile, or config target have changed
+[0m14:52:32  The configured adapter does not support metadata-based freshness. A loaded_at_field must be specified for source 'snapshots.scd_workforce_state'.
+[0m14:52:32  Found 43 models, 2 snapshots, 14 seeds, 311 data tests, 1 source, 900 macros
+[0m14:52:32
+[0m14:52:32  Concurrency: 10 threads (target='dev_m4')
+[0m14:52:32
+[0m14:52:33  1 of 1 START sql table model main.fct_workforce_snapshot ....................... [RUN]
+[0m14:52:33  1 of 1 OK created sql table model main.fct_workforce_snapshot .................. [[32mOK[0m in 0.17s]
+[0m14:52:33
+[0m14:52:33  Finished running 1 table model in 0 hours 0 minutes and 0.37 seconds (0.37s).
+[0m14:52:33
+[0m14:52:33  [32mCompleted successfully[0m
+[0m14:52:33
+[0m14:52:33  Done. PASS=1 WARN=0 ERROR=0 SKIP=0 TOTAL=1
+
+
+STDERR:
+2025-07-22 10:52:33.023 Python[5275:1516420] CFPropertyListCreateFromXMLData(): Old-style plist parser: missing semicolon in dictionary on line 1. Parsing will be abandoned. Break on _CFPropertyListMissingSemicolon to debug.
+2025-07-22 10:52:33.023 Python[5275:1516420] CFPropertyListCreateFromXMLData(): Old-style plist parser: missing semicolon in dictionary on line 1. Parsing will be abandoned. Break on _CFPropertyListMissingSemicolon to debug.
+
+
+✅ Successfully ran fct_workforce_snapshot with variables
+
+❌ Multi-year simulation failed: Year transition validation failed for 2027
+
+
+❌ FATAL ERROR: Year transition validation failed for 2027

@@ -8,6 +8,7 @@ from .staging_loader import (
     run_dbt_seed,
     run_staging_models,
     run_dbt_command,
+    run_dbt_model_with_vars,
 )
 
 __all__ = [
@@ -15,4 +16,5 @@ __all__ = [
     "run_dbt_seed",
     "run_staging_models",
     "run_dbt_command",
+    "run_dbt_model_with_vars",
 ]

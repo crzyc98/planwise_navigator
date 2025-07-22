@@ -2,22 +2,24 @@
     materialized='incremental',
     unique_key=['employee_id', 'simulation_year'],
     on_schema_change='fail',
-    incremental_strategy='delete+insert',
     contract={
         "enforced": true
     }
 ) }}
 
-{% set simulation_year = var('simulation_year', 2025) %}
+{% set simulation_year = var('simulation_year', 2025) | int %}
+{% set start_year = var('start_year', 2025) | int %}
 
 -- Year-end workforce snapshot that applies events to generate current workforce state
 -- **FIX**: Added comprehensive fixes for test failures: status codes, level_id nulls, and duplicates
+-- **VARIANCE FIX**: Enhanced new hire termination logic to eliminate workforce variance issues
 
+-- Debug: simulation_year = {{ simulation_year }}
 WITH simulation_parameters AS (
     SELECT {{ simulation_year }} AS current_year
 ),
 
--- Base workforce: use baseline for year 1, previous year snapshot for subsequent years
+-- Base workforce: use baseline for year 1, previous year's active workforce for subsequent years
 base_workforce AS (
     {% if simulation_year == 2025 %}
     -- Year 1: Use baseline workforce (2024 census)
@@ -34,21 +36,21 @@ base_workforce AS (
         employment_status
     FROM {{ ref('int_baseline_workforce') }}
     {% else %}
-    -- Subsequent years: Use int_workforce_previous_year which creates explicit snapshot
-    -- Note: int_workforce_previous_year should ensure it only contains active employees
+    -- Subsequent years: Use int_workforce_previous_year_v2
     SELECT
         employee_id,
         employee_ssn,
         employee_birth_date,
         employee_hire_date,
         employee_gross_compensation,
-        current_age,  -- Age already incremented in int_workforce_previous_year
-        current_tenure,  -- Tenure already incremented in int_workforce_previous_year
+        current_age,
+        current_tenure,
         level_id,
         termination_date,
         employment_status
-    FROM {{ ref('int_workforce_previous_year') }}
-    WHERE employment_status = 'active' -- Ensure only active employees are carried over
+    FROM {{ ref('int_workforce_previous_year_v2') }}
+    WHERE employment_status = 'active'
+      AND simulation_year = {{ simulation_year }}
     {% endif %}
 ),
 
@@ -59,7 +61,7 @@ current_year_events AS (
     WHERE simulation_year = (SELECT current_year FROM simulation_parameters)
 ),
 
--- Apply termination events
+-- Apply termination events (FIXED: Case-insensitive matching and proper filtering)
 workforce_after_terminations AS (
     SELECT
         b.employee_id,
@@ -71,8 +73,8 @@ workforce_after_terminations AS (
         b.current_tenure,
         b.level_id,
         CASE
-            WHEN t.employee_id IS NOT NULL THEN CAST(t.effective_date AS DATE)
-            ELSE CAST(b.termination_date AS DATE)
+            WHEN t.employee_id IS NOT NULL THEN CAST(t.effective_date AS TIMESTAMP)
+            ELSE CAST(b.termination_date AS TIMESTAMP)
         END AS termination_date,
         CASE
             WHEN t.employee_id IS NOT NULL THEN 'terminated'
@@ -80,9 +82,18 @@ workforce_after_terminations AS (
         END AS employment_status,
         t.event_details AS termination_reason
     FROM base_workforce b
-    LEFT JOIN current_year_events t
-        ON b.employee_id = t.employee_id
-        AND t.event_type = 'termination'
+    LEFT JOIN (
+        -- FIXED: Pre-filter termination events with case-insensitive matching
+        SELECT DISTINCT
+            employee_id,
+            effective_date,
+            event_details
+        FROM current_year_events
+        WHERE UPPER(event_type) = 'TERMINATION'
+            AND employee_id IS NOT NULL
+            AND simulation_year = (SELECT current_year FROM simulation_parameters)
+    ) t ON b.employee_id = t.employee_id
+        AND b.employee_id IS NOT NULL
 ),
 
 -- Apply promotion events
@@ -140,6 +151,7 @@ workforce_after_merit AS (
 ),
 
 -- Add new hires from hiring events (use fct_yearly_events for persistence across years)
+-- FIX: Enhanced termination logic to properly filter and join termination events
 new_hires AS (
     SELECT
         CAST(ye.employee_id AS VARCHAR) AS employee_id,
@@ -151,10 +163,25 @@ new_hires AS (
         ye.employee_age AS current_age,
         0 AS current_tenure, -- New hires start with 0 tenure
         ye.level_id,
-        NULL AS termination_date,
-        'active' AS employment_status,
-        NULL AS termination_reason
+        -- Check if this new hire has a termination event in the same year (FIXED: Case-insensitive)
+        CAST(term.effective_date AS TIMESTAMP) AS termination_date,
+        CASE WHEN term.employee_id IS NOT NULL THEN 'terminated' ELSE 'active' END AS employment_status,
+        term.event_details AS termination_reason
     FROM {{ ref('fct_yearly_events') }} ye
+    LEFT JOIN (
+        -- FIXED: Pre-filter termination events with case-insensitive matching
+        SELECT DISTINCT
+            employee_id,
+            effective_date,
+            event_details,
+            simulation_year
+        FROM {{ ref('fct_yearly_events') }}
+        WHERE UPPER(event_type) = 'TERMINATION'
+            AND employee_id IS NOT NULL
+            AND simulation_year = {{ simulation_year }}
+            AND EXTRACT(YEAR FROM effective_date) = {{ simulation_year }}
+    ) term ON ye.employee_id = term.employee_id
+        AND ye.employee_id IS NOT NULL
     WHERE ye.event_type = 'hire'
       AND ye.simulation_year = {{ simulation_year }}
 ),
@@ -226,7 +253,8 @@ workforce_with_corrected_levels AS (
     FROM unioned_workforce uw
 ),
 
--- New CTE to correctly set status for new hires who were also terminated in the same year
+-- Pass through the workforce data (terminations already handled correctly)
+-- VARIANCE FIX: This CTE is intentionally a pass-through - no additional termination logic
 final_workforce_corrected AS (
     SELECT
         uw.employee_id,
@@ -237,30 +265,10 @@ final_workforce_corrected AS (
         uw.current_age,
         uw.current_tenure,
         uw.level_id,
-        CASE
-            -- If it's a new hire (hired in current_year) AND they have a termination event this year
-            WHEN EXTRACT(YEAR FROM uw.employee_hire_date) = sp.current_year
-                 AND term_event.employee_id IS NOT NULL
-            THEN term_event.effective_date
-            ELSE uw.termination_date -- Otherwise, keep existing termination_date (null for active, or from baseline term)
-        END AS termination_date,
-        CASE
-            WHEN EXTRACT(YEAR FROM uw.employee_hire_date) = sp.current_year
-                 AND term_event.employee_id IS NOT NULL
-            THEN 'terminated'
-            ELSE uw.employment_status -- Otherwise, keep existing status
-        END AS employment_status,
-        CASE
-            WHEN EXTRACT(YEAR FROM uw.employee_hire_date) = sp.current_year
-                 AND term_event.employee_id IS NOT NULL
-            THEN term_event.event_details -- Termination reason from the event
-            ELSE uw.termination_reason -- Otherwise, keep existing reason
-        END AS termination_reason
+        uw.termination_date,
+        uw.employment_status,
+        uw.termination_reason
     FROM workforce_with_corrected_levels uw
-    CROSS JOIN simulation_parameters sp
-    LEFT JOIN current_year_events term_event
-        ON uw.employee_id = term_event.employee_id
-        AND term_event.event_type = 'termination'
 ),
 
 -- CTEs for prorated compensation calculation
@@ -556,7 +564,8 @@ SELECT
 FROM final_workforce
 
 {% if is_incremental() %}
-WHERE simulation_year = {{ simulation_year }}
+  -- Only process the current simulation year when running incrementally
+  WHERE simulation_year = {{ simulation_year }}
 {% endif %}
 
 ORDER BY employee_id
