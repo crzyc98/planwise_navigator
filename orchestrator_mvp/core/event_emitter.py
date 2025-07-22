@@ -35,23 +35,68 @@ def generate_experienced_termination_events(
 
     conn = get_connection()
     try:
-        # Get active workforce from int_baseline_workforce
-        workforce_query = """
-        SELECT
-            employee_id,
-            employee_ssn,
-            employee_birth_date,
-            employee_hire_date,
-            current_compensation,
-            current_age,
-            current_tenure,
-            level_id
-        FROM int_baseline_workforce
-        WHERE employment_status = 'active'
-        ORDER BY employee_id
-        """
+        # Get active workforce - use year-aware logic for multi-year simulations
+        if simulation_year == 2025:
+            # First simulation year - use baseline workforce
+            workforce_query = """
+            SELECT
+                employee_id,
+                employee_ssn,
+                employee_birth_date,
+                employee_hire_date,
+                current_compensation,
+                current_age,
+                current_tenure,
+                level_id
+            FROM int_baseline_workforce
+            WHERE employment_status = 'active'
+            ORDER BY employee_id
+            """
+            print(f"🔍 Using baseline workforce for experienced terminations (year {simulation_year})")
+        else:
+            # Subsequent years - use previous year's active workforce
+            previous_year = simulation_year - 1
+            workforce_query = """
+            SELECT
+                employee_id,
+                employee_ssn,
+                employee_birth_date,
+                employee_hire_date,
+                current_compensation,
+                current_age,
+                current_tenure,
+                level_id
+            FROM fct_workforce_snapshot
+            WHERE simulation_year = ?
+            AND employment_status = 'active'
+            ORDER BY employee_id
+            """
+            print(f"🔍 Using previous year ({previous_year}) workforce for experienced terminations")
 
-        workforce_df = conn.execute(workforce_query).df()
+        # Execute query with parameters if needed
+        if simulation_year == 2025:
+            workforce_df = conn.execute(workforce_query).df()
+        else:
+            workforce_df = conn.execute(workforce_query, [simulation_year - 1]).df()
+
+            # Fallback to baseline if no previous year data found
+            if len(workforce_df) == 0:
+                print(f"⚠️  No workforce data found for year {simulation_year - 1}, falling back to baseline")
+                fallback_query = """
+                SELECT
+                    employee_id,
+                    employee_ssn,
+                    employee_birth_date,
+                    employee_hire_date,
+                    current_compensation,
+                    current_age,
+                    current_tenure,
+                    level_id
+                FROM int_baseline_workforce
+                WHERE employment_status = 'active'
+                ORDER BY employee_id
+                """
+                workforce_df = conn.execute(fallback_query).df()
 
         if len(workforce_df) == 0:
             raise ValueError("No active workforce found in int_baseline_workforce")
@@ -991,12 +1036,12 @@ def generate_promotion_events(
     return events
 
 
-def validate_events_in_database(table_name: str = "fct_yearly_events", simulation_year: int = 2025) -> None:
+def validate_events_in_database(simulation_year: int, table_name: str = "fct_yearly_events") -> None:
     """Validate events stored in database.
 
     Args:
-        table_name: Name of table to validate
         simulation_year: Year to validate events for
+        table_name: Name of table to validate
     """
     conn = get_connection()
     try:
