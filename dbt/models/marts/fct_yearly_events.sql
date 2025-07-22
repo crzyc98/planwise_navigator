@@ -1,18 +1,20 @@
 {{ config(
-  materialized='incremental',
-  unique_key=['employee_id', 'simulation_year', 'event_sequence'],
-  on_schema_change='fail',
-  incremental_strategy='delete+insert',
+  materialized='table',
   contract={
       "enforced": true
   }
 ) }}
 
-{% set simulation_year = var('simulation_year') %}
+{% set simulation_year = var('simulation_year', none) %}
 
--- Unified fact table containing all workforce events for a simulation year
+-- Unified fact table containing all workforce events across simulation years
 -- Consolidates terminations, promotions, hires, and merit increases with common schema
 -- Following PRD v3.0 requirements and CLAUDE.md DuckDB patterns
+--
+-- Materialization Strategy: TABLE for multi-year data persistence
+-- - Accumulates events across all simulation years
+-- - Enables year-over-year workforce transition analysis
+-- - Use simulation_year variable to filter for specific years when needed
 
 WITH termination_events AS (
   SELECT
@@ -32,7 +34,7 @@ WITH termination_events AS (
     termination_rate AS event_probability,
     'experienced_termination' AS event_category
   FROM {{ ref('int_termination_events') }}
-  {% if is_incremental() %}
+  {% if simulation_year %}
     WHERE simulation_year = {{ simulation_year }}
   {% endif %}
 ),
@@ -55,7 +57,7 @@ new_hire_termination_events AS (
     termination_rate AS event_probability,
     'new_hire_termination' AS event_category
   FROM {{ ref('int_new_hire_termination_events') }}
-  {% if is_incremental() %}
+  {% if simulation_year %}
     WHERE simulation_year = {{ simulation_year }}
   {% endif %}
 ),
@@ -78,7 +80,7 @@ promotion_events AS (
     promotion_rate AS event_probability,
     'promotion' AS event_category
   FROM {{ ref('int_promotion_events') }}
-  {% if is_incremental() %}
+  {% if simulation_year %}
     WHERE simulation_year = {{ simulation_year }}
   {% endif %}
 ),
@@ -109,7 +111,7 @@ hiring_events AS (
     NULL AS event_probability, -- Hiring is deterministic based on departures
     'hiring' AS event_category
   FROM {{ ref('int_hiring_events') }}
-  {% if is_incremental() %}
+  {% if simulation_year %}
     WHERE simulation_year = {{ simulation_year }}
   {% endif %}
 ),
@@ -133,7 +135,7 @@ merit_events AS (
     merit_percentage AS event_probability,
     'RAISE' AS event_category
   FROM {{ ref('int_merit_events') }}
-  {% if is_incremental() %}
+  {% if simulation_year %}
     WHERE simulation_year = {{ simulation_year }}
   {% endif %}
 ),
@@ -283,7 +285,7 @@ SELECT
     ELSE 'VALID'
   END AS data_quality_flag
 FROM all_events
-{% if is_incremental() %}
+{% if simulation_year %}
   WHERE simulation_year = {{ simulation_year }}
 {% endif %}
 ORDER BY employee_id, effective_date, event_sequence

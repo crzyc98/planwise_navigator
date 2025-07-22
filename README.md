@@ -11,11 +11,14 @@ This enterprise-grade platform replaces legacy Pandas-based pipelines with an im
 ### Key Features
 
 - **Immutable Event Sourcing**: Every workforce event permanently recorded with UUID and timestamp
-- **Multi-year Workforce Simulation**: Model hiring, promotions, raises, and terminations over 1-10 years
+- **Enhanced Multi-year Simulation**: True multi-year workforce transitions with data persistence
+- **Data Persistence Architecture**: Table-based materialization prevents data loss across years
+- **Selective Data Management**: Preserve existing data or selectively clear specific years
 - **Modular Architecture**: Single-responsibility engines for compensation, termination, hiring, and promotions
 - **Interactive Analytics**: Sub-2-second dashboard queries for scenario analysis
 - **Audit Trail Transparency**: Complete workforce history reconstruction from event logs
 - **Scenario Time Machine**: Instantly replay and compare multiple simulation scenarios
+- **Enhanced Validation**: Comprehensive data quality checks and fallback mechanisms
 - **Enterprise Security**: Zero cloud dependencies, comprehensive audit logging
 - **Reproducible Results**: Random seed control for identical simulation outcomes
 - **Scalable Performance**: Handle 100K+ employee records with minimal memory footprint

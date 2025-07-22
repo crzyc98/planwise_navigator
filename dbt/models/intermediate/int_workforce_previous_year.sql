@@ -5,12 +5,14 @@
 -- For first year: uses baseline workforce
 -- For subsequent years: uses previous year's snapshot with age/tenure increments
 
-{% set simulation_year = var('simulation_year', 2025) %}
-{% set is_first_year = (simulation_year == 2025) %}
+{% set simulation_year = var('simulation_year', 2025) | int %}
+{% set start_year = var('start_year', 2025) | int %}
+{% set is_first_year = (simulation_year == start_year) %}
 
+-- Debug: {{ simulation_year }}, {{ start_year }}, {{ is_first_year }}
 WITH workforce_data AS (
     {% if is_first_year %}
-    -- First year: use baseline workforce directly
+    -- First year: use baseline workforce directly (simulation_year={{ simulation_year }})
     SELECT
         employee_id,
         employee_ssn,
@@ -34,7 +36,7 @@ WITH workforce_data AS (
     WHERE employment_status = 'active'
 
     {% else %}
-    -- Subsequent years: use previous year's snapshot with age/tenure increments
+    -- Subsequent years: use previous year's snapshot with age/tenure increments (simulation_year={{ simulation_year }})
     SELECT
         employee_id,
         employee_ssn,

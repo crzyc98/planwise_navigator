@@ -33,7 +33,7 @@ def generate_workforce_snapshot(
         print(f"\n🔄 Generating workforce snapshot for year {simulation_year}...")
 
         # Get starting workforce count
-        starting_count = get_starting_workforce(db_path)
+        starting_count = get_starting_workforce(db_path, simulation_year)
         print(f"   Starting workforce: {starting_count:,} employees")
 
         # Run the fct_workforce_snapshot model with simulation year
@@ -67,33 +67,52 @@ def generate_workforce_snapshot(
         }
 
 
-def get_starting_workforce(db_path: str) -> int:
+def get_starting_workforce(db_path: str, simulation_year: int = 2025) -> int:
     """
-    Get the baseline workforce count from the database.
+    Get the starting workforce count for multi-year simulation support.
+
+    For year 1 (baseline): uses int_baseline_workforce
+    For subsequent years: uses previous year's workforce snapshot
 
     Args:
         db_path: Path to the DuckDB database
+        simulation_year: Year to get starting workforce for
 
     Returns:
-        Number of active employees at baseline
+        Number of active employees to start with
     """
     conn = get_connection()
 
     try:
-        # Check if int_baseline_workforce exists
-        tables = conn.execute(
-            "SELECT table_name FROM information_schema.tables WHERE table_name = 'int_baseline_workforce'"
-        ).fetchall()
+        # For the first simulation year (assume 2025), use baseline workforce
+        if simulation_year == 2025:
+            # Check if int_baseline_workforce exists
+            tables = conn.execute(
+                "SELECT table_name FROM information_schema.tables WHERE table_name = 'int_baseline_workforce'"
+            ).fetchall()
 
-        if not tables:
-            # Fallback to stg_census_data if baseline not yet created
-            result = conn.execute(
-                "SELECT COUNT(*) as count FROM stg_census_data WHERE status = 'Active'"
-            ).fetchone()
+            if not tables:
+                # Fallback to stg_census_data if baseline not yet created
+                result = conn.execute(
+                    "SELECT COUNT(*) as count FROM stg_census_data WHERE status = 'Active'"
+                ).fetchone()
+            else:
+                result = conn.execute(
+                    "SELECT COUNT(*) as count FROM int_baseline_workforce WHERE employment_status = 'active'"
+                ).fetchone()
         else:
+            # For subsequent years, use previous year's active workforce
+            previous_year = simulation_year - 1
             result = conn.execute(
-                "SELECT COUNT(*) as count FROM int_baseline_workforce"
+                "SELECT COUNT(*) as count FROM fct_workforce_snapshot WHERE simulation_year = ? AND employment_status = 'active'",
+                [previous_year]
             ).fetchone()
+
+            # Fallback to baseline if previous year snapshot doesn't exist
+            if not result or result[0] == 0:
+                result = conn.execute(
+                    "SELECT COUNT(*) as count FROM int_baseline_workforce WHERE employment_status = 'active'"
+                ).fetchone()
 
         return result[0] if result else 0
     finally:
@@ -113,9 +132,97 @@ def apply_events_to_workforce(simulation_year: int) -> Dict[str, any]:
     # Import here to avoid circular dependency
     from ..loaders.staging_loader import run_dbt_model_with_vars
 
+    # For years after 2025, we need to run int_workforce_previous_year_v2 first, but with better transaction handling
+    if simulation_year > 2025:
+        print(f"   Preparing previous year workforce data for year {simulation_year}...")
+
+        # First, verify the source data exists
+        try:
+            from ..core.database_manager import get_connection
+            conn = get_connection()
+            try:
+                previous_year = simulation_year - 1
+                verify_source_query = "SELECT COUNT(*) FROM fct_workforce_snapshot WHERE simulation_year = ? AND employment_status = 'active'"
+                verify_source_result = conn.execute(verify_source_query, [previous_year]).fetchone()
+
+                if not verify_source_result or verify_source_result[0] == 0:
+                    return {
+                        "success": False,
+                        "error": f"No source data found in fct_workforce_snapshot for year {previous_year}"
+                    }
+                print(f"   ✅ Found {verify_source_result[0]:,} active employees from year {previous_year}")
+            finally:
+                conn.close()
+        except Exception as e:
+            return {
+                "success": False,
+                "error": f"Could not verify source data: {str(e)}"
+            }
+
+        # Run int_workforce_previous_year_v2 with variables
+        previous_year_vars = {"simulation_year": simulation_year}
+        previous_year_result = run_dbt_model_with_vars("int_workforce_previous_year_v2", previous_year_vars, full_refresh=True)
+
+        if not previous_year_result.get("success", False):
+            return {
+                "success": False,
+                "error": f"Failed to run int_workforce_previous_year_v2: {previous_year_result.get('error', 'Unknown error')}"
+            }
+
+        # Verify that int_workforce_previous_year_v2 was created correctly
+        try:
+            conn = get_connection()
+            try:
+                # Debug: Check what simulation years are in the table
+                years_query = "SELECT DISTINCT simulation_year FROM int_workforce_previous_year_v2 ORDER BY simulation_year"
+                years_result = conn.execute(years_query).fetchall()
+                print(f"   🔍 DEBUG: Simulation years in int_workforce_previous_year_v2: {[y[0] for y in years_result] if years_result else 'None'}")
+
+                verify_previous_query = "SELECT COUNT(*) FROM int_workforce_previous_year_v2 WHERE simulation_year = ? AND employment_status = 'active'"
+                verify_previous_result = conn.execute(verify_previous_query, [simulation_year]).fetchone()
+                print(f"   🔍 DEBUG: Looking for simulation_year = {simulation_year}, found {verify_previous_result[0] if verify_previous_result else 0} records")
+
+                if not verify_previous_result or verify_previous_result[0] == 0:
+                    return {
+                        "success": False,
+                        "error": f"int_workforce_previous_year_v2 produced no data for year {simulation_year}. Found years: {[y[0] for y in years_result]}"
+                    }
+                print(f"   ✅ Created {verify_previous_result[0]:,} records in int_workforce_previous_year_v2 for year {simulation_year}")
+            finally:
+                conn.close()
+        except Exception as e:
+            return {
+                "success": False,
+                "error": f"Could not verify int_workforce_previous_year_v2: {str(e)}"
+            }
+
     # Run the model with simulation year variable
+    print(f"   🔄 Running fct_workforce_snapshot for year {simulation_year}...")
     vars_dict = {"simulation_year": simulation_year}
     result = run_dbt_model_with_vars("fct_workforce_snapshot", vars_dict)
+    print(f"   🔍 DEBUG: fct_workforce_snapshot result: {result.get('success', False)} - {result.get('error', 'No error')}")
+
+    # Verify that the data was actually written
+    if result.get("success", False):
+        try:
+            from ..core.database_manager import get_connection
+            conn = get_connection()
+            try:
+                verify_query = "SELECT COUNT(*) FROM fct_workforce_snapshot WHERE simulation_year = ?"
+                verify_result = conn.execute(verify_query, [simulation_year]).fetchone()
+
+                if verify_result and verify_result[0] > 0:
+                    print(f"   ✅ Verified: {verify_result[0]:,} records written for year {simulation_year}")
+                else:
+                    print(f"   ❌ Verification failed: No data found for year {simulation_year}")
+                    return {
+                        "success": False,
+                        "error": f"Workforce snapshot generation failed - no data written for year {simulation_year}"
+                    }
+            finally:
+                conn.close()
+        except Exception as e:
+            print(f"   ⚠️ Could not verify data: {str(e)}")
 
     return result
 
@@ -173,9 +280,22 @@ def calculate_workforce_metrics(
         """).fetchall()
 
         # Calculate growth rate
-        baseline_count = get_starting_workforce(db_path)
-        current_active = next((c[1] for c in status_counts if c[0] == 'Active'), 0)
-        growth_rate = ((current_active - baseline_count) / baseline_count * 100) if baseline_count > 0 else 0
+        baseline_count = get_starting_workforce(db_path, simulation_year)
+        current_active = next((c[1] for c in status_counts if c[0] == 'active'), 0)
+
+        # For year-over-year growth calculation
+        if simulation_year > 2025:
+            previous_year = simulation_year - 1
+            previous_active_result = conn.execute(f"""
+                SELECT COUNT(*) as count
+                FROM fct_workforce_snapshot
+                WHERE simulation_year = {previous_year}
+                  AND employment_status = 'active'
+            """).fetchone()
+            previous_active = previous_active_result[0] if previous_active_result else baseline_count
+            growth_rate = ((current_active - previous_active) / previous_active * 100) if previous_active > 0 else 0
+        else:
+            growth_rate = ((current_active - baseline_count) / baseline_count * 100) if baseline_count > 0 else 0
 
         return {
             "status_counts": dict(status_counts),
@@ -187,7 +307,8 @@ def calculate_workforce_metrics(
             "event_counts": dict(event_impact),
             "growth_rate": growth_rate,
             "baseline_count": baseline_count,
-            "current_active": current_active
+            "current_active": current_active,
+            "simulation_year": simulation_year
         }
     finally:
         conn.close()
@@ -215,15 +336,31 @@ def validate_workforce_continuity(
     }
 
     try:
-        # Check for missing employees
-        missing_check = conn.execute(f"""
-            SELECT COUNT(*) as missing_count
-            FROM int_baseline_workforce b
-            LEFT JOIN fct_workforce_snapshot s
-                ON b.employee_id = s.employee_id
-                AND s.simulation_year = {simulation_year}
-            WHERE s.employee_id IS NULL
-        """).fetchone()
+        # Check for missing employees (different logic for multi-year)
+        if simulation_year == 2025:
+            # For first year, check against baseline
+            missing_check = conn.execute(f"""
+                SELECT COUNT(*) as missing_count
+                FROM int_baseline_workforce b
+                LEFT JOIN fct_workforce_snapshot s
+                    ON b.employee_id = s.employee_id
+                    AND s.simulation_year = {simulation_year}
+                WHERE s.employee_id IS NULL
+                  AND b.employment_status = 'active'
+            """).fetchone()
+        else:
+            # For subsequent years, check for year transition continuity
+            previous_year = simulation_year - 1
+            missing_check = conn.execute(f"""
+                SELECT COUNT(*) as missing_count
+                FROM fct_workforce_snapshot prev
+                LEFT JOIN fct_workforce_snapshot curr
+                    ON prev.employee_id = curr.employee_id
+                    AND curr.simulation_year = {simulation_year}
+                WHERE prev.simulation_year = {previous_year}
+                  AND prev.employment_status = 'active'
+                  AND curr.employee_id IS NULL
+            """).fetchone()
 
         if missing_check and missing_check[0] > 0:
             validation_results["has_errors"] = True
@@ -271,6 +408,34 @@ def validate_workforce_continuity(
             validation_results["event_application"] = {
                 "total_events": event_check[0],
                 "affected_employees": event_check[1]
+            }
+
+        # Add year transition validation for multi-year scenarios
+        if simulation_year > 2025:
+            previous_year = simulation_year - 1
+
+            # Check for proper age/tenure progression
+            age_tenure_check = conn.execute(f"""
+                SELECT COUNT(*) as inconsistent_count
+                FROM fct_workforce_snapshot prev
+                JOIN fct_workforce_snapshot curr
+                    ON prev.employee_id = curr.employee_id
+                WHERE prev.simulation_year = {previous_year}
+                  AND curr.simulation_year = {simulation_year}
+                  AND prev.employment_status = 'active'
+                  AND curr.employment_status = 'active'
+                  AND (curr.current_age <= prev.current_age OR curr.current_tenure <= prev.current_tenure)
+            """).fetchone()
+
+            if age_tenure_check and age_tenure_check[0] > 0:
+                validation_results["warnings"].append(
+                    f"Found {age_tenure_check[0]} employees with inconsistent age/tenure progression"
+                )
+
+            validation_results["year_transition"] = {
+                "from_year": previous_year,
+                "to_year": simulation_year,
+                "validated": True
             }
 
         return validation_results

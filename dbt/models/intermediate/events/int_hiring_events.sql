@@ -20,7 +20,7 @@ previous_year_workforce_count AS (
   WHERE employment_status = 'active'
 {% else %}
   SELECT COUNT(*) AS workforce_count
-  FROM {{ ref('int_workforce_previous_year') }}
+  FROM {{ ref('int_workforce_previous_year_v2') }}
   WHERE employment_status = 'active'
 {% endif %}
 ),

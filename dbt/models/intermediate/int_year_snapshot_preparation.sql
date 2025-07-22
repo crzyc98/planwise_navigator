@@ -4,7 +4,7 @@
 -- Prepares workforce data for the current simulation year with validation
 
 WITH previous_year_workforce AS (
-    SELECT * FROM {{ ref('int_workforce_previous_year') }}
+    SELECT * FROM {{ ref('int_workforce_previous_year_v2') }}
 ),
 simulation_parameters AS (
     SELECT
