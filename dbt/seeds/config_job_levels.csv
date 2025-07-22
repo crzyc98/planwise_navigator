@@ -1,6 +1,6 @@
-avg_annual_merit_increase,comp_age_factor,comp_base_salary,comp_stochastic_std_dev,description,job_families,level_id,max_compensation,min_compensation,name,promotion_probability,target_bonus_percent
-0.035,0.006,70000,0.1,"Entry-level exempt employees, individual contributors","['Engineering', 'HR', 'Finance', 'IT']",1,80000,56000,Staff,0.12,0.05
-0.04,0.007,105000,0.1,First-level management with direct reports,"['Engineering', 'HR', 'Finance', 'IT']",2,120000,81000,Manager,0.08,0.15
-0.045,0.008,157000,0.1,"Mid-level management, often managing other managers","['Engineering', 'HR', 'Finance', 'IT']",3,160000,121000,SrMgr,0.05,0.2
-0.05,0.01,275000,0.15,Senior leadership roles,['Executive'],4,300000,161000,Director,0.02,0.3
-0.055,0.012,400000,0.2,Executive leadership roles,['Executive'],5,500000,275000,VP,0.01,0.4
+avg_annual_merit_increase,comp_age_factor,comp_base_salary,comp_stochastic_std_dev,description,job_families,level_id,max_compensation,min_compensation,name,promotion_probability,target_bonus_percent,created_at,updated_at
+0.035,0.006,70000,0.1,"Entry-level exempt employees, individual contributors","['Engineering', 'HR', 'Finance', 'IT']",1,80000,56000,Staff,0.12,0.05,2025-06-27,2025-06-27
+0.04,0.007,105000,0.1,First-level management with direct reports,"['Engineering', 'HR', 'Finance', 'IT']",2,120000,81000,Manager,0.08,0.15,2025-06-27,2025-06-27
+0.045,0.008,157000,0.1,"Mid-level management, often managing other managers","['Engineering', 'HR', 'Finance', 'IT']",3,160000,121000,SrMgr,0.05,0.2,2025-06-27,2025-06-27
+0.05,0.01,275000,0.15,Senior leadership roles,['Executive'],4,300000,161000,Director,0.02,0.3,2025-06-27,2025-06-27
+0.055,0.012,400000,0.2,Executive leadership roles,['Executive'],5,500000,275000,VP,0.01,0.4,2025-06-27,2025-06-27
