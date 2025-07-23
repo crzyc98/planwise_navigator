@@ -180,6 +180,50 @@ target_assessment AS (
     FROM all_methodologies
 )
 
+-- Compensation compounding validation
+compounding_validation AS (
+    -- Track individual employee compensation progression across years
+    SELECT
+        curr.employee_id,
+        curr.simulation_year AS current_year,
+        prev.simulation_year AS previous_year,
+        prev.full_year_equivalent_compensation AS previous_year_ending_salary,
+        curr.current_compensation AS current_year_starting_salary,
+        curr.full_year_equivalent_compensation AS current_year_ending_salary,
+        -- Calculate if compensation carried forward correctly
+        CASE
+            WHEN ABS(curr.current_compensation - prev.full_year_equivalent_compensation) < 0.01 THEN 'CORRECT'
+            WHEN ABS(curr.current_compensation - prev.current_compensation) < 0.01 THEN 'INCORRECT_NO_COMPOUND'
+            ELSE 'MISMATCH'
+        END AS compounding_status,
+        -- Calculate the discrepancy
+        curr.current_compensation - prev.full_year_equivalent_compensation AS salary_discrepancy
+    FROM {{ ref('fct_workforce_snapshot') }} curr
+    INNER JOIN {{ ref('fct_workforce_snapshot') }} prev
+        ON curr.employee_id = prev.employee_id
+        AND curr.simulation_year = prev.simulation_year + 1
+        AND prev.employment_status = 'active'
+        AND curr.employment_status = 'active'
+    WHERE curr.simulation_year = {{ simulation_year }}
+),
+
+compounding_summary AS (
+    -- Summary statistics on compounding accuracy
+    SELECT
+        {{ simulation_year }} as simulation_year,
+        COUNT(*) AS employees_tracked_for_compounding,
+        SUM(CASE WHEN compounding_status = 'CORRECT' THEN 1 ELSE 0 END) AS correct_compounding_count,
+        SUM(CASE WHEN compounding_status = 'INCORRECT_NO_COMPOUND' THEN 1 ELSE 0 END) AS no_compounding_count,
+        SUM(CASE WHEN compounding_status = 'MISMATCH' THEN 1 ELSE 0 END) AS mismatch_count,
+        -- Calculate percentages
+        ROUND(100.0 * SUM(CASE WHEN compounding_status = 'CORRECT' THEN 1 ELSE 0 END) / NULLIF(COUNT(*), 0), 2) AS correct_compounding_pct,
+        -- Average discrepancy for incorrect cases
+        AVG(CASE WHEN compounding_status != 'CORRECT' THEN ABS(salary_discrepancy) END) AS avg_discrepancy_amount,
+        -- Total lost compensation due to non-compounding
+        SUM(CASE WHEN compounding_status = 'INCORRECT_NO_COMPOUND' THEN salary_discrepancy ELSE 0 END) AS total_lost_compensation
+    FROM compounding_validation
+),
+
 -- Final output combining all analysis
 SELECT
     am.calculation_method,
@@ -209,9 +253,18 @@ SELECT
         ELSE NULL
     END as required_policy_adjustment_pct,
 
+    -- Compensation compounding validation metrics
+    cs.employees_tracked_for_compounding,
+    cs.correct_compounding_count,
+    cs.correct_compounding_pct,
+    cs.no_compounding_count,
+    cs.avg_discrepancy_amount,
+    cs.total_lost_compensation,
+
     CURRENT_TIMESTAMP as analysis_timestamp
 
 FROM all_methodologies am
 JOIN target_assessment ta ON am.calculation_method = ta.calculation_method
 CROSS JOIN dilution_analysis da
+CROSS JOIN compounding_summary cs
 ORDER BY am.calculation_method
