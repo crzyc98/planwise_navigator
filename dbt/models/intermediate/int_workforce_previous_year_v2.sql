@@ -24,45 +24,111 @@ data_availability_check AS (
     WHERE simulation_year = {{ previous_year }}
 ),
 
+-- Calculate time-weighted compensation for previous year carryforward
+time_weighted_compensation AS (
+    SELECT
+        fws.employee_id,
+        fws.current_compensation,
+        fws.full_year_equivalent_compensation,
+        -- Calculate time-weighted compensation based on raise events
+        COALESCE(
+            (
+                WITH raise_events AS (
+                    SELECT
+                        employee_id,
+                        effective_date,
+                        previous_compensation,
+                        compensation_amount,
+                        ROW_NUMBER() OVER (PARTITION BY employee_id ORDER BY effective_date) AS raise_sequence
+                    FROM fct_yearly_events
+                    WHERE simulation_year = {{ previous_year }}
+                      AND event_category = 'RAISE'
+                      AND employee_id = fws.employee_id
+                      AND compensation_amount IS NOT NULL
+                      AND compensation_amount > 0
+                ),
+                salary_periods AS (
+                    -- Period 1: Start of year to first raise (or end of year if no raises)
+                    SELECT
+                        fws.employee_id,
+                        CAST('{{ previous_year }}-01-01' AS DATE) AS period_start,
+                        COALESCE(
+                            (SELECT MIN(effective_date) FROM raise_events WHERE employee_id = fws.employee_id),
+                            CAST('{{ previous_year }}-12-31' AS DATE)
+                        ) AS period_end,
+                        COALESCE(
+                            (SELECT previous_compensation FROM raise_events WHERE employee_id = fws.employee_id AND raise_sequence = 1),
+                            fws.current_compensation
+                        ) AS period_salary
+
+                    UNION ALL
+
+                    -- Additional periods for each raise
+                    SELECT
+                        re.employee_id,
+                        re.effective_date AS period_start,
+                        COALESCE(
+                            (SELECT MIN(effective_date) FROM raise_events re2
+                             WHERE re2.employee_id = re.employee_id
+                             AND re2.raise_sequence = re.raise_sequence + 1),
+                            CAST('{{ previous_year }}-12-31' AS DATE)
+                        ) AS period_end,
+                        re.compensation_amount AS period_salary
+                    FROM raise_events re
+                )
+                SELECT
+                    SUM(period_salary * (GREATEST(0, period_end - period_start + 1) / 365.0))
+                FROM salary_periods
+                WHERE employee_id = fws.employee_id
+                  AND period_start <= period_end
+            ),
+            fws.full_year_equivalent_compensation  -- Fallback to full year equivalent
+        ) AS time_weighted_compensation
+    FROM fct_workforce_snapshot fws
+    WHERE fws.simulation_year = {{ previous_year }}
+      AND fws.employment_status = 'active'
+),
+
 previous_year_snapshot AS (
     SELECT
-        employee_id,
-        employee_ssn,
-        employee_birth_date,
-        employee_hire_date,
-        current_compensation AS employee_gross_compensation,
-        current_age + 1 AS current_age,
-        current_tenure + 1 AS current_tenure,
-        level_id,
+        fws.employee_id,
+        fws.employee_ssn,
+        fws.employee_birth_date,
+        fws.employee_hire_date,
+        twc.time_weighted_compensation AS employee_gross_compensation,
+        fws.current_age + 1 AS current_age,
+        fws.current_tenure + 1 AS current_tenure,
+        fws.level_id,
         -- Recalculate age band
         CASE
-            WHEN (current_age + 1) < 25 THEN '< 25'
-            WHEN (current_age + 1) < 35 THEN '25-34'
-            WHEN (current_age + 1) < 45 THEN '35-44'
-            WHEN (current_age + 1) < 55 THEN '45-54'
-            WHEN (current_age + 1) < 65 THEN '55-64'
+            WHEN (fws.current_age + 1) < 25 THEN '< 25'
+            WHEN (fws.current_age + 1) < 35 THEN '25-34'
+            WHEN (fws.current_age + 1) < 45 THEN '35-44'
+            WHEN (fws.current_age + 1) < 55 THEN '45-54'
+            WHEN (fws.current_age + 1) < 65 THEN '55-64'
             ELSE '65+'
         END AS age_band,
         -- Recalculate tenure band
         CASE
-            WHEN (current_tenure + 1) < 2 THEN '< 2'
-            WHEN (current_tenure + 1) < 5 THEN '2-4'
-            WHEN (current_tenure + 1) < 10 THEN '5-9'
-            WHEN (current_tenure + 1) < 20 THEN '10-19'
+            WHEN (fws.current_tenure + 1) < 2 THEN '< 2'
+            WHEN (fws.current_tenure + 1) < 5 THEN '2-4'
+            WHEN (fws.current_tenure + 1) < 10 THEN '5-9'
+            WHEN (fws.current_tenure + 1) < 20 THEN '10-19'
             ELSE '20+'
         END AS tenure_band,
-        employment_status,
-        termination_date,
-        termination_reason,
+        fws.employment_status,
+        fws.termination_date,
+        fws.termination_reason,
         {{ simulation_year }} AS simulation_year,
         CURRENT_TIMESTAMP AS snapshot_created_at,
         false AS is_from_census,
         false AS is_cold_start,
         {{ simulation_year - 1 }} AS last_completed_year,
         'previous_year_snapshot' AS data_source
-    FROM fct_workforce_snapshot
-    WHERE simulation_year = {{ previous_year }}
-      AND employment_status = 'active'
+    FROM fct_workforce_snapshot fws
+    JOIN time_weighted_compensation twc ON fws.employee_id = twc.employee_id
+    WHERE fws.simulation_year = {{ previous_year }}
+      AND fws.employment_status = 'active'
 ),
 
 baseline_fallback AS (

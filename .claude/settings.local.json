@@ -38,7 +38,9 @@
       "Bash(git merge:*)",
       "Bash(git push:*)",
       "Bash(git branch:*)",
-      "Bash(git commit:*)"
+      "Bash(git commit:*)",
+      "Bash(dbt build:*)",
+      "Bash(rm:*)"
     ],
     "deny": []
   }
