@@ -77,7 +77,7 @@ time_weighted_compensation AS (
                     FROM raise_events re
                 )
                 SELECT
-                    SUM(period_salary * (GREATEST(0, period_end - period_start + 1) / 365.0))
+                    SUM(period_salary * (GREATEST(0, EXTRACT(DAY FROM (period_end - period_start)) + 1) / 365.0))
                 FROM salary_periods
                 WHERE employee_id = fws.employee_id
                   AND period_start <= period_end
