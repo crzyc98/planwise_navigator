@@ -48,7 +48,15 @@
       "Bash(mv:*)",
       "Bash(awk:*)",
       "Bash(sed:*)",
-      "Bash(dbt seed:*)"
+      "Bash(dbt seed:*)",
+      "Bash(sqlite3:*)",
+      "Bash(pip install:*)",
+      "Bash(pip3 install:*)",
+      "Bash(./venv/bin/python:*)",
+      "Bash(/Users/nicholasamaral/planwise_navigator/venv/bin/dbt --version)",
+      "Bash(/Users/nicholasamaral/planwise_navigator/venv/bin/dbt run --select int_employee_compensation_by_year --vars '{simulation_year: 2025, start_year: 2025}')",
+      "Bash(/Users/nicholasamaral/planwise_navigator/venv/bin/dbt run --select int_employee_compensation_by_year --vars '{simulation_year: 2026, start_year: 2025}')",
+      "Bash(/Users/nicholasamaral/planwise_navigator/venv/bin/dbt run --select int_active_employees_prev_year_snapshot --vars '{simulation_year: 2026}')"
     ],
     "deny": []
   }

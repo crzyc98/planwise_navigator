@@ -724,24 +724,71 @@ def generate_merit_events(
 
     conn = get_connection()
     try:
-        # Get active workforce from baseline (employees with 1+ years tenure)
-        workforce_query = """
-        SELECT
-            employee_id,
-            employee_ssn,
-            employee_birth_date,
-            employee_hire_date,
-            current_compensation,
-            current_age,
-            current_tenure,
-            level_id
-        FROM int_baseline_workforce
-        WHERE employment_status = 'active'
-        AND current_tenure >= 1  -- At least 1 year of service for merit eligibility
-        ORDER BY employee_id
-        """
+        # MERIT EVENTS COMPOUNDING FIX: Try to use dedicated compensation table first
+        # This table pre-calculates the correct compensation for each year
+        try:
+            workforce_query = """
+            SELECT
+                employee_id,
+                employee_ssn,
+                employee_birth_date,
+                employee_hire_date,
+                employee_compensation AS current_compensation,
+                current_age,
+                current_tenure,
+                level_id
+            FROM int_employee_compensation_by_year
+            WHERE simulation_year = ?
+            AND employment_status = 'active'
+            AND current_tenure >= 1  -- At least 1 year of service for merit eligibility
+            ORDER BY employee_id
+            """
 
-        workforce_df = conn.execute(workforce_query).df()
+            workforce_df = conn.execute(workforce_query, [simulation_year]).df()
+            print(f"✅ Using int_employee_compensation_by_year table for merit events (primary method)")
+
+        except Exception as compensation_table_error:
+            print(f"⚠️ int_employee_compensation_by_year table not available: {compensation_table_error}")
+            print(f"🔄 Falling back to original merit logic using baseline workforce")
+
+            # FALLBACK: Use original logic with conditional year-based compensation source
+            if simulation_year == 2025:
+                # For year 2025, use baseline workforce
+                workforce_query = """
+                SELECT
+                    employee_id,
+                    employee_ssn,
+                    employee_birth_date,
+                    employee_hire_date,
+                    current_compensation,
+                    current_age,
+                    current_tenure,
+                    level_id
+                FROM int_baseline_workforce
+                WHERE employment_status = 'active'
+                AND current_tenure >= 1  -- At least 1 year of service for merit eligibility
+                ORDER BY employee_id
+                """
+                workforce_df = conn.execute(workforce_query).df()
+            else:
+                # For subsequent years, use previous year's workforce snapshot
+                workforce_query = """
+                SELECT
+                    employee_id,
+                    employee_ssn,
+                    employee_birth_date,
+                    employee_hire_date,
+                    current_compensation,
+                    current_age,
+                    current_tenure,
+                    level_id
+                FROM fct_workforce_snapshot
+                WHERE simulation_year = ?
+                AND employment_status = 'active'
+                AND current_tenure >= 1  -- At least 1 year of service for merit eligibility
+                ORDER BY employee_id
+                """
+                workforce_df = conn.execute(workforce_query, [simulation_year - 1]).df()
 
         if len(workforce_df) == 0:
             return []

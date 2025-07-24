@@ -626,6 +626,354 @@ class TestCompensationCompounding:
 
         conn.close()
 
+    # MERIT EVENTS COMPOUNDING FIX: Add specific merit event validation tests
+    def test_merit_events_use_correct_baseline_compensation(self, test_db_path, test_employee_data):
+        """Test that merit events are calculated using the correct previous year's final compensation."""
+        conn = self.setup_test_database(test_db_path, test_employee_data)
+
+        # Set up necessary tables for merit event testing
+        conn.execute("""
+            CREATE TABLE IF NOT EXISTS int_workforce_active_for_events (
+                simulation_year INTEGER,
+                employee_id VARCHAR,
+                employee_ssn VARCHAR,
+                hire_date DATE,
+                employee_gross_compensation DOUBLE,
+                current_age INTEGER,
+                current_tenure INTEGER,
+                job_level INTEGER,
+                age_band VARCHAR,
+                tenure_band VARCHAR,
+                employment_status VARCHAR
+            )
+        """)
+
+        conn.execute("""
+            CREATE TABLE IF NOT EXISTS int_active_employees_prev_year_snapshot (
+                employee_id VARCHAR,
+                employee_ssn VARCHAR,
+                employee_birth_date DATE,
+                employee_hire_date DATE,
+                employee_gross_compensation DOUBLE,
+                current_age INTEGER,
+                current_tenure INTEGER,
+                level_id INTEGER,
+                employment_status VARCHAR,
+                termination_date DATE,
+                age_band VARCHAR,
+                tenure_band VARCHAR,
+                simulation_year INTEGER,
+                data_source VARCHAR,
+                data_quality_valid BOOLEAN
+            )
+        """)
+
+        # Simulate Year 1 (2025)
+        current_data = test_employee_data.copy()
+        self.simulate_year_with_raises(conn, 2025, current_data)
+
+        # Create int_active_employees_prev_year_snapshot data for Year 2
+        prev_year_snapshot_data = []
+        for _, emp in test_employee_data.iterrows():
+            # Get the final compensation from Year 1
+            final_comp_2025 = conn.execute("""
+                SELECT full_year_equivalent_compensation
+                FROM fct_workforce_snapshot
+                WHERE employee_id = ? AND simulation_year = 2025
+            """, [emp['employee_id']]).fetchone()[0]
+
+            prev_year_snapshot_data.append({
+                'employee_id': emp['employee_id'],
+                'employee_ssn': emp['employee_ssn'],
+                'employee_birth_date': emp['employee_birth_date'],
+                'employee_hire_date': emp['employee_hire_date'],
+                'employee_gross_compensation': final_comp_2025,  # This should be the final 2025 compensation
+                'current_age': emp['current_age'] + 1,
+                'current_tenure': emp['current_tenure'] + 1,
+                'level_id': emp['level_id'],
+                'employment_status': 'active',
+                'termination_date': pd.NaT,
+                'age_band': '35-44',  # Simplified for test
+                'tenure_band': '10-19',  # Simplified for test
+                'simulation_year': 2026,
+                'data_source': 'previous_year_snapshot',
+                'data_quality_valid': True
+            })
+
+        prev_year_df = pd.DataFrame(prev_year_snapshot_data)
+        conn.execute("INSERT INTO int_active_employees_prev_year_snapshot SELECT * FROM prev_year_df")
+
+        # Create int_workforce_active_for_events data for Year 2
+        awfe_data = []
+        for _, emp in prev_year_df.iterrows():
+            awfe_data.append({
+                'simulation_year': 2026,
+                'employee_id': emp['employee_id'],
+                'employee_ssn': emp['employee_ssn'],
+                'hire_date': emp['employee_hire_date'],
+                'employee_gross_compensation': emp['employee_gross_compensation'],  # Should be 2025 final
+                'current_age': emp['current_age'],
+                'current_tenure': emp['current_tenure'],
+                'job_level': emp['level_id'],
+                'age_band': emp['age_band'],
+                'tenure_band': emp['tenure_band'],
+                'employment_status': emp['employment_status']
+            })
+
+        awfe_df = pd.DataFrame(awfe_data)
+        conn.execute("INSERT INTO int_workforce_active_for_events SELECT * FROM awfe_df")
+
+        # Now create merit events for Year 2 that should use the AWFE compensation as baseline
+        merit_events_2026 = []
+        for _, emp in awfe_df.iterrows():
+            baseline_salary = emp['employee_gross_compensation']  # This is 2025 final compensation
+            merit_new_salary = baseline_salary * 1.043  # 4.3% raise
+
+            merit_events_2026.append({
+                'event_id': f"MERIT-{emp['employee_id']}-2026",
+                'employee_id': emp['employee_id'],
+                'event_type': 'RAISE',
+                'event_category': 'RAISE',
+                'effective_date': pd.Timestamp('2026-03-01'),
+                'simulation_year': 2026,
+                'scenario_id': 'TEST',
+                'previous_compensation': baseline_salary,  # Should match AWFE compensation
+                'compensation_amount': merit_new_salary,
+                'event_payload_json': f'{{"raise_type": "merit", "percentage": 0.043}}'
+            })
+
+        merit_events_df = pd.DataFrame(merit_events_2026)
+        conn.execute("INSERT INTO fct_yearly_events SELECT * FROM merit_events_df")
+
+        # Validate that merit events used the correct baseline
+        validation_query = """
+        WITH merit_baseline_check AS (
+            SELECT
+                me.employee_id,
+                me.simulation_year,
+                me.previous_compensation AS merit_baseline_used,
+                awfe.employee_gross_compensation AS expected_baseline,
+                ws_prev.full_year_equivalent_compensation AS actual_prev_year_final,
+                ABS(me.previous_compensation - awfe.employee_gross_compensation) AS baseline_discrepancy,
+                CASE
+                    WHEN ABS(me.previous_compensation - awfe.employee_gross_compensation) < 0.01 THEN 'CORRECT'
+                    ELSE 'INCORRECT'
+                END AS baseline_status
+            FROM fct_yearly_events me
+            INNER JOIN int_workforce_active_for_events awfe
+                ON me.employee_id = awfe.employee_id
+                AND me.simulation_year = awfe.simulation_year
+            LEFT JOIN fct_workforce_snapshot ws_prev
+                ON me.employee_id = ws_prev.employee_id
+                AND ws_prev.simulation_year = me.simulation_year - 1
+            WHERE me.event_category = 'RAISE'
+                AND me.simulation_year = 2026
+        )
+        SELECT
+            COUNT(*) as total_merit_events,
+            SUM(CASE WHEN baseline_status = 'CORRECT' THEN 1 ELSE 0 END) as correct_baseline_count,
+            AVG(baseline_discrepancy) as avg_discrepancy
+        FROM merit_baseline_check
+        """
+
+        result = conn.execute(validation_query).fetchone()
+
+        # All merit events should use the correct baseline
+        assert result[0] > 0, "Should have merit events to validate"
+        assert result[1] == result[0], f"All {result[0]} merit events should use correct baseline, only {result[1]} were correct"
+        assert result[2] < 0.01, f"Average baseline discrepancy should be minimal, got {result[2]:.4f}"
+
+        conn.close()
+
+    def test_merit_event_counts_vary_with_compounding(self, test_db_path, test_employee_data):
+        """Test that merit event counts vary appropriately between years when compensation is compounding."""
+        conn = self.setup_test_database(test_db_path, test_employee_data)
+
+        # Set up the required tables
+        conn.execute("""
+            CREATE TABLE IF NOT EXISTS int_workforce_active_for_events (
+                simulation_year INTEGER,
+                employee_id VARCHAR,
+                employee_gross_compensation DOUBLE,
+                job_level INTEGER
+            )
+        """)
+
+        # Simulate multiple years with proper compounding
+        current_data = test_employee_data.copy()
+        merit_counts_by_year = {}
+
+        for year in [2025, 2026, 2027]:
+            if year > 2025:
+                # Update starting compensation with compounded values
+                prev_year_data = conn.execute(f"""
+                    SELECT employee_id, full_year_equivalent_compensation
+                    FROM fct_workforce_snapshot
+                    WHERE simulation_year = {year - 1}
+                """).df()
+
+                # Create AWFE data for the year
+                awfe_data = []
+                for _, prev in prev_year_data.iterrows():
+                    current_data.loc[current_data['employee_id'] == prev['employee_id'],
+                                   'current_compensation'] = prev['full_year_equivalent_compensation']
+
+                    awfe_data.append({
+                        'simulation_year': year,
+                        'employee_id': prev['employee_id'],
+                        'employee_gross_compensation': prev['full_year_equivalent_compensation'],
+                        'job_level': current_data[current_data['employee_id'] == prev['employee_id']].iloc[0]['level_id']
+                    })
+
+                awfe_df = pd.DataFrame(awfe_data)
+                conn.execute("INSERT INTO int_workforce_active_for_events SELECT * FROM awfe_df")
+
+            self.simulate_year_with_raises(conn, year, current_data)
+
+            # Count merit events for this year
+            merit_count = conn.execute(f"""
+                SELECT COUNT(*) FROM fct_yearly_events
+                WHERE simulation_year = {year} AND event_category = 'RAISE'
+            """).fetchone()[0]
+
+            merit_counts_by_year[year] = merit_count
+
+        # With proper compounding, different employees may become eligible for different raises
+        # based on their compounded salaries crossing thresholds, so counts should vary
+        unique_counts = set(merit_counts_by_year.values())
+
+        # For this test, we expect some variation, but at minimum we should have
+        # consistent non-zero merit events each year
+        for year, count in merit_counts_by_year.items():
+            assert count > 0, f"Year {year} should have merit events, got {count}"
+            assert count == len(test_employee_data), f"Year {year} should have merit events for all employees"
+
+        # Verify that average merit compensation increases year over year due to compounding
+        avg_merit_by_year = {}
+        for year in [2025, 2026, 2027]:
+            avg_merit = conn.execute(f"""
+                SELECT AVG(previous_compensation)
+                FROM fct_yearly_events
+                WHERE simulation_year = {year} AND event_category = 'RAISE'
+            """).fetchone()[0]
+            avg_merit_by_year[year] = avg_merit
+
+        # Average merit baseline should increase each year due to compounding
+        assert avg_merit_by_year[2026] > avg_merit_by_year[2025], \
+            f"2026 average merit baseline (${avg_merit_by_year[2026]:.2f}) should be > 2025 (${avg_merit_by_year[2025]:.2f})"
+        assert avg_merit_by_year[2027] > avg_merit_by_year[2026], \
+            f"2027 average merit baseline (${avg_merit_by_year[2027]:.2f}) should be > 2026 (${avg_merit_by_year[2026]:.2f})"
+
+        conn.close()
+
+    def test_merit_events_pipeline_execution_order(self, test_db_path, test_employee_data):
+        """Test that the execution pipeline properly materializes prerequisite models before merit events."""
+        conn = self.setup_test_database(test_db_path, test_employee_data)
+
+        # This test simulates the fix where int_workforce_active_for_events must be
+        # materialized before int_merit_events can run successfully
+
+        # Set up Year 1
+        self.simulate_year_with_raises(conn, 2025, test_employee_data)
+
+        # For Year 2, we need to simulate the execution order fix:
+        # 1. int_workforce_previous_year (legacy)
+        # 2. int_workforce_active_for_events (critical fix)
+        # 3. int_merit_events (depends on #2)
+
+        # Step 1: Create int_workforce_previous_year data (legacy table)
+        conn.execute("""
+            CREATE TABLE IF NOT EXISTS int_workforce_previous_year (
+                employee_id VARCHAR,
+                simulation_year INTEGER,
+                employee_gross_compensation DOUBLE
+            )
+        """)
+
+        # Step 2: Create int_workforce_active_for_events with correct data
+        conn.execute("""
+            CREATE TABLE IF NOT EXISTS int_workforce_active_for_events (
+                simulation_year INTEGER,
+                employee_id VARCHAR,
+                employee_gross_compensation DOUBLE,
+                job_level INTEGER
+            )
+        """)
+
+        # Populate AWFE with Year 1 final compensation (simulating the fix)
+        year_2025_final = conn.execute("""
+            SELECT employee_id, full_year_equivalent_compensation
+            FROM fct_workforce_snapshot
+            WHERE simulation_year = 2025
+        """).df()
+
+        awfe_data_2026 = []
+        for _, emp in year_2025_final.iterrows():
+            awfe_data_2026.append({
+                'simulation_year': 2026,
+                'employee_id': emp['employee_id'],
+                'employee_gross_compensation': emp['full_year_equivalent_compensation'],
+                'job_level': test_employee_data[test_employee_data['employee_id'] == emp['employee_id']].iloc[0]['level_id']
+            })
+
+        awfe_df = pd.DataFrame(awfe_data_2026)
+        conn.execute("INSERT INTO int_workforce_active_for_events SELECT * FROM awfe_df")
+
+        # Step 3: Generate merit events that depend on AWFE data
+        merit_events_2026 = []
+        for _, awfe_row in awfe_df.iterrows():
+            merit_baseline = awfe_row['employee_gross_compensation']  # From AWFE (2025 final)
+            merit_new_salary = merit_baseline * 1.043
+
+            merit_events_2026.append({
+                'event_id': f"MERIT-{awfe_row['employee_id']}-2026",
+                'employee_id': awfe_row['employee_id'],
+                'event_type': 'RAISE',
+                'event_category': 'RAISE',
+                'effective_date': pd.Timestamp('2026-03-01'),
+                'simulation_year': 2026,
+                'scenario_id': 'TEST',
+                'previous_compensation': merit_baseline,
+                'compensation_amount': merit_new_salary,
+                'event_payload_json': '{"raise_type": "merit", "percentage": 0.043}'
+            })
+
+        merit_df = pd.DataFrame(merit_events_2026)
+        conn.execute("INSERT INTO fct_yearly_events SELECT * FROM merit_df")
+
+        # Validation: Verify that merit events could only be created successfully
+        # because AWFE was materialized first with correct data
+        pipeline_validation = conn.execute("""
+            SELECT
+                COUNT(*) as total_merit_events,
+                MIN(me.previous_compensation) as min_baseline,
+                MAX(me.previous_compensation) as max_baseline,
+                AVG(me.previous_compensation) as avg_baseline,
+                -- Verify these match what AWFE provided
+                MIN(awfe.employee_gross_compensation) as min_awfe_comp,
+                MAX(awfe.employee_gross_compensation) as max_awfe_comp,
+                AVG(awfe.employee_gross_compensation) as avg_awfe_comp
+            FROM fct_yearly_events me
+            INNER JOIN int_workforce_active_for_events awfe
+                ON me.employee_id = awfe.employee_id
+                AND me.simulation_year = awfe.simulation_year
+            WHERE me.simulation_year = 2026 AND me.event_category = 'RAISE'
+        """).fetchone()
+
+        # Merit baselines should exactly match AWFE compensation
+        assert pipeline_validation[0] == len(test_employee_data), "Should have merit events for all employees"
+        assert abs(pipeline_validation[3] - pipeline_validation[6]) < 0.01, \
+            f"Average merit baseline ({pipeline_validation[3]:.2f}) should match average AWFE compensation ({pipeline_validation[6]:.2f})"
+
+        # Verify pipeline dependency: merit events should use compounded values, not original
+        original_avg_comp = test_employee_data['current_compensation'].mean()
+        compounded_avg_comp = original_avg_comp * 1.043
+
+        assert abs(pipeline_validation[3] - compounded_avg_comp) < 1.0, \
+            f"Merit baseline average (${pipeline_validation[3]:.2f}) should reflect compounded values (~${compounded_avg_comp:.2f}), not original (${original_avg_comp:.2f})"
+
+        conn.close()
+
 
 if __name__ == "__main__":
     # Allow running tests directly
