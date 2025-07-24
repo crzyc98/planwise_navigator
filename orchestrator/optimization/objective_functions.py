@@ -344,9 +344,9 @@ class ObjectiveFunctions:
         print(f"🔨 Running dbt simulation pipeline: dbt run --select +fct_workforce_snapshot")
         print(f"📂 Working directory: {dbt_path}")
 
-        # Run the simulation models
+        # Run the simulation models with the correct simulation_year variable
         result = subprocess.run(
-            ["dbt", "run", "--select", "+fct_workforce_snapshot"],
+            ["dbt", "run", "--select", "+fct_workforce_snapshot", "--vars", f"{{'simulation_year': {self.simulation_year}}}"],
             cwd=str(dbt_path),
             capture_output=True,
             text=True

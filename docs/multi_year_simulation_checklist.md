@@ -44,6 +44,133 @@ The orchestrator now supports flexible data management modes:
 - Rollback individual years with `rollback_year()`
 - Data integrity validation with `validate_multi_year_data_integrity()`
 
+## Sequential Year Execution Requirement
+
+### Circular Dependency Resolution
+
+**Problem Solved:**
+The multi-year simulation system previously suffered from a circular dependency:
+```
+int_active_employees_by_year → int_workforce_previous_year_v2 → fct_workforce_snapshot → int_active_employees_by_year
+```
+
+This circular dependency prevented year 2026+ from running independently when year 2025 hadn't completed yet.
+
+**Solution Implemented - Temporal Dependency Architecture:**
+The circular dependency has been completely eliminated using two new helper models that create temporal dependencies (year N depends on year N-1) instead of circular dependencies within the same year:
+
+#### 1. Primary Helper Model: `int_active_employees_prev_year_snapshot`
+- **Purpose**: Provides active employee data from the previous year's completed workforce snapshot
+- **Data Source**: Queries `fct_workforce_snapshot` for `simulation_year - 1` with `employment_status = 'active'`
+- **Age/Tenure Progression**: Automatically increments age and tenure by 1 year for the current simulation year
+- **Band Recalculation**: Recalculates `age_band` and `tenure_band` based on incremented demographics
+- **Contract Compliance**: Includes all required fields expected by `fct_workforce_snapshot`
+- **Data Quality**: Comprehensive validation with quality flags and error handling
+- **Performance**: Table materialization with proper indexing on `employee_id` and `simulation_year`
+
+#### 2. Secondary Helper Model: `int_active_employees_by_year`
+- **Purpose**: Unified interface for active employees across all years
+- **Logic**: 
+  - For year 1 (start_year): Select from `int_baseline_workforce`
+  - For subsequent years: Select from `int_active_employees_prev_year_snapshot`
+- **Benefits**: Provides consistent schema and serves as abstraction layer for tests
+- **Error Handling**: Includes fallback logic for missing previous year data
+
+#### 3. Updated Workforce Snapshot Logic
+- **Year 1**: Uses `int_baseline_workforce` directly (unchanged)
+- **Subsequent Years**: Uses `int_active_employees_prev_year_snapshot` instead of the circular path
+- **Dependencies**: Clean temporal dependency chain where year N depends only on year N-1 data
+- **Performance**: Eliminates complex circular dependency resolution overhead
+
+**Sequential Year Requirement:**
+- **Years must be run in chronological order** (2025 → 2026 → 2027, etc.)
+- Each year depends on the previous year's completed workforce snapshot
+- The orchestrator now validates and enforces this sequential requirement
+- Clear error messages guide users when dependency issues occur
+
+### Enhanced Dependency Validation
+
+**New Validation Methods:**
+- `_validate_previous_year_snapshot()`: Ensures previous year's workforce snapshot exists and has valid data
+- `_validate_helper_model_readiness()`: Confirms the helper model can access required previous year data
+- `_validate_sequential_dependencies()`: Comprehensive validation of all previous year requirements
+
+**Error Handling:**
+- Clear error messages when years are run out of order
+- Specific guidance on which previous year needs to be completed
+- Validation warnings before execution to prevent partial failures
+- Recovery instructions for dependency issues
+
+### Troubleshooting Helper Models
+
+**Helper Model Validation:**
+
+1. **Verify Helper Model Data Exists**
+   ```sql
+   SELECT COUNT(*), MIN(current_age), MAX(current_age), 
+          COUNT(DISTINCT age_band), COUNT(DISTINCT tenure_band)
+   FROM int_active_employees_prev_year_snapshot
+   WHERE simulation_year = <target_year>;
+   ```
+
+2. **Check Data Quality Flags**
+   ```sql
+   SELECT data_quality_valid, COUNT(*) 
+   FROM int_active_employees_prev_year_snapshot
+   WHERE simulation_year = <target_year>
+   GROUP BY data_quality_valid;
+   ```
+
+3. **Validate Previous Year Dependency**
+   ```sql
+   SELECT COUNT(*) as active_employees
+   FROM fct_workforce_snapshot
+   WHERE simulation_year = <target_year - 1> 
+     AND employment_status = 'active';
+   ```
+
+**Common Helper Model Issues:**
+
+1. **"No workforce snapshot found for year YYYY"**
+   - **Cause**: Attempting to run year YYYY+1 before year YYYY is complete
+   - **Solution**: Complete year YYYY first before running year YYYY+1
+
+2. **"Helper model produced no data"**
+   - **Cause**: Previous year's workforce snapshot has no active employees or failed data quality validation
+   - **Solution**: Check previous year simulation results and data quality flags
+   - **Validation**: Verify `data_quality_valid = true` in the helper model output
+
+3. **"Age/tenure progression validation failed"**
+   - **Cause**: Helper model age/tenure incrementation logic produced invalid values
+   - **Solution**: Check that previous year data has realistic age and tenure values
+   - **Debug**: Review `current_age + 1` and `current_tenure + 1` calculations
+
+4. **"Multi-year simulations must be run sequentially"**
+   - **Cause**: Attempting to skip years or run years out of order
+   - **Solution**: Run years in chronological order starting from the first incomplete year
+
+**Performance Considerations:**
+
+- Helper models use table materialization for optimal performance
+- Proper indexing on `employee_id` and `simulation_year` ensures fast lookups
+- Data quality validation filters are applied early to reduce processing overhead
+- Large datasets may require additional memory allocation for table materialization
+
+**Recovery Procedures:**
+
+1. **Identify Missing Years**: Check which years have completed successfully
+2. **Clear Incomplete Years**: Use selective clearing to remove partial year data
+3. **Sequential Execution**: Restart from the first missing year and proceed chronologically
+4. **Validate Dependencies**: Ensure each year's workforce snapshot is valid before proceeding
+
+**Best Practices for Multi-Year Execution:**
+
+- Always run simulations in chronological order
+- Validate each year's completion before proceeding to the next
+- Use the orchestrator's built-in validation to check dependencies
+- Monitor helper model data quality flags for troubleshooting
+- Keep previous year data intact until subsequent years complete successfully
+
 ## Required Workflow Steps
 
 The checklist enforces a 7-step workflow that must be executed for each simulation year:
