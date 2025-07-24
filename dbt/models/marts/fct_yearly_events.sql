@@ -1,8 +1,17 @@
 {{ config(
-  materialized='table',
+  materialized='incremental',
+  unique_key=['employee_id', 'simulation_year', 'event_sequence'],
+  incremental_strategy='delete+insert',
+  on_schema_change='fail',
   contract={
       "enforced": true
-  }
+  },
+  indexes=[
+      {'columns': ['simulation_year'], 'type': 'btree'},
+      {'columns': ['employee_id'], 'type': 'btree'},
+      {'columns': ['simulation_year', 'employee_id'], 'type': 'btree'},
+      {'columns': ['event_type', 'simulation_year'], 'type': 'btree'}
+  ]
 ) }}
 
 {% set simulation_year = var('simulation_year', none) %}
@@ -285,7 +294,12 @@ SELECT
     ELSE 'VALID'
   END AS data_quality_flag
 FROM all_events
-{% if simulation_year %}
-  WHERE simulation_year = {{ simulation_year }}
-{% endif %}
+WHERE 1=1
+  {% if simulation_year %}
+    AND simulation_year = {{ simulation_year }}
+  {% endif %}
+  {% if is_incremental() %}
+    -- For incremental runs, only process the current simulation year
+    AND simulation_year = {{ simulation_year }}
+  {% endif %}
 ORDER BY employee_id, effective_date, event_sequence

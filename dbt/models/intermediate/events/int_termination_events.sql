@@ -15,40 +15,23 @@ WITH simulation_config AS (
         {{ var('target_growth_rate', 0.03) }} AS target_growth_rate
 ),
 
-incumbent_pool AS (
-    SELECT
-        employee_id,
-        employee_ssn,
-        employee_birth_date,
-        employee_hire_date,
-        employee_gross_compensation,
-        current_age,
-        current_tenure,
-        level_id,
-        employment_status,
-        termination_date
-    FROM {{ ref('int_workforce_previous_year_v2') }}
-    WHERE employment_status = 'active'
-),
-
 active_workforce AS (
-    -- Use int_workforce_previous_year_v2 which handles the dependency logic properly
-    -- FIXED: All employees who survived to the start of the simulation year should be treated as experienced
-    -- This includes baseline workforce members hired in 2024 who are part of the Year 1 starting workforce
+    -- Use int_workforce_active_for_events which provides dependency-free active employee data
+    -- This prevents termination events from being generated for employees who were 
+    -- terminated during the previous year
     SELECT
         employee_id,
         employee_ssn,
-        employee_birth_date,
-        employee_hire_date,
+        hire_date AS employee_hire_date,
         employee_gross_compensation,
         current_age,
         current_tenure,
-        level_id,
-        -- FIXED: All employees in int_workforce_previous_year_v2 have survived to simulation start
+        job_level AS level_id,
+        -- All employees in int_workforce_active_for_events have survived to simulation start
         -- Therefore they should ALL be subject to experienced termination rates
         'experienced' AS employee_type
-    FROM incumbent_pool
-    WHERE employment_status = 'active'
+    FROM {{ ref('int_workforce_active_for_events') }}
+    WHERE simulation_year = {{ simulation_year }}
 ),
 
 workforce_with_bands AS (
