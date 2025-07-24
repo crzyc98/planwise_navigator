@@ -35,6 +35,12 @@ models:
       +materialized: table
       +docs:
         node_color: "#FFF2CC"
+      
+      # Data integrity models should run before event models
+      # Dependency chain: fct_workforce_snapshot → int_active_employees_by_year → event models → fct_yearly_events
+      int_active_employees_by_year:
+        +tags: ["foundation", "critical", "data_integrity"]
+        +materialized: table
 
     # Mart models - final outputs
     marts:

@@ -650,3 +650,286 @@ models:
         description: Date when termination becomes effective
         data_tests:
           - not_null
+
+  - name: int_workforce_active_for_events
+    description: >
+      Dependency-free model that calculates active employees for event generation.
+      
+      **Purpose:**
+      Provides active employee data for event generation without circular dependencies.
+      Replaces int_active_employees_by_year for all event models.
+      
+      **Approach:**
+      Calculates the current active workforce by:
+      1. Starting with baseline workforce from int_baseline_workforce
+      2. Applying all historical events (hires, terminations, promotions, raises) up to simulation_year-1
+      3. Determining who is active at the start of simulation_year
+      
+      **Circular Dependency Resolution:**
+      This model only reads from:
+      - int_baseline_workforce (independent)  
+      - fct_yearly_events (but only for years < simulation_year)
+      This prevents circular dependencies with fact tables.
+      
+      **Data Integrity:**
+      Ensures terminated employees don't receive events in subsequent years.
+    config:
+      tags: ["foundation", "critical", "event_generation"]
+    columns:
+      - name: simulation_year
+        description: Current simulation year
+        data_tests:
+          - not_null
+      - name: employee_id
+        description: Unique identifier for each employee
+        data_tests:
+          - not_null
+      - name: employee_ssn
+        description: Employee social security number
+        data_tests:
+          - not_null
+      - name: hire_date
+        description: Employee hire date
+        data_tests:
+          - not_null
+      - name: employee_gross_compensation
+        description: Current gross compensation
+        data_tests:
+          - not_null
+          - dbt_utils.accepted_range:
+              min_value: 0
+              inclusive: false
+      - name: current_age
+        description: Employee age in the simulation year
+        data_tests:
+          - not_null
+      - name: current_tenure
+        description: Employee tenure in the simulation year
+        data_tests:
+          - not_null
+      - name: job_level
+        description: Current job level
+        data_tests:
+          - not_null
+      - name: age_band
+        description: Age band for hazard calculations
+        data_tests:
+          - not_null
+      - name: tenure_band
+        description: Tenure band for hazard calculations
+        data_tests:
+          - not_null
+      - name: valid_age
+        description: Data quality flag for age validation
+        data_tests:
+          - not_null
+      - name: valid_tenure
+        description: Data quality flag for tenure validation
+        data_tests:
+          - not_null
+      - name: valid_compensation
+        description: Data quality flag for compensation validation
+        data_tests:
+          - not_null
+
+  - name: int_active_employees_prev_year_snapshot
+    description: >
+      Primary helper model for circular dependency resolution.
+      Provides active employee data from the previous year's completed workforce snapshot.
+      
+      This model creates a temporal dependency (year N depends on year N-1) instead of 
+      a circular dependency within the same year. It queries fct_workforce_snapshot 
+      for the previous simulation year and returns only active employees with all 
+      required contract fields.
+      
+      **Circular Dependency Resolution:**
+      Eliminates the circular dependency chain by providing clean employee records
+      from completed previous year data, ensuring no same-year circular references.
+    config:
+      tags: ["foundation", "critical", "circular_dependency_resolution"]
+    columns:
+      - name: employee_id
+        description: Unique identifier for each employee
+        data_tests:
+          - unique
+          - not_null
+      - name: employee_ssn
+        description: Employee social security number
+        data_tests:
+          - not_null
+      - name: employee_birth_date
+        description: Employee birth date
+        data_tests:
+          - not_null
+      - name: employee_hire_date
+        description: Employee hire date
+        data_tests:
+          - not_null
+      - name: employee_gross_compensation
+        description: Employee gross compensation
+        data_tests:
+          - not_null
+          - dbt_utils.accepted_range:
+              min_value: 0
+              inclusive: false
+      - name: current_age
+        description: Employee age in the current simulation year
+        data_tests:
+          - not_null
+          - dbt_utils.accepted_range:
+              min_value: 16
+              max_value: 100
+      - name: current_tenure
+        description: Employee tenure in years
+        data_tests:
+          - not_null
+          - dbt_utils.accepted_range:
+              min_value: 0
+              max_value: 60
+      - name: level_id
+        description: Job level ID
+        data_tests:
+          - not_null
+          - relationships:
+              to: ref('stg_config_job_levels')
+              field: level_id
+      - name: employment_status
+        description: Employment status (always 'active' for this model)
+        data_tests:
+          - not_null
+          - accepted_values:
+              values: ['active']
+      - name: termination_date
+        description: Termination date (NULL for active employees)
+      - name: age_band
+        description: Age band for analysis
+        data_tests:
+          - not_null
+          - accepted_values:
+              values: ['Under 25', '25-34', '35-44', '45-54', '55-64', '65+']
+      - name: tenure_band
+        description: Tenure band for analysis
+        data_tests:
+          - not_null
+          - accepted_values:
+              values: ['Less than 1 year', '1-2 years', '3-4 years', '5-9 years', '10-19 years', '20+ years']
+      - name: simulation_year
+        description: Current simulation year
+        data_tests:
+          - not_null
+      - name: data_source
+        description: Source of data (always 'previous_year_snapshot')
+        data_tests:
+          - not_null
+          - accepted_values:
+              values: ['previous_year_snapshot']
+      - name: data_quality_valid
+        description: Data quality validation flag
+        data_tests:
+          - not_null
+          - accepted_values:
+              values: [true]
+
+  - name: int_active_employees_by_year
+    description: >
+      Secondary helper model providing unified interface for active employees across all years.
+      
+      This model serves as a clean abstraction layer that provides a single interface
+      for accessing active employees regardless of the simulation year:
+      - For year 1 (start_year): Select from int_baseline_workforce
+      - For subsequent years: Select from int_active_employees_prev_year_snapshot
+      
+      **Purpose:**
+      Provides a unified interface that tests expect to exist, ensuring consistent
+      column schema across both data sources while maintaining temporal dependencies.
+    config:
+      tags: ["foundation", "critical", "unified_interface"]
+    columns:
+      - name: employee_id
+        description: Unique identifier for each employee
+        data_tests:
+          - unique
+          - not_null
+      - name: employee_ssn
+        description: Employee social security number
+        data_tests:
+          - not_null
+      - name: employee_birth_date
+        description: Employee birth date
+        data_tests:
+          - not_null
+      - name: employee_hire_date
+        description: Employee hire date
+        data_tests:
+          - not_null
+      - name: employee_gross_compensation
+        description: Employee gross compensation
+        data_tests:
+          - not_null
+          - dbt_utils.accepted_range:
+              min_value: 0
+              inclusive: false
+      - name: current_age
+        description: Employee age in the current simulation year
+        data_tests:
+          - not_null
+          - dbt_utils.accepted_range:
+              min_value: 16
+              max_value: 100
+      - name: current_tenure
+        description: Employee tenure in years
+        data_tests:
+          - not_null
+          - dbt_utils.accepted_range:
+              min_value: 0
+              max_value: 60
+      - name: level_id
+        description: Job level ID
+        data_tests:
+          - not_null
+          - relationships:
+              to: ref('stg_config_job_levels')
+              field: level_id
+      - name: employment_status
+        description: Employment status (always 'active' for this model)
+        data_tests:
+          - not_null
+          - accepted_values:
+              values: ['active']
+      - name: termination_date
+        description: Termination date (NULL for active employees)
+      - name: age_band
+        description: Age band for analysis
+        data_tests:
+          - not_null
+          - accepted_values:
+              values: ['Under 25', '25-34', '35-44', '45-54', '55-64', '65+']
+      - name: tenure_band
+        description: Tenure band for analysis
+        data_tests:
+          - not_null
+          - accepted_values:
+              values: ['Less than 1 year', '1-2 years', '3-4 years', '5-9 years', '10-19 years', '20+ years']
+      - name: simulation_year
+        description: Current simulation year
+        data_tests:
+          - not_null
+      - name: data_source
+        description: Source of data (baseline or previous_year_snapshot)
+        data_tests:
+          - not_null
+          - accepted_values:
+              values: ['baseline', 'previous_year_snapshot']
+      - name: data_quality_valid
+        description: Data quality validation flag
+        data_tests:
+          - not_null
+          - accepted_values:
+              values: [true]
+      - name: dependency_resolution_method
+        description: Method used for dependency resolution
+        data_tests:
+          - not_null
+          - accepted_values:
+              values: ['baseline', 'helper_model', 'error_handling']
+

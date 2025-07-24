@@ -128,6 +128,64 @@ def generate_simulation_events(calc_result: dict) -> None:
         raise
 
 
+def _validate_sequential_requirements(
+    start_year: int, 
+    end_year: int, 
+    force_clear: bool, 
+    preserve_data: bool
+) -> None:
+    """
+    Validate sequential year execution requirements before starting multi-year simulation.
+    
+    Args:
+        start_year: Starting year of simulation
+        end_year: Ending year of simulation
+        force_clear: Whether force clear mode is enabled
+        preserve_data: Whether data preservation mode is enabled
+        
+    Raises:
+        ValueError: If sequential requirements are not met
+    """
+    if force_clear:
+        # Force clear mode bypasses sequential validation
+        return
+        
+    if start_year == 2025:
+        # Starting from baseline year, no previous dependencies
+        return
+        
+    # Check if we're attempting to skip years
+    conn = get_connection()
+    try:
+        # Check for gaps in previous years
+        for check_year in range(2025, start_year):
+            snapshot_check = """
+                SELECT COUNT(*) FROM fct_workforce_snapshot 
+                WHERE simulation_year = ? AND employment_status = 'active'
+            """
+            
+            result = conn.execute(snapshot_check, [check_year]).fetchone()
+            
+            if not result or result[0] == 0:
+                raise ValueError(
+                    f"Sequential execution validation failed: Year {check_year} is missing or incomplete. "
+                    f"Cannot start simulation from year {start_year} without completing year {check_year} first. "
+                    f"Multi-year simulations must be run sequentially. "
+                    f"Use --force-clear to start fresh from 2025, or complete year {check_year} first."
+                )
+        
+        print(f"✅ Sequential validation passed: All years 2025-{start_year-1} are complete")
+        
+    except Exception as e:
+        if "Sequential execution validation failed" in str(e):
+            raise
+        # Other database errors - warn but don't block
+        print(f"⚠️ Could not validate sequential requirements: {str(e)}")
+        print("Proceeding anyway - orchestrator will validate during execution")
+    finally:
+        conn.close()
+
+
 def main(
     skip_breaks: bool = False,
     multi_year: bool = False,
@@ -372,6 +430,9 @@ def main(
 
             # Create checklist-enforced orchestrator with data management options
             try:
+                # Validate sequential year execution requirements before starting
+                _validate_sequential_requirements(start_year, end_year, force_clear, preserve_data)
+                
                 orchestrator = MultiYearSimulationOrchestrator(
                     start_year, end_year, config,
                     force_clear=force_clear, preserve_data=preserve_data
@@ -384,7 +445,7 @@ def main(
                 if force_clear and preserve_data:
                     raise ValueError("Cannot use --force-clear and --preserve-data together")
 
-                # Run checklist-enforced multi-year simulation
+                # Run checklist-enforced multi-year simulation with enhanced error handling
                 simulation_results = orchestrator.run_simulation(
                     skip_breaks=skip_breaks,
                     resume_from=resume_from
@@ -417,8 +478,27 @@ def main(
                 print(f"\n❌ Step sequence error in multi-year simulation: {str(e)}")
                 print("Use --force-step to override checklist validation if needed.")
                 raise
+            except ValueError as e:
+                error_msg = str(e).lower()
+                if "circular dependency" in error_msg or "sequential" in error_msg or "helper model" in error_msg:
+                    print(f"\n❌ Circular dependency or sequential execution error: {str(e)}")
+                    print("\n💡 Troubleshooting guidance:")
+                    print("   1. Multi-year simulations must be run sequentially (2025 → 2026 → 2027, etc.)")
+                    print("   2. Each year depends on the previous year's completed workforce snapshot")
+                    print("   3. Use --force-clear to start fresh from year 2025")
+                    print("   4. Use --reset-year <YEAR> to clear a specific year and restart from there")
+                    print("   5. Check that previous years completed successfully without errors")
+                    print("\nFor more details, see docs/multi_year_simulation_checklist.md")
+                else:
+                    print(f"\n❌ Configuration or validation error: {str(e)}")
+                raise
             except Exception as e:
-                print(f"\n❌ Multi-year simulation failed: {str(e)}")
+                error_msg = str(e).lower()
+                if "circular dependency" in error_msg or "workforce snapshot" in error_msg:
+                    print(f"\n❌ Dependency resolution error: {str(e)}")
+                    print("\n💡 This may be a circular dependency issue. Try running years sequentially.")
+                else:
+                    print(f"\n❌ Multi-year simulation failed: {str(e)}")
                 raise
 
         else:
@@ -552,6 +632,10 @@ Examples:
 
   # Validate data integrity before starting
   python -m orchestrator_mvp.run_mvp --multi-year --validate-data
+
+Note: Multi-year simulations must be run sequentially (2025 → 2026 → 2027, etc.)
+Each year depends on the previous year's completed workforce snapshot.
+Use --force-clear to start fresh from 2025, or --reset-year to clear a specific year.
 """
     )
 

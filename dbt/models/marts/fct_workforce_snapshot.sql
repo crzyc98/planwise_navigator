@@ -36,7 +36,8 @@ base_workforce AS (
         employment_status
     FROM {{ ref('int_baseline_workforce') }}
     {% else %}
-    -- Subsequent years: Use int_workforce_previous_year_v2
+    -- Subsequent years: Use helper model to break circular dependency
+    -- This creates a temporal dependency (year N depends on year N-1) instead of circular
     SELECT
         employee_id,
         employee_ssn,
@@ -48,9 +49,7 @@ base_workforce AS (
         level_id,
         termination_date,
         employment_status
-    FROM {{ ref('int_workforce_previous_year_v2') }}
-    WHERE employment_status = 'active'
-      AND simulation_year = {{ simulation_year }}
+    FROM {{ ref('int_active_employees_prev_year_snapshot') }}
     {% endif %}
 ),
 

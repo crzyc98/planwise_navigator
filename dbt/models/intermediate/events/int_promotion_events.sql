@@ -6,18 +6,19 @@
 -- Applies promotion rates from dim_hazard_table to current workforce
 
 WITH active_workforce AS (
-    -- Use int_workforce_previous_year_v2 which handles the dependency logic properly
+    -- Use int_workforce_active_for_events which provides dependency-free active employee data
+    -- This prevents promotion events from being generated for employees who were 
+    -- terminated during the previous year
     SELECT
         employee_id,
         employee_ssn,
-        employee_birth_date,
-        employee_hire_date,
+        hire_date AS employee_hire_date,
         employee_gross_compensation,
         current_age,
         current_tenure,
-        level_id
-    FROM {{ ref('int_workforce_previous_year_v2') }}
-    WHERE employment_status = 'active'
+        job_level AS level_id
+    FROM {{ ref('int_workforce_active_for_events') }}
+    WHERE simulation_year = {{ simulation_year }}
 ),
 
 workforce_with_bands AS (
@@ -50,7 +51,7 @@ eligible_for_promotion AS (
         -- Generate random number for probability comparison
         (ABS(HASH(w.employee_id)) % 1000) / 1000.0 AS random_value
     FROM workforce_with_bands w
-    JOIN {{ ref('dim_hazard_table') }} h
+    JOIN {{ ref('int_hazard_promotion') }} h
         ON w.level_id = h.level_id
         AND w.age_band = h.age_band
         AND w.tenure_band = h.tenure_band

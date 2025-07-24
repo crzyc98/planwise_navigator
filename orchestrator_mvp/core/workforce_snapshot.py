@@ -69,10 +69,10 @@ def generate_workforce_snapshot(
 
 def get_starting_workforce(db_path: str, simulation_year: int = 2025) -> int:
     """
-    Get the starting workforce count for multi-year simulation support.
+    Get the starting workforce count for multi-year simulation support with circular dependency validation.
 
     For year 1 (baseline): uses int_baseline_workforce
-    For subsequent years: uses previous year's workforce snapshot
+    For subsequent years: validates helper model readiness and uses previous year's workforce snapshot
 
     Args:
         db_path: Path to the DuckDB database
@@ -80,6 +80,9 @@ def get_starting_workforce(db_path: str, simulation_year: int = 2025) -> int:
 
     Returns:
         Number of active employees to start with
+
+    Raises:
+        ValueError: If helper model data is missing for subsequent years
     """
     conn = get_connection()
 
@@ -101,18 +104,25 @@ def get_starting_workforce(db_path: str, simulation_year: int = 2025) -> int:
                     "SELECT COUNT(*) as count FROM int_baseline_workforce WHERE employment_status = 'active'"
                 ).fetchone()
         else:
-            # For subsequent years, use previous year's active workforce
+            # For subsequent years, validate helper model readiness first
             previous_year = simulation_year - 1
-            result = conn.execute(
+
+            # Check if the new helper model can access required data
+            helper_check = conn.execute(
                 "SELECT COUNT(*) as count FROM fct_workforce_snapshot WHERE simulation_year = ? AND employment_status = 'active'",
                 [previous_year]
             ).fetchone()
 
-            # Fallback to baseline if previous year snapshot doesn't exist
-            if not result or result[0] == 0:
-                result = conn.execute(
-                    "SELECT COUNT(*) as count FROM int_baseline_workforce WHERE employment_status = 'active'"
-                ).fetchone()
+            if not helper_check or helper_check[0] == 0:
+                raise ValueError(
+                    f"Circular dependency helper model validation failed: "
+                    f"No active employees found in year {previous_year} workforce snapshot. "
+                    f"Cannot proceed with year {simulation_year}. "
+                    f"Please ensure year {previous_year} completed successfully before running year {simulation_year}."
+                )
+
+            print(f"   ✅ Helper model validation: {helper_check[0]:,} employees available from year {previous_year}")
+            result = helper_check
 
         return result[0] if result else 0
     finally:
@@ -132,11 +142,11 @@ def apply_events_to_workforce(simulation_year: int) -> Dict[str, any]:
     # Import here to avoid circular dependency
     from ..loaders.staging_loader import run_dbt_model_with_vars
 
-    # For years after 2025, we need to run int_workforce_previous_year_v2 first, but with better transaction handling
+    # For years after 2025, build the circular dependency helper model first
     if simulation_year > 2025:
-        print(f"   Preparing previous year workforce data for year {simulation_year}...")
+        print(f"   Preparing previous year workforce data for year {simulation_year} using helper model...")
 
-        # First, verify the source data exists
+        # First, validate the helper model can be built
         try:
             from ..core.database_manager import get_connection
             conn = get_connection()
@@ -148,53 +158,30 @@ def apply_events_to_workforce(simulation_year: int) -> Dict[str, any]:
                 if not verify_source_result or verify_source_result[0] == 0:
                     return {
                         "success": False,
-                        "error": f"No source data found in fct_workforce_snapshot for year {previous_year}"
+                        "error": f"Circular dependency issue: No source data found in fct_workforce_snapshot for year {previous_year}. "
+                               f"Multi-year simulations must be run sequentially. Please complete year {previous_year} first."
                     }
-                print(f"   ✅ Found {verify_source_result[0]:,} active employees from year {previous_year}")
+                print(f"   ✅ Helper model validation: Found {verify_source_result[0]:,} active employees from year {previous_year}")
             finally:
                 conn.close()
         except Exception as e:
             return {
                 "success": False,
-                "error": f"Could not verify source data: {str(e)}"
+                "error": f"Could not validate helper model readiness: {str(e)}"
             }
 
-        # Run int_workforce_previous_year_v2 with variables
-        previous_year_vars = {"simulation_year": simulation_year}
-        previous_year_result = run_dbt_model_with_vars("int_workforce_previous_year_v2", previous_year_vars, full_refresh=True)
+        # Run the circular dependency helper model instead of int_workforce_previous_year_v2
+        helper_vars = {"simulation_year": simulation_year}
+        helper_result = run_dbt_model_with_vars("int_active_employees_prev_year_snapshot", helper_vars, full_refresh=True)
 
-        if not previous_year_result.get("success", False):
+        if not helper_result.get("success", False):
             return {
                 "success": False,
-                "error": f"Failed to run int_workforce_previous_year_v2: {previous_year_result.get('error', 'Unknown error')}"
+                "error": f"Failed to build circular dependency helper model: {helper_result.get('error', 'Unknown error')}. "
+                       f"This model is required to break the circular dependency in multi-year simulations."
             }
 
-        # Verify that int_workforce_previous_year_v2 was created correctly
-        try:
-            conn = get_connection()
-            try:
-                # Debug: Check what simulation years are in the table
-                years_query = "SELECT DISTINCT simulation_year FROM int_workforce_previous_year_v2 ORDER BY simulation_year"
-                years_result = conn.execute(years_query).fetchall()
-                print(f"   🔍 DEBUG: Simulation years in int_workforce_previous_year_v2: {[y[0] for y in years_result] if years_result else 'None'}")
-
-                verify_previous_query = "SELECT COUNT(*) FROM int_workforce_previous_year_v2 WHERE simulation_year = ? AND employment_status = 'active'"
-                verify_previous_result = conn.execute(verify_previous_query, [simulation_year]).fetchone()
-                print(f"   🔍 DEBUG: Looking for simulation_year = {simulation_year}, found {verify_previous_result[0] if verify_previous_result else 0} records")
-
-                if not verify_previous_result or verify_previous_result[0] == 0:
-                    return {
-                        "success": False,
-                        "error": f"int_workforce_previous_year_v2 produced no data for year {simulation_year}. Found years: {[y[0] for y in years_result]}"
-                    }
-                print(f"   ✅ Created {verify_previous_result[0]:,} records in int_workforce_previous_year_v2 for year {simulation_year}")
-            finally:
-                conn.close()
-        except Exception as e:
-            return {
-                "success": False,
-                "error": f"Could not verify int_workforce_previous_year_v2: {str(e)}"
-            }
+        print(f"   ✅ Circular dependency helper model built successfully for year {simulation_year}")
 
     # Run the model with simulation year variable
     print(f"   🔄 Running fct_workforce_snapshot for year {simulation_year}...")
@@ -202,7 +189,7 @@ def apply_events_to_workforce(simulation_year: int) -> Dict[str, any]:
     result = run_dbt_model_with_vars("fct_workforce_snapshot", vars_dict)
     print(f"   🔍 DEBUG: fct_workforce_snapshot result: {result.get('success', False)} - {result.get('error', 'No error')}")
 
-    # Verify that the data was actually written
+    # Verify that the data was actually written and helper model validation
     if result.get("success", False):
         try:
             from ..core.database_manager import get_connection
@@ -213,6 +200,16 @@ def apply_events_to_workforce(simulation_year: int) -> Dict[str, any]:
 
                 if verify_result and verify_result[0] > 0:
                     print(f"   ✅ Verified: {verify_result[0]:,} records written for year {simulation_year}")
+
+                    # For subsequent years, also verify helper model was created successfully
+                    if simulation_year > 2025:
+                        helper_verify_query = "SELECT COUNT(*) FROM int_active_employees_prev_year_snapshot WHERE simulation_year = ?"
+                        helper_verify_result = conn.execute(helper_verify_query, [simulation_year]).fetchone()
+
+                        if helper_verify_result and helper_verify_result[0] > 0:
+                            print(f"   ✅ Helper model verified: {helper_verify_result[0]:,} records for circular dependency resolution")
+                        else:
+                            print(f"   ⚠️ Helper model validation warning: No data found in int_active_employees_prev_year_snapshot")
                 else:
                     print(f"   ❌ Verification failed: No data found for year {simulation_year}")
                     return {

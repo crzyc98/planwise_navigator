@@ -40,7 +40,15 @@
       "Bash(git branch:*)",
       "Bash(git commit:*)",
       "Bash(dbt build:*)",
-      "Bash(rm:*)"
+      "Bash(rm:*)",
+      "Bash(grep:*)",
+      "Bash(python3 -c \"print(''Python syntax check - no compilation needed for SQL'')\")",
+      "Bash(python3 -c \"\ntry:\n    from orchestrator_mvp.core.multi_year_orchestrator import MultiYearSimulationOrchestrator\n    print(''✅ Multi-year orchestrator imports successfully'')\nexcept ImportError as e:\n    print(f''❌ Import error in orchestrator: {e}'')\n\ntry:\n    from orchestrator_mvp.core.workforce_snapshot import generate_workforce_snapshot\n    print(''✅ Workforce snapshot imports successfully'')\nexcept ImportError as e:\n    print(f''❌ Import error in workforce snapshot: {e}'')\n\ntry:\n    import pytest\n    print(''✅ pytest available for tests'')\nexcept ImportError as e:\n    print(f''❌ pytest not available: {e}'')\n\")",
+      "Bash(dbt deps:*)",
+      "Bash(mv:*)",
+      "Bash(awk:*)",
+      "Bash(sed:*)",
+      "Bash(dbt seed:*)"
     ],
     "deny": []
   }
