@@ -110,7 +110,26 @@ def run_multi_year_simulation(
                 logging.info(f"📈 Growth calculation: +{calc_result['total_hires_needed']:,} hires, "
                             f"-{calc_result['experienced_terminations']:,} terminations")
 
-                # Generate events for this year
+                # STEP 1: Build compensation table BEFORE event generation
+                logging.info(f"📋 Step 1: Building employee compensation table for year {current_year}")
+                from ..loaders.staging_loader import run_dbt_model_with_vars
+
+                # First, ensure required dependencies exist for subsequent years
+                if current_year > start_year:
+                    logging.info(f"   Building helper model for year {current_year}")
+                    helper_vars = {'simulation_year': current_year}
+                    run_dbt_model_with_vars("int_active_employees_prev_year_snapshot", helper_vars)
+                    logging.info(f"   ✅ Helper model built for year {current_year}")
+
+                # Now build the compensation table
+                compensation_vars = {
+                    'simulation_year': current_year,
+                    'start_year': start_year
+                }
+                run_dbt_model_with_vars("int_employee_compensation_by_year", compensation_vars)
+                logging.info(f"✅ Step 1 Complete: Compensation table built for year {current_year}")
+
+                # STEP 2: Generate events (using the compensation table)
                 random_seed = config.get('random_seed', 42) + (current_year - start_year)
                 logging.info(f"🎲 Generating events for year {current_year} with seed {random_seed}")
 
@@ -124,9 +143,10 @@ def run_multi_year_simulation(
                 tolerance = config.get('validation', {}).get('tolerance_percent', 0.05)
                 validate_event_generation(current_year, calc_result, tolerance)
 
-                # Generate workforce snapshot
-                logging.info(f"📸 Generating workforce snapshot for year {current_year}")
+                # STEP 3: Generate workforce snapshot (references compensation table + events)
+                logging.info(f"📸 Step 3: Generating workforce snapshot for year {current_year}")
                 generate_workforce_snapshot(simulation_year=current_year)
+                logging.info(f"✅ Step 3 Complete: Year-end snapshot created for year {current_year}")
 
                 # Reconcile year-end workforce
                 reconcile_year_end_workforce(current_year, workforce_count, calc_result, tolerance)

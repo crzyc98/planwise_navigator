@@ -10,6 +10,19 @@ from pathlib import Path
 
 from ..core.config import DBT_PROJECT_DIR
 
+# Try to find dbt executable
+def _get_dbt_executable():
+    """Find the dbt executable, checking virtual environment first."""
+    # Check if we're in a virtual environment
+    project_root = Path(DBT_PROJECT_DIR).parent
+    venv_dbt = project_root / "venv" / "bin" / "dbt"
+
+    if venv_dbt.exists():
+        return str(venv_dbt)
+
+    # Fallback to system dbt
+    return "dbt"
+
 
 def run_dbt_model(model_name: str) -> None:
     """Run a specific dbt model using subprocess.
@@ -29,7 +42,7 @@ def run_dbt_model(model_name: str) -> None:
         os.chdir(DBT_PROJECT_DIR)
 
         # Construct dbt command
-        cmd = ["dbt", "run", "--select", model_name]
+        cmd = [_get_dbt_executable(), "run", "--select", model_name]
 
         print(f"\nExecuting command: {' '.join(cmd)}")
         print(f"Working directory: {DBT_PROJECT_DIR}")
@@ -101,7 +114,7 @@ def run_dbt_seed(seed_name: str) -> None:
         os.chdir(DBT_PROJECT_DIR)
 
         # Construct dbt command
-        cmd = ["dbt", "seed", "--select", seed_name]
+        cmd = [_get_dbt_executable(), "seed", "--select", seed_name]
 
         print(f"\nExecuting command: {' '.join(cmd)}")
         print(f"Working directory: {DBT_PROJECT_DIR}")
@@ -150,7 +163,7 @@ def run_dbt_command(command_args: list) -> None:
         os.chdir(DBT_PROJECT_DIR)
 
         # Construct full command
-        cmd = ["dbt"] + command_args
+        cmd = [_get_dbt_executable()] + command_args
 
         print(f"\nExecuting command: {' '.join(cmd)}")
         print(f"Working directory: {DBT_PROJECT_DIR}")
@@ -208,7 +221,7 @@ def run_dbt_model_with_vars(model_name: str, vars_dict: dict, full_refresh: bool
         os.chdir(DBT_PROJECT_DIR)
 
         # Construct dbt command with variables
-        cmd = ["dbt", "run", "--select", model_name]
+        cmd = [_get_dbt_executable(), "run", "--select", model_name]
 
         # Add full-refresh flag if requested
         if full_refresh:

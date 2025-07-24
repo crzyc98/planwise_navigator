@@ -8,19 +8,19 @@
 -- Applies merit raise percentages from dim_hazard_table to eligible employees
 
 WITH active_workforce AS (
-    -- Use int_workforce_active_for_events which provides dependency-free active employee data
-    -- This prevents merit events from being generated for employees who were 
-    -- terminated during the previous year
+    -- MERIT EVENTS COMPOUNDING FIX: Use dedicated compensation table for consistent data
+    -- This table pre-calculates the correct compensation for each year, eliminating timing issues
     SELECT
         employee_id,
         employee_ssn,
-        hire_date AS employee_hire_date,
-        employee_gross_compensation,
+        employee_hire_date,
+        employee_compensation AS employee_gross_compensation,
         current_age,
         current_tenure,
-        job_level AS level_id
-    FROM {{ ref('int_workforce_active_for_events') }}
+        level_id
+    FROM {{ ref('int_employee_compensation_by_year') }}
     WHERE simulation_year = {{ simulation_year }}
+    AND employment_status = 'active'
 ),
 
 workforce_with_bands AS (

@@ -67,6 +67,54 @@ compounding_summary AS (
     GROUP BY current_year
 ),
 
+-- MERIT EVENTS COMPOUNDING FIX: Add specific merit event validation
+merit_event_validation AS (
+    -- Verify merit events are using correct previous year compensation as baseline
+    SELECT
+        me.employee_id,
+        me.simulation_year,
+        me.previous_salary AS merit_baseline_used,
+        me.new_salary AS merit_new_salary,
+        awfe.employee_gross_compensation AS expected_baseline,
+        ws_prev.full_year_equivalent_compensation AS actual_prev_year_final,
+        -- Check if merit used correct baseline
+        CASE
+            WHEN ABS(me.previous_salary - awfe.employee_gross_compensation) < 0.01 THEN 'CORRECT_BASELINE'
+            WHEN ABS(me.previous_salary - ws_prev.current_compensation) < 0.01 THEN 'USING_STARTING_COMPENSATION'
+            ELSE 'UNKNOWN_BASELINE'
+        END AS baseline_status,
+        -- Calculate merit percentage applied
+        ROUND((me.new_salary / me.previous_salary - 1) * 100, 2) AS merit_percentage_applied,
+        -- Validate the merit calculation chain
+        me.previous_salary - expected_baseline AS baseline_discrepancy
+    FROM {{ ref('fct_yearly_events') }} me
+    INNER JOIN {{ ref('int_workforce_active_for_events') }} awfe
+        ON me.employee_id = awfe.employee_id
+        AND me.simulation_year = awfe.simulation_year
+    LEFT JOIN {{ ref('fct_workforce_snapshot') }} ws_prev
+        ON me.employee_id = ws_prev.employee_id
+        AND ws_prev.simulation_year = me.simulation_year - 1
+        AND ws_prev.employment_status = 'active'
+    WHERE me.event_category = 'RAISE'
+        AND me.simulation_year > 2025  -- Only check subsequent years
+),
+
+merit_event_summary AS (
+    -- Summary of merit event baseline usage
+    SELECT
+        simulation_year,
+        COUNT(*) AS total_merit_events,
+        SUM(CASE WHEN baseline_status = 'CORRECT_BASELINE' THEN 1 ELSE 0 END) AS correct_baseline_count,
+        SUM(CASE WHEN baseline_status = 'USING_STARTING_COMPENSATION' THEN 1 ELSE 0 END) AS wrong_baseline_count,
+        SUM(CASE WHEN baseline_status = 'UNKNOWN_BASELINE' THEN 1 ELSE 0 END) AS unknown_baseline_count,
+        ROUND(100.0 * SUM(CASE WHEN baseline_status = 'CORRECT_BASELINE' THEN 1 ELSE 0 END) / COUNT(*), 2) AS correct_baseline_pct,
+        AVG(ABS(baseline_discrepancy)) AS avg_baseline_discrepancy,
+        -- Check if merit counts vary appropriately between years (compounding should cause variation)
+        COUNT(*) - LAG(COUNT(*)) OVER (ORDER BY simulation_year) AS merit_count_change_from_prev_year
+    FROM merit_event_validation
+    GROUP BY simulation_year
+),
+
 specific_examples AS (
     -- Track specific employee examples for validation
     SELECT
@@ -164,5 +212,25 @@ SELECT
     e.compounding_status,
     e.salary_discrepancy
 FROM specific_examples e
+
+UNION ALL
+
+-- MERIT EVENTS COMPOUNDING FIX: Add merit event validation results to output
+SELECT
+    'MERIT_EVENTS' AS validation_type,
+    mes.simulation_year AS current_year,
+    mes.total_merit_events AS total_employees_tracked,
+    mes.correct_baseline_count AS correct_compounding_count,
+    mes.correct_baseline_pct AS correct_compounding_pct,
+    mes.wrong_baseline_count AS no_compounding_count,
+    mes.unknown_baseline_count AS mismatch_count,
+    mes.avg_baseline_discrepancy AS avg_discrepancy_amount,
+    NULL AS total_lost_compensation,
+    NULL AS employee_id,
+    NULL AS previous_year_ending_salary,
+    NULL AS current_year_starting_salary,
+    CAST(mes.merit_count_change_from_prev_year AS TEXT) AS compounding_status,
+    NULL AS salary_discrepancy
+FROM merit_event_summary mes
 
 ORDER BY validation_type, current_year, ABS(COALESCE(salary_discrepancy, avg_discrepancy_amount, 0)) DESC

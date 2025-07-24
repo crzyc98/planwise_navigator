@@ -146,7 +146,7 @@ workforce_after_merit AS (
     FROM workforce_after_promotions w
     LEFT JOIN current_year_events r
         ON w.employee_id = r.employee_id
-        AND r.event_type = 'RAISE'
+        AND r.event_type = 'raise'
 ),
 
 -- Add new hires from hiring events (use fct_yearly_events for persistence across years)
@@ -283,7 +283,7 @@ comp_events_for_periods AS (
             ORDER BY effective_date, event_type
         ) AS event_sequence_in_year
     FROM current_year_events
-    WHERE event_type IN ('hire', 'promotion', 'RAISE', 'termination')
+    WHERE event_type IN ('hire', 'promotion', 'raise', 'termination')
 ),
 
 -- **DIRECT FIX**: Simple approach - create explicit periods for merit increases
@@ -297,7 +297,7 @@ all_compensation_periods AS (
         effective_date - INTERVAL 1 DAY AS period_end,
         previous_compensation AS period_salary
     FROM comp_events_for_periods
-    WHERE event_type = 'RAISE'
+    WHERE event_type = 'raise'
       AND previous_compensation IS NOT NULL
       AND previous_compensation > 0
 
@@ -312,7 +312,7 @@ all_compensation_periods AS (
         '{{ simulation_year }}-12-31'::DATE AS period_end,
         compensation_amount AS period_salary
     FROM comp_events_for_periods
-    WHERE event_type = 'RAISE'
+    WHERE event_type = 'raise'
       AND compensation_amount > 0
 
     UNION ALL
@@ -514,7 +514,7 @@ final_workforce AS (
             -- After merit period: new salary × days after merit
             compensation_amount * (DATE_DIFF('day', effective_date, '{{ simulation_year }}-12-31'::DATE) + 1) / 365.0 AS after_contrib
         FROM current_year_events
-        WHERE event_type = 'RAISE'
+        WHERE event_type = 'raise'
     ) merit_calc ON fwc.employee_id = merit_calc.employee_id
     -- **PROMO FIX**: Add promotion calculation for full_year_equivalent
     LEFT JOIN (

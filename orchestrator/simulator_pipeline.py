@@ -940,13 +940,27 @@ def run_year_simulation(context: OpExecutionContext) -> YearResult:
                 conn.close()
 
         # Step 2: Establish workforce base for event generation
-        context.log.info(f"Running int_workforce_previous_year for year {year}")
+        # MERIT EVENTS COMPOUNDING FIX: Ensure both prerequisite models are materialized
+        context.log.info(f"Running prerequisite models for event generation in year {year}")
+
+        # Run int_workforce_previous_year first (legacy support)
         execute_dbt_command(
             context,
             ["run", "--select", "int_workforce_previous_year"],
             {"simulation_year": year},
             full_refresh,
             f"int_workforce_previous_year for year {year}",
+        )
+
+        # CRITICAL FIX: Run int_workforce_active_for_events to ensure merit events have correct compensation
+        # This model provides the proper previous year's final compensation for merit calculations
+        context.log.info(f"Running int_workforce_active_for_events for year {year}")
+        execute_dbt_command(
+            context,
+            ["run", "--select", "int_workforce_active_for_events"],
+            {"simulation_year": year},
+            full_refresh,
+            f"int_workforce_active_for_events for year {year}",
         )
 
         # Step 3: Run event generation models using modular operation
@@ -1292,12 +1306,27 @@ def run_year_simulation_for_multi_year(
                 conn.close()
 
         # Step 2: Prepare previous year workforce with S013-04 snapshot integration
+        # MERIT EVENTS COMPOUNDING FIX: Ensure both prerequisite models are materialized
+        context.log.info(f"Running prerequisite models for event generation in year {year}")
+
+        # Run int_workforce_previous_year first (legacy support)
         execute_dbt_command(
             context,
             ["run", "--select", "int_workforce_previous_year"],
             {"simulation_year": year},
             full_refresh,
             f"int_workforce_previous_year for year {year}",
+        )
+
+        # CRITICAL FIX: Run int_workforce_active_for_events to ensure merit events have correct compensation
+        # This model provides the proper previous year's final compensation for merit calculations
+        context.log.info(f"Running int_workforce_active_for_events for year {year}")
+        execute_dbt_command(
+            context,
+            ["run", "--select", "int_workforce_active_for_events"],
+            {"simulation_year": year},
+            full_refresh,
+            f"int_workforce_active_for_events for year {year}",
         )
 
         # Step 3: Run event generation models using modular operation
