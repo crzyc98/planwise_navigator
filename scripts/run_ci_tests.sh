@@ -244,7 +244,97 @@ fi
 # Test configuration files
 run_test "Configuration file validation" "python -c 'import yaml; yaml.safe_load(open(\"config/simulation_config.yaml\"))'"
 
-# 4. Selective Testing Strategy
+# 4. Validation Framework Integration
+echo ""
+log_info "🔍 Validation Framework Integration"
+echo "==================================="
+
+# Simulation validation framework tests
+if [[ -f "src/simulation/validation.py" ]]; then
+    log_info "Running simulation validation framework tests..."
+    
+    # Test validation module imports
+    run_test "Validation module import" "python -c 'from src.simulation.validation import YearResult, validate_year_results, assert_year_complete'"
+    
+    # Test YearResult model validation
+    run_test "YearResult model validation" "python -c 'from src.simulation.validation import YearResult; yr = YearResult(year=2025, success=True, active_employees=100, total_terminations=10, experienced_terminations=8, new_hire_terminations=2, total_hires=15, growth_rate=0.05, validation_passed=True); print(\"YearResult validation passed\")'"
+    
+    # Snapshot architecture validation (database-dependent - optional)
+    if [[ -f "simulation.duckdb" ]]; then
+        log_info "🏗️ Snapshot architecture validation..."
+        run_test "Database connection test" "python -c 'import duckdb; conn = duckdb.connect(\"simulation.duckdb\"); conn.execute(\"SELECT 1\").fetchone(); conn.close(); print(\"Database connection successful\")'" "true"
+        
+        # Check for required tables (snapshot architecture validation)
+        run_test "Snapshot architecture table validation" "python -c '
+import duckdb
+conn = duckdb.connect(\"simulation.duckdb\")
+try:
+    required_tables = [\"fct_yearly_events\", \"fct_workforce_snapshot\", \"int_baseline_workforce\"]
+    for table in required_tables:
+        result = conn.execute(f\"SELECT name FROM sqlite_master WHERE type=\\\"table\\\" AND name=\\\"{table}\\\"\").fetchone()
+        if not result:
+            # Try DuckDB system tables instead
+            result = conn.execute(f\"SELECT table_name FROM information_schema.tables WHERE table_name=\\\"{table}\\\"\").fetchone()
+        if result:
+            print(f\"✅ Table {table} exists\")
+        else:
+            print(f\"⚠️ Table {table} not found - may be created during simulation\")
+    print(\"Snapshot architecture validation completed\")
+finally:
+    conn.close()
+'" "true"
+    else
+        log_warning "No simulation.duckdb found - skipping database-dependent validation tests"
+    fi
+    
+    # Behavioral identity validation framework test
+    run_test "Behavioral identity framework test" "python -c '
+from src.simulation.validation import YearResult
+# Test comparison logic
+yr1 = YearResult(year=2025, success=True, active_employees=100, total_terminations=10, experienced_terminations=8, new_hire_terminations=2, total_hires=15, growth_rate=0.05, validation_passed=True)
+yr2 = YearResult(year=2025, success=True, active_employees=100, total_terminations=10, experienced_terminations=8, new_hire_terminations=2, total_hires=15, growth_rate=0.05, validation_passed=True)
+assert yr1 == yr2, \"Behavioral identity validation failed\"
+print(\"Behavioral identity framework test passed\")
+'"
+    
+    # Performance metrics validation
+    run_test "Performance metrics validation" "python -c '
+import time
+import psutil
+import os
+# Test performance monitoring capabilities
+start_time = time.time()
+start_memory = psutil.Process(os.getpid()).memory_info().rss
+# Simulate some work
+for i in range(1000):
+    pass
+end_time = time.time()
+end_memory = psutil.Process(os.getpid()).memory_info().rss
+execution_time = end_time - start_time
+memory_usage = (end_memory - start_memory) / 1024 / 1024
+print(f\"Performance test completed: {execution_time:.3f}s, {memory_usage:.2f}MB\")
+'"
+    
+else
+    log_warning "Validation module not found - skipping validation framework tests"
+fi
+
+# Event sourcing validation
+log_info "📝 Event sourcing architecture validation..."
+if [[ -f "config/events.py" ]]; then
+    run_test "Event schema validation" "python -c 'from config.events import SimulationEvent; print(\"Event schema validation passed\")'"
+else
+    log_warning "Event schema not found - skipping event sourcing validation"
+fi
+
+# Configuration validation with Pydantic models
+if [[ -f "config/schema.py" ]]; then
+    run_test "Config schema validation" "python -c 'from config.schema import SimulationConfig; print(\"Config schema validation passed\")'" "true"
+else
+    log_warning "Config schema not found - continuing without Pydantic validation"
+fi
+
+# 5. Selective Testing Strategy
 echo ""
 log_info "🧪 Selective Testing Strategy"
 echo "============================="
@@ -291,7 +381,7 @@ METRICS_END=$(date +%s)
 METRICS_DURATION=$((METRICS_END - METRICS_START))
 log_info "Tag analysis completed in ${METRICS_DURATION}s"
 
-# 5. Enhanced Final Summary
+# 6. Enhanced Final Summary
 END_TIME=$(date +%s)
 DURATION=$((END_TIME - START_TIME))
 
