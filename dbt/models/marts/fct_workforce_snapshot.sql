@@ -198,7 +198,7 @@ unioned_workforce_raw AS (
     FROM new_hires
 ),
 
--- **FIX 3**: Deduplicate by prioritizing existing employees over new hires
+-- **OPTIMIZED FIX**: Deduplicate with correct priority for new hires to preserve hire dates
 unioned_workforce AS (
     SELECT
         employee_id,
@@ -218,7 +218,15 @@ unioned_workforce AS (
             ROW_NUMBER() OVER (
                 PARTITION BY employee_id
                 ORDER BY
-                    CASE WHEN record_source = 'existing' THEN 1 ELSE 2 END,
+                    -- OPTIMIZATION: Prioritize new_hire records for employees hired this year
+                    -- This ensures correct hire dates are preserved for status classification
+                    CASE
+                        WHEN record_source = 'new_hire' AND
+                             EXTRACT(YEAR FROM employee_hire_date) = {{ simulation_year }}
+                        THEN 1
+                        WHEN record_source = 'existing' THEN 2
+                        ELSE 3
+                    END,
                     employee_gross_compensation DESC,
                     termination_date ASC NULLS LAST
             ) AS rn
@@ -286,83 +294,93 @@ comp_events_for_periods AS (
     WHERE event_type IN ('hire', 'promotion', 'raise', 'termination')
 ),
 
--- **DIRECT FIX**: Simple approach - create explicit periods for merit increases
+-- **FIXED**: Termination-aware compensation periods to prevent overlapping periods
+-- This fix resolves the $471 calculation error for terminated employees with mid-year raises
 all_compensation_periods AS (
+    -- Get termination dates for each employee to use in period calculations
+    WITH employee_termination_dates AS (
+        SELECT
+            employee_id,
+            effective_date AS termination_date
+        FROM comp_events_for_periods
+        WHERE event_type = 'termination'
+    ),
+
     -- For RAISE events: create BEFORE period (start of year to raise date - 1)
-    SELECT
-        employee_id,
-        1 AS period_sequence,
-        'raise_before' AS period_type,
-        '{{ simulation_year }}-01-01'::DATE AS period_start,
-        effective_date - INTERVAL 1 DAY AS period_end,
-        previous_compensation AS period_salary
-    FROM comp_events_for_periods
-    WHERE event_type = 'raise'
-      AND previous_compensation IS NOT NULL
-      AND previous_compensation > 0
+    raise_before_periods AS (
+        SELECT
+            r.employee_id,
+            1 AS period_sequence,
+            'raise_before' AS period_type,
+            '{{ simulation_year }}-01-01'::DATE AS period_start,
+            r.effective_date - INTERVAL 1 DAY AS period_end,
+            r.previous_compensation AS period_salary
+        FROM comp_events_for_periods r
+        WHERE r.event_type = 'raise'
+          AND r.previous_compensation IS NOT NULL
+          AND r.previous_compensation > 0
+    ),
 
+    -- For RAISE events: create AFTER period (raise date to termination or year-end)
+    raise_after_periods AS (
+        SELECT
+            r.employee_id,
+            2 AS period_sequence,
+            'raise_after' AS period_type,
+            r.effective_date AS period_start,
+            -- **KEY FIX**: Use termination date if exists, otherwise year-end
+            COALESCE(t.termination_date, '{{ simulation_year }}-12-31'::DATE) AS period_end,
+            r.compensation_amount AS period_salary
+        FROM comp_events_for_periods r
+        LEFT JOIN employee_termination_dates t ON r.employee_id = t.employee_id
+        WHERE r.event_type = 'raise'
+          AND r.compensation_amount > 0
+    ),
+
+    -- For hire events: period from hire date to next event, termination, or year-end
+    hire_periods AS (
+        SELECT
+            h.employee_id,
+            1 AS period_sequence,
+            'hire' AS period_type,
+            h.effective_date AS period_start,
+            COALESCE(
+                LEAD(h.effective_date - INTERVAL 1 DAY) OVER (PARTITION BY h.employee_id ORDER BY h.effective_date),
+                t.termination_date,
+                '{{ simulation_year }}-12-31'::DATE
+            ) AS period_end,
+            h.compensation_amount AS period_salary
+        FROM comp_events_for_periods h
+        LEFT JOIN employee_termination_dates t ON h.employee_id = t.employee_id
+        WHERE h.event_type = 'hire'
+    ),
+
+    -- For promotion events: period from promotion date to termination or year-end
+    promotion_periods AS (
+        SELECT
+            p.employee_id,
+            1 AS period_sequence,
+            'promotion' AS period_type,
+            p.effective_date AS period_start,
+            COALESCE(
+                LEAD(p.effective_date - INTERVAL 1 DAY) OVER (PARTITION BY p.employee_id ORDER BY p.effective_date),
+                t.termination_date,
+                '{{ simulation_year }}-12-31'::DATE
+            ) AS period_end,
+            p.compensation_amount AS period_salary
+        FROM comp_events_for_periods p
+        LEFT JOIN employee_termination_dates t ON p.employee_id = t.employee_id
+        WHERE p.event_type = 'promotion'
+    )
+
+    -- Combine all period types (removed overlapping termination periods)
+    SELECT * FROM raise_before_periods
     UNION ALL
-
-    -- For RAISE events: create AFTER period (raise date to end of year)
-    SELECT
-        employee_id,
-        2 AS period_sequence,
-        'raise_after' AS period_type,
-        effective_date AS period_start,
-        '{{ simulation_year }}-12-31'::DATE AS period_end,
-        compensation_amount AS period_salary
-    FROM comp_events_for_periods
-    WHERE event_type = 'raise'
-      AND compensation_amount > 0
-
+    SELECT * FROM raise_after_periods
     UNION ALL
-
-    -- For hire events: period from hire date to end of year (or next event)
-    SELECT
-        employee_id,
-        1 AS period_sequence,
-        'hire' AS period_type,
-        effective_date AS period_start,
-        COALESCE(
-            LEAD(effective_date - INTERVAL 1 DAY) OVER (PARTITION BY employee_id ORDER BY effective_date),
-            '{{ simulation_year }}-12-31'::DATE
-        ) AS period_end,
-        compensation_amount AS period_salary
-    FROM comp_events_for_periods
-    WHERE event_type = 'hire'
-
+    SELECT * FROM hire_periods
     UNION ALL
-
-    -- For promotion events: period from promotion date to end of year (or next event)
-    SELECT
-        employee_id,
-        1 AS period_sequence,
-        'promotion' AS period_type,
-        effective_date AS period_start,
-        COALESCE(
-            LEAD(effective_date - INTERVAL 1 DAY) OVER (PARTITION BY employee_id ORDER BY effective_date),
-            '{{ simulation_year }}-12-31'::DATE
-        ) AS period_end,
-        compensation_amount AS period_salary
-    FROM comp_events_for_periods
-    WHERE event_type = 'promotion'
-
-    UNION ALL
-
-    -- For termination events: period from start of year (or last event) to termination
-    SELECT
-        employee_id,
-        1 AS period_sequence,
-        'termination' AS period_type,
-        COALESCE(
-            LAG(effective_date + INTERVAL 1 DAY) OVER (PARTITION BY employee_id ORDER BY effective_date),
-            '{{ simulation_year }}-01-01'::DATE
-        ) AS period_start,
-        effective_date AS period_end,
-        COALESCE(previous_compensation, compensation_amount) AS period_salary
-    FROM comp_events_for_periods
-    WHERE event_type = 'termination'
-      AND previous_compensation IS NOT NULL
+    SELECT * FROM promotion_periods
 ),
 
 -- Validate and clean periods
