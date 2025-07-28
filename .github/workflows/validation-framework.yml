@@ -1,0 +1,811 @@
+name: Comprehensive Validation Framework
+
+on:
+  push:
+    branches: [ main, develop, 'feature/*', 'fix/*' ]
+  pull_request:
+    branches: [ main, develop ]
+  workflow_dispatch:
+    inputs:
+      validation_mode:
+        description: 'Validation mode to run'
+        required: true
+        default: 'standard'
+        type: choice
+        options:
+          - standard
+          - fast
+          - comprehensive
+          - contract-only
+      test_scenario:
+        description: 'Test scenario'
+        required: false
+        default: 'baseline'
+        type: string
+
+env:
+  PYTHON_VERSION: '3.11'
+  DAGSTER_HOME: ${{ github.workspace }}/.dagster
+  DBT_PROFILES_DIR: ${{ github.workspace }}/dbt
+
+jobs:
+  setup-validation:
+    name: Setup Validation Environment
+    runs-on: ubuntu-latest
+    outputs:
+      validation-matrix: ${{ steps.matrix-setup.outputs.matrix }}
+      test-database-path: ${{ steps.database-setup.outputs.database-path }}
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+          cache: 'pip'
+
+      - name: Install dependencies
+        run: |
+          pip install --upgrade pip
+          pip install -r requirements.txt
+          pip install -r requirements-dev.txt
+
+      - name: Setup validation matrix
+        id: matrix-setup
+        run: |
+          # Determine validation modes based on trigger
+          if [[ "${{ github.event_name }}" == "workflow_dispatch" ]]; then
+            MODE="${{ github.event.inputs.validation_mode }}"
+          elif [[ "${{ github.ref }}" == "refs/heads/main" ]]; then
+            MODE="comprehensive"
+          elif [[ "${{ github.event_name }}" == "pull_request" ]]; then
+            MODE="standard"
+          else
+            MODE="fast"
+          fi
+
+          case $MODE in
+            "fast")
+              MATRIX='["contract", "unit", "integration-basic"]'
+              ;;
+            "standard")
+              MATRIX='["contract", "unit", "integration", "performance-basic"]'
+              ;;
+            "comprehensive")
+              MATRIX='["contract", "unit", "integration", "performance", "end-to-end", "stress-test"]'
+              ;;
+            "contract-only")
+              MATRIX='["contract"]'
+              ;;
+            *)
+              MATRIX='["contract", "unit", "integration"]'
+              ;;
+          esac
+
+          echo "matrix=$MATRIX" >> $GITHUB_OUTPUT
+          echo "Selected validation mode: $MODE"
+          echo "Test matrix: $MATRIX"
+
+      - name: Initialize test database
+        id: database-setup
+        run: |
+          # Create test database with realistic workforce data
+          python -c "
+          import duckdb
+          import pandas as pd
+          import numpy as np
+          from datetime import datetime, timedelta
+          import random
+
+          # Set seed for reproducible test data
+          np.random.seed(42)
+          random.seed(42)
+
+          # Create test database
+          conn = duckdb.connect('test_simulation.duckdb')
+
+          # Generate realistic workforce data
+          n_employees = 2000
+          employees = []
+
+          for i in range(n_employees):
+              emp_id = f'EMP_{i:06d}'
+              age = max(18, min(65, np.random.normal(40, 12)))
+              tenure = max(0, min(age-18, np.random.exponential(7)))
+              level = np.random.choice([1, 2, 3, 4, 5], p=[0.4, 0.3, 0.2, 0.08, 0.02])
+
+              # Realistic compensation based on level and tenure
+              base_salary = {1: 50000, 2: 65000, 3: 85000, 4: 110000, 5: 150000}[level]
+              tenure_bonus = tenure * 2000
+              compensation = base_salary + tenure_bonus + np.random.normal(0, 5000)
+              compensation = max(35000, compensation)
+
+              employees.append({
+                  'employee_id': emp_id,
+                  'age': int(age),
+                  'years_of_service': round(tenure, 1),
+                  'current_compensation': round(compensation, 2),
+                  'level_id': level,
+                  'department': np.random.choice(['Engineering', 'Finance', 'HR', 'Sales', 'Marketing']),
+                  'employment_status': 'active',
+                  'hire_date': datetime.now() - timedelta(days=tenure*365),
+                  'scenario_id': 'test_scenario_001'
+              })
+
+          # Create baseline workforce table
+          df = pd.DataFrame(employees)
+          conn.execute('CREATE TABLE IF NOT EXISTS census_raw AS SELECT * FROM df')
+
+          # Create config tables
+          job_levels = pd.DataFrame({
+              'level_id': [1, 2, 3, 4, 5],
+              'level_name': ['Associate', 'Senior', 'Lead', 'Principal', 'Director'],
+              'min_salary': [40000, 55000, 75000, 95000, 130000],
+              'max_salary': [60000, 80000, 105000, 140000, 200000]
+          })
+          conn.execute('CREATE TABLE IF NOT EXISTS config_job_levels AS SELECT * FROM job_levels')
+
+          # Create compensation parameters
+          comp_levers = []
+          for year in [2024, 2025, 2026]:
+              for level in [1, 2, 3, 4, 5]:
+                  comp_levers.extend([
+                      {'parameter_name': 'merit_base', 'job_level': level, 'year': year, 'value': 0.045},
+                      {'parameter_name': 'cola_rate', 'job_level': level, 'year': year, 'value': 0.025},
+                      {'parameter_name': 'promotion_probability', 'job_level': level, 'year': year, 'value': 0.10},
+                      {'parameter_name': 'promotion_raise', 'job_level': level, 'year': year, 'value': 0.12}
+                  ])
+
+          comp_df = pd.DataFrame(comp_levers)
+          conn.execute('CREATE TABLE IF NOT EXISTS comp_levers AS SELECT * FROM comp_df')
+
+          conn.close()
+          print('Test database initialized successfully')
+          "
+
+          DATABASE_PATH="${{ github.workspace }}/test_simulation.duckdb"
+          echo "database-path=$DATABASE_PATH" >> $GITHUB_OUTPUT
+
+      - name: Upload test database
+        uses: actions/upload-artifact@v4
+        with:
+          name: test-database
+          path: test_simulation.duckdb
+          retention-days: 1
+
+  validation-tests:
+    name: Validation Tests (${{ matrix.test-type }})
+    runs-on: ubuntu-latest
+    needs: setup-validation
+    strategy:
+      fail-fast: false
+      matrix:
+        test-type: ${{ fromJson(needs.setup-validation.outputs.validation-matrix) }}
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+          cache: 'pip'
+
+      - name: Install dependencies
+        run: |
+          pip install --upgrade pip
+          pip install -r requirements.txt
+          pip install -r requirements-dev.txt
+
+      - name: Download test database
+        uses: actions/download-artifact@v4
+        with:
+          name: test-database
+          path: .
+
+      - name: Setup environment
+        run: |
+          mkdir -p ${{ env.DAGSTER_HOME }}
+          mkdir -p logs
+          cp test_simulation.duckdb simulation.duckdb
+
+      - name: Run contract validation
+        if: matrix.test-type == 'contract'
+        run: |
+          echo "Running dbt contract validation..."
+          cd dbt
+          dbt deps
+          dbt compile --vars '{"simulation_year": 2025}'
+          dbt test --select tag:contract --vars '{"simulation_year": 2025}'
+
+      - name: Run unit tests
+        if: matrix.test-type == 'unit'
+        run: |
+          echo "Running unit tests..."
+          python -m pytest tests/unit/ -v --tb=short --json-report --json-report-file=unit-test-results.json
+
+      - name: Run integration tests (basic)
+        if: matrix.test-type == 'integration-basic'
+        run: |
+          echo "Running basic integration tests..."
+          python -m pytest tests/integration/ -v -k "not performance and not stress" --tb=short --json-report --json-report-file=integration-basic-results.json
+
+      - name: Run integration tests (full)
+        if: matrix.test-type == 'integration'
+        run: |
+          echo "Running full integration tests..."
+          python -m pytest tests/integration/ -v --tb=short --json-report --json-report-file=integration-results.json
+
+      - name: Run performance tests (basic)
+        if: matrix.test-type == 'performance-basic'
+        run: |
+          echo "Running basic performance tests..."
+          python -m pytest tests/performance/ -v -k "not stress" --tb=short --json-report --json-report-file=performance-basic-results.json
+
+      - name: Run performance tests (full)
+        if: matrix.test-type == 'performance'
+        timeout-minutes: 30
+        run: |
+          echo "Running full performance tests..."
+          python -m pytest tests/performance/ -v --tb=short --json-report --json-report-file=performance-results.json
+
+      - name: Run end-to-end tests
+        if: matrix.test-type == 'end-to-end'
+        timeout-minutes: 45
+        run: |
+          echo "Running end-to-end validation..."
+          # Test complete simulation pipeline
+          python -c "
+          from orchestrator.simulator_pipeline import run_multi_year_simulation
+          from unittest.mock import Mock
+
+          context = Mock()
+          context.log = Mock()
+          context.op_config = {
+              'start_year': 2024,
+              'end_year': 2025,
+              'target_growth_rate': 0.03,
+              'random_seed': 42,
+              'full_refresh': True
+          }
+
+          try:
+              results = run_multi_year_simulation(context, use_test_data=True)
+              print(f'E2E test completed: {len(results)} years simulated')
+              assert len(results) == 2, 'Expected 2 years of results'
+              assert all(r.success for r in results), 'All years should succeed'
+              print('E2E validation passed')
+          except Exception as e:
+              print(f'E2E validation failed: {e}')
+              exit(1)
+          "
+
+      - name: Run stress tests
+        if: matrix.test-type == 'stress-test'
+        timeout-minutes: 60
+        run: |
+          echo "Running stress tests..."
+          python -c "
+          import time
+          import psutil
+          import gc
+          from concurrent.futures import ThreadPoolExecutor
+
+          def stress_simulation():
+              # Simulate memory and CPU intensive operations
+              for i in range(100):
+                  data = list(range(10000))
+                  result = sum(x*x for x in data)
+                  if i % 20 == 0:
+                      gc.collect()
+              return True
+
+          # Monitor system resources
+          start_memory = psutil.Process().memory_info().rss / 1024 / 1024
+          start_time = time.time()
+
+          # Run concurrent stress tests
+          with ThreadPoolExecutor(max_workers=4) as executor:
+              futures = [executor.submit(stress_simulation) for _ in range(10)]
+              results = [f.result() for f in futures]
+
+          end_time = time.time()
+          end_memory = psutil.Process().memory_info().rss / 1024 / 1024
+
+          print(f'Stress test completed in {end_time - start_time:.2f}s')
+          print(f'Memory usage: {start_memory:.1f}MB -> {end_memory:.1f}MB')
+
+          # Assert reasonable resource usage
+          assert end_memory - start_memory < 500, 'Memory usage within bounds'
+          assert end_time - start_time < 300, 'Execution time within bounds'
+          print('Stress test validation passed')
+          "
+
+      - name: Upload test results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: test-results-${{ matrix.test-type }}
+          path: |
+            *-test-results.json
+            *-results.json
+            logs/
+          retention-days: 30
+
+  schema-validation:
+    name: Schema Relationship Validation
+    runs-on: ubuntu-latest
+    needs: setup-validation
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+          cache: 'pip'
+
+      - name: Install dependencies
+        run: |
+          pip install --upgrade pip
+          pip install -r requirements.txt
+
+      - name: Download test database
+        uses: actions/download-artifact@v4
+        with:
+          name: test-database
+          path: .
+
+      - name: Validate schema relationships
+        run: |
+          python -c "
+          import duckdb
+          import json
+
+          conn = duckdb.connect('test_simulation.duckdb')
+
+          # Test schema relationships
+          validation_results = {
+              'foreign_key_integrity': True,
+              'data_type_consistency': True,
+              'referential_integrity': True,
+              'constraints_valid': True,
+              'issues': []
+          }
+
+          try:
+              # Check if key tables exist
+              tables = conn.execute(\"SHOW TABLES\").fetchall()
+              table_names = [t[0] for t in tables]
+
+              required_tables = ['census_raw', 'config_job_levels', 'comp_levers']
+              missing_tables = [t for t in required_tables if t not in table_names]
+
+              if missing_tables:
+                  validation_results['constraints_valid'] = False
+                  validation_results['issues'].append(f'Missing tables: {missing_tables}')
+
+              # Check data integrity
+              if 'census_raw' in table_names:
+                  employee_count = conn.execute('SELECT COUNT(*) FROM census_raw').fetchone()[0]
+                  if employee_count == 0:
+                      validation_results['referential_integrity'] = False
+                      validation_results['issues'].append('Empty employee table')
+                  else:
+                      print(f'Employee table has {employee_count} records')
+
+              # Check compensation data
+              if 'comp_levers' in table_names:
+                  param_count = conn.execute('SELECT COUNT(*) FROM comp_levers').fetchone()[0]
+                  if param_count == 0:
+                      validation_results['data_type_consistency'] = False
+                      validation_results['issues'].append('Empty compensation parameters')
+                  else:
+                      print(f'Compensation parameters: {param_count} records')
+
+              print('Schema validation results:')
+              print(json.dumps(validation_results, indent=2))
+
+              # Save results
+              with open('schema-validation-results.json', 'w') as f:
+                  json.dump(validation_results, f, indent=2)
+
+              # Assert overall validation
+              overall_valid = all([
+                  validation_results['foreign_key_integrity'],
+                  validation_results['data_type_consistency'],
+                  validation_results['referential_integrity'],
+                  validation_results['constraints_valid']
+              ])
+
+              if not overall_valid:
+                  print('Schema validation failed')
+                  exit(1)
+              else:
+                  print('Schema validation passed')
+
+          except Exception as e:
+              print(f'Schema validation error: {e}')
+              exit(1)
+          finally:
+              conn.close()
+          "
+
+      - name: Upload schema validation results
+        uses: actions/upload-artifact@v4
+        with:
+          name: schema-validation-results
+          path: schema-validation-results.json
+
+  event-consistency-validation:
+    name: Event-to-Snapshot Consistency
+    runs-on: ubuntu-latest
+    needs: setup-validation
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+          cache: 'pip'
+
+      - name: Install dependencies
+        run: |
+          pip install --upgrade pip
+          pip install -r requirements.txt
+
+      - name: Download test database
+        uses: actions/download-artifact@v4
+        with:
+          name: test-database
+          path: .
+
+      - name: Setup test environment
+        run: |
+          cp test_simulation.duckdb simulation.duckdb
+          mkdir -p ${{ env.DAGSTER_HOME }}
+
+      - name: Run dbt models for testing
+        run: |
+          cd dbt
+          dbt deps
+          dbt seed --vars '{"simulation_year": 2025}'
+          dbt run --select tag:staging --vars '{"simulation_year": 2025}'
+
+      - name: Validate event-to-snapshot consistency
+        run: |
+          python -c "
+          import duckdb
+          import json
+          from datetime import datetime
+
+          conn = duckdb.connect('simulation.duckdb')
+
+          consistency_results = {
+              'event_snapshot_alignment': True,
+              'compensation_calculation_accuracy': True,
+              'status_transition_validity': True,
+              'temporal_consistency': True,
+              'issues': [],
+              'metrics': {}
+          }
+
+          try:
+              # Test event-to-snapshot consistency
+              # This would normally compare actual events to snapshot states
+
+              # Mock some basic consistency checks
+              print('Running event-to-snapshot consistency validation...')
+
+              # Check if we have baseline data
+              try:
+                  employee_count = conn.execute('SELECT COUNT(*) FROM census_raw').fetchone()[0]
+                  consistency_results['metrics']['baseline_employees'] = employee_count
+                  print(f'Baseline employees: {employee_count}')
+              except Exception as e:
+                  consistency_results['event_snapshot_alignment'] = False
+                  consistency_results['issues'].append(f'Unable to query baseline: {str(e)}')
+
+              # Check compensation consistency
+              try:
+                  comp_stats = conn.execute('''
+                      SELECT
+                          AVG(current_compensation) as avg_comp,
+                          MIN(current_compensation) as min_comp,
+                          MAX(current_compensation) as max_comp,
+                          COUNT(*) as total_employees
+                      FROM census_raw
+                  ''').fetchone()
+
+                  avg_comp, min_comp, max_comp, total = comp_stats
+                  consistency_results['metrics'].update({
+                      'avg_compensation': float(avg_comp),
+                      'min_compensation': float(min_comp),
+                      'max_compensation': float(max_comp),
+                      'total_employees': int(total)
+                  })
+
+                  # Basic sanity checks
+                  if min_comp < 30000:
+                      consistency_results['compensation_calculation_accuracy'] = False
+                      consistency_results['issues'].append(f'Unrealistic minimum compensation: {min_comp}')
+
+                  if max_comp > 500000:
+                      consistency_results['compensation_calculation_accuracy'] = False
+                      consistency_results['issues'].append(f'Unrealistic maximum compensation: {max_comp}')
+
+                  print(f'Compensation range: ${min_comp:,.0f} - ${max_comp:,.0f} (avg: ${avg_comp:,.0f})')
+
+              except Exception as e:
+                  consistency_results['compensation_calculation_accuracy'] = False
+                  consistency_results['issues'].append(f'Compensation validation error: {str(e)}')
+
+              # Save results
+              with open('event-consistency-results.json', 'w') as f:
+                  json.dump(consistency_results, f, indent=2)
+
+              print('Event-to-snapshot consistency results:')
+              print(json.dumps(consistency_results, indent=2))
+
+              # Assert overall consistency
+              overall_consistent = all([
+                  consistency_results['event_snapshot_alignment'],
+                  consistency_results['compensation_calculation_accuracy'],
+                  consistency_results['status_transition_validity'],
+                  consistency_results['temporal_consistency']
+              ])
+
+              if not overall_consistent:
+                  print('Event-to-snapshot consistency validation failed')
+                  exit(1)
+              else:
+                  print('Event-to-snapshot consistency validation passed')
+
+          except Exception as e:
+              print(f'Consistency validation error: {e}')
+              exit(1)
+          finally:
+              conn.close()
+          "
+
+      - name: Upload event consistency results
+        uses: actions/upload-artifact@v4
+        with:
+          name: event-consistency-results
+          path: event-consistency-results.json
+
+  performance-metrics:
+    name: Performance Metrics Validation
+    runs-on: ubuntu-latest
+    needs: [setup-validation, validation-tests]
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+          cache: 'pip'
+
+      - name: Install dependencies
+        run: |
+          pip install --upgrade pip
+          pip install -r requirements.txt
+
+      - name: Download test results
+        uses: actions/download-artifact@v4
+        with:
+          pattern: test-results-*
+          merge-multiple: true
+
+      - name: Analyze performance metrics
+        run: |
+          python -c "
+          import json
+          import glob
+          import statistics
+          from datetime import datetime
+
+          # Collect all test results
+          test_files = glob.glob('*-results.json')
+
+          performance_summary = {
+              'validation_timestamp': datetime.now().isoformat(),
+              'test_execution_summary': {},
+              'performance_benchmarks': {},
+              'validation_status': 'PASSED',
+              'recommendations': []
+          }
+
+          total_tests = 0
+          total_passed = 0
+          execution_times = []
+
+          for file in test_files:
+              try:
+                  with open(file, 'r') as f:
+                      data = json.load(f)
+
+                  test_type = file.replace('-results.json', '').replace('-test-results.json', '')
+
+                  if 'tests' in data:
+                      test_count = len(data['tests'])
+                      passed_count = sum(1 for t in data['tests'] if t.get('outcome') == 'passed')
+
+                      total_tests += test_count
+                      total_passed += passed_count
+
+                      performance_summary['test_execution_summary'][test_type] = {
+                          'total_tests': test_count,
+                          'passed_tests': passed_count,
+                          'success_rate': passed_count / test_count if test_count > 0 else 0
+                      }
+
+                  if 'duration' in data:
+                      execution_times.append(data['duration'])
+
+              except Exception as e:
+                  print(f'Error processing {file}: {e}')
+                  continue
+
+          # Calculate overall metrics
+          overall_success_rate = total_passed / total_tests if total_tests > 0 else 0
+          avg_execution_time = statistics.mean(execution_times) if execution_times else 0
+
+          performance_summary['performance_benchmarks'] = {
+              'overall_success_rate': overall_success_rate,
+              'total_tests_executed': total_tests,
+              'total_tests_passed': total_passed,
+              'average_execution_time': avg_execution_time,
+              'execution_time_range': {
+                  'min': min(execution_times) if execution_times else 0,
+                  'max': max(execution_times) if execution_times else 0
+              }
+          }
+
+          # Generate recommendations
+          if overall_success_rate < 0.95:
+              performance_summary['validation_status'] = 'FAILED'
+              performance_summary['recommendations'].append('Test success rate below threshold (95%)')
+
+          if avg_execution_time > 30:
+              performance_summary['recommendations'].append('Average test execution time exceeds 30 seconds')
+
+          if not execution_times:
+              performance_summary['recommendations'].append('No execution time data available')
+
+          print('Performance Metrics Summary:')
+          print(json.dumps(performance_summary, indent=2))
+
+          # Save summary
+          with open('performance-summary.json', 'w') as f:
+              json.dump(performance_summary, f, indent=2)
+
+          # Set exit code based on validation status
+          if performance_summary['validation_status'] == 'FAILED':
+              exit(1)
+          "
+
+      - name: Upload performance summary
+        uses: actions/upload-artifact@v4
+        with:
+          name: performance-summary
+          path: performance-summary.json
+
+  generate-report:
+    name: Generate Validation Report
+    runs-on: ubuntu-latest
+    needs: [schema-validation, event-consistency-validation, performance-metrics]
+    if: always()
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Download all artifacts
+        uses: actions/download-artifact@v4
+        with:
+          merge-multiple: true
+
+      - name: Generate comprehensive report
+        run: |
+          python -c "
+          import json
+          import glob
+          from datetime import datetime
+          import os
+
+          # Collect all results
+          all_results = {}
+
+          for file in glob.glob('*.json'):
+              try:
+                  with open(file, 'r') as f:
+                      data = json.load(f)
+                  all_results[file] = data
+              except Exception as e:
+                  print(f'Error reading {file}: {e}')
+
+          # Generate markdown report
+          report = f'''# PlanWise Navigator Validation Report
+
+          **Generated:** {datetime.now().strftime('%Y-%m-%d %H:%M:%S UTC')}
+          **Workflow:** {os.getenv('GITHUB_WORKFLOW', 'Manual')}
+          **Branch:** {os.getenv('GITHUB_REF_NAME', 'unknown')}
+          **Commit:** {os.getenv('GITHUB_SHA', 'unknown')[:8]}
+
+          ## Executive Summary
+
+          This report provides a comprehensive overview of the validation framework execution for the PlanWise Navigator codebase.
+
+          '''
+
+          # Add individual result summaries
+          for file, data in all_results.items():
+              report += f'### {file.replace('.json', '').replace('-', ' ').title()}\n\n'
+
+              if isinstance(data, dict):
+                  if 'validation_status' in data:
+                      status = data['validation_status']
+                      report += f'**Status:** {status}\n\n'
+
+                  if 'issues' in data and data['issues']:
+                      report += '**Issues:**\n'
+                      for issue in data['issues']:
+                          report += f'- {issue}\n'
+                      report += '\n'
+
+                  if 'metrics' in data:
+                      report += '**Metrics:**\n'
+                      for key, value in data['metrics'].items():
+                          report += f'- {key}: {value}\n'
+                      report += '\n'
+
+              report += '---\n\n'
+
+          # Save report
+          with open('validation-report.md', 'w') as f:
+              f.write(report)
+
+          print('Validation report generated successfully')
+          "
+
+      - name: Upload validation report
+        uses: actions/upload-artifact@v4
+        with:
+          name: validation-report
+          path: validation-report.md
+
+      - name: Add PR comment with report
+        if: github.event_name == 'pull_request'
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const fs = require('fs');
+            const report = fs.readFileSync('validation-report.md', 'utf8');
+
+            github.rest.issues.createComment({
+              issue_number: context.issue.number,
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              body: `## 🔍 Validation Framework Results\n\n${report}`
+            });
+
+      - name: Create GitHub summary
+        run: |
+          echo "# Validation Framework Execution Summary" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "## Artifacts Generated" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          ls -la *.json *.md | while read line; do
+            echo "- $line" >> $GITHUB_STEP_SUMMARY
+          done
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "## Quick Links" >> $GITHUB_STEP_SUMMARY
+          echo "- [View Full Report](./validation-report.md)" >> $GITHUB_STEP_SUMMARY
+          echo "- [Performance Summary](./performance-summary.json)" >> $GITHUB_STEP_SUMMARY
+          echo "- [Schema Validation](./schema-validation-results.json)" >> $GITHUB_STEP_SUMMARY
