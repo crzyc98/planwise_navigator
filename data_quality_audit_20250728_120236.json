@@ -1,0 +1,961 @@
+{
+  "summary": {
+    "total_tables": 23,
+    "total_issues": 79,
+    "severity_breakdown": {
+      "WARNING": 37,
+      "CRITICAL": 8,
+      "ERROR": 34
+    },
+    "issue_type_breakdown": {
+      "CASTING_ISSUE": 32,
+      "NULL_VALUES": 10,
+      "NULL_CHECK": 30,
+      "CASTING_CHECK": 3,
+      "RANGE_CHECK": 1,
+      "EVENT_DESIGN_PATTERN": 3
+    },
+    "table_breakdown": {
+      "comp_levers": 1,
+      "config_cola_by_year": 1,
+      "config_job_levels": 5,
+      "config_promotion_hazard_age_multipliers": 1,
+      "config_promotion_hazard_base": 2,
+      "config_promotion_hazard_tenure_multipliers": 1,
+      "fct_payroll_ledger": 2,
+      "fct_workforce_snapshot": 4,
+      "fct_yearly_events": 3,
+      "int_baseline_workforce": 4,
+      "int_employee_compensation_by_year": 4,
+      "int_employee_event_stream": 5,
+      "int_employees_with_initial_state": 1,
+      "int_fallback_mechanisms": 10,
+      "int_snapshot_base": 1,
+      "int_system_state_detection": 9,
+      "int_workforce_previous_year": 4,
+      "stg_census_data": 1,
+      "stg_config_job_levels": 5,
+      "test_parameter_integration": 4,
+      "vw_performance_dashboard": 11
+    },
+    "audit_timestamp": "2025-07-28T12:02:36.644093"
+  },
+  "issues": [
+    {
+      "timestamp": "2025-07-28T12:02:36.547954",
+      "severity": "WARNING",
+      "table": "comp_levers",
+      "column": "parameter_value",
+      "issue_type": "CASTING_ISSUE",
+      "description": "Found 124 values that would fail DOUBLE to INT64 casting",
+      "count": 124,
+      "details": {
+        "total_non_null": 125
+      }
+    },
+    {
+      "timestamp": "2025-07-28T12:02:36.548932",
+      "severity": "WARNING",
+      "table": "config_cola_by_year",
+      "column": "cola_rate",
+      "issue_type": "CASTING_ISSUE",
+      "description": "Found 6 values that would fail DOUBLE to INT64 casting",
+      "count": 6,
+      "details": {
+        "total_non_null": 6
+      }
+    },
+    {
+      "timestamp": "2025-07-28T12:02:36.550805",
+      "severity": "WARNING",
+      "table": "config_job_levels",
+      "column": "avg_annual_merit_increase",
+      "issue_type": "CASTING_ISSUE",
+      "description": "Found 5 values that would fail DOUBLE to INT64 casting",
+      "count": 5,
+      "details": {
+        "total_non_null": 5
+      }
+    },
+    {
+      "timestamp": "2025-07-28T12:02:36.550983",
+      "severity": "WARNING",
+      "table": "config_job_levels",
+      "column": "comp_age_factor",
+      "issue_type": "CASTING_ISSUE",
+      "description": "Found 5 values that would fail DOUBLE to INT64 casting",
+      "count": 5,
+      "details": {
+        "total_non_null": 5
+      }
+    },
+    {
+      "timestamp": "2025-07-28T12:02:36.551162",
+      "severity": "WARNING",
+      "table": "config_job_levels",
+      "column": "comp_stochastic_std_dev",
+      "issue_type": "CASTING_ISSUE",
+      "description": "Found 5 values that would fail DOUBLE to INT64 casting",
+      "count": 5,
+      "details": {
+        "total_non_null": 5
+      }
+    },
+    {
+      "timestamp": "2025-07-28T12:02:36.551332",
+      "severity": "WARNING",
+      "table": "config_job_levels",
+      "column": "promotion_probability",
+      "issue_type": "CASTING_ISSUE",
+      "description": "Found 5 values that would fail DOUBLE to INT64 casting",
+      "count": 5,
+      "details": {
+        "total_non_null": 5
+      }
+    },
+    {
+      "timestamp": "2025-07-28T12:02:36.551509",
+      "severity": "WARNING",
+      "table": "config_job_levels",
+      "column": "target_bonus_percent",
+      "issue_type": "CASTING_ISSUE",
+      "description": "Found 5 values that would fail DOUBLE to INT64 casting",
+      "count": 5,
+      "details": {
+        "total_non_null": 5
+      }
+    },
+    {
+      "timestamp": "2025-07-28T12:02:36.553326",
+      "severity": "WARNING",
+      "table": "config_promotion_hazard_age_multipliers",
+      "column": "multiplier",
+      "issue_type": "CASTING_ISSUE",
+      "description": "Found 6 values that would fail DOUBLE to INT64 casting",
+      "count": 6,
+      "details": {
+        "total_non_null": 6
+      }
+    },
+    {
+      "timestamp": "2025-07-28T12:02:36.553843",
+      "severity": "WARNING",
+      "table": "config_promotion_hazard_base",
+      "column": "base_rate",
+      "issue_type": "CASTING_ISSUE",
+      "description": "Found 1 values that would fail DOUBLE to INT64 casting",
+      "count": 1,
+      "details": {
+        "total_non_null": 1
+      }
+    },
+    {
+      "timestamp": "2025-07-28T12:02:36.554040",
+      "severity": "WARNING",
+      "table": "config_promotion_hazard_base",
+      "column": "level_dampener_factor",
+      "issue_type": "CASTING_ISSUE",
+      "description": "Found 1 values that would fail DOUBLE to INT64 casting",
+      "count": 1,
+      "details": {
+        "total_non_null": 1
+      }
+    },
+    {
+      "timestamp": "2025-07-28T12:02:36.554795",
+      "severity": "WARNING",
+      "table": "config_promotion_hazard_tenure_multipliers",
+      "column": "multiplier",
+      "issue_type": "CASTING_ISSUE",
+      "description": "Found 5 values that would fail DOUBLE to INT64 casting",
+      "count": 5,
+      "details": {
+        "total_non_null": 5
+      }
+    },
+    {
+      "timestamp": "2025-07-28T12:02:36.558135",
+      "severity": "WARNING",
+      "table": "fct_payroll_ledger",
+      "column": "annual_salary_rate_on_pay_date",
+      "issue_type": "CASTING_ISSUE",
+      "description": "Found 113828 values that would fail DOUBLE to INT64 casting",
+      "count": 113828,
+      "details": {
+        "total_non_null": 113828
+      }
+    },
+    {
+      "timestamp": "2025-07-28T12:02:36.558923",
+      "severity": "WARNING",
+      "table": "fct_payroll_ledger",
+      "column": "period_earnings",
+      "issue_type": "CASTING_ISSUE",
+      "description": "Found 109450 values that would fail DOUBLE to INT64 casting",
+      "count": 109450,
+      "details": {
+        "total_non_null": 113828
+      }
+    },
+    {
+      "timestamp": "2025-07-28T12:02:36.560594",
+      "severity": "CRITICAL",
+      "table": "fct_workforce_snapshot",
+      "column": "current_tenure",
+      "issue_type": "NULL_VALUES",
+      "description": "Found 3895 NULL values (74.1%) in BIGINT column",
+      "count": 3895,
+      "details": {
+        "total_rows": 5255,
+        "null_percentage": 74.11988582302568,
+        "column_type": "BIGINT",
+        "nullable": "YES"
+      }
+    },
+    {
+      "timestamp": "2025-07-28T12:02:36.561064",
+      "severity": "WARNING",
+      "table": "fct_workforce_snapshot",
+      "column": "current_compensation",
+      "issue_type": "CASTING_ISSUE",
+      "description": "Found 4104 values that would fail DOUBLE to INT64 casting",
+      "count": 4104,
+      "details": {
+        "total_non_null": 5255
+      }
+    },
+    {
+      "timestamp": "2025-07-28T12:02:36.561273",
+      "severity": "WARNING",
+      "table": "fct_workforce_snapshot",
+      "column": "prorated_annual_compensation",
+      "issue_type": "CASTING_ISSUE",
+      "description": "Found 4104 values that would fail DOUBLE to INT64 casting",
+      "count": 4104,
+      "details": {
+        "total_non_null": 5255
+      }
+    },
+    {
+      "timestamp": "2025-07-28T12:02:36.561470",
+      "severity": "WARNING",
+      "table": "fct_workforce_snapshot",
+      "column": "full_year_equivalent_compensation",
+      "issue_type": "CASTING_ISSUE",
+      "description": "Found 4104 values that would fail DOUBLE to INT64 casting",
+      "count": 4104,
+      "details": {
+        "total_non_null": 5255
+      }
+    },
+    {
+      "timestamp": "2025-07-28T12:02:36.563107",
+      "severity": "WARNING",
+      "table": "fct_yearly_events",
+      "column": "previous_compensation",
+      "issue_type": "NULL_VALUES",
+      "description": "Found 1622 NULL values (28.8%) in DOUBLE column",
+      "count": 1622,
+      "details": {
+        "total_rows": 5628,
+        "null_percentage": 28.820184790334043,
+        "column_type": "DOUBLE",
+        "nullable": "YES"
+      }
+    },
+    {
+      "timestamp": "2025-07-28T12:02:36.564013",
+      "severity": "WARNING",
+      "table": "fct_yearly_events",
+      "column": "compensation_amount",
+      "issue_type": "CASTING_ISSUE",
+      "description": "Found 3939 values that would fail DOUBLE to INT64 casting",
+      "count": 3939,
+      "details": {
+        "total_non_null": 5628
+      }
+    },
+    {
+      "timestamp": "2025-07-28T12:02:36.564587",
+      "severity": "WARNING",
+      "table": "fct_yearly_events",
+      "column": "event_probability",
+      "issue_type": "CASTING_ISSUE",
+      "description": "Found 1182 values that would fail DOUBLE to INT64 casting",
+      "count": 1182,
+      "details": {
+        "total_non_null": 5628
+      }
+    },
+    {
+      "timestamp": "2025-07-28T12:02:36.568419",
+      "severity": "CRITICAL",
+      "table": "int_baseline_workforce",
+      "column": "termination_date",
+      "issue_type": "NULL_VALUES",
+      "description": "Found 4378 NULL values (100.0%) in INTEGER column",
+      "count": 4378,
+      "details": {
+        "total_rows": 4378,
+        "null_percentage": 100.0,
+        "column_type": "INTEGER",
+        "nullable": "YES"
+      }
+    },
+    {
+      "timestamp": "2025-07-28T12:02:36.568592",
+      "severity": "CRITICAL",
+      "table": "int_baseline_workforce",
+      "column": "termination_reason",
+      "issue_type": "NULL_VALUES",
+      "description": "Found 4378 NULL values (100.0%) in INTEGER column",
+      "count": 4378,
+      "details": {
+        "total_rows": 4378,
+        "null_percentage": 100.0,
+        "column_type": "INTEGER",
+        "nullable": "YES"
+      }
+    },
+    {
+      "timestamp": "2025-07-28T12:02:36.568866",
+      "severity": "CRITICAL",
+      "table": "int_baseline_workforce",
+      "column": "last_completed_year",
+      "issue_type": "NULL_VALUES",
+      "description": "Found 4378 NULL values (100.0%) in INTEGER column",
+      "count": 4378,
+      "details": {
+        "total_rows": 4378,
+        "null_percentage": 100.0,
+        "column_type": "INTEGER",
+        "nullable": "YES"
+      }
+    },
+    {
+      "timestamp": "2025-07-28T12:02:36.569082",
+      "severity": "WARNING",
+      "table": "int_baseline_workforce",
+      "column": "current_compensation",
+      "issue_type": "CASTING_ISSUE",
+      "description": "Found 736 values that would fail DOUBLE to INT64 casting",
+      "count": 736,
+      "details": {
+        "total_non_null": 4378
+      }
+    },
+    {
+      "timestamp": "2025-07-28T12:02:36.570804",
+      "severity": "CRITICAL",
+      "table": "int_employee_compensation_by_year",
+      "column": "current_tenure",
+      "issue_type": "NULL_VALUES",
+      "description": "Found 3152 NULL values (69.9%) in BIGINT column",
+      "count": 3152,
+      "details": {
+        "total_rows": 4512,
+        "null_percentage": 69.8581560283688,
+        "column_type": "BIGINT",
+        "nullable": "YES"
+      }
+    },
+    {
+      "timestamp": "2025-07-28T12:02:36.571868",
+      "severity": "WARNING",
+      "table": "int_employee_compensation_by_year",
+      "column": "employee_compensation",
+      "issue_type": "CASTING_ISSUE",
+      "description": "Found 3763 values that would fail DOUBLE to INT64 casting",
+      "count": 3763,
+      "details": {
+        "total_non_null": 4512
+      }
+    },
+    {
+      "timestamp": "2025-07-28T12:02:36.572143",
+      "severity": "WARNING",
+      "table": "int_employee_compensation_by_year",
+      "column": "starting_year_compensation",
+      "issue_type": "CASTING_ISSUE",
+      "description": "Found 3763 values that would fail DOUBLE to INT64 casting",
+      "count": 3763,
+      "details": {
+        "total_non_null": 4512
+      }
+    },
+    {
+      "timestamp": "2025-07-28T12:02:36.572424",
+      "severity": "WARNING",
+      "table": "int_employee_compensation_by_year",
+      "column": "ending_year_compensation",
+      "issue_type": "CASTING_ISSUE",
+      "description": "Found 3763 values that would fail DOUBLE to INT64 casting",
+      "count": 3763,
+      "details": {
+        "total_non_null": 4512
+      }
+    },
+    {
+      "timestamp": "2025-07-28T12:02:36.574178",
+      "severity": "WARNING",
+      "table": "int_employee_event_stream",
+      "column": "current_tenure",
+      "issue_type": "NULL_VALUES",
+      "description": "Found 4751 NULL values (43.7%) in BIGINT column",
+      "count": 4751,
+      "details": {
+        "total_rows": 10883,
+        "null_percentage": 43.65524212073877,
+        "column_type": "BIGINT",
+        "nullable": "YES"
+      }
+    },
+    {
+      "timestamp": "2025-07-28T12:02:36.575319",
+      "severity": "WARNING",
+      "table": "int_employee_event_stream",
+      "column": "compensation_amount",
+      "issue_type": "CASTING_ISSUE",
+      "description": "Found 4675 values that would fail DOUBLE to INT64 casting",
+      "count": 4675,
+      "details": {
+        "total_non_null": 10883
+      }
+    },
+    {
+      "timestamp": "2025-07-28T12:02:36.577680",
+      "severity": "WARNING",
+      "table": "int_employees_with_initial_state",
+      "column": "employee_gross_compensation",
+      "issue_type": "CASTING_ISSUE",
+      "description": "Found 736 values that would fail DOUBLE to INT64 casting",
+      "count": 736,
+      "details": {
+        "total_non_null": 5255
+      }
+    },
+    {
+      "timestamp": "2025-07-28T12:02:36.583525",
+      "severity": "ERROR",
+      "table": "int_fallback_mechanisms",
+      "column": "target_simulation_year",
+      "issue_type": "NULL_CHECK",
+      "description": "Failed to check NULL values: Catalog Error: Table with name int_simulation_metadata does not exist!\nDid you mean \"stg_census_data\"?",
+      "count": 0,
+      "details": {}
+    },
+    {
+      "timestamp": "2025-07-28T12:02:36.584753",
+      "severity": "ERROR",
+      "table": "int_fallback_mechanisms",
+      "column": "expected_workforce_count",
+      "issue_type": "NULL_CHECK",
+      "description": "Failed to check NULL values: Catalog Error: Table with name int_simulation_metadata does not exist!\nDid you mean \"stg_census_data\"?",
+      "count": 0,
+      "details": {}
+    },
+    {
+      "timestamp": "2025-07-28T12:02:36.585939",
+      "severity": "ERROR",
+      "table": "int_fallback_mechanisms",
+      "column": "max_workforce_year",
+      "issue_type": "NULL_CHECK",
+      "description": "Failed to check NULL values: Catalog Error: Table with name int_simulation_metadata does not exist!\nDid you mean \"stg_census_data\"?",
+      "count": 0,
+      "details": {}
+    },
+    {
+      "timestamp": "2025-07-28T12:02:36.587235",
+      "severity": "ERROR",
+      "table": "int_fallback_mechanisms",
+      "column": "max_event_year",
+      "issue_type": "NULL_CHECK",
+      "description": "Failed to check NULL values: Catalog Error: Table with name int_simulation_metadata does not exist!\nDid you mean \"stg_census_data\"?",
+      "count": 0,
+      "details": {}
+    },
+    {
+      "timestamp": "2025-07-28T12:02:36.588525",
+      "severity": "ERROR",
+      "table": "int_fallback_mechanisms",
+      "column": "current_event_count",
+      "issue_type": "NULL_CHECK",
+      "description": "Failed to check NULL values: Catalog Error: Table with name int_simulation_metadata does not exist!\nDid you mean \"stg_census_data\"?",
+      "count": 0,
+      "details": {}
+    },
+    {
+      "timestamp": "2025-07-28T12:02:36.589683",
+      "severity": "ERROR",
+      "table": "int_fallback_mechanisms",
+      "column": "current_workforce_count",
+      "issue_type": "NULL_CHECK",
+      "description": "Failed to check NULL values: Catalog Error: Table with name int_simulation_metadata does not exist!\nDid you mean \"stg_census_data\"?",
+      "count": 0,
+      "details": {}
+    },
+    {
+      "timestamp": "2025-07-28T12:02:36.590861",
+      "severity": "ERROR",
+      "table": "int_fallback_mechanisms",
+      "column": "census_count",
+      "issue_type": "NULL_CHECK",
+      "description": "Failed to check NULL values: Catalog Error: Table with name int_simulation_metadata does not exist!\nDid you mean \"stg_census_data\"?",
+      "count": 0,
+      "details": {}
+    },
+    {
+      "timestamp": "2025-07-28T12:02:36.592001",
+      "severity": "ERROR",
+      "table": "int_fallback_mechanisms",
+      "column": "snapshot_count",
+      "issue_type": "NULL_CHECK",
+      "description": "Failed to check NULL values: Catalog Error: Table with name int_simulation_metadata does not exist!\nDid you mean \"stg_census_data\"?",
+      "count": 0,
+      "details": {}
+    },
+    {
+      "timestamp": "2025-07-28T12:02:36.593133",
+      "severity": "ERROR",
+      "table": "int_fallback_mechanisms",
+      "column": "total_events",
+      "issue_type": "NULL_CHECK",
+      "description": "Failed to check NULL values: Catalog Error: Table with name int_simulation_metadata does not exist!\nDid you mean \"stg_census_data\"?",
+      "count": 0,
+      "details": {}
+    },
+    {
+      "timestamp": "2025-07-28T12:02:36.594299",
+      "severity": "ERROR",
+      "table": "int_fallback_mechanisms",
+      "column": "prev_workforce_count",
+      "issue_type": "NULL_CHECK",
+      "description": "Failed to check NULL values: Catalog Error: Table with name int_simulation_metadata does not exist!\nDid you mean \"stg_census_data\"?",
+      "count": 0,
+      "details": {}
+    },
+    {
+      "timestamp": "2025-07-28T12:02:36.595550",
+      "severity": "WARNING",
+      "table": "int_snapshot_base",
+      "column": "employee_gross_compensation",
+      "issue_type": "CASTING_ISSUE",
+      "description": "Found 736 values that would fail DOUBLE to INT64 casting",
+      "count": 736,
+      "details": {
+        "total_non_null": 4378
+      }
+    },
+    {
+      "timestamp": "2025-07-28T12:02:36.597662",
+      "severity": "ERROR",
+      "table": "int_system_state_detection",
+      "column": "target_simulation_year",
+      "issue_type": "NULL_CHECK",
+      "description": "Failed to check NULL values: Catalog Error: Table with name int_simulation_metadata does not exist!\nDid you mean \"stg_census_data\"?",
+      "count": 0,
+      "details": {}
+    },
+    {
+      "timestamp": "2025-07-28T12:02:36.598796",
+      "severity": "ERROR",
+      "table": "int_system_state_detection",
+      "column": "max_workforce_year",
+      "issue_type": "NULL_CHECK",
+      "description": "Failed to check NULL values: Catalog Error: Table with name int_simulation_metadata does not exist!\nDid you mean \"stg_census_data\"?",
+      "count": 0,
+      "details": {}
+    },
+    {
+      "timestamp": "2025-07-28T12:02:36.599894",
+      "severity": "ERROR",
+      "table": "int_system_state_detection",
+      "column": "max_event_year",
+      "issue_type": "NULL_CHECK",
+      "description": "Failed to check NULL values: Catalog Error: Table with name int_simulation_metadata does not exist!\nDid you mean \"stg_census_data\"?",
+      "count": 0,
+      "details": {}
+    },
+    {
+      "timestamp": "2025-07-28T12:02:36.600967",
+      "severity": "ERROR",
+      "table": "int_system_state_detection",
+      "column": "current_event_count",
+      "issue_type": "NULL_CHECK",
+      "description": "Failed to check NULL values: Catalog Error: Table with name int_simulation_metadata does not exist!\nDid you mean \"stg_census_data\"?",
+      "count": 0,
+      "details": {}
+    },
+    {
+      "timestamp": "2025-07-28T12:02:36.602041",
+      "severity": "ERROR",
+      "table": "int_system_state_detection",
+      "column": "current_workforce_count",
+      "issue_type": "NULL_CHECK",
+      "description": "Failed to check NULL values: Catalog Error: Table with name int_simulation_metadata does not exist!\nDid you mean \"stg_census_data\"?",
+      "count": 0,
+      "details": {}
+    },
+    {
+      "timestamp": "2025-07-28T12:02:36.603272",
+      "severity": "ERROR",
+      "table": "int_system_state_detection",
+      "column": "census_count",
+      "issue_type": "NULL_CHECK",
+      "description": "Failed to check NULL values: Catalog Error: Table with name int_simulation_metadata does not exist!\nDid you mean \"stg_census_data\"?",
+      "count": 0,
+      "details": {}
+    },
+    {
+      "timestamp": "2025-07-28T12:02:36.604495",
+      "severity": "ERROR",
+      "table": "int_system_state_detection",
+      "column": "snapshot_count",
+      "issue_type": "NULL_CHECK",
+      "description": "Failed to check NULL values: Catalog Error: Table with name int_simulation_metadata does not exist!\nDid you mean \"stg_census_data\"?",
+      "count": 0,
+      "details": {}
+    },
+    {
+      "timestamp": "2025-07-28T12:02:36.605579",
+      "severity": "ERROR",
+      "table": "int_system_state_detection",
+      "column": "total_events",
+      "issue_type": "NULL_CHECK",
+      "description": "Failed to check NULL values: Catalog Error: Table with name int_simulation_metadata does not exist!\nDid you mean \"stg_census_data\"?",
+      "count": 0,
+      "details": {}
+    },
+    {
+      "timestamp": "2025-07-28T12:02:36.606692",
+      "severity": "ERROR",
+      "table": "int_system_state_detection",
+      "column": "prev_workforce_count",
+      "issue_type": "NULL_CHECK",
+      "description": "Failed to check NULL values: Catalog Error: Table with name int_simulation_metadata does not exist!\nDid you mean \"stg_census_data\"?",
+      "count": 0,
+      "details": {}
+    },
+    {
+      "timestamp": "2025-07-28T12:02:36.607766",
+      "severity": "CRITICAL",
+      "table": "int_workforce_previous_year",
+      "column": "termination_date",
+      "issue_type": "NULL_VALUES",
+      "description": "Found 4378 NULL values (100.0%) in INTEGER column",
+      "count": 4378,
+      "details": {
+        "total_rows": 4378,
+        "null_percentage": 100.0,
+        "column_type": "INTEGER",
+        "nullable": "YES"
+      }
+    },
+    {
+      "timestamp": "2025-07-28T12:02:36.607889",
+      "severity": "CRITICAL",
+      "table": "int_workforce_previous_year",
+      "column": "termination_reason",
+      "issue_type": "NULL_VALUES",
+      "description": "Found 4378 NULL values (100.0%) in INTEGER column",
+      "count": 4378,
+      "details": {
+        "total_rows": 4378,
+        "null_percentage": 100.0,
+        "column_type": "INTEGER",
+        "nullable": "YES"
+      }
+    },
+    {
+      "timestamp": "2025-07-28T12:02:36.608139",
+      "severity": "CRITICAL",
+      "table": "int_workforce_previous_year",
+      "column": "last_completed_year",
+      "issue_type": "NULL_VALUES",
+      "description": "Found 4378 NULL values (100.0%) in INTEGER column",
+      "count": 4378,
+      "details": {
+        "total_rows": 4378,
+        "null_percentage": 100.0,
+        "column_type": "INTEGER",
+        "nullable": "YES"
+      }
+    },
+    {
+      "timestamp": "2025-07-28T12:02:36.608476",
+      "severity": "WARNING",
+      "table": "int_workforce_previous_year",
+      "column": "employee_gross_compensation",
+      "issue_type": "CASTING_ISSUE",
+      "description": "Found 736 values that would fail DOUBLE to INT64 casting",
+      "count": 736,
+      "details": {
+        "total_non_null": 4378
+      }
+    },
+    {
+      "timestamp": "2025-07-28T12:02:36.610705",
+      "severity": "WARNING",
+      "table": "stg_census_data",
+      "column": "employee_annualized_compensation",
+      "issue_type": "CASTING_ISSUE",
+      "description": "Found 1301 values that would fail DOUBLE to INT64 casting",
+      "count": 1301,
+      "details": {
+        "total_non_null": 5000
+      }
+    },
+    {
+      "timestamp": "2025-07-28T12:02:36.612308",
+      "severity": "WARNING",
+      "table": "stg_config_job_levels",
+      "column": "avg_annual_merit_increase",
+      "issue_type": "CASTING_ISSUE",
+      "description": "Found 5 values that would fail DOUBLE to INT64 casting",
+      "count": 5,
+      "details": {
+        "total_non_null": 5
+      }
+    },
+    {
+      "timestamp": "2025-07-28T12:02:36.612473",
+      "severity": "WARNING",
+      "table": "stg_config_job_levels",
+      "column": "promotion_probability",
+      "issue_type": "CASTING_ISSUE",
+      "description": "Found 5 values that would fail DOUBLE to INT64 casting",
+      "count": 5,
+      "details": {
+        "total_non_null": 5
+      }
+    },
+    {
+      "timestamp": "2025-07-28T12:02:36.612649",
+      "severity": "WARNING",
+      "table": "stg_config_job_levels",
+      "column": "target_bonus_percent",
+      "issue_type": "CASTING_ISSUE",
+      "description": "Found 5 values that would fail DOUBLE to INT64 casting",
+      "count": 5,
+      "details": {
+        "total_non_null": 5
+      }
+    },
+    {
+      "timestamp": "2025-07-28T12:02:36.612810",
+      "severity": "WARNING",
+      "table": "stg_config_job_levels",
+      "column": "comp_age_factor",
+      "issue_type": "CASTING_ISSUE",
+      "description": "Found 5 values that would fail DOUBLE to INT64 casting",
+      "count": 5,
+      "details": {
+        "total_non_null": 5
+      }
+    },
+    {
+      "timestamp": "2025-07-28T12:02:36.612994",
+      "severity": "WARNING",
+      "table": "stg_config_job_levels",
+      "column": "comp_stochastic_std_dev",
+      "issue_type": "CASTING_ISSUE",
+      "description": "Found 5 values that would fail DOUBLE to INT64 casting",
+      "count": 5,
+      "details": {
+        "total_non_null": 5
+      }
+    },
+    {
+      "timestamp": "2025-07-28T12:02:36.614648",
+      "severity": "ERROR",
+      "table": "test_parameter_integration",
+      "column": "fiscal_year",
+      "issue_type": "NULL_CHECK",
+      "description": "Failed to check NULL values: Catalog Error: Table with name int_effective_parameters does not exist!\nDid you mean \"main_main.not_null_int_effective_parameters_is_locked\"?",
+      "count": 0,
+      "details": {}
+    },
+    {
+      "timestamp": "2025-07-28T12:02:36.615866",
+      "severity": "ERROR",
+      "table": "test_parameter_integration",
+      "column": "job_level",
+      "issue_type": "NULL_CHECK",
+      "description": "Failed to check NULL values: Catalog Error: Table with name int_effective_parameters does not exist!\nDid you mean \"main_main.not_null_int_effective_parameters_is_locked\"?",
+      "count": 0,
+      "details": {}
+    },
+    {
+      "timestamp": "2025-07-28T12:02:36.617034",
+      "severity": "ERROR",
+      "table": "test_parameter_integration",
+      "column": "resolved_value",
+      "issue_type": "NULL_CHECK",
+      "description": "Failed to check NULL values: Catalog Error: Table with name int_effective_parameters does not exist!\nDid you mean \"main_main.not_null_int_effective_parameters_is_locked\"?",
+      "count": 0,
+      "details": {}
+    },
+    {
+      "timestamp": "2025-07-28T12:02:36.618223",
+      "severity": "ERROR",
+      "table": "test_parameter_integration",
+      "column": "resolved_value",
+      "issue_type": "CASTING_CHECK",
+      "description": "Failed to check casting issues: Catalog Error: Table with name int_effective_parameters does not exist!\nDid you mean \"main_main.not_null_int_effective_parameters_is_locked\"?",
+      "count": 0,
+      "details": {}
+    },
+    {
+      "timestamp": "2025-07-28T12:02:36.619186",
+      "severity": "ERROR",
+      "table": "vw_performance_dashboard",
+      "column": "simulation_year",
+      "issue_type": "NULL_CHECK",
+      "description": "Failed to check NULL values: Catalog Error: Table with name performance_metrics does not exist!\nDid you mean \"vw_performance_dashboard\"?",
+      "count": 0,
+      "details": {}
+    },
+    {
+      "timestamp": "2025-07-28T12:02:36.619998",
+      "severity": "ERROR",
+      "table": "vw_performance_dashboard",
+      "column": "execution_time_ms",
+      "issue_type": "NULL_CHECK",
+      "description": "Failed to check NULL values: Catalog Error: Table with name performance_metrics does not exist!\nDid you mean \"vw_performance_dashboard\"?",
+      "count": 0,
+      "details": {}
+    },
+    {
+      "timestamp": "2025-07-28T12:02:36.620836",
+      "severity": "ERROR",
+      "table": "vw_performance_dashboard",
+      "column": "row_count",
+      "issue_type": "NULL_CHECK",
+      "description": "Failed to check NULL values: Catalog Error: Table with name performance_metrics does not exist!\nDid you mean \"vw_performance_dashboard\"?",
+      "count": 0,
+      "details": {}
+    },
+    {
+      "timestamp": "2025-07-28T12:02:36.621625",
+      "severity": "ERROR",
+      "table": "vw_performance_dashboard",
+      "column": "ms_per_row",
+      "issue_type": "NULL_CHECK",
+      "description": "Failed to check NULL values: Catalog Error: Table with name performance_metrics does not exist!\nDid you mean \"vw_performance_dashboard\"?",
+      "count": 0,
+      "details": {}
+    },
+    {
+      "timestamp": "2025-07-28T12:02:36.622412",
+      "severity": "ERROR",
+      "table": "vw_performance_dashboard",
+      "column": "execution_time_change_pct",
+      "issue_type": "NULL_CHECK",
+      "description": "Failed to check NULL values: Catalog Error: Table with name performance_metrics does not exist!\nDid you mean \"vw_performance_dashboard\"?",
+      "count": 0,
+      "details": {}
+    },
+    {
+      "timestamp": "2025-07-28T12:02:36.623201",
+      "severity": "ERROR",
+      "table": "vw_performance_dashboard",
+      "column": "row_count_change_pct",
+      "issue_type": "NULL_CHECK",
+      "description": "Failed to check NULL values: Catalog Error: Table with name performance_metrics does not exist!\nDid you mean \"vw_performance_dashboard\"?",
+      "count": 0,
+      "details": {}
+    },
+    {
+      "timestamp": "2025-07-28T12:02:36.624065",
+      "severity": "ERROR",
+      "table": "vw_performance_dashboard",
+      "column": "avg_execution_time_3_runs",
+      "issue_type": "NULL_CHECK",
+      "description": "Failed to check NULL values: Catalog Error: Table with name performance_metrics does not exist!\nDid you mean \"vw_performance_dashboard\"?",
+      "count": 0,
+      "details": {}
+    },
+    {
+      "timestamp": "2025-07-28T12:02:36.624847",
+      "severity": "ERROR",
+      "table": "vw_performance_dashboard",
+      "column": "execution_time_volatility",
+      "issue_type": "NULL_CHECK",
+      "description": "Failed to check NULL values: Catalog Error: Table with name performance_metrics does not exist!\nDid you mean \"vw_performance_dashboard\"?",
+      "count": 0,
+      "details": {}
+    },
+    {
+      "timestamp": "2025-07-28T12:02:36.625632",
+      "severity": "ERROR",
+      "table": "vw_performance_dashboard",
+      "column": "avg_execution_time_3_runs",
+      "issue_type": "CASTING_CHECK",
+      "description": "Failed to check casting issues: Catalog Error: Table with name performance_metrics does not exist!\nDid you mean \"vw_performance_dashboard\"?",
+      "count": 0,
+      "details": {}
+    },
+    {
+      "timestamp": "2025-07-28T12:02:36.626417",
+      "severity": "ERROR",
+      "table": "vw_performance_dashboard",
+      "column": "execution_time_volatility",
+      "issue_type": "CASTING_CHECK",
+      "description": "Failed to check casting issues: Catalog Error: Table with name performance_metrics does not exist!\nDid you mean \"vw_performance_dashboard\"?",
+      "count": 0,
+      "details": {}
+    },
+    {
+      "timestamp": "2025-07-28T12:02:36.627207",
+      "severity": "ERROR",
+      "table": "vw_performance_dashboard",
+      "column": "simulation_year",
+      "issue_type": "RANGE_CHECK",
+      "description": "Failed to check data range: Catalog Error: Table with name performance_metrics does not exist!\nDid you mean \"vw_performance_dashboard\"?",
+      "count": 0,
+      "details": {}
+    },
+    {
+      "timestamp": "2025-07-28T12:02:36.636945",
+      "severity": "WARNING",
+      "table": "int_employee_event_stream",
+      "column": "current_tenure",
+      "issue_type": "EVENT_DESIGN_PATTERN",
+      "description": "Event type 'raise' has 3569 NULL tenure values by design",
+      "count": 3569,
+      "details": {
+        "event_type": "raise",
+        "null_percentage": 100.0,
+        "is_expected": true
+      }
+    },
+    {
+      "timestamp": "2025-07-28T12:02:36.636948",
+      "severity": "WARNING",
+      "table": "int_employee_event_stream",
+      "column": "current_tenure",
+      "issue_type": "EVENT_DESIGN_PATTERN",
+      "description": "Event type 'termination' has 745 NULL tenure values by design",
+      "count": 745,
+      "details": {
+        "event_type": "termination",
+        "null_percentage": 100.0,
+        "is_expected": true
+      }
+    },
+    {
+      "timestamp": "2025-07-28T12:02:36.636949",
+      "severity": "WARNING",
+      "table": "int_employee_event_stream",
+      "column": "current_tenure",
+      "issue_type": "EVENT_DESIGN_PATTERN",
+      "description": "Event type 'promotion' has 437 NULL tenure values by design",
+      "count": 437,
+      "details": {
+        "event_type": "promotion",
+        "null_percentage": 100.0,
+        "is_expected": true
+      }
+    }
+  ]
+}
