@@ -1,0 +1,886 @@
+name: Snapshot Architecture Validation
+
+on:
+  push:
+    branches: [ main, develop ]
+    paths:
+      - 'dbt/models/intermediate/int_snapshot_*.sql'
+      - 'dbt/models/marts/fct_workforce_snapshot.sql'
+      - 'tests/integration/test_snapshot_architecture_compatibility.py'
+  pull_request:
+    branches: [ main, develop ]
+    paths:
+      - 'dbt/models/intermediate/int_snapshot_*.sql'
+      - 'dbt/models/marts/fct_workforce_snapshot.sql'
+      - 'tests/integration/test_snapshot_architecture_compatibility.py'
+  workflow_dispatch:
+    inputs:
+      test_intensity:
+        description: 'Test intensity level'
+        required: true
+        default: 'standard'
+        type: choice
+        options:
+          - minimal
+          - standard
+          - comprehensive
+          - stress
+      data_volume:
+        description: 'Test data volume'
+        required: true
+        default: 'medium'
+        type: choice
+        options:
+          - small
+          - medium
+          - large
+          - enterprise
+
+env:
+  PYTHON_VERSION: '3.11'
+  DAGSTER_HOME: ${{ github.workspace }}/.dagster
+  DBT_PROFILES_DIR: ${{ github.workspace }}/dbt
+
+jobs:
+  initialize-test-data:
+    name: Initialize Realistic Test Data
+    runs-on: ubuntu-latest
+    outputs:
+      database-path: ${{ steps.database-setup.outputs.database-path }}
+      test-scenarios: ${{ steps.scenario-setup.outputs.scenarios }}
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+          cache: 'pip'
+
+      - name: Install dependencies
+        run: |
+          pip install --upgrade pip
+          pip install -r requirements.txt
+          pip install faker
+
+      - name: Generate realistic workforce data
+        id: database-setup
+        run: |
+          python -c "
+          import duckdb
+          import pandas as pd
+          import numpy as np
+          from datetime import datetime, timedelta
+          from faker import Faker
+          import random
+
+          fake = Faker()
+          Faker.seed(42)
+          np.random.seed(42)
+          random.seed(42)
+
+          # Determine data volume based on input
+          data_volume = '${{ github.event.inputs.data_volume || 'medium' }}'
+          volume_config = {
+              'small': {'employees': 500, 'years': 2},
+              'medium': {'employees': 2000, 'years': 3},
+              'large': {'employees': 10000, 'years': 5},
+              'enterprise': {'employees': 50000, 'years': 10}
+          }
+
+          config = volume_config[data_volume]
+          n_employees = config['employees']
+          n_years = config['years']
+
+          print(f'Generating {n_employees} employees across {n_years} years')
+
+          # Create database
+          conn = duckdb.connect('snapshot_test.duckdb')
+
+          # Generate realistic employee base
+          employees = []
+          departments = ['Engineering', 'Product', 'Finance', 'HR', 'Sales', 'Marketing', 'Operations']
+          locations = ['New York', 'San Francisco', 'Austin', 'Boston', 'Remote']
+
+          for i in range(n_employees):
+              # Generate realistic demographics
+              age = max(22, min(65, np.random.normal(38, 10)))
+              max_tenure = min(age - 22, 25)
+              tenure = max(0, min(max_tenure, np.random.exponential(6)))
+
+              # Level based on tenure and performance
+              if tenure < 2:
+                  level = np.random.choice([1, 2], p=[0.8, 0.2])
+              elif tenure < 5:
+                  level = np.random.choice([1, 2, 3], p=[0.3, 0.5, 0.2])
+              elif tenure < 10:
+                  level = np.random.choice([2, 3, 4], p=[0.2, 0.6, 0.2])
+              else:
+                  level = np.random.choice([3, 4, 5], p=[0.4, 0.4, 0.2])
+
+              # Department affects compensation
+              department = np.random.choice(departments)
+              dept_multiplier = {
+                  'Engineering': 1.3, 'Product': 1.2, 'Finance': 1.1,
+                  'Sales': 1.15, 'Marketing': 1.0, 'HR': 0.95, 'Operations': 0.9
+              }[department]
+
+              # Base compensation by level
+              base_salaries = {1: 65000, 2: 85000, 3: 110000, 4: 145000, 5: 200000}
+              base_salary = base_salaries[level] * dept_multiplier
+
+              # Tenure and performance adjustments
+              tenure_bonus = tenure * np.random.uniform(1500, 3000)
+              performance_factor = np.random.uniform(0.9, 1.2)
+
+              final_compensation = (base_salary + tenure_bonus) * performance_factor
+              final_compensation = max(45000, final_compensation)
+
+              hire_date = datetime.now() - timedelta(days=tenure * 365)
+
+              employees.append({
+                  'employee_id': f'EMP_{i:08d}',
+                  'first_name': fake.first_name(),
+                  'last_name': fake.last_name(),
+                  'age': int(age),
+                  'years_of_service': round(tenure, 2),
+                  'current_compensation': round(final_compensation, 2),
+                  'level_id': level,
+                  'department': department,
+                  'location': np.random.choice(locations),
+                  'employment_status': 'active',
+                  'hire_date': hire_date.strftime('%Y-%m-%d'),
+                  'performance_rating': np.random.choice([2, 3, 4, 5], p=[0.1, 0.6, 0.25, 0.05]),
+                  'scenario_id': 'snapshot_validation_001'
+              })
+
+          # Create base employee table
+          df_employees = pd.DataFrame(employees)
+          conn.execute('CREATE TABLE census_raw AS SELECT * FROM df_employees')
+
+          print(f'Created census_raw with {len(employees)} employees')
+
+          # Generate historical events for multiple years
+          base_year = 2023
+          all_events = []
+
+          for year_offset in range(n_years):
+              sim_year = base_year + year_offset
+              print(f'Generating events for year {sim_year}')
+
+              # Merit events (most employees get merit increases)
+              merit_eligible = df_employees[df_employees['employment_status'] == 'active']
+              n_merit = int(len(merit_eligible) * np.random.uniform(0.85, 0.95))
+
+              merit_employees = merit_eligible.sample(n=n_merit)
+
+              for _, emp in merit_employees.iterrows():
+                  merit_rate = np.random.uniform(0.02, 0.08)  # 2-8% merit increases
+                  raise_date = fake.date_between(
+                      start_date=f'{sim_year}-01-01',
+                      end_date=f'{sim_year}-12-31'
+                  )
+
+                  all_events.append({
+                      'event_id': fake.uuid4(),
+                      'employee_id': emp['employee_id'],
+                      'event_type': 'merit',
+                      'simulation_year': sim_year,
+                      'effective_date': raise_date.strftime('%Y-%m-%d'),
+                      'raise_amount': round(emp['current_compensation'] * merit_rate, 2),
+                      'raise_percentage': merit_rate,
+                      'scenario_id': 'snapshot_validation_001'
+                  })
+
+              # Promotion events (fewer employees)
+              promotion_eligible = merit_eligible[merit_eligible['level_id'] < 5]
+              n_promotions = int(len(promotion_eligible) * np.random.uniform(0.08, 0.15))
+
+              if n_promotions > 0:
+                  promotion_employees = promotion_eligible.sample(n=min(n_promotions, len(promotion_eligible)))
+
+                  for _, emp in promotion_employees.iterrows():
+                      promotion_raise = np.random.uniform(0.10, 0.20)  # 10-20% promotion raises
+                      promotion_date = fake.date_between(
+                          start_date=f'{sim_year}-01-01',
+                          end_date=f'{sim_year}-12-31'
+                      )
+
+                      all_events.append({
+                          'event_id': fake.uuid4(),
+                          'employee_id': emp['employee_id'],
+                          'event_type': 'promotion',
+                          'simulation_year': sim_year,
+                          'effective_date': promotion_date.strftime('%Y-%m-%d'),
+                          'new_level': emp['level_id'] + 1,
+                          'raise_amount': round(emp['current_compensation'] * promotion_raise, 2),
+                          'raise_percentage': promotion_raise,
+                          'scenario_id': 'snapshot_validation_001'
+                      })
+
+              # Termination events
+              n_terminations = int(len(merit_eligible) * np.random.uniform(0.08, 0.12))
+              if n_terminations > 0:
+                  term_employees = merit_eligible.sample(n=min(n_terminations, len(merit_eligible)))
+
+                  for _, emp in term_employees.iterrows():
+                      term_date = fake.date_between(
+                          start_date=f'{sim_year}-01-01',
+                          end_date=f'{sim_year}-12-31'
+                      )
+
+                      all_events.append({
+                          'event_id': fake.uuid4(),
+                          'employee_id': emp['employee_id'],
+                          'event_type': 'termination',
+                          'simulation_year': sim_year,
+                          'effective_date': term_date.strftime('%Y-%m-%d'),
+                          'termination_reason': np.random.choice(['voluntary', 'involuntary', 'retirement']),
+                          'scenario_id': 'snapshot_validation_001'
+                      })
+
+              # Hiring events
+              n_hires = int(n_terminations * np.random.uniform(1.1, 1.3))  # Slight growth
+
+              for hire_idx in range(n_hires):
+                  new_emp_id = f'EMP_{len(employees) + hire_idx:08d}'
+                  hire_date = fake.date_between(
+                      start_date=f'{sim_year}-01-01',
+                      end_date=f'{sim_year}-12-31'
+                  )
+
+                  # New hires typically start at lower levels
+                  new_level = np.random.choice([1, 2, 3], p=[0.6, 0.3, 0.1])
+                  new_dept = np.random.choice(departments)
+                  new_salary = base_salaries[new_level] * dept_multiplier * np.random.uniform(0.9, 1.1)
+
+                  all_events.append({
+                      'event_id': fake.uuid4(),
+                      'employee_id': new_emp_id,
+                      'event_type': 'hire',
+                      'simulation_year': sim_year,
+                      'effective_date': hire_date.strftime('%Y-%m-%d'),
+                      'starting_salary': round(new_salary, 2),
+                      'starting_level': new_level,
+                      'department': new_dept,
+                      'scenario_id': 'snapshot_validation_001'
+                  })
+
+          # Create events table
+          df_events = pd.DataFrame(all_events)
+          conn.execute('CREATE TABLE fct_yearly_events AS SELECT * FROM df_events')
+
+          print(f'Created fct_yearly_events with {len(all_events)} events')
+
+          # Create configuration tables
+          job_levels = pd.DataFrame({
+              'level_id': [1, 2, 3, 4, 5],
+              'level_name': ['Associate', 'Senior', 'Lead', 'Principal', 'Director'],
+              'min_salary': [45000, 70000, 95000, 125000, 170000],
+              'max_salary': [80000, 110000, 140000, 180000, 300000],
+              'promotion_threshold_months': [18, 24, 36, 48, 60]
+          })
+          conn.execute('CREATE TABLE config_job_levels AS SELECT * FROM job_levels')
+
+          # Create compensation levers
+          comp_levers = []
+          for year in range(base_year, base_year + n_years + 2):
+              for level in [1, 2, 3, 4, 5]:
+                  comp_levers.extend([
+                      {'parameter_name': 'merit_base', 'job_level': level, 'year': year, 'value': 0.045},
+                      {'parameter_name': 'cola_rate', 'job_level': level, 'year': year, 'value': 0.025},
+                      {'parameter_name': 'promotion_probability', 'job_level': level, 'year': year, 'value': 0.12},
+                      {'parameter_name': 'promotion_raise', 'job_level': level, 'year': year, 'value': 0.15}
+                  ])
+
+          comp_df = pd.DataFrame(comp_levers)
+          conn.execute('CREATE TABLE comp_levers AS SELECT * FROM comp_df')
+
+          # Create scenario metadata
+          scenario_meta = pd.DataFrame([{
+              'scenario_id': 'snapshot_validation_001',
+              'scenario_name': 'Snapshot Architecture Validation',
+              'created_date': datetime.now().strftime('%Y-%m-%d'),
+              'employee_count': n_employees,
+              'years_simulated': n_years,
+              'data_volume': data_volume
+          }])
+          conn.execute('CREATE TABLE scenario_meta AS SELECT * FROM scenario_meta')
+
+          # Generate summary statistics
+          stats = {
+              'total_employees': n_employees,
+              'total_events': len(all_events),
+              'years_generated': n_years,
+              'data_volume': data_volume,
+              'avg_compensation': float(df_employees['current_compensation'].mean()),
+              'compensation_range': [float(df_employees['current_compensation'].min()),
+                                    float(df_employees['current_compensation'].max())],
+              'level_distribution': df_employees['level_id'].value_counts().to_dict(),
+              'department_distribution': df_employees['department'].value_counts().to_dict()
+          }
+
+          print('Data generation complete!')
+          print(f'Statistics: {stats}')
+
+          conn.close()
+          "
+
+          DATABASE_PATH="${{ github.workspace }}/snapshot_test.duckdb"
+          echo "database-path=$DATABASE_PATH" >> $GITHUB_OUTPUT
+
+      - name: Setup test scenarios
+        id: scenario-setup
+        run: |
+          # Define test scenarios based on intensity
+          INTENSITY="${{ github.event.inputs.test_intensity || 'standard' }}"
+
+          case $INTENSITY in
+            "minimal")
+              SCENARIOS='["schema_compatibility", "basic_functionality"]'
+              ;;
+            "standard")
+              SCENARIOS='["schema_compatibility", "basic_functionality", "behavior_preservation", "dependency_compatibility"]'
+              ;;
+            "comprehensive")
+              SCENARIOS='["schema_compatibility", "basic_functionality", "behavior_preservation", "dependency_compatibility", "performance_validation", "multi_year_consistency"]'
+              ;;
+            "stress")
+              SCENARIOS='["schema_compatibility", "basic_functionality", "behavior_preservation", "dependency_compatibility", "performance_validation", "multi_year_consistency", "stress_testing", "edge_cases"]'
+              ;;
+            *)
+              SCENARIOS='["schema_compatibility", "basic_functionality", "behavior_preservation"]'
+              ;;
+          esac
+
+          echo "scenarios=$SCENARIOS" >> $GITHUB_OUTPUT
+          echo "Selected test scenarios: $SCENARIOS"
+
+      - name: Upload test database
+        uses: actions/upload-artifact@v4
+        with:
+          name: snapshot-test-database
+          path: snapshot_test.duckdb
+          retention-days: 1
+
+  snapshot-architecture-tests:
+    name: Snapshot Tests (${{ matrix.scenario }})
+    runs-on: ubuntu-latest
+    needs: initialize-test-data
+    strategy:
+      fail-fast: false
+      matrix:
+        scenario: ${{ fromJson(needs.initialize-test-data.outputs.test-scenarios) }}
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+          cache: 'pip'
+
+      - name: Install dependencies
+        run: |
+          pip install --upgrade pip
+          pip install -r requirements.txt
+          pip install -r requirements-dev.txt
+
+      - name: Download test database
+        uses: actions/download-artifact@v4
+        with:
+          name: snapshot-test-database
+          path: .
+
+      - name: Setup test environment
+        run: |
+          mkdir -p ${{ env.DAGSTER_HOME }}
+          mkdir -p logs
+          cp snapshot_test.duckdb simulation.duckdb
+
+      - name: Run schema compatibility tests
+        if: matrix.scenario == 'schema_compatibility'
+        run: |
+          echo "Running schema compatibility validation..."
+          python -m pytest tests/integration/test_snapshot_architecture_compatibility.py \
+            -v -k "test_fct_workforce_snapshot_schema_compatibility or test_column_data_types_unchanged or test_required_columns_present or test_contract_enforcement_passes" \
+            --tb=short --json-report --json-report-file=schema-compatibility-results.json
+
+      - name: Run basic functionality tests
+        if: matrix.scenario == 'basic_functionality'
+        run: |
+          echo "Running basic functionality validation..."
+          cd dbt
+          dbt deps
+          dbt seed --vars '{"simulation_year": 2024}'
+          dbt run --select tag:staging tag:intermediate --vars '{"simulation_year": 2024}'
+          dbt test --select tag:contract --vars '{"simulation_year": 2024}'
+
+      - name: Run behavior preservation tests
+        if: matrix.scenario == 'behavior_preservation'
+        run: |
+          echo "Running behavior preservation validation..."
+          python -m pytest tests/integration/test_snapshot_architecture_compatibility.py \
+            -v -k "test_employee_count_consistency or test_compensation_calculation_accuracy or test_event_application_correctness or test_band_calculation_consistency" \
+            --tb=short --json-report --json-report-file=behavior-preservation-results.json
+
+      - name: Run dependency compatibility tests
+        if: matrix.scenario == 'dependency_compatibility'
+        run: |
+          echo "Running dependency compatibility validation..."
+          python -m pytest tests/integration/test_snapshot_architecture_compatibility.py \
+            -v -k "test_scd_snapshot_compatibility or test_mart_model_compatibility or test_monitoring_model_compatibility or test_circular_dependency_resolution" \
+            --tb=short --json-report --json-report-file=dependency-compatibility-results.json
+
+      - name: Run performance validation tests
+        if: matrix.scenario == 'performance_validation'
+        timeout-minutes: 30
+        run: |
+          echo "Running performance validation..."
+          python -m pytest tests/integration/test_snapshot_architecture_compatibility.py \
+            -v -k "test_execution_time_acceptable or test_incremental_strategy_works or test_memory_usage_reasonable" \
+            --tb=short --json-report --json-report-file=performance-validation-results.json
+
+      - name: Run multi-year consistency tests
+        if: matrix.scenario == 'multi_year_consistency'
+        timeout-minutes: 45
+        run: |
+          echo "Running multi-year consistency validation..."
+          python -m pytest tests/integration/test_snapshot_architecture_compatibility.py \
+            -v -k "test_multi_year_simulation_consistency or test_year_over_year_transitions or test_cold_start_compatibility" \
+            --tb=short --json-report --json-report-file=multi-year-consistency-results.json
+
+      - name: Run stress testing
+        if: matrix.scenario == 'stress_testing'
+        timeout-minutes: 60
+        run: |
+          echo "Running stress testing..."
+          # Simulate high-load scenarios
+          python -c "
+          import concurrent.futures
+          import time
+          import psutil
+          import gc
+          from unittest.mock import Mock
+
+          def stress_snapshot_operation():
+              # Simulate snapshot processing under load
+              mock_context = Mock()
+              mock_context.log = Mock()
+
+              # Simulate memory-intensive operations
+              data = list(range(100000))
+              result = sum(x*x for x in data)
+              time.sleep(0.1)
+              gc.collect()
+              return result
+
+          start_time = time.time()
+          start_memory = psutil.Process().memory_info().rss / 1024 / 1024
+
+          # Run concurrent stress tests
+          with concurrent.futures.ThreadPoolExecutor(max_workers=8) as executor:
+              futures = [executor.submit(stress_snapshot_operation) for _ in range(50)]
+              results = [f.result() for f in futures]
+
+          end_time = time.time()
+          end_memory = psutil.Process().memory_info().rss / 1024 / 1024
+
+          execution_time = end_time - start_time
+          memory_delta = end_memory - start_memory
+
+          print(f'Stress test completed in {execution_time:.2f}s')
+          print(f'Memory usage: {start_memory:.1f}MB -> {end_memory:.1f}MB (delta: {memory_delta:.1f}MB)')
+
+          # Validate stress test results
+          assert execution_time < 120, f'Stress test took too long: {execution_time:.2f}s'
+          assert memory_delta < 1000, f'Excessive memory usage: {memory_delta:.1f}MB'
+
+          print('Stress test validation passed')
+          "
+
+      - name: Run edge case testing
+        if: matrix.scenario == 'edge_cases'
+        run: |
+          echo "Running edge case validation..."
+          python -m pytest tests/integration/test_snapshot_architecture_compatibility.py \
+            -v -k "test_graceful_failure_modes or test_data_quality_validation or test_edge_case_handling" \
+            --tb=short --json-report --json-report-file=edge-cases-results.json
+
+      - name: Upload test results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: snapshot-test-results-${{ matrix.scenario }}
+          path: |
+            *-results.json
+            logs/
+            dbt/logs/
+          retention-days: 30
+
+  schema-relationship-analysis:
+    name: Schema Relationship Analysis
+    runs-on: ubuntu-latest
+    needs: initialize-test-data
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+          cache: 'pip'
+
+      - name: Install dependencies
+        run: |
+          pip install --upgrade pip
+          pip install -r requirements.txt
+          pip install networkx matplotlib
+
+      - name: Download test database
+        uses: actions/download-artifact@v4
+        with:
+          name: snapshot-test-database
+          path: .
+
+      - name: Analyze schema relationships
+        run: |
+          python -c "
+          import duckdb
+          import json
+          import networkx as nx
+          from datetime import datetime
+
+          conn = duckdb.connect('snapshot_test.duckdb')
+
+          # Analyze schema relationships
+          analysis_results = {
+              'timestamp': datetime.now().isoformat(),
+              'table_analysis': {},
+              'relationship_graph': {},
+              'data_quality_metrics': {},
+              'optimization_recommendations': []
+          }
+
+          try:
+              # Get table information
+              tables_info = conn.execute('''
+                  SELECT table_name, count(*) as row_count
+                  FROM information_schema.tables t
+                  LEFT JOIN (
+                      SELECT table_name as tn, count(*) as rc
+                      FROM information_schema.columns
+                      GROUP BY table_name
+                  ) c ON t.table_name = c.tn
+                  WHERE table_schema = 'main'
+              ''').fetchall()
+
+              for table_name, row_count in tables_info:
+                  try:
+                      actual_row_count = conn.execute(f'SELECT COUNT(*) FROM {table_name}').fetchone()[0]
+
+                      # Get column information
+                      columns_info = conn.execute(f'''
+                          SELECT column_name, data_type, is_nullable
+                          FROM information_schema.columns
+                          WHERE table_name = '{table_name}'
+                      ''').fetchall()
+
+                      analysis_results['table_analysis'][table_name] = {
+                          'row_count': actual_row_count,
+                          'column_count': len(columns_info),
+                          'columns': [{'name': col[0], 'type': col[1], 'nullable': col[2]} for col in columns_info]
+                      }
+
+                  except Exception as e:
+                      print(f'Error analyzing table {table_name}: {e}')
+                      analysis_results['table_analysis'][table_name] = {'error': str(e)}
+
+              # Analyze data quality for key tables
+              if 'census_raw' in analysis_results['table_analysis']:
+                  census_quality = conn.execute('''
+                      SELECT
+                          COUNT(*) as total_employees,
+                          COUNT(DISTINCT employee_id) as unique_employees,
+                          AVG(current_compensation) as avg_compensation,
+                          MIN(current_compensation) as min_compensation,
+                          MAX(current_compensation) as max_compensation,
+                          COUNT(CASE WHEN current_compensation <= 0 THEN 1 END) as invalid_compensation,
+                          COUNT(CASE WHEN age < 18 OR age > 75 THEN 1 END) as invalid_ages
+                      FROM census_raw
+                  ''').fetchone()
+
+                  analysis_results['data_quality_metrics']['census_raw'] = {
+                      'total_employees': census_quality[0],
+                      'unique_employees': census_quality[1],
+                      'avg_compensation': float(census_quality[2]) if census_quality[2] else 0,
+                      'compensation_range': [float(census_quality[3]), float(census_quality[4])],
+                      'data_quality_issues': {
+                          'invalid_compensation': census_quality[5],
+                          'invalid_ages': census_quality[6]
+                      }
+                  }
+
+              if 'fct_yearly_events' in analysis_results['table_analysis']:
+                  events_quality = conn.execute('''
+                      SELECT
+                          COUNT(*) as total_events,
+                          COUNT(DISTINCT event_type) as unique_event_types,
+                          COUNT(DISTINCT simulation_year) as years_covered,
+                          COUNT(DISTINCT employee_id) as employees_with_events
+                      FROM fct_yearly_events
+                  ''').fetchone()
+
+                  analysis_results['data_quality_metrics']['fct_yearly_events'] = {
+                      'total_events': events_quality[0],
+                      'unique_event_types': events_quality[1],
+                      'years_covered': events_quality[2],
+                      'employees_with_events': events_quality[3]
+                  }
+
+              # Generate optimization recommendations
+              census_metrics = analysis_results['data_quality_metrics'].get('census_raw', {})
+              events_metrics = analysis_results['data_quality_metrics'].get('fct_yearly_events', {})
+
+              if census_metrics.get('total_employees', 0) < 1000:
+                  analysis_results['optimization_recommendations'].append(
+                      'Consider increasing test data volume for more comprehensive validation'
+                  )
+
+              if events_metrics.get('total_events', 0) < census_metrics.get('total_employees', 0):
+                  analysis_results['optimization_recommendations'].append(
+                      'Event volume seems low relative to employee count - verify event generation'
+                  )
+
+              quality_issues = census_metrics.get('data_quality_issues', {})
+              if quality_issues.get('invalid_compensation', 0) > 0:
+                  analysis_results['optimization_recommendations'].append(
+                      f'Found {quality_issues['invalid_compensation']} employees with invalid compensation'
+                  )
+
+              if quality_issues.get('invalid_ages', 0) > 0:
+                  analysis_results['optimization_recommendations'].append(
+                      f'Found {quality_issues['invalid_ages']} employees with invalid ages'
+                  )
+
+              print('Schema relationship analysis completed')
+              print(json.dumps(analysis_results, indent=2))
+
+              # Save results
+              with open('schema-relationship-analysis.json', 'w') as f:
+                  json.dump(analysis_results, f, indent=2)
+
+          except Exception as e:
+              print(f'Schema analysis error: {e}')
+              analysis_results['error'] = str(e)
+
+              with open('schema-relationship-analysis.json', 'w') as f:
+                  json.dump(analysis_results, f, indent=2)
+
+              exit(1)
+          finally:
+              conn.close()
+          "
+
+      - name: Upload schema analysis results
+        uses: actions/upload-artifact@v4
+        with:
+          name: schema-relationship-analysis
+          path: schema-relationship-analysis.json
+
+  generate-snapshot-report:
+    name: Generate Snapshot Architecture Report
+    runs-on: ubuntu-latest
+    needs: [snapshot-architecture-tests, schema-relationship-analysis]
+    if: always()
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Download all test results
+        uses: actions/download-artifact@v4
+        with:
+          pattern: snapshot-test-results-*
+          merge-multiple: true
+
+      - name: Download schema analysis
+        uses: actions/download-artifact@v4
+        with:
+          name: schema-relationship-analysis
+
+      - name: Generate comprehensive snapshot report
+        run: |
+          python -c "
+          import json
+          import glob
+          from datetime import datetime
+          import os
+
+          # Collect all results
+          test_results = {}
+          schema_analysis = {}
+
+          # Load test results
+          for file in glob.glob('*-results.json'):
+              try:
+                  with open(file, 'r') as f:
+                      data = json.load(f)
+                  test_results[file] = data
+              except Exception as e:
+                  print(f'Error reading {file}: {e}')
+
+          # Load schema analysis
+          try:
+              with open('schema-relationship-analysis.json', 'r') as f:
+                  schema_analysis = json.load(f)
+          except Exception as e:
+              print(f'Error reading schema analysis: {e}')
+
+          # Generate detailed report
+          report = f'''# Snapshot Architecture Validation Report
+
+          **Generated:** {datetime.now().strftime('%Y-%m-%d %H:%M:%S UTC')}
+          **Workflow:** {os.getenv('GITHUB_WORKFLOW', 'Snapshot Architecture Validation')}
+          **Branch:** {os.getenv('GITHUB_REF_NAME', 'unknown')}
+          **Commit:** {os.getenv('GITHUB_SHA', 'unknown')[:8]}
+          **Test Intensity:** {os.getenv('GITHUB_EVENT_INPUTS_TEST_INTENSITY', 'standard')}
+          **Data Volume:** {os.getenv('GITHUB_EVENT_INPUTS_DATA_VOLUME', 'medium')}
+
+          ## Executive Summary
+
+          This report provides a comprehensive analysis of the snapshot architecture validation for the refactored intermediate snapshot models in PlanWise Navigator.
+
+          ### Validation Overview
+
+          '''
+
+          # Add test results summary
+          total_tests = 0
+          total_passed = 0
+
+          for file, data in test_results.items():
+              if isinstance(data, dict) and 'tests' in data:
+                  test_count = len(data['tests'])
+                  passed_count = sum(1 for t in data['tests'] if t.get('outcome') == 'passed')
+                  total_tests += test_count
+                  total_passed += passed_count
+
+          success_rate = (total_passed / total_tests * 100) if total_tests > 0 else 0
+
+          report += f'''
+          - **Total Tests:** {total_tests}
+          - **Passed Tests:** {total_passed}
+          - **Success Rate:** {success_rate:.1f}%
+          - **Test Scenarios:** {len(test_results)} scenarios executed
+
+          '''
+
+          # Add schema analysis summary
+          if schema_analysis:
+              report += '### Schema Analysis Summary\n\n'
+
+              if 'table_analysis' in schema_analysis:
+                  table_count = len(schema_analysis['table_analysis'])
+                  report += f'- **Tables Analyzed:** {table_count}\n'
+
+                  for table, info in schema_analysis['table_analysis'].items():
+                      if 'row_count' in info:
+                          report += f'- **{table}:** {info['row_count']:,} rows, {info['column_count']} columns\n'
+
+              if 'data_quality_metrics' in schema_analysis:
+                  report += '\n### Data Quality Metrics\n\n'
+
+                  for table, metrics in schema_analysis['data_quality_metrics'].items():
+                      report += f'**{table}:**\n'
+                      for key, value in metrics.items():
+                          if isinstance(value, dict):
+                              report += f'- {key}:\n'
+                              for sub_key, sub_value in value.items():
+                                  report += f'  - {sub_key}: {sub_value}\n'
+                          else:
+                              report += f'- {key}: {value}\n'
+                      report += '\n'
+
+              if 'optimization_recommendations' in schema_analysis and schema_analysis['optimization_recommendations']:
+                  report += '### Optimization Recommendations\n\n'
+                  for rec in schema_analysis['optimization_recommendations']:
+                      report += f'- {rec}\n'
+                  report += '\n'
+
+          # Add detailed test results
+          report += '## Detailed Test Results\n\n'
+
+          for file, data in test_results.items():
+              scenario_name = file.replace('-results.json', '').replace('-', ' ').title()
+              report += f'### {scenario_name}\n\n'
+
+              if isinstance(data, dict):
+                  if 'tests' in data:
+                      test_count = len(data['tests'])
+                      passed_count = sum(1 for t in data['tests'] if t.get('outcome') == 'passed')
+                      failed_count = test_count - passed_count
+
+                      report += f'- **Total Tests:** {test_count}\n'
+                      report += f'- **Passed:** {passed_count}\n'
+                      report += f'- **Failed:** {failed_count}\n'
+
+                      if failed_count > 0:
+                          report += '\n**Failed Tests:**\n'
+                          for test in data['tests']:
+                              if test.get('outcome') != 'passed':
+                                  report += f'- {test.get('nodeid', 'Unknown test')}: {test.get('call', {}).get('longrepr', 'No details')}\n'
+
+                      report += '\n'
+
+                  if 'duration' in data:
+                      report += f'- **Execution Time:** {data['duration']:.2f} seconds\n\n'
+
+              report += '---\n\n'
+
+          # Add recommendations
+          report += '## Recommendations\n\n'
+
+          if success_rate < 95:
+              report += '🔴 **Critical:** Test success rate below 95%. Immediate investigation required.\n\n'
+          elif success_rate < 98:
+              report += '🟡 **Warning:** Test success rate below 98%. Review failed tests.\n\n'
+          else:
+              report += '🟢 **Success:** All tests passing. Architecture validation successful.\n\n'
+
+          report += '### Next Steps\n\n'
+          report += '1. Review any failed test scenarios\n'
+          report += '2. Address optimization recommendations\n'
+          report += '3. Monitor performance metrics in production\n'
+          report += '4. Update validation thresholds based on results\n'
+
+          # Save report
+          with open('snapshot-architecture-report.md', 'w') as f:
+              f.write(report)
+
+          print('Snapshot architecture validation report generated')
+          "
+
+      - name: Upload snapshot architecture report
+        uses: actions/upload-artifact@v4
+        with:
+          name: snapshot-architecture-report
+          path: snapshot-architecture-report.md
+
+      - name: Create GitHub summary
+        run: |
+          echo "# Snapshot Architecture Validation Summary" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "## Test Execution Complete" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "### Artifacts Generated" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          find . -name "*.json" -o -name "*.md" | while read file; do
+            echo "- \$(basename $file)" >> $GITHUB_STEP_SUMMARY
+          done
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "### Report Available" >> $GITHUB_STEP_SUMMARY
+          echo "- [📊 View Detailed Report](./snapshot-architecture-report.md)" >> $GITHUB_STEP_SUMMARY
+          echo "- [🔍 Schema Analysis](./schema-relationship-analysis.json)" >> $GITHUB_STEP_SUMMARY
