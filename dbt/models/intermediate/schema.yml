@@ -616,11 +616,11 @@ models:
         description: Date when promotion becomes effective
         data_tests:
           - not_null
-      - name: new_level_id
+      - name: to_level
         description: New job level after promotion
         data_tests:
           - not_null
-      - name: compensation_amount
+      - name: new_salary
         description: New compensation amount after promotion
         data_tests:
           - not_null

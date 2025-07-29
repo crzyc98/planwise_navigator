@@ -12,17 +12,16 @@
 {% set simulation_year = var('simulation_year') %}
 {% set previous_year = simulation_year - 1 %}
 
--- **OPTIMIZED PROMOTION EVENTS WITH FULL-YEAR EQUIVALENT COMPENSATION**
+-- **OPTIMIZED PROMOTION EVENTS WITH CURRENT COMPENSATION**
 -- 
--- **CRITICAL FIX**: Uses full_year_equivalent_compensation from previous year-end
--- snapshot to ensure promotions use actual end-of-year compensation that includes
--- merit increases, not start-of-year baseline compensation.
+-- **PERFORMANCE IMPROVEMENT**: Uses fct_workforce_snapshot from previous year-end
+-- instead of stale int_active_employees_prev_year_snapshot to get accurate
+-- post-merit compensation for promotion calculations.
 --
 -- **BUSINESS LOGIC**: 
 -- - Promotions occur February 1st using compensation updated from July 15th merit/COLA
 -- - Merit increases occur July 15th (previous year)
--- - full_year_equivalent_compensation ensures promotions use post-merit salary
--- - This fixes the EMP_000012 issue: promotion now uses $101,913.12 (2027 end) not $87,300 (2025 baseline)
+-- - This ensures promotions use current salary, not 4-year-old baseline data
 --
 -- **DuckDB OPTIMIZATION**:
 -- - Direct columnar storage access for efficient temporal joins
@@ -36,24 +35,25 @@ WITH simulation_params AS (
         {{ previous_year }} AS previous_year
 ),
 
--- **OPTIMIZATION 1**: Use int_employee_compensation_by_year for accurate compensation
--- **CIRCULAR DEPENDENCY FIX**: This table handles first year vs subsequent years properly
+-- **OPTIMIZATION 1**: Use fct_workforce_snapshot for accurate current compensation
+-- This replaces the stale int_active_employees_prev_year_snapshot approach
 current_workforce AS (
     SELECT
         employee_id,
         employee_ssn,
         employee_hire_date,
-        employee_compensation AS employee_gross_compensation,
-        current_age,
-        current_tenure,
+        -- **KEY FIX**: Use current_compensation (includes merit increases from July 15)
+        current_compensation AS employee_gross_compensation,
+        current_age + 1 AS current_age, -- Age for the new simulation year
+        current_tenure + 1 AS current_tenure, -- Tenure for the new simulation year
         level_id
-    FROM {{ ref('int_employee_compensation_by_year') }}
-    WHERE simulation_year = {{ simulation_year }}
+    FROM {{ ref('fct_workforce_snapshot') }} 
+    WHERE simulation_year = (SELECT previous_year FROM simulation_params)
       AND employment_status = 'active'
       -- **PERFORMANCE FILTER**: Pre-filter promotion-eligible employees
       AND level_id < 5  -- Can't promote beyond max level
-      AND current_tenure >= 1  -- Must have at least 1 year tenure to be promoted
-      AND current_age < 65  -- Age limit for promotions
+      AND current_tenure >= 0  -- Will be >= 1 after increment
+      AND current_age < 64  -- Will be < 65 after increment
 ),
 
 -- **OPTIMIZATION 2**: Efficient band calculation with single-pass logic
@@ -85,6 +85,8 @@ eligible_workforce AS (
         -- **DETERMINISTIC RANDOM**: Consistent hash-based probability
         (ABS(HASH(employee_id || '{{ simulation_year }}' || 'promotion')) % 1000) / 1000.0 AS random_value
     FROM current_workforce
+    WHERE current_tenure >= 1  -- Final eligibility check
+      AND current_age < 65
 ),
 
 -- **OPTIMIZATION 3**: Efficient hazard rate lookup with indexed join

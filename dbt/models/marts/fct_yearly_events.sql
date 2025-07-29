@@ -10,7 +10,8 @@
       {'columns': ['simulation_year'], 'type': 'btree'},
       {'columns': ['employee_id'], 'type': 'btree'},
       {'columns': ['simulation_year', 'employee_id'], 'type': 'btree'},
-      {'columns': ['event_type', 'simulation_year'], 'type': 'btree'}
+      {'columns': ['event_type', 'simulation_year'], 'type': 'btree'},
+      {'columns': ['employee_id', 'event_type'], 'type': 'btree'}
   ]
 ) }}
 
@@ -83,7 +84,7 @@ promotion_events AS (
     previous_salary AS previous_compensation,
     current_age AS employee_age,
     current_tenure AS employee_tenure,
-    from_level AS level_id,
+    to_level AS level_id,
     age_band,
     tenure_band,
     promotion_rate AS event_probability,

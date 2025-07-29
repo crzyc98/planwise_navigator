@@ -12,12 +12,12 @@ WITH simulation_config AS (
 ),
 
 -- Get previous year workforce count for growth calculation
--- Use int_workforce_active_for_events which provides dependency-free active employee data
--- This ensures hiring calculations are based on the correct count of active employees
+-- Use consistent data source with other event models
 workforce_count AS (
   SELECT COUNT(*) AS workforce_count
-  FROM {{ ref('int_workforce_active_for_events') }}
+  FROM {{ ref('int_employee_compensation_by_year') }}
   WHERE simulation_year = {{ simulation_year }}
+  AND employment_status = 'active'
 ),
 
 -- DETERMINISTIC APPROACH: Use exact termination count from int_termination_events
