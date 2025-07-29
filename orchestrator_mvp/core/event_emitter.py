@@ -868,6 +868,188 @@ def generate_merit_events(
     return events
 
 
+def generate_merit_events_with_promotion_awareness(
+    simulation_year: int,
+    promotion_events: List[Dict[str, Any]],
+    random_seed: Optional[int] = None
+) -> List[Dict[str, Any]]:
+    """Generate merit raise events with awareness of promotion events from same year.
+    
+    This function ensures that employees who were promoted earlier in the year
+    receive merit raises based on their post-promotion salary, not their baseline salary.
+    
+    Args:
+        simulation_year: Year for the simulation
+        promotion_events: List of promotion events generated earlier in the year
+        random_seed: Optional seed for reproducible random generation
+        
+    Returns:
+        List of merit event dictionaries with correct compensation chains
+    """
+    if random_seed is not None:
+        random.seed(random_seed)
+
+    conn = get_connection()
+    try:
+        # Build promotion lookup: employee_id -> post-promotion compensation
+        promotion_lookup = {}
+        promoted_levels = {}  # Track level changes from promotions
+        for promo in promotion_events:
+            promotion_lookup[promo['employee_id']] = promo['compensation_amount']
+            promoted_levels[promo['employee_id']] = promo['level_id']
+
+        # Get workforce data using same logic as original merit function
+        try:
+            workforce_query = """
+            SELECT
+                employee_id,
+                employee_ssn,
+                employee_birth_date,
+                employee_hire_date,
+                employee_compensation AS current_compensation,
+                current_age,
+                current_tenure,
+                level_id
+            FROM int_employee_compensation_by_year
+            WHERE simulation_year = ?
+            AND employment_status = 'active'
+            AND current_tenure >= 1  -- At least 1 year of service for merit eligibility
+            ORDER BY employee_id
+            """
+            workforce_df = conn.execute(workforce_query, [simulation_year]).df()
+            print(f"✅ Using int_employee_compensation_by_year table for promotion-aware merit events")
+
+        except Exception as compensation_table_error:
+            print(f"⚠️ int_employee_compensation_by_year table not available: {compensation_table_error}")
+            print(f"🔄 Falling back to baseline workforce for promotion-aware merit events")
+
+            if simulation_year == 2025:
+                workforce_query = """
+                SELECT
+                    employee_id,
+                    employee_ssn,
+                    employee_birth_date,
+                    employee_hire_date,
+                    current_compensation,
+                    current_age,
+                    current_tenure,
+                    level_id
+                FROM int_baseline_workforce
+                WHERE employment_status = 'active'
+                AND current_tenure >= 1
+                ORDER BY employee_id
+                """
+                workforce_df = conn.execute(workforce_query).df()
+            else:
+                workforce_query = """
+                SELECT
+                    employee_id,
+                    employee_ssn,
+                    employee_birth_date,
+                    employee_hire_date,
+                    current_compensation,
+                    current_age,
+                    current_tenure,
+                    level_id
+                FROM fct_workforce_snapshot
+                WHERE simulation_year = ?
+                AND employment_status = 'active'
+                AND current_tenure >= 1
+                ORDER BY employee_id
+                """
+                workforce_df = conn.execute(workforce_query, [simulation_year - 1]).df()
+
+        if len(workforce_df) == 0:
+            return []
+
+        # Get merit rates and COLA rate
+        merit_query = """
+        SELECT
+            job_level as level_id,
+            parameter_value as merit_rate
+        FROM comp_levers
+        WHERE scenario_id = 'default'
+        AND fiscal_year = ?
+        AND event_type = 'RAISE'
+        AND parameter_name = 'merit_base'
+        """
+        merit_df = conn.execute(merit_query, [simulation_year]).df()
+        merit_rates = dict(zip(merit_df['level_id'], merit_df['merit_rate']))
+
+        cola_query = """
+        SELECT cola_rate
+        FROM config_cola_by_year
+        WHERE year = ?
+        """
+        cola_result = conn.execute(cola_query, [simulation_year]).fetchone()
+        cola_rate = cola_result[0] if cola_result else 0.025  # Default 2.5%
+
+    finally:
+        conn.close()
+
+    events = []
+    
+    for _, employee in workforce_df.iterrows():
+        employee_id = employee['employee_id']
+        
+        # CRITICAL FIX: Use post-promotion compensation if employee was promoted
+        if employee_id in promotion_lookup:
+            # Employee was promoted - use post-promotion salary as base
+            previous_salary = promotion_lookup[employee_id]
+            current_level = promoted_levels[employee_id]
+            print(f"🔄 Employee {employee_id}: Using post-promotion salary ${previous_salary:,.2f} (level {current_level})")
+        else:
+            # No promotion - use current compensation
+            previous_salary = employee['current_compensation']
+            current_level = employee['level_id']
+
+        # Get merit rate for employee's current level (may have changed due to promotion)
+        merit_rate = merit_rates.get(current_level, 0.03)  # Default 3%
+
+        # Calculate new salary with merit + COLA
+        total_increase = merit_rate + cola_rate
+        new_salary = round(previous_salary * (1 + total_increase), 2)
+
+        # Calculate age and tenure bands
+        age_band = _calculate_age_band(employee['current_age'])
+        tenure_band = _calculate_tenure_band(employee['current_tenure'])
+
+        # Generate raise effective date (spread throughout year, after promotions)
+        id_hash = sum(ord(c) for c in employee_id[-4:])
+        days_offset = id_hash % 365
+        effective_date = date(simulation_year, 1, 1) + timedelta(days=days_offset)
+
+        event = {
+            'employee_id': employee_id,
+            'employee_ssn': employee['employee_ssn'],
+            'event_type': 'raise',
+            'simulation_year': simulation_year,
+            'effective_date': effective_date,
+            'event_details': f'merit_{merit_rate:.1%}_cola_{cola_rate:.1%}',
+            'compensation_amount': new_salary,
+            'previous_compensation': previous_salary,  # Now reflects post-promotion salary
+            'employee_age': employee['current_age'],
+            'employee_tenure': employee['current_tenure'],
+            'level_id': current_level,  # Use promoted level if applicable
+            'age_band': age_band,
+            'tenure_band': tenure_band,
+            'event_probability': 1.0,
+            'event_category': 'merit_raise',
+            'event_sequence': 4,  # Merit events come after promotions
+            'created_at': datetime.now(),
+            'parameter_scenario_id': 'mvp_test',
+            'parameter_source': 'dynamic',
+            'data_quality_flag': 'VALID'
+        }
+
+        events.append(event)
+
+    print(f"🔍 Generated {len(events)} merit events with promotion awareness")
+    print(f"   • {len(promotion_lookup)} employees had post-promotion adjustments")
+    
+    return events
+
+
 def generate_promotion_events(
     simulation_year: int,
     random_seed: Optional[int] = None,
@@ -1211,16 +1393,7 @@ def generate_and_store_all_events(
     all_events.extend(nh_termination_events)
     print(f"   ✅ Generated {len(nh_termination_events)} new hire termination events")
 
-    # 4. Generate merit raise events
-    print(f"\n📋 Generating merit raise events for eligible employees...")
-    merit_events = generate_merit_events(
-        simulation_year=simulation_year,
-        random_seed=random_seed if random_seed is None else random_seed + 3
-    )
-    all_events.extend(merit_events)
-    print(f"   ✅ Generated {len(merit_events)} merit raise events")
-
-    # 5. Generate promotion events
+    # 4. Generate promotion events FIRST (priority 2 - should happen before raises)
     print(f"\n📋 Generating promotion events for eligible employees...")
     promotion_events = generate_promotion_events(
         simulation_year=simulation_year,
@@ -1228,6 +1401,17 @@ def generate_and_store_all_events(
     )
     all_events.extend(promotion_events)
     print(f"   ✅ Generated {len(promotion_events)} promotion events")
+
+    # 5. Generate merit raise events AFTER promotions (priority 3)
+    # FIXED: Pass promotion events to merit generation so it can use post-promotion compensation
+    print(f"\n📋 Generating merit raise events for eligible employees (with promotion awareness)...")
+    merit_events = generate_merit_events_with_promotion_awareness(
+        simulation_year=simulation_year,
+        promotion_events=promotion_events,
+        random_seed=random_seed if random_seed is None else random_seed + 3
+    )
+    all_events.extend(merit_events)
+    print(f"   ✅ Generated {len(merit_events)} merit raise events")
 
     # Store all events
     print(f"\n💾 Storing all {len(all_events)} events in database...")

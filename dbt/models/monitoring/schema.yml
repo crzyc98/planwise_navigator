@@ -98,3 +98,93 @@ models:
         description: "When the performance check was performed"
         data_tests:
           - not_null
+
+  - name: data_quality_promotion_compensation
+    description: |
+      Comprehensive data quality validation for promotion compensation integrity.
+      
+      Validates that promotion events use correct previous compensation from the 
+      end-of-year workforce snapshot instead of stale baseline data. Identifies
+      violations where merit increases have not properly propagated to subsequent
+      promotion calculations.
+      
+      **Critical Business Rules Validated:**
+      - Promotion previous_salary must equal workforce_snapshot.current_compensation
+      - Merit events must propagate to next year's promotion baseline
+      - Compensation gaps indicate data lineage breaks requiring remediation
+      
+      **Data Quality Statuses:**
+      - CRITICAL_VIOLATION: >$5,000 compensation gap (systematic stale data)
+      - MAJOR_VIOLATION: >$1,000 compensation gap (significant data issues)  
+      - MINOR_VIOLATION: >$100 compensation gap (minor discrepancies)
+      - WARNING: >$10 compensation gap (investigate)
+      - PASS: Acceptable compensation continuity (<$10 gap)
+    columns:
+      - name: employee_id
+        description: Employee identifier
+        data_tests:
+          - not_null
+      - name: simulation_year
+        description: Simulation year for the promotion event
+        data_tests:
+          - not_null
+      - name: data_quality_status
+        description: Data quality assessment (CRITICAL_VIOLATION, MAJOR_VIOLATION, MINOR_VIOLATION, WARNING, PASS)
+        data_tests:
+          - not_null
+          - accepted_values:
+              values: ['CRITICAL_VIOLATION', 'MAJOR_VIOLATION', 'MINOR_VIOLATION', 'WARNING', 'PASS']
+      - name: compensation_gap
+        description: Difference between promotion previous salary and actual previous year compensation
+      - name: gap_percentage
+        description: Compensation gap as percentage of actual compensation
+      - name: merit_propagation_status
+        description: Whether merit events properly propagated to promotion calculations
+        data_tests:
+          - accepted_values:
+              values: ['MERIT_NOT_PROPAGATED', 'MERIT_PROPERLY_PROPAGATED', 'NO_MERIT_EVENT']
+      - name: estimated_underpayment_amount
+        description: Estimated financial impact of compensation gap (if employee was underpaid)
+        data_tests:
+          - not_null
+      - name: requires_immediate_attention
+        description: Flag for violations requiring immediate remediation
+        data_tests:
+          - not_null
+
+  - name: data_quality_summary  
+    description: |
+      Executive dashboard summary of promotion compensation data quality metrics.
+      
+      Provides aggregated KPIs and trend analysis for data quality monitoring.
+      Used by Dagster asset checks and Streamlit dashboards for real-time
+      data quality monitoring and compliance reporting.
+      
+      **Key Metrics:**
+      - Data Quality Score: 0-100 score based on violation severity
+      - Compliance Status: COMPLIANT, MINOR_ISSUES, MODERATE_ISSUES, CRITICAL_ISSUES
+      - Financial Risk Level: Based on estimated underpayment amounts
+      - Violation Rates: Percentage of promotions with data quality issues
+    columns:
+      - name: simulation_year
+        description: Simulation year or 'ALL_YEARS' for aggregate metrics
+        data_tests:
+          - not_null
+      - name: total_promotions
+        description: Total number of promotion events
+        data_tests:
+          - not_null
+      - name: data_quality_score
+        description: Overall data quality score (0-100)
+      - name: compliance_status
+        description: Enterprise compliance assessment
+        data_tests:
+          - accepted_values:
+              values: ['COMPLIANT', 'MINOR_ISSUES', 'MODERATE_ISSUES', 'CRITICAL_ISSUES']
+      - name: financial_risk_level
+        description: Financial risk assessment based on underpayment amounts
+        data_tests:
+          - accepted_values:
+              values: ['HIGH_RISK', 'MEDIUM_RISK', 'LOW_RISK', 'MINIMAL_RISK']
+      - name: total_estimated_underpayment
+        description: Total estimated financial impact across all violations

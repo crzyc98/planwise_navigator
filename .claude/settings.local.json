@@ -57,7 +57,14 @@
       "Bash(/Users/nicholasamaral/planwise_navigator/venv/bin/dbt run --select int_employee_compensation_by_year --vars '{simulation_year: 2025, start_year: 2025}')",
       "Bash(/Users/nicholasamaral/planwise_navigator/venv/bin/dbt run --select int_employee_compensation_by_year --vars '{simulation_year: 2026, start_year: 2025}')",
       "Bash(/Users/nicholasamaral/planwise_navigator/venv/bin/dbt run --select int_active_employees_prev_year_snapshot --vars '{simulation_year: 2026}')",
-      "Bash(dbt list:*)"
+      "Bash(dbt list:*)",
+      "Bash(/Users/nicholasamaral/planwise_navigator/venv/bin/dbt run --select fct_workforce_snapshot --vars '{simulation_year: 2028, start_year: 2025}')",
+      "Bash(/Users/nicholasamaral/planwise_navigator/venv/bin/dbt test --select test_promotion_events_applied_to_workforce_state)",
+      "Bash(/Users/nicholasamaral/planwise_navigator/venv/bin/dbt test --select test_promotion_events_applied_to_workforce_state --project-dir /Users/nicholasamaral/planwise_navigator/dbt)",
+      "Bash(/Users/nicholasamaral/planwise_navigator/venv/bin/dbt list --models int_employee_event_stream+ --output name)",
+      "Bash(/Users/nicholasamaral/planwise_navigator/venv/bin/dbt list --models +int_employee_event_stream --output name)",
+      "Bash(/Users/nicholasamaral/planwise_navigator/venv/bin/dbt list --models +int_employee_event_stream --output name --project-dir /Users/nicholasamaral/planwise_navigator/dbt)",
+      "Bash(/Users/nicholasamaral/planwise_navigator/venv/bin/dbt run --select int_employee_event_stream --vars '{simulation_year: 2028, start_year: 2025}')"
     ],
     "deny": []
   }

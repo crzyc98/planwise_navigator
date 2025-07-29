@@ -16,22 +16,20 @@ WITH simulation_config AS (
 ),
 
 active_workforce AS (
-    -- Use int_workforce_active_for_events which provides dependency-free active employee data
-    -- This prevents termination events from being generated for employees who were 
-    -- terminated during the previous year
+    -- Use consistent data source with other event models
     SELECT
         employee_id,
         employee_ssn,
-        hire_date AS employee_hire_date,
-        employee_gross_compensation,
+        employee_hire_date,
+        employee_compensation AS employee_gross_compensation,
         current_age,
         current_tenure,
-        job_level AS level_id,
-        -- All employees in int_workforce_active_for_events have survived to simulation start
-        -- Therefore they should ALL be subject to experienced termination rates
+        level_id,
+        -- All employees in compensation table are experienced for termination
         'experienced' AS employee_type
-    FROM {{ ref('int_workforce_active_for_events') }}
+    FROM {{ ref('int_employee_compensation_by_year') }}
     WHERE simulation_year = {{ simulation_year }}
+    AND employment_status = 'active'
 ),
 
 workforce_with_bands AS (

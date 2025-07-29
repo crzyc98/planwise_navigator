@@ -14,6 +14,10 @@
   This model creates a temporal dependency (year N depends on year N-1) instead of
   a circular dependency within the same year.
 
+  **COMPENSATION FIX**: Uses full_year_equivalent_compensation instead of current_compensation
+  to ensure workforce state transitions maintain correct compensation continuity.
+  This fixes the promotion events compensation state management issue.
+
   V2 Fix: Uses a dynamic relation reference (`adapter.get_relation`) instead of a static
   `ref()` to prevent dbt's parser from detecting a false circular dependency.
   The orchestrator script MUST ensure that year N-1 is complete before running year N.
@@ -42,7 +46,9 @@ enriched_snapshot as (
     employee_ssn,
     employee_birth_date,
     employee_hire_date,
-    current_compensation as employee_gross_compensation,
+    -- **CRITICAL FIX**: Use full_year_equivalent_compensation instead of current_compensation
+    -- This ensures workforce state transitions maintain correct compensation continuity
+    full_year_equivalent_compensation as employee_gross_compensation,
     current_age + 1 as current_age, -- Increment age for the new year
     current_tenure + 1 as current_tenure, -- Increment tenure for the new year
     level_id,

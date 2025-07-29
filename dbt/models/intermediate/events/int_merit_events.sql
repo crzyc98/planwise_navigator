@@ -23,6 +23,34 @@ WITH active_workforce AS (
     AND employment_status = 'active'
 ),
 
+-- Check for promotion events that happened earlier in the year (February 1)
+-- Merit events (July 15) should use post-promotion compensation AND level_id
+promotion_events_this_year AS (
+    SELECT 
+        employee_id,
+        new_salary AS promotion_salary,
+        to_level
+    FROM {{ ref('int_promotion_events') }}
+    WHERE simulation_year = {{ simulation_year }}
+),
+
+-- Workforce with current compensation AND level_id (including promotions if they happened)
+workforce_with_current_compensation AS (
+    SELECT
+        aw.employee_id,
+        aw.employee_ssn,
+        aw.employee_hire_date,
+        -- Use promotion salary if employee was promoted, otherwise use baseline compensation
+        COALESCE(p.promotion_salary, aw.employee_gross_compensation) AS employee_gross_compensation,
+        aw.current_age,
+        aw.current_tenure,
+        -- Use post-promotion level_id if employee was promoted, otherwise use baseline level_id
+        COALESCE(p.to_level, aw.level_id) AS level_id,
+        CASE WHEN p.employee_id IS NOT NULL THEN TRUE ELSE FALSE END AS was_promoted_this_year
+    FROM active_workforce aw
+    LEFT JOIN promotion_events_this_year p ON aw.employee_id = p.employee_id
+),
+
 workforce_with_bands AS (
     SELECT
         *,
@@ -43,7 +71,7 @@ workforce_with_bands AS (
             WHEN current_tenure < 20 THEN '10-19'
             ELSE '20+'
         END AS tenure_band
-    FROM active_workforce
+    FROM workforce_with_current_compensation
 ),
 
 -- Simple approach: Apply merit to all eligible workforce (no exclusions for now)
@@ -67,13 +95,13 @@ eligible_for_merit AS (
 cola_adjustments AS (
     SELECT
         {{ simulation_year }} AS year,
-        {{ get_parameter_value('1', 'RAISE', 'cola_rate', simulation_year) }} AS cola_rate
+        {{ get_parameter_value('1', 'raise', 'cola_rate', simulation_year) }} AS cola_rate
 )
 
 SELECT
     e.employee_id,
     e.employee_ssn,
-    'RAISE' AS event_type,
+    'raise' AS event_type,
     {{ simulation_year }} AS simulation_year,
     -- Use macro system for raise timing (supports both legacy and realistic modes)
     {{ get_realistic_raise_date('e.employee_id', simulation_year) }} AS effective_date,
