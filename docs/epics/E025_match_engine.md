@@ -3,514 +3,595 @@
 ## Epic Overview
 
 ### Summary
-Create a high-performance vectorized employer match calculation engine supporting complex multi-tier formulas, true-up calculations, and various match types using efficient DataFrame operations for 100K+ employee populations.
+Create a SQL/dbt-first employer match calculation engine supporting tiered formulas and basic match types, with event sourcing integration and DuckDB optimizations for 100K+ employee populations.
 
 ### Business Value
 - Enables accurate modeling of employer match costs ($5-50M annually)
 - Supports optimization of match formulas to maximize participation
 - Reduces manual calculations and errors in match processing
+- Provides foundation for advanced features (true-up, vesting)
 
 ### Success Criteria
-- ✅ Supports all common match formula types with vectorized processing
-- ✅ Calculates matches with 100% accuracy using optimized algorithms
-- ✅ Handles true-up and stretch match scenarios with batch processing
-- ✅ Processes complex formulas for 100K employees in <30 seconds
-- ✅ Provides real-time formula optimization recommendations
-- ✅ Supports dynamic formula changes with seamless transitions
+- ✅ Core match formulas (simple %, tiered) in pure SQL
+- ✅ Processes 100K employees in <10 seconds using DuckDB
+- ✅ Integrates with event sourcing architecture
+- ✅ Supports formula configuration via dbt variables
+- ✅ Generates match events for downstream processing
+- ✅ Enables formula comparison and cost analysis
 
 ---
 
-## User Stories
+## Phase 1: MVP (2 weeks, ~18 points)
 
-### Story 1: Vectorized Match Formulas (12 points)
-**As a** plan sponsor
-**I want** to configure standard match formulas
-**So that** I can model different match strategies
+### MVP User Stories
+
+### Story E025-01: Core Match Formula Models (6 points)
+**As a** plan administrator
+**I want** SQL-based match formula calculations
+**So that** I can efficiently calculate employer matches
 
 **Acceptance Criteria:**
-- Vectorized simple percentage match (50% of deferrals) using NumPy operations
-- Efficient tiered match (100% on first 3%, 50% on next 2%) with optimized tier processing
-- Dollar-for-dollar match up to percentage with dynamic cap calculations
-- Discretionary match capability with configurable timing and approval workflows
-- Safe harbor match formulas with automatic compliance validation
-- Formula versioning and effective dating for mid-year changes
-- Performance benchmarking against 100K employee populations
+- Simple percentage match (e.g., 50% of deferrals) in pure SQL
+- Tiered match (100% on first 3%, 50% on next 2%) using DuckDB
+- Maximum match caps (% of compensation)
+- Formula configuration via dbt variables
+- Integration with contribution events
 
-### Story 2: Advanced Stretch Match Implementation (12 points)
+### Story E025-02: Match Event Generation (6 points)
+**As a** system architect
+**I want** match calculations to generate events
+**So that** we maintain audit trails
+
+**Acceptance Criteria:**
+- Generate EMPLOYER_MATCH events from calculations
+- Include formula details in event payload
+- Support batch event generation
+- Integrate with event sourcing architecture
+- Performance: <5 seconds for 10K employees
+
+### Story E025-03: Formula Comparison Analytics (6 points)
+**As a** benefits analyst
+**I want** to compare different match formulas
+**So that** I can optimize cost vs participation
+
+**Acceptance Criteria:**
+- Side-by-side formula cost comparison
+- Participation impact analysis
+- Annual cost projections
+- SQL-based analytics models
+- Integration with Streamlit dashboard
+
+---
+
+## Phase 2: Post-MVP Features
+
+### Story E025-04: Stretch Match Formulas (8 points)
 **As a** benefits designer
 **I want** stretch match formulas
 **So that** I can incentivize higher savings rates
 
 **Acceptance Criteria:**
-- Vectorized stretch match calculations (25% on first 12%) with performance optimization
-- Flexible graduated tier formulas with unlimited tier support
-- Dynamic maximum match caps (% of compensation) with real-time limit enforcement
-- Seamless vesting schedule integration with automated forfeiture calculations
-- Interactive comparison tools for formula impact with side-by-side analytics
-- Machine learning recommendations for optimal stretch match parameters
-- A/B testing framework for formula effectiveness measurement
+- Stretch match calculations (25% on first 12%)
+- Multiple tier support (unlimited)
+- Dynamic cap calculations
+- Performance optimization for complex formulas
 
-### Story 3: Automated True-Up Calculations (18 points)
+### Story E025-05: True-Up Calculations (12 points)
 **As a** payroll manager
-**I want** automatic true-up calculations
-**So that** employees receive their full match regardless of timing
+**I want** annual true-up calculations
+**So that** employees receive their full match
 
 **Acceptance Criteria:**
-- Vectorized annual true-up for employees who max early using batch processing
-- Complex variable compensation timing scenarios with payroll calendar integration
-- Sophisticated unpaid leave handling with service credit calculations
-- Comprehensive termination true-up rules with final pay integration
-- Automated true-up payment events with detailed audit trails
-- Real-time true-up projections during the plan year
-- Integration with payroll systems for seamless payment processing
-- Compliance reporting for true-up calculations and payments
+- Annual true-up for employees who max early
+- Variable compensation handling
+- Termination true-up rules
+- True-up event generation
+- Integration with year-end processing
 
-### Story 4: Dynamic Vesting Integration (8 points)
+### Story E025-06: Vesting Integration (8 points)
 **As a** plan administrator
 **I want** vesting schedules applied to matches
-**So that** we retain employees and reduce costs
+**So that** we properly track vested amounts
 
 **Acceptance Criteria:**
-- Vectorized cliff vesting (3-year) with automated milestone tracking
-- Flexible graded vesting (2-6 year) with configurable schedules
-- Advanced service computation for vesting with break-in-service rules
-- Automatic immediate vesting for safe harbor with compliance monitoring
-- Real-time forfeiture calculations with redistribution logic
-- Vesting schedule changes with grandfathering provisions
-- Integration with termination events for accurate forfeiture processing
-- Rehire vesting restoration with historical service credit
+- Cliff vesting (3-year)
+- Graded vesting (2-6 year)
+- Service computation
+- Forfeiture calculations
+- Integration with termination events
 
-### Story 5: AI-Powered Match Optimization Analytics (12 points)
+### Story E025-07: Safe Harbor Formulas (6 points)
+**As a** compliance officer
+**I want** safe harbor match formulas
+**So that** we meet regulatory requirements
+
+**Acceptance Criteria:**
+- Basic safe harbor match
+- Enhanced safe harbor match
+- Automatic immediate vesting
+- Compliance validation
+- QACA/QDIA support
+
+### Story E025-08: Match Optimization AI (10 points)
 **As a** CFO
-**I want** to compare different match formulas
-**So that** I can optimize cost vs participation
+**I want** AI-powered match optimization
+**So that** I can maximize ROI
 
 **Acceptance Criteria:**
-- Interactive side-by-side formula comparison with real-time updates
-- Multi-year cost projections by formula with scenario sensitivity analysis
-- Behavioral participation impact modeling using machine learning
-- Comprehensive employee outcome analysis with retirement readiness scoring
-- Detailed ROI calculations for match spend with optimization recommendations
-- Predictive analytics for formula effectiveness over time
-- Executive dashboard with key match metrics and trends
-- Integration with compensation planning for total rewards optimization
+- Machine learning participation models
+- Optimal formula recommendations
+- Cost/benefit analysis
+- A/B testing framework
+- Predictive analytics
 
 ---
 
-## Technical Specifications
+## Technical Specifications (MVP)
 
-### Match Formula Configuration
+### dbt Variable Configuration
 ```yaml
-match_formulas:
-  standard_match:
-    name: "Standard Tiered Match"
-    tiers:
-      - employee_min: 0.00
-        employee_max: 0.03
-        match_rate: 1.00  # 100% match
-      - employee_min: 0.03
-        employee_max: 0.05
-        match_rate: 0.50  # 50% match
-    max_match_percentage: 0.04  # 4% max match
+# dbt_project.yml
+vars:
+  match_formulas:
+    simple_match:
+      name: "Simple 50% Match"
+      type: "simple"
+      match_rate: 0.50
+      max_match_percentage: 0.03
 
-  stretch_match:
-    name: "Stretch Match"
-    tiers:
-      - employee_min: 0.00
-        employee_max: 0.12
-        match_rate: 0.25  # 25% match
-    max_match_percentage: 0.03  # 3% max match
+    tiered_match:
+      name: "Standard Tiered Match"
+      type: "tiered"
+      tiers:
+        - tier: 1
+          employee_min: 0.00
+          employee_max: 0.03
+          match_rate: 1.00
+        - tier: 2
+          employee_min: 0.03
+          employee_max: 0.05
+          match_rate: 0.50
+      max_match_percentage: 0.04
 
-  safe_harbor_basic:
-    name: "Safe Harbor Basic Match"
-    tiers:
-      - employee_min: 0.00
-        employee_max: 0.03
-        match_rate: 1.00
-      - employee_min: 0.03
-        employee_max: 0.05
-        match_rate: 0.50
-    immediate_vesting: true
-
-  vesting_schedules:
-    cliff_3_year:
-      type: "cliff"
-      years_to_vest: 3
-
-    graded_2_to_6:
-      type: "graded"
-      schedule:
-        - years: 2
-          vested_percentage: 0.20
-        - years: 3
-          vested_percentage: 0.40
-        - years: 4
-          vested_percentage: 0.60
-        - years: 5
-          vested_percentage: 0.80
-        - years: 6
-          vested_percentage: 1.00
+  # Active formula for simulations
+  active_match_formula: "tiered_match"
 ```
 
-### Vectorized Match Calculation Engine
+### Core SQL Models (MVP)
+
+#### int_employee_match_calculations.sql
+```sql
+{{
+  config(
+    materialized='table',
+    indexes=[
+      {'columns': ['employee_id', 'simulation_year'], 'unique': true}
+    ]
+  )
+}}
+
+WITH employee_contributions AS (
+  SELECT
+    employee_id,
+    simulation_year,
+    SUM(contribution_amount) as annual_deferrals,
+    MAX(eligible_compensation) as eligible_compensation,
+    -- Calculate effective deferral rate
+    CASE
+      WHEN MAX(eligible_compensation) > 0
+      THEN SUM(contribution_amount) / MAX(eligible_compensation)
+      ELSE 0
+    END as deferral_rate
+  FROM {{ ref('fct_contribution_events') }}
+  WHERE contribution_type = 'EMPLOYEE_DEFERRAL'
+  GROUP BY employee_id, simulation_year
+),
+
+-- Simple match calculation
+simple_match AS (
+  SELECT
+    employee_id,
+    simulation_year,
+    eligible_compensation,
+    deferral_rate,
+    annual_deferrals,
+    -- Simple percentage match
+    annual_deferrals * {{ var('match_formulas')['simple_match']['match_rate'] }} as match_amount,
+    'simple' as formula_type
+  FROM employee_contributions
+  WHERE '{{ var("active_match_formula") }}' = 'simple_match'
+),
+
+-- Tiered match calculation using DuckDB's powerful window functions
+tiered_match AS (
+  SELECT
+    ec.employee_id,
+    ec.simulation_year,
+    ec.eligible_compensation,
+    ec.deferral_rate,
+    ec.annual_deferrals,
+    -- Calculate match for each tier
+    SUM(
+      CASE
+        WHEN ec.deferral_rate > tier.employee_min
+        THEN LEAST(
+          ec.deferral_rate - tier.employee_min,
+          tier.employee_max - tier.employee_min
+        ) * tier.match_rate * ec.eligible_compensation
+        ELSE 0
+      END
+    ) as match_amount,
+    'tiered' as formula_type
+  FROM employee_contributions ec
+  CROSS JOIN (
+    {% for tier in var('match_formulas')['tiered_match']['tiers'] %}
+    SELECT
+      {{ tier['tier'] }} as tier_number,
+      {{ tier['employee_min'] }} as employee_min,
+      {{ tier['employee_max'] }} as employee_max,
+      {{ tier['match_rate'] }} as match_rate
+    {% if not loop.last %}UNION ALL{% endif %}
+    {% endfor %}
+  ) as tier
+  WHERE '{{ var("active_match_formula") }}' = 'tiered_match'
+  GROUP BY ec.employee_id, ec.simulation_year, ec.eligible_compensation,
+           ec.deferral_rate, ec.annual_deferrals
+),
+
+-- Combine all match types
+all_matches AS (
+  SELECT * FROM simple_match
+  UNION ALL
+  SELECT * FROM tiered_match
+),
+
+-- Apply match caps
+final_match AS (
+  SELECT
+    employee_id,
+    simulation_year,
+    eligible_compensation,
+    deferral_rate,
+    annual_deferrals,
+    formula_type,
+    -- Apply maximum match cap
+    LEAST(
+      match_amount,
+      eligible_compensation * {{ var('match_formulas')[var('active_match_formula')]['max_match_percentage'] }}
+    ) as employer_match_amount,
+    -- Track if cap was applied
+    CASE
+      WHEN match_amount > eligible_compensation * {{ var('match_formulas')[var('active_match_formula')]['max_match_percentage'] }}
+      THEN true
+      ELSE false
+    END as match_cap_applied
+  FROM all_matches
+)
+
+SELECT
+  employee_id,
+  simulation_year,
+  eligible_compensation,
+  deferral_rate,
+  annual_deferrals,
+  employer_match_amount,
+  formula_type,
+  match_cap_applied,
+  '{{ var("active_match_formula") }}' as formula_id,
+  -- Calculate effective match rate
+  CASE
+    WHEN annual_deferrals > 0
+    THEN employer_match_amount / annual_deferrals
+    ELSE 0
+  END as effective_match_rate
+FROM final_match
+```
+
+#### fct_employer_match_events.sql
+```sql
+{{
+  config(
+    materialized='incremental',
+    unique_key=['event_id'],
+    on_schema_change='sync_all_columns'
+  )
+}}
+
+WITH match_calculations AS (
+  SELECT * FROM {{ ref('int_employee_match_calculations') }}
+  {% if is_incremental() %}
+  WHERE simulation_year > (SELECT MAX(simulation_year) FROM {{ this }})
+  {% endif %}
+),
+
+match_events AS (
+  SELECT
+    {{ dbt_utils.generate_surrogate_key(['employee_id', 'simulation_year', 'current_timestamp()']) }} as event_id,
+    employee_id,
+    'EMPLOYER_MATCH' as event_type,
+    simulation_year,
+    DATE(simulation_year || '-12-31') as effective_date,
+    employer_match_amount as amount,
+    -- Event payload
+    {
+      'formula_id': formula_id,
+      'formula_type': formula_type,
+      'deferral_rate': deferral_rate,
+      'eligible_compensation': eligible_compensation,
+      'match_cap_applied': match_cap_applied,
+      'effective_match_rate': effective_match_rate
+    }::JSON as event_payload,
+    CURRENT_TIMESTAMP as created_at
+  FROM match_calculations
+  WHERE employer_match_amount > 0
+)
+
+SELECT * FROM match_events
+```
+
+#### int_match_formula_comparison.sql
+```sql
+{{
+  config(
+    materialized='table'
+  )
+}}
+
+-- Calculate costs for each formula type
+WITH formula_costs AS (
+  {% for formula_key, formula_config in var('match_formulas').items() %}
+  SELECT
+    '{{ formula_key }}' as formula_id,
+    '{{ formula_config["name"] }}' as formula_name,
+    COUNT(DISTINCT employee_id) as total_employees,
+    COUNT(DISTINCT CASE WHEN employer_match_amount > 0 THEN employee_id END) as participating_employees,
+    SUM(employer_match_amount) as total_annual_cost,
+    AVG(employer_match_amount) as avg_match_per_employee,
+    AVG(CASE WHEN employer_match_amount > 0 THEN employer_match_amount END) as avg_match_per_participant,
+    AVG(effective_match_rate) as avg_effective_match_rate,
+    COUNT(CASE WHEN match_cap_applied THEN 1 END) as employees_hitting_cap,
+    simulation_year
+  FROM {{ ref('int_employee_match_calculations') }}
+  WHERE formula_id = '{{ formula_key }}'
+  GROUP BY simulation_year
+  {% if not loop.last %}UNION ALL{% endif %}
+  {% endfor %}
+)
+
+SELECT
+  formula_id,
+  formula_name,
+  simulation_year,
+  total_employees,
+  participating_employees,
+  participating_employees::FLOAT / NULLIF(total_employees, 0) as participation_rate,
+  total_annual_cost,
+  total_annual_cost * 5 as projected_5_year_cost,
+  avg_match_per_employee,
+  avg_match_per_participant,
+  avg_effective_match_rate,
+  employees_hitting_cap,
+  employees_hitting_cap::FLOAT / NULLIF(participating_employees, 0) as pct_hitting_cap
+FROM formula_costs
+ORDER BY simulation_year, formula_id
+```
+
+### Orchestrator Integration (MVP)
+
+#### orchestrator_mvp/assets/match_engine.py
 ```python
+from dagster import asset, AssetExecutionContext
+from dagster_dbt import DbtCliResource
 import pandas as pd
-import numpy as np
-from typing import Dict, List, Optional, Tuple
-from dataclasses import dataclass
-from datetime import datetime, date
-from decimal import Decimal
 
-@dataclass
-class MatchTier:
-    employee_min: float
-    employee_max: float
-    match_rate: float
-    tier_order: int
+@asset(
+    deps=["contribution_events"],
+    group_name="dc_plan"
+)
+def employer_match_calculations(
+    context: AssetExecutionContext,
+    dbt: DbtCliResource
+) -> None:
+    """Calculate employer matches based on contribution events"""
 
-@dataclass
-class MatchFormula:
-    formula_id: str
-    name: str
-    tiers: List[MatchTier]
-    max_match_percentage: Optional[float] = None
-    effective_date: Optional[date] = None
-    end_date: Optional[date] = None
+    # Run match calculation models
+    dbt_result = dbt.cli(
+        ["run", "--select", "int_employee_match_calculations+"],
+        context=context
+    ).wait()
 
-class VectorizedMatchEngine:
-    def __init__(self, match_formulas: Dict[str, MatchFormula]):
-        self.match_formulas = match_formulas
-        self.vesting_cache = {}  # Cache for vesting calculations
+    if not dbt_result.success:
+        raise Exception("Match calculation failed")
 
-    def calculate_match_batch(self, employees_df: pd.DataFrame,
-                             formula_id: str,
-                             as_of_date: date = None) -> pd.DataFrame:
-        """Calculate employer match for entire employee population efficiently"""
+    context.log.info(f"Calculated employer matches for simulation")
 
-        formula = self.match_formulas[formula_id]
+@asset(
+    deps=["employer_match_calculations"],
+    group_name="dc_plan"
+)
+def match_events(
+    context: AssetExecutionContext,
+    dbt: DbtCliResource,
+    duckdb: DuckDBResource
+) -> pd.DataFrame:
+    """Generate employer match events"""
 
-        # Initialize match calculation columns
-        employees_df['employer_match'] = 0.0
-        employees_df['match_calculation_details'] = [[] for _ in range(len(employees_df))]
+    # Run event generation model
+    dbt_result = dbt.cli(
+        ["run", "--select", "fct_employer_match_events"],
+        context=context
+    ).wait()
 
-        # Apply tiered match formula using vectorized operations
-        employees_df = self._apply_tiered_formula_vectorized(employees_df, formula)
+    # Query generated events
+    with duckdb.get_connection() as conn:
+        events_df = conn.execute("""
+            SELECT
+                event_id,
+                employee_id,
+                event_type,
+                simulation_year,
+                amount,
+                event_payload
+            FROM fct_employer_match_events
+            WHERE simulation_year = (SELECT MAX(simulation_year) FROM fct_employer_match_events)
+        """).df()
 
-        # Apply maximum match caps
-        if formula.max_match_percentage:
-            employees_df = self._apply_match_caps_vectorized(employees_df, formula)
+    context.log.info(f"Generated {len(events_df)} match events")
+    return events_df
+```
 
-        # Apply vesting calculations
-        employees_df = self._apply_vesting_vectorized(employees_df, as_of_date)
+### Streamlit Dashboard Integration
 
-        return employees_df
+#### streamlit_dashboard/pages/match_formula_comparison.py
+```python
+import streamlit as st
+import pandas as pd
+import plotly.express as px
+from utils.database import get_duckdb_connection
 
-    def _apply_tiered_formula_vectorized(self, df: pd.DataFrame,
-                                       formula: MatchFormula) -> pd.DataFrame:
-        """Apply tiered match formula using efficient vectorized operations"""
+st.set_page_config(page_title="Match Formula Comparison", layout="wide")
+st.title("Employer Match Formula Comparison")
 
-        # Sort tiers by order to ensure correct application
-        sorted_tiers = sorted(formula.tiers, key=lambda t: t.tier_order)
+# Load comparison data
+@st.cache_data(ttl=300)
+def load_formula_comparison():
+    with get_duckdb_connection() as conn:
+        return conn.execute("""
+            SELECT * FROM int_match_formula_comparison
+            ORDER BY simulation_year, formula_id
+        """).df()
 
-        for tier in sorted_tiers:
-            # Calculate the portion of deferral rate that applies to this tier
-            # Use np.clip to efficiently handle tier boundaries
-            applicable_rate = np.clip(
-                df['deferral_rate'] - tier.employee_min,
-                0,
-                tier.employee_max - tier.employee_min
-            )
+comparison_df = load_formula_comparison()
 
-            # Calculate match for this tier
-            tier_match = applicable_rate * tier.match_rate * df['eligible_compensation']
-
-            # Add to total match
-            df['employer_match'] += tier_match
-
-            # Track calculation details for audit trail
-            tier_details = {
-                'tier': tier.tier_order,
-                'employee_rate_range': f"{tier.employee_min:.1%}-{tier.employee_max:.1%}",
-                'match_rate': f"{tier.match_rate:.1%}",
-                'applicable_employee_rate': applicable_rate,
-                'tier_match_amount': tier_match
-            }
-
-            # Add details for employees with non-zero tier match
-            non_zero_mask = tier_match > 0
-            for idx in df[non_zero_mask].index:
-                df.at[idx, 'match_calculation_details'].append(tier_details)
-
-        return df
-
-    def _apply_match_caps_vectorized(self, df: pd.DataFrame,
-                                   formula: MatchFormula) -> pd.DataFrame:
-        """Apply maximum match caps using vectorized operations"""
-
-        # Calculate maximum match amount
-        max_match_dollars = df['eligible_compensation'] * formula.max_match_percentage
-
-        # Apply cap where needed
-        cap_applied_mask = df['employer_match'] > max_match_dollars
-        df.loc[cap_applied_mask, 'employer_match'] = max_match_dollars
-
-        # Track cap applications
-        for idx in df[cap_applied_mask].index:
-            df.at[idx, 'match_calculation_details'].append({
-                'cap_applied': True,
-                'cap_percentage': f"{formula.max_match_percentage:.1%}",
-                'cap_amount': max_match_dollars[idx]
-            })
-
-        return df
-
-    def _apply_vesting_vectorized(self, df: pd.DataFrame, as_of_date: date) -> pd.DataFrame:
-        """Apply vesting calculations using cached service computations"""
-
-        # Calculate vesting percentages efficiently
-        df['vesting_percentage'] = df.apply(
-            lambda row: self._calculate_vesting_percentage(
-                row['employee_id'],
-                row['service_years'],
-                row['vesting_schedule_id'],
-                as_of_date
-            ), axis=1
-        )
-
-        # Apply vesting to match amounts
-        df['vested_match'] = df['employer_match'] * df['vesting_percentage']
-        df['nonvested_match'] = df['employer_match'] - df['vested_match']
-
-        return df
-
-    def calculate_true_up_batch(self, employees_df: pd.DataFrame,
-                               plan_year: int,
-                               formula_id: str) -> pd.DataFrame:
-        """Calculate year-end true-up amounts for entire population"""
-
-        formula = self.match_formulas[formula_id]
-
-        # Get YTD data efficiently for all employees
-        ytd_data = self._get_ytd_data_batch(employees_df['employee_id'].tolist(), plan_year)
-
-        # Merge YTD data with employee data
-        employees_df = employees_df.merge(ytd_data, on='employee_id', how='left')
-
-        # Calculate annual deferral rates
-        employees_df['annual_deferral_rate'] = (
-            employees_df['ytd_deferrals'] / employees_df['ytd_compensation']
-        ).fillna(0)
-
-        # Calculate what match should have been based on annual amounts
-        temp_df = employees_df.copy()
-        temp_df['deferral_rate'] = temp_df['annual_deferral_rate']
-        temp_df['eligible_compensation'] = temp_df['ytd_compensation']
-
-        # Calculate correct annual match
-        temp_df = self._apply_tiered_formula_vectorized(temp_df, formula)
-
-        # True-up is the difference (positive only)
-        employees_df['true_up_amount'] = np.maximum(
-            0,
-            temp_df['employer_match'] - employees_df['ytd_match_paid']
-        )
-
-        return employees_df[employees_df['true_up_amount'] > 0]
-
-    def _get_ytd_data_batch(self, employee_ids: List[str],
-                           plan_year: int) -> pd.DataFrame:
-        """Efficiently retrieve YTD data for multiple employees"""
-        # This would be implemented with optimized database queries
-        # Placeholder implementation
-        return pd.DataFrame({
-            'employee_id': employee_ids,
-            'ytd_deferrals': [0.0] * len(employee_ids),
-            'ytd_compensation': [50000.0] * len(employee_ids),
-            'ytd_match_paid': [0.0] * len(employee_ids)
-        })
-
-    def _calculate_vesting_percentage(self, employee_id: str,
-                                    service_years: float,
-                                    vesting_schedule_id: str,
-                                    as_of_date: date) -> float:
-        """Calculate vesting percentage with caching for performance"""
-
-        cache_key = f"{employee_id}_{vesting_schedule_id}_{as_of_date}"
-
-        if cache_key in self.vesting_cache:
-            return self.vesting_cache[cache_key]
-
-        # Implement vesting schedule logic
-        if vesting_schedule_id == 'immediate':
-            vesting_pct = 1.0
-        elif vesting_schedule_id == 'cliff_3_year':
-            vesting_pct = 1.0 if service_years >= 3 else 0.0
-        elif vesting_schedule_id == 'graded_2_to_6':
-            if service_years < 2:
-                vesting_pct = 0.0
-            elif service_years < 3:
-                vesting_pct = 0.2
-            elif service_years < 4:
-                vesting_pct = 0.4
-            elif service_years < 5:
-                vesting_pct = 0.6
-            elif service_years < 6:
-                vesting_pct = 0.8
-            else:
-                vesting_pct = 1.0
-        else:
-            vesting_pct = 0.0  # Default to not vested
-
-        # Cache the result
-        self.vesting_cache[cache_key] = vesting_pct
-
-        return vesting_pct
-
-    def compare_match_formulas_vectorized(self, employee_population_df: pd.DataFrame,
-                                        formula_ids: List[str],
-                                        projection_years: int = 5) -> Dict[str, Dict]:
-        """Compare multiple match formulas using vectorized operations"""
-
-        results = {}
-
-        for formula_id in formula_ids:
-            formula = self.match_formulas[formula_id]
-
-            # Calculate match for this formula
-            temp_df = employee_population_df.copy()
-            temp_df = self.calculate_match_batch(temp_df, formula_id)
-
-            # Calculate key metrics
-            total_employees = len(temp_df)
-            participating_employees = len(temp_df[temp_df['deferral_rate'] > 0])
-
-            results[formula_id] = {
-                'formula_name': formula.name,
-                'total_annual_cost': temp_df['employer_match'].sum(),
-                'projected_5_year_cost': temp_df['employer_match'].sum() * projection_years,
-                'participation_rate': participating_employees / total_employees,
-                'average_match_rate': (temp_df['employer_match'] / temp_df['eligible_compensation']).mean(),
-                'average_deferral_rate': temp_df[temp_df['deferral_rate'] > 0]['deferral_rate'].mean(),
-                'cost_per_participant': temp_df['employer_match'].sum() / participating_employees if participating_employees > 0 else 0,
-                'employees_at_max_match': len(temp_df[temp_df['employer_match'] >= temp_df['eligible_compensation'] * (formula.max_match_percentage or 1.0)]),
-                'total_compensation_base': temp_df['eligible_compensation'].sum()
-            }
-
-        return results
-
-# Usage example
-def process_employer_match_batch(employees_df: pd.DataFrame,
-                                formula_id: str,
-                                match_engine: VectorizedMatchEngine,
-                                pay_period_end: date) -> pd.DataFrame:
-    """Process employer match calculations for payroll"""
-
-    # Calculate matches
-    result_df = match_engine.calculate_match_batch(
-        employees_df,
-        formula_id,
-        as_of_date=pay_period_end
+# Formula selection
+col1, col2 = st.columns(2)
+with col1:
+    selected_year = st.selectbox(
+        "Simulation Year",
+        comparison_df['simulation_year'].unique()
     )
 
-    # Generate match events for employees with matches
-    employees_with_match = result_df[result_df['employer_match'] > 0]
+# Filter data
+year_data = comparison_df[comparison_df['simulation_year'] == selected_year]
 
-    if len(employees_with_match) > 0:
-        match_events = create_match_events_batch(
-            employees_with_match,
-            pay_period_end
+# Key metrics
+st.subheader("Formula Comparison Metrics")
+metrics_cols = st.columns(len(year_data))
+
+for idx, (_, formula) in enumerate(year_data.iterrows()):
+    with metrics_cols[idx]:
+        st.metric(
+            formula['formula_name'],
+            f"${formula['total_annual_cost']:,.0f}",
+            f"{formula['participation_rate']:.1%} participation"
         )
 
-        # Insert events
-        insert_match_events_batch(match_events)
+# Cost comparison chart
+fig_cost = px.bar(
+    year_data,
+    x='formula_name',
+    y='total_annual_cost',
+    title='Annual Match Cost by Formula',
+    labels={'total_annual_cost': 'Annual Cost ($)'}
+)
+st.plotly_chart(fig_cost, use_container_width=True)
 
-    return result_df
-```
+# Participation analysis
+col1, col2 = st.columns(2)
 
-### Match Optimization Comparison
-```python
-def compare_match_formulas(employee_population, formula_list, years=5):
-    """Compare impact of different match formulas"""
-    results = {}
+with col1:
+    fig_participation = px.scatter(
+        year_data,
+        x='participation_rate',
+        y='avg_match_per_participant',
+        size='total_annual_cost',
+        text='formula_name',
+        title='Participation vs Average Match'
+    )
+    st.plotly_chart(fig_participation)
 
-    for formula in formula_list:
-        projection = {
-            'total_cost': 0,
-            'avg_match_rate': 0,
-            'participation_rate': 0,
-            'avg_deferral_rate': 0
-        }
-
-        for employee in employee_population:
-            # Model enrollment probability with this formula
-            enrollment_prob = model_enrollment_impact(employee, formula)
-
-            if random.random() < enrollment_prob:
-                # Model deferral rate selection
-                deferral_rate = model_deferral_selection(employee, formula)
-
-                # Calculate match cost
-                match_cost = calculate_match(
-                    deferral_rate,
-                    employee.projected_compensation,
-                    formula
-                )
-
-                projection['total_cost'] += match_cost * years
-                projection['participation_rate'] += 1
-                projection['avg_deferral_rate'] += deferral_rate
-
-        # Calculate averages
-        participants = projection['participation_rate']
-        projection['participation_rate'] /= len(employee_population)
-        projection['avg_deferral_rate'] /= participants if participants > 0 else 1
-        projection['avg_match_rate'] = projection['total_cost'] / (
-            sum(e.projected_compensation for e in employee_population) * years
-        )
-
-        results[formula.name] = projection
-
-    return results
+with col2:
+    fig_caps = px.bar(
+        year_data,
+        x='formula_name',
+        y='pct_hitting_cap',
+        title='Employees Hitting Match Cap',
+        labels={'pct_hitting_cap': '% at Cap'}
+    )
+    st.plotly_chart(fig_caps)
 ```
 
 ---
 
-## Performance Requirements
+## Performance Optimizations
 
-| Metric | Requirement | Implementation Strategy |
-|--------|-------------|------------------------|
-| Match Calculation | <30 seconds for 100K employees | Vectorized DataFrame operations with NumPy optimization |
-| True-Up Processing | <2 minutes for annual true-up batch | Efficient YTD data retrieval with batch processing |
-| Formula Comparison | <1 minute for 10 formula scenarios | Parallel processing with cached calculations |
-| Vesting Calculations | <10 seconds with service caching | Pre-computed vesting schedules with lookup optimization |
-| Memory Usage | <6GB for 100K employee match processing | Efficient data types and streaming operations |
+### DuckDB-Specific Optimizations
+```sql
+-- Create optimized aggregation macro for match calculations
+{% macro calculate_tiered_match_optimized() %}
+  -- Use DuckDB's LIST comprehension for tier calculations
+  SELECT
+    employee_id,
+    simulation_year,
+    eligible_compensation,
+    deferral_rate,
+    -- Vectorized tier calculation using DuckDB arrays
+    list_sum(
+      list_transform(
+        [
+          {% for tier in var('match_formulas')['tiered_match']['tiers'] %}
+          {
+            'min': {{ tier['employee_min'] }},
+            'max': {{ tier['employee_max'] }},
+            'rate': {{ tier['match_rate'] }}
+          }{% if not loop.last %},{% endif %}
+          {% endfor %}
+        ],
+        tier -> GREATEST(0,
+          LEAST(deferral_rate - tier.min, tier.max - tier.min)
+          * tier.rate * eligible_compensation
+        )
+      )
+    ) as match_amount
+  FROM employee_contributions
+{% endmacro %}
+```
+
+---
+
+## Performance Requirements (MVP)
+
+| Metric | MVP Requirement | Implementation |
+|--------|----------------|----------------|
+| Match Calculation | <10 seconds for 100K employees | DuckDB columnar processing |
+| Event Generation | <5 seconds for 10K employees | Batch INSERT with CTEs |
+| Formula Comparison | <2 seconds for 5 formulas | Pre-aggregated materialized tables |
+| Dashboard Response | <1 second | Cached queries with TTL |
 
 ## Dependencies
-- E021: DC Plan Data Model (event schema)
-- E024: Contribution Calculator (compensation amounts)
-- Employee demographic data for modeling
-- Pandas/NumPy for vectorized DataFrame operations
-- Machine learning libraries for optimization analytics
-- Real-time database connectivity for YTD tracking
-- Payroll system integration for true-up processing
+- E021-A: DC Plan Event Schema (complete)
+- E024: Contribution Calculator (for contribution events)
+- DuckDB 1.0.0+ for performance
+- dbt-core 1.8.8+ for SQL models
+- Dagster for orchestration
 
-## Risks
-- **Risk**: Complex true-up edge cases
-- **Mitigation**: Test with real payroll scenarios
-- **Risk**: Formula change mid-year handling
-- **Mitigation**: Effective date tracking on all formulas
+## Risks & Mitigations
+- **Risk**: Complex formula configurations
+- **Mitigation**: Start with simple/tiered only, defer complex formulas
+- **Risk**: Performance with large populations
+- **Mitigation**: Use DuckDB optimizations and materialized tables
 
 ## Estimated Effort
-**Total Story Points**: 62 points
-**Estimated Duration**: 4 sprints
+**MVP Phase**: 18 points (2 weeks)
+**Post-MVP Phase**: 44 points (3-4 sprints)
 
 ---
 
-## Definition of Done
-- [ ] All match formula types implemented
-- [ ] True-up calculations accurate
-- [ ] Vesting schedules integrated
-- [ ] Formula comparison tools complete
-- [ ] Performance benchmarks met
-- [ ] Edge cases documented and tested
-- [ ] User documentation with examples
+## Definition of Done (MVP)
+- [ ] Simple and tiered match formulas in SQL
+- [ ] Match event generation integrated
+- [ ] Formula comparison analytics complete
+- [ ] Performance targets met (<10s for 100K)
+- [ ] Integration with orchestrator_mvp
+- [ ] Streamlit dashboard page
+- [ ] Unit tests for SQL models

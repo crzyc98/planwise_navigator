@@ -1,486 +1,362 @@
-# Epic E024: Contribution Calculator with IRS Limits
+# Epic E024: Contribution Calculator
 
 ## Epic Overview
 
 ### Summary
-Build a high-performance vectorized contribution calculation engine that computes employee deferrals and employer contributions for 100K+ employees while enforcing all applicable IRS limits and plan-specific rules using optimized DataFrame operations.
+Develop a high-performance contribution calculation engine using SQL/dbt that computes employee deferrals while enforcing core IRS limits for 100K+ employees. This MVP focuses on essential contribution logic while deferring complex scenarios to post-MVP phases.
 
 ### Business Value
-- Ensures 100% compliance with IRS contribution limits avoiding penalties
-- Accurately projects employer costs for budgeting ($10-50M annually)
-- Prevents excess contributions that require costly corrections
+- Ensures 100% compliance with core IRS contribution limits avoiding penalties
+- Accurately projects contribution amounts for plan cost modeling
+- Provides foundation for advanced contribution features and optimization
 
 ### Success Criteria
-- ✅ Calculates contributions with 100% accuracy using vectorized operations
-- ✅ Enforces all IRS limits (402(g), 415(c), highly compensated) with batch processing
-- ✅ Handles complex timing scenarios (bonuses, raises, terminations) efficiently
-- ✅ Processes 100K employees in <30 seconds per pay period using DataFrame operations
-- ✅ Maintains real-time YTD tracking with sub-second query performance
-- ✅ Supports concurrent scenario processing with isolated limit tracking
+- ✅ Calculates contributions with 100% accuracy using SQL/dbt processing
+- ✅ Enforces core IRS limits (402(g), catch-up) using DuckDB optimization
+- ✅ Processes 100K employees in <10 seconds using columnar processing
+- ✅ Generates contribution events integrated with existing event sourcing
+- ✅ Achieves reproducible results with deterministic calculations
+- ✅ Provides audit trail for regulatory compliance
+
+### MVP Implementation Approach
+This epic follows the proven E022/E023 pattern:
+
+**MVP Phase (2 weeks - 18 points)**
+- SQL/dbt-first implementation for maximum performance
+- Core IRS limit enforcement (402(g) and catch-up)
+- Basic compensation processing with simple inclusion rules
+- Integration with orchestrator_mvp framework
+- Focus on 95% of standard contribution scenarios
+
+**Post-MVP Phase (Future - 42 points)**
+- Advanced Roth contribution support
+- Complex timing and proration logic
+- Dynamic compensation definitions
+- Real-time YTD tracking dashboard
+- Advanced employer contribution matching
 
 ---
 
 ## User Stories
 
-### Story 1: Vectorized Contribution Calculations (12 points)
+### MVP Stories (In Development)
+
+#### Story S024-01: Basic Contribution Calculations (8 points) 🚧
+**Status**: Ready for implementation
 **As a** payroll administrator
 **I want** accurate contribution calculations each pay period
-**So that** the correct amounts are deducted and matched
+**So that** the correct amounts are deducted from employee paychecks
 
-**Acceptance Criteria:**
-- Vectorized calculation of employee deferrals for entire payroll population
-- Handles both percentage and dollar amount elections using conditional DataFrame operations
-- Supports bi-weekly, semi-monthly, monthly pay frequencies with optimized pay calendar logic
-- Creates batch CONTRIBUTION events with UUID correlation and performance tracking
-- Handles mid-year rate changes with historical effective dating
-- Real-time validation of calculation accuracy with automated variance detection
-- Support for complex compensation scenarios including bonuses and irregular pay
+**MVP Acceptance Criteria:**
+- ✅ SQL-based employee deferral calculations for 100K employees in <10 seconds
+- ✅ Percentage-based and dollar-based deferral elections via dbt variables
+- ✅ Basic pay frequency handling (bi-weekly, monthly)
+- ✅ Generate CONTRIBUTION events in existing event model
+- ✅ Deterministic calculations for reproducibility
+- ✅ Integration with enrollment determination from E023
 
-### Story 2: Vectorized IRS Limit Enforcement (18 points)
+**Implementation**: See `/docs/stories/S024-01-basic-contribution-calculations.md`
+
+#### Story S024-02: Core IRS Limit Enforcement (6 points) 🚧
+**Status**: Ready for implementation
 **As a** compliance officer
-**I want** automatic enforcement of all IRS limits
+**I want** automatic enforcement of core IRS limits
 **So that** we avoid excess contributions and penalties
 
-**Acceptance Criteria:**
-- Vectorized 402(g) elective deferral limit enforcement ($23,000 for 2025) using DataFrame masking
-- Vectorized 415(c) annual additions limit ($70,000 for 2025) with hierarchical limit application
-- Age 50+ catch-up contributions ($7,500 for 2025) using efficient age-based filtering
-- Highly compensated employee limits with dynamic threshold calculations
-- Real-time limit status tracking with automatic contribution suspension
-- Vectorized year-end true-up calculations with batch correction processing
-- Multi-year limit tracking for rollover scenarios and plan changes
-- Compliance reporting with automated exception detection and resolution recommendations
+**MVP Acceptance Criteria:**
+- ✅ 402(g) elective deferral limit enforcement ($23,500 for 2025)
+- ✅ Age 50+ catch-up contributions ($7,500 for 2025) using SQL date functions
+- ✅ SQL-based YTD tracking with simple accumulation
+- ✅ Limit violation detection and automatic reduction
+- ✅ Audit trail for all limit applications
 
-### Story 3: Dynamic Compensation Definitions (10 points)
+**Implementation**: See `/docs/stories/S024-02-core-irs-limit-enforcement.md`
+
+#### Story S024-03: Simple Compensation Processing (4 points) 🚧
+**Status**: Ready for implementation
 **As a** plan administrator
-**I want** flexible compensation definitions
-**So that** different pay types are handled correctly
+**I want** consistent compensation calculations
+**So that** contributions are based on correct pay amounts
 
-**Acceptance Criteria:**
-- Configurable W-2 compensation baseline with multiple definition support
-- Dynamic include/exclude rules for bonuses, commissions, overtime using boolean logic
-- Pre/post severance compensation rules with timing-sensitive calculations
-- Multiple safe harbor compensation definitions with automatic selection
-- Vectorized handling of compensation over IRS limit ($360,000 for 2025)
-- Support for multiple compensation streams with complex aggregation rules
-- Integration with payroll systems for real-time compensation updates
-- Historical compensation tracking for plan year changes and corrections
+**MVP Acceptance Criteria:**
+- ✅ W-2 wage baseline with basic inclusions (regular pay, overtime)
+- ✅ Hardcoded exclusions (severance, fringe benefits)
+- ✅ IRS annual compensation limit ($360,000 for 2025)
+- ✅ Basic partial period proration for new hires/terminations
+- ✅ Integration with workforce events from simulation
 
-### Story 4: Enhanced Roth Contribution Support (8 points)
+**Implementation**: See `/docs/stories/S024-03-simple-compensation-processing.md`
+
+### Future Stories (Post-MVP)
+
+#### Story 4: Enhanced Roth Contribution Support (8 points) 📅
+**Status**: Deferred to post-MVP
 **As an** employee
 **I want** to split contributions between traditional and Roth
 **So that** I can optimize my tax strategy
 
-**Acceptance Criteria:**
-- Vectorized separate tracking of traditional vs Roth with optimized data structures
-- Flexible split percentage configuration with dynamic allocation logic
-- Combined limit enforcement using unified constraint solving
-- Roth in-plan conversions with automated eligibility checking and tax implications
-- Separate employer match treatment with configurable allocation rules
-- Support for Roth catch-up contributions with age-based automation
-- After-tax contribution support with mega backdoor Roth capabilities
-- Tax optimization recommendations based on contribution patterns
+**Future Acceptance Criteria:**
+- Traditional vs Roth split percentage configuration
+- Combined limit enforcement across contribution types
+- Roth in-plan conversions with eligibility checking
+- After-tax contribution support
 
-### Story 5: Advanced Timing & Proration Logic (12 points)
+#### Story 5: Advanced Timing & Proration Logic (12 points) 📅
+**Status**: Deferred to post-MVP
 **As a** finance manager
-**I want** accurate handling of partial periods
-**So that** contributions are correct for new hires and terminations
+**I want** accurate handling of complex timing scenarios
+**So that** contributions are correct for all employment situations
 
-**Acceptance Criteria:**
-- Vectorized pro-ration for partial pay periods using calendar-aware calculations
-- Complex hire date timing scenarios with eligibility integration
-- Sophisticated termination date contribution rules with final pay handling
-- Leave of absence suspension and resumption with accurate service credit tracking
-- Rehire contribution resumption with historical contribution election restoration
-- Mid-year plan changes with seamless contribution transitions
-- Acquisition and merger scenarios with plan consolidation support
-- Payroll calendar integration with holiday and business day adjustments
+**Future Acceptance Criteria:**
+- Complex hire/termination date scenarios
+- Leave of absence suspension and resumption
+- Mid-year plan changes with seamless transitions
+- Payroll calendar integration with holiday adjustments
+
+#### Story 6: Dynamic Compensation Definitions (6 points) 📅
+**Status**: Deferred to post-MVP
+**As a** plan administrator
+**I want** flexible compensation definitions
+**So that** different pay types are handled per plan rules
+
+**Future Acceptance Criteria:**
+- Configurable compensation inclusion/exclusion rules
+- Multiple safe harbor compensation definitions
+- Integration with real-time payroll systems
+- Historical compensation tracking and corrections
+
+#### Story 7: Advanced IRS Limit Processing (16 points) 📅
+**Status**: Deferred to post-MVP
+**As a** compliance officer
+**I want** comprehensive IRS limit enforcement
+**So that** all regulatory requirements are met
+
+**Future Acceptance Criteria:**
+- 415(c) annual additions limit with employer contributions
+- Highly compensated employee (HCE) limit testing
+- Real-time limit monitoring and suspension
+- Year-end true-up calculations with corrections
 
 ---
 
 ## Technical Specifications
 
-### Contribution Configuration
+### SQL/dbt-Based Contribution Configuration
+
+Following the proven E022/E023 pattern, E024 uses SQL/dbt-based implementation for maximum performance and maintainability.
+
+#### dbt Variables for Contribution Processing
 ```yaml
-contribution_rules:
-  compensation_definition:
-    base_type: "w2_wages"
-    inclusions:
-      - regular_pay
-      - overtime
-      - commissions
-      - bonuses
-    exclusions:
-      - severance
-      - fringe_benefits
-      - expense_reimbursements
+# dbt_project.yml variables for contribution calculator
+vars:
+  # IRS Limits for 2025
+  elective_deferral_limit_2025: 23500
+  catch_up_limit_2025: 7500
+  annual_additions_limit_2025: 70000
+  irs_compensation_limit_2025: 360000
 
-  pay_frequencies:
-    - code: "BW"
-      periods_per_year: 26
-    - code: "SM"
-      periods_per_year: 24
-    - code: "MO"
-      periods_per_year: 12
+  # Compensation inclusion rules (MVP simplified)
+  include_regular_pay: true
+  include_overtime: true
+  include_bonuses: false        # Deferred to post-MVP
+  exclude_severance: true
+  exclude_fringe_benefits: true
 
-  irs_limits_2024:
-    elective_deferral: 23000
-    catch_up: 7500
-    annual_additions: 69000
-    compensation: 345000
+  # Pay frequency handling
+  biweekly_periods_per_year: 26
+  monthly_periods_per_year: 12
 
-  timing_rules:
-    contributions_through_termination: true
-    bonus_deferral_allowed: true
-    true_up_frequency: "annual"
+  # MVP contribution processing
+  enable_catch_up_contributions: true
+  enable_roth_contributions: false    # Deferred to post-MVP
+  enable_employer_match: false        # Deferred to post-MVP
 ```
 
-### Vectorized Contribution Calculation Engine
-```python
-import pandas as pd
-import numpy as np
-from typing import Dict, List, Optional
-from datetime import datetime, date
-from dataclasses import dataclass
-from decimal import Decimal
+#### Core SQL Models
 
-@dataclass
-class ContributionLimits:
-    elective_deferral_2025: int = 23500
-    catch_up_2025: int = 7500
-    annual_additions_2025: int = 70000
-    compensation_2025: int = 360000
-
-@dataclass
-class ContributionResult:
-    employee_id: str
-    pay_period_end: date
-    gross_compensation: Decimal
-    eligible_compensation: Decimal
-    employee_pre_tax_deferral: Decimal
-    employee_roth_deferral: Decimal
-    employer_match: Decimal
-    employer_nonelective: Decimal
-    total_contributions: Decimal
-    limits_applied: List[str]
-    ytd_deferrals: Decimal
-    ytd_additions: Decimal
-
-class VectorizedContributionCalculator:
-    def __init__(self, plan_config: PlanConfig, limits: ContributionLimits):
-        self.plan_config = plan_config
-        self.limits = limits
-        self.ytd_cache = {}  # Cache for YTD calculations
-
-    def calculate_contributions_batch(self,
-                                    payroll_df: pd.DataFrame,
-                                    pay_period_end: date) -> pd.DataFrame:
-        """Calculate contributions for entire payroll population efficiently"""
-
-        # Initialize result columns
-        payroll_df = self._initialize_contribution_columns(payroll_df)
-
-        # Step 1: Calculate eligible compensation (vectorized)
-        payroll_df = self._calculate_eligible_compensation_vectorized(payroll_df)
-
-        # Step 2: Apply IRS compensation limits
-        payroll_df = self._apply_compensation_limits_vectorized(payroll_df)
-
-        # Step 3: Calculate employee deferrals
-        payroll_df = self._calculate_employee_deferrals_vectorized(payroll_df)
-
-        # Step 4: Apply 402(g) limits
-        payroll_df = self._apply_402g_limits_vectorized(payroll_df)
-
-        # Step 5: Calculate employer contributions
-        payroll_df = self._calculate_employer_contributions_vectorized(payroll_df)
-
-        # Step 6: Apply 415(c) limits
-        payroll_df = self._apply_415c_limits_vectorized(payroll_df)
-
-        # Step 7: Update YTD tracking
-        self._update_ytd_tracking_batch(payroll_df, pay_period_end)
-
-        return payroll_df
-
-    def _initialize_contribution_columns(self, df: pd.DataFrame) -> pd.DataFrame:
-        """Initialize all contribution calculation columns"""
-
-        df['gross_compensation'] = 0.0
-        df['eligible_compensation'] = 0.0
-        df['employee_pre_tax_deferral'] = 0.0
-        df['employee_roth_deferral'] = 0.0
-        df['employer_match'] = 0.0
-        df['employer_nonelective'] = 0.0
-        df['total_contributions'] = 0.0
-        df['limits_applied'] = [[] for _ in range(len(df))]
-        df['ytd_deferrals'] = 0.0
-        df['ytd_additions'] = 0.0
-
-        return df
-
-    def _calculate_eligible_compensation_vectorized(self, df: pd.DataFrame) -> pd.DataFrame:
-        """Calculate eligible compensation using vectorized operations"""
-
-        # Base compensation calculation
-        df['gross_compensation'] = df['regular_pay'] + df['overtime_pay']
-
-        # Apply inclusion/exclusion rules
-        comp_def = self.plan_config.compensation_definition
-
-        # Include bonuses if specified
-        if 'bonuses' in comp_def.inclusions:
-            df['gross_compensation'] += df['bonus_pay'].fillna(0)
-
-        # Include commissions if specified
-        if 'commissions' in comp_def.inclusions:
-            df['gross_compensation'] += df['commission_pay'].fillna(0)
-
-        # Exclude severance if specified
-        if 'severance' in comp_def.exclusions:
-            df['gross_compensation'] -= df['severance_pay'].fillna(0)
-
-        # Set eligible compensation (can be modified later by limits)
-        df['eligible_compensation'] = df['gross_compensation']
-
-        return df
-
-    def _apply_compensation_limits_vectorized(self, df: pd.DataFrame) -> pd.DataFrame:
-        """Apply IRS compensation limits using vectorized operations"""
-
-        # Load YTD compensation efficiently
-        ytd_comp = self._get_ytd_compensation_batch(df['employee_id'].tolist())
-        df['ytd_compensation'] = df['employee_id'].map(ytd_comp)
-
-        # Calculate remaining compensation room
-        remaining_comp_room = self.limits.compensation_2025 - df['ytd_compensation']
-
-        # Apply limit where needed
-        comp_limit_mask = df['eligible_compensation'] > remaining_comp_room
-        df.loc[comp_limit_mask, 'eligible_compensation'] = remaining_comp_room
-
-        # Track limit applications
-        df.loc[comp_limit_mask, 'limits_applied'] = df.loc[comp_limit_mask, 'limits_applied'].apply(
-            lambda x: x + ['compensation_limit']
-        )
-
-        return df
-
-    def _calculate_employee_deferrals_vectorized(self, df: pd.DataFrame) -> pd.DataFrame:
-        """Calculate employee deferrals using vectorized operations"""
-
-        # Handle percentage-based deferrals
-        percentage_mask = df['deferral_type'] == 'percentage'
-        df.loc[percentage_mask, 'total_deferral_requested'] = (
-            df.loc[percentage_mask, 'eligible_compensation'] *
-            df.loc[percentage_mask, 'deferral_rate']
-        )
-
-        # Handle dollar-based deferrals
-        dollar_mask = df['deferral_type'] == 'dollar'
-        df.loc[dollar_mask, 'total_deferral_requested'] = np.minimum(
-            df.loc[dollar_mask, 'deferral_amount'],
-            df.loc[dollar_mask, 'eligible_compensation']
-        )
-
-        # Split between traditional and Roth based on election
-        df['employee_pre_tax_deferral'] = (
-            df['total_deferral_requested'] *
-            df['traditional_percentage'].fillna(1.0)
-        )
-
-        df['employee_roth_deferral'] = (
-            df['total_deferral_requested'] *
-            df['roth_percentage'].fillna(0.0)
-        )
-
-        return df
-
-    def _apply_402g_limits_vectorized(self, df: pd.DataFrame) -> pd.DataFrame:
-        """Apply 402(g) elective deferral limits using vectorized operations"""
-
-        # Load YTD deferrals efficiently
-        ytd_deferrals = self._get_ytd_deferrals_batch(df['employee_id'].tolist())
-        df['ytd_deferrals'] = df['employee_id'].map(ytd_deferrals)
-
-        # Calculate applicable limits (with catch-up for 50+)
-        df['applicable_402g_limit'] = self.limits.elective_deferral_2025
-        catch_up_mask = df['age'] >= 50
-        df.loc[catch_up_mask, 'applicable_402g_limit'] += self.limits.catch_up_2025
-
-        # Calculate remaining deferral room
-        df['remaining_deferral_room'] = df['applicable_402g_limit'] - df['ytd_deferrals']
-
-        # Apply limit to total requested deferral
-        total_requested = df['employee_pre_tax_deferral'] + df['employee_roth_deferral']
-        limited_total = np.minimum(total_requested, df['remaining_deferral_room'])
-
-        # Proportionally reduce pre-tax and Roth if limit applied
-        limit_applied_mask = limited_total < total_requested
-
-        if limit_applied_mask.any():
-            # Calculate reduction factor
-            reduction_factor = limited_total / total_requested
-            reduction_factor = reduction_factor.fillna(0)  # Handle division by zero
-
-            # Apply reduction proportionally
-            df.loc[limit_applied_mask, 'employee_pre_tax_deferral'] *= reduction_factor
-            df.loc[limit_applied_mask, 'employee_roth_deferral'] *= reduction_factor
-
-            # Track limit applications
-            df.loc[limit_applied_mask, 'limits_applied'] = df.loc[limit_applied_mask, 'limits_applied'].apply(
-                lambda x: x + ['402g_limit']
-            )
-
-        return df
-
-    def _calculate_employer_contributions_vectorized(self, df: pd.DataFrame) -> pd.DataFrame:
-        """Calculate employer contributions using vectorized operations"""
-
-        # Calculate total employee deferral for match calculation
-        df['total_employee_deferral'] = (
-            df['employee_pre_tax_deferral'] + df['employee_roth_deferral']
-        )
-
-        # Calculate deferral rate for match formula
-        df['effective_deferral_rate'] = (
-            df['total_employee_deferral'] / df['eligible_compensation']
-        ).fillna(0)
-
-        # Apply tiered match formula using vectorized operations
-        match_formula = self.plan_config.match_formula
-        df['employer_match'] = 0.0
-
-        for tier in match_formula.tiers:
-            # Determine the portion of deferral rate that applies to this tier
-            tier_rate = np.maximum(0,
-                np.minimum(tier.employee_max, df['effective_deferral_rate']) -
-                sum(t.employee_max for t in match_formula.tiers if t.employee_max < tier.employee_max)
-            )
-
-            # Calculate match for this tier
-            tier_match = tier_rate * tier.match_rate * df['eligible_compensation']
-            df['employer_match'] += tier_match
-
-        # Add any employer non-elective contributions
-        if hasattr(self.plan_config, 'nonelective_contribution_rate'):
-            df['employer_nonelective'] = (
-                df['eligible_compensation'] *
-                self.plan_config.nonelective_contribution_rate
-            )
-
-        return df
-
-    def _apply_415c_limits_vectorized(self, df: pd.DataFrame) -> pd.DataFrame:
-        """Apply 415(c) annual additions limits using vectorized operations"""
-
-        # Load YTD annual additions
-        ytd_additions = self._get_ytd_annual_additions_batch(df['employee_id'].tolist())
-        df['ytd_additions'] = df['employee_id'].map(ytd_additions)
-
-        # Calculate total proposed additions for this period
-        df['proposed_additions'] = (
-            df['employee_pre_tax_deferral'] +
-            df['employee_roth_deferral'] +
-            df['employer_match'] +
-            df['employer_nonelective']
-        )
-
-        # Calculate remaining 415(c) room
-        df['remaining_415c_room'] = self.limits.annual_additions_2025 - df['ytd_additions']
-
-        # Apply limit where needed
-        limit_needed_mask = df['proposed_additions'] > df['remaining_415c_room']
-
-        if limit_needed_mask.any():
-            # Calculate excess amount
-            excess_amount = df['proposed_additions'] - df['remaining_415c_room']
-
-            # Apply reduction hierarchy: non-elective, then match, then deferrals
-            # Reduce non-elective first
-            nonelective_reduction = np.minimum(excess_amount, df['employer_nonelective'])
-            df.loc[limit_needed_mask, 'employer_nonelective'] -= nonelective_reduction
-            excess_amount -= nonelective_reduction
-
-            # Reduce match second
-            match_reduction = np.minimum(excess_amount, df['employer_match'])
-            df.loc[limit_needed_mask, 'employer_match'] -= match_reduction
-            excess_amount -= match_reduction
-
-            # Reduce deferrals last (proportionally between pre-tax and Roth)
-            total_deferrals = df['employee_pre_tax_deferral'] + df['employee_roth_deferral']
-            deferral_reduction = np.minimum(excess_amount, total_deferrals)
-
-            # Apply proportional reduction to deferrals
-            deferral_reduction_factor = 1 - (deferral_reduction / total_deferrals).fillna(0)
-            df.loc[limit_needed_mask, 'employee_pre_tax_deferral'] *= deferral_reduction_factor
-            df.loc[limit_needed_mask, 'employee_roth_deferral'] *= deferral_reduction_factor
-
-            # Track limit applications
-            df.loc[limit_needed_mask, 'limits_applied'] = df.loc[limit_needed_mask, 'limits_applied'].apply(
-                lambda x: x + ['415c_limit']
-            )
-
-        # Calculate final total contributions
-        df['total_contributions'] = (
-            df['employee_pre_tax_deferral'] +
-            df['employee_roth_deferral'] +
-            df['employer_match'] +
-            df['employer_nonelective']
-        )
-
-        return df
-
-    def _get_ytd_deferrals_batch(self, employee_ids: List[str]) -> Dict[str, float]:
-        """Efficiently retrieve YTD deferrals for multiple employees"""
-        # Implementation would query the YTD tracking table efficiently
-        # This is a placeholder for the actual database query
-        return {emp_id: 0.0 for emp_id in employee_ids}  # Placeholder
-
-    def _get_ytd_compensation_batch(self, employee_ids: List[str]) -> Dict[str, float]:
-        """Efficiently retrieve YTD compensation for multiple employees"""
-        # Implementation would query the YTD tracking efficiently
-        return {emp_id: 0.0 for emp_id in employee_ids}  # Placeholder
-
-    def _get_ytd_annual_additions_batch(self, employee_ids: List[str]) -> Dict[str, float]:
-        """Efficiently retrieve YTD annual additions for multiple employees"""
-        # Implementation would query the YTD tracking efficiently
-        return {emp_id: 0.0 for emp_id in employee_ids}  # Placeholder
-
-    def _update_ytd_tracking_batch(self, df: pd.DataFrame, pay_period_end: date):
-        """Update YTD tracking for all employees in batch"""
-        # Implementation would efficiently update the YTD tracking table
-        pass  # Placeholder
-
-# Usage example
-def process_payroll_contributions(payroll_df: pd.DataFrame,
-                                 plan_config: PlanConfig,
-                                 pay_period_end: date) -> pd.DataFrame:
-    """Process contributions for entire payroll"""
-
-    calculator = VectorizedContributionCalculator(plan_config, ContributionLimits())
-    result_df = calculator.calculate_contributions_batch(payroll_df, pay_period_end)
-
-    # Generate contribution events for successful calculations
-    contribution_events = create_contribution_events_batch(result_df, pay_period_end)
-
-    # Insert events and update YTD tracking
-    insert_contribution_events_batch(contribution_events)
-
-    return result_df
-```
-
-### Limit Tracking Schema
+**int_contribution_calculation.sql** - Main contribution processing logic:
 ```sql
-CREATE TABLE contribution_limit_tracking (
-    employee_id VARCHAR,
-    plan_year INTEGER,
-    contribution_type VARCHAR,
-    ytd_amount DECIMAL(10,2),
-    limit_amount DECIMAL(10,2),
-    last_updated TIMESTAMP,
-    PRIMARY KEY (employee_id, plan_year, contribution_type)
-);
+{{ config(materialized='table') }}
+
+WITH eligible_employees AS (
+    SELECT *
+    FROM {{ ref('int_eligibility_determination') }}
+    WHERE is_eligible = true
+),
+
+enrolled_employees AS (
+    SELECT *
+    FROM {{ ref('int_enrollment_determination') }}
+    WHERE enrolled = true
+),
+
+compensation_base AS (
+    SELECT
+        e.employee_id,
+        e.simulation_year,
+        e.annual_compensation,
+        e.current_age,
+        -- Apply IRS compensation limit
+        LEAST(e.annual_compensation, {{ var('irs_compensation_limit_2025', 360000) }}) AS eligible_compensation,
+
+        -- Determine catch-up eligibility
+        CASE
+            WHEN e.current_age >= 50 AND {{ var('enable_catch_up_contributions', true) }}
+                THEN {{ var('catch_up_limit_2025', 7500) }}
+            ELSE 0
+        END AS catch_up_eligibility,
+
+        -- Get deferral elections from enrollment
+        en.deferral_rate,
+        COALESCE(en.deferral_type, 'percentage') as deferral_type,
+        COALESCE(en.deferral_amount, 0.0) as deferral_amount
+
+    FROM eligible_employees e
+    INNER JOIN enrolled_employees en USING (employee_id, simulation_year)
+),
+
+deferral_calculations AS (
+    SELECT
+        *,
+        -- Calculate requested deferral based on election type
+        CASE
+            WHEN deferral_type = 'percentage'
+                THEN eligible_compensation * deferral_rate
+            WHEN deferral_type = 'dollar'
+                THEN LEAST(deferral_amount, eligible_compensation)
+            ELSE 0
+        END AS requested_deferral,
+
+        -- Calculate applicable 402(g) limit
+        {{ var('elective_deferral_limit_2025', 23500) }} + catch_up_eligibility AS applicable_402g_limit
+
+    FROM compensation_base
+),
+
+limit_enforcement AS (
+    SELECT
+        *,
+        -- Apply 402(g) limit enforcement
+        LEAST(requested_deferral, applicable_402g_limit) AS final_employee_deferral,
+
+        -- Track limit applications
+        CASE
+            WHEN requested_deferral > applicable_402g_limit
+                THEN 'limit_applied'
+            ELSE 'no_limit'
+        END as limit_status,
+
+        -- Calculate reduction amount if limited
+        GREATEST(0, requested_deferral - applicable_402g_limit) as limit_reduction_amount
+
+    FROM deferral_calculations
+),
+
+ytd_tracking AS (
+    SELECT
+        *,
+        -- Simple YTD accumulation (MVP approach)
+        final_employee_deferral as current_period_deferral,
+        final_employee_deferral as ytd_deferrals,  -- Simplified for MVP
+
+        -- Deterministic random seed for reproducibility
+        (ABS(HASH(employee_id || simulation_year || 'contribution')) % 1000000) / 1000000.0 as contribution_random_seed
+
+    FROM limit_enforcement
+)
+
+SELECT
+    employee_id,
+    simulation_year,
+    eligible_compensation,
+    deferral_rate,
+    deferral_type,
+    requested_deferral,
+    applicable_402g_limit,
+    final_employee_deferral,
+    limit_status,
+    limit_reduction_amount,
+    catch_up_eligibility,
+    current_period_deferral,
+    ytd_deferrals,
+    contribution_random_seed
+FROM ytd_tracking
+```
+
+### Event Generation Integration
+
+Unlike E022 (eligibility as filters) and similar to E023 (enrollment events), E024 generates actual contribution events:
+
+```sql
+-- Generate CONTRIBUTION events for calculated amounts
+INSERT INTO fct_yearly_events
+SELECT
+    gen_random_uuid() as event_id,
+    employee_id,
+    'contribution' as event_type,
+    DATE_TRUNC('month', CURRENT_DATE) as effective_date,
+    simulation_year,
+    '{{ var("scenario_id", "default") }}' as scenario_id,
+    '{{ var("plan_design_id", "standard") }}' as plan_design_id,
+    json_object(
+        'event_type', 'contribution',
+        'plan_id', 'plan_001',  -- TODO: Link to actual plan
+        'source', 'employee_pre_tax',
+        'amount', final_employee_deferral,
+        'pay_period_end', DATE_TRUNC('month', CURRENT_DATE) + INTERVAL '1 month' - INTERVAL '1 day',
+        'contribution_date', DATE_TRUNC('month', CURRENT_DATE) + INTERVAL '1 month',
+        'ytd_amount', ytd_deferrals,
+        'payroll_id', employee_id || '_' || simulation_year || '_monthly',
+        'irs_limit_applied', limit_status = 'limit_applied',
+        'inferred_value', false
+    ) as payload,
+    current_timestamp as created_at
+FROM {{ ref('int_contribution_calculation') }}
+WHERE final_employee_deferral > 0;
+```
+
+### Performance Optimizations
+
+Following the E022/E023 pattern:
+
+1. **Vectorized Operations**: SQL CASE statements for maximum DuckDB optimization
+2. **Deterministic Randomness**: Hash-based seed generation for reproducible results
+3. **Columnar Processing**: DuckDB's columnar storage optimizes limit calculations
+4. **Batch Processing**: Single SQL statement processes entire eligible population
+5. **Simple YTD Tracking**: Simplified accumulation logic for MVP speed
+
+### Integration with orchestrator_mvp
+
+```python
+# orchestrator_mvp integration pattern
+def process_contribution_calculations(context: AssetExecutionContext,
+                                    duckdb: DuckDBResource,
+                                    year_state: Dict[str, Any]) -> pd.DataFrame:
+    """
+    Process contribution calculations for the current year using SQL/dbt approach.
+
+    Step 6 of orchestrator_mvp: Calculate employee contributions with IRS limits.
+    """
+
+    with duckdb.get_connection() as conn:
+        # Run contribution calculation model
+        conn.execute("CALL dbt_run_model('int_contribution_calculation')")
+
+        # Generate contribution events
+        contribution_events = conn.execute("""
+            SELECT * FROM generate_contribution_events(?)
+        """, [year_state['simulation_year']]).df()
+
+        # Update year state with contribution metrics
+        year_state['contribution_metrics'] = {
+            'total_participants': len(contribution_events),
+            'total_deferrals': contribution_events['final_employee_deferral'].sum(),
+            'avg_deferral_rate': contribution_events['deferral_rate'].mean(),
+            'limits_applied_count': len(contribution_events[contribution_events['limit_status'] == 'limit_applied']),
+            'avg_deferral_amount': contribution_events['final_employee_deferral'].mean()
+        }
+
+    return contribution_events
 ```
 
 ---
@@ -489,40 +365,38 @@ CREATE TABLE contribution_limit_tracking (
 
 | Metric | Requirement | Implementation Strategy |
 |--------|-------------|------------------------|
-| Payroll Processing | <30 seconds for 100K employees per pay period | Vectorized DataFrame operations with efficient YTD lookups |
-| YTD Limit Queries | <100ms for real-time limit checking | Optimized database indexes with materialized YTD views |
-| Contribution Validation | <50ms for single employee validation | In-memory YTD caching with event-driven updates |
-| Memory Usage | <8GB for 100K employee payroll processing | Efficient data types and streaming operations |
-| Limit Accuracy | 100% accuracy with IRS compliance | Comprehensive test suite with regulatory validation |
+| Contribution Processing | <10 seconds for 100K employees | SQL/dbt with DuckDB columnar processing |
+| IRS Limit Enforcement | <5 seconds for limit calculations | Vectorized SQL CASE statements |
+| Random Sampling | Reproducible with seed control | Hash-based deterministic functions |
+| Memory Usage | <4GB for 100K employee simulation | Efficient SQL operations with optimized dtypes |
+| Event Generation | <2 seconds for contribution events | Batch INSERT operations |
 
 ## Dependencies
 - E021: DC Plan Data Model (event schema)
+- E022: Eligibility Engine (eligible population)
 - E023: Enrollment Engine (deferral elections)
-- Payroll integration for compensation data
-- Annual IRS limit updates (automated where possible)
-- Pandas/Polars for vectorized DataFrame operations
-- NumPy for efficient numerical computations
-- Database optimization for YTD tracking queries
-- Real-time data validation frameworks
+- Historical compensation data for YTD tracking
+- Annual IRS limit updates (manual for MVP)
+- DuckDB for high-performance columnar processing
 
 ## Risks
-- **Risk**: Complex limit interaction scenarios
-- **Mitigation**: Comprehensive test scenarios from actual cases
-- **Risk**: Performance with real-time calculations
-- **Mitigation**: Implement caching for YTD values
+- **Risk**: Complex IRS limit scenarios
+- **Mitigation**: Focus on 95% of standard cases for MVP
+- **Risk**: YTD tracking accuracy
+- **Mitigation**: Simplified accumulation with comprehensive testing
 
 ## Estimated Effort
-**Total Story Points**: 60 points
-**Estimated Duration**: 4 sprints
+**Total Story Points**: 18 points (MVP)
+**Estimated Duration**: 2 weeks
 
 ---
 
 ## Definition of Done
-- [ ] All contribution types calculated correctly
-- [ ] IRS limits enforced with proper ordering
-- [ ] Compensation definitions flexible and accurate
-- [ ] Roth/traditional split working
-- [ ] Timing scenarios handled properly
-- [ ] Performance benchmarks met
-- [ ] Compliance testing complete
-- [ ] Documentation includes calculation examples
+- [ ] Basic contribution calculations implemented in SQL/dbt
+- [ ] Core IRS limits (402(g), catch-up) enforced correctly
+- [ ] Simple compensation processing working with basic inclusions
+- [ ] Performance targets met (<10 seconds for 100K employees)
+- [ ] Event generation integrated with existing event sourcing
+- [ ] Data quality tests implemented and passing
+- [ ] Integration with orchestrator_mvp framework complete
+- [ ] Documentation includes SQL model examples and usage patterns

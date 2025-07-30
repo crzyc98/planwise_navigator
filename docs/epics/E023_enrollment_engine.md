@@ -1,403 +1,359 @@
-# Epic E023: Behavioral Enrollment Engine
+# Epic E023: Enrollment Engine
 
 ## Epic Overview
 
 ### Summary
-Develop a high-performance behavioral enrollment simulation engine using vectorized processing that models participant enrollment behavior including auto-enrollment, opt-out rates, and voluntary enrollment patterns based on demographic characteristics and behavioral segments.
+Develop a high-performance enrollment simulation engine using SQL/dbt that models participant enrollment behavior including auto-enrollment, opt-out rates, and voluntary enrollment patterns. This MVP focuses on core enrollment logic while deferring complex behavioral modeling to post-MVP phases.
 
 ### Business Value
 - Enables accurate participation rate projections for plan design decisions
 - Models the financial impact of auto-enrollment features saving $1-5M annually
-- Provides insights into employee savings behavior by demographic segments
+- Provides foundation for enrollment analytics and optimization
 
 ### Success Criteria
-- ✅ Models enrollment with 95% accuracy vs historical data using behavioral segments
-- ✅ Supports auto-enrollment with configurable default rates using vectorized processing
-- ✅ Simulates realistic opt-out and escalation behavior with <30 second processing for 100K employees
-- ✅ Generates detailed enrollment analytics by segment with real-time performance
-- ✅ Achieves reproducible results with random seed control
-- ✅ Supports behavioral A/B testing for enrollment strategy optimization
+- ✅ Models enrollment with 90% accuracy using simplified demographic segments
+- ✅ Supports auto-enrollment with configurable default rates using SQL processing
+- ✅ Processes 100K employees in <10 seconds using DuckDB optimization
+- ✅ Generates enrollment events integrated with existing event sourcing
+- ✅ Achieves reproducible results with deterministic random sampling
+- ✅ Provides audit trail for regulatory compliance
+
+### MVP Implementation Approach
+This epic follows the proven E022 Eligibility Engine pattern:
+
+**MVP Phase (2 weeks - 16 points)**
+- SQL/dbt-first implementation for maximum performance
+- Simplified demographic segmentation (no ML clustering)
+- Core auto-enrollment and voluntary enrollment logic
+- Integration with orchestrator_mvp framework
+- Focus on 95% of standard enrollment scenarios
+
+**Post-MVP Phase (Future - 40 points)**
+- Advanced behavioral segmentation with ML clustering
+- Auto-escalation and complex deferral modeling
+- Real-time analytics dashboard
+- A/B testing framework
+- Psychological behavioral modeling
 
 ---
 
 ## User Stories
 
-### Story 1: Vectorized Auto-Enrollment Logic (18 points)
+### MVP Stories (In Development)
+
+#### Story S023-01: Basic Auto-Enrollment Logic (6 points) 🚧
+**Status**: Ready for implementation
 **As a** plan sponsor
-**I want** to model auto-enrollment impact
+**I want** to model basic auto-enrollment impact
 **So that** I can predict participation rates and costs
 
-**Acceptance Criteria:**
-- Vectorized auto-enrollment processing for 100K+ employees in <10 seconds
-- Configurable auto-enrollment default rate (3%, 6%, etc.) with segment-specific overrides
-- Opt-out window modeling (30, 60, 90 days) using efficient random sampling
-- Different defaults by employee class with dynamic rule application
-- Creates batch ENROLLMENT events with source = "auto" and UUID correlation
-- Tracks opt-out events and reasons with detailed behavioral analytics
-- Supports real-time enrollment status queries with optimized indexing
+**MVP Acceptance Criteria:**
+- ✅ SQL-based auto-enrollment processing for 100K employees in <10 seconds
+- ✅ Configurable auto-enrollment default rate (3%, 6%) via dbt variables
+- ✅ Simple opt-out modeling (30, 60, 90 day windows)
+- ✅ Basic demographic-based opt-out rates (age/salary bands)
+- ✅ Generate ENROLLMENT and OPT_OUT events in existing event model
+- ✅ Deterministic random sampling for reproducibility
 
-### Story 2: Behavioral Segment Enrollment Modeling (12 points)
+**Implementation**: See `/docs/stories/S023-01-basic-auto-enrollment.md`
+
+#### Story S023-02: Simple Demographic Enrollment (5 points) 🚧
+**Status**: Ready for implementation
 **As a** workforce analyst
-**I want** realistic voluntary enrollment rates
-**So that** my projections match actual behavior
+**I want** realistic voluntary enrollment rates by demographics
+**So that** my projections match actual behavior patterns
 
-**Acceptance Criteria:**
-- Pre-computed enrollment probability curves by behavioral segments (age/salary/tenure/education)
-- Vectorized time-to-enrollment distributions using statistical sampling
-- Machine learning-enhanced deferral rate selection patterns
-- Automated calibration against historical data with validation metrics
-- Supports re-enrollment campaigns with effectiveness tracking
-- Dynamic behavioral segment assignment with real-time updates
-- A/B testing framework for enrollment strategy comparison
+**MVP Acceptance Criteria:**
+- ✅ 3-tier demographic segmentation (young/mid-career/senior)
+- ✅ Age and salary-based enrollment probabilities
+- ✅ SQL-based enrollment timing distribution
+- ✅ Integration with eligibility results from E022
+- ✅ Enrollment events with proper audit trail
 
-### Story 3: Intelligent Deferral Rate Selection (10 points)
+**Implementation**: See `/docs/stories/S023-02-simple-demographic-enrollment.md`
+
+#### Story S023-03: Basic Deferral Rate Selection (5 points) 🚧
+**Status**: Ready for implementation
 **As a** benefits consultant
 **I want** to model initial deferral elections
-**So that** I can project employee and employer contributions
+**So that** I can project employee contributions
 
-**Acceptance Criteria:**
-- Vectorized distribution of deferral rates by behavioral segments
-- Common clustering (3%, 6%, 10%, max) with intelligent anchoring logic
-- Dynamic impact of match formula on elections with optimization suggestions
-- Roth vs traditional split modeling based on tax optimization patterns
-- Behavioral anchoring effects with psychological modeling components
-- Machine learning recommendations for optimal default rates
-- Integration with compensation planning for realistic contribution limits
+**MVP Acceptance Criteria:**
+- ✅ Simple deferral rate distribution (3%, 6%, 10%)
+- ✅ Demographic-based rate selection (age/salary influence)
+- ✅ Hardcoded common rate clustering
+- ✅ IRS limit validation for high earners
+- ✅ Deferral rate tracking in enrollment events
 
-### Story 4: Auto-Escalation Implementation (8 points)
-**As a** retirement plan committee member
+**Implementation**: See `/docs/stories/S023-03-basic-deferral-selection.md`
+
+### Future Stories (Post-MVP)
+
+#### Story 4: Advanced Behavioral Segmentation (12 points) 📅
+**Status**: Deferred to post-MVP
+**As a** workforce analyst
+**I want** ML-based behavioral clustering
+**So that** I can model complex enrollment patterns
+
+**Future Acceptance Criteria:**
+- K-means clustering for behavioral segments
+- Machine learning-enhanced probability curves
+- Automated calibration against historical data
+- A/B testing framework for enrollment strategies
+
+#### Story 5: Auto-Escalation Features (8 points) 📅
+**Status**: Deferred to post-MVP
+**As a** retirement committee member
 **I want** to model automatic increase programs
 **So that** I can assess long-term savings improvements
 
-**Acceptance Criteria:**
-- Vectorized annual increase processing with configurable amounts (1%, 2%)
-- Maximum escalation cap (10%, 15%) with intelligent stopping logic
-- Behavioral opt-out rates for increases using segmented models
-- Flexible timing of increases (anniversary, Jan 1, quarterly) with payroll integration
-- Real-time impact analysis on average deferral rates with trend projections
-- Escalation effectiveness analytics with ROI calculations
-- Integration with salary increase events for optimal timing
+**Future Acceptance Criteria:**
+- Annual escalation processing with configurable amounts
+- Behavioral opt-out rates for increases
+- Integration with salary increase events
 
-### Story 5: Real-Time Enrollment Analytics & Reporting (8 points)
+#### Story 6: Real-Time Analytics Dashboard (8 points) 📅
+**Status**: Deferred to post-MVP
 **As a** CFO
 **I want** clear enrollment projections
 **So that** I can budget for retirement contributions
 
-**Acceptance Criteria:**
-- Real-time participation rate tracking by year with drill-down capabilities
-- Interactive average deferral rate trends with predictive analytics
-- Comprehensive opt-out analysis by behavioral segments with intervention recommendations
-- New hire vs existing employee pattern analysis with onboarding optimization insights
-- Side-by-side scenario comparison reports with statistical significance testing
-- Automated insights generation using machine learning pattern detection
-- Executive dashboard with key enrollment metrics and alerts
+**Future Acceptance Criteria:**
+- Interactive participation rate dashboards
+- Scenario comparison reports
+- Executive-level enrollment metrics
+
 
 ---
 
 ## Technical Specifications
 
-### Enrollment Configuration
+### SQL/dbt-Based Enrollment Configuration
+
+Following the proven E022 pattern, E023 uses SQL/dbt-based implementation for maximum performance and maintainability.
+
+#### dbt Variables for Auto-Enrollment
 ```yaml
-enrollment_config:
-  auto_enrollment:
-    enabled: true
-    default_deferral_rate: 0.06
-    opt_out_window_days: 90
+# dbt_project.yml variables for enrollment engine
+vars:
+  # Auto-enrollment defaults
+  auto_enrollment_enabled: true
+  default_deferral_rate: 0.06
+  opt_out_window_days: 90
 
-    # Opt-out rates by demographic
-    opt_out_rates:
-      by_age:
-        - {min: 18, max: 25, rate: 0.35}
-        - {min: 26, max: 35, rate: 0.20}
-        - {min: 36, max: 50, rate: 0.15}
-        - {min: 51, max: 99, rate: 0.10}
+  # Demographic-based opt-out rates
+  opt_out_rate_young: 0.35    # Ages 18-25
+  opt_out_rate_mid: 0.20      # Ages 26-35
+  opt_out_rate_mature: 0.15   # Ages 36-50
+  opt_out_rate_senior: 0.10   # Ages 51+
 
-      by_salary:
-        - {min: 0, max: 30000, rate: 0.40}
-        - {min: 30001, max: 50000, rate: 0.25}
-        - {min: 50001, max: 100000, rate: 0.15}
-        - {min: 100001, max: 999999, rate: 0.05}
+  # Salary-based adjustments
+  opt_out_rate_low_income: 0.40     # <$30k
+  opt_out_rate_moderate: 0.25       # $30k-$50k
+  opt_out_rate_high: 0.15           # $50k-$100k
+  opt_out_rate_executive: 0.05      # >$100k
 
-  voluntary_enrollment:
-    # Probability of enrolling within first year
-    enrollment_curves:
-      baseline: 0.60
-      age_factor: 0.01  # +1% per year over 25
-      tenure_factor: 0.05  # +5% per year of service
+  # Voluntary enrollment probabilities
+  baseline_enrollment_probability: 0.60
+  age_factor_per_year: 0.01    # +1% per year over 25
+  tenure_factor_per_year: 0.05 # +5% per year of service
 
-  deferral_distributions:
-    # Common deferral rate selections
-    rates:
-      - {rate: 0.03, probability: 0.25}  # Match threshold
-      - {rate: 0.06, probability: 0.35}  # Common default
-      - {rate: 0.10, probability: 0.20}  # Round number
-      - {rate: 0.15, probability: 0.10}  # High savers
-      - {rate: "max", probability: 0.10} # Max contributors
+  # Common deferral rate distributions
+  deferral_rate_3pct_prob: 0.25    # Match threshold
+  deferral_rate_6pct_prob: 0.35    # Common default
+  deferral_rate_10pct_prob: 0.20   # Round number
+  deferral_rate_15pct_prob: 0.10   # High savers
+  deferral_rate_max_prob: 0.10     # Max contributors
 ```
 
-### Vectorized Enrollment Simulation Engine
+#### Core SQL Models
+
+**int_enrollment_determination.sql** - Main enrollment processing logic:
+```sql
+{{ config(materialized='table') }}
+
+WITH eligible_population AS (
+    SELECT *
+    FROM {{ ref('int_eligibility_determination') }}
+    WHERE is_eligible = true
+),
+
+demographic_segments AS (
+    SELECT
+        *,
+        CASE
+            WHEN current_age BETWEEN 18 AND 25 THEN 'young'
+            WHEN current_age BETWEEN 26 AND 35 THEN 'mid_career'
+            WHEN current_age BETWEEN 36 AND 50 THEN 'mature'
+            ELSE 'senior'
+        END as age_segment,
+
+        CASE
+            WHEN annual_compensation < 30000 THEN 'low_income'
+            WHEN annual_compensation < 50000 THEN 'moderate'
+            WHEN annual_compensation < 100000 THEN 'high'
+            ELSE 'executive'
+        END as income_segment
+    FROM eligible_population
+),
+
+auto_enrollment_processing AS (
+    SELECT
+        *,
+        true as auto_enrolled,
+        entry_date as enrollment_date,
+        {{ var('default_deferral_rate') }} as initial_deferral_rate,
+        'auto' as enrollment_source,
+
+        -- Calculate opt-out probability using demographic factors
+        CASE age_segment
+            WHEN 'young' THEN {{ var('opt_out_rate_young') }}
+            WHEN 'mid_career' THEN {{ var('opt_out_rate_mid') }}
+            WHEN 'mature' THEN {{ var('opt_out_rate_mature') }}
+            ELSE {{ var('opt_out_rate_senior') }}
+        END *
+        CASE income_segment
+            WHEN 'low_income' THEN {{ var('opt_out_rate_low_income') }} / {{ var('opt_out_rate_mid') }}
+            WHEN 'moderate' THEN 1.0
+            WHEN 'high' THEN {{ var('opt_out_rate_high') }} / {{ var('opt_out_rate_mid') }}
+            ELSE {{ var('opt_out_rate_executive') }} / {{ var('opt_out_rate_mid') }}
+        END as opt_out_probability
+
+    FROM demographic_segments
+    WHERE {{ var('auto_enrollment_enabled') }} = true
+),
+
+opt_out_determination AS (
+    SELECT
+        *,
+        -- Deterministic random sampling using employee_id as seed
+        (ABS(HASH(employee_id || simulation_year)) % 1000000) / 1000000.0 as random_draw,
+        random_draw < opt_out_probability as will_opt_out,
+
+        CASE WHEN will_opt_out
+            THEN enrollment_date + INTERVAL (ABS(HASH(employee_id || 'opt_out')) % {{ var('opt_out_window_days') }}) DAY
+            ELSE null
+        END as opt_out_date
+
+    FROM auto_enrollment_processing
+),
+
+final_enrollment_status AS (
+    SELECT
+        *,
+        CASE WHEN will_opt_out THEN false ELSE auto_enrolled END as final_enrolled,
+        CASE WHEN will_opt_out THEN 0.0 ELSE initial_deferral_rate END as final_deferral_rate,
+        CASE WHEN will_opt_out THEN 'opted_out' ELSE enrollment_source END as final_enrollment_source
+    FROM opt_out_determination
+)
+
+SELECT
+    employee_id,
+    simulation_year,
+    entry_date,
+    enrollment_date,
+    final_enrolled as enrolled,
+    final_deferral_rate as deferral_rate,
+    final_enrollment_source as enrollment_source,
+    age_segment,
+    income_segment,
+    opt_out_probability,
+    will_opt_out,
+    opt_out_date,
+    random_draw as enrollment_random_seed
+FROM final_enrollment_status
+```
+
+### Event Generation Integration
+
+Unlike E022 (which uses eligibility as filters), E023 generates actual enrollment events in the event sourcing system:
+
+```sql
+-- Generate enrollment events for enrolled participants
+INSERT INTO fct_yearly_events
+SELECT
+    gen_random_uuid() as event_id,
+    employee_id,
+    'enrollment' as event_type,
+    enrollment_date as effective_date,
+    simulation_year,
+    scenario_id,
+    plan_design_id,
+    json_object(
+        'event_type', 'enrollment',
+        'plan_id', plan_id,
+        'enrollment_date', enrollment_date,
+        'pre_tax_contribution_rate', deferral_rate,
+        'roth_contribution_rate', 0.0,
+        'auto_enrollment', enrollment_source = 'auto',
+        'opt_out_window_expires', enrollment_date + INTERVAL {{ var('opt_out_window_days') }} DAY
+    ) as payload,
+    current_timestamp as created_at
+FROM {{ ref('int_enrollment_determination') }}
+WHERE enrolled = true;
+
+-- Generate opt-out events for those who opted out
+INSERT INTO fct_yearly_events
+SELECT
+    gen_random_uuid() as event_id,
+    employee_id,
+    'enrollment_change' as event_type,
+    opt_out_date as effective_date,
+    simulation_year,
+    scenario_id,
+    plan_design_id,
+    json_object(
+        'event_type', 'enrollment_change',
+        'plan_id', plan_id,
+        'change_type', 'opt_out',
+        'new_pre_tax_rate', 0.0,
+        'previous_rate', {{ var('default_deferral_rate') }}
+    ) as payload,
+    current_timestamp as created_at
+FROM {{ ref('int_enrollment_determination') }}
+WHERE will_opt_out = true;
+```
+
+### Performance Optimizations
+
+Following the E022 pattern:
+
+1. **Vectorized Operations**: All probability calculations use SQL CASE statements for maximum DuckDB optimization
+2. **Deterministic Randomness**: Hash-based random generation ensures reproducible results
+3. **Columnar Processing**: DuckDB's columnar storage optimizes demographic segmentation queries
+4. **Batch Processing**: Single SQL statement processes entire eligible population
+
+### Integration with orchestrator_mvp
+
 ```python
-import pandas as pd
-import numpy as np
-from typing import Dict, List, Optional
-from datetime import datetime, timedelta
-from sklearn.cluster import KMeans
-from dataclasses import dataclass
+# orchestrator_mvp integration pattern
+def process_enrollment_simulation(context: AssetExecutionContext,
+                                duckdb: DuckDBResource,
+                                year_state: Dict[str, Any]) -> pd.DataFrame:
+    """
+    Process enrollment simulation for the current year using SQL/dbt approach.
 
-@dataclass
-class BehavioralSegment:
-    segment_id: str
-    enrollment_probability: float
-    opt_out_probability: float
-    deferral_rate_preferences: Dict[float, float]  # rate -> probability
-    escalation_acceptance_rate: float
+    Step 4 of orchestrator_mvp: Generate enrollment events for eligible employees.
+    """
 
-class VectorizedEnrollmentEngine:
-    def __init__(self, config: EnrollmentConfig, random_seed: Optional[int] = None):
-        self.config = config
-        self.random_state = np.random.RandomState(random_seed)
-        self.behavioral_segments = self._initialize_behavioral_segments()
+    with duckdb.get_connection() as conn:
+        # Run enrollment determination model
+        conn.execute("CALL dbt_run_model('int_enrollment_determination')")
 
-    def simulate_enrollment_batch(self, eligible_employees_df: pd.DataFrame,
-                                  eligibility_date: datetime) -> pd.DataFrame:
-        """Process enrollment for entire eligible population efficiently"""
+        # Generate enrollment events
+        enrollment_events = conn.execute("""
+            SELECT * FROM generate_enrollment_events(?)
+        """, [year_state['simulation_year']]).df()
 
-        # Assign behavioral segments
-        employees_df = self._assign_behavioral_segments(eligible_employees_df)
-
-        # Initialize enrollment columns
-        employees_df['enrolled'] = False
-        employees_df['enrollment_date'] = pd.NaT
-        employees_df['deferral_rate'] = 0.0
-        employees_df['enrollment_source'] = 'none'
-        employees_df['opted_out'] = False
-        employees_df['opt_out_date'] = pd.NaT
-
-        if self.config.auto_enrollment.enabled:
-            employees_df = self._process_auto_enrollment_vectorized(
-                employees_df, eligibility_date
-            )
-        else:
-            employees_df = self._process_voluntary_enrollment_vectorized(
-                employees_df, eligibility_date
-            )
-
-        return employees_df
-
-    def _assign_behavioral_segments(self, employees_df: pd.DataFrame) -> pd.DataFrame:
-        """Assign employees to behavioral segments using clustering"""
-
-        # Create feature matrix for clustering
-        features = employees_df[[
-            'age', 'annual_salary', 'tenure_months', 'education_level_code'
-        ]].copy()
-
-        # Normalize features
-        features['age_norm'] = (features['age'] - 25) / 40  # Normalize to 0-1
-        features['salary_norm'] = np.log(features['annual_salary']) / np.log(200000)
-        features['tenure_norm'] = features['tenure_months'] / 240  # 20 years max
-        features['education_norm'] = features['education_level_code'] / 4
-
-        # K-means clustering to create behavioral segments
-        kmeans = KMeans(n_clusters=5, random_state=42)
-        employees_df['behavioral_segment'] = kmeans.fit_predict(
-            features[['age_norm', 'salary_norm', 'tenure_norm', 'education_norm']]
-        )
-
-        return employees_df
-
-    def _process_auto_enrollment_vectorized(self, employees_df: pd.DataFrame,
-                                           eligibility_date: datetime) -> pd.DataFrame:
-        """Process auto-enrollment using vectorized operations"""
-
-        # All eligible employees are auto-enrolled on eligibility date
-        employees_df['enrolled'] = True
-        employees_df['enrollment_date'] = eligibility_date
-        employees_df['enrollment_source'] = 'auto'
-
-        # Apply segment-specific default rates or global default
-        employees_df['deferral_rate'] = self.config.auto_enrollment.default_deferral_rate
-
-        # Vectorized opt-out probability calculation
-        opt_out_probabilities = employees_df.apply(
-            lambda row: self._calculate_opt_out_probability_vectorized(row), axis=1
-        )
-
-        # Generate random numbers for opt-out decisions
-        random_draws = self.random_state.rand(len(employees_df))
-        opt_out_mask = random_draws < opt_out_probabilities
-
-        # Process opt-outs
-        employees_df.loc[opt_out_mask, 'opted_out'] = True
-        employees_df.loc[opt_out_mask, 'enrolled'] = False
-        employees_df.loc[opt_out_mask, 'deferral_rate'] = 0.0
-
-        # Calculate opt-out dates (random within window)
-        opt_out_days = self.random_state.randint(
-            1, self.config.auto_enrollment.opt_out_window_days + 1,
-            size=opt_out_mask.sum()
-        )
-        employees_df.loc[opt_out_mask, 'opt_out_date'] = [
-            eligibility_date + timedelta(days=int(days)) for days in opt_out_days
-        ]
-
-        return employees_df
-
-    def _process_voluntary_enrollment_vectorized(self, employees_df: pd.DataFrame,
-                                                eligibility_date: datetime) -> pd.DataFrame:
-        """Process voluntary enrollment using behavioral segments"""
-
-        # Calculate enrollment probabilities by segment
-        enrollment_probabilities = employees_df['behavioral_segment'].map(
-            lambda seg: self.behavioral_segments[seg].enrollment_probability
-        )
-
-        # Generate random numbers for enrollment decisions
-        random_draws = self.random_state.rand(len(employees_df))
-        enrollment_mask = random_draws < enrollment_probabilities
-
-        # Set enrollment status
-        employees_df.loc[enrollment_mask, 'enrolled'] = True
-        employees_df.loc[enrollment_mask, 'enrollment_source'] = 'voluntary'
-
-        # Calculate enrollment timing (days after eligibility)
-        enrolled_count = enrollment_mask.sum()
-        if enrolled_count > 0:
-            # Sample from realistic enrollment timing distribution
-            enrollment_delays = self.random_state.exponential(
-                scale=60, size=enrolled_count  # Average 60 days to enroll
-            ).astype(int)
-
-            enrollment_dates = [
-                eligibility_date + timedelta(days=int(delay))
-                for delay in enrollment_delays
-            ]
-            employees_df.loc[enrollment_mask, 'enrollment_date'] = enrollment_dates
-
-            # Select deferral rates based on behavioral segments
-            deferral_rates = self._sample_deferral_rates_vectorized(
-                employees_df.loc[enrollment_mask]
-            )
-            employees_df.loc[enrollment_mask, 'deferral_rate'] = deferral_rates
-
-        return employees_df
-
-    def _calculate_opt_out_probability_vectorized(self, employee_row: pd.Series) -> float:
-        """Calculate opt-out probability based on employee characteristics"""
-
-        # Base probability from behavioral segment
-        base_prob = self.behavioral_segments[employee_row['behavioral_segment']].opt_out_probability
-
-        # Age adjustment
-        age_factor = 1.0
-        if employee_row['age'] < 30:
-            age_factor = 1.5  # Younger employees more likely to opt out
-        elif employee_row['age'] > 50:
-            age_factor = 0.7  # Older employees less likely to opt out
-
-        # Salary adjustment
-        salary_factor = 1.0
-        if employee_row['annual_salary'] < 40000:
-            salary_factor = 1.3  # Lower income more likely to opt out
-        elif employee_row['annual_salary'] > 100000:
-            salary_factor = 0.6  # Higher income less likely to opt out
-
-        return min(base_prob * age_factor * salary_factor, 0.95)
-
-    def _sample_deferral_rates_vectorized(self, enrolled_employees_df: pd.DataFrame) -> List[float]:
-        """Sample deferral rates based on behavioral segments and preferences"""
-
-        deferral_rates = []
-
-        for _, employee in enrolled_employees_df.iterrows():
-            segment = self.behavioral_segments[employee['behavioral_segment']]
-
-            # Sample from segment's deferral rate distribution
-            rates = list(segment.deferral_rate_preferences.keys())
-            probabilities = list(segment.deferral_rate_preferences.values())
-
-            # Handle 'max' rate by calculating actual max for this employee
-            if 'max' in rates:
-                max_idx = rates.index('max')
-                irs_limit = 23000  # 2025 limit
-                max_rate = min(irs_limit / employee['annual_salary'], 0.5)  # Cap at 50%
-                rates[max_idx] = max_rate
-
-            selected_rate = self.random_state.choice(rates, p=probabilities)
-            deferral_rates.append(float(selected_rate))
-
-        return deferral_rates
-
-    def _initialize_behavioral_segments(self) -> Dict[int, BehavioralSegment]:
-        """Initialize behavioral segments with realistic parameters"""
-
-        return {
-            0: BehavioralSegment(  # Young, low earners
-                segment_id="young_low_earners",
-                enrollment_probability=0.45,
-                opt_out_probability=0.35,
-                deferral_rate_preferences={0.03: 0.4, 0.06: 0.3, 0.10: 0.2, 0.15: 0.1},
-                escalation_acceptance_rate=0.6
-            ),
-            1: BehavioralSegment(  # Mid-career, moderate earners
-                segment_id="mid_career_moderate",
-                enrollment_probability=0.75,
-                opt_out_probability=0.15,
-                deferral_rate_preferences={0.03: 0.2, 0.06: 0.4, 0.10: 0.25, 0.15: 0.15},
-                escalation_acceptance_rate=0.8
-            ),
-            2: BehavioralSegment(  # High earners
-                segment_id="high_earners",
-                enrollment_probability=0.90,
-                opt_out_probability=0.05,
-                deferral_rate_preferences={0.06: 0.1, 0.10: 0.2, 0.15: 0.3, 'max': 0.4},
-                escalation_acceptance_rate=0.9
-            ),
-            3: BehavioralSegment(  # Long tenure, engaged
-                segment_id="long_tenure_engaged",
-                enrollment_probability=0.85,
-                opt_out_probability=0.08,
-                deferral_rate_preferences={0.06: 0.15, 0.10: 0.35, 0.15: 0.35, 'max': 0.15},
-                escalation_acceptance_rate=0.85
-            ),
-            4: BehavioralSegment(  # Cautious savers
-                segment_id="cautious_savers",
-                enrollment_probability=0.65,
-                opt_out_probability=0.20,
-                deferral_rate_preferences={0.03: 0.5, 0.06: 0.35, 0.10: 0.15},
-                escalation_acceptance_rate=0.4
-            )
+        # Update year state with enrollment metrics
+        year_state['enrollment_metrics'] = {
+            'total_eligible': len(enrollment_events),
+            'enrolled_count': len(enrollment_events[enrollment_events['enrolled']]),
+            'opt_out_count': len(enrollment_events[enrollment_events['will_opt_out']]),
+            'avg_deferral_rate': enrollment_events['deferral_rate'].mean()
         }
 
-# Usage example for batch processing
-def process_enrollment_batch(eligible_employees_df: pd.DataFrame,
-                           config: EnrollmentConfig,
-                           eligibility_date: datetime,
-                           random_seed: int = 42) -> pd.DataFrame:
-    """Process enrollment for all eligible employees"""
-
-    engine = VectorizedEnrollmentEngine(config, random_seed)
-    result_df = engine.simulate_enrollment_batch(eligible_employees_df, eligibility_date)
-
-    # Generate enrollment events for enrolled employees
-    enrolled_employees = result_df[result_df['enrolled'] == True]
-
-    if len(enrolled_employees) > 0:
-        enrollment_events = create_enrollment_events_batch(
-            enrolled_employees, eligibility_date
-        )
-
-        # Generate opt-out events
-        opted_out_employees = result_df[result_df['opted_out'] == True]
-        if len(opted_out_employees) > 0:
-            opt_out_events = create_opt_out_events_batch(
-                opted_out_employees
-            )
-            enrollment_events.extend(opt_out_events)
-
-        return result_df, enrollment_events
-
-    return result_df, []
+    return enrollment_events
 ```
 
 ---
