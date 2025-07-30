@@ -320,5 +320,5 @@ models:
 - [ ] Severance properly excluded from eligible compensation
 - [ ] IRS compensation limit enforced at $360,000
 - [ ] Partial year proration calculates correctly
-- [ ] Integration with contribution calculations working
+- [ ] Integration with orchestrator_mvp/run_multi_year.py contribution calculations working
 - [ ] Audit trail captures all compensation adjustments

@@ -25,7 +25,7 @@ This epic follows the proven E022/E023 pattern:
 - SQL/dbt-first implementation for maximum performance
 - Core IRS limit enforcement (402(g) and catch-up)
 - Basic compensation processing with simple inclusion rules
-- Integration with orchestrator_mvp framework
+- Integration with orchestrator_mvp/run_multi_year.py simulation framework
 - Focus on 95% of standard contribution scenarios
 
 **Post-MVP Phase (Future - 42 points)**
@@ -325,27 +325,26 @@ Following the E022/E023 pattern:
 4. **Batch Processing**: Single SQL statement processes entire eligible population
 5. **Simple YTD Tracking**: Simplified accumulation logic for MVP speed
 
-### Integration with orchestrator_mvp
+### Integration with orchestrator_mvp/run_multi_year.py
 
 ```python
-# orchestrator_mvp integration pattern
-def process_contribution_calculations(context: AssetExecutionContext,
-                                    duckdb: DuckDBResource,
+# orchestrator_mvp multi-year simulation framework integration pattern
+def process_contribution_calculations(context: Dict[str, Any],
+                                    duckdb_connection,
                                     year_state: Dict[str, Any]) -> pd.DataFrame:
     """
     Process contribution calculations for the current year using SQL/dbt approach.
 
-    Step 6 of orchestrator_mvp: Calculate employee contributions with IRS limits.
+    Step 6 of orchestrator_mvp/run_multi_year.py: Calculate employee contributions with IRS limits.
     """
 
-    with duckdb.get_connection() as conn:
-        # Run contribution calculation model
-        conn.execute("CALL dbt_run_model('int_contribution_calculation')")
+    # Run contribution calculation model via orchestrator_mvp
+    duckdb_connection.execute("CALL dbt_run_model('int_contribution_calculation')")
 
-        # Generate contribution events
-        contribution_events = conn.execute("""
-            SELECT * FROM generate_contribution_events(?)
-        """, [year_state['simulation_year']]).df()
+    # Generate contribution events
+    contribution_events = duckdb_connection.execute("""
+        SELECT * FROM generate_contribution_events(?)
+    """, [year_state['simulation_year']]).df()
 
         # Update year state with contribution metrics
         year_state['contribution_metrics'] = {
@@ -398,5 +397,5 @@ def process_contribution_calculations(context: AssetExecutionContext,
 - [ ] Performance targets met (<10 seconds for 100K employees)
 - [ ] Event generation integrated with existing event sourcing
 - [ ] Data quality tests implemented and passing
-- [ ] Integration with orchestrator_mvp framework complete
+- [ ] Integration with orchestrator_mvp/run_multi_year.py simulation framework complete
 - [ ] Documentation includes SQL model examples and usage patterns

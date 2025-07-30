@@ -169,7 +169,7 @@ FROM contribution_data
 2. **dbt Models**: Creates `int_contribution_calculation` and `fct_contribution_events`
 3. **Configuration**: Uses dbt variables for pay frequencies and calculation methods
 4. **Event Storage**: Integrates with `fct_yearly_events` table
-5. **Orchestration**: Run as part of dbt asset materialization
+5. **Orchestration**: Run as part of orchestrator_mvp/run_multi_year.py simulation framework
 
 ## MVP Simplifications
 
@@ -240,5 +240,5 @@ models:
 - [ ] Pay frequency logic distributes contributions appropriately
 - [ ] Events generated in correct format with all required fields
 - [ ] dbt tests achieve 100% pass rate
-- [ ] Integration test with sample data validates calculations
+- [ ] Integration test with orchestrator_mvp/run_multi_year.py validates calculations
 - [ ] Performance benchmark documented

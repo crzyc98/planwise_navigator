@@ -323,17 +323,17 @@ Following the E022 pattern:
 3. **Columnar Processing**: DuckDB's columnar storage optimizes demographic segmentation queries
 4. **Batch Processing**: Single SQL statement processes entire eligible population
 
-### Integration with orchestrator_mvp
+### Integration with orchestrator_mvp Multi-Year Simulation Framework
 
 ```python
-# orchestrator_mvp integration pattern
+# orchestrator_mvp/run_multi_year.py integration pattern
 def process_enrollment_simulation(context: AssetExecutionContext,
                                 duckdb: DuckDBResource,
                                 year_state: Dict[str, Any]) -> pd.DataFrame:
     """
     Process enrollment simulation for the current year using SQL/dbt approach.
 
-    Step 4 of orchestrator_mvp: Generate enrollment events for eligible employees.
+    Step 4 of orchestrator_mvp multi-year simulation: Generate enrollment events for eligible employees.
     """
 
     with duckdb.get_connection() as conn:

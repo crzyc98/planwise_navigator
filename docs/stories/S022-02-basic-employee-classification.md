@@ -1,21 +1,25 @@
-# Story S022-02: Basic Employee Classification Rules (MVP)
+# Story S022-02: Basic Employee Classification Rules (Epic E026)
 
 ## Story Overview
 
 ### Summary
-Implement simple employee classification rules to exclude specific employee types (interns, contractors) from DC plan eligibility. This MVP version uses basic employee_type field matching with boolean masking for efficient filtering.
+Implement simple employee classification rules to exclude specific employee types (interns, contractors) from DC plan eligibility. This story has been moved from Epic E022 to Epic E026 to focus the E022 MVP on simple days-based eligibility only.
+
+**Epic**: E026 - Advanced Eligibility Features
+**Dependencies**: Epic E022 (Simple Eligibility Engine) must be completed first
 
 ### Business Value
 - Ensures compliance with plan document exclusions
 - Prevents ineligible employees from receiving plan benefits
 - Reduces administrative errors and corrections
 
-### Acceptance Criteria
-- ✅ Exclude employees by employee_type field (intern, contractor)
-- ✅ Use vectorized boolean masking for performance
-- ✅ Configuration via YAML without code changes
-- ✅ Clear audit trail showing exclusion reason
-- ✅ Process exclusions in single pass with other eligibility checks
+### Post-MVP Acceptance Criteria
+- Exclude employees by employee_type field (intern, contractor)
+- Use SQL boolean logic for performance
+- Configuration via dbt variables
+- Clear audit trail showing exclusion reason
+- Process exclusions in single pass with other eligibility checks
+- Generate exclusion events for comprehensive audit trail
 
 ## Technical Specifications
 
@@ -101,15 +105,52 @@ def validate_employee_classification(self, conn) -> Dict[str, int]:
 ```
 
 ### Integration with Eligibility Engine (Updated)
-**Now handled directly in the SQL model - no separate integration needed.**
+**Enhanced to generate exclusion events for audit compliance.**
 
-The classification logic is integrated into `int_eligibility_determination.sql` alongside other eligibility checks for maximum performance. The SQL approach:
+The classification logic is integrated into `int_eligibility_determination.sql` alongside other eligibility checks for maximum performance. The enhanced approach:
 
 1. **Validates data quality** first (null/empty employee_type)
 2. **Applies case-insensitive exclusions** for robustness
 3. **Tracks specific exclusion reasons** for audit trail
-4. **Flags problematic records** for manual review
-5. **Combines with other eligibility checks** in single pass
+4. **Generates EXCLUSION events** for excluded employees
+5. **Flags problematic records** for manual review
+6. **Combines with other eligibility checks** in single pass
+
+```python
+def generate_exclusion_events(self, simulation_year: int) -> List[Dict]:
+    """Generate EXCLUSION events for employees excluded by classification rules"""
+
+    query = f"""
+    SELECT
+        employee_id,
+        classification_reason,
+        employee_type
+    FROM int_eligibility_determination
+    WHERE simulation_year = {simulation_year}
+    AND is_classification_eligible = false
+    AND classification_reason LIKE 'excluded:%'
+    """
+
+    excluded_df = self.duckdb_conn.execute(query).df()
+
+    events = []
+    for _, row in excluded_df.iterrows():
+        event = {
+            "event_type": "EXCLUSION",
+            "employee_id": row['employee_id'],
+            "simulation_year": simulation_year,
+            "event_date": f"{simulation_year}-01-01",
+            "event_payload": {
+                "exclusion_type": "employee_classification",
+                "exclusion_reason": row['classification_reason'],
+                "employee_type": row['employee_type'],
+                "plan_participation_status": "excluded"
+            }
+        }
+        events.append(event)
+
+    return events
+```
 
 ## MVP Simplifications
 
@@ -142,7 +183,7 @@ The classification logic is integrated into `int_eligibility_determination.sql` 
 - No row-by-row operations
 - Exclusions checked first to minimize subsequent calculations
 
-## Story Points: 5
+## Story Points: 5 (Post-MVP)
 
 ### Effort Breakdown
 - Classification logic: 2 points
@@ -150,15 +191,24 @@ The classification logic is integrated into `int_eligibility_determination.sql` 
 - Testing: 1 point
 - Documentation: 1 point
 
+**Note**: This story has been moved to post-MVP phase to focus MVP on simple days-based eligibility only.
+
 ## Dependencies
-- S022-01 (Core Eligibility Calculator)
+- **Epic E022**: Simple Eligibility Engine (must be completed first)
+- S022-01 (Core Eligibility Calculator) - provides foundation
 - Employee data model with employee_type field
-- YAML configuration infrastructure
+- dbt variables configuration infrastructure
+- orchestrator_mvp multi-year simulation framework
+
+## Related Epic
+This story is part of **Epic E026: Advanced Eligibility Features**. See `/docs/epics/E026_advanced_eligibility_features.md` for the complete advanced eligibility roadmap.
 
 ## Definition of Done
 - [ ] Classification rules exclude specified employee types
 - [ ] Boolean masking implementation verified for performance
 - [ ] Configuration changes work without code modifications
 - [ ] Exclusion reasons properly tracked
+- [ ] EXCLUSION events generated for excluded employees
+- [ ] Event payload matches SimulationEvent schema
 - [ ] Unit tests cover all exclusion scenarios
 - [ ] Integration test with full eligibility engine

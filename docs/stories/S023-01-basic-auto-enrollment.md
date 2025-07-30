@@ -282,7 +282,7 @@ models:
               max_value: 1
 ```
 
-### 5. Orchestrator Integration
+### 5. orchestrator_mvp Multi-Year Simulation Framework Integration
 
 Add to `orchestrator_mvp/steps/enrollment_step.py`:
 
@@ -293,7 +293,7 @@ def process_auto_enrollment(context: AssetExecutionContext,
     """
     Process auto-enrollment for eligible employees using SQL/dbt approach.
 
-    Step 5 of orchestrator_mvp: Generate auto-enrollment events.
+    Step 5 of orchestrator_mvp multi-year simulation framework: Generate auto-enrollment events.
     """
 
     with duckdb.get_connection() as conn:
@@ -347,7 +347,7 @@ def process_auto_enrollment(context: AssetExecutionContext,
 
 - **E022**: Eligibility Engine (provides eligible population)
 - **E021**: DC Plan Event Schema (for event generation)
-- **orchestrator_mvp**: Pipeline integration framework
+- **orchestrator_mvp/run_multi_year.py**: Multi-year simulation framework integration
 - **dbt**: SQL transformation engine
 
 ## Risks and Mitigation
@@ -367,6 +367,6 @@ def process_auto_enrollment(context: AssetExecutionContext,
 - [ ] Auto-enrollment events generated with proper audit trail
 - [ ] Opt-out modeling working with demographic segmentation
 - [ ] Data quality tests passing with 100% coverage
-- [ ] Integration with orchestrator_mvp complete
+- [ ] Integration with orchestrator_mvp multi-year simulation framework via orchestrator_mvp/run_multi_year.py complete
 - [ ] Performance benchmarking complete
 - [ ] Documentation and examples provided

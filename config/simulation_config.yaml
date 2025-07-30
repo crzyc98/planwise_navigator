@@ -27,6 +27,14 @@ plan_year:
   end_date: "2024-12-31"    # Plan year end date for compensation calculations
   annualization_method: "calendar_days"  # Method for annualizing partial year compensation (calendar_days vs work_days)
 
+eligibility:
+  waiting_period_days: 365  # Days employee must be employed before becoming eligible (0 = immediate, 365 = 1 year)
+  # Future: moved to Epic E026
+  # minimum_age: 21
+  # minimum_hours_annual: 1000
+  # excluded_employee_types: ["intern", "contractor"]
+  # entry_date_type: "quarterly"
+
 # Dagster op configuration
 ops:
   run_multi_year_simulation:

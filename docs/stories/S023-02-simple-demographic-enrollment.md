@@ -358,7 +358,7 @@ FROM enrollment_summary
 ORDER BY age_segment, salary_segment
 ```
 
-### 6. Orchestrator Integration
+### 6. orchestrator_mvp Multi-Year Simulation Framework Integration
 
 Add to `orchestrator_mvp/steps/enrollment_step.py`:
 
@@ -369,7 +369,7 @@ def process_demographic_enrollment(context: AssetExecutionContext,
     """
     Process demographic-based voluntary enrollment using SQL/dbt approach.
 
-    Step 5.2 of orchestrator_mvp: Generate voluntary enrollment events by demographics.
+    Step 5.2 of orchestrator_mvp multi-year simulation framework: Generate voluntary enrollment events by demographics.
     """
 
     with duckdb.get_connection() as conn:
@@ -443,7 +443,7 @@ def process_demographic_enrollment(context: AssetExecutionContext,
 - **E022**: Eligibility Engine (provides eligible population)
 - **S023-01**: Auto-enrollment (excludes auto-enrolled employees)
 - **E021**: DC Plan Event Schema (for event generation)
-- **orchestrator_mvp**: Pipeline integration framework
+- **orchestrator_mvp/run_multi_year.py**: Multi-year simulation framework integration
 
 ## Risks and Mitigation
 
@@ -464,5 +464,6 @@ def process_demographic_enrollment(context: AssetExecutionContext,
 - [ ] Voluntary enrollment events generated with proper audit trail
 - [ ] Data quality tests passing with 100% coverage
 - [ ] Integration with E022 eligibility and S023-01 auto-enrollment complete
+- [ ] Integration with orchestrator_mvp multi-year simulation framework via orchestrator_mvp/run_multi_year.py complete
 - [ ] Performance target met (<3 seconds for 100K employees)
 - [ ] Reporting dashboard shows enrollment rates by demographic segment
