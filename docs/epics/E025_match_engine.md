@@ -378,52 +378,36 @@ ORDER BY simulation_year, formula_id
 
 ### Orchestrator Integration (MVP)
 
-#### orchestrator_mvp/assets/match_engine.py
+#### Integration with orchestrator_mvp/run_multi_year.py
+
+The match engine integrates with the orchestrator_mvp multi-year simulation framework through dbt model execution within the simulation loop:
+
 ```python
-from dagster import asset, AssetExecutionContext
-from dagster_dbt import DbtCliResource
-import pandas as pd
+# orchestrator_mvp/run_multi_year.py integration example
 
-@asset(
-    deps=["contribution_events"],
-    group_name="dc_plan"
-)
-def employer_match_calculations(
-    context: AssetExecutionContext,
-    dbt: DbtCliResource
-) -> None:
-    """Calculate employer matches based on contribution events"""
+def run_match_calculations(year: int, config: SimulationConfig) -> Dict[str, Any]:
+    """Calculate employer matches for a simulation year"""
 
-    # Run match calculation models
-    dbt_result = dbt.cli(
+    # Execute match calculation models through dbt
+    result = execute_dbt_command_streaming(
         ["run", "--select", "int_employee_match_calculations+"],
-        context=context
-    ).wait()
+        working_dir="dbt"
+    )
 
-    if not dbt_result.success:
-        raise Exception("Match calculation failed")
+    if result.returncode != 0:
+        raise RuntimeError(f"Match calculation failed for year {year}")
 
-    context.log.info(f"Calculated employer matches for simulation")
-
-@asset(
-    deps=["employer_match_calculations"],
-    group_name="dc_plan"
-)
-def match_events(
-    context: AssetExecutionContext,
-    dbt: DbtCliResource,
-    duckdb: DuckDBResource
-) -> pd.DataFrame:
-    """Generate employer match events"""
-
-    # Run event generation model
-    dbt_result = dbt.cli(
+    # Execute match event generation
+    result = execute_dbt_command_streaming(
         ["run", "--select", "fct_employer_match_events"],
-        context=context
-    ).wait()
+        working_dir="dbt"
+    )
 
-    # Query generated events
-    with duckdb.get_connection() as conn:
+    if result.returncode != 0:
+        raise RuntimeError(f"Match event generation failed for year {year}")
+
+    # Query generated events for validation
+    with DuckDBConnection(config.database_path) as conn:
         events_df = conn.execute("""
             SELECT
                 event_id,
@@ -433,11 +417,16 @@ def match_events(
                 amount,
                 event_payload
             FROM fct_employer_match_events
-            WHERE simulation_year = (SELECT MAX(simulation_year) FROM fct_employer_match_events)
-        """).df()
+            WHERE simulation_year = ?
+        """, [year]).df()
 
-    context.log.info(f"Generated {len(events_df)} match events")
-    return events_df
+    logger.info(f"Generated {len(events_df)} match events for year {year}")
+
+    return {
+        "events_generated": len(events_df),
+        "total_match_amount": events_df['amount'].sum(),
+        "year": year
+    }
 ```
 
 ### Streamlit Dashboard Integration
@@ -573,7 +562,7 @@ with col2:
 - E024: Contribution Calculator (for contribution events)
 - DuckDB 1.0.0+ for performance
 - dbt-core 1.8.8+ for SQL models
-- Dagster for orchestration
+- orchestrator_mvp multi-year simulation framework for orchestration
 
 ## Risks & Mitigations
 - **Risk**: Complex formula configurations
@@ -592,6 +581,6 @@ with col2:
 - [ ] Match event generation integrated
 - [ ] Formula comparison analytics complete
 - [ ] Performance targets met (<10s for 100K)
-- [ ] Integration with orchestrator_mvp
+- [ ] Integration with orchestrator_mvp multi-year simulation framework via orchestrator_mvp/run_multi_year.py
 - [ ] Streamlit dashboard page
 - [ ] Unit tests for SQL models

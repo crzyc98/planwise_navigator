@@ -499,6 +499,7 @@ models:
 ### Technical Dependencies
 - **S025-01**: Core Match Formula Models (provides calculation foundation)
 - **S025-02**: Match Event Generation (provides event data)
+- **orchestrator_mvp multi-year simulation framework** for orchestration
 - **Streamlit dashboard infrastructure**
 - **dbt macro system** for reusable calculations
 
@@ -528,7 +529,7 @@ models:
 - [ ] **All comparison scenarios** tested and validated
 - [ ] **Export capabilities** working for external analysis
 - [ ] **Documentation complete** with dashboard usage guide
-- [ ] **Integration testing** with full pipeline validation
+- [ ] **Integration testing** with orchestrator_mvp multi-year simulation framework
 
 ## Notes
 

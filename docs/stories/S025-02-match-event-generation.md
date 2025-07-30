@@ -136,34 +136,24 @@ ORDER BY effective_date, created_at
 ### Orchestrator Integration
 
 ```python
-# orchestrator_mvp/assets/match_engine.py
-from dagster import asset, AssetExecutionContext
-from dagster_dbt import DbtCliResource
-from ..resources.duckdb_resource import DuckDBResource
-import pandas as pd
+# Integration with orchestrator_mvp/run_multi_year.py
 
-@asset(
-    deps=["int_employee_match_calculations"],
-    group_name="dc_plan"
-)
-def employer_match_events(
-    context: AssetExecutionContext,
-    dbt: DbtCliResource,
-    duckdb: DuckDBResource
-) -> pd.DataFrame:
-    """Generate employer match events from calculations"""
+def run_match_event_generation(year: int, config: SimulationConfig) -> Dict[str, Any]:
+    """Generate employer match events for a simulation year"""
 
-    # Run match event generation model
-    dbt_result = dbt.cli(
+    logger.info(f"Starting match event generation for year {year}")
+
+    # Execute match event generation model through dbt
+    result = execute_dbt_command_streaming(
         ["run", "--select", "fct_employer_match_events"],
-        context=context
-    ).wait()
+        working_dir="dbt"
+    )
 
-    if not dbt_result.success:
-        raise Exception("Match event generation failed")
+    if result.returncode != 0:
+        raise RuntimeError(f"Match event generation failed for year {year}")
 
     # Query generated events for validation
-    with duckdb.get_connection() as conn:
+    with DuckDBConnection(config.database_path) as conn:
         events_df = conn.execute("""
             SELECT
                 event_id,
@@ -174,31 +164,30 @@ def employer_match_events(
                 event_payload,
                 created_at
             FROM fct_employer_match_events
-            WHERE simulation_year = (SELECT MAX(simulation_year) FROM fct_employer_match_events)
-        """).df()
+            WHERE simulation_year = ?
+        """, [year]).df()
 
-    context.log.info(f"Generated {len(events_df)} employer match events")
-    context.log.info(f"Total match amount: ${events_df['amount'].sum():,.2f}")
+    logger.info(f"Generated {len(events_df)} employer match events for year {year}")
+    logger.info(f"Total match amount: ${events_df['amount'].sum():,.2f}")
 
-    return events_df
+    # Validation checks
+    validation_results = validate_match_events(year, config)
 
-@asset(
-    deps=["employer_match_events"],
-    group_name="dc_plan"
-)
-def match_event_validation(
-    context: AssetExecutionContext,
-    duckdb: DuckDBResource,
-    employer_match_events: pd.DataFrame
-) -> dict:
+    return {
+        "events_generated": len(events_df),
+        "total_match_amount": events_df['amount'].sum(),
+        "validation_results": validation_results,
+        "year": year
+    }
+
+def validate_match_events(year: int, config: SimulationConfig) -> Dict[str, Any]:
     """Validate generated match events for completeness and accuracy"""
 
-    with duckdb.get_connection() as conn:
-        # Validation queries
+    with DuckDBConnection(config.database_path) as conn:
         validation_results = {}
 
         # Check event completeness
-        completeness_query = """
+        completeness_df = conn.execute("""
             SELECT
                 COUNT(*) as total_events,
                 COUNT(CASE WHEN amount > 0 THEN 1 END) as positive_amount_events,
@@ -206,51 +195,27 @@ def match_event_validation(
                 AVG(amount) as avg_match_amount,
                 SUM(amount) as total_match_cost
             FROM fct_employer_match_events
-            WHERE simulation_year = (SELECT MAX(simulation_year) FROM fct_employer_match_events)
-        """
+            WHERE simulation_year = ?
+        """, [year]).df()
 
-        completeness_df = conn.execute(completeness_query).df()
         validation_results['completeness'] = completeness_df.to_dict('records')[0]
 
         # Check formula distribution
-        formula_distribution_query = """
+        formula_df = conn.execute("""
             SELECT
                 JSON_EXTRACT(event_payload, '$.formula_type') as formula_type,
                 COUNT(*) as event_count,
                 SUM(amount) as total_amount,
                 AVG(amount) as avg_amount
             FROM fct_employer_match_events
-            WHERE simulation_year = (SELECT MAX(simulation_year) FROM fct_employer_match_events)
+            WHERE simulation_year = ?
             GROUP BY JSON_EXTRACT(event_payload, '$.formula_type')
-        """
+        """, [year]).df()
 
-        formula_df = conn.execute(formula_distribution_query).df()
         validation_results['formula_distribution'] = formula_df.to_dict('records')
 
-        # Check for potential issues
-        issues_query = """
-            SELECT
-                'missing_payload' as issue_type,
-                COUNT(*) as count
-            FROM fct_employer_match_events
-            WHERE event_payload IS NULL
-            AND simulation_year = (SELECT MAX(simulation_year) FROM fct_employer_match_events)
-
-            UNION ALL
-
-            SELECT
-                'zero_amount_events' as issue_type,
-                COUNT(*) as count
-            FROM fct_employer_match_events
-            WHERE amount = 0
-            AND simulation_year = (SELECT MAX(simulation_year) FROM fct_employer_match_events)
-        """
-
-        issues_df = conn.execute(issues_query).df()
-        validation_results['issues'] = issues_df.to_dict('records')
-
-    context.log.info(f"Match event validation complete: {validation_results}")
-    return validation_results
+        logger.info(f"Match event validation complete for year {year}: {validation_results}")
+        return validation_results
 ```
 
 ### Event Payload Schema
@@ -337,14 +302,14 @@ models:
 - [ ] **Integrate with existing event storage** in fct_yearly_events
 
 ### Phase 2: Orchestrator Integration
-- [ ] **Create Dagster asset** for match event generation
+- [ ] **Integrate with orchestrator_mvp** multi-year simulation framework
 - [ ] **Add event validation logic** for completeness checking
 - [ ] **Implement performance monitoring** for generation speed
 - [ ] **Add logging and metrics** for operational monitoring
 
 ### Phase 3: Testing & Validation
 - [ ] **Create comprehensive dbt tests** for event integrity
-- [ ] **Add integration tests** with orchestrator pipeline
+- [ ] **Add integration tests** with orchestrator_mvp multi-year simulation framework
 - [ ] **Performance testing** with large employee populations
 - [ ] **Validate event sourcing** reconstruction includes matches
 
@@ -354,7 +319,7 @@ models:
 - **S025-01**: Core Match Formula Models (provides match calculations)
 - **Existing event model** (SimulationEvent structure)
 - **Event storage infrastructure** (fct_yearly_events table)
-- **Dagster orchestration** for pipeline integration
+- **orchestrator_mvp multi-year simulation framework** for pipeline integration
 
 ### Story Dependencies
 - **S025-01**: Core Match Formula Models (must be completed first)
@@ -376,7 +341,7 @@ models:
 
 - [ ] **Match event generation model** implemented with incremental loading
 - [ ] **Event payload structure** complete with all required context fields
-- [ ] **Orchestrator integration** working with proper asset dependencies
+- [ ] **Integration with orchestrator_mvp** multi-year simulation framework via orchestrator_mvp/run_multi_year.py
 - [ ] **Performance targets met**: <5 seconds for 10K employees
 - [ ] **Event validation** confirming completeness and accuracy
 - [ ] **Integration with event sourcing** verified through reconstruction tests

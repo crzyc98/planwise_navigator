@@ -283,6 +283,7 @@ models:
 - **E024**: Contribution Calculator (for contribution events)
 - **DuckDB 1.0.0+** for columnar processing performance
 - **dbt-core 1.8.8+** for variable configuration and model materialization
+- **orchestrator_mvp multi-year simulation framework** for orchestration
 - **Existing workforce data** (eligible_compensation field)
 
 ### Story Dependencies
@@ -310,6 +311,7 @@ models:
 - [ ] **All test scenarios passing** with comprehensive dbt test coverage
 - [ ] **Documentation complete** with formula configuration examples
 - [ ] **Integration ready** for event generation in S025-02
+- [ ] **Integration testing** with orchestrator_mvp multi-year simulation framework
 
 ## Notes
 

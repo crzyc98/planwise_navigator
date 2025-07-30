@@ -3,7 +3,7 @@
 ## Epic Overview
 
 ### Summary
-Build a sophisticated eligibility determination engine that evaluates employee eligibility for DC plan participation based on configurable rules including age, service, hours worked, and employee classification.
+Build a simple, configurable eligibility determination engine that evaluates employee eligibility for DC plan participation based on days of service since hire date. This MVP focuses on the most common eligibility pattern: waiting period after hire.
 
 ### Business Value
 - Automates complex eligibility calculations reducing manual HR work by 80%
@@ -21,20 +21,19 @@ Build a sophisticated eligibility determination engine that evaluates employee e
 ### MVP Implementation Approach
 This epic is being implemented in phases to deliver value quickly:
 
-**MVP Phase (2 weeks - In Progress)**
-- Core eligibility calculator with SQL/dbt implementation (S022-01)
-- Basic employee classification with data quality checks (S022-02)
-- Entry date processing with monthly/quarterly options (S022-03)
-- Integration with orchestrator_mvp framework via dbt models
-- Focus on 95% of standard eligibility cases
-- **No eligibility events generated** - used as filters only
+**MVP Phase (30 minutes - Ultra-Simplified)**
+- Core eligibility calculator based on days since hire (S022-01)
+- **Eligibility event generation** for newly eligible employees
+- Integration with orchestrator_mvp framework via `orchestrator_mvp/run_multi_year.py`
+- Configuration-driven waiting period (0-365+ days)
 
-**Post-MVP Phase (Future)**
-- Complex service computation methods
-- Breaks in service and rehire logic
-- Advanced classification rules (union, location, division)
-- Point-in-time eligibility queries
-- Incremental processing optimization
+**Post-MVP Phase**
+All advanced eligibility features have been moved to **Epic E026: Advanced Eligibility Features**. See `/docs/epics/E026_advanced_eligibility_features.md` for:
+- Entry date processing (S022-03)
+- Employee classification rules (S022-02)
+- Age/hours-based requirements
+- Complex service calculations
+- Advanced classification rules
 
 ---
 
@@ -42,316 +41,173 @@ This epic is being implemented in phases to deliver value quickly:
 
 ### MVP Stories (In Development)
 
-#### Story S022-01: Core Eligibility Calculator (8 points) 🚧
+#### Story S022-01: Core Eligibility Calculator (5 points) 🚧
 **Status**: Ready for implementation
 **As a** benefits administrator
-**I want** automated eligibility determination for standard cases
-**So that** employees are enrolled at the right time without manual tracking
+**I want** automated eligibility determination based on days of service
+**So that** employees are enrolled after the configured waiting period
 
 **MVP Acceptance Criteria:**
 - ✅ Process 100K employees in <30 seconds using SQL/dbt operations
-- ✅ Evaluate age requirements (18 or 21 minimum)
-- ✅ Evaluate service requirements (0, 6, or 12 months using elapsed time)
-- ✅ Simple hours check (0 or 1000 annual hours minimum)
-- ✅ Create eligibility filter for other event generation (no events stored)
+- ✅ Evaluate service requirements in days since hire (0, 365, etc.)
+- ✅ Configuration via dbt variables (eligibility_waiting_days)
+- ✅ Generate ELIGIBILITY events for newly eligible employees
+- ✅ Track eligibility status changes in event stream
 - ✅ Support configuration via dbt variables
+- ✅ Integration with orchestrator_mvp multi-year simulation framework
 
 **Implementation**: See `/docs/stories/S022-01-core-eligibility-calculator.md`
 
-#### Story S022-02: Basic Employee Classification (5 points) 🚧
-**Status**: Ready for implementation
-**As a** plan sponsor
-**I want** simple employee type exclusions
-**So that** I can exclude interns and contractors from the plan
+---
 
-**MVP Acceptance Criteria:**
-- ✅ Exclude employees by employee_type field (intern, contractor, seasonal)
-- ✅ Use SQL boolean logic for maximum performance
-- ✅ Configuration via dbt variables
-- ✅ Specific exclusion reason tracking (excluded:intern, excluded:contractor)
-- ✅ Data quality checks for missing/invalid employee types
-- ✅ Process exclusions in single pass with other eligibility checks
+## Related Epics
 
-**Implementation**: See `/docs/stories/S022-02-basic-employee-classification.md`
+### Epic E026: Advanced Eligibility Features
+All advanced eligibility features have been moved to Epic E026. See `/docs/epics/E026_advanced_eligibility_features.md` for:
 
-#### Story S022-03: Entry Date Processing (6 points) 🚧
-**Status**: Ready for implementation
-**As a** payroll administrator
-**I want** automatic entry date calculations
-**So that** eligible employees start on the correct date
+- **Story S022-02**: Basic Employee Classification (5 points)
+- **Story S022-03**: Entry Date Processing (4 points)
+- **Story S026-01**: Age-Based Eligibility Requirements (6 points)
+- **Story S026-02**: Hours-Based Eligibility (8 points)
+- **Story S026-03**: Complex Service Computation (12 points)
+- **Story S026-04**: Advanced Classification Rules (8 points)
+- **Story S026-05**: Eligibility Change Tracking (8 points)
 
-**MVP Acceptance Criteria:**
-- ✅ Calculate immediate entry (same day as eligibility)
-- ✅ Calculate monthly entry dates (1st of each month)
-- ✅ Calculate quarterly entry dates (1/1, 4/1, 7/1, 10/1)
-- ✅ SQL-based implementation for maximum performance
-- ✅ Configuration via dbt variables
-- ✅ Handle year boundaries correctly
-- ✅ Fix same-day entry compliance issue (>= not >)
-
-**Implementation**: See `/docs/stories/S022-03-entry-date-processing.md`
-
-### Future Stories (Post-MVP)
-
-#### Story 4: Advanced Service Computation (12 points) 📅
-**Status**: Deferred to post-MVP
-**As a** compliance officer
-**I want** complex service calculations with breaks and rehires
-**So that** we meet ERISA requirements for all edge cases
-
-**Future Acceptance Criteria:**
-- Hours counting method with 1000-hour threshold and YTD tracking
-- Handles breaks in service and rehires with complex rehire credit logic
-- Supports "Rule of Parity" for vesting
-- Multiple concurrent service calculations (eligibility vs vesting)
-
-#### Story 5: Advanced Classification Rules (8 points) 📅
-**Status**: Deferred to post-MVP
-**As a** plan sponsor
-**I want** complex classification rules by multiple attributes
-**So that** I have full control over plan participation
-
-**Future Acceptance Criteria:**
-- Inclusion/exclusion by location, division, union status
-- Statutory exclusions (non-resident aliens)
-- Pre-computed classification segments for performance
-- Dynamic rule application with effective dating
-
-#### Story 6: Eligibility Change Tracking (8 points) 📅
-**Status**: Deferred to post-MVP
-**As an** audit manager
-**I want** complete tracking of eligibility changes
-**So that** I can explain any eligibility determination
-
-**Future Acceptance Criteria:**
-- Point-in-time eligibility queries with <100ms response
-- Eligibility loss scenarios (termination, reclassification)
-- Automated compliance reporting
-- Event correlation with workforce changes
+**Total Epic E026**: 51 story points, 5-6 weeks estimated duration
 
 ---
 
 ## Technical Specifications
 
-### Eligibility Configuration
+### Eligibility Configuration (Centralized)
 ```yaml
-eligibility_rules:
-  standard:
-    minimum_age: 21
-    minimum_service_months: 12
-    service_computation: elapsed_time
-    minimum_hours: 1000
-    entry_dates:
-      - type: quarterly
-        dates: ["01-01", "04-01", "07-01", "10-01"]
-
-  excluded_classes:
-    - employee_type: intern
-    - employee_type: contractor
-    - union_code: LOCAL_123
-
-  special_rules:
-    immediate_401k:
-      applies_to: ["401k_deferral"]
-      minimum_age: 18
-      minimum_service_months: 0
-      entry_dates:
-        - type: immediate
+# config/simulation_config.yaml
+eligibility:
+  waiting_period_days: 365  # 0 for immediate, 365 for 1 year, etc.
 ```
 
-### Vectorized Eligibility Engine
+This integrates with the existing simulation configuration, allowing you to configure eligibility alongside other simulation parameters like growth rates and termination rates.
+
+### Simple Eligibility Implementation
 ```python
-import pandas as pd
-import numpy as np
-from datetime import datetime, timedelta
-from typing import Dict, List
+def process_eligibility_for_year(simulation_year: int, config) -> List[Dict]:
+    """Simple eligibility processing - just days since hire"""
+    eligibility_engine = EligibilityEngine(config)
+    return eligibility_engine.generate_eligibility_events(simulation_year)
 
-class VectorizedEligibilityEngine:
-    def __init__(self, plan_rules: EligibilityRules):
-        self.plan_rules = plan_rules
-        self.service_cache = {}  # Cache for unchanged employees
+class EligibilityEngine:
+    def __init__(self, config):
+        self.config = config
+        self.waiting_period_days = config.eligibility.waiting_period_days
 
-    def determine_eligibility_batch(self, employees_df: pd.DataFrame, as_of_date: datetime) -> pd.DataFrame:
-        """Process eligibility for entire employee population efficiently"""
+    def generate_eligibility_events(self, simulation_year: int) -> List[Dict]:
+        """Generate ELIGIBILITY events for newly eligible employees"""
 
-        # Initialize eligibility columns
-        employees_df['is_eligible'] = False
-        employees_df['eligibility_reason'] = 'pending'
-        employees_df['entry_date'] = pd.NaT
-
-        # 1. Vectorized exclusion check
-        exclusion_mask = self._check_exclusions_vectorized(employees_df)
-        employees_df.loc[exclusion_mask, 'eligibility_reason'] = 'excluded'
-
-        # 2. Vectorized age check
-        age_eligible_mask = self._check_age_vectorized(employees_df, as_of_date)
-        age_failed = ~age_eligible_mask & ~exclusion_mask
-        employees_df.loc[age_failed, 'eligibility_reason'] = 'pending_age'
-
-        # 3. Vectorized service check
-        service_eligible_mask = self._check_service_vectorized(employees_df, as_of_date)
-        service_failed = ~service_eligible_mask & age_eligible_mask & ~exclusion_mask
-        employees_df.loc[service_failed, 'eligibility_reason'] = 'pending_service'
-
-        # 4. Vectorized hours check (if required)
-        if self.plan_rules.minimum_hours > 0:
-            hours_eligible_mask = self._check_hours_vectorized(employees_df, as_of_date)
-            hours_failed = ~hours_eligible_mask & age_eligible_mask & service_eligible_mask & ~exclusion_mask
-            employees_df.loc[hours_failed, 'eligibility_reason'] = 'pending_hours'
-        else:
-            hours_eligible_mask = True
-
-        # 5. Calculate final eligibility
-        final_eligible_mask = (
-            age_eligible_mask &
-            service_eligible_mask &
-            hours_eligible_mask &
-            ~exclusion_mask
+        # Find employees who became eligible this year based on waiting period
+        query = f"""
+        WITH current_eligibility AS (
+            SELECT
+                employee_id,
+                DATEDIFF('day', employee_hire_date, DATE('{simulation_year}-01-01')) as days_since_hire,
+                DATEDIFF('day', employee_hire_date, DATE('{simulation_year}-01-01')) >= {self.waiting_period_days} as is_eligible
+            FROM int_baseline_workforce
+            WHERE employment_status = 'active'
+        ),
+        previous_eligibility AS (
+            SELECT
+                employee_id,
+                DATEDIFF('day', employee_hire_date, DATE('{simulation_year - 1}-01-01')) >= {self.waiting_period_days} as was_eligible
+            FROM int_baseline_workforce
+            WHERE employment_status = 'active'
         )
+        SELECT
+            c.employee_id,
+            c.days_since_hire,
+            COALESCE(p.was_eligible, false) as was_previously_eligible
+        FROM current_eligibility c
+        LEFT JOIN previous_eligibility p ON c.employee_id = p.employee_id
+        WHERE c.is_eligible = true
+        AND COALESCE(p.was_eligible, false) = false
+        """
 
-        employees_df.loc[final_eligible_mask, 'is_eligible'] = True
-        employees_df.loc[final_eligible_mask, 'eligibility_reason'] = 'eligible'
+        newly_eligible_df = self.duckdb_conn.execute(query).df()
 
-        # 6. Vectorized entry date calculation
-        employees_df.loc[final_eligible_mask, 'entry_date'] = self._calculate_entry_dates_vectorized(
-            employees_df.loc[final_eligible_mask], as_of_date
-        )
+        events = []
+        for _, row in newly_eligible_df.iterrows():
+            event = {
+                "event_type": "ELIGIBILITY",
+                "employee_id": row['employee_id'],
+                "simulation_year": simulation_year,
+                "event_date": f"{simulation_year}-01-01",
+                "event_payload": {
+                    "eligibility_type": "plan_participation",
+                    "previous_status": "ineligible",
+                    "new_status": "eligible",
+                    "days_since_hire": int(row['days_since_hire']),
+                    "waiting_period_days": self.waiting_period_days
+                }
+            }
+            events.append(event)
 
-        return employees_df
+        return events
 
-    def _check_exclusions_vectorized(self, employees_df: pd.DataFrame) -> pd.Series:
-        """Check employee class exclusions using boolean masking"""
-        exclusion_mask = pd.Series(False, index=employees_df.index)
+# Integration with Dagster asset
+@asset
+def eligibility_events(context: AssetExecutionContext,
+                      simulation_config,
+                      int_baseline_workforce) -> pd.DataFrame:
+    """Generate eligibility events using centralized configuration"""
 
-        for exclusion in self.plan_rules.excluded_classes:
-            if 'employee_type' in exclusion:
-                exclusion_mask |= employees_df['employee_type'] == exclusion['employee_type']
-            if 'union_code' in exclusion:
-                exclusion_mask |= employees_df['union_code'] == exclusion['union_code']
+    current_year = simulation_config['simulation']['start_year']
+    eligibility_engine = EligibilityEngine(simulation_config)
 
-        return exclusion_mask
+    events = eligibility_engine.generate_eligibility_events(current_year)
 
-    def _check_age_vectorized(self, employees_df: pd.DataFrame, as_of_date: datetime) -> pd.Series:
-        """Calculate ages and check minimum age requirement"""
-        # Vectorized age calculation
-        birth_dates = pd.to_datetime(employees_df['birth_date'])
-        ages = (as_of_date - birth_dates).dt.days / 365.25
-
-        return ages >= self.plan_rules.minimum_age
-
-    def _check_service_vectorized(self, employees_df: pd.DataFrame, as_of_date: datetime) -> pd.Series:
-        """Calculate service and check minimum service requirement with caching"""
-        # Use cached service for unchanged employees
-        new_employees = employees_df[~employees_df['employee_id'].isin(self.service_cache)]
-
-        if len(new_employees) > 0:
-            # Vectorized service calculation for new/changed employees
-            hire_dates = pd.to_datetime(new_employees['hire_date'])
-            service_months = ((as_of_date - hire_dates).dt.days / 30.44).round()
-
-            # Update cache
-            service_dict = dict(zip(new_employees['employee_id'], service_months))
-            self.service_cache.update(service_dict)
-
-        # Apply cached service values
-        employees_df['calculated_service_months'] = employees_df['employee_id'].map(self.service_cache)
-
-        return employees_df['calculated_service_months'] >= self.plan_rules.minimum_service_months
-
-    def _calculate_entry_dates_vectorized(self, eligible_df: pd.DataFrame, as_of_date: datetime) -> pd.Series:
-        """Calculate entry dates using vectorized operations"""
-        if self.plan_rules.entry_dates.type == 'immediate':
-            return pd.Series(as_of_date, index=eligible_df.index)
-
-        elif self.plan_rules.entry_dates.type == 'quarterly':
-            # Find next quarterly entry date for each employee
-            quarter_dates = pd.to_datetime([
-                f"{as_of_date.year}-{date}" for date in self.plan_rules.entry_dates.dates
-            ])
-
-            # Vectorized next quarter calculation
-            next_quarters = []
-            for _ in eligible_df.index:
-                future_quarters = quarter_dates[quarter_dates > as_of_date]
-                if len(future_quarters) > 0:
-                    next_quarters.append(future_quarters[0])
-                else:
-                    # Next year's first quarter
-                    next_year_first = pd.to_datetime(f"{as_of_date.year + 1}-{self.plan_rules.entry_dates.dates[0]}")
-                    next_quarters.append(next_year_first)
-
-            return pd.Series(next_quarters, index=eligible_df.index)
-
-        # Add other entry date types as needed
-        return pd.Series(as_of_date, index=eligible_df.index)
-
-# Usage example
-def process_daily_eligibility(duckdb_conn, plan_rules, as_of_date):
-    # Load employee data efficiently
-    employees_df = duckdb_conn.execute("""
-        SELECT employee_id, birth_date, hire_date, employee_type, union_code
-        FROM dim_employees
-        WHERE active_flag = true
-    """).df()
-
-    # Process eligibility
-    engine = VectorizedEligibilityEngine(plan_rules)
-    result_df = engine.determine_eligibility_batch(employees_df, as_of_date)
-
-    # Generate events for newly eligible employees
-    newly_eligible = result_df[
-        (result_df['is_eligible'] == True) &
-        (result_df['employee_id'].isin(get_previously_ineligible_employees()))
-    ]
-
-    # Bulk insert eligibility events
-    if len(newly_eligible) > 0:
-        eligibility_events = create_eligibility_events_batch(newly_eligible, as_of_date)
-        insert_events_batch(duckdb_conn, eligibility_events)
-
-    return result_df
+    if events:
+        return pd.DataFrame(events)
+    else:
+        return pd.DataFrame()  # Empty DataFrame if no new eligibility events
 ```
 
 ---
 
-## Performance Requirements
+## Performance Requirements (MVP)
 
 | Metric | Requirement | Implementation Strategy |
 |--------|-------------|------------------------|
-| Daily Processing | <30 seconds for 100K employees | Vectorized DataFrame operations with Pandas/Polars |
-| Point-in-Time Queries | <100ms response time | Optimized eligibility snapshots with indexed lookups |
-| Cache Hit Rate | 95% for unchanged employees | Service computation caching with employment history tracking |
-| Memory Usage | <4GB for 100K employee dataset | Efficient data types and incremental processing |
-| Concurrent Scenarios | <2 minutes for 10 parallel scenarios | Process-based parallelism with isolated DataFrames |
+| Daily Processing | <30 seconds for 100K employees | Simple SQL/dbt operations |
+| Event Generation | <5 seconds for newly eligible employees | Lightweight ELIGIBILITY event creation |
+| Memory Usage | <1GB for 100K employee dataset | Minimal data requirements (just hire_date) |
+
+**Note**: Advanced performance requirements moved to Epic E026
 
 ## Dependencies
-- E021: DC Plan Data Model (must be complete)
-- Employee demographic data from workforce simulation
-- Employment history including hire/term/rehire dates
-- Pandas/Polars for vectorized DataFrame operations
-- NumPy for efficient numerical computations
-- Pydantic for configuration validation
-- DuckDB for optimized analytical queries
+- Employee hire date data from workforce simulation
+- Event storage infrastructure (fct_yearly_events)
+- dbt for SQL-based processing
+- DuckDB for analytical queries
 
 ## Risks
-- **Risk**: Complex service calculation rules for rehires
-- **Mitigation**: Implement comprehensive test scenarios
 - **Risk**: Performance with daily eligibility checks for 100K+ employees
-- **Mitigation**: Incremental processing of changed employees only
+- **Mitigation**: Simple SQL-based implementation with minimal complexity
+
+**Note**: Complex risks moved to Epic E026
 
 ## Estimated Effort
 
 ### MVP Phase
-**Total Story Points**: 19 points (S022-01: 8, S022-02: 5, S022-03: 6)
-**Estimated Duration**: 2 weeks
+**Total Story Points**: 5 points (S022-01: 5)
+**Estimated Duration**: 30 minutes
 
-### Post-MVP Phase
-**Total Story Points**: 28 points (remaining stories)
-**Estimated Duration**: 2-3 sprints
+### Post-MVP Phase (Epic E026)
+**Total Story Points**: 51 points (moved to Epic E026)
+**Estimated Duration**: 5-6 weeks (see Epic E026)
 
-### Total Epic
-**Total Story Points**: 47 points (reduced from 56 by simplifying MVP, +1 for monthly entry dates)
-**Estimated Duration**: 4-5 weeks total
+### Total Epic E022 (MVP Only)
+**Total Story Points**: 5 points (S022-01 only)
+**Estimated Duration**: 30 minutes
+
+**Note**: Advanced features moved to Epic E026 (51 additional points)
 
 ---
 
@@ -359,17 +215,13 @@ def process_daily_eligibility(duckdb_conn, plan_rules, as_of_date):
 
 ### MVP Phase
 - [ ] Core eligibility calculator processes 100K employees in <30 seconds using SQL/dbt
-- [ ] Basic employee classification with data quality checks working
-- [ ] Entry date calculation for immediate, monthly, and quarterly patterns
-- [ ] Integration with orchestrator_mvp via dbt models complete
-- [ ] Eligibility used as filter in event generation (no events stored)
-- [ ] Same-day entry compliance issue fixed
+- [ ] Days-based service eligibility working (configurable waiting period)
+- [ ] **Eligibility event generation** for newly eligible employees
+- [ ] Integration with orchestrator_mvp via `orchestrator_mvp/run_multi_year.py` complete
 - [ ] 95% test coverage for MVP features
 
-### Full Epic
-- [ ] All eligibility rules implemented and tested
-- [ ] Performance benchmarks met (<5 min for 100K employees)
-- [ ] Comprehensive test coverage including edge cases
-- [ ] Integration with event stream complete
-- [ ] Configuration documentation with examples
-- [ ] Compliance review completed
+### Epic E026 Integration
+- [ ] Epic E022 MVP completed and tested
+- [ ] Epic E026 stories prioritized and planned
+- [ ] Integration path defined between simple and advanced eligibility
+- [ ] Documentation references Epic E026 for advanced features

@@ -482,7 +482,7 @@ FROM rate_distribution
 ORDER BY report_type, age_segment, salary_segment, enrollment_source
 ```
 
-### 6. Orchestrator Integration
+### 6. orchestrator_mvp Multi-Year Simulation Framework Integration
 
 Add to `orchestrator_mvp/steps/enrollment_step.py`:
 
@@ -493,7 +493,7 @@ def process_deferral_rate_selection(context: AssetExecutionContext,
     """
     Process deferral rate selection for enrolled employees using SQL/dbt approach.
 
-    Step 5.3 of orchestrator_mvp: Determine deferral rates with demographic influence.
+    Step 5.3 of orchestrator_mvp multi-year simulation framework: Determine deferral rates with demographic influence.
     """
 
     with duckdb.get_connection() as conn:
@@ -583,7 +583,7 @@ def process_deferral_rate_selection(context: AssetExecutionContext,
 - **S023-01**: Auto-enrollment (provides enrolled population)
 - **S023-02**: Demographic enrollment (provides voluntary enrollees)
 - **E021**: DC Plan Event Schema (for final event generation)
-- **orchestrator_mvp**: Pipeline integration framework
+- **orchestrator_mvp/run_multi_year.py**: Multi-year simulation framework integration
 
 ## Risks and Mitigation
 
@@ -604,5 +604,6 @@ def process_deferral_rate_selection(context: AssetExecutionContext,
 - [ ] Final enrollment events generated with accurate deferral rates
 - [ ] Data quality tests passing with 100% coverage
 - [ ] Integration with auto-enrollment and voluntary enrollment complete
+- [ ] Integration with orchestrator_mvp multi-year simulation framework via orchestrator_mvp/run_multi_year.py complete
 - [ ] Performance target met (<2 seconds for 100K employees)
 - [ ] Reporting dashboard shows deferral rate distribution by demographics
