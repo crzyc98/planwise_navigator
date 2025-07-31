@@ -11,8 +11,11 @@ from typing import Dict, Any, List, Optional, Callable
 import uuid
 import time
 import hashlib
+import json
 
 from .database_manager import get_connection
+from .eligibility_engine import process_eligibility_for_year
+from .id_generator import UnifiedIDGenerator
 
 
 def generate_experienced_termination_events(
@@ -419,6 +422,42 @@ def get_legacy_random_value(employee_id: str, simulation_year: int, random_seed:
     return random_value
 
 
+
+def validate_employee_id_uniqueness(events: List[Dict[str, Any]]) -> None:
+    """Validate that all generated employee IDs are unique within the event batch.
+
+    This orchestration-level validation ensures that the seeded employee ID generation
+    doesn't produce any unexpected collisions within a simulation run.
+
+    Args:
+        events: List of event dictionaries to validate
+
+    Raises:
+        ValueError: If duplicate employee IDs are found in hire events
+    """
+    # Extract employee IDs from hire events only
+    hire_employee_ids = [e['employee_id'] for e in events if e['event_type'] == 'hire']
+
+    if not hire_employee_ids:
+        return  # No hire events to validate
+
+    # Check for duplicates
+    unique_ids = set(hire_employee_ids)
+    if len(hire_employee_ids) != len(unique_ids):
+        # Find the actual duplicates for better error reporting
+        seen = set()
+        duplicates = set()
+        for emp_id in hire_employee_ids:
+            if emp_id in seen:
+                duplicates.add(emp_id)
+            else:
+                seen.add(emp_id)
+
+        raise ValueError(f"Duplicate employee IDs generated in hire events: {list(duplicates)}")
+
+    print(f"✅ Employee ID uniqueness validated: {len(hire_employee_ids)} unique hire event IDs")
+
+
 def calculate_promotion_probability(level: int, tenure: float, age: int, hazard_config: Dict[str, Any]) -> float:
     """Calculate promotion probability for testing purposes.
 
@@ -482,7 +521,8 @@ def generate_and_store_termination_events(
 def generate_hiring_events(
     num_hires: int,
     simulation_year: int,
-    random_seed: Optional[int] = None
+    random_seed: Optional[int] = None,
+    config: Optional[Dict[str, Any]] = None
 ) -> List[Dict[str, Any]]:
     """Generate hiring events based on target growth and termination replacement needs.
 
@@ -490,12 +530,16 @@ def generate_hiring_events(
         num_hires: Number of new hires to generate
         simulation_year: Year for the simulation
         random_seed: Optional seed for reproducible random generation
+        config: Optional configuration dictionary with eligibility settings
 
     Returns:
-        List of hiring event dictionaries
+        List of hiring event dictionaries (includes both hire and eligibility events)
     """
     if random_seed is not None:
         random.seed(random_seed)
+
+    # Initialize unified ID generator for consistent new hire ID generation
+    id_generator = UnifiedIDGenerator(random_seed or 42, simulation_year)
 
     # Level distribution (weighted toward entry levels)
     level_distribution = [
@@ -550,8 +594,12 @@ def generate_hiring_events(
         for i in range(level_hire_count):
             hire_sequence_num += 1
 
-            # Generate unique employee ID
-            employee_id = f'NH_{simulation_year}_{uuid.uuid4().hex[:8]}_{hire_sequence_num:06d}'
+            # Generate deterministic employee ID using unified ID generator
+            employee_id = id_generator.generate_employee_id(
+                sequence=hire_sequence_num,
+                is_baseline=False,  # This is a new hire, not baseline employee
+                hire_year=simulation_year
+            )
 
             # Generate SSN
             employee_ssn = f'SSN-{100000000 + hire_sequence_num:09d}'
@@ -599,6 +647,60 @@ def generate_hiring_events(
             }
 
             events.append(event)
+
+            # Generate eligibility event for this new hire
+            # Get waiting period from config (default 365 days)
+            waiting_period_days = 365
+            if config and 'eligibility' in config:
+                waiting_period_days = config['eligibility'].get('waiting_period_days', 365)
+
+            # Debug logging to help trace config issues (only show for first hire to avoid spam)
+            if hire_sequence_num == 1:  # Only debug first hire
+                if config:
+                    print(f"🔍 EventEmitter DEBUG: Config received with keys: {list(config.keys())}")
+                    if 'eligibility' in config:
+                        print(f"🔍 EventEmitter DEBUG: Eligibility config section: {config['eligibility']}")
+                        print(f"🔍 EventEmitter DEBUG: Final waiting_period_days value: {waiting_period_days}")
+                    else:
+                        print(f"🔍 EventEmitter DEBUG: No 'eligibility' key found in config, using default: {waiting_period_days}")
+                else:
+                    print(f"🔍 EventEmitter DEBUG: No config provided, using default waiting_period_days: {waiting_period_days}")
+
+            # Calculate eligibility date
+            eligibility_date = hire_date + timedelta(days=waiting_period_days)
+
+            # Create eligibility event
+            eligibility_details = {
+                'determination_type': 'initial',
+                'eligibility_date': eligibility_date.isoformat(),
+                'waiting_period_days': waiting_period_days,
+                'eligibility_status': 'immediate' if waiting_period_days == 0 else 'pending'
+            }
+
+            eligibility_event = {
+                'employee_id': employee_id,
+                'employee_ssn': employee_ssn,
+                'event_type': 'eligibility',
+                'simulation_year': simulation_year,
+                'effective_date': hire_date,  # Event recorded on hire date
+                'event_details': json.dumps(eligibility_details),
+                'compensation_amount': None,  # Not applicable for eligibility
+                'previous_compensation': None,
+                'employee_age': employee_age,
+                'employee_tenure': 0,
+                'level_id': level_id,
+                'age_band': age_band,
+                'tenure_band': tenure_band,
+                'event_probability': 1.0,  # Deterministic
+                'event_category': 'eligibility_determination',
+                'event_sequence': 2,  # Same sequence as hire events
+                'created_at': datetime.now(),
+                'parameter_scenario_id': 'mvp_test',
+                'parameter_source': 'dynamic',
+                'data_quality_flag': 'VALID'
+            }
+
+            events.append(eligibility_event)
 
     return events
 
@@ -874,15 +976,15 @@ def generate_merit_events_with_promotion_awareness(
     random_seed: Optional[int] = None
 ) -> List[Dict[str, Any]]:
     """Generate merit raise events with awareness of promotion events from same year.
-    
+
     This function ensures that employees who were promoted earlier in the year
     receive merit raises based on their post-promotion salary, not their baseline salary.
-    
+
     Args:
         simulation_year: Year for the simulation
         promotion_events: List of promotion events generated earlier in the year
         random_seed: Optional seed for reproducible random generation
-        
+
     Returns:
         List of merit event dictionaries with correct compensation chains
     """
@@ -988,16 +1090,15 @@ def generate_merit_events_with_promotion_awareness(
         conn.close()
 
     events = []
-    
+
     for _, employee in workforce_df.iterrows():
         employee_id = employee['employee_id']
-        
+
         # CRITICAL FIX: Use post-promotion compensation if employee was promoted
         if employee_id in promotion_lookup:
             # Employee was promoted - use post-promotion salary as base
             previous_salary = promotion_lookup[employee_id]
             current_level = promoted_levels[employee_id]
-            print(f"🔄 Employee {employee_id}: Using post-promotion salary ${previous_salary:,.2f} (level {current_level})")
         else:
             # No promotion - use current compensation
             previous_salary = employee['current_compensation']
@@ -1046,7 +1147,7 @@ def generate_merit_events_with_promotion_awareness(
 
     print(f"🔍 Generated {len(events)} merit events with promotion awareness")
     print(f"   • {len(promotion_lookup)} employees had post-promotion adjustments")
-    
+
     return events
 
 
@@ -1340,7 +1441,8 @@ def generate_and_store_all_events(
     calc_result: Dict[str, Any],
     simulation_year: int,
     random_seed: Optional[int] = None,
-    table_name: str = "fct_yearly_events"
+    table_name: str = "fct_yearly_events",
+    config: Optional[Dict[str, Any]] = None
 ) -> None:
     """Generate and store all event types based on workforce calculations.
 
@@ -1348,12 +1450,16 @@ def generate_and_store_all_events(
     1. Experienced terminations
     2. New hires
     3. New hire terminations
+    4. Promotion events
+    5. Merit raise events
+    6. Eligibility events (NEW - Epic E022)
 
     Args:
         calc_result: Workforce calculation results from calculate_workforce_requirements
         simulation_year: Year for the simulation
         random_seed: Optional seed for reproducible random generation
         table_name: Name of table to store events in
+        config: Optional configuration dictionary for eligibility engine
     """
     print(f"\n🎯 GENERATING ALL SIMULATION EVENTS for year {simulation_year}")
     print(f"   Using random seed: {random_seed}")
@@ -1375,7 +1481,8 @@ def generate_and_store_all_events(
     hiring_events = generate_hiring_events(
         num_hires=calc_result['total_hires_needed'],
         simulation_year=simulation_year,
-        random_seed=random_seed if random_seed is None else random_seed + 1
+        random_seed=random_seed if random_seed is None else random_seed + 1,
+        config=config
     )
     all_events.extend(hiring_events)
     print(f"   ✅ Generated {len(hiring_events)} hiring events")
@@ -1384,8 +1491,10 @@ def generate_and_store_all_events(
     new_hire_term_rate = calc_result.get('new_hire_termination_rate', 0.25)
     expected_nh_terms = calc_result['expected_new_hire_terminations']
     print(f"\n📋 Generating ~{expected_nh_terms} new hire termination events (rate: {new_hire_term_rate:.1%})...")
+    # Filter out eligibility events - only pass actual hire events
+    hire_events_only = [e for e in hiring_events if e['event_type'] == 'hire']
     nh_termination_events = generate_new_hire_termination_events(
-        hiring_events=hiring_events,
+        hiring_events=hire_events_only,
         new_hire_termination_rate=new_hire_term_rate,
         simulation_year=simulation_year,
         random_seed=random_seed if random_seed is None else random_seed + 2
@@ -1413,17 +1522,26 @@ def generate_and_store_all_events(
     all_events.extend(merit_events)
     print(f"   ✅ Generated {len(merit_events)} merit raise events")
 
+    # Note: Eligibility events are now generated at hire time within generate_hiring_events
+    # No need for separate eligibility event generation here
+
+    # Validate employee ID uniqueness before storing
+    print(f"\n🔍 Validating employee ID uniqueness...")
+    validate_employee_id_uniqueness(all_events)
+
     # Store all events
     print(f"\n💾 Storing all {len(all_events)} events in database...")
     store_events_in_database(all_events, table_name)
 
     # Summary
+    # Note: hiring_events includes both hire and eligibility events, so divide by 2 for actual hire count
+    actual_hire_count = len(hiring_events) // 2
     print(f"\n✅ EVENT GENERATION SUMMARY:")
     print(f"   • Experienced terminations: {len(termination_events)}")
-    print(f"   • New hires: {len(hiring_events)}")
+    print(f"   • New hires: {actual_hire_count} (with eligibility events)")
     print(f"   • New hire terminations: {len(nh_termination_events)}")
     print(f"   • Merit raises: {len(merit_events)}")
     print(f"   • Promotions: {len(promotion_events)}")
     print(f"   • Total events: {len(all_events)}")
-    print(f"   • Net workforce change: {len(hiring_events) - len(termination_events) - len(nh_termination_events)}")
+    print(f"   • Net workforce change: {actual_hire_count - len(termination_events) - len(nh_termination_events)}")
     print(f"   • Expected net change: {calc_result['net_hiring_impact'] - calc_result['experienced_terminations']}")

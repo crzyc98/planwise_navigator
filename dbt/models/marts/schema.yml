@@ -274,6 +274,18 @@ models:
         data_type: integer
         data_tests:
           - not_null
+      - name: employee_eligibility_date
+        description: "Date when employee becomes eligible for DC plan participation"
+        data_type: date
+      - name: waiting_period_days
+        description: "Number of days employee must wait after hire to become eligible"
+        data_type: integer
+      - name: current_eligibility_status
+        description: "Current eligibility status based on eligibility date and simulation year"
+        data_type: varchar
+        data_tests:
+          - accepted_values:
+              values: ['eligible', 'pending']
       - name: snapshot_created_at
         description: "Timestamp when snapshot was created"
         data_type: timestamp with time zone

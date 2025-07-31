@@ -149,7 +149,8 @@ def run_multi_year_simulation(
         config = {
             'target_growth_rate': raw_config['simulation']['target_growth_rate'],
             'random_seed': raw_config['simulation']['random_seed'],
-            'workforce': raw_config['workforce']
+            'workforce': raw_config['workforce'],
+            'eligibility': raw_config.get('eligibility', {'waiting_period_days': 365})
         }
 
         # Handle data management options for multi-year simulation

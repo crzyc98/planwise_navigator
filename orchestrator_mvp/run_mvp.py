@@ -114,7 +114,8 @@ def generate_simulation_events(calc_result: dict) -> None:
         generate_and_store_all_events(
             calc_result=calc_result,
             simulation_year=simulation_year,
-            random_seed=42
+            random_seed=42,
+            config=config
         )
 
         # Validate events
@@ -129,43 +130,43 @@ def generate_simulation_events(calc_result: dict) -> None:
 
 
 def _validate_sequential_requirements(
-    start_year: int, 
-    end_year: int, 
-    force_clear: bool, 
+    start_year: int,
+    end_year: int,
+    force_clear: bool,
     preserve_data: bool
 ) -> None:
     """
     Validate sequential year execution requirements before starting multi-year simulation.
-    
+
     Args:
         start_year: Starting year of simulation
         end_year: Ending year of simulation
         force_clear: Whether force clear mode is enabled
         preserve_data: Whether data preservation mode is enabled
-        
+
     Raises:
         ValueError: If sequential requirements are not met
     """
     if force_clear:
         # Force clear mode bypasses sequential validation
         return
-        
+
     if start_year == 2025:
         # Starting from baseline year, no previous dependencies
         return
-        
+
     # Check if we're attempting to skip years
     conn = get_connection()
     try:
         # Check for gaps in previous years
         for check_year in range(2025, start_year):
             snapshot_check = """
-                SELECT COUNT(*) FROM fct_workforce_snapshot 
+                SELECT COUNT(*) FROM fct_workforce_snapshot
                 WHERE simulation_year = ? AND employment_status = 'active'
             """
-            
+
             result = conn.execute(snapshot_check, [check_year]).fetchone()
-            
+
             if not result or result[0] == 0:
                 raise ValueError(
                     f"Sequential execution validation failed: Year {check_year} is missing or incomplete. "
@@ -173,9 +174,9 @@ def _validate_sequential_requirements(
                     f"Multi-year simulations must be run sequentially. "
                     f"Use --force-clear to start fresh from 2025, or complete year {check_year} first."
                 )
-        
+
         print(f"✅ Sequential validation passed: All years 2025-{start_year-1} are complete")
-        
+
     except Exception as e:
         if "Sequential execution validation failed" in str(e):
             raise
@@ -371,7 +372,8 @@ def main(
             config = {
                 'target_growth_rate': raw_config['simulation']['target_growth_rate'],
                 'random_seed': raw_config['simulation']['random_seed'],
-                'workforce': raw_config['workforce']
+                'workforce': raw_config['workforce'],
+                'eligibility': raw_config.get('eligibility', {'waiting_period_days': 365})  # Include eligibility config
             }
 
             # Handle data management options for multi-year simulation
@@ -432,7 +434,7 @@ def main(
             try:
                 # Validate sequential year execution requirements before starting
                 _validate_sequential_requirements(start_year, end_year, force_clear, preserve_data)
-                
+
                 orchestrator = MultiYearSimulationOrchestrator(
                     start_year, end_year, config,
                     force_clear=force_clear, preserve_data=preserve_data

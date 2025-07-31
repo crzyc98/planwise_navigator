@@ -287,6 +287,32 @@ final_workforce_corrected AS (
     FROM workforce_with_corrected_levels uw
 ),
 
+-- Extract eligibility information from eligibility events
+employee_eligibility AS (
+    SELECT DISTINCT
+        employee_id,
+        JSON_EXTRACT_STRING(event_details, '$.eligibility_date')::DATE AS employee_eligibility_date,
+        JSON_EXTRACT(event_details, '$.waiting_period_days')::INT AS waiting_period_days,
+        JSON_EXTRACT_STRING(event_details, '$.eligibility_status') AS initial_eligibility_status,
+        -- Derive current eligibility status based on eligibility date and current date
+        CASE
+            WHEN JSON_EXTRACT_STRING(event_details, '$.eligibility_date')::DATE <= '{{ simulation_year }}-12-31'::DATE
+            THEN 'eligible'
+            ELSE 'pending'
+        END AS current_eligibility_status
+    FROM {{ ref('fct_yearly_events') }}
+    WHERE event_type = 'eligibility'
+      AND JSON_EXTRACT_STRING(event_details, '$.determination_type') = 'initial'
+      -- Get the most recent eligibility determination for each employee
+      AND simulation_year IN (
+          SELECT MAX(simulation_year)
+          FROM {{ ref('fct_yearly_events') }} ey
+          WHERE ey.event_type = 'eligibility'
+            AND ey.employee_id = fct_yearly_events.employee_id
+            AND ey.simulation_year <= {{ simulation_year }}
+      )
+),
+
 -- CTEs for prorated compensation calculation
 comp_events_for_periods AS (
     SELECT
@@ -314,11 +340,11 @@ employee_compensation_timeline AS (
         previous_compensation,
         -- Add row number to handle events on same date with proper priority
         ROW_NUMBER() OVER (
-            PARTITION BY employee_id 
-            ORDER BY effective_date, 
+            PARTITION BY employee_id
+            ORDER BY effective_date,
             CASE event_type
                 WHEN 'hire' THEN 1
-                WHEN 'promotion' THEN 2  
+                WHEN 'promotion' THEN 2
                 WHEN 'raise' THEN 3
                 WHEN 'termination' THEN 4
             END
@@ -338,7 +364,7 @@ employee_timeline_with_boundaries AS (
         event_sequence,
         -- Get the next event date to define period end
         LEAD(event_date) OVER (
-            PARTITION BY employee_id 
+            PARTITION BY employee_id
             ORDER BY event_sequence
         ) AS next_event_date
     FROM employee_compensation_timeline
@@ -468,6 +494,10 @@ final_workforce AS (
         -- **NEW**: Add data needed for full_year_equivalent calculation
         merit_calc.compensation_amount AS merit_new_salary,
         promo_calc.compensation_amount AS promo_new_salary,
+        -- Add eligibility fields
+        ee.employee_eligibility_date,
+        ee.waiting_period_days,
+        ee.current_eligibility_status,
         -- Recalculate bands with updated age/tenure (these are indeed static for a given year here)
         CASE
             WHEN fwc.current_age < 25 THEN '< 25'
@@ -539,6 +569,8 @@ final_workforce AS (
         FROM current_year_events
         WHERE event_type = 'promotion'
     ) promo_calc ON fwc.employee_id = promo_calc.employee_id
+    -- Add eligibility information
+    LEFT JOIN employee_eligibility ee ON fwc.employee_id = ee.employee_id
 )
 
 SELECT
@@ -574,6 +606,10 @@ SELECT
     termination_reason,
     detailed_status_code,
     simulation_year,
+    -- Add eligibility fields
+    employee_eligibility_date,
+    waiting_period_days,
+    current_eligibility_status,
     CURRENT_TIMESTAMP AS snapshot_created_at
 FROM final_workforce
 

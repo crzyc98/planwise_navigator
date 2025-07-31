@@ -63,16 +63,25 @@ models:
         data_type: decimal(12,2)
       - name: employee_deferral_rate
         description: "Employee deferral rate for benefit modeling."
-        data_type: decimal(2,1)
+        data_type: decimal(7,5)
       - name: employee_contribution
         description: "Employee contribution amount."
-        data_type: decimal(2,1)
+        data_type: decimal(12,2)
+      - name: pre_tax_contribution
+        description: "Employee pre-tax contribution amount."
+        data_type: decimal(12,2)
+      - name: roth_contribution
+        description: "Employee Roth contribution amount."
+        data_type: decimal(12,2)
+      - name: after_tax_contribution
+        description: "Employee after-tax contribution amount."
+        data_type: decimal(12,2)
       - name: employer_core_contribution
         description: "Employer core contribution amount."
-        data_type: decimal(2,1)
+        data_type: decimal(12,2)
       - name: employer_match_contribution
         description: "Employer match contribution amount."
-        data_type: decimal(2,1)
+        data_type: decimal(12,2)
       - name: eligibility_entry_date
         description: "Benefit eligibility entry date."
         data_type: date

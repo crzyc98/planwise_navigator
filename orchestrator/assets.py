@@ -1584,6 +1584,195 @@ def optimization_convergence_check(
     )
 
 
+@asset(deps=[planwise_dbt_assets], group_name="eligibility_engine")
+def eligibility_determination(
+    context: AssetExecutionContext,
+    duckdb_resource: DuckDBResource,
+    simulation_config: Dict[str, Any]
+) -> pd.DataFrame:
+    """
+    Determine employee eligibility for DC plan participation (Epic E022: Story S022-01).
+
+    This asset processes the int_eligibility_determination dbt model to provide
+    eligibility status for all active employees across simulation years.
+
+    Business Logic:
+    - Employees become eligible after configurable waiting period (days since hire)
+    - Only active employees are evaluated for eligibility
+    - Eligibility is determined as of January 1st of each simulation year
+
+    Returns:
+        DataFrame with eligibility determinations for all simulation years
+    """
+    context.log.info("🎯 Starting eligibility determination processing...")
+
+    with duckdb_resource.get_connection() as conn:
+        # Set dbt variables for eligibility configuration
+        waiting_period_days = simulation_config.get('eligibility', {}).get('waiting_period_days', 365)
+        context.log.info(f"📋 Using waiting period: {waiting_period_days} days")
+
+        # Query the materialized eligibility table
+        query = """
+        SELECT
+            employee_id,
+            employee_ssn,
+            employee_hire_date,
+            employment_status,
+            simulation_year,
+            days_since_hire,
+            is_eligible,
+            eligibility_reason,
+            waiting_period_days,
+            eligibility_evaluation_date
+        FROM int_eligibility_determination
+        WHERE simulation_year BETWEEN ? AND ?
+        ORDER BY simulation_year, employee_id
+        """
+
+        start_year = simulation_config.get('start_year', 2025)
+        end_year = simulation_config.get('end_year', 2029)
+
+        eligibility_df = conn.execute(query, [start_year, end_year]).df()
+
+        context.log.info(f"✅ Processed eligibility for {len(eligibility_df)} employee-year combinations")
+
+        # Log summary statistics
+        if not eligibility_df.empty:
+            summary_stats = eligibility_df.groupby('simulation_year').agg({
+                'is_eligible': ['count', 'sum'],
+                'days_since_hire': ['min', 'max', 'mean']
+            }).round(1)
+
+            context.log.info("📊 Eligibility Summary by Year:")
+            for year in sorted(eligibility_df['simulation_year'].unique()):
+                year_data = eligibility_df[eligibility_df['simulation_year'] == year]
+                eligible_count = year_data['is_eligible'].sum()
+                total_count = len(year_data)
+                eligible_pct = (eligible_count / total_count * 100) if total_count > 0 else 0
+
+                context.log.info(f"   Year {year}: {eligible_count:,}/{total_count:,} eligible ({eligible_pct:.1f}%)")
+
+        return eligibility_df
+
+
+@asset_check(asset=eligibility_determination)
+def eligibility_coverage_check(
+    context: AssetExecutionContext,
+    duckdb_resource: DuckDBResource
+) -> AssetCheckResult:
+    """Asset check: Validate eligibility determination covers all active employees."""
+    try:
+        with duckdb_resource.get_connection() as conn:
+            # Check that all active employees have eligibility records
+            coverage_query = """
+            WITH active_employees AS (
+                SELECT DISTINCT employee_id
+                FROM int_baseline_workforce
+                WHERE employment_status = 'active'
+            ),
+            eligibility_records AS (
+                SELECT DISTINCT employee_id
+                FROM int_eligibility_determination
+                WHERE simulation_year = 2025  -- Check first year coverage
+            )
+            SELECT
+                COUNT(a.employee_id) as total_active,
+                COUNT(e.employee_id) as with_eligibility,
+                COUNT(a.employee_id) - COUNT(e.employee_id) as missing_eligibility
+            FROM active_employees a
+            LEFT JOIN eligibility_records e ON a.employee_id = e.employee_id
+            """
+
+            result = conn.execute(coverage_query).fetchone()
+            total_active, with_eligibility, missing_eligibility = result
+
+            if missing_eligibility == 0:
+                return AssetCheckResult(
+                    passed=True,
+                    description=f"✅ All {total_active:,} active employees have eligibility records",
+                    metadata={
+                        "total_active_employees": total_active,
+                        "employees_with_eligibility": with_eligibility,
+                        "coverage_percentage": 100.0
+                    }
+                )
+            else:
+                coverage_pct = (with_eligibility / total_active * 100) if total_active > 0 else 0
+                return AssetCheckResult(
+                    passed=False,
+                    description=f"❌ {missing_eligibility:,} active employees missing eligibility records ({coverage_pct:.1f}% coverage)",
+                    metadata={
+                        "total_active_employees": total_active,
+                        "employees_with_eligibility": with_eligibility,
+                        "missing_eligibility_records": missing_eligibility,
+                        "coverage_percentage": coverage_pct
+                    }
+                )
+
+    except Exception as e:
+        return AssetCheckResult(
+            passed=False,
+            description=f"Error executing eligibility coverage check: {str(e)}"
+        )
+
+
+@asset_check(asset=eligibility_determination)
+def eligibility_logic_validation_check(
+    context: AssetExecutionContext,
+    duckdb_resource: DuckDBResource
+) -> AssetCheckResult:
+    """Asset check: Validate eligibility logic produces consistent results."""
+    try:
+        with duckdb_resource.get_connection() as conn:
+            # Test eligibility logic consistency
+            validation_query = """
+            SELECT
+                COUNT(*) as total_records,
+                SUM(CASE WHEN is_eligible = true AND days_since_hire >= waiting_period_days THEN 1 ELSE 0 END) as correct_eligible,
+                SUM(CASE WHEN is_eligible = false AND days_since_hire < waiting_period_days THEN 1 ELSE 0 END) as correct_not_eligible,
+                SUM(CASE WHEN
+                    (is_eligible = true AND days_since_hire < waiting_period_days) OR
+                    (is_eligible = false AND days_since_hire >= waiting_period_days)
+                    THEN 1 ELSE 0 END) as logic_errors
+            FROM int_eligibility_determination
+            WHERE simulation_year = 2025  -- Check first year logic
+            """
+
+            result = conn.execute(validation_query).fetchone()
+            total_records, correct_eligible, correct_not_eligible, logic_errors = result
+
+            if logic_errors == 0:
+                return AssetCheckResult(
+                    passed=True,
+                    description=f"✅ All {total_records:,} eligibility determinations follow correct logic",
+                    metadata={
+                        "total_records": total_records,
+                        "correctly_eligible": correct_eligible,
+                        "correctly_not_eligible": correct_not_eligible,
+                        "logic_error_rate": 0.0
+                    }
+                )
+            else:
+                error_rate = (logic_errors / total_records * 100) if total_records > 0 else 0
+                return AssetCheckResult(
+                    passed=False,
+                    description=f"❌ {logic_errors:,} eligibility logic errors found ({error_rate:.2f}% error rate)",
+                    metadata={
+                        "total_records": total_records,
+                        "correctly_eligible": correct_eligible,
+                        "correctly_not_eligible": correct_not_eligible,
+                        "logic_errors": logic_errors,
+                        "logic_error_rate": error_rate
+                    }
+                )
+
+    except Exception as e:
+        return AssetCheckResult(
+            passed=False,
+            description=f"Error executing eligibility logic validation: {str(e)}"
+        )
+
+
 @asset_check(asset=advanced_optimization_engine)
 def optimization_parameter_bounds_check(
     context: AssetExecutionContext,

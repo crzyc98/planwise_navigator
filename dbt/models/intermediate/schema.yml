@@ -654,23 +654,23 @@ models:
   - name: int_workforce_active_for_events
     description: >
       Dependency-free model that calculates active employees for event generation.
-      
+
       **Purpose:**
       Provides active employee data for event generation without circular dependencies.
       Replaces int_active_employees_by_year for all event models.
-      
+
       **Approach:**
       Calculates the current active workforce by:
       1. Starting with baseline workforce from int_baseline_workforce
       2. Applying all historical events (hires, terminations, promotions, raises) up to simulation_year-1
       3. Determining who is active at the start of simulation_year
-      
+
       **Circular Dependency Resolution:**
       This model only reads from:
-      - int_baseline_workforce (independent)  
+      - int_baseline_workforce (independent)
       - fct_yearly_events (but only for years < simulation_year)
       This prevents circular dependencies with fact tables.
-      
+
       **Data Integrity:**
       Ensures terminated employees don't receive events in subsequent years.
     config:
@@ -736,12 +736,12 @@ models:
     description: >
       Primary helper model for circular dependency resolution.
       Provides active employee data from the previous year's completed workforce snapshot.
-      
-      This model creates a temporal dependency (year N depends on year N-1) instead of 
-      a circular dependency within the same year. It queries fct_workforce_snapshot 
-      for the previous simulation year and returns only active employees with all 
+
+      This model creates a temporal dependency (year N depends on year N-1) instead of
+      a circular dependency within the same year. It queries fct_workforce_snapshot
+      for the previous simulation year and returns only active employees with all
       required contract fields.
-      
+
       **Circular Dependency Resolution:**
       Eliminates the circular dependency chain by providing clean employee records
       from completed previous year data, ensuring no same-year circular references.
@@ -833,12 +833,12 @@ models:
   - name: int_active_employees_by_year
     description: >
       Secondary helper model providing unified interface for active employees across all years.
-      
+
       This model serves as a clean abstraction layer that provides a single interface
       for accessing active employees regardless of the simulation year:
       - For year 1 (start_year): Select from int_baseline_workforce
       - For subsequent years: Select from int_active_employees_prev_year_snapshot
-      
+
       **Purpose:**
       Provides a unified interface that tests expect to exist, ensuring consistent
       column schema across both data sources while maintaining temporal dependencies.
@@ -933,3 +933,87 @@ models:
           - accepted_values:
               values: ['baseline', 'helper_model', 'error_handling']
 
+  - name: int_eligibility_determination
+    description: >
+      DC Plan eligibility determination for all active employees across simulation years (Epic E022: Story S022-01) - SCALABLE VERSION.
+
+      This model determines employee eligibility for DC plan participation based on days of service
+      since hire date. Implements the most common eligibility pattern: waiting period after hire.
+
+      **Business Logic:**
+      - Employees become eligible after configurable waiting period (days since hire)
+      - Only active employees are evaluated for eligibility
+      - Eligibility determined as of January 1st of each simulation year
+      - Supports immediate eligibility (0 days) and various waiting periods
+
+      **Configuration:**
+      - eligibility_waiting_days: dbt variable (default: 365 days)
+      - simulation_start_year: dbt variable (default: 2025)
+      - simulation_end_year: dbt variable (default: 2029)
+
+      **Scalability:**
+      - Uses dynamic macro to generate eligibility for any year range without hardcoding
+      - Can handle 1 year to 100+ years of simulation without code changes
+      - No more hardcoded UNION ALL statements for specific years
+
+      **Performance:**
+      - SQL-based calculation for 100K+ employees in <30 seconds
+      - Materialized as table for optimal query performance
+      - Dynamic year generation maintains same performance as static approach
+    config:
+      tags: ["eligibility", "dc_plan", "epic_e022"]
+    columns:
+      - name: employee_id
+        description: Unique identifier for each employee
+        data_tests:
+          - not_null
+      - name: employee_ssn
+        description: Employee social security number
+        data_tests:
+          - not_null
+      - name: employee_hire_date
+        description: Original employee hire date
+        data_tests:
+          - not_null
+      - name: employment_status
+        description: Current employment status (always 'active' for this model)
+        data_tests:
+          - not_null
+          - accepted_values:
+              values: ['active']
+      - name: simulation_year
+        description: Simulation year for eligibility determination
+        data_tests:
+          - not_null
+          - dbt_utils.accepted_range:
+              min_value: 2025
+              max_value: 2029
+      - name: days_since_hire
+        description: Number of days from hire date to start of simulation year
+        data_tests:
+          - not_null
+          - dbt_utils.accepted_range:
+              min_value: 0
+      - name: is_eligible
+        description: Boolean flag indicating eligibility for plan participation
+        data_tests:
+          - not_null
+          - accepted_values:
+              values: [true, false]
+      - name: eligibility_reason
+        description: Reason for eligibility status
+        data_tests:
+          - not_null
+          - accepted_values:
+              values: ['eligible_service_met', 'pending_service_requirement']
+      - name: waiting_period_days
+        description: Configured waiting period in days
+        data_tests:
+          - not_null
+          - dbt_utils.accepted_range:
+              min_value: 0
+              max_value: 1095  # Max 3 years
+      - name: eligibility_evaluation_date
+        description: Date eligibility was evaluated (January 1st of simulation year)
+        data_tests:
+          - not_null
