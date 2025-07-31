@@ -136,7 +136,8 @@ def run_multi_year_simulation(
                 generate_and_store_all_events(
                     calc_result=calc_result,
                     simulation_year=current_year,
-                    random_seed=random_seed
+                    random_seed=random_seed,
+                    config=config
                 )
 
                 # Validate event generation

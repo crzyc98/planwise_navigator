@@ -102,7 +102,20 @@ class MultiYearSimulationOrchestrator:
 
         self.config['workforce'] = workforce_config
 
+        # Extract and validate eligibility configuration
+        eligibility_config = self.config.get('eligibility', {})
+        if 'waiting_period_days' not in eligibility_config:
+            eligibility_config['waiting_period_days'] = 365  # Default 1 year
+
+        # Validate waiting period is reasonable (0-1095 days, i.e., 0-3 years)
+        waiting_period = eligibility_config['waiting_period_days']
+        if not isinstance(waiting_period, int) or waiting_period < 0 or waiting_period > 1095:
+            raise ValueError(f"Invalid waiting_period_days: {waiting_period}. Must be integer between 0-1095 days.")
+
+        self.config['eligibility'] = eligibility_config
+
         logger.info("Configuration validated successfully")
+        logger.info(f"Eligibility waiting period: {waiting_period} days")
 
     def run_simulation(
         self,
@@ -392,7 +405,8 @@ class MultiYearSimulationOrchestrator:
             generate_and_store_all_events(
                 calc_result=calc_result,
                 simulation_year=year,
-                random_seed=random_seed
+                random_seed=random_seed,
+                config=self.config
             )
 
             # Mark step complete
@@ -533,12 +547,12 @@ class MultiYearSimulationOrchestrator:
                     try:
                         # Check that helper model data source exists
                         helper_check = """
-                            SELECT COUNT(*) FROM fct_workforce_snapshot 
+                            SELECT COUNT(*) FROM fct_workforce_snapshot
                             WHERE simulation_year = ? AND employment_status = 'active'
                         """
                         helper_result = conn.execute(helper_check, [year - 1]).fetchone()
                         validation_results['helper_model_ready'] = (helper_result and helper_result[0] > 0)
-                        
+
                         if validation_results['helper_model_ready']:
                             logger.info(f"   Helper model: Ready ({helper_result[0]:,} employees from year {year-1})")
                         else:
@@ -751,10 +765,10 @@ class MultiYearSimulationOrchestrator:
         """
         Validate that the previous year's workforce snapshot exists and has valid data.
         This prevents circular dependency issues by ensuring sequential execution.
-        
+
         Args:
             previous_year: The previous year to validate
-            
+
         Raises:
             ValueError: If previous year data is missing or invalid
         """
@@ -768,29 +782,29 @@ class MultiYearSimulationOrchestrator:
                     FROM fct_workforce_snapshot
                     WHERE simulation_year = ?
                 """
-                
+
                 result = conn.execute(snapshot_query, [previous_year]).fetchone()
-                
+
                 if not result or result[0] == 0:
                     raise ValueError(
                         f"No workforce snapshot found for year {previous_year}. "
                         f"You must complete year {previous_year} before running the current year. "
                         f"Multi-year simulations must be run sequentially."
                     )
-                
+
                 total_employees, active_employees = result
-                
+
                 if active_employees == 0:
                     raise ValueError(
                         f"Year {previous_year} workforce snapshot has no active employees. "
                         f"This indicates a data quality issue - please review year {previous_year} results."
                     )
-                
+
                 logger.info(f"✅ Previous year validation: {total_employees:,} total, {active_employees:,} active employees")
-                
+
             finally:
                 conn.close()
-                
+
         except Exception as e:
             logger.error(f"❌ Previous year snapshot validation failed: {str(e)}")
             raise
@@ -799,15 +813,15 @@ class MultiYearSimulationOrchestrator:
         """
         Validate that the circular dependency helper model can be built successfully.
         This ensures the int_active_employees_prev_year_snapshot model has access to required data.
-        
+
         Args:
             year: Current simulation year
-            
+
         Raises:
             ValueError: If helper model cannot be built
         """
         previous_year = year - 1
-        
+
         try:
             conn = get_connection()
             try:
@@ -817,9 +831,9 @@ class MultiYearSimulationOrchestrator:
                     FROM fct_workforce_snapshot
                     WHERE simulation_year = ? AND employment_status = 'active'
                 """
-                
+
                 result = conn.execute(test_query, [previous_year]).fetchone()
-                
+
                 if not result or result[0] == 0:
                     raise ValueError(
                         f"Helper model validation failed: No active employees found in year {previous_year} snapshot. "
@@ -827,13 +841,13 @@ class MultiYearSimulationOrchestrator:
                         f"requires valid active employee data from the previous year. "
                         f"Please ensure year {previous_year} completed successfully."
                     )
-                
+
                 available_employees = result[0]
                 logger.info(f"✅ Helper model validation: {available_employees:,} employees available from year {previous_year}")
-                
+
             finally:
                 conn.close()
-                
+
         except Exception as e:
             logger.error(f"❌ Helper model readiness validation failed: {str(e)}")
             raise
@@ -841,22 +855,22 @@ class MultiYearSimulationOrchestrator:
     def _validate_sequential_dependencies(self, year: int) -> bool:
         """
         Comprehensive validation of sequential year dependencies.
-        
+
         Args:
             year: Year to validate dependencies for
-            
+
         Returns:
             bool: True if all dependencies are satisfied
-            
+
         Raises:
             ValueError: If dependencies are not satisfied
         """
         if year == self.start_year:
             logger.info(f"✅ First year ({year}): No sequential dependencies to validate")
             return True
-            
+
         logger.info(f"🔍 Validating sequential dependencies for year {year}")
-        
+
         try:
             # Check that all previous years have completed
             conn = get_connection()
@@ -864,12 +878,12 @@ class MultiYearSimulationOrchestrator:
                 for check_year in range(self.start_year, year):
                     # Validate workforce snapshot exists
                     snapshot_check = """
-                        SELECT COUNT(*) FROM fct_workforce_snapshot 
+                        SELECT COUNT(*) FROM fct_workforce_snapshot
                         WHERE simulation_year = ? AND employment_status = 'active'
                     """
-                    
+
                     result = conn.execute(snapshot_check, [check_year]).fetchone()
-                    
+
                     if not result or result[0] == 0:
                         raise ValueError(
                             f"Year {check_year} is incomplete - no active workforce snapshot found. "
@@ -877,15 +891,15 @@ class MultiYearSimulationOrchestrator:
                             f"Multi-year simulations must be completed sequentially. "
                             f"Please complete year {check_year} first."
                         )
-                    
+
                     logger.info(f"   Year {check_year}: ✅ Valid ({result[0]:,} active employees)")
-                
+
             finally:
                 conn.close()
-            
+
             logger.info(f"✅ All sequential dependencies satisfied for year {year}")
             return True
-            
+
         except Exception as e:
             logger.error(f"❌ Sequential dependency validation failed: {str(e)}")
             raise

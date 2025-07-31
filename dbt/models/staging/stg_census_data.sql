@@ -23,13 +23,17 @@ WITH raw_data AS (
       -- Use gross compensation as plan year compensation when specific column missing
       employee_gross_compensation AS raw_plan_year_compensation,
 
-      -- Add missing columns with defaults for simulation compatibility
-      CAST(NULL AS DECIMAL(12,2)) AS employee_capped_compensation,
-      0.0 AS employee_deferral_rate,
-      0.0 AS employee_contribution,
-      0.0 AS employer_core_contribution,
-      0.0 AS employer_match_contribution,
-      employee_hire_date AS eligibility_entry_date,
+      -- Read DC plan fields from parquet file (now available in updated data feed)
+      -- Cast to match dbt contract data types
+      CAST(employee_capped_compensation AS DECIMAL(12,2)) AS employee_capped_compensation,
+      CAST(employee_deferral_rate AS DECIMAL(7,5)) AS employee_deferral_rate,
+      CAST(employee_contribution AS DECIMAL(12,2)) AS employee_contribution,
+      CAST(pre_tax_contribution AS DECIMAL(12,2)) AS pre_tax_contribution,
+      CAST(roth_contribution AS DECIMAL(12,2)) AS roth_contribution,
+      CAST(after_tax_contribution AS DECIMAL(12,2)) AS after_tax_contribution,
+      CAST(employer_core_contribution AS DECIMAL(12,2)) AS employer_core_contribution,
+      CAST(employer_match_contribution AS DECIMAL(12,2)) AS employer_match_contribution,
+      eligibility_entry_date,
 
       -- **FIX**: Add row_number for deduplication - prefer most recent hire_date
       ROW_NUMBER() OVER (
@@ -90,6 +94,9 @@ SELECT
     employee_capped_compensation,
     employee_deferral_rate,
     employee_contribution,
+    pre_tax_contribution,
+    roth_contribution,
+    after_tax_contribution,
     employer_core_contribution,
     employer_match_contribution,
     eligibility_entry_date

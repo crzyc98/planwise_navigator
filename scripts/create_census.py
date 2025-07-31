@@ -4,12 +4,20 @@ from datetime import datetime, timedelta
 import random
 import pyarrow as pa
 import pyarrow.parquet as pq
+import sys
+import os
+
+# Add project root to path for importing UnifiedIDGenerator
+sys.path.append(os.path.join(os.path.dirname(__file__), '..'))
+
+from orchestrator_mvp.core.id_generator import UnifiedIDGenerator
 
 
 def generate_mock_workforce_parquet(
     num_employees: int = 5000,
     output_path: str = "mock_census_data.parquet",
     base_year: int = 2024,  # The year the "census" data represents
+    random_seed: int = 42,  # NEW: Add seed parameter for deterministic generation
     target_experienced_termination_rate: float = 0.13,
     target_net_new_hire_rate: float = 0.16,  # This will influence the *initial* state, not the simulation
     # Compensation ranges for different "levels" (approximate)
@@ -22,12 +30,13 @@ def generate_mock_workforce_parquet(
     },
 ):
     """
-    Generates a mock Parquet file for workforce census data.
+    Generates a mock Parquet file for workforce census data using unified ID generation.
 
     Args:
         num_employees (int): The target number of employees to generate.
         output_path (str): The file path to save the Parquet file.
         base_year (int): The year for which the initial census data is valid.
+        random_seed (int): Random seed for deterministic, reproducible generation.
         target_experienced_termination_rate (float): Roughly what percentage of
                                                      employees might be "terminated" in the initial data.
         target_net_new_hire_rate (float): Roughly what percentage of
@@ -36,6 +45,12 @@ def generate_mock_workforce_parquet(
     """
 
     print(f"Generating mock workforce data for {num_employees} employees...")
+    print(f"Using random seed: {random_seed} for deterministic generation")
+
+    # Initialize unified ID generator and set global random seed
+    id_generator = UnifiedIDGenerator(random_seed, base_year)
+    random.seed(random_seed)
+    np.random.seed(random_seed)
 
     employees = []
     current_employee_id = 1
@@ -56,8 +71,13 @@ def generate_mock_workforce_parquet(
     )
 
     for i in range(num_employees):
-        emp_id = f"EMP_{current_employee_id:06d}"
-        ssn = f"SSN-{random.randint(100000000, 999999999)}"
+        # Generate unified baseline employee ID using seeded approach
+        emp_id = id_generator.generate_employee_id(
+            sequence=current_employee_id,
+            is_baseline=True  # This is baseline workforce data
+        )
+        # Use seeded SSN generation for consistency
+        ssn = f"SSN-{100000000 + current_employee_id:09d}"
 
         # Age distribution (skewed slightly younger, then broader middle)
         age = int(np.random.normal(38, 10))  # Mean 38, Std Dev 10
@@ -105,6 +125,52 @@ def generate_mock_workforce_parquet(
             else:  # If hire date is in future of base_year, no termination for this year
                 is_terminated = False
 
+        # Generate DC plan fields with realistic values
+        # First determine if employee participates (80% participation rate)
+        participates = random.random() > 0.2
+
+        if participates:
+            # Generate total deferral rate between 3% and 15%
+            total_deferral_rate = random.uniform(0.03, 0.15)
+            employee_contribution = gross_compensation * total_deferral_rate
+
+            # Break down employee contribution into three types
+            # Most common: pre-tax, then Roth, then after-tax
+            pre_tax_pct = random.uniform(0.6, 1.0)  # 60-100% pre-tax
+            remaining_pct = 1.0 - pre_tax_pct
+
+            if remaining_pct > 0:
+                # Split remaining between Roth and after-tax (favor Roth)
+                roth_pct = random.uniform(0.5, 1.0) * remaining_pct
+                after_tax_pct = remaining_pct - roth_pct
+            else:
+                roth_pct = 0.0
+                after_tax_pct = 0.0
+
+            pre_tax_contribution = employee_contribution * pre_tax_pct
+            roth_contribution = employee_contribution * roth_pct
+            after_tax_contribution = employee_contribution * after_tax_pct
+        else:
+            employee_contribution = 0.0
+            pre_tax_contribution = 0.0
+            roth_contribution = 0.0
+            after_tax_contribution = 0.0
+
+        # Employer contributions based on realistic match formulas
+        employer_match_rate = random.uniform(0.02, 0.06) if participates else 0.0
+        employer_match_contribution = min(employee_contribution * employer_match_rate, gross_compensation * 0.03)
+        employer_core_contribution = gross_compensation * random.uniform(0.01, 0.03)
+
+        # Capped compensation (IRS limits - $345,000 for 2024)
+        employee_capped_compensation = min(gross_compensation, 345000.0)
+
+        # Calculate actual deferral rate based on total contribution and capped compensation
+        employee_deferral_rate = employee_contribution / employee_capped_compensation if employee_capped_compensation > 0 else 0.0
+
+        # Eligibility entry date (typically hire date or next plan entry date)
+        eligibility_months_delay = random.choice([0, 1, 3, 6, 12])  # Common eligibility periods
+        eligibility_entry_date = hire_date + timedelta(days=eligibility_months_delay * 30)
+
         employees.append(
             {
                 "employee_id": emp_id,
@@ -114,10 +180,17 @@ def generate_mock_workforce_parquet(
                 "employee_termination_date": termination_date.strftime("%Y-%m-%d")
                 if termination_date
                 else None,
-                "employee_gross_compensation": float(
-                    gross_compensation
-                ),  # Ensure float type for numeric operations
-                "active": bool(not is_terminated),  # Ensure boolean type
+                "employee_gross_compensation": float(gross_compensation),
+                "employee_capped_compensation": float(employee_capped_compensation),
+                "employee_deferral_rate": float(employee_deferral_rate),
+                "employee_contribution": float(employee_contribution),
+                "pre_tax_contribution": float(pre_tax_contribution),
+                "roth_contribution": float(roth_contribution),
+                "after_tax_contribution": float(after_tax_contribution),
+                "employer_core_contribution": float(employer_core_contribution),
+                "employer_match_contribution": float(employer_match_contribution),
+                "eligibility_entry_date": eligibility_entry_date.strftime("%Y-%m-%d"),
+                "active": bool(not is_terminated),
             }
         )
         current_employee_id += 1
@@ -130,6 +203,7 @@ def generate_mock_workforce_parquet(
         "employee_birth_date",
         "employee_hire_date",
         "employee_termination_date",
+        "eligibility_entry_date",
     ]
     for col in date_columns:
         if col in df.columns:
@@ -144,6 +218,15 @@ def generate_mock_workforce_parquet(
             ("employee_hire_date", pa.date32()),
             ("employee_termination_date", pa.date32()),
             ("employee_gross_compensation", pa.float64()),
+            ("employee_capped_compensation", pa.float64()),
+            ("employee_deferral_rate", pa.float64()),
+            ("employee_contribution", pa.float64()),
+            ("pre_tax_contribution", pa.float64()),
+            ("roth_contribution", pa.float64()),
+            ("after_tax_contribution", pa.float64()),
+            ("employer_core_contribution", pa.float64()),
+            ("employer_match_contribution", pa.float64()),
+            ("eligibility_entry_date", pa.date32()),
             ("active", pa.bool_()),
         ]
     )
@@ -167,4 +250,5 @@ if __name__ == "__main__":
         num_employees=5000,
         output_path="data/census_preprocessed.parquet",
         base_year=2024,
+        random_seed=42,  # Use consistent seed for reproducible baseline data
     )

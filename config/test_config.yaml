@@ -13,6 +13,9 @@ compensation:
   cola_rate: 0.025
   merit_budget: 0.04
 
+eligibility:
+  waiting_period_days: 30  # Days employee must be employed before becoming eligible (0 = immediate, 365 = 1 year)
+
 # Dagster op configuration
 ops:
   run_multi_year_simulation:

@@ -64,7 +64,14 @@
       "Bash(/Users/nicholasamaral/planwise_navigator/venv/bin/dbt list --models int_employee_event_stream+ --output name)",
       "Bash(/Users/nicholasamaral/planwise_navigator/venv/bin/dbt list --models +int_employee_event_stream --output name)",
       "Bash(/Users/nicholasamaral/planwise_navigator/venv/bin/dbt list --models +int_employee_event_stream --output name --project-dir /Users/nicholasamaral/planwise_navigator/dbt)",
-      "Bash(/Users/nicholasamaral/planwise_navigator/venv/bin/dbt run --select int_employee_event_stream --vars '{simulation_year: 2028, start_year: 2025}')"
+      "Bash(/Users/nicholasamaral/planwise_navigator/venv/bin/dbt run --select int_employee_event_stream --vars '{simulation_year: 2028, start_year: 2025}')",
+      "Bash(dbt test:*)",
+      "Bash(echo:*)",
+      "Bash(timeout 120 python -m orchestrator_mvp.run_mvp:*)",
+      "Bash(gtimeout:*)",
+      "Bash(dbt show:*)",
+      "Bash(git rm:*)",
+      "Bash(git stash push:*)"
     ],
     "deny": []
   }

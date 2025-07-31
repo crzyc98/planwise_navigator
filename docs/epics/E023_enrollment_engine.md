@@ -1,9 +1,9 @@
-# Epic E023: Enrollment Engine
+# Epic E023: Enrollment Engine MVP
 
 ## Epic Overview
 
 ### Summary
-Develop a high-performance enrollment simulation engine using SQL/dbt that models participant enrollment behavior including auto-enrollment, opt-out rates, and voluntary enrollment patterns. This MVP focuses on core enrollment logic while deferring complex behavioral modeling to post-MVP phases.
+Develop a high-performance enrollment simulation engine using SQL/dbt that models core participant enrollment behavior including auto-enrollment, opt-out rates, and basic demographic-based enrollment patterns. This MVP focuses on essential enrollment logic using the proven E022 Eligibility Engine pattern.
 
 ### Business Value
 - Enables accurate participation rate projections for plan design decisions
@@ -23,23 +23,16 @@ This epic follows the proven E022 Eligibility Engine pattern:
 
 **MVP Phase (2 weeks - 16 points)**
 - SQL/dbt-first implementation for maximum performance
-- Simplified demographic segmentation (no ML clustering)
-- Core auto-enrollment and voluntary enrollment logic
+- Simplified demographic segmentation (age/salary bands only)
+- Core auto-enrollment and basic voluntary enrollment logic
 - Integration with orchestrator_mvp framework
 - Focus on 95% of standard enrollment scenarios
-
-**Post-MVP Phase (Future - 40 points)**
-- Advanced behavioral segmentation with ML clustering
-- Auto-escalation and complex deferral modeling
-- Real-time analytics dashboard
-- A/B testing framework
-- Psychological behavioral modeling
 
 ---
 
 ## User Stories
 
-### MVP Stories (In Development)
+### MVP Stories (16 points total)
 
 #### Story S023-01: Basic Auto-Enrollment Logic (6 points) 🚧
 **Status**: Ready for implementation
@@ -49,7 +42,7 @@ This epic follows the proven E022 Eligibility Engine pattern:
 
 **MVP Acceptance Criteria:**
 - ✅ SQL-based auto-enrollment processing for 100K employees in <10 seconds
-- ✅ Configurable auto-enrollment default rate (3%, 6%) via dbt variables
+- ✅ Configurable auto-enrollment default rate (1% to 6%) via dbt variables
 - ✅ Simple opt-out modeling (30, 60, 90 day windows)
 - ✅ Basic demographic-based opt-out rates (age/salary bands)
 - ✅ Generate ENROLLMENT and OPT_OUT events in existing event model
@@ -86,42 +79,6 @@ This epic follows the proven E022 Eligibility Engine pattern:
 - ✅ Deferral rate tracking in enrollment events
 
 **Implementation**: See `/docs/stories/S023-03-basic-deferral-selection.md`
-
-### Future Stories (Post-MVP)
-
-#### Story 4: Advanced Behavioral Segmentation (12 points) 📅
-**Status**: Deferred to post-MVP
-**As a** workforce analyst
-**I want** ML-based behavioral clustering
-**So that** I can model complex enrollment patterns
-
-**Future Acceptance Criteria:**
-- K-means clustering for behavioral segments
-- Machine learning-enhanced probability curves
-- Automated calibration against historical data
-- A/B testing framework for enrollment strategies
-
-#### Story 5: Auto-Escalation Features (8 points) 📅
-**Status**: Deferred to post-MVP
-**As a** retirement committee member
-**I want** to model automatic increase programs
-**So that** I can assess long-term savings improvements
-
-**Future Acceptance Criteria:**
-- Annual escalation processing with configurable amounts
-- Behavioral opt-out rates for increases
-- Integration with salary increase events
-
-#### Story 6: Real-Time Analytics Dashboard (8 points) 📅
-**Status**: Deferred to post-MVP
-**As a** CFO
-**I want** clear enrollment projections
-**So that** I can budget for retirement contributions
-
-**Future Acceptance Criteria:**
-- Interactive participation rate dashboards
-- Scenario comparison reports
-- Executive-level enrollment metrics
 
 
 ---
@@ -362,38 +319,36 @@ def process_enrollment_simulation(context: AssetExecutionContext,
 
 | Metric | Requirement | Implementation Strategy |
 |--------|-------------|------------------------|
-| Batch Enrollment Processing | <30 seconds for 100K employees | Vectorized behavioral segmentation with clustering |
-| Behavioral Segment Assignment | <5 seconds for population clustering | Pre-computed feature matrices with K-means |
-| Random Sampling | Reproducible with seed control | NumPy RandomState for deterministic results |
-| Memory Usage | <6GB for 100K employee simulation | Efficient DataFrame operations with optimized dtypes |
-| Real-time Queries | <50ms for enrollment analytics | Materialized behavioral segment summaries |
+| Batch Enrollment Processing | <10 seconds for 100K employees | SQL/dbt vectorized processing with DuckDB optimization |
+| Demographic Segmentation | <2 seconds for population segmentation | SQL CASE statements for age/salary band assignment |
+| Random Sampling | Reproducible with seed control | Hash-based deterministic random generation |
+| Memory Usage | <2GB for 100K employee simulation | SQL-based processing with minimal Python overhead |
+| Real-time Queries | <50ms for enrollment analytics | DuckDB materialized intermediate tables |
 
 ## Dependencies
 - E021: DC Plan Data Model (event schema)
 - E022: Eligibility Engine (eligible population)
-- Historical enrollment data for calibration and ML training
-- Pandas/Polars for vectorized DataFrame operations
-- NumPy for efficient random number generation
-- Scikit-learn for behavioral segmentation clustering
-- Statistical libraries for distribution sampling
+- DuckDB 1.0.0+ for SQL processing
+- dbt-duckdb 1.8.1+ for model execution
+- orchestrator_mvp framework for multi-year simulation
 
 ## Risks
-- **Risk**: Behavioral modeling accuracy
-- **Mitigation**: Calibrate against 3+ years of actual data
+- **Risk**: Demographic segmentation oversimplification
+- **Mitigation**: Focus on age/salary bands with proven correlation to enrollment behavior
 - **Risk**: Auto-enrollment legal compliance
 - **Mitigation**: Include all required notices and timing
 
 ## Estimated Effort
-**Total Story Points**: 56 points
-**Estimated Duration**: 3-4 sprints
+**Total Story Points**: 16 points
+**Estimated Duration**: 1 sprint (2 weeks)
 
 ---
 
 ## Definition of Done
 - [ ] Auto-enrollment logic fully implemented
-- [ ] Voluntary enrollment modeling calibrated
-- [ ] Deferral rate distributions validated
-- [ ] Auto-escalation features complete
-- [ ] Analytics reports designed and tested
-- [ ] Performance targets met
+- [ ] Basic voluntary enrollment modeling complete
+- [ ] Simple deferral rate distributions implemented
+- [ ] Integration with E022 eligibility results validated
+- [ ] Performance targets met (<10 seconds for 100K employees)
+- [ ] Event generation integrated with existing event sourcing
 - [ ] User documentation complete
