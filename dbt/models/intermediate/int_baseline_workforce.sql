@@ -43,6 +43,11 @@ SELECT
     'active' AS employment_status,
     NULL AS termination_date,
     NULL AS termination_reason,
+    -- Add eligibility and enrollment fields from census
+    stg.employee_eligibility_date,
+    stg.waiting_period_days,
+    stg.current_eligibility_status,
+    stg.employee_enrollment_date,
     {{ simulation_year }} AS simulation_year,
     CURRENT_TIMESTAMP AS snapshot_created_at,
     true as is_from_census,

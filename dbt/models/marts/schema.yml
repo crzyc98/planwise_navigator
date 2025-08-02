@@ -70,7 +70,7 @@ models:
         data_tests:
           - not_null
           - accepted_values:
-              values: ['termination', 'promotion', 'hire', 'RAISE']
+              values: ['termination', 'promotion', 'hire', 'RAISE', 'enrollment', 'enrollment_change']
       - name: simulation_year
         description: "Year of simulation"
         data_type: integer
@@ -286,6 +286,9 @@ models:
         data_tests:
           - accepted_values:
               values: ['eligible', 'pending']
+      - name: employee_enrollment_date
+        description: "Date when employee enrolled in DC plan (from census data or enrollment events)"
+        data_type: date
       - name: snapshot_created_at
         description: "Timestamp when snapshot was created"
         data_type: timestamp with time zone

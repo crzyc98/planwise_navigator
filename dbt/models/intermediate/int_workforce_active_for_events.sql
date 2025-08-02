@@ -43,7 +43,12 @@ SELECT
     level_id AS job_level,
     age_band,
     tenure_band,
-    employment_status
+    employment_status,
+    -- Data quality flags
+    current_age BETWEEN 16 AND 100 AS valid_age,
+    current_tenure >= 0 AND current_tenure <= 60 AS valid_tenure,
+    current_compensation > 0 AS valid_compensation,
+    'baseline' AS data_source
 FROM {{ ref('int_baseline_workforce') }}
 WHERE employment_status = 'active'
 
@@ -60,7 +65,12 @@ SELECT
     level_id AS job_level,
     age_band,
     tenure_band,
-    employment_status
+    employment_status,
+    -- Data quality flags
+    data_quality_valid as valid_age,
+    data_quality_valid as valid_tenure, 
+    data_quality_valid as valid_compensation,
+    data_source
 FROM {{ ref('int_active_employees_prev_year_snapshot') }}
 WHERE simulation_year = {{ simulation_year }}
   AND employment_status = 'active'

@@ -251,6 +251,29 @@ models:
         description: The last completed simulation year before this baseline
         data_tests:
           - not_null
+      
+      - name: employee_eligibility_date
+        description: Date when employee becomes eligible for DC plan participation (from census)
+        data_tests:
+          - not_null
+      
+      - name: waiting_period_days
+        description: Number of days employee must wait after hire to become eligible (from census)
+        data_tests:
+          - not_null
+          - dbt_utils.accepted_range:
+              min_value: 0
+              max_value: 365
+      
+      - name: current_eligibility_status
+        description: Current eligibility status based on census data (eligible/pending)
+        data_tests:
+          - not_null
+          - accepted_values:
+              values: ['eligible', 'pending']
+      
+      - name: employee_enrollment_date
+        description: Date when employee enrolled in DC plan (from census)
 
   - name: int_workforce_previous_year
     description: >
@@ -1017,3 +1040,256 @@ models:
         description: Date eligibility was evaluated (January 1st of simulation year)
         data_tests:
           - not_null
+
+  - name: int_workforce_pre_enrollment
+    description: >
+      Pre-Enrollment Workforce Model (Circular Dependency Resolution)
+
+      This helper model provides workforce state data WITHOUT enrollment events,
+      breaking the circular dependency chain that was preventing E023 enrollment
+      engine from functioning.
+
+      **Purpose:**
+      - Serves as clean workforce data source for eligibility determination
+      - Excludes enrollment events to prevent circular dependencies
+      - Maintains all other workforce event processing
+      - Enables enrollment processing in separate phase
+    config:
+      tags: ["foundation", "critical", "helper", "circular_dependency_resolution"]
+    columns:
+      - name: employee_id
+        description: Unique identifier for each employee
+        data_tests:
+          - not_null
+      - name: employee_ssn
+        description: Employee social security number
+        data_tests:
+          - not_null
+      - name: employee_birth_date
+        description: Employee birth date
+        data_tests:
+          - not_null
+      - name: employee_hire_date
+        description: Employee hire date
+        data_tests:
+          - not_null
+      - name: current_compensation
+        description: Current employee compensation
+        data_tests:
+          - not_null
+          - dbt_utils.accepted_range:
+              min_value: 0
+              inclusive: false
+      - name: current_age
+        description: Employee age in the simulation year
+        data_tests:
+          - not_null
+          - dbt_utils.accepted_range:
+              min_value: 16
+              max_value: 100
+      - name: current_tenure
+        description: Employee tenure in years
+        data_tests:
+          - not_null
+          - dbt_utils.accepted_range:
+              min_value: 0
+              max_value: 60
+      - name: level_id
+        description: Job level ID
+        data_tests:
+          - not_null
+      - name: employment_status
+        description: Employment status (always 'active' for this model)
+        data_tests:
+          - not_null
+          - accepted_values:
+              values: ['active']
+      - name: simulation_year
+        description: Current simulation year
+        data_tests:
+          - not_null
+
+  - name: int_enrollment_events
+    description: >
+      Enrollment Events Model (Epic E023: Auto-Enrollment Orchestration Integration)
+
+      Transforms enrollment decisions from the enrollment decision matrix into events compatible
+      with the fct_yearly_events pipeline. This model bridges the enrollment orchestration system
+      with the existing event sourcing architecture.
+
+      **Event Types Generated:**
+      - 'enrollment': Initial enrollment events (proactive, auto, or voluntary)
+      - 'enrollment_change': Opt-out events and enrollment modifications
+
+      **Key Features:**
+      - 45-day configurable auto-enrollment window orchestration
+      - Proactive enrollment timing (before auto-enrollment deadline)
+      - Demographic-based enrollment probabilities and opt-out rates
+      - Complete audit trail with event sequencing and validation
+      - Integration with existing E022 eligibility determination
+
+      **Performance:**
+      - Processes enrollment decisions for current simulation year
+      - Generates both enrollment and opt-out events in single pass
+      - Maintains compatibility with existing event model structure
+    config:
+      tags: ["enrollment", "dc_plan", "epic_e023", "event_sourcing"]
+    columns:
+      - name: employee_id
+        description: Unique identifier for each employee
+        data_tests:
+          - not_null
+      - name: employee_ssn
+        description: Employee social security number
+        data_tests:
+          - not_null
+      - name: event_type
+        description: Type of enrollment event
+        data_tests:
+          - not_null
+          - accepted_values:
+              values: ['enrollment', 'enrollment_change']
+      - name: simulation_year
+        description: Simulation year when enrollment event occurs
+        data_tests:
+          - not_null
+          - dbt_utils.accepted_range:
+              min_value: 2025
+              max_value: 2035
+      - name: effective_date
+        description: Date when enrollment event becomes effective
+        data_tests:
+          - not_null
+      - name: event_details
+        description: Human-readable description of the enrollment event
+        data_tests:
+          - not_null
+      - name: compensation_amount
+        description: Employee compensation at time of enrollment
+        data_tests:
+          - not_null
+          - dbt_utils.accepted_range:
+              min_value: 0
+              inclusive: false
+      - name: employee_age
+        description: Employee age at time of enrollment
+        data_tests:
+          - not_null
+          - dbt_utils.accepted_range:
+              min_value: 18
+              max_value: 70
+      - name: employee_tenure
+        description: Employee tenure at time of enrollment
+        data_tests:
+          - not_null
+          - dbt_utils.accepted_range:
+              min_value: 0
+              max_value: 50
+      - name: level_id
+        description: Employee job level at time of enrollment
+        data_tests:
+          - not_null
+          - dbt_utils.accepted_range:
+              min_value: 1
+              max_value: 10
+      - name: event_probability
+        description: Demographic-based probability for this enrollment event
+        data_tests:
+          - not_null
+          - dbt_utils.accepted_range:
+              min_value: 0
+              max_value: 1
+              inclusive: true
+      - name: event_category
+        description: Category of enrollment event for analysis
+        data_tests:
+          - not_null
+          - accepted_values:
+              values: ['proactive_enrollment', 'auto_enrollment', 'voluntary_enrollment', 'enrollment_opt_out']
+      - name: data_quality_flag
+        description: Data quality validation flag
+        data_tests:
+          - not_null
+          - accepted_values:
+              values: ['VALID', 'INVALID_EMPLOYEE_ID', 'INVALID_SIMULATION_YEAR', 'INVALID_EFFECTIVE_DATE', 'INVALID_EVENT_TYPE', 'INVALID_COMPENSATION']
+      - name: created_at
+        description: Timestamp when event record was created
+        data_tests:
+          - not_null
+      - name: event_source
+        description: Source system that generated this event
+        data_tests:
+          - not_null
+          - accepted_values:
+              values: ['E023_enrollment_engine']
+
+  - name: int_plan_eligibility_determination
+    description: >
+      Plan eligibility determination - determines who can participate in the 401(k) plan.
+      This is separate from employer contribution eligibility and uses rule-based calculation
+      to avoid circular dependencies. MVP implementation for immediate plan enrollment.
+    config:
+      tags: ["eligibility", "enrollment", "E023"]
+    columns:
+      - name: employee_id
+        description: Unique employee identifier
+        data_tests:
+          - not_null
+          - unique
+      - name: is_plan_eligible
+        description: Whether employee is eligible to participate in the plan
+        data_tests:
+          - not_null
+      - name: plan_eligibility_date
+        description: Date when employee becomes eligible for plan participation
+        data_tests:
+          - not_null
+      - name: eligibility_status
+        description: Current eligibility status
+        data_tests:
+          - not_null
+          - accepted_values:
+              values: ['eligible', 'not_eligible_age', 'not_eligible_tenure', 'not_eligible_other']
+
+  - name: int_auto_enrollment_window_determination
+    description: >
+      Auto-enrollment window determination with hire date cutoff support.
+      Tests the hire date cutoff functionality to ensure employees hired before
+      the cutoff date are properly excluded from auto-enrollment scope.
+    config:
+      tags: ["enrollment", "dc_plan", "epic_e023", "hire_date_cutoff"]
+    data_tests:
+      - dbt_utils.expression_is_true:
+          expression: >
+            (select count(*) from int_auto_enrollment_window_determination
+             where employee_hire_date < '{{ var("auto_enrollment_hire_date_cutoff", "2020-01-01") }}'::date
+             and eligible_for_auto_enrollment = true) = 0
+          config:
+            severity: warn
+            enabled: "{{ var('auto_enrollment_hire_date_cutoff', null) != null }}"
+            store_failures: true
+      - dbt_utils.expression_is_true:
+          expression: >
+            (select count(*) from int_auto_enrollment_window_determination
+             where in_auto_enrollment_scope = true) > 0
+          config:
+            severity: error
+            store_failures: true
+
+  - name: int_enrollment_decision_matrix
+    description: >
+      Enrollment decision matrix with hire date cutoff consistency.
+      Validates that hire date cutoff logic is applied consistently
+      across all enrollment decision paths.
+    config:
+      tags: ["enrollment", "dc_plan", "epic_e023", "hire_date_cutoff"]
+    data_tests:
+      - dbt_utils.expression_is_true:
+          expression: >
+            (select count(*) from int_enrollment_decision_matrix
+             where employee_hire_date < '{{ var("auto_enrollment_hire_date_cutoff", "2020-01-01") }}'::date
+             and enrollment_source = 'auto') = 0
+          config:
+            severity: warn
+            enabled: "{{ var('auto_enrollment_hire_date_cutoff', null) != null }}"
+            store_failures: true
