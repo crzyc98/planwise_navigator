@@ -10,7 +10,7 @@
 
   Enrollment Routing Logic:
   1. Auto-enrollment enabled plans → Use timing coordination results
-  2. Auto-enrollment disabled plans → Use voluntary enrollment logic  
+  2. Auto-enrollment disabled plans → Use voluntary enrollment logic
   3. Plan-specific overrides → Apply special rules for executive/emergency plans
   4. Multi-year consistency → Maintain enrollment state across simulation years
 
@@ -39,7 +39,7 @@ WITH eligible_employees AS (
     wpe.employee_id,
     wpe.employee_ssn,
     wpe.employee_hire_date,
-    wpe.employment_status,  
+    wpe.employment_status,
     wpe.current_age,
     wpe.current_tenure,
     wpe.level_id,
@@ -49,22 +49,22 @@ WITH eligible_employees AS (
     ped.is_plan_eligible as is_eligible,
     -- Use plan eligibility date as entry date
     ped.plan_eligibility_date as entry_date,
-    
+
     -- Demographic segmentation for voluntary enrollment
     CASE
       WHEN wpe.current_age BETWEEN 18 AND 30 THEN 'young'
-      WHEN wpe.current_age BETWEEN 31 AND 45 THEN 'mid_career' 
+      WHEN wpe.current_age BETWEEN 31 AND 45 THEN 'mid_career'
       WHEN wpe.current_age BETWEEN 46 AND 55 THEN 'mature'
       ELSE 'senior'
     END as age_segment,
-    
+
     CASE
       WHEN wpe.current_compensation < 30000 THEN 'low_income'
       WHEN wpe.current_compensation < 50000 THEN 'moderate'
       WHEN wpe.current_compensation < 100000 THEN 'high'
       ELSE 'executive'
     END as income_segment,
-    
+
     -- Plan type determination
     CASE
       WHEN wpe.level_id >= 8 THEN 'executive_plan'
@@ -92,23 +92,23 @@ plan_configuration_matrix AS (
       WHEN 'emergency_plan' THEN {{ var('emergency_plan_auto_enrollment_enabled', false) }}
       ELSE {{ var('auto_enrollment_enabled', true) }}
     END as plan_auto_enrollment_enabled,
-    
+
     -- Window duration by plan type
     CASE plan_type
       WHEN 'executive_plan' THEN {{ var('executive_plan_window_days', 60) }}
       WHEN 'emergency_plan' THEN {{ var('emergency_plan_window_days', 30) }}
       ELSE {{ var('auto_enrollment_window_days', 45) }}
     END as plan_window_days,
-    
+
     -- Default deferral rate by plan type
-    CASE plan_type  
+    CASE plan_type
       WHEN 'executive_plan' THEN {{ var('executive_plan_default_deferral_rate', 0.10) }}
       ELSE {{ var('auto_enrollment_default_deferral_rate', 0.06) }}
     END as plan_default_deferral_rate,
-    
+
     -- Scope check (new hires only vs all eligible employees)
     CASE
-      WHEN '{{ var("auto_enrollment_scope", "new_hires_only") }}' = 'new_hires_only' 
+      WHEN '{{ var("auto_enrollment_scope", "new_hires_only") }}' = 'new_hires_only'
         AND (
           {% if var("auto_enrollment_hire_date_cutoff", null) %}
             employee_hire_date >= '{{ var("auto_enrollment_hire_date_cutoff") }}'::DATE
@@ -143,13 +143,13 @@ auto_enrollment_participants AS (
     tc.income_segment,
     tc.plan_type,
     tc.entry_date,
-    
+
     -- Enrollment decision results
     tc.final_enrolled_status as enrolled,
     tc.enrollment_source,
     tc.final_enrollment_date as enrollment_date,
     tc.final_deferral_rate as deferral_rate,
-    
+
     -- Auto-enrollment specific fields
     tc.will_enroll_proactively,
     tc.will_auto_enroll,
@@ -157,15 +157,15 @@ auto_enrollment_participants AS (
     tc.proactive_enrollment_date,
     tc.auto_enrollment_date,
     tc.opt_out_date,
-    
+
     -- Window timing
     tc.auto_enrollment_window_start,
     tc.auto_enrollment_window_end,
-    
+
     -- Validation flags
     tc.timing_compliant,
     tc.timing_conflict_type,
-    
+
     -- Source attribution
     'auto_enrollment_engine' as decision_source,
     tc.coordination_timestamp as decision_timestamp
@@ -184,8 +184,8 @@ voluntary_enrollment_candidates AS (
   WHERE NOT (pcm.plan_auto_enrollment_enabled AND pcm.in_auto_enrollment_scope)
     -- Only include employees not already processed by auto-enrollment
     AND pcm.employee_id NOT IN (
-      SELECT employee_id 
-      FROM auto_enrollment_participants 
+      SELECT employee_id
+      FROM auto_enrollment_participants
       WHERE simulation_year = pcm.simulation_year
     )
 ),
@@ -196,19 +196,19 @@ voluntary_enrollment_probability_calculation AS (
     *,
     -- Base voluntary enrollment probability
     {{ var('voluntary_enrollment_base_probability', 0.60) }} as base_voluntary_probability,
-    
+
     -- Age-based adjustment
     GREATEST(0, current_age - 25) * {{ var('voluntary_age_factor_per_year', 0.01) }} as age_adjustment,
-    
-    -- Tenure-based adjustment  
+
+    -- Tenure-based adjustment
     current_tenure * {{ var('voluntary_tenure_factor_per_year', 0.05) }} as tenure_adjustment,
-    
+
     -- High earner bonus
-    CASE 
+    CASE
       WHEN current_compensation > 100000 THEN {{ var('voluntary_high_earner_bonus', 0.15) }}
       ELSE 0.0
     END as high_earner_bonus,
-    
+
     -- Income-based multiplier
     CASE income_segment
       WHEN 'low_income' THEN {{ var('enrollment_adjustment_low_income', 0.80) }}
@@ -229,13 +229,13 @@ voluntary_enrollment_decisions AS (
       (base_voluntary_probability + age_adjustment + tenure_adjustment + high_earner_bonus) * income_multiplier,
       1.0
     ) as final_voluntary_probability,
-    
+
     -- Voluntary enrollment decision
     voluntary_random_seed < LEAST(
       (base_voluntary_probability + age_adjustment + tenure_adjustment + high_earner_bonus) * income_multiplier,
       1.0
     ) as will_enroll_voluntarily,
-    
+
     -- Calculate voluntary enrollment timing (distributed throughout year)
     CASE
       WHEN voluntary_random_seed < LEAST(
@@ -246,7 +246,7 @@ voluntary_enrollment_decisions AS (
         entry_date + INTERVAL (FLOOR(voluntary_timing_seed * 300)) DAY  -- Up to 300 days after eligibility
       ELSE null
     END as voluntary_enrollment_date,
-    
+
     -- Voluntary deferral rate selection (more conservative than auto-enrollment)
     CASE
       WHEN voluntary_timing_seed < {{ var('deferral_rate_3pct_prob', 0.25) }} THEN 0.03
@@ -269,13 +269,13 @@ voluntary_enrollment_participants AS (
     income_segment,
     plan_type,
     entry_date,
-    
+
     -- Enrollment decision results
     will_enroll_voluntarily as enrolled,
     'voluntary' as enrollment_source,
     voluntary_enrollment_date as enrollment_date,
     voluntary_deferral_rate as deferral_rate,
-    
+
     -- Auto-enrollment specific fields (null for voluntary)
     false as will_enroll_proactively,
     false as will_auto_enroll,
@@ -283,15 +283,15 @@ voluntary_enrollment_participants AS (
     null::DATE as proactive_enrollment_date,
     null::DATE as auto_enrollment_date,
     null::DATE as opt_out_date,
-    
+
     -- Window timing (null for voluntary enrollment)
     null::DATE as auto_enrollment_window_start,
     null::DATE as auto_enrollment_window_end,
-    
+
     -- Validation flags
     true as timing_compliant,  -- No timing constraints for voluntary enrollment
     'no_conflict' as timing_conflict_type,
-    
+
     -- Source attribution
     'voluntary_enrollment_engine' as decision_source,
     current_timestamp as decision_timestamp
@@ -311,22 +311,22 @@ final_enrollment_matrix AS (
   SELECT
     -- Employee identification
     employee_id,
-    employee_ssn,  
+    employee_ssn,
     simulation_year,
-    
+
     -- Demographics
     current_age,
     current_compensation,
     age_segment,
     income_segment,
     plan_type,
-    
+
     -- Enrollment decision
     enrolled,
     enrollment_source,
     enrollment_date,
     deferral_rate,
-    
+
     -- Auto-enrollment details (for audit trail)
     will_enroll_proactively,
     will_auto_enroll,
@@ -334,34 +334,34 @@ final_enrollment_matrix AS (
     proactive_enrollment_date,
     auto_enrollment_date,
     opt_out_date,
-    
+
     -- Window timing information
     auto_enrollment_window_start,
     auto_enrollment_window_end,
-    
+
     -- Validation and compliance
     timing_compliant,
     timing_conflict_type,
     timing_compliant AND enrolled as enrollment_valid,
-    
+
     -- Event generation fields
     entry_date,
     enrollment_date as effective_date,
     deferral_rate as pre_tax_contribution_rate,
     0.0 as roth_contribution_rate,  -- MVP: Focus on pre-tax contributions
     enrollment_source = 'auto' as auto_enrollment_flag,
-    
+
     -- Opt-out window calculation
     CASE
       WHEN enrollment_source = 'auto' THEN
         enrollment_date + INTERVAL '{{ var("auto_enrollment_opt_out_grace_period", 30) }}' DAY
       ELSE null
     END as opt_out_window_expires,
-    
+
     -- Audit trail
     decision_source,
     decision_timestamp,
-    
+
     -- Performance metadata
     current_timestamp as matrix_calculation_timestamp,
     '{{ var("simulation_year") }}' as matrix_simulation_year

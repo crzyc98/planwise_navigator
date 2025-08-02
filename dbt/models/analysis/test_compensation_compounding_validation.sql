@@ -73,20 +73,20 @@ merit_event_validation AS (
     SELECT
         me.employee_id,
         me.simulation_year,
-        me.previous_salary AS merit_baseline_used,
-        me.new_salary AS merit_new_salary,
+        me.previous_compensation AS merit_baseline_used,
+        me.compensation_amount AS merit_new_salary,
         awfe.employee_gross_compensation AS expected_baseline,
         ws_prev.full_year_equivalent_compensation AS actual_prev_year_final,
         -- Check if merit used correct baseline
         CASE
-            WHEN ABS(me.previous_salary - awfe.employee_gross_compensation) < 0.01 THEN 'CORRECT_BASELINE'
-            WHEN ABS(me.previous_salary - ws_prev.current_compensation) < 0.01 THEN 'USING_STARTING_COMPENSATION'
+            WHEN ABS(me.previous_compensation - awfe.employee_gross_compensation) < 0.01 THEN 'CORRECT_BASELINE'
+            WHEN ABS(me.previous_compensation - ws_prev.current_compensation) < 0.01 THEN 'USING_STARTING_COMPENSATION'
             ELSE 'UNKNOWN_BASELINE'
         END AS baseline_status,
         -- Calculate merit percentage applied
-        ROUND((me.new_salary / me.previous_salary - 1) * 100, 2) AS merit_percentage_applied,
+        ROUND((me.compensation_amount / me.previous_compensation - 1) * 100, 2) AS merit_percentage_applied,
         -- Validate the merit calculation chain
-        me.previous_salary - expected_baseline AS baseline_discrepancy
+        me.previous_compensation - expected_baseline AS baseline_discrepancy
     FROM {{ ref('fct_yearly_events') }} me
     INNER JOIN {{ ref('int_workforce_active_for_events') }} awfe
         ON me.employee_id = awfe.employee_id
@@ -233,4 +233,4 @@ SELECT
     NULL AS salary_discrepancy
 FROM merit_event_summary mes
 
-ORDER BY validation_type, current_year, ABS(COALESCE(salary_discrepancy, avg_discrepancy_amount, 0)) DESC
+ORDER BY validation_type, current_year

@@ -37,14 +37,14 @@ WITH window_boundaries AS (
     employee_id,
     employee_ssn,
     simulation_year,
-    
+
     -- Employee demographics for enrollment decisions
     current_age,
     current_compensation,
     age_segment,
     income_segment,
     plan_type,
-    
+
     -- Window timing boundaries
     entry_date,
     auto_enrollment_window_start,
@@ -53,19 +53,19 @@ WITH window_boundaries AS (
     proactive_window_end,
     auto_enrollment_execution_date,
     opt_out_grace_period_end,
-    
+
     -- Configuration and probabilities
     eligible_for_auto_enrollment,
     proactive_enrollment_enabled,
     final_proactive_probability,
     opt_out_probability,
     default_deferral_rate,
-    
+
     -- Random seeds for deterministic behavior
     proactive_random_seed,
     opt_out_random_seed,
     timing_random_seed,
-    
+
     -- Window validation
     timing_window_valid,
     sufficient_proactive_window
@@ -79,12 +79,12 @@ proactive_enrollment_determination AS (
     *,
     -- Proactive enrollment decision (deterministic)
     proactive_random_seed < final_proactive_probability as will_enroll_proactively,
-    
+
     -- Calculate proactive enrollment timing within the window
     CASE
       WHEN proactive_random_seed < final_proactive_probability THEN
         -- Calculate enrollment date within proactive window using timing seed
-        proactive_window_start + 
+        proactive_window_start +
         INTERVAL (FLOOR(timing_random_seed * DATEDIFF('day', proactive_window_start, proactive_window_end))) DAY
       ELSE null
     END as proactive_enrollment_date
@@ -104,7 +104,7 @@ proactive_enrollment_validation AS (
         proactive_enrollment_date < auto_enrollment_execution_date
       ELSE true  -- No constraint if not enrolling proactively
     END as proactive_timing_valid,
-    
+
     -- Calculate days before auto-enrollment deadline
     CASE
       WHEN will_enroll_proactively AND proactive_enrollment_date IS NOT NULL THEN
@@ -123,7 +123,7 @@ auto_enrollment_determination AS (
       WHEN NOT will_enroll_proactively OR NOT proactive_timing_valid THEN true
       ELSE false
     END as will_auto_enroll,
-    
+
     -- Auto-enrollment occurs exactly at window expiration
     CASE
       WHEN (NOT will_enroll_proactively OR NOT proactive_timing_valid) THEN
@@ -143,11 +143,11 @@ opt_out_determination AS (
         opt_out_random_seed < opt_out_probability
       ELSE false
     END as will_opt_out,
-    
+
     -- Calculate opt-out timing within grace period
     CASE
       WHEN will_auto_enroll AND (opt_out_random_seed < opt_out_probability) THEN
-        auto_enrollment_date + 
+        auto_enrollment_date +
         INTERVAL (FLOOR(timing_random_seed * {{ var('auto_enrollment_opt_out_grace_period', 30) }})) DAY
       ELSE null
     END as opt_out_date
@@ -174,7 +174,7 @@ deferral_rate_selection AS (
         default_deferral_rate
       ELSE 0.0
     END as initial_deferral_rate,
-    
+
     -- Final deferral rate after opt-out consideration
     CASE
       WHEN will_enroll_proactively THEN
@@ -206,7 +206,7 @@ timing_conflict_resolution AS (
         'duplicate_enrollment_events'
       ELSE 'no_conflict'
     END as timing_conflict_type,
-    
+
     -- Resolution actions for conflicts
     CASE
       WHEN will_enroll_proactively AND proactive_enrollment_date >= auto_enrollment_execution_date THEN
@@ -214,7 +214,7 @@ timing_conflict_resolution AS (
         auto_enrollment_execution_date - INTERVAL '{{ var("proactive_cutoff_before_auto", 10) }}' DAY
       ELSE proactive_enrollment_date
     END as resolved_proactive_enrollment_date,
-    
+
     CASE
       WHEN will_opt_out AND opt_out_date > opt_out_grace_period_end THEN
         -- Move opt-out to last day of grace period
@@ -231,65 +231,65 @@ final_enrollment_coordination AS (
     employee_id,
     employee_ssn,
     simulation_year,
-    
+
     -- Employee demographics
     current_age,
     current_compensation,
     age_segment,
     income_segment,
     plan_type,
-    
+
     -- Window timing reference
     entry_date,
     auto_enrollment_window_start,
     auto_enrollment_window_end,
     auto_enrollment_execution_date,
-    
+
     -- Enrollment decisions and timing
     will_enroll_proactively,
     will_auto_enroll,
     will_opt_out,
-    
+
     -- Resolved timing (conflict-free)
     resolved_proactive_enrollment_date as proactive_enrollment_date,
     auto_enrollment_date,
     resolved_opt_out_date as opt_out_date,
-    
+
     -- Deferral rates
     initial_deferral_rate,
     final_deferral_rate,
-    
+
     -- Final enrollment status
     CASE
       WHEN will_enroll_proactively THEN true
       WHEN will_auto_enroll AND NOT will_opt_out THEN true
       ELSE false
     END as final_enrolled_status,
-    
+
     -- Enrollment source classification
     CASE
       WHEN will_enroll_proactively THEN 'proactive'
       WHEN will_auto_enroll AND NOT will_opt_out THEN 'auto'
       ELSE 'none'
     END as enrollment_source,
-    
+
     -- Final enrollment date
     CASE
       WHEN will_enroll_proactively THEN resolved_proactive_enrollment_date
       WHEN will_auto_enroll AND NOT will_opt_out THEN auto_enrollment_date
       ELSE null
     END as final_enrollment_date,
-    
+
     -- Timing validation flags
     proactive_timing_valid,
     timing_conflict_type,
     timing_conflict_type = 'no_conflict' as timing_compliant,
-    
+
     -- Random seeds for audit trail
     proactive_random_seed,
     opt_out_random_seed,
     timing_random_seed,
-    
+
     -- Metadata
     current_timestamp as coordination_timestamp
   FROM timing_conflict_resolution
@@ -298,7 +298,7 @@ final_enrollment_coordination AS (
 SELECT *
 FROM final_enrollment_coordination
 WHERE final_enrolled_status = true  -- Only return employees who will enroll
-ORDER BY simulation_year, 
+ORDER BY simulation_year,
          enrollment_source,  -- Group by proactive vs auto enrollment
          final_enrollment_date,
          employee_id

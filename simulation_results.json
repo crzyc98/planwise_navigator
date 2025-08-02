@@ -1,0 +1,13 @@
+{
+  "success": false,
+  "error": "name 'args' is not defined",
+  "years_completed": 0,
+  "total_years": 1,
+  "coordination_enabled": true,
+  "scenario_id": "28508979-e7ac-4558-baa7-7660488b1125",
+  "metadata": {
+    "script_version": "1.0.0",
+    "timestamp": "2025-08-01 14:16:57",
+    "command_line": "scripts/run_optimized_multi_year_simulation.py --years 2025 --threads 2"
+  }
+}

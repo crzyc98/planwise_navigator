@@ -128,7 +128,7 @@ class EligibilityPayload(BaseModel):
 
 
 class EnrollmentPayload(BaseModel):
-    """Deferral election and auto-enrollment handling"""
+    """Deferral election and auto-enrollment handling with enhanced window tracking"""
 
     event_type: Literal["enrollment"] = "enrollment"
     plan_id: str = Field(..., min_length=1)
@@ -138,8 +138,15 @@ class EnrollmentPayload(BaseModel):
     after_tax_contribution_rate: Decimal = Field(
         default=Decimal('0'), ge=0, le=1, decimal_places=4
     )
+
+    # Enhanced auto-enrollment tracking for E023
     auto_enrollment: bool = False
     opt_out_window_expires: Optional[date] = None
+    enrollment_source: Literal["proactive", "auto", "voluntary"] = "voluntary"
+    auto_enrollment_window_start: Optional[date] = None  # When auto-enrollment window opened
+    auto_enrollment_window_end: Optional[date] = None    # When auto-enrollment window closes
+    proactive_enrollment_eligible: bool = False          # Whether employee was eligible for proactive enrollment
+    window_timing_compliant: bool = True                 # Whether enrollment timing follows business rules
 
     @field_validator('pre_tax_contribution_rate', 'roth_contribution_rate',
                      'after_tax_contribution_rate')
@@ -204,6 +211,53 @@ class VestingPayload(BaseModel):
         """Ensure source balances have proper precision"""
         return {source: amount.quantize(Decimal('0.000001'))
                 for source, amount in v.items()}
+
+
+# Auto-Enrollment Window Management Event Payloads (E023)
+class AutoEnrollmentWindowPayload(BaseModel):
+    """Auto-enrollment window lifecycle tracking"""
+
+    event_type: Literal["auto_enrollment_window"] = "auto_enrollment_window"
+    plan_id: str = Field(..., min_length=1)
+    window_action: Literal["opened", "closed", "expired"]
+    window_start_date: date
+    window_end_date: date
+    window_duration_days: int = Field(..., ge=1, le=365)
+    default_deferral_rate: Decimal = Field(..., ge=0, le=1, decimal_places=4)
+    eligible_for_proactive: bool = True
+    proactive_window_end: Optional[date] = None  # Last date for proactive enrollment
+
+    @field_validator('default_deferral_rate')
+    @classmethod
+    def validate_deferral_rate(cls, v: Decimal) -> Decimal:
+        """Ensure deferral rate has proper precision"""
+        return v.quantize(Decimal('0.0001'))
+
+
+class EnrollmentChangePayload(BaseModel):
+    """Enrollment status changes including opt-outs and modifications"""
+
+    event_type: Literal["enrollment_change"] = "enrollment_change"
+    plan_id: str = Field(..., min_length=1)
+    change_type: Literal["opt_out", "rate_change", "source_change", "cancellation"]
+    change_reason: Literal[
+        "employee_opt_out", "plan_amendment", "compliance_correction", "system_correction"
+    ]
+    previous_enrollment_date: Optional[date] = None
+    new_pre_tax_rate: Decimal = Field(..., ge=0, le=1, decimal_places=4)
+    new_roth_rate: Decimal = Field(default=Decimal('0'), ge=0, le=1, decimal_places=4)
+    previous_pre_tax_rate: Optional[Decimal] = None
+    previous_roth_rate: Optional[Decimal] = None
+    within_opt_out_window: bool = False
+    penalty_applied: bool = False
+
+    @field_validator('new_pre_tax_rate', 'new_roth_rate', 'previous_pre_tax_rate', 'previous_roth_rate')
+    @classmethod
+    def validate_contribution_rates(cls, v: Optional[Decimal]) -> Optional[Decimal]:
+        """Ensure contribution rates have proper precision"""
+        if v is None:
+            return v
+        return v.quantize(Decimal('0.0001'))
 
 
 # Plan Administration Event Payloads (S072-04)
@@ -312,6 +366,9 @@ class SimulationEvent(BaseModel):
         Annotated[EnrollmentPayload, Field(discriminator='event_type')],
         Annotated[ContributionPayload, Field(discriminator='event_type')],
         Annotated[VestingPayload, Field(discriminator='event_type')],
+        # Auto-Enrollment Events (E023)
+        Annotated[AutoEnrollmentWindowPayload, Field(discriminator='event_type')],
+        Annotated[EnrollmentChangePayload, Field(discriminator='event_type')],
         # Plan Administration Events (S072-04)
         Annotated[ForfeiturePayload, Field(discriminator='event_type')],
         Annotated[HCEStatusPayload, Field(discriminator='event_type')],
@@ -538,7 +595,12 @@ class DCPlanEventFactory(EventFactory):
         roth_contribution_rate: Decimal,
         after_tax_contribution_rate: Decimal = Decimal('0'),
         auto_enrollment: bool = False,
-        opt_out_window_expires: Optional[date] = None
+        opt_out_window_expires: Optional[date] = None,
+        enrollment_source: Literal["proactive", "auto", "voluntary"] = "voluntary",
+        auto_enrollment_window_start: Optional[date] = None,
+        auto_enrollment_window_end: Optional[date] = None,
+        proactive_enrollment_eligible: bool = False,
+        window_timing_compliant: bool = True
     ) -> SimulationEvent:
         """Create enrollment event for deferral elections"""
 
@@ -549,7 +611,12 @@ class DCPlanEventFactory(EventFactory):
             roth_contribution_rate=roth_contribution_rate,
             after_tax_contribution_rate=after_tax_contribution_rate,
             auto_enrollment=auto_enrollment,
-            opt_out_window_expires=opt_out_window_expires
+            opt_out_window_expires=opt_out_window_expires,
+            enrollment_source=enrollment_source,
+            auto_enrollment_window_start=auto_enrollment_window_start,
+            auto_enrollment_window_end=auto_enrollment_window_end,
+            proactive_enrollment_eligible=proactive_enrollment_eligible,
+            window_timing_compliant=window_timing_compliant
         )
 
         return SimulationEvent(
@@ -637,6 +704,85 @@ class DCPlanEventFactory(EventFactory):
             plan_design_id=plan_design_id,
             effective_date=service_computation_date,
             source_system="dc_plan_administration",
+            payload=payload
+        )
+
+    @staticmethod
+    def create_auto_enrollment_window_event(
+        employee_id: str,
+        plan_id: str,
+        scenario_id: str,
+        plan_design_id: str,
+        window_action: Literal["opened", "closed", "expired"],
+        window_start_date: date,
+        window_end_date: date,
+        window_duration_days: int,
+        default_deferral_rate: Decimal,
+        eligible_for_proactive: bool = True,
+        proactive_window_end: Optional[date] = None
+    ) -> SimulationEvent:
+        """Create auto-enrollment window lifecycle event"""
+
+        payload = AutoEnrollmentWindowPayload(
+            plan_id=plan_id,
+            window_action=window_action,
+            window_start_date=window_start_date,
+            window_end_date=window_end_date,
+            window_duration_days=window_duration_days,
+            default_deferral_rate=default_deferral_rate,
+            eligible_for_proactive=eligible_for_proactive,
+            proactive_window_end=proactive_window_end
+        )
+
+        return SimulationEvent(
+            employee_id=employee_id,
+            scenario_id=scenario_id,
+            plan_design_id=plan_design_id,
+            effective_date=window_start_date if window_action == "opened" else window_end_date,
+            source_system="auto_enrollment_engine",
+            payload=payload
+        )
+
+    @staticmethod
+    def create_enrollment_change_event(
+        employee_id: str,
+        plan_id: str,
+        scenario_id: str,
+        plan_design_id: str,
+        effective_date: date,
+        change_type: Literal["opt_out", "rate_change", "source_change", "cancellation"],
+        change_reason: Literal[
+            "employee_opt_out", "plan_amendment", "compliance_correction", "system_correction"
+        ],
+        new_pre_tax_rate: Decimal,
+        new_roth_rate: Decimal = Decimal('0'),
+        previous_enrollment_date: Optional[date] = None,
+        previous_pre_tax_rate: Optional[Decimal] = None,
+        previous_roth_rate: Optional[Decimal] = None,
+        within_opt_out_window: bool = False,
+        penalty_applied: bool = False
+    ) -> SimulationEvent:
+        """Create enrollment change event for opt-outs and modifications"""
+
+        payload = EnrollmentChangePayload(
+            plan_id=plan_id,
+            change_type=change_type,
+            change_reason=change_reason,
+            previous_enrollment_date=previous_enrollment_date,
+            new_pre_tax_rate=new_pre_tax_rate,
+            new_roth_rate=new_roth_rate,
+            previous_pre_tax_rate=previous_pre_tax_rate,
+            previous_roth_rate=previous_roth_rate,
+            within_opt_out_window=within_opt_out_window,
+            penalty_applied=penalty_applied
+        )
+
+        return SimulationEvent(
+            employee_id=employee_id,
+            scenario_id=scenario_id,
+            plan_design_id=plan_design_id,
+            effective_date=effective_date,
+            source_system="enrollment_change_processing",
             payload=payload
         )
 

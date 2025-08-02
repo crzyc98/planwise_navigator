@@ -60,11 +60,11 @@ eligible_for_enrollment AS (
     -- Age-based enrollment segments
     CASE
       WHEN current_age < 30 THEN 'young'
-      WHEN current_age < 45 THEN 'mid_career' 
+      WHEN current_age < 45 THEN 'mid_career'
       WHEN current_age < 60 THEN 'mature'
       ELSE 'senior'
     END as age_segment,
-    
+
     -- Income-based segments
     CASE
       WHEN current_compensation < 50000 THEN 'low_income'
@@ -72,11 +72,11 @@ eligible_for_enrollment AS (
       WHEN current_compensation < 200000 THEN 'high'
       ELSE 'executive'
     END as income_segment,
-    
+
     -- Enhanced eligibility check: tenure >= 1 year AND not already enrolled AND hire date cutoff AND scope check
-    CASE 
-      WHEN current_tenure >= 1 
-        AND employee_enrollment_date IS NULL 
+    CASE
+      WHEN current_tenure >= 1
+        AND employee_enrollment_date IS NULL
         AND (
           -- Hire date cutoff filter (if specified)
           {% if var("auto_enrollment_hire_date_cutoff", null) %}
@@ -88,23 +88,23 @@ eligible_for_enrollment AS (
         AND (
           -- Scope check: new_hires_only vs all_eligible_employees (default to all_eligible_employees)
           CASE
-            WHEN '{{ var("auto_enrollment_scope", "all_eligible_employees") }}' = 'new_hires_only' 
+            WHEN '{{ var("auto_enrollment_scope", "all_eligible_employees") }}' = 'new_hires_only'
               THEN employee_hire_date >= CAST(simulation_year || '-01-01' AS DATE)
             WHEN '{{ var("auto_enrollment_scope", "all_eligible_employees") }}' = 'all_eligible_employees'
               THEN true
             ELSE true  -- Default to eligible if unrecognized scope
           END
         )
-        THEN true 
-      ELSE false 
+        THEN true
+      ELSE false
     END as is_eligible,
-    
+
     -- Check if already enrolled (for audit/tracking purposes)
-    CASE 
-      WHEN employee_enrollment_date IS NOT NULL THEN true 
-      ELSE false 
+    CASE
+      WHEN employee_enrollment_date IS NOT NULL THEN true
+      ELSE false
     END as is_already_enrolled,
-    
+
     -- Generate deterministic "random" values for enrollment decisions
     (ABS(HASH(employee_id || '-enroll-' || CAST(simulation_year AS VARCHAR))) % 1000) / 1000.0 as enrollment_random,
     (ABS(HASH(employee_id || '-optout-' || CAST(simulation_year AS VARCHAR))) % 1000) / 1000.0 as optout_random
@@ -119,7 +119,7 @@ enrollment_events AS (
     'enrollment' as event_type,
     efo.simulation_year,
     CAST((efo.simulation_year || '-01-15 08:00:00') AS TIMESTAMP) as effective_date, -- Fixed enrollment date
-    
+
     -- Event details based on demographics
     CASE efo.age_segment
       WHEN 'young' THEN 'Young employee auto-enrollment - 3% default deferral'
@@ -127,36 +127,36 @@ enrollment_events AS (
       WHEN 'mature' THEN 'Mature employee enrollment - 8% deferral'
       ELSE 'Senior employee enrollment - 10% deferral'
     END as event_details,
-    
+
     -- Compensation amount (current compensation at time of enrollment)
     efo.current_compensation as compensation_amount,
     NULL as previous_compensation,
-    
+
     -- Employee demographics at time of enrollment
     efo.current_age as employee_age,
     efo.current_tenure as employee_tenure,
     efo.level_id,
     efo.age_band,
     efo.tenure_band,
-    
+
     -- Event probability based on simplified demographics
     CASE efo.age_segment
       WHEN 'young' THEN 0.30        -- 30% enrollment rate for young employees
       WHEN 'mid_career' THEN 0.55   -- 55% enrollment rate for mid-career
       WHEN 'mature' THEN 0.70       -- 70% enrollment rate for mature employees
       ELSE 0.80                     -- 80% enrollment rate for senior employees
-    END * 
+    END *
     CASE efo.income_segment
       WHEN 'low_income' THEN 0.70   -- Lower enrollment for low income
       WHEN 'moderate' THEN 1.0      -- Base rate for moderate income
       WHEN 'high' THEN 1.15         -- Higher enrollment for high income
       ELSE 1.25                     -- Highest enrollment for executives
     END as event_probability,
-    
+
     -- Event category for grouping
     CASE efo.age_segment
       WHEN 'young' THEN 'auto_enrollment'
-      WHEN 'mid_career' THEN 'voluntary_enrollment' 
+      WHEN 'mid_career' THEN 'voluntary_enrollment'
       WHEN 'mature' THEN 'proactive_enrollment'
       ELSE 'executive_enrollment'
     END as event_category
@@ -168,7 +168,7 @@ enrollment_events AS (
         WHEN 'mid_career' THEN 0.55
         WHEN 'mature' THEN 0.70
         ELSE 0.80
-      END * 
+      END *
       CASE efo.income_segment
         WHEN 'low_income' THEN 0.70
         WHEN 'moderate' THEN 1.0
@@ -186,21 +186,21 @@ opt_out_events AS (
     'enrollment_change' as event_type,
     efo.simulation_year,
     CAST((efo.simulation_year || '-06-15 14:00:00') AS TIMESTAMP) as effective_date, -- Mid-year opt-out
-    
+
     -- Opt-out event details
     'Auto-enrollment opt-out - reduced deferral from default to 0%' as event_details,
-    
+
     -- Compensation remains the same, but showing the change impact
     efo.current_compensation as compensation_amount,
     efo.current_compensation as previous_compensation,
-    
+
     -- Employee demographics
     efo.current_age as employee_age,
     efo.current_tenure as employee_tenure,
     efo.level_id,
     efo.age_band,
     efo.tenure_band,
-    
+
     -- Opt-out probability based on demographics (simplified)
     CASE efo.age_segment
       WHEN 'young' THEN 0.35  -- Higher opt-out rate for young employees
@@ -214,7 +214,7 @@ opt_out_events AS (
       WHEN 'high' THEN 0.60        -- Lower opt-out for high income
       ELSE 0.20                    -- Very low opt-out for executives
     END as event_probability,
-    
+
     'enrollment_opt_out' as event_category
   FROM eligible_for_enrollment efo
   WHERE efo.is_eligible = true
@@ -249,9 +249,9 @@ all_enrollment_events AS (
     event_probability,
     event_category
   FROM enrollment_events
-  
+
   UNION ALL
-  
+
   SELECT
     employee_id,
     employee_ssn,
@@ -305,8 +305,8 @@ WHERE employee_id IS NOT NULL
   AND simulation_year IS NOT NULL
   AND effective_date IS NOT NULL
   AND event_type IS NOT NULL
-ORDER BY employee_id, effective_date, 
-  CASE event_type 
+ORDER BY employee_id, effective_date,
+  CASE event_type
     WHEN 'enrollment' THEN 1
     WHEN 'enrollment_change' THEN 2
     ELSE 3

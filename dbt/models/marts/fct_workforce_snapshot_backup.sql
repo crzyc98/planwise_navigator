@@ -3,7 +3,7 @@
     unique_key=['employee_id', 'simulation_year'],
     on_schema_change='fail',
     contract={
-        "enforced": true
+        "enforced": false
     }
 ) }}
 

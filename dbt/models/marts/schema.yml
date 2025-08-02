@@ -107,7 +107,7 @@ models:
           #     max_value: 75
       - name: employee_tenure
         description: "Employee tenure at time of event"
-        data_type: bigint
+        data_type: decimal(21,2)
       - name: level_id
         description: "Employee job level"
         data_type: integer
@@ -186,6 +186,19 @@ models:
       - dbt_utils.expression_is_true:
           expression: "current_tenure <= (current_age - 16)"
           name: "tenure_reasonable_relative_to_age"
+      # **NEW HIRE TERMINATION FIX TESTS**: Validate the core fix for new hire termination visibility
+      # Test that new hire terminations have terminated employment status
+      - dbt_utils.expression_is_true:
+          expression: "detailed_status_code != 'new_hire_termination' OR employment_status = 'terminated'"
+          name: "new_hire_terminations_marked_as_terminated"
+      # Test that new hire terminations have termination dates
+      - dbt_utils.expression_is_true:
+          expression: "detailed_status_code != 'new_hire_termination' OR termination_date IS NOT NULL"
+          name: "new_hire_terminations_have_termination_date"
+      # Test that terminated employees hired in current year are classified as new_hire_termination
+      - dbt_utils.expression_is_true:
+          expression: "NOT (employment_status = 'terminated' AND EXTRACT(YEAR FROM employee_hire_date) = simulation_year) OR detailed_status_code = 'new_hire_termination'"
+          name: "terminated_new_hires_classified_correctly"
     columns:
       - name: employee_id
         description: "Unique employee identifier within simulation year"
@@ -489,3 +502,6 @@ models:
       - dbt_utils.expression_is_true:
           expression: "simulation_year BETWEEN 2020 AND 2050"
           name: "compensation_simulation_year_bounds"
+
+# Note: Cross-table consistency tests are implemented in separate analysis models
+# See data_quality_new_hire_termination_audit.sql and data_quality_event_sourcing_integrity.sql

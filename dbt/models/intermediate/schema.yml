@@ -49,6 +49,205 @@ models:
           - dbt_utils.accepted_range:
               min_value: 0
 
+  - name: int_workforce_needs
+    description: >
+      Centralized workforce planning calculations providing single source of truth
+      for hiring targets, termination expectations, and growth goals.
+      Includes financial impact analysis and workforce balance validation.
+    config:
+      tags: ["workforce_planning", "core_calculations"]
+    tests:
+      - dbt_utils.unique_combination_of_columns:
+          combination_of_columns:
+            - simulation_year
+            - scenario_id
+    columns:
+      - name: workforce_needs_id
+        description: Unique identifier for this workforce needs calculation
+        data_tests:
+          - unique
+          - not_null
+      - name: scenario_id
+        description: Scenario identifier for multi-scenario planning
+        data_tests:
+          - not_null
+      - name: simulation_year
+        description: Year for which workforce needs are calculated
+        data_tests:
+          - not_null
+      - name: starting_workforce_count
+        description: Total active workforce at start of year
+        data_tests:
+          - not_null
+          - dbt_utils.accepted_range:
+              min_value: 0
+      - name: target_growth_rate
+        description: Target workforce growth rate (e.g., 0.03 for 3%)
+        data_tests:
+          - not_null
+          - dbt_utils.accepted_range:
+              min_value: -0.5
+              max_value: 0.5
+      - name: expected_experienced_terminations
+        description: Expected number of experienced employee terminations
+        data_tests:
+          - not_null
+          - dbt_utils.accepted_range:
+              min_value: 0
+      - name: expected_new_hire_terminations
+        description: Expected number of new hire terminations
+        data_tests:
+          - not_null
+          - dbt_utils.accepted_range:
+              min_value: 0
+      - name: total_hires_needed
+        description: Total number of hires needed to achieve growth target
+        data_tests:
+          - not_null
+          - dbt_utils.accepted_range:
+              min_value: 0
+      - name: balance_status
+        description: Workforce balance validation status
+        data_tests:
+          - not_null
+          - accepted_values:
+              values: ['BALANCED', 'MINOR_VARIANCE', 'SIGNIFICANT_VARIANCE']
+      - name: growth_variance
+        description: Variance between calculated and target growth
+        data_tests:
+          - not_null
+
+  - name: int_workforce_needs_by_level
+    description: >
+      Detailed workforce needs by job level with comprehensive cost modeling.
+      Provides granular visibility into hiring, termination, and financial impact by level.
+    config:
+      tags: ["workforce_planning", "cost_modeling", "level_detail"]
+    tests:
+      - dbt_utils.unique_combination_of_columns:
+          combination_of_columns:
+            - simulation_year
+            - scenario_id
+            - level_id
+    columns:
+      - name: workforce_needs_id
+        description: Reference to parent workforce needs calculation
+        data_tests:
+          - not_null
+          - relationships:
+              to: ref('int_workforce_needs')
+              field: workforce_needs_id
+      - name: level_id
+        description: Job level identifier
+        data_tests:
+          - not_null
+          - relationships:
+              to: ref('stg_config_job_levels')
+              field: level_id
+      - name: current_headcount
+        description: Current headcount for this level
+        data_tests:
+          - not_null
+          - dbt_utils.accepted_range:
+              min_value: 0
+      - name: hires_needed
+        description: Number of hires needed for this level
+        data_tests:
+          - not_null
+          - dbt_utils.accepted_range:
+              min_value: 0
+      - name: expected_terminations
+        description: Expected terminations for this level
+        data_tests:
+          - not_null
+          - dbt_utils.accepted_range:
+              min_value: 0
+      - name: net_headcount_change
+        description: Net change in headcount for this level
+        data_tests:
+          - not_null
+      - name: total_budget_impact
+        description: Total budget impact including all costs
+        data_tests:
+          - not_null
+
+  - name: int_workforce_snapshot_optimized
+    description: >
+      Optimized workforce snapshot with performance enhancements for large datasets.
+      Provides comprehensive employee state with all financial calculations.
+    config:
+      contract:
+        enforced: true
+    columns:
+      - name: employee_id
+        description: Unique employee identifier
+        data_type: varchar
+        constraints:
+          - type: not_null
+      - name: employee_ssn
+        description: Employee social security number
+        data_type: varchar
+      - name: employee_birth_date
+        description: Employee birth date
+        data_type: date
+      - name: employee_hire_date
+        description: Employee hire date
+        data_type: date
+      - name: current_compensation
+        description: Current annual compensation
+        data_type: double
+      - name: prorated_annual_compensation
+        description: Prorated compensation for partial year
+        data_type: double
+      - name: full_year_equivalent_compensation
+        description: Full year equivalent compensation
+        data_type: double
+      - name: current_age
+        description: Employee current age
+        data_type: int32
+      - name: current_tenure
+        description: Employee current tenure in years
+        data_type: double
+      - name: level_id
+        description: Employee job level
+        data_type: int32
+      - name: age_band
+        description: Age band classification
+        data_type: varchar
+      - name: tenure_band
+        description: Tenure band classification
+        data_type: varchar
+      - name: employment_status
+        description: Employment status (active/terminated)
+        data_type: varchar
+      - name: termination_date
+        description: Termination date if applicable
+        data_type: timestamp
+      - name: termination_reason
+        description: Reason for termination
+        data_type: varchar
+      - name: detailed_status_code
+        description: Detailed status code
+        data_type: varchar
+      - name: simulation_year
+        description: Simulation year
+        data_type: int32
+      - name: employee_eligibility_date
+        description: Employee eligibility date
+        data_type: date
+      - name: waiting_period_days
+        description: Waiting period in days
+        data_type: int32
+      - name: current_eligibility_status
+        description: Current eligibility status
+        data_type: varchar
+      - name: employee_enrollment_date
+        description: Employee enrollment date
+        data_type: date
+      - name: snapshot_created_at
+        description: Timestamp when snapshot was created
+        data_type: timestamp
+
   - name: int_partitioned_workforce_data
     description: >
       Optimized partitioned workforce data with proper indexing and data types.
@@ -251,12 +450,12 @@ models:
         description: The last completed simulation year before this baseline
         data_tests:
           - not_null
-      
+
       - name: employee_eligibility_date
         description: Date when employee becomes eligible for DC plan participation (from census)
         data_tests:
           - not_null
-      
+
       - name: waiting_period_days
         description: Number of days employee must wait after hire to become eligible (from census)
         data_tests:
@@ -264,14 +463,14 @@ models:
           - dbt_utils.accepted_range:
               min_value: 0
               max_value: 365
-      
+
       - name: current_eligibility_status
         description: Current eligibility status based on census data (eligible/pending)
         data_tests:
           - not_null
           - accepted_values:
               values: ['eligible', 'pending']
-      
+
       - name: employee_enrollment_date
         description: Date when employee enrolled in DC plan (from census)
 

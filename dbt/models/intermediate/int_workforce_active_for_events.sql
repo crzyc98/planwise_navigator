@@ -68,7 +68,7 @@ SELECT
     employment_status,
     -- Data quality flags
     data_quality_valid as valid_age,
-    data_quality_valid as valid_tenure, 
+    data_quality_valid as valid_tenure,
     data_quality_valid as valid_compensation,
     data_source
 FROM {{ ref('int_active_employees_prev_year_snapshot') }}
