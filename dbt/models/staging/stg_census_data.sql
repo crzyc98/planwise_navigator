@@ -77,6 +77,28 @@ annualized_data AS (
 
   FROM raw_data
   WHERE rn = 1
+),
+
+-- Calculate eligibility and enrollment fields
+eligibility_data AS (
+  SELECT
+      ad.*,
+      {{ var('eligibility_waiting_period_days', 30) }} AS waiting_period_days,
+      -- Calculate eligibility date: hire date + waiting period
+      (ad.employee_hire_date + INTERVAL {{ var('eligibility_waiting_period_days', 30) }} DAY)::DATE AS employee_eligibility_date,
+      -- Determine current eligibility status based on eligibility date vs census year end
+      CASE
+          WHEN (ad.employee_hire_date + INTERVAL {{ var('eligibility_waiting_period_days', 30) }} DAY)::DATE <= '{{ var("plan_year_end_date", "2024-12-31") }}'::DATE
+          THEN 'eligible'
+          ELSE 'pending'
+      END AS current_eligibility_status,
+      -- Set enrollment date to end of census year only if employee has positive deferral rate
+      CASE
+          WHEN ad.employee_deferral_rate > 0
+          THEN '{{ var("plan_year_end_date", "2024-12-31") }}'::DATE
+          ELSE NULL
+      END AS employee_enrollment_date
+  FROM annualized_data ad
 )
 
 -- **FIX**: Select only the first occurrence of each employee_id after deduplication
@@ -99,6 +121,11 @@ SELECT
     after_tax_contribution,
     employer_core_contribution,
     employer_match_contribution,
-    eligibility_entry_date
+    eligibility_entry_date,
+    -- **NEW**: Add eligibility and enrollment fields
+    employee_eligibility_date,
+    waiting_period_days,
+    current_eligibility_status,
+    employee_enrollment_date
 
-FROM annualized_data
+FROM eligibility_data

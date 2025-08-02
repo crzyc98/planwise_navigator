@@ -86,6 +86,81 @@ vars:
   raise_timing_profile: "general_corporate"  # Distribution profile to use
   timing_tolerance: 2.0  # ±2% tolerance for monthly distribution validation
 
+  # Plan eligibility configuration (separate from employer contribution eligibility)
+  plan_eligibility_waiting_period_days: 0    # Default: immediate eligibility for plan participation
+  plan_eligibility_minimum_age: 21           # Minimum age to participate in the plan
+
+  # E023 Auto-Enrollment Configuration
+  # Core auto-enrollment settings
+  auto_enrollment_enabled: true
+  auto_enrollment_window_days: 45             # Configurable window (45 days default)
+  auto_enrollment_default_deferral_rate: 0.06 # 6% default deferral rate
+  auto_enrollment_opt_out_grace_period: 30    # Days after auto-enrollment for penalty-free opt-out
+  # NOTE: auto_enrollment_scope and auto_enrollment_hire_date_cutoff are passed as runtime variables from orchestrator
+
+  # Proactive enrollment settings (voluntary enrollment within auto-enrollment window)
+  proactive_enrollment_enabled: true
+  proactive_enrollment_min_days: 7            # Earliest proactive enrollment (7 days after eligibility)
+  proactive_enrollment_max_days: 35           # Latest proactive enrollment (10 days before auto-enrollment deadline)
+  proactive_cutoff_before_auto: 10            # Days before auto-enrollment deadline for proactive cutoff
+
+  # Demographic-based enrollment probabilities
+  proactive_enrollment_rate_young: 0.25       # Ages 18-30: Lower proactive enrollment rate
+  proactive_enrollment_rate_mid_career: 0.45  # Ages 31-45: Moderate proactive enrollment rate
+  proactive_enrollment_rate_mature: 0.65      # Ages 46-55: Higher proactive enrollment rate
+  proactive_enrollment_rate_senior: 0.75      # Ages 56+: Highest proactive enrollment rate
+
+  # Income-based enrollment adjustments
+  enrollment_adjustment_low_income: 0.80      # Multiplier for <$30k (reduced enrollment)
+  enrollment_adjustment_moderate: 1.00        # Baseline for $30k-$50k
+  enrollment_adjustment_high: 1.15            # Multiplier for $50k-$100k (increased enrollment)
+  enrollment_adjustment_executive: 1.30       # Multiplier for >$100k (highest enrollment)
+
+  # Voluntary-only enrollment (for plans without auto-enrollment)
+  voluntary_enrollment_enabled: true
+  voluntary_enrollment_base_probability: 0.60 # Base probability of voluntary enrollment per year
+  voluntary_age_factor_per_year: 0.01         # +1% per year over age 25
+  voluntary_tenure_factor_per_year: 0.05      # +5% per year of service
+  voluntary_high_earner_bonus: 0.15           # +15% for earners >$100k
+
+  # Opt-out probabilities by demographics
+  opt_out_rate_young: 0.35                    # Ages 18-25
+  opt_out_rate_mid: 0.20                      # Ages 26-35
+  opt_out_rate_mature: 0.15                   # Ages 36-50
+  opt_out_rate_senior: 0.10                   # Ages 51+
+
+  # Income-based opt-out adjustments
+  opt_out_rate_low_income: 0.40               # <$30k (higher opt-out)
+  opt_out_rate_moderate: 0.25                 # $30k-$50k (baseline)
+  opt_out_rate_high: 0.15                     # $50k-$100k (lower opt-out)
+  opt_out_rate_executive: 0.05                # >$100k (lowest opt-out)
+
+  # Deferral rate distribution for new enrollments
+  deferral_rate_3pct_prob: 0.25               # 25% choose 3% (match threshold)
+  deferral_rate_6pct_prob: 0.35               # 35% choose 6% (common default)
+  deferral_rate_10pct_prob: 0.20              # 20% choose 10% (round number)
+  deferral_rate_15pct_prob: 0.10              # 10% choose 15% (high savers)
+  deferral_rate_max_prob: 0.10                # 10% choose maximum (limit maximizers)
+
+  # Timing and processing configuration
+  enrollment_processing_frequency: "monthly"   # Options: "daily", "weekly", "monthly", "quarterly"
+  enrollment_deterministic_timing: true       # Ensure reproducible simulation results
+  enrollment_business_day_adjustment: true    # Adjust enrollment dates to business days
+  enrollment_holiday_calendar: "us_federal"   # Holiday calendar for business day calculations
+
+  # Performance optimization settings
+  enrollment_batch_processing_size: 10000     # Process enrollment in batches for large populations
+  enrollment_enable_parallel_processing: true # Enable parallel processing for performance
+  enrollment_cache_demographic_calculations: true # Cache demographic-based probability calculations
+  enrollment_materialization_strategy: "table" # dbt materialization strategy for enrollment models
+
+  # Plan-specific overrides (future enhancement)
+  emergency_plan_auto_enrollment_enabled: false # Disable auto-enrollment for emergency plans
+  emergency_plan_window_days: 30                 # Shorter window for emergency plans
+  executive_plan_auto_enrollment_enabled: true   # Enable auto-enrollment for executive plans
+  executive_plan_window_days: 60                 # Longer window for executive plans
+  executive_plan_default_deferral_rate: 0.10     # Higher default rate for executives
+
   # Data quality thresholds
   accepted_diff_pct: 0.5
   max_termination_rate: 0.50

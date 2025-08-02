@@ -2,89 +2,48 @@
 
 {% set simulation_year = var('simulation_year') %}
 
--- Generate hiring events to replace departures and achieve target growth
--- Epic 11.5 Step f: Calculate net new hires needed based on departures and growth target
+-- Generate hiring events based on centralized workforce needs calculations
+-- Refactored to use int_workforce_needs as single source of truth
 
-WITH simulation_config AS (
+WITH workforce_needs AS (
+  -- Get hiring requirements from centralized workforce planning
   SELECT
-    {{ simulation_year }} AS current_year,
-    {{ var('target_growth_rate', 0.03) }} AS target_growth_rate
-),
-
--- Get previous year workforce count for growth calculation
--- Use consistent data source with other event models
-workforce_count AS (
-  SELECT COUNT(*) AS workforce_count
-  FROM {{ ref('int_employee_compensation_by_year') }}
+    workforce_needs_id,
+    scenario_id,
+    simulation_year,
+    total_hires_needed,
+    starting_workforce_count,
+    target_growth_rate,
+    expected_experienced_terminations,
+    expected_new_hire_terminations,
+    calculated_net_change,
+    target_ending_workforce
+  FROM {{ ref('int_workforce_needs') }}
   WHERE simulation_year = {{ simulation_year }}
-  AND employment_status = 'active'
+    AND scenario_id = '{{ var('scenario_id', 'default') }}'
 ),
 
--- DETERMINISTIC APPROACH: Use exact termination count from int_termination_events
-total_expected_departures AS (
+-- Get detailed hiring needs by level
+workforce_needs_by_level AS (
   SELECT
-    wc.workforce_count,
-    -- Get ACTUAL experienced terminations count (exclude previous year new hires to avoid over-hiring)
-    (SELECT COUNT(*) FROM {{ ref('int_termination_events') }}
-     WHERE simulation_year = {{ simulation_year }}
-     AND employee_type = 'experienced') AS expected_experienced_terminations_count,
-    wc.workforce_count * {{ var('target_growth_rate', 0.03) }} AS target_growth_amount_decimal,
-    -- Calculate exact hires needed for perfect 3% growth
-    -- Formula: hires = (target_net_growth + TRUE_experienced_terms) / (1 - new_hire_term_rate)
-    -- KEY FIX: Only count terminations of truly experienced employees (hired 2+ years ago)
-    -- Previous year new hire terminations are NOT workforce losses that need experienced replacement
-    ROUND(
-      (ROUND(wc.workforce_count * {{ var('target_growth_rate', 0.03) }}) +
-       (SELECT COUNT(*) FROM {{ ref('int_termination_events') }}
-        WHERE simulation_year = {{ simulation_year }}
-        AND employee_type = 'experienced')) /
-      (1 - {{ var('new_hire_termination_rate', 0.25) }})
-    ) AS total_hires_needed
-  FROM workforce_count wc
+    level_id,
+    hires_needed,
+    new_hire_avg_compensation
+  FROM {{ ref('int_workforce_needs_by_level') }}
+  WHERE simulation_year = {{ simulation_year }}
+    AND scenario_id = '{{ var('scenario_id', 'default') }}'
 ),
 
--- Calculate hiring target
-hiring_calculation AS (
+-- Generate hire sequence using workforce needs by level
+hire_sequence AS (
   SELECT
-    wc.workforce_count AS starting_active_workforce, -- Rename for clarity
-    td.expected_experienced_terminations_count AS experienced_terminations, -- Use the CEILed value
-    td.total_hires_needed,
-    sc.target_growth_rate,
-
-    -- Expected new hire terminations - use ROUND for better balance (this matches int_new_hire_termination_events logic)
-    ROUND(td.total_hires_needed * {{ var('new_hire_termination_rate', 0.25) }}) AS expected_new_hire_terminations,
-
-    -- Calculate net change based on these aligned values
-    (td.total_hires_needed - td.expected_experienced_terminations_count -
-     ROUND(td.total_hires_needed * {{ var('new_hire_termination_rate', 0.25) }})) AS net_workforce_change_actual,
-
-    -- Target ending workforce based purely on growth rate, for comparison
-    ROUND(wc.workforce_count * (1 + sc.target_growth_rate)) AS target_ending_workforce_count
-
-  FROM workforce_count wc
-  CROSS JOIN total_expected_departures td
-  CROSS JOIN simulation_config sc
-),
-
--- Generate level distribution for new hires (weighted toward entry levels)
-level_distribution AS (
-  SELECT * FROM (VALUES
-    (1, 0.40), -- 40% Level 1 (entry level)
-    (2, 0.30), -- 30% Level 2
-    (3, 0.20), -- 20% Level 3
-    (4, 0.08), -- 8% Level 4
-    (5, 0.02)  -- 2% Level 5 (senior)
-  ) AS t(level_id, distribution_weight)
-),
-
--- Calculate hires per level
-hires_per_level AS (
-  SELECT
-    ld.level_id,
-    ld.distribution_weight,
-    CEIL(hc.total_hires_needed * ld.distribution_weight) AS hires_for_level
-  FROM hiring_calculation hc
-  CROSS JOIN level_distribution ld
+    ROW_NUMBER() OVER (ORDER BY wnbl.level_id, seq.i) AS hire_sequence_num,
+    wnbl.level_id,
+    wnbl.hires_needed,
+    wnbl.new_hire_avg_compensation
+  FROM workforce_needs_by_level wnbl
+  CROSS JOIN UNNEST(range(1::BIGINT, CAST(wnbl.hires_needed AS BIGINT) + 1)) AS seq(i)
+  WHERE wnbl.hires_needed > 0
 ),
 
 -- Generate age distribution for new hires (realistic hiring age profile)
@@ -101,37 +60,6 @@ age_distribution AS (
   ) AS t(hire_age, age_weight)
 ),
 
--- Get compensation ranges by level for salary assignment
-compensation_ranges AS (
-  SELECT
-    level_id,
-    min_compensation,
-    -- Cap max compensation at reasonable levels to avoid extreme outliers
-    CASE
-      WHEN level_id <= 3 THEN max_compensation
-      WHEN level_id = 4 THEN LEAST(max_compensation, 250000)  -- Cap Level 4 at $250K
-      WHEN level_id = 5 THEN LEAST(max_compensation, 350000)  -- Cap Level 5 at $350K
-      ELSE max_compensation
-    END AS max_compensation,
-    -- Calculate average based on capped values to prevent extreme compensation assignments
-    (min_compensation +
-     CASE
-       WHEN level_id <= 3 THEN max_compensation
-       WHEN level_id = 4 THEN LEAST(max_compensation, 250000)
-       WHEN level_id = 5 THEN LEAST(max_compensation, 350000)
-       ELSE max_compensation
-     END) / 2 AS avg_compensation
-  FROM {{ ref('stg_config_job_levels') }}
-),
-
--- Generate hire sequence using UNNEST(sequence()) to handle arbitrary hire counts without constant-bound limitations
-hire_sequence AS (
-  SELECT
-    ROW_NUMBER() OVER (ORDER BY hpl.level_id, seq.i) AS hire_sequence_num,
-    hpl.level_id
-  FROM hires_per_level hpl
-  CROSS JOIN UNNEST(range(1::BIGINT, CAST(hpl.hires_for_level AS BIGINT))) AS seq(i)
-),
 
 -- Assign attributes to each new hire
 new_hire_assignments AS (
@@ -139,9 +67,8 @@ new_hire_assignments AS (
     hs.hire_sequence_num,
     hs.level_id,
 
-    -- Generate globally unique employee ID using UUID for guaranteed uniqueness
-    'NH_' || CAST((SELECT current_year FROM simulation_config) AS VARCHAR) || '_' ||
-    SUBSTR(CAST(gen_random_uuid() AS VARCHAR), 1, 8) || '_' ||
+    -- Generate deterministic employee ID (no random UUID to ensure consistency)
+    'NH_' || CAST({{ simulation_year }} AS VARCHAR) || '_' ||
     LPAD(CAST(hs.hire_sequence_num AS VARCHAR), 6, '0') AS employee_id,
 
     -- Generate SSN
@@ -170,26 +97,26 @@ new_hire_assignments AS (
     -- Hire date evenly distributed throughout year using modulo for cycling
     CAST('{{ simulation_year }}-01-01' AS DATE) + INTERVAL (hs.hire_sequence_num % 365) DAY AS hire_date,
 
-    -- Simple compensation assignment (based on level with small variance)
-    -- Apply new hire salary adjustment parameter
-    ROUND(cr.avg_compensation * (0.9 + (hs.hire_sequence_num % 10) * 0.02) *
-          COALESCE({{ get_parameter_value('hs.level_id', 'hire', 'new_hire_salary_adjustment', simulation_year) }}, 1.0), 2) AS compensation_amount
+    -- Use compensation from workforce needs with small variance for realism
+    ROUND(hs.new_hire_avg_compensation * (0.9 + (hs.hire_sequence_num % 10) * 0.02), 2) AS compensation_amount
 
   FROM hire_sequence hs
-  LEFT JOIN compensation_ranges cr ON hs.level_id = cr.level_id
 )
 
 SELECT
   nha.employee_id,
   nha.employee_ssn,
   'hire' AS event_type,
-  (SELECT current_year FROM simulation_config) AS simulation_year,
+  {{ simulation_year }} AS simulation_year,
   nha.hire_date AS effective_date,
   nha.employee_age,
   nha.birth_date,
   nha.level_id,
   nha.compensation_amount,
   'external_hire' AS hire_source,
-  CURRENT_TIMESTAMP AS created_at
+  CURRENT_TIMESTAMP AS created_at,
+  -- Add reference to workforce planning using subquery to avoid CROSS JOIN amplification
+  (SELECT workforce_needs_id FROM workforce_needs LIMIT 1) AS workforce_needs_id,
+  (SELECT scenario_id FROM workforce_needs LIMIT 1) AS scenario_id
 FROM new_hire_assignments nha
 ORDER BY nha.hire_sequence_num

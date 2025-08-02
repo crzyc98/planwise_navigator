@@ -287,30 +287,62 @@ final_workforce_corrected AS (
     FROM workforce_with_corrected_levels uw
 ),
 
--- Extract eligibility information from eligibility events
+-- Extract eligibility information from baseline (year 1) or events (subsequent years)
 employee_eligibility AS (
+    {% if simulation_year == start_year %}
+    -- Year 1: Get eligibility data from baseline workforce (census data)
     SELECT DISTINCT
         employee_id,
-        JSON_EXTRACT_STRING(event_details, '$.eligibility_date')::DATE AS employee_eligibility_date,
-        JSON_EXTRACT(event_details, '$.waiting_period_days')::INT AS waiting_period_days,
-        JSON_EXTRACT_STRING(event_details, '$.eligibility_status') AS initial_eligibility_status,
-        -- Derive current eligibility status based on eligibility date and current date
-        CASE
-            WHEN JSON_EXTRACT_STRING(event_details, '$.eligibility_date')::DATE <= '{{ simulation_year }}-12-31'::DATE
-            THEN 'eligible'
-            ELSE 'pending'
-        END AS current_eligibility_status
-    FROM {{ ref('fct_yearly_events') }}
-    WHERE event_type = 'eligibility'
-      AND JSON_EXTRACT_STRING(event_details, '$.determination_type') = 'initial'
-      -- Get the most recent eligibility determination for each employee
-      AND simulation_year IN (
-          SELECT MAX(simulation_year)
-          FROM {{ ref('fct_yearly_events') }} ey
-          WHERE ey.event_type = 'eligibility'
-            AND ey.employee_id = fct_yearly_events.employee_id
-            AND ey.simulation_year <= {{ simulation_year }}
-      )
+        employee_eligibility_date,
+        waiting_period_days,
+        current_eligibility_status,
+        employee_enrollment_date
+    FROM {{ ref('int_baseline_workforce') }}
+    WHERE employment_status = 'active'
+    {% else %}
+    -- Subsequent years: Get from eligibility events and baseline for those without events
+    SELECT DISTINCT
+        COALESCE(events.employee_id, baseline.employee_id) AS employee_id,
+        COALESCE(events.employee_eligibility_date, baseline.employee_eligibility_date) AS employee_eligibility_date,
+        COALESCE(events.waiting_period_days, baseline.waiting_period_days) AS waiting_period_days,
+        COALESCE(events.current_eligibility_status, baseline.current_eligibility_status) AS current_eligibility_status,
+        baseline.employee_enrollment_date  -- Keep enrollment date from baseline if available
+    FROM (
+        -- Get eligibility from events
+        SELECT DISTINCT
+            employee_id,
+            JSON_EXTRACT_STRING(event_details, '$.eligibility_date')::DATE AS employee_eligibility_date,
+            JSON_EXTRACT(event_details, '$.waiting_period_days')::INT AS waiting_period_days,
+            -- Derive current eligibility status based on eligibility date and current date
+            CASE
+                WHEN JSON_EXTRACT_STRING(event_details, '$.eligibility_date')::DATE <= '{{ simulation_year }}-12-31'::DATE
+                THEN 'eligible'
+                ELSE 'pending'
+            END AS current_eligibility_status
+        FROM {{ ref('fct_yearly_events') }}
+        WHERE event_type = 'eligibility'
+          AND JSON_EXTRACT_STRING(event_details, '$.determination_type') = 'initial'
+          -- Get the most recent eligibility determination for each employee
+          AND simulation_year IN (
+              SELECT MAX(simulation_year)
+              FROM {{ ref('fct_yearly_events') }} ey
+              WHERE ey.event_type = 'eligibility'
+                AND ey.employee_id = fct_yearly_events.employee_id
+                AND ey.simulation_year <= {{ simulation_year }}
+          )
+    ) events
+    FULL OUTER JOIN (
+        -- Get baseline eligibility for employees without events
+        SELECT 
+            employee_id,
+            employee_eligibility_date,
+            waiting_period_days,
+            current_eligibility_status,
+            employee_enrollment_date
+        FROM {{ ref('int_baseline_workforce') }}
+        WHERE employment_status = 'active'
+    ) baseline ON events.employee_id = baseline.employee_id
+    {% endif %}
 ),
 
 -- CTEs for prorated compensation calculation
@@ -498,6 +530,7 @@ final_workforce AS (
         ee.employee_eligibility_date,
         ee.waiting_period_days,
         ee.current_eligibility_status,
+        ee.employee_enrollment_date,
         -- Recalculate bands with updated age/tenure (these are indeed static for a given year here)
         CASE
             WHEN fwc.current_age < 25 THEN '< 25'
@@ -610,6 +643,7 @@ SELECT
     employee_eligibility_date,
     waiting_period_days,
     current_eligibility_status,
+    employee_enrollment_date,
     CURRENT_TIMESTAMP AS snapshot_created_at
 FROM final_workforce
 

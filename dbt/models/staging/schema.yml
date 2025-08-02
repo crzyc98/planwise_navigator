@@ -87,6 +87,35 @@ models:
         data_type: date
         constraints:
           - type: not_null
+      - name: employee_eligibility_date
+        description: "Date when employee becomes eligible for DC plan participation (hire date + waiting period)."
+        data_type: date
+        constraints:
+          - type: not_null
+        data_tests:
+          - not_null
+      - name: waiting_period_days
+        description: "Number of days employee must wait after hire to become eligible for DC plan participation."
+        data_type: integer
+        constraints:
+          - type: not_null
+        data_tests:
+          - not_null
+          - dbt_utils.accepted_range:
+              min_value: 0
+              max_value: 365
+      - name: current_eligibility_status
+        description: "Current eligibility status based on eligibility date vs census year end (eligible/pending)."
+        data_type: varchar
+        constraints:
+          - type: not_null
+        data_tests:
+          - not_null
+          - accepted_values:
+              values: ['eligible', 'pending']
+      - name: employee_enrollment_date
+        description: "Date when employee enrolled in DC plan. Set to census year end only if employee_deferral_rate > 0."
+        data_type: date
 
   - name: stg_census_duplicates_audit
     description: >

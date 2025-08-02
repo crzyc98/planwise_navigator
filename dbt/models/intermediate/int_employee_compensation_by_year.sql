@@ -40,6 +40,7 @@ SELECT
     age_band,
     tenure_band,
     employment_status,
+    employee_enrollment_date,  -- Include enrollment status for enrollment events
     'baseline_workforce' AS data_source,
     -- Additional metadata for validation
     current_compensation AS starting_year_compensation,
@@ -79,6 +80,7 @@ SELECT
         ELSE '20+'
     END AS tenure_band,
     employment_status,
+    NULL AS employee_enrollment_date,  -- TODO: Need to track enrollment status across years
     'previous_year_helper_model' AS data_source,
     -- Additional metadata for validation
     employee_gross_compensation AS starting_year_compensation,
