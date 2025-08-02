@@ -2,17 +2,22 @@
 
 {% set simulation_year = var('simulation_year') %}
 {% set start_year = var('start_year', var('simulation_year')) | int %}
-{% set exp_term_rate = var('total_termination_rate', 0.12) %}
 
 -- Generate termination events using hazard-based probability selection
--- Connects to existing termination hazard infrastructure for demographically-aware modeling
--- Follows same pattern as promotions: WHERE random_value < termination_rate
+-- Refactored to use int_workforce_needs for termination targets
 
-WITH simulation_config AS (
+WITH workforce_needs AS (
+    -- Get termination targets from centralized workforce planning
     SELECT
-        {{ simulation_year }} AS current_year,
-        {{ exp_term_rate }} AS experienced_termination_rate,
-        {{ var('target_growth_rate', 0.03) }} AS target_growth_rate
+        workforce_needs_id,
+        scenario_id,
+        simulation_year,
+        expected_experienced_terminations,
+        experienced_termination_rate,
+        starting_experienced_count
+    FROM {{ ref('int_workforce_needs') }}
+    WHERE simulation_year = {{ simulation_year }}
+      AND scenario_id = '{{ var('scenario_id', 'default') }}'
 ),
 
 active_workforce AS (
@@ -56,29 +61,23 @@ workforce_with_bands AS (
 ),
 
 
--- HAZARD-BASED APPROACH: Use probability-based selection following promotion pattern
--- Connect to existing hazard infrastructure for demographically-aware terminations
+-- SIMPLIFIED APPROACH: Use basic probability-based selection
 eligible_for_termination AS (
     SELECT
         w.*,
-        h.termination_rate,
+        wn.experienced_termination_rate AS termination_rate,
         -- Generate deterministic random number for probability comparison
         (ABS(HASH(w.employee_id)) % 1000) / 1000.0 AS random_value
     FROM workforce_with_bands w
-    JOIN {{ ref('int_hazard_termination') }} h
-        ON w.level_id = h.level_id
-        AND w.age_band = h.age_band
-        AND w.tenure_band = h.tenure_band
-        AND h.year = {{ simulation_year }}
+    CROSS JOIN workforce_needs wn
 ),
 
--- SOPHISTICATED APPROACH: Hazard-based terminations + quota gap-filling to achieve exactly 12%
+-- SOPHISTICATED APPROACH: Hazard-based terminations + quota gap-filling to achieve target from workforce needs
 final_experienced_terminations AS (
-    -- Calculate exactly how many terminations we need (12% of experienced employees only)
+    -- Use centralized target from workforce needs
     WITH target_calculation AS (
-        SELECT ROUND(
-            (SELECT COUNT(*) FROM workforce_with_bands WHERE employee_type = 'experienced') * {{ exp_term_rate }}
-        ) AS target_count
+        SELECT expected_experienced_terminations AS target_count
+        FROM workforce_needs
     )
     SELECT
         w.employee_id,
@@ -114,7 +113,16 @@ final_experienced_terminations AS (
             CASE WHEN e.random_value IS NOT NULL AND e.random_value < e.termination_rate THEN 0 ELSE 1 END,
             COALESCE(e.random_value, (ABS(HASH(w.employee_id)) % 1000) / 1000.0)
     ) <= target_calculation.target_count
+),
+
+-- Return the hazard-based terminations with workforce planning reference
+final_result AS (
+  SELECT
+    fet.*,
+    wn.workforce_needs_id,
+    wn.scenario_id
+  FROM final_experienced_terminations fet
+  CROSS JOIN workforce_needs wn
 )
 
--- Return the hazard-based terminations
-SELECT * FROM final_experienced_terminations
+SELECT * FROM final_result

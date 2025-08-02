@@ -2,10 +2,10 @@
 
 /*
   Enrollment Event Count Validation Analysis
-  
+
   Provides comprehensive count validation for enrollment events to verify
   that the fixes are working properly and events are being generated.
-  
+
   Usage: dbt run --select debug_enrollment_event_counts --vars '{"simulation_year": 2025, "auto_enrollment_hire_date_cutoff": "2020-01-01", "auto_enrollment_scope": "all_eligible_employees"}'
 */
 
@@ -58,7 +58,7 @@ demographic_breakdown AS (
     COUNT(CASE WHEN will_enroll = true THEN 1 END) as enrolled_count,
     ROUND(AVG(final_enrollment_probability), 3) as avg_enrollment_prob
   FROM (
-    SELECT 
+    SELECT
       CASE
         WHEN current_age < 30 THEN 'young'
         WHEN current_age < 45 THEN 'mid_career'
@@ -74,8 +74,8 @@ demographic_breakdown AS (
       (ABS(HASH(employee_id || '{{ var("simulation_year") }}' || '42')) % 1000000) / 1000000.0 < 0.5 as will_enroll,
       0.5 as final_enrollment_probability
     FROM {{ ref('int_baseline_workforce') }}
-    WHERE employment_status = 'active' 
-      AND current_tenure >= 1 
+    WHERE employment_status = 'active'
+      AND current_tenure >= 1
       AND employee_enrollment_date IS NULL
       AND simulation_year = {{ var('simulation_year') }}
   ) demo_calc
@@ -93,19 +93,19 @@ validation_summary AS (
     COALESCE(o.optimized_total_events, 0) as optimized_events_generated,
     b.config_scope,
     b.config_cutoff,
-    
+
     -- Calculate expected vs actual
-    CASE 
+    CASE
       WHEN COALESCE(e.total_enrollment_events, 0) = 0 THEN 'FAILED - No events generated'
       WHEN COALESCE(e.total_enrollment_events, 0) < b.not_enrolled_eligible * 0.1 THEN 'LOW - Fewer events than expected'
       WHEN COALESCE(e.total_enrollment_events, 0) > b.not_enrolled_eligible * 0.8 THEN 'HIGH - More events than expected'
       ELSE 'NORMAL - Event count within expected range'
     END as validation_status,
-    
+
     -- Success metrics
     CASE WHEN COALESCE(e.total_enrollment_events, 0) > 0 THEN 'SUCCESS' ELSE 'FAILED' END as fix_status,
     ROUND(COALESCE(e.total_enrollment_events, 0)::FLOAT / NULLIF(b.not_enrolled_eligible, 0) * 100, 1) as enrollment_rate_pct,
-    
+
     -- Date range validation
     b.earliest_hire,
     b.latest_hire,
@@ -117,7 +117,7 @@ validation_summary AS (
 )
 
 -- Final comprehensive report
-SELECT 
+SELECT
   record_type,
   total_workforce,
   active_employees,

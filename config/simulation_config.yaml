@@ -1,9 +1,22 @@
 # Asset-level configuration (used by simulation_config asset)
 simulation:
   start_year: 2025
-  end_year: 2029
+  end_year: 2025
   random_seed: 42
   target_growth_rate: 0.03
+
+# Setup configuration for orchestrator_dbt
+setup:
+  clear_tables: true
+  clear_table_patterns: ["stg_", "int_", "fct_", "dim_"]
+  load_seeds: true
+  run_staging_models: true
+  validate_results: false
+  fail_on_validation_error: true
+  census_parquet_path: "data/census_preprocessed.parquet"
+  plan_year_start_date: "2024-01-01"
+  plan_year_end_date: "2024-12-31"
+  eligibility_waiting_period_days: 30
 
 workforce:
   total_termination_rate: 0.12
@@ -35,6 +48,84 @@ eligibility:
   # excluded_employee_types: ["intern", "contractor"]
   # entry_date_type: "quarterly"
 
+# Plan eligibility (separate from employer contribution eligibility)
+plan_eligibility:
+  waiting_period_days: 0  # Default: immediate eligibility for plan participation
+  minimum_age: 21         # Minimum age to participate in the plan
+
+# Epic E023: Enrollment Engine Configuration
+enrollment:
+  # Auto-enrollment configuration
+  auto_enrollment:
+    enabled: true  # Global auto-enrollment enable/disable toggle
+    window_days: 45  # Configurable auto-enrollment window (default 45 days after hire)
+    default_deferral_rate: 0.06  # 6% default deferral rate for auto-enrolled participants
+    opt_out_grace_period: 30  # Days after auto-enrollment for opt-out without penalty
+    scope: "all_eligible_employees"  # Options: "new_hires_only", "all_eligible_employees"
+    hire_date_cutoff: "2020-01-01"  # Optional: Exclude employees hired before this date from auto-enrollment (e.g., "2020-01-01")
+
+    # Plan-specific overrides (future enhancement)
+    plan_overrides:
+      emergency_plan:
+        enabled: false  # Disable auto-enrollment for emergency/temporary plans
+        window_days: 30  # Shorter window for special plans
+      executive_plan:
+        enabled: true
+        window_days: 60  # Longer window for executive plans
+        default_deferral_rate: 0.10  # Higher default rate for executives
+
+  # Proactive enrollment configuration (voluntary enrollment within auto-enrollment window)
+  proactive_enrollment:
+    enabled: true  # Enable proactive enrollment before auto-enrollment deadline
+    timing_window:
+      min_days: 7   # Earliest proactive enrollment (7 days after eligibility)
+      max_days: 35  # Latest proactive enrollment (10 days before auto-enrollment deadline)
+    probability_by_demographics:
+      young: 0.25      # Ages 18-30: Lower proactive enrollment rate
+      mid_career: 0.45 # Ages 31-45: Moderate proactive enrollment rate
+      mature: 0.65     # Ages 46-55: Higher proactive enrollment rate
+      senior: 0.75     # Ages 56+: Highest proactive enrollment rate
+    timing_distribution:
+      immediate: 0.2   # Within 30 days of eligibility
+      early: 0.3       # 31-120 days after eligibility
+      mid: 0.3         # 121-270 days after eligibility
+      late: 0.2        # 271+ days after eligibility
+
+  # Voluntary-only enrollment (for plans without auto-enrollment)
+  voluntary_enrollment:
+    enabled: true  # Enable voluntary enrollment for non-auto-enrollment plans
+    annual_enrollment_probability: 0.60  # Base probability of voluntary enrollment
+    demographic_adjustments:
+      age_factor_per_year: 0.01    # +1% per year over 25
+      tenure_factor_per_year: 0.05 # +5% per year of service
+      salary_factor_high_earner: 0.15  # +15% for high earners (>$100k)
+    timing_distribution:
+      open_enrollment_period: 0.70  # 70% enroll during open enrollment
+      mid_year_life_events: 0.20    # 20% enroll due to life events
+      new_hire_immediate: 0.10      # 10% enroll immediately upon hire
+
+  # Timing coordination and orchestration
+  timing:
+    processing_frequency: "monthly"  # Options: "daily", "weekly", "monthly", "quarterly"
+    proactive_cutoff_before_auto: 10  # Days before auto-enrollment deadline for proactive enrollment
+    deterministic_timing: true       # Ensure reproducible simulation results
+    business_day_adjustment: true    # Adjust enrollment dates to business days
+    holiday_calendar: "us_federal"   # Holiday calendar for business day calculations
+
+  # Multi-year simulation considerations
+  multi_year:
+    preserve_enrollment_state: true          # Maintain enrollment status across simulation years
+    cross_year_eligibility_tracking: true   # Track eligibility changes across years
+    enrollment_anniversary_processing: true # Process enrollment anniversaries
+    re_enrollment_after_termination: true   # Handle re-enrollment for rehires
+
+  # Performance and optimization settings
+  performance:
+    batch_processing_size: 10000    # Process enrollment in batches for large populations
+    enable_parallel_processing: true # Enable parallel processing for performance
+    cache_demographic_calculations: true # Cache demographic-based probability calculations
+    materialization_strategy: "incremental" # dbt materialization strategy for enrollment models
+
 employee_id_generation:
   baseline_format: "hybrid"  # Options: "legacy" (EMP_NNNNNN), "hybrid" (EMP_YYYY_NNNNNN), "unified" (EMP_YYYY_XXXXXXXX_NNNNNN)
   new_hire_format: "hash_based"  # Options: "hash_based" (NH_YYYY_XXXXXXXX_NNNNNN), "simple" (NH_YYYY_NNNNNN)
@@ -42,12 +133,61 @@ employee_id_generation:
   migration_mode: false  # Support for transitioning from legacy formats
   batch_generation: true  # Use batch generation for performance optimization
 
-# Dagster op configuration
+# Multi-year simulation configuration
+multi_year:
+  # Optimization settings
+  optimization:
+    level: "high"  # Options: "high", "medium", "low", "fallback"
+    max_workers: 4  # Maximum concurrent workers for parallel processing
+    batch_size: 1000  # Processing batch size
+    memory_limit_gb: 8.0  # Memory limit in GB (null for no limit)
+
+  # Performance tuning
+  performance:
+    enable_state_compression: true  # Compress simulation state between years
+    enable_concurrent_processing: true  # Enable concurrent year processing
+    enable_parallel_dbt: true  # Enable parallel dbt model execution
+    cache_workforce_snapshots: true  # Cache workforce snapshots for performance
+
+  # State management
+  state:
+    enable_checkpointing: true  # Enable simulation checkpointing for resume
+    checkpoint_frequency: 1  # Checkpoint every N years
+    preserve_intermediate_states: false  # Keep intermediate year states
+    compression_level: 6  # State compression level (1-9)
+
+  # Resume and error handling
+  resume:
+    enable_resume: true  # Allow resuming from checkpoints
+    auto_resume_on_failure: false  # Automatically resume from last checkpoint
+    cleanup_on_success: true  # Clean up intermediate files on successful completion
+
+  # Error handling
+  error_handling:
+    fail_fast: false  # Stop on first error vs continue processing other years
+    max_retries: 3  # Maximum retry attempts per year
+    retry_delay_seconds: 5  # Delay between retries
+    validation_mode: "strict"  # Options: "strict", "warnings", "disabled"
+
+  # Transition strategy
+  transition:
+    strategy: "optimized"  # Options: "optimized", "conservative", "parallel"
+    batch_workforce_updates: true  # Batch workforce state transitions
+    optimize_event_processing: true  # Optimize event generation and processing
+
+  # Monitoring and logging
+  monitoring:
+    enable_performance_monitoring: true  # Track performance metrics
+    enable_progress_reporting: true  # Report progress during execution
+    log_level: "INFO"  # Logging level for multi-year operations
+    enable_memory_profiling: false  # Enable memory usage profiling
+
+# Dagster op configuration (maintained for backward compatibility)
 ops:
   run_multi_year_simulation:
     config:
       start_year: 2025
-      end_year: 2029
+      end_year: 2025
       target_growth_rate: 0.03
       total_termination_rate: 0.12
       new_hire_termination_rate: 0.25

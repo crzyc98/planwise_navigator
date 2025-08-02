@@ -2,10 +2,10 @@
 
 /*
   Configuration Fix Validation Analysis
-  
-  Validates that the configuration fixes (removing hardcoded variables, 
+
+  Validates that the configuration fixes (removing hardcoded variables,
   fixing scope defaults) are working correctly.
-  
+
   This model tests various configuration scenarios to ensure the enrollment
   logic responds correctly to different variable settings.
 */
@@ -16,16 +16,16 @@ WITH configuration_test_scenarios AS (
     '{{ var("auto_enrollment_scope", "all_eligible_employees") }}' as current_scope,
     '{{ var("auto_enrollment_hire_date_cutoff", "null") }}' as current_cutoff,
     {{ var("simulation_year") }} as current_sim_year,
-    
+
     -- Test what should happen with different configs
-    CASE 
-      WHEN '{{ var("auto_enrollment_scope", "all_eligible_employees") }}' = 'all_eligible_employees' 
+    CASE
+      WHEN '{{ var("auto_enrollment_scope", "all_eligible_employees") }}' = 'all_eligible_employees'
         THEN 'Should include all eligible employees regardless of hire year'
       WHEN '{{ var("auto_enrollment_scope", "all_eligible_employees") }}' = 'new_hires_only'
         THEN 'Should only include employees hired in simulation year'
       ELSE 'Unknown scope configuration'
     END as expected_behavior,
-    
+
     CASE
       WHEN '{{ var("auto_enrollment_hire_date_cutoff", "null") }}' != 'null'
         THEN 'Should exclude employees hired before cutoff date'
@@ -38,14 +38,14 @@ workforce_analysis AS (
     COUNT(*) as total_active_workforce,
     COUNT(CASE WHEN current_tenure >= 1 THEN 1 END) as tenure_eligible_count,
     COUNT(CASE WHEN employee_enrollment_date IS NULL THEN 1 END) as not_enrolled_count,
-    
+
     -- Hire date distribution analysis
     COUNT(CASE WHEN employee_hire_date >= CAST({{ var("simulation_year") }} || '-01-01' AS DATE) THEN 1 END) as hired_in_sim_year,
     COUNT(CASE WHEN employee_hire_date >= '2020-01-01'::DATE THEN 1 END) as hired_after_2020,
     COUNT(CASE WHEN employee_hire_date >= '2015-01-01'::DATE THEN 1 END) as hired_after_2015,
-    
+
     -- Expected eligible count with current config
-    COUNT(CASE 
+    COUNT(CASE
       WHEN employment_status = 'active'
         AND current_tenure >= 1
         AND employee_enrollment_date IS NULL
@@ -58,16 +58,16 @@ workforce_analysis AS (
         )
         AND (
           CASE
-            WHEN '{{ var("auto_enrollment_scope", "all_eligible_employees") }}' = 'new_hires_only' 
+            WHEN '{{ var("auto_enrollment_scope", "all_eligible_employees") }}' = 'new_hires_only'
               THEN employee_hire_date >= CAST({{ var("simulation_year") }} || '-01-01' AS DATE)
             WHEN '{{ var("auto_enrollment_scope", "all_eligible_employees") }}' = 'all_eligible_employees'
               THEN true
             ELSE true
           END
         )
-      THEN 1 
+      THEN 1
     END) as expected_eligible_with_current_config,
-    
+
     MIN(employee_hire_date) as earliest_hire_date,
     MAX(employee_hire_date) as latest_hire_date
   FROM {{ ref('int_baseline_workforce') }}
@@ -92,15 +92,15 @@ configuration_validation AS (
     w.*,
     COALESCE(a.actual_enrollment_events, 0) as actual_events,
     COALESCE(a.unique_employees_enrolled, 0) as actual_employees,
-    
+
     -- Validation checks
-    CASE 
+    CASE
       WHEN COALESCE(a.actual_enrollment_events, 0) = 0 THEN 'FAILED: No enrollment events generated'
       WHEN w.expected_eligible_with_current_config = 0 THEN 'EXPECTED: No eligible employees with current config'
       WHEN COALESCE(a.actual_enrollment_events, 0) > 0 AND w.expected_eligible_with_current_config > 0 THEN 'SUCCESS: Events generated as expected'
       ELSE 'UNCLEAR: Need manual review'
     END as validation_result,
-    
+
     -- Configuration-specific validations
     CASE
       WHEN c.current_scope = 'all_eligible_employees' AND w.hired_in_sim_year = 0 AND COALESCE(a.actual_enrollment_events, 0) > 0
@@ -111,14 +111,14 @@ configuration_validation AS (
         THEN 'SUCCESS: new_hires_only scope working (events generated for new hires)'
       ELSE 'Scope validation unclear'
     END as scope_validation,
-    
+
     -- Fix validation (main issue was scope defaulting to new_hires_only)
     CASE
       WHEN c.current_scope = 'all_eligible_employees' THEN 'SUCCESS: Scope default fixed'
       WHEN c.current_scope = 'new_hires_only' THEN 'INFO: Using new_hires_only scope'
       ELSE 'WARNING: Unexpected scope value'
     END as fix_validation,
-    
+
     -- Performance metrics
     ROUND(COALESCE(a.actual_enrollment_events, 0)::FLOAT / NULLIF(w.expected_eligible_with_current_config, 0) * 100, 1) as enrollment_rate_pct
   FROM configuration_test_scenarios c
@@ -134,7 +134,7 @@ SELECT
   current_sim_year,
   expected_behavior,
   expected_cutoff_behavior,
-  
+
   -- Workforce Stats
   total_active_workforce,
   tenure_eligible_count,
@@ -142,17 +142,17 @@ SELECT
   hired_in_sim_year,
   hired_after_2020,
   expected_eligible_with_current_config,
-  
+
   -- Results
   actual_events,
   actual_employees,
   enrollment_rate_pct,
-  
+
   -- Validation Results
   validation_result,
   scope_validation,
   fix_validation,
-  
+
   -- Date Info
   earliest_hire_date,
   latest_hire_date

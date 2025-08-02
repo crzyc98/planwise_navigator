@@ -385,7 +385,7 @@ SELECT
   tenure_band,
   event_probability,
   event_category,
-  -- Add event sequencing for conflict resolution  
+  -- Add event sequencing for conflict resolution
   -- Priority: termination(1) > hire(2) > eligibility(3) > enrollment(4) > enrollment_change(5) > promotion(6) > merit_increase(7)
   ROW_NUMBER() OVER (
     PARTITION BY employee_id, simulation_year
