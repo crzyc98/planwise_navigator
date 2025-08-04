@@ -133,6 +133,7 @@ class OptimizedDbtExecutor:
                 "int_cold_start_detection",
                 "int_partitioned_workforce_data",
                 "int_workforce_previous_year_v2",
+                "int_active_employees_prev_year_snapshot",
                 "int_active_employees_by_year"
             ],
             execution_order=2,

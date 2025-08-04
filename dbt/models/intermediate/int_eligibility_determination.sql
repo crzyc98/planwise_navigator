@@ -1,67 +1,35 @@
 {{ config(materialized='table') }}
 
 /*
-  Eligibility Determination Model (Epic E022: Story S022-01) - EVENT-BASED VERSION
+  Eligibility Determination Model (Epic E022: Story S022-01) - BASELINE VERSION
 
-  Determines employee eligibility for DC plan participation based on eligibility events
-  generated at hire time. This approach provides a complete audit trail and simplifies
-  eligibility tracking.
+  Determines employee eligibility for DC plan participation based on employee master data
+  and plan configuration. This approach provides eligibility determination without depending
+  on event infrastructure, making it foundational for other models.
 
   Business Logic:
-  - Eligibility is determined from events created when employees are hired
+  - Eligibility is determined from employee hire date and waiting period configuration
   - Each employee has an eligibility_date calculated as hire_date + waiting_period_days
   - Current eligibility status is derived by comparing eligibility_date to the evaluation date
   - Supports immediate eligibility (0 days) and various waiting periods
 
-  Event Structure:
-  - Event type: 'eligibility'
-  - Event details contains: eligibility_date, waiting_period_days, determination_type
-  - Events are immutable - changes would create new events (future enhancement)
-
   Performance:
-  - Leverages existing event infrastructure
-  - JSON extraction is optimized in DuckDB
+  - Uses baseline workforce data for fast calculation
+  - No dependency on event infrastructure
   - Materialized as table for optimal query performance
 
   Usage:
     This model is consumed by:
     - Enrollment models for filtering eligible employees
+    - Event generation models for eligibility events
     - Contribution models for participation validation
     - Reporting and analytics
 */
 
-WITH eligibility_events AS (
-  -- Get all eligibility events from the event stream
+WITH
+-- Base employee data with eligibility configuration
+employee_eligibility_base AS (
   SELECT
-    employee_id,
-    employee_ssn,
-    simulation_year,
-    effective_date as determination_date,
-    JSON_EXTRACT_STRING(event_details, '$.eligibility_date')::DATE AS eligibility_date,
-    JSON_EXTRACT(event_details, '$.waiting_period_days')::INT AS waiting_period_days,
-    JSON_EXTRACT_STRING(event_details, '$.determination_type') AS determination_type,
-    created_at
-  FROM {{ ref('fct_yearly_events') }}
-  WHERE event_type = 'eligibility'
-    AND JSON_EXTRACT_STRING(event_details, '$.determination_type') = 'initial'
-),
-
--- Get the most recent eligibility determination for each employee
-latest_eligibility AS (
-  SELECT
-    employee_id,
-    employee_ssn,
-    eligibility_date,
-    waiting_period_days,
-    determination_date,
-    MAX(simulation_year) as last_determination_year
-  FROM eligibility_events
-  GROUP BY employee_id, employee_ssn, eligibility_date, waiting_period_days, determination_date
-),
-
--- Get employee details from workforce snapshot
-employee_details AS (
-  SELECT DISTINCT
     employee_id,
     employee_ssn,
     employee_hire_date,
@@ -70,38 +38,63 @@ employee_details AS (
     current_tenure,
     level_id,
     current_compensation,
-    simulation_year
-  FROM {{ ref('fct_workforce_snapshot') }}
+    waiting_period_days,
+    employee_eligibility_date,
+    current_eligibility_status,
+    {{ var('simulation_year') }} as simulation_year
+  FROM {{ ref('int_baseline_workforce') }}
+  WHERE employment_status = 'active'
+),
+
+-- Calculate eligibility determination
+eligibility_calculation AS (
+  SELECT
+    employee_id,
+    employee_ssn,
+    employee_hire_date,
+    employment_status,
+    current_age,
+    current_tenure,
+    level_id,
+    current_compensation,
+    waiting_period_days,
+    employee_eligibility_date,
+    current_eligibility_status,
+    simulation_year,
+    -- Calculate days since hire as of the evaluation date (end of simulation year)
+    DATEDIFF('day', employee_hire_date, CAST(simulation_year || '-12-31' AS DATE)) as days_since_hire,
+    -- Use end of year as evaluation date for consistency
+    CAST(simulation_year || '-12-31' AS DATE) as eligibility_evaluation_date
+  FROM employee_eligibility_base
 )
 
--- Join eligibility events with employee details for each simulation year
+-- Final eligibility determination
 SELECT
-  ed.employee_id,
-  ed.employee_ssn,
-  ed.employee_hire_date,
-  ed.employment_status,
-  ed.current_age,
-  ed.current_tenure,
-  ed.level_id,
-  ed.current_compensation,
-  le.waiting_period_days,
-  ed.simulation_year,
-  -- Calculate days since hire as of the evaluation date (end of simulation year)
-  DATEDIFF('day', ed.employee_hire_date, CAST(ed.simulation_year || '-12-31' AS DATE)) as days_since_hire,
-  -- Determine if eligible based on eligibility date
+  employee_id,
+  employee_ssn,
+  employee_hire_date,
+  employment_status,
+  current_age,
+  current_tenure,
+  level_id,
+  current_compensation,
+  waiting_period_days,
+  simulation_year,
+  days_since_hire,
+  -- Determine if eligible based on eligibility date vs evaluation date
   CASE
-    WHEN le.eligibility_date <= CAST(ed.simulation_year || '-12-31' AS DATE) THEN true
+    WHEN employee_eligibility_date <= eligibility_evaluation_date THEN true
     ELSE false
   END as is_eligible,
   -- Provide eligibility reason
   CASE
-    WHEN le.eligibility_date <= CAST(ed.simulation_year || '-12-31' AS DATE) THEN 'eligible_service_met'
+    WHEN employee_eligibility_date <= eligibility_evaluation_date THEN 'eligible_service_met'
     ELSE 'pending_service_requirement'
   END as eligibility_reason,
-  -- Use end of year as evaluation date for consistency
-  CAST(ed.simulation_year || '-12-31' AS DATE) as eligibility_evaluation_date,
-  le.eligibility_date as employee_eligibility_date
-FROM employee_details ed
-LEFT JOIN latest_eligibility le ON ed.employee_id = le.employee_id
-WHERE ed.employment_status = 'active'
-ORDER BY ed.simulation_year, ed.employee_id
+  -- Include evaluation date and eligibility date for reference
+  eligibility_evaluation_date,
+  employee_eligibility_date,
+  -- Include original status from baseline (for validation)
+  current_eligibility_status as baseline_eligibility_status
+FROM eligibility_calculation
+ORDER BY simulation_year, employee_id

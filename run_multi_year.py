@@ -340,24 +340,41 @@ def run_year_simulation(year, is_first_year=False):
         if not run_dbt_command(["run", "--models", "int_baseline_workforce"], "Creating baseline workforce"):
             return False
 
-    # Step 2: Parameters and workforce setup
+    # Step 2: Workforce transition setup (for subsequent years)
+    if not is_first_year:
+        if not run_dbt_command(["run", "--models", "int_active_employees_prev_year_snapshot"], "Setting up previous year snapshot", year):
+            return False
+
+    # Step 3: Employee compensation and workforce needs calculation
+    if not run_dbt_command(["run", "--models", "int_employee_compensation_by_year"], "Calculating employee compensation", year):
+        return False
+    if not run_dbt_command(["run", "--models", "int_workforce_needs"], "Calculating workforce needs", year):
+        return False
+    if not run_dbt_command(["run", "--models", "int_workforce_needs_by_level"], "Calculating workforce needs by level", year):
+        return False
+
+    # Step 4: Parameters
     if not run_dbt_command(["run", "--models", "int_effective_parameters"], "Resolving parameters", year):
         return False
 
-    # Step 3: Event generation (with simulation_year)
+    # Step 5: Event generation (with simulation_year)
     event_models = [
-        "int_termination_events",
-        "int_new_hire_termination_events",
-        "int_promotion_events",
+         "int_termination_events",
         "int_hiring_events",
-        "int_merit_events"
+        "int_new_hire_termination_events",
+        "int_hazard_promotion",
+        "int_hazard_merit",
+        "int_promotion_events",
+        "int_merit_events",
+        "int_eligibility_determination",
+        "int_enrollment_events"
     ]
 
     for model in event_models:
         if not run_dbt_command(["run", "--models", model], f"Running {model}", year):
             return False
 
-    # Step 4: Consolidation
+    # Step 6: Consolidation
     if not run_dbt_command(["run", "--models", "fct_yearly_events"], "Consolidating events", year):
         return False
     if not run_dbt_command(["run", "--models", "fct_workforce_snapshot"], "Creating workforce snapshot", year):

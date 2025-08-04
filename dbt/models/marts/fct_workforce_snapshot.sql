@@ -1,7 +1,7 @@
 {{ config(
     materialized='incremental',
     unique_key=['employee_id', 'simulation_year'],
-    on_schema_change='fail',
+    on_schema_change='sync_all_columns',
     indexes=[
         {'columns': ['simulation_year', 'employee_id'], 'type': 'btree', 'unique': true},
         {'columns': ['level_id', 'simulation_year'], 'type': 'btree'},
@@ -134,7 +134,7 @@ workforce_after_promotions AS (
         w.current_tenure,
         CASE
             WHEN ec.has_promotion THEN ec.promotion_level_id
-            ELSE w.level_id
+            ELSE CAST(w.level_id AS INTEGER)
         END AS level_id,
         w.termination_date,
         w.employment_status,
