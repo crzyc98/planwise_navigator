@@ -1,7 +1,7 @@
 # Asset-level configuration (used by simulation_config asset)
 simulation:
   start_year: 2025
-  end_year: 2025
+  end_year: 2029
   random_seed: 42
   target_growth_rate: 0.03
 
@@ -187,7 +187,7 @@ ops:
   run_multi_year_simulation:
     config:
       start_year: 2025
-      end_year: 2025
+      end_year: 2029
       target_growth_rate: 0.03
       total_termination_rate: 0.12
       new_hire_termination_rate: 0.25

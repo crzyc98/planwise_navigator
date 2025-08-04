@@ -2,7 +2,7 @@
   materialized='incremental',
   unique_key=['employee_id', 'simulation_year', 'event_sequence'],
   incremental_strategy='delete+insert',
-  on_schema_change='fail',
+  on_schema_change='append_new_columns',
   contract={
       "enforced": true
   },
