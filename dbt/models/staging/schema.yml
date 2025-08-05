@@ -337,7 +337,7 @@ models:
           - not_null
           - dbt_utils.accepted_range:
               min_value: 0
-              max_value: 1
+              max_value: 10  # Allow values > 1 for salary adjustments and multipliers
       - name: is_locked
         description: Whether this parameter is locked from further changes
         data_tests:

@@ -35,14 +35,23 @@ def load_config():
         end_year = simulation.get('end_year', 2029)
         random_seed = simulation.get('random_seed', 42)
 
+        # Extract compensation parameters
+        compensation = config.get('compensation', {})
+        cola_rate = compensation.get('cola_rate', 0.005)
+        merit_budget = compensation.get('merit_budget', 0.025)
+
         print(f"📋 Configuration loaded:")
         print(f"   Years: {start_year} - {end_year}")
         print(f"   Random seed: {random_seed}")
+        print(f"   COLA rate: {cola_rate}")
+        print(f"   Merit budget: {merit_budget}")
 
         return {
             'start_year': start_year,
             'end_year': end_year,
             'random_seed': random_seed,
+            'cola_rate': cola_rate,
+            'merit_budget': merit_budget,
             'config': config
         }
 
@@ -51,15 +60,25 @@ def load_config():
         sys.exit(1)
 
 
-def run_dbt_command(command_args, description="Running dbt command", simulation_year=None):
+def run_dbt_command(command_args, description="Running dbt command", simulation_year=None, compensation_params=None):
     """Run a dbt command with error handling (like working staging approach)."""
 
     # Build command
     cmd = ["dbt"] + command_args
 
-    # Add simulation_year variable if provided
+    # Build vars dictionary
+    vars_dict = {}
     if simulation_year:
-        cmd.extend(["--vars", f"simulation_year: {simulation_year}"])
+        vars_dict["simulation_year"] = simulation_year
+
+    # Add compensation parameters if provided
+    if compensation_params:
+        vars_dict.update(compensation_params)
+
+    # Add vars to command if any are specified
+    if vars_dict:
+        vars_string = ", ".join(f"{key}: {value}" for key, value in vars_dict.items())
+        cmd.extend(["--vars", f"{{{vars_string}}}"])
 
     print(f"🔧 {description}...")
 
@@ -325,41 +344,173 @@ def display_multi_year_summary(start_year, end_year, completed_years):
         conn.close()
 
 
-def run_year_simulation(year, is_first_year=False):
+def create_enrollment_registry(year):
+    """Create or update enrollment registry table to prevent duplicate enrollments."""
+    print(f"📋 Creating enrollment registry for year {year}...")
+
+    conn = get_database_connection()
+    if not conn:
+        print("❌ Cannot create enrollment registry - database connection failed")
+        return False
+
+    try:
+        # For first year, create registry from baseline workforce
+        if year == 2025:  # Start year
+            create_registry_sql = """
+            CREATE OR REPLACE TABLE enrollment_registry AS
+            SELECT DISTINCT
+                employee_id,
+                employee_enrollment_date AS first_enrollment_date,
+                2025 AS first_enrollment_year,
+                'baseline' AS enrollment_source,
+                true AS is_enrolled,
+                CURRENT_TIMESTAMP AS last_updated
+            FROM int_baseline_workforce
+            WHERE employment_status = 'active'
+              AND employee_enrollment_date IS NOT NULL
+              AND employee_id IS NOT NULL
+            """
+        else:
+            # For subsequent years, add newly enrolled employees from previous year's events
+            prev_year = year - 1
+            update_registry_sql = f"""
+            INSERT INTO enrollment_registry
+            SELECT DISTINCT
+                employee_id,
+                MIN(effective_date) AS first_enrollment_date,
+                {prev_year} AS first_enrollment_year,
+                'simulation_event' AS enrollment_source,
+                true AS is_enrolled,
+                CURRENT_TIMESTAMP AS last_updated
+            FROM fct_yearly_events
+            WHERE simulation_year = {prev_year}
+              AND event_type = 'enrollment'
+              AND employee_id IS NOT NULL
+              -- Only add if not already in registry
+              AND employee_id NOT IN (
+                  SELECT employee_id FROM enrollment_registry WHERE is_enrolled = true
+              )
+            GROUP BY employee_id
+            """
+
+        if year == 2025:
+            conn.execute(create_registry_sql)
+            count_result = conn.execute("SELECT COUNT(*) FROM enrollment_registry").fetchone()
+            count = count_result[0] if count_result else 0
+            print(f"✅ Created enrollment registry with {count:,} enrolled employees from baseline")
+        else:
+            conn.execute(update_registry_sql)
+            # Get count of newly added employees
+            count_result = conn.execute(f"""
+                SELECT COUNT(*) FROM enrollment_registry
+                WHERE first_enrollment_year = {prev_year}
+            """).fetchone()
+            new_count = count_result[0] if count_result else 0
+            print(f"✅ Added {new_count:,} newly enrolled employees from year {prev_year}")
+
+        return True
+
+    except Exception as e:
+        print(f"❌ Error creating enrollment registry: {e}")
+        return False
+    finally:
+        conn.close()
+
+
+def update_enrollment_registry_post_year(year):
+    """Update enrollment registry with new enrollments from the completed year."""
+    print(f"📋 Updating enrollment registry after year {year}...")
+
+    conn = get_database_connection()
+    if not conn:
+        print("❌ Cannot update enrollment registry - database connection failed")
+        return False
+
+    try:
+        # Add newly enrolled employees from this year's events
+        update_registry_sql = f"""
+        INSERT INTO enrollment_registry
+        SELECT DISTINCT
+            employee_id,
+            MIN(effective_date) AS first_enrollment_date,
+            {year} AS first_enrollment_year,
+            'simulation_event' AS enrollment_source,
+            true AS is_enrolled,
+            CURRENT_TIMESTAMP AS last_updated
+        FROM fct_yearly_events
+        WHERE simulation_year = {year}
+          AND event_type = 'enrollment'
+          AND employee_id IS NOT NULL
+          -- Only add if not already in registry
+          AND employee_id NOT IN (
+              SELECT employee_id FROM enrollment_registry WHERE is_enrolled = true
+          )
+        GROUP BY employee_id
+        """
+
+        conn.execute(update_registry_sql)
+
+        # Get count of newly added employees
+        count_result = conn.execute(f"""
+            SELECT COUNT(*) FROM enrollment_registry
+            WHERE first_enrollment_year = {year}
+        """).fetchone()
+        new_count = count_result[0] if count_result else 0
+        print(f"✅ Added {new_count:,} newly enrolled employees from year {year} to registry")
+
+        return True
+
+    except Exception as e:
+        print(f"❌ Error updating enrollment registry: {e}")
+        return False
+    finally:
+        conn.close()
+
+
+def run_year_simulation(year, is_first_year=False, compensation_params=None):
     """Run simulation for a single year."""
     print(f"\n🎯 Running simulation for year {year}")
     print("-" * 40)
+
+    # Step 0: Create/update enrollment registry (prevents duplicate enrollments)
+    # For first year, create registry from baseline. For subsequent years, it was updated at end of previous year.
+    if is_first_year:
+        if not create_enrollment_registry(year):
+            print(f"❌ Failed to create enrollment registry for year {year}")
+            return False
 
     # Step 1: Foundation setup (seeds and staging)
     if is_first_year:
         print("📋 Setting up foundation (first year)...")
         if not run_dbt_command(["seed"], "Loading seed data"):
             return False
-        if not run_dbt_command(["run", "--models", "stg_census_data"], "Running census staging"):
+        # Run all staging models
+        if not run_dbt_command(["run", "--models", "staging.*"], "Running all staging models"):
             return False
         if not run_dbt_command(["run", "--models", "int_baseline_workforce"], "Creating baseline workforce"):
             return False
 
     # Step 2: Workforce transition setup (for subsequent years)
     if not is_first_year:
-        if not run_dbt_command(["run", "--models", "int_active_employees_prev_year_snapshot"], "Setting up previous year snapshot", year):
+        # Run the snapshot model without dependency checking to avoid cycle detection
+        if not run_dbt_command(["run", "--models", "int_active_employees_prev_year_snapshot", "--no-defer", "--full-refresh"], "Setting up previous year snapshot", year, compensation_params):
             return False
 
-    # Step 3: Employee compensation and workforce needs calculation
-    if not run_dbt_command(["run", "--models", "int_employee_compensation_by_year"], "Calculating employee compensation", year):
-        return False
-    if not run_dbt_command(["run", "--models", "int_workforce_needs"], "Calculating workforce needs", year):
-        return False
-    if not run_dbt_command(["run", "--models", "int_workforce_needs_by_level"], "Calculating workforce needs by level", year):
+    # Step 3: Parameters (must come before workforce needs) - Pass compensation params here!
+    if not run_dbt_command(["run", "--models", "int_effective_parameters"], "Resolving parameters", year, compensation_params):
         return False
 
-    # Step 4: Parameters
-    if not run_dbt_command(["run", "--models", "int_effective_parameters"], "Resolving parameters", year):
+    # Step 4: Employee compensation and workforce needs calculation
+    if not run_dbt_command(["run", "--models", "int_employee_compensation_by_year"], "Calculating employee compensation", year, compensation_params):
+        return False
+    if not run_dbt_command(["run", "--models", "int_workforce_needs"], "Calculating workforce needs", year, compensation_params):
+        return False
+    if not run_dbt_command(["run", "--models", "int_workforce_needs_by_level"], "Calculating workforce needs by level", year, compensation_params):
         return False
 
-    # Step 5: Event generation (with simulation_year)
+    # Step 5: Event generation (with simulation_year and compensation parameters)
     event_models = [
-         "int_termination_events",
+        "int_termination_events",
         "int_hiring_events",
         "int_new_hire_termination_events",
         "int_hazard_promotion",
@@ -371,16 +522,27 @@ def run_year_simulation(year, is_first_year=False):
     ]
 
     for model in event_models:
-        if not run_dbt_command(["run", "--models", model], f"Running {model}", year):
+        if not run_dbt_command(["run", "--models", model], f"Running {model}", year, compensation_params):
             return False
 
     # Step 6: Consolidation
-    if not run_dbt_command(["run", "--models", "fct_yearly_events"], "Consolidating events", year):
+    if not run_dbt_command(["run", "--models", "fct_yearly_events"], "Consolidating events", year, compensation_params):
         return False
-    if not run_dbt_command(["run", "--models", "fct_workforce_snapshot"], "Creating workforce snapshot", year):
+
+    # Step 7: Enrollment state accumulator (fixed circular dependency)
+    if not run_dbt_command(["run", "--models", "int_enrollment_state_accumulator"], "Building enrollment state accumulator", year, compensation_params):
+        return False
+
+    # Step 8: Final workforce snapshot
+    if not run_dbt_command(["run", "--models", "fct_workforce_snapshot"], "Creating workforce snapshot", year, compensation_params):
         return False
 
     print(f"✅ Year {year} simulation completed successfully!")
+
+    # Update enrollment registry with this year's enrollments (for next year's use)
+    if not update_enrollment_registry_post_year(year):
+        print(f"⚠️ Failed to update enrollment registry after year {year} - duplicate enrollments may occur next year")
+        # Don't fail the simulation for this
 
     # Audit year results
     audit_year_results(year)
@@ -403,7 +565,8 @@ def clear_simulation_database():
             'fct_workforce_snapshot',
             'fct_yearly_events',
             'fct_compensation_growth',
-            'fct_participant_balance_snapshots'
+            'fct_participant_balance_snapshots',
+            'enrollment_registry'  # Clear enrollment registry for fresh simulation
         ]
 
         cleared_tables = []
@@ -459,9 +622,16 @@ def main():
         start_year = config['start_year']
         end_year = config['end_year']
 
+        # Extract compensation parameters for dbt
+        compensation_params = {
+            'cola_rate': config['cola_rate'],
+            'merit_budget': config['merit_budget']
+        }
+
         print(f"\n🚀 Starting multi-year simulation...")
         print(f"   Years: {start_year} - {end_year}")
         print(f"   Total years: {end_year - start_year + 1}")
+        print(f"   Compensation parameters: COLA={compensation_params['cola_rate']}, Merit={compensation_params['merit_budget']}")
 
         # **CRITICAL FIX**: Clear database before starting simulation
         if not clear_simulation_database():
@@ -477,7 +647,7 @@ def main():
             is_first_year = (year == start_year)
 
             try:
-                success = run_year_simulation(year, is_first_year)
+                success = run_year_simulation(year, is_first_year, compensation_params)
                 if success:
                     completed_years.append(year)
                 else:

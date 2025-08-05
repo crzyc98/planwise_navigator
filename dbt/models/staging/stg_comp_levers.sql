@@ -6,7 +6,7 @@ SELECT
     scenario_id,
     fiscal_year,
     job_level,
-    event_type,
+    UPPER(event_type) AS event_type,  -- Standardize to uppercase
     parameter_name,
     parameter_value,
     CAST(is_locked AS BOOLEAN) AS is_locked,

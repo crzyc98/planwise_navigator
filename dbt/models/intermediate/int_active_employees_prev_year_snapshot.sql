@@ -54,6 +54,7 @@ enriched_snapshot as (
     level_id,
     'active' as employment_status, -- Employees from previous year are active at start of new year
     null::date as termination_date, -- Reset termination date for the new year
+    employee_enrollment_date, -- Preserve enrollment status from previous year
 
     -- Recalculate age band for the new, incremented age
     case
@@ -74,6 +75,12 @@ enriched_snapshot as (
       when current_tenure + 1 < 20 then '10-19 years'
       else '20+ years'
     end as tenure_band,
+
+    -- Enrollment status tracking (backup flag for more reliable enrollment detection)
+    case
+      when employee_enrollment_date is not null then true
+      else false
+    end as is_enrolled_flag,
 
     -- Metadata fields
     {{ simulation_year }} as simulation_year,
@@ -116,6 +123,8 @@ select
     null::date as termination_date,
     null::varchar as age_band,
     null::varchar as tenure_band,
+    null::date as employee_enrollment_date,
+    false as is_enrolled_flag,
     {{ simulation_year }} as simulation_year,
     'no_previous_year' as data_source,
     false as data_quality_valid

@@ -41,6 +41,7 @@ SELECT
     tenure_band,
     employment_status,
     employee_enrollment_date,  -- Include enrollment status for enrollment events
+    CASE WHEN employee_enrollment_date IS NOT NULL THEN true ELSE false END AS is_enrolled_flag,  -- Backup enrollment status flag
     'baseline_workforce' AS data_source,
     -- Additional metadata for validation
     current_compensation AS starting_year_compensation,
@@ -80,7 +81,8 @@ SELECT
         ELSE '20+'
     END AS tenure_band,
     employment_status,
-    NULL AS employee_enrollment_date,  -- TODO: Need to track enrollment status across years
+    employee_enrollment_date,  -- Preserve enrollment status from previous year
+    is_enrolled_flag,  -- Backup enrollment status flag
     'previous_year_helper_model' AS data_source,
     -- Additional metadata for validation
     employee_gross_compensation AS starting_year_compensation,
