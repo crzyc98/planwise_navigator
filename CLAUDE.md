@@ -22,7 +22,7 @@ This playbook tells Claude exactly how to turn high-level feature requests into 
 | **Storage** | DuckDB | 1.0.0 | Immutable event store; column-store OLAP engine |
 | **Transformation** | dbt-core | 1.8.8 | Declarative SQL models, tests, documentation |
 | **Adapter** | dbt-duckdb | 1.8.1 | Stable DuckDB integration |
-| **Orchestration** | Dagster | 1.8.12 | Asset-based pipeline for simulation workflow |
+| **Orchestration** | run_multi_year.py | Direct | Python script with dbt subprocess calls for multi-year simulation workflow |
 | **Dashboard** | Streamlit | 1.39.0 | Interactive analytics and compensation tuning |
 | **Configuration** | Pydantic | 2.7.4 | Type-safe config management with validation |
 | **Parameters** | comp\_levers.csv | Dynamic | Analyst-adjustable compensation parameters |
@@ -30,22 +30,21 @@ This playbook tells Claude exactly how to turn high-level feature requests into 
 | **Context** | Context7 MCP | Latest | Extended context management and tool integration |
 
 \<details\>
-\<summary\>Unified Simulation Pipeline\</summary\>
+\<summary\>Multi-Year Simulation Pipeline\</summary\>
 
 ```mermaid
 graph TD
-    config[config/simulation_config.yaml] --> dagster[Dagster Pipeline]
+    config[config/simulation_config.yaml] --> runner[run_multi_year.py]
     params[comp_levers.csv] --> parameters[int_effective_parameters]
     census[census_raw] --> baseline[int_baseline_workforce]
-    baseline --> snapshot[prepare_year_snapshot]
-    snapshot --> prev_year[int_previous_year_workforce]
-    parameters --> events[Event Models]
-    prev_year --> events[Event Models]
+    baseline --> compensation[int_employee_compensation_by_year]
+    compensation --> needs[int_workforce_needs]
+    needs --> events[Event Models]
     events --> yearly_events[fct_yearly_events]
-    yearly_events --> workforce[fct_workforce_snapshot]
-    workforce --> state[simulation_year_state]
-    state --> checks[Asset Checks]
-    checks --> tuning[Compensation Tuning UI]
+    yearly_events --> accumulator[int_enrollment_state_accumulator]
+    accumulator --> workforce[fct_workforce_snapshot]
+    workforce --> audit[Year Audit Results]
+    audit --> tuning[Compensation Tuning UI]
     tuning --> params
 ```
 
@@ -100,16 +99,17 @@ PlanWise Navigator implements enterprise-grade event sourcing with immutable aud
 
 ```
 planwise_navigator/
-├─ definitions.py                    # Dagster workspace entry point
-├─ orchestrator/                     # Dagster pipeline code
-│  ├─ simulation_pipeline.py        # Main simulation logic
-│  ├─ assets/                        # Asset definitions
-│  ├─ jobs/                          # Job workflows
-│  └─ resources/                     # Shared resources (DuckDBResource)
+├─ run_multi_year.py                 # Main multi-year simulation orchestrator
+├─ orchestrator_dbt/                 # Enhanced dbt orchestrator (production)
+│  ├─ run_multi_year.py             # Production multi-year runner
+│  ├─ core/                         # Core orchestration components
+│  └─ simulation/                   # Simulation logic modules
 ├─ dbt/                              # dbt project
 │  ├─ models/                        # SQL transformation models
 │  │  ├─ staging/                    # Raw data cleaning (stg_*)
 │  │  ├─ intermediate/               # Business logic (int_*)
+│  │  │  ├─ events/                 # Event generation models
+│  │  │  └─ int_enrollment_state_accumulator.sql # Temporal enrollment state
 │  │  └─ marts/                      # Final outputs (fct_*, dim_*)
 │  ├─ seeds/                         # Configuration data (CSV)
 │  └─ macros/                        # Reusable SQL functions
@@ -118,10 +118,10 @@ planwise_navigator/
 │  ├─ simulation_config.yaml        # Simulation parameters
 │  ├─ schema.py                     # Legacy event schema (Pydantic v1)
 │  └─ events.py                     # Unified event model (Pydantic v2)
+├─ shared_utils.py                   # Shared utilities and mutex handling
 ├─ scripts/                          # Utility scripts
 ├─ tests/                            # Comprehensive testing
 ├─ data/                             # Raw input files (git-ignored)
-├─ .dagster/                         # Dagster home directory (git-ignored)
 └─ simulation.duckdb                 # DuckDB database file (git-ignored)
 ```
 
@@ -134,7 +134,7 @@ planwise_navigator/
   * **dbt models**: `tier_entity_purpose` (e.g., `fct_workforce_snapshot`, `int_termination_events`).
   * **Event tables**: `fct_yearly_events` (immutable), `fct_workforce_snapshot` (point-in-time).
   * **Modular operations**: `action_entity` (e.g., `clean_duckdb_data`, `run_year_simulation`).
-  * **Dagster assets**: `snake_case`, descriptive (e.g., `simulation_year_state`, `dbt_simulation_assets`).
+  * **Python orchestration**: `snake_case`, descriptive (e.g., `run_year_simulation`, `audit_year_results`).
   * **Python**: PEP 8; mandatory type-hints; Pydantic models for config.
   * **Configuration**: `snake_case` in YAML, hierarchical structure.
 
@@ -193,28 +193,26 @@ Every feature request becomes a single Pull-Request following this checklist:
 ### **7. Local Development Environment**
 
 ```bash
-# Environment Setup
-# DAGSTER_HOME should be set system-wide to ~/dagster_home_planwise
-# Verify with: launchctl getenv DAGSTER_HOME
-# If not set, run: ./scripts/set_dagster_home.sh
-
 # Python Environment
 python3.11 -m venv venv
 source venv/bin/activate
 pip install -r requirements.txt
 
-# Start Dagster Development Server
-dagster dev # Web server available at http://localhost:3000
-
-# Run Simulations
-dagster asset materialize --select simulation_year_state  # Single year
-dagster asset materialize --select multi_year_simulation  # Multi-year
+# Run Multi-Year Simulations
+python run_multi_year.py                                # Simple multi-year runner (development)
+python orchestrator_dbt/run_multi_year.py               # Enhanced multi-year runner (production)
 
 # dbt Development
 cd dbt
 dbt run       # Run all models
 dbt test      # Run all tests
 dbt docs generate # Generate documentation
+
+# Single Year Development (for testing specific models)
+cd dbt
+dbt run --select stg_census_data int_baseline_workforce --vars "simulation_year: 2025"
+dbt run --select int_enrollment_events --vars "simulation_year: 2025"
+dbt run --select fct_yearly_events fct_workforce_snapshot --vars "simulation_year: 2025"
 
 # Streamlit Dashboards
 streamlit run streamlit_dashboard/main.py
@@ -225,19 +223,20 @@ make run-optimization-dashboard                          # Launch optimization d
 
 # Configuration Management
 # Edit config/simulation_config.yaml for simulation parameters:
-# - start_year, end_year
+# - start_year, end_year (e.g., 2025-2029)
 # - target_growth_rate
 # - termination_rates
 # - random_seed for reproducibility
 
-# Asset-based Development Pattern
-dagster asset materialize --select dbt_models             # Run all dbt models
-dagster asset materialize --select workforce_simulation   # Run simulation assets
-dagster asset materialize --select dashboard_data        # Prepare dashboard data
+# Development Pattern
+# 1. Test single year: dbt run --select model_name --vars "simulation_year: 2025"
+# 2. Test multi-year: python run_multi_year.py
+# 3. Validate results: check audit output and database contents
+# 4. Deploy changes: commit and use orchestrator_dbt/run_multi_year.py
 
-# Data Quality Checks
-dagster asset check --select validate_data_quality       # Run data quality checks
-dagster asset check --select validate_simulation_results # Validate simulation outputs
+# Enrollment Architecture Validation
+dbt run --select validate_enrollment_architecture --vars "simulation_year: 2025"
+# Check for duplicate enrollments across years in fct_yearly_events
 ```
 
 -----
@@ -247,7 +246,7 @@ dagster asset check --select validate_simulation_results # Validate simulation o
 The CI pipeline (GitHub Actions) performs:
 
 1.  Lint → Pytest → dbt build –fail-fast
-2.  Dagster asset warm-up
+2.  Multi-year simulation validation using orchestrator_dbt/run_multi_year.py
 3.  Tag & release Docker image `ghcr.io/fidelity/planwise:${sha}`
 4.  Ansible playbook updates the on-prem server (zero-downtime blue-green).
 
@@ -301,33 +300,48 @@ This section tracks the implementation of major epics and stories.
       * **S044**: Dynamic parameter integration into models.
       * **S046**: Streamlit analyst interface.
   * **Planned Stories**:
-      * **S045**: Dagster tuning loops (auto-optimization).
-      * **S047**: SciPy optimization engine (goal-seeking).
+      * **S045**: Auto-optimization loops (goal-seeking).
+      * **S047**: SciPy optimization engine integration.
+
+#### **Epic E023: Enrollment Architecture Fix**
+
+  * **Status**: ✅ Completed (2025-01-05)
+  * **Summary**: Fixed critical enrollment architecture issues that caused 321 employees to have enrollment events but no enrollment dates in workforce snapshots. Implemented temporal state accumulator pattern to eliminate circular dependencies.
+  * **Key Improvements**:
+      * **Created** `int_enrollment_state_accumulator.sql` - temporal state tracking without circular dependencies
+      * **Fixed** `int_enrollment_events.sql` - restored essential WHERE clauses to prevent duplicate enrollments
+      * **Updated** `fct_workforce_snapshot.sql` - proper event-to-state flow for enrollment dates
+      * **Removed** broken `int_historical_enrollment_tracker.sql` model
+      * **Added** `validate_enrollment_architecture.sql` for ongoing data quality monitoring
+  * **Results**: Zero employees with enrollment events missing enrollment dates, proper multi-year enrollment continuity
 
 -----
 
 ### **10. Troubleshooting and Common Issues**
 
-#### **CRITICAL: DuckDB Serialization and Path Issues**
+#### **CRITICAL: Database and Path Issues**
 
-  * **Problem**: DuckDB Relation objects are not serializable by Dagster.
-  * **Solution**: **Always** convert DuckDB query results to pandas DataFrames (`.df()`) before returning them from a Dagster asset.
-  * **Correct Pattern**:
+  * **Database Location**: The simulation database is `simulation.duckdb` in the project root.
+  * **dbt Commands**: Always run `dbt` commands from the `/dbt` directory.
+  * **Multi-year Orchestration**: Use `run_multi_year.py` from project root or `orchestrator_dbt/run_multi_year.py` for production.
+  * **Correct Pattern for Database Access**:
     ```python
-    @asset
-    def correct_asset(context: AssetExecutionContext, duckdb: DuckDBResource) -> pd.DataFrame:
-        with duckdb.get_connection() as conn:
-            df = conn.execute("SELECT * FROM employees").df()
-            return df # Returns a serializable DataFrame
+    def get_database_connection():
+        db_path = Path("simulation.duckdb")
+        return duckdb.connect(str(db_path))
+
+    # Query pattern
+    conn = get_database_connection()
+    result = conn.execute("SELECT * FROM fct_yearly_events WHERE simulation_year = ?", [year]).fetchall()
+    conn.close()
     ```
-  * **Paths**: Always run `dagster` commands from the project root and `dbt` commands from the `/dbt` directory. The database file is `simulation.duckdb`.
 
 #### **Virtual Environment and Versioning**
 
-  * **Problem**: `ModuleNotFoundError` when running `dagster` commands.
-  * **Cause**: Using a system-installed Dagster instead of the one in the virtual environment.
-  * **Solution**: Always activate the virtual environment (`source venv/bin/activate`) before running commands, or call the binary directly (`venv/bin/dagster ...`).
-  * **Compatible Versions**: `dbt-core: 1.9.8`, `dagster: 1.10.21`, `dagster-dbt: 0.26.21`.
+  * **Problem**: `ModuleNotFoundError` when running Python or dbt commands.
+  * **Cause**: Using system-installed packages instead of virtual environment packages.
+  * **Solution**: Always activate the virtual environment (`source venv/bin/activate`) before running commands, or call the binary directly (`venv/bin/python`, `venv/bin/dbt`).
+  * **Compatible Versions**: `dbt-core: 1.9.8`, `dbt-duckdb: 1.8.1`, `duckdb: 1.0.0`.
 
 #### **Database Locks and State Management**
 
@@ -350,11 +364,22 @@ This section tracks the implementation of major epics and stories.
     WHERE simulation_year <= ?
     ```
 
+#### **Enrollment Architecture and Temporal State**
+
+  * **Problem**: Duplicate enrollment events across years or missing enrollment dates in workforce snapshots.
+  * **Cause**: Circular dependencies in enrollment tracking or incorrect temporal state accumulation.
+  * **Solution**: Use the `int_enrollment_state_accumulator` model which implements proper temporal state tracking:
+    - Year N uses Year N-1 accumulator data + Year N events
+    - No circular dependencies
+    - Maintains enrollment state across simulation years
+  * **Validation**: Run `dbt run --select validate_enrollment_architecture` to check for data integrity issues.
+
 -----
 
 ### **11. Further Reading**
 
   * `/docs/architecture.md` – Deep-dive diagrams
   * `/docs/events.md` – Workforce event taxonomy
-  * [Dagster Docs](https://docs.dagster.io/)
+  * `/docs/issues/enrollment-architecture-fix-plan.md` – Enrollment architecture fix documentation
   * [dbt Style Guide](https://docs.getdbt.com/docs/collaborate/style-guide)
+  * [DuckDB Documentation](https://duckdb.org/docs/)

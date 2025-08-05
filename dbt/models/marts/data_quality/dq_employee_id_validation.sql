@@ -62,14 +62,75 @@ format_check AS (
   FROM all_employee_ids
 ),
 
+-- Enhanced SSN duplicate check across all data sources
+all_employee_ssns AS (
+  -- Census data SSNs
+  SELECT DISTINCT
+    employee_ssn,
+    employee_id,
+    'census' AS source,
+    2024 AS year
+  FROM {{ ref('stg_census_data') }}
+  WHERE employee_ssn IS NOT NULL
+
+  UNION ALL
+
+  -- New hire SSNs from yearly events
+  SELECT DISTINCT
+    employee_ssn,
+    employee_id,
+    'new_hire' AS source,
+    simulation_year AS year
+  FROM {{ ref('fct_yearly_events') }}
+  WHERE event_type = 'hire'
+    AND employee_ssn IS NOT NULL
+
+  UNION ALL
+
+  -- Workforce snapshot SSNs (for comprehensive validation)
+  SELECT DISTINCT
+    employee_ssn,
+    employee_id,
+    'workforce_snapshot' AS source,
+    simulation_year AS year
+  FROM {{ ref('fct_workforce_snapshot') }}
+  WHERE employee_ssn IS NOT NULL
+),
+
 ssn_duplicate_check AS (
   SELECT
     employee_ssn,
     COUNT(DISTINCT employee_id) AS unique_employee_count,
-    STRING_AGG(DISTINCT employee_id, ', ') AS employee_ids
-  FROM {{ ref('stg_census_data') }}
+    COUNT(*) AS total_occurrences,
+    STRING_AGG(DISTINCT employee_id, ', ') AS employee_ids,
+    STRING_AGG(DISTINCT source, ', ') AS sources,
+    STRING_AGG(DISTINCT CAST(year AS VARCHAR), ', ') AS years
+  FROM all_employee_ssns
   GROUP BY employee_ssn
   HAVING COUNT(DISTINCT employee_id) > 1
+),
+
+-- SSN range validation (census should be 100M, new hires should be 900M+)
+ssn_range_violations AS (
+  SELECT
+    employee_ssn,
+    employee_id,
+    source,
+    year,
+    CASE
+      WHEN employee_ssn LIKE 'SSN-1%' AND source = 'census' THEN 'VALID_RANGE'
+      WHEN employee_ssn LIKE 'SSN-9%' AND source = 'new_hire' THEN 'VALID_RANGE'
+      WHEN employee_ssn LIKE 'SSN-1%' AND source != 'census' THEN 'WRONG_RANGE_CENSUS'
+      WHEN employee_ssn LIKE 'SSN-9%' AND source != 'new_hire' THEN 'WRONG_RANGE_NEWHIRE'
+      ELSE 'INVALID_FORMAT'
+    END AS range_status
+  FROM all_employee_ssns
+),
+
+ssn_range_check AS (
+  SELECT *
+  FROM ssn_range_violations
+  WHERE range_status != 'VALID_RANGE'
 ),
 
 -- Final data quality report
@@ -133,16 +194,38 @@ SELECT
   'SSN_SHARED' AS check_type,
   'ERROR' AS severity,
   COUNT(*) AS issue_count,
-  'SSNs associated with multiple employee IDs' AS description,
+  'SSNs associated with multiple employee IDs across all data sources' AS description,
   CASE
     WHEN COUNT(*) > 0 THEN STRING_AGG(
       '{"employee_ssn":"' || employee_ssn ||
       '","unique_employee_count":' || unique_employee_count ||
-      ',"employee_ids":"' || employee_ids || '"}', ', '
+      ',"total_occurrences":' || total_occurrences ||
+      ',"employee_ids":"' || employee_ids ||
+      '","sources":"' || sources ||
+      '","years":"' || years || '"}', ', '
     )
     ELSE NULL
   END AS details
 FROM ssn_duplicate_check
+
+UNION ALL
+
+SELECT
+  'SSN_WRONG_RANGE' AS check_type,
+  'ERROR' AS severity,
+  COUNT(*) AS issue_count,
+  'SSNs in wrong range - census should use 100M range, new hires should use 900M+ range' AS description,
+  CASE
+    WHEN COUNT(*) > 0 THEN STRING_AGG(
+      '{"employee_ssn":"' || employee_ssn ||
+      '","employee_id":"' || employee_id ||
+      '","source":"' || source ||
+      '","year":' || year ||
+      ',"range_status":"' || range_status || '"}', ', '
+    )
+    ELSE NULL
+  END AS details
+FROM ssn_range_check
 )
 
 SELECT

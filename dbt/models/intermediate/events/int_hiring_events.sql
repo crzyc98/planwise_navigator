@@ -71,8 +71,10 @@ new_hire_assignments AS (
     'NH_' || CAST({{ simulation_year }} AS VARCHAR) || '_' ||
     LPAD(CAST(hs.hire_sequence_num AS VARCHAR), 6, '0') AS employee_id,
 
-    -- Generate SSN
-    'SSN-' || LPAD(CAST(100000000 + hs.hire_sequence_num AS VARCHAR), 9, '0') AS employee_ssn,
+    -- Generate SSN using 900M range with year offsets to prevent census collisions
+    -- Census uses 100M range (SSN-100000001+), new hires use 900M+ range
+    -- Format: 900 + (year_offset * 100000) + sequence_num
+    'SSN-' || LPAD(CAST(900000000 + ({{ simulation_year }} - 2025) * 100000 + hs.hire_sequence_num AS VARCHAR), 9, '0') AS employee_ssn,
 
     -- Simple age assignment (deterministic based on sequence)
     CASE

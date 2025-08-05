@@ -1,0 +1,132 @@
+version: 2
+
+models:
+  - name: validate_enrollment_architecture
+    description: |
+      **Phase 5: Enrollment Architecture Validation**
+
+      Comprehensive validation suite to ensure the fixed enrollment architecture works correctly.
+      This model validates the complete event-to-state flow after fixing the circular dependency
+      that existed with int_historical_enrollment_tracker.
+
+      **Validates:**
+      - Event-to-State Consistency: All enrollment events have corresponding enrollment dates
+      - State-to-Snapshot Consistency: Enrollment state properly flows to workforce snapshots
+      - Duplicate Prevention: No duplicate enrollments across years
+      - Enrollment Continuity: Once enrolled, stays enrolled unless opt-out occurs
+      - Specific Test Cases: Validates known edge cases like NH_2026_000787
+
+      **Fixed Architecture:**
+      int_enrollment_events → int_enrollment_state_accumulator → fct_workforce_snapshot
+
+      **Usage:**
+      Run this after any enrollment-related changes to validate the architecture integrity.
+      Any records with overall_validation_status = 'VALIDATION_FAILED' indicate issues
+      that need investigation.
+
+      **Key Test Case:**
+      - NH_2026_000787 should have enrollment_date = 2027-01-15 in simulation_year = 2027
+      - This tests the end-to-end flow from events to final workforce snapshot
+    config:
+      tags: ["validation", "enrollment", "architecture", "phase5_fix", "data_quality"]
+    tests:
+      - dbt_utils.expression_is_true:
+          expression: "overall_validation_status IN ('VALIDATION_PASSED', 'VALIDATION_FAILED')"
+          config:
+            severity: error
+    columns:
+      - name: employee_id
+        description: "Employee identifier being validated"
+        tests:
+          - not_null
+
+      - name: simulation_year
+        description: "Simulation year for the validation record"
+        tests:
+          - not_null
+
+      - name: enrollment_event_date
+        description: "Date from enrollment event (int_enrollment_events)"
+
+      - name: state_enrollment_date
+        description: "Date from enrollment state accumulator (int_enrollment_state_accumulator)"
+
+      - name: snapshot_enrollment_date
+        description: "Date from workforce snapshot (fct_workforce_snapshot)"
+
+      - name: event_state_consistency
+        description: |
+          Validation of consistency between enrollment events and enrollment state:
+          - CONSISTENT: Event and state match properly
+          - EVENT_WITHOUT_STATE: Event exists but no state record
+          - STATE_WITHOUT_EVENT: State exists but no triggering event
+          - DATE_MISMATCH: Event date != state date
+        tests:
+          - accepted_values:
+              values: ['CONSISTENT', 'EVENT_WITHOUT_STATE', 'STATE_WITHOUT_EVENT', 'DATE_MISMATCH']
+
+      - name: state_snapshot_consistency
+        description: |
+          Validation of consistency between enrollment state and workforce snapshot:
+          - CONSISTENT: State and snapshot match properly
+          - STATE_WITHOUT_SNAPSHOT: State exists but not in snapshot
+          - SNAPSHOT_WITHOUT_STATE: Snapshot exists but no state record
+          - DATE_MISMATCH: State date != snapshot date
+        tests:
+          - accepted_values:
+              values: ['CONSISTENT', 'STATE_WITHOUT_SNAPSHOT', 'SNAPSHOT_WITHOUT_STATE', 'DATE_MISMATCH']
+
+      - name: duplicate_status
+        description: |
+          Check for duplicate enrollments across years:
+          - SINGLE_ENROLLMENT_ONLY: Employee enrolled only once (correct)
+          - DUPLICATE_ENROLLMENTS_ACROSS_YEARS: Multiple enrollment events (issue)
+          - SPECIFIC_TEST_CASE: Special validation record for test cases
+        tests:
+          - accepted_values:
+              values: ['SINGLE_ENROLLMENT_ONLY', 'DUPLICATE_ENROLLMENTS_ACROSS_YEARS', 'SPECIFIC_TEST_CASE']
+
+      - name: continuity_status
+        description: |
+          Check for enrollment continuity over time:
+          - CONTINUOUS: Enrollment status maintained properly
+          - ENROLLMENT_DISCONTINUITY: Lost enrollment without opt-out
+          - ENROLLMENT_DATE_REGRESSION: Lost enrollment date
+          - SPECIFIC_TEST_CASE: Special validation record
+        tests:
+          - accepted_values:
+              values: ['CONTINUOUS', 'ENROLLMENT_DISCONTINUITY', 'ENROLLMENT_DATE_REGRESSION', 'SPECIFIC_TEST_CASE']
+
+      - name: overall_validation_status
+        description: |
+          Overall validation result:
+          - VALIDATION_PASSED: All checks passed, architecture working correctly
+          - VALIDATION_FAILED: One or more validation checks failed
+          - SPECIFIC_CASE_VALIDATED: Test case passed validation
+          - SPECIFIC_CASE_NOT_FOUND: Test case failed validation
+        tests:
+          - accepted_values:
+              values: ['VALIDATION_PASSED', 'VALIDATION_FAILED', 'SPECIFIC_CASE_VALIDATED', 'SPECIFIC_CASE_NOT_FOUND']
+          - not_null
+
+      - name: issue_description
+        description: "Human-readable description of any validation issues found"
+        tests:
+          - not_null
+
+      - name: validation_timestamp
+        description: "Timestamp when validation was performed"
+        tests:
+          - not_null
+
+  - name: validate_enrollment_continuity
+    description: |
+      **Legacy Enrollment Continuity Validation**
+
+      Data quality validation for enrollment continuity across simulation years.
+      This model focuses on detecting enrollment date regression and duplicate events.
+
+      **Note:** This model is supplemented by validate_enrollment_architecture which provides
+      more comprehensive architecture validation after the Phase 1-5 enrollment fixes.
+    config:
+      tags: ["validation", "enrollment", "data_quality", "legacy"]

@@ -764,7 +764,7 @@ models:
           - not_null
           - dbt_utils.accepted_range:
               min_value: 0
-              max_value: 1
+              max_value: 10  # Allow values > 1 for salary adjustments and multipliers
 
       - name: is_locked
         description: Whether this parameter is locked from changes
@@ -1492,3 +1492,100 @@ models:
             severity: warn
             enabled: "{{ var('auto_enrollment_hire_date_cutoff', null) != null }}"
             store_failures: true
+
+  - name: int_enrollment_state_accumulator
+    description: >
+      Temporal State Accumulator for Enrollment Tracking (Phase 1 Fix)
+
+      This model implements a temporal state accumulator pattern to track enrollment
+      state across simulation years without circular dependencies. It builds enrollment
+      state year-by-year using only fct_yearly_events and its own previous year data.
+
+      **Key Features:**
+      - Incremental materialization with unique_key=['employee_id', 'simulation_year']
+      - Handles base case (first simulation year) with baseline workforce
+      - Accumulates enrollment history across simulation years
+      - Tracks enrollment_date, enrollment_status, and enrollment changes
+      - No circular dependencies (only uses fct_yearly_events + own previous data)
+
+      **Phase 1 Fix:**
+      Replaces int_historical_enrollment_tracker to solve the issue where 321 employees
+      have enrollment events but no enrollment dates in workforce snapshots.
+
+      **Architecture:**
+      - Base case: Uses int_baseline_workforce for first simulation year
+      - Subsequent years: Uses previous year state from this same model + current events
+      - Event-sourced: All enrollment state changes tracked through fct_yearly_events
+    config:
+      tags: ["enrollment", "temporal_accumulator", "phase1_fix", "critical"]
+    tests:
+      - dbt_utils.unique_combination_of_columns:
+          combination_of_columns:
+            - employee_id
+            - simulation_year
+    columns:
+      - name: employee_id
+        description: Unique identifier for each employee
+        data_tests:
+          - not_null
+      - name: simulation_year
+        description: Simulation year for this enrollment state record
+        data_tests:
+          - not_null
+          - dbt_utils.accepted_range:
+              min_value: 2025
+              max_value: 2035
+      - name: enrollment_date
+        description: Date when employee first enrolled (NULL if never enrolled)
+      - name: enrollment_status
+        description: Current enrollment status (true if enrolled, false if not or opted out)
+        data_tests:
+          - not_null
+          - accepted_values:
+              values: [true, false]
+      - name: years_since_first_enrollment
+        description: Number of years since first enrollment (NULL if never enrolled)
+        data_tests:
+          - dbt_utils.accepted_range:
+              min_value: 0
+              max_value: 50
+      - name: enrollment_source
+        description: Source of enrollment (baseline, event_YYYY, or none)
+        data_tests:
+          - not_null
+      - name: enrollment_events_this_year
+        description: Count of enrollment events in current simulation year
+        data_tests:
+          - not_null
+          - dbt_utils.accepted_range:
+              min_value: 0
+              max_value: 10
+      - name: enrollment_change_events_this_year
+        description: Count of enrollment change events in current simulation year
+        data_tests:
+          - not_null
+          - dbt_utils.accepted_range:
+              min_value: 0
+              max_value: 10
+      - name: effective_enrollment_date
+        description: Effective enrollment date (enrollment_date if enrolled, NULL otherwise)
+      - name: is_enrolled
+        description: Boolean flag indicating current enrollment status
+        data_tests:
+          - not_null
+          - accepted_values:
+              values: [true, false]
+      - name: created_at
+        description: Timestamp when this record was created
+        data_tests:
+          - not_null
+      - name: scenario_id
+        description: Scenario identifier for multi-scenario planning
+        data_tests:
+          - not_null
+      - name: data_quality_flag
+        description: Data quality validation flag
+        data_tests:
+          - not_null
+          - accepted_values:
+              values: ['VALID', 'INVALID_EMPLOYEE_ID', 'INVALID_SIMULATION_YEAR', 'INVALID_ENROLLMENT_STATUS']

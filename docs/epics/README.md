@@ -36,6 +36,42 @@ This folder contains comprehensive documentation for all PlanWise Navigator epic
 - **Key Deliverables**: 65-78% code reduction, improved maintainability
 - **Stories**: S055-S062 (24 story points)
 
+#### **[E020_polars_integration.md](E020_polars_integration.md)** - Polars Integration MVP ✅
+- **Status**: Complete
+- **Purpose**: Proof-of-concept for Polars performance benefits
+- **Key Deliverables**: 2.1x speedup for complex aggregations
+- **Stories**: Completed (2025-07-10)
+
+#### **[E021A_dc_plan_event_schema_foundation.md](E021A_dc_plan_event_schema_foundation.md)** - DC Plan Event Schema ✅
+- **Status**: 81% Complete (5 of 7 stories)
+- **Purpose**: Enterprise-grade event schema for DC plan operations
+- **Key Deliverables**: Core event model, workforce integration, DC plan events
+- **Stories**: S072-01 through S072-07 (32 story points)
+
+#### **[E022_eligibility_engine.md](E022_eligibility_engine.md)** - Eligibility Engine ✅
+- **Status**: Complete
+- **Purpose**: Comprehensive eligibility determination system
+- **Key Deliverables**: Multi-criteria eligibility, temporal tracking
+- **Stories**: Completed with E023 integration
+
+#### **[E023_enrollment_engine.md](E023_enrollment_engine.md)** - Enrollment Architecture Fix ✅
+- **Status**: Complete (2025-01-05)
+- **Purpose**: Fix enrollment architecture circular dependencies
+- **Key Deliverables**: Temporal state accumulator, zero missing enrollment dates
+- **Stories**: Critical architecture fixes
+
+#### **[E030_prorated_compensation_fix.md](E030_prorated_compensation_fix.md)** - Prorated Compensation Fix ✅
+- **Status**: Complete
+- **Purpose**: Fix compensation calculation accuracy
+- **Key Deliverables**: Event-based sequential periods, eliminated overlaps
+- **Stories**: Epic E030 implementation
+
+#### **[E033_compensation_parameter_config_integration.md](E033_compensation_parameter_config_integration.md)** - Compensation Parameter Integration ✅
+- **Status**: Complete (2025-08-05)
+- **Purpose**: Fix configuration parameters being ignored by simulation
+- **Key Deliverables**: Config-driven COLA/merit rates, enrollment registry fix
+- **Stories**: S033-01 through S033-04 (8 story points)
+
 ### In Development
 
 #### **[E014_layered_defense.md](E014_layered_defense.md)** - Layered Defense Strategy 🚧

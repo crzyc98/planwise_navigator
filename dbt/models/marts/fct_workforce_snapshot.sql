@@ -89,7 +89,12 @@ employee_events_consolidated AS (
 
         -- Merit/raise events processing
         MAX(CASE WHEN event_type = 'raise' THEN compensation_amount END) AS merit_salary,
-        COUNT(CASE WHEN event_type = 'raise' THEN 1 END) > 0 AS has_merit
+        COUNT(CASE WHEN event_type = 'raise' THEN 1 END) > 0 AS has_merit,
+
+        -- Enrollment events processing
+        MAX(CASE WHEN event_type = 'enrollment' THEN effective_date END) AS enrollment_date,
+        MAX(CASE WHEN event_type = 'enrollment' THEN event_details END) AS enrollment_details,
+        COUNT(CASE WHEN event_type = 'enrollment' THEN 1 END) > 0 AS has_enrollment
     FROM current_year_events
     WHERE employee_id IS NOT NULL
     GROUP BY employee_id
@@ -298,13 +303,39 @@ employee_eligibility AS (
     {% if simulation_year == start_year %}
     -- Year 1: Get eligibility data from baseline workforce (census data)
     SELECT DISTINCT
-        employee_id,
-        employee_eligibility_date,
-        waiting_period_days,
-        current_eligibility_status,
-        employee_enrollment_date
-    FROM {{ ref('int_baseline_workforce') }}
-    WHERE employment_status = 'active'
+        baseline.employee_id,
+        baseline.employee_eligibility_date,
+        baseline.waiting_period_days,
+        baseline.current_eligibility_status,
+        -- Use enrollment state accumulator for consistent enrollment tracking
+        -- Priority: 1. Current year enrollment events, 2. Enrollment state accumulator, 3. Baseline
+        COALESCE(
+            CASE WHEN ec.has_enrollment THEN ec.enrollment_date END,
+            accumulator.enrollment_date,
+            baseline.employee_enrollment_date
+        ) AS employee_enrollment_date,
+        -- Calculate enrollment flag for year 1
+        CASE
+            WHEN COALESCE(
+                CASE WHEN ec.has_enrollment THEN ec.enrollment_date END,
+                accumulator.enrollment_date,
+                baseline.employee_enrollment_date
+            ) IS NOT NULL
+            THEN true
+            ELSE false
+        END AS is_enrolled_flag
+    FROM {{ ref('int_baseline_workforce') }} baseline
+    LEFT JOIN (
+        -- Get enrollment status from enrollment state accumulator
+        SELECT
+            employee_id,
+            enrollment_date,
+            enrollment_status AS is_enrolled
+        FROM {{ ref('int_enrollment_state_accumulator') }}
+        WHERE simulation_year = {{ simulation_year }}
+    ) accumulator ON baseline.employee_id = accumulator.employee_id
+    LEFT JOIN employee_events_consolidated ec ON baseline.employee_id = ec.employee_id
+    WHERE baseline.employment_status = 'active'
     {% else %}
     -- Subsequent years: Get from eligibility events and baseline for those without events
     SELECT DISTINCT
@@ -312,7 +343,23 @@ employee_eligibility AS (
         COALESCE(events.employee_eligibility_date, baseline.employee_eligibility_date) AS employee_eligibility_date,
         COALESCE(events.waiting_period_days, baseline.waiting_period_days) AS waiting_period_days,
         COALESCE(events.current_eligibility_status, baseline.current_eligibility_status) AS current_eligibility_status,
-        baseline.employee_enrollment_date  -- Keep enrollment date from baseline if available
+        -- Use enrollment state accumulator for consistent enrollment tracking
+        -- Priority: 1. Current year enrollment events, 2. Enrollment state accumulator, 3. Baseline
+        COALESCE(
+            CASE WHEN ec.has_enrollment THEN ec.enrollment_date END,
+            accumulator.enrollment_date,
+            baseline.employee_enrollment_date
+        ) AS employee_enrollment_date,
+        -- Calculate enrollment flag based on enrollment date
+        CASE
+            WHEN COALESCE(
+                CASE WHEN ec.has_enrollment THEN ec.enrollment_date END,
+                accumulator.enrollment_date,
+                baseline.employee_enrollment_date
+            ) IS NOT NULL
+            THEN true
+            ELSE false
+        END AS is_enrolled_flag
     FROM (
         -- Get eligibility from events
         SELECT DISTINCT
@@ -348,6 +395,17 @@ employee_eligibility AS (
         FROM {{ ref('int_baseline_workforce') }}
         WHERE employment_status = 'active'
     ) baseline ON events.employee_id = baseline.employee_id
+    LEFT JOIN (
+        -- Get enrollment status from enrollment state accumulator for current year
+        SELECT
+            employee_id,
+            enrollment_date,
+            enrollment_status AS is_enrolled
+        FROM {{ ref('int_enrollment_state_accumulator') }}
+        WHERE simulation_year = {{ simulation_year }}
+    ) accumulator ON COALESCE(events.employee_id, baseline.employee_id) = accumulator.employee_id
+    -- Add join to employee_events_consolidated to get current year enrollment events (for subsequent years)
+    LEFT JOIN employee_events_consolidated ec ON COALESCE(events.employee_id, baseline.employee_id) = ec.employee_id
     {% endif %}
 ),
 
@@ -537,6 +595,7 @@ final_workforce AS (
         ee.waiting_period_days,
         ee.current_eligibility_status,
         ee.employee_enrollment_date,
+        ee.is_enrolled_flag,
         -- Recalculate bands with updated age/tenure (these are indeed static for a given year here)
         CASE
             WHEN fwc.current_age < 25 THEN '< 25'
@@ -650,6 +709,7 @@ SELECT
     waiting_period_days,
     current_eligibility_status,
     employee_enrollment_date,
+    is_enrolled_flag,
     CURRENT_TIMESTAMP AS snapshot_created_at
 FROM final_workforce
 
