@@ -1,18 +1,5 @@
 {{ config(
-  materialized='incremental',
-  unique_key=['employee_id', 'simulation_year', 'event_sequence'],
-  incremental_strategy='delete+insert',
-  on_schema_change='append_new_columns',
-  contract={
-      "enforced": true
-  },
-  indexes=[
-      {'columns': ['simulation_year'], 'type': 'btree'},
-      {'columns': ['employee_id'], 'type': 'btree'},
-      {'columns': ['simulation_year', 'employee_id'], 'type': 'btree'},
-      {'columns': ['event_type', 'simulation_year'], 'type': 'btree'},
-      {'columns': ['employee_id', 'event_type'], 'type': 'btree'}
-  ]
+  materialized='table'
 ) }}
 
 {% set simulation_year = var('simulation_year', none) %}
@@ -36,6 +23,8 @@ WITH termination_events AS (
     termination_reason AS event_details,
     final_compensation AS compensation_amount,
     NULL AS previous_compensation,
+    NULL::decimal(5,4) AS employee_deferral_rate,
+    NULL::decimal(5,4) AS prev_employee_deferral_rate,
     current_age AS employee_age,
     current_tenure AS employee_tenure,
     level_id,
@@ -44,9 +33,9 @@ WITH termination_events AS (
     termination_rate AS event_probability,
     'experienced_termination' AS event_category
   FROM {{ ref('int_termination_events') }}
-  {% if simulation_year %}
-    WHERE simulation_year = {{ simulation_year }}
-  {% endif %}
+  {%- if simulation_year %}
+  WHERE simulation_year = {{ simulation_year }}
+  {%- endif %}
 ),
 
 new_hire_termination_events AS (
@@ -59,6 +48,8 @@ new_hire_termination_events AS (
     termination_reason AS event_details,
     final_compensation AS compensation_amount,
     NULL AS previous_compensation,
+    NULL::decimal(5,4) AS employee_deferral_rate,
+    NULL::decimal(5,4) AS prev_employee_deferral_rate,
     current_age AS employee_age,
     current_tenure AS employee_tenure,
     level_id,
@@ -67,9 +58,9 @@ new_hire_termination_events AS (
     termination_rate AS event_probability,
     'new_hire_termination' AS event_category
   FROM {{ ref('int_new_hire_termination_events') }}
-  {% if simulation_year %}
-    WHERE simulation_year = {{ simulation_year }}
-  {% endif %}
+  {%- if simulation_year %}
+  WHERE simulation_year = {{ simulation_year }}
+  {%- endif %}
 ),
 
 promotion_events AS (
@@ -82,6 +73,8 @@ promotion_events AS (
     'Level ' || from_level || ' -> ' || to_level AS event_details,
     new_salary AS compensation_amount,
     previous_salary AS previous_compensation,
+    NULL::decimal(5,4) AS employee_deferral_rate,
+    NULL::decimal(5,4) AS prev_employee_deferral_rate,
     current_age AS employee_age,
     current_tenure AS employee_tenure,
     to_level AS level_id,
@@ -90,9 +83,9 @@ promotion_events AS (
     promotion_rate AS event_probability,
     'promotion' AS event_category
   FROM {{ ref('int_promotion_events') }}
-  {% if simulation_year %}
-    WHERE simulation_year = {{ simulation_year }}
-  {% endif %}
+  {%- if simulation_year %}
+  WHERE simulation_year = {{ simulation_year }}
+  {%- endif %}
 ),
 
 hiring_events AS (
@@ -105,6 +98,8 @@ hiring_events AS (
     'New hire - Level ' || level_id AS event_details,
     compensation_amount,
     NULL AS previous_compensation,
+    NULL::decimal(5,4) AS employee_deferral_rate,
+    NULL::decimal(5,4) AS prev_employee_deferral_rate,
     employee_age,
     0 AS employee_tenure, -- New hires have 0 tenure
     level_id,
@@ -121,9 +116,9 @@ hiring_events AS (
     NULL AS event_probability, -- Hiring is deterministic based on departures
     'hiring' AS event_category
   FROM {{ ref('int_hiring_events') }}
-  {% if simulation_year %}
-    WHERE simulation_year = {{ simulation_year }}
-  {% endif %}
+  {%- if simulation_year %}
+  WHERE simulation_year = {{ simulation_year }}
+  {%- endif %}
 ),
 
 merit_events AS (
@@ -137,6 +132,8 @@ merit_events AS (
     ROUND(cola_percentage * 100, 1) || '%' AS event_details,
     new_salary AS compensation_amount,
     previous_salary AS previous_compensation,
+    NULL::decimal(5,4) AS employee_deferral_rate,
+    NULL::decimal(5,4) AS prev_employee_deferral_rate,
     current_age AS employee_age,
     current_tenure AS employee_tenure,
     level_id,
@@ -145,9 +142,9 @@ merit_events AS (
     merit_percentage AS event_probability,
     'RAISE' AS event_category
   FROM {{ ref('int_merit_events') }}
-  {% if simulation_year %}
-    WHERE simulation_year = {{ simulation_year }}
-  {% endif %}
+  {%- if simulation_year %}
+  WHERE simulation_year = {{ simulation_year }}
+  {%- endif %}
 ),
 
 -- E023 Enrollment Events: Auto-enrollment, proactive enrollment, and opt-outs
@@ -161,6 +158,8 @@ enrollment_events AS (
     event_details,
     compensation_amount,
     previous_compensation,
+    employee_deferral_rate,
+    prev_employee_deferral_rate,
     employee_age,
     employee_tenure,
     level_id,
@@ -169,37 +168,11 @@ enrollment_events AS (
     event_probability,
     event_category
   FROM {{ ref('int_enrollment_events') }}
-  {% if simulation_year %}
-    WHERE simulation_year = {{ simulation_year }}
-  {% endif %}
+  {%- if simulation_year %}
+  WHERE simulation_year = {{ simulation_year }}
+  {%- endif %}
 ),
 
-{% if is_incremental() %}
--- Preserve eligibility events from the existing table (only during incremental runs)
-existing_eligibility_events AS (
-  SELECT
-    employee_id,
-    employee_ssn,
-    event_type,
-    simulation_year,
-    effective_date,
-    event_details,
-    compensation_amount,
-    previous_compensation,
-    employee_age,
-    employee_tenure,
-    level_id,
-    age_band,
-    tenure_band,
-    event_probability,
-    event_category
-  FROM {{ this }}
-  WHERE event_type = 'eligibility'
-  {% if simulation_year %}
-    AND simulation_year = {{ simulation_year }}
-  {% endif %}
-),
-{% else %}
 -- For full refresh, create empty eligibility events CTE (will be regenerated by orchestrator)
 existing_eligibility_events AS (
   SELECT
@@ -211,6 +184,8 @@ existing_eligibility_events AS (
     CAST(NULL AS VARCHAR) AS event_details,
     CAST(NULL AS DECIMAL(18,2)) AS compensation_amount,
     CAST(NULL AS DECIMAL(18,2)) AS previous_compensation,
+    CAST(NULL AS DECIMAL(5,4)) AS employee_deferral_rate,
+    CAST(NULL AS DECIMAL(5,4)) AS prev_employee_deferral_rate,
     CAST(NULL AS INTEGER) AS employee_age,
     CAST(NULL AS DECIMAL(10,2)) AS employee_tenure,
     CAST(NULL AS INTEGER) AS level_id,
@@ -220,7 +195,6 @@ existing_eligibility_events AS (
     CAST(NULL AS VARCHAR) AS event_category
   WHERE FALSE
 ),
-{% endif %}
 
 -- Use the same logic for preserved eligibility events
 preserved_eligibility_events AS (
@@ -238,6 +212,8 @@ all_events AS (
     event_details,
     compensation_amount,
     previous_compensation,
+    employee_deferral_rate,
+    prev_employee_deferral_rate,
     employee_age,
     employee_tenure,
     level_id,
@@ -258,6 +234,8 @@ all_events AS (
     event_details,
     compensation_amount,
     previous_compensation,
+    employee_deferral_rate,
+    prev_employee_deferral_rate,
     employee_age,
     employee_tenure,
     level_id,
@@ -278,6 +256,8 @@ all_events AS (
     event_details,
     compensation_amount,
     previous_compensation,
+    employee_deferral_rate,
+    prev_employee_deferral_rate,
     employee_age,
     employee_tenure,
     level_id,
@@ -298,6 +278,8 @@ all_events AS (
     event_details,
     compensation_amount,
     previous_compensation,
+    employee_deferral_rate,
+    prev_employee_deferral_rate,
     employee_age,
     employee_tenure,
     level_id,
@@ -318,6 +300,8 @@ all_events AS (
     event_details,
     compensation_amount,
     previous_compensation,
+    employee_deferral_rate,
+    prev_employee_deferral_rate,
     employee_age,
     employee_tenure,
     level_id,
@@ -338,6 +322,8 @@ all_events AS (
     event_details,
     compensation_amount,
     previous_compensation,
+    employee_deferral_rate,
+    prev_employee_deferral_rate,
     employee_age,
     employee_tenure,
     level_id,
@@ -358,6 +344,8 @@ all_events AS (
     event_details,
     compensation_amount,
     previous_compensation,
+    employee_deferral_rate,
+    prev_employee_deferral_rate,
     employee_age,
     employee_tenure,
     level_id,
@@ -378,6 +366,8 @@ SELECT
   event_details,
   compensation_amount,
   previous_compensation,
+  employee_deferral_rate,
+  prev_employee_deferral_rate,
   employee_age,
   employee_tenure,
   level_id,
@@ -416,12 +406,7 @@ SELECT
     ELSE 'VALID'
   END AS data_quality_flag
 FROM all_events
-WHERE 1=1
-  {% if simulation_year %}
-    AND simulation_year = {{ simulation_year }}
-  {% endif %}
-  {% if is_incremental() %}
-    -- For incremental runs, only process the current simulation year
-    AND simulation_year = {{ simulation_year }}
-  {% endif %}
+{%- if simulation_year %}
+WHERE simulation_year = {{ simulation_year }}
+{%- endif %}
 ORDER BY employee_id, effective_date, event_sequence

@@ -142,17 +142,76 @@ enrollment_events AS (
     efo.simulation_year,
     CAST((efo.simulation_year || '-01-15 08:00:00') AS TIMESTAMP) as effective_date, -- Fixed enrollment date
 
-    -- Event details based on demographics
+    -- Event details based on demographics with deferral rate
     CASE efo.age_segment
-      WHEN 'young' THEN 'Young employee auto-enrollment - 3% default deferral'
-      WHEN 'mid_career' THEN 'Mid-career voluntary enrollment - 6% deferral'
-      WHEN 'mature' THEN 'Mature employee enrollment - 8% deferral'
-      ELSE 'Senior employee enrollment - 10% deferral'
+      WHEN 'young' THEN 'Young employee auto-enrollment - ' || CAST(ROUND(
+        CASE efo.income_segment
+          WHEN 'low_income' THEN 0.03
+          WHEN 'moderate' THEN 0.03
+          WHEN 'high' THEN 0.04
+          ELSE 0.06
+        END * 100, 1) AS VARCHAR) || '% default deferral'
+      WHEN 'mid_career' THEN 'Mid-career voluntary enrollment - ' || CAST(ROUND(
+        CASE efo.income_segment
+          WHEN 'low_income' THEN 0.04
+          WHEN 'moderate' THEN 0.06
+          WHEN 'high' THEN 0.08
+          ELSE 0.10
+        END * 100, 1) AS VARCHAR) || '% deferral'
+      WHEN 'mature' THEN 'Mature employee enrollment - ' || CAST(ROUND(
+        CASE efo.income_segment
+          WHEN 'low_income' THEN 0.05
+          WHEN 'moderate' THEN 0.08
+          WHEN 'high' THEN 0.10
+          ELSE 0.12
+        END * 100, 1) AS VARCHAR) || '% deferral'
+      ELSE 'Senior employee enrollment - ' || CAST(ROUND(
+        CASE efo.income_segment
+          WHEN 'low_income' THEN 0.06
+          WHEN 'moderate' THEN 0.10
+          WHEN 'high' THEN 0.12
+          ELSE 0.15
+        END * 100, 1) AS VARCHAR) || '% deferral'
     END as event_details,
 
     -- Compensation amount (current compensation at time of enrollment)
     efo.current_compensation as compensation_amount,
     NULL as previous_compensation,
+
+    -- NEW: Employee deferral rates based on demographics
+    CASE efo.age_segment
+      WHEN 'young' THEN
+        CASE efo.income_segment
+          WHEN 'low_income' THEN 0.03
+          WHEN 'moderate' THEN 0.03
+          WHEN 'high' THEN 0.04
+          ELSE 0.06
+        END
+      WHEN 'mid_career' THEN
+        CASE efo.income_segment
+          WHEN 'low_income' THEN 0.04
+          WHEN 'moderate' THEN 0.06
+          WHEN 'high' THEN 0.08
+          ELSE 0.10
+        END
+      WHEN 'mature' THEN
+        CASE efo.income_segment
+          WHEN 'low_income' THEN 0.05
+          WHEN 'moderate' THEN 0.08
+          WHEN 'high' THEN 0.10
+          ELSE 0.12
+        END
+      ELSE -- senior
+        CASE efo.income_segment
+          WHEN 'low_income' THEN 0.06
+          WHEN 'moderate' THEN 0.10
+          WHEN 'high' THEN 0.12
+          ELSE 0.15
+        END
+    END as employee_deferral_rate,
+
+    -- For new enrollments, previous deferral rate is 0
+    0.00 as prev_employee_deferral_rate,
 
     -- Employee demographics at time of enrollment
     efo.current_age as employee_age,
@@ -221,6 +280,12 @@ opt_out_events AS (
     efo.current_compensation as compensation_amount,
     efo.current_compensation as previous_compensation,
 
+    -- NEW: Opt-out means reducing deferral to 0
+    0.00 as employee_deferral_rate,
+
+    -- Previous rate was the default based on demographics (for young employees who opt out)
+    0.03 as prev_employee_deferral_rate,
+
     -- Employee demographics
     efo.current_age as employee_age,
     efo.current_tenure as employee_tenure,
@@ -273,6 +338,8 @@ all_enrollment_events AS (
     event_details,
     compensation_amount,
     previous_compensation,
+    employee_deferral_rate,
+    prev_employee_deferral_rate,
     employee_age,
     employee_tenure,
     level_id,
@@ -293,6 +360,8 @@ all_enrollment_events AS (
     event_details,
     compensation_amount,
     previous_compensation,
+    employee_deferral_rate,
+    prev_employee_deferral_rate,
     employee_age,
     employee_tenure,
     level_id,
@@ -314,6 +383,8 @@ SELECT
   event_details,
   compensation_amount,
   previous_compensation,
+  employee_deferral_rate,
+  prev_employee_deferral_rate,
   employee_age,
   employee_tenure,
   level_id,
@@ -324,6 +395,7 @@ SELECT
   -- Event sourcing metadata for audit trail
   ROW_NUMBER() OVER (PARTITION BY employee_id, simulation_year ORDER BY effective_date, event_type) as event_sequence,
   CURRENT_TIMESTAMP as created_at,
+  'E023_enrollment_engine' as event_source,  -- Required by schema
   '{{ var("scenario_id", "default") }}' as parameter_scenario_id,
   'enrollment_pipeline_v2_state_accumulator' as parameter_source,  -- Updated to reflect new architecture
   CASE
