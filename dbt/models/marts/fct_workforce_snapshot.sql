@@ -94,7 +94,12 @@ employee_events_consolidated AS (
         -- Enrollment events processing
         MAX(CASE WHEN event_type = 'enrollment' THEN effective_date END) AS enrollment_date,
         MAX(CASE WHEN event_type = 'enrollment' THEN event_details END) AS enrollment_details,
-        COUNT(CASE WHEN event_type = 'enrollment' THEN 1 END) > 0 AS has_enrollment
+        MAX(CASE WHEN event_type = 'enrollment' THEN employee_deferral_rate END) AS enrollment_deferral_rate,
+        COUNT(CASE WHEN event_type = 'enrollment' THEN 1 END) > 0 AS has_enrollment,
+
+        -- Enrollment change events (for deferral rate changes)
+        MAX(CASE WHEN event_type = 'enrollment_change' THEN employee_deferral_rate END) AS changed_deferral_rate,
+        COUNT(CASE WHEN event_type = 'enrollment_change' THEN 1 END) > 0 AS has_enrollment_change
     FROM current_year_events
     WHERE employee_id IS NOT NULL
     GROUP BY employee_id
@@ -596,6 +601,12 @@ final_workforce AS (
         ee.current_eligibility_status,
         ee.employee_enrollment_date,
         ee.is_enrolled_flag,
+        -- Add deferral rate tracking
+        COALESCE(
+            ec.changed_deferral_rate,  -- Most recent change takes precedence
+            ec.enrollment_deferral_rate,  -- Initial enrollment rate
+            0.00  -- Default for non-enrolled
+        ) AS current_deferral_rate,
         -- Recalculate bands with updated age/tenure (these are indeed static for a given year here)
         CASE
             WHEN fwc.current_age < 25 THEN '< 25'
@@ -647,6 +658,7 @@ final_workforce AS (
     FROM final_workforce_corrected fwc
     CROSS JOIN simulation_parameters sp
     LEFT JOIN employee_prorated_compensation epc ON fwc.employee_id = epc.employee_id
+    LEFT JOIN employee_events_consolidated ec ON fwc.employee_id = ec.employee_id
     -- **MERIT FIX**: Use consolidated event data for merit calculations
     LEFT JOIN (
         SELECT
@@ -710,6 +722,8 @@ SELECT
     current_eligibility_status,
     employee_enrollment_date,
     is_enrolled_flag,
+    -- Add deferral rate
+    current_deferral_rate,
     CURRENT_TIMESTAMP AS snapshot_created_at
 FROM final_workforce
 

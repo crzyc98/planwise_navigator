@@ -144,6 +144,12 @@ models:
       - name: data_quality_flag
         description: "Data quality validation flag"
         data_type: varchar
+      - name: employee_deferral_rate
+        description: "Employee's elected deferral percentage (0.00 to 0.75)"
+        data_type: decimal(5,4)
+      - name: prev_employee_deferral_rate
+        description: "Previous deferral rate before change"
+        data_type: decimal(5,4)
     data_tests:
       # Test that all simulation years are within reasonable bounds
       - dbt_utils.expression_is_true:
