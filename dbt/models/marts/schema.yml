@@ -205,6 +205,19 @@ models:
       - dbt_utils.expression_is_true:
           expression: "NOT (employment_status = 'terminated' AND EXTRACT(YEAR FROM employee_hire_date) = simulation_year) OR detailed_status_code = 'new_hire_termination'"
           name: "terminated_new_hires_classified_correctly"
+      # Epic E034: Contribution validation tests
+      # Test that contribution components sum correctly
+      - dbt_utils.expression_is_true:
+          expression: "ABS(ytd_contributions - (pre_tax_contributions + roth_contributions)) < 0.01"
+          name: "contribution_components_sum_correctly"
+      # Test that contributions don't exceed compensation for enrolled employees
+      - dbt_utils.expression_is_true:
+          expression: "NOT is_enrolled_flag OR prorated_annual_contributions <= prorated_annual_compensation * 1.01"  # 1% tolerance
+          name: "contributions_not_exceed_compensation"
+      # Test IRS limit flag accuracy
+      - dbt_utils.expression_is_true:
+          expression: "irs_limit_reached = (prorated_annual_contributions >= CASE WHEN current_age >= 50 THEN 31000 ELSE 23500 END)"
+          name: "irs_limit_flag_accurate"
     columns:
       - name: employee_id
         description: "Unique employee identifier within simulation year"
@@ -308,6 +321,64 @@ models:
       - name: employee_enrollment_date
         description: "Date when employee enrolled in DC plan (from census data or enrollment events)"
         data_type: date
+      - name: is_enrolled_flag
+        description: "Whether employee is enrolled in DC plan"
+        data_type: boolean
+      - name: current_deferral_rate
+        description: "Employee's current contribution deferral rate"
+        data_type: decimal(5,4)
+      # Epic E034: Employee contribution columns
+      - name: prorated_annual_contributions
+        description: "Prorated annual contribution amount based on employment periods"
+        data_type: double
+        data_tests:
+          - dbt_utils.accepted_range:
+              min_value: 0
+              max_value: 50000
+      - name: pre_tax_contributions
+        description: "Pre-tax contribution portion (85% of total by default)"
+        data_type: double
+        data_tests:
+          - dbt_utils.accepted_range:
+              min_value: 0
+              max_value: 50000
+      - name: roth_contributions
+        description: "Roth contribution portion (15% of total by default)"
+        data_type: double
+        data_tests:
+          - dbt_utils.accepted_range:
+              min_value: 0
+              max_value: 50000
+      - name: ytd_contributions
+        description: "Year-to-date total contributions"
+        data_type: double
+        data_tests:
+          - dbt_utils.accepted_range:
+              min_value: 0
+              max_value: 50000
+      - name: irs_limit_reached
+        description: "Whether employee has reached IRS 402(g) contribution limits"
+        data_type: boolean
+        data_tests:
+          - not_null
+      - name: effective_annual_deferral_rate
+        description: "Effective annual deferral rate based on actual contributions"
+        data_type: double
+      - name: total_contribution_base_compensation
+        description: "Total compensation used in contribution calculations"
+        data_type: double
+      - name: first_contribution_date
+        description: "Date of first contribution in the year"
+        data_type: date
+      - name: last_contribution_date
+        description: "Date of last contribution in the year"
+        data_type: date
+      - name: contribution_quality_flag
+        description: "Data quality flag for contribution calculations"
+        data_type: varchar
+        data_tests:
+          - accepted_values:
+              values: ['NORMAL', 'HIGH_CONTRIBUTION_RATE', 'MULTIPLE_RATE_CHANGES', 'SHORT_CONTRIBUTION_PERIOD']
       - name: snapshot_created_at
         description: "Timestamp when snapshot was created"
         data_type: timestamp with time zone

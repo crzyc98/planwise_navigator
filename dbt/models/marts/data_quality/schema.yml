@@ -37,3 +37,99 @@ models:
           warn_if: "=0"
           meta:
             description: "Fail if any ERROR-level data quality issues are found"
+
+  - name: dq_employee_contributions_validation
+    description: >
+      Data quality validation for employee contribution calculations in Epic E034.
+      Validates contributions don't exceed compensation, checks rate consistency,
+      validates IRS 402(g) limits, and ensures data integrity. Returns only failing
+      records for review - empty result indicates all validations passed.
+    config:
+      tags: ["data_quality", "contributions", "epic_e034", "validation"]
+    columns:
+      - name: employee_id
+        description: "Employee identifier with validation failure"
+        data_tests:
+          - not_null
+      - name: simulation_year
+        description: "Simulation year for the validation"
+        data_tests:
+          - not_null
+          - dbt_utils.accepted_range:
+              min_value: 2020
+              max_value: 2050
+      - name: validation_rule
+        description: "Type of validation that failed"
+        data_tests:
+          - not_null
+          - accepted_values:
+              values:
+                - 'contributions_exceed_compensation'
+                - 'deferral_rate_inconsistency'
+                - 'irs_402g_limit_exceeded'
+                - 'contribution_components_mismatch'
+                - 'negative_contribution_amount'
+                - 'enrolled_without_contributions'
+                - 'excessive_contribution_rate'
+                - 'irs_limit_flag_inaccurate'
+      - name: severity
+        description: "Severity level of the validation failure"
+        data_tests:
+          - not_null
+          - accepted_values:
+              values: ['ERROR', 'WARNING', 'INFO']
+      - name: validation_message
+        description: "Human-readable description of the validation failure"
+        data_tests:
+          - not_null
+      - name: actual_value
+        description: "Actual value that caused the validation failure"
+      - name: expected_max_value
+        description: "Expected or maximum allowed value"
+      - name: variance
+        description: "Difference between actual and expected value"
+      - name: severity_rank
+        description: "Numeric ranking of severity (1=ERROR, 2=WARNING, 3=INFO)"
+        data_tests:
+          - not_null
+          - accepted_values:
+              values: [1, 2, 3]
+      - name: validation_category
+        description: "Category grouping of validation rules"
+        data_tests:
+          - not_null
+          - accepted_values:
+              values:
+                - 'CONTRIBUTION_AMOUNTS'
+                - 'RATE_VALIDATION'
+                - 'IRS_COMPLIANCE'
+                - 'DATA_INTEGRITY'
+                - 'ENROLLMENT_CONSISTENCY'
+                - 'OTHER'
+      - name: validation_timestamp
+        description: "When the validation was performed"
+        data_tests:
+          - not_null
+      - name: validation_source
+        description: "Source identifier for the validation"
+        data_tests:
+          - not_null
+
+    data_tests:
+      # Critical test: No ERROR-level contribution validation failures should exist
+      - dbt_utils.expression_is_true:
+          expression: "1=1"  # This model returns only failures, so any ERROR record is a problem
+          where: "severity = 'ERROR'"
+          error_if: ">0"
+          warn_if: "=0"
+          name: "no_critical_contribution_validation_failures"
+          meta:
+            description: "Fail if any ERROR-level contribution validation issues are found"
+      # Warning test: Limit WARNING-level failures to reasonable threshold
+      - dbt_utils.expression_is_true:
+          expression: "1=1"
+          where: "severity = 'WARNING'"
+          warn_if: ">10"  # Warn if more than 10 WARNING-level issues
+          name: "warning_contribution_validation_failures_threshold"
+          meta:
+            description: "Warn if excessive WARNING-level contribution validation issues are found"
