@@ -186,12 +186,13 @@ class OptimizedDbtExecutor:
                 "int_enrollment_decision_matrix",
                 "int_enrollment_events_optimized",
                 "int_auto_enrollment_window_determination",
-                "int_workforce_pre_enrollment"
+                "int_workforce_pre_enrollment",
+                "int_employee_contributions"  # Epic E034: Employee contribution calculations
             ],
             execution_order=3,
             can_run_parallel=False,
-            memory_requirement_gb=1.3,
-            estimated_duration_seconds=75.0,
+            memory_requirement_gb=1.5,  # Slightly increased for contribution calculations
+            estimated_duration_seconds=85.0,  # Increased for additional model
             dependencies=["intermediate_parallel"]
         ),
 
@@ -221,12 +222,13 @@ class OptimizedDbtExecutor:
                 "fct_workforce_snapshot",
                 "fct_compensation_growth",
                 "fct_payroll_ledger",
-                "vw_performance_dashboard"
+                "vw_performance_dashboard",
+                "dq_employee_contributions_validation"  # Epic E034: Contribution data quality validation
             ],
             execution_order=5,
             can_run_parallel=False,
-            memory_requirement_gb=2.5,
-            estimated_duration_seconds=120.0,
+            memory_requirement_gb=2.7,  # Slightly increased for validation
+            estimated_duration_seconds=135.0,  # Increased for additional model
             dependencies=["aggregation_parallel", "event_generation_sequential"]
         )
     ]

@@ -1,0 +1,6 @@
+limit_year,base_limit,catch_up_limit,catch_up_age_threshold,limit_description
+2025,23500,31000,50,"2025 401(k) contribution limits with catch-up for age 50+"
+2026,24000,32000,50,"2026 projected 401(k) contribution limits (estimated)"
+2027,24500,32500,50,"2027 projected 401(k) contribution limits (estimated)"
+2028,25000,33000,50,"2028 projected 401(k) contribution limits (estimated)"
+2029,25500,33500,50,"2029 projected 401(k) contribution limits (estimated)"

@@ -681,6 +681,26 @@ final_workforce AS (
     ) promo_calc ON fwc.employee_id = promo_calc.employee_id
     -- Add eligibility information
     LEFT JOIN employee_eligibility ee ON fwc.employee_id = ee.employee_id
+    -- Epic E034: Add employee contribution calculations
+    LEFT JOIN {{ ref('int_employee_contributions') }} contributions
+        ON fwc.employee_id = contributions.employee_id
+        AND contributions.simulation_year = sp.current_year
+),
+
+-- Final workforce with all joins including contributions
+final_workforce_with_contributions AS (
+    SELECT
+        fw.*,
+        contributions.annual_contribution_amount,
+        contributions.effective_annual_deferral_rate,
+        contributions.total_contribution_base_compensation,
+        contributions.first_contribution_date,
+        contributions.last_contribution_date,
+        contributions.contribution_quality_flag
+    FROM final_workforce fw
+    LEFT JOIN {{ ref('int_employee_contributions') }} contributions
+        ON fw.employee_id = contributions.employee_id
+        AND contributions.simulation_year = fw.simulation_year
 )
 
 SELECT
@@ -724,8 +744,31 @@ SELECT
     is_enrolled_flag,
     -- Add deferral rate
     current_deferral_rate,
+    -- Epic E034: Add contribution calculations
+    COALESCE(annual_contribution_amount, 0.0) AS prorated_annual_contributions,
+    -- Split contributions into pre-tax and Roth based on industry assumptions
+    -- For now, assume 85% pre-tax, 15% Roth (typical split)
+    COALESCE(annual_contribution_amount * 0.85, 0.0) AS pre_tax_contributions,
+    COALESCE(annual_contribution_amount * 0.15, 0.0) AS roth_contributions,
+    COALESCE(annual_contribution_amount, 0.0) AS ytd_contributions,
+    -- IRS 402(g) limit check for 2025: $23,500 under 50, $31,000 for 50+
+    CASE
+        WHEN COALESCE(annual_contribution_amount, 0.0) >=
+            CASE
+                WHEN current_age >= 50 THEN 31000  -- Catch-up contribution limit
+                ELSE 23500  -- Standard limit for under 50
+            END
+        THEN true
+        ELSE false
+    END AS irs_limit_reached,
+    -- Additional contribution metadata
+    effective_annual_deferral_rate,
+    total_contribution_base_compensation,
+    first_contribution_date,
+    last_contribution_date,
+    contribution_quality_flag,
     CURRENT_TIMESTAMP AS snapshot_created_at
-FROM final_workforce
+FROM final_workforce_with_contributions
 
 {% if is_incremental() %}
   -- Only process the current simulation year when running incrementally

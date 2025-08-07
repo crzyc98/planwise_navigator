@@ -265,7 +265,24 @@
       "Bash(/Users/nicholasamaral/planwise_navigator/venv/bin/dbt run --select staging --project-dir dbt)",
       "Bash(/Users/nicholasamaral/planwise_navigator/venv/bin/dbt run --select int_baseline_workforce int_employee_compensation_by_year --vars \"simulation_year: 2025\" --project-dir dbt)",
       "Bash(/Users/nicholasamaral/planwise_navigator/venv/bin/dbt run --select fct_yearly_events --vars \"{simulation_year: 2025, cola_rate: 0.005, merit_budget: 0.025}\")",
-      "Bash(cp:*)"
+      "Bash(cp:*)",
+      "Bash(/Users/nicholasamaral/planwise_navigator/venv/bin/dbt run --select int_employee_contributions --vars \"simulation_year: 2025\")",
+      "Bash(true)",
+      "Bash(/Users/nicholasamaral/planwise_navigator/venv/bin/dbt run --select +int_employee_contributions --vars \"simulation_year: 2025\")",
+      "Bash(/Users/nicholasamaral/planwise_navigator/venv/bin/dbt show --select int_employee_compensation_by_year --vars \"simulation_year: 2025\" --limit 1)",
+      "Bash(/Users/nicholasamaral/planwise_navigator/venv/bin/dbt run --select int_employee_contributions --vars \"simulation_year: 2025\" --project-dir /Users/nicholasamaral/planwise_navigator/dbt)",
+      "Bash(/Users/nicholasamaral/planwise_navigator/venv/bin/dbt show --select int_baseline_workforce --vars \"simulation_year: 2025\" --limit 1 --project-dir /Users/nicholasamaral/planwise_navigator/dbt)",
+      "Bash(/Users/nicholasamaral/planwise_navigator/venv/bin/dbt run --select fct_workforce_snapshot --vars \"simulation_year: 2025\" --project-dir /Users/nicholasamaral/planwise_navigator/dbt)",
+      "Bash(/Users/nicholasamaral/planwise_navigator/venv/bin/dbt run --select dq_employee_contributions_validation --vars \"simulation_year: 2025\" --project-dir /Users/nicholasamaral/planwise_navigator/dbt)",
+      "Bash(/Users/nicholasamaral/planwise_navigator/venv/bin/dbt show --select int_employee_contributions --vars \"simulation_year: 2025\" --limit 5 --project-dir /Users/nicholasamaral/planwise_navigator/dbt)",
+      "Bash(/Users/nicholasamaral/planwise_navigator/venv/bin/dbt show --select dq_employee_contributions_validation --vars \"simulation_year: 2025\" --limit 10 --project-dir /Users/nicholasamaral/planwise_navigator/dbt)",
+      "Bash(/Users/nicholasamaral/planwise_navigator/venv/bin/dbt run --select int_employee_contributions fct_workforce_snapshot --vars \"simulation_year: 2026\" --project-dir /Users/nicholasamaral/planwise_navigator/dbt)",
+      "Bash(/Users/nicholasamaral/planwise_navigator/venv/bin/dbt show --select int_employee_compensation_by_year --vars \"simulation_year: 2025\" --limit 1 --project-dir /Users/nicholasamaral/planwise_navigator/dbt)",
+      "Bash(/Users/nicholasamaral/planwise_navigator/venv/bin/dbt seed --select irs_contribution_limits --project-dir /Users/nicholasamaral/planwise_navigator/dbt)",
+      "Bash(/Users/nicholasamaral/planwise_navigator/venv/bin/dbt show --select int_employee_contributions --vars \"simulation_year: 2025\" --limit 10 --project-dir /Users/nicholasamaral/planwise_navigator/dbt)",
+      "Bash(/Users/nicholasamaral/planwise_navigator/venv/bin/dbt run-operation run_query --args '{query: \"\"SELECT employee_id, current_age, requested_contribution_amount, annual_contribution_amount, applicable_irs_limit, irs_limit_applied, amount_capped_by_irs_limit, limit_type FROM int_employee_contributions WHERE irs_limit_applied = true ORDER BY amount_capped_by_irs_limit DESC LIMIT 5\"\"}' --project-dir /Users/nicholasamaral/planwise_navigator/dbt)",
+      "Bash(/Users/nicholasamaral/planwise_navigator/venv/bin/dbt run --select int_employee_contributions --vars \"simulation_year: 2029\")",
+      "Bash(/Users/nicholasamaral/planwise_navigator/venv/bin/dbt run --select dq_employee_contributions_validation --vars \"simulation_year: 2029\")"
     ],
     "deny": []
   }

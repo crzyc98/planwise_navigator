@@ -226,6 +226,43 @@ def audit_year_results(year):
                 growth_pct = (growth / prev_count) * 100
                 print(f"   Net growth                   : {growth:+4,} ({growth_pct:+5.1f}%)")
 
+        # Epic E034: Employee contribution summary
+        try:
+            contributions_query = """
+            SELECT
+                COUNT(*) as enrolled_employees,
+                ROUND(SUM(annual_contribution_amount), 0) as total_contributions,
+                ROUND(AVG(annual_contribution_amount), 0) as avg_contribution,
+                ROUND(AVG(effective_annual_deferral_rate) * 100, 1) as avg_deferral_rate
+            FROM int_employee_contributions
+            WHERE simulation_year = ?
+            """
+            contributions_result = conn.execute(contributions_query, [year]).fetchone()
+
+            if contributions_result and contributions_result[0] > 0:
+                enrolled, total_contrib, avg_contrib, avg_rate = contributions_result
+                print(f"\n💰 Employee Contributions Summary:")
+                print(f"   Enrolled employees           : {enrolled:4,}")
+                print(f"   Total annual contributions   : ${total_contrib:10,.0f}")
+                print(f"   Average contribution         : ${avg_contrib:6,.0f}")
+                print(f"   Average deferral rate        : {avg_rate:4.1f}%")
+
+            # Check for contribution data quality issues
+            dq_query = """
+            SELECT COUNT(*) as validation_failures
+            FROM dq_employee_contributions_validation
+            WHERE simulation_year = ?
+            """
+            dq_result = conn.execute(dq_query, [year]).fetchone()
+            if dq_result and dq_result[0] > 0:
+                failures = dq_result[0]
+                print(f"   ⚠️  Data quality issues      : {failures:4,} validation failures")
+            else:
+                print(f"   ✅ Data quality              : All validations passed")
+
+        except Exception as contrib_error:
+            print(f"   ⚠️  Contribution summary unavailable: {contrib_error}")
+
         # Additional validation checks
         print(f"\n🔍 Data Quality Checks:")
 
@@ -533,8 +570,16 @@ def run_year_simulation(year, is_first_year=False, compensation_params=None):
     if not run_dbt_command(["run", "--models", "int_enrollment_state_accumulator"], "Building enrollment state accumulator", year, compensation_params):
         return False
 
-    # Step 8: Final workforce snapshot
+    # Step 8: Employee contribution calculations (Epic E034)
+    if not run_dbt_command(["run", "--models", "int_employee_contributions"], "Calculating employee contributions", year, compensation_params):
+        return False
+
+    # Step 9: Final workforce snapshot (includes contribution data)
     if not run_dbt_command(["run", "--models", "fct_workforce_snapshot"], "Creating workforce snapshot", year, compensation_params):
+        return False
+
+    # Step 10: Data quality validation for contributions
+    if not run_dbt_command(["run", "--models", "dq_employee_contributions_validation"], "Validating contribution data quality", year, compensation_params):
         return False
 
     print(f"✅ Year {year} simulation completed successfully!")
@@ -566,6 +611,8 @@ def clear_simulation_database():
             'fct_yearly_events',
             'fct_compensation_growth',
             'fct_participant_balance_snapshots',
+            'int_employee_contributions',  # Epic E034: Employee contribution calculations
+            'dq_employee_contributions_validation',  # Epic E034: Data quality validation
             'enrollment_registry'  # Clear enrollment registry for fresh simulation
         ]
 
