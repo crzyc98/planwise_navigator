@@ -1,0 +1,8 @@
+plan_year,limit_type,age_threshold,base_limit,catch_up_limit,total_limit,effective_date,description
+2024,employee_deferral,50,23000,7500,30500,2024-01-01,"IRS 402(g) elective deferral limits for 2024"
+2025,employee_deferral,50,23500,7500,31000,2025-01-01,"IRS 402(g) elective deferral limits for 2025"
+2026,employee_deferral,50,24000,7500,31500,2026-01-01,"IRS 402(g) elective deferral limits for 2026 (projected)"
+2027,employee_deferral,50,24500,7500,32000,2027-01-01,"IRS 402(g) elective deferral limits for 2027 (projected)"
+2028,employee_deferral,50,25000,7500,32500,2028-01-01,"IRS 402(g) elective deferral limits for 2028 (projected)"
+2029,employee_deferral,50,25500,7500,33000,2029-01-01,"IRS 402(g) elective deferral limits for 2029 (projected)"
+2030,employee_deferral,50,26000,7500,33500,2030-01-01,"IRS 402(g) elective deferral limits for 2030 (projected)"

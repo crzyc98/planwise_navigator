@@ -243,6 +243,26 @@ def audit_year_results(year):
             if term_count > 1000:
                 print(f"   ⚠️  HIGH TERMINATION COUNT: {term_count:,} terminations may be excessive")
 
+        # Check for employer match events (E025)
+        match_count = sum(count for event_type, count in events_results if event_type == 'EMPLOYER_MATCH')
+        if match_count > 0:
+            # Get match cost information
+            match_query = """
+            SELECT
+                COUNT(*) as match_count,
+                SUM(compensation_amount) as total_match_cost,
+                AVG(compensation_amount) as avg_match_amount
+            FROM fct_yearly_events
+            WHERE simulation_year = ? AND event_type = 'EMPLOYER_MATCH'
+            """
+            match_result = conn.execute(match_query, [year]).fetchone()
+            if match_result:
+                match_cnt, total_cost, avg_match = match_result
+                print(f"\n💰 Employer Match Summary:")
+                print(f"   Employees receiving match    : {match_cnt:,}")
+                print(f"   Total match cost             : ${total_cost:,.2f}")
+                print(f"   Average match per employee   : ${avg_match:,.2f}")
+
         print()  # Extra line for spacing
 
     except Exception as e:
@@ -518,7 +538,10 @@ def run_year_simulation(year, is_first_year=False, compensation_params=None):
         "int_promotion_events",
         "int_merit_events",
         "int_eligibility_determination",
-        "int_enrollment_events"
+        "int_enrollment_events",
+        "int_employee_contributions",  # E034 Contribution calculations
+        "int_employee_match_calculations",  # E025 Match calculations
+        "fct_employer_match_events"  # E025 Match event generation
     ]
 
     for model in event_models:

@@ -1,5 +1,20 @@
 version: 2
 
+# Data Quality Models Test Documentation
+#
+# This schema defines comprehensive test coverage for the employee contribution
+# data quality validation system, including:
+# - Zero-tolerance IRS compliance validation
+# - Immutable audit trail integrity
+# - Performance monitoring and alerting
+# - Executive dashboard and regulatory attestation
+#
+# Test Categories:
+# - P0 (Critical): Zero tolerance tests that must pass (IRS violations, data corruption)
+# - P1 (High): Business rule violations requiring immediate attention
+# - P2 (Medium): Monitoring thresholds and operational guidelines
+# - P3 (Low): Informational and trend monitoring
+
 models:
   - name: dq_employee_id_validation
     description: >
@@ -37,3 +52,418 @@ models:
           warn_if: "=0"
           meta:
             description: "Fail if any ERROR-level data quality issues are found"
+
+  - name: dq_employee_contributions_validation
+    description: >
+      Comprehensive data quality validation for employee contribution calculations.
+      Enforces zero-tolerance IRS compliance and validates contribution calculation accuracy.
+    columns:
+      - name: simulation_year
+        description: Simulation year for this validation run
+        data_tests:
+          - not_null
+      - name: validation_rule
+        description: Unique identifier for the validation rule (C01, E01, W01, I01)
+        data_tests:
+          - not_null
+      - name: validation_source
+        description: Source system or process that generated the validation
+        data_tests:
+          - not_null
+      - name: severity
+        description: Severity level of the validation result
+        data_tests:
+          - not_null
+          - accepted_values:
+              values: ['CRITICAL', 'ERROR', 'WARNING', 'INFO']
+      - name: severity_rank
+        description: Numeric rank of severity for ordering (1=CRITICAL, 4=INFO)
+        data_tests:
+          - not_null
+          - accepted_values:
+              values: [1, 2, 3, 4]
+      - name: violation_count
+        description: Number of violations found for this rule
+        data_tests:
+          - not_null
+      - name: validation_message
+        description: Human-readable description of the validation result
+        data_tests:
+          - not_null
+      - name: violation_details
+        description: Array of detailed violation information
+      - name: validation_timestamp
+        description: Timestamp when validation was performed
+        data_tests:
+          - not_null
+      - name: scenario_id
+        description: Scenario identifier for this validation run
+        data_tests:
+          - not_null
+
+    data_tests:
+      # CRITICAL: Zero tolerance for IRS 402(g) violations
+      - dbt_utils.expression_is_true:
+          name: zero_tolerance_irs_402g_violations
+          expression: "violation_count = 0"
+          where: "severity = 'CRITICAL' AND validation_source IN ('IRS_402G_BASE_LIMIT_VIOLATION', 'IRS_402G_TOTAL_LIMIT_VIOLATION')"
+          error_if: ">0"
+          warn_if: "=0"
+          meta:
+            description: "ZERO TOLERANCE: No IRS 402(g) limit violations permitted"
+            priority: "P0"
+
+      # CRITICAL: Zero tolerance for contributions exceeding compensation
+      - dbt_utils.expression_is_true:
+          name: zero_tolerance_contributions_exceed_compensation
+          expression: "violation_count = 0"
+          where: "severity = 'CRITICAL' AND validation_source = 'CONTRIBUTIONS_EXCEED_COMPENSATION'"
+          error_if: ">0"
+          warn_if: "=0"
+          meta:
+            description: "ZERO TOLERANCE: Contributions must not exceed compensation"
+            priority: "P0"
+
+      # ERROR: High priority business rule violations
+      - dbt_utils.expression_is_true:
+          name: high_priority_error_violations
+          expression: "violation_count = 0"
+          where: "severity = 'ERROR'"
+          error_if: ">0"
+          warn_if: "=0"
+          meta:
+            description: "ERROR-level validation failures require immediate attention"
+            priority: "P1"
+
+      # WARNING: Threshold for warning-level violations
+      - dbt_utils.expression_is_true:
+          name: warning_violations_threshold
+          expression: "violation_count <= 50"
+          where: "severity = 'WARNING'"
+          error_if: ">50"
+          warn_if: ">25"
+          meta:
+            description: "WARNING-level violations should be monitored and kept under control"
+            priority: "P2"
+
+      # Data completeness: Ensure all critical rules are evaluated
+      - dbt_utils.expression_is_true:
+          name: irs_base_limit_validation_completeness
+          expression: "COUNT(CASE WHEN validation_source = 'IRS_402G_BASE_LIMIT_VIOLATION' THEN 1 END) >= 1"
+          meta:
+            description: "Critical IRS base limit validation must be evaluated"
+
+      - dbt_utils.expression_is_true:
+          name: irs_total_limit_validation_completeness
+          expression: "COUNT(CASE WHEN validation_source = 'IRS_402G_TOTAL_LIMIT_VIOLATION' THEN 1 END) >= 1"
+          meta:
+            description: "Critical IRS total limit validation must be evaluated"
+
+      # Custom test names for specific validations
+      - dbt_utils.expression_is_true:
+          name: no_critical_contribution_validation_failures
+          expression: "violation_count = 0"
+          where: "severity = 'CRITICAL'"
+
+      - dbt_utils.expression_is_true:
+          name: warning_contribution_validation_failures_threshold
+          expression: "violation_count <= 25"
+          where: "severity = 'WARNING'"
+
+  - name: dq_contribution_audit_trail
+    description: >
+      Immutable audit trail for all employee contribution calculations with complete event sourcing integrity.
+      Maintains regulatory compliance audit records and data lineage for IRS examinations.
+    columns:
+      - name: audit_record_id
+        description: Immutable unique identifier for each audit record
+        data_tests:
+          - not_null
+          - unique
+      - name: audit_event_type
+        description: Type of audit event (CONTRIBUTION_CALCULATION, DATA_QUALITY_VALIDATION)
+        data_tests:
+          - not_null
+          - accepted_values:
+              values: ['CONTRIBUTION_CALCULATION', 'DATA_QUALITY_VALIDATION']
+      - name: audit_timestamp
+        description: Immutable timestamp when audit record was created
+        data_tests:
+          - not_null
+      - name: simulation_year
+        description: Simulation year for this audit record
+        data_tests:
+          - not_null
+      - name: employee_id
+        description: Employee identifier (NULL for system-level validations)
+      - name: scenario_id
+        description: Scenario identifier for audit trail continuity
+        data_tests:
+          - not_null
+      - name: audit_record_status
+        description: Status of the audit record (FINALIZED, PASSED, FAILED, WARNING)
+        data_tests:
+          - not_null
+          - accepted_values:
+              values: ['FINALIZED', 'PASSED', 'FAILED', 'WARNING']
+      - name: calculation_fingerprint
+        description: Hash of core calculation data for integrity verification
+        data_tests:
+          - not_null
+      - name: attestation_status
+        description: Regulatory attestation readiness status
+        data_tests:
+          - not_null
+          - accepted_values:
+              values: ['ATTESTATION_READY', 'REQUIRES_REVIEW', 'CRITICAL_ISSUE']
+
+    data_tests:
+      # Immutability tests
+      - dbt_utils.expression_is_true:
+          name: audit_trail_immutability_check
+          expression: "audit_record_status IN ('FINALIZED', 'PASSED', 'FAILED', 'WARNING')"
+          meta:
+            description: "Audit records must be in finalized state for immutability"
+
+      # Data integrity tests
+      - dbt_utils.expression_is_true:
+          name: contribution_audit_data_integrity
+          expression: "audit_event_type = 'CONTRIBUTION_CALCULATION' OR employee_id IS NULL"
+          meta:
+            description: "Employee-level audit records must be contribution calculations"
+
+      # Regulatory compliance
+      - dbt_utils.expression_is_true:
+          name: regulatory_attestation_completeness
+          expression: "attestation_status != 'CRITICAL_ISSUE' OR audit_record_status = 'FAILED'"
+          error_if: ">0"
+          meta:
+            description: "Critical issues must result in failed audit status"
+
+  - name: dq_compliance_monitoring
+    description: >
+      Comprehensive regulatory compliance monitoring framework for DC plan contribution calculations.
+      Monitors IRS 402(g) limits, data quality, and administrative compliance with automated alerting.
+    columns:
+      - name: simulation_year
+        description: Simulation year for compliance monitoring
+        data_tests:
+          - not_null
+      - name: compliance_category
+        description: Category of compliance monitoring (IRS_402G_COMPLIANCE, etc.)
+        data_tests:
+          - not_null
+          - accepted_values:
+              values: ['IRS_402G_COMPLIANCE', 'COMPENSATION_LIMIT_COMPLIANCE', 'DATA_QUALITY_COMPLIANCE', 'PLAN_ADMINISTRATION_COMPLIANCE']
+      - name: compliance_status
+        description: Overall compliance status for this category
+        data_tests:
+          - not_null
+          - accepted_values:
+              values: ['COMPLIANT', 'VIOLATIONS_DETECTED', 'REQUIRES_MANUAL_REVIEW', 'ADMINISTRATIVE_ISSUES']
+      - name: risk_level
+        description: Risk assessment level (HIGH, MEDIUM, LOW)
+        data_tests:
+          - not_null
+          - accepted_values:
+              values: ['HIGH', 'MEDIUM', 'LOW']
+      - name: violation_count
+        description: Number of compliance violations detected
+        data_tests:
+          - not_null
+      - name: total_employees
+        description: Total employees in compliance scope
+        data_tests:
+          - not_null
+      - name: enrolled_employees
+        description: Number of enrolled employees
+        data_tests:
+          - not_null
+      - name: executive_status_indicator
+        description: Executive dashboard status (RED, YELLOW, GREEN)
+        data_tests:
+          - not_null
+          - accepted_values:
+              values: ['RED', 'YELLOW', 'GREEN']
+      - name: action_required
+        description: Required action based on compliance assessment
+        data_tests:
+          - not_null
+      - name: compliance_record_id
+        description: Unique identifier for compliance monitoring record
+        data_tests:
+          - not_null
+          - unique
+
+    data_tests:
+      # Zero tolerance for IRS violations
+      - dbt_utils.expression_is_true:
+          name: zero_tolerance_irs_compliance_violations
+          expression: "violation_count = 0"
+          where: "compliance_category = 'IRS_402G_COMPLIANCE' AND compliance_status = 'VIOLATIONS_DETECTED'"
+          error_if: ">0"
+          meta:
+            description: "ZERO TOLERANCE: No IRS 402(g) compliance violations permitted"
+            priority: "P0"
+
+      # High risk compliance areas threshold
+      - dbt_utils.expression_is_true:
+          name: high_risk_compliance_threshold
+          expression: "violation_count <= 10"
+          where: "risk_level = 'HIGH'"
+          error_if: ">10"
+          warn_if: ">5"
+          meta:
+            description: "High risk compliance areas must be managed within thresholds"
+
+      # Executive status consistency
+      - dbt_utils.expression_is_true:
+          name: executive_status_consistency
+          expression: "(executive_status_indicator = 'RED' AND compliance_status != 'COMPLIANT') OR executive_status_indicator != 'RED'"
+          meta:
+            description: "Red executive status must correspond to non-compliant status"
+
+  - name: dq_performance_monitoring
+    description: >
+      Performance validation and monitoring framework for contribution calculation pipeline.
+      Monitors query performance, resource utilization, and system health indicators.
+    columns:
+      - name: simulation_year
+        description: Simulation year for performance monitoring
+        data_tests:
+          - not_null
+      - name: performance_category
+        description: Category of performance monitoring
+        data_tests:
+          - not_null
+          - accepted_values:
+              values: ['QUERY_PERFORMANCE', 'DATABASE_PERFORMANCE', 'INTEGRATION_PERFORMANCE', 'MEMORY_OPTIMIZATION']
+      - name: total_records_processed
+        description: Number of records processed in this performance measurement
+        data_tests:
+          - not_null
+      - name: alert_level
+        description: Performance alert level (HIGH, MEDIUM, LOW)
+        data_tests:
+          - not_null
+          - accepted_values:
+              values: ['HIGH', 'MEDIUM', 'LOW']
+      - name: service_level_status
+        description: Service level agreement status
+        data_tests:
+          - not_null
+          - accepted_values:
+              values: ['SLA_MET', 'SLA_WARNING', 'SLA_BREACH']
+      - name: executive_status_indicator
+        description: Executive dashboard status for performance
+        data_tests:
+          - not_null
+          - accepted_values:
+              values: ['RED', 'YELLOW', 'GREEN']
+      - name: data_quality_efficiency_pct
+        description: Data quality processing efficiency percentage
+        data_tests:
+          - not_null
+      - name: performance_record_id
+        description: Unique identifier for performance monitoring record
+        data_tests:
+          - not_null
+          - unique
+      - name: measurement_timestamp
+        description: When performance measurement was taken
+        data_tests:
+          - not_null
+
+    data_tests:
+      # SLA breach monitoring
+      - dbt_utils.expression_is_true:
+          name: sla_breach_threshold
+          expression: "service_level_status != 'SLA_BREACH'"
+          error_if: ">0"
+          warn_if: "=0"
+          meta:
+            description: "SLA breaches require immediate attention"
+
+      # Data quality efficiency threshold
+      - dbt_utils.expression_is_true:
+          name: data_quality_efficiency_threshold
+          expression: "data_quality_efficiency_pct >= 95.0"
+          warn_if: "<95"
+          meta:
+            description: "Data quality efficiency should remain above 95%"
+
+      # Performance alerting consistency
+      - dbt_utils.expression_is_true:
+          name: performance_alert_consistency
+          expression: "(alert_level = 'HIGH' AND executive_status_indicator = 'RED') OR alert_level != 'HIGH'"
+          meta:
+            description: "High performance alerts should correspond to red executive status"
+
+  - name: dq_executive_dashboard
+    description: >
+      Executive-level summary dashboard and regulatory compliance attestation framework.
+      Provides traffic light status indicators and formal compliance attestations.
+    columns:
+      - name: simulation_year
+        description: Simulation year for executive dashboard
+        data_tests:
+          - not_null
+      - name: dashboard_category
+        description: Type of executive dashboard (SYSTEM_OVERVIEW, REGULATORY_ATTESTATION)
+        data_tests:
+          - not_null
+          - accepted_values:
+              values: ['SYSTEM_OVERVIEW', 'REGULATORY_ATTESTATION']
+      - name: executive_status
+        description: Overall executive status indicator
+        data_tests:
+          - not_null
+          - accepted_values:
+              values: ['RED', 'YELLOW', 'GREEN', 'COMPLIANT', 'NON_COMPLIANT']
+      - name: action_required
+        description: Executive action required based on system status
+        data_tests:
+          - not_null
+      - name: dashboard_record_id
+        description: Unique identifier for dashboard record
+        data_tests:
+          - not_null
+          - unique
+      - name: report_timestamp
+        description: When dashboard report was generated
+        data_tests:
+          - not_null
+      - name: scenario_id
+        description: Scenario identifier for dashboard continuity
+        data_tests:
+          - not_null
+
+    data_tests:
+      # Executive status consistency for attestation
+      - dbt_utils.expression_is_true:
+          name: attestation_status_consistency
+          expression: "(dashboard_category = 'REGULATORY_ATTESTATION' AND executive_status IN ('COMPLIANT', 'NON_COMPLIANT')) OR dashboard_category != 'REGULATORY_ATTESTATION'"
+          meta:
+            description: "Regulatory attestation must have compliant/non-compliant status"
+
+      # System overview completeness
+      - dbt_utils.expression_is_true:
+          name: system_overview_completeness
+          expression: "dashboard_category != 'SYSTEM_OVERVIEW' OR key_metrics IS NOT NULL"
+          meta:
+            description: "System overview must include key metrics"
+
+      # Compliance attestation requirements
+      - dbt_utils.expression_is_true:
+          name: compliance_attestation_requirements
+          expression: "dashboard_category != 'REGULATORY_ATTESTATION' OR compliance_attestation IS NOT NULL"
+          meta:
+            description: "Regulatory attestation must include compliance attestation data"
+
+      # Critical status escalation
+      - dbt_utils.expression_is_true:
+          name: critical_status_escalation
+          expression: "executive_status != 'RED' OR action_required = 'IMMEDIATE_ACTION_REQUIRED'"
+          error_if: ">0"
+          meta:
+            description: "Red executive status must trigger immediate action requirement"

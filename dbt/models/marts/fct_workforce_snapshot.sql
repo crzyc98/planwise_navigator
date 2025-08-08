@@ -572,6 +572,39 @@ employee_prorated_compensation AS (
     SELECT employee_id, prorated_annual_compensation FROM employees_without_events_prorated
 ),
 
+-- Get employee contribution data
+employee_contributions AS (
+    SELECT
+        employee_id,
+        prorated_annual_contributions,
+        irs_limited_annual_contributions,
+        excess_contributions,
+        effective_deferral_rate,
+        irs_limit_reached,
+        applicable_irs_limit,
+        age_as_of_december_31,
+        data_quality_flag AS contribution_data_quality_flag
+    FROM {{ ref('int_employee_contributions') }}
+    WHERE simulation_year = {{ simulation_year }}
+),
+
+-- Get employer match contribution data (FIXED: Only for employees with actual contributions)
+employer_match_contributions AS (
+    SELECT
+        eme.employee_id,
+        eme.simulation_year,
+        SUM(eme.amount) AS total_employer_match_amount,
+        COUNT(*) AS match_events_count
+    FROM {{ ref('fct_employer_match_events') }} eme
+    INNER JOIN {{ ref('int_employee_contributions') }} ec
+        ON eme.employee_id = ec.employee_id
+        AND eme.simulation_year = ec.simulation_year
+    WHERE eme.simulation_year = {{ simulation_year }}
+        AND ec.prorated_annual_contributions > 0.01  -- Only employees with meaningful contributions
+        AND ec.is_enrolled = true  -- Only enrolled employees
+    GROUP BY eme.employee_id, eme.simulation_year
+),
+
 -- Add age and tenure bands
 final_workforce AS (
     SELECT
@@ -607,6 +640,17 @@ final_workforce AS (
             ec.enrollment_deferral_rate,  -- Initial enrollment rate
             0.00  -- Default for non-enrolled
         ) AS current_deferral_rate,
+        -- **NEW**: Add employee contribution data
+        contrib.prorated_annual_contributions,
+        contrib.irs_limited_annual_contributions,
+        contrib.excess_contributions,
+        contrib.effective_deferral_rate AS calculated_effective_deferral_rate,
+        contrib.irs_limit_reached,
+        contrib.applicable_irs_limit,
+        contrib.age_as_of_december_31,
+        contrib.contribution_data_quality_flag,
+        -- **NEW**: Add employer match contribution data
+        COALESCE(emp_match.total_employer_match_amount, 0.00) AS employer_match_contribution,
         -- Recalculate bands with updated age/tenure (these are indeed static for a given year here)
         CASE
             WHEN fwc.current_age < 25 THEN '< 25'
@@ -681,6 +725,10 @@ final_workforce AS (
     ) promo_calc ON fwc.employee_id = promo_calc.employee_id
     -- Add eligibility information
     LEFT JOIN employee_eligibility ee ON fwc.employee_id = ee.employee_id
+    -- **NEW**: Add employee contribution data
+    LEFT JOIN employee_contributions contrib ON fwc.employee_id = contrib.employee_id
+    -- **NEW**: Add employer match contribution data
+    LEFT JOIN employer_match_contributions emp_match ON fwc.employee_id = emp_match.employee_id
 )
 
 SELECT
@@ -724,6 +772,17 @@ SELECT
     is_enrolled_flag,
     -- Add deferral rate
     current_deferral_rate,
+    -- **NEW**: Add employee contribution fields
+    COALESCE(prorated_annual_contributions, 0.00) AS prorated_annual_contributions,
+    COALESCE(irs_limited_annual_contributions, 0.00) AS irs_limited_annual_contributions,
+    COALESCE(excess_contributions, 0.00) AS excess_contributions,
+    COALESCE(calculated_effective_deferral_rate, current_deferral_rate, 0.00) AS effective_deferral_rate,
+    COALESCE(irs_limit_reached, false) AS irs_limit_reached,
+    COALESCE(applicable_irs_limit, 0) AS applicable_irs_limit,
+    COALESCE(age_as_of_december_31, current_age) AS age_as_of_december_31,
+    COALESCE(contribution_data_quality_flag, 'NO_CONTRIBUTIONS') AS contribution_data_quality_flag,
+    -- **NEW**: Add employer match contribution field (calculated in final_workforce CTE)
+    employer_match_contribution,
     CURRENT_TIMESTAMP AS snapshot_created_at
 FROM final_workforce
 

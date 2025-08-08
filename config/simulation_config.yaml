@@ -133,6 +133,58 @@ employee_id_generation:
   migration_mode: false  # Support for transitioning from legacy formats
   batch_generation: true  # Use batch generation for performance optimization
 
+# Employer match configuration
+employer_match:
+  # Active match formula selection
+  active_formula: 'tiered_match'  # Options: 'simple_match', 'tiered_match', 'stretch_match'
+
+  # Match formula definitions
+  formulas:
+    simple_match:
+      name: 'Simple Match'
+      type: 'simple'
+      match_rate: 0.50  # 50% match on all deferrals
+      max_match_percentage: 0.03  # Cap at 3% of compensation
+
+    tiered_match:
+      name: 'Tiered Match'
+      type: 'tiered'
+      tiers:
+        - tier: 1
+          employee_min: 0.00
+          employee_max: 0.03
+          match_rate: 1.00    # 100% match on first 3%
+        - tier: 2
+          employee_min: 0.03
+          employee_max: 0.05
+          match_rate: 0.50    # 50% match on next 2%
+      max_match_percentage: 0.04  # Cap at 4% of compensation
+
+    stretch_match:
+      name: 'Stretch Match (Encourages Higher Deferrals)'
+      type: 'tiered'
+      tiers:
+        - tier: 1
+          employee_min: 0.00
+          employee_max: 0.12
+          match_rate: 0.25     # 25% match on first 12%
+      max_match_percentage: 0.03  # Cap at 3% of compensation
+
+    # Alternative tiered formula (for testing)
+    enhanced_tiered:
+      name: 'Enhanced Tiered Match'
+      type: 'tiered'
+      tiers:
+        - tier: 1
+          employee_min: 0.00
+          employee_max: 0.03
+          match_rate: 1.00    # 100% on first 3%
+        - tier: 2
+          employee_min: 0.03
+          employee_max: 0.05
+          match_rate: 0.50    # 50% on next 2%
+      max_match_percentage: 0.04  # Cap at 4% of compensation
+
 # Multi-year simulation configuration
 multi_year:
   # Optimization settings
