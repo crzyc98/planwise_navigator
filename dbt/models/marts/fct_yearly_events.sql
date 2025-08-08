@@ -1,5 +1,7 @@
 {{ config(
-  materialized='table'
+  materialized='incremental',
+  unique_key=['employee_id', 'simulation_year', 'event_sequence'],
+  incremental_strategy='delete+insert'
 ) }}
 
 {% set simulation_year = var('simulation_year', none) %}
@@ -201,6 +203,31 @@ preserved_eligibility_events AS (
   SELECT * FROM existing_eligibility_events
 ),
 
+-- E025 Match Events: Removed to break circular dependency
+-- Match events are now maintained in separate fct_employer_match_events table
+-- This eliminates the circular dependency while preserving match event tracking
+employer_match_events AS (
+  SELECT
+    CAST(NULL AS VARCHAR) AS employee_id,
+    CAST(NULL AS VARCHAR) AS employee_ssn,
+    CAST(NULL AS VARCHAR) AS event_type,
+    CAST(NULL AS INTEGER) AS simulation_year,
+    CAST(NULL AS DATE) AS effective_date,
+    CAST(NULL AS VARCHAR) AS event_details,
+    CAST(NULL AS DECIMAL(18,2)) AS compensation_amount,
+    CAST(NULL AS DECIMAL(18,2)) AS previous_compensation,
+    CAST(NULL AS DECIMAL(5,4)) AS employee_deferral_rate,
+    CAST(NULL AS DECIMAL(5,4)) AS prev_employee_deferral_rate,
+    CAST(NULL AS INTEGER) AS employee_age,
+    CAST(NULL AS DECIMAL(10,2)) AS employee_tenure,
+    CAST(NULL AS INTEGER) AS level_id,
+    CAST(NULL AS VARCHAR) AS age_band,
+    CAST(NULL AS VARCHAR) AS tenure_band,
+    CAST(NULL AS DECIMAL(10,4)) AS event_probability,
+    CAST(NULL AS VARCHAR) AS event_category
+  WHERE FALSE  -- Empty result set - no match events in main yearly events
+),
+
 -- Union all event types with consistent schema
 all_events AS (
   SELECT
@@ -332,6 +359,28 @@ all_events AS (
     event_probability,
     event_category
   FROM enrollment_events
+
+  UNION ALL
+
+  SELECT
+    employee_id,
+    employee_ssn,
+    event_type,
+    simulation_year,
+    effective_date,
+    event_details,
+    compensation_amount,
+    previous_compensation,
+    employee_deferral_rate,
+    prev_employee_deferral_rate,
+    employee_age,
+    employee_tenure,
+    level_id,
+    age_band,
+    tenure_band,
+    event_probability,
+    event_category
+  FROM employer_match_events
 
   UNION ALL
 

@@ -47,6 +47,48 @@ models:
           #     min_value: 0
           #     max_value: 0.5
 
+  - name: fct_employer_match_events
+    description: >
+      Employer match event generation model for integration with event sourcing architecture.
+      Generates EMPLOYER_MATCH events from match calculations with full context and payload.
+    config:
+      tags: ["match_engine", "events", "critical"]
+    columns:
+      - name: event_id
+        description: Unique event identifier
+        data_tests:
+          - not_null
+          - unique
+      - name: employee_id
+        description: Employee receiving the match
+        data_tests:
+          - not_null
+      - name: event_type
+        description: Event type (always EMPLOYER_MATCH)
+        data_tests:
+          - not_null
+          - accepted_values:
+              values: ["EMPLOYER_MATCH"]
+      - name: simulation_year
+        description: Year of the match calculation
+        data_tests:
+          - not_null
+      - name: amount
+        description: Match amount
+        data_tests:
+          - not_null
+          - dbt_utils.accepted_range:
+              min_value: 0
+              max_value: 50000
+      - name: event_payload
+        description: JSON payload with match calculation details
+        data_tests:
+          - not_null
+      - name: effective_date
+        description: Date when match is applied (end of plan year)
+        data_tests:
+          - not_null
+
   - name: fct_yearly_events
     description: "Consolidated fact table of all workforce events by simulation year"
     config:
@@ -205,6 +247,93 @@ models:
       - dbt_utils.expression_is_true:
           expression: "NOT (employment_status = 'terminated' AND EXTRACT(YEAR FROM employee_hire_date) = simulation_year) OR detailed_status_code = 'new_hire_termination'"
           name: "terminated_new_hires_classified_correctly"
+
+      # CONTRIBUTION-SPECIFIC WORKFORCE VALIDATION TESTS
+
+      # Critical: Contributions must not exceed compensation
+      - dbt_utils.expression_is_true:
+          expression: "prorated_annual_contributions <= (prorated_annual_compensation + 100)"
+          name: "contributions_not_exceeding_compensation"
+          meta:
+            description: "Employee contributions must not exceed their compensation (with $100 tolerance)"
+            priority: "P0"
+
+      # Critical: IRS limited contributions must not exceed calculated contributions
+      - dbt_utils.expression_is_true:
+          expression: "irs_limited_annual_contributions <= prorated_annual_contributions"
+          name: "irs_limited_contributions_logical"
+          meta:
+            description: "IRS limited contributions must not exceed calculated contributions"
+            priority: "P0"
+
+      # Critical: Excess contributions calculation accuracy
+      - dbt_utils.expression_is_true:
+          expression: "ABS((prorated_annual_contributions - irs_limited_annual_contributions) - excess_contributions) < 0.01"
+          name: "excess_contributions_calculation_accuracy"
+          meta:
+            description: "Excess contributions must equal the difference between prorated and IRS limited (within $0.01)"
+            priority: "P0"
+
+      # Critical: IRS limit flag consistency
+      - dbt_utils.expression_is_true:
+          expression: "(excess_contributions > 0.01) = irs_limit_reached"
+          name: "irs_limit_flag_consistency"
+          meta:
+            description: "IRS limit reached flag must be consistent with excess contributions"
+            priority: "P0"
+
+      # Critical: Age-based IRS limit application
+      - dbt_utils.expression_is_true:
+          expression: "(age_as_of_december_31 >= 50 AND applicable_irs_limit = 31000) OR (age_as_of_december_31 < 50 AND applicable_irs_limit = 23500)"
+          name: "age_based_irs_limits_applied_correctly"
+          meta:
+            description: "Age-based IRS limits must be applied correctly (50+ gets catch-up)"
+            priority: "P0"
+
+      # Error: Non-enrolled employees should not have significant contributions
+      - dbt_utils.expression_is_true:
+          expression: "is_enrolled_flag = true OR prorated_annual_contributions <= 10"
+          warn_if: ">0"
+          name: "non_enrolled_should_not_contribute"
+          meta:
+            description: "Non-enrolled employees should not have significant contributions"
+            priority: "P1"
+
+      # Warning: High contribution rates monitoring
+      - dbt_utils.expression_is_true:
+          expression: "effective_deferral_rate <= 0.75"
+          warn_if: ">10"
+          name: "high_deferral_rates_monitoring"
+          meta:
+            description: "Monitor employees with very high deferral rates (>75%)"
+            priority: "P2"
+
+      # EMPLOYER MATCH-SPECIFIC VALIDATION TESTS
+
+      # Critical: Employer match should be reasonable relative to employee contributions
+      - dbt_utils.expression_is_true:
+          expression: "employer_match_contribution <= (prorated_annual_contributions * 2)"
+          name: "employer_match_reasonable_relative_to_contributions"
+          meta:
+            description: "Employer match should not exceed 2x employee contributions (generous limit)"
+            priority: "P1"
+
+      # Warning: Employees with match but no employee contributions (potential data issue)
+      - dbt_utils.expression_is_true:
+          expression: "employer_match_contribution <= 10 OR prorated_annual_contributions > 0"
+          warn_if: ">5"
+          name: "match_without_employee_contributions_monitoring"
+          meta:
+            description: "Monitor employees with employer match but no employee contributions"
+            priority: "P2"
+
+      # Critical: Non-enrolled employees should not have employer match
+      - dbt_utils.expression_is_true:
+          expression: "is_enrolled_flag = true OR employer_match_contribution <= 10"
+          name: "non_enrolled_should_not_have_match"
+          meta:
+            description: "Non-enrolled employees should not have significant employer match"
+            priority: "P1"
     columns:
       - name: employee_id
         description: "Unique employee identifier within simulation year"
@@ -308,6 +437,73 @@ models:
       - name: employee_enrollment_date
         description: "Date when employee enrolled in DC plan (from census data or enrollment events)"
         data_type: date
+      - name: prorated_annual_contributions
+        description: "Time-weighted annual employee contributions"
+        data_type: double
+        data_tests:
+          - not_null
+          - dbt_utils.accepted_range:
+              min_value: 0
+              max_value: 50000
+      - name: irs_limited_annual_contributions
+        description: "Employee contributions after applying IRS 402(g) limits"
+        data_type: double
+        data_tests:
+          - not_null
+          - dbt_utils.accepted_range:
+              min_value: 0
+              max_value: 31000
+      - name: excess_contributions
+        description: "Amount of contributions exceeding IRS limits"
+        data_type: double
+        data_tests:
+          - not_null
+          - dbt_utils.accepted_range:
+              min_value: 0
+              max_value: 50000
+      - name: effective_deferral_rate
+        description: "Time-weighted effective deferral rate for the year"
+        data_type: double
+        data_tests:
+          - not_null
+          - dbt_utils.accepted_range:
+              min_value: 0
+              max_value: 1.0
+      - name: irs_limit_reached
+        description: "Flag indicating if employee reached IRS contribution limits"
+        data_type: boolean
+        data_tests:
+          - not_null
+      - name: applicable_irs_limit
+        description: "IRS contribution limit applicable to this employee"
+        data_type: integer
+        data_tests:
+          - not_null
+          - accepted_values:
+              values: [23500, 31000]
+      - name: age_as_of_december_31
+        description: "Employee age as of December 31st for IRS limit determination"
+        data_type: bigint
+        data_tests:
+          - not_null
+          - dbt_utils.accepted_range:
+              min_value: 18
+              max_value: 75
+      - name: contribution_data_quality_flag
+        description: "Data quality flag for contribution calculations"
+        data_type: varchar
+        data_tests:
+          - not_null
+          - accepted_values:
+              values: ['VALID', 'NO_CONTRIBUTIONS', 'INVALID_EMPLOYEE_ID', 'CONTRIBUTIONS_EXCEED_COMPENSATION', 'IRS_LIMIT_MISMATCH', 'CONTRIBUTIONS_WITHOUT_ENROLLMENT', 'INVALID_DEFERRAL_RATE']
+      - name: employer_match_contribution
+        description: "Annual employer match contribution amount"
+        data_type: double
+        data_tests:
+          - not_null
+          - dbt_utils.accepted_range:
+              min_value: 0
+              max_value: 50000
       - name: snapshot_created_at
         description: "Timestamp when snapshot was created"
         data_type: timestamp with time zone

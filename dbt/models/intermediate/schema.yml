@@ -1,6 +1,175 @@
 version: 2
 
 models:
+  - name: int_employee_match_calculations
+    description: >
+      Employer match calculation model supporting configurable formulas including
+      simple percentage match, tiered match, and safe harbor formulas.
+      Integrates with employee contributions to determine match amounts.
+    config:
+      tags: ["match_engine", "critical", "core_calculation"]
+    columns:
+      - name: employee_id
+        description: Unique employee identifier
+        data_tests:
+          - not_null
+          - unique:
+              name: "unique_employee_per_match_year"
+      - name: simulation_year
+        description: Simulation year for match calculations
+        data_tests:
+          - not_null
+      - name: employer_match_amount
+        description: Calculated employer match amount after caps
+        data_tests:
+          - not_null
+          - dbt_utils.accepted_range:
+              min_value: 0
+              max_value: 50000
+      - name: deferral_rate
+        description: Employee deferral rate used for match calculation
+        data_tests:
+          - not_null
+          - dbt_utils.accepted_range:
+              min_value: 0
+              max_value: 1.0
+      - name: match_cap_applied
+        description: Whether the match cap was applied
+        data_tests:
+          - not_null
+      - name: formula_type
+        description: Type of match formula applied
+        data_tests:
+          - not_null
+          - accepted_values:
+              values: ["simple", "tiered", "none"]
+      - name: effective_match_rate
+        description: Actual match rate after caps
+        data_tests:
+          - dbt_utils.accepted_range:
+              min_value: 0
+              max_value: 1.5
+
+  - name: int_employee_contributions
+    description: >
+      Employee contribution calculation model using sophisticated period-based methodology.
+      Calculates time-weighted contributions with deferral rate changes, IRS limit enforcement,
+      and comprehensive data quality validation.
+    config:
+      tags: ["contribution", "critical", "core_calculation"]
+    columns:
+      - name: employee_id
+        description: Unique employee identifier
+        data_tests:
+          - not_null
+          - unique:
+              name: "unique_employee_per_contribution_year"
+      - name: simulation_year
+        description: Simulation year for these contributions
+        data_tests:
+          - not_null
+      - name: prorated_annual_contributions
+        description: Time-weighted annual contributions based on deferral rate changes
+        data_tests:
+          - not_null
+          - dbt_utils.accepted_range:
+              min_value: 0
+              max_value: 50000
+      - name: irs_limited_annual_contributions
+        description: IRS-limited contributions after applying 402(g) limits
+        data_tests:
+          - not_null
+          - dbt_utils.accepted_range:
+              min_value: 0
+              max_value: 31000  # Max catch-up limit for 2025
+      - name: excess_contributions
+        description: Amount of contributions exceeding IRS limits
+        data_tests:
+          - not_null
+          - dbt_utils.accepted_range:
+              min_value: 0
+              max_value: 50000
+      - name: effective_deferral_rate
+        description: Time-weighted effective deferral rate for the year
+        data_tests:
+          - not_null
+          - dbt_utils.accepted_range:
+              min_value: 0
+              max_value: 1.0
+      - name: contribution_periods_count
+        description: Number of contribution periods calculated for this employee
+        data_tests:
+          - not_null
+          - dbt_utils.accepted_range:
+              min_value: 0
+              max_value: 50
+      - name: age_as_of_december_31
+        description: Employee age as of December 31st for IRS limit determination
+        data_tests:
+          - not_null
+          - dbt_utils.accepted_range:
+              min_value: 18
+              max_value: 75
+      - name: applicable_irs_limit
+        description: IRS limit applicable to this employee (base or catch-up)
+        data_tests:
+          - not_null
+          - accepted_values:
+              values: [23500, 31000]  # 2025 limits
+      - name: irs_limit_reached
+        description: Flag indicating if employee reached IRS contribution limits
+        data_tests:
+          - not_null
+      - name: is_enrolled
+        description: Whether employee is enrolled in the DC plan
+        data_tests:
+          - not_null
+      - name: prorated_annual_compensation
+        description: Employee's prorated annual compensation for validation
+        data_tests:
+          - not_null
+          - dbt_utils.accepted_range:
+              min_value: 0
+              max_value: 1000000
+      - name: data_quality_flag
+        description: Data quality validation flag
+        data_tests:
+          - not_null
+          - accepted_values:
+              values: ['VALID', 'INVALID_EMPLOYEE_ID', 'CONTRIBUTIONS_EXCEED_COMPENSATION', 'IRS_LIMIT_MISMATCH', 'CONTRIBUTIONS_WITHOUT_ENROLLMENT', 'INVALID_DEFERRAL_RATE']
+
+    data_tests:
+      # Critical: Contributions must not exceed compensation (with $100 tolerance)
+      - dbt_utils.expression_is_true:
+          expression: "prorated_annual_contributions <= (prorated_annual_compensation + 100)"
+          meta:
+            description: "Contributions must not exceed compensation"
+            priority: "P0"
+
+      # Critical: IRS limited contributions must not exceed prorated contributions
+      - dbt_utils.expression_is_true:
+          expression: "irs_limited_annual_contributions <= prorated_annual_contributions"
+          meta:
+            description: "IRS limited contributions must not exceed calculated contributions"
+
+      # Critical: Excess contributions calculation validation
+      - dbt_utils.expression_is_true:
+          expression: "(prorated_annual_contributions - irs_limited_annual_contributions) = excess_contributions"
+          meta:
+            description: "Excess contributions must equal the difference between prorated and IRS limited"
+
+      # Critical: IRS limit flag consistency
+      - dbt_utils.expression_is_true:
+          expression: "(excess_contributions > 0) = irs_limit_reached"
+          meta:
+            description: "IRS limit reached flag must be consistent with excess contributions"
+
+      # Business rule: Enrolled employees with positive deferral rates should have contributions
+      - dbt_utils.expression_is_true:
+          expression: "NOT (is_enrolled = true AND effective_deferral_rate > 0 AND prorated_annual_contributions = 0 AND prorated_annual_compensation > 1000)"
+          warn_if: ">0"
+          meta:
+            description: "Enrolled employees with positive deferral rates should have contributions if they have meaningful compensation"
   - name: int_cold_start_detection
     description: >
       Cold start detection logic with table existence check.
