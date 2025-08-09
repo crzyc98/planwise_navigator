@@ -38,7 +38,7 @@
 -- simulation_year = {{ simulation_year }}, start_year = {{ start_year }}
 
 -- Get all enrollment-related events for current simulation year
--- This is safe because int_enrollment_state_accumulator runs AFTER fct_yearly_events in the orchestration
+-- Read directly from int_enrollment_events to avoid circular dependency
 WITH current_year_enrollment_events AS (
     SELECT
         employee_id,
@@ -46,6 +46,7 @@ WITH current_year_enrollment_events AS (
         effective_date,
         event_details,
         simulation_year,
+        event_category,  -- Added to track enrollment method
         -- Parse enrollment-related information from events
         CASE
             WHEN event_type = 'enrollment' THEN effective_date
@@ -56,12 +57,23 @@ WITH current_year_enrollment_events AS (
             WHEN event_type = 'enrollment_change' AND LOWER(event_details) LIKE '%opt-out%' THEN false
             ELSE NULL
         END AS enrollment_status_change,
+        -- Track enrollment method from event_category
+        CASE
+            WHEN event_type = 'enrollment' AND event_category = 'auto_enrollment' THEN 'auto'
+            WHEN event_type = 'enrollment' AND event_category IN ('voluntary_enrollment', 'proactive_enrollment', 'executive_enrollment') THEN 'voluntary'
+            ELSE NULL
+        END AS enrollment_method,
+        -- Track opt-out events
+        CASE
+            WHEN event_type = 'enrollment_change' AND LOWER(event_details) LIKE '%opt-out%' THEN true
+            ELSE false
+        END AS is_opt_out_event,
         -- Add event priority for handling multiple events per employee
         ROW_NUMBER() OVER (
             PARTITION BY employee_id, event_type
             ORDER BY effective_date DESC
         ) AS event_priority
-    FROM {{ ref('fct_yearly_events') }}
+    FROM {{ ref('int_enrollment_events') }}
     WHERE simulation_year = {{ simulation_year }}
         AND event_type IN ('enrollment', 'enrollment_change')
         AND employee_id IS NOT NULL
@@ -74,6 +86,8 @@ current_year_enrollment_summary AS (
         simulation_year,
         -- Get the latest enrollment event date
         MAX(CASE WHEN event_type = 'enrollment' AND event_priority = 1 THEN new_enrollment_date END) AS enrollment_event_date,
+        -- Get enrollment method if enrolled this year
+        MAX(CASE WHEN event_type = 'enrollment' AND event_priority = 1 THEN enrollment_method END) AS enrollment_method_this_year,
         -- Determine final enrollment status after all events this year
         CASE
             -- If there's an opt-out event, status is false regardless of enrollment events
@@ -85,6 +99,8 @@ current_year_enrollment_summary AS (
             -- No enrollment events this year
             ELSE NULL
         END AS has_enrollment_event_this_year,
+        -- Track if there was an opt-out this year
+        MAX(CASE WHEN is_opt_out_event = true THEN 1 ELSE 0 END) = 1 AS had_opt_out_this_year,
         -- Count of enrollment events for tracking
         COUNT(CASE WHEN event_type = 'enrollment' THEN 1 END) AS enrollment_events_count,
         COUNT(CASE WHEN event_type = 'enrollment_change' THEN 1 END) AS enrollment_change_events_count
@@ -136,6 +152,16 @@ first_year_enrollment_state AS (
             WHEN bl.baseline_enrollment_date IS NOT NULL THEN 'baseline'
             ELSE 'none'
         END AS enrollment_source,
+        -- Track enrollment method (auto vs voluntary)
+        CASE
+            WHEN ev.enrollment_method_this_year IS NOT NULL THEN ev.enrollment_method_this_year
+            WHEN bl.baseline_enrollment_date IS NOT NULL THEN 'voluntary'  -- Assume baseline enrollments are voluntary
+            ELSE NULL
+        END AS enrollment_method,
+        -- Track if ever opted out (for first year, just current year)
+        COALESCE(ev.had_opt_out_this_year, false) AS ever_opted_out,
+        -- Track if ever enrolled then unenrolled (false for first year)
+        false AS ever_unenrolled,
         -- Event counts
         COALESCE(ev.enrollment_events_count, 0) AS enrollment_events_this_year,
         COALESCE(ev.enrollment_change_events_count, 0) AS enrollment_change_events_this_year
@@ -152,7 +178,10 @@ previous_year_enrollment_state AS (
         enrollment_date AS previous_enrollment_date,
         enrollment_status AS previous_enrollment_status,
         years_since_first_enrollment AS previous_years_since_first_enrollment,
-        enrollment_source AS previous_enrollment_source
+        enrollment_source AS previous_enrollment_source,
+        enrollment_method AS previous_enrollment_method,
+        ever_opted_out AS previous_ever_opted_out,
+        ever_unenrolled AS previous_ever_unenrolled
     FROM {{ this }}
     WHERE simulation_year = {{ simulation_year - 1 }}
         AND employee_id IS NOT NULL
@@ -201,6 +230,28 @@ subsequent_year_enrollment_state AS (
             WHEN py.previous_enrollment_source IS NOT NULL THEN py.previous_enrollment_source
             ELSE 'none'
         END AS enrollment_source,
+        -- Track enrollment method: new enrollment this year or carry forward
+        CASE
+            WHEN ev.enrollment_method_this_year IS NOT NULL THEN ev.enrollment_method_this_year
+            WHEN py.previous_enrollment_method IS NOT NULL THEN py.previous_enrollment_method
+            ELSE NULL
+        END AS enrollment_method,
+        -- Track if ever opted out: accumulate across years
+        CASE
+            WHEN ev.had_opt_out_this_year = true THEN true
+            WHEN py.previous_ever_opted_out = true THEN true
+            ELSE false
+        END AS ever_opted_out,
+        -- Track if ever enrolled then unenrolled
+        CASE
+            -- If was enrolled previously and now not enrolled (and not due to opt-out), mark as unenrolled
+            WHEN py.previous_enrollment_status = true
+                AND ev.has_enrollment_event_this_year = false
+                AND ev.had_opt_out_this_year = false THEN true
+            -- Carry forward previous unenrollment status
+            WHEN py.previous_ever_unenrolled = true THEN true
+            ELSE false
+        END AS ever_unenrolled,
         -- Event counts
         COALESCE(ev.enrollment_events_count, 0) AS enrollment_events_this_year,
         COALESCE(ev.enrollment_change_events_count, 0) AS enrollment_change_events_this_year
@@ -219,6 +270,9 @@ SELECT
     enrollment_status,
     years_since_first_enrollment,
     enrollment_source,
+    enrollment_method,  -- Added: track auto vs voluntary
+    ever_opted_out,     -- Added: track opt-out history
+    ever_unenrolled,    -- Added: track unenrollment history
     enrollment_events_this_year,
     enrollment_change_events_this_year,
     -- Add calculated fields for compatibility with existing models

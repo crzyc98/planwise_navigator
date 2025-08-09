@@ -34,6 +34,12 @@
       WHEN '{{ parameter_name }}' = 'cola_rate' THEN 0.005
       WHEN '{{ parameter_name }}' = 'promotion_raise' THEN 0.12
       WHEN '{{ parameter_name }}' = 'new_hire_salary_adjustment' THEN 1.1489720153602505
+      -- Epic E035: Deferral escalation defaults
+      WHEN '{{ parameter_name }}' = 'escalation_rate' THEN 0.01  -- 1% default increment
+      WHEN '{{ parameter_name }}' = 'max_escalation_rate' THEN 0.10  -- 10% maximum rate cap
+      WHEN '{{ parameter_name }}' = 'tenure_threshold' THEN 1  -- 1 year minimum tenure
+      WHEN '{{ parameter_name }}' = 'age_threshold' THEN 21  -- 21 minimum age
+      WHEN '{{ parameter_name }}' = 'max_escalations' THEN 10  -- Maximum 10 escalations
       ELSE 1.0
     END
   )
@@ -51,6 +57,16 @@
     WHEN '{{ parameter_name }}' = 'promotion_raise' AND ({{ parameter_value }} < 0 OR {{ parameter_value }} > 1.0)
       THEN FALSE
     WHEN '{{ parameter_name }}' = 'promotion_probability' AND ({{ parameter_value }} < 0 OR {{ parameter_value }} > 1.0)
+      THEN FALSE
+    WHEN '{{ parameter_name }}' = 'escalation_rate' AND ({{ parameter_value }} < 0 OR {{ parameter_value }} > 0.1)
+      THEN FALSE
+    WHEN '{{ parameter_name }}' = 'max_escalation_rate' AND ({{ parameter_value }} < 0 OR {{ parameter_value }} > 1.0)
+      THEN FALSE
+    WHEN '{{ parameter_name }}' = 'tenure_threshold' AND ({{ parameter_value }} < 0 OR {{ parameter_value }} > 30)
+      THEN FALSE
+    WHEN '{{ parameter_name }}' = 'age_threshold' AND ({{ parameter_value }} < 18 OR {{ parameter_value }} > 70)
+      THEN FALSE
+    WHEN '{{ parameter_name }}' = 'max_escalations' AND ({{ parameter_value }} < 0 OR {{ parameter_value }} > 20)
       THEN FALSE
     ELSE TRUE
   END

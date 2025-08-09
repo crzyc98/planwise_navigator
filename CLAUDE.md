@@ -41,8 +41,8 @@ graph TD
     compensation --> needs[int_workforce_needs]
     needs --> events[Event Models]
     events --> yearly_events[fct_yearly_events]
-    yearly_events --> accumulator[int_enrollment_state_accumulator]
-    accumulator --> workforce[fct_workforce_snapshot]
+    yearly_events --> accumulators[State Accumulators (int_*)]
+    accumulators --> workforce[fct_workforce_snapshot]
     workforce --> audit[Year Audit Results]
     audit --> tuning[Compensation Tuning UI]
     tuning --> params
@@ -93,6 +93,8 @@ PlanWise Navigator implements enterprise-grade event sourcing with immutable aud
 
 **Snapshot Reconstruction**: Any workforce state can be instantly reconstructed from the event log for historical analysis and scenario validation.
 
+Guidance: Avoid circular dependencies. Intermediate (`int_*`) models must not read from marts (`fct_*`). Use temporal accumulators (e.g., enrollment/deferral state) to carry state across years using only `int_*` sources.
+
 -----
 
 ### **4. Directory Layout**
@@ -110,6 +112,7 @@ planwise_navigator/
 │  │  ├─ intermediate/               # Business logic (int_*)
 │  │  │  ├─ events/                 # Event generation models
 │  │  │  └─ int_enrollment_state_accumulator.sql # Temporal enrollment state
+│  │  │  └─ int_deferral_rate_state_accumulator.sql # Temporal deferral rate state
 │  │  └─ marts/                      # Final outputs (fct_*, dim_*)
 │  ├─ seeds/                         # Configuration data (CSV)
 │  └─ macros/                        # Reusable SQL functions
@@ -142,6 +145,11 @@ planwise_navigator/
 
   * **SQL (dbt)**: Use 2-space indents, uppercase keywords, and one clause per line. Avoid `SELECT *`. Use `{{ ref() }}` and CTEs for readability.
   * **Python**: Keep functions under 40 lines. Raise explicit exceptions. Use Pydantic for data modeling.
+
+Do/Don't (DuckDB/dbt):
+- Do filter heavy models by `{{ var('simulation_year') }}` and join on `(scenario_id, plan_design_id, employee_id)` (and year when relevant).
+- Do use incremental models with `incremental_strategy='delete+insert'` keyed by year for idempotent re-runs.
+- Don't use adapter-unsupported configs like physical `partition_by`/indexes; rely on logical partitioning by year.
 
 <!-- end list -->
 
@@ -186,7 +194,7 @@ Every feature request becomes a single Pull-Request following this checklist:
 
 1.  **Row counts**: Raw vs. staged table counts must have a difference of `<= 0.5%`.
 2.  **Uniqueness**: Primary key uniqueness tests on every model.
-3.  **Distribution drift**: Kolmogorov-Smirnov test vs. baseline should not have a p-value `>= 0.1`.
+3.  **Distribution drift**: Maintain baseline distributions; Kolmogorov-Smirnov test p-value should be `>= 0.1`.
 
 -----
 
@@ -204,15 +212,15 @@ python orchestrator_dbt/run_multi_year.py               # Enhanced multi-year ru
 
 # dbt Development
 cd dbt
-dbt run       # Run all models
-dbt test      # Run all tests
-dbt docs generate # Generate documentation
+dbt build --threads 4 --fail-fast               # Build + test
+dbt test --select tag:data_quality              # Run DQ-only tests
+dbt docs generate                               # Generate docs
 
 # Single Year Development (for testing specific models)
 cd dbt
-dbt run --select stg_census_data int_baseline_workforce --vars "simulation_year: 2025"
-dbt run --select int_enrollment_events --vars "simulation_year: 2025"
-dbt run --select fct_yearly_events fct_workforce_snapshot --vars "simulation_year: 2025"
+dbt build --select stg_census_data int_baseline_workforce --vars "simulation_year: 2025"
+dbt build --select int_enrollment_events --vars "simulation_year: 2025"
+dbt build --select fct_yearly_events fct_workforce_snapshot --vars "simulation_year: 2025"
 
 # Streamlit Dashboards
 streamlit run streamlit_dashboard/main.py
@@ -341,7 +349,7 @@ This section tracks the implementation of major epics and stories.
   * **Problem**: `ModuleNotFoundError` when running Python or dbt commands.
   * **Cause**: Using system-installed packages instead of virtual environment packages.
   * **Solution**: Always activate the virtual environment (`source venv/bin/activate`) before running commands, or call the binary directly (`venv/bin/python`, `venv/bin/dbt`).
-  * **Compatible Versions**: `dbt-core: 1.9.8`, `dbt-duckdb: 1.8.1`, `duckdb: 1.0.0`.
+  * **Compatible Versions**: `dbt-core: 1.8.8`, `dbt-duckdb: 1.8.1`, `duckdb: 1.0.0`.
 
 #### **Database Locks and State Management**
 
@@ -373,6 +381,12 @@ This section tracks the implementation of major epics and stories.
     - No circular dependencies
     - Maintains enrollment state across simulation years
   * **Validation**: Run `dbt run --select validate_enrollment_architecture` to check for data integrity issues.
+
+#### **Deferral Rate State Accumulator (E036)**
+
+  * **Pattern**: Year N reads Year N-1 state + current-year enrollment/escalation (from `int_*`) to produce deferral rates without touching `fct_*`.
+  * **Order**: Build accumulator before `int_employee_contributions`, then `fct_yearly_events`, then `fct_workforce_snapshot`.
+  * **Incremental**: Filter by `{{ var('simulation_year') }}`; prefer `delete+insert` keyed by composite unique key including year.
 
 -----
 

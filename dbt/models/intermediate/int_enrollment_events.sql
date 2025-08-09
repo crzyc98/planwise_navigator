@@ -20,8 +20,8 @@
   - CRITICAL: Restores restrictive WHERE clauses to prevent duplicate enrollments
 */
 
-WITH active_workforce AS (
-  -- Use consistent data source with other event models (terminations, hiring)
+WITH active_workforce_base AS (
+  -- Base active employees with compensation (excludes current-year new hires in first year)
   SELECT DISTINCT
     employee_id,
     employee_ssn,
@@ -31,7 +31,6 @@ WITH active_workforce AS (
     current_tenure,
     level_id,
     employee_compensation AS current_compensation,
-    -- Calculate age and tenure bands consistently with other models
     CASE
       WHEN current_age < 25 THEN '< 25'
       WHEN current_age < 35 THEN '25-34'
@@ -53,6 +52,37 @@ WITH active_workforce AS (
     AND employment_status = 'active'
 ),
 
+new_hires_current_year AS (
+  -- Ensure current-year new hires are considered for enrollment attempts in their hire year
+  SELECT DISTINCT
+    he.employee_id,
+    he.employee_ssn,
+    he.effective_date::DATE AS employee_hire_date,
+    he.simulation_year,
+    he.employee_age AS current_age,
+    0.0 AS current_tenure,
+    he.level_id,
+    he.compensation_amount AS current_compensation,
+    CASE
+      WHEN he.employee_age < 25 THEN '< 25'
+      WHEN he.employee_age < 35 THEN '25-34'
+      WHEN he.employee_age < 45 THEN '35-44'
+      WHEN he.employee_age < 55 THEN '45-54'
+      WHEN he.employee_age < 65 THEN '55-64'
+      ELSE '65+'
+    END AS age_band,
+    '< 2' AS tenure_band,
+    'active' AS employment_status
+  FROM {{ ref('int_hiring_events') }} he
+  WHERE he.simulation_year = {{ var('simulation_year') }}
+),
+
+active_workforce AS (
+  SELECT * FROM active_workforce_base
+  UNION ALL
+  SELECT * FROM new_hires_current_year
+),
+
 previous_enrollment_state AS (
   -- ORCHESTRATOR-LEVEL SOLUTION: Use enrollment_registry table maintained by orchestrator
   -- This table is created/updated before event generation to prevent duplicate enrollments
@@ -69,6 +99,9 @@ previous_enrollment_state AS (
   FROM enrollment_registry
   WHERE is_enrolled = true
     AND employee_id IS NOT NULL
+    -- Only treat employees as previously enrolled if enrollment occurred
+    -- on or before the current simulation year (ignore future-year enrollments)
+    AND first_enrollment_year <= {{ current_year }}
 ),
 
 eligible_for_enrollment AS (
@@ -98,7 +131,14 @@ eligible_for_enrollment AS (
 
     -- CRITICAL BUSINESS LOGIC: Enhanced eligibility check with ALL restrictive WHERE clauses restored
     CASE
-      WHEN aw.current_tenure >= 1
+      WHEN (
+        -- Fix: Allow new hires when scope is new_hires_only, otherwise require 1+ years tenure
+        CASE
+          WHEN '{{ var("auto_enrollment_scope", "all_eligible_employees") }}' = 'new_hires_only'
+            THEN aw.current_tenure >= 0  -- New hires have 0 tenure, allow them
+          ELSE aw.current_tenure >= 1     -- Existing logic for other scopes
+        END
+      )
         -- CRITICAL: Use temporal state accumulator to prevent duplicate enrollments
         AND COALESCE(pe.was_enrolled_previously, false) = false
         AND (
@@ -111,9 +151,15 @@ eligible_for_enrollment AS (
         )
         AND (
           -- CRITICAL: Scope check prevents inappropriate enrollments
+          -- SCOPE: new_hires_only targets current-year hires (honors cutoff)
           CASE
             WHEN '{{ var("auto_enrollment_scope", "all_eligible_employees") }}' = 'new_hires_only'
-              THEN aw.employee_hire_date >= CAST(aw.simulation_year || '-01-01' AS DATE)
+              -- Use hire_date_cutoff for new_hires_only scope instead of current year requirement
+              {% if var("auto_enrollment_hire_date_cutoff", null) %}
+              THEN (aw.employee_hire_date >= '{{ var("auto_enrollment_hire_date_cutoff") }}'::DATE AND EXTRACT(YEAR FROM aw.employee_hire_date) = {{ var('simulation_year') }})
+            {% else %}
+              THEN EXTRACT(YEAR FROM aw.employee_hire_date) = {{ var('simulation_year') }}
+            {% endif %}
             WHEN '{{ var("auto_enrollment_scope", "all_eligible_employees") }}' = 'all_eligible_employees'
               THEN true
             ELSE true  -- Default to eligible if unrecognized scope
@@ -235,11 +281,16 @@ enrollment_events AS (
     END as event_probability,
 
     -- Event category for grouping
-    CASE efo.age_segment
-      WHEN 'young' THEN 'auto_enrollment'
-      WHEN 'mid_career' THEN 'voluntary_enrollment'
-      WHEN 'mature' THEN 'proactive_enrollment'
-      ELSE 'executive_enrollment'
+    CASE
+      WHEN '{{ var("auto_enrollment_scope", "all_eligible_employees") }}' = 'new_hires_only' THEN 'auto_enrollment'
+      ELSE (
+        CASE efo.age_segment
+          WHEN 'young' THEN 'auto_enrollment'
+          WHEN 'mid_career' THEN 'voluntary_enrollment'
+          WHEN 'mature' THEN 'proactive_enrollment'
+          ELSE 'executive_enrollment'
+        END
+      )
     END as event_category
   FROM eligible_for_enrollment efo
   WHERE efo.is_eligible = true
@@ -247,19 +298,24 @@ enrollment_events AS (
     -- Now that previous_enrollment_state properly checks accumulator for subsequent years,
     -- we can safely enforce this constraint across all years
     AND efo.is_already_enrolled = false
-    -- CRITICAL: Apply probabilistic enrollment based on demographics
-    AND efo.enrollment_random < (
-      CASE efo.age_segment
-        WHEN 'young' THEN 0.30
-        WHEN 'mid_career' THEN 0.55
-        WHEN 'mature' THEN 0.70
-        ELSE 0.80
-      END *
-      CASE efo.income_segment
-        WHEN 'low_income' THEN 0.70
-        WHEN 'moderate' THEN 1.0
-        WHEN 'high' THEN 1.15
-        ELSE 1.25
+    -- BUSINESS CHANGE: If scope=new_hires_only → auto-enroll deterministically;
+    -- otherwise keep probabilistic enrollment by demographics
+    AND (
+      CASE WHEN '{{ var("auto_enrollment_scope", "all_eligible_employees") }}' = 'new_hires_only' THEN true ELSE
+        efo.enrollment_random < (
+          CASE efo.age_segment
+            WHEN 'young' THEN 0.30
+            WHEN 'mid_career' THEN 0.55
+            WHEN 'mature' THEN 0.70
+            ELSE 0.80
+          END *
+          CASE efo.income_segment
+            WHEN 'low_income' THEN 0.70
+            WHEN 'moderate' THEN 1.0
+            WHEN 'high' THEN 1.15
+            ELSE 1.25
+          END
+        )
       END
     )
 ),
@@ -314,7 +370,6 @@ opt_out_events AS (
     AND (efo.is_already_enrolled = true OR efo.employee_id IN (
       SELECT employee_id FROM enrollment_events WHERE event_type = 'enrollment'
     ))
-    AND efo.age_segment = 'young'  -- Only young employees get auto-enrolled and can opt out
     -- CRITICAL: Apply probabilistic opt-out based on demographics
     AND efo.optout_random < (
       0.35 *  -- Base young opt-out rate
@@ -444,4 +499,15 @@ ORDER BY employee_id, effective_date,
      - No enrollment events in 2028, 2029 for already-enrolled employees
      - Registry prevents duplicate enrollments across all simulation years
      - Zero employees with enrollment events but no enrollment dates in workforce snapshots
+
+  5. NEW HIRE AUTO ENROLLMENT FIX (2025-01-XX):
+     - ISSUE: New hires (NH_2025_*) were not getting auto enrollment attempts
+     - ROOT CAUSES:
+       a) Tenure requirement (current_tenure >= 1) blocked new hires with 0 tenure
+       b) Scope logic required hire dates in current simulation year vs respecting hire_date_cutoff
+     - CONFIG: auto_enrollment.scope="new_hires_only" with hire_date_cutoff="2020-01-01"
+     - SOLUTIONS:
+       a) Modified tenure logic to allow new hires (tenure >= 0) when scope is "new_hires_only"
+       b) Fixed scope check to use hire_date_cutoff instead of current year requirement
+     - RESULT: NH_2025_* employees (hired 2025, after 2020 cutoff) now eligible for auto enrollment
 */

@@ -70,16 +70,16 @@ WITH employee_contributions AS (
     SELECT
         ec.employee_id,
         ec.simulation_year,
-        ec.prorated_annual_contributions AS annual_deferrals,
+        ec.annual_contribution_amount AS annual_deferrals,
         ec.prorated_annual_compensation AS eligible_compensation,
-        ec.effective_deferral_rate AS deferral_rate,
-        ec.is_enrolled,
-        ec.enrollment_date,
-        ec.age_as_of_december_31,
+        ec.effective_annual_deferral_rate AS deferral_rate,
+        ec.is_enrolled_flag AS is_enrolled,
+        ec.first_contribution_date AS enrollment_date,
+        ec.current_age AS age_as_of_december_31,
         ec.employment_status
     FROM {{ ref('int_employee_contributions') }}  ec
     WHERE ec.simulation_year = {{ simulation_year }}
-        AND ec.is_enrolled = true
+        AND ec.is_enrolled_flag = true
         AND ec.prorated_annual_compensation > 0
 ),
 
