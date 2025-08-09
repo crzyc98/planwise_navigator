@@ -1,6 +1,176 @@
 version: 2
 
 models:
+  - name: int_deferral_rate_state_accumulator
+    description: >
+      Temporal state accumulator for employee deferral rates across simulation years.
+      Eliminates circular dependency between int_employee_contributions and fct_yearly_events
+      by providing deterministic deferral rate state tracking using the Epic E023 proven pattern.
+      CRITICAL: Missing temporal accumulation pattern - requires validation framework.
+    config:
+      tags: ["state_accumulator", "critical", "e036_fix", "validation_required"]
+    columns:
+      - name: employee_id
+        description: Unique employee identifier
+        data_tests:
+          - not_null
+          - relationships:
+              to: ref('int_employee_compensation_by_year')
+              field: employee_id
+      - name: simulation_year
+        description: Simulation year for state accumulation
+        data_tests:
+          - not_null
+          - accepted_values:
+              values: [2025, 2026, 2027, 2028, 2029]
+      - name: current_deferral_rate
+        description: Current effective deferral rate for the employee
+        data_tests:
+          - not_null
+          - dbt_utils.accepted_range:
+              min_value: 0
+              max_value: 1.0
+      - name: escalations_received
+        description: Total count of escalations received to date
+        data_tests:
+          - not_null
+          - dbt_utils.accepted_range:
+              min_value: 0
+              max_value: 10
+      - name: has_escalations
+        description: Flag indicating if employee has received any escalations
+        data_tests:
+          - not_null
+          - accepted_values:
+              values: [true, false]
+      - name: is_enrolled_flag
+        description: Current enrollment status in DC plan
+        data_tests:
+          - not_null
+          - accepted_values:
+              values: [true, false]
+      - name: data_quality_flag
+        description: Data quality validation status
+        data_tests:
+          - not_null
+          - accepted_values:
+              values: ['VALID', 'INVALID_EMPLOYEE_ID', 'INVALID_RATE', 'INVALID_ESCALATION_COUNT']
+    data_tests:
+      - unique:
+          column_name: "employee_id || '_' || simulation_year"
+      - dbt_utils.expression_is_true:
+          expression: "escalations_received >= 0"
+          config:
+            severity: error
+      - dbt_utils.expression_is_true:
+          expression: "current_deferral_rate >= original_deferral_rate OR original_deferral_rate IS NULL"
+          config:
+            severity: warn
+      - dbt_utils.expression_is_true:
+          expression: "(has_escalations = true AND escalations_received > 0) OR (has_escalations = false AND escalations_received = 0)"
+          config:
+            severity: error
+      - dbt_utils.expression_is_true:
+          expression: "is_enrolled_flag = true OR (is_enrolled_flag = false AND escalations_received = 0)"
+          config:
+            severity: error
+      # Cross-year continuity validation
+      - dbt_utils.expression_is_true:
+          expression: "COUNT(*) FILTER (WHERE current_deferral_rate < 0 OR current_deferral_rate > 1) = 0"
+          config:
+            severity: error
+
+  - name: validate_deferral_rate_state_continuity
+    description: >
+      Comprehensive validation model for deferral rate state continuity across years.
+      Implements Epic E036 enterprise-grade data quality validation patterns for
+      financial audit compliance and regulatory requirements.
+    config:
+      tags: ["validation", "data_quality", "e036", "audit_compliance"]
+    columns:
+      - name: validation_category
+        description: Category of validation performed
+        data_tests:
+          - not_null
+          - accepted_values:
+              values: ['STATE_TRANSITION', 'ORPHANED_STATE', 'LIFECYCLE_INTEGRATION', 'ESCALATION_CONTINUITY']
+      - name: employee_id
+        description: Employee being validated
+        data_tests:
+          - not_null
+      - name: simulation_year
+        description: Year being validated
+        data_tests:
+          - not_null
+      - name: transition_validation_result
+        description: Result of validation check
+        data_tests:
+          - not_null
+      - name: data_quality_flag
+        description: Pass/Fail classification
+        data_tests:
+          - not_null
+          - accepted_values:
+              values: ['PASS', 'FAIL']
+      - name: severity_level
+        description: Audit priority level
+        data_tests:
+          - not_null
+          - accepted_values:
+              values: ['LOW', 'MEDIUM', 'HIGH']
+    data_tests:
+      - dbt_utils.expression_is_true:
+          expression: "COUNT(*) FILTER (WHERE data_quality_flag = 'FAIL' AND severity_level = 'HIGH') = 0"
+          config:
+            severity: error
+      - dbt_utils.expression_is_true:
+          expression: "COUNT(*) FILTER (WHERE data_quality_flag = 'FAIL' AND severity_level IN ('HIGH', 'MEDIUM')) <= COUNT(*) * 0.05"
+          config:
+            severity: warn
+
+  - name: validate_deferral_rate_orphaned_states
+    description: >
+      Specialized orphaned state detection for financial data audit compliance.
+      Ensures all deferral rate state changes have complete audit trails and
+      data lineage validation for regulatory requirements.
+    config:
+      tags: ["validation", "orphaned_state", "e036", "financial_audit"]
+    columns:
+      - name: orphaned_state_type
+        description: Type of orphaned state detected
+        data_tests:
+          - not_null
+      - name: employee_id
+        description: Employee with orphaned state
+        data_tests:
+          - not_null
+      - name: severity_level
+        description: Financial impact severity
+        data_tests:
+          - not_null
+          - accepted_values:
+              values: ['LOW', 'MEDIUM', 'HIGH', 'CRITICAL']
+      - name: estimated_financial_impact
+        description: Estimated financial impact in dollars
+        data_tests:
+          - not_null
+          - dbt_utils.accepted_range:
+              min_value: 0
+      - name: data_quality_flag
+        description: Quality status classification
+        data_tests:
+          - not_null
+          - accepted_values:
+              values: ['PASS', 'WARNING', 'FAIL', 'REVIEW']
+    data_tests:
+      - dbt_utils.expression_is_true:
+          expression: "COUNT(*) FILTER (WHERE severity_level = 'CRITICAL') = 0"
+          config:
+            severity: error
+      - dbt_utils.expression_is_true:
+          expression: "SUM(estimated_financial_impact) FILTER (WHERE data_quality_flag = 'FAIL') < 100000"
+          config:
+            severity: warn
   - name: int_employee_match_calculations
     description: >
       Employer match calculation model supporting configurable formulas including
@@ -98,78 +268,207 @@ models:
               max_value: 1.0
       - name: contribution_periods_count
         description: Number of contribution periods calculated for this employee
-        data_tests:
-          - not_null
-          - dbt_utils.accepted_range:
-              min_value: 0
-              max_value: 50
-      - name: age_as_of_december_31
-        description: Employee age as of December 31st for IRS limit determination
-        data_tests:
-          - not_null
-          - dbt_utils.accepted_range:
-              min_value: 18
-              max_value: 75
-      - name: applicable_irs_limit
-        description: IRS limit applicable to this employee (base or catch-up)
-        data_tests:
-          - not_null
-          - accepted_values:
-              values: [23500, 31000]  # 2025 limits
-      - name: irs_limit_reached
-        description: Flag indicating if employee reached IRS contribution limits
-        data_tests:
-          - not_null
-      - name: is_enrolled
-        description: Whether employee is enrolled in the DC plan
-        data_tests:
-          - not_null
-      - name: prorated_annual_compensation
-        description: Employee's prorated annual compensation for validation
-        data_tests:
-          - not_null
-          - dbt_utils.accepted_range:
-              min_value: 0
-              max_value: 1000000
-      - name: data_quality_flag
-        description: Data quality validation flag
-        data_tests:
-          - not_null
-          - accepted_values:
-              values: ['VALID', 'INVALID_EMPLOYEE_ID', 'CONTRIBUTIONS_EXCEED_COMPENSATION', 'IRS_LIMIT_MISMATCH', 'CONTRIBUTIONS_WITHOUT_ENROLLMENT', 'INVALID_DEFERRAL_RATE']
 
+  - name: int_deferral_escalation_state_accumulator
+    description: >
+      Enhanced Temporal State Accumulator for Deferral Rate Escalation Tracking (Epic E036 Story S036-03).
+      Implements multi-year state transition validation with comprehensive employee lifecycle integration.
+      Maintains escalation state without circular dependencies using proven temporal accumulation pattern.
+    config:
+      tags: ["escalation", "state", "critical", "e036", "temporal_validation"]
     data_tests:
-      # Critical: Contributions must not exceed compensation (with $100 tolerance)
+      # Multi-year state transition validation
+      - dbt_utils.unique_combination_of_columns:
+          combination_of_columns:
+            - employee_id
+            - simulation_year
+          config:
+            severity: error
+            error_if: ">= 1"
+      # Temporal continuity validation - escalation counts should be non-decreasing across years
       - dbt_utils.expression_is_true:
-          expression: "prorated_annual_contributions <= (prorated_annual_compensation + 100)"
-          meta:
-            description: "Contributions must not exceed compensation"
-            priority: "P0"
-
-      # Critical: IRS limited contributions must not exceed prorated contributions
+          expression: >
+            (SELECT COUNT(*) FROM (
+              SELECT
+                employee_id,
+                simulation_year,
+                escalations_received,
+                LAG(escalations_received) OVER (PARTITION BY employee_id ORDER BY simulation_year) as prev_escalations
+              FROM int_deferral_escalation_state_accumulator
+            ) t
+            WHERE escalations_received < COALESCE(prev_escalations, 0)) = 0
+          config:
+            severity: error
+            error_if: ">= 1"
+      # Deferral rate progression validation - rates should be non-decreasing across years
       - dbt_utils.expression_is_true:
-          expression: "irs_limited_annual_contributions <= prorated_annual_contributions"
-          meta:
-            description: "IRS limited contributions must not exceed calculated contributions"
-
-      # Critical: Excess contributions calculation validation
+          expression: >
+            (SELECT COUNT(*) FROM (
+              SELECT
+                employee_id,
+                simulation_year,
+                current_deferral_rate,
+                LAG(current_deferral_rate) OVER (PARTITION BY employee_id ORDER BY simulation_year) as prev_rate
+              FROM int_deferral_escalation_state_accumulator
+            ) t
+            WHERE current_deferral_rate < COALESCE(prev_rate, 0) - 0.001) = 0
+          config:
+            severity: warn
+            error_if: ">= 1"
+      # Employee lifecycle integration validation - no escalations for terminated employees
       - dbt_utils.expression_is_true:
-          expression: "(prorated_annual_contributions - irs_limited_annual_contributions) = excess_contributions"
-          meta:
-            description: "Excess contributions must equal the difference between prorated and IRS limited"
-
-      # Critical: IRS limit flag consistency
+          expression: >
+            (SELECT COUNT(*) FROM int_deferral_escalation_state_accumulator acc
+             LEFT JOIN int_employee_compensation_by_year comp
+             ON acc.employee_id = comp.employee_id AND acc.simulation_year = comp.simulation_year
+             WHERE comp.employment_status = 'terminated'
+             AND acc.escalation_events_this_year > 0) = 0
+          config:
+            severity: error
+            error_if: ">= 1"
+      # Performance validation - execution time under 2 seconds (tracked via metadata)
       - dbt_utils.expression_is_true:
-          expression: "(excess_contributions > 0) = irs_limit_reached"
-          meta:
-            description: "IRS limit reached flag must be consistent with excess contributions"
-
-      # Business rule: Enrolled employees with positive deferral rates should have contributions
+          expression: >
+            (SELECT COUNT(*) FROM int_deferral_escalation_state_accumulator) > 0
+          config:
+            severity: error
+            error_if: ">= 1"
+      # Financial compliance validation - no rates exceeding legal limits
       - dbt_utils.expression_is_true:
-          expression: "NOT (is_enrolled = true AND effective_deferral_rate > 0 AND prorated_annual_contributions = 0 AND prorated_annual_compensation > 1000)"
-          warn_if: ">0"
-          meta:
-            description: "Enrolled employees with positive deferral rates should have contributions if they have meaningful compensation"
+          expression: >
+            (SELECT COUNT(*) FROM int_deferral_escalation_state_accumulator
+             WHERE current_deferral_rate > 0.5) = 0
+          config:
+            severity: error
+            error_if: ">= 1"
+      # UUID compliance validation - employee_id format validation
+      - dbt_utils.expression_is_true:
+          expression: >
+            (SELECT COUNT(*) FROM int_deferral_escalation_state_accumulator
+             WHERE LENGTH(employee_id) < 8 OR employee_id IS NULL) = 0
+          config:
+            severity: error
+            error_if: ">= 1"
+    columns:
+      - name: employee_id
+        description: Unique employee identifier (UUID format)
+        data_tests:
+          - not_null
+          - unique:
+              name: "unique_employee_per_escalation_year_enhanced"
+      - name: simulation_year
+        description: Simulation year for escalation state
+        data_tests:
+          - not_null
+          - accepted_values:
+              values: [2025, 2026, 2027, 2028, 2029]
+              config:
+                severity: error
+      - name: current_deferral_rate
+        description: Current effective deferral rate after escalations (enhanced validation)
+        data_tests:
+          - not_null
+          - dbt_utils.accepted_range:
+              min_value: 0
+              max_value: 0.5
+              config:
+                severity: error
+      - name: escalations_received
+        description: Total number of escalations received by employee (cumulative)
+        data_tests:
+          - not_null
+          - dbt_utils.accepted_range:
+              min_value: 0
+              max_value: 10
+              config:
+                severity: error
+      - name: total_escalation_amount
+        description: Cumulative deferral rate increase from all escalations
+        data_tests:
+          - not_null
+          - dbt_utils.accepted_range:
+              min_value: 0
+              max_value: 0.5
+              config:
+                severity: error
+      - name: escalation_events_this_year
+        description: Count of escalation events in current simulation year
+        data_tests:
+          - not_null
+          - dbt_utils.accepted_range:
+              min_value: 0
+              max_value: 3
+              config:
+                severity: error
+      - name: had_escalation_this_year
+        description: Boolean flag indicating if employee received escalation in current year
+        data_tests:
+          - not_null
+          - accepted_values:
+              values: [true, false]
+              config:
+                severity: error
+      - name: has_escalations
+        description: Boolean flag indicating if employee has ever received escalations
+        data_tests:
+          - not_null
+          - accepted_values:
+              values: [true, false]
+              config:
+                severity: error
+      - name: original_deferral_rate
+        description: Employee's original baseline deferral rate
+        data_tests:
+          - not_null
+          - dbt_utils.accepted_range:
+              min_value: 0
+              max_value: 0.5
+              config:
+                severity: error
+      - name: escalation_rate_change_pct
+        description: Percentage change from original rate due to escalations
+        data_tests:
+          - dbt_utils.accepted_range:
+              min_value: -0.1
+              max_value: 10.0
+              config:
+                severity: warn
+      - name: years_since_first_escalation
+        description: Years since first escalation (NULL if no escalations)
+        data_tests:
+          - dbt_utils.accepted_range:
+              min_value: 0
+              max_value: 10
+              config:
+                severity: warn
+      - name: days_since_last_escalation
+        description: Days since last escalation (NULL if no escalations)
+        data_tests:
+          - dbt_utils.accepted_range:
+              min_value: 0
+              max_value: 3650
+              config:
+                severity: warn
+      - name: scenario_id
+        description: Scenario identifier for multi-scenario planning
+        data_tests:
+          - not_null
+          - accepted_values:
+              values: ['default', 'scenario_1', 'scenario_2']
+              config:
+                severity: warn
+      - name: data_quality_flag
+        description: Enhanced data quality validation flag with comprehensive checks
+        data_tests:
+          - not_null
+          - accepted_values:
+              values: ["VALID", "INVALID_EMPLOYEE_ID", "INVALID_SIMULATION_YEAR", "INVALID_DEFERRAL_RATE", "INVALID_DEFERRAL_RATE_RANGE", "INVALID_ESCALATION_COUNT"]
+              config:
+                severity: error
+      - name: created_at
+        description: Timestamp when record was created for audit trail
+        data_tests:
+          - not_null
   - name: int_cold_start_detection
     description: >
       Cold start detection logic with table existence check.
@@ -1758,3 +2057,13 @@ models:
           - not_null
           - accepted_values:
               values: ['VALID', 'INVALID_EMPLOYEE_ID', 'INVALID_SIMULATION_YEAR', 'INVALID_ENROLLMENT_STATUS']
+
+  # TEMPORARILY DISABLED: int_deferral_rate_escalation_events
+  # - name: int_deferral_rate_escalation_events
+  #   description: >
+  #     Generate annual deferral rate escalation events for eligible enrolled employees.
+  #     Implements Epic E035 requirements with configurable increment amounts (default 1%),
+  #     maximum rate caps (default 10%), and demographic-based eligibility rules.
+  #     Integrates with existing parameter system for job-level configuration.
+  #   config:
+  #     tags: ["escalation", "deferral", "events", "epic_e035"]

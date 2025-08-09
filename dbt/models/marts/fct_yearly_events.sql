@@ -228,6 +228,31 @@ employer_match_events AS (
   WHERE FALSE  -- Empty result set - no match events in main yearly events
 ),
 
+-- Epic E035: Deferral Rate Escalation Events - REMOVED to break circular dependency
+-- These events now flow through int_deferral_rate_state_accumulator -> int_employee_contributions
+-- This eliminates the circular dependency while maintaining event tracking capability
+deferral_escalation_events AS (
+  SELECT
+    CAST(NULL AS VARCHAR) AS employee_id,
+    CAST(NULL AS VARCHAR) AS employee_ssn,
+    CAST(NULL AS VARCHAR) AS event_type,
+    CAST(NULL AS INTEGER) AS simulation_year,
+    CAST(NULL AS DATE) AS effective_date,
+    CAST(NULL AS VARCHAR) AS event_details,
+    CAST(NULL AS DECIMAL(18,2)) AS compensation_amount,
+    CAST(NULL AS DECIMAL(18,2)) AS previous_compensation,
+    CAST(NULL AS DECIMAL(5,4)) AS employee_deferral_rate,
+    CAST(NULL AS DECIMAL(5,4)) AS prev_employee_deferral_rate,
+    CAST(NULL AS INTEGER) AS employee_age,
+    CAST(NULL AS DECIMAL(10,2)) AS employee_tenure,
+    CAST(NULL AS INTEGER) AS level_id,
+    CAST(NULL AS VARCHAR) AS age_band,
+    CAST(NULL AS VARCHAR) AS tenure_band,
+    CAST(NULL AS DECIMAL(10,4)) AS event_probability,
+    CAST(NULL AS VARCHAR) AS event_category
+  WHERE FALSE  -- Empty result set - deferral escalation events tracked via state accumulator
+),
+
 -- Union all event types with consistent schema
 all_events AS (
   SELECT
@@ -384,6 +409,29 @@ all_events AS (
 
   UNION ALL
 
+  -- Deferral escalation events (Epic E035 - FIXED)
+  SELECT
+    employee_id,
+    employee_ssn,
+    event_type,
+    simulation_year,
+    effective_date,
+    event_details,
+    compensation_amount,
+    previous_compensation,
+    employee_deferral_rate,
+    prev_employee_deferral_rate,
+    employee_age,
+    employee_tenure,
+    level_id,
+    age_band,
+    tenure_band,
+    event_probability,
+    event_category
+  FROM deferral_escalation_events
+
+  UNION ALL
+
   SELECT
     employee_id,
     employee_ssn,
@@ -425,7 +473,7 @@ SELECT
   event_probability,
   event_category,
   -- Add event sequencing for conflict resolution
-  -- Priority: termination(1) > hire(2) > eligibility(3) > enrollment(4) > enrollment_change(5) > promotion(6) > merit_increase(7)
+  -- Priority: termination(1) > hire(2) > eligibility(3) > enrollment(4) > enrollment_change(5) > deferral_escalation(6) > promotion(7) > merit_increase(8)
   ROW_NUMBER() OVER (
     PARTITION BY employee_id, simulation_year
     ORDER BY
@@ -435,9 +483,10 @@ SELECT
         WHEN 'eligibility' THEN 3
         WHEN 'enrollment' THEN 4
         WHEN 'enrollment_change' THEN 5
-        WHEN 'promotion' THEN 6
-        WHEN 'RAISE' THEN 7
-        ELSE 8
+        WHEN 'deferral_escalation' THEN 6
+        WHEN 'promotion' THEN 7
+        WHEN 'RAISE' THEN 8
+        ELSE 9
       END,
       effective_date
   ) AS event_sequence,

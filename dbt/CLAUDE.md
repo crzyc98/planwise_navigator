@@ -1,4 +1,4 @@
-# dbt Project - Claude Development Guide
+# dbt Project – Claude Development Guide
 
 A dbt project for workforce simulation and event sourcing with DuckDB as the analytical engine for PlanWise Navigator.
 
@@ -27,8 +27,9 @@ dbt/
 │   └── monitoring/            # Data quality and performance monitoring
 ├── seeds/                     # Configuration data (CSV files)
 ├── macros/                    # Reusable SQL functions
-├── snapshots/                 # Slowly changing dimensions (SCD)
-└── simulation.duckdb          # DuckDB database file
+└── snapshots/                 # Slowly changing dimensions (SCD)
+
+Note: `simulation.duckdb` lives at the project root (e.g., `/planwise_navigator/simulation.duckdb`), not under `dbt/`.
 ```
 
 ## Naming Conventions
@@ -106,6 +107,10 @@ WHERE simulation_year = {{ var('simulation_year') }} - 1
   AND employment_status = 'active'
 ```
 
+Guidance:
+- Avoid circular dependencies: intermediate (`int_*`) models must not read from marts (`fct_*`).
+- Use temporal accumulators (e.g., `int_enrollment_state_accumulator`, `int_deferral_rate_state_accumulator`) to carry state across years.
+
 ## Key Models by Layer
 
 ### Staging Layer (stg_*)
@@ -165,9 +170,11 @@ vars:
   target_growth_rate: 0.03
   random_seed: 42
 
-  # Performance tuning
-  enable_incremental: true
-  max_workers: 4
+# Performance tuning
+flags:
+  # Configure threads via CLI or profiles; keep deterministic across runs
+  # Example runtime flag: dbt build --threads 4
+  send_anonymous_usage_stats: false
 ```
 
 ## Seeds Configuration
@@ -201,41 +208,66 @@ models:
           column_name: "concat(employee_id, event_type, simulation_year, effective_date)"
       - not_null:
           column_name: employee_id
+  - name: int_deferral_rate_state_accumulator
+    tests:
+      - dbt_utils.unique_combination_of_columns:
+          combination_of_columns:
+            - scenario_id
+            - plan_design_id
+            - employee_id
+            - simulation_year
+            - as_of_month
+      - not_null:
+          column_name: current_deferral_rate
 ```
 
 ## Performance Optimization
 
-### Incremental Models
+### Incremental Models (DuckDB)
 ```sql
--- For large fact tables
-{{ config(materialized='incremental', unique_key='event_id') }}
+-- Scope by simulation_year and use delete+insert for idempotent re-runs
+{{ config(
+  materialized='incremental',
+  incremental_strategy='delete+insert',
+  unique_key=['scenario_id','plan_design_id','employee_id','simulation_year']
+) }}
 
-{% if is_incremental() %}
-  WHERE created_at >= (SELECT max(created_at) FROM {{ this }})
-{% endif %}
+SELECT ...
+FROM {{ ref('upstream_model') }}
+WHERE simulation_year = {{ var('simulation_year') }}
 ```
 
-### Partitioning Strategy
-- **fct_yearly_events**: Partition by `simulation_year`
-- **fct_workforce_snapshot**: Partition by `simulation_year`
-- **SCD tables**: Partition by `dbt_valid_from`
+### Logical Partitioning
+- Filter every heavy model by `{{ var('simulation_year') }}` to avoid full scans.
+- Prefer `incremental_strategy='delete+insert'` keyed by year; DuckDB does not use table partitions/indexes.
+- For large persistent tables, consider output ordering on `(scenario_id, plan_design_id, employee_id, simulation_year)` for scan locality.
 
 ### Query Optimization
-- Use column-store optimized queries
-- Minimize shuffling with proper JOIN order
-- Leverage DuckDB's vectorized execution
+- Avoid `SELECT *`; project only required columns.
+- Keep JOIN keys minimal and typed consistently; join on `(scenario_id, plan_design_id, employee_id, simulation_year)` when relevant.
+- Leverage DuckDB’s vectorized execution; push filters early (especially year filters).
+- Avoid adapter-unsupported configs (e.g., `partition_by`, physical indexes).
+
+### Contracts & Tags
+- Enable contracts on critical models; enforce schemas for stability.
+- Tag pipelines (e.g., `tags: ['deferral_pipeline']`) and use selectors for targeted builds.
 
 ## Integration Points
 
 ### Orchestrator MVP
 ```python
 # Called from orchestrator_mvp/loaders/staging_loader.py
-def run_dbt_model(model_name: str, vars: Dict[str, Any] = None):
-    cmd = ["dbt", "run", "--select", model_name]
-    if vars:
-        for key, value in vars.items():
-            cmd.extend(["--vars", f"{key}: {value}"])
-    subprocess.run(cmd, cwd="dbt/")
+def run_dbt_model(model_name: str, run_vars: Dict[str, Any] | None = None, threads: int = 4):
+    """Run a dbt node with deterministic vars and threads."""
+    import yaml, subprocess
+    cmd = [
+        "dbt", "build", "--select", model_name,
+        "--threads", str(threads), "--fail-fast", "--warn-error",
+    ]
+    if run_vars:
+        cmd += ["--vars", yaml.safe_dump(run_vars, default_flow_style=True)]
+    subprocess.run(cmd, cwd="dbt/", check=True)
+    # DB location is the parent directory's simulation.duckdb
 ```
 
 ### Eligibility Engine Integration
@@ -383,6 +415,7 @@ dbt run --select model_name --profiles-dir profiles/
 
 **Key Reminders**:
 - Always run from `/dbt` directory for dbt commands
+- Database file `simulation.duckdb` is in PROJECT ROOT, not in `/dbt`
 - Use variables for parameterization
 - Test data quality assumptions
 - Document complex business logic

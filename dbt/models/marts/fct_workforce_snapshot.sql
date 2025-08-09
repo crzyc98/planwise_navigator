@@ -306,7 +306,8 @@ final_workforce_corrected AS (
 -- Extract eligibility information from baseline (year 1) or events (subsequent years)
 employee_eligibility AS (
     {% if simulation_year == start_year %}
-    -- Year 1: Get eligibility data from baseline workforce (census data)
+    -- Year 1: Get eligibility data from baseline workforce (census data) + new hires
+    -- Baseline employees eligibility
     SELECT DISTINCT
         baseline.employee_id,
         baseline.employee_eligibility_date,
@@ -341,10 +342,47 @@ employee_eligibility AS (
     ) accumulator ON baseline.employee_id = accumulator.employee_id
     LEFT JOIN employee_events_consolidated ec ON baseline.employee_id = ec.employee_id
     WHERE baseline.employment_status = 'active'
-    {% else %}
-    -- Subsequent years: Get from eligibility events and baseline for those without events
+
+    UNION ALL
+
+    -- NEW HIRES eligibility (E037 fix: include NH_* employees in year 1)
     SELECT DISTINCT
-        COALESCE(events.employee_id, baseline.employee_id) AS employee_id,
+        accumulator.employee_id,
+        -- New hires don't have eligibility date in baseline, use hire date or enrollment date
+        COALESCE(he.effective_date::DATE, accumulator.enrollment_date::DATE) AS employee_eligibility_date,
+        0 AS waiting_period_days,  -- New hires typically have immediate eligibility in auto-enrollment
+        'eligible' AS current_eligibility_status,
+        -- Use enrollment state accumulator as source of truth for new hire enrollments
+        accumulator.enrollment_date AS employee_enrollment_date,
+        -- New hires with enrollment data are enrolled
+        CASE
+            WHEN accumulator.enrollment_date IS NOT NULL THEN true
+            ELSE false
+        END AS is_enrolled_flag
+    FROM (
+        -- Get enrollment status from enrollment state accumulator for new hires
+        SELECT
+            employee_id,
+            enrollment_date,
+            enrollment_status AS is_enrolled
+        FROM {{ ref('int_enrollment_state_accumulator') }}
+        WHERE simulation_year = {{ simulation_year }}
+          AND employee_id LIKE 'NH_{{ simulation_year }}_%'
+    ) accumulator
+    LEFT JOIN (
+        -- Get hire information for new hires
+        SELECT employee_id, effective_date
+        FROM {{ ref('int_hiring_events') }}
+        WHERE simulation_year = {{ simulation_year }}
+    ) he ON accumulator.employee_id = he.employee_id
+    -- Only include if they're not already in baseline (avoid duplicates)
+    WHERE accumulator.employee_id NOT IN (
+        SELECT employee_id FROM {{ ref('int_baseline_workforce') }} WHERE employment_status = 'active'
+    )
+    {% else %}
+    -- Subsequent years: Base on current workforce to avoid missing employees without explicit eligibility events
+    SELECT DISTINCT
+        fwc.employee_id AS employee_id,
         COALESCE(events.employee_eligibility_date, baseline.employee_eligibility_date) AS employee_eligibility_date,
         COALESCE(events.waiting_period_days, baseline.waiting_period_days) AS waiting_period_days,
         COALESCE(events.current_eligibility_status, baseline.current_eligibility_status) AS current_eligibility_status,
@@ -361,26 +399,22 @@ employee_eligibility AS (
                 CASE WHEN ec.has_enrollment THEN ec.enrollment_date END,
                 accumulator.enrollment_date,
                 baseline.employee_enrollment_date
-            ) IS NOT NULL
-            THEN true
-            ELSE false
+            ) IS NOT NULL THEN true ELSE false
         END AS is_enrolled_flag
-    FROM (
-        -- Get eligibility from events
+    FROM final_workforce_corrected fwc
+    -- Eligibility from events (most recent determination up to current year)
+    LEFT JOIN (
         SELECT DISTINCT
             employee_id,
             JSON_EXTRACT_STRING(event_details, '$.eligibility_date')::DATE AS employee_eligibility_date,
             JSON_EXTRACT(event_details, '$.waiting_period_days')::INT AS waiting_period_days,
-            -- Derive current eligibility status based on eligibility date and current date
             CASE
-                WHEN JSON_EXTRACT_STRING(event_details, '$.eligibility_date')::DATE <= '{{ simulation_year }}-12-31'::DATE
-                THEN 'eligible'
+                WHEN JSON_EXTRACT_STRING(event_details, '$.eligibility_date')::DATE <= '{{ simulation_year }}-12-31'::DATE THEN 'eligible'
                 ELSE 'pending'
             END AS current_eligibility_status
         FROM {{ ref('fct_yearly_events') }}
         WHERE event_type = 'eligibility'
           AND JSON_EXTRACT_STRING(event_details, '$.determination_type') = 'initial'
-          -- Get the most recent eligibility determination for each employee
           AND simulation_year IN (
               SELECT MAX(simulation_year)
               FROM {{ ref('fct_yearly_events') }} ey
@@ -388,29 +422,21 @@ employee_eligibility AS (
                 AND ey.employee_id = fct_yearly_events.employee_id
                 AND ey.simulation_year <= {{ simulation_year }}
           )
-    ) events
-    FULL OUTER JOIN (
-        -- Get baseline eligibility for employees without events
-        SELECT
-            employee_id,
-            employee_eligibility_date,
-            waiting_period_days,
-            current_eligibility_status,
-            employee_enrollment_date
+    ) events ON fwc.employee_id = events.employee_id
+    -- Baseline fallback for employees without eligibility events
+    LEFT JOIN (
+        SELECT employee_id, employee_eligibility_date, waiting_period_days, current_eligibility_status, employee_enrollment_date
         FROM {{ ref('int_baseline_workforce') }}
         WHERE employment_status = 'active'
-    ) baseline ON events.employee_id = baseline.employee_id
+    ) baseline ON fwc.employee_id = baseline.employee_id
+    -- Enrollment status from state accumulator for current year
     LEFT JOIN (
-        -- Get enrollment status from enrollment state accumulator for current year
-        SELECT
-            employee_id,
-            enrollment_date,
-            enrollment_status AS is_enrolled
+        SELECT employee_id, enrollment_date, enrollment_status AS is_enrolled
         FROM {{ ref('int_enrollment_state_accumulator') }}
         WHERE simulation_year = {{ simulation_year }}
-    ) accumulator ON COALESCE(events.employee_id, baseline.employee_id) = accumulator.employee_id
-    -- Add join to employee_events_consolidated to get current year enrollment events (for subsequent years)
-    LEFT JOIN employee_events_consolidated ec ON COALESCE(events.employee_id, baseline.employee_id) = ec.employee_id
+    ) accumulator ON fwc.employee_id = accumulator.employee_id
+    -- Current-year enrollment events
+    LEFT JOIN employee_events_consolidated ec ON fwc.employee_id = ec.employee_id
     {% endif %}
 ),
 
@@ -601,12 +627,39 @@ final_workforce AS (
         ee.current_eligibility_status,
         ee.employee_enrollment_date,
         ee.is_enrolled_flag,
-        -- Add deferral rate tracking
-        COALESCE(
-            ec.changed_deferral_rate,  -- Most recent change takes precedence
-            ec.enrollment_deferral_rate,  -- Initial enrollment rate
-            0.00  -- Default for non-enrolled
-        ) AS current_deferral_rate,
+        -- Epic E035: Enhanced deferral rate tracking (FIXED - Use state accumulator as single source of truth)
+        COALESCE(dsa.current_deferral_rate, 0.00) AS current_deferral_rate,
+
+        -- Participation Status: High-level status
+        CASE
+            WHEN COALESCE(dsa.current_deferral_rate, 0.00) > 0 THEN 'participating'
+            ELSE 'not_participating'
+        END AS participation_status,
+
+        -- Participation Status Detail: Detailed categorization
+        CASE
+            WHEN COALESCE(dsa.current_deferral_rate, 0.00) > 0 THEN
+                CASE
+                    WHEN COALESCE(esa.enrollment_method, 'voluntary') = 'auto' THEN 'participating - auto enrollment'
+                    ELSE 'participating - voluntary enrollment'
+                END
+            ELSE -- not participating
+                CASE
+                    -- Opted out of auto enrollment
+                    WHEN COALESCE(esa.ever_opted_out, false) = true THEN 'not_participating - opted out of AE'
+                    -- Was enrolled but then unenrolled (proactively left)
+                    WHEN COALESCE(esa.ever_unenrolled, false) = true THEN 'not_participating - proactively unenrolled'
+                    -- Never auto-enrolled (not subjected to auto enrollment)
+                    ELSE 'not_participating - not auto enrolled'
+                END
+        END AS participation_status_detail,
+
+        -- Additional escalation tracking fields (ENABLED - Use state accumulator data)
+        COALESCE(dsa.escalations_received, 0) AS total_deferral_escalations,
+        dsa.last_escalation_date,
+        COALESCE(dsa.has_escalations, false) AS has_deferral_escalations,
+        COALESCE(dsa.original_deferral_rate, 0.00) AS original_deferral_rate,
+        COALESCE(dsa.total_escalation_amount, 0.00) AS total_escalation_amount,
         -- Recalculate bands with updated age/tenure (these are indeed static for a given year here)
         CASE
             WHEN fwc.current_age < 25 THEN '< 25'
@@ -681,6 +734,14 @@ final_workforce AS (
     ) promo_calc ON fwc.employee_id = promo_calc.employee_id
     -- Add eligibility information
     LEFT JOIN employee_eligibility ee ON fwc.employee_id = ee.employee_id
+    -- Epic E035: Add deferral rate state tracking (ENABLED - Fix for consistent deferral rate display)
+    LEFT JOIN {{ ref('int_deferral_rate_state_accumulator') }} dsa
+        ON fwc.employee_id = dsa.employee_id
+        AND dsa.simulation_year = sp.current_year
+    -- Add enrollment state accumulator for participation status tracking
+    LEFT JOIN {{ ref('int_enrollment_state_accumulator') }} esa
+        ON fwc.employee_id = esa.employee_id
+        AND esa.simulation_year = sp.current_year
     -- Epic E034: Add employee contribution calculations
     LEFT JOIN {{ ref('int_employee_contributions') }} contributions
         ON fwc.employee_id = contributions.employee_id
@@ -744,6 +805,15 @@ SELECT
     is_enrolled_flag,
     -- Add deferral rate
     current_deferral_rate,
+    -- Add participation status fields
+    participation_status,
+    participation_status_detail,
+    -- Epic E035: Add escalation tracking fields
+    total_deferral_escalations,
+    last_escalation_date,
+    has_deferral_escalations,
+    original_deferral_rate,
+    total_escalation_amount,
     -- Epic E034: Add contribution calculations
     COALESCE(annual_contribution_amount, 0.0) AS prorated_annual_contributions,
     -- Split contributions into pre-tax and Roth based on industry assumptions
@@ -769,10 +839,10 @@ SELECT
     contribution_quality_flag,
     CURRENT_TIMESTAMP AS snapshot_created_at
 FROM final_workforce_with_contributions
-
 {% if is_incremental() %}
-  -- Only process the current simulation year when running incrementally
-  WHERE simulation_year = {{ simulation_year }}
+WHERE simulation_year = {{ simulation_year }}
 {% endif %}
 
-ORDER BY employee_id
+-- Note: Avoid ORDER BY in final SELECT for incremental materializations
+-- Some engines reject ORDER BY in INSERT SELECT; not needed for correctness
+-- ORDER BY employee_id
