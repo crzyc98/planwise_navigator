@@ -228,8 +228,29 @@ employer_match_events AS (
   WHERE FALSE  -- Empty result set - no match events in main yearly events
 ),
 
--- Epic E035: Deferral Rate Escalation Events - COMPLETELY REMOVED TO FIX DEPENDENCY PARSING
--- FIXME: Re-enable after fixing circular dependency issues
+-- Epic E035: Deferral Rate Escalation Events - FIXED circular dependency
+deferral_escalation_events AS (
+  SELECT
+    employee_id,
+    employee_ssn,
+    event_type,
+    simulation_year,
+    effective_date,
+    event_details,
+    CAST(NULL AS DECIMAL(18,2)) AS compensation_amount,  -- No compensation change
+    CAST(NULL AS DECIMAL(18,2)) AS previous_compensation,
+    new_deferral_rate AS employee_deferral_rate,
+    previous_deferral_rate AS prev_employee_deferral_rate,
+    current_age AS employee_age,
+    current_tenure AS employee_tenure,
+    level_id,
+    age_band,
+    tenure_band,
+    CAST(NULL AS DECIMAL(10,4)) AS event_probability,  -- Deterministic based on rules
+    'deferral_escalation' AS event_category
+  FROM {{ ref('int_deferral_rate_escalation_events') }}
+  WHERE simulation_year = {{ var('simulation_year') }}
+),
 
 -- Union all event types with consistent schema
 all_events AS (
@@ -385,27 +406,28 @@ all_events AS (
     event_category
   FROM employer_match_events
 
-  -- UNION ALL for deferral escalation events temporarily disabled
-  --
-  -- SELECT
-  --   employee_id,
-  --   employee_ssn,
-  --   event_type,
-  --   simulation_year,
-  --   effective_date,
-  --   event_details,
-  --   compensation_amount,
-  --   previous_compensation,
-  --   employee_deferral_rate,
-  --   prev_employee_deferral_rate,
-  --   employee_age,
-  --   employee_tenure,
-  --   level_id,
-  --   age_band,
-  --   tenure_band,
-  --   event_probability,
-  --   event_category
-  -- FROM deferral_escalation_events
+  UNION ALL
+
+  -- Deferral escalation events (Epic E035 - FIXED)
+  SELECT
+    employee_id,
+    employee_ssn,
+    event_type,
+    simulation_year,
+    effective_date,
+    event_details,
+    compensation_amount,
+    previous_compensation,
+    employee_deferral_rate,
+    prev_employee_deferral_rate,
+    employee_age,
+    employee_tenure,
+    level_id,
+    age_band,
+    tenure_band,
+    event_probability,
+    event_category
+  FROM deferral_escalation_events
 
   UNION ALL
 
@@ -450,7 +472,7 @@ SELECT
   event_probability,
   event_category,
   -- Add event sequencing for conflict resolution
-  -- Priority: termination(1) > hire(2) > eligibility(3) > enrollment(4) > enrollment_change(5) > promotion(6) > merit_increase(7)
+  -- Priority: termination(1) > hire(2) > eligibility(3) > enrollment(4) > enrollment_change(5) > deferral_escalation(6) > promotion(7) > merit_increase(8)
   ROW_NUMBER() OVER (
     PARTITION BY employee_id, simulation_year
     ORDER BY
@@ -460,9 +482,10 @@ SELECT
         WHEN 'eligibility' THEN 3
         WHEN 'enrollment' THEN 4
         WHEN 'enrollment_change' THEN 5
-        WHEN 'promotion' THEN 6
-        WHEN 'RAISE' THEN 7
-        ELSE 8
+        WHEN 'deferral_escalation' THEN 6
+        WHEN 'promotion' THEN 7
+        WHEN 'RAISE' THEN 8
+        ELSE 9
       END,
       effective_date
   ) AS event_sequence,
