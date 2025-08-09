@@ -38,7 +38,7 @@
 -- simulation_year = {{ simulation_year }}, start_year = {{ start_year }}
 
 -- Get all enrollment-related events for current simulation year
--- This is safe because int_enrollment_state_accumulator runs AFTER fct_yearly_events in the orchestration
+-- Read directly from int_enrollment_events to avoid circular dependency
 WITH current_year_enrollment_events AS (
     SELECT
         employee_id,
@@ -61,7 +61,7 @@ WITH current_year_enrollment_events AS (
             PARTITION BY employee_id, event_type
             ORDER BY effective_date DESC
         ) AS event_priority
-    FROM {{ ref('fct_yearly_events') }}
+    FROM {{ ref('int_enrollment_events') }}
     WHERE simulation_year = {{ simulation_year }}
         AND event_type IN ('enrollment', 'enrollment_change')
         AND employee_id IS NOT NULL

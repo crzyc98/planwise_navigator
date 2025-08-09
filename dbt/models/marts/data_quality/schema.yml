@@ -133,3 +133,125 @@ models:
           name: "warning_contribution_validation_failures_threshold"
           meta:
             description: "Warn if excessive WARNING-level contribution validation issues are found"
+
+  - name: dq_deferral_escalation_validation
+    description: >
+      Comprehensive data quality validation for Epic E035 automatic deferral rate escalation system.
+      Provides real-time monitoring with automated health scoring (0-100 scale) covering business
+      rule enforcement, integration consistency, event sequencing, parameter validation, and
+      multi-year progression tracking. Critical for ensuring production readiness and compliance.
+    config:
+      tags: ["data_quality", "escalation", "monitoring", "epic_e035"]
+    columns:
+      - name: simulation_year
+        description: Simulation year being validated
+        data_tests:
+          - not_null
+          - dbt_utils.accepted_range:
+              min_value: 2025
+              max_value: 2050
+      - name: health_score
+        description: Overall system health score (0-100, where 100 = perfect)
+        data_tests:
+          - not_null
+          - dbt_utils.accepted_range:
+              min_value: 0
+              max_value: 100
+      - name: health_status
+        description: Categorical health status based on health score
+        data_tests:
+          - not_null
+          - accepted_values:
+              values: ['PERFECT', 'EXCELLENT', 'GOOD', 'FAIR', 'POOR', 'CRITICAL']
+      - name: total_violations
+        description: Total number of data quality violations detected
+        data_tests:
+          - not_null
+          - dbt_utils.accepted_range:
+              min_value: 0
+              max_value: 100000
+      - name: total_records
+        description: Total number of records examined across all validations
+        data_tests:
+          - not_null
+          - dbt_utils.accepted_range:
+              min_value: 0
+              max_value: 1000000
+      - name: violation_rate_pct
+        description: Percentage of records with violations
+        data_tests:
+          - not_null
+          - dbt_utils.accepted_range:
+              min_value: 0
+              max_value: 100
+      - name: invalid_deferral_rates
+        description: Count of invalid deferral rates (outside 0-100% range)
+        data_tests:
+          - not_null
+      - name: duplicate_escalations
+        description: Count of duplicate escalation events (should be 0)
+        data_tests:
+          - not_null
+      - name: incorrect_effective_dates
+        description: Count of escalations not on January 1st (violates user requirement)
+        data_tests:
+          - not_null
+      - name: deferral_rate_mismatches
+        description: Count of deferral rate inconsistencies between models
+        data_tests:
+          - not_null
+      - name: escalation_count_decreases
+        description: Count of employees with decreasing escalation counts year-over-year
+        data_tests:
+          - not_null
+      - name: recommendations
+        description: System-generated recommendations based on health score
+        data_tests:
+          - not_null
+      - name: validation_timestamp
+        description: Timestamp when validation was performed
+        data_tests:
+          - not_null
+
+    data_tests:
+      # Critical test: Health score must be above minimum threshold for production
+      - dbt_utils.expression_is_true:
+          expression: "health_score >= 85"
+          error_if: "<85"
+          warn_if: "<95"
+          name: "escalation_system_health_score_threshold"
+          meta:
+            description: "Ensure escalation system health score meets production standards"
+
+      # Critical test: No duplicate escalation events allowed
+      - dbt_utils.expression_is_true:
+          expression: "duplicate_escalations = 0"
+          error_if: ">0"
+          name: "no_duplicate_escalation_events"
+          meta:
+            description: "Fail if duplicate escalation events are detected"
+
+      # Critical test: All escalations must be on January 1st per user requirement
+      - dbt_utils.expression_is_true:
+          expression: "incorrect_effective_dates = 0"
+          error_if: ">0"
+          name: "escalations_on_january_first"
+          meta:
+            description: "Fail if escalation events are not on January 1st as required"
+
+      # Critical test: No deferral rate mismatches between models
+      - dbt_utils.expression_is_true:
+          expression: "deferral_rate_mismatches = 0"
+          error_if: ">0"
+          warn_if: ">5"
+          name: "no_deferral_rate_mismatches"
+          meta:
+            description: "Ensure deferral rates are consistent across all models"
+
+      # Critical test: Escalation counts should never decrease year-over-year
+      - dbt_utils.expression_is_true:
+          expression: "escalation_count_decreases = 0"
+          error_if: ">0"
+          name: "no_escalation_count_decreases"
+          meta:
+            description: "Fail if escalation counts decrease between simulation years"

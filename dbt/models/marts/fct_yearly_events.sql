@@ -228,6 +228,9 @@ employer_match_events AS (
   WHERE FALSE  -- Empty result set - no match events in main yearly events
 ),
 
+-- Epic E035: Deferral Rate Escalation Events - COMPLETELY REMOVED TO FIX DEPENDENCY PARSING
+-- FIXME: Re-enable after fixing circular dependency issues
+
 -- Union all event types with consistent schema
 all_events AS (
   SELECT
@@ -381,6 +384,28 @@ all_events AS (
     event_probability,
     event_category
   FROM employer_match_events
+
+  -- UNION ALL for deferral escalation events temporarily disabled
+  --
+  -- SELECT
+  --   employee_id,
+  --   employee_ssn,
+  --   event_type,
+  --   simulation_year,
+  --   effective_date,
+  --   event_details,
+  --   compensation_amount,
+  --   previous_compensation,
+  --   employee_deferral_rate,
+  --   prev_employee_deferral_rate,
+  --   employee_age,
+  --   employee_tenure,
+  --   level_id,
+  --   age_band,
+  --   tenure_band,
+  --   event_probability,
+  --   event_category
+  -- FROM deferral_escalation_events
 
   UNION ALL
 

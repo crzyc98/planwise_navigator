@@ -601,12 +601,19 @@ final_workforce AS (
         ee.current_eligibility_status,
         ee.employee_enrollment_date,
         ee.is_enrolled_flag,
-        -- Add deferral rate tracking
+        -- Epic E035: Enhanced deferral rate tracking (temporarily simplified)
         COALESCE(
-            ec.changed_deferral_rate,  -- Most recent change takes precedence
-            ec.enrollment_deferral_rate,  -- Initial enrollment rate
+            ec.changed_deferral_rate,   -- Priority 1: Most recent event change
+            ec.enrollment_deferral_rate, -- Priority 2: Initial enrollment rate
             0.00  -- Default for non-enrolled
         ) AS current_deferral_rate,
+
+        -- Additional escalation tracking fields (temporarily disabled)
+        0 AS total_deferral_escalations,
+        CAST(NULL AS DATE) AS last_escalation_date,
+        false AS has_deferral_escalations,
+        COALESCE(ec.enrollment_deferral_rate, 0.00) AS original_deferral_rate,
+        0.00 AS total_escalation_amount,
         -- Recalculate bands with updated age/tenure (these are indeed static for a given year here)
         CASE
             WHEN fwc.current_age < 25 THEN '< 25'
@@ -681,6 +688,10 @@ final_workforce AS (
     ) promo_calc ON fwc.employee_id = promo_calc.employee_id
     -- Add eligibility information
     LEFT JOIN employee_eligibility ee ON fwc.employee_id = ee.employee_id
+    -- Epic E035: Add deferral escalation state tracking (temporarily disabled until escalation model is fixed)
+    -- LEFT JOIN {{ ref('int_deferral_escalation_state_accumulator') }} esc
+    --     ON fwc.employee_id = esc.employee_id
+    --     AND esc.simulation_year = sp.current_year
     -- Epic E034: Add employee contribution calculations
     LEFT JOIN {{ ref('int_employee_contributions') }} contributions
         ON fwc.employee_id = contributions.employee_id
@@ -744,6 +755,12 @@ SELECT
     is_enrolled_flag,
     -- Add deferral rate
     current_deferral_rate,
+    -- Epic E035: Add escalation tracking fields
+    total_deferral_escalations,
+    last_escalation_date,
+    has_deferral_escalations,
+    original_deferral_rate,
+    total_escalation_amount,
     -- Epic E034: Add contribution calculations
     COALESCE(annual_contribution_amount, 0.0) AS prorated_annual_contributions,
     -- Split contributions into pre-tax and Roth based on industry assumptions
@@ -769,10 +786,10 @@ SELECT
     contribution_quality_flag,
     CURRENT_TIMESTAMP AS snapshot_created_at
 FROM final_workforce_with_contributions
-
 {% if is_incremental() %}
-  -- Only process the current simulation year when running incrementally
-  WHERE simulation_year = {{ simulation_year }}
+WHERE simulation_year = {{ simulation_year }}
 {% endif %}
 
-ORDER BY employee_id
+-- Note: Avoid ORDER BY in final SELECT for incremental materializations
+-- Some engines reject ORDER BY in INSERT SELECT; not needed for correctness
+-- ORDER BY employee_id

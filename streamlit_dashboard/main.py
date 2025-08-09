@@ -115,6 +115,7 @@ st.markdown("""
     <ul>
         <li><strong>Compensation Tuning</strong> - Adjust parameters and run simulations</li>
         <li><strong>Optimization Progress</strong> - Monitor real-time optimization runs</li>
+        <li><strong>Deferral Escalation Analytics</strong> - Epic E035 analytics and executive reporting</li>
         <li><strong>Risk Assessment</strong> - Analyze parameter risks (coming soon)</li>
         <li><strong>Analytics Dashboard</strong> - View simulation results (coming soon)</li>
     </ul>
@@ -180,6 +181,19 @@ with col2:
     </div>
     """, unsafe_allow_html=True)
 
+    st.markdown("""
+    <div class="feature-card">
+        <h3>📈 Deferral Rate Escalation Analytics</h3>
+        <p>Epic E035: Comprehensive analytics for automatic annual deferral rate increases.</p>
+        <ul>
+            <li>January 1st effective date tracking</li>
+            <li>1% increment compliance monitoring</li>
+            <li>10% maximum rate cap enforcement</li>
+            <li>Multi-year progression analysis</li>
+        </ul>
+    </div>
+    """, unsafe_allow_html=True)
+
 # Quick stats (placeholder - would connect to real data)
 st.markdown("## 📈 System Status")
 
@@ -236,14 +250,22 @@ with st.expander("Getting Started with PlanWise Navigator", expanded=True):
     - Monitor convergence in real-time
     - Review constraint satisfaction
 
-    ### 3. View Results
+    ### 3. Deferral Escalation Analytics (Epic E035)
+    Navigate to the **Deferral Escalation Analytics** page to:
+    - Monitor automatic deferral rate escalation impact
+    - View multi-year progression charts
+    - Analyze demographic participation patterns
+    - Review compliance with user requirements
+    - Generate executive summary reports
+
+    ### 4. View Results
     After running simulations:
     - Analyze workforce growth patterns
     - Review compensation distributions
     - Assess budget impact
     - Export data for reporting
 
-    ### 4. Risk Assessment
+    ### 5. Risk Assessment
     Evaluate parameter changes for:
     - Budget overrun risks
     - Retention impact

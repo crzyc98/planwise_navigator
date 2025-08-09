@@ -54,6 +54,12 @@ seeds:
     +column_types:
       created_at: timestamp
       updated_at: timestamp
+    irs_contribution_limits:
+      +column_types:
+        limit_year: integer
+        base_limit: integer
+        catch_up_limit: integer
+        catch_up_age_threshold: integer
 
 # Snapshot configuration
 snapshots:

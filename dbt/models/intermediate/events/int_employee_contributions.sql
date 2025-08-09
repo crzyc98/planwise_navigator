@@ -39,15 +39,14 @@ irs_limits AS (
         limit_year,
         base_limit,
         catch_up_limit,
-        catch_up_age_threshold,
-        limit_description
+        catch_up_age_threshold
     FROM {{ ref('irs_contribution_limits') }}
     WHERE limit_year = (SELECT current_year FROM simulation_parameters)
 ),
 
--- Get enrolled employees with deferral rates
+-- Get enrolled employees with deferral rates (Simplified version)
 enrolled_employees_base AS (
-    -- First, get employees from enrollment events (if any exist)
+    -- Priority 1: Get employees from enrollment events (if any exist)
     SELECT DISTINCT
         employee_id,
         COALESCE(employee_deferral_rate, 0.05) AS deferral_rate,
@@ -60,7 +59,7 @@ enrolled_employees_base AS (
 
     UNION ALL
 
-    -- Fallback: get enrolled employees from compensation data
+    -- Priority 2: Fallback to enrolled employees from compensation data
     SELECT DISTINCT
         employee_id,
         0.05 AS deferral_rate,  -- Default 5% deferral rate

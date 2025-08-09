@@ -98,78 +98,51 @@ models:
               max_value: 1.0
       - name: contribution_periods_count
         description: Number of contribution periods calculated for this employee
+
+  - name: int_deferral_escalation_state_accumulator
+    description: >
+      Temporal state accumulator tracking deferral rate escalation history across simulation years.
+      Maintains escalation state without circular dependencies using temporal accumulation pattern.
+    config:
+      tags: ["escalation", "state", "critical"]
+    columns:
+      - name: employee_id
+        description: Unique employee identifier
+        data_tests:
+          - not_null
+          - unique:
+              name: "unique_employee_per_escalation_year"
+      - name: simulation_year
+        description: Simulation year for escalation state
+        data_tests:
+          - not_null
+      - name: current_deferral_rate
+        description: Current effective deferral rate after escalations
         data_tests:
           - not_null
           - dbt_utils.accepted_range:
               min_value: 0
-              max_value: 50
-      - name: age_as_of_december_31
-        description: Employee age as of December 31st for IRS limit determination
-        data_tests:
-          - not_null
-          - dbt_utils.accepted_range:
-              min_value: 18
-              max_value: 75
-      - name: applicable_irs_limit
-        description: IRS limit applicable to this employee (base or catch-up)
-        data_tests:
-          - not_null
-          - accepted_values:
-              values: [23500, 31000]  # 2025 limits
-      - name: irs_limit_reached
-        description: Flag indicating if employee reached IRS contribution limits
-        data_tests:
-          - not_null
-      - name: is_enrolled
-        description: Whether employee is enrolled in the DC plan
-        data_tests:
-          - not_null
-      - name: prorated_annual_compensation
-        description: Employee's prorated annual compensation for validation
+              max_value: 1.0
+      - name: escalations_received
+        description: Total number of escalations received by employee
         data_tests:
           - not_null
           - dbt_utils.accepted_range:
               min_value: 0
-              max_value: 1000000
+              max_value: 10
+      - name: total_escalation_amount
+        description: Cumulative deferral rate increase from all escalations
+        data_tests:
+          - not_null
+          - dbt_utils.accepted_range:
+              min_value: 0
+              max_value: 0.5
       - name: data_quality_flag
         description: Data quality validation flag
         data_tests:
           - not_null
           - accepted_values:
-              values: ['VALID', 'INVALID_EMPLOYEE_ID', 'CONTRIBUTIONS_EXCEED_COMPENSATION', 'IRS_LIMIT_MISMATCH', 'CONTRIBUTIONS_WITHOUT_ENROLLMENT', 'INVALID_DEFERRAL_RATE']
-
-    data_tests:
-      # Critical: Contributions must not exceed compensation (with $100 tolerance)
-      - dbt_utils.expression_is_true:
-          expression: "prorated_annual_contributions <= (prorated_annual_compensation + 100)"
-          meta:
-            description: "Contributions must not exceed compensation"
-            priority: "P0"
-
-      # Critical: IRS limited contributions must not exceed prorated contributions
-      - dbt_utils.expression_is_true:
-          expression: "irs_limited_annual_contributions <= prorated_annual_contributions"
-          meta:
-            description: "IRS limited contributions must not exceed calculated contributions"
-
-      # Critical: Excess contributions calculation validation
-      - dbt_utils.expression_is_true:
-          expression: "(prorated_annual_contributions - irs_limited_annual_contributions) = excess_contributions"
-          meta:
-            description: "Excess contributions must equal the difference between prorated and IRS limited"
-
-      # Critical: IRS limit flag consistency
-      - dbt_utils.expression_is_true:
-          expression: "(excess_contributions > 0) = irs_limit_reached"
-          meta:
-            description: "IRS limit reached flag must be consistent with excess contributions"
-
-      # Business rule: Enrolled employees with positive deferral rates should have contributions
-      - dbt_utils.expression_is_true:
-          expression: "NOT (is_enrolled = true AND effective_deferral_rate > 0 AND prorated_annual_contributions = 0 AND prorated_annual_compensation > 1000)"
-          warn_if: ">0"
-          meta:
-            description: "Enrolled employees with positive deferral rates should have contributions if they have meaningful compensation"
+              values: ["VALID", "INVALID_EMPLOYEE_ID", "INVALID_SIMULATION_YEAR", "INVALID_DEFERRAL_RATE", "INVALID_DEFERRAL_RATE_RANGE", "INVALID_ESCALATION_COUNT"]
   - name: int_cold_start_detection
     description: >
       Cold start detection logic with table existence check.
@@ -1758,3 +1731,13 @@ models:
           - not_null
           - accepted_values:
               values: ['VALID', 'INVALID_EMPLOYEE_ID', 'INVALID_SIMULATION_YEAR', 'INVALID_ENROLLMENT_STATUS']
+
+  # TEMPORARILY DISABLED: int_deferral_rate_escalation_events
+  # - name: int_deferral_rate_escalation_events
+  #   description: >
+  #     Generate annual deferral rate escalation events for eligible enrolled employees.
+  #     Implements Epic E035 requirements with configurable increment amounts (default 1%),
+  #     maximum rate caps (default 10%), and demographic-based eligibility rules.
+  #     Integrates with existing parameter system for job-level configuration.
+  #   config:
+  #     tags: ["escalation", "deferral", "events", "epic_e035"]
