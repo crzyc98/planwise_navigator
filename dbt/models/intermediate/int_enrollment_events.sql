@@ -298,10 +298,10 @@ enrollment_events AS (
     -- Now that previous_enrollment_state properly checks accumulator for subsequent years,
     -- we can safely enforce this constraint across all years
     AND efo.is_already_enrolled = false
-    -- BUSINESS CHANGE: If scope=new_hires_only → auto-enroll deterministically;
+    -- BUSINESS CHANGE: If scope is new_hires_only OR all_eligible_employees → auto-enroll deterministically;
     -- otherwise keep probabilistic enrollment by demographics
     AND (
-      CASE WHEN '{{ var("auto_enrollment_scope", "all_eligible_employees") }}' = 'new_hires_only' THEN true ELSE
+      CASE WHEN '{{ var("auto_enrollment_scope", "all_eligible_employees") }}' IN ('new_hires_only', 'all_eligible_employees') THEN true ELSE
         efo.enrollment_random < (
           CASE efo.age_segment
             WHEN 'young' THEN 0.30

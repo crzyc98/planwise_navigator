@@ -61,7 +61,7 @@ enrollment:
     window_days: 45  # Configurable auto-enrollment window (default 45 days after hire)
     default_deferral_rate: 0.06  # 6% default deferral rate for auto-enrolled participants
     opt_out_grace_period: 30  # Days after auto-enrollment for opt-out without penalty
-    scope: "new_hires_only"  # Options: "new_hires_only", "all_eligible_employees"
+    scope: "all_eligible_employees"  # Options: "new_hires_only", "all_eligible_employees"
     hire_date_cutoff: "2020-01-01"  # Optional: Exclude employees hired before this date from auto-enrollment (e.g., "2020-01-01")
 
     # Plan-specific overrides (future enhancement)
