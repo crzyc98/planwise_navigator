@@ -131,6 +131,9 @@ workforce_with_status AS (
         w.*,
         COALESCE(e.is_enrolled, false) as is_enrolled,
         e.first_enrollment_date,
+        -- Program participation flags (orchestrator-managed registry + baseline auto-escalate capability)
+        COALESCE(r.in_auto_escalation_program, false) as in_auto_escalation_program,
+        COALESCE(b.auto_escalate, true) as auto_escalate,
         -- Calculate current deferral rate (baseline + cumulative escalations)
         COALESCE(b.baseline_deferral_rate, 0.03) + COALESCE(h.cumulative_escalation_rate, 0) as current_deferral_rate,
         -- Escalation history
@@ -152,6 +155,8 @@ workforce_with_status AS (
     LEFT JOIN employee_baseline_rates b ON w.employee_id = b.employee_id
     LEFT JOIN employee_enrollment_status e ON w.employee_id = e.employee_id
     LEFT JOIN previous_escalation_history h ON w.employee_id = h.employee_id
+    -- Orchestrator-managed registry that tracks enrollment into the auto-escalation program
+    LEFT JOIN deferral_escalation_registry r ON w.employee_id = r.employee_id
 ),
 
 -- Apply parameter-driven eligibility rules
@@ -244,7 +249,9 @@ escalation_events AS (
     FROM eligible_employees e
     WHERE
         -- All eligibility criteria must be met
-        e.is_enrolled_check
+        -- Must be enrolled in program (registry) OR newly enrolling (baseline allows auto-escalate and no prior escalations)
+        (e.in_auto_escalation_program = true OR (e.auto_escalate = true AND e.total_previous_escalations = 0))
+        AND e.is_enrolled_check
         AND e.meets_tenure_check
         AND e.meets_age_check
         AND e.under_escalation_limit_check

@@ -649,6 +649,121 @@ def update_enrollment_registry_post_year(year):
         conn.close()
 
 
+def create_deferral_escalation_registry():
+    """Create deferral escalation registry table if it does not exist."""
+    conn = get_database_connection()
+    if not conn:
+        print("❌ Cannot create deferral escalation registry - database connection failed")
+        return False
+
+    try:
+        conn.execute(
+            """
+            CREATE TABLE IF NOT EXISTS deferral_escalation_registry (
+                employee_id VARCHAR,
+                first_escalation_enrollment_date DATE,
+                first_escalation_year INTEGER,
+                in_auto_escalation_program BOOLEAN,
+                total_escalations INTEGER,
+                last_escalation_date DATE,
+                last_updated TIMESTAMP
+            )
+            """
+        )
+        print("✅ Ensured deferral_escalation_registry exists")
+        return True
+    except Exception as e:
+        print(f"❌ Error creating deferral escalation registry: {e}")
+        return False
+    finally:
+        conn.close()
+
+
+def update_deferral_escalation_registry_post_year(year: int) -> bool:
+    """Update deferral escalation registry with this year's escalation events."""
+    print(f"📋 Updating deferral escalation registry after year {year}...")
+
+    conn = get_database_connection()
+    if not conn:
+        print("❌ Cannot update deferral escalation registry - database connection failed")
+        return False
+
+    try:
+        # Ensure table exists
+        conn.execute(
+            """
+            CREATE TABLE IF NOT EXISTS deferral_escalation_registry (
+                employee_id VARCHAR,
+                first_escalation_enrollment_date DATE,
+                first_escalation_year INTEGER,
+                in_auto_escalation_program BOOLEAN,
+                total_escalations INTEGER,
+                last_escalation_date DATE,
+                last_updated TIMESTAMP
+            )
+            """
+        )
+
+        # Insert newly escalated employees not yet in registry
+        conn.execute(
+            f"""
+            INSERT INTO deferral_escalation_registry
+            SELECT
+                employee_id,
+                MIN(effective_date) AS first_escalation_enrollment_date,
+                {year} AS first_escalation_year,
+                true AS in_auto_escalation_program,
+                COUNT(*) AS total_escalations,
+                MAX(effective_date) AS last_escalation_date,
+                CURRENT_TIMESTAMP AS last_updated
+            FROM fct_yearly_events
+            WHERE simulation_year = {year}
+              AND event_type = 'deferral_escalation'
+              AND employee_id IS NOT NULL
+              AND employee_id NOT IN (
+                  SELECT employee_id FROM deferral_escalation_registry
+              )
+            GROUP BY employee_id
+            """
+        )
+
+        # Update existing participants with counts and last escalation date for this year
+        conn.execute(
+            f"""
+            UPDATE deferral_escalation_registry AS r
+            SET
+                total_escalations = r.total_escalations + s.cnt,
+                last_escalation_date = CASE
+                    WHEN r.last_escalation_date IS NULL THEN s.max_date
+                    WHEN s.max_date IS NULL THEN r.last_escalation_date
+                    WHEN r.last_escalation_date >= s.max_date THEN r.last_escalation_date
+                    ELSE s.max_date
+                END,
+                last_updated = CURRENT_TIMESTAMP
+            FROM (
+                SELECT employee_id, COUNT(*) AS cnt, MAX(effective_date) AS max_date
+                FROM fct_yearly_events
+                WHERE simulation_year = {year}
+                  AND event_type = 'deferral_escalation'
+                GROUP BY employee_id
+            ) AS s
+            WHERE r.employee_id = s.employee_id
+            """
+        )
+
+        # Report summary
+        new_cnt = conn.execute(
+            f"SELECT COUNT(*) FROM deferral_escalation_registry WHERE first_escalation_year = {year}"
+        ).fetchone()[0]
+        print(f"✅ Deferral escalation registry updated; new enrollments added: {new_cnt}")
+
+        return True
+    except Exception as e:
+        print(f"❌ Error updating deferral escalation registry: {e}")
+        return False
+    finally:
+        conn.close()
+
 def run_year_simulation(year, is_first_year=False, dbt_vars=None):
     """Run simulation for a single year."""
     print(f"\n🎯 Running simulation for year {year}")
@@ -665,11 +780,14 @@ def run_year_simulation(year, is_first_year=False, dbt_vars=None):
         if not run_dbt_command(["run", "--models", "int_baseline_workforce"], "Creating baseline workforce"):
             return False
 
-    # Step 2: Create/update enrollment registry (prevents duplicate enrollments)
+    # Step 2: Create/update registries (prevent duplicate enrollments/escalations across years)
     # For first year, create registry from baseline. For subsequent years, it was updated at end of previous year.
     if is_first_year:
         if not create_enrollment_registry(year):
             print(f"❌ Failed to create enrollment registry for year {year}")
+            return False
+        if not create_deferral_escalation_registry():
+            print(f"❌ Failed to ensure deferral escalation registry exists for year {year}")
             return False
 
     # Step 3: Workforce transition setup (for subsequent years)
@@ -741,6 +859,10 @@ def run_year_simulation(year, is_first_year=False, dbt_vars=None):
         print(f"⚠️ Failed to update enrollment registry after year {year} - duplicate enrollments may occur next year")
         # Don't fail the simulation for this
 
+    # Update deferral escalation registry with this year's escalations
+    if not update_deferral_escalation_registry_post_year(year):
+        print(f"⚠️ Failed to update deferral escalation registry after year {year}")
+
     # Audit year results
     audit_year_results(year)
 
@@ -765,7 +887,8 @@ def clear_simulation_database():
             'fct_participant_balance_snapshots',
             'int_employee_contributions',  # Epic E034: Employee contribution calculations
             'dq_employee_contributions_validation',  # Epic E034: Data quality validation
-            'enrollment_registry'  # Clear enrollment registry for fresh simulation
+            'enrollment_registry',  # Clear enrollment registry for fresh simulation
+            'deferral_escalation_registry'  # Clear deferral escalation registry for fresh simulation
         ]
 
         cleared_tables = []
