@@ -125,6 +125,15 @@ previous_escalation_history AS (
 {% endif %}
 ),
 
+-- Stub deferral escalation registry (empty by default, can be populated by orchestrator)
+-- TODO: This should be managed by the orchestrator's RegistryManager
+deferral_escalation_registry AS (
+    SELECT
+        CAST(NULL AS VARCHAR) as employee_id,
+        CAST(true AS BOOLEAN) as is_enrolled  -- Default all to enrolled for auto-escalation
+    WHERE FALSE  -- Empty result set - no employees in registry by default
+),
+
 -- Combine workforce with enrollment and escalation history
 workforce_with_status AS (
     SELECT
@@ -132,7 +141,7 @@ workforce_with_status AS (
         COALESCE(e.is_enrolled, false) as is_enrolled,
         e.first_enrollment_date,
         -- Program participation flags (orchestrator-managed registry + baseline auto-escalate capability)
-        -- Note: Registry column reference fixed - using default true for auto-escalation eligibility
+        -- Note: Since registry is empty by default, all employees default to auto-escalation eligible
         COALESCE(r.is_enrolled, true) as in_auto_escalation_program,
         COALESCE(b.auto_escalate, true) as auto_escalate,
         -- Calculate current deferral rate (baseline + cumulative escalations)
