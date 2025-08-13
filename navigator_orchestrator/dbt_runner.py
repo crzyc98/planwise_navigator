@@ -117,7 +117,13 @@ class DbtRunner:
             cmd.extend(["--vars", vars_json])
         # Attach threads if supported and not already present
         if "--threads" not in cmd and self.executable == "dbt":
-            cmd.extend(["--threads", str(self.threads)])
+            # Only add threads to commands that support it
+            threads_supported_commands = [
+                'run', 'test', 'build', 'compile', 'seed', 'snapshot',
+                'docs', 'source', 'freshness', 'run-operation'
+            ]
+            if any(c in command_args for c in threads_supported_commands):
+                cmd.extend(["--threads", str(self.threads)])
         return cmd
 
     def execute_command(
