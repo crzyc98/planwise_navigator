@@ -1,5 +1,8 @@
 {{ config(
-    materialized='table',
+    materialized='incremental',
+    incremental_strategy='delete+insert',
+    unique_key=['simulation_year', 'scenario_id', 'level_id'],
+    on_schema_change='sync_all_columns',
     indexes=[
         {'columns': ['simulation_year', 'level_id'], 'type': 'btree'},
         {'columns': ['scenario_id', 'simulation_year', 'level_id'], 'type': 'btree'}
@@ -197,4 +200,10 @@ LEFT JOIN termination_by_level tbl ON wbl.level_id = tbl.level_id
 LEFT JOIN hiring_by_level hbl ON wbl.level_id = hbl.level_id
 LEFT JOIN compensation_planning cp ON wbl.level_id = cp.level_id
 LEFT JOIN additional_costs ac ON wbl.level_id = ac.level_id
+
+{% if is_incremental() %}
+WHERE wns.simulation_year = {{ var('simulation_year') }}
+  AND wns.scenario_id = '{{ var('scenario_id', 'default') }}'
+{% endif %}
+
 ORDER BY wbl.level_id

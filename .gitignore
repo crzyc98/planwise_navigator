@@ -241,3 +241,4 @@ cython_debug/
 .cursorignore
 .cursorindexingignore
 dbt/target_perf_test/
+simulation.duckdb.zip
