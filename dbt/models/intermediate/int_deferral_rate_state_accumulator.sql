@@ -30,12 +30,15 @@
 
 -- Performance optimization: Early year filtering for DuckDB columnar processing
 
-WITH esa_enrolled AS (
-    -- Employees that are enrolled in the current simulation year (single source of truth)
-    SELECT employee_id, enrollment_date
-    FROM {{ ref('int_enrollment_state_accumulator') }}
+WITH enrolled_employees AS (
+    -- Employees that are enrolled based on compensation table (direct source)
+    SELECT
+        employee_id,
+        employee_enrollment_date as enrollment_date
+    FROM {{ ref('int_employee_compensation_by_year') }}
     WHERE simulation_year = {{ simulation_year }}
-      AND enrollment_status = true
+      AND employment_status = 'active'
+      AND is_enrolled_flag = true
       AND employee_id IS NOT NULL
 ),
 
@@ -80,7 +83,7 @@ current_workforce AS (
         {{ simulation_year }}::INTEGER as simulation_year,
         true as is_enrolled_flag,
         COALESCE(e.enrollment_date, b.baseline_enrollment_date) as employee_enrollment_date
-    FROM esa_enrolled e
+    FROM enrolled_employees e
     LEFT JOIN base_active b ON e.employee_id = b.employee_id
     LEFT JOIN new_hires_current_year nh ON e.employee_id = nh.employee_id
     -- CRITICAL FIX: Ensure all employees exist in compensation table
@@ -93,7 +96,6 @@ escalation_events_filtered AS (
         employee_id::VARCHAR as employee_id,
         simulation_year::INTEGER as simulation_year,
         effective_date::DATE as effective_date,
-        previous_deferral_rate::DECIMAL(5,4) as previous_deferral_rate,
         new_deferral_rate::DECIMAL(5,4) as new_deferral_rate,
         escalation_rate::DECIMAL(5,4) as escalation_rate,
         new_escalation_count::INTEGER as new_escalation_count,
