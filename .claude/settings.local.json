@@ -322,7 +322,16 @@
       "Bash(git reset:*)",
       "Bash(/Users/nicholasamaral/planwise_navigator/venv/bin/dbt ls --models fct_workforce_snapshot --project-dir dbt)",
       "Bash(/Users/nicholasamaral/planwise_navigator/venv/bin/dbt ls --models +fct_workforce_snapshot --project-dir dbt)",
-      "Bash(/Users/nicholasamaral/planwise_navigator/venv/bin/dbt run --select int_deferral_rate_escalation_events --vars \"simulation_year: 2025\")"
+      "Bash(/Users/nicholasamaral/planwise_navigator/venv/bin/dbt run --select int_deferral_rate_escalation_events --vars \"simulation_year: 2025\")",
+      "Bash(/Users/nicholasamaral/planwise_navigator/venv/bin/dbt run-operation run_query --args '{query: \"\"SELECT DISTINCT data_quality_flag FROM int_deferral_rate_state_accumulator\"\"}' --project-dir /Users/nicholasamaral/planwise_navigator/dbt)",
+      "Bash(/Users/nicholasamaral/planwise_navigator/venv/bin/dbt list --models \"*enroll*\" --project-dir /Users/nicholasamaral/planwise_navigator/dbt)",
+      "Bash(/Users/nicholasamaral/planwise_navigator/venv/bin/dbt run --select +int_deferral_rate_state_accumulator --vars \"simulation_year: 2025\" --project-dir /Users/nicholasamaral/planwise_navigator/dbt)",
+      "Bash(/Users/nicholasamaral/planwise_navigator/venv/bin/dbt test --select int_merit_events --project-dir /Users/nicholasamaral/planwise_navigator/dbt)",
+      "Bash(/Users/nicholasamaral/planwise_navigator/venv/bin/dbt run --select int_merit_events --vars \"simulation_year: 2025\" --project-dir /Users/nicholasamaral/planwise_navigator/dbt)",
+      "Bash(/Users/nicholasamaral/planwise_navigator/venv/bin/dbt test --select int_merit_events:accepted_values_int_merit_events_event_type__RAISE --project-dir /Users/nicholasamaral/planwise_navigator/dbt)",
+      "Bash(/Users/nicholasamaral/planwise_navigator/venv/bin/dbt test --models int_deferral_rate_state_accumulator --project-dir /Users/nicholasamaral/planwise_navigator/dbt)",
+      "Bash(/Users/nicholasamaral/planwise_navigator/venv/bin/dbt run --select int_deferral_rate_state_accumulator --vars \"simulation_year: 2025\" --full-refresh --project-dir /Users/nicholasamaral/planwise_navigator/dbt)",
+      "Bash(/Users/nicholasamaral/planwise_navigator/venv/bin/dbt test --models fct_yearly_events --project-dir /Users/nicholasamaral/planwise_navigator/dbt)"
     ],
     "deny": []
   }

@@ -70,6 +70,7 @@ new_hires_current_year AS (
 
 current_workforce AS (
     -- Union attributes for all enrolled employees this year, preferring base_active attrs
+    -- FIXED: Only include employees that exist in compensation table to fix relationship test
     SELECT
         e.employee_id,
         COALESCE(b.employee_ssn, nh.employee_ssn) as employee_ssn,
@@ -82,6 +83,8 @@ current_workforce AS (
     FROM esa_enrolled e
     LEFT JOIN base_active b ON e.employee_id = b.employee_id
     LEFT JOIN new_hires_current_year nh ON e.employee_id = nh.employee_id
+    -- CRITICAL FIX: Ensure all employees exist in compensation table
+    WHERE (b.employee_id IS NOT NULL OR nh.employee_id IS NOT NULL)
 ),
 
 -- OPTIMIZED: Pre-filter escalation events by year range for better JOIN performance
@@ -233,8 +236,10 @@ final_state AS (
         CURRENT_TIMESTAMP as created_at,
         'default'::VARCHAR as scenario_id,
         CASE
-            WHEN b.baseline_deferral_rate IS NOT NULL THEN 'BASELINE_MAPPED'
-            ELSE 'FALLBACK_APPLIED'
+            WHEN w.employee_id IS NULL THEN 'INVALID_EMPLOYEE_ID'
+            WHEN COALESCE(e.latest_deferral_rate, b.baseline_deferral_rate, 0.05) < 0 OR COALESCE(e.latest_deferral_rate, b.baseline_deferral_rate, 0.05) > 1 THEN 'INVALID_RATE'
+            WHEN COALESCE(e.total_escalations, 0) < 0 THEN 'INVALID_ESCALATION_COUNT'
+            ELSE 'VALID'
         END as data_quality_flag
 
     FROM current_workforce w
