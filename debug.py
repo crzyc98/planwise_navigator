@@ -1,12 +1,12 @@
 #!/usr/bin/env python3
-"""Debug script to test navigator_orchestrator components"""
+"""Enhanced debug script for navigator orchestrator"""
 
-import subprocess
 import sys
+import subprocess
 from pathlib import Path
 import shutil
 
-print("=== NAVIGATOR ORCHESTRATOR DEBUG ===\n")
+print("=== NAVIGATOR ORCHESTRATOR ENHANCED DEBUG ===\n")
 
 # 1. Check Python and paths
 print("1. ENVIRONMENT CHECK:")
@@ -27,34 +27,34 @@ db_file = Path("simulation.duckdb")
 print(f"   simulation.duckdb exists: {db_file.exists()}")
 print()
 
-# 3. Test basic dbt command
-print("3. TESTING DBT DIRECTLY:")
+# 3. Test a simple dbt run directly
+print("3. TESTING DBT RUN DIRECTLY:")
 try:
     result = subprocess.run(
-        ["dbt", "--version"],
+        ["dbt", "run", "--select", "stg_census_data", "--vars", '{"simulation_year": 2025}'],
         capture_output=True,
         text=True,
-        cwd=dbt_dir if dbt_dir.exists() else None
+        cwd=Path("dbt")
     )
-    print(f"   dbt --version return code: {result.returncode}")
-    if result.stdout:
-        print(f"   stdout: {result.stdout[:200]}")
-    if result.stderr:
-        print(f"   stderr: {result.stderr[:200]}")
+    print(f"   Direct dbt run return code: {result.returncode}")
+    if result.returncode != 0:
+        print(f"   ERROR output: {result.stderr[:500]}")
+        print(f"   STDOUT: {result.stdout[:500]}")
+    else:
+        print(f"   SUCCESS: Direct dbt run worked")
 except Exception as e:
     print(f"   ERROR: {e}")
 print()
 
-# 4. Test DbtRunner
-print("4. TESTING DbtRunner:")
+# 4. Test DbtRunner with --version (fixed)
+print("4. TESTING DbtRunner --version:")
 try:
     from navigator_orchestrator.dbt_runner import DbtRunner
     runner = DbtRunner(verbose=True)
     print(f"   DbtRunner working_dir: {runner.working_dir.absolute()}")
     print(f"   DbtRunner executable: {runner.executable}")
 
-    # Try a simple dbt command
-    print("\n   Attempting 'dbt --version' through DbtRunner...")
+    # Test --version (should work now with the fix)
     result = runner.execute_command(
         ["--version"],
         description="Testing dbt version",
@@ -64,33 +64,111 @@ try:
     print(f"   Success: {result.success}")
     print(f"   Return code: {result.return_code}")
     if not result.success:
+        print(f"   Command: {' '.join(result.command)}")
         print(f"   stdout: {result.stdout[:400] if result.stdout else 'None'}")
         print(f"   stderr: {result.stderr[:400] if result.stderr else 'None'}")
-
 except Exception as e:
-    print(f"   ERROR importing/running DbtRunner: {e}")
+    print(f"   ERROR: {e}")
     import traceback
     traceback.print_exc()
 print()
 
-# 5. Test with explicit paths
-print("5. TESTING WITH EXPLICIT DBT PATH:")
+# 5. Test DbtRunner with a simple model
+print("5. TESTING DbtRunner WITH SIMPLE MODEL:")
 try:
-    dbt_path = shutil.which('dbt')
-    if dbt_path:
-        from navigator_orchestrator.dbt_runner import DbtRunner
-        runner = DbtRunner(executable=dbt_path, verbose=True)
-        print(f"   Using explicit dbt: {dbt_path}")
-        result = runner.execute_command(
-            ["--version"],
-            description="Testing with explicit path",
-            stream_output=False,
-            retry=False
-        )
-        print(f"   Success: {result.success}")
-        if not result.success:
-            print(f"   Full stdout: {result.stdout}")
+    from navigator_orchestrator.dbt_runner import DbtRunner
+    runner = DbtRunner(verbose=True)
+
+    # Test run_model method
+    result = runner.run_model(
+        "stg_census_data",
+        simulation_year=2025,
+        description="Testing single model",
+        stream_output=False,
+        retry=False
+    )
+    print(f"   run_model success: {result.success}")
+    print(f"   Return code: {result.return_code}")
+    if not result.success:
+        print(f"   Command: {' '.join(result.command)}")
+        print(f"   Error stdout: {result.stdout[:500]}")
+        print(f"   Error stderr: {result.stderr[:500]}")
+    else:
+        print(f"   SUCCESS: Single model run worked")
 except Exception as e:
     print(f"   ERROR: {e}")
+    import traceback
+    traceback.print_exc()
+print()
 
-print("\n=== END DEBUG ===")
+# 6. Test the full pipeline initialization
+print("6. TESTING PIPELINE INITIALIZATION:")
+try:
+    from navigator_orchestrator.config import load_simulation_config
+    from navigator_orchestrator.utils import DatabaseConnectionManager
+    from navigator_orchestrator.registries import RegistryManager
+    from navigator_orchestrator.validation import DataValidator
+    from navigator_orchestrator.pipeline import PipelineOrchestrator
+
+    config = load_simulation_config(Path("config/simulation_config.yaml"))
+    print(f"   Config loaded: start_year={config.simulation.start_year}")
+
+    db = DatabaseConnectionManager(Path("simulation.duckdb"))
+    print(f"   Database connected: {db.db_path}")
+
+    runner = DbtRunner(verbose=True)
+    print(f"   DbtRunner created")
+
+    registries = RegistryManager(db)
+    print(f"   RegistryManager created")
+
+    validator = DataValidator(db)
+    print(f"   DataValidator created")
+
+    orch = PipelineOrchestrator(
+        config, db, runner, registries, validator, verbose=True
+    )
+    print(f"   PipelineOrchestrator created successfully")
+
+except Exception as e:
+    print(f"   ERROR during initialization: {e}")
+    import traceback
+    traceback.print_exc()
+print()
+
+# 7. Test running the first stage
+print("7. TESTING FIRST STAGE EXECUTION:")
+try:
+    if 'orch' in locals():
+        # Get the first stage
+        stages = orch._define_year_workflow(2025)
+        first_stage = stages[0]
+        print(f"   First stage: {first_stage.name.value}")
+        print(f"   Models to run: {first_stage.models}")
+
+        # Try to run just the first model
+        if first_stage.models:
+            model = first_stage.models[0]
+            print(f"\n   Testing model: {model}")
+            result = runner.run_model(
+                model,
+                simulation_year=2025,
+                dbt_vars=orch._dbt_vars,
+                stream_output=False,
+                retry=False
+            )
+            print(f"   Success: {result.success}")
+            if not result.success:
+                print(f"   Full command: {' '.join(result.command)}")
+                print(f"   Full stdout:\n{result.stdout}")
+                print(f"   Full stderr:\n{result.stderr}")
+            else:
+                print(f"   SUCCESS: First stage model worked")
+    else:
+        print("   Pipeline not initialized, skipping stage test")
+except Exception as e:
+    print(f"   ERROR: {e}")
+    import traceback
+    traceback.print_exc()
+
+print("\n=== END ENHANCED DEBUG ===")
