@@ -74,9 +74,11 @@ models:
           expression: "is_enrolled_flag = true OR (is_enrolled_flag = false AND escalations_received = 0)"
           config:
             severity: error
-      # Cross-year continuity validation
-      - dbt_utils.expression_is_true:
-          expression: "COUNT(*) FILTER (WHERE current_deferral_rate < 0 OR current_deferral_rate > 1) = 0"
+      # Cross-year continuity validation - fixed invalid SQL expression
+      - dbt_utils.accepted_range:
+          column_name: current_deferral_rate
+          min_value: 0
+          max_value: 1
           config:
             severity: error
 
