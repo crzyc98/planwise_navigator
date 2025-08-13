@@ -1,5 +1,8 @@
 {{ config(
-    materialized='table',
+    materialized='incremental',
+    incremental_strategy='delete+insert',
+    unique_key=['simulation_year', 'scenario_id'],
+    on_schema_change='sync_all_columns',
     indexes=[
         {'columns': ['simulation_year', 'scenario_id'], 'type': 'btree'},
         {'columns': ['level_id'], 'type': 'btree'}
@@ -222,3 +225,7 @@ CROSS JOIN termination_forecasts tf
 CROSS JOIN hiring_requirements hr
 CROSS JOIN financial_impact fi
 CROSS JOIN workforce_balance wb
+
+{% if is_incremental() %}
+    WHERE sc.simulation_year = {{ var('simulation_year') }}
+{% endif %}

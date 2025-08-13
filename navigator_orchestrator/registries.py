@@ -97,24 +97,45 @@ class SQLTemplateManager:
     )
     """
 
-    DEFERRAL_ESCALATION_FROM_EVENTS = """
-    INSERT INTO deferral_escalation_registry
-    SELECT
+    DEFERRAL_ESCALATION_UPDATE_FROM_EVENTS = """
+    UPDATE deferral_escalation_registry AS t
+    SET
+      escalation_count = t.escalation_count + s.escalation_count,
+      last_escalation_date = GREATEST(t.last_escalation_date, s.last_escalation_date),
+      is_participating = TRUE,
+      last_updated = CURRENT_TIMESTAMP
+    FROM (
+      SELECT
         fye.employee_id,
         COUNT(*) AS escalation_count,
-        MAX(fye.event_date) AS last_escalation_date,
-        true AS is_participating,
-        CURRENT_TIMESTAMP AS last_updated
+        MAX(fye.effective_date) AS last_escalation_date
+      FROM fct_yearly_events fye
+      WHERE fye.event_type IN ('DEFERRAL_ESCALATION')
+        AND fye.simulation_year = {year}
+        AND fye.employee_id IS NOT NULL
+      GROUP BY fye.employee_id
+    ) s
+    WHERE t.employee_id = s.employee_id
+    """
+
+    DEFERRAL_ESCALATION_INSERT_FROM_EVENTS = """
+    INSERT INTO deferral_escalation_registry (
+      employee_id, escalation_count, last_escalation_date, is_participating, last_updated
+    )
+    SELECT
+      fye.employee_id,
+      COUNT(*) AS escalation_count,
+      MAX(fye.effective_date) AS last_escalation_date,
+      TRUE AS is_participating,
+      CURRENT_TIMESTAMP AS last_updated
     FROM fct_yearly_events fye
     WHERE fye.event_type IN ('DEFERRAL_ESCALATION')
       AND fye.simulation_year = {year}
       AND fye.employee_id IS NOT NULL
+      AND NOT EXISTS (
+        SELECT 1 FROM deferral_escalation_registry t WHERE t.employee_id = fye.employee_id
+      )
     GROUP BY fye.employee_id
-    ON CONFLICT (employee_id) DO UPDATE SET
-        escalation_count = deferral_escalation_registry.escalation_count + EXCLUDED.escalation_count,
-        last_escalation_date = GREATEST(deferral_escalation_registry.last_escalation_date, EXCLUDED.last_escalation_date),
-        is_participating = true,
-        last_updated = CURRENT_TIMESTAMP
     """
 
     def render_template(self, template: str, **kwargs: Any) -> str:
@@ -231,7 +252,10 @@ class DeferralEscalationRegistry(Registry, TransactionalRegistry):
         return self.execute_transaction([self.sql.DEFERRAL_ESCALATION_CREATE])
 
     def update_post_year(self, year: int) -> bool:
-        ops = [self.sql.render_template(self.sql.DEFERRAL_ESCALATION_FROM_EVENTS, year=year)]
+        ops = [
+            self.sql.render_template(self.sql.DEFERRAL_ESCALATION_UPDATE_FROM_EVENTS, year=year),
+            self.sql.render_template(self.sql.DEFERRAL_ESCALATION_INSERT_FROM_EVENTS, year=year),
+        ]
         return self.execute_transaction(ops)
 
     def get_escalation_participants(self, year: int) -> List[str]:
