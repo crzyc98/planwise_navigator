@@ -104,6 +104,28 @@ previous_enrollment_state AS (
     AND first_enrollment_year <= {{ current_year }}
 ),
 
+auto_enrollment_eligible_population AS (
+  -- Single source of truth for auto-enrollment eligibility
+  SELECT DISTINCT
+    aw.employee_id,
+    aw.employee_hire_date,
+    aw.simulation_year,
+    aw.employment_status,
+    pe.was_enrolled_previously,
+    -- Explicit eligibility with clear semantics using macro
+    {{ get_eligibility_reason('aw.employee_hire_date', 'aw.simulation_year', 'aw.employment_status', 'pe.was_enrolled_previously') }} as eligibility_reason,
+    -- Simplified eligibility flag
+    CASE
+      WHEN aw.employment_status = 'active'
+        AND COALESCE(pe.was_enrolled_previously, false) = false
+        AND {{ is_eligible_for_auto_enrollment('aw.employee_hire_date', 'aw.simulation_year') }}
+      THEN true
+      ELSE false
+    END as is_auto_enrollment_eligible
+  FROM active_workforce aw
+  LEFT JOIN previous_enrollment_state pe ON aw.employee_id = pe.employee_id
+),
+
 eligible_for_enrollment AS (
   -- Enhanced eligibility logic with temporal state accumulator integration
   SELECT
@@ -129,45 +151,11 @@ eligible_for_enrollment AS (
       ELSE 'executive'
     END as income_segment,
 
-    -- CRITICAL BUSINESS LOGIC: Enhanced eligibility check with ALL restrictive WHERE clauses restored
-    CASE
-      WHEN (
-        -- Fix: Allow new hires when scope is new_hires_only, otherwise require 1+ years tenure
-        CASE
-          WHEN '{{ var("auto_enrollment_scope", "all_eligible_employees") }}' = 'new_hires_only'
-            THEN aw.current_tenure >= 0  -- New hires have 0 tenure, allow them
-          ELSE aw.current_tenure >= 1     -- Existing logic for other scopes
-        END
-      )
-        -- CRITICAL: Use temporal state accumulator to prevent duplicate enrollments
-        AND COALESCE(pe.was_enrolled_previously, false) = false
-        AND (
-          -- CRITICAL: Hire date cutoff filter (if specified) - prevents late hires from enrolling
-          {% if var("auto_enrollment_hire_date_cutoff", null) %}
-            aw.employee_hire_date >= '{{ var("auto_enrollment_hire_date_cutoff") }}'::DATE
-          {% else %}
-            true
-          {% endif %}
-        )
-        AND (
-          -- CRITICAL: Scope check prevents inappropriate enrollments
-          -- SCOPE: new_hires_only targets current-year hires (honors cutoff)
-          CASE
-            WHEN '{{ var("auto_enrollment_scope", "all_eligible_employees") }}' = 'new_hires_only'
-              -- Use hire_date_cutoff for new_hires_only scope instead of current year requirement
-              {% if var("auto_enrollment_hire_date_cutoff", null) %}
-              THEN (aw.employee_hire_date >= '{{ var("auto_enrollment_hire_date_cutoff") }}'::DATE AND EXTRACT(YEAR FROM aw.employee_hire_date) = {{ var('simulation_year') }})
-            {% else %}
-              THEN EXTRACT(YEAR FROM aw.employee_hire_date) = {{ var('simulation_year') }}
-            {% endif %}
-            WHEN '{{ var("auto_enrollment_scope", "all_eligible_employees") }}' = 'all_eligible_employees'
-              THEN true
-            ELSE true  -- Default to eligible if unrecognized scope
-          END
-        )
-        THEN true
-      ELSE false
-    END as is_eligible,
+    -- SIMPLIFIED: Use macro-based eligibility logic for consistency
+    {{ is_eligible_for_auto_enrollment('aw.employee_hire_date', 'aw.simulation_year') }}
+      AND aw.employment_status = 'active'
+      AND COALESCE(pe.was_enrolled_previously, false) = false
+    as is_eligible,
 
     -- CRITICAL: Track already enrolled status to prevent duplicates
     COALESCE(pe.was_enrolled_previously, false) as is_already_enrolled,
@@ -349,18 +337,18 @@ opt_out_events AS (
     efo.age_band,
     efo.tenure_band,
 
-    -- Opt-out probability based on demographics (simplified)
+    -- Opt-out probability based on demographics (using configurable rates)
     CASE efo.age_segment
-      WHEN 'young' THEN 0.35  -- Higher opt-out rate for young employees
-      WHEN 'mid_career' THEN 0.20
-      WHEN 'mature' THEN 0.15
-      ELSE 0.10               -- Lower opt-out rate for seniors
+      WHEN 'young' THEN {{ var('opt_out_rate_young', 0.10) }}
+      WHEN 'mid_career' THEN {{ var('opt_out_rate_mid', 0.07) }}
+      WHEN 'mature' THEN {{ var('opt_out_rate_mature', 0.05) }}
+      ELSE {{ var('opt_out_rate_senior', 0.03) }}
     END *
     CASE efo.income_segment
-      WHEN 'low_income' THEN 1.60  -- Much higher opt-out for low income
-      WHEN 'moderate' THEN 1.0     -- Base rate
-      WHEN 'high' THEN 0.60        -- Lower opt-out for high income
-      ELSE 0.20                    -- Very low opt-out for executives
+      WHEN 'low_income' THEN {{ var('opt_out_rate_low_income', 0.12) }} / {{ var('opt_out_rate_moderate', 0.10) }}
+      WHEN 'moderate' THEN 1.0  -- Base rate
+      WHEN 'high' THEN {{ var('opt_out_rate_high', 0.07) }} / {{ var('opt_out_rate_moderate', 0.10) }}
+      ELSE {{ var('opt_out_rate_executive', 0.05) }} / {{ var('opt_out_rate_moderate', 0.10) }}
     END as event_probability,
 
     'enrollment_opt_out' as event_category
@@ -370,14 +358,19 @@ opt_out_events AS (
     AND (efo.is_already_enrolled = true OR efo.employee_id IN (
       SELECT employee_id FROM enrollment_events WHERE event_type = 'enrollment'
     ))
-    -- CRITICAL: Apply probabilistic opt-out based on demographics
+    -- CRITICAL: Apply probabilistic opt-out based on demographics (using configurable rates)
     AND efo.optout_random < (
-      0.35 *  -- Base young opt-out rate
+      CASE efo.age_segment
+        WHEN 'young' THEN {{ var('opt_out_rate_young', 0.10) }}
+        WHEN 'mid_career' THEN {{ var('opt_out_rate_mid', 0.07) }}
+        WHEN 'mature' THEN {{ var('opt_out_rate_mature', 0.05) }}
+        ELSE {{ var('opt_out_rate_senior', 0.03) }}
+      END *
       CASE efo.income_segment
-        WHEN 'low_income' THEN 1.60
+        WHEN 'low_income' THEN {{ var('opt_out_rate_low_income', 0.12) }} / {{ var('opt_out_rate_moderate', 0.10) }}
         WHEN 'moderate' THEN 1.0
-        WHEN 'high' THEN 0.60
-        ELSE 0.20
+        WHEN 'high' THEN {{ var('opt_out_rate_high', 0.07) }} / {{ var('opt_out_rate_moderate', 0.10) }}
+        ELSE {{ var('opt_out_rate_executive', 0.05) }} / {{ var('opt_out_rate_moderate', 0.10) }}
       END
     )
 ),

@@ -55,41 +55,33 @@ termination_by_level AS (
 
 -- Hiring distribution by level
 hiring_by_level AS (
-  SELECT
-    level_id,
-    -- Use established distribution pattern
-    CASE
-      WHEN level_id = 1 THEN 0.40
-      WHEN level_id = 2 THEN 0.30
-      WHEN level_id = 3 THEN 0.20
-      WHEN level_id = 4 THEN 0.08
-      WHEN level_id = 5 THEN 0.02
-      ELSE 0
-    END AS hiring_distribution,
-    CEIL(wns.total_hires_needed *
+  -- Normalize target distribution across the levels that actually exist this year
+  WITH level_weights AS (
+    SELECT
+      level_id,
       CASE
         WHEN level_id = 1 THEN 0.40
         WHEN level_id = 2 THEN 0.30
         WHEN level_id = 3 THEN 0.20
         WHEN level_id = 4 THEN 0.08
         WHEN level_id = 5 THEN 0.02
-        ELSE 0
-      END
-    ) AS hires_needed,
+        ELSE 0.0
+      END AS raw_weight
+    FROM (SELECT DISTINCT level_id FROM workforce_by_level)
+  ),
+  normalization AS (
+    SELECT SUM(raw_weight) AS total_weight FROM level_weights
+  )
+  SELECT
+    lw.level_id,
+    CASE WHEN n.total_weight = 0 THEN 0.0 ELSE lw.raw_weight / n.total_weight END AS hiring_distribution,
+    CEIL(wns.total_hires_needed * (CASE WHEN n.total_weight = 0 THEN 0.0 ELSE lw.raw_weight / n.total_weight END)) AS hires_needed,
     -- New hire terminations by level
     ROUND(
-      CEIL(wns.total_hires_needed *
-        CASE
-          WHEN level_id = 1 THEN 0.40
-          WHEN level_id = 2 THEN 0.30
-          WHEN level_id = 3 THEN 0.20
-          WHEN level_id = 4 THEN 0.08
-          WHEN level_id = 5 THEN 0.02
-          ELSE 0
-        END
-      ) * wns.new_hire_termination_rate
+      CEIL(wns.total_hires_needed * (CASE WHEN n.total_weight = 0 THEN 0.0 ELSE lw.raw_weight / n.total_weight END)) * wns.new_hire_termination_rate
     ) AS expected_new_hire_terminations
-  FROM (SELECT DISTINCT level_id FROM workforce_by_level) levels
+  FROM level_weights lw
+  CROSS JOIN normalization n
   CROSS JOIN workforce_needs_summary wns
 ),
 
