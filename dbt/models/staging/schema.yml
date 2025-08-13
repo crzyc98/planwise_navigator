@@ -326,7 +326,7 @@ models:
         data_tests:
           - not_null
           - accepted_values:
-              values: ['RAISE', 'PROMOTION', 'TERMINATION', 'HIRE']
+              values: ['RAISE', 'PROMOTION', 'TERMINATION', 'HIRE', 'DEFERRAL_ESCALATION']
       - name: parameter_name
         description: Name of the parameter being configured
         data_tests:
@@ -337,7 +337,7 @@ models:
           - not_null
           - dbt_utils.accepted_range:
               min_value: 0
-              max_value: 10  # Allow values > 1 for salary adjustments and multipliers
+              max_value: 100  # Allow higher values for thresholds (e.g., age_threshold)
       - name: is_locked
         description: Whether this parameter is locked from further changes
         data_tests:

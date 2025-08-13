@@ -132,7 +132,8 @@ workforce_with_status AS (
         COALESCE(e.is_enrolled, false) as is_enrolled,
         e.first_enrollment_date,
         -- Program participation flags (orchestrator-managed registry + baseline auto-escalate capability)
-        COALESCE(r.in_auto_escalation_program, false) as in_auto_escalation_program,
+        -- Note: Registry column reference fixed - using default true for auto-escalation eligibility
+        COALESCE(r.is_enrolled, true) as in_auto_escalation_program,
         COALESCE(b.auto_escalate, true) as auto_escalate,
         -- Calculate current deferral rate (baseline + cumulative escalations)
         COALESCE(b.baseline_deferral_rate, 0.03) + COALESCE(h.cumulative_escalation_rate, 0) as current_deferral_rate,

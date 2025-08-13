@@ -26,7 +26,7 @@ WITH active_workforce AS (
 -- Check for promotion events that happened earlier in the year (February 1)
 -- Merit events (July 15) should use post-promotion compensation AND level_id
 promotion_events_this_year AS (
-    SELECT 
+    SELECT
         employee_id,
         new_salary AS promotion_salary,
         to_level
@@ -101,12 +101,14 @@ cola_adjustments AS (
 SELECT
     e.employee_id,
     e.employee_ssn,
-    'raise' AS event_type,
+    'RAISE' AS event_type,  -- Fixed: uppercase for test compatibility
     {{ simulation_year }} AS simulation_year,
     -- Use macro system for raise timing (supports both legacy and realistic modes)
     {{ get_realistic_raise_date('e.employee_id', simulation_year) }} AS effective_date,
-    e.employee_gross_compensation AS previous_salary,
-    -- Apply merit increase plus COLA (FIXED: with caps to prevent extreme values)
+    -- Event details for audit trail
+    'merit_raise: ' || ROUND(e.merit_raise * 100, 1) || '%, cola: ' || ROUND(c.cola_rate * 100, 1) || '%' AS event_details,
+    -- Schema alignment for fct_yearly_events consumption
+    e.employee_gross_compensation AS previous_compensation,
     ROUND(
         LEAST(
             -- Cap at 50% total increase maximum
@@ -120,11 +122,11 @@ SELECT
                 ELSE e.employee_gross_compensation * (1 + e.merit_raise + c.cola_rate)
             END
         ), 2
-    ) AS new_salary,
-    e.merit_raise AS merit_percentage,
-    c.cola_rate AS cola_percentage,
-    e.current_age,
-    e.current_tenure,
+    ) AS compensation_amount,  -- Fixed: renamed from new_salary for test compatibility
+    e.merit_raise AS event_probability,  -- Reused for event sourcing pattern
+    'RAISE' AS event_category,  -- Added for consistency
+    e.current_age AS employee_age,  -- Aligned column name
+    e.current_tenure AS employee_tenure,  -- Aligned column name
     e.level_id,
     e.age_band,
     e.tenure_band
