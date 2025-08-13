@@ -53,7 +53,7 @@ SELECT
     true as is_from_census,
     -- Simplified: assume this is always a cold start from census data
     true as is_cold_start,
-    NULL as last_completed_year
+    ({{ simulation_year }} - 1) as last_completed_year
 FROM {{ ref('stg_census_data') }} stg
 -- Use a subquery to find the best matching level_id for each employee
 LEFT JOIN (

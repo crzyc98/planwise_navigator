@@ -1219,7 +1219,7 @@ models:
         data_tests:
           - not_null
           - accepted_values:
-              values: ['RAISE', 'PROMOTION', 'TERMINATION', 'HIRE']
+              values: ['RAISE', 'PROMOTION', 'TERMINATION', 'HIRE', 'DEFERRAL_ESCALATION']
 
       - name: parameter_name
         description: Name of the parameter
@@ -1232,7 +1232,7 @@ models:
           - not_null
           - dbt_utils.accepted_range:
               min_value: 0
-              max_value: 10  # Allow values > 1 for salary adjustments and multipliers
+              max_value: 100  # Allow thresholds like age 25, tenure 2, etc.
 
       - name: is_locked
         description: Whether this parameter is locked from changes
@@ -1953,9 +1953,13 @@ models:
     data_tests:
       - dbt_utils.expression_is_true:
           expression: >
-            (select count(*) from int_enrollment_decision_matrix
-             where employee_hire_date < '{{ var("auto_enrollment_hire_date_cutoff", "2020-01-01") }}'::date
-             and enrollment_source = 'auto') = 0
+            (select count(*)
+             from {{ ref('int_enrollment_decision_matrix') }} dm
+             join {{ ref('int_workforce_pre_enrollment') }} w
+               on dm.employee_id = w.employee_id
+              and dm.simulation_year = w.simulation_year
+             where w.employee_hire_date < '{{ var("auto_enrollment_hire_date_cutoff", "2020-01-01") }}'::date
+               and dm.enrollment_source = 'auto') = 0
           config:
             severity: warn
             enabled: "{{ var('auto_enrollment_hire_date_cutoff', null) != null }}"

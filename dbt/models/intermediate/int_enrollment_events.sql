@@ -268,7 +268,7 @@ enrollment_events AS (
       ELSE 1.25                     -- Highest enrollment for executives
     END as event_probability,
 
-    -- Event category for grouping
+    -- Event category for grouping (normalized to accepted values)
     CASE
       WHEN '{{ var("auto_enrollment_scope", "all_eligible_employees") }}' = 'new_hires_only' THEN 'auto_enrollment'
       ELSE (
@@ -276,7 +276,7 @@ enrollment_events AS (
           WHEN 'young' THEN 'auto_enrollment'
           WHEN 'mid_career' THEN 'voluntary_enrollment'
           WHEN 'mature' THEN 'proactive_enrollment'
-          ELSE 'executive_enrollment'
+          ELSE 'voluntary_enrollment'  -- Fixed: normalize executive to voluntary_enrollment
         END
       )
     END as event_category

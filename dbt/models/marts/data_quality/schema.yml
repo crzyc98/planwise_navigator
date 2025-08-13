@@ -217,8 +217,7 @@ models:
       # Critical test: Health score must be above minimum threshold for production
       - dbt_utils.expression_is_true:
           expression: "health_score >= 85"
-          error_if: "<85"
-          warn_if: "<95"
+          error_if: ">0"
           name: "escalation_system_health_score_threshold"
           meta:
             description: "Ensure escalation system health score meets production standards"
