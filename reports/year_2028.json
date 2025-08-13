@@ -1,0 +1,65 @@
+{
+  "year": 2028,
+  "workforce_breakdown": {
+    "year": 2028,
+    "total_employees": 5728,
+    "active_employees": 4916,
+    "breakdown_by_status": {
+      "continuous_active": 4200,
+      "new_hire_active": 716,
+      "experienced_termination": 573,
+      "new_hire_termination": 239
+    },
+    "participation_rate": 0.9359235150528885
+  },
+  "event_summary": {
+    "year": 2028,
+    "total_events": 4931,
+    "events_by_type": {
+      "enrollment": 3019,
+      "hire": 955,
+      "termination": 812,
+      "enrollment_change": 145
+    },
+    "hire_termination_ratio": 1.1761083743842364
+  },
+  "growth_analysis": {
+    "previous_active": 4773,
+    "current_active": 4916,
+    "net_growth": 143,
+    "growth_pct": 2.9960192750890426
+  },
+  "contribution_summary": {
+    "enrolled_employees_active_eoy": 4601,
+    "total_contributions_active_eoy": 37485034.0,
+    "avg_contribution_active_eoy": 8147.0,
+    "avg_deferral_rate_active_eoy": 5.1
+  },
+  "data_quality_results": [
+    {
+      "rule_name": "hire_termination_ratio",
+      "severity": "warning",
+      "passed": true,
+      "message": "Hire/termination ratio: 1.18 (PASS)",
+      "details": {
+        "hires": 955,
+        "terminations": 812,
+        "ratio": 1.1761083743842364,
+        "min_ratio": 0.3,
+        "max_ratio": 3.0
+      },
+      "affected_records": null
+    },
+    {
+      "rule_name": "event_sequence_validation",
+      "severity": "error",
+      "passed": false,
+      "message": "Validation rule failed: Binder Error: LATERAL join cannot contain aggregates!\nLINE 3:             SELECT employee_id, MIN(event_date) AS term_date\n                                        ^",
+      "details": {
+        "error": "Binder Error: LATERAL join cannot contain aggregates!\nLINE 3:             SELECT employee_id, MIN(event_date) AS term_date\n                                        ^"
+      },
+      "affected_records": null
+    }
+  ],
+  "generated_at": "2025-08-13T15:32:47.743877"
+}

@@ -319,7 +319,10 @@
       "Bash(/usr/bin/time -p /Users/nicholasamaral/planwise_navigator/venv/bin/dbt run --select int_employee_compensation_by_year int_deferral_rate_escalation_events int_deferral_rate_state_accumulator int_deferral_escalation_state_accumulator --vars \"simulation_year: 2025\" --project-dir /Users/nicholasamaral/planwise_navigator/dbt)",
       "Bash(/Users/nicholasamaral/planwise_navigator/venv/bin/dbt test --select int_deferral_escalation_state_accumulator --project-dir /Users/nicholasamaral/planwise_navigator/dbt --quiet)",
       "Bash(/Users/nicholasamaral/planwise_navigator/venv/bin/dbt test --select int_deferral_rate_state_accumulator --project-dir /Users/nicholasamaral/planwise_navigator/dbt --quiet)",
-      "Bash(git reset:*)"
+      "Bash(git reset:*)",
+      "Bash(/Users/nicholasamaral/planwise_navigator/venv/bin/dbt ls --models fct_workforce_snapshot --project-dir dbt)",
+      "Bash(/Users/nicholasamaral/planwise_navigator/venv/bin/dbt ls --models +fct_workforce_snapshot --project-dir dbt)",
+      "Bash(/Users/nicholasamaral/planwise_navigator/venv/bin/dbt run --select int_deferral_rate_escalation_events --vars \"simulation_year: 2025\")"
     ],
     "deny": []
   }

@@ -111,7 +111,6 @@ def extract_dbt_vars_from_config(full_config: dict) -> dict:
     """
     cfg = full_config.get('config', full_config)
 
-    sim = cfg.get('simulation', {})
     comp = cfg.get('compensation', {})
     elig = cfg.get('eligibility', {})
     plan_elig = cfg.get('plan_eligibility', {})
@@ -119,6 +118,7 @@ def extract_dbt_vars_from_config(full_config: dict) -> dict:
     auto = enroll.get('auto_enrollment', {})
     proactive = enroll.get('proactive_enrollment', {})
     timing = enroll.get('timing', {})
+    # Note: workforce growth/termination vars are handled in navigator orchestrator
 
     dbt_vars = {}
 
@@ -176,6 +176,8 @@ def extract_dbt_vars_from_config(full_config: dict) -> dict:
     # Random seed for deterministic behavior where supported
     if 'random_seed' in cfg.get('simulation', {}):
         dbt_vars['random_seed'] = cfg['simulation']['random_seed']
+
+    # Growth/termination vars intentionally omitted here to avoid drift with new orchestrator
 
     return dbt_vars
 

@@ -150,18 +150,18 @@ enrollment_probability_calculation AS (
       ELSE {{ var('enrollment_adjustment_executive', 1.30) }}
     END as income_adjustment_multiplier,
 
-    -- Opt-out probability by demographics
+    -- Opt-out probability by demographics (using configurable rates)
     CASE age_segment
-      WHEN 'young' THEN {{ var('opt_out_rate_young', 0.35) }}
-      WHEN 'mid_career' THEN {{ var('opt_out_rate_mid', 0.20) }}
-      WHEN 'mature' THEN {{ var('opt_out_rate_mature', 0.15) }}
-      ELSE {{ var('opt_out_rate_senior', 0.10) }}
+      WHEN 'young' THEN {{ var('opt_out_rate_young', 0.10) }}
+      WHEN 'mid_career' THEN {{ var('opt_out_rate_mid', 0.07) }}
+      WHEN 'mature' THEN {{ var('opt_out_rate_mature', 0.05) }}
+      ELSE {{ var('opt_out_rate_senior', 0.03) }}
     END *
     CASE income_segment
-      WHEN 'low_income' THEN {{ var('opt_out_rate_low_income', 0.40) }} / {{ var('opt_out_rate_moderate', 0.25) }}
+      WHEN 'low_income' THEN {{ var('opt_out_rate_low_income', 0.12) }} / {{ var('opt_out_rate_moderate', 0.10) }}
       WHEN 'moderate' THEN 1.0
-      WHEN 'high' THEN {{ var('opt_out_rate_high', 0.15) }} / {{ var('opt_out_rate_moderate', 0.25) }}
-      ELSE {{ var('opt_out_rate_executive', 0.05) }} / {{ var('opt_out_rate_moderate', 0.25) }}
+      WHEN 'high' THEN {{ var('opt_out_rate_high', 0.07) }} / {{ var('opt_out_rate_moderate', 0.10) }}
+      ELSE {{ var('opt_out_rate_executive', 0.05) }} / {{ var('opt_out_rate_moderate', 0.10) }}
     END as opt_out_probability
   FROM auto_enrollment_window_calculation
 ),
@@ -190,28 +190,9 @@ auto_enrollment_configuration_check AS (
       ELSE {{ var('auto_enrollment_enabled', true) }}
     END as auto_enrollment_enabled,
 
-    -- Check scope configuration (new hires only vs all eligible employees)
-    CASE
-      WHEN '{{ var("auto_enrollment_scope", "new_hires_only") }}' = 'new_hires_only'
-        AND (
-          {% if var("auto_enrollment_hire_date_cutoff", null) %}
-            employee_hire_date >= '{{ var("auto_enrollment_hire_date_cutoff") }}'::DATE
-          {% else %}
-            true
-          {% endif %}
-        )
-        THEN employee_hire_date >= CAST(simulation_year || '-01-01' AS DATE)
-      WHEN '{{ var("auto_enrollment_scope", "new_hires_only") }}' = 'all_eligible_employees'
-        AND (
-          {% if var("auto_enrollment_hire_date_cutoff", null) %}
-            employee_hire_date >= '{{ var("auto_enrollment_hire_date_cutoff") }}'::DATE
-          {% else %}
-            true
-          {% endif %}
-        )
-        THEN true
-      ELSE false
-    END as in_auto_enrollment_scope,
+    -- Use macro for consistent scope determination
+    {{ is_eligible_for_auto_enrollment('employee_hire_date', 'simulation_year') }}
+      as in_auto_enrollment_scope,
 
     -- Business day adjustment (future enhancement)
     {% if var('enrollment_business_day_adjustment', true) %}

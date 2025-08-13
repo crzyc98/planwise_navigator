@@ -64,6 +64,22 @@ enrollment:
     scope: "all_eligible_employees"  # Options: "new_hires_only", "all_eligible_employees"
     hire_date_cutoff: "2020-01-01"  # Optional: Exclude employees hired before this date from auto-enrollment (e.g., "2020-01-01")
 
+    # Opt-out rate configuration (industry-standard rates: 5-10% for well-designed programs)
+    opt_out_rates:
+      # Demographic-based opt-out rates (base rates)
+      by_age:
+        young: 0.10       # 10% opt-out rate for young employees (18-30)
+        mid_career: 0.07  # 7% opt-out rate for mid-career employees (31-45)
+        mature: 0.05      # 5% opt-out rate for mature employees (46-55)
+        senior: 0.03      # 3% opt-out rate for senior employees (56+)
+
+      # Income-based multipliers (applied to age-based rates)
+      by_income:
+        low_income: 1.20  # 20% higher opt-out for low income (was 1.60x = 60% higher)
+        moderate: 1.00    # Base rate for moderate income
+        high: 0.70        # 30% lower opt-out for high income (was 0.60x)
+        executive: 0.50   # 50% lower opt-out for executives (was 0.20x)
+
     # Plan-specific overrides (future enhancement)
     plan_overrides:
       emergency_plan:

@@ -23,6 +23,18 @@ This enterprise-grade platform replaces legacy Pandas-based pipelines with an im
 - **Reproducible Results**: Random seed control for identical simulation outcomes
 - **Scalable Performance**: Handle 100K+ employee records with minimal memory footprint
 
+### Navigator Orchestrator (S038)
+
+This repo includes a lightweight orchestrator package under `navigator_orchestrator/` to standardize configuration, dbt execution, registry management, and data validation:
+
+- `config`: Typed loader and `to_dbt_vars` mapping
+- `utils`: DB connection manager, execution mutex, timers
+- `dbt_runner`: Streaming dbt execution with retry/backoff
+- `registries`: Enrollment and deferral escalation registries
+- `validation`: Rule-based validation with built-in checks
+
+See `navigator_orchestrator/README.md` for usage, and the stories under `docs/stories/` (S038-01…S038-04) for details.
+
 ## Technology Stack
 
 | Layer | Technology | Version | Purpose |
