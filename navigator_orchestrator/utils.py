@@ -95,10 +95,15 @@ class DatabaseConnectionManager:
     def transaction(self) -> Generator[duckdb.DuckDBPyConnection, None, None]:
         conn = self.get_connection()
         try:
+            conn.begin()  # Start explicit transaction
             yield conn
             conn.commit()
         except Exception:
-            conn.rollback()
+            try:
+                conn.rollback()
+            except Exception:
+                # Rollback might fail if no transaction is active
+                pass
             raise
         finally:
             conn.close()
