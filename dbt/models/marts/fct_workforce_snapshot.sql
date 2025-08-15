@@ -256,6 +256,25 @@ unioned_workforce AS (
     WHERE rn = 1
 ),
 
+-- Guardrail: limit NH_{year}_ employees to those with an actual HIRE event
+valid_hire_ids AS (
+    SELECT DISTINCT employee_id
+    FROM current_year_events
+    WHERE event_type = 'hire'
+),
+
+filtered_workforce AS (
+    SELECT uw.*
+    FROM unioned_workforce uw
+    LEFT JOIN valid_hire_ids vh
+      ON uw.employee_id = vh.employee_id
+    WHERE NOT (
+        uw.employee_id LIKE 'NH_{{ simulation_year }}_%'
+        AND vh.employee_id IS NULL
+    )
+),
+
+
 -- **FIX 2**: Apply level_id correction for compensation outside defined ranges
 workforce_with_corrected_levels AS (
     SELECT
@@ -282,7 +301,7 @@ workforce_with_corrected_levels AS (
         uw.termination_date,
         uw.employment_status,
         uw.termination_reason
-    FROM unioned_workforce uw
+    FROM filtered_workforce uw
 ),
 
 -- Pass through the workforce data (terminations already handled correctly)
@@ -300,7 +319,7 @@ final_workforce_corrected AS (
         uw.termination_date,
         uw.employment_status,
         uw.termination_reason
-    FROM workforce_with_corrected_levels uw
+    FROM filtered_workforce uw
 ),
 
 -- Extract eligibility information from baseline (year 1) or events (subsequent years)
@@ -677,15 +696,16 @@ final_workforce AS (
             ELSE '20+'
         END AS tenure_band,
         -- **FIX 1**: Enhanced detailed_status_code logic to handle all edge cases
+        -- Tighten classification: require a hire event in the current year to classify as new_hire_*
         CASE
-            -- Active new hires (hired in current year, still active)
-            WHEN fwc.employment_status = 'active' AND
-                 EXTRACT(YEAR FROM fwc.employee_hire_date) = sp.current_year
+            -- Active new hires: must have a current-year HIRE event
+            WHEN COALESCE(ec.is_new_hire, false) = true
+                 AND fwc.employment_status = 'active'
             THEN 'new_hire_active'
 
-            -- Terminated new hires (hired and terminated in current year)
-            WHEN fwc.employment_status = 'terminated' AND
-                 EXTRACT(YEAR FROM fwc.employee_hire_date) = sp.current_year
+            -- Terminated new hires: must have a current-year HIRE event
+            WHEN COALESCE(ec.is_new_hire, false) = true
+                 AND fwc.employment_status = 'terminated'
             THEN 'new_hire_termination'
 
             -- Active existing employees (hired before current year, still active)
@@ -705,7 +725,7 @@ final_workforce AS (
             WHEN fwc.employee_hire_date IS NULL
             THEN 'continuous_active'  -- Default for NULL hire date
 
-            -- This should now be unreachable, but kept as safeguard
+            -- Fallback: treat as continuous_active
             ELSE 'continuous_active'
         END AS detailed_status_code
     FROM final_workforce_corrected fwc
@@ -748,7 +768,7 @@ final_workforce AS (
         AND contributions.simulation_year = sp.current_year
 ),
 
--- Final workforce with all joins including contributions
+-- Final workforce with all joins including employee and employer contributions
 final_workforce_with_contributions AS (
     SELECT
         fw.*,
@@ -757,11 +777,24 @@ final_workforce_with_contributions AS (
         contributions.total_contribution_base_compensation,
         contributions.first_contribution_date,
         contributions.last_contribution_date,
-        contributions.contribution_quality_flag
+        contributions.contribution_quality_flag,
+        -- Epic E039: Add employer contribution data
+        COALESCE(match_calc.employer_match_amount, 0.0) AS employer_match_amount,
+        COALESCE(core_contrib.employer_core_amount, 0.0) AS employer_core_amount,
+        COALESCE(match_calc.employer_match_amount, 0.0) +
+        COALESCE(core_contrib.employer_core_amount, 0.0) AS total_employer_contributions
     FROM final_workforce fw
     LEFT JOIN {{ ref('int_employee_contributions') }} contributions
         ON fw.employee_id = contributions.employee_id
         AND contributions.simulation_year = fw.simulation_year
+    -- Epic E039: Join employer match calculations
+    LEFT JOIN {{ ref('int_employee_match_calculations') }} match_calc
+        ON fw.employee_id = match_calc.employee_id
+        AND match_calc.simulation_year = fw.simulation_year
+    -- Epic E039: Join employer core contributions
+    LEFT JOIN {{ ref('int_employer_core_contributions') }} core_contrib
+        ON fw.employee_id = core_contrib.employee_id
+        AND core_contrib.simulation_year = fw.simulation_year
 )
 
 SELECT
@@ -837,6 +870,10 @@ SELECT
     first_contribution_date,
     last_contribution_date,
     contribution_quality_flag,
+    -- Epic E039: Add employer contribution columns to workforce snapshot
+    employer_match_amount,
+    employer_core_amount,
+    total_employer_contributions,
     CURRENT_TIMESTAMP AS snapshot_created_at
 FROM final_workforce_with_contributions
 {% if is_incremental() %}

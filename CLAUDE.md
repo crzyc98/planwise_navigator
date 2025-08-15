@@ -222,6 +222,20 @@ dbt build --select stg_census_data int_baseline_workforce --vars "simulation_yea
 dbt build --select int_enrollment_events --vars "simulation_year: 2025"
 dbt build --select fct_yearly_events fct_workforce_snapshot --vars "simulation_year: 2025"
 
+# DuckDB Direct Access (Claude can execute these)
+duckdb simulation.duckdb "SELECT COUNT(*) FROM fct_yearly_events"
+duckdb simulation.duckdb "SELECT * FROM fct_workforce_snapshot WHERE simulation_year = 2025 LIMIT 10"
+duckdb simulation.duckdb "SHOW TABLES"
+
+# Python DuckDB Access (Claude can execute these)
+python -c "
+import duckdb
+conn = duckdb.connect('simulation.duckdb')
+result = conn.execute('SELECT COUNT(*) FROM fct_yearly_events').fetchall()
+print(f'Total events: {result[0][0]}')
+conn.close()
+"
+
 # Streamlit Dashboards
 streamlit run streamlit_dashboard/main.py
 # Or use Make targets for convenience:
@@ -246,6 +260,74 @@ make run-optimization-dashboard                          # Launch optimization d
 dbt run --select validate_enrollment_architecture --vars "simulation_year: 2025"
 # Check for duplicate enrollments across years in fct_yearly_events
 ```
+
+-----
+
+### **7.1. Claude Database Interaction Capabilities**
+
+Claude Code can directly interact with your DuckDB simulation database using multiple methods:
+
+#### **Direct DuckDB CLI Access**
+Claude can execute DuckDB commands via the Bash tool:
+```bash
+# Query simulation data
+duckdb simulation.duckdb "SELECT COUNT(*) FROM fct_yearly_events WHERE simulation_year = 2025"
+
+# Inspect table structure
+duckdb simulation.duckdb "DESCRIBE fct_workforce_snapshot"
+
+# Check database health
+duckdb simulation.duckdb "SHOW TABLES"
+```
+
+#### **Python DuckDB Library Access**
+Claude can run Python scripts that use the DuckDB library:
+```python
+# Data validation scripts
+python -c "
+import duckdb
+conn = duckdb.connect('simulation.duckdb')
+result = conn.execute('SELECT simulation_year, COUNT(*) FROM fct_yearly_events GROUP BY simulation_year').fetchall()
+for year, count in result:
+    print(f'Year {year}: {count} events')
+conn.close()
+"
+```
+
+#### **Data Quality Monitoring**
+Claude can proactively monitor data quality:
+```bash
+# Check for data anomalies
+duckdb simulation.duckdb "
+SELECT
+    simulation_year,
+    COUNT(CASE WHEN event_type = 'hire' THEN 1 END) as hires,
+    COUNT(CASE WHEN event_type = 'termination' THEN 1 END) as terminations
+FROM fct_yearly_events
+GROUP BY simulation_year
+ORDER BY simulation_year
+"
+```
+
+#### **Integration with dbt Models**
+Claude can verify dbt model outputs and troubleshoot issues:
+```bash
+# Validate model results after dbt run
+duckdb simulation.duckdb "
+SELECT
+    COUNT(*) as total_employees,
+    COUNT(CASE WHEN enrollment_date IS NOT NULL THEN 1 END) as enrolled_count
+FROM fct_workforce_snapshot
+WHERE simulation_year = 2025
+"
+```
+
+This enables Claude to:
+- **Debug simulation issues** by querying raw data
+- **Validate data transformations** after dbt runs
+- **Monitor data quality** across simulation years
+- **Investigate performance issues** with query analysis
+- **Provide real-time insights** during development
 
 -----
 

@@ -2,38 +2,41 @@
   "year": 2029,
   "workforce_breakdown": {
     "year": 2029,
-    "total_employees": 5899,
-    "active_employees": 5063,
+    "total_employees": 5909,
+    "active_employees": 5072,
     "breakdown_by_status": {
-      "continuous_active": 4326,
-      "new_hire_active": 737,
-      "experienced_termination": 590,
+      "continuous_active": 4332,
+      "new_hire_active": 740,
+      "experienced_termination": 591,
       "new_hire_termination": 246
     },
-    "participation_rate": 0.9401540588583843
+    "participation_rate": 0.7440851735015773
   },
   "event_summary": {
     "year": 2029,
-    "total_events": 5381,
+    "total_events": 9497,
     "events_by_type": {
-      "enrollment": 3413,
-      "hire": 983,
-      "termination": 836,
-      "enrollment_change": 149
+      "raise": 4923,
+      "deferral_escalation": 1109,
+      "hire": 986,
+      "enrollment": 986,
+      "termination": 837,
+      "promotion": 602,
+      "enrollment_change": 54
     },
-    "hire_termination_ratio": 1.1758373205741626
+    "hire_termination_ratio": 1.1780167264038233
   },
   "growth_analysis": {
-    "previous_active": 4916,
-    "current_active": 5063,
-    "net_growth": 147,
-    "growth_pct": 2.9902359641985354
+    "previous_active": 4923,
+    "current_active": 5072,
+    "net_growth": 149,
+    "growth_pct": 3.026609790777981
   },
   "contribution_summary": {
-    "enrolled_employees_active_eoy": 4760,
-    "total_contributions_active_eoy": 40315780.0,
-    "avg_contribution_active_eoy": 8470.0,
-    "avg_deferral_rate_active_eoy": 5.0
+    "enrolled_employees_active_eoy": 4332,
+    "total_contributions_active_eoy": 48525418.0,
+    "avg_contribution_active_eoy": 11202.0,
+    "avg_deferral_rate_active_eoy": 6.7
   },
   "data_quality_results": [
     {
@@ -42,9 +45,9 @@
       "passed": true,
       "message": "Hire/termination ratio: 1.18 (PASS)",
       "details": {
-        "hires": 983,
-        "terminations": 836,
-        "ratio": 1.1758373205741626,
+        "hires": 986,
+        "terminations": 837,
+        "ratio": 1.1780167264038233,
         "min_ratio": 0.3,
         "max_ratio": 3.0
       },
@@ -61,5 +64,5 @@
       "affected_records": null
     }
   ],
-  "generated_at": "2025-08-13T15:32:59.847294"
+  "generated_at": "2025-08-15T02:30:38.719324"
 }
