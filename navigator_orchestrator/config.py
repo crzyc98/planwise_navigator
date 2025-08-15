@@ -276,4 +276,51 @@ def to_dbt_vars(cfg: SimulationConfig) -> Dict[str, Any]:
         if cfg.workforce.new_hire_termination_rate is not None:
             dbt_vars["new_hire_termination_rate"] = cfg.workforce.new_hire_termination_rate
 
+    # Deferral auto-escalation (E035 - simplified)
+    try:
+        dae = getattr(cfg, 'deferral_auto_escalation', None)
+        if isinstance(dae, dict):
+            if 'enabled' in dae:
+                dbt_vars['deferral_escalation_enabled'] = bool(dae['enabled'])
+            if 'effective_day' in dae and dae['effective_day']:
+                # MM-DD string
+                dbt_vars['deferral_escalation_effective_mmdd'] = str(dae['effective_day'])
+            if 'increment_amount' in dae and dae['increment_amount'] is not None:
+                dbt_vars['deferral_escalation_increment'] = float(dae['increment_amount'])
+            if 'maximum_rate' in dae and dae['maximum_rate'] is not None:
+                dbt_vars['deferral_escalation_cap'] = float(dae['maximum_rate'])
+            if 'hire_date_cutoff' in dae and dae['hire_date_cutoff']:
+                dbt_vars['deferral_escalation_hire_date_cutoff'] = str(dae['hire_date_cutoff'])
+            if 'require_active_enrollment' in dae:
+                dbt_vars['deferral_escalation_require_enrollment'] = bool(dae['require_active_enrollment'])
+    except Exception:
+        pass
+
+    # Deferral baseline mode (Option A default: frozen)
+    try:
+        db = getattr(cfg, 'deferral_baseline', None)
+        if isinstance(db, dict) and 'mode' in db and db['mode']:
+            dbt_vars['deferral_baseline_mode'] = str(db['mode']).lower()
+        else:
+            dbt_vars['deferral_baseline_mode'] = 'frozen'
+    except Exception:
+        dbt_vars['deferral_baseline_mode'] = 'frozen'
+
+    # Employer match configuration (E039)
+    # Map YAML employer_match block to dbt vars expected by match calculations
+    try:
+        employer = getattr(cfg, 'employer_match', None)
+        if employer:
+            # employer is likely a dict due to extra=allow
+            active = employer.get('active_formula')
+            formulas = employer.get('formulas')
+            if active is not None:
+                dbt_vars["active_match_formula"] = str(active)
+            if formulas is not None:
+                # Pass the full formulas mapping (JSON-serializable)
+                dbt_vars["match_formulas"] = formulas
+    except Exception:
+        # Non-fatal: fall back to model defaults
+        pass
+
     return dbt_vars

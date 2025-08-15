@@ -1,6 +1,7 @@
 {{ config(
     materialized='incremental',
-    unique_key=['event_id'],
+    incremental_strategy='delete+insert',
+    unique_key=['employee_id', 'simulation_year'],
     on_schema_change='sync_all_columns',
     indexes=[
         {'columns': ['simulation_year', 'employee_id'], 'type': 'btree'},
@@ -26,22 +27,17 @@
 {% set simulation_year = var('simulation_year', 2025) | int %}
 
 WITH match_calculations AS (
-    SELECT * FROM {{ ref('int_employee_match_calculations') }}
-    {% if is_incremental() %}
-    WHERE simulation_year > (SELECT COALESCE(MAX(simulation_year), 0) FROM {{ this }})
-    {% endif %}
+    -- Target the current simulation year explicitly to avoid accidental skips
+    -- when the target table already contains future years.
+    SELECT *
+    FROM {{ ref('int_employee_match_calculations') }}
+    WHERE simulation_year = {{ simulation_year }}
 ),
 
 match_events AS (
     SELECT
-        -- Generate unique event ID using employee_id, year, and a hash component
-        MD5(CONCAT(
-            employee_id::VARCHAR,
-            '-MATCH-',
-            simulation_year::VARCHAR,
-            '-',
-            CURRENT_TIMESTAMP::VARCHAR
-        )) AS event_id,
+        -- Deterministic unique event ID per employee/year for idempotent re-runs
+        MD5(CONCAT(employee_id::VARCHAR, '-MATCH-', simulation_year::VARCHAR)) AS event_id,
         employee_id,
         'EMPLOYER_MATCH' AS event_type,
         simulation_year,

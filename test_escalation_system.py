@@ -252,11 +252,11 @@ class EscalationSystemTester:
         query = f"""
         SELECT COUNT(*) as rate_mismatches
         FROM int_employee_contributions c
-        JOIN int_deferral_escalation_state_accumulator e
+        JOIN int_deferral_rate_state_accumulator e
           ON c.employee_id = e.employee_id
           AND c.simulation_year = e.simulation_year
         WHERE c.simulation_year = {year}
-          AND ABS(c.effective_deferral_rate - e.current_deferral_rate) > 0.001
+          AND ABS(c.effective_annual_deferral_rate - e.current_deferral_rate) > 0.001
         """
         result = self.run_query(query, f"Contribution rate consistency for {year}")
         if result and result[0][0] == 0:
@@ -281,8 +281,8 @@ class EscalationSystemTester:
         SELECT
             curr.simulation_year,
             COUNT(*) as employees,
-            SUM(CASE WHEN curr.total_escalations > prev.total_escalations THEN 1 ELSE 0 END) as escalation_increases,
-            SUM(CASE WHEN curr.total_escalations < prev.total_escalations THEN 1 ELSE 0 END) as escalation_decreases
+            SUM(CASE WHEN curr.escalations_received > prev.escalations_received THEN 1 ELSE 0 END) as escalation_increases,
+            SUM(CASE WHEN curr.escalations_received < prev.escalations_received THEN 1 ELSE 0 END) as escalation_decreases
         FROM int_deferral_escalation_state_accumulator curr
         JOIN int_deferral_escalation_state_accumulator prev
           ON curr.employee_id = prev.employee_id
@@ -307,9 +307,10 @@ class EscalationSystemTester:
             COUNT(*) as employees,
             AVG(curr.current_deferral_rate - prev.current_deferral_rate) as avg_rate_change,
             SUM(CASE WHEN curr.current_deferral_rate < prev.current_deferral_rate
-                     AND curr.had_escalation_this_year = false THEN 1 ELSE 0 END) as rate_reversions
-        FROM int_deferral_escalation_state_accumulator curr
-        JOIN int_deferral_escalation_state_accumulator prev
+                     AND curr.had_escalation_this_year = false
+                     AND curr.is_enrolled_flag = true THEN 1 ELSE 0 END) as rate_reversions
+        FROM int_deferral_rate_state_accumulator curr
+        JOIN int_deferral_rate_state_accumulator prev
           ON curr.employee_id = prev.employee_id
          AND curr.simulation_year = prev.simulation_year + 1
         WHERE curr.simulation_year BETWEEN 2026 AND 2029
@@ -464,9 +465,9 @@ class EscalationSystemTester:
         # Test 7.1: Employees at maximum rate don't get further escalations
         query = """
         SELECT COUNT(*) as over_escalated
-        FROM int_deferral_escalation_state_accumulator
+        FROM int_deferral_rate_state_accumulator
         WHERE simulation_year = 2029  -- Final year
-          AND current_deferral_rate > max_escalation_rate
+          AND current_deferral_rate > max_rate
         """
         result = self.run_query(query, "Maximum rate enforcement")
         if result and result[0][0] == 0:

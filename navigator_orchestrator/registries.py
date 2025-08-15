@@ -172,6 +172,16 @@ class EnrollmentRegistry(Registry, TransactionalRegistry):
         ]
         return self.execute_transaction(ops)
 
+    def reset(self) -> bool:
+        """Clear all rows to start a fresh simulation run.
+
+        Registries are orchestrator-managed and not partitioned by simulation_year,
+        so we need an explicit reset between runs to avoid stale state.
+        """
+        return self.execute_transaction([
+            "DELETE FROM enrollment_registry"
+        ])
+
     def update_post_year(self, year: int) -> bool:
         ops = [self.sql.render_template(self.sql.ENROLLMENT_REGISTRY_FROM_EVENTS, year=year)]
         return self.execute_transaction(ops)
@@ -250,6 +260,11 @@ class DeferralEscalationRegistry(Registry, TransactionalRegistry):
 
     def create_table(self) -> bool:
         return self.execute_transaction([self.sql.DEFERRAL_ESCALATION_CREATE])
+
+    def reset(self) -> bool:
+        return self.execute_transaction([
+            "DELETE FROM deferral_escalation_registry"
+        ])
 
     def update_post_year(self, year: int) -> bool:
         ops = [
