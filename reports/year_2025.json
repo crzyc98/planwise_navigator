@@ -10,7 +10,7 @@
       "experienced_termination": 524,
       "new_hire_termination": 218
     },
-    "participation_rate": 0.6780715396578538
+    "participation_rate": 0.8151521884025772
   },
   "event_summary": {
     "year": 2025,
@@ -63,5 +63,5 @@
       "affected_records": null
     }
   ],
-  "generated_at": "2025-08-15T19:33:07.432687"
+  "generated_at": "2025-08-15T19:47:18.487466"
 }
