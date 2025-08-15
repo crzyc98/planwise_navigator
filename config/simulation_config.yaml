@@ -5,6 +5,7 @@ simulation:
   random_seed: 42
   target_growth_rate: 0.03
 
+
 # Setup configuration for orchestrator_dbt
 setup:
   clear_tables: true

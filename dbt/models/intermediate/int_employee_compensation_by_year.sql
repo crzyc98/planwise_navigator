@@ -26,7 +26,8 @@
 {% set is_first_year = (simulation_year == start_year) %}
 
 {% if is_first_year %}
--- Year 1: Use baseline workforce compensation
+-- Year 1: Union baseline workforce with new hires to fix circular dependency
+-- Baseline workforce (existing employees)
 SELECT
     {{ simulation_year }} AS simulation_year,
     employee_id,
@@ -49,6 +50,30 @@ SELECT
     FALSE AS has_compensation_events
 FROM {{ ref('int_baseline_workforce') }}
 WHERE employment_status = 'active'
+
+UNION ALL
+
+-- New hires for Year 1 (from staging model to break circular dependency)
+SELECT
+    simulation_year,
+    employee_id,
+    employee_ssn,
+    employee_birth_date,
+    employee_hire_date,
+    employee_compensation,
+    current_age,
+    current_tenure,
+    level_id,
+    age_band,
+    tenure_band,
+    employment_status,
+    employee_enrollment_date,
+    is_enrolled_flag,
+    data_source,
+    starting_year_compensation,
+    ending_year_compensation,
+    has_compensation_events
+FROM {{ ref('int_new_hire_compensation_staging') }}
 
 {% else %}
 -- Subsequent years: Use helper model to avoid circular dependency
