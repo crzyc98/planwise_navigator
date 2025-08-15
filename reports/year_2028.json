@@ -18,8 +18,8 @@
     "events_by_type": {
       "raise": 4778,
       "deferral_escalation": 973,
-      "hire": 957,
       "enrollment": 957,
+      "hire": 957,
       "termination": 812,
       "promotion": 563,
       "enrollment_change": 63
@@ -34,7 +34,7 @@
   },
   "contribution_summary": {
     "enrolled_employees_active_eoy": 4205,
-    "total_contributions_active_eoy": 41228710.0,
+    "total_contributions_active_eoy": 41227934.0,
     "avg_contribution_active_eoy": 9805.0,
     "avg_deferral_rate_active_eoy": 6.1
   },
@@ -64,5 +64,5 @@
       "affected_records": null
     }
   ],
-  "generated_at": "2025-08-15T02:29:51.500673"
+  "generated_at": "2025-08-15T19:35:09.281564"
 }
