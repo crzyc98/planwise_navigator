@@ -37,7 +37,7 @@ def _build_validator(db: DatabaseConnectionManager) -> DataValidator:
 
 def cmd_run(args: argparse.Namespace) -> int:
     cfg = load_simulation_config(Path(args.config) if args.config else Path("config/simulation_config.yaml"))
-    db = DatabaseConnectionManager(Path(args.database) if args.database else Path("simulation.duckdb"))
+    db = DatabaseConnectionManager(Path(args.database) if args.database else Path("dbt/simulation.duckdb"))
     runner = DbtRunner(threads=args.threads or 4, executable=("echo" if args.dry_run else "dbt"), verbose=bool(args.verbose))
     registries = RegistryManager(db)
     dv = _build_validator(db)
@@ -70,7 +70,7 @@ def cmd_validate(args: argparse.Namespace) -> int:
 
 def cmd_checkpoint(args: argparse.Namespace) -> int:
     cfg = load_simulation_config(Path(args.config) if args.config else Path("config/simulation_config.yaml"))
-    db = DatabaseConnectionManager(Path(args.database) if args.database else Path("simulation.duckdb"))
+    db = DatabaseConnectionManager(Path(args.database) if args.database else Path("dbt/simulation.duckdb"))
     runner = DbtRunner(executable="echo")
     registries = RegistryManager(db)
     dv = _build_validator(db)

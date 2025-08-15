@@ -17,8 +17,8 @@
     "total_events": 6558,
     "events_by_type": {
       "raise": 3557,
-      "hire": 875,
       "enrollment": 875,
+      "hire": 875,
       "termination": 742,
       "promotion": 455,
       "enrollment_change": 54
@@ -63,5 +63,5 @@
       "affected_records": null
     }
   ],
-  "generated_at": "2025-08-15T02:27:29.197204"
+  "generated_at": "2025-08-15T13:28:53.296783"
 }

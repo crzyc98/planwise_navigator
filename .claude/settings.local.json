@@ -344,7 +344,11 @@
       "Bash(/Users/nicholasamaral/planwise_navigator/venv/bin/dbt run --select int_employee_match_calculations --vars \"simulation_year: 2025\")",
       "Bash(/Users/nicholasamaral/planwise_navigator/venv/bin/dbt ls --models int_workforce_snapshot_optimized)",
       "Bash(/Users/nicholasamaral/planwise_navigator/venv/bin/dbt run --select int_workforce_snapshot_optimized --vars \"simulation_year: 2025\")",
-      "Bash(/Users/nicholasamaral/planwise_navigator/venv/bin/dbt run --select fct_yearly_events --full-refresh --project-dir /Users/nicholasamaral/planwise_navigator/dbt)"
+      "Bash(/Users/nicholasamaral/planwise_navigator/venv/bin/dbt run --select fct_yearly_events --full-refresh --project-dir /Users/nicholasamaral/planwise_navigator/dbt)",
+      "Bash(/Users/nicholasamaral/planwise_navigator/venv/bin/dbt run --select int_new_hire_compensation_staging int_employee_compensation_by_year --vars \"simulation_year: 2025\" --project-dir /Users/nicholasamaral/planwise_navigator/dbt)",
+      "Bash(/Users/nicholasamaral/planwise_navigator/venv/bin/dbt list --models staging)",
+      "Bash(/Users/nicholasamaral/planwise_navigator/venv/bin/dbt list --models int_baseline_workforce)",
+      "Bash(/Users/nicholasamaral/planwise_navigator/venv/bin/dbt compile --select int_deferral_rate_state_accumulator --vars \"simulation_year: 2025\")"
     ],
     "deny": []
   }

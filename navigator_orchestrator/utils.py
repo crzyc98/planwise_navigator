@@ -86,7 +86,7 @@ class DatabaseConnectionManager:
     - Keeps surface minimal; can be extended for pooling if needed.
     """
 
-    db_path: Path = Path("simulation.duckdb")
+    db_path: Path = Path("dbt/simulation.duckdb")
 
     def get_connection(self) -> duckdb.DuckDBPyConnection:
         return duckdb.connect(str(self.db_path))
@@ -95,10 +95,15 @@ class DatabaseConnectionManager:
     def transaction(self) -> Generator[duckdb.DuckDBPyConnection, None, None]:
         conn = self.get_connection()
         try:
+            conn.begin()  # Start explicit transaction
             yield conn
             conn.commit()
         except Exception:
-            conn.rollback()
+            try:
+                conn.rollback()
+            except Exception:
+                # Rollback might fail if no transaction is active
+                pass
             raise
         finally:
             conn.close()
