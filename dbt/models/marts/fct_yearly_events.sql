@@ -16,26 +16,12 @@
 -- - Enables year-over-year workforce transition analysis
 -- - Use simulation_year variable to filter for specific years when needed
 
-WITH termination_events AS (
-  SELECT
-    employee_id,
-    employee_ssn,
-    event_type,
-    simulation_year,
-    effective_date,
-    termination_reason AS event_details,
-    final_compensation AS compensation_amount,
-    NULL AS previous_compensation,
-    NULL::decimal(5,4) AS employee_deferral_rate,
-    NULL::decimal(5,4) AS prev_employee_deferral_rate,
-    current_age AS employee_age,
-    current_tenure AS employee_tenure,
-    level_id,
-    age_band,
-    tenure_band,
-    termination_rate AS event_probability,
-    'experienced_termination' AS event_category
-  FROM {{ ref('int_termination_events') }}
+WITH nh_termination_base AS (
+  SELECT t.*, ROW_NUMBER() OVER (
+      PARTITION BY employee_id, simulation_year
+      ORDER BY effective_date DESC
+  ) AS rn
+  FROM {{ ref('int_new_hire_termination_events') }} t
   {%- if simulation_year %}
   WHERE simulation_year = {{ simulation_year }}
   {%- endif %}
@@ -60,11 +46,47 @@ new_hire_termination_events AS (
     tenure_band,
     termination_rate AS event_probability,
     'new_hire_termination' AS event_category
-  FROM {{ ref('int_new_hire_termination_events') }}
+  FROM nh_termination_base
+  WHERE rn = 1
+),
+
+termination_base AS (
+  SELECT t.*, ROW_NUMBER() OVER (
+      PARTITION BY employee_id, simulation_year
+      ORDER BY effective_date DESC
+  ) AS rn
+  FROM {{ ref('int_termination_events') }} t
   {%- if simulation_year %}
   WHERE simulation_year = {{ simulation_year }}
   {%- endif %}
 ),
+
+termination_events AS (
+  SELECT
+    employee_id,
+    employee_ssn,
+    event_type,
+    simulation_year,
+    effective_date,
+    termination_reason AS event_details,
+    final_compensation AS compensation_amount,
+    NULL AS previous_compensation,
+    NULL::decimal(5,4) AS employee_deferral_rate,
+    NULL::decimal(5,4) AS prev_employee_deferral_rate,
+    current_age AS employee_age,
+    current_tenure AS employee_tenure,
+    level_id,
+    age_band,
+    tenure_band,
+    termination_rate AS event_probability,
+    'experienced_termination' AS event_category
+  FROM termination_base tb
+  WHERE tb.rn = 1
+    AND tb.employee_id NOT IN (
+      SELECT employee_id FROM new_hire_termination_events
+    )
+),
+
 
 promotion_events AS (
   SELECT
@@ -118,10 +140,17 @@ hiring_events AS (
     '< 2' AS tenure_band, -- All new hires start in lowest tenure band
     NULL AS event_probability, -- Hiring is deterministic based on departures
     'hiring' AS event_category
-  FROM {{ ref('int_hiring_events') }}
-  {%- if simulation_year %}
-  WHERE simulation_year = {{ simulation_year }}
-  {%- endif %}
+  FROM (
+    SELECT h.*, ROW_NUMBER() OVER (
+      PARTITION BY employee_id, simulation_year
+      ORDER BY effective_date ASC
+    ) AS rn
+    FROM {{ ref('int_hiring_events') }} h
+    {%- if simulation_year %}
+    WHERE simulation_year = {{ simulation_year }}
+    {%- endif %}
+  )
+  WHERE rn = 1
 ),
 
 merit_events AS (

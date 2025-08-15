@@ -1,5 +1,8 @@
 {{ config(
-    materialized='table',
+    materialized='incremental',
+    unique_key=['employee_id', 'simulation_year'],
+    incremental_strategy='delete+insert',
+    on_schema_change='sync_all_columns',
     indexes=[
         {'columns': ['simulation_year'], 'type': 'btree'},
         {'columns': ['employee_id', 'simulation_year'], 'type': 'btree'}
@@ -68,5 +71,10 @@ LEFT JOIN (
     GROUP BY stg_inner.employee_id
 ) level_match ON stg.employee_id = level_match.employee_id
 WHERE stg.employee_termination_date IS NULL
+
+{% if is_incremental() %}
+    -- Note: This model generates baseline data for the current simulation_year only
+    -- No additional filtering needed as baseline is created fresh for each year
+{% endif %}
 
 ORDER BY stg.employee_id
