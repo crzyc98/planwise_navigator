@@ -1,6 +1,133 @@
 version: 2
 
 models:
+  - name: int_employer_eligibility
+    description: >
+      MVP employer contribution eligibility determination model.
+      Implements simple active employment and standard hours logic
+      for both match and core contribution eligibility.
+    config:
+      tags: ["employer_contributions", "eligibility", "foundation", "mvp"]
+    columns:
+      - name: employee_id
+        description: Unique employee identifier
+        data_tests:
+          - not_null
+          - relationships:
+              to: ref('int_baseline_workforce')
+              field: employee_id
+      - name: simulation_year
+        description: Simulation year for eligibility determination
+        data_tests:
+          - not_null
+          - accepted_values:
+              values: [2025, 2026, 2027, 2028, 2029]
+      - name: employment_status
+        description: Current employment status
+        data_tests:
+          - not_null
+          - accepted_values:
+              values: ['active', 'terminated']
+      - name: annual_hours_worked
+        description: Annual hours worked (2080 for active, 0 for terminated)
+        data_tests:
+          - not_null
+          - dbt_utils.accepted_range:
+              min_value: 0
+              max_value: 3000
+      - name: eligible_for_contributions
+        description: Combined eligibility flag for employer contributions
+        data_tests:
+          - not_null
+          - accepted_values:
+              values: [true, false]
+      - name: eligible_for_match
+        description: Eligibility flag for employer match contributions
+        data_tests:
+          - not_null
+          - accepted_values:
+              values: [true, false]
+      - name: eligible_for_core
+        description: Eligibility flag for employer core contributions
+        data_tests:
+          - not_null
+          - accepted_values:
+              values: [true, false]
+    data_tests:
+      - unique:
+          column_name: "employee_id || '_' || simulation_year"
+      - dbt_utils.expression_is_true:
+          expression: "employment_status = 'active' OR (employment_status != 'active' AND NOT eligible_for_contributions)"
+          config:
+            severity: error
+      - dbt_utils.expression_is_true:
+          expression: "annual_hours_worked >= 1000 OR NOT eligible_for_contributions"
+          config:
+            severity: error
+
+  - name: int_employer_core_contributions
+    description: >
+      MVP employer core (non-elective) contribution calculation model.
+      Implements simple 2% flat rate for eligible employees based on
+      compensation and eligibility determination.
+    config:
+      tags: ["employer_contributions", "core_contributions", "mvp"]
+    columns:
+      - name: employee_id
+        description: Unique employee identifier
+        data_tests:
+          - not_null
+          - relationships:
+              to: ref('int_employee_compensation_by_year')
+              field: employee_id
+      - name: simulation_year
+        description: Simulation year for contribution calculation
+        data_tests:
+          - not_null
+          - accepted_values:
+              values: [2025, 2026, 2027, 2028, 2029]
+      - name: eligible_compensation
+        description: Compensation used for contribution calculation
+        data_tests:
+          - not_null
+          - dbt_utils.accepted_range:
+              min_value: 0
+              max_value: 20000000
+      - name: employer_core_amount
+        description: Calculated employer core contribution amount
+        data_tests:
+          - not_null
+          - dbt_utils.accepted_range:
+              min_value: 0
+              max_value: 400000
+      - name: core_contribution_rate
+        description: Applied contribution rate (0.02 for eligible, 0 for ineligible)
+        data_tests:
+          - not_null
+          - accepted_values:
+              values: [0.00, 0.02]
+      - name: eligible_for_core
+        description: Core contribution eligibility flag
+        data_tests:
+          - not_null
+          - accepted_values:
+              values: [true, false]
+    data_tests:
+      - unique:
+          column_name: "employee_id || '_' || simulation_year"
+      - dbt_utils.expression_is_true:
+          expression: "eligible_for_core = true OR (eligible_for_core = false AND employer_core_amount = 0)"
+          config:
+            severity: error
+      - dbt_utils.expression_is_true:
+          expression: "eligible_compensation > 0 OR employer_core_amount = 0"
+          config:
+            severity: error
+      - dbt_utils.expression_is_true:
+          expression: "ABS(employer_core_amount - (eligible_compensation * core_contribution_rate)) < 0.01"
+          config:
+            severity: error
+
   - name: int_deferral_rate_state_accumulator
     description: >
       Temporal state accumulator for employee deferral rates across simulation years.

@@ -25,7 +25,7 @@
 -- Get match formula configuration from variables
 -- These variables should be passed from the orchestrator which reads from simulation_config.yaml
 -- Fallback values match the default configuration in simulation_config.yaml
-{% set active_formula = var('active_match_formula', 'tiered_match') %}
+{% set active_formula = var('active_match_formula', 'simple_match') %}
 {% set match_formulas = var('match_formulas', {
     'simple_match': {
         'name': 'Simple Match',
@@ -66,7 +66,7 @@
 -- Formula type: {{ match_formulas[active_formula]['type'] }}
 
 WITH employee_contributions AS (
-    -- Get employee contribution data including deferral rates and compensation
+    -- Get ALL employee contribution data (including non-enrolled with 0 contributions)
     SELECT
         ec.employee_id,
         ec.simulation_year,
@@ -79,8 +79,7 @@ WITH employee_contributions AS (
         ec.employment_status
     FROM {{ ref('int_employee_contributions') }}  ec
     WHERE ec.simulation_year = {{ simulation_year }}
-        AND ec.is_enrolled_flag = true
-        AND ec.prorated_annual_compensation > 0
+        AND ec.employee_id IS NOT NULL
 ),
 
 {% if match_formulas[active_formula]['type'] == 'simple' %}
@@ -92,14 +91,16 @@ simple_match AS (
         eligible_compensation,
         deferral_rate,
         annual_deferrals,
-        -- Simple percentage match
-        annual_deferrals * {{ match_formulas[active_formula]['match_rate'] }} AS match_amount,
+        -- Simple percentage match with correct cap semantics:
+        -- Employer match = match_rate * min(deferral_rate, max_match_percentage) * eligible_compensation,
+        -- but never more than match_rate * (max_match_percentage * eligible_compensation)
+        -- Using annual_deferrals ensures match is based on actual deferrals made (IRS-limited when applicable)
+        LEAST(
+            annual_deferrals * {{ match_formulas[active_formula]['match_rate'] }},
+            (eligible_compensation * {{ match_formulas[active_formula]['max_match_percentage'] }}) * {{ match_formulas[active_formula]['match_rate'] }}
+        ) AS match_amount,
         'simple' AS formula_type
     FROM employee_contributions
-),
-
-all_matches AS (
-    SELECT * FROM simple_match
 ),
 
 {% elif match_formulas[active_formula]['type'] == 'tiered' %}
@@ -138,13 +139,15 @@ tiered_match AS (
              ec.deferral_rate, ec.annual_deferrals
 ),
 
-all_matches AS (
-    SELECT * FROM tiered_match
-),
+{% endif %}
 
-{% else %}
--- Default to no match if formula type is not recognized
+-- Unified all_matches CTE - selects from the appropriate match calculation above
 all_matches AS (
+    {% if match_formulas[active_formula]['type'] == 'simple' %}
+    SELECT * FROM simple_match
+    {% elif match_formulas[active_formula]['type'] == 'tiered' %}
+    SELECT * FROM tiered_match
+    {% else %}
     SELECT
         employee_id,
         simulation_year,
@@ -154,9 +157,8 @@ all_matches AS (
         0 AS match_amount,
         'none' AS formula_type
     FROM employee_contributions
+    {% endif %}
 ),
-
-{% endif %}
 
 -- Apply match caps
 final_match AS (
@@ -167,17 +169,24 @@ final_match AS (
         deferral_rate,
         annual_deferrals,
         formula_type,
-        -- Apply maximum match cap
+        -- Apply maximum match cap. For 'simple', cap is match_rate × (max matched deferral % × comp).
+        -- For 'tiered' and other types, cap is employer % of comp directly.
         LEAST(
             match_amount,
-            eligible_compensation * {{ match_formulas[active_formula]['max_match_percentage'] }}
+            CASE
+                WHEN formula_type = 'simple' THEN
+                    (eligible_compensation * {{ match_formulas[active_formula]['max_match_percentage'] }}) * {{ match_formulas[active_formula]['match_rate'] }}
+                ELSE
+                    eligible_compensation * {{ match_formulas[active_formula]['max_match_percentage'] }}
+            END
         ) AS employer_match_amount,
         -- Track if cap was applied
         CASE
-            WHEN match_amount > eligible_compensation * {{ match_formulas[active_formula]['max_match_percentage'] }}
-            THEN true
-            ELSE false
-        END AS match_cap_applied,
+            WHEN formula_type = 'simple' THEN
+                match_amount > (eligible_compensation * {{ match_formulas[active_formula]['max_match_percentage'] }}) * {{ match_formulas[active_formula]['match_rate'] }}
+            ELSE
+                match_amount > eligible_compensation * {{ match_formulas[active_formula]['max_match_percentage'] }}
+            END AS match_cap_applied,
         -- Calculate uncapped match for analysis
         match_amount AS uncapped_match_amount
     FROM all_matches

@@ -320,6 +320,48 @@ dbt run --vars "simulation_year: 2025"
 python orchestrator_mvp/run_mvp.py --multi-year
 ```
 
+### Database Interaction (Claude Capabilities)
+
+Claude can directly interact with your DuckDB simulation database:
+
+#### **Direct DuckDB Queries**
+```bash
+# Query from project root (where simulation.duckdb lives)
+cd ..  # Go to project root from /dbt directory
+duckdb simulation.duckdb "SELECT COUNT(*) FROM fct_yearly_events"
+duckdb simulation.duckdb "SELECT * FROM fct_workforce_snapshot WHERE simulation_year = 2025 LIMIT 5"
+```
+
+#### **Python Database Access**
+```bash
+# Python scripts for data validation
+python -c "
+import duckdb
+import os
+os.chdir('..')  # Go to project root
+conn = duckdb.connect('simulation.duckdb')
+tables = conn.execute('SHOW TABLES').fetchall()
+print('Available tables:', [t[0] for t in tables])
+conn.close()
+"
+```
+
+#### **Model Validation Queries**
+```bash
+# Validate dbt model results
+duckdb ../simulation.duckdb "
+SELECT
+    model_name,
+    COUNT(*) as row_count
+FROM (
+    SELECT 'fct_yearly_events' as model_name FROM fct_yearly_events
+    UNION ALL
+    SELECT 'fct_workforce_snapshot' as model_name FROM fct_workforce_snapshot
+)
+GROUP BY model_name
+"
+```
+
 ### Documentation
 ```bash
 # Generate docs
@@ -409,6 +451,56 @@ dbt --debug run --select problematic_model
 
 # Profile query performance
 dbt run --select model_name --profiles-dir profiles/
+```
+
+### Claude-Assisted Debugging
+
+Claude can help debug dbt models by directly querying the database:
+
+```bash
+# Check model output after dbt run
+duckdb ../simulation.duckdb "SELECT COUNT(*), MIN(simulation_year), MAX(simulation_year) FROM fct_yearly_events"
+
+# Investigate data quality issues
+duckdb ../simulation.duckdb "
+SELECT
+    simulation_year,
+    event_type,
+    COUNT(*) as event_count
+FROM fct_yearly_events
+GROUP BY simulation_year, event_type
+ORDER BY simulation_year, event_type
+"
+
+# Check for missing data
+duckdb ../simulation.duckdb "
+SELECT
+    COUNT(*) as total_employees,
+    COUNT(enrollment_date) as employees_with_enrollment,
+    COUNT(*) - COUNT(enrollment_date) as missing_enrollment_dates
+FROM fct_workforce_snapshot
+WHERE simulation_year = 2025
+"
+```
+
+Claude can also run Python scripts to perform advanced diagnostics:
+```python
+python -c "
+import duckdb
+import os
+os.chdir('..')  # Navigate to project root
+conn = duckdb.connect('simulation.duckdb')
+
+# Check data consistency across tables
+events_count = conn.execute('SELECT COUNT(DISTINCT employee_id) FROM fct_yearly_events WHERE simulation_year = 2025').fetchone()[0]
+snapshot_count = conn.execute('SELECT COUNT(DISTINCT employee_id) FROM fct_workforce_snapshot WHERE simulation_year = 2025').fetchone()[0]
+
+print(f'Unique employees in events: {events_count}')
+print(f'Unique employees in snapshot: {snapshot_count}')
+print(f'Difference: {abs(events_count - snapshot_count)}')
+
+conn.close()
+"
 ```
 
 ---

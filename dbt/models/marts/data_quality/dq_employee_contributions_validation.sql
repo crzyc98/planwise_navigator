@@ -98,28 +98,39 @@ rate_consistency_violations AS (
       AND prorated_annual_contributions > 0
 ),
 
+-- Get dynamic IRS limits for validation year
+irs_limits_for_validation AS (
+    SELECT
+        limit_year,
+        base_limit,
+        catch_up_limit,
+        catch_up_age_threshold
+    FROM {{ ref('irs_contribution_limits') }}
+    WHERE limit_year = (SELECT current_year FROM simulation_parameters)
+),
+
 -- Validation 3: IRS 402(g) limit validation - Should be ZERO with new enforcement
 irs_limit_violations AS (
     SELECT
-        employee_id,
-        simulation_year,
+        w.employee_id,
+        w.simulation_year,
         'irs_402g_limit_exceeded' AS validation_rule,
         'CRITICAL' AS severity,
         CONCAT(
-            'Employee ', employee_id, ' (age ', current_age, ') ',
-            'CRITICAL: IRS limit bypass detected: $', ROUND(prorated_annual_contributions, 2),
-            ' > $',
-            CASE WHEN current_age >= 50 THEN '31,000' ELSE '23,500' END,
+            'Employee ', w.employee_id, ' (age ', w.current_age, ') ',
+            'CRITICAL: IRS limit bypass detected: $', ROUND(w.prorated_annual_contributions, 2),
+            ' > $', CASE WHEN w.current_age >= il.catch_up_age_threshold THEN il.catch_up_limit ELSE il.base_limit END,
             ' - This indicates IRS enforcement failure!'
         ) AS validation_message,
-        prorated_annual_contributions AS actual_value,
-        CASE WHEN current_age >= 50 THEN 31000 ELSE 23500 END AS expected_max_value,
-        prorated_annual_contributions -
-            CASE WHEN current_age >= 50 THEN 31000 ELSE 23500 END AS variance
-    FROM workforce_with_contributions
-    WHERE prorated_annual_contributions >
-        CASE WHEN current_age >= 50 THEN 31000 ELSE 23500 END
-      AND prorated_annual_contributions > 0
+        w.prorated_annual_contributions AS actual_value,
+        CASE WHEN w.current_age >= il.catch_up_age_threshold THEN il.catch_up_limit ELSE il.base_limit END AS expected_max_value,
+        w.prorated_annual_contributions -
+            CASE WHEN w.current_age >= il.catch_up_age_threshold THEN il.catch_up_limit ELSE il.base_limit END AS variance
+    FROM workforce_with_contributions w
+    CROSS JOIN irs_limits_for_validation il
+    WHERE w.prorated_annual_contributions >
+        CASE WHEN w.current_age >= il.catch_up_age_threshold THEN il.catch_up_limit ELSE il.base_limit END
+      AND w.prorated_annual_contributions > 0
 ),
 
 -- Validation 4: Contribution components don't sum correctly

@@ -212,35 +212,41 @@ enrollment_events AS (
     efo.current_compensation as compensation_amount,
     NULL as previous_compensation,
 
-    -- NEW: Employee deferral rates based on demographics
-    CASE efo.age_segment
-      WHEN 'young' THEN
-        CASE efo.income_segment
-          WHEN 'low_income' THEN 0.03
-          WHEN 'moderate' THEN 0.03
-          WHEN 'high' THEN 0.04
-          ELSE 0.06
-        END
-      WHEN 'mid_career' THEN
-        CASE efo.income_segment
-          WHEN 'low_income' THEN 0.04
-          WHEN 'moderate' THEN 0.06
-          WHEN 'high' THEN 0.08
-          ELSE 0.10
-        END
-      WHEN 'mature' THEN
-        CASE efo.income_segment
-          WHEN 'low_income' THEN 0.05
-          WHEN 'moderate' THEN 0.08
-          WHEN 'high' THEN 0.10
-          ELSE 0.12
-        END
-      ELSE -- senior
-        CASE efo.income_segment
-          WHEN 'low_income' THEN 0.06
-          WHEN 'moderate' THEN 0.10
-          WHEN 'high' THEN 0.12
-          ELSE 0.15
+    -- NEW: Employee deferral rate
+    -- If auto-enrollment program is enabled, use configured default_deferral_rate for enrolled participants.
+    CASE
+      WHEN '{{ var("auto_enrollment_scope", "all_eligible_employees") }}' IN ('new_hires_only', 'all_eligible_employees')
+        THEN {{ var('auto_enrollment_default_deferral_rate', 0.06) }}
+      ELSE
+        CASE efo.age_segment
+          WHEN 'young' THEN
+            CASE efo.income_segment
+              WHEN 'low_income' THEN 0.03
+              WHEN 'moderate' THEN 0.03
+              WHEN 'high' THEN 0.04
+              ELSE 0.06
+            END
+          WHEN 'mid_career' THEN
+            CASE efo.income_segment
+              WHEN 'low_income' THEN 0.04
+              WHEN 'moderate' THEN 0.06
+              WHEN 'high' THEN 0.08
+              ELSE 0.10
+            END
+          WHEN 'mature' THEN
+            CASE efo.income_segment
+              WHEN 'low_income' THEN 0.05
+              WHEN 'moderate' THEN 0.08
+              WHEN 'high' THEN 0.10
+              ELSE 0.12
+            END
+          ELSE -- senior
+            CASE efo.income_segment
+              WHEN 'low_income' THEN 0.06
+              WHEN 'moderate' THEN 0.10
+              WHEN 'high' THEN 0.12
+              ELSE 0.15
+            END
         END
     END as employee_deferral_rate,
 
@@ -269,14 +275,18 @@ enrollment_events AS (
     END as event_probability,
 
     -- Event category for grouping (normalized to accepted values)
+    -- FIX: When auto-enrollment program is enabled (either new hires only or all eligible),
+    -- classify generated enrollment events as 'auto_enrollment' to reflect program-driven enrollment.
+    -- This ensures downstream state/snapshot mark these as auto enrollments.
     CASE
-      WHEN '{{ var("auto_enrollment_scope", "all_eligible_employees") }}' = 'new_hires_only' THEN 'auto_enrollment'
+      WHEN '{{ var("auto_enrollment_scope", "all_eligible_employees") }}' IN ('new_hires_only', 'all_eligible_employees')
+        THEN 'auto_enrollment'
       ELSE (
         CASE efo.age_segment
           WHEN 'young' THEN 'auto_enrollment'
           WHEN 'mid_career' THEN 'voluntary_enrollment'
           WHEN 'mature' THEN 'proactive_enrollment'
-          ELSE 'voluntary_enrollment'  -- Fixed: normalize executive to voluntary_enrollment
+          ELSE 'voluntary_enrollment'
         END
       )
     END as event_category
