@@ -86,7 +86,7 @@ class DatabaseConnectionManager:
     - Keeps surface minimal; can be extended for pooling if needed.
     """
 
-    db_path: Path = Path("dbt/simulation.duckdb")
+    db_path: Path = Path("simulation.duckdb")
 
     def get_connection(self) -> duckdb.DuckDBPyConnection:
         return duckdb.connect(str(self.db_path))

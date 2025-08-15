@@ -7,7 +7,7 @@ planwise_navigator:
   outputs:
     optimized:
       type: duckdb
-      path: "/Users/nicholasamaral/planwise_navigator/dbt/simulation.duckdb"
+      path: "/Users/nicholasamaral/planwise_navigator/simulation.duckdb"
       schema: main
 
       # Optimized threading for batch execution (3-4 threads per S031-02 requirements)
