@@ -31,14 +31,27 @@
 -- Performance optimization: Early year filtering for DuckDB columnar processing
 
 WITH enrolled_employees AS (
-    -- Employees that are enrolled based on compensation table (direct source)
-    SELECT
+    -- Employees enrolled as of this year
+    -- Source 1: Baseline/prev-year enrollment flag from compensation table (existing behavior)
+    SELECT DISTINCT
         employee_id,
         employee_enrollment_date as enrollment_date
     FROM {{ ref('int_employee_compensation_by_year') }}
     WHERE simulation_year = {{ simulation_year }}
       AND employment_status = 'active'
       AND is_enrolled_flag = true
+      AND employee_id IS NOT NULL
+
+    UNION
+
+    -- Source 2 (CRITICAL FIX): Current-year enrollment events via enrollment state accumulator
+    -- Ensures first-year (e.g., 2025) auto-enrolled and voluntary new enrollees are included
+    SELECT DISTINCT
+        employee_id,
+        effective_enrollment_date AS enrollment_date
+    FROM {{ ref('int_enrollment_state_accumulator') }}
+    WHERE simulation_year = {{ simulation_year }}
+      AND enrollment_status = true
       AND employee_id IS NOT NULL
 ),
 
