@@ -4,6 +4,10 @@ venv/
 env/
 
 # DuckDB
+simulation.duckdb
+simulation.duckdb.wal
+*.duckdb
+*.duckdb.wal
 
 # Claude
 .claude/
