@@ -14,14 +14,14 @@
   },
   "event_summary": {
     "year": 2027,
-    "total_events": 8856,
+    "total_events": 8857,
     "events_by_type": {
       "raise": 4636,
-      "enrollment": 930,
       "hire": 930,
+      "enrollment": 930,
       "deferral_escalation": 904,
       "termination": 788,
-      "promotion": 619,
+      "promotion": 620,
       "enrollment_change": 49
     },
     "hire_termination_ratio": 1.1802030456852792
@@ -64,5 +64,5 @@
       "affected_records": null
     }
   ],
-  "generated_at": "2025-08-15T02:29:04.395465"
+  "generated_at": "2025-08-15T19:34:28.164258"
 }
