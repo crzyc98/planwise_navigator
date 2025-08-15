@@ -108,6 +108,23 @@ class PipelineOrchestrator:
         with ExecutionMutex("navigator_orchestrator"):
             # Optional one-time full reset before the yearly loop
             self._maybe_full_reset()
+            # Ensure orchestrator-managed registries start clean for a new run
+            # These tables are not year-partitioned; stale state can block auto-enrollment
+            if not resume_from_checkpoint:
+                try:
+                    er = self.registry_manager.get_enrollment_registry()
+                    dr = self.registry_manager.get_deferral_registry()
+                    er.create_table()
+                    dr.create_table()
+                    # Reset only when starting at configured first year (fresh simulation)
+                    if start == self.config.simulation.start_year:
+                        er.reset()
+                        dr.reset()
+                        if self.verbose:
+                            print("🧹 Cleared enrollment/deferral registries for fresh run")
+                except Exception:
+                    # Non-fatal; proceed even if reset fails
+                    pass
             completed_years: List[int] = []
             for year in range(start, end + 1):
                 print(f"\n🔄 Starting simulation year {year}")
@@ -169,6 +186,15 @@ class PipelineOrchestrator:
                         "SELECT COUNT(*) FROM int_workforce_needs_by_level WHERE simulation_year = ?",
                         [year],
                     ).fetchone()[0]
+                    # Epic E039: Employer contribution model validation
+                    employer_elig = conn.execute(
+                        "SELECT COUNT(*) FROM int_employer_eligibility WHERE simulation_year = ?",
+                        [year],
+                    ).fetchone()[0]
+                    employer_core = conn.execute(
+                        "SELECT COUNT(*) FROM int_employer_core_contributions WHERE simulation_year = ?",
+                        [year],
+                    ).fetchone()[0]
                     # Diagnostics: hiring demand
                     total_hires_needed = conn.execute(
                         "SELECT COALESCE(MAX(total_hires_needed), 0) FROM int_workforce_needs WHERE simulation_year = ?",
@@ -183,6 +209,8 @@ class PipelineOrchestrator:
                         int(compensation),
                         int(wn),
                         int(wnbl),
+                        int(employer_elig or 0),
+                        int(employer_core or 0),
                         int(total_hires_needed or 0),
                         int(level_hires_needed or 0),
                     )
@@ -192,6 +220,8 @@ class PipelineOrchestrator:
                     comp_cnt,
                     wn_cnt,
                     wnbl_cnt,
+                    employer_elig_cnt,
+                    employer_core_cnt,
                     total_hires_needed,
                     level_hires_needed,
                 ) = self.db_manager.execute_with_retry(_chk)
@@ -200,6 +230,8 @@ class PipelineOrchestrator:
                 print(f"      int_employee_compensation_by_year: {comp_cnt} rows")
                 print(f"      int_workforce_needs: {wn_cnt} rows")
                 print(f"      int_workforce_needs_by_level: {wnbl_cnt} rows")
+                print(f"      int_employer_eligibility: {employer_elig_cnt} rows")
+                print(f"      int_employer_core_contributions: {employer_core_cnt} rows")
                 print(f"      hiring_demand.total_hires_needed: {total_hires_needed}")
                 print(f"      hiring_demand.sum_by_level: {level_hires_needed}")
 
@@ -209,6 +241,10 @@ class PipelineOrchestrator:
                     raise PipelineStageError(f"CRITICAL: int_employee_compensation_by_year has 0 rows for year {year}. Foundation models are broken.")
                 if wn_cnt == 0 or wnbl_cnt == 0:
                     raise PipelineStageError(f"CRITICAL: workforce_needs rows={wn_cnt}, by_level rows={wnbl_cnt} for {year}. Hiring will fail.")
+                if employer_elig_cnt == 0:
+                    print(f"⚠️ int_employer_eligibility has 0 rows for year {year}. Employer contributions will be skipped.")
+                if employer_core_cnt == 0:
+                    print(f"⚠️ int_employer_core_contributions has 0 rows for year {year}. Core contributions will not be calculated.")
                 if total_hires_needed == 0 or level_hires_needed == 0:
                     print("⚠️ Hiring demand calculated as 0; new hire events will not be generated. Verify target_growth_rate and termination rates.")
 
@@ -256,7 +292,7 @@ class PipelineOrchestrator:
                         stream_output=True,
                     )
 
-            # Post state accumulation check: ensure hires landed in yearly events
+            # Post state accumulation check: ensure hires landed in yearly events and match events exist
             if stage.name == WorkflowStage.STATE_ACCUMULATION:
                 def _events_chk(conn):
                     hires_in_fact = conn.execute(
@@ -271,8 +307,19 @@ class PipelineOrchestrator:
                         "SELECT COUNT(*) FROM int_hiring_events WHERE simulation_year = ? AND compensation_amount IS NULL",
                         [year],
                     ).fetchone()[0]
-                    return int(hires_in_fact), int(hires_src), int(null_comp_hires)
-                hires_in_fact, hires_src, null_comp_cnt = self.db_manager.execute_with_retry(_events_chk)
+                    # Check employer match events
+                    contrib_with_deferrals = conn.execute(
+                        "SELECT COUNT(*) FROM int_employee_contributions WHERE simulation_year = ? AND annual_contribution_amount > 0",
+                        [year],
+                    ).fetchone()[0]
+                    match_events = conn.execute(
+                        "SELECT COUNT(*) FROM fct_employer_match_events WHERE simulation_year = ?",
+                        [year],
+                    ).fetchone()[0]
+                    return int(hires_in_fact), int(hires_src), int(null_comp_hires), int(contrib_with_deferrals), int(match_events)
+
+                hires_in_fact, hires_src, null_comp_cnt, contrib_with_deferrals, match_events = self.db_manager.execute_with_retry(_events_chk)
+
                 if hires_src > 0 and hires_in_fact == 0:
                     print("⚠️ fct_yearly_events missing hire rows; forcing targeted refresh of hires and facts.")
                     self.dbt_runner.execute_command(
@@ -299,6 +346,14 @@ class PipelineOrchestrator:
                         dbt_vars=self._dbt_vars,
                         stream_output=True,
                     )
+
+                # Check employer match events
+                if contrib_with_deferrals > 0 and match_events == 0:
+                    print(f"⚠️ Found {contrib_with_deferrals} employees with contributions but 0 match events.")
+                    print("   Suggested checks:")
+                    print("   - Verify dbt vars: active_match_formula, match_formulas")
+                    print("   - Check int_employee_match_calculations for non-zero employer_match_amount")
+                    print("   - Rebuild: dbt run --select int_employee_match_calculations fct_employer_match_events")
 
             # Registry updates after events/state accumulation
             if stage.name == WorkflowStage.EVENT_GENERATION:
@@ -329,12 +384,15 @@ class PipelineOrchestrator:
         if stage.name in (WorkflowStage.EVENT_GENERATION, WorkflowStage.STATE_ACCUMULATION):
             setup = getattr(self.config, "setup", None)
             force_full_refresh = bool(isinstance(setup, dict) and setup.get("clear_tables") and setup.get("clear_mode", "all").lower() == "all")
+
             for model in stage.models:
                 selection = ["run", "--select", model]
-                if force_full_refresh:
+                # Special case: always full-refresh int_workforce_snapshot_optimized to avoid schema issues
+                if model == "int_workforce_snapshot_optimized" or force_full_refresh:
                     selection.append("--full-refresh")
                     if self.verbose:
-                        print(f"   🔄 Rebuilding {model} with --full-refresh for year {year}")
+                        reason = "schema compatibility" if model == "int_workforce_snapshot_optimized" else "clear_mode=all"
+                        print(f"   🔄 Rebuilding {model} with --full-refresh ({reason}) for year {year}")
                 res = self.dbt_runner.execute_command(
                     selection,
                     simulation_year=year,
@@ -358,11 +416,14 @@ class PipelineOrchestrator:
         else:
             # Run as a single selection for consistent dependency behavior
             selection = ["run", "--select", " ".join(stage.models)]
-            # For FOUNDATION only, force full refresh to repopulate base tables after clears
+            # Optimization: Only use --full-refresh for FOUNDATION on first year or when clear_mode == 'all'
             if stage.name == WorkflowStage.FOUNDATION:
-                selection.append("--full-refresh")
-                if self.verbose:
-                    print(f"   🔄 Running {stage.name.value} models with --full-refresh for year {year}")
+                setup = getattr(self.config, "setup", None)
+                clear_mode = (isinstance(setup, dict) and setup.get("clear_mode", "all").lower()) or "all"
+                if year == self.config.simulation.start_year or clear_mode == "all":
+                    selection.append("--full-refresh")
+                    if self.verbose:
+                        print(f"   🔄 Running {stage.name.value} with --full-refresh (year={year}, clear_mode={clear_mode})")
             res = self.dbt_runner.execute_command(
                 selection,
                 simulation_year=year,
@@ -491,6 +552,8 @@ class PipelineOrchestrator:
                     "int_effective_parameters",
                     "int_workforce_needs",
                     "int_workforce_needs_by_level",
+                    # Epic E039: Employer contribution foundation models
+                    "int_employer_eligibility",
                 ],
                 validation_rules=["row_count_drift", "compensation_reasonableness"],
             ),
@@ -509,8 +572,6 @@ class PipelineOrchestrator:
                     "int_eligibility_determination",
                     "int_enrollment_events",
                     "int_deferral_rate_escalation_events",
-                    "int_employee_match_calculations",
-                    "fct_employer_match_events",
                 ],
                 validation_rules=["hire_termination_ratio", "event_sequence"],
                 parallel_safe=False,
@@ -520,10 +581,16 @@ class PipelineOrchestrator:
                 dependencies=[WorkflowStage.EVENT_GENERATION],
                 models=[
                     "fct_yearly_events",
+                    # Build proration snapshot before contributions so all bases are prorated
+                    "int_workforce_snapshot_optimized",
                     "int_enrollment_state_accumulator",
                     "int_deferral_rate_state_accumulator",
                     "int_deferral_escalation_state_accumulator",
+                    # Build employer contributions after contributions are computed to ensure proration
                     "int_employee_contributions",
+                    "int_employer_core_contributions",
+                    "int_employee_match_calculations",
+                    "fct_employer_match_events",
                     "fct_workforce_snapshot",
                 ],
                 validation_rules=["state_consistency", "accumulator_integrity"],

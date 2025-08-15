@@ -179,6 +179,15 @@ def extract_dbt_vars_from_config(full_config: dict) -> dict:
 
     # Growth/termination vars intentionally omitted here to avoid drift with new orchestrator
 
+    # Employer match configuration (E039): map YAML to dbt vars used by match engine
+    employer = cfg.get('employer_match', {})
+    active = employer.get('active_formula')
+    formulas = employer.get('formulas')
+    if active is not None:
+        dbt_vars['active_match_formula'] = str(active)
+    if formulas is not None:
+        dbt_vars['match_formulas'] = formulas
+
     return dbt_vars
 
 
@@ -359,25 +368,24 @@ def audit_year_results(year):
             if term_count > 1000:
                 print(f"   ⚠️  HIGH TERMINATION COUNT: {term_count:,} terminations may be excessive")
 
-        # Check for employer match events (E025)
-        match_count = sum(count for event_type, count in events_results if event_type == 'EMPLOYER_MATCH')
-        if match_count > 0:
-            # Get match cost information
+        # Check employer match via dedicated match events table (E039)
+        try:
             match_query = """
-            SELECT
-                COUNT(*) as match_count,
-                SUM(compensation_amount) as total_match_cost,
-                AVG(compensation_amount) as avg_match_amount
-            FROM fct_yearly_events
-            WHERE simulation_year = ? AND event_type = 'EMPLOYER_MATCH'
+                SELECT COUNT(*) as match_count,
+                       SUM(amount) as total_match_cost,
+                       AVG(amount) as avg_match_amount
+                FROM fct_employer_match_events
+                WHERE simulation_year = ?
             """
             match_result = conn.execute(match_query, [year]).fetchone()
-            if match_result:
+            if match_result and match_result[0] > 0:
                 match_cnt, total_cost, avg_match = match_result
                 print(f"\n💰 Employer Match Summary:")
                 print(f"   Employees receiving match    : {match_cnt:,}")
                 print(f"   Total match cost             : ${total_cost:,.2f}")
                 print(f"   Average match per employee   : ${avg_match:,.2f}")
+        except Exception:
+            pass
 
         print()  # Extra line for spacing
 
@@ -779,7 +787,8 @@ def run_year_simulation(year, is_first_year=False, dbt_vars=None):
         # Run all staging models
         if not run_dbt_command(["run", "--models", "staging.*"], "Running all staging models"):
             return False
-        if not run_dbt_command(["run", "--models", "int_baseline_workforce"], "Creating baseline workforce"):
+        # Build baseline workforce explicitly for the current year with vars
+        if not run_dbt_command(["run", "--models", "int_baseline_workforce"], "Creating baseline workforce", year, dbt_vars):
             return False
 
     # Step 2: Create/update registries (prevent duplicate enrollments/escalations across years)
@@ -810,6 +819,12 @@ def run_year_simulation(year, is_first_year=False, dbt_vars=None):
     if not run_dbt_command(["run", "--models", "int_workforce_needs_by_level"], "Calculating workforce needs by level", year, dbt_vars):
         return False
 
+    # Step 5.5: Epic E039 - Employer contribution eligibility and core contributions
+    if not run_dbt_command(["run", "--models", "int_employer_eligibility"], "Determining employer contribution eligibility", year, dbt_vars):
+        return False
+    if not run_dbt_command(["run", "--models", "int_employer_core_contributions"], "Calculating employer core contributions", year, dbt_vars):
+        return False
+
     # Step 6: Event generation (with simulation_year and compensation parameters)
     event_models = [
         "int_termination_events",
@@ -821,9 +836,7 @@ def run_year_simulation(year, is_first_year=False, dbt_vars=None):
         "int_merit_events",
         "int_eligibility_determination",
         "int_enrollment_events",
-        "int_deferral_rate_escalation_events",  # E036 Deferral rate escalation events
-        "int_employee_match_calculations",  # E025 Match calculations
-        "fct_employer_match_events"  # E025 Match event generation
+        "int_deferral_rate_escalation_events"  # E036 Deferral rate escalation events
     ]
 
     for model in event_models:
@@ -844,6 +857,12 @@ def run_year_simulation(year, is_first_year=False, dbt_vars=None):
 
     # Step 10: Employee contribution calculations (Epic E034)
     if not run_dbt_command(["run", "--models", "int_employee_contributions"], "Calculating employee contributions", year, dbt_vars):
+        return False
+
+    # Step 10.5: Employer match calculations and events (must run AFTER contributions)
+    if not run_dbt_command(["run", "--models", "int_employee_match_calculations"], "Calculating employer match", year, dbt_vars):
+        return False
+    if not run_dbt_command(["run", "--models", "fct_employer_match_events"], "Generating employer match events", year, dbt_vars):
         return False
 
     # Step 11: Final workforce snapshot (includes contribution data)

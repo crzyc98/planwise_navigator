@@ -38,65 +38,63 @@ irs_limits AS (
     WHERE limit_year = (SELECT current_year FROM simulation_parameters)
 ),
 
--- FIX: Get enrolled employees with deferral rates ONLY from state accumulator (Single Source of Truth)
-enrolled_employees AS (
+-- FIX: Get ALL employees with their deferral rates (defaulting to 0 if not enrolled)
+deferral_rates AS (
     SELECT DISTINCT
         employee_id,
-        current_deferral_rate AS deferral_rate,
+        COALESCE(current_deferral_rate, 0.0) AS deferral_rate,
+        COALESCE(is_enrolled_flag, false) AS is_enrolled_flag,
         data_quality_flag AS source_quality
     FROM {{ ref('int_deferral_rate_state_accumulator') }}
     WHERE simulation_year = (SELECT current_year FROM simulation_parameters)
-      AND current_deferral_rate IS NOT NULL
-      AND current_deferral_rate > 0
-      AND is_enrolled_flag = true
 ),
 
--- Get employee compensation data with age calculation
--- FIX: Handle employees missing from compensation table (e.g., hired during first year)
-employee_compensation AS (
+-- Removed legacy CTEs in favor of workforce_proration as the single source
+
+-- Always-on proration source for contributions: use optimized workforce snapshot
+workforce_proration AS (
     SELECT
         employee_id,
-        simulation_year,
-        employee_compensation,
+        {{ simulation_year }} AS simulation_year,
+        current_compensation,
+        prorated_annual_compensation,
         employment_status,
-        is_enrolled_flag,
+        termination_date,
         employee_birth_date,
-        -- Calculate current age for IRS limit determination
         DATE_DIFF('year', employee_birth_date, CAST('{{ simulation_year }}-12-31' AS DATE)) AS current_age
-    FROM {{ ref('int_employee_compensation_by_year') }}
+    FROM {{ ref('int_workforce_snapshot_optimized') }}
     WHERE simulation_year = (SELECT current_year FROM simulation_parameters)
-      AND employee_compensation > 0
 ),
 
 
--- Calculate IRS-compliant contributions for enrolled employees
+-- Calculate IRS-compliant contributions for ALL employees
 employee_contributions AS (
     SELECT
-        ee.employee_id,  -- Use enrolled_employees as primary source
+        wf.employee_id,  -- Use workforce_proration as primary source
         {{ simulation_year }} AS simulation_year,
-        COALESCE(ec.current_age, 30) AS current_age,  -- Default age if missing
-        COALESCE(ec.employee_compensation, 240000) AS current_compensation,  -- Use realistic default for missing employees
-        COALESCE(ec.employee_compensation, 240000) AS prorated_annual_compensation,
-        COALESCE(ec.employment_status, 'active') AS employment_status,
-        true AS is_enrolled_flag,  -- All rows from enrolled_employees are enrolled
-        ee.deferral_rate AS effective_annual_deferral_rate,
-        ee.deferral_rate AS final_deferral_rate,
+        wf.current_age,
+        wf.current_compensation,
+        wf.prorated_annual_compensation,
+        wf.employment_status,
+        COALESCE(dr.is_enrolled_flag, false) AS is_enrolled_flag,
+        COALESCE(dr.deferral_rate, 0.0) AS effective_annual_deferral_rate,
+        COALESCE(dr.deferral_rate, 0.0) AS final_deferral_rate,
 
-        -- Calculate requested contribution amount (before IRS limits) - use computed values
-        COALESCE(ec.employee_compensation, 240000) * ee.deferral_rate AS requested_contribution_amount,
+        -- Calculate requested contribution amount (before IRS limits)
+        wf.prorated_annual_compensation * COALESCE(dr.deferral_rate, 0.0) AS requested_contribution_amount,
 
-        -- Determine applicable IRS limit based on age - use computed values
+        -- Determine applicable IRS limit based on age
         CASE
-            WHEN COALESCE(ec.current_age, 30) >= il.catch_up_age_threshold
+            WHEN wf.current_age >= il.catch_up_age_threshold
             THEN il.catch_up_limit
             ELSE il.base_limit
         END AS applicable_irs_limit,
 
         -- Calculate IRS-compliant contribution amount using LEAST()
         LEAST(
-            COALESCE(ec.employee_compensation, 240000) * ee.deferral_rate,
+            (wf.prorated_annual_compensation * COALESCE(dr.deferral_rate, 0.0)),
             CASE
-                WHEN COALESCE(ec.current_age, 30) >= il.catch_up_age_threshold
+                WHEN wf.current_age >= il.catch_up_age_threshold
                 THEN il.catch_up_limit
                 ELSE il.base_limit
             END
@@ -104,50 +102,53 @@ employee_contributions AS (
 
         -- Transparency and audit fields
         CASE
-            WHEN (COALESCE(ec.employee_compensation, 240000) * ee.deferral_rate) >
-                 CASE WHEN COALESCE(ec.current_age, 30) >= il.catch_up_age_threshold
+            WHEN (wf.prorated_annual_compensation * COALESCE(dr.deferral_rate, 0.0)) >
+                 CASE WHEN wf.current_age >= il.catch_up_age_threshold
                       THEN il.catch_up_limit ELSE il.base_limit END
             THEN true ELSE false
         END AS irs_limit_applied,
 
         -- Amount that was capped off due to IRS limits
         GREATEST(0,
-            (COALESCE(ec.employee_compensation, 240000) * ee.deferral_rate) -
-            CASE WHEN COALESCE(ec.current_age, 30) >= il.catch_up_age_threshold
+            (wf.prorated_annual_compensation * COALESCE(dr.deferral_rate, 0.0)) -
+            CASE WHEN wf.current_age >= il.catch_up_age_threshold
                  THEN il.catch_up_limit ELSE il.base_limit END
         ) AS amount_capped_by_irs_limit,
 
         -- Age-based limit type for reporting
-        CASE WHEN COALESCE(ec.current_age, 30) >= il.catch_up_age_threshold THEN 'CATCH_UP' ELSE 'BASE' END AS limit_type,
+        CASE WHEN wf.current_age >= il.catch_up_age_threshold THEN 'CATCH_UP' ELSE 'BASE' END AS limit_type,
 
         -- Set contribution base
-        COALESCE(ec.employee_compensation, 240000) AS total_contribution_base_compensation,
+        -- Base used for contributions and employer match calculations
+        wf.prorated_annual_compensation AS total_contribution_base_compensation,
         -- Basic contribution metrics (updated to use IRS-compliant amount)
         1 AS number_of_contribution_periods,
         365 AS total_contribution_days,
-        LEAST(
-            COALESCE(ec.employee_compensation, 240000) * ee.deferral_rate,
-            CASE WHEN COALESCE(ec.current_age, 30) >= il.catch_up_age_threshold
-                 THEN il.catch_up_limit ELSE il.base_limit END
-        ) / 26 AS average_per_paycheck_contribution,  -- Bi-weekly payroll with IRS limits
-        26 AS total_pay_periods_with_contributions,  -- 26 pay periods per year
+        -- Average per paycheck computed after deriving total periods
+        0.0 AS average_per_paycheck_contribution,
+        -- Pay periods prorated by compensation ratio relative to full-year comp
+        CAST(ROUND(
+            CASE WHEN COALESCE(wf.current_compensation, 0) > 0 THEN
+                26 * LEAST(1.0, GREATEST(0.0, COALESCE(wf.prorated_annual_compensation, 0.0) / NULLIF(wf.current_compensation, 0)))
+            ELSE 26 END
+        ) AS INTEGER) AS total_pay_periods_with_contributions,
         CAST('{{ simulation_year }}-01-01' AS DATE) AS first_contribution_date,
-        CAST('{{ simulation_year }}-12-31' AS DATE) AS last_contribution_date,
-        'full_year' AS contribution_duration_category,
+        COALESCE(wf.termination_date, CAST('{{ simulation_year }}-12-31' AS DATE)) AS last_contribution_date,
+        CASE WHEN wf.termination_date IS NOT NULL THEN 'partial_year' ELSE 'full_year' END AS contribution_duration_category,
         CASE
-            WHEN (COALESCE(ec.employee_compensation, 240000) * ee.deferral_rate) >
-                 CASE WHEN COALESCE(ec.current_age, 30) >= il.catch_up_age_threshold
+            WHEN (wf.prorated_annual_compensation * COALESCE(dr.deferral_rate, 0.0)) >
+                 CASE WHEN wf.current_age >= il.catch_up_age_threshold
                       THEN il.catch_up_limit ELSE il.base_limit END
             THEN 'IRS_LIMITED'
             ELSE 'NORMAL'
         END AS contribution_quality_flag,
         CURRENT_TIMESTAMP AS calculated_at,
         'E036_single_source_deferral_rate_fixed' AS calculation_source,
-        ee.source_quality AS deferral_rate_source_quality
-    FROM employee_compensation ec
-    RIGHT JOIN enrolled_employees ee ON ec.employee_id = ee.employee_id
+        COALESCE(dr.source_quality, 'default_zero') AS deferral_rate_source_quality
+    FROM workforce_proration wf
+    LEFT JOIN deferral_rates dr ON wf.employee_id = dr.employee_id
     CROSS JOIN irs_limits il  -- Cross join since we only have one row of limits
-    WHERE COALESCE(ec.employment_status, 'active') = 'active'  -- Handle NULL employment status
+    WHERE wf.employee_id IS NOT NULL  -- Include all employees regardless of status
 )
 
 -- Final output with IRS-compliant contributions and audit trail
@@ -161,7 +162,9 @@ SELECT
     total_contribution_base_compensation,
     number_of_contribution_periods,
     total_contribution_days,
-    average_per_paycheck_contribution,
+    CASE WHEN total_pay_periods_with_contributions > 0
+         THEN annual_contribution_amount / total_pay_periods_with_contributions
+         ELSE annual_contribution_amount END AS average_per_paycheck_contribution,
     total_pay_periods_with_contributions,
     first_contribution_date,
     last_contribution_date,

@@ -8,7 +8,8 @@ simulation:
 # Setup configuration for orchestrator_dbt
 setup:
   clear_tables: true
-  clear_table_patterns: ["stg_", "int_", "fct_", "dim_"]
+  clear_mode: "year"  # Clear year-specific data only, not all data
+  clear_table_patterns: ["int_"]  # Only clear intermediate tables, preserve fact tables for multi-year accumulation
   load_seeds: true
   run_staging_models: true
   validate_results: false
@@ -61,7 +62,7 @@ enrollment:
     window_days: 45  # Configurable auto-enrollment window (default 45 days after hire)
     default_deferral_rate: 0.06  # 6% default deferral rate for auto-enrolled participants
     opt_out_grace_period: 30  # Days after auto-enrollment for opt-out without penalty
-    scope: "all_eligible_employees"  # Options: "new_hires_only", "all_eligible_employees"
+    scope: "new_hires_only"  # Options: "new_hires_only", "all_eligible_employees"
     hire_date_cutoff: "2020-01-01"  # Optional: Exclude employees hired before this date from auto-enrollment (e.g., "2020-01-01")
 
     # Opt-out rate configuration (industry-standard rates: 5-10% for well-designed programs)
@@ -152,7 +153,7 @@ employee_id_generation:
 # Employer match configuration
 employer_match:
   # Active match formula selection
-  active_formula: 'tiered_match'  # Options: 'simple_match', 'tiered_match', 'stretch_match'
+  active_formula: 'simple_match'  # Options: 'simple_match', 'tiered_match', 'stretch_match'
 
   # Match formula definitions
   formulas:
@@ -160,7 +161,7 @@ employer_match:
       name: 'Simple Match'
       type: 'simple'
       match_rate: 0.50  # 50% match on all deferrals
-      max_match_percentage: 0.03  # Cap at 3% of compensation
+      max_match_percentage: 0.06  # Cap at 3% of compensation
 
     tiered_match:
       name: 'Tiered Match'
@@ -250,109 +251,18 @@ multi_year:
     log_level: "INFO"  # Logging level for multi-year operations
     enable_memory_profiling: false  # Enable memory usage profiling
 
-# Epic E035: Automatic Annual Deferral Rate Escalation Configuration
+# Epic E035: Automatic Annual Deferral Rate Escalation Configuration (Simplified)
 deferral_auto_escalation:
-  # Global enable/disable toggle
-  enabled: true  # Master switch for all auto-escalation features
+  enabled: true                 # Master on/off switch
+  effective_day: "01-01"        # MM-DD for escalation effective date
+  increment_amount: 0.01        # Annual escalation rate (default 1%)
+  maximum_rate: 0.10            # Cap for deferral rate (default 10%)
+  hire_date_cutoff: "2025-01-01"        # Optional YYYY-MM-DD; only employees hired on/before this date are eligible
+  require_active_enrollment: true  # Only escalate enrolled participants
 
-  # Default escalation schedule (applies globally unless overridden)
-  default_schedule:
-    enabled: true                    # Can disable default schedule while keeping custom schedules
-    effective_date: "01-01"         # Day of year for increases (MM-DD format) - Jan 1st per user requirement
-    increment_amount: 0.01          # 1% increase (0.01 in decimal form) per user requirement
-    maximum_rate: 0.10              # Cap at 10% deferral rate per user requirement
-    minimum_tenure_months: 12       # Must be enrolled for 12 months before first increase
-
-  # Demographic-based rules and overrides
-  demographic_rules:
-    # Tenure-based rules (based on hire date)
-    tenure_based:
-      enabled: true
-      include_based_on_hire_date: true  # User requirement: toggle inclusion based on hire date
-      hire_date_cutoff: "2020-01-01"    # Only employees hired after this date get auto-escalation
-      rules:
-        - tenure_years: "0-1"
-          enabled: false              # No auto-escalation for first year
-        - tenure_years: "1-5"
-          enabled: true
-          increment_amount: 0.01
-          maximum_rate: 0.10
-        - tenure_years: "5+"
-          enabled: true
-          increment_amount: 0.005     # Smaller increases for long-tenure employees
-          maximum_rate: 0.12
-
-    # Age-based rules
-    age_based:
-      enabled: true
-      rules:
-        - age_range: "18-30"
-          enabled: true
-          increment_amount: 0.015   # Higher increases for young workers
-          maximum_rate: 0.12
-        - age_range: "50-65"
-          enabled: true
-          increment_amount: 0.02    # Catch-up contribution encouragement
-          maximum_rate: 0.15
-
-    # Compensation-based rules
-    compensation_based:
-      enabled: false                  # Disabled by default, can be enabled for sophisticated scenarios
-      rules:
-        - salary_range: "0-50000"
-          increment_amount: 0.005     # Smaller increases for lower earners
-          maximum_rate: 0.08
-        - salary_range: "100000+"
-          increment_amount: 0.015     # Larger increases for higher earners
-          maximum_rate: 0.15
-
-  # Plan-specific overrides (similar to enrollment.auto_enrollment.plan_overrides)
-  plan_overrides:
-    emergency_plan:
-      enabled: false                  # Disable auto-escalation for emergency plans
-    executive_plan:
-      enabled: true
-      increment_amount: 0.02          # Higher increases for executive plans
-      maximum_rate: 0.20              # Higher caps for executives
-      effective_date: "04-01"         # Different timing (e.g., after bonus season)
-
-  # Business rules and constraints
-  business_rules:
-    # IRS compliance integration
-    irs_compliance:
-      respect_402g_limits: true       # Never escalate beyond IRS contribution limits
-      catch_up_integration: true      # Consider catch-up contribution eligibility
-
-    # Enrollment status requirements
-    enrollment_requirements:
-      require_active_enrollment: true       # Only escalate for actively enrolled participants
-      grace_period_months: 3               # Allow 3 months after enrollment before escalation
-      handle_re_enrollment: "reset"        # Options: "reset", "continue", "pause"
-
-    # Escalation limits and controls
-    escalation_controls:
-      maximum_escalations_per_employee: 5   # Limit total escalations per employee
-      minimum_meaningful_increase: 0.001    # Minimum 0.1% to prevent tiny escalations
-      escalation_frequency_days: 365        # Minimum days between escalations
-
-  # Audit and compliance
-  audit_trail:
-    track_all_changes: true           # Log every escalation event
-    include_eligibility_details: true # Track eligibility determination details
-    retention_years: 7                # Keep audit records for 7 years
-
-  # Performance and processing
-  performance:
-    batch_processing: true            # Process escalations in batches
-    batch_size: 1000                 # Process 1000 employees at a time
-    parallel_processing: false       # Single-threaded for data consistency
-    materialization_strategy: "incremental"  # Use incremental dbt models
-
-  # Multi-year simulation considerations
-  multi_year:
-    preserve_escalation_state: true   # Maintain escalation history across simulation years
-    handle_rehires: "continue"        # Options: "continue", "reset", "pause"
-    cross_year_validation: true       # Validate escalation consistency across years
+# Deferral baseline behavior (Option A default)
+deferral_baseline:
+  mode: "frozen"   # "frozen" (default) or "evented" (future)
 
 # Dagster op configuration (maintained for backward compatibility)
 ops:
