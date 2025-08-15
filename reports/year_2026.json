@@ -10,15 +10,15 @@
       "experienced_termination": 540,
       "new_hire_termination": 225
     },
-    "participation_rate": 0.7031924072476272
+    "participation_rate": 0.8408110440034513
   },
   "event_summary": {
     "year": 2026,
-    "total_events": 8276,
+    "total_events": 8277,
     "events_by_type": {
-      "raise": 4501,
-      "enrollment": 900,
+      "raise": 4502,
       "hire": 900,
+      "enrollment": 900,
       "termination": 765,
       "promotion": 588,
       "deferral_escalation": 577,
@@ -64,5 +64,5 @@
       "affected_records": null
     }
   ],
-  "generated_at": "2025-08-15T02:28:17.220024"
+  "generated_at": "2025-08-15T19:47:59.321395"
 }
