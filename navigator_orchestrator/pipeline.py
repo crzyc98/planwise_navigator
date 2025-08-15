@@ -191,10 +191,15 @@ class PipelineOrchestrator:
                         "SELECT COUNT(*) FROM int_employer_eligibility WHERE simulation_year = ?",
                         [year],
                     ).fetchone()[0]
-                    employer_core = conn.execute(
-                        "SELECT COUNT(*) FROM int_employer_core_contributions WHERE simulation_year = ?",
-                        [year],
-                    ).fetchone()[0]
+                    # int_employer_core_contributions is built in STATE_ACCUMULATION, not FOUNDATION
+                    try:
+                        employer_core = conn.execute(
+                            "SELECT COUNT(*) FROM int_employer_core_contributions WHERE simulation_year = ?",
+                            [year],
+                        ).fetchone()[0]
+                    except Exception:
+                        # Table doesn't exist yet (expected in foundation stage)
+                        employer_core = 0
                     # Diagnostics: hiring demand
                     total_hires_needed = conn.execute(
                         "SELECT COALESCE(MAX(total_hires_needed), 0) FROM int_workforce_needs WHERE simulation_year = ?",
@@ -244,7 +249,7 @@ class PipelineOrchestrator:
                 if employer_elig_cnt == 0:
                     print(f"⚠️ int_employer_eligibility has 0 rows for year {year}. Employer contributions will be skipped.")
                 if employer_core_cnt == 0:
-                    print(f"⚠️ int_employer_core_contributions has 0 rows for year {year}. Core contributions will not be calculated.")
+                    print(f"ℹ️ int_employer_core_contributions has 0 rows for year {year} (expected during foundation stage - built later in state accumulation).")
                 if total_hires_needed == 0 or level_hires_needed == 0:
                     print("⚠️ Hiring demand calculated as 0; new hire events will not be generated. Verify target_growth_rate and termination rates.")
 
