@@ -76,8 +76,8 @@ state_transition_analysis AS (
         emp_curr.employment_status AS current_employment_status,
         emp_prev.employment_status AS previous_employment_status
 
-    FROM {{ ref('int_deferral_rate_state_accumulator') }} curr
-    LEFT JOIN {{ ref('int_deferral_rate_state_accumulator') }} prev
+    FROM {{ ref('int_deferral_rate_state_accumulator_v2') }} curr
+    LEFT JOIN {{ ref('int_deferral_rate_state_accumulator_v2') }} prev
         ON curr.employee_id = prev.employee_id
         AND prev.simulation_year = curr.simulation_year - 1
     LEFT JOIN {{ ref('fct_workforce_snapshot') }} emp_curr
@@ -111,7 +111,7 @@ state_transition_analysis AS (
         NULL AS days_between_escalations,
         emp.employment_status AS current_employment_status,
         NULL AS previous_employment_status
-    FROM {{ ref('int_deferral_rate_state_accumulator') }} curr
+    FROM {{ ref('int_deferral_rate_state_accumulator_v2') }} curr
     LEFT JOIN {{ ref('fct_workforce_snapshot') }} emp
         ON curr.employee_id = emp.employee_id
         AND curr.simulation_year = emp.simulation_year
@@ -150,7 +150,7 @@ orphaned_state_analysis AS (
         ws.employment_status AS current_employment_status,
         NULL AS previous_employment_status
 
-    FROM {{ ref('int_deferral_rate_state_accumulator') }} acc
+    FROM {{ ref('int_deferral_rate_state_accumulator_v2') }} acc
     LEFT JOIN {{ ref('fct_workforce_snapshot') }} ws
         ON acc.employee_id = ws.employee_id
         AND acc.simulation_year = ws.simulation_year
@@ -191,7 +191,7 @@ lifecycle_integration_analysis AS (
         ws.employment_status AS current_employment_status,
         NULL AS previous_employment_status
 
-    FROM {{ ref('int_deferral_rate_state_accumulator') }} acc
+    FROM {{ ref('int_deferral_rate_state_accumulator_v2') }} acc
     LEFT JOIN {{ ref('fct_workforce_snapshot') }} ws
         ON acc.employee_id = ws.employee_id
         AND acc.simulation_year = ws.simulation_year
@@ -236,7 +236,7 @@ escalation_continuity_analysis AS (
         NULL AS current_employment_status,
         NULL AS previous_employment_status
 
-    FROM {{ ref('int_deferral_rate_state_accumulator') }} acc
+    FROM {{ ref('int_deferral_rate_state_accumulator_v2') }} acc
     LEFT JOIN (
         SELECT
             employee_id,

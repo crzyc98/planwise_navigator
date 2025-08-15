@@ -136,25 +136,37 @@ class YearAuditor:
             print(f"   {'TOTAL':25}: {total_employees:4,} (100.0%)")
 
     def _display_event_summary(self, conn, year: int) -> None:
-        """Display event summary for the year."""
+        """Display event summary for the year with hire/term derived from snapshot to avoid duplicate events inflation."""
+        # Raw events for non-headcount-changing types
         events_query = """
-        SELECT
-            event_type,
-            COUNT(*) as event_count
+        SELECT event_type, COUNT(*) AS event_count
         FROM fct_yearly_events
         WHERE simulation_year = ?
+          AND event_type NOT IN ('hire', 'termination')
         GROUP BY event_type
         ORDER BY event_count DESC
         """
-
         results = conn.execute(events_query, [year]).fetchall()
 
-        if results:
-            print(f"\n📈 Year {year} Event Summary:")
-            total_events = sum(row[1] for row in results)
-            for event_type, count in results:
-                print(f"   {event_type:15}: {count:4,}")
-            print(f"   {'TOTAL':15}: {total_events:4,}")
+        # Derive hires/terminations from the year-end snapshot to ensure consistency with headcount
+        derived_query = """
+        SELECT
+          SUM(CASE WHEN detailed_status_code IN ('new_hire_active','new_hire_termination') THEN 1 ELSE 0 END) AS hires,
+          SUM(CASE WHEN employment_status = 'terminated' THEN 1 ELSE 0 END) AS terminations
+        FROM fct_workforce_snapshot
+        WHERE simulation_year = ?
+        """
+        hires, terminations = conn.execute(derived_query, [year]).fetchone()
+
+        # Print summary
+        print(f"\n📈 Year {year} Event Summary:")
+        total_events = (hires or 0) + (terminations or 0) + sum(row[1] for row in results)
+        # Start with derived metrics for hires/terminations
+        print(f"   {'hire':15}: {(hires or 0):4,}")
+        print(f"   {'termination':15}: {(terminations or 0):4,}")
+        for event_type, count in results:
+            print(f"   {event_type:15}: {count:4,}")
+        print(f"   {'TOTAL':15}: {total_events:4,}")
 
     def _display_growth_analysis(self, conn, year: int) -> None:
         """Display growth analysis - baseline comparison for year 1, YoY for others."""
@@ -349,21 +361,34 @@ class YearAuditor:
         )
 
     def _generate_event_summary(self, conn, year: int) -> EventSummary:
+        # Raw counts excluding hire/termination
         rows = conn.execute(
             """
             SELECT lower(event_type) AS et, COUNT(*)
             FROM fct_yearly_events
             WHERE simulation_year = ?
+              AND lower(event_type) NOT IN ('hire','termination')
             GROUP BY lower(event_type)
             ORDER BY 2 DESC
             """,
             [year],
         ).fetchall()
         by_type = {r[0]: r[1] for r in rows}
+        # Derive hires/terminations from snapshot for consistency with headcount
+        hires, terms = conn.execute(
+            """
+            SELECT
+              SUM(CASE WHEN detailed_status_code IN ('new_hire_active','new_hire_termination') THEN 1 ELSE 0 END) AS hires,
+              SUM(CASE WHEN employment_status = 'terminated' THEN 1 ELSE 0 END) AS terminations
+            FROM fct_workforce_snapshot
+            WHERE simulation_year = ?
+            """,
+            [year],
+        ).fetchone()
+        by_type["hire"] = int(hires or 0)
+        by_type["termination"] = int(terms or 0)
         total = sum(by_type.values())
-        hires = by_type.get("hire", 0)
-        terms = by_type.get("termination", 0)
-        ratio = float("inf") if terms == 0 else (hires / terms)
+        ratio = float("inf") if (terms or 0) == 0 else (by_type["hire"] / by_type["termination"])
         return EventSummary(year=year, total_events=total, events_by_type=by_type, hire_termination_ratio=ratio)
 
     def _calculate_growth_analysis(self, conn, year: int) -> Dict[str, Any]:

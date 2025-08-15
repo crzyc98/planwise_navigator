@@ -63,7 +63,7 @@ WITH deferral_state_data AS (
         precision_status,
         record_immutability_status,
         event_sourcing_metadata
-    FROM {{ ref('int_deferral_rate_state_accumulator') }}
+    FROM {{ ref('int_deferral_rate_state_accumulator_v2') }}
     WHERE simulation_year = {{ simulation_year }}
 ),
 

@@ -235,8 +235,11 @@ class PipelineOrchestrator:
                 print(f"      hiring_demand.total_hires_needed: {total_hires_needed}")
                 print(f"      hiring_demand.sum_by_level: {level_hires_needed}")
 
-                if baseline_cnt == 0:
+                # Epic E042 Fix: Only validate baseline workforce for first year
+                if baseline_cnt == 0 and year == self.config.simulation.start_year:
                     raise PipelineStageError(f"CRITICAL: int_baseline_workforce has 0 rows for year {year}. Check census data processing.")
+                elif baseline_cnt == 0 and year > self.config.simulation.start_year:
+                    print(f"ℹ️ int_baseline_workforce has 0 rows for year {year} (expected for year 2+, using incremental preservation)")
                 if comp_cnt == 0:
                     raise PipelineStageError(f"CRITICAL: int_employee_compensation_by_year has 0 rows for year {year}. Foundation models are broken.")
                 if wn_cnt == 0 or wnbl_cnt == 0:
@@ -354,6 +357,73 @@ class PipelineOrchestrator:
                     print("   - Verify dbt vars: active_match_formula, match_formulas")
                     print("   - Check int_employee_match_calculations for non-zero employer_match_amount")
                     print("   - Rebuild: dbt run --select int_employee_match_calculations fct_employer_match_events")
+
+                # Epic E042 Guardrail: ensure contributions are populated when deferral state exists
+                def _contrib_guard(conn):
+                    dr_cnt = conn.execute(
+                        "SELECT COUNT(*) FROM int_deferral_rate_state_accumulator_v2 WHERE simulation_year = ?",
+                        [year],
+                    ).fetchone()[0]
+                    comp_cnt = conn.execute(
+                        "SELECT COUNT(*) FROM int_employee_compensation_by_year WHERE simulation_year = ?",
+                        [year],
+                    ).fetchone()[0]
+                    overlap = conn.execute(
+                        """
+                        WITH dr AS (
+                          SELECT employee_id FROM int_deferral_rate_state_accumulator_v2 WHERE simulation_year = ?
+                        ), wf AS (
+                          SELECT employee_id FROM int_employee_compensation_by_year WHERE simulation_year = ?
+                        )
+                        SELECT COUNT(*) FROM (
+                          SELECT employee_id FROM dr INTERSECT SELECT employee_id FROM wf
+                        )
+                        """,
+                        [year, year],
+                    ).fetchone()[0]
+                    contrib_rows, contrib_sum = conn.execute(
+                        "SELECT COUNT(*), COALESCE(SUM(annual_contribution_amount), 0) FROM int_employee_contributions WHERE simulation_year = ?",
+                        [year],
+                    ).fetchone()
+                    return int(dr_cnt), int(comp_cnt), int(overlap), int(contrib_rows), float(contrib_sum or 0.0)
+
+                dr_cnt, comp_cnt, overlap_cnt, contrib_rows, contrib_sum = self.db_manager.execute_with_retry(_contrib_guard)
+
+                if dr_cnt > 0 and (overlap_cnt == 0 or contrib_rows == 0 or contrib_sum == 0.0):
+                    print(
+                        f"⚠️ Detected deferral state ({dr_cnt}) but no contribution output (rows={contrib_rows}, sum={contrib_sum:.2f}, overlap={overlap_cnt}). Rebuilding staging → compensation → deferral_state → contributions."
+                    )
+                    # Ensure Year 1 NH staging is present, then rebuild compensation and contributions
+                    self.dbt_runner.execute_command(
+                        [
+                            "run",
+                            "--select",
+                            "int_new_hire_compensation_staging int_employee_compensation_by_year",
+                        ],
+                        simulation_year=year,
+                        dbt_vars=self._dbt_vars,
+                        stream_output=True,
+                    )
+                    self.dbt_runner.execute_command(
+                        [
+                            "run",
+                            "--select",
+                            "int_deferral_rate_state_accumulator_v2",
+                        ],
+                        simulation_year=year,
+                        dbt_vars=self._dbt_vars,
+                        stream_output=True,
+                    )
+                    self.dbt_runner.execute_command(
+                        [
+                            "run",
+                            "--select",
+                            "int_employee_contributions fct_workforce_snapshot",
+                        ],
+                        simulation_year=year,
+                        dbt_vars=self._dbt_vars,
+                        stream_output=True,
+                    )
 
             # Registry updates after events/state accumulation
             if stage.name == WorkflowStage.EVENT_GENERATION:
@@ -536,6 +606,32 @@ class PipelineOrchestrator:
                 "int_active_employees_prev_year_snapshot",
             ]
 
+        # Epic E042 Fix: Conditional foundation models to preserve historical data
+        if year == self.config.simulation.start_year:
+            # Year 1: Include baseline workforce (created from census)
+            # Ensure new-hire staging is built so NH_YYYY_* appear in compensation
+            foundation_models = [
+                "int_baseline_workforce",
+                "int_new_hire_compensation_staging",
+                "int_employee_compensation_by_year",
+                "int_effective_parameters",
+                "int_workforce_needs",
+                "int_workforce_needs_by_level",
+                # Epic E039: Employer contribution foundation models
+                "int_employer_eligibility",
+            ]
+        else:
+            # Year 2+: Skip baseline workforce (use incremental data preservation)
+            # int_baseline_workforce is incremental and preserves Year 1 data
+            foundation_models = [
+                "int_employee_compensation_by_year",
+                "int_effective_parameters",
+                "int_workforce_needs",
+                "int_workforce_needs_by_level",
+                # Epic E039: Employer contribution foundation models
+                "int_employer_eligibility",
+            ]
+
         return [
             StageDefinition(
                 name=WorkflowStage.INITIALIZATION,
@@ -546,15 +642,7 @@ class PipelineOrchestrator:
             StageDefinition(
                 name=WorkflowStage.FOUNDATION,
                 dependencies=[WorkflowStage.INITIALIZATION],
-                models=[
-                    "int_baseline_workforce",
-                    "int_employee_compensation_by_year",
-                    "int_effective_parameters",
-                    "int_workforce_needs",
-                    "int_workforce_needs_by_level",
-                    # Epic E039: Employer contribution foundation models
-                    "int_employer_eligibility",
-                ],
+                models=foundation_models,
                 validation_rules=["row_count_drift", "compensation_reasonableness"],
             ),
             StageDefinition(
@@ -584,7 +672,7 @@ class PipelineOrchestrator:
                     # Build proration snapshot before contributions so all bases are prorated
                     "int_workforce_snapshot_optimized",
                     "int_enrollment_state_accumulator",
-                    "int_deferral_rate_state_accumulator",
+                    "int_deferral_rate_state_accumulator_v2",
                     "int_deferral_escalation_state_accumulator",
                     # Build employer contributions after contributions are computed to ensure proration
                     "int_employee_contributions",

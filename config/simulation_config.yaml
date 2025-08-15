@@ -9,7 +9,7 @@ simulation:
 # Setup configuration for orchestrator_dbt
 setup:
   clear_tables: true
-  clear_mode: "year"  # Clear year-specific data only, not all data
+  clear_mode: "year"  # Clear year-specific data only, preserve baseline
   clear_table_patterns: ["int_"]  # Only clear intermediate tables, preserve fact tables for multi-year accumulation
   load_seeds: true
   run_staging_models: true

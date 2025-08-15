@@ -755,7 +755,7 @@ final_workforce AS (
     -- Add eligibility information
     LEFT JOIN employee_eligibility ee ON fwc.employee_id = ee.employee_id
     -- Epic E035: Add deferral rate state tracking (ENABLED - Fix for consistent deferral rate display)
-    LEFT JOIN {{ ref('int_deferral_rate_state_accumulator') }} dsa
+    LEFT JOIN {{ ref('int_deferral_rate_state_accumulator_v2') }} dsa
         ON fwc.employee_id = dsa.employee_id
         AND dsa.simulation_year = sp.current_year
     -- Add enrollment state accumulator for participation status tracking
@@ -795,6 +795,98 @@ final_workforce_with_contributions AS (
     LEFT JOIN {{ ref('int_employer_core_contributions') }} core_contrib
         ON fw.employee_id = core_contrib.employee_id
         AND core_contrib.simulation_year = fw.simulation_year
+),
+
+final_output AS (
+    SELECT
+        employee_id,
+        employee_ssn,
+        employee_birth_date,
+        employee_hire_date,
+        current_compensation,
+        prorated_annual_compensation,
+        -- **NEW**: Full-year equivalent compensation - annualizes all compensation periods
+        -- This eliminates proration-based dilution by calculating what each employee
+        -- would earn if they worked the full year at their effective rates
+        CASE
+            -- For employees with merit increases: use the post-merit salary as full-year equivalent
+            WHEN merit_new_salary IS NOT NULL THEN merit_new_salary
+
+            -- For promoted employees: use post-promotion salary as full-year equivalent
+            WHEN promo_new_salary IS NOT NULL THEN promo_new_salary
+
+            -- For new hires: use their hired salary as full-year equivalent
+            WHEN EXTRACT(YEAR FROM employee_hire_date) = simulation_year THEN current_compensation
+
+            -- For continuous employees: use current salary as full-year equivalent
+            ELSE current_compensation
+        END AS full_year_equivalent_compensation,
+        current_age,
+        current_tenure,
+        level_id,
+        age_band,
+        tenure_band,
+        employment_status,
+        termination_date,
+        termination_reason,
+        detailed_status_code,
+        simulation_year,
+        -- Add eligibility fields
+        employee_eligibility_date,
+        waiting_period_days,
+        current_eligibility_status,
+        employee_enrollment_date,
+        is_enrolled_flag,
+        -- Add deferral rate
+        current_deferral_rate,
+        -- Add participation status fields
+        participation_status,
+        participation_status_detail,
+        -- Epic E035: Add escalation tracking fields
+        total_deferral_escalations,
+        last_escalation_date,
+        has_deferral_escalations,
+        original_deferral_rate,
+        total_escalation_amount,
+        -- Epic E034: Add contribution calculations
+        COALESCE(annual_contribution_amount, 0.0) AS prorated_annual_contributions,
+        -- Split contributions into pre-tax and Roth based on industry assumptions
+        -- For now, assume 85% pre-tax, 15% Roth (typical split)
+        COALESCE(annual_contribution_amount * 0.85, 0.0) AS pre_tax_contributions,
+        COALESCE(annual_contribution_amount * 0.15, 0.0) AS roth_contributions,
+        COALESCE(annual_contribution_amount, 0.0) AS ytd_contributions,
+        -- IRS 402(g) limit check for 2025: $23,500 under 50, $31,000 for 50+
+        CASE
+            WHEN COALESCE(annual_contribution_amount, 0.0) >=
+                CASE
+                    WHEN current_age >= 50 THEN 31000  -- Catch-up contribution limit
+                    ELSE 23500  -- Standard limit for under 50
+                END
+            THEN true
+            ELSE false
+        END AS irs_limit_reached,
+        -- Additional contribution metadata
+        effective_annual_deferral_rate,
+        total_contribution_base_compensation,
+        first_contribution_date,
+        last_contribution_date,
+        contribution_quality_flag,
+        -- Epic E039: Add employer contribution columns to workforce snapshot
+        employer_match_amount,
+        employer_core_amount,
+        total_employer_contributions,
+        CURRENT_TIMESTAMP AS snapshot_created_at
+    FROM final_workforce_with_contributions
+    {% if is_incremental() %}
+    WHERE simulation_year = {{ simulation_year }}
+    {% endif %}
+),
+
+-- Deduplicate to enforce one row per employee per year
+final_deduped AS (
+    SELECT *,
+           ROW_NUMBER() OVER (PARTITION BY employee_id, simulation_year ORDER BY employee_id) AS rn
+    FROM final_output
 )
 
 SELECT
@@ -804,22 +896,7 @@ SELECT
     employee_hire_date,
     current_compensation,
     prorated_annual_compensation,
-    -- **NEW**: Full-year equivalent compensation - annualizes all compensation periods
-    -- This eliminates proration-based dilution by calculating what each employee
-    -- would earn if they worked the full year at their effective rates
-    CASE
-        -- For employees with merit increases: use the post-merit salary as full-year equivalent
-        WHEN merit_new_salary IS NOT NULL THEN merit_new_salary
-
-        -- For promoted employees: use post-promotion salary as full-year equivalent
-        WHEN promo_new_salary IS NOT NULL THEN promo_new_salary
-
-        -- For new hires: use their hired salary as full-year equivalent
-        WHEN EXTRACT(YEAR FROM employee_hire_date) = simulation_year THEN current_compensation
-
-        -- For continuous employees: use current salary as full-year equivalent
-        ELSE current_compensation
-    END AS full_year_equivalent_compensation,
+    full_year_equivalent_compensation,
     current_age,
     current_tenure,
     level_id,
@@ -830,55 +907,35 @@ SELECT
     termination_reason,
     detailed_status_code,
     simulation_year,
-    -- Add eligibility fields
     employee_eligibility_date,
     waiting_period_days,
     current_eligibility_status,
     employee_enrollment_date,
     is_enrolled_flag,
-    -- Add deferral rate
     current_deferral_rate,
-    -- Add participation status fields
     participation_status,
     participation_status_detail,
-    -- Epic E035: Add escalation tracking fields
     total_deferral_escalations,
     last_escalation_date,
     has_deferral_escalations,
     original_deferral_rate,
     total_escalation_amount,
-    -- Epic E034: Add contribution calculations
-    COALESCE(annual_contribution_amount, 0.0) AS prorated_annual_contributions,
-    -- Split contributions into pre-tax and Roth based on industry assumptions
-    -- For now, assume 85% pre-tax, 15% Roth (typical split)
-    COALESCE(annual_contribution_amount * 0.85, 0.0) AS pre_tax_contributions,
-    COALESCE(annual_contribution_amount * 0.15, 0.0) AS roth_contributions,
-    COALESCE(annual_contribution_amount, 0.0) AS ytd_contributions,
-    -- IRS 402(g) limit check for 2025: $23,500 under 50, $31,000 for 50+
-    CASE
-        WHEN COALESCE(annual_contribution_amount, 0.0) >=
-            CASE
-                WHEN current_age >= 50 THEN 31000  -- Catch-up contribution limit
-                ELSE 23500  -- Standard limit for under 50
-            END
-        THEN true
-        ELSE false
-    END AS irs_limit_reached,
-    -- Additional contribution metadata
+    prorated_annual_contributions,
+    pre_tax_contributions,
+    roth_contributions,
+    ytd_contributions,
+    irs_limit_reached,
     effective_annual_deferral_rate,
     total_contribution_base_compensation,
     first_contribution_date,
     last_contribution_date,
     contribution_quality_flag,
-    -- Epic E039: Add employer contribution columns to workforce snapshot
     employer_match_amount,
     employer_core_amount,
     total_employer_contributions,
-    CURRENT_TIMESTAMP AS snapshot_created_at
-FROM final_workforce_with_contributions
-{% if is_incremental() %}
-WHERE simulation_year = {{ simulation_year }}
-{% endif %}
+    snapshot_created_at
+FROM final_deduped
+WHERE rn = 1
 
 -- Note: Avoid ORDER BY in final SELECT for incremental materializations
 -- Some engines reject ORDER BY in INSERT SELECT; not needed for correctness

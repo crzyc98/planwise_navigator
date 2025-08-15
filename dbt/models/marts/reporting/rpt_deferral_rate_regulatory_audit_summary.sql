@@ -83,7 +83,7 @@ WITH deferral_state_summary AS (
         COUNT(CASE WHEN escalations_received > 0 THEN 1 END) AS employees_with_escalations,
         ROUND(AVG(total_escalation_amount)::DECIMAL, 6) AS average_total_escalation_amount
 
-    FROM {{ ref('int_deferral_rate_state_accumulator') }}
+    FROM {{ ref('int_deferral_rate_state_accumulator_v2') }}
     WHERE simulation_year = {{ simulation_year }}
     GROUP BY simulation_year
 ),
