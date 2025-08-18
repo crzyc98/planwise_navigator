@@ -70,7 +70,7 @@ current_year_new_enrollments_from_yearly_events AS (
             PARTITION BY employee_id
             ORDER BY effective_date
         ) as rn
-    FROM fct_yearly_events
+    FROM {{ ref('fct_yearly_events') }}
     WHERE LOWER(event_type) = 'enrollment'
       AND employee_id IS NOT NULL
       AND simulation_year = {{ simulation_year }}
@@ -106,6 +106,18 @@ current_year_escalations AS (
     WHERE simulation_year = {{ simulation_year }}
         AND employee_id IS NOT NULL
         AND new_deferral_rate IS NOT NULL
+),
+
+-- Capture current year's opt-out events (set deferral to 0 and unenroll)
+current_year_opt_outs AS (
+    SELECT DISTINCT
+        employee_id,
+        effective_date
+    FROM {{ ref('int_enrollment_events') }}
+    WHERE simulation_year = {{ simulation_year }}
+      AND LOWER(event_type) = 'enrollment_change'
+      AND COALESCE(employee_deferral_rate, 0) = 0
+      AND employee_id IS NOT NULL
 ),
 
 {% if simulation_year == start_year %}
@@ -146,7 +158,7 @@ historical_enrollments_from_yearly_events AS (
             PARTITION BY employee_id
             ORDER BY simulation_year, effective_date
         ) as rn
-    FROM fct_yearly_events
+    FROM {{ ref('fct_yearly_events') }}
     WHERE LOWER(event_type) = 'enrollment'
       AND employee_id IS NOT NULL
       AND simulation_year <= {{ simulation_year }}
@@ -165,6 +177,29 @@ historical_enrollments AS (
     SELECT * FROM historical_enrollments_from_yearly_events
 ),
 
+-- CRITICAL FIX: Get pre-enrolled employees from baseline workforce
+-- These are employees who were enrolled before the simulation started but need carryover rates
+baseline_pre_enrolled AS (
+    SELECT
+        employee_id,
+        employee_enrollment_date as enrollment_date,
+        0.06 as initial_deferral_rate,  -- Default 6% for pre-enrolled employees
+        EXTRACT(YEAR FROM employee_enrollment_date) as enrollment_year,
+        'baseline_workforce' as source
+    FROM {{ ref('int_baseline_workforce') }}
+    WHERE simulation_year = {{ simulation_year }}
+        AND employee_enrollment_date IS NOT NULL
+        AND employee_enrollment_date < '{{ simulation_year }}-01-01'::DATE
+        AND employee_id IS NOT NULL
+        -- Only include if not already in event-based enrollments
+        AND employee_id NOT IN (
+            SELECT employee_id
+            FROM historical_enrollments
+            WHERE rn = 1
+        )
+),
+
+-- Combine event-based and baseline pre-enrolled employees
 first_year_enrolled_employees AS (
     SELECT
         employee_id,
@@ -174,6 +209,16 @@ first_year_enrolled_employees AS (
         source
     FROM historical_enrollments
     WHERE rn = 1  -- First enrollment event per employee
+
+    UNION ALL
+
+    SELECT
+        employee_id,
+        enrollment_date,
+        initial_deferral_rate,
+        enrollment_year,
+        source
+    FROM baseline_pre_enrolled
 ),
 
 {% else %}
@@ -228,7 +273,7 @@ current_year_workforce AS (
         50000.00::DECIMAL(12,2) as employee_compensation,  -- Default compensation
         35::SMALLINT as current_age,                       -- Default age
         2::SMALLINT as level_id                            -- Default level
-    FROM fct_yearly_events
+    FROM {{ ref('fct_yearly_events') }}
     WHERE simulation_year = {{ simulation_year }}
       AND event_type IN ('enrollment', 'hire')
       AND employee_id IS NOT NULL
@@ -268,16 +313,19 @@ baseline_deferral_rates AS (
 -- FIRST YEAR: Combine historical enrollments with current escalations
 first_year_state AS (
     SELECT
-        COALESCE(w.employee_id, he.employee_id, ce.employee_id) as employee_id,
+        COALESCE(w.employee_id, he.employee_id, ce.employee_id, oo.employee_id) as employee_id,
         {{ simulation_year }} as simulation_year,
 
-        -- Calculate current deferral rate: escalation overwrites enrollment rate
-        COALESCE(
-            ce.new_deferral_rate,      -- Latest escalation this year
-            he.initial_deferral_rate,  -- Initial enrollment rate
-            br.fallback_rate,          -- Demographic fallback
-            0.03::DECIMAL(5,4)         -- Hard fallback
-        ) as current_deferral_rate,
+        -- Calculate current deferral rate with opt-out override
+        CASE
+            WHEN oo.employee_id IS NOT NULL THEN 0.00::DECIMAL(5,4)
+            ELSE COALESCE(
+                ce.new_deferral_rate,      -- Latest escalation this year
+                he.initial_deferral_rate,  -- Initial enrollment rate
+                br.fallback_rate,          -- Demographic fallback
+                0.03::DECIMAL(5,4)         -- Hard fallback
+            )
+        END as current_deferral_rate,
 
         -- Track escalations
         CASE WHEN ce.employee_id IS NOT NULL THEN 1 ELSE 0 END as escalations_received,
@@ -310,7 +358,10 @@ first_year_state AS (
         END as days_since_last_escalation,
 
         -- Enrollment information
-        (he.employee_id IS NOT NULL) as is_enrolled_flag,
+        CASE
+            WHEN oo.employee_id IS NOT NULL THEN false
+            ELSE (he.employee_id IS NOT NULL)
+        END as is_enrolled_flag,
         he.enrollment_date as employee_enrollment_date,
 
         -- Metadata
@@ -327,6 +378,7 @@ first_year_state AS (
     FROM current_year_workforce w
     FULL OUTER JOIN first_year_enrolled_employees he ON w.employee_id = he.employee_id
     LEFT JOIN current_year_escalations ce ON COALESCE(w.employee_id, he.employee_id) = ce.employee_id AND ce.rn = 1
+    LEFT JOIN current_year_opt_outs oo ON COALESCE(w.employee_id, he.employee_id) = oo.employee_id
     LEFT JOIN baseline_deferral_rates br ON COALESCE(w.employee_id, he.employee_id) = br.employee_id
     -- Only include employees who are enrolled (have enrollment events)
     WHERE he.employee_id IS NOT NULL
@@ -336,17 +388,20 @@ first_year_state AS (
 -- SUBSEQUENT YEARS: Temporal accumulation pattern
 subsequent_year_state AS (
     SELECT
-        COALESCE(w.employee_id, ps.employee_id, ne.employee_id, ce.employee_id) as employee_id,
+        COALESCE(w.employee_id, ps.employee_id, ne.employee_id, ce.employee_id, oo.employee_id) as employee_id,
         {{ simulation_year }} as simulation_year,
 
-        -- TEMPORAL LOGIC: Apply escalations to previous year's rate or use new enrollment
-        COALESCE(
-            ce.new_deferral_rate,                    -- Current year escalation overwrites all
-            ne.initial_deferral_rate,                -- New enrollment this year
-            ps.previous_deferral_rate,               -- Carry forward from previous year
-            br.fallback_rate,                        -- Demographic fallback
-            0.03::DECIMAL(5,4)                       -- Hard fallback
-        ) as current_deferral_rate,
+        -- TEMPORAL LOGIC with opt-out override: Apply escalations, enrollment, or carry-forward unless opted out
+        CASE
+            WHEN oo.employee_id IS NOT NULL THEN 0.00::DECIMAL(5,4)
+            ELSE COALESCE(
+                ce.new_deferral_rate,                    -- Current year escalation overwrites all
+                ne.initial_deferral_rate,                -- New enrollment this year
+                ps.previous_deferral_rate,               -- Carry forward from previous year
+                br.fallback_rate,                        -- Demographic fallback
+                0.03::DECIMAL(5,4)                       -- Hard fallback
+            )
+        END as current_deferral_rate,
 
         -- Track escalations cumulatively
         CASE
@@ -393,7 +448,10 @@ subsequent_year_state AS (
         END as days_since_last_escalation,
 
         -- Enrollment information (carry forward or new)
-        COALESCE(ps.is_enrolled_flag, ne.employee_id IS NOT NULL, false) as is_enrolled_flag,
+        CASE
+            WHEN oo.employee_id IS NOT NULL THEN false
+            ELSE COALESCE(ps.is_enrolled_flag, ne.employee_id IS NOT NULL, false)
+        END as is_enrolled_flag,
         COALESCE(ne.enrollment_date, ps.employee_enrollment_date) as employee_enrollment_date,
 
         -- Metadata
@@ -411,6 +469,7 @@ subsequent_year_state AS (
     FULL OUTER JOIN previous_year_state ps ON w.employee_id = ps.employee_id
     LEFT JOIN current_year_new_enrollments ne ON COALESCE(w.employee_id, ps.employee_id) = ne.employee_id AND ne.rn = 1
     LEFT JOIN current_year_escalations ce ON COALESCE(w.employee_id, ps.employee_id) = ce.employee_id AND ce.rn = 1
+    LEFT JOIN current_year_opt_outs oo ON COALESCE(w.employee_id, ps.employee_id) = oo.employee_id
     LEFT JOIN baseline_deferral_rates br ON COALESCE(w.employee_id, ps.employee_id) = br.employee_id
     -- Include employees who are enrolled (new enrollments, carry-forward, or have escalations)
     WHERE (ps.employee_id IS NOT NULL OR ne.employee_id IS NOT NULL OR ce.employee_id IS NOT NULL)

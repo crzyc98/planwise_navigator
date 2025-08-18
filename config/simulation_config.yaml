@@ -203,6 +203,17 @@ employer_match:
           match_rate: 0.50    # 50% on next 2%
       max_match_percentage: 0.04  # Cap at 4% of compensation
 
+# Employer core (non-elective) contribution configuration
+employer_core_contribution:
+  enabled: true                    # Master on/off switch
+  contribution_rate: 0.02         # 2% default core contribution rate
+
+  # Eligibility requirements
+  eligibility:
+    minimum_tenure_years: 1        # Minimum years of service (default: 1 year)
+    require_active_at_year_end: true  # Must be active on Dec 31 (default: true)
+    minimum_hours_annual: 1000     # Minimum hours worked (default: 1000)
+
 # Multi-year simulation configuration
 multi_year:
   # Optimization settings

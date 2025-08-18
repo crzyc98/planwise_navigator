@@ -782,7 +782,9 @@ final_workforce_with_contributions AS (
         COALESCE(match_calc.employer_match_amount, 0.0) AS employer_match_amount,
         COALESCE(core_contrib.employer_core_amount, 0.0) AS employer_core_amount,
         COALESCE(match_calc.employer_match_amount, 0.0) +
-        COALESCE(core_contrib.employer_core_amount, 0.0) AS total_employer_contributions
+        COALESCE(core_contrib.employer_core_amount, 0.0) AS total_employer_contributions,
+        -- Add annual hours worked for audit visibility
+        COALESCE(eligibility.annual_hours_worked, 0) AS annual_hours_worked
     FROM final_workforce fw
     LEFT JOIN {{ ref('int_employee_contributions') }} contributions
         ON fw.employee_id = contributions.employee_id
@@ -795,6 +797,10 @@ final_workforce_with_contributions AS (
     LEFT JOIN {{ ref('int_employer_core_contributions') }} core_contrib
         ON fw.employee_id = core_contrib.employee_id
         AND core_contrib.simulation_year = fw.simulation_year
+    -- Join employer eligibility for hours worked audit trail
+    LEFT JOIN {{ ref('int_employer_eligibility') }} eligibility
+        ON fw.employee_id = eligibility.employee_id
+        AND eligibility.simulation_year = fw.simulation_year
 ),
 
 final_output AS (
@@ -875,6 +881,8 @@ final_output AS (
         employer_match_amount,
         employer_core_amount,
         total_employer_contributions,
+        -- Add hours worked for audit visibility
+        annual_hours_worked,
         CURRENT_TIMESTAMP AS snapshot_created_at
     FROM final_workforce_with_contributions
     {% if is_incremental() %}
@@ -933,6 +941,7 @@ SELECT
     employer_match_amount,
     employer_core_amount,
     total_employer_contributions,
+    annual_hours_worked,
     snapshot_created_at
 FROM final_deduped
 WHERE rn = 1
