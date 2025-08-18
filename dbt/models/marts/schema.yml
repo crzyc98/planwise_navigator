@@ -88,11 +88,6 @@ models:
         description: "Compensation amount related to event"
         data_type: double
         # Temporarily disabled - some events (enrollment, deferral escalation) don't have compensation
-        # data_tests:
-        #   - not_null
-        #   - dbt_utils.accepted_range:
-        #       min_value: 0
-        #       max_value: 1000000
       - name: previous_compensation
         description: "Previous compensation amount before event"
         data_type: double
