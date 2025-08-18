@@ -85,12 +85,19 @@ hours_calculation AS (
 SELECT
     ae.employee_id,
     {{ simulation_year }} AS simulation_year,
-    ae.employment_status,
     ae.current_tenure,
     ae.employee_hire_date,
     ae.termination_date,
     ed.event_hire_date,
     ed.event_termination_date,
+
+    -- Derive end-of-year employment status using event termination when present
+    CASE
+        WHEN COALESCE(ed.event_termination_date::DATE, ae.termination_date::DATE) IS NOT NULL
+             AND COALESCE(ed.event_termination_date::DATE, ae.termination_date::DATE) <= '{{ simulation_year }}-12-31'::DATE
+        THEN 'terminated'
+        ELSE 'active'
+    END AS employment_status_eoy,
 
     -- Calculate prorated annual hours based on actual employment period
     CASE
@@ -120,10 +127,7 @@ SELECT
             ) * (2080.0 / 365.0)
 
         -- Full year active employee
-        WHEN ae.employment_status = 'active' THEN 2080
-
-        -- All other cases (inactive, etc.)
-        ELSE 0
+        ELSE 2080
     END AS annual_hours_worked
 FROM all_employees ae
 LEFT JOIN events_data ed ON ae.employee_id = ed.employee_id
@@ -132,24 +136,24 @@ LEFT JOIN events_data ed ON ae.employee_id = ed.employee_id
 SELECT
     employee_id,
     simulation_year,
-    employment_status,
+    employment_status_eoy AS employment_status,
     current_tenure,
     ROUND(annual_hours_worked, 0)::INTEGER AS annual_hours_worked,
 
     -- Match eligibility - original simple logic
     -- Requires active status and meets minimum hours threshold (1000)
     CASE
-        WHEN employment_status = 'active' AND annual_hours_worked >= 1000 THEN TRUE
+        WHEN employment_status_eoy = 'active' AND annual_hours_worked >= 1000 THEN TRUE
         ELSE FALSE
     END AS eligible_for_match,
 
     -- Core contribution eligibility - enhanced with tenure and year-end requirements
     CASE
-        WHEN employment_status = 'active'
+        WHEN employment_status_eoy = 'active'
             AND annual_hours_worked >= {{ core_minimum_hours }}
             AND current_tenure >= {{ core_minimum_tenure_years }}
             {% if core_require_active_eoy %}
-            AND employment_status = 'active'  -- Must be active at year-end
+            AND employment_status_eoy = 'active'  -- Must be active at year-end
             {% endif %}
         THEN TRUE
         ELSE FALSE
@@ -157,7 +161,7 @@ SELECT
 
     -- Combined eligibility flag for convenience (uses match criteria for backward compatibility)
     CASE
-        WHEN employment_status = 'active' AND annual_hours_worked >= 1000 THEN TRUE
+        WHEN employment_status_eoy = 'active' AND annual_hours_worked >= 1000 THEN TRUE
         ELSE FALSE
     END AS eligible_for_contributions,
 
