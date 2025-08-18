@@ -2,15 +2,9 @@
     materialized='incremental',
     incremental_strategy='delete+insert',
     unique_key=['employee_id', 'simulation_year'],
-    on_schema_change='sync_all_columns',
+    on_schema_change='ignore',
     pre_hook=[
       "{% set rel = adapter.get_relation(database=this.database, schema=this.schema, identifier=this.identifier) %}{% if rel is not none %}DELETE FROM {{ this }} WHERE simulation_year = {{ var('simulation_year') }}{% else %}SELECT 1{% endif %}"
-    ],
-    indexes=[
-        {'columns': ['simulation_year', 'employee_id'], 'type': 'btree', 'unique': true},
-        {'columns': ['simulation_year'], 'type': 'btree'},
-        {'columns': ['employee_id'], 'type': 'btree'},
-        {'columns': ['has_escalations'], 'type': 'btree'}
     ]
 ) }}
 
