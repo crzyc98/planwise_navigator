@@ -40,15 +40,14 @@
 
 WITH irs_contribution_limits AS (
     SELECT
-        plan_year,
-        age_threshold,
+        limit_year,
+        catch_up_age_threshold,
         base_limit,
         catch_up_limit,
-        total_limit,
-        effective_date
+        -- For reporting, treat total_limit as catch_up_limit for eligible employees
+        catch_up_limit AS total_limit
     FROM {{ ref('irs_contribution_limits') }}
-    WHERE plan_year = {{ simulation_year }}
-        AND limit_type = 'employee_deferral'
+    WHERE limit_year = {{ simulation_year }}
     LIMIT 1
 ),
 
@@ -56,14 +55,15 @@ contribution_data AS (
     SELECT
         employee_id,
         simulation_year,
-        prorated_annual_contributions,
-        irs_limited_annual_contributions,
-        excess_contributions,
-        effective_deferral_rate,
-        age_as_of_december_31,
+        -- Map to expected names
+        annual_contribution_amount AS prorated_annual_contributions,
+        annual_contribution_amount AS irs_limited_annual_contributions,
+        GREATEST(0, requested_contribution_amount - annual_contribution_amount) AS excess_contributions,
+        effective_annual_deferral_rate AS effective_deferral_rate,
+        current_age AS age_as_of_december_31,
         applicable_irs_limit,
-        irs_limit_reached,
-        is_enrolled,
+        irs_limit_applied AS irs_limit_reached,
+        is_enrolled_flag AS is_enrolled,
         prorated_annual_compensation,
         employment_status,
         data_quality_flag
@@ -124,8 +124,8 @@ irs_402g_compliance AS (
         END AS risk_level,
 
         -- Regulatory deadlines (IRS correction deadlines)
-        DATE({{ simulation_year }}, 4, 15) AS primary_correction_deadline,
-        DATE({{ simulation_year }}, 12, 31) AS plan_year_end_deadline,
+        MAKE_DATE({{ simulation_year }}, 4, 15) AS primary_correction_deadline,
+        MAKE_DATE({{ simulation_year }}, 12, 31) AS plan_year_end_deadline,
 
         il.base_limit,
         il.catch_up_limit,
@@ -160,8 +160,8 @@ compensation_limit_compliance AS (
         'REQUIRES_MANUAL_REVIEW' AS compliance_status,
         'MEDIUM' AS risk_level,
 
-        DATE({{ simulation_year }}, 4, 15) AS primary_correction_deadline,
-        DATE({{ simulation_year }}, 12, 31) AS plan_year_end_deadline,
+        MAKE_DATE({{ simulation_year }}, 4, 15) AS primary_correction_deadline,
+        MAKE_DATE({{ simulation_year }}, 12, 31) AS plan_year_end_deadline,
 
         -- Placeholder limits
         350000 AS base_limit,
@@ -205,7 +205,7 @@ data_quality_compliance AS (
         END AS risk_level,
 
         CURRENT_DATE AS primary_correction_deadline,  -- Immediate for data quality
-        DATE({{ simulation_year }}, 12, 31) AS plan_year_end_deadline,
+        MAKE_DATE({{ simulation_year }}, 12, 31) AS plan_year_end_deadline,
 
         0 AS base_limit,  -- Not applicable
         0 AS catch_up_limit,  -- Not applicable
@@ -248,8 +248,8 @@ plan_administration_compliance AS (
             ELSE 'MEDIUM'
         END AS risk_level,
 
-        DATE({{ simulation_year }}, 3, 31) AS primary_correction_deadline,  -- Form 5500 deadline
-        DATE({{ simulation_year }}, 12, 31) AS plan_year_end_deadline,
+        MAKE_DATE({{ simulation_year }}, 3, 31) AS primary_correction_deadline,  -- Form 5500 deadline
+        MAKE_DATE({{ simulation_year }}, 12, 31) AS plan_year_end_deadline,
 
         0 AS base_limit,  -- Not applicable
         0 AS catch_up_limit,  -- Not applicable

@@ -18,7 +18,20 @@
 {% set simulation_year = var('simulation_year', 2025) | int %}
 
 WITH base_contribution_data AS (
-    SELECT *
+    SELECT
+        employee_id,
+        simulation_year,
+        current_age,
+        employment_status,
+        -- Map to names used in validations
+        annual_contribution_amount,
+        requested_contribution_amount,
+        amount_capped_by_irs_limit,
+        applicable_irs_limit,
+        irs_limit_applied,
+        is_enrolled_flag,
+        prorated_annual_compensation,
+        effective_annual_deferral_rate as effective_deferral_rate
     FROM {{ ref('int_employee_contributions') }}
     WHERE simulation_year = {{ simulation_year }}
 ),
@@ -32,10 +45,13 @@ workforce_data AS (
 ),
 
 irs_limits AS (
-    SELECT *
+    SELECT
+        limit_year,
+        base_limit,
+        catch_up_limit,
+        catch_up_age_threshold
     FROM {{ ref('irs_contribution_limits') }}
-    WHERE plan_year = {{ simulation_year }}
-        AND limit_type = 'employee_deferral'
+    WHERE limit_year = {{ simulation_year }}
     LIMIT 1
 ),
 
@@ -51,12 +67,12 @@ critical_validations AS (
         CONCAT(
             'IRS 402(g) base limit violations detected: ',
             COUNT(*), ' employees with contributions exceeding $',
-            MAX(il.base_limit), ' (under age 50)'
+            MAX(il.base_limit), ' (under age threshold)'
         ) AS validation_message
     FROM base_contribution_data cd
     CROSS JOIN irs_limits il
-    WHERE cd.age_as_of_december_31 < il.age_threshold
-        AND cd.prorated_annual_contributions > il.base_limit
+    WHERE cd.current_age < il.catch_up_age_threshold
+        AND cd.annual_contribution_amount > il.base_limit
     GROUP BY il.base_limit
     HAVING COUNT(*) > 0
 
@@ -72,13 +88,13 @@ critical_validations AS (
         CONCAT(
             'IRS 402(g) total limit violations detected: ',
             COUNT(*), ' employees age 50+ with contributions exceeding $',
-            MAX(il.total_limit)
+            MAX(il.catch_up_limit)
         ) AS validation_message
     FROM base_contribution_data cd
     CROSS JOIN irs_limits il
-    WHERE cd.age_as_of_december_31 >= il.age_threshold
-        AND cd.prorated_annual_contributions > il.total_limit
-    GROUP BY il.total_limit
+    WHERE cd.current_age >= il.catch_up_age_threshold
+        AND cd.annual_contribution_amount > il.catch_up_limit
+    GROUP BY il.catch_up_limit
     HAVING COUNT(*) > 0
 
     UNION ALL
@@ -96,7 +112,7 @@ critical_validations AS (
         ) AS validation_message
     FROM base_contribution_data cd
     INNER JOIN workforce_data wd ON cd.employee_id = wd.employee_id
-    WHERE cd.prorated_annual_contributions > (wd.prorated_annual_compensation + 100)  -- $100 tolerance for rounding
+    WHERE cd.annual_contribution_amount > (wd.prorated_annual_compensation + 100)  -- $100 tolerance for rounding
     GROUP BY 1, 2, 3, 4
     HAVING COUNT(*) > 0
 ),
@@ -112,8 +128,8 @@ error_validations AS (
         COUNT(*) AS violation_count,
         'Contributions detected for non-enrolled employees' AS validation_message
     FROM base_contribution_data cd
-    WHERE cd.is_enrolled = false
-        AND cd.prorated_annual_contributions > 10  -- $10 minimum threshold
+    WHERE cd.is_enrolled_flag = false
+        AND cd.annual_contribution_amount > 10  -- $10 minimum threshold
     GROUP BY 1, 2, 3, 4
     HAVING COUNT(*) > 0
 
@@ -128,10 +144,8 @@ error_validations AS (
         COUNT(*) AS violation_count,
         'IRS limit enforcement logic inconsistency detected' AS validation_message
     FROM base_contribution_data cd
-    WHERE (cd.irs_limited_annual_contributions != cd.prorated_annual_contributions AND cd.irs_limit_reached = false)
-        OR (cd.irs_limited_annual_contributions = cd.prorated_annual_contributions AND cd.irs_limit_reached = true)
-        OR (cd.excess_contributions > 0 AND cd.irs_limit_reached = false)
-        OR (cd.excess_contributions = 0 AND cd.irs_limit_reached = true)
+    WHERE (cd.irs_limit_applied = true AND cd.amount_capped_by_irs_limit <= 0)
+        OR (cd.irs_limit_applied = false AND cd.amount_capped_by_irs_limit > 0)
     GROUP BY 1, 2, 3, 4
     HAVING COUNT(*) > 0
 ),
@@ -148,9 +162,9 @@ info_validations AS (
         CONCAT(
             'Contribution Statistics - ',
             'Total Employees: ', COUNT(*),
-            ', Enrolled: ', SUM(CASE WHEN cd.is_enrolled THEN 1 ELSE 0 END),
-            ', Avg Contribution: $', ROUND(AVG(CASE WHEN cd.is_enrolled THEN cd.prorated_annual_contributions ELSE NULL END), 2),
-            ', Total Contributions: $', ROUND(SUM(cd.prorated_annual_contributions), 2)
+            ', Enrolled: ', SUM(CASE WHEN cd.is_enrolled_flag THEN 1 ELSE 0 END),
+            ', Avg Contribution: $', ROUND(AVG(CASE WHEN cd.is_enrolled_flag THEN cd.annual_contribution_amount ELSE NULL END), 2),
+            ', Total Contributions: $', ROUND(SUM(cd.annual_contribution_amount), 2)
         ) AS validation_message
     FROM base_contribution_data cd
     GROUP BY 1, 2, 3, 4

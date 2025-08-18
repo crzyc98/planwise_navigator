@@ -30,7 +30,7 @@
 {% set current_year = var('simulation_year', 2025) | int %}
 {% set start_year = var('start_year', 2025) | int %}
 
-WITH orphaned_state_detection AS (
+WITH
 
     -- 1. ESCALATIONS WITHOUT ENROLLMENT RECORDS
     escalations_without_enrollment AS (
@@ -288,19 +288,20 @@ WITH orphaned_state_detection AS (
             AND acc.total_escalation_amount > 0
             AND ABS(acc.total_escalation_amount - COALESCE(events.total_escalation_amount, 0)) >= 0.01
             AND acc.employee_id IS NOT NULL
-    )
+    ),
 
-    -- CONSOLIDATE ALL ORPHANED STATE DETECTIONS
-    SELECT * FROM escalations_without_enrollment
-    UNION ALL
-    SELECT * FROM rate_increases_without_events
-    UNION ALL
-    SELECT * FROM terminated_with_escalations
-    UNION ALL
-    SELECT * FROM new_hires_with_escalations
-    UNION ALL
-    SELECT * FROM escalation_amounts_without_events
-)
+    orphaned_state_detection AS (
+        -- CONSOLIDATE ALL ORPHANED STATE DETECTIONS
+        SELECT * FROM escalations_without_enrollment
+        UNION ALL
+        SELECT * FROM rate_increases_without_events
+        UNION ALL
+        SELECT * FROM terminated_with_escalations
+        UNION ALL
+        SELECT * FROM new_hires_with_escalations
+        UNION ALL
+        SELECT * FROM escalation_amounts_without_events
+    )
 
 -- FINAL OUTPUT WITH AUDIT METADATA
 SELECT

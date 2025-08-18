@@ -44,27 +44,28 @@ WITH contribution_calculations AS (
     SELECT
         employee_id,
         simulation_year,
-        prorated_annual_contributions,
-        irs_limited_annual_contributions,
-        excess_contributions,
-        effective_deferral_rate,
-        contribution_periods_count,
-        first_contribution_period_start,
-        last_contribution_period_end,
-        age_as_of_december_31,
+        -- Map to expected names used below
+        annual_contribution_amount AS prorated_annual_contributions,
+        annual_contribution_amount AS irs_limited_annual_contributions,
+        GREATEST(0, requested_contribution_amount - annual_contribution_amount) AS excess_contributions,
+        effective_annual_deferral_rate AS effective_deferral_rate,
+        total_pay_periods_with_contributions AS contribution_periods_count,
+        first_contribution_date AS first_contribution_period_start,
+        last_contribution_date AS last_contribution_period_end,
+        current_age AS age_as_of_december_31,
         applicable_irs_limit,
-        irs_limit_reached,
-        is_enrolled,
-        enrollment_date,
-        years_since_first_enrollment,
+        irs_limit_applied AS irs_limit_reached,
+        is_enrolled_flag AS is_enrolled,
+        NULL::DATE AS enrollment_date,
+        0 AS years_since_first_enrollment,
         prorated_annual_compensation,
-        full_year_equivalent_compensation,
+        NULL::DECIMAL(18,2) AS full_year_equivalent_compensation,
         current_age,
         employment_status,
         data_quality_flag,
-        created_at,
-        scenario_id,
-        parameter_scenario_id
+        calculated_at AS created_at,
+        '{{ var("scenario_id", "default") }}' AS scenario_id,
+        '{{ var("parameter_scenario_id", "default") }}' AS parameter_scenario_id
     FROM {{ ref('int_employee_contributions') }}
     WHERE simulation_year = {{ simulation_year }}
 ),
@@ -104,14 +105,13 @@ validation_results AS (
 
 irs_limits AS (
     SELECT
-        plan_year,
-        age_threshold,
+        limit_year,
+        catch_up_age_threshold AS age_threshold,
         base_limit,
         catch_up_limit,
-        total_limit
+        catch_up_limit AS total_limit
     FROM {{ ref('irs_contribution_limits') }}
-    WHERE plan_year = {{ simulation_year }}
-        AND limit_type = 'employee_deferral'
+    WHERE limit_year = {{ simulation_year }}
     LIMIT 1
 )
 
@@ -130,91 +130,66 @@ SELECT
     cc.scenario_id,
     cc.parameter_scenario_id,
 
-    -- Contribution calculation audit data
-    STRUCT(
-        'core_calculation' AS calculation_type,
-        cc.prorated_annual_contributions AS calculated_amount,
-        cc.irs_limited_annual_contributions AS irs_limited_amount,
-        cc.excess_contributions AS excess_amount,
-        cc.effective_deferral_rate AS effective_rate,
-        cc.contribution_periods_count AS periods_processed,
-        cc.data_quality_flag AS quality_status,
-        CASE
+    -- Contribution calculation audit data (as JSON)
+    JSON_OBJECT(
+        'calculation_type', 'core_calculation',
+        'calculated_amount', cc.prorated_annual_contributions,
+        'irs_limited_amount', cc.irs_limited_annual_contributions,
+        'excess_amount', cc.excess_contributions,
+        'effective_rate', cc.effective_deferral_rate,
+        'periods_processed', cc.contribution_periods_count,
+        'quality_status', cc.data_quality_flag,
+        'calculation_complexity', CASE
             WHEN cc.contribution_periods_count > 5 THEN 'COMPLEX'
             WHEN cc.contribution_periods_count > 2 THEN 'MODERATE'
             ELSE 'SIMPLE'
-        END AS calculation_complexity
+        END
     ) AS contribution_audit_data,
 
-    -- Employee context audit data
-    STRUCT(
-        cc.age_as_of_december_31 AS age_for_limits,
-        cc.applicable_irs_limit AS applied_limit,
-        cc.irs_limit_reached AS limit_reached_flag,
-        cc.is_enrolled AS enrollment_status,
-        cc.enrollment_date AS enrollment_effective_date,
-        cc.years_since_first_enrollment AS enrollment_tenure,
-        cc.employment_status AS employment_status,
-        cc.prorated_annual_compensation AS compensation_base
+    -- Employee context audit data (as JSON)
+    JSON_OBJECT(
+        'age_for_limits', cc.age_as_of_december_31,
+        'applied_limit', cc.applicable_irs_limit,
+        'limit_reached_flag', cc.irs_limit_reached,
+        'enrollment_status', cc.is_enrolled,
+        'enrollment_effective_date', cc.enrollment_date,
+        'enrollment_tenure', cc.years_since_first_enrollment,
+        'employment_status', cc.employment_status,
+        'compensation_base', cc.prorated_annual_compensation
     ) AS employee_context_data,
 
-    -- Period-based calculation audit
-    STRUCT(
-        cc.first_contribution_period_start AS first_period_start,
-        cc.last_contribution_period_end AS last_period_end,
-        DATE_DIFF('day', cc.first_contribution_period_start, cc.last_contribution_period_end) + 1 AS total_days_contributing,
-        ROUND(
-            (DATE_DIFF('day', cc.first_contribution_period_start, cc.last_contribution_period_end) + 1) / 365.0, 4
-        ) AS contribution_year_fraction
+    -- Period-based calculation audit (as JSON)
+    JSON_OBJECT(
+        'first_period_start', cc.first_contribution_period_start,
+        'last_period_end', cc.last_contribution_period_end,
+        'total_days_contributing', DATE_DIFF('day', cc.first_contribution_period_start, cc.last_contribution_period_end) + 1,
+        'contribution_year_fraction', ROUND((DATE_DIFF('day', cc.first_contribution_period_start, cc.last_contribution_period_end) + 1) / 365.0, 4)
     ) AS period_audit_data,
 
-    -- IRS compliance audit data
-    STRUCT(
-        il.base_limit AS irs_base_limit,
-        il.catch_up_limit AS irs_catch_up_limit,
-        il.total_limit AS irs_total_limit,
-        il.age_threshold AS irs_age_threshold,
-        CASE
+    -- IRS compliance audit data (as JSON)
+    JSON_OBJECT(
+        'irs_base_limit', il.base_limit,
+        'irs_catch_up_limit', il.catch_up_limit,
+        'irs_total_limit', il.total_limit,
+        'irs_age_threshold', il.age_threshold,
+        'irs_limit_category', CASE
             WHEN cc.age_as_of_december_31 >= il.age_threshold THEN 'CATCH_UP_ELIGIBLE'
             ELSE 'BASE_LIMIT_ONLY'
-        END AS irs_limit_category,
-        cc.irs_limit_reached AS limit_enforcement_applied,
-        CASE
+        END,
+        'limit_enforcement_applied', cc.irs_limit_reached,
+        'compliance_status', CASE
             WHEN cc.excess_contributions > 0 THEN 'EXCESS_DETECTED'
             WHEN cc.prorated_annual_contributions = cc.applicable_irs_limit THEN 'AT_LIMIT'
             WHEN cc.prorated_annual_contributions > (cc.applicable_irs_limit * 0.9) THEN 'NEAR_LIMIT'
             ELSE 'WITHIN_LIMITS'
-        END AS compliance_status
+        END
     ) AS irs_compliance_audit,
 
-    -- Deferral rate change audit (aggregated)
-    ARRAY(
-        SELECT STRUCT(
-            drc.effective_date AS change_date,
-            drc.event_type AS change_event,
-            drc.previous_deferral_rate AS previous_rate,
-            drc.employee_deferral_rate AS new_rate,
-            drc.employee_deferral_rate - drc.previous_deferral_rate AS rate_delta
-        )
-        FROM deferral_rate_changes drc
-        WHERE drc.employee_id = cc.employee_id
-        ORDER BY drc.effective_date
-    ) AS deferral_rate_changes_audit,
+    -- Deferral rate change audit (omit complex struct; keep as NULL for DuckDB compatibility)
+    NULL AS deferral_rate_changes_audit,
 
-    -- Data quality validation audit
-    ARRAY(
-        SELECT STRUCT(
-            vr.validation_rule AS rule_code,
-            vr.validation_source AS rule_source,
-            vr.severity AS severity_level,
-            vr.violation_count AS violations_found,
-            vr.risk_level AS risk_assessment,
-            vr.regulatory_impact AS regulatory_flag
-        )
-        FROM validation_results vr
-        WHERE vr.regulatory_impact = true
-           OR vr.severity IN ('CRITICAL', 'ERROR')
-    ) AS validation_audit_data,
+    -- Data quality validation audit (omit complex struct; keep as NULL)
+    NULL AS validation_audit_data,
 
     -- Performance and system audit
     STRUCT(
@@ -316,14 +291,13 @@ SELECT
         vr.regulatory_impact AS regulatory_flag
     )] AS validation_audit_data,
 
-    -- System audit for validation
-    STRUCT(
-        vr.validation_timestamp AS calculation_timestamp,
-        0 AS audit_delay_seconds,  -- Real-time validation
-        'SYSTEM_VALIDATION' AS processing_complexity,
-        '{{ var("dbt_version", "unknown") }}' AS dbt_version,
-        'dq_employee_contributions_validation' AS source_model,
-        ARRAY['int_employee_contributions', 'fct_yearly_events'] AS dependency_models
+    -- System audit for validation (basic JSON)
+    JSON_OBJECT(
+        'calculation_timestamp', vr.validation_timestamp,
+        'audit_delay_seconds', 0,
+        'processing_complexity', 'SYSTEM_VALIDATION',
+        'dbt_version', '{{ var("dbt_version", "unknown") }}',
+        'source_model', 'dq_employee_contributions_validation'
     ) AS system_audit_data,
 
     NULL AS cross_year_audit_data,

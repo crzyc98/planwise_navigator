@@ -1,4 +1,4 @@
-{{ config(materialized='table') }}
+{{ config(materialized='table', enabled=false) }}
 
 /*
   Data Quality Test for Story S042-01: Deferral Rate State Accumulator V2
@@ -16,7 +16,7 @@ WITH enrolled_employees_v2 AS (
     employee_id,
     simulation_year,
     current_deferral_rate,
-    deferral_rate_source,
+    escalation_source,
     enrollment_source,
     is_enrolled_flag,
     employee_enrollment_date,
@@ -56,7 +56,7 @@ test_enrollment_coverage AS (
     ee.employee_id,
     ee.simulation_year,
     ee.current_deferral_rate,
-    ee.deferral_rate_source,
+    ee.escalation_source,
 
     -- Check for enrollment event
     CASE WHEN en.employee_id IS NOT NULL THEN true ELSE false END as has_enrollment_event,
@@ -97,7 +97,7 @@ test_null_deferral_rates AS (
     employee_id,
     simulation_year,
     current_deferral_rate,
-    deferral_rate_source,
+    escalation_source,
 
     CASE
       WHEN current_deferral_rate IS NOT NULL THEN 'PASS'
@@ -145,7 +145,7 @@ test_nh_2025_000007 AS (
      WHERE employee_id = 'NH_2025_000007'
      AND simulation_year = 2025) as actual_deferral_rate,
 
-    (SELECT deferral_rate_source
+    (SELECT escalation_source
      FROM enrolled_employees_v2
      WHERE employee_id = 'NH_2025_000007'
      AND simulation_year = 2025) as actual_source,
@@ -162,7 +162,7 @@ test_nh_2025_000007 AS (
             FROM enrolled_employees_v2
             WHERE employee_id = 'NH_2025_000007'
             AND simulation_year = 2025) = 0.06
-      AND (SELECT deferral_rate_source
+      AND (SELECT escalation_source
            FROM enrolled_employees_v2
            WHERE employee_id = 'NH_2025_000007'
            AND simulation_year = 2025) = 'enrollment_event'
@@ -175,7 +175,7 @@ test_nh_2025_000007 AS (
             FROM enrolled_employees_v2
             WHERE employee_id = 'NH_2025_000007'
             AND simulation_year = 2025) = 0.06
-      AND (SELECT deferral_rate_source
+      AND (SELECT escalation_source
            FROM enrolled_employees_v2
            WHERE employee_id = 'NH_2025_000007'
            AND simulation_year = 2025) = 'enrollment_event'

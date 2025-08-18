@@ -22,8 +22,14 @@ enrolled_population AS (
     SELECT
         w.employee_id,
         w.simulation_year,
-        w.age_segment,
-        w.income_segment,
+        w.age_band AS age_segment,
+        -- Derive income segment based on level/compensation
+        CASE
+            WHEN w.level_id >= 5 OR w.current_compensation >= 250000 THEN 'executive'
+            WHEN w.level_id >= 4 OR w.current_compensation >= 150000 THEN 'high'
+            WHEN w.level_id >= 3 OR w.current_compensation >= 100000 THEN 'moderate'
+            ELSE 'low_income'
+        END AS income_segment,
         w.participation_status
     FROM {{ ref('fct_workforce_snapshot') }} w
     WHERE w.simulation_year = {{ var('simulation_year') }}

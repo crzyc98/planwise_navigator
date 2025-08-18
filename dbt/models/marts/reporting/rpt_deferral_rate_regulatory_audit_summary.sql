@@ -113,7 +113,7 @@ validation_summary AS (
         MAX(CASE WHEN validation_category = 'REGULATORY_COMPLIANCE' AND validation_status = 'PASS' THEN 1 ELSE 0 END) AS regulatory_compliance_pass,
         MAX(CASE WHEN validation_category = 'EVENT_SOURCING_COMPLIANCE' AND validation_status = 'PASS' THEN 1 END) AS event_sourcing_compliance_pass
 
-    FROM {{ ref('dq_deferral_rate_state_audit_validation') }}
+    FROM {{ ref('dq_deferral_rate_state_audit_validation_v2') }}
     WHERE simulation_year = {{ simulation_year }}
     GROUP BY simulation_year
 )
@@ -169,14 +169,14 @@ SELECT
         ELSE 'NON_COMPLIANCE'
     END AS overall_compliance_status,
 
-    -- Detailed compliance breakdown
-    STRUCT(
-        ROUND((ds.records_with_uuid::FLOAT / NULLIF(ds.total_deferral_state_records, 0) * 100)::DECIMAL, 2) AS uuid_compliance_pct,
-        ROUND((ds.precision_validated_records::FLOAT / NULLIF(ds.total_deferral_state_records, 0) * 100)::DECIMAL, 2) AS financial_precision_compliance_pct,
-        ROUND((ds.records_with_valid_hash::FLOAT / NULLIF(ds.total_deferral_state_records, 0) * 100)::DECIMAL, 2) AS hash_integrity_compliance_pct,
-        ROUND((ds.records_with_microsecond_precision::FLOAT / NULLIF(ds.total_deferral_state_records, 0) * 100)::DECIMAL, 2) AS timestamp_precision_compliance_pct,
-        ROUND((ds.attestation_ready_records::FLOAT / NULLIF(ds.total_deferral_state_records, 0) * 100)::DECIMAL, 2) AS attestation_readiness_pct,
-        ROUND((ds.sox_compliant_records::FLOAT / NULLIF(ds.total_deferral_state_records, 0) * 100)::DECIMAL, 2) AS sox_compliance_pct
+    -- Detailed compliance breakdown (JSON)
+    JSON_OBJECT(
+        'uuid_compliance_pct', ROUND((ds.records_with_uuid::FLOAT / NULLIF(ds.total_deferral_state_records, 0) * 100)::DECIMAL, 2),
+        'financial_precision_compliance_pct', ROUND((ds.precision_validated_records::FLOAT / NULLIF(ds.total_deferral_state_records, 0) * 100)::DECIMAL, 2),
+        'hash_integrity_compliance_pct', ROUND((ds.records_with_valid_hash::FLOAT / NULLIF(ds.total_deferral_state_records, 0) * 100)::DECIMAL, 2),
+        'timestamp_precision_compliance_pct', ROUND((ds.records_with_microsecond_precision::FLOAT / NULLIF(ds.total_deferral_state_records, 0) * 100)::DECIMAL, 2),
+        'attestation_readiness_pct', ROUND((ds.attestation_ready_records::FLOAT / NULLIF(ds.total_deferral_state_records, 0) * 100)::DECIMAL, 2),
+        'sox_compliance_pct', ROUND((ds.sox_compliant_records::FLOAT / NULLIF(ds.total_deferral_state_records, 0) * 100)::DECIMAL, 2)
     ) AS detailed_compliance_metrics,
 
     -- Validation results summary
@@ -187,23 +187,23 @@ SELECT
     COALESCE(vs.error_issues, 0) AS error_issues_identified,
     COALESCE(vs.regulatory_impact_validations, 0) AS regulatory_impact_issues,
 
-    -- Category-specific validation status
-    STRUCT(
-        COALESCE(vs.uuid_integrity_pass, 0) AS uuid_integrity_validation_pass,
-        COALESCE(vs.financial_precision_pass, 0) AS financial_precision_validation_pass,
-        COALESCE(vs.audit_trail_integrity_pass, 0) AS audit_trail_integrity_validation_pass,
-        COALESCE(vs.timestamp_precision_pass, 0) AS timestamp_precision_validation_pass,
-        COALESCE(vs.regulatory_compliance_pass, 0) AS regulatory_compliance_validation_pass,
-        COALESCE(vs.event_sourcing_compliance_pass, 0) AS event_sourcing_validation_pass
+    -- Category-specific validation status (JSON)
+    JSON_OBJECT(
+        'uuid_integrity_validation_pass', COALESCE(vs.uuid_integrity_pass, 0),
+        'financial_precision_validation_pass', COALESCE(vs.financial_precision_pass, 0),
+        'audit_trail_integrity_validation_pass', COALESCE(vs.audit_trail_integrity_pass, 0),
+        'timestamp_precision_validation_pass', COALESCE(vs.timestamp_precision_pass, 0),
+        'regulatory_compliance_validation_pass', COALESCE(vs.regulatory_compliance_pass, 0),
+        'event_sourcing_validation_pass', COALESCE(vs.event_sourcing_compliance_pass, 0)
     ) AS category_validation_status,
 
-    -- Financial metrics for regulatory oversight
-    STRUCT(
-        ds.average_deferral_rate AS avg_employee_deferral_rate,
-        ds.min_deferral_rate AS minimum_deferral_rate,
-        ds.max_deferral_rate AS maximum_deferral_rate,
-        ds.employees_with_escalations AS employees_with_rate_escalations,
-        ds.average_total_escalation_amount AS avg_escalation_amount_per_employee
+    -- Financial metrics for regulatory oversight (JSON)
+    JSON_OBJECT(
+        'avg_employee_deferral_rate', ds.average_deferral_rate,
+        'minimum_deferral_rate', ds.min_deferral_rate,
+        'maximum_deferral_rate', ds.max_deferral_rate,
+        'employees_with_rate_escalations', ds.employees_with_escalations,
+        'avg_escalation_amount_per_employee', ds.average_total_escalation_amount
     ) AS financial_oversight_metrics,
 
     -- Regulatory attestation summary

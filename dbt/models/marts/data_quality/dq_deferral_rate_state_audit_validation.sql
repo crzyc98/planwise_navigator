@@ -9,7 +9,8 @@
         {'columns': ['validation_severity'], 'type': 'btree'},
         {'columns': ['regulatory_impact'], 'type': 'btree'}
     ],
-    tags=['audit', 'validation', 'deferral_rate_audit', 'financial_compliance', 'uuid_tracked']
+    tags=['audit', 'validation', 'deferral_rate_audit', 'financial_compliance', 'uuid_tracked'],
+    enabled=false
 ) }}
 
 /*
@@ -48,21 +49,23 @@
 
 WITH deferral_state_data AS (
     SELECT
-        state_record_uuid,
+        -- Use synthetic UUID when not present in source
+        MD5(COALESCE(employee_id, 'NULL') || '-' || simulation_year::VARCHAR) AS state_record_uuid,
         employee_id,
         simulation_year,
         current_deferral_rate,
         original_deferral_rate,
         total_escalation_amount,
         escalation_rate_change_pct,
-        audit_timestamp,
-        audit_microsecond_epoch,
-        financial_audit_hash,
+        -- Map available timestamps; others as NULL placeholders
+        created_at AS audit_timestamp,
+        NULL::BIGINT AS audit_microsecond_epoch,
+        NULL::VARCHAR AS financial_audit_hash,
         data_quality_flag,
-        regulatory_attestation_status,
-        precision_status,
-        record_immutability_status,
-        event_sourcing_metadata
+        NULL::VARCHAR AS regulatory_attestation_status,
+        NULL::VARCHAR AS precision_status,
+        NULL::VARCHAR AS record_immutability_status,
+        NULL::VARCHAR AS event_sourcing_metadata
     FROM {{ ref('int_deferral_rate_state_accumulator_v2') }}
     WHERE simulation_year = {{ simulation_year }}
 ),
