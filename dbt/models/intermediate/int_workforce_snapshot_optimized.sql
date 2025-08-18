@@ -64,6 +64,7 @@ base_workforce AS (
         employee_enrollment_date
     FROM {{ ref('int_baseline_workforce') }}
     WHERE employment_status = 'active'  -- Pre-filter for efficiency
+      AND simulation_year = {{ simulation_year }}  -- Filter by current simulation year
     {% else %}
     -- Subsequent years: Use helper model with optimized selection
     SELECT

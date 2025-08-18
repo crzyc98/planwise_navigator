@@ -2,52 +2,52 @@
   "year": 2028,
   "workforce_breakdown": {
     "year": 2028,
-    "total_employees": 5735,
-    "active_employees": 4923,
+    "total_employees": 5904,
+    "active_employees": 5058,
     "breakdown_by_status": {
-      "continuous_active": 4205,
-      "new_hire_active": 718,
-      "experienced_termination": 573,
-      "new_hire_termination": 239
+      "continuous_active": 4291,
+      "new_hire_active": 767,
+      "experienced_termination": 589,
+      "new_hire_termination": 257
     },
-    "participation_rate": 0.8695917123705058
+    "participation_rate": 0.8588374851720048
   },
   "event_summary": {
     "year": 2028,
-    "total_events": 9122,
+    "total_events": 10055,
     "events_by_type": {
-      "raise": 4785,
-      "deferral_escalation": 968,
-      "enrollment": 957,
-      "hire": 957,
-      "termination": 812,
-      "promotion": 580,
-      "enrollment_change": 63
+      "raise": 5130,
+      "deferral_escalation": 1357,
+      "enrollment": 1024,
+      "promotion": 604,
+      "enrollment_change": 70,
+      "hire": 1024,
+      "termination": 846
     },
-    "hire_termination_ratio": 1.1785714285714286
+    "hire_termination_ratio": 1.210401891252955
   },
   "growth_analysis": {
-    "previous_active": 4778,
-    "current_active": 4923,
-    "net_growth": 145,
-    "growth_pct": 3.0347425701130177
+    "previous_active": 4876,
+    "current_active": 5058,
+    "net_growth": 182,
+    "growth_pct": 3.7325676784249384
   },
   "contribution_summary": {
-    "enrolled_employees_active_eoy": 4205,
-    "total_contributions_active_eoy": 40404109.0,
-    "avg_contribution_active_eoy": 9609.0,
-    "avg_deferral_rate_active_eoy": 6.1
+    "enrolled_employees_active_eoy": 4291,
+    "total_contributions_active_eoy": 36335765.0,
+    "avg_contribution_active_eoy": 8468.0,
+    "avg_deferral_rate_active_eoy": 5.5
   },
   "data_quality_results": [
     {
       "rule_name": "hire_termination_ratio",
       "severity": "warning",
       "passed": true,
-      "message": "Hire/termination ratio: 1.18 (PASS)",
+      "message": "Hire/termination ratio: 1.15 (PASS)",
       "details": {
-        "hires": 957,
-        "terminations": 812,
-        "ratio": 1.1785714285714286,
+        "hires": 1024,
+        "terminations": 891,
+        "ratio": 1.149270482603816,
         "min_ratio": 0.3,
         "max_ratio": 3.0
       },
@@ -64,5 +64,5 @@
       "affected_records": null
     }
   ],
-  "generated_at": "2025-08-15T19:56:10.947393"
+  "generated_at": "2025-08-17T17:56:24.504690"
 }

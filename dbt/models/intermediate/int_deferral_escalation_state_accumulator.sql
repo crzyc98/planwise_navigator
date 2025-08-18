@@ -39,7 +39,7 @@ WITH current_workforce AS (
         COALESCE(dra.current_deferral_rate, 0.03) as baseline_deferral_rate,
         {{ simulation_year }} as simulation_year
     FROM {{ ref('int_employee_compensation_by_year') }} comp
-    LEFT JOIN {{ ref('int_deferral_rate_state_accumulator') }} dra
+    LEFT JOIN {{ ref('int_deferral_rate_state_accumulator_v2') }} dra
         ON comp.employee_id = dra.employee_id
         AND comp.simulation_year = dra.simulation_year
     WHERE comp.simulation_year = {{ simulation_year }}
