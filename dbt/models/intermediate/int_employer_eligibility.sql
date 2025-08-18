@@ -27,6 +27,10 @@
 {% set core_require_active_eoy = var('core_require_active_eoy', true) %}
 {% set core_minimum_hours = var('core_minimum_hours', 1000) | int %}
 
+-- IMPORTANT: Use per-year compensation snapshot as the base population
+-- Using int_baseline_workforce limited eligibility to the first year only.
+-- Switching to int_employee_compensation_by_year ensures all active employees
+-- (continuous and new hires) are present for every simulation_year.
 WITH baseline_data AS (
     SELECT
         employee_id,
@@ -34,7 +38,7 @@ WITH baseline_data AS (
         current_tenure,
         employee_hire_date,
         termination_date
-    FROM {{ ref('int_baseline_workforce') }}
+    FROM {{ ref('int_employee_compensation_by_year') }}
     WHERE simulation_year = {{ simulation_year }}
         AND employee_id IS NOT NULL
 ),
