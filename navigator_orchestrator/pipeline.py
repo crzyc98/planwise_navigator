@@ -462,11 +462,16 @@ class PipelineOrchestrator:
 
             for model in stage.models:
                 selection = ["run", "--select", model]
-                # Special case: always full-refresh int_workforce_snapshot_optimized to avoid schema issues
-                if model == "int_workforce_snapshot_optimized" or force_full_refresh:
+                # Special case: always full-refresh models that have schema issues or self-references
+                if model in ["int_workforce_snapshot_optimized", "int_deferral_rate_escalation_events"] or force_full_refresh:
                     selection.append("--full-refresh")
                     if self.verbose:
-                        reason = "schema compatibility" if model == "int_workforce_snapshot_optimized" else "clear_mode=all"
+                        if model == "int_workforce_snapshot_optimized":
+                            reason = "schema compatibility"
+                        elif model == "int_deferral_rate_escalation_events":
+                            reason = "self-reference incremental"
+                        else:
+                            reason = "clear_mode=all"
                         print(f"   🔄 Rebuilding {model} with --full-refresh ({reason}) for year {year}")
                 res = self.dbt_runner.execute_command(
                     selection,
