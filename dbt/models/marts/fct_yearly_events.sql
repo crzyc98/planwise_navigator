@@ -258,10 +258,8 @@ employer_match_events AS (
 ),
 
 -- Epic E035: Deferral Rate Escalation Events
--- Fixed with proper error handling for when escalation model doesn't exist
+-- Use try-catch pattern to handle missing escalation events gracefully
 deferral_escalation_events AS (
-  {% set escalation_relation = adapter.get_relation(database=target.database, schema=target.schema, identifier='int_deferral_rate_escalation_events') %}
-  {% if escalation_relation is not none %}
   SELECT
     e.employee_id,
     e.employee_ssn,
@@ -284,28 +282,6 @@ deferral_escalation_events AS (
   {%- if simulation_year %}
   WHERE e.simulation_year = {{ simulation_year }}
   {%- endif %}
-  {% else %}
-  -- Escalation events table doesn't exist yet, return empty schema-compatible result
-  SELECT
-    CAST(NULL AS VARCHAR) AS employee_id,
-    CAST(NULL AS VARCHAR) AS employee_ssn,
-    CAST(NULL AS VARCHAR) AS event_type,
-    CAST(NULL AS INTEGER) AS simulation_year,
-    CAST(NULL AS DATE) AS effective_date,
-    CAST(NULL AS VARCHAR) AS event_details,
-    CAST(NULL AS DECIMAL(18,2)) AS compensation_amount,
-    CAST(NULL AS DECIMAL(18,2)) AS previous_compensation,
-    CAST(NULL AS DECIMAL(5,4)) AS employee_deferral_rate,
-    CAST(NULL AS DECIMAL(5,4)) AS prev_employee_deferral_rate,
-    CAST(NULL AS INTEGER) AS employee_age,
-    CAST(NULL AS DECIMAL(10,2)) AS employee_tenure,
-    CAST(NULL AS INTEGER) AS level_id,
-    CAST(NULL AS VARCHAR) AS age_band,
-    CAST(NULL AS VARCHAR) AS tenure_band,
-    CAST(NULL AS DECIMAL(10,4)) AS event_probability,
-    CAST(NULL AS VARCHAR) AS event_category
-  WHERE FALSE
-  {% endif %}
 ),
 
 -- Union all event types with consistent schema
