@@ -34,8 +34,29 @@
 */
 
 {% if not esc_enabled %}
--- Escalation disabled via config; return no rows
-SELECT CAST(NULL AS VARCHAR) as employee_id
+-- Escalation disabled via config; return no rows but preserve schema
+SELECT
+    CAST(NULL AS VARCHAR)           AS employee_id,
+    CAST(NULL AS VARCHAR)           AS employee_ssn,
+    CAST('deferral_escalation' AS VARCHAR) AS event_type,
+    CAST(NULL AS INTEGER)           AS simulation_year,
+    CAST(NULL AS DATE)              AS effective_date,
+    CAST(NULL AS DECIMAL(5,4))      AS previous_deferral_rate,
+    CAST(NULL AS DECIMAL(5,4))      AS new_deferral_rate,
+    CAST(NULL AS DECIMAL(5,4))      AS escalation_rate,
+    CAST(NULL AS SMALLINT)          AS current_age,
+    CAST(NULL AS DECIMAL(10,2))     AS current_tenure,
+    CAST(NULL AS SMALLINT)          AS level_id,
+    CAST(NULL AS VARCHAR)           AS age_band,
+    CAST(NULL AS VARCHAR)           AS tenure_band,
+    CAST(NULL AS INTEGER)           AS new_escalation_count,
+    CAST(NULL AS INTEGER)           AS max_escalations,
+    CAST(NULL AS DECIMAL(5,4))      AS max_escalation_rate,
+    CAST(NULL AS VARCHAR)           AS event_details,
+    CURRENT_TIMESTAMP               AS created_at,
+    CAST(NULL AS VARCHAR)           AS parameter_scenario_id,
+    'int_deferral_rate_escalation_events' AS event_source,
+    'VALID'                         AS data_quality_flag
 WHERE FALSE
 {% else %}
 
