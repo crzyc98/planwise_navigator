@@ -2,10 +2,7 @@
     materialized='incremental',
     incremental_strategy='delete+insert',
     unique_key=['employee_id', 'simulation_year'],
-    on_schema_change='sync_all_columns',
-    pre_hook=[
-      "{% set rel = adapter.get_relation(database=this.database, schema=this.schema, identifier=this.identifier) %}{% if rel is not none %}DELETE FROM {{ this }} WHERE simulation_year = {{ var('simulation_year') }}{% else %}SELECT 1{% endif %}"
-    ]
+    on_schema_change='sync_all_columns'
 ) }}
 
 {% set simulation_year = var('simulation_year') %}
@@ -133,6 +130,9 @@ previous_escalation_history AS (
     WHERE 1=0  -- Empty result set
 {% else %}
     -- Get escalation history from previous years
+    -- Only reference existing table if it exists and has data
+    {% set escalation_relation = adapter.get_relation(database=this.database, schema=this.schema, identifier=this.identifier) %}
+    {% if escalation_relation is not none %}
     SELECT
         employee_id,
         COUNT(*) as total_escalations,
@@ -141,6 +141,15 @@ previous_escalation_history AS (
     FROM {{ this }}
     WHERE simulation_year < {{ simulation_year }}
     GROUP BY employee_id
+    {% else %}
+    -- Table doesn't exist yet, return empty result
+    SELECT
+        'dummy' as employee_id,
+        0 as total_escalations,
+        NULL::DATE as last_escalation_date,
+        0.00 as cumulative_escalation_rate
+    WHERE 1=0  -- Empty result set
+    {% endif %}
 {% endif %}
 ),
 
