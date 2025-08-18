@@ -55,6 +55,25 @@ from .migration import (
     MigrationManager,
     MigrationResult,
 )
+from .logger import (
+    ProductionLogger,
+    JSONFormatter,
+    get_logger,
+)
+from .performance_monitor import (
+    PerformanceMonitor,
+    PerformanceMetrics,
+)
+from .run_summary import (
+    RunSummaryGenerator,
+    RunIssue,
+    RunMetadata,
+)
+from .observability import (
+    ObservabilityManager,
+    create_observability_manager,
+    observability_session,
+)
 
 __all__ = [
     # Config
@@ -100,4 +119,16 @@ __all__ = [
     # Migration
     "MigrationManager",
     "MigrationResult",
+    # Observability
+    "ProductionLogger",
+    "JSONFormatter",
+    "get_logger",
+    "PerformanceMonitor",
+    "PerformanceMetrics",
+    "RunSummaryGenerator",
+    "RunIssue",
+    "RunMetadata",
+    "ObservabilityManager",
+    "create_observability_manager",
+    "observability_session",
 ]
