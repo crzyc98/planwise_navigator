@@ -323,4 +323,34 @@ def to_dbt_vars(cfg: SimulationConfig) -> Dict[str, Any]:
         # Non-fatal: fall back to model defaults
         pass
 
+    # Employer core contribution configuration
+    # Map YAML employer_core_contribution block to dbt vars
+    try:
+        core_contrib = getattr(cfg, 'employer_core_contribution', None)
+        if core_contrib:
+            # core_contrib is likely a dict due to extra=allow
+            enabled = core_contrib.get('enabled')
+            rate = core_contrib.get('contribution_rate')
+            eligibility = core_contrib.get('eligibility')
+
+            if enabled is not None:
+                dbt_vars["employer_core_enabled"] = bool(enabled)
+            if rate is not None:
+                dbt_vars["employer_core_contribution_rate"] = float(rate)
+
+            if eligibility:
+                min_tenure = eligibility.get('minimum_tenure_years')
+                require_active = eligibility.get('require_active_at_year_end')
+                min_hours = eligibility.get('minimum_hours_annual')
+
+                if min_tenure is not None:
+                    dbt_vars["core_minimum_tenure_years"] = int(min_tenure)
+                if require_active is not None:
+                    dbt_vars["core_require_active_eoy"] = bool(require_active)
+                if min_hours is not None:
+                    dbt_vars["core_minimum_hours"] = int(min_hours)
+    except Exception:
+        # Non-fatal: fall back to model defaults
+        pass
+
     return dbt_vars

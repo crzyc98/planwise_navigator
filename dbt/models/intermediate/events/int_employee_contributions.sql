@@ -191,6 +191,9 @@ final_contributions AS (
         final_deferral_rate,
         contribution_duration_category,
         contribution_quality_flag,
+        -- Temporary compatibility alias for downstream tools/scripts
+        -- DEPRECATE after 2025-09-30
+        contribution_quality_flag AS data_quality_flag,
         calculated_at,
         calculation_source,
         deferral_rate_source_quality,

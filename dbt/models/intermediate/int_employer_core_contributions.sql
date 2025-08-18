@@ -7,22 +7,31 @@
 ) }}
 
 /*
-  Employer Core Contributions Model - Story S039-01
+  Employer Core Contributions Model - Enhanced with Configuration
 
   Calculates employer core (non-elective) contribution amounts
-  based on simple business rules:
-  - 2% flat rate of eligible compensation for eligible employees
+  based on configurable business rules:
+  - Configurable contribution rate (default 2%) via simulation_config.yaml
+  - Enhanced eligibility criteria including minimum tenure requirements
+  - Can be enabled/disabled via configuration
   - 0% for ineligible employees
 
-  This is an MVP implementation focusing on simplicity and correctness.
+  Configuration driven via dbt variables:
+  - employer_core_enabled: Master on/off switch
+  - employer_core_contribution_rate: Contribution rate (e.g., 0.02 for 2%)
+  - core_minimum_tenure_years: Minimum years of service required
+  - core_require_active_eoy: Must be active at year-end
+  - core_minimum_hours: Minimum annual hours requirement
+
   Future enhancements may include:
   - Level-based contribution rates
-  - Parameter-driven rates via comp_levers
   - Service-based vesting schedules
   - Pro-ration for partial year employment
 */
 
 {% set simulation_year = var('simulation_year', 2025) | int %}
+{% set employer_core_enabled = var('employer_core_enabled', true) %}
+{% set employer_core_contribution_rate = var('employer_core_contribution_rate', 0.02) %}
 
 WITH employee_compensation AS (
     -- Get current year compensation for all employees
@@ -70,23 +79,28 @@ SELECT
     elig.annual_hours_worked,
 
     -- Core contribution calculation
-    -- MVP: Simple 2% flat rate for eligible employees
+    -- Configurable rate for eligible employees
     CASE
-        WHEN elig.eligible_for_core = TRUE AND COALESCE(wf.prorated_annual_compensation, comp.employee_compensation) > 0
-        THEN ROUND(COALESCE(wf.prorated_annual_compensation, comp.employee_compensation) * 0.02, 2)
+        WHEN {{ employer_core_enabled }}
+            AND elig.eligible_for_core = TRUE
+            AND COALESCE(wf.prorated_annual_compensation, comp.employee_compensation) > 0
+        THEN ROUND(COALESCE(wf.prorated_annual_compensation, comp.employee_compensation) * {{ employer_core_contribution_rate }}, 2)
         ELSE 0.00
     END AS employer_core_amount,
 
     -- Contribution rate for reference
     CASE
-        WHEN elig.eligible_for_core = TRUE
-        THEN 0.02
+        WHEN {{ employer_core_enabled }} AND elig.eligible_for_core = TRUE
+        THEN {{ employer_core_contribution_rate }}
         ELSE 0.00
     END AS core_contribution_rate,
 
     -- Metadata
-    'mvp_flat_rate' AS contribution_method,
-    0.02 AS standard_core_rate,
+    CASE
+        WHEN {{ employer_core_enabled }} THEN 'configurable_rate'
+        ELSE 'disabled'
+    END AS contribution_method,
+    {{ employer_core_contribution_rate }} AS standard_core_rate,
     CURRENT_TIMESTAMP AS created_at,
     '{{ var("scenario_id", "default") }}' AS scenario_id,
     '{{ var("parameter_scenario_id", "default") }}' AS parameter_scenario_id

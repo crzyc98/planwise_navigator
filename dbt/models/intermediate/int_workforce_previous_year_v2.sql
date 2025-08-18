@@ -20,7 +20,7 @@ data_availability_check AS (
         MIN(current_age) as min_age,
         MAX(current_age) as max_age,
         '{{ previous_year }}' as checked_year
-    FROM fct_workforce_snapshot
+    FROM {{ ref('fct_workforce_snapshot') }}
     WHERE simulation_year = {{ previous_year }}
 ),
 
@@ -40,7 +40,7 @@ time_weighted_compensation AS (
                         previous_compensation,
                         compensation_amount,
                         ROW_NUMBER() OVER (PARTITION BY employee_id ORDER BY effective_date) AS raise_sequence
-                    FROM fct_yearly_events
+                    FROM {{ ref('fct_yearly_events') }}
                     WHERE simulation_year = {{ previous_year }}
                       AND event_category = 'RAISE'
                       AND employee_id = fws.employee_id
@@ -84,7 +84,7 @@ time_weighted_compensation AS (
             ),
             fws.full_year_equivalent_compensation  -- Fallback to full year equivalent
         ) AS time_weighted_compensation
-    FROM fct_workforce_snapshot fws
+    FROM {{ ref('fct_workforce_snapshot') }} fws
     WHERE fws.simulation_year = {{ previous_year }}
       AND fws.employment_status = 'active'
 ),
@@ -125,7 +125,7 @@ previous_year_snapshot AS (
         false AS is_cold_start,
         {{ simulation_year - 1 }} AS last_completed_year,
         'previous_year_snapshot' AS data_source
-    FROM fct_workforce_snapshot fws
+    FROM {{ ref('fct_workforce_snapshot') }} fws
     JOIN time_weighted_compensation twc ON fws.employee_id = twc.employee_id
     WHERE fws.simulation_year = {{ previous_year }}
       AND fws.employment_status = 'active'
