@@ -2,7 +2,7 @@
     materialized='incremental',
     incremental_strategy='delete+insert',
     unique_key=['employee_id', 'simulation_year'],
-    on_schema_change='sync_all_columns'
+    on_schema_change='ignore'
 ) }}
 
 /*
