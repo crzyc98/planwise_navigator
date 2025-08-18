@@ -363,12 +363,13 @@ opt_out_events AS (
 
     'enrollment_opt_out' as event_category
   FROM eligible_for_enrollment efo
-  WHERE efo.is_eligible = true
-    -- CRITICAL: Only employees who were enrolled (either this year or previously) can opt out
-    AND (efo.is_already_enrolled = true OR efo.employee_id IN (
+  WHERE
+    -- Eligible to opt out: previously enrolled OR newly enrolled this year
+    (COALESCE(efo.was_enrolled_previously, false) = true OR efo.employee_id IN (
       SELECT employee_id FROM enrollment_events WHERE event_type = 'enrollment'
     ))
-    -- CRITICAL: Apply probabilistic opt-out based on demographics (using configurable rates)
+    AND efo.employment_status = 'active'
+    -- Apply probabilistic opt-out based on demographics (using configurable rates)
     AND efo.optout_random < (
       CASE efo.age_segment
         WHEN 'young' THEN {{ var('opt_out_rate_young', 0.10) }}

@@ -118,6 +118,20 @@ escalation_events_filtered AS (
         AND employee_id IS NOT NULL  -- Prevent NULL joins
 ),
 
+-- CRITICAL FIX: Add enrollment events to capture initial deferral rates
+enrollment_events AS (
+    SELECT DISTINCT
+        employee_id::VARCHAR as employee_id,
+        simulation_year::INTEGER as simulation_year,
+        employee_deferral_rate::DECIMAL(5,4) as enrollment_deferral_rate,
+        effective_date::DATE as enrollment_date
+    FROM {{ ref('int_enrollment_events') }}
+    WHERE simulation_year <= {{ simulation_year }}
+      AND LOWER(event_type) = 'enrollment'
+      AND employee_id IS NOT NULL
+      AND employee_deferral_rate IS NOT NULL
+),
+
 -- OPTIMIZED: Vectorized age/income segmentation for better DuckDB performance
 employee_deferral_rate_mapping AS (
     SELECT
@@ -188,7 +202,8 @@ final_state AS (
 
         -- FIX: Current deferral rate with proper baseline mapping for ALL enrolled employees
         COALESCE(
-            e.latest_deferral_rate,
+            e.latest_deferral_rate,  -- First: any escalation rate
+            enr.enrollment_deferral_rate,  -- Second: enrollment event deferral rate
             b.baseline_deferral_rate,
             -- Fallback based on age/income segmentation if no baseline rate mapped
             CASE
@@ -262,6 +277,10 @@ final_state AS (
         ON w.employee_id = b.employee_id
     LEFT JOIN employee_escalation_summary e
         ON w.employee_id = e.employee_id
+    -- CRITICAL FIX: Add enrollment events to get initial deferral rates
+    LEFT JOIN enrollment_events enr
+        ON w.employee_id = enr.employee_id
+        AND enr.simulation_year = {{ simulation_year }}
     -- FIX: Now ALL enrolled employees will have a deferral rate, not just those with escalation events
 )
 

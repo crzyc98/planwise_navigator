@@ -779,16 +779,18 @@ def run_year_simulation(year, is_first_year=False, dbt_vars=None):
     print(f"\n🎯 Running simulation for year {year}")
     print("-" * 40)
 
-    # Step 1: Foundation setup (seeds and staging) - MUST come first for first year
+    # Step 1: INITIALIZATION (align with navigator_orchestrator)
     if is_first_year:
-        print("📋 Setting up foundation (first year)...")
+        print("📋 Setting up initialization (first year)...")
         if not run_dbt_command(["seed"], "Loading seed data"):
             return False
-        # Run all staging models
+        # Build staging and baseline for first year
         if not run_dbt_command(["run", "--models", "staging.*"], "Running all staging models"):
             return False
-        # Build baseline workforce explicitly for the current year with vars
         if not run_dbt_command(["run", "--models", "int_baseline_workforce"], "Creating baseline workforce", year, dbt_vars):
+            return False
+        # Ensure new hire comp staging exists for deterministic compensation (year 1)
+        if not run_dbt_command(["run", "--models", "int_new_hire_compensation_staging"], "Preparing new hire compensation staging", year, dbt_vars):
             return False
 
     # Step 2: Create/update registries (prevent duplicate enrollments/escalations across years)
@@ -801,28 +803,24 @@ def run_year_simulation(year, is_first_year=False, dbt_vars=None):
             print(f"❌ Failed to ensure deferral escalation registry exists for year {year}")
             return False
 
-    # Step 3: Workforce transition setup (for subsequent years)
+    # Step 2b: Workforce transition setup (for subsequent years)
     if not is_first_year:
         # Run the snapshot model without dependency checking to avoid cycle detection
         if not run_dbt_command(["run", "--models", "int_active_employees_prev_year_snapshot", "--no-defer", "--full-refresh"], "Setting up previous year snapshot", year, dbt_vars):
             return False
 
-    # Step 4: Parameters (must come before workforce needs) - Pass compensation params here!
-    if not run_dbt_command(["run", "--models", "int_effective_parameters"], "Resolving parameters", year, dbt_vars):
-        return False
-
-    # Step 5: Employee compensation and workforce needs calculation
+    # Step 3: FOUNDATION (align order with orchestrator)
+    # Year 1 already built baseline and new_hire_compensation_staging above.
+    # Now build comp, parameters, needs, needs_by_level, eligibility
     if not run_dbt_command(["run", "--models", "int_employee_compensation_by_year"], "Calculating employee compensation", year, dbt_vars):
+        return False
+    if not run_dbt_command(["run", "--models", "int_effective_parameters"], "Resolving parameters", year, dbt_vars):
         return False
     if not run_dbt_command(["run", "--models", "int_workforce_needs"], "Calculating workforce needs", year, dbt_vars):
         return False
     if not run_dbt_command(["run", "--models", "int_workforce_needs_by_level"], "Calculating workforce needs by level", year, dbt_vars):
         return False
-
-    # Step 5.5: Epic E039 - Employer contribution eligibility and core contributions
     if not run_dbt_command(["run", "--models", "int_employer_eligibility"], "Determining employer contribution eligibility", year, dbt_vars):
-        return False
-    if not run_dbt_command(["run", "--models", "int_employer_core_contributions"], "Calculating employer core contributions", year, dbt_vars):
         return False
 
     # Step 6: Event generation (with simulation_year and compensation parameters)
@@ -843,29 +841,32 @@ def run_year_simulation(year, is_first_year=False, dbt_vars=None):
         if not run_dbt_command(["run", "--models", model], f"Running {model}", year, dbt_vars):
             return False
 
-    # Step 7: Consolidation
+    # Step 4: STATE ACCUMULATION (align order with orchestrator)
+    # Consolidate events
     if not run_dbt_command(["run", "--models", "fct_yearly_events"], "Consolidating events", year, dbt_vars):
         return False
-
-    # Step 8: Enrollment state accumulator (must come BEFORE deferral rate state)
+    # Build proration snapshot before accumulators and contributions
+    if not run_dbt_command(["run", "--models", "int_workforce_snapshot_optimized"], "Building proration snapshot", year, dbt_vars):
+        return False
+    # Accumulators: enrollment then deferral (v2), then escalation
     if not run_dbt_command(["run", "--models", "int_enrollment_state_accumulator"], "Building enrollment state accumulator", year, dbt_vars):
         return False
-
-    # Step 9: Deferral rate state accumulator (depends on enrollment state accumulator)
-    if not run_dbt_command(["run", "--models", "int_deferral_rate_state_accumulator"], "Building deferral rate state accumulator", year, dbt_vars):
+    if not run_dbt_command(["run", "--models", "int_deferral_rate_state_accumulator_v2"], "Building deferral rate state accumulator (v2)", year, dbt_vars):
         return False
-
-    # Step 10: Employee contribution calculations (Epic E034)
+    if not run_dbt_command(["run", "--models", "int_deferral_escalation_state_accumulator"], "Building deferral escalation state accumulator", year, dbt_vars):
+        return False
+    # Contributions (after accumulators)
     if not run_dbt_command(["run", "--models", "int_employee_contributions"], "Calculating employee contributions", year, dbt_vars):
         return False
-
-    # Step 10.5: Employer match calculations and events (must run AFTER contributions)
+    # Employer core contributions after employee contributions
+    if not run_dbt_command(["run", "--models", "int_employer_core_contributions"], "Calculating employer core contributions", year, dbt_vars):
+        return False
+    # Employer match
     if not run_dbt_command(["run", "--models", "int_employee_match_calculations"], "Calculating employer match", year, dbt_vars):
         return False
     if not run_dbt_command(["run", "--models", "fct_employer_match_events"], "Generating employer match events", year, dbt_vars):
         return False
-
-    # Step 11: Final workforce snapshot (includes contribution data)
+    # Final workforce snapshot
     if not run_dbt_command(["run", "--models", "fct_workforce_snapshot"], "Creating workforce snapshot", year, dbt_vars):
         return False
 

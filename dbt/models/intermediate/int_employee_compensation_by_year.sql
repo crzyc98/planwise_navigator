@@ -1,5 +1,8 @@
 {{ config(
-    materialized='table',
+    materialized='incremental',
+    unique_key=['employee_id', 'simulation_year'],
+    incremental_strategy='delete+insert',
+    on_schema_change='sync_all_columns',
     indexes=[
         {'columns': ['simulation_year'], 'type': 'btree'},
         {'columns': ['employee_id', 'simulation_year'], 'type': 'btree'}
@@ -26,7 +29,9 @@
 {% set is_first_year = (simulation_year == start_year) %}
 
 {% if is_first_year %}
--- Year 1: Use baseline workforce compensation
+-- Year 1: Union baseline workforce with new hires to fix circular dependency
+-- Baseline workforce (existing employees)
+WITH y1_union AS (
 SELECT
     {{ simulation_year }} AS simulation_year,
     employee_id,
@@ -50,10 +55,43 @@ SELECT
 FROM {{ ref('int_baseline_workforce') }}
 WHERE employment_status = 'active'
 
+UNION ALL
+
+-- New hires for Year 1 (from staging model to break circular dependency)
+SELECT
+    simulation_year,
+    employee_id,
+    employee_ssn,
+    employee_birth_date,
+    employee_hire_date,
+    employee_compensation,
+    current_age,
+    current_tenure,
+    level_id,
+    age_band,
+    tenure_band,
+    employment_status,
+    employee_enrollment_date,
+    is_enrolled_flag,
+    data_source,
+    starting_year_compensation,
+    ending_year_compensation,
+    has_compensation_events
+FROM {{ ref('int_new_hire_compensation_staging') }}
+)
+
+-- Ensure one row per employee in year 1
+SELECT * FROM (
+  SELECT y1_union.*, ROW_NUMBER() OVER (PARTITION BY employee_id ORDER BY data_source DESC) AS rn
+  FROM y1_union
+) dedup
+WHERE rn = 1
+
 {% else %}
 -- Subsequent years: Use helper model to avoid circular dependency
 -- CIRCULAR DEPENDENCY FIX: Use int_active_employees_prev_year_snapshot instead of fct_workforce_snapshot
 -- This breaks the cycle: int_merit_events -> fct_workforce_snapshot -> int_employee_compensation_by_year
+WITH base AS (
 SELECT
     {{ simulation_year }} AS simulation_year,
     employee_id,
@@ -90,5 +128,18 @@ SELECT
     FALSE AS has_compensation_events
 FROM {{ ref('int_active_employees_prev_year_snapshot') }}
 WHERE employment_status = 'active'
+)
 
+SELECT *
+FROM (
+  SELECT b.*, ROW_NUMBER() OVER (PARTITION BY employee_id ORDER BY employee_id) AS rn
+  FROM base b
+)
+WHERE rn = 1
+
+{% endif %}
+
+{% if is_incremental() %}
+-- Note: This model generates compensation data for the current simulation_year only
+-- Data is filtered by the simulation_year variable in the CTEs above
 {% endif %}

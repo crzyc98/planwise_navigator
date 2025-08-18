@@ -1,5 +1,8 @@
 {{ config(
-    materialized='table'
+    materialized='incremental',
+    unique_key=['employee_id', 'simulation_year'],
+    incremental_strategy='delete+insert',
+    on_schema_change='sync_all_columns'
 ) }}
 
 {% set simulation_year = var('simulation_year', 2025) | int %}
@@ -19,7 +22,7 @@
 
   Dependencies:
   - int_employee_compensation_by_year for compensation and age data
-  - int_deferral_rate_state_accumulator for deferral rates (E036 Fix - No circular dependency)
+  - int_deferral_rate_state_accumulator_v2 for deferral rates (S042-01: Source of Truth Architecture Fix)
   - irs_contribution_limits for IRS limit configuration
 */
 
@@ -38,31 +41,43 @@ irs_limits AS (
     WHERE limit_year = (SELECT current_year FROM simulation_parameters)
 ),
 
--- FIX: Get ALL employees with their deferral rates (defaulting to 0 if not enrolled)
+-- FIX: Get the most recent deferral rate for each employee up to the current simulation year
+-- This handles cases where rates are set in a prior year and carry forward.
+deferral_rates_ranked AS (
+    SELECT
+        employee_id,
+        current_deferral_rate,
+        is_enrolled_flag,
+        data_quality_flag,
+        ROW_NUMBER() OVER (PARTITION BY employee_id ORDER BY simulation_year DESC) as rn
+    FROM {{ ref('int_deferral_rate_state_accumulator_v2') }}
+    WHERE simulation_year <= (SELECT current_year FROM simulation_parameters)
+),
+
 deferral_rates AS (
-    SELECT DISTINCT
+    SELECT
         employee_id,
         COALESCE(current_deferral_rate, 0.0) AS deferral_rate,
         COALESCE(is_enrolled_flag, false) AS is_enrolled_flag,
         data_quality_flag AS source_quality
-    FROM {{ ref('int_deferral_rate_state_accumulator') }}
-    WHERE simulation_year = (SELECT current_year FROM simulation_parameters)
+    FROM deferral_rates_ranked
+    WHERE rn = 1
 ),
 
 -- Removed legacy CTEs in favor of workforce_proration as the single source
 
--- Always-on proration source for contributions: use optimized workforce snapshot
+-- EMERGENCY FIX: Use int_employee_compensation_by_year directly since int_workforce_snapshot_optimized is broken
 workforce_proration AS (
     SELECT
         employee_id,
         {{ simulation_year }} AS simulation_year,
-        current_compensation,
-        prorated_annual_compensation,
+        employee_compensation AS current_compensation,
+        employee_compensation AS prorated_annual_compensation,
         employment_status,
-        termination_date,
+        NULL AS termination_date,
         employee_birth_date,
-        DATE_DIFF('year', employee_birth_date, CAST('{{ simulation_year }}-12-31' AS DATE)) AS current_age
-    FROM {{ ref('int_workforce_snapshot_optimized') }}
+        current_age
+    FROM {{ ref('int_employee_compensation_by_year') }}
     WHERE simulation_year = (SELECT current_year FROM simulation_parameters)
 ),
 
@@ -149,42 +164,59 @@ employee_contributions AS (
     LEFT JOIN deferral_rates dr ON wf.employee_id = dr.employee_id
     CROSS JOIN irs_limits il  -- Cross join since we only have one row of limits
     WHERE wf.employee_id IS NOT NULL  -- Include all employees regardless of status
-)
+),
 
 -- Final output with IRS-compliant contributions and audit trail
-SELECT
-    employee_id,
-    simulation_year,
-    current_age,
-    -- IRS-compliant contribution amounts
-    annual_contribution_amount,  -- This is now IRS-capped
-    effective_annual_deferral_rate,
-    total_contribution_base_compensation,
-    number_of_contribution_periods,
-    total_contribution_days,
-    CASE WHEN total_pay_periods_with_contributions > 0
-         THEN annual_contribution_amount / total_pay_periods_with_contributions
-         ELSE annual_contribution_amount END AS average_per_paycheck_contribution,
-    total_pay_periods_with_contributions,
-    first_contribution_date,
-    last_contribution_date,
-    current_compensation,
-    prorated_annual_compensation,
-    employment_status,
-    is_enrolled_flag,
-    final_deferral_rate,
-    contribution_duration_category,
-    contribution_quality_flag,
-    calculated_at,
-    calculation_source,
-    deferral_rate_source_quality,
-    -- IRS compliance and transparency fields
-    requested_contribution_amount,      -- Original amount before IRS limits
-    applicable_irs_limit,              -- Age-appropriate IRS limit
-    irs_limit_applied,                 -- Boolean flag for limit enforcement
-    amount_capped_by_irs_limit,        -- Amount that was reduced
-    limit_type                         -- 'BASE' or 'CATCH_UP'
-FROM employee_contributions
+final_contributions AS (
+    SELECT
+        employee_id,
+        simulation_year,
+        current_age,
+        -- IRS-compliant contribution amounts
+        annual_contribution_amount,  -- This is now IRS-capped
+        effective_annual_deferral_rate,
+        total_contribution_base_compensation,
+        number_of_contribution_periods,
+        total_contribution_days,
+        CASE WHEN total_pay_periods_with_contributions > 0
+             THEN annual_contribution_amount / total_pay_periods_with_contributions
+             ELSE annual_contribution_amount END AS average_per_paycheck_contribution,
+        total_pay_periods_with_contributions,
+        first_contribution_date,
+        last_contribution_date,
+        current_compensation,
+        prorated_annual_compensation,
+        employment_status,
+        is_enrolled_flag,
+        final_deferral_rate,
+        contribution_duration_category,
+        contribution_quality_flag,
+        -- Temporary compatibility alias for downstream tools/scripts
+        -- DEPRECATE after 2025-09-30
+        contribution_quality_flag AS data_quality_flag,
+        calculated_at,
+        calculation_source,
+        deferral_rate_source_quality,
+        -- IRS compliance and transparency fields
+        requested_contribution_amount,      -- Original amount before IRS limits
+        applicable_irs_limit,              -- Age-appropriate IRS limit
+        irs_limit_applied,                 -- Boolean flag for limit enforcement
+        amount_capped_by_irs_limit,        -- Amount that was reduced
+        limit_type
+    FROM employee_contributions
+)
+
+SELECT *
+FROM (
+  SELECT fc.*, ROW_NUMBER() OVER (PARTITION BY employee_id, simulation_year ORDER BY employee_id) AS rn
+  FROM final_contributions fc
+)
+WHERE rn = 1
+
+{% if is_incremental() %}
+    -- Incremental processing - only include current simulation year
+    AND simulation_year = {{ simulation_year }}
+{% endif %}
 -- ORDER BY removed to avoid CTAS ordering issues on some adapters
 
 /*
