@@ -223,7 +223,7 @@ timeline_consistency AS (
         COUNT(CASE
             WHEN ee.last_termination_date IS NOT NULL
                  AND ws.termination_date IS NOT NULL
-                 AND DATE(ee.last_termination_date) != DATE(ws.termination_date)
+                 AND CAST(ee.last_termination_date AS DATE) != CAST(ws.termination_date AS DATE)
             THEN 1
         END) AS termination_date_mismatches,
 

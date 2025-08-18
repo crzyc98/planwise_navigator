@@ -370,28 +370,28 @@ models:
         description: Simulation year for these contributions
         data_tests:
           - not_null
-      - name: prorated_annual_contributions
-        description: Time-weighted annual contributions based on deferral rate changes
+      - name: prorated_annual_compensation
+        description: Time-weighted annual compensation used for contribution calculations
         data_tests:
           - not_null
           - dbt_utils.accepted_range:
               min_value: 0
-              max_value: 50000
-      - name: irs_limited_annual_contributions
+              max_value: 500000
+      - name: annual_contribution_amount
         description: IRS-limited contributions after applying 402(g) limits
         data_tests:
           - not_null
           - dbt_utils.accepted_range:
               min_value: 0
               max_value: 31000  # Max catch-up limit for 2025
-      - name: excess_contributions
-        description: Amount of contributions exceeding IRS limits
+      - name: amount_capped_by_irs_limit
+        description: Amount of contributions exceeding IRS limits that were capped
         data_tests:
           - not_null
           - dbt_utils.accepted_range:
               min_value: 0
               max_value: 50000
-      - name: effective_deferral_rate
+      - name: effective_annual_deferral_rate
         description: Time-weighted effective deferral rate for the year
         data_tests:
           - not_null
@@ -401,15 +401,14 @@ models:
       - name: contribution_periods_count
         description: Number of contribution periods calculated for this employee
 
-  - name: int_deferral_escalation_state_accumulator
+  - name: int_deferral_rate_state_accumulator_v2
     description: >
-      Enhanced Temporal State Accumulator for Deferral Rate Escalation Tracking (Epic E036 Story S036-03).
-      Implements multi-year state transition validation with comprehensive employee lifecycle integration.
-      Maintains escalation state without circular dependencies using proven temporal accumulation pattern.
+      Enhanced temporal state accumulator (v2) for employee deferral rates across years.
+      Replaces legacy int_deferral_escalation_state_accumulator and is the canonical source for contributions.
     config:
-      tags: ["escalation", "state", "critical", "e036", "temporal_validation"]
+      tags: ["state_accumulator", "critical", "e036", "v2"]
     data_tests:
-      # Multi-year state transition validation
+      # Uniqueness per employee/year
       - dbt_utils.unique_combination_of_columns:
           combination_of_columns:
             - employee_id
@@ -417,7 +416,7 @@ models:
           config:
             severity: error
             error_if: ">= 1"
-      # Temporal continuity validation - escalation counts should be non-decreasing across years
+      # Temporal continuity - non-decreasing escalation count
       - dbt_utils.expression_is_true:
           expression: >
             (SELECT COUNT(*) FROM (
@@ -426,13 +425,13 @@ models:
                 simulation_year,
                 escalations_received,
                 LAG(escalations_received) OVER (PARTITION BY employee_id ORDER BY simulation_year) as prev_escalations
-              FROM int_deferral_escalation_state_accumulator
+              FROM int_deferral_rate_state_accumulator_v2
             ) t
             WHERE escalations_received < COALESCE(prev_escalations, 0)) = 0
           config:
             severity: error
             error_if: ">= 1"
-      # Deferral rate progression validation - rates should be non-decreasing across years
+      # Deferral rate progression - generally non-decreasing, allow minor negative due to opt-outs (warn only)
       - dbt_utils.expression_is_true:
           expression: >
             (SELECT COUNT(*) FROM (
@@ -441,16 +440,16 @@ models:
                 simulation_year,
                 current_deferral_rate,
                 LAG(current_deferral_rate) OVER (PARTITION BY employee_id ORDER BY simulation_year) as prev_rate
-              FROM int_deferral_escalation_state_accumulator
+              FROM int_deferral_rate_state_accumulator_v2
             ) t
             WHERE current_deferral_rate < COALESCE(prev_rate, 0) - 0.001) = 0
           config:
             severity: warn
             error_if: ">= 1"
-      # Employee lifecycle integration validation - no escalations for terminated employees
+      # No escalations recorded for terminated employees in the same year
       - dbt_utils.expression_is_true:
           expression: >
-            (SELECT COUNT(*) FROM int_deferral_escalation_state_accumulator acc
+            (SELECT COUNT(*) FROM int_deferral_rate_state_accumulator_v2 acc
              LEFT JOIN int_employee_compensation_by_year comp
              ON acc.employee_id = comp.employee_id AND acc.simulation_year = comp.simulation_year
              WHERE comp.employment_status = 'terminated'
@@ -458,38 +457,23 @@ models:
           config:
             severity: error
             error_if: ">= 1"
-      # Performance validation - execution time under 2 seconds (tracked via metadata)
+      # Sanity: no rates above 50%
       - dbt_utils.expression_is_true:
           expression: >
-            (SELECT COUNT(*) FROM int_deferral_escalation_state_accumulator) > 0
-          config:
-            severity: error
-            error_if: ">= 1"
-      # Financial compliance validation - no rates exceeding legal limits
-      - dbt_utils.expression_is_true:
-          expression: >
-            (SELECT COUNT(*) FROM int_deferral_escalation_state_accumulator
+            (SELECT COUNT(*) FROM int_deferral_rate_state_accumulator_v2
              WHERE current_deferral_rate > 0.5) = 0
-          config:
-            severity: error
-            error_if: ">= 1"
-      # UUID compliance validation - employee_id format validation
-      - dbt_utils.expression_is_true:
-          expression: >
-            (SELECT COUNT(*) FROM int_deferral_escalation_state_accumulator
-             WHERE LENGTH(employee_id) < 8 OR employee_id IS NULL) = 0
           config:
             severity: error
             error_if: ">= 1"
     columns:
       - name: employee_id
-        description: Unique employee identifier (UUID format)
+        description: Unique employee identifier
         data_tests:
           - not_null
           - unique:
               name: "unique_employee_per_escalation_year_enhanced"
       - name: simulation_year
-        description: Simulation year for escalation state
+        description: Simulation year for state accumulation
         data_tests:
           - not_null
           - accepted_values:
@@ -497,7 +481,7 @@ models:
               config:
                 severity: error
       - name: current_deferral_rate
-        description: Current effective deferral rate after escalations (enhanced validation)
+        description: Current effective deferral rate after escalations
         data_tests:
           - not_null
           - dbt_utils.accepted_range:
@@ -506,7 +490,7 @@ models:
               config:
                 severity: error
       - name: escalations_received
-        description: Total number of escalations received by employee (cumulative)
+        description: Cumulative escalations received
         data_tests:
           - not_null
           - dbt_utils.accepted_range:

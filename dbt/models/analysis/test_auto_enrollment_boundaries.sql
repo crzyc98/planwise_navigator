@@ -75,7 +75,7 @@ all_tests AS (
   SELECT
     test_name,
     boundary_employees,
-    NULL::integer as total_events,
+    NULL::integer as total_enrollment_events,
     NULL::integer as unique_employees,
     NULL::integer as duplicate_count,
     eligible_on_boundary,
@@ -99,7 +99,7 @@ all_tests AS (
 
   SELECT
     test_name,
-    NULL, total_events, unique_employees, duplicate_count, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL,
+    NULL, total_enrollment_events, unique_employees, duplicate_count, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL,
     CASE
       WHEN duplicate_count > 0 THEN 'FAIL: ' || duplicate_count || ' duplicate enrollments found'
       ELSE 'PASS: No duplicate enrollments'
@@ -152,7 +152,7 @@ SELECT
   test_result,
   -- Include relevant test data
   boundary_employees,
-  total_events,
+  total_enrollment_events,
   duplicate_count,
   eligible_on_boundary as eligible_on_boundary_date,
   total_active as total_active_employees,
