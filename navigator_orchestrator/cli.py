@@ -60,6 +60,8 @@ def cmd_run(args: argparse.Namespace) -> int:
 
 def cmd_validate(args: argparse.Namespace) -> int:
     cfg = load_simulation_config(Path(args.config) if args.config else Path("config/simulation_config.yaml"))
+    if getattr(args, "enforce_identifiers", False):
+        cfg.require_identifiers()
     cfg_dict = cfg.model_dump()
     print("✅ Configuration parsed successfully")
     # Basic identifier hints
