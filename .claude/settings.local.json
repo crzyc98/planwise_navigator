@@ -366,7 +366,9 @@
       "Bash(/Users/nicholasamaral/planwise_navigator/venv/bin/dbt run --select int_employer_eligibility int_employer_core_contributions --vars \"{simulation_year: 2025, employer_core_enabled: true, employer_core_contribution_rate: 0.03, core_minimum_tenure_years: 2, core_require_active_eoy: true, core_minimum_hours: 1000}\")",
       "Bash(/Users/nicholasamaral/planwise_navigator/venv/bin/dbt run --select int_employer_core_contributions --vars \"{simulation_year: 2025, employer_core_enabled: false, employer_core_contribution_rate: 0.02, core_minimum_tenure_years: 1, core_require_active_eoy: true, core_minimum_hours: 1000}\")",
       "Bash(/Users/nicholasamaral/planwise_navigator/venv/bin/dbt run --select int_employer_core_contributions --vars \"{simulation_year: 2025, employer_core_enabled: true, employer_core_contribution_rate: 0.025, core_minimum_tenure_years: 2, core_require_active_eoy: true, core_minimum_hours: 1000}\")",
-      "Bash(/Users/nicholasamaral/planwise_navigator/venv/bin/dbt run --select int_employer_eligibility int_employer_core_contributions --vars \"{simulation_year: 2025, employer_core_enabled: true, employer_core_contribution_rate: 0.025, core_minimum_tenure_years: 1, core_require_active_eoy: true, core_minimum_hours: 1000}\")"
+      "Bash(/Users/nicholasamaral/planwise_navigator/venv/bin/dbt run --select int_employer_eligibility int_employer_core_contributions --vars \"{simulation_year: 2025, employer_core_enabled: true, employer_core_contribution_rate: 0.025, core_minimum_tenure_years: 1, core_require_active_eoy: true, core_minimum_hours: 1000}\")",
+      "Bash(/Users/nicholasamaral/planwise_navigator/venv/bin/dbt build --select int_baseline_workforce --vars \"simulation_year: 2025\")",
+      "Bash(PYTHONPATH=/Users/nicholasamaral/planwise_navigator /Users/nicholasamaral/planwise_navigator/venv/bin/python -m navigator_orchestrator.pipeline)"
     ],
     "deny": []
   }
