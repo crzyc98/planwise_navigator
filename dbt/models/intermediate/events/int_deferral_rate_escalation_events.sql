@@ -88,7 +88,7 @@ initial_baseline_rates AS (
     LEFT JOIN (
         SELECT *, ROW_NUMBER() OVER (PARTITION BY age_segment, income_segment ORDER BY effective_date DESC) rn
         FROM (
-            SELECT * FROM default_deferral_rates WHERE 1=1
+            SELECT scenario_id, age_segment, income_segment, default_rate, effective_date FROM default_deferral_rates WHERE 1=1
             UNION ALL
             -- Fallback defaults if seed table is empty
             SELECT 'default' as scenario_id, 'young' as age_segment, 'low_income' as income_segment, 0.03 as default_rate, CURRENT_DATE as effective_date
