@@ -1,3 +1,5 @@
+-- depends_on: {{ ref('int_deferral_rate_escalation_events') }}
+
 {{ config(
   materialized='incremental',
   unique_key=['employee_id', 'simulation_year', 'event_sequence'],
