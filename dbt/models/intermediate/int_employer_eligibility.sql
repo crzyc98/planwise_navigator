@@ -26,6 +26,8 @@
 {% set core_minimum_tenure_years = var('core_minimum_tenure_years', 1) | int %}
 {% set core_require_active_eoy = var('core_require_active_eoy', true) %}
 {% set core_minimum_hours = var('core_minimum_hours', 1000) | int %}
+{% set core_allow_new_hires = var('core_allow_new_hires', true) %}
+{% set core_allow_terminated_new_hires = var('core_allow_terminated_new_hires', true) %}
 
 -- IMPORTANT: Use per-year compensation snapshot as the base population
 -- Using int_baseline_workforce limited eligibility to the first year only.
@@ -91,6 +93,12 @@ SELECT
     ed.event_hire_date,
     ed.event_termination_date,
 
+    -- Identify new hires within the simulation year
+    CASE
+        WHEN ed.event_hire_date::DATE >= '{{ simulation_year }}-01-01'::DATE
+             AND ed.event_hire_date::DATE <= '{{ simulation_year }}-12-31'::DATE
+        THEN true ELSE false END AS is_new_hire_this_year,
+
     -- Derive end-of-year employment status using event termination when present
     CASE
         WHEN COALESCE(ed.event_termination_date::DATE, ae.termination_date::DATE) IS NOT NULL
@@ -147,14 +155,24 @@ SELECT
         ELSE FALSE
     END AS eligible_for_match,
 
-    -- Core contribution eligibility - enhanced with tenure and year-end requirements
+    -- Core eligibility: allow configurable exceptions for new hires and their terminations
     CASE
-        WHEN employment_status_eoy = 'active'
-            AND annual_hours_worked >= {{ core_minimum_hours }}
-            AND current_tenure >= {{ core_minimum_tenure_years }}
-            {% if core_require_active_eoy %}
-            AND employment_status_eoy = 'active'  -- Must be active at year-end
-            {% endif %}
+        WHEN annual_hours_worked >= {{ core_minimum_hours }}
+         AND (
+              -- Meets tenure normally
+              current_tenure >= {{ core_minimum_tenure_years }}
+              -- or allowed as a new hire this year
+              OR ({{ 'true' if core_allow_new_hires else 'false' }} AND is_new_hire_this_year)
+         )
+         AND (
+              -- Require active at EOY unless exceptions are allowed
+              {% if core_require_active_eoy %}
+                  employment_status_eoy = 'active'
+                  OR ({{ 'true' if core_allow_terminated_new_hires else 'false' }} AND is_new_hire_this_year AND employment_status_eoy = 'terminated')
+              {% else %}
+                  TRUE
+              {% endif %}
+         )
         THEN TRUE
         ELSE FALSE
     END AS eligible_for_core,
@@ -170,6 +188,8 @@ SELECT
     {{ core_minimum_tenure_years }} AS core_tenure_requirement,
     {{ core_minimum_hours }} AS core_hours_requirement,
     {{ core_require_active_eoy }} AS core_requires_active_eoy,
+    {{ core_allow_new_hires }} AS core_allow_new_hires,
+    {{ core_allow_terminated_new_hires }} AS core_allow_terminated_new_hires,
     CURRENT_TIMESTAMP AS created_at,
     '{{ var("scenario_id", "default") }}' AS scenario_id
 
