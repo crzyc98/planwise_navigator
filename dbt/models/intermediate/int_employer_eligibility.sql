@@ -37,7 +37,7 @@ WITH baseline_data AS (
         employment_status,
         current_tenure,
         employee_hire_date,
-        termination_date
+        CAST(NULL AS DATE) AS termination_date
     FROM {{ ref('int_employee_compensation_by_year') }}
     WHERE simulation_year = {{ simulation_year }}
         AND employee_id IS NOT NULL
