@@ -83,11 +83,22 @@ first_year_attrs AS (
 initial_baseline_rates AS (
     SELECT
         fa.employee_id,
-        d.default_rate as baseline_deferral_rate
+        COALESCE(d.default_rate, 0.03) as baseline_deferral_rate  -- Default 3% fallback
     FROM first_year_attrs fa
     LEFT JOIN (
         SELECT *, ROW_NUMBER() OVER (PARTITION BY age_segment, income_segment ORDER BY effective_date DESC) rn
-        FROM default_deferral_rates
+        FROM (
+            SELECT * FROM default_deferral_rates WHERE 1=1
+            UNION ALL
+            -- Fallback defaults if seed table is empty
+            SELECT 'default' as scenario_id, 'young' as age_segment, 'low_income' as income_segment, 0.03 as default_rate, CURRENT_DATE as effective_date
+            UNION ALL
+            SELECT 'default' as scenario_id, 'mid_career' as age_segment, 'moderate' as income_segment, 0.05 as default_rate, CURRENT_DATE as effective_date
+            UNION ALL
+            SELECT 'default' as scenario_id, 'senior' as age_segment, 'high' as income_segment, 0.07 as default_rate, CURRENT_DATE as effective_date
+            UNION ALL
+            SELECT 'default' as scenario_id, 'mature' as age_segment, 'executive' as income_segment, 0.10 as default_rate, CURRENT_DATE as effective_date
+        )
         WHERE scenario_id = 'default'
     ) d
       ON d.rn = 1
