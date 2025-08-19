@@ -66,19 +66,67 @@ deferral_rates AS (
 
 -- Removed legacy CTEs in favor of workforce_proration as the single source
 
--- EMERGENCY FIX: Use int_employee_compensation_by_year directly since int_workforce_snapshot_optimized is broken
-workforce_proration AS (
+-- Workforce proration base: include prior-year actives (snapshot) and current-year new hires
+snapshot_proration AS (
     SELECT
         employee_id,
         {{ simulation_year }} AS simulation_year,
         employee_compensation AS current_compensation,
+        -- Snapshot comp is already the working-year basis here
         employee_compensation AS prorated_annual_compensation,
         employment_status,
-        NULL AS termination_date,
+        NULL::DATE AS termination_date,
         employee_birth_date,
         current_age
     FROM {{ ref('int_employee_compensation_by_year') }}
     WHERE simulation_year = (SELECT current_year FROM simulation_parameters)
+),
+
+hire_events AS (
+    SELECT
+        employee_id,
+        effective_date::DATE AS hire_date,
+        compensation_amount AS annual_salary,
+        employee_age
+    FROM {{ ref('fct_yearly_events') }}
+    WHERE simulation_year = (SELECT current_year FROM simulation_parameters)
+      AND event_type = 'hire'
+),
+
+termination_events AS (
+    SELECT
+        employee_id,
+        effective_date::DATE AS termination_date
+    FROM {{ ref('fct_yearly_events') }}
+    WHERE simulation_year = (SELECT current_year FROM simulation_parameters)
+      AND event_type = 'termination'
+),
+
+new_hire_proration AS (
+    SELECT
+        h.employee_id,
+        {{ simulation_year }} AS simulation_year,
+        h.annual_salary AS current_compensation,
+        -- Prorate from hire to termination (if any) else year end
+        ROUND(
+            h.annual_salary *
+            LEAST(365, GREATEST(0,
+                DATEDIFF('day', h.hire_date, COALESCE(t.termination_date, ({{ simulation_year }} || '-12-31')::DATE)) + 1
+            )) / 365.0
+        , 2) AS prorated_annual_compensation,
+        CASE WHEN t.termination_date IS NULL THEN 'active' ELSE 'terminated' END AS employment_status,
+        t.termination_date,
+        NULL::DATE AS employee_birth_date,
+        h.employee_age AS current_age
+    FROM hire_events h
+    LEFT JOIN termination_events t USING (employee_id)
+),
+
+workforce_proration AS (
+    -- Union of snapshot population and current-year new hires
+    SELECT * FROM snapshot_proration
+    UNION ALL
+    SELECT * FROM new_hire_proration
 ),
 
 
