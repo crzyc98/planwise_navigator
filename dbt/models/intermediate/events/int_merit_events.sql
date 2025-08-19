@@ -74,7 +74,16 @@ workforce_with_bands AS (
     FROM workforce_with_current_compensation
 ),
 
--- Simple approach: Apply merit to all eligible workforce (no exclusions for now)
+-- Get termination dates to prevent post-termination events
+termination_dates AS (
+    SELECT
+        employee_id,
+        effective_date as termination_date
+    FROM {{ ref('int_termination_events') }}
+    WHERE simulation_year <= {{ simulation_year }}
+),
+
+-- Apply merit to all eligible workforce, excluding terminated employees
 eligible_for_merit AS (
     SELECT
         w.*,
@@ -85,10 +94,13 @@ eligible_for_merit AS (
         AND w.age_band = h.age_band
         AND w.tenure_band = h.tenure_band
         AND h.year = {{ simulation_year }}
+    LEFT JOIN termination_dates t ON w.employee_id = t.employee_id
     WHERE
         -- Simple merit eligibility rules
         current_tenure >= 1 -- At least 1 year of service
         AND merit_raise > 0 -- Must have a merit increase defined
+        -- Critical fix: Exclude employees who were terminated before merit date
+        AND (t.termination_date IS NULL OR t.termination_date >= DATE '{{ simulation_year }}-07-15')
 ),
 
 -- Apply COLA adjustments using dynamic parameter system
