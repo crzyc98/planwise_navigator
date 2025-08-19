@@ -32,10 +32,10 @@
     "growth_pct": 0.0
   },
   "contribution_summary": {
-    "enrolled_employees_active_eoy": 4424,
-    "total_contributions_active_eoy": 25112969.0,
-    "avg_contribution_active_eoy": 5677.0,
-    "avg_deferral_rate_active_eoy": 4.9
+    "enrolled_employees_active_eoy": 4554,
+    "total_contributions_active_eoy": 22792059.0,
+    "avg_contribution_active_eoy": 5005.0,
+    "avg_deferral_rate_active_eoy": 4.3
   },
   "data_quality_results": [
     {
@@ -63,5 +63,5 @@
       "affected_records": null
     }
   ],
-  "generated_at": "2025-08-19T00:47:07.699804"
+  "generated_at": "2025-08-19T11:51:27.605908"
 }
