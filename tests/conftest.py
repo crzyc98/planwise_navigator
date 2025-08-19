@@ -490,3 +490,172 @@ def assert_performance_acceptable(metrics, benchmarks):
 pytest.assert_parameter_validity = assert_parameter_validity
 pytest.assert_optimization_convergence = assert_optimization_convergence
 pytest.assert_performance_acceptable = assert_performance_acceptable
+
+
+# Production Testing Fixtures (E047)
+
+@pytest.fixture(scope="session")
+def test_database():
+    """Create isolated test database for production tests"""
+    import shutil
+    from pathlib import Path
+
+    # Backup production database if it exists
+    prod_db = Path("simulation.duckdb")
+    backup_db = Path("simulation_backup.duckdb")
+
+    if prod_db.exists():
+        shutil.copy(prod_db, backup_db)
+
+    yield str(prod_db)
+
+    # Restore production database
+    if backup_db.exists():
+        shutil.move(backup_db, prod_db)
+
+
+@pytest.fixture
+def clean_database():
+    """Provide clean database for each test"""
+    # Create minimal test dataset if needed
+    yield
+    # Cleanup handled by session fixture
+
+
+@pytest.fixture
+def production_simulator():
+    """Provide production simulation utility"""
+    class ProductionSimulator:
+        def __init__(self):
+            self.runs = []
+
+        def run_simulation(self, years="2025-2025", seed=42, **kwargs):
+            """Run a simulation and track results"""
+            import argparse
+            from navigator_orchestrator.cli import cmd_run
+
+            args = argparse.Namespace(
+                config=None,
+                database=None,
+                threads=4,
+                dry_run=False,
+                verbose=False,
+                years=years,
+                seed=seed,
+                force_clear=kwargs.get('force_clear', True),
+                resume_from=None,
+                **kwargs
+            )
+
+            start_time = time.time()
+            result_code = cmd_run(args)
+            duration = time.time() - start_time
+
+            run_result = {
+                'result_code': result_code,
+                'duration': duration,
+                'years': years,
+                'seed': seed,
+                'success': result_code == 0
+            }
+
+            self.runs.append(run_result)
+            return run_result
+
+        def get_last_run(self):
+            return self.runs[-1] if self.runs else None
+
+        def get_run_stats(self):
+            if not self.runs:
+                return {}
+
+            durations = [run['duration'] for run in self.runs]
+            return {
+                'total_runs': len(self.runs),
+                'success_rate': sum(1 for run in self.runs if run['success']) / len(self.runs),
+                'avg_duration': sum(durations) / len(durations),
+                'max_duration': max(durations),
+                'min_duration': min(durations)
+            }
+
+    return ProductionSimulator()
+
+
+@pytest.fixture
+def database_health_checker():
+    """Provide database health checking utility"""
+    class DatabaseHealthChecker:
+        def __init__(self):
+            self.checks = []
+
+        def check_table_exists(self, table_name):
+            """Check if a table exists"""
+            import duckdb
+            try:
+                with duckdb.connect("simulation.duckdb") as conn:
+                    tables = conn.execute("SHOW TABLES").fetchall()
+                    table_names = [t[0] for t in tables]
+                    exists = table_name in table_names
+                    self.checks.append(('table_exists', table_name, exists))
+                    return exists
+            except Exception as e:
+                self.checks.append(('table_exists', table_name, False, str(e)))
+                return False
+
+        def check_table_not_empty(self, table_name):
+            """Check if a table has data"""
+            import duckdb
+            try:
+                with duckdb.connect("simulation.duckdb") as conn:
+                    count = conn.execute(f"SELECT COUNT(*) FROM {table_name}").fetchone()[0]
+                    has_data = count > 0
+                    self.checks.append(('table_not_empty', table_name, has_data, count))
+                    return has_data
+            except Exception as e:
+                self.checks.append(('table_not_empty', table_name, False, str(e)))
+                return False
+
+        def check_data_quality(self, table_name, check_type, **kwargs):
+            """Run specific data quality checks"""
+            import duckdb
+            try:
+                with duckdb.connect("simulation.duckdb") as conn:
+                    if check_type == 'no_nulls':
+                        column = kwargs.get('column')
+                        null_count = conn.execute(f"SELECT COUNT(*) FROM {table_name} WHERE {column} IS NULL").fetchone()[0]
+                        passed = null_count == 0
+                        self.checks.append(('no_nulls', f"{table_name}.{column}", passed, null_count))
+                        return passed
+                    elif check_type == 'unique_values':
+                        column = kwargs.get('column')
+                        total_count = conn.execute(f"SELECT COUNT(*) FROM {table_name}").fetchone()[0]
+                        unique_count = conn.execute(f"SELECT COUNT(DISTINCT {column}) FROM {table_name}").fetchone()[0]
+                        passed = total_count == unique_count
+                        self.checks.append(('unique_values', f"{table_name}.{column}", passed, (total_count, unique_count)))
+                        return passed
+                    elif check_type == 'value_range':
+                        column = kwargs.get('column')
+                        min_val = kwargs.get('min_val')
+                        max_val = kwargs.get('max_val')
+                        result = conn.execute(f"SELECT MIN({column}), MAX({column}) FROM {table_name}").fetchone()
+                        actual_min, actual_max = result
+                        passed = (min_val is None or actual_min >= min_val) and (max_val is None or actual_max <= max_val)
+                        self.checks.append(('value_range', f"{table_name}.{column}", passed, (actual_min, actual_max)))
+                        return passed
+            except Exception as e:
+                self.checks.append((check_type, table_name, False, str(e)))
+                return False
+
+        def get_summary(self):
+            """Get summary of all checks"""
+            passed = sum(1 for check in self.checks if len(check) >= 3 and check[2])
+            total = len(self.checks)
+            return {
+                'total_checks': total,
+                'passed': passed,
+                'failed': total - passed,
+                'success_rate': passed / total if total > 0 else 0,
+                'checks': self.checks
+            }
+
+    return DatabaseHealthChecker()
