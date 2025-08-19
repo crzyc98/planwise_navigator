@@ -22,6 +22,8 @@ from .registries import RegistryManager
 from .utils import DatabaseConnectionManager, ExecutionMutex, time_block
 from .validation import DataValidator
 from .reports import MultiYearReporter, YearAuditor, MultiYearSummary
+from .checkpoint_manager import CheckpointManager
+from .recovery_orchestrator import RecoveryOrchestrator
 
 
 class PipelineStageError(RuntimeError):
@@ -68,6 +70,7 @@ class PipelineOrchestrator:
         reports_dir: Path | str = Path("reports"),
         checkpoints_dir: Path | str = Path(".navigator_checkpoints"),
         verbose: bool = False,
+        enhanced_checkpoints: bool = True,
     ):
         self.config = config
         self.db_manager = db_manager
@@ -88,6 +91,22 @@ class PipelineOrchestrator:
         self.checkpoints_dir = Path(checkpoints_dir)
         self.checkpoints_dir.mkdir(exist_ok=True)
         self._seeded = False
+
+        # Enhanced checkpoint system
+        self.enhanced_checkpoints = enhanced_checkpoints
+        if enhanced_checkpoints:
+            # Determine database path from db_manager
+            db_path = getattr(db_manager, 'db_path', 'simulation.duckdb')
+            self.checkpoint_manager = CheckpointManager(
+                checkpoint_dir=str(checkpoints_dir),
+                db_path=str(db_path)
+            )
+            self.recovery_orchestrator = RecoveryOrchestrator(self.checkpoint_manager)
+            self.config_hash = self._calculate_config_hash()
+        else:
+            self.checkpoint_manager = None
+            self.recovery_orchestrator = None
+            self.config_hash = None
 
     def execute_multi_year_simulation(
         self,
@@ -129,7 +148,22 @@ class PipelineOrchestrator:
             for year in range(start, end + 1):
                 print(f"\n🔄 Starting simulation year {year}")
                 self._execute_year_workflow(year, fail_on_validation_error=fail_on_validation_error)
-                self._write_checkpoint(WorkflowCheckpoint(year, WorkflowStage.CLEANUP, datetime.utcnow().isoformat(), self._state_hash(year)))
+
+                # Create checkpoint using enhanced system if available
+                if self.enhanced_checkpoints and self.checkpoint_manager and self.config_hash:
+                    try:
+                        run_id = f"multiyear_{datetime.utcnow().strftime('%Y%m%d_%H%M%S')}"
+                        checkpoint_data = self.checkpoint_manager.save_checkpoint(year, run_id, self.config_hash)
+                        if self.verbose:
+                            print(f"   ✅ Enhanced checkpoint saved for year {year}")
+                    except Exception as e:
+                        print(f"   ⚠️ Enhanced checkpoint failed for year {year}: {e}")
+                        # Fall back to legacy checkpoint
+                        self._write_checkpoint(WorkflowCheckpoint(year, WorkflowStage.CLEANUP, datetime.utcnow().isoformat(), self._state_hash(year)))
+                else:
+                    # Legacy checkpoint system
+                    self._write_checkpoint(WorkflowCheckpoint(year, WorkflowStage.CLEANUP, datetime.utcnow().isoformat(), self._state_hash(year)))
+
                 completed_years.append(year)
 
         # Final multi-year summary using reporter
@@ -767,3 +801,24 @@ class PipelineOrchestrator:
             timestamp=data["timestamp"],
             state_hash=data.get("state_hash", ""),
         )
+
+    def _calculate_config_hash(self) -> str:
+        """Calculate hash of current configuration for checkpoint validation"""
+        import hashlib
+
+        # Try to hash the configuration file
+        config_path = Path("config/simulation_config.yaml")
+        if config_path.exists():
+            try:
+                config_content = config_path.read_text()
+                return hashlib.sha256(config_content.encode('utf-8')).hexdigest()
+            except Exception:
+                pass
+
+        # Fallback: hash the config object's dump
+        try:
+            config_dict = self.config.model_dump()
+            config_str = json.dumps(config_dict, sort_keys=True)
+            return hashlib.sha256(config_str.encode('utf-8')).hexdigest()
+        except Exception:
+            return "unknown"
