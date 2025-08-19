@@ -374,7 +374,9 @@
       "Bash(/Users/nicholasamaral/planwise_navigator/venv/bin/dbt show --select int_employee_contributions --vars \"simulation_year: 2025\" --limit 1)",
       "Bash(/Users/nicholasamaral/planwise_navigator/venv/bin/dbt run --select int_deferral_escalation_state_accumulator --vars \"simulation_year: 2026\" --full-refresh)",
       "Bash(/Users/nicholasamaral/planwise_navigator/venv/bin/dbt show --select int_deferral_rate_state_accumulator_v2 --vars \"simulation_year: 2025\" --limit 1)",
-      "Bash(/Users/nicholasamaral/planwise_navigator/venv/bin/dbt run --select fct_yearly_events --vars \"simulation_year: 2027\" --full-refresh --project-dir /Users/nicholasamaral/planwise_navigator/dbt)"
+      "Bash(/Users/nicholasamaral/planwise_navigator/venv/bin/dbt run --select fct_yearly_events --vars \"simulation_year: 2027\" --full-refresh --project-dir /Users/nicholasamaral/planwise_navigator/dbt)",
+      "Bash(/Users/nicholasamaral/planwise_navigator/venv/bin/dbt compile --models int_employer_eligibility --vars \"{simulation_year: 2025}\")",
+      "Bash(/Users/nicholasamaral/planwise_navigator/venv/bin/dbt run --models int_employer_eligibility --vars '{\"\"simulation_year\"\": 2025, \"\"core_minimum_tenure_years\"\": 0, \"\"core_require_active_eoy\"\": true, \"\"core_minimum_hours\"\": 1000, \"\"core_allow_new_hires\"\": true, \"\"core_allow_terminated_new_hires\"\": false}')"
     ],
     "deny": []
   }
