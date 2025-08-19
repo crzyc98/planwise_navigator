@@ -1,0 +1,298 @@
+name: Production Validation
+
+on:
+  push:
+    branches: [ main, develop, epic/* ]
+  pull_request:
+    branches: [ main, develop ]
+  schedule:
+    # Run nightly at 2 AM UTC
+    - cron: '0 2 * * *'
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    strategy:
+      matrix:
+        python-version: ['3.11']
+        test-category: ['smoke', 'data-quality', 'compliance']
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Python ${{ matrix.python-version }}
+        uses: actions/setup-python@v4
+        with:
+          python-version: ${{ matrix.python-version }}
+
+      - name: Cache dependencies
+        uses: actions/cache@v3
+        with:
+          path: ~/.cache/pip
+          key: ${{ runner.os }}-pip-${{ hashFiles('**/requirements.txt') }}
+          restore-keys: |
+            ${{ runner.os }}-pip-
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+          pip install -r requirements-dev.txt
+
+      - name: Set up test environment
+        run: |
+          # Create minimal test database
+          python -c "
+          import duckdb
+          import pandas as pd
+          from pathlib import Path
+
+          # Create test database
+          conn = duckdb.connect('simulation.duckdb')
+
+          # Create minimal test data
+          test_data = pd.DataFrame({
+              'employee_id': [f'EMP_{i:06d}' for i in range(100)],
+              'simulation_year': [2025] * 100,
+              'total_compensation': [50000 + i * 1000 for i in range(100)],
+              'employment_status': ['active'] * 100,
+              'current_age': [25 + (i % 40) for i in range(100)],
+              'current_tenure': [i % 20 for i in range(100)],
+              'enrollment_status': ['enrolled' if i % 3 == 0 else 'not_enrolled' for i in range(100)],
+              'enrollment_date': ['2025-01-01' if i % 3 == 0 else None for i in range(100)]
+          })
+
+          conn.execute('CREATE TABLE fct_workforce_snapshot AS SELECT * FROM test_data')
+
+          # Create test events
+          events_data = pd.DataFrame({
+              'employee_id': [f'EMP_{i:06d}' for i in range(50)] * 2,
+              'event_type': ['hire'] * 50 + ['RAISE'] * 50,
+              'simulation_year': [2025] * 100,
+              'effective_date': ['2025-01-01'] * 100,
+              'new_compensation': [50000 + i * 1000 for i in range(50)] * 2,
+              'previous_compensation': [45000 + i * 1000 for i in range(50)] * 2
+          })
+
+          conn.execute('CREATE TABLE fct_yearly_events AS SELECT * FROM events_data')
+
+          # Create test contributions
+          contrib_data = pd.DataFrame({
+              'employee_id': [f'EMP_{i:06d}' for i in range(30)],
+              'simulation_year': [2025] * 30,
+              'annual_contribution_amount': [2000 + i * 100 for i in range(30)]
+          })
+
+          conn.execute('CREATE TABLE int_employee_contributions AS SELECT * FROM contrib_data')
+
+          conn.close()
+          print('Test database created successfully')
+          "
+
+      - name: Run ${{ matrix.test-category }} tests
+        run: |
+          ./run_production_tests.sh ${{ matrix.test-category }} true
+
+      - name: Upload test results
+        uses: actions/upload-artifact@v3
+        if: always()
+        with:
+          name: test-results-${{ matrix.test-category }}-${{ matrix.python-version }}
+          path: |
+            pytest-report.xml
+            validation_report.json
+
+  # Performance tests run separately due to longer duration
+  performance-tests:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    if: github.event_name == 'schedule' || contains(github.event.head_commit.message, '[performance]')
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Python 3.11
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.11'
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+          pip install -r requirements-dev.txt
+
+      - name: Set up test environment
+        run: |
+          # Create larger test database for performance tests
+          python -c "
+          import duckdb
+          import pandas as pd
+          import numpy as np
+
+          conn = duckdb.connect('simulation.duckdb')
+
+          # Create larger test dataset
+          n_employees = 5000
+          test_data = pd.DataFrame({
+              'employee_id': [f'EMP_{i:06d}' for i in range(n_employees)],
+              'simulation_year': np.random.choice([2025, 2026], n_employees),
+              'total_compensation': np.random.normal(65000, 15000, n_employees),
+              'employment_status': ['active'] * n_employees,
+              'current_age': np.random.randint(22, 65, n_employees),
+              'current_tenure': np.random.exponential(5, n_employees),
+              'enrollment_status': np.random.choice(['enrolled', 'not_enrolled'], n_employees),
+              'enrollment_date': ['2025-01-01'] * n_employees
+          })
+
+          conn.execute('CREATE TABLE fct_workforce_snapshot AS SELECT * FROM test_data')
+
+          # Create events data
+          n_events = n_employees * 3
+          events_data = pd.DataFrame({
+              'employee_id': np.random.choice([f'EMP_{i:06d}' for i in range(n_employees)], n_events),
+              'event_type': np.random.choice(['hire', 'RAISE', 'promotion'], n_events),
+              'simulation_year': np.random.choice([2025, 2026], n_events),
+              'effective_date': ['2025-06-15'] * n_events,
+              'new_compensation': np.random.normal(65000, 15000, n_events),
+              'previous_compensation': np.random.normal(60000, 15000, n_events)
+          })
+
+          conn.execute('CREATE TABLE fct_yearly_events AS SELECT * FROM events_data')
+
+          # Create contributions data
+          contrib_data = pd.DataFrame({
+              'employee_id': [f'EMP_{i:06d}' for i in range(n_employees // 2)],
+              'simulation_year': [2025] * (n_employees // 2),
+              'annual_contribution_amount': np.random.uniform(1000, 20000, n_employees // 2)
+          })
+
+          conn.execute('CREATE TABLE int_employee_contributions AS SELECT * FROM contrib_data')
+
+          conn.close()
+          print(f'Performance test database created with {n_employees} employees')
+          "
+
+      - name: Run performance tests
+        run: |
+          ./run_production_tests.sh performance true
+
+      - name: Upload performance results
+        uses: actions/upload-artifact@v3
+        if: always()
+        with:
+          name: performance-test-results
+          path: |
+            pytest-report.xml
+            validation_report.json
+
+  # Full validation runs only on main branch or manual trigger
+  full-validation:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    if: github.ref == 'refs/heads/main' || github.event_name == 'workflow_dispatch'
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Python 3.11
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.11'
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+          pip install -r requirements-dev.txt
+
+      - name: Run full production validation
+        run: |
+          # Use the comprehensive validation script
+          ./validate_production.sh
+
+      - name: Upload validation report
+        uses: actions/upload-artifact@v3
+        if: always()
+        with:
+          name: full-validation-report
+          path: |
+            validation_report.json
+            pytest-report.xml
+
+      - name: Comment PR with results
+        uses: actions/github-script@v6
+        if: github.event_name == 'pull_request'
+        with:
+          script: |
+            const fs = require('fs');
+
+            let comment = '## 🔍 Production Validation Results\n\n';
+
+            try {
+              const report = JSON.parse(fs.readFileSync('validation_report.json', 'utf8'));
+
+              if (report.status === 'PASSED') {
+                comment += '✅ **All validation checks passed!**\n\n';
+              } else {
+                comment += '❌ **Some validation checks failed.**\n\n';
+              }
+
+              comment += `**Validation completed:** ${report.validation_timestamp}\n\n`;
+              comment += '**Checks completed:**\n';
+
+              for (const check of report.checks_completed) {
+                comment += `- ✅ ${check}\n`;
+              }
+
+            } catch (error) {
+              comment += '⚠️ Could not parse validation report.\n';
+            }
+
+            github.rest.issues.createComment({
+              issue_number: context.issue.number,
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              body: comment
+            });
+
+  # Security and dependency checks
+  security-audit:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Python 3.11
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.11'
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install safety bandit
+
+      - name: Run safety check
+        run: |
+          pip install -r requirements.txt
+          safety check --json --output safety-report.json || true
+
+      - name: Run bandit security check
+        run: |
+          bandit -r navigator_orchestrator/ -f json -o bandit-report.json || true
+
+      - name: Upload security reports
+        uses: actions/upload-artifact@v3
+        if: always()
+        with:
+          name: security-reports
+          path: |
+            safety-report.json
+            bandit-report.json
