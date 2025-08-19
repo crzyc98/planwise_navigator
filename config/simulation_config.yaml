@@ -61,10 +61,10 @@ enrollment:
   auto_enrollment:
     enabled: true  # Global auto-enrollment enable/disable toggle
     window_days: 45  # Configurable auto-enrollment window (default 45 days after hire)
-    default_deferral_rate: 0.06  # 6% default deferral rate for auto-enrolled participants
+    default_deferral_rate: 0.02  # 6% default deferral rate for auto-enrolled participants
     opt_out_grace_period: 30  # Days after auto-enrollment for opt-out without penalty
     scope: "new_hires_only"  # Options: "new_hires_only", "all_eligible_employees"
-    hire_date_cutoff: "2020-01-01"  # Optional: Exclude employees hired before this date from auto-enrollment (e.g., "2020-01-01")
+    hire_date_cutoff: "2025-01-01"  # Optional: Exclude employees hired before this date from auto-enrollment (e.g., "2020-01-01")
 
     # Opt-out rate configuration (industry-standard rates: 5-10% for well-designed programs)
     opt_out_rates:
@@ -215,6 +215,13 @@ employer_core_contribution:
     minimum_hours_annual: 1000     # Minimum hours worked (default: 1000)
     allow_new_hires: true          # Allow new hires to qualify (tenure exception)
     allow_terminated_new_hires: false  # Allow new-hire terminations to qualify when enabled
+
+# Core contribution eligibility variables (for dbt int_employer_eligibility.sql model)
+core_minimum_tenure_years: 0        # Minimum years of service for core contributions
+core_require_active_eoy: true        # Require active employment at end of year
+core_minimum_hours: 1000             # Minimum annual hours worked
+core_allow_new_hires: true           # Allow new hires to qualify despite tenure requirement
+core_allow_terminated_new_hires: false  # Allow terminated new hires to qualify
 
 # Multi-year simulation configuration
 multi_year:
