@@ -2,21 +2,21 @@
   "year": 2028,
   "workforce_breakdown": {
     "year": 2028,
-    "total_employees": 5811,
-    "active_employees": 4984,
+    "total_employees": 5812,
+    "active_employees": 4985,
     "breakdown_by_status": {
-      "continuous_active": 4256,
+      "continuous_active": 4257,
       "new_hire_active": 728,
       "experienced_termination": 585,
       "new_hire_termination": 242
     },
-    "participation_rate": 0.8796147672552167
+    "participation_rate": 0.8569709127382147
   },
   "event_summary": {
     "year": 2028,
-    "total_events": 9659,
+    "total_events": 9332,
     "events_by_type": {
-      "raise": 4842,
+      "raise": 4515,
       "deferral_escalation": 1409,
       "enrollment": 970,
       "promotion": 576,
@@ -27,27 +27,27 @@
     "hire_termination_ratio": 1.1729141475211609
   },
   "growth_analysis": {
-    "previous_active": 4836,
-    "current_active": 4984,
+    "previous_active": 4837,
+    "current_active": 4985,
     "net_growth": 148,
-    "growth_pct": 3.0603804797353185
+    "growth_pct": 3.059747777548067
   },
   "contribution_summary": {
-    "enrolled_employees_active_eoy": 4256,
-    "total_contributions_active_eoy": 37560504.0,
-    "avg_contribution_active_eoy": 8825.0,
-    "avg_deferral_rate_active_eoy": 5.8
+    "enrolled_employees_active_eoy": 4257,
+    "total_contributions_active_eoy": 34539162.0,
+    "avg_contribution_active_eoy": 8113.0,
+    "avg_deferral_rate_active_eoy": 5.3
   },
   "data_quality_results": [
     {
       "rule_name": "hire_termination_ratio",
       "severity": "warning",
       "passed": true,
-      "message": "Hire/termination ratio: 1.17 (PASS)",
+      "message": "Hire/termination ratio: 1.18 (PASS)",
       "details": {
         "hires": 970,
-        "terminations": 827,
-        "ratio": 1.1729141475211609,
+        "terminations": 822,
+        "ratio": 1.1800486618004866,
         "min_ratio": 0.3,
         "max_ratio": 3.0
       },
@@ -64,5 +64,5 @@
       "affected_records": null
     }
   ],
-  "generated_at": "2025-08-18T23:46:15.827592"
+  "generated_at": "2025-08-19T00:14:15.193395"
 }

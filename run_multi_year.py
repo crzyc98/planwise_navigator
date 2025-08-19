@@ -188,6 +188,26 @@ def extract_dbt_vars_from_config(full_config: dict) -> dict:
     if formulas is not None:
         dbt_vars['match_formulas'] = formulas
 
+    # Employer core contribution configuration (E039): map YAML to dbt vars
+    core = cfg.get('employer_core_contribution', {})
+    if 'enabled' in core:
+        dbt_vars['employer_core_enabled'] = bool(core['enabled'])
+    if 'contribution_rate' in core:
+        dbt_vars['employer_core_contribution_rate'] = float(core['contribution_rate'])
+
+    core_elig = core.get('eligibility', {})
+    if 'minimum_tenure_years' in core_elig:
+        dbt_vars['core_minimum_tenure_years'] = int(core_elig['minimum_tenure_years'])
+    if 'require_active_at_year_end' in core_elig:
+        dbt_vars['core_require_active_eoy'] = bool(core_elig['require_active_at_year_end'])
+    if 'minimum_hours_annual' in core_elig:
+        dbt_vars['core_minimum_hours'] = int(core_elig['minimum_hours_annual'])
+    # New flags added to support new_hire eligibility handling
+    if 'allow_new_hires' in core_elig:
+        dbt_vars['core_allow_new_hires'] = bool(core_elig['allow_new_hires'])
+    if 'allow_terminated_new_hires' in core_elig:
+        dbt_vars['core_allow_terminated_new_hires'] = bool(core_elig['allow_terminated_new_hires'])
+
     return dbt_vars
 
 

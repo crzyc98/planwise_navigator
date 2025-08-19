@@ -97,7 +97,12 @@ SELECT
     CASE
         WHEN ed.event_hire_date::DATE >= '{{ simulation_year }}-01-01'::DATE
              AND ed.event_hire_date::DATE <= '{{ simulation_year }}-12-31'::DATE
-        THEN true ELSE false END AS is_new_hire_this_year,
+        THEN true
+        WHEN ae.employee_hire_date::DATE >= '{{ simulation_year }}-01-01'::DATE
+             AND ae.employee_hire_date::DATE <= '{{ simulation_year }}-12-31'::DATE
+        THEN true
+        ELSE false
+    END AS is_new_hire_this_year,
 
     -- Derive end-of-year employment status using event termination when present
     CASE
