@@ -2,41 +2,41 @@
   "year": 2029,
   "workforce_breakdown": {
     "year": 2029,
-    "total_employees": 5986,
-    "active_employees": 5136,
+    "total_employees": 5988,
+    "active_employees": 5137,
     "breakdown_by_status": {
-      "continuous_active": 4386,
+      "continuous_active": 4387,
       "new_hire_active": 750,
-      "experienced_termination": 601,
+      "experienced_termination": 602,
       "new_hire_termination": 249
     },
-    "participation_rate": 0.8874610591900312
+    "participation_rate": 0.8662643566283823
   },
   "event_summary": {
     "year": 2029,
-    "total_events": 10255,
+    "total_events": 9945,
     "events_by_type": {
-      "raise": 4990,
-      "deferral_escalation": 1746,
+      "raise": 4681,
+      "deferral_escalation": 1744,
       "enrollment": 999,
       "promotion": 617,
       "enrollment_change": 54,
       "hire": 999,
-      "termination": 850
+      "termination": 851
     },
-    "hire_termination_ratio": 1.1752941176470588
+    "hire_termination_ratio": 1.173913043478261
   },
   "growth_analysis": {
-    "previous_active": 4984,
-    "current_active": 5136,
+    "previous_active": 4985,
+    "current_active": 5137,
     "net_growth": 152,
-    "growth_pct": 3.0497592295345104
+    "growth_pct": 3.049147442326981
   },
   "contribution_summary": {
-    "enrolled_employees_active_eoy": 4386,
-    "total_contributions_active_eoy": 42912320.0,
-    "avg_contribution_active_eoy": 9784.0,
-    "avg_deferral_rate_active_eoy": 6.0
+    "enrolled_employees_active_eoy": 4387,
+    "total_contributions_active_eoy": 39947713.0,
+    "avg_contribution_active_eoy": 9106.0,
+    "avg_deferral_rate_active_eoy": 5.6
   },
   "data_quality_results": [
     {
@@ -46,8 +46,8 @@
       "message": "Hire/termination ratio: 1.18 (PASS)",
       "details": {
         "hires": 999,
-        "terminations": 850,
-        "ratio": 1.1752941176470588,
+        "terminations": 847,
+        "ratio": 1.179456906729634,
         "min_ratio": 0.3,
         "max_ratio": 3.0
       },
@@ -64,5 +64,5 @@
       "affected_records": null
     }
   ],
-  "generated_at": "2025-08-18T23:47:04.896040"
+  "generated_at": "2025-08-19T00:15:04.220243"
 }
