@@ -2,19 +2,19 @@
   "year": 2028,
   "workforce_breakdown": {
     "year": 2028,
-    "total_employees": 5812,
+    "total_employees": 5813,
     "active_employees": 4985,
     "breakdown_by_status": {
       "continuous_active": 4257,
       "new_hire_active": 728,
-      "experienced_termination": 585,
+      "experienced_termination": 586,
       "new_hire_termination": 242
     },
     "participation_rate": 0.8569709127382147
   },
   "event_summary": {
     "year": 2028,
-    "total_events": 9335,
+    "total_events": 9336,
     "events_by_type": {
       "raise": 4518,
       "deferral_escalation": 1409,
@@ -22,9 +22,9 @@
       "promotion": 576,
       "enrollment_change": 65,
       "hire": 970,
-      "termination": 827
+      "termination": 828
     },
-    "hire_termination_ratio": 1.1729141475211609
+    "hire_termination_ratio": 1.171497584541063
   },
   "growth_analysis": {
     "previous_active": 4837,
@@ -34,9 +34,9 @@
   },
   "contribution_summary": {
     "enrolled_employees_active_eoy": 4985,
-    "total_contributions_active_eoy": 33704335.0,
-    "avg_contribution_active_eoy": 6761.0,
-    "avg_deferral_rate_active_eoy": 4.7
+    "total_contributions_active_eoy": 33674749.0,
+    "avg_contribution_active_eoy": 6755.0,
+    "avg_deferral_rate_active_eoy": 4.6
   },
   "data_quality_results": [
     {
@@ -46,8 +46,8 @@
       "message": "Hire/termination ratio: 1.17 (PASS)",
       "details": {
         "hires": 970,
-        "terminations": 826,
-        "ratio": 1.1743341404358354,
+        "terminations": 828,
+        "ratio": 1.171497584541063,
         "min_ratio": 0.3,
         "max_ratio": 3.0
       },
@@ -64,5 +64,5 @@
       "affected_records": null
     }
   ],
-  "generated_at": "2025-08-19T11:53:44.716949"
+  "generated_at": "2025-08-19T17:11:33.497234"
 }

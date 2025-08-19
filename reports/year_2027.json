@@ -34,8 +34,8 @@
   },
   "contribution_summary": {
     "enrolled_employees_active_eoy": 4837,
-    "total_contributions_active_eoy": 29949169.0,
-    "avg_contribution_active_eoy": 6192.0,
+    "total_contributions_active_eoy": 29946019.0,
+    "avg_contribution_active_eoy": 6191.0,
     "avg_deferral_rate_active_eoy": 4.5
   },
   "data_quality_results": [
@@ -64,5 +64,5 @@
       "affected_records": null
     }
   ],
-  "generated_at": "2025-08-19T11:52:58.814156"
+  "generated_at": "2025-08-19T17:10:44.093119"
 }

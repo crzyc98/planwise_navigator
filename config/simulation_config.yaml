@@ -215,6 +215,7 @@ employer_core_contribution:
     minimum_hours_annual: 1000     # Minimum hours worked (default: 1000)
     allow_new_hires: true          # Allow new hires to qualify (tenure exception)
     allow_terminated_new_hires: false  # Allow new-hire terminations to qualify when enabled
+    allow_experienced_terminations: false  # Allow experienced terminations to qualify when enabled
 
 # Multi-year simulation configuration
 multi_year:

@@ -398,6 +398,7 @@ def to_dbt_vars(cfg: SimulationConfig) -> Dict[str, Any]:
                 min_hours = eligibility.get('minimum_hours_annual')
                 allow_new_hires = eligibility.get('allow_new_hires')
                 allow_terminated_new_hires = eligibility.get('allow_terminated_new_hires')
+                allow_experienced_terminations = eligibility.get('allow_experienced_terminations')
 
                 if min_tenure is not None:
                     dbt_vars["core_minimum_tenure_years"] = int(min_tenure)
@@ -409,6 +410,8 @@ def to_dbt_vars(cfg: SimulationConfig) -> Dict[str, Any]:
                     dbt_vars["core_allow_new_hires"] = bool(allow_new_hires)
                 if allow_terminated_new_hires is not None:
                     dbt_vars["core_allow_terminated_new_hires"] = bool(allow_terminated_new_hires)
+                if allow_experienced_terminations is not None:
+                    dbt_vars["core_allow_experienced_terminations"] = bool(allow_experienced_terminations)
     except Exception:
         # Non-fatal: fall back to model defaults
         pass

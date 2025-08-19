@@ -220,11 +220,14 @@ class PipelineOrchestrator:
                         "SELECT COUNT(*) FROM int_workforce_needs_by_level WHERE simulation_year = ?",
                         [year],
                     ).fetchone()[0]
-                    # Epic E039: Employer contribution model validation
-                    employer_elig = conn.execute(
-                        "SELECT COUNT(*) FROM int_employer_eligibility WHERE simulation_year = ?",
-                        [year],
-                    ).fetchone()[0]
+                    # Epic E039: Employer contribution model validation (eligibility may not be built in FOUNDATION)
+                    try:
+                        employer_elig = conn.execute(
+                            "SELECT COUNT(*) FROM int_employer_eligibility WHERE simulation_year = ?",
+                            [year],
+                        ).fetchone()[0]
+                    except Exception:
+                        employer_elig = 0
                     # int_employer_core_contributions is built in STATE_ACCUMULATION, not FOUNDATION
                     try:
                         employer_core = conn.execute(
@@ -269,7 +272,7 @@ class PipelineOrchestrator:
                 print(f"      int_employee_compensation_by_year: {comp_cnt} rows")
                 print(f"      int_workforce_needs: {wn_cnt} rows")
                 print(f"      int_workforce_needs_by_level: {wnbl_cnt} rows")
-                print(f"      int_employer_eligibility: {employer_elig_cnt} rows")
+                print(f"      int_employer_eligibility: {employer_elig_cnt} rows (may be 0 in FOUNDATION)")
                 print(f"      int_employer_core_contributions: {employer_core_cnt} rows")
                 print(f"      hiring_demand.total_hires_needed: {total_hires_needed}")
                 print(f"      hiring_demand.sum_by_level: {level_hires_needed}")
@@ -284,7 +287,7 @@ class PipelineOrchestrator:
                 if wn_cnt == 0 or wnbl_cnt == 0:
                     raise PipelineStageError(f"CRITICAL: workforce_needs rows={wn_cnt}, by_level rows={wnbl_cnt} for {year}. Hiring will fail.")
                 if employer_elig_cnt == 0:
-                    print(f"⚠️ int_employer_eligibility has 0 rows for year {year}. Employer contributions will be skipped.")
+                    print(f"ℹ️ int_employer_eligibility has 0 rows for year {year} (expected before EVENT_GENERATION builds eligibility).")
                 if employer_core_cnt == 0:
                     print(f"ℹ️ int_employer_core_contributions has 0 rows for year {year} (expected during foundation stage - built later in state accumulation).")
                 if total_hires_needed == 0 or level_hires_needed == 0:
@@ -661,8 +664,6 @@ class PipelineOrchestrator:
                 "int_effective_parameters",
                 "int_workforce_needs",
                 "int_workforce_needs_by_level",
-                # Epic E039: Employer contribution foundation models
-                "int_employer_eligibility",
             ]
         else:
             # Year 2+: Skip baseline workforce (use incremental data preservation)
@@ -672,8 +673,6 @@ class PipelineOrchestrator:
                 "int_effective_parameters",
                 "int_workforce_needs",
                 "int_workforce_needs_by_level",
-                # Epic E039: Employer contribution foundation models
-                "int_employer_eligibility",
             ]
 
         return [
@@ -697,6 +696,8 @@ class PipelineOrchestrator:
                     "int_termination_events",
                     "int_hiring_events",
                     "int_new_hire_termination_events",
+                    # Build employer eligibility after new-hire terminations to ensure flags are available
+                    "int_employer_eligibility",
                     "int_hazard_promotion",
                     "int_hazard_merit",
                     "int_promotion_events",
