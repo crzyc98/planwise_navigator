@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 """
+from navigator_orchestrator.config import get_database_path
 Tests for Enhanced Checkpoint and Recovery System
 
 Comprehensive test suite validating checkpoint creation, integrity validation,
@@ -458,7 +459,7 @@ class TestIntegrationScenarios:
         temp_path = Path(temp_dir)
 
         # Create test database
-        db_path = temp_path / "simulation.duckdb"
+        db_path = temp_path / str(get_database_path())
         with duckdb.connect(str(db_path)) as conn:
             conn.execute(
                 """

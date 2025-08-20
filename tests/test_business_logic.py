@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 """
+from navigator_orchestrator.config import get_database_path
 Business Logic Tests
 
 Validate business rules and metrics make sense.
@@ -46,7 +47,7 @@ class TestBusinessLogic:
         assert result1 == 0, "First simulation run failed"
 
         # Capture results from first run
-        with duckdb.connect("simulation.duckdb") as conn:
+        with duckdb.connect(str(get_database_path())) as conn:
             workforce_count_1 = conn.execute(
                 """
                 SELECT COUNT(*) FROM fct_workforce_snapshot
@@ -80,7 +81,7 @@ class TestBusinessLogic:
         assert result2 == 0, "Second simulation run failed"
 
         # Capture results from second run
-        with duckdb.connect("simulation.duckdb") as conn:
+        with duckdb.connect(str(get_database_path())) as conn:
             workforce_count_2 = conn.execute(
                 """
                 SELECT COUNT(*) FROM fct_workforce_snapshot
@@ -142,7 +143,7 @@ class TestBusinessLogic:
         result = cmd_run(args)
         assert result == 0, "Multi-year simulation failed"
 
-        with duckdb.connect("simulation.duckdb") as conn:
+        with duckdb.connect(str(get_database_path())) as conn:
             # Get workforce counts by year
             growth_data = conn.execute(
                 """
@@ -172,7 +173,7 @@ class TestBusinessLogic:
 
     def test_compensation_reasonableness(self):
         """Verify compensation values are reasonable"""
-        with duckdb.connect("simulation.duckdb") as conn:
+        with duckdb.connect(str(get_database_path())) as conn:
             comp_stats = conn.execute(
                 """
                 SELECT
@@ -209,7 +210,7 @@ class TestBusinessLogic:
 
     def test_contribution_rates_realistic(self):
         """Verify contribution rates within expected ranges"""
-        with duckdb.connect("simulation.duckdb") as conn:
+        with duckdb.connect(str(get_database_path())) as conn:
             deferral_data = conn.execute(
                 """
                 SELECT
@@ -253,7 +254,7 @@ class TestBusinessLogic:
 
     def test_event_distribution_logic(self):
         """Verify events are distributed reasonably throughout the year"""
-        with duckdb.connect("simulation.duckdb") as conn:
+        with duckdb.connect(str(get_database_path())) as conn:
             # Test monthly distribution of events
             monthly_events = conn.execute(
                 """
@@ -279,7 +280,7 @@ class TestBusinessLogic:
 
     def test_hire_termination_balance(self):
         """Verify hire/termination balance makes sense"""
-        with duckdb.connect("simulation.duckdb") as conn:
+        with duckdb.connect(str(get_database_path())) as conn:
             event_balance = conn.execute(
                 """
                 SELECT
@@ -303,7 +304,7 @@ class TestBusinessLogic:
 
     def test_promotion_progression_logic(self):
         """Verify promotions follow logical progression patterns"""
-        with duckdb.connect("simulation.duckdb") as conn:
+        with duckdb.connect(str(get_database_path())) as conn:
             # Check that promoted employees exist in workforce
             orphaned_promotions = conn.execute(
                 """
@@ -344,7 +345,7 @@ class TestBusinessLogic:
 
     def test_merit_increase_logic(self):
         """Verify merit increases follow business logic"""
-        with duckdb.connect("simulation.duckdb") as conn:
+        with duckdb.connect(str(get_database_path())) as conn:
             merit_raises = conn.execute(
                 """
                 SELECT
@@ -367,7 +368,7 @@ class TestBusinessLogic:
 
     def test_workforce_demographic_consistency(self):
         """Verify workforce demographics are consistent"""
-        with duckdb.connect("simulation.duckdb") as conn:
+        with duckdb.connect(str(get_database_path())) as conn:
             # Check age distribution is reasonable
             age_stats = conn.execute(
                 """

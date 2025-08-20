@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 """
+from navigator_orchestrator.config import get_database_path
 Observability Framework Demonstration
 
 Shows the production observability framework in action with realistic
@@ -237,7 +238,7 @@ def demonstrate_error_handling():
         # Simulate a database connection error
         obs.log_error(
             "Database connection failed",
-            database="simulation.duckdb",
+            database=str(get_database_path()),
             error_code="CONNECTION_TIMEOUT",
             retry_count=3,
             severity="high",

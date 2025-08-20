@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 """
+from navigator_orchestrator.config import get_database_path
 Compensation Growth Calibration Script
 
 This script allows you to manually adjust compensation parameters
@@ -13,7 +14,7 @@ import pandas as pd
 
 
 class CompensationCalibrator:
-    def __init__(self, db_path: str = "simulation.duckdb"):
+    def __init__(self, db_path: str = str(get_database_path())):
         self.db_path = db_path
 
     def get_connection(self):

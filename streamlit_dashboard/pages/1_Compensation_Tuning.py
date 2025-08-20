@@ -1,3 +1,4 @@
+from navigator_orchestrator.config import get_database_path
 # filename: streamlit_dashboard/pages/1_Compensation_Tuning.py
 """
 Streamlit Compensation Tuning Interface for E012 - Analyst-Driven Parameter Adjustment
@@ -230,7 +231,7 @@ def load_simulation_results(status_filter=["continuous_active", "new_hire_active
     try:
         # Connect to DuckDB database using absolute path
         project_root = Path(__file__).parent.parent.parent
-        db_path = project_root / "simulation.duckdb"
+        db_path = project_root / str(get_database_path())
 
         if not db_path.exists():
             st.warning("No simulation database found. Run a simulation first.")
@@ -2068,7 +2069,7 @@ def run_simulation(use_synthetic=False, proposed_params=None, target_years=None)
 
                     # Use absolute path to database
                     project_root = Path(__file__).parent.parent.parent
-                    db_path = project_root / "simulation.duckdb"
+                    db_path = project_root / str(get_database_path())
 
                     if db_path.exists():
                         conn = duckdb.connect(str(db_path))
@@ -2189,7 +2190,7 @@ def run_simulation(use_synthetic=False, proposed_params=None, target_years=None)
 
                     # Use absolute path to database
                     project_root = Path(__file__).parent.parent.parent
-                    db_path = project_root / "simulation.duckdb"
+                    db_path = project_root / str(get_database_path())
 
                     if db_path.exists():
                         conn = duckdb.connect(str(db_path))
@@ -3615,7 +3616,7 @@ with tab5:
                 import duckdb
 
                 project_root = Path(__file__).parent.parent.parent
-                db_path = project_root / "simulation.duckdb"
+                db_path = project_root / str(get_database_path())
 
                 conn = duckdb.connect(str(db_path))
                 snapshot_years = conn.execute(
@@ -3643,7 +3644,7 @@ with tab5:
         import duckdb
 
         project_root = Path(__file__).parent.parent.parent
-        db_path = project_root / "simulation.duckdb"
+        db_path = project_root / str(get_database_path())
 
         if db_path.exists():
             conn = duckdb.connect(str(db_path))

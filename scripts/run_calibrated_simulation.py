@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 """
+from navigator_orchestrator.config import get_database_path
 Run Multi-Year Simulation with Calibrated Parameters
 
 This script runs the multi-year simulation and monitors compensation growth
@@ -40,7 +41,7 @@ def run_dagster_asset(asset_name: str) -> bool:
 
 def check_current_parameters():
     """Display current calibrated parameters."""
-    conn = duckdb.connect("simulation.duckdb")
+    conn = duckdb.connect(str(get_database_path()))
 
     print("🎛️ CURRENT CALIBRATED PARAMETERS")
     print("=" * 50)
@@ -79,7 +80,7 @@ def check_current_parameters():
 
 def analyze_simulation_results():
     """Analyze the results of the multi-year simulation."""
-    conn = duckdb.connect("simulation.duckdb")
+    conn = duckdb.connect(str(get_database_path()))
 
     print("\n📊 SIMULATION RESULTS ANALYSIS")
     print("=" * 50)

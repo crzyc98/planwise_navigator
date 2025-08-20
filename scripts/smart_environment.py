@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 """
+from navigator_orchestrator.config import get_database_path
 Smart Environment Detection and Setup Utility for PlanWise Navigator
 
 This utility prevents trial-and-error command execution by:
@@ -199,11 +200,11 @@ class SmartEnvironment:
         # 5. Find database files
         database_files = {}
         db_candidates = [
-            ("simulation", project_root / "simulation.duckdb"),
-            ("dbt_simulation", project_root / "dbt" / "simulation.duckdb"),
+            ("simulation", project_root / str(get_database_path())),
+            ("dbt_simulation", project_root / "dbt" / str(get_database_path())),
             (
                 "streamlit_simulation",
-                project_root / "streamlit_dashboard" / "simulation.duckdb",
+                project_root / "streamlit_dashboard" / str(get_database_path()),
             ),
         ]
 

@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 """
+from navigator_orchestrator.config import get_database_path
 Data Quality Auditor for PlanWise Navigator Simulation Database
 
 This script performs comprehensive data quality checks on the simulation database,
@@ -24,7 +25,7 @@ import pandas as pd
 class DataQualityAuditor:
     """Comprehensive data quality auditor for simulation database."""
 
-    def __init__(self, db_path: str = "simulation.duckdb"):
+    def __init__(self, db_path: str = str(get_database_path())):
         """Initialize the auditor with database connection."""
         self.db_path = db_path
         self.conn = duckdb.connect(db_path)

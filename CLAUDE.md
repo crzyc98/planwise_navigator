@@ -125,7 +125,7 @@ planwise_navigator/
 ├─ scripts/                          # Utility scripts
 ├─ tests/                            # Comprehensive testing
 ├─ data/                             # Raw input files (git-ignored)
-└─ simulation.duckdb                 # DuckDB database file (git-ignored)
+└─ dbt/simulation.duckdb              # DuckDB database file (standardized location)
 ```
 
 -----
@@ -223,14 +223,15 @@ dbt build --select int_enrollment_events --vars "simulation_year: 2025"
 dbt build --select fct_yearly_events fct_workforce_snapshot --vars "simulation_year: 2025"
 
 # DuckDB Direct Access (Claude can execute these)
-duckdb simulation.duckdb "SELECT COUNT(*) FROM fct_yearly_events"
-duckdb simulation.duckdb "SELECT * FROM fct_workforce_snapshot WHERE simulation_year = 2025 LIMIT 10"
-duckdb simulation.duckdb "SHOW TABLES"
+duckdb dbt/simulation.duckdb "SELECT COUNT(*) FROM fct_yearly_events"
+duckdb dbt/simulation.duckdb "SELECT * FROM fct_workforce_snapshot WHERE simulation_year = 2025 LIMIT 10"
+duckdb dbt/simulation.duckdb "SHOW TABLES"
 
 # Python DuckDB Access (Claude can execute these)
 python -c "
+from navigator_orchestrator.config import get_database_path
 import duckdb
-conn = duckdb.connect('simulation.duckdb')
+conn = duckdb.connect(str(get_database_path()))
 result = conn.execute('SELECT COUNT(*) FROM fct_yearly_events').fetchall()
 print(f'Total events: {result[0][0]}')
 conn.close()
@@ -271,13 +272,13 @@ Claude Code can directly interact with your DuckDB simulation database using mul
 Claude can execute DuckDB commands via the Bash tool:
 ```bash
 # Query simulation data
-duckdb simulation.duckdb "SELECT COUNT(*) FROM fct_yearly_events WHERE simulation_year = 2025"
+duckdb dbt/simulation.duckdb "SELECT COUNT(*) FROM fct_yearly_events WHERE simulation_year = 2025"
 
 # Inspect table structure
-duckdb simulation.duckdb "DESCRIBE fct_workforce_snapshot"
+duckdb dbt/simulation.duckdb "DESCRIBE fct_workforce_snapshot"
 
 # Check database health
-duckdb simulation.duckdb "SHOW TABLES"
+duckdb dbt/simulation.duckdb "SHOW TABLES"
 ```
 
 #### **Python DuckDB Library Access**
@@ -285,8 +286,9 @@ Claude can run Python scripts that use the DuckDB library:
 ```python
 # Data validation scripts
 python -c "
+from navigator_orchestrator.config import get_database_path
 import duckdb
-conn = duckdb.connect('simulation.duckdb')
+conn = duckdb.connect(str(get_database_path()))
 result = conn.execute('SELECT simulation_year, COUNT(*) FROM fct_yearly_events GROUP BY simulation_year').fetchall()
 for year, count in result:
     print(f'Year {year}: {count} events')
@@ -298,7 +300,7 @@ conn.close()
 Claude can proactively monitor data quality:
 ```bash
 # Check for data anomalies
-duckdb simulation.duckdb "
+duckdb dbt/simulation.duckdb "
 SELECT
     simulation_year,
     COUNT(CASE WHEN event_type = 'hire' THEN 1 END) as hires,
@@ -313,7 +315,7 @@ ORDER BY simulation_year
 Claude can verify dbt model outputs and troubleshoot issues:
 ```bash
 # Validate model results after dbt run
-duckdb simulation.duckdb "
+duckdb dbt/simulation.duckdb "
 SELECT
     COUNT(*) as total_employees,
     COUNT(CASE WHEN enrollment_date IS NOT NULL THEN 1 END) as enrolled_count
@@ -411,14 +413,14 @@ This section tracks the implementation of major epics and stories.
 
 #### **CRITICAL: Database and Path Issues**
 
-  * **Database Location**: The simulation database is `simulation.duckdb` in the project root.
+  * **Database Location**: The simulation database is `dbt/simulation.duckdb` (standardized location).
   * **dbt Commands**: Always run `dbt` commands from the `/dbt` directory.
   * **Multi-year Orchestration**: Use `run_multi_year.py` from project root or `orchestrator_dbt/run_multi_year.py` for production.
   * **Correct Pattern for Database Access**:
     ```python
     def get_database_connection():
-        db_path = Path("simulation.duckdb")
-        return duckdb.connect(str(db_path))
+        from navigator_orchestrator.config import get_database_path
+        return duckdb.connect(str(get_database_path()))
 
     # Query pattern
     conn = get_database_connection()
