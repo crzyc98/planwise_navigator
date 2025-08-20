@@ -9,12 +9,14 @@ Reads config/simulation_config.yaml and runs multi-year simulations.
 Uses the working foundation approach with simple subprocess calls.
 """
 
-import yaml
+import json
 import subprocess
 import sys
 from pathlib import Path
+
 import duckdb
-import json
+import yaml
+
 from shared_utils import ExecutionMutex, print_execution_warning
 
 
@@ -27,19 +29,19 @@ def load_config():
         sys.exit(1)
 
     try:
-        with open(config_path, 'r') as f:
+        with open(config_path, "r") as f:
             config = yaml.safe_load(f)
 
         # Extract simulation parameters
-        simulation = config.get('simulation', {})
-        start_year = simulation.get('start_year', 2025)
-        end_year = simulation.get('end_year', 2029)
-        random_seed = simulation.get('random_seed', 42)
+        simulation = config.get("simulation", {})
+        start_year = simulation.get("start_year", 2025)
+        end_year = simulation.get("end_year", 2029)
+        random_seed = simulation.get("random_seed", 42)
 
         # Extract compensation parameters
-        compensation = config.get('compensation', {})
-        cola_rate = compensation.get('cola_rate', 0.005)
-        merit_budget = compensation.get('merit_budget', 0.025)
+        compensation = config.get("compensation", {})
+        cola_rate = compensation.get("cola_rate", 0.005)
+        merit_budget = compensation.get("merit_budget", 0.025)
 
         print(f"📋 Configuration loaded:")
         print(f"   Years: {start_year} - {end_year}")
@@ -48,12 +50,12 @@ def load_config():
         print(f"   Merit budget: {merit_budget}")
 
         return {
-            'start_year': start_year,
-            'end_year': end_year,
-            'random_seed': random_seed,
-            'cola_rate': cola_rate,
-            'merit_budget': merit_budget,
-            'config': config
+            "start_year": start_year,
+            "end_year": end_year,
+            "random_seed": random_seed,
+            "cola_rate": cola_rate,
+            "merit_budget": merit_budget,
+            "config": config,
         }
 
     except Exception as e:
@@ -61,7 +63,9 @@ def load_config():
         sys.exit(1)
 
 
-def run_dbt_command(command_args, description="Running dbt command", simulation_year=None, dbt_vars=None):
+def run_dbt_command(
+    command_args, description="Running dbt command", simulation_year=None, dbt_vars=None
+):
     """Run a dbt command with error handling (like working staging approach)."""
 
     # Build command
@@ -85,11 +89,7 @@ def run_dbt_command(command_args, description="Running dbt command", simulation_
 
     try:
         result = subprocess.run(
-            cmd,
-            cwd="dbt",
-            check=True,
-            capture_output=True,
-            text=True
+            cmd, cwd="dbt", check=True, capture_output=True, text=True
         )
         print(f"✅ {description} completed")
         return True
@@ -109,89 +109,97 @@ def extract_dbt_vars_from_config(full_config: dict) -> dict:
 
     Keeps names aligned with model expectations and defaults.
     """
-    cfg = full_config.get('config', full_config)
+    cfg = full_config.get("config", full_config)
 
-    comp = cfg.get('compensation', {})
-    elig = cfg.get('eligibility', {})
-    plan_elig = cfg.get('plan_eligibility', {})
-    enroll = cfg.get('enrollment', {})
-    auto = enroll.get('auto_enrollment', {})
-    proactive = enroll.get('proactive_enrollment', {})
-    timing = enroll.get('timing', {})
+    comp = cfg.get("compensation", {})
+    elig = cfg.get("eligibility", {})
+    plan_elig = cfg.get("plan_eligibility", {})
+    enroll = cfg.get("enrollment", {})
+    auto = enroll.get("auto_enrollment", {})
+    proactive = enroll.get("proactive_enrollment", {})
+    timing = enroll.get("timing", {})
     # Note: workforce growth/termination vars are handled in navigator orchestrator
 
     dbt_vars = {}
 
     # Compensation vars already passed before; include for completeness
-    if 'cola_rate' in comp:
-        dbt_vars['cola_rate'] = comp['cola_rate']
-    if 'merit_budget' in comp:
-        dbt_vars['merit_budget'] = comp['merit_budget']
+    if "cola_rate" in comp:
+        dbt_vars["cola_rate"] = comp["cola_rate"]
+    if "merit_budget" in comp:
+        dbt_vars["merit_budget"] = comp["merit_budget"]
 
     # Eligibility and plan eligibility mapping used by timing/eligibility models
-    if 'waiting_period_days' in elig:
-        dbt_vars['eligibility_waiting_days'] = elig['waiting_period_days']
-        dbt_vars['minimum_service_days'] = elig['waiting_period_days']
-    if 'minimum_age' in plan_elig:
-        dbt_vars['minimum_age'] = plan_elig['minimum_age']
+    if "waiting_period_days" in elig:
+        dbt_vars["eligibility_waiting_days"] = elig["waiting_period_days"]
+        dbt_vars["minimum_service_days"] = elig["waiting_period_days"]
+    if "minimum_age" in plan_elig:
+        dbt_vars["minimum_age"] = plan_elig["minimum_age"]
 
     # Auto-enrollment core vars
-    if 'enabled' in auto:
-        dbt_vars['auto_enrollment_enabled'] = bool(auto['enabled'])
-    if 'scope' in auto:
-        dbt_vars['auto_enrollment_scope'] = str(auto['scope'])
-    if 'hire_date_cutoff' in auto and auto['hire_date_cutoff']:
+    if "enabled" in auto:
+        dbt_vars["auto_enrollment_enabled"] = bool(auto["enabled"])
+    if "scope" in auto:
+        dbt_vars["auto_enrollment_scope"] = str(auto["scope"])
+    if "hire_date_cutoff" in auto and auto["hire_date_cutoff"]:
         # Pass as string to avoid Jinja date formatting surprises
-        dbt_vars['auto_enrollment_hire_date_cutoff'] = str(auto['hire_date_cutoff'])
-    if 'window_days' in auto:
-        dbt_vars['auto_enrollment_window_days'] = int(auto['window_days'])
-    if 'default_deferral_rate' in auto:
-        dbt_vars['auto_enrollment_default_deferral_rate'] = float(auto['default_deferral_rate'])
-    if 'opt_out_grace_period' in auto:
-        dbt_vars['auto_enrollment_opt_out_grace_period'] = int(auto['opt_out_grace_period'])
+        dbt_vars["auto_enrollment_hire_date_cutoff"] = str(auto["hire_date_cutoff"])
+    if "window_days" in auto:
+        dbt_vars["auto_enrollment_window_days"] = int(auto["window_days"])
+    if "default_deferral_rate" in auto:
+        dbt_vars["auto_enrollment_default_deferral_rate"] = float(
+            auto["default_deferral_rate"]
+        )
+    if "opt_out_grace_period" in auto:
+        dbt_vars["auto_enrollment_opt_out_grace_period"] = int(
+            auto["opt_out_grace_period"]
+        )
 
     # Proactive enrollment vars
-    if 'enabled' in proactive:
-        dbt_vars['proactive_enrollment_enabled'] = bool(proactive['enabled'])
-    tw = proactive.get('timing_window', {})
-    if 'min_days' in tw:
-        dbt_vars['proactive_enrollment_min_days'] = int(tw['min_days'])
-    if 'max_days' in tw:
-        dbt_vars['proactive_enrollment_max_days'] = int(tw['max_days'])
-    probs = proactive.get('probability_by_demographics', {})
+    if "enabled" in proactive:
+        dbt_vars["proactive_enrollment_enabled"] = bool(proactive["enabled"])
+    tw = proactive.get("timing_window", {})
+    if "min_days" in tw:
+        dbt_vars["proactive_enrollment_min_days"] = int(tw["min_days"])
+    if "max_days" in tw:
+        dbt_vars["proactive_enrollment_max_days"] = int(tw["max_days"])
+    probs = proactive.get("probability_by_demographics", {})
     if probs:
-        if 'young' in probs:
-            dbt_vars['proactive_enrollment_rate_young'] = float(probs['young'])
-        if 'mid_career' in probs:
-            dbt_vars['proactive_enrollment_rate_mid_career'] = float(probs['mid_career'])
-        if 'mature' in probs:
-            dbt_vars['proactive_enrollment_rate_mature'] = float(probs['mature'])
-        if 'senior' in probs:
-            dbt_vars['proactive_enrollment_rate_senior'] = float(probs['senior'])
+        if "young" in probs:
+            dbt_vars["proactive_enrollment_rate_young"] = float(probs["young"])
+        if "mid_career" in probs:
+            dbt_vars["proactive_enrollment_rate_mid_career"] = float(
+                probs["mid_career"]
+            )
+        if "mature" in probs:
+            dbt_vars["proactive_enrollment_rate_mature"] = float(probs["mature"])
+        if "senior" in probs:
+            dbt_vars["proactive_enrollment_rate_senior"] = float(probs["senior"])
 
     # Timing/business day adjustment used by window model
-    if 'business_day_adjustment' in timing:
-        dbt_vars['enrollment_business_day_adjustment'] = bool(timing['business_day_adjustment'])
+    if "business_day_adjustment" in timing:
+        dbt_vars["enrollment_business_day_adjustment"] = bool(
+            timing["business_day_adjustment"]
+        )
 
     # Random seed for deterministic behavior where supported
-    if 'random_seed' in cfg.get('simulation', {}):
-        dbt_vars['random_seed'] = cfg['simulation']['random_seed']
+    if "random_seed" in cfg.get("simulation", {}):
+        dbt_vars["random_seed"] = cfg["simulation"]["random_seed"]
 
     # Growth/termination vars intentionally omitted here to avoid drift with new orchestrator
 
     # Employer match configuration (E039): map YAML to dbt vars used by match engine
-    employer = cfg.get('employer_match', {})
-    active = employer.get('active_formula')
-    formulas = employer.get('formulas')
+    employer = cfg.get("employer_match", {})
+    active = employer.get("active_formula")
+    formulas = employer.get("formulas")
     if active is not None:
-        dbt_vars['active_match_formula'] = str(active)
+        dbt_vars["active_match_formula"] = str(active)
     if formulas is not None:
-        dbt_vars['match_formulas'] = formulas
+        dbt_vars["match_formulas"] = formulas
 
     # Employer core contribution configuration (E039): pass nested structure directly
-    core = cfg.get('employer_core_contribution', {})
+    core = cfg.get("employer_core_contribution", {})
     if core:
-        dbt_vars['employer_core_contribution'] = core
+        dbt_vars["employer_core_contribution"] = core
 
     return dbt_vars
 
@@ -290,7 +298,9 @@ def audit_year_results(year):
             if baseline_count > 0:
                 growth = active_count - baseline_count
                 growth_pct = (growth / baseline_count) * 100
-                print(f"   Net growth                 : {growth:+4,} ({growth_pct:+5.1f}%)")
+                print(
+                    f"   Net growth                 : {growth:+4,} ({growth_pct:+5.1f}%)"
+                )
 
         else:
             # Year-over-year comparison
@@ -317,7 +327,9 @@ def audit_year_results(year):
             if prev_count > 0:
                 growth = current_count - prev_count
                 growth_pct = (growth / prev_count) * 100
-                print(f"   Net growth                   : {growth:+4,} ({growth_pct:+5.1f}%)")
+                print(
+                    f"   Net growth                   : {growth:+4,} ({growth_pct:+5.1f}%)"
+                )
 
         # Epic E034: Employee contribution summary
         try:
@@ -349,7 +361,9 @@ def audit_year_results(year):
             dq_result = conn.execute(dq_query, [year]).fetchone()
             if dq_result and dq_result[0] > 0:
                 failures = dq_result[0]
-                print(f"   ⚠️  Data quality issues      : {failures:4,} validation failures")
+                print(
+                    f"   ⚠️  Data quality issues      : {failures:4,} validation failures"
+                )
             else:
                 print(f"   ✅ Data quality              : All validations passed")
 
@@ -360,18 +374,30 @@ def audit_year_results(year):
         print(f"\n🔍 Data Quality Checks:")
 
         # Check for reasonable hire/termination ratios
-        hire_count = sum(count for event_type, count in events_results if event_type == 'hire')
-        term_count = sum(count for event_type, count in events_results if event_type in ['termination', 'TERMINATION'])
+        hire_count = sum(
+            count for event_type, count in events_results if event_type == "hire"
+        )
+        term_count = sum(
+            count
+            for event_type, count in events_results
+            if event_type in ["termination", "TERMINATION"]
+        )
 
         if hire_count > 0 and term_count > 0:
             turnover_ratio = term_count / hire_count
-            print(f"   Hire/Termination ratio       : {hire_count:,} hires, {term_count:,} terms (ratio: {turnover_ratio:.2f})")
+            print(
+                f"   Hire/Termination ratio       : {hire_count:,} hires, {term_count:,} terms (ratio: {turnover_ratio:.2f})"
+            )
 
             # Flag unusual ratios
             if hire_count > 2000:
-                print(f"   ⚠️  HIGH HIRE COUNT: {hire_count:,} hires may be excessive for one year")
+                print(
+                    f"   ⚠️  HIGH HIRE COUNT: {hire_count:,} hires may be excessive for one year"
+                )
             if term_count > 1000:
-                print(f"   ⚠️  HIGH TERMINATION COUNT: {term_count:,} terminations may be excessive")
+                print(
+                    f"   ⚠️  HIGH TERMINATION COUNT: {term_count:,} terminations may be excessive"
+                )
 
         # Check employer match via dedicated match events table (E039)
         try:
@@ -428,9 +454,13 @@ def display_multi_year_summary(start_year, end_year, completed_years):
         WHERE simulation_year IN ({})
         GROUP BY simulation_year
         ORDER BY simulation_year
-        """.format(','.join('?' * len(completed_years)))
+        """.format(
+            ",".join("?" * len(completed_years))
+        )
 
-        progression_results = conn.execute(progression_query, completed_years).fetchall()
+        progression_results = conn.execute(
+            progression_query, completed_years
+        ).fetchall()
 
         if progression_results:
             print("📈 Workforce Progression:")
@@ -440,7 +470,9 @@ def display_multi_year_summary(start_year, end_year, completed_years):
             baseline_active = None
             for row in progression_results:
                 year, total, active, nh_active, exp_terms, nh_terms = row
-                print(f"   {year} | {total:9,} | {active:6,} | {nh_active:9,} | {exp_terms:9,} | {nh_terms:8,}")
+                print(
+                    f"   {year} | {total:9,} | {active:6,} | {nh_active:9,} | {exp_terms:9,} | {nh_terms:8,}"
+                )
 
                 if baseline_active is None:
                     baseline_active = active
@@ -459,19 +491,31 @@ def display_multi_year_summary(start_year, end_year, completed_years):
             WHERE simulation_year IN ({})
             GROUP BY simulation_year
             ORDER BY simulation_year
-            """.format(','.join('?' * len(completed_years)))
+            """.format(
+                ",".join("?" * len(completed_years))
+            )
 
-            participation_results = conn.execute(participation_query, completed_years).fetchall()
+            participation_results = conn.execute(
+                participation_query, completed_years
+            ).fetchall()
 
             if participation_results:
                 for year, active_count, participating in participation_results:
-                    participation_pct = (participating / active_count * 100) if active_count > 0 else 0
-                    print(f"   {year} | {active_count:10,} | {participating:13,} | {participation_pct:14.1f}%")
+                    participation_pct = (
+                        (participating / active_count * 100) if active_count > 0 else 0
+                    )
+                    print(
+                        f"   {year} | {active_count:10,} | {participating:13,} | {participation_pct:14.1f}%"
+                    )
 
             # Additional detail: Participation breakdown by method
             print("\n📋 Participation Breakdown by Method:")
-            print("   Year  | Auto Enroll | Voluntary  | Opted Out  | Not Auto   | Unenrolled")
-            print("   ------|-------------|------------|------------|------------|------------")
+            print(
+                "   Year  | Auto Enroll | Voluntary  | Opted Out  | Not Auto   | Unenrolled"
+            )
+            print(
+                "   ------|-------------|------------|------------|------------|------------"
+            )
 
             detail_query = """
             SELECT
@@ -485,26 +529,43 @@ def display_multi_year_summary(start_year, end_year, completed_years):
             WHERE simulation_year IN ({})
             GROUP BY simulation_year
             ORDER BY simulation_year
-            """.format(','.join('?' * len(completed_years)))
+            """.format(
+                ",".join("?" * len(completed_years))
+            )
 
             detail_results = conn.execute(detail_query, completed_years).fetchall()
 
             if detail_results:
-                for year, auto, voluntary, opted_out, not_auto, unenrolled in detail_results:
-                    print(f"   {year} | {auto:11,} | {voluntary:10,} | {opted_out:10,} | {not_auto:10,} | {unenrolled:10,}")
+                for (
+                    year,
+                    auto,
+                    voluntary,
+                    opted_out,
+                    not_auto,
+                    unenrolled,
+                ) in detail_results:
+                    print(
+                        f"   {year} | {auto:11,} | {voluntary:10,} | {opted_out:10,} | {not_auto:10,} | {unenrolled:10,}"
+                    )
 
             # Calculate overall growth
             if len(progression_results) >= 2 and baseline_active:
-                final_active = progression_results[-1][2]  # active employees in last year
+                final_active = progression_results[-1][
+                    2
+                ]  # active employees in last year
                 total_growth = final_active - baseline_active
                 growth_pct = (total_growth / baseline_active) * 100
                 years_elapsed = len(completed_years)
-                cagr = ((final_active / baseline_active) ** (1 / (years_elapsed - 1)) - 1) * 100
+                cagr = (
+                    (final_active / baseline_active) ** (1 / (years_elapsed - 1)) - 1
+                ) * 100
 
                 print(f"\n📊 Overall Growth Analysis:")
                 print(f"   Starting active workforce    : {baseline_active:6,}")
                 print(f"   Ending active workforce      : {final_active:6,}")
-                print(f"   Total net growth             : {total_growth:+6,} ({growth_pct:+5.1f}%)")
+                print(
+                    f"   Total net growth             : {total_growth:+6,} ({growth_pct:+5.1f}%)"
+                )
                 print(f"   Compound Annual Growth Rate  : {cagr:5.1f}%")
 
         # Get total events summary
@@ -517,7 +578,9 @@ def display_multi_year_summary(start_year, end_year, completed_years):
         WHERE simulation_year IN ({})
         GROUP BY event_type, simulation_year
         ORDER BY event_type, simulation_year
-        """.format(','.join('?' * len(completed_years)))
+        """.format(
+            ",".join("?" * len(completed_years))
+        )
 
         events_results = conn.execute(events_summary_query, completed_years).fetchall()
 
@@ -532,7 +595,9 @@ def display_multi_year_summary(start_year, end_year, completed_years):
 
             for event_type, year_counts in events_by_type.items():
                 total_events = sum(count for _, count in year_counts)
-                years_list = ', '.join(f"{year}: {count:,}" for year, count in year_counts)
+                years_list = ", ".join(
+                    f"{year}: {count:,}" for year, count in year_counts
+                )
                 print(f"   {event_type:15}: {total_events:5,} total ({years_list})")
 
     except Exception as e:
@@ -592,18 +657,26 @@ def create_enrollment_registry(year):
 
         if year == 2025:
             conn.execute(create_registry_sql)
-            count_result = conn.execute("SELECT COUNT(*) FROM enrollment_registry").fetchone()
+            count_result = conn.execute(
+                "SELECT COUNT(*) FROM enrollment_registry"
+            ).fetchone()
             count = count_result[0] if count_result else 0
-            print(f"✅ Created enrollment registry with {count:,} enrolled employees from baseline")
+            print(
+                f"✅ Created enrollment registry with {count:,} enrolled employees from baseline"
+            )
         else:
             conn.execute(update_registry_sql)
             # Get count of newly added employees
-            count_result = conn.execute(f"""
+            count_result = conn.execute(
+                f"""
                 SELECT COUNT(*) FROM enrollment_registry
                 WHERE first_enrollment_year = {prev_year}
-            """).fetchone()
+            """
+            ).fetchone()
             new_count = count_result[0] if count_result else 0
-            print(f"✅ Added {new_count:,} newly enrolled employees from year {prev_year}")
+            print(
+                f"✅ Added {new_count:,} newly enrolled employees from year {prev_year}"
+            )
 
         return True
 
@@ -648,12 +721,16 @@ def update_enrollment_registry_post_year(year):
         conn.execute(update_registry_sql)
 
         # Get count of newly added employees
-        count_result = conn.execute(f"""
+        count_result = conn.execute(
+            f"""
             SELECT COUNT(*) FROM enrollment_registry
             WHERE first_enrollment_year = {year}
-        """).fetchone()
+        """
+        ).fetchone()
         new_count = count_result[0] if count_result else 0
-        print(f"✅ Added {new_count:,} newly enrolled employees from year {year} to registry")
+        print(
+            f"✅ Added {new_count:,} newly enrolled employees from year {year} to registry"
+        )
 
         return True
 
@@ -668,7 +745,9 @@ def create_deferral_escalation_registry():
     """Create deferral escalation registry table if it does not exist."""
     conn = get_database_connection()
     if not conn:
-        print("❌ Cannot create deferral escalation registry - database connection failed")
+        print(
+            "❌ Cannot create deferral escalation registry - database connection failed"
+        )
         return False
 
     try:
@@ -700,7 +779,9 @@ def update_deferral_escalation_registry_post_year(year: int) -> bool:
 
     conn = get_database_connection()
     if not conn:
-        print("❌ Cannot update deferral escalation registry - database connection failed")
+        print(
+            "❌ Cannot update deferral escalation registry - database connection failed"
+        )
         return False
 
     try:
@@ -770,7 +851,9 @@ def update_deferral_escalation_registry_post_year(year: int) -> bool:
         new_cnt = conn.execute(
             f"SELECT COUNT(*) FROM deferral_escalation_registry WHERE first_escalation_year = {year}"
         ).fetchone()[0]
-        print(f"✅ Deferral escalation registry updated; new enrollments added: {new_cnt}")
+        print(
+            f"✅ Deferral escalation registry updated; new enrollments added: {new_cnt}"
+        )
 
         return True
     except Exception as e:
@@ -778,6 +861,7 @@ def update_deferral_escalation_registry_post_year(year: int) -> bool:
         return False
     finally:
         conn.close()
+
 
 def run_year_simulation(year, is_first_year=False, dbt_vars=None):
     """Run simulation for a single year."""
@@ -790,12 +874,24 @@ def run_year_simulation(year, is_first_year=False, dbt_vars=None):
         if not run_dbt_command(["seed"], "Loading seed data"):
             return False
         # Build staging and baseline for first year
-        if not run_dbt_command(["run", "--models", "staging.*"], "Running all staging models"):
+        if not run_dbt_command(
+            ["run", "--models", "staging.*"], "Running all staging models"
+        ):
             return False
-        if not run_dbt_command(["run", "--models", "int_baseline_workforce"], "Creating baseline workforce", year, dbt_vars):
+        if not run_dbt_command(
+            ["run", "--models", "int_baseline_workforce"],
+            "Creating baseline workforce",
+            year,
+            dbt_vars,
+        ):
             return False
         # Ensure new hire comp staging exists for deterministic compensation (year 1)
-        if not run_dbt_command(["run", "--models", "int_new_hire_compensation_staging"], "Preparing new hire compensation staging", year, dbt_vars):
+        if not run_dbt_command(
+            ["run", "--models", "int_new_hire_compensation_staging"],
+            "Preparing new hire compensation staging",
+            year,
+            dbt_vars,
+        ):
             return False
 
     # Step 2: Create/update registries (prevent duplicate enrollments/escalations across years)
@@ -805,27 +901,65 @@ def run_year_simulation(year, is_first_year=False, dbt_vars=None):
             print(f"❌ Failed to create enrollment registry for year {year}")
             return False
         if not create_deferral_escalation_registry():
-            print(f"❌ Failed to ensure deferral escalation registry exists for year {year}")
+            print(
+                f"❌ Failed to ensure deferral escalation registry exists for year {year}"
+            )
             return False
 
     # Step 2b: Workforce transition setup (for subsequent years)
     if not is_first_year:
         # Run the snapshot model without dependency checking to avoid cycle detection
-        if not run_dbt_command(["run", "--models", "int_active_employees_prev_year_snapshot", "--no-defer", "--full-refresh"], "Setting up previous year snapshot", year, dbt_vars):
+        if not run_dbt_command(
+            [
+                "run",
+                "--models",
+                "int_active_employees_prev_year_snapshot",
+                "--no-defer",
+                "--full-refresh",
+            ],
+            "Setting up previous year snapshot",
+            year,
+            dbt_vars,
+        ):
             return False
 
     # Step 3: FOUNDATION (align order with orchestrator)
     # Year 1 already built baseline and new_hire_compensation_staging above.
     # Now build comp, parameters, needs, needs_by_level, eligibility
-    if not run_dbt_command(["run", "--models", "int_employee_compensation_by_year"], "Calculating employee compensation", year, dbt_vars):
+    if not run_dbt_command(
+        ["run", "--models", "int_employee_compensation_by_year"],
+        "Calculating employee compensation",
+        year,
+        dbt_vars,
+    ):
         return False
-    if not run_dbt_command(["run", "--models", "int_effective_parameters"], "Resolving parameters", year, dbt_vars):
+    if not run_dbt_command(
+        ["run", "--models", "int_effective_parameters"],
+        "Resolving parameters",
+        year,
+        dbt_vars,
+    ):
         return False
-    if not run_dbt_command(["run", "--models", "int_workforce_needs"], "Calculating workforce needs", year, dbt_vars):
+    if not run_dbt_command(
+        ["run", "--models", "int_workforce_needs"],
+        "Calculating workforce needs",
+        year,
+        dbt_vars,
+    ):
         return False
-    if not run_dbt_command(["run", "--models", "int_workforce_needs_by_level"], "Calculating workforce needs by level", year, dbt_vars):
+    if not run_dbt_command(
+        ["run", "--models", "int_workforce_needs_by_level"],
+        "Calculating workforce needs by level",
+        year,
+        dbt_vars,
+    ):
         return False
-    if not run_dbt_command(["run", "--models", "int_employer_eligibility"], "Determining employer contribution eligibility", year, dbt_vars):
+    if not run_dbt_command(
+        ["run", "--models", "int_employer_eligibility"],
+        "Determining employer contribution eligibility",
+        year,
+        dbt_vars,
+    ):
         return False
 
     # Step 6: Event generation (with simulation_year and compensation parameters)
@@ -839,51 +973,107 @@ def run_year_simulation(year, is_first_year=False, dbt_vars=None):
         "int_merit_events",
         "int_eligibility_determination",
         "int_enrollment_events",
-        "int_deferral_rate_escalation_events"  # E036 Deferral rate escalation events
+        "int_deferral_rate_escalation_events",  # E036 Deferral rate escalation events
     ]
 
     for model in event_models:
-        if not run_dbt_command(["run", "--models", model], f"Running {model}", year, dbt_vars):
+        if not run_dbt_command(
+            ["run", "--models", model], f"Running {model}", year, dbt_vars
+        ):
             return False
 
     # Step 4: STATE ACCUMULATION (align order with orchestrator)
     # Consolidate events
-    if not run_dbt_command(["run", "--models", "fct_yearly_events"], "Consolidating events", year, dbt_vars):
+    if not run_dbt_command(
+        ["run", "--models", "fct_yearly_events"], "Consolidating events", year, dbt_vars
+    ):
         return False
     # Build proration snapshot before accumulators and contributions
-    if not run_dbt_command(["run", "--models", "int_workforce_snapshot_optimized"], "Building proration snapshot", year, dbt_vars):
+    if not run_dbt_command(
+        ["run", "--models", "int_workforce_snapshot_optimized"],
+        "Building proration snapshot",
+        year,
+        dbt_vars,
+    ):
         return False
     # Accumulators: enrollment then deferral (v2), then escalation
-    if not run_dbt_command(["run", "--models", "int_enrollment_state_accumulator"], "Building enrollment state accumulator", year, dbt_vars):
+    if not run_dbt_command(
+        ["run", "--models", "int_enrollment_state_accumulator"],
+        "Building enrollment state accumulator",
+        year,
+        dbt_vars,
+    ):
         return False
-    if not run_dbt_command(["run", "--models", "int_deferral_rate_state_accumulator_v2"], "Building deferral rate state accumulator (v2)", year, dbt_vars):
+    if not run_dbt_command(
+        ["run", "--models", "int_deferral_rate_state_accumulator_v2"],
+        "Building deferral rate state accumulator (v2)",
+        year,
+        dbt_vars,
+    ):
         return False
-    if not run_dbt_command(["run", "--models", "int_deferral_escalation_state_accumulator"], "Building deferral escalation state accumulator", year, dbt_vars):
+    if not run_dbt_command(
+        ["run", "--models", "int_deferral_escalation_state_accumulator"],
+        "Building deferral escalation state accumulator",
+        year,
+        dbt_vars,
+    ):
         return False
     # Contributions (after accumulators)
-    if not run_dbt_command(["run", "--models", "int_employee_contributions"], "Calculating employee contributions", year, dbt_vars):
+    if not run_dbt_command(
+        ["run", "--models", "int_employee_contributions"],
+        "Calculating employee contributions",
+        year,
+        dbt_vars,
+    ):
         return False
     # Employer core contributions after employee contributions
-    if not run_dbt_command(["run", "--models", "int_employer_core_contributions"], "Calculating employer core contributions", year, dbt_vars):
+    if not run_dbt_command(
+        ["run", "--models", "int_employer_core_contributions"],
+        "Calculating employer core contributions",
+        year,
+        dbt_vars,
+    ):
         return False
     # Employer match
-    if not run_dbt_command(["run", "--models", "int_employee_match_calculations"], "Calculating employer match", year, dbt_vars):
+    if not run_dbt_command(
+        ["run", "--models", "int_employee_match_calculations"],
+        "Calculating employer match",
+        year,
+        dbt_vars,
+    ):
         return False
-    if not run_dbt_command(["run", "--models", "fct_employer_match_events"], "Generating employer match events", year, dbt_vars):
+    if not run_dbt_command(
+        ["run", "--models", "fct_employer_match_events"],
+        "Generating employer match events",
+        year,
+        dbt_vars,
+    ):
         return False
     # Final workforce snapshot
-    if not run_dbt_command(["run", "--models", "fct_workforce_snapshot"], "Creating workforce snapshot", year, dbt_vars):
+    if not run_dbt_command(
+        ["run", "--models", "fct_workforce_snapshot"],
+        "Creating workforce snapshot",
+        year,
+        dbt_vars,
+    ):
         return False
 
     # Step 12: Data quality validation for contributions
-    if not run_dbt_command(["run", "--models", "dq_employee_contributions_validation"], "Validating contribution data quality", year, dbt_vars):
+    if not run_dbt_command(
+        ["run", "--models", "dq_employee_contributions_validation"],
+        "Validating contribution data quality",
+        year,
+        dbt_vars,
+    ):
         return False
 
     print(f"✅ Year {year} simulation completed successfully!")
 
     # Update enrollment registry with this year's enrollments (for next year's use)
     if not update_enrollment_registry_post_year(year):
-        print(f"⚠️ Failed to update enrollment registry after year {year} - duplicate enrollments may occur next year")
+        print(
+            f"⚠️ Failed to update enrollment registry after year {year} - duplicate enrollments may occur next year"
+        )
         # Don't fail the simulation for this
 
     # Update deferral escalation registry with this year's escalations
@@ -908,14 +1098,14 @@ def clear_simulation_database():
     try:
         # Tables to clear (in dependency order)
         tables_to_clear = [
-            'fct_workforce_snapshot',
-            'fct_yearly_events',
-            'fct_compensation_growth',
-            'fct_participant_balance_snapshots',
-            'int_employee_contributions',  # Epic E034: Employee contribution calculations
-            'dq_employee_contributions_validation',  # Epic E034: Data quality validation
-            'enrollment_registry',  # Clear enrollment registry for fresh simulation
-            'deferral_escalation_registry'  # Clear deferral escalation registry for fresh simulation
+            "fct_workforce_snapshot",
+            "fct_yearly_events",
+            "fct_compensation_growth",
+            "fct_participant_balance_snapshots",
+            "int_employee_contributions",  # Epic E034: Employee contribution calculations
+            "dq_employee_contributions_validation",  # Epic E034: Data quality validation
+            "enrollment_registry",  # Clear enrollment registry for fresh simulation
+            "deferral_escalation_registry",  # Clear deferral escalation registry for fresh simulation
         ]
 
         cleared_tables = []
@@ -938,7 +1128,9 @@ def clear_simulation_database():
                 continue
 
         if cleared_tables:
-            print(f"✅ Database cleared successfully - {len(cleared_tables)} tables cleared")
+            print(
+                f"✅ Database cleared successfully - {len(cleared_tables)} tables cleared"
+            )
         else:
             print("ℹ️  No tables needed clearing")
 
@@ -956,7 +1148,9 @@ def clear_simulation_database():
 def main():
     """Main function - run multi-year simulation."""
     print("🎯 Simple Multi-Year Simulation Runner")
-    print("⚠️  DEPRECATION WARNING: Consider using orchestrator_dbt/run_multi_year.py for production")
+    print(
+        "⚠️  DEPRECATION WARNING: Consider using orchestrator_dbt/run_multi_year.py for production"
+    )
     print("=" * 50)
 
     # Check for conflicting systems
@@ -968,8 +1162,8 @@ def main():
 
         # Load configuration
         config = load_config()
-        start_year = config['start_year']
-        end_year = config['end_year']
+        start_year = config["start_year"]
+        end_year = config["end_year"]
 
         # Extract dbt vars from config (compensation, eligibility, enrollment)
         dbt_vars = extract_dbt_vars_from_config(config)
@@ -977,7 +1171,9 @@ def main():
         print(f"\n🚀 Starting multi-year simulation...")
         print(f"   Years: {start_year} - {end_year}")
         print(f"   Total years: {end_year - start_year + 1}")
-        print(f"   Compensation parameters: COLA={dbt_vars.get('cola_rate')}, Merit={dbt_vars.get('merit_budget')}")
+        print(
+            f"   Compensation parameters: COLA={dbt_vars.get('cola_rate')}, Merit={dbt_vars.get('merit_budget')}"
+        )
 
         # **CRITICAL FIX**: Clear database before starting simulation
         if not clear_simulation_database():
@@ -990,7 +1186,7 @@ def main():
 
         # Run simulation for each year
         for year in range(start_year, end_year + 1):
-            is_first_year = (year == start_year)
+            is_first_year = year == start_year
 
             try:
                 success = run_year_simulation(year, is_first_year, dbt_vars)
@@ -1016,7 +1212,9 @@ def main():
 
         if completed_years:
             print(f"✅ Completed years: {completed_years}")
-            print(f"   Success count: {len(completed_years)}/{end_year - start_year + 1}")
+            print(
+                f"   Success count: {len(completed_years)}/{end_year - start_year + 1}"
+            )
 
         if failed_years:
             print(f"❌ Failed years: {failed_years}")
@@ -1031,7 +1229,9 @@ def main():
             return 0
         else:
             print(f"\n💥 Multi-year simulation failed")
-            print(f"   {len(completed_years)} of {end_year - start_year + 1} years completed")
+            print(
+                f"   {len(completed_years)} of {end_year - start_year + 1} years completed"
+            )
             return 1
 
 

@@ -5,10 +5,10 @@ Comprehensive test suite for the data cleaning operation,
 covering various data scenarios, edge cases, and error handling.
 """
 
-import pytest
 from unittest.mock import Mock, patch
-from dagster import OpExecutionContext
 
+import pytest
+from dagster import OpExecutionContext
 from orchestrator.simulator_pipeline import clean_duckdb_data
 
 
@@ -63,9 +63,7 @@ class TestCleanDuckDBData:
         mock_duckdb_connection.close.assert_called_once()
 
         # Verify logging
-        mock_context.log.info.assert_any_call(
-            "Cleaning existing data for years 2025"
-        )
+        mock_context.log.info.assert_any_call("Cleaning existing data for years 2025")
 
     @patch("orchestrator.simulator_pipeline.duckdb.connect")
     def test_multiple_years_cleaning(

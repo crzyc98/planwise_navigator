@@ -4,11 +4,12 @@ Test dbt contract enforcement for S065.
 This test suite validates that dbt contracts properly enforce schema
 constraints and prevent breaking changes.
 """
+import os
 import subprocess
 import tempfile
-import os
-import pytest
 from pathlib import Path
+
+import pytest
 
 
 class TestContractEnforcement:
@@ -28,14 +29,13 @@ class TestContractEnforcement:
         """Run a dbt command and return result."""
         full_command = f"cd {dbt_dir} && source ../venv/bin/activate && {command}"
         result = subprocess.run(
-            full_command,
-            shell=True,
-            capture_output=True,
-            text=True
+            full_command, shell=True, capture_output=True, text=True
         )
 
         if expect_success and result.returncode != 0:
-            pytest.fail(f"Command failed: {command}\nStdout: {result.stdout}\nStderr: {result.stderr}")
+            pytest.fail(
+                f"Command failed: {command}\nStdout: {result.stdout}\nStderr: {result.stderr}"
+            )
 
         return result
 
@@ -68,7 +68,9 @@ class TestContractEnforcement:
 
         content = ci_script.read_text()
         assert "tag:contract" in content, "Contract validation not found in CI script"
-        assert "dbt compile --select tag:contract" in content, "Contract compilation not in CI"
+        assert (
+            "dbt compile --select tag:contract" in content
+        ), "Contract compilation not in CI"
 
         print("✅ Contract validation properly integrated in CI")
 
@@ -102,8 +104,10 @@ class TestContractEnforcement:
         events_content = fct_events_file.read_text()
 
         # Both should have contract enforcement and proper on_schema_change
-        assert 'contract=' in workforce_content or '"enforced": true' in workforce_content
-        assert 'contract=' in events_content or '"enforced": true' in events_content
+        assert (
+            "contract=" in workforce_content or '"enforced": true' in workforce_content
+        )
+        assert "contract=" in events_content or '"enforced": true' in events_content
 
         # Should use 'fail' for on_schema_change with contracts
         assert "on_schema_change='fail'" in workforce_content
@@ -126,7 +130,9 @@ class TestContractEnforcement:
         full_time = time.time() - start_time
 
         # Contract compilation should be faster than full compilation
-        assert contract_time < full_time, f"Contract compilation ({contract_time:.2f}s) slower than full ({full_time:.2f}s)"
+        assert (
+            contract_time < full_time
+        ), f"Contract compilation ({contract_time:.2f}s) slower than full ({full_time:.2f}s)"
 
         # Performance impact should be minimal (less than 10% overhead when scaled)
         performance_ratio = contract_time / full_time

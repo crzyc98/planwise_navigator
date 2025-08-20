@@ -7,6 +7,7 @@ Validates the SQL changes without running the full model.
 import re
 from pathlib import Path
 
+
 def test_workforce_snapshot_integration():
     """Test that the employer match integration is properly implemented."""
     print("Testing employer match integration in fct_workforce_snapshot...")
@@ -58,6 +59,7 @@ def test_workforce_snapshot_integration():
     print("\n✓ All SQL integration tests passed!")
     return True
 
+
 def test_schema_yml_updates():
     """Test that schema.yml has been properly updated."""
     print("\nTesting schema.yml updates...")
@@ -77,7 +79,9 @@ def test_schema_yml_updates():
     # Test 2: Check data type
     data_type_pattern = r"data_type: double"
     # This should appear after the employer_match_contribution column
-    match_section = re.search(r"name: employer_match_contribution.*?data_type: double", content, re.DOTALL)
+    match_section = re.search(
+        r"name: employer_match_contribution.*?data_type: double", content, re.DOTALL
+    )
     if match_section:
         print("✓ employer_match_contribution data_type set to double")
     else:
@@ -85,7 +89,9 @@ def test_schema_yml_updates():
         return False
 
     # Test 3: Check basic tests
-    basic_tests_pattern = r"name: employer_match_contribution.*?not_null.*?accepted_range"
+    basic_tests_pattern = (
+        r"name: employer_match_contribution.*?not_null.*?accepted_range"
+    )
     if re.search(basic_tests_pattern, content, re.DOTALL):
         print("✓ Basic dbt tests (not_null, accepted_range) found")
     else:
@@ -103,6 +109,7 @@ def test_schema_yml_updates():
     print("\n✓ All schema.yml tests passed!")
     return True
 
+
 def main():
     """Run all integration tests."""
     print("=" * 60)
@@ -117,11 +124,14 @@ def main():
         print("🎉 ALL TESTS PASSED! Integration is ready.")
         print("\nNext steps:")
         print("1. Close any database connections in VS Code/IDE")
-        print("2. Run: dbt run --select fct_workforce_snapshot --vars 'simulation_year: 2025'")
+        print(
+            "2. Run: dbt run --select fct_workforce_snapshot --vars 'simulation_year: 2025'"
+        )
         print("3. Verify employer_match_contribution column appears in output")
     else:
         print("❌ SOME TESTS FAILED. Please review implementation.")
     print("=" * 60)
+
 
 if __name__ == "__main__":
     main()

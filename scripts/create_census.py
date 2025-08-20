@@ -1,14 +1,15 @@
-import pandas as pd
-import numpy as np
-from datetime import datetime, timedelta
+import os
 import random
+import sys
+from datetime import datetime, timedelta
+
+import numpy as np
+import pandas as pd
 import pyarrow as pa
 import pyarrow.parquet as pq
-import sys
-import os
 
 # Add project root to path for importing UnifiedIDGenerator
-sys.path.append(os.path.join(os.path.dirname(__file__), '..'))
+sys.path.append(os.path.join(os.path.dirname(__file__), ".."))
 
 from orchestrator_mvp.core.id_generator import UnifiedIDGenerator
 
@@ -74,7 +75,7 @@ def generate_mock_workforce_parquet(
         # Generate unified baseline employee ID using seeded approach
         emp_id = id_generator.generate_employee_id(
             sequence=current_employee_id,
-            is_baseline=True  # This is baseline workforce data
+            is_baseline=True,  # This is baseline workforce data
         )
         # Use seeded SSN generation for consistency
         ssn = f"SSN-{100000000 + current_employee_id:09d}"
@@ -158,18 +159,28 @@ def generate_mock_workforce_parquet(
 
         # Employer contributions based on realistic match formulas
         employer_match_rate = random.uniform(0.02, 0.06) if participates else 0.0
-        employer_match_contribution = min(employee_contribution * employer_match_rate, gross_compensation * 0.03)
+        employer_match_contribution = min(
+            employee_contribution * employer_match_rate, gross_compensation * 0.03
+        )
         employer_core_contribution = gross_compensation * random.uniform(0.01, 0.03)
 
         # Capped compensation (IRS limits - $345,000 for 2024)
         employee_capped_compensation = min(gross_compensation, 345000.0)
 
         # Calculate actual deferral rate based on total contribution and capped compensation
-        employee_deferral_rate = employee_contribution / employee_capped_compensation if employee_capped_compensation > 0 else 0.0
+        employee_deferral_rate = (
+            employee_contribution / employee_capped_compensation
+            if employee_capped_compensation > 0
+            else 0.0
+        )
 
         # Eligibility entry date (typically hire date or next plan entry date)
-        eligibility_months_delay = random.choice([0, 1, 3, 6, 12])  # Common eligibility periods
-        eligibility_entry_date = hire_date + timedelta(days=eligibility_months_delay * 30)
+        eligibility_months_delay = random.choice(
+            [0, 1, 3, 6, 12]
+        )  # Common eligibility periods
+        eligibility_entry_date = hire_date + timedelta(
+            days=eligibility_months_delay * 30
+        )
 
         employees.append(
             {

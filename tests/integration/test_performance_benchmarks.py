@@ -5,22 +5,19 @@ Comprehensive performance tests to ensure the refactored pipeline
 maintains or improves performance compared to the original implementation.
 """
 
-import pytest
-import time
-import psutil
 import os
+import time
 from unittest.mock import Mock, patch
-from dagster import OpExecutionContext
 
-from orchestrator.simulator_pipeline import (
-    run_year_simulation,
-    run_multi_year_simulation,
-    execute_dbt_command,
-    clean_duckdb_data,
-    run_dbt_event_models_for_year,
-    run_dbt_snapshot_for_year,
-    YearResult,
-)
+import psutil
+import pytest
+from dagster import OpExecutionContext
+from orchestrator.simulator_pipeline import (YearResult, clean_duckdb_data,
+                                             execute_dbt_command,
+                                             run_dbt_event_models_for_year,
+                                             run_dbt_snapshot_for_year,
+                                             run_multi_year_simulation,
+                                             run_year_simulation)
 
 
 class PerformanceTimer:

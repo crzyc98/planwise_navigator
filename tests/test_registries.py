@@ -2,13 +2,11 @@ from pathlib import Path
 
 import duckdb
 
+from navigator_orchestrator.registries import (DeferralEscalationRegistry,
+                                               EnrollmentRegistry,
+                                               RegistryManager,
+                                               SQLTemplateManager)
 from navigator_orchestrator.utils import DatabaseConnectionManager
-from navigator_orchestrator.registries import (
-    EnrollmentRegistry,
-    DeferralEscalationRegistry,
-    RegistryManager,
-    SQLTemplateManager,
-)
 
 
 def _setup_db(db_path: Path):
@@ -41,7 +39,9 @@ def test_enrollment_registry_create_for_first_year(tmp_path: Path):
     db_path = tmp_path / "test.duckdb"
     _setup_db(db_path)
     conn = duckdb.connect(str(db_path))
-    conn.execute("INSERT INTO int_baseline_workforce VALUES ('E1','active','2024-02-01'), ('E2','inactive',NULL)")
+    conn.execute(
+        "INSERT INTO int_baseline_workforce VALUES ('E1','active','2024-02-01'), ('E2','inactive',NULL)"
+    )
     conn.close()
 
     mgr = DatabaseConnectionManager(db_path=db_path)
@@ -49,7 +49,9 @@ def test_enrollment_registry_create_for_first_year(tmp_path: Path):
     assert reg.create_for_year(2025)
     # Verify rows
     with mgr.get_connection() as c:
-        rows = c.execute("SELECT employee_id, first_enrollment_year FROM enrollment_registry ORDER BY employee_id").fetchall()
+        rows = c.execute(
+            "SELECT employee_id, first_enrollment_year FROM enrollment_registry ORDER BY employee_id"
+        ).fetchall()
         assert rows == [("E1", 2025)]
 
 
@@ -57,7 +59,9 @@ def test_enrollment_registry_update_post_year(tmp_path: Path):
     db_path = tmp_path / "test.duckdb"
     _setup_db(db_path)
     conn = duckdb.connect(str(db_path))
-    conn.execute("INSERT INTO fct_yearly_events VALUES ('E3','enrollment',2026,'2026-03-01')")
+    conn.execute(
+        "INSERT INTO fct_yearly_events VALUES ('E3','enrollment',2026,'2026-03-01')"
+    )
     conn.close()
 
     mgr = DatabaseConnectionManager(db_path=db_path)
@@ -71,8 +75,12 @@ def test_deferral_registry_escalation_tracking(tmp_path: Path):
     db_path = tmp_path / "test.duckdb"
     _setup_db(db_path)
     conn = duckdb.connect(str(db_path))
-    conn.execute("INSERT INTO fct_yearly_events VALUES ('E5','DEFERRAL_ESCALATION',2025,'2025-04-01')")
-    conn.execute("INSERT INTO fct_yearly_events VALUES ('E5','DEFERRAL_ESCALATION',2026,'2026-04-01')")
+    conn.execute(
+        "INSERT INTO fct_yearly_events VALUES ('E5','DEFERRAL_ESCALATION',2025,'2025-04-01')"
+    )
+    conn.execute(
+        "INSERT INTO fct_yearly_events VALUES ('E5','DEFERRAL_ESCALATION',2026,'2026-04-01')"
+    )
     conn.close()
 
     mgr = DatabaseConnectionManager(db_path=db_path)
@@ -99,8 +107,12 @@ def test_cross_year_state_consistency(tmp_path: Path):
     db_path = tmp_path / "test.duckdb"
     _setup_db(db_path)
     conn = duckdb.connect(str(db_path))
-    conn.execute("INSERT INTO fct_yearly_events VALUES ('E6','enrollment',2025,'2025-01-15')")
-    conn.execute("INSERT INTO fct_yearly_events VALUES ('E7','enrollment',2027,'2027-05-01')")
+    conn.execute(
+        "INSERT INTO fct_yearly_events VALUES ('E6','enrollment',2025,'2025-01-15')"
+    )
+    conn.execute(
+        "INSERT INTO fct_yearly_events VALUES ('E7','enrollment',2027,'2027-05-01')"
+    )
     conn.close()
 
     mgr = DatabaseConnectionManager(db_path=db_path)
@@ -115,7 +127,9 @@ def test_cross_year_state_consistency(tmp_path: Path):
 
 def test_registry_sql_generation():
     stm = SQLTemplateManager()
-    sql = stm.render_template(SQLTemplateManager.ENROLLMENT_REGISTRY_FROM_EVENTS, year=2030)
+    sql = stm.render_template(
+        SQLTemplateManager.ENROLLMENT_REGISTRY_FROM_EVENTS, year=2030
+    )
     assert "2030" in sql
 
 

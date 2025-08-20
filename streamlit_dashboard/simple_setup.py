@@ -3,10 +3,12 @@ Simple Setup Script for Optimization Storage
 Creates a basic working version of the optimization storage system.
 """
 
-import duckdb
 import json
 from datetime import datetime
 from pathlib import Path
+
+import duckdb
+
 
 def setup_simple_optimization_storage():
     """Set up a simple version of the optimization storage."""
@@ -18,7 +20,8 @@ def setup_simple_optimization_storage():
     try:
         with duckdb.connect(db_path) as conn:
             # Create simple optimization results table
-            conn.execute("""
+            conn.execute(
+                """
                 CREATE TABLE IF NOT EXISTS optimization_results_unified (
                     run_id VARCHAR PRIMARY KEY,
                     scenario_id VARCHAR NOT NULL,
@@ -32,7 +35,8 @@ def setup_simple_optimization_storage():
                     converged BOOLEAN,
                     objective_value DOUBLE
                 )
-            """)
+            """
+            )
 
             # Test the table
             conn.execute("SELECT COUNT(*) FROM optimization_results_unified").fetchone()
@@ -40,55 +44,62 @@ def setup_simple_optimization_storage():
 
             # Create a sample record
             sample_data = {
-                'run_id': f'setup_test_{datetime.now().strftime("%Y%m%d_%H%M%S")}',
-                'scenario_id': 'setup_test_scenario',
-                'optimization_type': 'advanced_scipy',
-                'created_at': datetime.now(),
-                'algorithm': 'SLSQP',
-                'parameters': json.dumps({
-                    'merit_rate_level_1': 0.045,
-                    'cola_rate': 0.025
-                }),
-                'results': json.dumps({
-                    'optimal_parameters': {
-                        'merit_rate_level_1': 0.042,
-                        'cola_rate': 0.023
-                    },
-                    'objective_value': 0.234567
-                }),
-                'status': 'completed',
-                'runtime_seconds': 12.5,
-                'converged': True,
-                'objective_value': 0.234567
+                "run_id": f'setup_test_{datetime.now().strftime("%Y%m%d_%H%M%S")}',
+                "scenario_id": "setup_test_scenario",
+                "optimization_type": "advanced_scipy",
+                "created_at": datetime.now(),
+                "algorithm": "SLSQP",
+                "parameters": json.dumps(
+                    {"merit_rate_level_1": 0.045, "cola_rate": 0.025}
+                ),
+                "results": json.dumps(
+                    {
+                        "optimal_parameters": {
+                            "merit_rate_level_1": 0.042,
+                            "cola_rate": 0.023,
+                        },
+                        "objective_value": 0.234567,
+                    }
+                ),
+                "status": "completed",
+                "runtime_seconds": 12.5,
+                "converged": True,
+                "objective_value": 0.234567,
             }
 
-            conn.execute("""
+            conn.execute(
+                """
                 INSERT INTO optimization_results_unified
                 (run_id, scenario_id, optimization_type, created_at, algorithm,
                  parameters, results, status, runtime_seconds, converged, objective_value)
                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-            """, [
-                sample_data['run_id'],
-                sample_data['scenario_id'],
-                sample_data['optimization_type'],
-                sample_data['created_at'],
-                sample_data['algorithm'],
-                sample_data['parameters'],
-                sample_data['results'],
-                sample_data['status'],
-                sample_data['runtime_seconds'],
-                sample_data['converged'],
-                sample_data['objective_value']
-            ])
+            """,
+                [
+                    sample_data["run_id"],
+                    sample_data["scenario_id"],
+                    sample_data["optimization_type"],
+                    sample_data["created_at"],
+                    sample_data["algorithm"],
+                    sample_data["parameters"],
+                    sample_data["results"],
+                    sample_data["status"],
+                    sample_data["runtime_seconds"],
+                    sample_data["converged"],
+                    sample_data["objective_value"],
+                ],
+            )
 
             print(f"✅ Created sample optimization record: {sample_data['run_id']}")
 
             # Verify we can read it back
-            result = conn.execute("""
+            result = conn.execute(
+                """
                 SELECT run_id, scenario_id, optimization_type, status, converged
                 FROM optimization_results_unified
                 WHERE run_id = ?
-            """, [sample_data['run_id']]).fetchone()
+            """,
+                [sample_data["run_id"]],
+            ).fetchone()
 
             if result:
                 print(f"✅ Verified record: {result[1]} ({result[2]}) - {result[3]}")
@@ -98,6 +109,7 @@ def setup_simple_optimization_storage():
     except Exception as e:
         print(f"❌ Setup failed: {e}")
         return False
+
 
 def create_simple_functions():
     """Create simple save/load functions."""
@@ -231,11 +243,12 @@ def simple_get_optimization_summary() -> Dict[str, Any]:
 
     # Write to a file
     output_file = Path(__file__).parent / "simple_optimization_storage.py"
-    with open(output_file, 'w') as f:
+    with open(output_file, "w") as f:
         f.write(simple_functions_code)
 
     print(f"✅ Created simple functions file: {output_file}")
     return str(output_file)
+
 
 def main():
     """Main setup function."""
@@ -272,6 +285,7 @@ def main():
         print("\n⚠️ Setup encountered issues")
 
     return 0 if success else 1
+
 
 if __name__ == "__main__":
     exit(main())

@@ -35,7 +35,9 @@ class ValidationRule(Protocol):
     name: str
     severity: ValidationSeverity
 
-    def validate(self, db_connection, year: int) -> ValidationResult:  # pragma: no cover - Protocol
+    def validate(
+        self, db_connection, year: int
+    ) -> ValidationResult:  # pragma: no cover - Protocol
         ...
 
 
@@ -58,7 +60,9 @@ class DataValidator:
             for rule in self.rules:
                 try:
                     results.append(rule.validate(conn, year))
-                except Exception as e:  # Defensive: capture rule errors as failed results
+                except (
+                    Exception
+                ) as e:  # Defensive: capture rule errors as failed results
                     results.append(
                         ValidationResult(
                             rule_name=getattr(rule, "name", rule.__class__.__name__),
@@ -112,12 +116,18 @@ class RowCountDriftRule:
         self.name = name
 
     def validate(self, conn, year: int) -> ValidationResult:
-        raw_sql = f"SELECT COUNT(*) FROM {self.source_table} WHERE {self.year_column} = ?"
-        staged_sql = f"SELECT COUNT(*) FROM {self.target_table} WHERE {self.year_column} = ?"
+        raw_sql = (
+            f"SELECT COUNT(*) FROM {self.source_table} WHERE {self.year_column} = ?"
+        )
+        staged_sql = (
+            f"SELECT COUNT(*) FROM {self.target_table} WHERE {self.year_column} = ?"
+        )
         raw_count = conn.execute(raw_sql, [year]).fetchone()[0]
         staged_count = conn.execute(staged_sql, [year]).fetchone()[0]
 
-        drift = 0.0 if raw_count == 0 else abs(raw_count - staged_count) / max(1, raw_count)
+        drift = (
+            0.0 if raw_count == 0 else abs(raw_count - staged_count) / max(1, raw_count)
+        )
         passed = drift <= self.threshold
         return ValidationResult(
             rule_name=self.name,
@@ -175,7 +185,9 @@ class HireTerminationRatioRule:
         else:
             ratio = hires / terms
             passed = self.min_ratio <= ratio <= self.max_ratio
-            message = f"Hire/termination ratio: {ratio:.2f} ({'PASS' if passed else 'FAIL'})"
+            message = (
+                f"Hire/termination ratio: {ratio:.2f} ({'PASS' if passed else 'FAIL'})"
+            )
 
         return ValidationResult(
             rule_name=self.name,
@@ -232,7 +244,11 @@ class EventSequenceRule:
             rule_name=self.name,
             severity=self.severity,
             passed=passed,
-            message=("No invalid post-termination events" if passed else f"{count} invalid post-termination events"),
+            message=(
+                "No invalid post-termination events"
+                if passed
+                else f"{count} invalid post-termination events"
+            ),
             details={"invalid_events": count},
             affected_records=count,
         )
@@ -267,7 +283,14 @@ class EventSpikeRule:
             severity=self.severity,
             passed=passed,
             message=(
-                "No spike detected" if passed else f"Event spike detected: ratio={ratio:.2f} (> {self.spike_ratio})"
+                "No spike detected"
+                if passed
+                else f"Event spike detected: ratio={ratio:.2f} (> {self.spike_ratio})"
             ),
-            details={"current": cur, "previous": prev, "ratio": ratio, "threshold": self.spike_ratio},
+            details={
+                "current": cur,
+                "previous": prev,
+                "ratio": ratio,
+                "threshold": self.spike_ratio,
+            },
         )

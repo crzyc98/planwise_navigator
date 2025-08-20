@@ -16,9 +16,10 @@ Usage:
 import argparse
 import sys
 from pathlib import Path
-import pandas as pd
+from typing import List, Optional
+
 import duckdb
-from typing import Optional, List
+import pandas as pd
 
 # Add project root to path for imports
 project_root = Path(__file__).parent.parent
@@ -38,7 +39,7 @@ def trace_compensation_flow(
     conn: duckdb.DuckDBPyConnection,
     employee_id: Optional[str] = None,
     year: Optional[int] = None,
-    limit: int = 5
+    limit: int = 5,
 ) -> pd.DataFrame:
     """
     Trace compensation data flow from workforce snapshot through to merit events.
@@ -65,7 +66,9 @@ def trace_compensation_flow(
     else:
         where_clauses.append("ws.simulation_year > 2025")  # Focus on subsequent years
 
-    where_clause = " AND ".join(where_clauses) if where_clauses else "ws.simulation_year > 2025"
+    where_clause = (
+        " AND ".join(where_clauses) if where_clauses else "ws.simulation_year > 2025"
+    )
 
     query = f"""
     WITH compensation_flow AS (
@@ -149,8 +152,7 @@ def trace_compensation_flow(
 
 
 def analyze_merit_event_patterns(
-    conn: duckdb.DuckDBPyConnection,
-    year: Optional[int] = None
+    conn: duckdb.DuckDBPyConnection, year: Optional[int] = None
 ) -> pd.DataFrame:
     """
     Analyze merit event generation patterns to identify compounding issues.
@@ -162,7 +164,9 @@ def analyze_merit_event_patterns(
     Returns:
         DataFrame with merit event pattern analysis
     """
-    where_clause = f"WHERE simulation_year = {year}" if year else "WHERE simulation_year > 2025"
+    where_clause = (
+        f"WHERE simulation_year = {year}" if year else "WHERE simulation_year > 2025"
+    )
 
     query = f"""
     WITH merit_patterns AS (
@@ -213,7 +217,9 @@ def analyze_merit_event_patterns(
     return conn.execute(query).df()
 
 
-def compare_year_over_year_merit_counts(conn: duckdb.DuckDBPyConnection) -> pd.DataFrame:
+def compare_year_over_year_merit_counts(
+    conn: duckdb.DuckDBPyConnection,
+) -> pd.DataFrame:
     """
     Compare merit event counts year over year to detect compounding issues.
 
@@ -254,9 +260,7 @@ def compare_year_over_year_merit_counts(conn: duckdb.DuckDBPyConnection) -> pd.D
 
 
 def export_detailed_employee_progression(
-    conn: duckdb.DuckDBPyConnection,
-    output_file: Optional[str] = None,
-    limit: int = 20
+    conn: duckdb.DuckDBPyConnection, output_file: Optional[str] = None, limit: int = 20
 ) -> pd.DataFrame:
     """
     Export detailed compensation progression for specific employees.
@@ -342,12 +346,18 @@ def export_detailed_employee_progression(
 
 def main():
     """Main function to run merit events compensation debugging."""
-    parser = argparse.ArgumentParser(description="Debug merit events compensation compounding")
+    parser = argparse.ArgumentParser(
+        description="Debug merit events compensation compounding"
+    )
     parser.add_argument("--employee-id", help="Specific employee ID to trace")
     parser.add_argument("--year", type=int, help="Specific year to examine")
-    parser.add_argument("--limit", type=int, default=5, help="Maximum number of employees to trace")
+    parser.add_argument(
+        "--limit", type=int, default=5, help="Maximum number of employees to trace"
+    )
     parser.add_argument("--export", help="Export detailed results to CSV file")
-    parser.add_argument("--patterns-only", action="store_true", help="Only show merit event patterns")
+    parser.add_argument(
+        "--patterns-only", action="store_true", help="Only show merit event patterns"
+    )
 
     args = parser.parse_args()
 
@@ -374,7 +384,9 @@ def main():
                 print(f"   Year: {args.year}")
             print(f"   Limit: {args.limit}")
 
-            flow_df = trace_compensation_flow(conn, args.employee_id, args.year, args.limit)
+            flow_df = trace_compensation_flow(
+                conn, args.employee_id, args.year, args.limit
+            )
 
             if flow_df.empty:
                 print("❌ No data found matching the specified criteria")
@@ -384,10 +396,16 @@ def main():
 
             # Display key columns in a readable format
             display_columns = [
-                'employee_id', 'simulation_year', 'prev_year_final_compensation',
-                'current_year_starting_compensation', 'awfe_compensation',
-                'merit_baseline_used', 'merit_new_salary',
-                'year_transition_status', 'awfe_source_status', 'merit_baseline_status'
+                "employee_id",
+                "simulation_year",
+                "prev_year_final_compensation",
+                "current_year_starting_compensation",
+                "awfe_compensation",
+                "merit_baseline_used",
+                "merit_new_salary",
+                "year_transition_status",
+                "awfe_source_status",
+                "merit_baseline_status",
             ]
 
             print("\n📊 Compensation Flow Summary:")
@@ -399,8 +417,11 @@ def main():
             # Show discrepancies
             print("\n⚠️ Discrepancy Analysis:")
             discrepancy_cols = [
-                'employee_id', 'simulation_year',
-                'starting_comp_discrepancy', 'awfe_discrepancy', 'merit_baseline_discrepancy'
+                "employee_id",
+                "simulation_year",
+                "starting_comp_discrepancy",
+                "awfe_discrepancy",
+                "merit_baseline_discrepancy",
             ]
             discrepancies = flow_df[discrepancy_cols]
             print(discrepancies.to_string(index=False))
@@ -408,11 +429,11 @@ def main():
             # Summary statistics
             print(f"\n📈 Status Summary:")
             print(f"Year Transition Status:")
-            print(flow_df['year_transition_status'].value_counts().to_string())
+            print(flow_df["year_transition_status"].value_counts().to_string())
             print(f"\nAWFE Source Status:")
-            print(flow_df['awfe_source_status'].value_counts().to_string())
+            print(flow_df["awfe_source_status"].value_counts().to_string())
             print(f"\nMerit Baseline Status:")
-            print(flow_df['merit_baseline_status'].value_counts().to_string())
+            print(flow_df["merit_baseline_status"].value_counts().to_string())
 
         # Export detailed progression if requested
         if args.export:
@@ -425,7 +446,7 @@ def main():
         print(f"❌ Error during analysis: {str(e)}")
         sys.exit(1)
     finally:
-        if 'conn' in locals():
+        if "conn" in locals():
             conn.close()
 
 

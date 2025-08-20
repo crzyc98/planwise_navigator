@@ -1,6 +1,7 @@
 from pathlib import Path
 
-from navigator_orchestrator.utils import ExecutionMutex, DatabaseConnectionManager, time_block
+from navigator_orchestrator.utils import (DatabaseConnectionManager,
+                                          ExecutionMutex, time_block)
 
 
 def test_execution_mutex_context(tmp_path: Path):

@@ -3,11 +3,8 @@ from pathlib import Path
 
 import pytest
 
-from navigator_orchestrator.config import (
-    load_simulation_config,
-    SimulationConfig,
-    to_dbt_vars,
-)
+from navigator_orchestrator.config import (SimulationConfig,
+                                           load_simulation_config, to_dbt_vars)
 
 
 def test_load_simulation_config_valid_yaml(tmp_path: Path):
@@ -32,7 +29,9 @@ enrollment:
     assert cfg.compensation.cola_rate == 0.01
 
 
-def test_environment_variable_overrides(tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
+def test_environment_variable_overrides(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+):
     p = tmp_path / "config.yaml"
     p.write_text(
         """

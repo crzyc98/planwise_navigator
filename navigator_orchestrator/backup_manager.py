@@ -28,14 +28,22 @@ from pydantic import BaseModel, Field
 
 class BackupConfiguration(BaseModel):
     """Configuration for backup operations"""
-    backup_dir: Path = Field(default=Path("backups"), description="Directory for backup storage")
-    retention_days: int = Field(default=7, description="Number of days to retain backups")
+
+    backup_dir: Path = Field(
+        default=Path("backups"), description="Directory for backup storage"
+    )
+    retention_days: int = Field(
+        default=7, description="Number of days to retain backups"
+    )
     verify_backups: bool = Field(default=True, description="Enable backup verification")
-    max_backup_size_gb: float = Field(default=10.0, description="Maximum backup size in GB")
+    max_backup_size_gb: float = Field(
+        default=10.0, description="Maximum backup size in GB"
+    )
 
 
 class BackupMetadata(BaseModel):
     """Metadata for backup operations"""
+
     backup_path: Path
     timestamp: datetime
     original_size: int
@@ -51,7 +59,11 @@ class BackupManager:
     Provides atomic backup operations with verification and cleanup
     """
 
-    def __init__(self, config: Optional[BackupConfiguration] = None, db_path: str = "simulation.duckdb"):
+    def __init__(
+        self,
+        config: Optional[BackupConfiguration] = None,
+        db_path: str = "simulation.duckdb",
+    ):
         """
         Initialize backup manager
 
@@ -99,7 +111,9 @@ class BackupManager:
             raise FileNotFoundError(f"Database file not found: {self.db_path}")
 
         start_time = datetime.now()
-        timestamp = start_time.strftime('%Y%m%d_%H%M%S_%f')[:19]  # Add microseconds for uniqueness
+        timestamp = start_time.strftime("%Y%m%d_%H%M%S_%f")[
+            :19
+        ]  # Add microseconds for uniqueness
         backup_filename = f"simulation_{timestamp}.duckdb"
         backup_path = self.backup_dir / backup_filename
         temp_backup_path = self.backup_dir / f"{backup_filename}.tmp"
@@ -141,11 +155,15 @@ class BackupManager:
                 timestamp=start_time,
                 original_size=original_size,
                 backup_size=backup_size,
-                verification_status="verified" if self.config.verify_backups else "skipped",
-                creation_time=creation_time
+                verification_status="verified"
+                if self.config.verify_backups
+                else "skipped",
+                creation_time=creation_time,
             )
 
-            self._log(f"Backup created successfully in {creation_time:.2f}s: {backup_path}")
+            self._log(
+                f"Backup created successfully in {creation_time:.2f}s: {backup_path}"
+            )
             return metadata
 
         except Exception as e:
@@ -248,10 +266,10 @@ class BackupManager:
         for backup_file in self.backup_dir.glob(backup_pattern):
             try:
                 # Extract timestamp from filename
-                filename_parts = backup_file.stem.split('_')
+                filename_parts = backup_file.stem.split("_")
                 if len(filename_parts) >= 3:
                     timestamp_str = f"{filename_parts[1]}_{filename_parts[2]}"
-                    file_timestamp = datetime.strptime(timestamp_str, '%Y%m%d_%H%M%S')
+                    file_timestamp = datetime.strptime(timestamp_str, "%Y%m%d_%H%M%S")
 
                     if file_timestamp < cutoff_date:
                         file_size = backup_file.stat().st_size
@@ -261,11 +279,15 @@ class BackupManager:
                         self._log(f"Removed old backup: {backup_file.name}")
 
             except (ValueError, OSError) as e:
-                self._log(f"Warning: Could not process backup file {backup_file}: {str(e)}")
+                self._log(
+                    f"Warning: Could not process backup file {backup_file}: {str(e)}"
+                )
 
         if removed_count > 0:
             size_mb = total_size_removed / (1024**2)
-            self._log(f"Cleanup completed: {removed_count} files removed, {size_mb:.1f} MB freed")
+            self._log(
+                f"Cleanup completed: {removed_count} files removed, {size_mb:.1f} MB freed"
+            )
 
     def list_backups(self) -> List[BackupMetadata]:
         """
@@ -280,10 +302,10 @@ class BackupManager:
         for backup_file in self.backup_dir.glob(backup_pattern):
             try:
                 # Extract timestamp from filename
-                filename_parts = backup_file.stem.split('_')
+                filename_parts = backup_file.stem.split("_")
                 if len(filename_parts) >= 3:
                     timestamp_str = f"{filename_parts[1]}_{filename_parts[2]}"
-                    file_timestamp = datetime.strptime(timestamp_str, '%Y%m%d_%H%M%S')
+                    file_timestamp = datetime.strptime(timestamp_str, "%Y%m%d_%H%M%S")
 
                     file_size = backup_file.stat().st_size
 
@@ -293,12 +315,14 @@ class BackupManager:
                         original_size=0,  # Not stored in filename
                         backup_size=file_size,
                         verification_status="unknown",
-                        creation_time=0.0  # Not stored in filename
+                        creation_time=0.0,  # Not stored in filename
                     )
                     backups.append(metadata)
 
             except (ValueError, OSError) as e:
-                self._log(f"Warning: Could not process backup file {backup_file}: {str(e)}")
+                self._log(
+                    f"Warning: Could not process backup file {backup_file}: {str(e)}"
+                )
 
         # Sort by timestamp, newest first
         return sorted(backups, key=lambda x: x.timestamp, reverse=True)
@@ -337,7 +361,7 @@ class BackupManager:
 
             # Create backup of current database if it exists
             if self.db_path.exists():
-                emergency_backup = self.db_path.with_suffix('.emergency_backup')
+                emergency_backup = self.db_path.with_suffix(".emergency_backup")
                 shutil.copy2(self.db_path, emergency_backup)
                 self._log(f"Created emergency backup: {emergency_backup}")
 
@@ -368,11 +392,17 @@ class BackupManager:
             "total_size_gb": total_size / (1024**3),
             "latest_backup": {
                 "path": str(latest_backup.backup_path) if latest_backup else None,
-                "timestamp": latest_backup.timestamp.isoformat() if latest_backup else None,
-                "size_gb": latest_backup.backup_size / (1024**3) if latest_backup else 0
+                "timestamp": latest_backup.timestamp.isoformat()
+                if latest_backup
+                else None,
+                "size_gb": latest_backup.backup_size / (1024**3)
+                if latest_backup
+                else 0,
             },
             "retention_days": self.config.retention_days,
             "backup_dir": str(self.backup_dir),
             "database_exists": self.db_path.exists(),
-            "database_size_gb": self.db_path.stat().st_size / (1024**3) if self.db_path.exists() else 0
+            "database_size_gb": self.db_path.stat().st_size / (1024**3)
+            if self.db_path.exists()
+            else 0,
         }

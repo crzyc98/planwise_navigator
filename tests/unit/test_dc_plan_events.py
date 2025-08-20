@@ -1,17 +1,16 @@
 # filename: tests/unit/test_dc_plan_events.py
 """Unit tests for DC Plan Event payloads and factory methods."""
 
-import pytest
 from datetime import date
 from decimal import Decimal
 from typing import Dict
+
+import pytest
 from pydantic import ValidationError
 
-from config.events import (
-    SimulationEvent, DCPlanEventFactory,
-    EligibilityPayload, EnrollmentPayload, ContributionPayload,
-    VestingPayload
-)
+from config.events import (ContributionPayload, DCPlanEventFactory,
+                           EligibilityPayload, EnrollmentPayload,
+                           SimulationEvent, VestingPayload)
 
 
 class TestEligibilityPayload:
@@ -23,7 +22,7 @@ class TestEligibilityPayload:
             plan_id="PLAN_DC_401K",
             eligible=True,
             eligibility_date=date(2025, 1, 1),
-            reason="age_and_service"
+            reason="age_and_service",
         )
 
         assert payload.event_type == "eligibility"
@@ -41,7 +40,7 @@ class TestEligibilityPayload:
                 plan_id="PLAN_DC_401K",
                 eligible=True,
                 eligibility_date=date(2025, 1, 1),
-                reason=reason
+                reason=reason,
             )
             assert payload.reason == reason
 
@@ -52,17 +51,19 @@ class TestEligibilityPayload:
                 plan_id="PLAN_DC_401K",
                 eligible=True,
                 eligibility_date=date(2025, 1, 1),
-                reason="invalid_reason"
+                reason="invalid_reason",
             )
 
     def test_eligibility_empty_plan_id(self):
         """Test validation error for empty plan_id"""
-        with pytest.raises(ValidationError, match="String should have at least 1 character"):
+        with pytest.raises(
+            ValidationError, match="String should have at least 1 character"
+        ):
             EligibilityPayload(
                 plan_id="",
                 eligible=True,
                 eligibility_date=date(2025, 1, 1),
-                reason="immediate"
+                reason="immediate",
             )
 
 
@@ -74,19 +75,19 @@ class TestEnrollmentPayload:
         payload = EnrollmentPayload(
             plan_id="PLAN_DC_401K",
             enrollment_date=date(2025, 1, 1),
-            pre_tax_contribution_rate=Decimal('0.06'),
-            roth_contribution_rate=Decimal('0.04'),
-            after_tax_contribution_rate=Decimal('0.02'),
+            pre_tax_contribution_rate=Decimal("0.06"),
+            roth_contribution_rate=Decimal("0.04"),
+            after_tax_contribution_rate=Decimal("0.02"),
             auto_enrollment=True,
-            opt_out_window_expires=date(2025, 2, 1)
+            opt_out_window_expires=date(2025, 2, 1),
         )
 
         assert payload.event_type == "enrollment"
         assert payload.plan_id == "PLAN_DC_401K"
         assert payload.enrollment_date == date(2025, 1, 1)
-        assert payload.pre_tax_contribution_rate == Decimal('0.0600')
-        assert payload.roth_contribution_rate == Decimal('0.0400')
-        assert payload.after_tax_contribution_rate == Decimal('0.0200')
+        assert payload.pre_tax_contribution_rate == Decimal("0.0600")
+        assert payload.roth_contribution_rate == Decimal("0.0400")
+        assert payload.after_tax_contribution_rate == Decimal("0.0200")
         assert payload.auto_enrollment is True
         assert payload.opt_out_window_expires == date(2025, 2, 1)
 
@@ -95,23 +96,26 @@ class TestEnrollmentPayload:
         payload = EnrollmentPayload(
             plan_id="PLAN_DC_401K",
             enrollment_date=date(2025, 1, 1),
-            pre_tax_contribution_rate=Decimal('0.06'),
-            roth_contribution_rate=Decimal('0.04')
+            pre_tax_contribution_rate=Decimal("0.06"),
+            roth_contribution_rate=Decimal("0.04"),
         )
 
-        assert payload.after_tax_contribution_rate == Decimal('0')
+        assert payload.after_tax_contribution_rate == Decimal("0")
         assert payload.auto_enrollment is False
         assert payload.opt_out_window_expires is None
 
     def test_enrollment_rate_precision_validation(self):
         """Test contribution rate precision validation"""
         # Test that rates with more than 4 decimal places are rejected
-        with pytest.raises(ValidationError, match="Decimal input should have no more than 4 decimal places"):
+        with pytest.raises(
+            ValidationError,
+            match="Decimal input should have no more than 4 decimal places",
+        ):
             EnrollmentPayload(
                 plan_id="PLAN_DC_401K",
                 enrollment_date=date(2025, 1, 1),
-                pre_tax_contribution_rate=Decimal('0.123456789'),
-                roth_contribution_rate=Decimal('0.04')
+                pre_tax_contribution_rate=Decimal("0.123456789"),
+                roth_contribution_rate=Decimal("0.04"),
             )
 
     def test_enrollment_rate_precision_acceptance(self):
@@ -119,13 +123,13 @@ class TestEnrollmentPayload:
         payload = EnrollmentPayload(
             plan_id="PLAN_DC_401K",
             enrollment_date=date(2025, 1, 1),
-            pre_tax_contribution_rate=Decimal('0.1235'),
-            roth_contribution_rate=Decimal('0.0988')
+            pre_tax_contribution_rate=Decimal("0.1235"),
+            roth_contribution_rate=Decimal("0.0988"),
         )
 
         # Should be quantized to 4 decimal places
-        assert payload.pre_tax_contribution_rate == Decimal('0.1235')
-        assert payload.roth_contribution_rate == Decimal('0.0988')
+        assert payload.pre_tax_contribution_rate == Decimal("0.1235")
+        assert payload.roth_contribution_rate == Decimal("0.0988")
 
     def test_enrollment_rate_bounds_validation(self):
         """Test contribution rate bounds validation"""
@@ -134,8 +138,8 @@ class TestEnrollmentPayload:
             EnrollmentPayload(
                 plan_id="PLAN_DC_401K",
                 enrollment_date=date(2025, 1, 1),
-                pre_tax_contribution_rate=Decimal('1.1'),  # Over 100%
-                roth_contribution_rate=Decimal('0.04')
+                pre_tax_contribution_rate=Decimal("1.1"),  # Over 100%
+                roth_contribution_rate=Decimal("0.04"),
             )
 
         # Test lower bound
@@ -143,8 +147,8 @@ class TestEnrollmentPayload:
             EnrollmentPayload(
                 plan_id="PLAN_DC_401K",
                 enrollment_date=date(2025, 1, 1),
-                pre_tax_contribution_rate=Decimal('-0.01'),  # Negative
-                roth_contribution_rate=Decimal('0.04')
+                pre_tax_contribution_rate=Decimal("-0.01"),  # Negative
+                roth_contribution_rate=Decimal("0.04"),
             )
 
 
@@ -156,22 +160,22 @@ class TestContributionPayload:
         payload = ContributionPayload(
             plan_id="PLAN_DC_401K",
             source="employee_pre_tax",
-            amount=Decimal('1250.50'),
+            amount=Decimal("1250.50"),
             pay_period_end=date(2025, 1, 15),
             contribution_date=date(2025, 1, 20),
-            ytd_amount=Decimal('2501.00'),
+            ytd_amount=Decimal("2501.00"),
             payroll_id="PR_2025_01_15",
             irs_limit_applied=True,
-            inferred_value=False
+            inferred_value=False,
         )
 
         assert payload.event_type == "contribution"
         assert payload.plan_id == "PLAN_DC_401K"
         assert payload.source == "employee_pre_tax"
-        assert payload.amount == Decimal('1250.500000')
+        assert payload.amount == Decimal("1250.500000")
         assert payload.pay_period_end == date(2025, 1, 15)
         assert payload.contribution_date == date(2025, 1, 20)
-        assert payload.ytd_amount == Decimal('2501.000000')
+        assert payload.ytd_amount == Decimal("2501.000000")
         assert payload.payroll_id == "PR_2025_01_15"
         assert payload.irs_limit_applied is True
         assert payload.inferred_value is False
@@ -179,34 +183,43 @@ class TestContributionPayload:
     def test_contribution_source_enum_validation(self):
         """Test validation of contribution source enum values"""
         valid_sources = [
-            "employee_pre_tax", "employee_roth", "employee_after_tax", "employee_catch_up",
-            "employer_match", "employer_match_true_up", "employer_nonelective",
-            "employer_profit_sharing", "forfeiture_allocation"
+            "employee_pre_tax",
+            "employee_roth",
+            "employee_after_tax",
+            "employee_catch_up",
+            "employer_match",
+            "employer_match_true_up",
+            "employer_nonelective",
+            "employer_profit_sharing",
+            "forfeiture_allocation",
         ]
 
         for source in valid_sources:
             payload = ContributionPayload(
                 plan_id="PLAN_DC_401K",
                 source=source,
-                amount=Decimal('1000.00'),
+                amount=Decimal("1000.00"),
                 pay_period_end=date(2025, 1, 15),
                 contribution_date=date(2025, 1, 20),
-                ytd_amount=Decimal('1000.00'),
-                payroll_id="PR_001"
+                ytd_amount=Decimal("1000.00"),
+                payroll_id="PR_001",
             )
             assert payload.source == source
 
     def test_contribution_amount_precision_rejection(self):
         """Test that amounts with more than 6 decimal places are rejected"""
-        with pytest.raises(ValidationError, match="Decimal input should have no more than 6 decimal places"):
+        with pytest.raises(
+            ValidationError,
+            match="Decimal input should have no more than 6 decimal places",
+        ):
             ContributionPayload(
                 plan_id="PLAN_DC_401K",
                 source="employee_pre_tax",
-                amount=Decimal('1250.123456789'),
+                amount=Decimal("1250.123456789"),
                 pay_period_end=date(2025, 1, 15),
                 contribution_date=date(2025, 1, 20),
-                ytd_amount=Decimal('2501.00'),
-                payroll_id="PR_001"
+                ytd_amount=Decimal("2501.00"),
+                payroll_id="PR_001",
             )
 
     def test_contribution_amount_precision_acceptance(self):
@@ -214,16 +227,16 @@ class TestContributionPayload:
         payload = ContributionPayload(
             plan_id="PLAN_DC_401K",
             source="employee_pre_tax",
-            amount=Decimal('1250.123457'),
+            amount=Decimal("1250.123457"),
             pay_period_end=date(2025, 1, 15),
             contribution_date=date(2025, 1, 20),
-            ytd_amount=Decimal('2501.987654'),
-            payroll_id="PR_001"
+            ytd_amount=Decimal("2501.987654"),
+            payroll_id="PR_001",
         )
 
         # Should be quantized to 6 decimal places
-        assert payload.amount == Decimal('1250.123457')
-        assert payload.ytd_amount == Decimal('2501.987654')
+        assert payload.amount == Decimal("1250.123457")
+        assert payload.ytd_amount == Decimal("2501.987654")
 
     def test_contribution_amount_validation(self):
         """Test contribution amount validation"""
@@ -232,11 +245,11 @@ class TestContributionPayload:
             ContributionPayload(
                 plan_id="PLAN_DC_401K",
                 source="employee_pre_tax",
-                amount=Decimal('0'),
+                amount=Decimal("0"),
                 pay_period_end=date(2025, 1, 15),
                 contribution_date=date(2025, 1, 20),
-                ytd_amount=Decimal('1000.00'),
-                payroll_id="PR_001"
+                ytd_amount=Decimal("1000.00"),
+                payroll_id="PR_001",
             )
 
         # Test negative amount should fail
@@ -244,13 +257,12 @@ class TestContributionPayload:
             ContributionPayload(
                 plan_id="PLAN_DC_401K",
                 source="employee_pre_tax",
-                amount=Decimal('-100.00'),
+                amount=Decimal("-100.00"),
                 pay_period_end=date(2025, 1, 15),
                 contribution_date=date(2025, 1, 20),
-                ytd_amount=Decimal('1000.00'),
-                payroll_id="PR_001"
+                ytd_amount=Decimal("1000.00"),
+                payroll_id="PR_001",
             )
-
 
 
 class TestVestingPayload:
@@ -259,27 +271,33 @@ class TestVestingPayload:
     def test_vesting_payload_creation(self):
         """Test creating valid vesting payload"""
         source_balances = {
-            "employer_match": Decimal('10000.00'),
-            "employer_nonelective": Decimal('5000.00'),
-            "employer_profit_sharing": Decimal('3000.00')
+            "employer_match": Decimal("10000.00"),
+            "employer_nonelective": Decimal("5000.00"),
+            "employer_profit_sharing": Decimal("3000.00"),
         }
 
         payload = VestingPayload(
             plan_id="PLAN_DC_401K",
-            vested_percentage=Decimal('0.60'),
+            vested_percentage=Decimal("0.60"),
             source_balances_vested=source_balances,
             vesting_schedule_type="graded",
             service_computation_date=date(2025, 12, 31),
             service_credited_hours=2080,
-            service_period_end_date=date(2025, 12, 31)
+            service_period_end_date=date(2025, 12, 31),
         )
 
         assert payload.event_type == "vesting"
         assert payload.plan_id == "PLAN_DC_401K"
-        assert payload.vested_percentage == Decimal('0.6000')
-        assert payload.source_balances_vested["employer_match"] == Decimal('10000.000000')
-        assert payload.source_balances_vested["employer_nonelective"] == Decimal('5000.000000')
-        assert payload.source_balances_vested["employer_profit_sharing"] == Decimal('3000.000000')
+        assert payload.vested_percentage == Decimal("0.6000")
+        assert payload.source_balances_vested["employer_match"] == Decimal(
+            "10000.000000"
+        )
+        assert payload.source_balances_vested["employer_nonelective"] == Decimal(
+            "5000.000000"
+        )
+        assert payload.source_balances_vested["employer_profit_sharing"] == Decimal(
+            "3000.000000"
+        )
         assert payload.vesting_schedule_type == "graded"
         assert payload.service_computation_date == date(2025, 12, 31)
         assert payload.service_credited_hours == 2080
@@ -292,12 +310,12 @@ class TestVestingPayload:
         for schedule_type in valid_types:
             payload = VestingPayload(
                 plan_id="PLAN_DC_401K",
-                vested_percentage=Decimal('1.0'),
-                source_balances_vested={"employer_match": Decimal('1000.00')},
+                vested_percentage=Decimal("1.0"),
+                source_balances_vested={"employer_match": Decimal("1000.00")},
                 vesting_schedule_type=schedule_type,
                 service_computation_date=date(2025, 12, 31),
                 service_credited_hours=2080,
-                service_period_end_date=date(2025, 12, 31)
+                service_period_end_date=date(2025, 12, 31),
             )
             assert payload.vesting_schedule_type == schedule_type
 
@@ -307,24 +325,24 @@ class TestVestingPayload:
         with pytest.raises(ValidationError):
             VestingPayload(
                 plan_id="PLAN_DC_401K",
-                vested_percentage=Decimal('1.1'),  # Over 100%
-                source_balances_vested={"employer_match": Decimal('1000.00')},
+                vested_percentage=Decimal("1.1"),  # Over 100%
+                source_balances_vested={"employer_match": Decimal("1000.00")},
                 vesting_schedule_type="immediate",
                 service_computation_date=date(2025, 12, 31),
                 service_credited_hours=2080,
-                service_period_end_date=date(2025, 12, 31)
+                service_period_end_date=date(2025, 12, 31),
             )
 
         # Test lower bound
         with pytest.raises(ValidationError):
             VestingPayload(
                 plan_id="PLAN_DC_401K",
-                vested_percentage=Decimal('-0.01'),  # Negative
-                source_balances_vested={"employer_match": Decimal('1000.00')},
+                vested_percentage=Decimal("-0.01"),  # Negative
+                source_balances_vested={"employer_match": Decimal("1000.00")},
                 vesting_schedule_type="immediate",
                 service_computation_date=date(2025, 12, 31),
                 service_credited_hours=2080,
-                service_period_end_date=date(2025, 12, 31)
+                service_period_end_date=date(2025, 12, 31),
             )
 
     def test_service_hours_validation(self):
@@ -333,12 +351,12 @@ class TestVestingPayload:
         with pytest.raises(ValidationError):
             VestingPayload(
                 plan_id="PLAN_DC_401K",
-                vested_percentage=Decimal('1.0'),
-                source_balances_vested={"employer_match": Decimal('1000.00')},
+                vested_percentage=Decimal("1.0"),
+                source_balances_vested={"employer_match": Decimal("1000.00")},
                 vesting_schedule_type="immediate",
                 service_computation_date=date(2025, 12, 31),
                 service_credited_hours=-100,
-                service_period_end_date=date(2025, 12, 31)
+                service_period_end_date=date(2025, 12, 31),
             )
 
 
@@ -354,7 +372,7 @@ class TestDCPlanEventFactory:
             plan_design_id="DESIGN_001",
             eligible=True,
             eligibility_date=date(2025, 1, 1),
-            reason="age_and_service"
+            reason="age_and_service",
         )
 
         assert isinstance(event, SimulationEvent)
@@ -375,9 +393,9 @@ class TestDCPlanEventFactory:
             scenario_id="SCENARIO_001",
             plan_design_id="DESIGN_001",
             enrollment_date=date(2025, 1, 15),
-            pre_tax_contribution_rate=Decimal('0.06'),
-            roth_contribution_rate=Decimal('0.04'),
-            auto_enrollment=True
+            pre_tax_contribution_rate=Decimal("0.06"),
+            roth_contribution_rate=Decimal("0.04"),
+            auto_enrollment=True,
         )
 
         assert isinstance(event, SimulationEvent)
@@ -395,11 +413,11 @@ class TestDCPlanEventFactory:
             scenario_id="SCENARIO_001",
             plan_design_id="DESIGN_001",
             source="employee_pre_tax",
-            amount=Decimal('1250.50'),
+            amount=Decimal("1250.50"),
             pay_period_end=date(2025, 1, 15),
             contribution_date=date(2025, 1, 20),
-            ytd_amount=Decimal('2501.00'),
-            payroll_id="PR_2025_01_15"
+            ytd_amount=Decimal("2501.00"),
+            payroll_id="PR_2025_01_15",
         )
 
         assert isinstance(event, SimulationEvent)
@@ -409,13 +427,12 @@ class TestDCPlanEventFactory:
         assert isinstance(event.payload, ContributionPayload)
         assert event.payload.source == "employee_pre_tax"
 
-
     def test_create_vesting_event(self):
         """Test creating vesting event via factory"""
         source_balances = {
-            "employer_match": Decimal('10000.00'),
-            "employer_nonelective": Decimal('5000.00'),
-            "employer_profit_sharing": Decimal('3000.00')
+            "employer_match": Decimal("10000.00"),
+            "employer_nonelective": Decimal("5000.00"),
+            "employer_profit_sharing": Decimal("3000.00"),
         }
 
         event = DCPlanEventFactory.create_vesting_event(
@@ -423,12 +440,12 @@ class TestDCPlanEventFactory:
             plan_id="PLAN_DC_401K",
             scenario_id="SCENARIO_001",
             plan_design_id="DESIGN_001",
-            vested_percentage=Decimal('0.60'),
+            vested_percentage=Decimal("0.60"),
             source_balances_vested=source_balances,
             vesting_schedule_type="graded",
             service_computation_date=date(2025, 12, 31),
             service_credited_hours=2080,
-            service_period_end_date=date(2025, 12, 31)
+            service_period_end_date=date(2025, 12, 31),
         )
 
         assert isinstance(event, SimulationEvent)
@@ -457,8 +474,8 @@ class TestDiscriminatedUnionIntegration:
                 "plan_id": "PLAN_DC_401K",
                 "eligible": True,
                 "eligibility_date": date(2025, 1, 1),
-                "reason": "immediate"
-            }
+                "reason": "immediate",
+            },
         )
         assert isinstance(eligibility_event.payload, EligibilityPayload)
 
@@ -473,9 +490,9 @@ class TestDiscriminatedUnionIntegration:
                 "event_type": "enrollment",
                 "plan_id": "PLAN_DC_401K",
                 "enrollment_date": date(2025, 1, 15),
-                "pre_tax_contribution_rate": Decimal('0.06'),
-                "roth_contribution_rate": Decimal('0.04')
-            }
+                "pre_tax_contribution_rate": Decimal("0.06"),
+                "roth_contribution_rate": Decimal("0.04"),
+            },
         )
         assert isinstance(enrollment_event.payload, EnrollmentPayload)
 
@@ -490,12 +507,12 @@ class TestDiscriminatedUnionIntegration:
                 "event_type": "contribution",
                 "plan_id": "PLAN_DC_401K",
                 "source": "employee_pre_tax",
-                "amount": Decimal('1250.50'),
+                "amount": Decimal("1250.50"),
                 "pay_period_end": date(2025, 1, 15),
                 "contribution_date": date(2025, 1, 20),
-                "ytd_amount": Decimal('2501.00'),
-                "payroll_id": "PR_001"
-            }
+                "ytd_amount": Decimal("2501.00"),
+                "payroll_id": "PR_001",
+            },
         )
         assert isinstance(contribution_event.payload, ContributionPayload)
 
@@ -509,17 +526,17 @@ class TestDiscriminatedUnionIntegration:
             payload={
                 "event_type": "vesting",
                 "plan_id": "PLAN_DC_401K",
-                "vested_percentage": Decimal('0.60'),
+                "vested_percentage": Decimal("0.60"),
                 "source_balances_vested": {
-                    "employer_match": Decimal('10000.00'),
-                    "employer_nonelective": Decimal('5000.00'),
-                    "employer_profit_sharing": Decimal('3000.00')
+                    "employer_match": Decimal("10000.00"),
+                    "employer_nonelective": Decimal("5000.00"),
+                    "employer_profit_sharing": Decimal("3000.00"),
                 },
                 "vesting_schedule_type": "graded",
                 "service_computation_date": date(2025, 12, 31),
                 "service_credited_hours": 2080,
-                "service_period_end_date": date(2025, 12, 31)
-            }
+                "service_period_end_date": date(2025, 12, 31),
+            },
         )
         assert isinstance(vesting_event.payload, VestingPayload)
 
@@ -532,11 +549,11 @@ class TestDiscriminatedUnionIntegration:
             scenario_id="SCENARIO_001",
             plan_design_id="DESIGN_001",
             source="employee_pre_tax",
-            amount=Decimal('1250.50'),
+            amount=Decimal("1250.50"),
             pay_period_end=date(2025, 1, 15),
             contribution_date=date(2025, 1, 20),
-            ytd_amount=Decimal('2501.00'),
-            payroll_id="PR_2025_01_15"
+            ytd_amount=Decimal("2501.00"),
+            payroll_id="PR_2025_01_15",
         )
 
         # Serialize to dict
@@ -550,7 +567,7 @@ class TestDiscriminatedUnionIntegration:
         assert reconstructed_event.effective_date == original_event.effective_date
         assert isinstance(reconstructed_event.payload, ContributionPayload)
         assert reconstructed_event.payload.source == "employee_pre_tax"
-        assert reconstructed_event.payload.amount == Decimal('1250.500000')
+        assert reconstructed_event.payload.amount == Decimal("1250.500000")
 
 
 class TestPerformance:
@@ -570,11 +587,11 @@ class TestPerformance:
                 scenario_id="SCENARIO_001",
                 plan_design_id="DESIGN_001",
                 source="employee_pre_tax",
-                amount=Decimal('1250.50'),
+                amount=Decimal("1250.50"),
                 pay_period_end=date(2025, 1, 15),
                 contribution_date=date(2025, 1, 20),
-                ytd_amount=Decimal('2501.00'),
-                payroll_id=f"PR_{i:06d}"
+                ytd_amount=Decimal("2501.00"),
+                payroll_id=f"PR_{i:06d}",
             )
             events.append(event)
 

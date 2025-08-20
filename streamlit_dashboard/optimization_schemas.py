@@ -5,15 +5,18 @@ for both compensation_tuning.py and advanced_optimization.py.
 """
 
 from __future__ import annotations
-from typing import Dict, Any, List, Optional, Tuple, Union, Literal
-from pydantic import BaseModel, Field, validator
+
 from dataclasses import dataclass
 from enum import Enum
+from typing import Any, Dict, List, Literal, Optional, Tuple, Union
+
 import numpy as np
+from pydantic import BaseModel, Field, validator
 
 
 class ParameterType(str, Enum):
     """Parameter data types supported by the system."""
+
     FLOAT = "float"
     PERCENTAGE = "percentage"
     MULTIPLIER = "multiplier"
@@ -22,6 +25,7 @@ class ParameterType(str, Enum):
 
 class ParameterUnit(str, Enum):
     """Standard units for compensation parameters."""
+
     PERCENTAGE = "percentage"
     MULTIPLIER = "multiplier"
     CURRENCY = "currency"
@@ -31,6 +35,7 @@ class ParameterUnit(str, Enum):
 
 class ParameterCategory(str, Enum):
     """Parameter groupings for UI organization."""
+
     MERIT = "merit"
     COLA = "cola"
     PROMOTION = "promotion"
@@ -41,6 +46,7 @@ class ParameterCategory(str, Enum):
 
 class RiskLevel(str, Enum):
     """Risk assessment levels for parameter values."""
+
     LOW = "LOW"
     MEDIUM = "MEDIUM"
     HIGH = "HIGH"
@@ -50,6 +56,7 @@ class RiskLevel(str, Enum):
 @dataclass
 class ParameterBounds:
     """Parameter bounds with validation logic."""
+
     min_value: float
     max_value: float
     default_value: float
@@ -59,20 +66,29 @@ class ParameterBounds:
     def __post_init__(self):
         """Validate bounds after initialization."""
         if self.min_value >= self.max_value:
-            raise ValueError(f"min_value ({self.min_value}) must be less than max_value ({self.max_value})")
+            raise ValueError(
+                f"min_value ({self.min_value}) must be less than max_value ({self.max_value})"
+            )
         if not (self.min_value <= self.default_value <= self.max_value):
-            raise ValueError(f"default_value ({self.default_value}) must be within bounds [{self.min_value}, {self.max_value}]")
+            raise ValueError(
+                f"default_value ({self.default_value}) must be within bounds [{self.min_value}, {self.max_value}]"
+            )
 
         # Set recommended bounds if not provided
         if self.recommended_min is None:
-            self.recommended_min = self.min_value + (self.max_value - self.min_value) * 0.1
+            self.recommended_min = (
+                self.min_value + (self.max_value - self.min_value) * 0.1
+            )
         if self.recommended_max is None:
-            self.recommended_max = self.max_value - (self.max_value - self.min_value) * 0.1
+            self.recommended_max = (
+                self.max_value - (self.max_value - self.min_value) * 0.1
+            )
 
 
 @dataclass
 class ParameterDefinition:
     """Complete parameter definition with metadata."""
+
     name: str
     display_name: str
     description: str
@@ -93,25 +109,35 @@ class ParameterDefinition:
         else:
             return [self.name]
 
-    def validate_value(self, value: float, level: Optional[int] = None) -> Tuple[bool, List[str], RiskLevel]:
+    def validate_value(
+        self, value: float, level: Optional[int] = None
+    ) -> Tuple[bool, List[str], RiskLevel]:
         """Validate a parameter value and return warnings/errors."""
         warnings = []
         errors = []
 
         # Basic bounds checking
         if value < self.bounds.min_value:
-            errors.append(f"Value {value:.4f} below minimum {self.bounds.min_value:.4f}")
+            errors.append(
+                f"Value {value:.4f} below minimum {self.bounds.min_value:.4f}"
+            )
         elif value > self.bounds.max_value:
-            errors.append(f"Value {value:.4f} above maximum {self.bounds.max_value:.4f}")
+            errors.append(
+                f"Value {value:.4f} above maximum {self.bounds.max_value:.4f}"
+            )
 
         # Risk assessment
         risk_level = self._assess_risk(value)
 
         # Recommended bounds warnings
         if value < self.bounds.recommended_min:
-            warnings.append(f"Value {value:.4f} below recommended minimum {self.bounds.recommended_min:.4f}")
+            warnings.append(
+                f"Value {value:.4f} below recommended minimum {self.bounds.recommended_min:.4f}"
+            )
         elif value > self.bounds.recommended_max:
-            warnings.append(f"Value {value:.4f} above recommended maximum {self.bounds.recommended_max:.4f}")
+            warnings.append(
+                f"Value {value:.4f} above recommended maximum {self.bounds.recommended_max:.4f}"
+            )
 
         # Category-specific validation
         if self.category == ParameterCategory.MERIT:
@@ -124,7 +150,9 @@ class ParameterDefinition:
             if value > 0.06:  # 6%
                 warnings.append("COLA rate above 6% is unusually high")
             elif value == 0:
-                warnings.append("Zero COLA may indicate oversight - confirm intentional")
+                warnings.append(
+                    "Zero COLA may indicate oversight - confirm intentional"
+                )
 
         elif self.category == ParameterCategory.PROMOTION:
             if self.name == "promotion_probability" and value > 0.30:  # 30%
@@ -178,10 +206,10 @@ class ParameterSchema:
                     max_value=0.12,
                     default_value=merit_defaults[level],
                     recommended_min=0.02,
-                    recommended_max=0.08
+                    recommended_max=0.08,
                 ),
                 job_levels=[level],
-                business_impact="Directly affects annual compensation growth and employee satisfaction"
+                business_impact="Directly affects annual compensation growth and employee satisfaction",
             )
 
         # COLA Rate Parameter (uniform across levels)
@@ -197,11 +225,11 @@ class ParameterSchema:
                 max_value=0.08,
                 default_value=0.025,
                 recommended_min=0.015,
-                recommended_max=0.05
+                recommended_max=0.05,
             ),
             job_levels=[1, 2, 3, 4, 5],
             is_level_specific=False,
-            business_impact="Maintains purchasing power; affects all employees equally"
+            business_impact="Maintains purchasing power; affects all employees equally",
         )
 
         # New Hire Salary Adjustment
@@ -217,12 +245,12 @@ class ParameterSchema:
                 max_value=1.5,
                 default_value=1.15,
                 recommended_min=1.05,
-                recommended_max=1.30
+                recommended_max=1.30,
             ),
             job_levels=[1, 2, 3, 4, 5],
             is_level_specific=False,
             event_types=["HIRE"],
-            business_impact="Affects recruitment competitiveness and hiring costs"
+            business_impact="Affects recruitment competitiveness and hiring costs",
         )
 
         # Promotion Probability Parameters
@@ -241,11 +269,11 @@ class ParameterSchema:
                     max_value=0.30,
                     default_value=promo_prob_defaults[level],
                     recommended_min=0.01,
-                    recommended_max=0.20
+                    recommended_max=0.20,
                 ),
                 job_levels=[level],
                 event_types=["PROMOTION"],
-                business_impact="Affects career progression and internal mobility"
+                business_impact="Affects career progression and internal mobility",
             )
 
         # Promotion Raise Parameters
@@ -263,11 +291,11 @@ class ParameterSchema:
                     max_value=0.30,
                     default_value=0.12,
                     recommended_min=0.08,
-                    recommended_max=0.20
+                    recommended_max=0.20,
                 ),
                 job_levels=[level],
                 event_types=["PROMOTION"],
-                business_impact="Incentivizes high performance and career advancement"
+                business_impact="Incentivizes high performance and career advancement",
             )
 
         return parameters
@@ -276,10 +304,15 @@ class ParameterSchema:
         """Get parameter definition by name."""
         return self._parameters.get(name)
 
-    def get_parameters_by_category(self, category: ParameterCategory) -> Dict[str, ParameterDefinition]:
+    def get_parameters_by_category(
+        self, category: ParameterCategory
+    ) -> Dict[str, ParameterDefinition]:
         """Get all parameters in a specific category."""
-        return {name: param for name, param in self._parameters.items()
-                if param.category == category}
+        return {
+            name: param
+            for name, param in self._parameters.items()
+            if param.category == category
+        }
 
     def get_all_parameter_names(self) -> List[str]:
         """Get all parameter names in the schema."""
@@ -287,16 +320,18 @@ class ParameterSchema:
 
     def get_default_parameters(self) -> Dict[str, float]:
         """Get default values for all parameters."""
-        return {name: param.bounds.default_value for name, param in self._parameters.items()}
+        return {
+            name: param.bounds.default_value for name, param in self._parameters.items()
+        }
 
     def validate_parameter_set(self, parameters: Dict[str, float]) -> Dict[str, Any]:
         """Validate a complete set of parameters."""
         results = {
-            'is_valid': True,
-            'warnings': [],
-            'errors': [],
-            'parameter_results': {},
-            'overall_risk': RiskLevel.LOW
+            "is_valid": True,
+            "warnings": [],
+            "errors": [],
+            "parameter_results": {},
+            "overall_risk": RiskLevel.LOW,
         }
 
         risk_levels = []
@@ -306,60 +341,68 @@ class ParameterSchema:
             if param_def:
                 is_valid, messages, risk = param_def.validate_value(value)
 
-                results['parameter_results'][param_name] = {
-                    'is_valid': is_valid,
-                    'messages': messages,
-                    'risk_level': risk,
-                    'value': value
+                results["parameter_results"][param_name] = {
+                    "is_valid": is_valid,
+                    "messages": messages,
+                    "risk_level": risk,
+                    "value": value,
                 }
 
                 if not is_valid:
-                    results['is_valid'] = False
-                    results['errors'].extend([f"{param_name}: {msg}" for msg in messages])
+                    results["is_valid"] = False
+                    results["errors"].extend(
+                        [f"{param_name}: {msg}" for msg in messages]
+                    )
                 else:
-                    results['warnings'].extend([f"{param_name}: {msg}" for msg in messages])
+                    results["warnings"].extend(
+                        [f"{param_name}: {msg}" for msg in messages]
+                    )
 
                 risk_levels.append(risk)
             else:
-                results['warnings'].append(f"Unknown parameter: {param_name}")
+                results["warnings"].append(f"Unknown parameter: {param_name}")
 
         # Calculate overall risk level
         if RiskLevel.CRITICAL in risk_levels:
-            results['overall_risk'] = RiskLevel.CRITICAL
+            results["overall_risk"] = RiskLevel.CRITICAL
         elif RiskLevel.HIGH in risk_levels:
-            results['overall_risk'] = RiskLevel.HIGH
+            results["overall_risk"] = RiskLevel.HIGH
         elif RiskLevel.MEDIUM in risk_levels:
-            results['overall_risk'] = RiskLevel.MEDIUM
+            results["overall_risk"] = RiskLevel.MEDIUM
         else:
-            results['overall_risk'] = RiskLevel.LOW
+            results["overall_risk"] = RiskLevel.LOW
 
         return results
 
-    def transform_to_compensation_tuning_format(self, parameters: Dict[str, float]) -> Dict[str, Dict[int, float]]:
+    def transform_to_compensation_tuning_format(
+        self, parameters: Dict[str, float]
+    ) -> Dict[str, Dict[int, float]]:
         """Transform parameters to compensation_tuning.py format."""
         result = {
-            'merit_base': {},
-            'cola_rate': {},
-            'new_hire_salary_adjustment': {},
-            'promotion_probability': {},
-            'promotion_raise': {}
+            "merit_base": {},
+            "cola_rate": {},
+            "new_hire_salary_adjustment": {},
+            "promotion_probability": {},
+            "promotion_raise": {},
         }
 
         # Map merit rates
         for level in range(1, 6):
             merit_key = f"merit_rate_level_{level}"
             if merit_key in parameters:
-                result['merit_base'][level] = parameters[merit_key]
+                result["merit_base"][level] = parameters[merit_key]
 
         # Map COLA rate (uniform across levels)
-        if 'cola_rate' in parameters:
+        if "cola_rate" in parameters:
             for level in range(1, 6):
-                result['cola_rate'][level] = parameters['cola_rate']
+                result["cola_rate"][level] = parameters["cola_rate"]
 
         # Map new hire adjustment
-        if 'new_hire_salary_adjustment' in parameters:
+        if "new_hire_salary_adjustment" in parameters:
             for level in range(1, 6):
-                result['new_hire_salary_adjustment'][level] = parameters['new_hire_salary_adjustment']
+                result["new_hire_salary_adjustment"][level] = parameters[
+                    "new_hire_salary_adjustment"
+                ]
 
         # Map promotion parameters
         for level in range(1, 6):
@@ -367,32 +410,39 @@ class ParameterSchema:
             raise_key = f"promotion_raise_level_{level}"
 
             if prob_key in parameters:
-                result['promotion_probability'][level] = parameters[prob_key]
+                result["promotion_probability"][level] = parameters[prob_key]
 
             if raise_key in parameters:
-                result['promotion_raise'][level] = parameters[raise_key]
+                result["promotion_raise"][level] = parameters[raise_key]
 
         return result
 
-    def transform_from_compensation_tuning_format(self, comp_tuning_params: Dict[str, Dict[int, float]]) -> Dict[str, float]:
+    def transform_from_compensation_tuning_format(
+        self, comp_tuning_params: Dict[str, Dict[int, float]]
+    ) -> Dict[str, float]:
         """Transform parameters from compensation_tuning.py format."""
         result = {}
 
         # Merit rates
-        if 'merit_base' in comp_tuning_params:
-            for level, value in comp_tuning_params['merit_base'].items():
+        if "merit_base" in comp_tuning_params:
+            for level, value in comp_tuning_params["merit_base"].items():
                 result[f"merit_rate_level_{level}"] = value
 
         # COLA rate (take from level 1 as it's uniform)
-        if 'cola_rate' in comp_tuning_params and 1 in comp_tuning_params['cola_rate']:
-            result['cola_rate'] = comp_tuning_params['cola_rate'][1]
+        if "cola_rate" in comp_tuning_params and 1 in comp_tuning_params["cola_rate"]:
+            result["cola_rate"] = comp_tuning_params["cola_rate"][1]
 
         # New hire adjustment (take from level 1 as it's uniform)
-        if 'new_hire_salary_adjustment' in comp_tuning_params and 1 in comp_tuning_params['new_hire_salary_adjustment']:
-            result['new_hire_salary_adjustment'] = comp_tuning_params['new_hire_salary_adjustment'][1]
+        if (
+            "new_hire_salary_adjustment" in comp_tuning_params
+            and 1 in comp_tuning_params["new_hire_salary_adjustment"]
+        ):
+            result["new_hire_salary_adjustment"] = comp_tuning_params[
+                "new_hire_salary_adjustment"
+            ][1]
 
         # Promotion parameters
-        for param_type in ['promotion_probability', 'promotion_raise']:
+        for param_type in ["promotion_probability", "promotion_raise"]:
             if param_type in comp_tuning_params:
                 for level, value in comp_tuning_params[param_type].items():
                     result[f"{param_type}_level_{level}"] = value
@@ -402,13 +452,25 @@ class ParameterSchema:
     def get_parameter_groups(self) -> Dict[str, Dict[str, ParameterDefinition]]:
         """Get parameters organized by display groups for UI layout."""
         return {
-            'Merit Rates': self.get_parameters_by_category(ParameterCategory.MERIT),
-            'Cost of Living': self.get_parameters_by_category(ParameterCategory.COLA),
-            'New Hire Parameters': self.get_parameters_by_category(ParameterCategory.NEW_HIRE),
-            'Promotion Probabilities': {k: v for k, v in self.get_parameters_by_category(ParameterCategory.PROMOTION).items()
-                                     if 'probability' in k},
-            'Promotion Raises': {k: v for k, v in self.get_parameters_by_category(ParameterCategory.PROMOTION).items()
-                               if 'raise' in k}
+            "Merit Rates": self.get_parameters_by_category(ParameterCategory.MERIT),
+            "Cost of Living": self.get_parameters_by_category(ParameterCategory.COLA),
+            "New Hire Parameters": self.get_parameters_by_category(
+                ParameterCategory.NEW_HIRE
+            ),
+            "Promotion Probabilities": {
+                k: v
+                for k, v in self.get_parameters_by_category(
+                    ParameterCategory.PROMOTION
+                ).items()
+                if "probability" in k
+            },
+            "Promotion Raises": {
+                k: v
+                for k, v in self.get_parameters_by_category(
+                    ParameterCategory.PROMOTION
+                ).items()
+                if "raise" in k
+            },
         }
 
 
@@ -432,10 +494,10 @@ def load_parameter_schema() -> Dict[str, Dict[str, Any]]:
 
     for param_name, param_def in schema._parameters.items():
         result[param_name] = {
-            'type': param_def.parameter_type.value,
-            'unit': param_def.unit.value,
-            'range': [param_def.bounds.min_value, param_def.bounds.max_value],
-            'description': param_def.description
+            "type": param_def.parameter_type.value,
+            "unit": param_def.unit.value,
+            "range": [param_def.bounds.min_value, param_def.bounds.max_value],
+            "description": param_def.description,
         }
 
     return result
@@ -450,14 +512,14 @@ def validate_parameters(params: Dict[str, float]) -> Tuple[List[str], List[str]]
     """Validate parameters and return warnings and errors."""
     schema = get_parameter_schema()
     results = schema.validate_parameter_set(params)
-    return results['warnings'], results['errors']
+    return results["warnings"], results["errors"]
 
 
 def assess_parameter_risk(params: Dict[str, float]) -> RiskLevel:
     """Assess overall risk level for parameter set."""
     schema = get_parameter_schema()
     results = schema.validate_parameter_set(params)
-    return results['overall_risk']
+    return results["overall_risk"]
 
 
 # Example usage and testing
@@ -473,7 +535,7 @@ if __name__ == "__main__":
 
     # Test validation
     test_params = defaults.copy()
-    test_params['merit_rate_level_1'] = 0.15  # Above recommended max
+    test_params["merit_rate_level_1"] = 0.15  # Above recommended max
 
     validation_results = schema.validate_parameter_set(test_params)
     print(f"\nValidation Results:")

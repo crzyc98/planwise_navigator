@@ -6,22 +6,21 @@ Run this script to set up the optimization storage system:
 python setup_optimization_storage.py
 """
 
-import sys
-from pathlib import Path
 import logging
+import sys
 from datetime import datetime
+from pathlib import Path
 
 # Add the streamlit_dashboard directory to the path
 sys.path.insert(0, str(Path(__file__).parent))
 
 try:
-    from optimization_storage import OptimizationStorageManager, get_optimization_storage
-    from optimization_integration import (
-        get_duckdb_integration,
-        get_optimization_cache,
-        validate_optimization_environment
-    )
+    from optimization_integration import (get_duckdb_integration,
+                                          get_optimization_cache,
+                                          validate_optimization_environment)
     from optimization_results_manager import get_optimization_results_manager
+    from optimization_storage import (OptimizationStorageManager,
+                                      get_optimization_storage)
 except ImportError as e:
     print(f"Error importing optimization modules: {e}")
     print("Make sure you're running this from the streamlit_dashboard directory")
@@ -29,8 +28,7 @@ except ImportError as e:
 
 # Set up logging
 logging.basicConfig(
-    level=logging.INFO,
-    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
+    level=logging.INFO, format="%(asctime)s - %(name)s - %(levelname)s - %(message)s"
 )
 logger = logging.getLogger(__name__)
 
@@ -49,7 +47,9 @@ def setup_database_tables():
         with db_integration.get_connection() as conn:
             # Test query
             result = conn.execute("SELECT COUNT(*) FROM optimization_runs").fetchone()
-            print(f"✅ Database accessible, found {result[0]} existing optimization runs")
+            print(
+                f"✅ Database accessible, found {result[0]} existing optimization runs"
+            )
 
         return True
 
@@ -81,28 +81,34 @@ def validate_system():
         validation = validate_optimization_environment()
 
         print("\n📊 System Validation Results:")
-        print(f"  Database Accessible: {'✅' if validation['database_accessible'] else '❌'}")
+        print(
+            f"  Database Accessible: {'✅' if validation['database_accessible'] else '❌'}"
+        )
         print(f"  Tables Exist: {'✅' if validation['tables_exist'] else '❌'}")
         print(f"  Cache Operational: {'✅' if validation['cache_operational'] else '❌'}")
-        print(f"  Storage Initialized: {'✅' if validation['storage_initialized'] else '❌'}")
+        print(
+            f"  Storage Initialized: {'✅' if validation['storage_initialized'] else '❌'}"
+        )
 
-        if validation['warnings']:
+        if validation["warnings"]:
             print("\n⚠️  Warnings:")
-            for warning in validation['warnings']:
+            for warning in validation["warnings"]:
                 print(f"    - {warning}")
 
-        if validation['errors']:
+        if validation["errors"]:
             print("\n❌ Errors:")
-            for error in validation['errors']:
+            for error in validation["errors"]:
                 print(f"    - {error}")
 
         # Overall health check
-        all_good = all([
-            validation['database_accessible'],
-            validation['tables_exist'],
-            validation['cache_operational'],
-            validation['storage_initialized']
-        ])
+        all_good = all(
+            [
+                validation["database_accessible"],
+                validation["tables_exist"],
+                validation["cache_operational"],
+                validation["storage_initialized"],
+            ]
+        )
 
         if all_good:
             print("\n🎉 System validation PASSED - Optimization storage is ready!")
@@ -121,11 +127,12 @@ def create_sample_data():
     print("📝 Creating sample optimization data...")
 
     try:
-        from optimization_storage import (
-            OptimizationRun, OptimizationMetadata, OptimizationConfiguration,
-            OptimizationResults, OptimizationType, OptimizationEngine,
-            OptimizationStatus, OptimizationObjective
-        )
+        from optimization_storage import (OptimizationConfiguration,
+                                          OptimizationEngine,
+                                          OptimizationMetadata,
+                                          OptimizationObjective,
+                                          OptimizationResults, OptimizationRun,
+                                          OptimizationStatus, OptimizationType)
 
         # Create sample metadata
         metadata = OptimizationMetadata(
@@ -139,7 +146,7 @@ def create_sample_data():
             max_evaluations=50,
             runtime_seconds=12.5,
             function_evaluations=45,
-            converged=True
+            converged=True,
         )
 
         # Create sample configuration
@@ -149,27 +156,27 @@ def create_sample_data():
                     name="cost",
                     weight=0.4,
                     direction="minimize",
-                    description="Minimize total compensation costs"
+                    description="Minimize total compensation costs",
                 ),
                 OptimizationObjective(
                     name="equity",
                     weight=0.3,
                     direction="minimize",
-                    description="Minimize compensation variance"
+                    description="Minimize compensation variance",
                 ),
                 OptimizationObjective(
                     name="targets",
                     weight=0.3,
                     direction="minimize",
-                    description="Meet workforce growth targets"
-                )
+                    description="Meet workforce growth targets",
+                ),
             ],
             initial_parameters={
                 "merit_rate_level_1": 0.045,
                 "merit_rate_level_2": 0.040,
                 "cola_rate": 0.025,
-                "new_hire_salary_adjustment": 1.15
-            }
+                "new_hire_salary_adjustment": 1.15,
+            },
         )
 
         # Create sample results
@@ -180,21 +187,19 @@ def create_sample_data():
                 "merit_rate_level_1": 0.042,
                 "merit_rate_level_2": 0.038,
                 "cola_rate": 0.023,
-                "new_hire_salary_adjustment": 1.12
+                "new_hire_salary_adjustment": 1.12,
             },
             risk_level="MEDIUM",
             risk_assessment={
                 "level": "MEDIUM",
                 "factors": ["Standard parameter ranges"],
-                "assessment_date": datetime.now().isoformat()
-            }
+                "assessment_date": datetime.now().isoformat(),
+            },
         )
 
         # Create and save the sample run
         sample_run = OptimizationRun(
-            metadata=metadata,
-            configuration=configuration,
-            results=results
+            metadata=metadata, configuration=configuration, results=results
         )
 
         storage = get_optimization_storage()
@@ -210,9 +215,9 @@ def create_sample_data():
 
 def print_usage_instructions():
     """Print instructions for using the optimization system."""
-    print("\n" + "="*80)
+    print("\n" + "=" * 80)
     print("🚀 OPTIMIZATION STORAGE SYSTEM SETUP COMPLETE!")
-    print("="*80)
+    print("=" * 80)
 
     print("\n📖 Usage Instructions:")
     print("\n1. 🧠 Advanced Optimization Interface:")
@@ -243,7 +248,9 @@ def print_usage_instructions():
     print("\n🔍 System Monitoring:")
     print("   - Health Check: validate_optimization_environment()")
     print("   - Cache Stats: get_optimization_cache().get_cache_stats()")
-    print("   - Recent Results: get_optimization_results_manager().get_recent_results()")
+    print(
+        "   - Recent Results: get_optimization_results_manager().get_recent_results()"
+    )
 
     print("\n💡 Tips:")
     print("   - All optimization results are versioned and immutable")
@@ -252,7 +259,7 @@ def print_usage_instructions():
     print("   - Automatic risk assessment and parameter validation")
     print("   - Comparison tools for A/B testing parameter sets")
 
-    print("\n" + "="*80)
+    print("\n" + "=" * 80)
 
 
 def main():

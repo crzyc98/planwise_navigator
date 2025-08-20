@@ -14,12 +14,13 @@ Usage:
 from __future__ import annotations
 
 import subprocess
-import yaml
 from datetime import datetime
 from pathlib import Path
-from typing import Dict, Any
-import pandas as pd
+from typing import Any, Dict
+
 import duckdb
+import pandas as pd
+import yaml
 
 
 class FocusedPolicyTester:

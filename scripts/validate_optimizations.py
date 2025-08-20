@@ -13,16 +13,15 @@ from pathlib import Path
 project_root = Path(__file__).parent.parent
 sys.path.insert(0, str(project_root))
 
+
 def test_advanced_optimizations():
     """Test the advanced optimization system."""
     print("🔍 Testing Advanced Optimization System...")
 
     try:
         from orchestrator_mvp.core.advanced_optimizations import (
-            create_optimization_engine,
-            PerformanceMonitor,
-            StateCompressionManager
-        )
+            PerformanceMonitor, StateCompressionManager,
+            create_optimization_engine)
 
         # Test optimization engine creation
         engine = create_optimization_engine(pool_size=2, enable_monitoring=True)
@@ -32,20 +31,26 @@ def test_advanced_optimizations():
         monitor = PerformanceMonitor()
         with monitor.monitor_operation("test_operation", 100) as metric:
             import time
+
             time.sleep(0.1)  # Simulate work
 
         summary = monitor.get_performance_summary()
-        print(f"  ✅ Performance monitoring working: {summary['total_operations']} operations tracked")
+        print(
+            f"  ✅ Performance monitoring working: {summary['total_operations']} operations tracked"
+        )
 
         # Test compression
         import pandas as pd
-        test_df = pd.DataFrame({'id': range(1000), 'value': range(1000)})
+
+        test_df = pd.DataFrame({"id": range(1000), "value": range(1000)})
         compression_manager = StateCompressionManager()
 
         compressed_data, metrics = compression_manager.compress_workforce_state(test_df)
         decompressed_df = compression_manager.decompress_dataframe(compressed_data)
 
-        print(f"  ✅ State compression working: {metrics['compression_ratio']:.1f}x compression ratio")
+        print(
+            f"  ✅ State compression working: {metrics['compression_ratio']:.1f}x compression ratio"
+        )
 
         # Cleanup
         engine.cleanup()
@@ -56,15 +61,14 @@ def test_advanced_optimizations():
         print(f"  ❌ Advanced optimization system failed: {e}")
         return False
 
+
 def test_dbt_batch_executor():
     """Test the dbt batch execution system."""
     print("🔍 Testing dbt Batch Executor...")
 
     try:
         from orchestrator_mvp.utils.dbt_batch_executor import (
-            create_optimized_dbt_executor,
-            DbtDependencyAnalyzer
-        )
+            DbtDependencyAnalyzer, create_optimized_dbt_executor)
 
         dbt_project_path = project_root / "dbt"
 
@@ -73,7 +77,9 @@ def test_dbt_batch_executor():
             return True
 
         # Test executor creation
-        executor = create_optimized_dbt_executor(str(dbt_project_path), max_parallel_jobs=2)
+        executor = create_optimized_dbt_executor(
+            str(dbt_project_path), max_parallel_jobs=2
+        )
         print("  ✅ dbt executor created successfully")
 
         # Test dependency analyzer (without running actual dbt commands)
@@ -87,12 +93,14 @@ def test_dbt_batch_executor():
         print(f"  ❌ dbt batch executor failed: {e}")
         return False
 
+
 def test_multi_year_engine():
     """Test the multi-year optimization engine."""
     print("🔍 Testing Multi-Year Optimization Engine...")
 
     try:
-        from orchestrator_mvp.core.optimized_multi_year_engine import create_optimized_multi_year_engine
+        from orchestrator_mvp.core.optimized_multi_year_engine import \
+            create_optimized_multi_year_engine
 
         dbt_project_path = project_root / "dbt"
 
@@ -104,7 +112,7 @@ def test_multi_year_engine():
         engine = create_optimized_multi_year_engine(
             dbt_project_path=str(dbt_project_path),
             simulation_years=[2024, 2025],
-            pool_size=2
+            pool_size=2,
         )
         print("  ✅ Multi-year engine created successfully")
 
@@ -120,6 +128,7 @@ def test_multi_year_engine():
         print(f"  ❌ Multi-year engine failed: {e}")
         return False
 
+
 def test_dependencies():
     """Test that all required dependencies are available."""
     print("🔍 Testing Dependencies...")
@@ -129,7 +138,7 @@ def test_dependencies():
         ("psutil", "System resource monitoring"),
         ("networkx", "Dependency graph analysis"),
         ("pandas", "Data processing"),
-        ("duckdb", "Database engine")
+        ("duckdb", "Database engine"),
     ]
 
     missing_packages = []
@@ -150,6 +159,7 @@ def test_dependencies():
     print("  ✅ All dependencies available")
     return True
 
+
 def main():
     """Run all validation tests."""
     print("🚀 PlanWise Navigator Optimization Validation")
@@ -159,7 +169,7 @@ def main():
         ("Dependencies", test_dependencies),
         ("Advanced Optimizations", test_advanced_optimizations),
         ("dbt Batch Executor", test_dbt_batch_executor),
-        ("Multi-Year Engine", test_multi_year_engine)
+        ("Multi-Year Engine", test_multi_year_engine),
     ]
 
     results = []
@@ -184,12 +194,15 @@ def main():
 
     if passed == total:
         print("🎉 All optimization components validated successfully!")
-        print("Ready for high-performance multi-year simulations targeting 82% improvement.")
+        print(
+            "Ready for high-performance multi-year simulations targeting 82% improvement."
+        )
         return 0
     else:
         print("⚠️ Some optimization components need attention.")
         print("Please address the failed tests before running optimized simulations.")
         return 1
+
 
 if __name__ == "__main__":
     sys.exit(main())

@@ -3,15 +3,13 @@ from pathlib import Path
 import duckdb
 
 from navigator_orchestrator.utils import DatabaseConnectionManager
-from navigator_orchestrator.validation import (
-    DataValidator,
-    ValidationSeverity,
-    ValidationResult,
-    RowCountDriftRule,
-    HireTerminationRatioRule,
-    EventSequenceRule,
-    EventSpikeRule,
-)
+from navigator_orchestrator.validation import (DataValidator,
+                                               EventSequenceRule,
+                                               EventSpikeRule,
+                                               HireTerminationRatioRule,
+                                               RowCountDriftRule,
+                                               ValidationResult,
+                                               ValidationSeverity)
 
 
 def _db(db_path: Path):
@@ -24,7 +22,9 @@ def test_data_quality_rules_configurable_thresholds(tmp_path: Path):
     conn = _db(dbp)
     conn.execute("CREATE TABLE raw(year INTEGER, id INTEGER)")
     conn.execute("CREATE TABLE stg(year INTEGER, id INTEGER)")
-    conn.execute("INSERT INTO raw VALUES (2026, 1), (2026, 2), (2026, 3), (2026, 4), (2026, 5)")
+    conn.execute(
+        "INSERT INTO raw VALUES (2026, 1), (2026, 2), (2026, 3), (2026, 4), (2026, 5)"
+    )
     conn.execute("INSERT INTO stg VALUES (2026, 1), (2026, 2), (2026, 3), (2026, 4)")
     conn.close()
 
@@ -37,9 +37,13 @@ def test_data_quality_rules_configurable_thresholds(tmp_path: Path):
 def test_business_rule_validation_hire_termination_ratios(tmp_path: Path):
     dbp = tmp_path / "dq.duckdb"
     conn = _db(dbp)
-    conn.execute("CREATE TABLE fct_yearly_events(employee_id VARCHAR, event_type VARCHAR, simulation_year INTEGER, event_date DATE)")
+    conn.execute(
+        "CREATE TABLE fct_yearly_events(employee_id VARCHAR, event_type VARCHAR, simulation_year INTEGER, event_date DATE)"
+    )
     conn.execute("INSERT INTO fct_yearly_events VALUES ('E1','hire',2025,'2025-01-01')")
-    conn.execute("INSERT INTO fct_yearly_events VALUES ('E2','termination',2025,'2025-12-31')")
+    conn.execute(
+        "INSERT INTO fct_yearly_events VALUES ('E2','termination',2025,'2025-12-31')"
+    )
     conn.close()
 
     mgr = DatabaseConnectionManager(db_path=dbp)
@@ -52,7 +56,9 @@ def test_business_rule_validation_hire_termination_ratios(tmp_path: Path):
 def test_anomaly_detection_unusual_patterns(tmp_path: Path):
     dbp = tmp_path / "dq.duckdb"
     conn = _db(dbp)
-    conn.execute("CREATE TABLE fct_yearly_events(event_type VARCHAR, simulation_year INTEGER)")
+    conn.execute(
+        "CREATE TABLE fct_yearly_events(event_type VARCHAR, simulation_year INTEGER)"
+    )
     # previous year 10 events, current 25 -> ratio 2.5
     conn.execute("INSERT INTO fct_yearly_events SELECT 'hire', 2025 FROM range(10)")
     conn.execute("INSERT INTO fct_yearly_events SELECT 'hire', 2026 FROM range(25)")
@@ -68,7 +74,9 @@ def test_anomaly_detection_unusual_patterns(tmp_path: Path):
 def test_validation_severity_levels(tmp_path: Path):
     dbp = tmp_path / "dq.duckdb"
     conn = _db(dbp)
-    conn.execute("CREATE TABLE fct_yearly_events(employee_id VARCHAR, event_type VARCHAR, simulation_year INTEGER, event_date DATE)")
+    conn.execute(
+        "CREATE TABLE fct_yearly_events(employee_id VARCHAR, event_type VARCHAR, simulation_year INTEGER, event_date DATE)"
+    )
     conn.close()
 
     mgr = DatabaseConnectionManager(db_path=dbp)
@@ -99,7 +107,9 @@ def test_custom_validation_rule_registration(tmp_path: Path):
 def test_validation_report_generation(tmp_path: Path):
     dbp = tmp_path / "dq.duckdb"
     conn = _db(dbp)
-    conn.execute("CREATE TABLE fct_yearly_events(event_type VARCHAR, simulation_year INTEGER, event_date DATE)")
+    conn.execute(
+        "CREATE TABLE fct_yearly_events(event_type VARCHAR, simulation_year INTEGER, event_date DATE)"
+    )
     conn.close()
 
     mgr = DatabaseConnectionManager(db_path=dbp)

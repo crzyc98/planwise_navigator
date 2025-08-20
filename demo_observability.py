@@ -6,15 +6,16 @@ Shows the production observability framework in action with realistic
 simulation scenarios, structured logging, and comprehensive monitoring.
 """
 
-import time
 import random
+import time
 from pathlib import Path
 
 from navigator_orchestrator import observability_session
 
 
-def simulate_data_processing(obs, operation_name: str, record_count: int,
-                           failure_rate: float = 0.0):
+def simulate_data_processing(
+    obs, operation_name: str, record_count: int, failure_rate: float = 0.0
+):
     """Simulate data processing operation with observability"""
     with obs.track_operation(operation_name, records=record_count) as metrics:
         # Simulate processing time based on record count
@@ -26,9 +27,11 @@ def simulate_data_processing(obs, operation_name: str, record_count: int,
             raise RuntimeError(f"Processing failed for {operation_name}")
 
         # Log progress
-        obs.log_info(f"Processed {record_count} records in {operation_name}",
-                    records_processed=record_count,
-                    processing_rate=record_count / (time.time() - metrics.start_time))
+        obs.log_info(
+            f"Processed {record_count} records in {operation_name}",
+            records_processed=record_count,
+            processing_rate=record_count / (time.time() - metrics.start_time),
+        )
 
 
 def demonstrate_basic_logging():
@@ -38,16 +41,24 @@ def demonstrate_basic_logging():
     with observability_session(run_id="demo-basic-logging") as obs:
         # Different log levels
         obs.log_info("Starting basic logging demonstration", demo_type="basic")
-        obs.logger.debug("Debug message with details", component="logger", level="debug")
-        obs.log_warning("This is a warning message", severity="medium", component="demo")
-        obs.log_error("This is an error message", error_code="DEMO_001", component="demo")
+        obs.logger.debug(
+            "Debug message with details", component="logger", level="debug"
+        )
+        obs.log_warning(
+            "This is a warning message", severity="medium", component="demo"
+        )
+        obs.log_error(
+            "This is an error message", error_code="DEMO_001", component="demo"
+        )
 
         # Structured data logging
-        obs.log_info("User action logged",
-                    user_id="demo_user",
-                    action="view_dashboard",
-                    duration_ms=250,
-                    success=True)
+        obs.log_info(
+            "User action logged",
+            user_id="demo_user",
+            action="view_dashboard",
+            duration_ms=250,
+            success=True,
+        )
 
         # Custom metrics
         obs.add_metric("demo_score", 95.5, "Demonstration success score")
@@ -71,7 +82,7 @@ def demonstrate_performance_monitoring():
             ("data_validation", 2500, 0.0),
             ("complex_calculation", 1000, 0.1),  # 10% failure rate
             ("report_generation", 750, 0.0),
-            ("data_export", 3000, 0.05)  # 5% failure rate
+            ("data_export", 3000, 0.05),  # 5% failure rate
         ]
 
         for op_name, record_count, failure_rate in operations:
@@ -79,10 +90,12 @@ def demonstrate_performance_monitoring():
                 simulate_data_processing(obs, op_name, record_count, failure_rate)
                 obs.add_metric(f"{op_name}_records", record_count)
             except RuntimeError as e:
-                obs.log_error(f"Operation failed: {op_name}",
-                             operation=op_name,
-                             records=record_count,
-                             error=str(e))
+                obs.log_error(
+                    f"Operation failed: {op_name}",
+                    operation=op_name,
+                    records=record_count,
+                    error=str(e),
+                )
 
         # Add some data quality checks
         obs.log_data_quality_check(2025, "record_count", 12250, 15000)
@@ -90,15 +103,17 @@ def demonstrate_performance_monitoring():
         obs.log_data_quality_check(2025, "processing_time", 3.2, 5.0)
 
         summary = obs.finalize_run("partial")  # Some operations failed
-        print(f"⚠️  Performance demo completed with issues - Run ID: {obs.get_run_id()}")
+        print(
+            f"⚠️  Performance demo completed with issues - Run ID: {obs.get_run_id()}"
+        )
 
         # Show performance summary
         perf_summary = obs.get_performance_summary()
         print(f"   Total operations: {perf_summary['total_operations']}")
         print(f"   Successful: {perf_summary['successful_operations']}")
         print(f"   Failed: {perf_summary['failed_operations']}")
-        if perf_summary['slowest_operation']:
-            slowest = perf_summary['slowest_operation']
+        if perf_summary["slowest_operation"]:
+            slowest = perf_summary["slowest_operation"]
             print(f"   Slowest operation: {slowest['name']} ({slowest['duration']}s)")
 
 
@@ -114,7 +129,7 @@ def demonstrate_simulation_workflow():
             "target_growth_rate": 0.03,
             "cola_rate": 0.005,
             "merit_budget": 0.025,
-            "random_seed": 42
+            "random_seed": 42,
         }
         obs.set_configuration(config)
         obs.log_info("Simulation configuration set", **config)
@@ -123,7 +138,7 @@ def demonstrate_simulation_workflow():
         obs.set_backup_path("demo_backups/simulation_backup_20250818.sql")
 
         # Process each year
-        years = list(range(config['start_year'], config['end_year'] + 1))
+        years = list(range(config["start_year"], config["end_year"] + 1))
         total_employees = 40000
         total_events = 0
 
@@ -142,7 +157,7 @@ def demonstrate_simulation_workflow():
                     "generate_termination_events",
                     "generate_promotion_events",
                     "consolidate_events",
-                    "create_workforce_snapshot"
+                    "create_workforce_snapshot",
                 ]
 
                 year_events = 0
@@ -158,19 +173,25 @@ def demonstrate_simulation_workflow():
                             obs.add_metric(f"{operation}_count_{year}", event_count)
 
                 # Update workforce size (simulate growth)
-                total_employees = int(total_employees * (1 + config['target_growth_rate']))
+                total_employees = int(
+                    total_employees * (1 + config["target_growth_rate"])
+                )
                 total_events += year_events
 
                 # Log year completion
                 obs.add_metric(f"workforce_size_year_{year}", total_employees)
                 obs.add_metric(f"events_generated_year_{year}", year_events)
-                obs.log_data_quality_check(year, "workforce_size", total_employees, 50000)
+                obs.log_data_quality_check(
+                    year, "workforce_size", total_employees, 50000
+                )
                 obs.log_data_quality_check(year, "events_generated", year_events, 2000)
 
-                obs.log_info(f"Year {year} completed successfully",
-                            workforce_size=total_employees,
-                            events_generated=year_events,
-                            **year_context)
+                obs.log_info(
+                    f"Year {year} completed successfully",
+                    workforce_size=total_employees,
+                    events_generated=year_events,
+                    **year_context,
+                )
 
         # Final simulation metrics
         obs.add_metric("total_years_processed", len(years))
@@ -178,12 +199,16 @@ def demonstrate_simulation_workflow():
         obs.add_metric("total_events_generated", total_events)
 
         # Simulate a minor issue for demonstration
-        obs.log_warning("Memory usage above 80% during peak processing",
-                       memory_usage_percent=85.2,
-                       recommendation="Consider increasing memory allocation")
+        obs.log_warning(
+            "Memory usage above 80% during peak processing",
+            memory_usage_percent=85.2,
+            recommendation="Consider increasing memory allocation",
+        )
 
         summary = obs.finalize_run("success")
-        print(f"✅ Simulation workflow completed successfully - Run ID: {obs.get_run_id()}")
+        print(
+            f"✅ Simulation workflow completed successfully - Run ID: {obs.get_run_id()}"
+        )
         print(f"   Years processed: {len(years)}")
         print(f"   Final workforce: {total_employees:,} employees")
         print(f"   Total events: {total_events:,}")
@@ -203,22 +228,28 @@ def demonstrate_error_handling():
                 time.sleep(0.1)
                 raise ValueError("Simulated critical error in processing")
         except ValueError as e:
-            obs.log_exception("Critical error occurred during risky operation",
-                             operation="risky_operation",
-                             error_type="ValueError")
+            obs.log_exception(
+                "Critical error occurred during risky operation",
+                operation="risky_operation",
+                error_type="ValueError",
+            )
 
         # Simulate a database connection error
-        obs.log_error("Database connection failed",
-                     database="simulation.duckdb",
-                     error_code="CONNECTION_TIMEOUT",
-                     retry_count=3,
-                     severity="high")
+        obs.log_error(
+            "Database connection failed",
+            database="simulation.duckdb",
+            error_code="CONNECTION_TIMEOUT",
+            retry_count=3,
+            severity="high",
+        )
 
         # Simulate a data validation error
-        obs.log_warning("Data validation warning detected",
-                       validation_rule="employee_id_unique",
-                       duplicate_count=5,
-                       severity="medium")
+        obs.log_warning(
+            "Data validation warning detected",
+            validation_rule="employee_id_unique",
+            duplicate_count=5,
+            severity="medium",
+        )
 
         # Add error metrics
         obs.add_metric("total_errors_encountered", 2)
@@ -256,7 +287,9 @@ def show_log_analysis_examples():
     print("   grep '\"run_id\":\"demo-simulation\"' logs/navigator.log | jq '.'")
     print()
     print("   # Find performance bottlenecks:")
-    print("   grep '\"duration_seconds\"' logs/navigator.log | jq '.duration_seconds' | sort -n")
+    print(
+        "   grep '\"duration_seconds\"' logs/navigator.log | jq '.duration_seconds' | sort -n"
+    )
     print()
     print("   # Data quality issues:")
     print("   grep '\"status\":\"warning\"' logs/navigator.log | jq '.check'")

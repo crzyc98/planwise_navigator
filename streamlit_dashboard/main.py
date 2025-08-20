@@ -4,9 +4,10 @@ PlanWise Navigator - Main Dashboard Entry Point
 Multi-page Streamlit application for workforce simulation and compensation optimization.
 """
 
-import streamlit as st
-from pathlib import Path
 import sys
+from pathlib import Path
+
+import streamlit as st
 
 # Add parent directory to path for imports
 sys.path.append(str(Path(__file__).parent))
@@ -18,14 +19,15 @@ st.set_page_config(
     layout="wide",
     initial_sidebar_state="expanded",
     menu_items={
-        'Get Help': 'https://github.com/fidelity/planwise_navigator',
-        'Report a bug': 'https://github.com/fidelity/planwise_navigator/issues',
-        'About': 'PlanWise Navigator - Enterprise Workforce Simulation Platform'
-    }
+        "Get Help": "https://github.com/fidelity/planwise_navigator",
+        "Report a bug": "https://github.com/fidelity/planwise_navigator/issues",
+        "About": "PlanWise Navigator - Enterprise Workforce Simulation Platform",
+    },
 )
 
 # Custom CSS for professional styling
-st.markdown("""
+st.markdown(
+    """
 <style>
     .main-header {
         background: linear-gradient(90deg, #1e3c72 0%, #2a5298 100%);
@@ -91,25 +93,33 @@ st.markdown("""
         border-left: 4px solid #2196f3;
     }
 </style>
-""", unsafe_allow_html=True)
+""",
+    unsafe_allow_html=True,
+)
 
 # Header
-st.markdown("""
+st.markdown(
+    """
 <div class="main-header">
     <h1>🚀 PlanWise Navigator</h1>
     <p>Enterprise Workforce Simulation & Compensation Optimization Platform</p>
 </div>
-""", unsafe_allow_html=True)
+""",
+    unsafe_allow_html=True,
+)
 
 # Welcome message
-st.markdown("""
+st.markdown(
+    """
 ## Welcome to PlanWise Navigator
 
 Your comprehensive platform for workforce planning, simulation, and compensation optimization.
-""")
+"""
+)
 
 # Navigation hint
-st.markdown("""
+st.markdown(
+    """
 <div class="navigation-hint">
     <strong>👈 Use the sidebar to navigate between different modules:</strong>
     <ul>
@@ -120,7 +130,9 @@ st.markdown("""
         <li><strong>Analytics Dashboard</strong> - View simulation results (coming soon)</li>
     </ul>
 </div>
-""", unsafe_allow_html=True)
+""",
+    unsafe_allow_html=True,
+)
 
 # Feature overview
 st.markdown("## 🎯 Key Features")
@@ -128,7 +140,8 @@ st.markdown("## 🎯 Key Features")
 col1, col2 = st.columns(2)
 
 with col1:
-    st.markdown("""
+    st.markdown(
+        """
     <div class="feature-card">
         <h3>💰 Dynamic Compensation Tuning</h3>
         <p>Adjust compensation parameters in real-time and see immediate impact on workforce costs and growth.</p>
@@ -139,9 +152,12 @@ with col1:
             <li>New hire compensation planning</li>
         </ul>
     </div>
-    """, unsafe_allow_html=True)
+    """,
+        unsafe_allow_html=True,
+    )
 
-    st.markdown("""
+    st.markdown(
+        """
     <div class="feature-card">
         <h3>📊 Event-Sourced Architecture</h3>
         <p>Complete audit trail of all workforce events with immutable history.</p>
@@ -152,10 +168,13 @@ with col1:
             <li>Enterprise-grade transparency</li>
         </ul>
     </div>
-    """, unsafe_allow_html=True)
+    """,
+        unsafe_allow_html=True,
+    )
 
 with col2:
-    st.markdown("""
+    st.markdown(
+        """
     <div class="feature-card">
         <h3>🔄 Advanced Optimization Engine</h3>
         <p>Automated parameter optimization to meet specific budget and growth targets.</p>
@@ -166,9 +185,12 @@ with col2:
             <li>Convergence tracking</li>
         </ul>
     </div>
-    """, unsafe_allow_html=True)
+    """,
+        unsafe_allow_html=True,
+    )
 
-    st.markdown("""
+    st.markdown(
+        """
     <div class="feature-card">
         <h3>🎲 Multi-Year Simulations</h3>
         <p>Run comprehensive workforce simulations across multiple years with dependencies.</p>
@@ -179,9 +201,12 @@ with col2:
             <li>Risk assessment integration</li>
         </ul>
     </div>
-    """, unsafe_allow_html=True)
+    """,
+        unsafe_allow_html=True,
+    )
 
-    st.markdown("""
+    st.markdown(
+        """
     <div class="feature-card">
         <h3>📈 Deferral Rate Escalation Analytics</h3>
         <p>Epic E035: Comprehensive analytics for automatic annual deferral rate increases.</p>
@@ -192,7 +217,9 @@ with col2:
             <li>Multi-year progression analysis</li>
         </ul>
     </div>
-    """, unsafe_allow_html=True)
+    """,
+        unsafe_allow_html=True,
+    )
 
 # Quick stats (placeholder - would connect to real data)
 st.markdown("## 📈 System Status")
@@ -200,42 +227,55 @@ st.markdown("## 📈 System Status")
 col1, col2, col3, col4 = st.columns(4)
 
 with col1:
-    st.markdown("""
+    st.markdown(
+        """
     <div class="metric-card">
         <div class="metric-value">2025-2029</div>
         <div class="metric-label">Simulation Years</div>
     </div>
-    """, unsafe_allow_html=True)
+    """,
+        unsafe_allow_html=True,
+    )
 
 with col2:
-    st.markdown("""
+    st.markdown(
+        """
     <div class="metric-card">
         <div class="metric-value">5</div>
         <div class="metric-label">Job Levels</div>
     </div>
-    """, unsafe_allow_html=True)
+    """,
+        unsafe_allow_html=True,
+    )
 
 with col3:
-    st.markdown("""
+    st.markdown(
+        """
     <div class="metric-card">
         <div class="metric-value">126</div>
         <div class="metric-label">Tunable Parameters</div>
     </div>
-    """, unsafe_allow_html=True)
+    """,
+        unsafe_allow_html=True,
+    )
 
 with col4:
-    st.markdown("""
+    st.markdown(
+        """
     <div class="metric-card">
         <div class="metric-value">Ready</div>
         <div class="metric-label">System Status</div>
     </div>
-    """, unsafe_allow_html=True)
+    """,
+        unsafe_allow_html=True,
+    )
 
 # Quick start guide
 st.markdown("## 🚀 Quick Start")
 
 with st.expander("Getting Started with PlanWise Navigator", expanded=True):
-    st.markdown("""
+    st.markdown(
+        """
     ### 1. Compensation Tuning
     Navigate to the **Compensation Tuning** page to:
     - Adjust merit rates, COLA rates, and promotion parameters
@@ -271,11 +311,13 @@ with st.expander("Getting Started with PlanWise Navigator", expanded=True):
     - Retention impact
     - Compliance concerns
     - Market competitiveness
-    """)
+    """
+    )
 
 # Technical information
 with st.expander("Technical Architecture"):
-    st.markdown("""
+    st.markdown(
+        """
     ### Technology Stack
     - **Storage**: DuckDB 1.0.0 - Column-store OLAP engine
     - **Transformation**: dbt-core 1.8.8 - SQL-based transformations
@@ -288,14 +330,18 @@ with st.expander("Technical Architecture"):
     2. **Events** → Event models generate workforce changes
     3. **Snapshots** → Point-in-time workforce states
     4. **Analysis** → Dashboards and reports
-    """)
+    """
+    )
 
 # Footer
 st.markdown("---")
-st.markdown("""
+st.markdown(
+    """
 <div style='text-align: center; color: #666; padding: 2rem;'>
     <h4>PlanWise Navigator v3.0</h4>
     <p>Enterprise Workforce Simulation Platform</p>
     <p><small>© 2024 Fidelity Investments. All rights reserved.</small></p>
 </div>
-""", unsafe_allow_html=True)
+""",
+    unsafe_allow_html=True,
+)

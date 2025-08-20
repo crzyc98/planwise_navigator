@@ -155,7 +155,7 @@ first_year_enrollment_state AS (
         -- Track enrollment method (auto vs voluntary)
         CASE
             WHEN ev.enrollment_method_this_year IS NOT NULL THEN ev.enrollment_method_this_year
-            WHEN bl.baseline_enrollment_date IS NOT NULL THEN 'voluntary'  -- Assume baseline enrollments are voluntary
+            WHEN bl.baseline_enrollment_date IS NOT NULL THEN NULL  -- Census enrollments are pre-existing, not simulation decisions
             ELSE NULL
         END AS enrollment_method,
         -- Track if ever opted out (for first year, just current year)

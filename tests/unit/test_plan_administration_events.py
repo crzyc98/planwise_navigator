@@ -1,18 +1,15 @@
 # filename: tests/unit/test_plan_administration_events.py
 """Unit tests for plan administration events (S072-04)"""
 
-import pytest
-from decimal import Decimal
 from datetime import date
+from decimal import Decimal
+
+import pytest
 from pydantic import ValidationError
 
-from config.events import (
-    ForfeiturePayload,
-    HCEStatusPayload,
-    ComplianceEventPayload,
-    PlanAdministrationEventFactory,
-    SimulationEvent
-)
+from config.events import (ComplianceEventPayload, ForfeiturePayload,
+                           HCEStatusPayload, PlanAdministrationEventFactory,
+                           SimulationEvent)
 
 
 class TestForfeiturePayload:
@@ -25,7 +22,7 @@ class TestForfeiturePayload:
             forfeited_from_source="employer_match",
             amount=Decimal("1000.50"),
             reason="unvested_termination",
-            vested_percentage=Decimal("0.25")
+            vested_percentage=Decimal("0.25"),
         )
 
         assert payload.event_type == "forfeiture"
@@ -33,7 +30,9 @@ class TestForfeiturePayload:
         assert payload.forfeited_from_source == "employer_match"
         assert payload.amount == Decimal("1000.500000")  # Quantized to 6 decimal places
         assert payload.reason == "unvested_termination"
-        assert payload.vested_percentage == Decimal("0.2500")  # Quantized to 4 decimal places
+        assert payload.vested_percentage == Decimal(
+            "0.2500"
+        )  # Quantized to 4 decimal places
 
     def test_forfeiture_payload_invalid_source(self):
         """Test forfeiture payload with invalid source"""
@@ -43,7 +42,7 @@ class TestForfeiturePayload:
                 forfeited_from_source="employee_deferral",  # Invalid
                 amount=Decimal("1000"),
                 reason="unvested_termination",
-                vested_percentage=Decimal("0.25")
+                vested_percentage=Decimal("0.25"),
             )
 
         assert "Input should be 'employer_match'" in str(exc_info.value)
@@ -56,7 +55,7 @@ class TestForfeiturePayload:
                 forfeited_from_source="employer_match",
                 amount=Decimal("-100"),  # Invalid negative
                 reason="unvested_termination",
-                vested_percentage=Decimal("0.25")
+                vested_percentage=Decimal("0.25"),
             )
 
         assert "Input should be greater than 0" in str(exc_info.value)
@@ -69,7 +68,7 @@ class TestForfeiturePayload:
                 forfeited_from_source="employer_match",
                 amount=Decimal("1000"),
                 reason="unvested_termination",
-                vested_percentage=Decimal("1.5")  # Invalid > 1
+                vested_percentage=Decimal("1.5"),  # Invalid > 1
             )
 
         assert "Input should be less than or equal to 1" in str(exc_info.value)
@@ -82,7 +81,7 @@ class TestForfeiturePayload:
                 forfeited_from_source="employer_match",
                 amount=Decimal("1000"),
                 reason="unvested_termination",
-                vested_percentage=Decimal("0.25")
+                vested_percentage=Decimal("0.25"),
             )
 
         assert "String should have at least 1 character" in str(exc_info.value)
@@ -101,7 +100,7 @@ class TestHCEStatusPayload:
             hce_threshold=Decimal("135000.00"),
             is_hce=True,
             determination_date=date(2025, 1, 1),
-            prior_year_hce=False
+            prior_year_hce=False,
         )
 
         assert payload.event_type == "hce_status"
@@ -139,7 +138,7 @@ class TestHCEStatusPayload:
                 annualized_compensation=Decimal("150000"),
                 hce_threshold=Decimal("135000"),
                 is_hce=True,
-                determination_date=date(2025, 1, 1)
+                determination_date=date(2025, 1, 1),
             )
 
         assert "Input should be 'prior_year' or 'current_year'" in str(exc_info.value)
@@ -154,7 +153,7 @@ class TestHCEStatusPayload:
                 annualized_compensation=Decimal("150000"),
                 hce_threshold=Decimal("135000"),
                 is_hce=True,
-                determination_date=date(2025, 1, 1)
+                determination_date=date(2025, 1, 1),
             )
 
         assert "Input should be greater than or equal to 0" in str(exc_info.value)
@@ -169,7 +168,7 @@ class TestHCEStatusPayload:
                 annualized_compensation=Decimal("150000"),
                 hce_threshold=Decimal("0"),  # Invalid - must be > 0
                 is_hce=True,
-                determination_date=date(2025, 1, 1)
+                determination_date=date(2025, 1, 1),
             )
 
         assert "Input should be greater than 0" in str(exc_info.value)
@@ -186,7 +185,7 @@ class TestComplianceEventPayload:
             limit_type="elective_deferral",
             applicable_limit=Decimal("23000.00"),
             current_amount=Decimal("20000.00"),
-            monitoring_date=date(2025, 11, 1)
+            monitoring_date=date(2025, 11, 1),
         )
 
         assert payload.event_type == "compliance"
@@ -205,7 +204,7 @@ class TestComplianceEventPayload:
             limit_type="catch_up",
             applicable_limit=Decimal("7500.00"),
             current_amount=Decimal("0.00"),
-            monitoring_date=date(2025, 1, 1)
+            monitoring_date=date(2025, 1, 1),
         )
 
         assert payload.compliance_type == "catch_up_eligible"
@@ -219,7 +218,7 @@ class TestComplianceEventPayload:
             limit_type="annual_additions",
             applicable_limit=Decimal("69000.00"),
             current_amount=Decimal("65000.00"),
-            monitoring_date=date(2025, 10, 1)
+            monitoring_date=date(2025, 10, 1),
         )
 
         assert payload.compliance_type == "415c_limit_approach"
@@ -234,7 +233,7 @@ class TestComplianceEventPayload:
                 limit_type="elective_deferral",
                 applicable_limit=Decimal("23000"),
                 current_amount=Decimal("20000"),
-                monitoring_date=date(2025, 11, 1)
+                monitoring_date=date(2025, 11, 1),
             )
 
         assert "Input should be '402g_limit_approach'" in str(exc_info.value)
@@ -248,7 +247,7 @@ class TestComplianceEventPayload:
                 limit_type="invalid_limit_type",  # Invalid
                 applicable_limit=Decimal("23000"),
                 current_amount=Decimal("20000"),
-                monitoring_date=date(2025, 11, 1)
+                monitoring_date=date(2025, 11, 1),
             )
 
         assert "Input should be 'elective_deferral'" in str(exc_info.value)
@@ -262,7 +261,7 @@ class TestComplianceEventPayload:
                 limit_type="elective_deferral",
                 applicable_limit=Decimal("0"),  # Invalid - must be > 0
                 current_amount=Decimal("20000"),
-                monitoring_date=date(2025, 11, 1)
+                monitoring_date=date(2025, 11, 1),
             )
 
         assert "Input should be greater than 0" in str(exc_info.value)
@@ -276,7 +275,7 @@ class TestComplianceEventPayload:
                 limit_type="elective_deferral",
                 applicable_limit=Decimal("23000"),
                 current_amount=Decimal("-1000"),  # Invalid negative
-                monitoring_date=date(2025, 11, 1)
+                monitoring_date=date(2025, 11, 1),
             )
 
         assert "Input should be greater than or equal to 0" in str(exc_info.value)
@@ -296,7 +295,7 @@ class TestPlanAdministrationEventFactory:
             amount=Decimal("2500.00"),
             reason="unvested_termination",
             vested_percentage=Decimal("0.40"),
-            effective_date=date(2025, 3, 15)
+            effective_date=date(2025, 3, 15),
         )
 
         assert isinstance(event, SimulationEvent)
@@ -324,7 +323,7 @@ class TestPlanAdministrationEventFactory:
             hce_threshold=Decimal("135000.00"),
             is_hce=True,
             determination_date=date(2025, 1, 1),
-            prior_year_hce=False
+            prior_year_hce=False,
         )
 
         assert isinstance(event, SimulationEvent)
@@ -348,7 +347,7 @@ class TestPlanAdministrationEventFactory:
             limit_type="catch_up",
             applicable_limit=Decimal("7500.00"),
             current_amount=Decimal("0.00"),
-            monitoring_date=date(2025, 7, 1)
+            monitoring_date=date(2025, 7, 1),
         )
 
         assert isinstance(event, SimulationEvent)
@@ -379,8 +378,8 @@ class TestPlanAdministrationEventIntegration:
                 "forfeited_from_source": "employer_nonelective",
                 "amount": Decimal("1500.00"),
                 "reason": "break_in_service",
-                "vested_percentage": Decimal("0.60")
-            }
+                "vested_percentage": Decimal("0.60"),
+            },
         }
 
         event = SimulationEvent.model_validate(event_data)
@@ -403,8 +402,8 @@ class TestPlanAdministrationEventIntegration:
                 "annualized_compensation": Decimal("132000.00"),
                 "hce_threshold": Decimal("135000.00"),
                 "is_hce": False,
-                "determination_date": date(2025, 1, 1)
-            }
+                "determination_date": date(2025, 1, 1),
+            },
         }
 
         event = SimulationEvent.model_validate(event_data)
@@ -426,8 +425,8 @@ class TestPlanAdministrationEventIntegration:
                 "limit_type": "annual_additions",
                 "applicable_limit": Decimal("69000.00"),
                 "current_amount": Decimal("64000.00"),
-                "monitoring_date": date(2025, 10, 1)
-            }
+                "monitoring_date": date(2025, 10, 1),
+            },
         }
 
         event = SimulationEvent.model_validate(event_data)
@@ -445,7 +444,7 @@ class TestPlanAdministrationEventIntegration:
             amount=Decimal("3000.00"),
             reason="unvested_termination",
             vested_percentage=Decimal("0.75"),
-            effective_date=date(2025, 6, 30)
+            effective_date=date(2025, 6, 30),
         )
 
         # Serialize to dict

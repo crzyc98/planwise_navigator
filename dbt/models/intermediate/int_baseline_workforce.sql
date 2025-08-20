@@ -51,6 +51,12 @@ SELECT
     stg.waiting_period_days,
     stg.current_eligibility_status,
     stg.employee_enrollment_date,
+    -- Epic E049: Census deferral rate integration - preserve exact census rates
+    stg.employee_deferral_rate,
+    CASE
+        WHEN stg.employee_deferral_rate > 0 THEN true
+        ELSE false
+    END as is_enrolled_at_census,
     {{ simulation_year }} AS simulation_year,
     CURRENT_TIMESTAMP AS snapshot_created_at,
     true as is_from_census,

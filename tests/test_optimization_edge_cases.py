@@ -16,35 +16,37 @@ Test Categories:
 Includes sophisticated mock data generation for realistic testing scenarios.
 """
 
-import pytest
-import pandas as pd
-import numpy as np
 import json
-import time
-import tempfile
-import os
-import threading
+import math
 import multiprocessing
-from pathlib import Path
-from unittest.mock import Mock, patch, MagicMock
-from typing import Dict, Any, List, Tuple, Optional
-from dataclasses import dataclass
-import warnings
+import os
 import random
 import string
-from decimal import Decimal, ROUND_HALF_UP
-import math
+import tempfile
+import threading
+import time
+import warnings
+from dataclasses import dataclass
+from decimal import ROUND_HALF_UP, Decimal
+from pathlib import Path
+from typing import Any, Dict, List, Optional, Tuple
+from unittest.mock import MagicMock, Mock, patch
 
-# Import components under test
-from streamlit_dashboard.optimization_schemas import (
-    ParameterSchema, get_parameter_schema, get_default_parameters,
-    validate_parameters, assess_parameter_risk, RiskLevel
-)
+import numpy as np
+import pandas as pd
+import pytest
 from orchestrator.optimization.constraint_solver import CompensationOptimizer
 from orchestrator.optimization.objective_functions import ObjectiveFunctions
 from orchestrator.optimization.optimization_schemas import (
-    OptimizationRequest, OptimizationResult, PARAMETER_SCHEMA
-)
+    PARAMETER_SCHEMA, OptimizationRequest, OptimizationResult)
+
+# Import components under test
+from streamlit_dashboard.optimization_schemas import (ParameterSchema,
+                                                      RiskLevel,
+                                                      assess_parameter_risk,
+                                                      get_default_parameters,
+                                                      get_parameter_schema,
+                                                      validate_parameters)
 
 
 class MockDataGenerator:
@@ -129,13 +131,13 @@ class MockDataGenerator:
         # Infinity values
         infinity_values = {}
         for param_name in list(schema._parameters.keys())[:3]:
-            infinity_values[param_name] = float('inf')
+            infinity_values[param_name] = float("inf")
         invalid_sets.append(("infinity_values", infinity_values))
 
         # NaN values
         nan_values = {}
         for param_name in list(schema._parameters.keys())[:3]:
-            nan_values[param_name] = float('nan')
+            nan_values[param_name] = float("nan")
         invalid_sets.append(("nan_values", nan_values))
 
         return invalid_sets
@@ -163,7 +165,7 @@ class MockDataGenerator:
             "promotion_raise_level_2": 0.0,
             "promotion_raise_level_3": 0.0,
             "promotion_raise_level_4": 0.0,
-            "promotion_raise_level_5": 0.0
+            "promotion_raise_level_5": 0.0,
         }
         scenarios.append(("zero_budget", zero_budget))
 
@@ -182,7 +184,7 @@ class MockDataGenerator:
             "merit_rate_level_4": 0.03,
             "merit_rate_level_5": 0.02,
             "cola_rate": 0.02,
-            "new_hire_salary_adjustment": 1.05
+            "new_hire_salary_adjustment": 1.05,
         }
         scenarios.append(("inverted_merit", inverted_merit))
 
@@ -198,7 +200,7 @@ class MockDataGenerator:
             "promotion_probability_level_1": 0.30,
             "promotion_probability_level_2": 0.25,
             "promotion_raise_level_1": 0.25,
-            "promotion_raise_level_2": 0.25
+            "promotion_raise_level_2": 0.25,
         }
         scenarios.append(("high_growth", high_growth))
 
@@ -213,7 +215,7 @@ class MockDataGenerator:
         tiny_numbers = {
             "merit_rate_level_1": 1e-10,
             "merit_rate_level_2": 1e-15,
-            "cola_rate": 1e-12
+            "cola_rate": 1e-12,
         }
         edge_cases.append(("tiny_numbers", tiny_numbers))
 
@@ -221,7 +223,7 @@ class MockDataGenerator:
         high_precision = {
             "merit_rate_level_1": 0.045123456789012345,
             "merit_rate_level_2": 0.039876543210987654,
-            "cola_rate": 0.024999999999999997
+            "cola_rate": 0.024999999999999997,
         }
         edge_cases.append(("high_precision", high_precision))
 
@@ -229,7 +231,7 @@ class MockDataGenerator:
         rounding_edge = {
             "merit_rate_level_1": 0.1 + 0.2 - 0.3,  # Should be 0, but floating point...
             "merit_rate_level_2": 0.7 * 0.1,  # 0.07 but might have precision issues
-            "cola_rate": 1.0 / 3.0 * 3.0 - 1.0  # Should be 0
+            "cola_rate": 1.0 / 3.0 * 3.0 - 1.0,  # Should be 0
         }
         edge_cases.append(("rounding_edge", rounding_edge))
 
@@ -243,23 +245,34 @@ class MockDataGenerator:
         data = []
         for i in range(num_employees):
             employee = {
-                'employee_id': f"EMP_{i:08d}",
-                'job_level': np.random.choice([1, 2, 3, 4, 5], p=[0.4, 0.3, 0.2, 0.08, 0.02]),
-                'current_compensation': max(30000, np.random.normal(65000, 20000)),
-                'years_of_service': max(0, np.random.exponential(4)),
-                'department': np.random.choice(['Engineering', 'Finance', 'HR', 'Sales', 'Marketing', 'Operations']),
-                'location': np.random.choice(['New York', 'San Francisco', 'Chicago', 'Austin', 'Remote']),
-                'performance_rating': np.random.choice([1, 2, 3, 4, 5], p=[0.05, 0.15, 0.6, 0.15, 0.05]),
-                'hire_date': pd.Timestamp('2020-01-01') + pd.Timedelta(days=np.random.randint(0, 1460))
+                "employee_id": f"EMP_{i:08d}",
+                "job_level": np.random.choice(
+                    [1, 2, 3, 4, 5], p=[0.4, 0.3, 0.2, 0.08, 0.02]
+                ),
+                "current_compensation": max(30000, np.random.normal(65000, 20000)),
+                "years_of_service": max(0, np.random.exponential(4)),
+                "department": np.random.choice(
+                    ["Engineering", "Finance", "HR", "Sales", "Marketing", "Operations"]
+                ),
+                "location": np.random.choice(
+                    ["New York", "San Francisco", "Chicago", "Austin", "Remote"]
+                ),
+                "performance_rating": np.random.choice(
+                    [1, 2, 3, 4, 5], p=[0.05, 0.15, 0.6, 0.15, 0.05]
+                ),
+                "hire_date": pd.Timestamp("2020-01-01")
+                + pd.Timedelta(days=np.random.randint(0, 1460)),
             }
 
             # Adjust compensation based on job level and experience
             level_multipliers = {1: 0.7, 2: 1.0, 3: 1.5, 4: 2.2, 5: 3.5}
-            experience_multiplier = 1 + (employee['years_of_service'] * 0.03)
+            experience_multiplier = 1 + (employee["years_of_service"] * 0.03)
 
-            employee['current_compensation'] *= level_multipliers[employee['job_level']]
-            employee['current_compensation'] *= experience_multiplier
-            employee['current_compensation'] = round(employee['current_compensation'], 2)
+            employee["current_compensation"] *= level_multipliers[employee["job_level"]]
+            employee["current_compensation"] *= experience_multiplier
+            employee["current_compensation"] = round(
+                employee["current_compensation"], 2
+            )
 
             data.append(employee)
 
@@ -272,28 +285,32 @@ class MockDataGenerator:
 
         # Missing critical columns
         base_data = MockDataGenerator.generate_large_workforce_data(100)
-        missing_columns = base_data.drop(columns=['job_level', 'current_compensation'])
+        missing_columns = base_data.drop(columns=["job_level", "current_compensation"])
         scenarios.append(("missing_critical_columns", missing_columns))
 
         # Null values in critical fields
         null_values = base_data.copy()
-        null_values.loc[:10, 'job_level'] = None
-        null_values.loc[5:15, 'current_compensation'] = None
+        null_values.loc[:10, "job_level"] = None
+        null_values.loc[5:15, "current_compensation"] = None
         scenarios.append(("null_critical_values", null_values))
 
         # Invalid job levels
         invalid_levels = base_data.copy()
-        invalid_levels.loc[:20, 'job_level'] = [0, -1, 6, 10, 999] * 4
+        invalid_levels.loc[:20, "job_level"] = [0, -1, 6, 10, 999] * 4
         scenarios.append(("invalid_job_levels", invalid_levels))
 
         # Negative compensation
         negative_comp = base_data.copy()
-        negative_comp.loc[:10, 'current_compensation'] = -abs(negative_comp.loc[:10, 'current_compensation'])
+        negative_comp.loc[:10, "current_compensation"] = -abs(
+            negative_comp.loc[:10, "current_compensation"]
+        )
         scenarios.append(("negative_compensation", negative_comp))
 
         # Extremely high compensation (outliers)
         extreme_comp = base_data.copy()
-        extreme_comp.loc[:5, 'current_compensation'] = np.random.uniform(10_000_000, 100_000_000, 5)
+        extreme_comp.loc[:5, "current_compensation"] = np.random.uniform(
+            10_000_000, 100_000_000, 5
+        )
         scenarios.append(("extreme_compensation", extreme_comp))
 
         return scenarios
@@ -307,26 +324,34 @@ class TestBoundaryValueTesting:
         self.schema = get_parameter_schema()
         self.mock_duckdb = Mock()
         self.mock_conn = Mock()
-        self.mock_duckdb.get_connection.return_value.__enter__.return_value = self.mock_conn
+        self.mock_duckdb.get_connection.return_value.__enter__.return_value = (
+            self.mock_conn
+        )
 
-    @pytest.mark.parametrize("scenario_name,params", MockDataGenerator.generate_boundary_parameters())
+    @pytest.mark.parametrize(
+        "scenario_name,params", MockDataGenerator.generate_boundary_parameters()
+    )
     def test_boundary_parameter_validation(self, scenario_name, params):
         """Test parameter validation at boundary conditions."""
 
         validation_result = self.schema.validate_parameter_set(params)
 
         # Boundary values should be valid
-        assert validation_result['is_valid'], \
-            f"Boundary scenario {scenario_name} failed validation: {validation_result['errors']}"
+        assert validation_result[
+            "is_valid"
+        ], f"Boundary scenario {scenario_name} failed validation: {validation_result['errors']}"
 
         # Check that all parameters are within bounds
         for param_name, value in params.items():
             param_def = self.schema.get_parameter(param_name)
             if param_def:
-                assert param_def.bounds.min_value <= value <= param_def.bounds.max_value, \
-                    f"Parameter {param_name} = {value} outside bounds [{param_def.bounds.min_value}, {param_def.bounds.max_value}]"
+                assert (
+                    param_def.bounds.min_value <= value <= param_def.bounds.max_value
+                ), f"Parameter {param_name} = {value} outside bounds [{param_def.bounds.min_value}, {param_def.bounds.max_value}]"
 
-    @pytest.mark.parametrize("scenario_name,params", MockDataGenerator.generate_invalid_parameters())
+    @pytest.mark.parametrize(
+        "scenario_name,params", MockDataGenerator.generate_invalid_parameters()
+    )
     def test_invalid_parameter_handling(self, scenario_name, params):
         """Test handling of invalid parameter values."""
 
@@ -337,12 +362,16 @@ class TestBoundaryValueTesting:
         else:
             # These should return validation errors
             validation_result = self.schema.validate_parameter_set(params)
-            assert not validation_result['is_valid'], \
-                f"Invalid scenario {scenario_name} should fail validation"
-            assert len(validation_result['errors']) > 0, \
-                f"Invalid scenario {scenario_name} should have error messages"
+            assert not validation_result[
+                "is_valid"
+            ], f"Invalid scenario {scenario_name} should fail validation"
+            assert (
+                len(validation_result["errors"]) > 0
+            ), f"Invalid scenario {scenario_name} should have error messages"
 
-    @pytest.mark.parametrize("scenario_name,params", MockDataGenerator.generate_floating_point_edge_cases())
+    @pytest.mark.parametrize(
+        "scenario_name,params", MockDataGenerator.generate_floating_point_edge_cases()
+    )
     def test_floating_point_precision(self, scenario_name, params):
         """Test handling of floating point precision issues."""
 
@@ -355,18 +384,22 @@ class TestBoundaryValueTesting:
 
         # May or may not be valid depending on the specific values
         assert isinstance(validation_result, dict)
-        assert 'is_valid' in validation_result
+        assert "is_valid" in validation_result
 
         # Should not crash or hang
-        assert validation_result['overall_risk'] in [level for level in RiskLevel]
+        assert validation_result["overall_risk"] in [level for level in RiskLevel]
 
     def test_parameter_precision_consistency(self):
         """Test consistency of parameter precision handling."""
 
         # Test with high precision values
         high_precision_params = {
-            "merit_rate_level_1": Decimal('0.045123456789012345').quantize(Decimal('0.000000000000001')),
-            "cola_rate": Decimal('0.024999999999999997').quantize(Decimal('0.000000000000001'))
+            "merit_rate_level_1": Decimal("0.045123456789012345").quantize(
+                Decimal("0.000000000000001")
+            ),
+            "cola_rate": Decimal("0.024999999999999997").quantize(
+                Decimal("0.000000000000001")
+            ),
         }
 
         # Convert to float for validation
@@ -378,7 +411,7 @@ class TestBoundaryValueTesting:
         validation_result = self.schema.validate_parameter_set(full_params)
 
         assert isinstance(validation_result, dict)
-        assert 'is_valid' in validation_result
+        assert "is_valid" in validation_result
 
     def test_numerical_stability_edge_cases(self):
         """Test numerical stability with edge case calculations."""
@@ -387,7 +420,7 @@ class TestBoundaryValueTesting:
         edge_params = {
             "merit_rate_level_1": 1e-8,  # Very small
             "merit_rate_level_2": 0.999999999999999,  # Close to 1
-            "cola_rate": 0.0000000001  # Tiny positive number
+            "cola_rate": 0.0000000001,  # Tiny positive number
         }
 
         full_params = get_default_parameters()
@@ -402,9 +435,13 @@ class TestBoundaryValueTesting:
 
         # Should not crash with numerical edge cases
         try:
-            with patch.object(optimizer.obj_funcs, 'combined_objective', return_value=0.5):
+            with patch.object(
+                optimizer.obj_funcs, "combined_objective", return_value=0.5
+            ):
                 # Test constraint generation
-                constraints = optimizer._generate_constraints(edge_params, {"cost": 1.0})
+                constraints = optimizer._generate_constraints(
+                    edge_params, {"cost": 1.0}
+                )
                 assert isinstance(constraints, list)
 
                 # Test bounds generation
@@ -414,7 +451,11 @@ class TestBoundaryValueTesting:
 
         except (ValueError, OverflowError, ZeroDivisionError) as e:
             # These errors are acceptable for extreme edge cases
-            assert "overflow" in str(e).lower() or "division" in str(e).lower() or "invalid" in str(e).lower()
+            assert (
+                "overflow" in str(e).lower()
+                or "division" in str(e).lower()
+                or "invalid" in str(e).lower()
+            )
 
 
 class TestExtremeBusinessScenarios:
@@ -425,9 +466,13 @@ class TestExtremeBusinessScenarios:
         self.schema = get_parameter_schema()
         self.mock_duckdb = Mock()
         self.mock_conn = Mock()
-        self.mock_duckdb.get_connection.return_value.__enter__.return_value = self.mock_conn
+        self.mock_duckdb.get_connection.return_value.__enter__.return_value = (
+            self.mock_conn
+        )
 
-    @pytest.mark.parametrize("scenario_name,params", MockDataGenerator.generate_extreme_business_scenarios())
+    @pytest.mark.parametrize(
+        "scenario_name,params", MockDataGenerator.generate_extreme_business_scenarios()
+    )
     def test_extreme_business_scenario_validation(self, scenario_name, params):
         """Test validation of extreme business scenarios."""
 
@@ -439,13 +484,15 @@ class TestExtremeBusinessScenarios:
 
         # Scenarios should be processable (may not be valid business-wise)
         assert isinstance(validation_result, dict)
-        assert 'is_valid' in validation_result
-        assert 'overall_risk' in validation_result
+        assert "is_valid" in validation_result
+        assert "overall_risk" in validation_result
 
         # Extreme scenarios should typically result in high risk assessments
         if scenario_name in ["zero_budget", "maximum_budget", "high_growth"]:
-            assert validation_result['overall_risk'] in [RiskLevel.HIGH, RiskLevel.CRITICAL], \
-                f"Extreme scenario {scenario_name} should have high risk assessment"
+            assert validation_result["overall_risk"] in [
+                RiskLevel.HIGH,
+                RiskLevel.CRITICAL,
+            ], f"Extreme scenario {scenario_name} should have high risk assessment"
 
     def test_zero_budget_scenario_impact(self):
         """Test impact analysis for zero budget scenario."""
@@ -455,7 +502,7 @@ class TestExtremeBusinessScenarios:
             "merit_rate_level_2": 0.0,
             "merit_rate_level_3": 0.0,
             "cola_rate": 0.0,
-            "new_hire_salary_adjustment": 1.0
+            "new_hire_salary_adjustment": 1.0,
         }
 
         full_params = get_default_parameters()
@@ -466,7 +513,7 @@ class TestExtremeBusinessScenarios:
 
         obj_funcs = ObjectiveFunctions(self.mock_duckdb, "zero_budget_test")
 
-        with patch.object(obj_funcs, '_update_parameters'):
+        with patch.object(obj_funcs, "_update_parameters"):
             cost = obj_funcs.cost_objective(zero_params)
 
         # Zero budget should result in zero cost
@@ -485,7 +532,7 @@ class TestExtremeBusinessScenarios:
 
         obj_funcs = ObjectiveFunctions(self.mock_duckdb, "max_budget_test")
 
-        with patch.object(obj_funcs, '_update_parameters'):
+        with patch.object(obj_funcs, "_update_parameters"):
             cost = obj_funcs.cost_objective(max_params)
 
         # Maximum budget should result in very high cost
@@ -499,7 +546,7 @@ class TestExtremeBusinessScenarios:
             "merit_rate_level_2": 0.06,
             "merit_rate_level_3": 0.04,
             "merit_rate_level_4": 0.03,
-            "merit_rate_level_5": 0.02
+            "merit_rate_level_5": 0.02,
         }
 
         full_params = get_default_parameters()
@@ -508,11 +555,15 @@ class TestExtremeBusinessScenarios:
         validation_result = self.schema.validate_parameter_set(full_params)
 
         # Should be valid but likely flagged as high risk
-        assert validation_result['is_valid']
-        assert validation_result['overall_risk'] in [RiskLevel.MEDIUM, RiskLevel.HIGH, RiskLevel.CRITICAL]
+        assert validation_result["is_valid"]
+        assert validation_result["overall_risk"] in [
+            RiskLevel.MEDIUM,
+            RiskLevel.HIGH,
+            RiskLevel.CRITICAL,
+        ]
 
         # Should generate warnings about unusual structure
-        assert len(validation_result['warnings']) > 0
+        assert len(validation_result["warnings"]) > 0
 
     def test_extreme_growth_scenario_constraints(self):
         """Test constraint handling for extreme growth scenarios."""
@@ -520,7 +571,7 @@ class TestExtremeBusinessScenarios:
         extreme_growth = {
             "merit_rate_level_1": 0.15,  # 15% merit increase
             "promotion_probability_level_1": 0.50,  # 50% promotion rate
-            "new_hire_salary_adjustment": 2.0  # 200% salary premium
+            "new_hire_salary_adjustment": 2.0,  # 200% salary premium
         }
 
         full_params = get_default_parameters()
@@ -530,11 +581,11 @@ class TestExtremeBusinessScenarios:
         validation_result = self.schema.validate_parameter_set(full_params)
 
         # Should be invalid due to exceeding bounds
-        assert not validation_result['is_valid']
-        assert len(validation_result['errors']) > 0
+        assert not validation_result["is_valid"]
+        assert len(validation_result["errors"]) > 0
 
         # Error messages should be specific
-        error_messages = ' '.join(validation_result['errors'])
+        error_messages = " ".join(validation_result["errors"])
         assert "above maximum" in error_messages.lower()
 
     def test_workforce_reduction_scenario(self):
@@ -544,7 +595,7 @@ class TestExtremeBusinessScenarios:
             "merit_rate_level_1": 0.01,  # Very low merit
             "cola_rate": 0.0,  # No COLA
             "new_hire_salary_adjustment": 0.95,  # Salary reduction for new hires
-            "promotion_probability_level_1": 0.01  # Almost no promotions
+            "promotion_probability_level_1": 0.01,  # Almost no promotions
         }
 
         full_params = get_default_parameters()
@@ -553,11 +604,11 @@ class TestExtremeBusinessScenarios:
         validation_result = self.schema.validate_parameter_set(full_params)
 
         # Should be valid but high risk
-        assert validation_result['is_valid']
-        assert validation_result['overall_risk'] in [RiskLevel.HIGH, RiskLevel.CRITICAL]
+        assert validation_result["is_valid"]
+        assert validation_result["overall_risk"] in [RiskLevel.HIGH, RiskLevel.CRITICAL]
 
         # Should generate retention warnings
-        warning_text = ' '.join(validation_result['warnings']).lower()
+        warning_text = " ".join(validation_result["warnings"]).lower()
         assert "retention" in warning_text or "risk" in warning_text
 
 
@@ -572,9 +623,13 @@ class TestDataCorruptionScenarios:
     def teardown_method(self):
         """Cleanup temporary files."""
         import shutil
+
         shutil.rmtree(self.temp_dir, ignore_errors=True)
 
-    @pytest.mark.parametrize("scenario_name,corrupted_data", MockDataGenerator.generate_corrupted_data_scenarios())
+    @pytest.mark.parametrize(
+        "scenario_name,corrupted_data",
+        MockDataGenerator.generate_corrupted_data_scenarios(),
+    )
     def test_corrupted_workforce_data_handling(self, scenario_name, corrupted_data):
         """Test handling of corrupted workforce data."""
 
@@ -589,48 +644,55 @@ class TestDataCorruptionScenarios:
 
             # Should handle missing columns gracefully
             if scenario_name == "missing_critical_columns":
-                assert 'job_level' not in loaded_data.columns
-                assert 'current_compensation' not in loaded_data.columns
+                assert "job_level" not in loaded_data.columns
+                assert "current_compensation" not in loaded_data.columns
 
             # Should detect null values
             elif scenario_name == "null_critical_values":
-                assert loaded_data['job_level'].isnull().sum() > 0
-                assert loaded_data['current_compensation'].isnull().sum() > 0
+                assert loaded_data["job_level"].isnull().sum() > 0
+                assert loaded_data["current_compensation"].isnull().sum() > 0
 
             # Should preserve invalid data for validation to catch
             elif scenario_name == "invalid_job_levels":
-                invalid_levels = loaded_data['job_level'].unique()
-                assert any(level not in [1, 2, 3, 4, 5] for level in invalid_levels if not pd.isna(level))
+                invalid_levels = loaded_data["job_level"].unique()
+                assert any(
+                    level not in [1, 2, 3, 4, 5]
+                    for level in invalid_levels
+                    if not pd.isna(level)
+                )
 
         except Exception as e:
             # Some corruption scenarios may cause read failures - this is acceptable
-            assert isinstance(e, (pd.errors.EmptyDataError, ValueError, UnicodeDecodeError))
+            assert isinstance(
+                e, (pd.errors.EmptyDataError, ValueError, UnicodeDecodeError)
+            )
 
     def test_malformed_parameter_files(self):
         """Test handling of malformed parameter configuration files."""
 
         # Create malformed JSON file
         malformed_json = os.path.join(self.temp_dir, "malformed.json")
-        with open(malformed_json, 'w') as f:
+        with open(malformed_json, "w") as f:
             f.write('{"incomplete": json syntax, "missing": quotes}')
 
         # Should raise appropriate exception
         with pytest.raises(json.JSONDecodeError):
-            with open(malformed_json, 'r') as f:
+            with open(malformed_json, "r") as f:
                 json.load(f)
 
         # Create malformed YAML file
         malformed_yaml = os.path.join(self.temp_dir, "malformed.yaml")
-        with open(malformed_yaml, 'w') as f:
+        with open(malformed_yaml, "w") as f:
             f.write("invalid: yaml: structure:\n")
             f.write("  - incomplete\n")
             f.write("  - nested: structure\n")
-            f.write("missing_quotes: this is \"unclosed\n")
+            f.write('missing_quotes: this is "unclosed\n')
 
         # Should raise appropriate exception
         with pytest.raises(Exception):  # yaml.YAMLError or similar
             import yaml
-            with open(malformed_yaml, 'r') as f:
+
+            with open(malformed_yaml, "r") as f:
                 yaml.safe_load(f)
 
     def test_inconsistent_parameter_state(self):
@@ -641,7 +703,7 @@ class TestDataCorruptionScenarios:
             "merit_rate_level_1": 0.02,  # Very low
             "merit_rate_level_5": 0.08,  # Very high
             "cola_rate": 0.0,  # No COLA
-            "new_hire_salary_adjustment": 1.50  # High premium
+            "new_hire_salary_adjustment": 1.50,  # High premium
         }
 
         full_params = get_default_parameters()
@@ -651,12 +713,15 @@ class TestDataCorruptionScenarios:
 
         # Should be processable but likely generate warnings
         assert isinstance(validation_result, dict)
-        assert 'is_valid' in validation_result
+        assert "is_valid" in validation_result
 
         # Inconsistent policies should generate warnings or high risk
-        if validation_result['is_valid']:
-            assert validation_result['overall_risk'] in [RiskLevel.MEDIUM, RiskLevel.HIGH, RiskLevel.CRITICAL] or \
-                   len(validation_result['warnings']) > 0
+        if validation_result["is_valid"]:
+            assert (
+                validation_result["overall_risk"]
+                in [RiskLevel.MEDIUM, RiskLevel.HIGH, RiskLevel.CRITICAL]
+                or len(validation_result["warnings"]) > 0
+            )
 
     def test_parameter_file_encoding_issues(self):
         """Test handling of file encoding issues."""
@@ -670,11 +735,11 @@ class TestDataCorruptionScenarios:
         problematic_content += "côla_rate,0.025\n"  # Non-ASCII character
 
         # Test different encodings
-        encodings = ['utf-8', 'latin-1', 'cp1252']
+        encodings = ["utf-8", "latin-1", "cp1252"]
 
         for encoding in encodings:
             try:
-                with open(encoding_test_file, 'w', encoding=encoding) as f:
+                with open(encoding_test_file, "w", encoding=encoding) as f:
                     f.write(problematic_content)
 
                 # Try to read with pandas
@@ -682,7 +747,7 @@ class TestDataCorruptionScenarios:
 
                 # Should read successfully with correct encoding
                 assert len(df) > 0
-                assert 'parameter_name' in df.columns
+                assert "parameter_name" in df.columns
 
             except UnicodeDecodeError:
                 # Some encoding mismatches are expected
@@ -702,7 +767,7 @@ class TestDataCorruptionScenarios:
 
         # Should handle gracefully with warnings about unknown parameters
         assert isinstance(validation_result, dict)
-        assert len(validation_result['warnings']) > 0
+        assert len(validation_result["warnings"]) > 0
 
         # Should not crash or hang
         assert time.time()  # Simple check that we're still running
@@ -713,19 +778,23 @@ class TestDataCorruptionScenarios:
         test_file = os.path.join(self.temp_dir, "concurrent_test.csv")
 
         # Create initial file
-        initial_data = pd.DataFrame({
-            'parameter_name': ['merit_rate_level_1', 'cola_rate'],
-            'value': [0.045, 0.025]
-        })
+        initial_data = pd.DataFrame(
+            {
+                "parameter_name": ["merit_rate_level_1", "cola_rate"],
+                "value": [0.045, 0.025],
+            }
+        )
         initial_data.to_csv(test_file, index=False)
 
         # Function to modify file
         def modify_file():
             time.sleep(0.1)  # Small delay
-            modified_data = pd.DataFrame({
-                'parameter_name': ['merit_rate_level_1', 'cola_rate'],
-                'value': [0.050, 0.030]
-            })
+            modified_data = pd.DataFrame(
+                {
+                    "parameter_name": ["merit_rate_level_1", "cola_rate"],
+                    "value": [0.050, 0.030],
+                }
+            )
             modified_data.to_csv(test_file, index=False)
 
         # Start file modification in background
@@ -763,7 +832,7 @@ class TestConcurrentAccessPatterns:
             try:
                 params = get_default_parameters()
                 # Add slight variation per worker
-                params['merit_rate_level_1'] += worker_id * 0.001
+                params["merit_rate_level_1"] += worker_id * 0.001
 
                 result = self.schema.validate_parameter_set(params)
                 self.results.append((worker_id, result))
@@ -795,7 +864,7 @@ class TestConcurrentAccessPatterns:
 
         # All results should be valid
         for worker_id, result in self.results:
-            assert result['is_valid'], f"Worker {worker_id} validation failed"
+            assert result["is_valid"], f"Worker {worker_id} validation failed"
 
     def test_concurrent_optimization_requests(self):
         """Test handling of concurrent optimization requests."""
@@ -805,22 +874,28 @@ class TestConcurrentAccessPatterns:
             try:
                 mock_duckdb = Mock()
                 mock_conn = Mock()
-                mock_duckdb.get_connection.return_value.__enter__.return_value = mock_conn
+                mock_duckdb.get_connection.return_value.__enter__.return_value = (
+                    mock_conn
+                )
 
                 # Mock database responses
                 mock_conn.execute.return_value.fetchone.return_value = [1_000_000.0]
-                mock_conn.execute.return_value.fetchall.return_value = [(1, 50000, 2500)]
+                mock_conn.execute.return_value.fetchall.return_value = [
+                    (1, 50000, 2500)
+                ]
 
-                optimizer = CompensationOptimizer(mock_duckdb, f"concurrent_test_{worker_id}")
+                optimizer = CompensationOptimizer(
+                    mock_duckdb, f"concurrent_test_{worker_id}"
+                )
 
                 request = OptimizationRequest(
                     scenario_id=f"concurrent_test_{worker_id}",
                     initial_parameters=get_default_parameters(),
-                    objectives={"cost": 1.0}
+                    objectives={"cost": 1.0},
                 )
 
                 # Mock optimization
-                with patch('scipy.optimize.minimize') as mock_minimize:
+                with patch("scipy.optimize.minimize") as mock_minimize:
                     mock_result = Mock()
                     mock_result.success = True
                     mock_result.x = [0.045]
@@ -868,7 +943,7 @@ class TestConcurrentAccessPatterns:
                 # Try to acquire exclusive file lock
                 for attempt in range(5):
                     try:
-                        with open(lock_file, 'x') as f:  # Exclusive creation
+                        with open(lock_file, "x") as f:  # Exclusive creation
                             f.write(f"Worker {worker_id}")
                             time.sleep(0.1)  # Hold resource briefly
 
@@ -913,15 +988,22 @@ class TestConcurrentAccessPatterns:
         assert success_count > 0, "No workers succeeded in acquiring resource"
 
         # Should handle contention gracefully
-        assert len(self.errors) == 0, f"Resource contention caused errors: {self.errors}"
+        assert (
+            len(self.errors) == 0
+        ), f"Resource contention caused errors: {self.errors}"
 
 
 if __name__ == "__main__":
     # Run edge case tests
-    pytest.main([
-        __file__ + "::TestBoundaryValueTesting::test_boundary_parameter_validation",
-        __file__ + "::TestExtremeBusinessScenarios::test_extreme_business_scenario_validation",
-        __file__ + "::TestDataCorruptionScenarios::test_corrupted_workforce_data_handling",
-        __file__ + "::TestConcurrentAccessPatterns::test_concurrent_parameter_validation",
-        "-v"
-    ])
+    pytest.main(
+        [
+            __file__ + "::TestBoundaryValueTesting::test_boundary_parameter_validation",
+            __file__
+            + "::TestExtremeBusinessScenarios::test_extreme_business_scenario_validation",
+            __file__
+            + "::TestDataCorruptionScenarios::test_corrupted_workforce_data_handling",
+            __file__
+            + "::TestConcurrentAccessPatterns::test_concurrent_parameter_validation",
+            "-v",
+        ]
+    )

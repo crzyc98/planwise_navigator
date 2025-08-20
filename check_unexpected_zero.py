@@ -3,7 +3,7 @@
 
 import duckdb
 
-conn = duckdb.connect('/Users/nicholasamaral/planwise_navigator/simulation.duckdb')
+conn = duckdb.connect("/Users/nicholasamaral/planwise_navigator/simulation.duckdb")
 
 # Check employees with UNEXPECTED_ZERO_RATE
 query = """
@@ -20,9 +20,11 @@ WHERE simulation_year = 2025
 LIMIT 5
 """
 results = conn.execute(query).fetchall()
-print('Sample of employees with UNEXPECTED_ZERO_RATE:')
+print("Sample of employees with UNEXPECTED_ZERO_RATE:")
 for row in results:
-    print(f'  {row[0]}: rate={row[1]}, contributions=${row[2]:.2f}, enrolled={row[3]}, source={row[4]}, status={row[5]}')
+    print(
+        f"  {row[0]}: rate={row[1]}, contributions=${row[2]:.2f}, enrolled={row[3]}, source={row[4]}, status={row[5]}"
+    )
 
 # Check if these are legitimate zero rates from census
 query2 = """
@@ -34,7 +36,7 @@ WHERE simulation_year = 2025
     AND data_quality_flag = 'UNEXPECTED_ZERO_RATE'
 """
 result = conn.execute(query2).fetchone()
-print(f'\nTotal UNEXPECTED_ZERO_RATE: {result[0]}, Avg contributions: ${result[1]:.2f}')
+print(f"\nTotal UNEXPECTED_ZERO_RATE: {result[0]}, Avg contributions: ${result[1]:.2f}")
 
 # Check if these employees have zero rate in census
 query3 = """
@@ -44,6 +46,6 @@ FROM stg_census_data
 WHERE employee_deferral_rate = 0
 """
 result = conn.execute(query3).fetchone()
-print(f'Employees with 0% rate in census: {result[0]}')
+print(f"Employees with 0% rate in census: {result[0]}")
 
 conn.close()

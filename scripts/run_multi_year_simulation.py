@@ -28,8 +28,8 @@ Examples:
 
 import argparse
 import asyncio
-import sys
 import subprocess
+import sys
 from pathlib import Path
 from typing import List, Optional
 
@@ -44,18 +44,25 @@ def run_orchestrator_dbt_cli(
     fail_fast: bool = False,
     foundation_only: bool = False,
     config_path: Optional[str] = None,
-    verbose: bool = False
+    verbose: bool = False,
 ) -> int:
     """Run the orchestrator_dbt CLI with the specified parameters."""
 
     # Build the command
     cmd = [
-        sys.executable, "-m", "orchestrator_dbt.cli.run_multi_year",
-        "--start-year", str(start_year),
-        "--end-year", str(end_year),
-        "--optimization", optimization,
-        "--max-workers", str(max_workers),
-        "--batch-size", str(batch_size)
+        sys.executable,
+        "-m",
+        "orchestrator_dbt.cli.run_multi_year",
+        "--start-year",
+        str(start_year),
+        "--end-year",
+        str(end_year),
+        "--optimization",
+        optimization,
+        "--max-workers",
+        str(max_workers),
+        "--batch-size",
+        str(batch_size),
     ]
 
     # Add optional flags
@@ -104,7 +111,7 @@ def main():
     parser = argparse.ArgumentParser(
         description="Simple Multi-Year Simulation Runner",
         formatter_class=argparse.RawDescriptionHelpFormatter,
-        epilog=__doc__
+        epilog=__doc__,
     )
 
     # Primary arguments
@@ -112,7 +119,7 @@ def main():
         "--years",
         nargs="+",
         type=int,
-        help="Simulation years (e.g., --years 2025 2026 2027)"
+        help="Simulation years (e.g., --years 2025 2026 2027)",
     )
 
     # Optimization settings
@@ -120,52 +127,48 @@ def main():
         "--optimization",
         choices=["high", "medium", "low", "fallback"],
         default="high",
-        help="Optimization level (default: high)"
+        help="Optimization level (default: high)",
     )
     parser.add_argument(
         "--threads",
         type=int,
         default=4,
-        help="Number of concurrent threads (default: 4)"
+        help="Number of concurrent threads (default: 4)",
     )
     parser.add_argument(
         "--batch-size",
         type=int,
         default=1000,
-        help="Processing batch size (default: 1000)"
+        help="Processing batch size (default: 1000)",
     )
 
     # Feature flags
     parser.add_argument(
         "--enable-compression",
         action="store_true",
-        help="Enable state compression for memory efficiency"
+        help="Enable state compression for memory efficiency",
     )
     parser.add_argument(
         "--fail-fast",
         action="store_true",
-        help="Stop on first year failure (default: continue)"
+        help="Stop on first year failure (default: continue)",
     )
 
     # Operation modes
     parser.add_argument(
         "--foundation-only",
         action="store_true",
-        help="Run foundation setup only (for testing)"
+        help="Run foundation setup only (for testing)",
     )
 
     # Configuration
     parser.add_argument(
-        "--config",
-        type=str,
-        help="Path to simulation configuration file (YAML)"
+        "--config", type=str, help="Path to simulation configuration file (YAML)"
     )
 
     # Logging
     parser.add_argument(
-        "--verbose", "-v",
-        action="store_true",
-        help="Enable verbose logging"
+        "--verbose", "-v", action="store_true", help="Enable verbose logging"
     )
 
     args = parser.parse_args()
@@ -184,7 +187,7 @@ def main():
                 fail_fast=args.fail_fast,
                 foundation_only=True,
                 config_path=args.config,
-                verbose=args.verbose
+                verbose=args.verbose,
             )
 
         elif args.years:
@@ -204,7 +207,7 @@ def main():
                 fail_fast=args.fail_fast,
                 foundation_only=False,
                 config_path=args.config,
-                verbose=args.verbose
+                verbose=args.verbose,
             )
 
         else:
@@ -222,6 +225,7 @@ def main():
         print(f"❌ Unexpected error: {e}")
         if args.verbose:
             import traceback
+
             traceback.print_exc()
         return 1
 

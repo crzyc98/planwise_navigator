@@ -4,11 +4,11 @@ Simplified unit tests for S013-05: run_year_simulation refactoring
 Basic tests to verify the refactored function works correctly with modular components.
 """
 
-import pytest
 from unittest.mock import Mock, patch
-from dagster import build_op_context
 
-from orchestrator.simulator_pipeline import run_year_simulation, YearResult
+import pytest
+from dagster import build_op_context
+from orchestrator.simulator_pipeline import YearResult, run_year_simulation
 
 
 class TestRunYearSimulationSimple:
@@ -37,15 +37,20 @@ class TestRunYearSimulationSimple:
                 "random_seed": 42,
                 "full_refresh": False,
             },
-            resources={"dbt": dbt_resource}
+            resources={"dbt": dbt_resource},
         )
 
-        with patch('orchestrator.simulator_pipeline.duckdb.connect') as mock_connect, \
-             patch('orchestrator.simulator_pipeline.clean_duckdb_data') as mock_clean, \
-             patch('orchestrator.simulator_pipeline.execute_dbt_command') as mock_execute_dbt, \
-             patch('orchestrator.simulator_pipeline._run_dbt_event_models_for_year_internal') as mock_event_models, \
-             patch('orchestrator.simulator_pipeline.validate_year_results') as mock_validate:
-
+        with patch(
+            "orchestrator.simulator_pipeline.duckdb.connect"
+        ) as mock_connect, patch(
+            "orchestrator.simulator_pipeline.clean_duckdb_data"
+        ) as mock_clean, patch(
+            "orchestrator.simulator_pipeline.execute_dbt_command"
+        ) as mock_execute_dbt, patch(
+            "orchestrator.simulator_pipeline._run_dbt_event_models_for_year_internal"
+        ) as mock_event_models, patch(
+            "orchestrator.simulator_pipeline.validate_year_results"
+        ) as mock_validate:
             # Setup mocks
             mock_conn = Mock()
             mock_conn.execute.return_value.fetchone.return_value = [1000]
@@ -61,7 +66,7 @@ class TestRunYearSimulationSimple:
                 new_hire_terminations=20,
                 total_hires=150,
                 growth_rate=0.03,
-                validation_passed=True
+                validation_passed=True,
             )
 
             # Execute
@@ -94,13 +99,16 @@ class TestRunYearSimulationSimple:
                 "random_seed": 42,
                 "full_refresh": False,
             },
-            resources={"dbt": dbt_resource}
+            resources={"dbt": dbt_resource},
         )
 
-        with patch('orchestrator.simulator_pipeline.duckdb.connect') as mock_connect, \
-             patch('orchestrator.simulator_pipeline.clean_duckdb_data') as mock_clean, \
-             patch('orchestrator.simulator_pipeline.execute_dbt_command') as mock_execute_dbt:
-
+        with patch(
+            "orchestrator.simulator_pipeline.duckdb.connect"
+        ) as mock_connect, patch(
+            "orchestrator.simulator_pipeline.clean_duckdb_data"
+        ) as mock_clean, patch(
+            "orchestrator.simulator_pipeline.execute_dbt_command"
+        ) as mock_execute_dbt:
             # Setup mocks
             mock_conn = Mock()
             mock_conn.close = Mock()
@@ -132,15 +140,20 @@ class TestRunYearSimulationSimple:
                 "random_seed": 123,
                 "full_refresh": True,
             },
-            resources={"dbt": dbt_resource}
+            resources={"dbt": dbt_resource},
         )
 
-        with patch('orchestrator.simulator_pipeline.duckdb.connect') as mock_connect, \
-             patch('orchestrator.simulator_pipeline.clean_duckdb_data') as mock_clean, \
-             patch('orchestrator.simulator_pipeline.execute_dbt_command') as mock_execute_dbt, \
-             patch('orchestrator.simulator_pipeline._run_dbt_event_models_for_year_internal') as mock_event_models, \
-             patch('orchestrator.simulator_pipeline.validate_year_results') as mock_validate:
-
+        with patch(
+            "orchestrator.simulator_pipeline.duckdb.connect"
+        ) as mock_connect, patch(
+            "orchestrator.simulator_pipeline.clean_duckdb_data"
+        ) as mock_clean, patch(
+            "orchestrator.simulator_pipeline.execute_dbt_command"
+        ) as mock_execute_dbt, patch(
+            "orchestrator.simulator_pipeline._run_dbt_event_models_for_year_internal"
+        ) as mock_event_models, patch(
+            "orchestrator.simulator_pipeline.validate_year_results"
+        ) as mock_validate:
             # Setup mocks
             mock_conn = Mock()
             mock_conn.execute.return_value.fetchone.return_value = [1000]
@@ -156,7 +169,7 @@ class TestRunYearSimulationSimple:
                 new_hire_terminations=30,
                 total_hires=180,
                 growth_rate=0.05,
-                validation_passed=True
+                validation_passed=True,
             )
 
             # Execute

@@ -178,12 +178,14 @@ class EnrollmentRegistry(Registry, TransactionalRegistry):
         Registries are orchestrator-managed and not partitioned by simulation_year,
         so we need an explicit reset between runs to avoid stale state.
         """
-        return self.execute_transaction([
-            "DELETE FROM enrollment_registry"
-        ])
+        return self.execute_transaction(["DELETE FROM enrollment_registry"])
 
     def update_post_year(self, year: int) -> bool:
-        ops = [self.sql.render_template(self.sql.ENROLLMENT_REGISTRY_FROM_EVENTS, year=year)]
+        ops = [
+            self.sql.render_template(
+                self.sql.ENROLLMENT_REGISTRY_FROM_EVENTS, year=year
+            )
+        ]
         return self.execute_transaction(ops)
 
     def get_enrolled_employees(self, year: int) -> List[str]:
@@ -250,7 +252,9 @@ class EnrollmentRegistry(Registry, TransactionalRegistry):
         if duplicates > 0:
             errors.append(f"{duplicates} duplicate employee registrations")
 
-        return RegistryValidationResult(is_valid=len(errors) == 0, errors=errors, warnings=warnings)
+        return RegistryValidationResult(
+            is_valid=len(errors) == 0, errors=errors, warnings=warnings
+        )
 
 
 class DeferralEscalationRegistry(Registry, TransactionalRegistry):
@@ -262,14 +266,16 @@ class DeferralEscalationRegistry(Registry, TransactionalRegistry):
         return self.execute_transaction([self.sql.DEFERRAL_ESCALATION_CREATE])
 
     def reset(self) -> bool:
-        return self.execute_transaction([
-            "DELETE FROM deferral_escalation_registry"
-        ])
+        return self.execute_transaction(["DELETE FROM deferral_escalation_registry"])
 
     def update_post_year(self, year: int) -> bool:
         ops = [
-            self.sql.render_template(self.sql.DEFERRAL_ESCALATION_UPDATE_FROM_EVENTS, year=year),
-            self.sql.render_template(self.sql.DEFERRAL_ESCALATION_INSERT_FROM_EVENTS, year=year),
+            self.sql.render_template(
+                self.sql.DEFERRAL_ESCALATION_UPDATE_FROM_EVENTS, year=year
+            ),
+            self.sql.render_template(
+                self.sql.DEFERRAL_ESCALATION_INSERT_FROM_EVENTS, year=year
+            ),
         ]
         return self.execute_transaction(ops)
 
@@ -317,7 +323,9 @@ class DeferralEscalationRegistry(Registry, TransactionalRegistry):
         negatives = self.db_manager.execute_with_retry(_run)
         if negatives > 0:
             errors.append("Negative escalation counts detected")
-        return RegistryValidationResult(is_valid=len(errors) == 0, errors=errors, warnings=warnings)
+        return RegistryValidationResult(
+            is_valid=len(errors) == 0, errors=errors, warnings=warnings
+        )
 
 
 class RegistryManager:

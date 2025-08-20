@@ -5,10 +5,10 @@ Comprehensive test suite for the snapshot management operation,
 covering all snapshot types, validation scenarios, and error handling.
 """
 
-import pytest
 from unittest.mock import Mock, patch
-from dagster import OpExecutionContext
 
+import pytest
+from dagster import OpExecutionContext
 from orchestrator.simulator_pipeline import run_dbt_snapshot_for_year
 
 
@@ -101,7 +101,9 @@ class TestSnapshotOperation:
 
         # Mock database connection - previous_year only needs post-validation
         mock_conn = Mock()
-        mock_conn.execute.return_value.fetchone.return_value = [125]  # Final snapshot count
+        mock_conn.execute.return_value.fetchone.return_value = [
+            125
+        ]  # Final snapshot count
         mock_duckdb_connect.return_value = mock_conn
 
         result = run_dbt_snapshot_for_year(mock_context, year, snapshot_type)
@@ -229,7 +231,9 @@ class TestSnapshotOperation:
 
         # Mock database connection for pre-validation
         mock_conn = Mock()
-        mock_conn.execute.return_value.fetchone.return_value = [0]  # Pre-validation only
+        mock_conn.execute.return_value.fetchone.return_value = [
+            0
+        ]  # Pre-validation only
         mock_duckdb_connect.return_value = mock_conn
 
         # Mock dbt command failure
@@ -587,7 +591,9 @@ class TestSnapshotOperationIntegration:
             mock_connections.append(mock_conn)
 
             if snapshot_type == "previous_year":
-                mock_conn.execute.return_value.fetchone.return_value = fetchone_returns[0]
+                mock_conn.execute.return_value.fetchone.return_value = fetchone_returns[
+                    0
+                ]
             else:
                 mock_conn.execute.return_value.fetchone.side_effect = fetchone_returns
 
@@ -609,6 +615,10 @@ class TestSnapshotOperationIntegration:
         assert [r["records_created"] for r in results] == expected_records
 
         # Verify each connection was closed the appropriate number of times
-        expected_close_counts = [2, 3, 3]  # previous_year: 2, end_of_year: 3, recovery: 3
+        expected_close_counts = [
+            2,
+            3,
+            3,
+        ]  # previous_year: 2, end_of_year: 3, recovery: 3
         for i, expected_count in enumerate(expected_close_counts):
             assert mock_connections[i].close.call_count == expected_count

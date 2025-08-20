@@ -5,14 +5,16 @@ Traces the raise event counting logic through the validation system to identify 
 raise counts are showing as zero when merit events should be generated.
 """
 
-import duckdb
-import pandas as pd
 import sys
 from pathlib import Path
+
+import duckdb
+import pandas as pd
 
 # Add project root to Python path
 project_root = Path(__file__).parent.parent
 sys.path.append(str(project_root))
+
 
 def connect_to_database():
     """Connect to the simulation database"""
@@ -21,6 +23,7 @@ def connect_to_database():
         print(f"❌ Database not found at {db_path}")
         sys.exit(1)
     return duckdb.connect(str(db_path))
+
 
 def replicate_validation_query(conn, simulation_year=2025):
     """Replicate the exact validation query from multi_year_simulation.py"""
@@ -55,10 +58,13 @@ def replicate_validation_query(conn, simulation_year=2025):
     print(f"  Total events: {result['total_events']}")
     print(f"  Unique employees: {result['unique_employees']}")
 
-    if result['raise_events'] == 0 and result['total_events'] > 0:
-        print("🚨 ISSUE DETECTED: Raise events showing as 0 despite other events present!")
+    if result["raise_events"] == 0 and result["total_events"] > 0:
+        print(
+            "🚨 ISSUE DETECTED: Raise events showing as 0 despite other events present!"
+        )
 
     return result
+
 
 def verify_event_generation(conn, simulation_year=2025):
     """Verify event generation by querying fct_yearly_events directly"""
@@ -86,8 +92,10 @@ def verify_event_generation(conn, simulation_year=2025):
     print("Direct event counts by type:")
     raise_found = False
     for _, row in df.iterrows():
-        print(f"  {row['event_type']}: {row['event_count']} events ({row['unique_employees']} employees)")
-        if row['event_type'].upper() == 'RAISE' or 'RAISE' in row['event_type'].upper():
+        print(
+            f"  {row['event_type']}: {row['event_count']} events ({row['unique_employees']} employees)"
+        )
+        if row["event_type"].upper() == "RAISE" or "RAISE" in row["event_type"].upper():
             raise_found = True
 
     if not raise_found:
@@ -107,6 +115,7 @@ def verify_event_generation(conn, simulation_year=2025):
             for _, row in case_df.iterrows():
                 print(f"  '{row['event_type']}'")
 
+
 def trace_merit_event_pipeline(conn, simulation_year=2025):
     """Trace merit event generation through the pipeline"""
     print(f"\n🔗 TRACING MERIT EVENT PIPELINE FOR YEAR {simulation_year}")
@@ -121,7 +130,7 @@ def trace_merit_event_pipeline(conn, simulation_year=2025):
 
     try:
         merit_df = conn.execute(merit_check_query, [simulation_year]).df()
-        merit_count = merit_df.iloc[0]['merit_count']
+        merit_count = merit_df.iloc[0]["merit_count"]
         print(f"Merit events in intermediate table: {merit_count}")
 
         if merit_count == 0:
@@ -139,13 +148,16 @@ def trace_merit_event_pipeline(conn, simulation_year=2025):
             elig_df = conn.execute(eligibility_query, [simulation_year]).df()
             if not elig_df.empty:
                 elig_result = elig_df.iloc[0]
-                print(f"Base workforce: {elig_result['total_employees']} total, {elig_result['active_employees']} active")
+                print(
+                    f"Base workforce: {elig_result['total_employees']} total, {elig_result['active_employees']} active"
+                )
 
-                if elig_result['active_employees'] == 0:
+                if elig_result["active_employees"] == 0:
                     print("🚨 No active employees found for merit eligibility!")
 
     except Exception as e:
         print(f"❌ Could not query int_merit_events: {e}")
+
 
 def check_event_type_consistency(conn, simulation_year=2025):
     """Check for event type consistency issues"""
@@ -169,7 +181,10 @@ def check_event_type_consistency(conn, simulation_year=2025):
 
     print("Event type variations:")
     for _, row in df.iterrows():
-        print(f"  '{row['event_type']}' -> Upper: '{row['upper_type']}', Lower: '{row['lower_type']}' ({row['count']} events)")
+        print(
+            f"  '{row['event_type']}' -> Upper: '{row['upper_type']}', Lower: '{row['lower_type']}' ({row['count']} events)"
+        )
+
 
 def validate_database_connection(conn):
     """Validate database connection and file consistency"""
@@ -201,6 +216,7 @@ def validate_database_connection(conn):
     print("\nRelevant tables found:")
     for _, row in tables_df.iterrows():
         print(f"  {row['table_name']} ({row['table_type']})")
+
 
 def test_parameter_resolution(conn):
     """Test parameter resolution system that might affect merit event generation"""
@@ -242,6 +258,7 @@ def test_parameter_resolution(conn):
     except Exception as e:
         print(f"❌ Could not query int_effective_parameters: {e}")
 
+
 def simulate_python_validation_function(conn, simulation_year=2025):
     """Simulate how the Python validation function processes the data"""
     print(f"\n🐍 SIMULATING PYTHON VALIDATION FUNCTION")
@@ -254,7 +271,7 @@ def simulate_python_validation_function(conn, simulation_year=2025):
             "COUNT(CASE WHEN event_type = 'HIRE' THEN 1 END)",
             "COUNT(CASE WHEN event_type = 'TERMINATION' THEN 1 END)",
             "COUNT(CASE WHEN event_type = 'PROMOTION' THEN 1 END)",
-            "COUNT(CASE WHEN event_type = 'RAISE' THEN 1 END)"
+            "COUNT(CASE WHEN event_type = 'RAISE' THEN 1 END)",
         ]
 
         for component in query_components:
@@ -264,13 +281,13 @@ def simulate_python_validation_function(conn, simulation_year=2025):
             WHERE simulation_year = ?
             """
 
-            result = conn.execute(test_query, [simulation_year]).df().iloc[0]['result']
+            result = conn.execute(test_query, [simulation_year]).df().iloc[0]["result"]
             event_type = component.split("'")[1]
             print(f"  {event_type} events: {result}")
 
         # Test with different case variations
         print("\nTesting case sensitivity:")
-        case_variations = ['RAISE', 'raise', 'Raise']
+        case_variations = ["RAISE", "raise", "Raise"]
         for variation in case_variations:
             case_query = f"""
             SELECT COUNT(*) as count
@@ -278,11 +295,12 @@ def simulate_python_validation_function(conn, simulation_year=2025):
             WHERE simulation_year = ? AND event_type = '{variation}'
             """
 
-            count = conn.execute(case_query, [simulation_year]).df().iloc[0]['count']
+            count = conn.execute(case_query, [simulation_year]).df().iloc[0]["count"]
             print(f"  '{variation}': {count} events")
 
     except Exception as e:
         print(f"❌ Error in validation simulation: {e}")
+
 
 def main():
     print("🔍 RAISES REPORTING DEBUG ANALYSIS")
@@ -303,10 +321,12 @@ def main():
         print(f"\n📋 DIAGNOSIS SUMMARY")
         print("=" * 80)
 
-        if validation_result and validation_result['raise_events'] == 0:
+        if validation_result and validation_result["raise_events"] == 0:
             print("🚨 CONFIRMED: Raise events showing as 0 in validation query")
             print("   Possible causes to investigate:")
-            print("   1. Case sensitivity mismatch between event generation and validation")
+            print(
+                "   1. Case sensitivity mismatch between event generation and validation"
+            )
             print("   2. Merit events not being generated due to eligibility rules")
             print("   3. Database connection or transaction timing issues")
             print("   4. Event type naming inconsistencies")
@@ -318,6 +338,7 @@ def main():
     except Exception as e:
         print(f"❌ Error during debugging: {e}")
         sys.exit(1)
+
 
 if __name__ == "__main__":
     main()

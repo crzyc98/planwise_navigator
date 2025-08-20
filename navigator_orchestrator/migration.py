@@ -48,7 +48,9 @@ class MigrationManager:
                 except Exception:
                     removed.append(p.name)
                     p.unlink(missing_ok=True)
-            return MigrationResult(success=True, completed_steps=["checkpoints_dir", *removed])
+            return MigrationResult(
+                success=True, completed_steps=["checkpoints_dir", *removed]
+            )
         except Exception as e:
             return MigrationResult(success=False, error=str(e))
 

@@ -11,27 +11,24 @@ This test suite validates:
 - Access pattern analysis and intelligent placement
 """
 
-import pytest
-import time
-import threading
-import pickle
 import gzip
+import pickle
+import threading
+import time
 from datetime import datetime, timedelta
 from decimal import Decimal
+from typing import Any, Dict, List, Optional
+from unittest.mock import MagicMock, Mock, patch
 from uuid import UUID, uuid4
-from typing import Dict, List, Any, Optional
-from unittest.mock import Mock, MagicMock, patch
 
-from orchestrator_mvp.core.intelligent_cache import (
-    CacheEntry,
-    CacheTier,
-    CachePolicy,
-    CacheEntryType,
-    CachePerformanceMetrics,
-    CacheTierConfig,
-    IntelligentCacheManager,
-    create_cache_manager
-)
+import pytest
+from orchestrator_mvp.core.intelligent_cache import (CacheEntry,
+                                                     CacheEntryType,
+                                                     CachePerformanceMetrics,
+                                                     CachePolicy, CacheTier,
+                                                     CacheTierConfig,
+                                                     IntelligentCacheManager,
+                                                     create_cache_manager)
 
 
 class TestCacheEntry:
@@ -45,12 +42,12 @@ class TestCacheEntry:
             data_hash="a1b2c3d4e5f6789012345678901234567890abcd",
             data_size_bytes=1024,
             compressed_size_bytes=512,
-            compression_ratio=Decimal('0.5'),
+            compression_ratio=Decimal("0.5"),
             current_tier=CacheTier.L1_MEMORY,
-            computation_cost_ms=Decimal('150.500'),
+            computation_cost_ms=Decimal("150.500"),
             expires_at=datetime.utcnow() + timedelta(hours=1),
             depends_on_keys={"employee_data", "compensation_data"},
-            invalidates_keys={"legacy_workforce_data"}
+            invalidates_keys={"legacy_workforce_data"},
         )
 
         # Verify core identification
@@ -62,7 +59,7 @@ class TestCacheEntry:
         assert entry.data_hash == "a1b2c3d4e5f6789012345678901234567890abcd"
         assert entry.data_size_bytes == 1024
         assert entry.compressed_size_bytes == 512
-        assert entry.compression_ratio == Decimal('0.5')
+        assert entry.compression_ratio == Decimal("0.5")
 
         # Verify temporal metadata
         assert isinstance(entry.created_at, datetime)
@@ -71,12 +68,12 @@ class TestCacheEntry:
 
         # Verify access pattern tracking
         assert entry.access_count == 0
-        assert entry.access_frequency_per_hour == Decimal('0')
+        assert entry.access_frequency_per_hour == Decimal("0")
 
         # Verify cost-aware metadata
-        assert entry.computation_cost_ms == Decimal('150.500')
-        assert entry.storage_cost_score == Decimal('1')
-        assert entry.eviction_priority_score == Decimal('0.5')
+        assert entry.computation_cost_ms == Decimal("150.500")
+        assert entry.storage_cost_score == Decimal("1")
+        assert entry.eviction_priority_score == Decimal("0.5")
 
         # Verify cache tier management
         assert entry.current_tier == CacheTier.L1_MEMORY
@@ -96,7 +93,7 @@ class TestCacheEntry:
                 entry_type=CacheEntryType.WORKFORCE_STATE,
                 data_hash="a1b2c3d4e5f6789012345678901234567890abcd",
                 data_size_bytes=1024,
-                current_tier=CacheTier.L1_MEMORY
+                current_tier=CacheTier.L1_MEMORY,
             )
 
         # Test empty key
@@ -106,19 +103,21 @@ class TestCacheEntry:
                 entry_type=CacheEntryType.WORKFORCE_STATE,
                 data_hash="a1b2c3d4e5f6789012345678901234567890abcd",
                 data_size_bytes=1024,
-                current_tier=CacheTier.L1_MEMORY
+                current_tier=CacheTier.L1_MEMORY,
             )
 
     def test_data_hash_validation(self):
         """Test data hash validation requirements."""
         # Test too short hash
-        with pytest.raises(ValueError, match="Data hash must be at least 16 characters"):
+        with pytest.raises(
+            ValueError, match="Data hash must be at least 16 characters"
+        ):
             CacheEntry[str](
                 cache_key="valid_cache_key",
                 entry_type=CacheEntryType.WORKFORCE_STATE,
                 data_hash="short",  # Less than 16 characters
                 data_size_bytes=1024,
-                current_tier=CacheTier.L1_MEMORY
+                current_tier=CacheTier.L1_MEMORY,
             )
 
     def test_computed_fields(self):
@@ -136,7 +135,7 @@ class TestCacheEntry:
             current_tier=CacheTier.L2_COMPRESSED,
             created_at=base_time - timedelta(minutes=30),
             last_accessed_at=base_time - timedelta(minutes=5),
-            expires_at=expires_time
+            expires_at=expires_time,
         )
 
         # Test age_seconds
@@ -149,7 +148,7 @@ class TestCacheEntry:
         assert entry.is_expired is False
 
         # Test compression_effectiveness
-        expected_effectiveness = Decimal('0.5000')  # (2048-1024)/2048
+        expected_effectiveness = Decimal("0.5000")  # (2048-1024)/2048
         assert entry.compression_effectiveness == expected_effectiveness
 
     def test_update_access_metrics(self):
@@ -161,7 +160,7 @@ class TestCacheEntry:
             data_size_bytes=1024,
             current_tier=CacheTier.L1_MEMORY,
             access_count=5,
-            computation_cost_ms=Decimal('200.000')
+            computation_cost_ms=Decimal("200.000"),
         )
 
         # Update access metrics
@@ -173,7 +172,10 @@ class TestCacheEntry:
 
         # Verify new entry has updated values
         assert updated_entry.last_accessed_at > original_entry.last_accessed_at
-        assert updated_entry.access_frequency_per_hour > original_entry.access_frequency_per_hour
+        assert (
+            updated_entry.access_frequency_per_hour
+            > original_entry.access_frequency_per_hour
+        )
         assert updated_entry.entry_id == original_entry.entry_id  # Same entry ID
 
     def test_calculate_promotion_score(self):
@@ -186,13 +188,13 @@ class TestCacheEntry:
             data_size_bytes=100000,  # 100KB - small
             current_tier=CacheTier.L3_PERSISTENT,
             access_count=100,
-            access_frequency_per_hour=Decimal('50.0'),  # Very frequent
+            access_frequency_per_hour=Decimal("50.0"),  # Very frequent
             last_accessed_at=datetime.utcnow() - timedelta(minutes=1),  # Very recent
-            computation_cost_ms=Decimal('5000.000')  # Expensive to recompute
+            computation_cost_ms=Decimal("5000.000"),  # Expensive to recompute
         )
 
         high_score = high_value_entry.calculate_promotion_score()
-        assert high_score > Decimal('0.7')  # Should be high promotion candidate
+        assert high_score > Decimal("0.7")  # Should be high promotion candidate
 
         # Low-value entry (infrequent access, old, cheap to compute, large size)
         low_value_entry = CacheEntry[str](
@@ -202,13 +204,13 @@ class TestCacheEntry:
             data_size_bytes=10000000,  # 10MB - large
             current_tier=CacheTier.L1_MEMORY,
             access_count=1,
-            access_frequency_per_hour=Decimal('0.1'),  # Very infrequent
+            access_frequency_per_hour=Decimal("0.1"),  # Very infrequent
             last_accessed_at=datetime.utcnow() - timedelta(hours=2),  # Old
-            computation_cost_ms=Decimal('10.000')  # Cheap to recompute
+            computation_cost_ms=Decimal("10.000"),  # Cheap to recompute
         )
 
         low_score = low_value_entry.calculate_promotion_score()
-        assert low_score < Decimal('0.3')  # Should be low promotion candidate
+        assert low_score < Decimal("0.3")  # Should be low promotion candidate
 
 
 class TestCachePerformanceMetrics:
@@ -233,7 +235,7 @@ class TestCachePerformanceMetrics:
             invalidations=10,
             total_entries=500,
             total_memory_bytes=104857600,  # 100MB
-            compressed_bytes_saved=20971520  # 20MB saved
+            compressed_bytes_saved=20971520,  # 20MB saved
         )
 
         # Verify basic metrics
@@ -253,26 +255,24 @@ class TestCachePerformanceMetrics:
         assert metrics.invalidations == 10
 
         # Test computed fields
-        assert metrics.hit_rate == Decimal('0.8500')  # 850/1000
-        assert metrics.miss_rate == Decimal('0.1500')  # 150/1000
-        assert metrics.average_access_time_us == Decimal('50.0')  # 50000/1000
-        assert metrics.compression_savings_ratio == Decimal('0.2000')  # 20MB/100MB
+        assert metrics.hit_rate == Decimal("0.8500")  # 850/1000
+        assert metrics.miss_rate == Decimal("0.1500")  # 150/1000
+        assert metrics.average_access_time_us == Decimal("50.0")  # 50000/1000
+        assert metrics.compression_savings_ratio == Decimal("0.2000")  # 20MB/100MB
 
     def test_hit_rate_edge_cases(self):
         """Test hit rate calculation edge cases."""
         # Zero requests
         empty_metrics = CachePerformanceMetrics(total_requests=0)
-        assert empty_metrics.hit_rate == Decimal('0')
-        assert empty_metrics.miss_rate == Decimal('1')
+        assert empty_metrics.hit_rate == Decimal("0")
+        assert empty_metrics.miss_rate == Decimal("1")
 
         # Perfect hit rate
         perfect_metrics = CachePerformanceMetrics(
-            total_requests=100,
-            cache_hits=100,
-            cache_misses=0
+            total_requests=100, cache_hits=100, cache_misses=0
         )
-        assert perfect_metrics.hit_rate == Decimal('1.0000')
-        assert perfect_metrics.miss_rate == Decimal('0.0000')
+        assert perfect_metrics.hit_rate == Decimal("1.0000")
+        assert perfect_metrics.miss_rate == Decimal("0.0000")
 
 
 class TestCacheTierConfig:
@@ -288,8 +288,8 @@ class TestCacheTierConfig:
             compression_enabled=True,
             compression_threshold_bytes=1024,
             auto_promotion_enabled=True,
-            promotion_threshold_score=Decimal('0.7'),
-            demotion_threshold_score=Decimal('0.3')
+            promotion_threshold_score=Decimal("0.7"),
+            demotion_threshold_score=Decimal("0.3"),
         )
 
         assert config.max_entries == 1000
@@ -299,8 +299,8 @@ class TestCacheTierConfig:
         assert config.compression_enabled is True
         assert config.compression_threshold_bytes == 1024
         assert config.auto_promotion_enabled is True
-        assert config.promotion_threshold_score == Decimal('0.7')
-        assert config.demotion_threshold_score == Decimal('0.3')
+        assert config.promotion_threshold_score == Decimal("0.7")
+        assert config.demotion_threshold_score == Decimal("0.3")
 
 
 class TestIntelligentCacheManager:
@@ -316,7 +316,7 @@ class TestIntelligentCacheManager:
             eviction_policy=CachePolicy.ADAPTIVE,
             compression_enabled=False,
             auto_promotion_enabled=True,
-            promotion_threshold_score=Decimal('0.7')
+            promotion_threshold_score=Decimal("0.7"),
         )
 
         l2_config = CacheTierConfig(
@@ -327,7 +327,7 @@ class TestIntelligentCacheManager:
             compression_enabled=True,
             compression_threshold_bytes=1024,
             auto_promotion_enabled=True,
-            promotion_threshold_score=Decimal('0.5')
+            promotion_threshold_score=Decimal("0.5"),
         )
 
         l3_config = CacheTierConfig(
@@ -337,7 +337,7 @@ class TestIntelligentCacheManager:
             eviction_policy=CachePolicy.LFU,
             compression_enabled=True,
             compression_threshold_bytes=512,
-            auto_promotion_enabled=False
+            auto_promotion_enabled=False,
         )
 
         return IntelligentCacheManager(
@@ -345,7 +345,7 @@ class TestIntelligentCacheManager:
             l2_config=l2_config,
             l3_config=l3_config,
             enable_auto_optimization=False,  # Disable for testing
-            optimization_interval_seconds=60
+            optimization_interval_seconds=60,
         )
 
     def test_cache_manager_initialization(self, cache_manager):
@@ -368,7 +368,10 @@ class TestIntelligentCacheManager:
 
     def test_put_and_get_l1_cache(self, cache_manager):
         """Test storing and retrieving data from L1 cache."""
-        test_data = {"workforce_size": 1000, "total_compensation": Decimal('75000000.00')}
+        test_data = {
+            "workforce_size": 1000,
+            "total_compensation": Decimal("75000000.00"),
+        }
         cache_key = "test_workforce_metrics_2025"
 
         # Store data in cache
@@ -376,7 +379,7 @@ class TestIntelligentCacheManager:
             cache_key=cache_key,
             data=test_data,
             entry_type=CacheEntryType.AGGREGATED_METRICS,
-            computation_cost_ms=Decimal('100.000')
+            computation_cost_ms=Decimal("100.000"),
         )
 
         assert success is True
@@ -386,7 +389,7 @@ class TestIntelligentCacheManager:
 
         assert retrieved_data is not None
         assert retrieved_data["workforce_size"] == 1000
-        assert retrieved_data["total_compensation"] == Decimal('75000000.00')
+        assert retrieved_data["total_compensation"] == Decimal("75000000.00")
 
         # Verify data is in L1 cache
         assert cache_key in cache_manager._l1_cache
@@ -402,7 +405,7 @@ class TestIntelligentCacheManager:
             cache_key=cache_key,
             data=large_data,
             entry_type=CacheEntryType.WORKFORCE_STATE,
-            computation_cost_ms=Decimal('500.000')
+            computation_cost_ms=Decimal("500.000"),
         )
 
         assert success is True
@@ -422,7 +425,9 @@ class TestIntelligentCacheManager:
         non_existent_key = "non_existent_data_key"
 
         # Try to retrieve non-existent data
-        retrieved_data = cache_manager.get(non_existent_key, CacheEntryType.WORKFORCE_STATE)
+        retrieved_data = cache_manager.get(
+            non_existent_key, CacheEntryType.WORKFORCE_STATE
+        )
 
         assert retrieved_data is None
 
@@ -441,7 +446,7 @@ class TestIntelligentCacheManager:
             cache_key=cache_key,
             data=test_data,
             entry_type=CacheEntryType.COMPUTATION_RESULT,
-            computation_cost_ms=Decimal('2000.000')  # High cost
+            computation_cost_ms=Decimal("2000.000"),  # High cost
         )
 
         # Verify initially in L2
@@ -449,13 +454,17 @@ class TestIntelligentCacheManager:
 
         # Access the data multiple times to increase promotion score
         for _ in range(10):
-            retrieved_data = cache_manager.get(cache_key, CacheEntryType.COMPUTATION_RESULT)
+            retrieved_data = cache_manager.get(
+                cache_key, CacheEntryType.COMPUTATION_RESULT
+            )
             assert retrieved_data is not None
 
         # After multiple accesses, it should be promoted to L1
         # (Note: Promotion happens during access if conditions are met)
         if cache_key in cache_manager._l1_cache:
-            assert cache_key not in cache_manager._l2_cache  # Should be moved, not copied
+            assert (
+                cache_key not in cache_manager._l2_cache
+            )  # Should be moved, not copied
 
     def test_cache_invalidation(self, cache_manager):
         """Test cache invalidation functionality."""
@@ -466,7 +475,7 @@ class TestIntelligentCacheManager:
         cache_manager.put(
             cache_key=cache_key,
             data=test_data,
-            entry_type=CacheEntryType.WORKFORCE_STATE
+            entry_type=CacheEntryType.WORKFORCE_STATE,
         )
 
         # Verify data is cached
@@ -494,14 +503,14 @@ class TestIntelligentCacheManager:
         cache_manager.put(
             cache_key=primary_key,
             data=primary_data,
-            entry_type=CacheEntryType.WORKFORCE_STATE
+            entry_type=CacheEntryType.WORKFORCE_STATE,
         )
 
         cache_manager.put(
             cache_key=dependent_key,
             data=dependent_data,
             entry_type=CacheEntryType.COMPUTATION_RESULT,
-            depends_on=[primary_key]
+            depends_on=[primary_key],
         )
 
         # Invalidate primary data with cascade
@@ -538,7 +547,7 @@ class TestIntelligentCacheManager:
                 cache_key=f"test_data_{i}",
                 data={"test": f"data_{i}"},
                 entry_type=CacheEntryType.INTERMEDIATE_CALCULATION,
-                computation_cost_ms=Decimal('50.000')
+                computation_cost_ms=Decimal("50.000"),
             )
 
         # Run optimization
@@ -564,7 +573,9 @@ class TestIntelligentCacheManager:
         cache_manager.put("l2_data", large_data, CacheEntryType.WORKFORCE_STATE)
 
         # Verify data exists
-        assert cache_manager.get("l1_data", CacheEntryType.AGGREGATED_METRICS) is not None
+        assert (
+            cache_manager.get("l1_data", CacheEntryType.AGGREGATED_METRICS) is not None
+        )
 
         # Clear L1 tier
         cleared_count = cache_manager.clear_tier(CacheTier.L1_MEMORY)
@@ -579,7 +590,9 @@ class TestIntelligentCacheManager:
         cache_manager.put("test_data", {"clear": "all"}, CacheEntryType.WORKFORCE_STATE)
 
         # Verify data exists
-        assert cache_manager.get("test_data", CacheEntryType.WORKFORCE_STATE) is not None
+        assert (
+            cache_manager.get("test_data", CacheEntryType.WORKFORCE_STATE) is not None
+        )
 
         # Clear all caches
         total_cleared = cache_manager.clear_all()
@@ -597,7 +610,7 @@ class TestIntelligentCacheManager:
         # Create compressible data
         compressible_data = {
             "repeated_data": ["same_value"] * 1000,
-            "text_data": "This is a long text that should compress well. " * 100
+            "text_data": "This is a long text that should compress well. " * 100,
         }
         cache_key = "compression_test_data"
 
@@ -606,7 +619,7 @@ class TestIntelligentCacheManager:
             cache_key=cache_key,
             data=compressible_data,
             entry_type=CacheEntryType.COMPUTATION_RESULT,
-            computation_cost_ms=Decimal('1000.000')
+            computation_cost_ms=Decimal("1000.000"),
         )
 
         assert success is True
@@ -663,11 +676,13 @@ class TestIntelligentCacheManager:
             cache_key=cache_key,
             data=test_data,
             entry_type=CacheEntryType.INTERMEDIATE_CALCULATION,
-            ttl_seconds=1  # Very short TTL
+            ttl_seconds=1,  # Very short TTL
         )
 
         # Verify data is initially available
-        retrieved_data = cache_manager.get(cache_key, CacheEntryType.INTERMEDIATE_CALCULATION)
+        retrieved_data = cache_manager.get(
+            cache_key, CacheEntryType.INTERMEDIATE_CALCULATION
+        )
         assert retrieved_data is not None
 
         # Wait for TTL to expire
@@ -685,16 +700,18 @@ class TestIntelligentCacheManager:
                 cache_key=f"capacity_test_{i}",
                 data={"index": i},
                 entry_type=CacheEntryType.AGGREGATED_METRICS,
-                computation_cost_ms=Decimal('10.000')
+                computation_cost_ms=Decimal("10.000"),
             )
 
         # Verify L1 doesn't exceed capacity
         assert len(cache_manager._l1_cache) <= cache_manager.l1_config.max_entries
 
         # Some entries should have gone to L2
-        total_entries = (len(cache_manager._l1_cache) +
-                        len(cache_manager._l2_cache) +
-                        len(cache_manager._l3_cache))
+        total_entries = (
+            len(cache_manager._l1_cache)
+            + len(cache_manager._l2_cache)
+            + len(cache_manager._l3_cache)
+        )
         assert total_entries > 0
 
 
@@ -707,7 +724,7 @@ class TestFactoryFunctions:
             l1_max_entries=100,
             l2_max_entries=500,
             l3_max_entries=2000,
-            enable_optimization=False
+            enable_optimization=False,
         )
 
         assert cache_manager.l1_config.max_entries == 100
@@ -735,7 +752,7 @@ class TestPerformanceOptimization:
         cache_manager.put(
             cache_key=cache_key,
             data=test_data,
-            entry_type=CacheEntryType.AGGREGATED_METRICS
+            entry_type=CacheEntryType.AGGREGATED_METRICS,
         )
 
         # Measure access time for multiple operations
@@ -769,7 +786,7 @@ class TestPerformanceOptimization:
                 cache_key=f"data_{i}",
                 data={"value": i},
                 entry_type=CacheEntryType.COMPUTATION_RESULT,
-                computation_cost_ms=Decimal('100.000')
+                computation_cost_ms=Decimal("100.000"),
             )
 
         # Access some data more frequently (hot data)
@@ -808,11 +825,7 @@ class TestPerformanceOptimization:
         compressible_data = {
             "repeated_string": "compress_me_please " * 1000,
             "repeated_numbers": [42] * 1000,
-            "nested_repetition": {
-                "level1": {
-                    "level2": ["same_value"] * 500
-                }
-            }
+            "nested_repetition": {"level1": {"level2": ["same_value"] * 500}},
         }
 
         cache_key = "memory_efficiency_test"
@@ -822,7 +835,7 @@ class TestPerformanceOptimization:
             cache_key=cache_key,
             data=compressible_data,
             entry_type=CacheEntryType.WORKFORCE_STATE,
-            computation_cost_ms=Decimal('1000.000')
+            computation_cost_ms=Decimal("1000.000"),
         )
 
         # Get performance metrics to check compression effectiveness
@@ -831,7 +844,7 @@ class TestPerformanceOptimization:
         # If compression is working, we should see memory savings
         if metrics.compressed_bytes_saved > 0:
             compression_ratio = metrics.compression_savings_ratio
-            assert compression_ratio > Decimal('0.1')  # At least 10% compression
+            assert compression_ratio > Decimal("0.1")  # At least 10% compression
 
         # Verify data integrity after compression
         retrieved_data = cache_manager.get(cache_key, CacheEntryType.WORKFORCE_STATE)

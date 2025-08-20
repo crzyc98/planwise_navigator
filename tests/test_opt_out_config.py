@@ -6,17 +6,15 @@ Validates that opt-out rate settings are properly extracted from configuration
 and passed to dbt models within reasonable bounds.
 """
 
-import pytest
 from pathlib import Path
 
-from navigator_orchestrator.config import (
-    SimulationConfig,
-    load_simulation_config,
-    to_dbt_vars,
-    OptOutRatesSettings,
-    OptOutRatesByAge,
-    OptOutRatesByIncome,
-)
+import pytest
+
+from navigator_orchestrator.config import (OptOutRatesByAge,
+                                           OptOutRatesByIncome,
+                                           OptOutRatesSettings,
+                                           SimulationConfig,
+                                           load_simulation_config, to_dbt_vars)
 
 
 class TestOptOutConfiguration:
@@ -72,17 +70,17 @@ class TestOptOutConfiguration:
                             "young": 0.08,
                             "mid_career": 0.06,
                             "mature": 0.04,
-                            "senior": 0.02
+                            "senior": 0.02,
                         },
                         "by_income": {
                             "low_income": 1.25,
                             "moderate": 1.00,
                             "high": 0.75,
-                            "executive": 0.50
-                        }
+                            "executive": 0.50,
+                        },
                     }
                 }
-            }
+            },
         }
 
         config = SimulationConfig(**config_data)
@@ -98,9 +96,9 @@ class TestOptOutConfiguration:
         # Base rate is young * moderate multiplier = 0.08 * 1.00 = 0.08
         expected_base = 0.08
         assert dbt_vars["opt_out_rate_low_income"] == expected_base * 1.25  # 0.10
-        assert dbt_vars["opt_out_rate_moderate"] == expected_base * 1.00    # 0.08
-        assert dbt_vars["opt_out_rate_high"] == expected_base * 0.75       # 0.06
-        assert dbt_vars["opt_out_rate_executive"] == expected_base * 0.50   # 0.04
+        assert dbt_vars["opt_out_rate_moderate"] == expected_base * 1.00  # 0.08
+        assert dbt_vars["opt_out_rate_high"] == expected_base * 0.75  # 0.06
+        assert dbt_vars["opt_out_rate_executive"] == expected_base * 0.50  # 0.04
 
     def test_industry_benchmarks_compliance(self):
         """Test that calculated rates comply with industry benchmarks."""
@@ -112,20 +110,20 @@ class TestOptOutConfiguration:
                 "auto_enrollment": {
                     "opt_out_rates": {
                         "by_age": {
-                            "young": 0.12,      # 12%
-                            "mid_career": 0.08, # 8%
-                            "mature": 0.06,     # 6%
-                            "senior": 0.04      # 4%
+                            "young": 0.12,  # 12%
+                            "mid_career": 0.08,  # 8%
+                            "mature": 0.06,  # 6%
+                            "senior": 0.04,  # 4%
                         },
                         "by_income": {
                             "low_income": 1.20,  # 20% higher
-                            "moderate": 1.00,    # Base
-                            "high": 0.70,        # 30% lower
-                            "executive": 0.50    # 50% lower
-                        }
+                            "moderate": 1.00,  # Base
+                            "high": 0.70,  # 30% lower
+                            "executive": 0.50,  # 50% lower
+                        },
                     }
                 }
-            }
+            },
         }
 
         config = SimulationConfig(**config_data)
@@ -134,12 +132,19 @@ class TestOptOutConfiguration:
         # Industry benchmarks: well-designed auto-enrollment should have 5-15% opt-out
         # Most extreme case: young + low_income = 0.12 * 1.20 = 14.4% (within range)
         max_rate = dbt_vars["opt_out_rate_low_income"]  # Young * low_income
-        assert max_rate <= 0.15, f"Max opt-out rate {max_rate:.1%} exceeds 15% industry benchmark"
+        assert (
+            max_rate <= 0.15
+        ), f"Max opt-out rate {max_rate:.1%} exceeds 15% industry benchmark"
 
         # Most favorable case: senior + executive should be quite low
         min_base = dbt_vars["opt_out_rate_senior"]  # 4%
-        min_multiplier_rate = min_base * config.enrollment.auto_enrollment.opt_out_rates.by_income.executive
-        assert min_multiplier_rate >= 0.01, f"Min opt-out rate {min_multiplier_rate:.1%} too low to be realistic"
+        min_multiplier_rate = (
+            min_base
+            * config.enrollment.auto_enrollment.opt_out_rates.by_income.executive
+        )
+        assert (
+            min_multiplier_rate >= 0.01
+        ), f"Min opt-out rate {min_multiplier_rate:.1%} too low to be realistic"
 
     def test_config_yaml_loading(self, tmp_path):
         """Test loading opt-out configuration from YAML file."""
@@ -178,7 +183,9 @@ enrollment:
 
         # Verify configuration loaded correctly
         assert config.enrollment.auto_enrollment.opt_out_rates.by_age.young == 0.09
-        assert config.enrollment.auto_enrollment.opt_out_rates.by_income.low_income == 1.15
+        assert (
+            config.enrollment.auto_enrollment.opt_out_rates.by_income.low_income == 1.15
+        )
 
         # Verify dbt vars are generated correctly
         dbt_vars = to_dbt_vars(config)

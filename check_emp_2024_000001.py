@@ -3,7 +3,7 @@
 
 import duckdb
 
-conn = duckdb.connect('/Users/nicholasamaral/planwise_navigator/simulation.duckdb')
+conn = duckdb.connect("/Users/nicholasamaral/planwise_navigator/simulation.duckdb")
 
 # Check EMP_2024_000001 specifically
 query = """
@@ -38,13 +38,21 @@ if result:
     print(f"Data Quality Flag: {result[8]}")
 
     if result[3] > 0 and result[2] == 0:
-        print("\n❌ ISSUE STILL EXISTS: Employee has $0 deferral rate but positive contributions!")
+        print(
+            "\n❌ ISSUE STILL EXISTS: Employee has $0 deferral rate but positive contributions!"
+        )
     elif result[3] == 0 and result[2] == 0:
-        print("\n✅ FIXED: Employee with 0% deferral rate correctly has $0 contributions!")
+        print(
+            "\n✅ FIXED: Employee with 0% deferral rate correctly has $0 contributions!"
+        )
     else:
-        print(f"\n✅ Employee has {result[2]*100:.2f}% deferral rate and ${result[3]:.2f} contributions (consistent)")
+        print(
+            f"\n✅ Employee has {result[2]*100:.2f}% deferral rate and ${result[3]:.2f} contributions (consistent)"
+        )
 else:
-    print("Employee EMP_2024_000001 not found in contributions table (may have been filtered out)")
+    print(
+        "Employee EMP_2024_000001 not found in contributions table (may have been filtered out)"
+    )
 
 # Check if employee exists in base data
 query2 = """
@@ -56,7 +64,9 @@ WHERE employee_id = 'EMP_2024_000001'
 """
 result2 = conn.execute(query2).fetchone()
 if result2:
-    print(f"\nCensus data shows deferral rate: {result2[1]:.4f} ({result2[1]*100:.2f}%)")
+    print(
+        f"\nCensus data shows deferral rate: {result2[1]:.4f} ({result2[1]*100:.2f}%)"
+    )
 
 # Check overall statistics
 query3 = """
