@@ -20,7 +20,6 @@ from typing import Callable, Generator, Optional, TypeVar
 
 import duckdb
 
-
 T = TypeVar("T")
 
 
@@ -126,7 +125,7 @@ class DatabaseConnectionManager:
                 last_exc = e
                 if attempt == retries:
                     break
-                time.sleep(backoff_seconds * (2 ** attempt))
+                time.sleep(backoff_seconds * (2**attempt))
                 attempt += 1
         assert last_exc is not None
         raise last_exc

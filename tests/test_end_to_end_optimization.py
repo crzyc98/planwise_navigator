@@ -16,41 +16,45 @@ End-to-End Test Coverage:
 Tests realistic user journeys and business scenarios with full data flow validation.
 """
 
-import pytest
-import pandas as pd
-import numpy as np
-import os
-import json
-import yaml
-import time
-import tempfile
-import subprocess
-import threading
-from pathlib import Path
-from unittest.mock import Mock, patch, MagicMock, call
-from typing import Dict, Any, List, Tuple, Optional
-import warnings
-from dataclasses import dataclass
-from contextlib import contextmanager
 import concurrent.futures
+import json
+import os
+import subprocess
+import tempfile
+import threading
+import time
+import warnings
+from contextlib import contextmanager
+from dataclasses import dataclass
+from pathlib import Path
+from typing import Any, Dict, List, Optional, Tuple
+from unittest.mock import MagicMock, Mock, call, patch
+
+import numpy as np
+import pandas as pd
+import pytest
+import yaml
+from orchestrator.optimization.constraint_solver import CompensationOptimizer
+from orchestrator.optimization.evidence_generator import EvidenceGenerator
+from orchestrator.optimization.objective_functions import ObjectiveFunctions
+from orchestrator.optimization.optimization_schemas import (
+    OptimizationCache, OptimizationError, OptimizationRequest,
+    OptimizationResult)
+from orchestrator.optimization.sensitivity_analysis import SensitivityAnalyzer
 
 # Import all components for end-to-end testing
-from streamlit_dashboard.optimization_schemas import (
-    ParameterSchema, get_parameter_schema, get_default_parameters,
-    validate_parameters, assess_parameter_risk, RiskLevel
-)
-from orchestrator.optimization.constraint_solver import CompensationOptimizer
-from orchestrator.optimization.objective_functions import ObjectiveFunctions
-from orchestrator.optimization.sensitivity_analysis import SensitivityAnalyzer
-from orchestrator.optimization.evidence_generator import EvidenceGenerator
-from orchestrator.optimization.optimization_schemas import (
-    OptimizationRequest, OptimizationResult, OptimizationError, OptimizationCache
-)
+from streamlit_dashboard.optimization_schemas import (ParameterSchema,
+                                                      RiskLevel,
+                                                      assess_parameter_risk,
+                                                      get_default_parameters,
+                                                      get_parameter_schema,
+                                                      validate_parameters)
 
 
 @dataclass
 class UserJourneyScenario:
     """Represents a complete user journey scenario."""
+
     name: str
     description: str
     initial_parameters: Dict[str, float]
@@ -63,6 +67,7 @@ class UserJourneyScenario:
 @dataclass
 class EndToEndTestResult:
     """Container for end-to-end test results."""
+
     scenario_name: str
     success: bool
     execution_time: float
@@ -80,7 +85,9 @@ class EndToEndTestEnvironment:
         self.temp_dir = tempfile.mkdtemp()
         self.mock_duckdb = Mock()
         self.mock_conn = Mock()
-        self.mock_duckdb.get_connection.return_value.__enter__.return_value = self.mock_conn
+        self.mock_duckdb.get_connection.return_value.__enter__.return_value = (
+            self.mock_conn
+        )
         self.schema = get_parameter_schema()
         self.setup_mock_data()
 
@@ -93,7 +100,7 @@ class EndToEndTestEnvironment:
             (2, 58000, 2900),
             (3, 68000, 3400),
             (4, 82000, 4100),
-            (5, 98000, 4900)
+            (5, 98000, 4900),
         ]
 
         # Create mock comp_levers.csv
@@ -109,13 +116,40 @@ class EndToEndTestEnvironment:
         data = []
         for year in [2025, 2026, 2027, 2028, 2029]:
             for level in [1, 2, 3, 4, 5]:
-                data.extend([
-                    {"parameter_name": "merit_base", "job_level": level, "year": year, "value": 0.045},
-                    {"parameter_name": "cola_rate", "job_level": level, "year": year, "value": 0.025},
-                    {"parameter_name": "new_hire_salary_adjustment", "job_level": level, "year": year, "value": 1.15},
-                    {"parameter_name": "promotion_probability", "job_level": level, "year": year, "value": 0.10},
-                    {"parameter_name": "promotion_raise", "job_level": level, "year": year, "value": 0.12}
-                ])
+                data.extend(
+                    [
+                        {
+                            "parameter_name": "merit_base",
+                            "job_level": level,
+                            "year": year,
+                            "value": 0.045,
+                        },
+                        {
+                            "parameter_name": "cola_rate",
+                            "job_level": level,
+                            "year": year,
+                            "value": 0.025,
+                        },
+                        {
+                            "parameter_name": "new_hire_salary_adjustment",
+                            "job_level": level,
+                            "year": year,
+                            "value": 1.15,
+                        },
+                        {
+                            "parameter_name": "promotion_probability",
+                            "job_level": level,
+                            "year": year,
+                            "value": 0.10,
+                        },
+                        {
+                            "parameter_name": "promotion_raise",
+                            "job_level": level,
+                            "year": year,
+                            "value": 0.12,
+                        },
+                    ]
+                )
 
         pd.DataFrame(data).to_csv(self.comp_levers_path, index=False)
 
@@ -126,20 +160,21 @@ class EndToEndTestEnvironment:
                 "start_year": 2025,
                 "end_year": 2029,
                 "random_seed": 42,
-                "target_growth_rate": 0.05
+                "target_growth_rate": 0.05,
             },
             "paths": {
                 "comp_levers": self.comp_levers_path,
-                "database": os.path.join(self.temp_dir, "test.duckdb")
-            }
+                "database": os.path.join(self.temp_dir, "test.duckdb"),
+            },
         }
 
-        with open(self.config_path, 'w') as f:
+        with open(self.config_path, "w") as f:
             yaml.dump(config, f)
 
     def cleanup(self):
         """Cleanup test environment."""
         import shutil
+
         shutil.rmtree(self.temp_dir, ignore_errors=True)
 
 
@@ -160,18 +195,17 @@ class UserJourneyGenerator:
                     "merit_rate_level_4": 0.035,
                     "merit_rate_level_5": 0.040,
                     "cola_rate": 0.025,
-                    "new_hire_salary_adjustment": 1.15
+                    "new_hire_salary_adjustment": 1.15,
                 },
                 business_objectives={"cost": 0.8, "equity": 0.2},
                 expected_outcome="reduced_costs",
                 success_criteria={
                     "cost_reduction": True,
                     "equity_maintained": True,
-                    "convergence": True
+                    "convergence": True,
                 },
-                risk_tolerance="medium"
+                risk_tolerance="medium",
             ),
-
             UserJourneyScenario(
                 name="equity_focus",
                 description="Improve compensation equity across job levels",
@@ -182,18 +216,17 @@ class UserJourneyGenerator:
                     "merit_rate_level_4": 0.045,
                     "merit_rate_level_5": 0.05,
                     "cola_rate": 0.03,
-                    "new_hire_salary_adjustment": 1.20
+                    "new_hire_salary_adjustment": 1.20,
                 },
                 business_objectives={"cost": 0.3, "equity": 0.7},
                 expected_outcome="improved_equity",
                 success_criteria={
                     "equity_improvement": True,
                     "cost_reasonable": True,
-                    "convergence": True
+                    "convergence": True,
                 },
-                risk_tolerance="low"
+                risk_tolerance="low",
             ),
-
             UserJourneyScenario(
                 name="balanced_approach",
                 description="Balance cost, equity, and target achievement",
@@ -203,11 +236,10 @@ class UserJourneyGenerator:
                 success_criteria={
                     "balanced_metrics": True,
                     "convergence": True,
-                    "reasonable_parameters": True
+                    "reasonable_parameters": True,
                 },
-                risk_tolerance="medium"
+                risk_tolerance="medium",
             ),
-
             UserJourneyScenario(
                 name="aggressive_growth",
                 description="Support aggressive business growth with competitive compensation",
@@ -220,18 +252,17 @@ class UserJourneyGenerator:
                     "cola_rate": 0.035,
                     "new_hire_salary_adjustment": 1.25,
                     "promotion_probability_level_1": 0.15,
-                    "promotion_probability_level_2": 0.12
+                    "promotion_probability_level_2": 0.12,
                 },
                 business_objectives={"cost": 0.2, "equity": 0.3, "targets": 0.5},
                 expected_outcome="growth_support",
                 success_criteria={
                     "growth_enablement": True,
                     "cost_acceptable": True,
-                    "convergence": True
+                    "convergence": True,
                 },
-                risk_tolerance="high"
+                risk_tolerance="high",
             ),
-
             UserJourneyScenario(
                 name="budget_constrained",
                 description="Optimize within strict budget constraints",
@@ -242,17 +273,17 @@ class UserJourneyGenerator:
                     "merit_rate_level_4": 0.02,
                     "merit_rate_level_5": 0.025,
                     "cola_rate": 0.015,
-                    "new_hire_salary_adjustment": 1.05
+                    "new_hire_salary_adjustment": 1.05,
                 },
                 business_objectives={"cost": 0.9, "equity": 0.1},
                 expected_outcome="budget_compliance",
                 success_criteria={
                     "budget_adherence": True,
                     "minimal_equity_impact": True,
-                    "convergence": True
+                    "convergence": True,
                 },
-                risk_tolerance="low"
-            )
+                risk_tolerance="low",
+            ),
         ]
 
     @staticmethod
@@ -266,29 +297,22 @@ class UserJourneyGenerator:
                     "merit_rate_level_1": 0.08,  # Near maximum
                     "merit_rate_level_2": 0.02,  # Near minimum
                     "cola_rate": 0.0,  # Minimum
-                    "new_hire_salary_adjustment": 1.0  # Minimum
+                    "new_hire_salary_adjustment": 1.0,  # Minimum
                 },
                 business_objectives={"cost": 1.0},
                 expected_outcome="extreme_handling",
-                success_criteria={
-                    "stability": True,
-                    "error_handling": True
-                },
-                risk_tolerance="critical"
+                success_criteria={"stability": True, "error_handling": True},
+                risk_tolerance="critical",
             ),
-
             UserJourneyScenario(
                 name="conflicting_objectives",
                 description="Test with conflicting business objectives",
                 initial_parameters=get_default_parameters(),
                 business_objectives={"cost": 0.8, "equity": 0.8},  # Sum > 1.0 (invalid)
                 expected_outcome="objective_conflict_handling",
-                success_criteria={
-                    "validation_error": True,
-                    "graceful_handling": True
-                },
-                risk_tolerance="medium"
-            )
+                success_criteria={"validation_error": True, "graceful_handling": True},
+                risk_tolerance="medium",
+            ),
         ]
 
 
@@ -305,7 +329,9 @@ class TestCompleteUserJourneys:
         self.test_env.cleanup()
 
     @pytest.mark.e2e
-    @pytest.mark.parametrize("scenario", UserJourneyGenerator.generate_business_scenarios())
+    @pytest.mark.parametrize(
+        "scenario", UserJourneyGenerator.generate_business_scenarios()
+    )
     def test_business_scenario_end_to_end(self, scenario: UserJourneyScenario):
         """Test complete business scenarios end-to-end."""
 
@@ -321,18 +347,30 @@ class TestCompleteUserJourneys:
 
             # Check success criteria
             if scenario.success_criteria.get("convergence"):
-                assert result.optimization_result.converged, f"Optimization did not converge for {scenario.name}"
+                assert (
+                    result.optimization_result.converged
+                ), f"Optimization did not converge for {scenario.name}"
 
             if scenario.success_criteria.get("reasonable_parameters"):
-                self._validate_reasonable_parameters(result.optimization_result.optimal_parameters)
+                self._validate_reasonable_parameters(
+                    result.optimization_result.optimal_parameters
+                )
 
         # Validate evidence generation
-        assert len(result.evidence_report) > 0, f"No evidence report generated for {scenario.name}"
-        assert scenario.name in result.evidence_report, "Scenario name not in evidence report"
+        assert (
+            len(result.evidence_report) > 0
+        ), f"No evidence report generated for {scenario.name}"
+        assert (
+            scenario.name in result.evidence_report
+        ), "Scenario name not in evidence report"
 
-        print(f"✓ Scenario {scenario.name} completed successfully in {result.execution_time:.2f}s")
+        print(
+            f"✓ Scenario {scenario.name} completed successfully in {result.execution_time:.2f}s"
+        )
 
-    def _execute_user_journey(self, scenario: UserJourneyScenario) -> EndToEndTestResult:
+    def _execute_user_journey(
+        self, scenario: UserJourneyScenario
+    ) -> EndToEndTestResult:
         """Execute a complete user journey scenario."""
 
         start_time = time.time()
@@ -341,12 +379,14 @@ class TestCompleteUserJourneys:
 
         try:
             # Step 1: Parameter Validation
-            validation_result = self.test_env.schema.validate_parameter_set(scenario.initial_parameters)
+            validation_result = self.test_env.schema.validate_parameter_set(
+                scenario.initial_parameters
+            )
 
-            if not validation_result['is_valid']:
-                errors.extend(validation_result['errors'])
+            if not validation_result["is_valid"]:
+                errors.extend(validation_result["errors"])
 
-            warnings.extend(validation_result.get('warnings', []))
+            warnings.extend(validation_result.get("warnings", []))
 
             # Step 2: Objective Validation
             if scenario.name != "conflicting_objectives":  # Special case for testing
@@ -358,7 +398,9 @@ class TestCompleteUserJourneys:
                     errors.append("Expected objective validation to fail")
                 except ValueError as e:
                     # Expected failure
-                    warnings.append(f"Objective validation failed as expected: {str(e)}")
+                    warnings.append(
+                        f"Objective validation failed as expected: {str(e)}"
+                    )
 
             # Step 3: Optimization Execution
             optimization_result = self._execute_optimization(scenario)
@@ -370,7 +412,9 @@ class TestCompleteUserJourneys:
             evidence_report = self._generate_evidence_report(optimization_result)
 
             # Step 6: Result Validation
-            self._validate_business_outcomes(scenario, optimization_result, simulation_metrics)
+            self._validate_business_outcomes(
+                scenario, optimization_result, simulation_metrics
+            )
 
             execution_time = time.time() - start_time
 
@@ -382,7 +426,7 @@ class TestCompleteUserJourneys:
                 simulation_metrics=simulation_metrics,
                 evidence_report=evidence_report,
                 errors=errors,
-                warnings=warnings
+                warnings=warnings,
             )
 
         except Exception as e:
@@ -397,7 +441,7 @@ class TestCompleteUserJourneys:
                 simulation_metrics={},
                 evidence_report="",
                 errors=errors,
-                warnings=warnings
+                warnings=warnings,
             )
 
     def _validate_objectives(self, objectives: Dict[str, float]):
@@ -411,7 +455,9 @@ class TestCompleteUserJourneys:
             if obj_name not in valid_objectives:
                 raise ValueError(f"Unknown objective: {obj_name}")
 
-    def _execute_optimization(self, scenario: UserJourneyScenario) -> OptimizationResult:
+    def _execute_optimization(
+        self, scenario: UserJourneyScenario
+    ) -> OptimizationResult:
         """Execute optimization for scenario."""
 
         optimizer = CompensationOptimizer(self.test_env.mock_duckdb, scenario.name)
@@ -423,7 +469,7 @@ class TestCompleteUserJourneys:
                 request = OptimizationRequest(
                     scenario_id=scenario.name,
                     initial_parameters=scenario.initial_parameters,
-                    objectives=scenario.business_objectives
+                    objectives=scenario.business_objectives,
                 )
             return None
 
@@ -431,11 +477,11 @@ class TestCompleteUserJourneys:
             scenario_id=scenario.name,
             initial_parameters=scenario.initial_parameters,
             objectives=scenario.business_objectives,
-            max_evaluations=100
+            max_evaluations=100,
         )
 
         # Mock scipy optimization based on scenario
-        with patch('scipy.optimize.minimize') as mock_minimize:
+        with patch("scipy.optimize.minimize") as mock_minimize:
             mock_result = self._create_mock_optimization_result(scenario)
             mock_minimize.return_value = mock_result
 
@@ -460,10 +506,16 @@ class TestCompleteUserJourneys:
             optimized_params = scenario.initial_parameters.copy()
             for param_name in optimized_params:
                 if "merit_rate" in param_name:
-                    if "cost" in scenario.business_objectives and scenario.business_objectives["cost"] > 0.5:
+                    if (
+                        "cost" in scenario.business_objectives
+                        and scenario.business_objectives["cost"] > 0.5
+                    ):
                         # Cost-focused: reduce merit rates slightly
                         optimized_params[param_name] *= 0.95
-                    elif "equity" in scenario.business_objectives and scenario.business_objectives["equity"] > 0.5:
+                    elif (
+                        "equity" in scenario.business_objectives
+                        and scenario.business_objectives["equity"] > 0.5
+                    ):
                         # Equity-focused: balance merit rates
                         optimized_params[param_name] = 0.045
 
@@ -475,13 +527,15 @@ class TestCompleteUserJourneys:
 
         return mock_result
 
-    def _execute_simulation(self, scenario: UserJourneyScenario, optimization_result: OptimizationResult) -> Dict[str, Any]:
+    def _execute_simulation(
+        self, scenario: UserJourneyScenario, optimization_result: OptimizationResult
+    ) -> Dict[str, Any]:
         """Execute simulation with optimized parameters (mocked)."""
 
         if not optimization_result or not optimization_result.converged:
             return {
                 "status": "failed",
-                "error": "Cannot run simulation without successful optimization"
+                "error": "Cannot run simulation without successful optimization",
             }
 
         # Mock simulation metrics based on scenario
@@ -496,15 +550,21 @@ class TestCompleteUserJourneys:
             "cost_per_employee": base_cost / base_workforce,
             "equity_score": 0.12,
             "budget_utilization": 0.85,
-            "retention_risk": "medium"
+            "retention_risk": "medium",
         }
 
         # Adjust metrics based on scenario focus
-        if "cost" in scenario.business_objectives and scenario.business_objectives["cost"] > 0.5:
+        if (
+            "cost" in scenario.business_objectives
+            and scenario.business_objectives["cost"] > 0.5
+        ):
             metrics["total_compensation_cost"] *= 0.95  # Cost reduction
             metrics["budget_utilization"] *= 0.90
 
-        if "equity" in scenario.business_objectives and scenario.business_objectives["equity"] > 0.5:
+        if (
+            "equity" in scenario.business_objectives
+            and scenario.business_objectives["equity"] > 0.5
+        ):
             metrics["equity_score"] *= 0.85  # Better equity (lower score)
 
         return metrics
@@ -518,9 +578,12 @@ class TestCompleteUserJourneys:
         generator = EvidenceGenerator(optimization_result)
         return generator._generate_report_content()
 
-    def _validate_business_outcomes(self, scenario: UserJourneyScenario,
-                                   optimization_result: OptimizationResult,
-                                   simulation_metrics: Dict[str, Any]):
+    def _validate_business_outcomes(
+        self,
+        scenario: UserJourneyScenario,
+        optimization_result: OptimizationResult,
+        simulation_metrics: Dict[str, Any],
+    ):
         """Validate that business outcomes meet expectations."""
 
         if not optimization_result:
@@ -550,8 +613,9 @@ class TestCompleteUserJourneys:
         for param_name, value in parameters.items():
             param_def = self.test_env.schema.get_parameter(param_name)
             if param_def:
-                assert param_def.bounds.min_value <= value <= param_def.bounds.max_value, \
-                    f"Parameter {param_name} = {value} outside valid bounds"
+                assert (
+                    param_def.bounds.min_value <= value <= param_def.bounds.max_value
+                ), f"Parameter {param_name} = {value} outside valid bounds"
 
 
 class TestOptimizationToSimulationPipeline:
@@ -579,14 +643,21 @@ class TestOptimizationToSimulationPipeline:
         request = OptimizationRequest(
             scenario_id="pipeline_test",
             initial_parameters=initial_params,
-            objectives=objectives
+            objectives=objectives,
         )
 
-        with patch('scipy.optimize.minimize') as mock_minimize:
+        with patch("scipy.optimize.minimize") as mock_minimize:
             # Mock successful optimization
             mock_result = Mock()
             mock_result.success = True
-            mock_result.x = [0.042, 0.038, 0.034, 0.034, 0.038, 0.023]  # Optimized values
+            mock_result.x = [
+                0.042,
+                0.038,
+                0.034,
+                0.034,
+                0.038,
+                0.023,
+            ]  # Optimized values
             mock_result.fun = 0.287
             mock_result.nit = 52
             mock_result.nfev = 156
@@ -626,11 +697,11 @@ class TestOptimizationToSimulationPipeline:
         for param_name, level_values in comp_format.items():
             for level, value in level_values.items():
                 mask = (
-                    (df['parameter_name'] == param_name) &
-                    (df['job_level'] == level) &
-                    (df['year'] == 2025)
+                    (df["parameter_name"] == param_name)
+                    & (df["job_level"] == level)
+                    & (df["year"] == 2025)
                 )
-                df.loc[mask, 'value'] = value
+                df.loc[mask, "value"] = value
 
         df.to_csv(self.test_env.comp_levers_path, index=False)
 
@@ -650,13 +721,13 @@ class TestOptimizationToSimulationPipeline:
                 "total_employees": 1287,
                 "total_cost": 72_450_000,
                 "average_compensation": 56_298,
-                "cost_change_pct": -3.2
+                "cost_change_pct": -3.2,
             },
             "data_quality": {
                 "row_count_check": "passed",
                 "uniqueness_check": "passed",
-                "distribution_check": "passed"
-            }
+                "distribution_check": "passed",
+            },
         }
 
     @pytest.mark.e2e
@@ -667,11 +738,13 @@ class TestOptimizationToSimulationPipeline:
         optimized_params = {
             "merit_rate_level_1": 0.048,
             "merit_rate_level_2": 0.042,
-            "cola_rate": 0.028
+            "cola_rate": 0.028,
         }
 
         # Apply to all years
-        comp_format = self.test_env.schema.transform_to_compensation_tuning_format(optimized_params)
+        comp_format = self.test_env.schema.transform_to_compensation_tuning_format(
+            optimized_params
+        )
 
         # Update comp_levers for all years
         df = pd.read_csv(self.test_env.comp_levers_path)
@@ -680,11 +753,11 @@ class TestOptimizationToSimulationPipeline:
             for param_name, level_values in comp_format.items():
                 for level, value in level_values.items():
                     mask = (
-                        (df['parameter_name'] == param_name) &
-                        (df['job_level'] == level) &
-                        (df['year'] == year)
+                        (df["parameter_name"] == param_name)
+                        & (df["job_level"] == level)
+                        & (df["year"] == year)
                     )
-                    df.loc[mask, 'value'] = value
+                    df.loc[mask, "value"] = value
 
         df.to_csv(self.test_env.comp_levers_path, index=False)
 
@@ -717,7 +790,7 @@ class TestOptimizationToSimulationPipeline:
                 "workforce_count": int(base_workforce * growth_factor),
                 "total_cost": 68_750_000 * growth_factor,
                 "parameters_consistent": True,
-                "data_quality_passed": True
+                "data_quality_passed": True,
             }
             yearly_results.append(year_result)
 
@@ -728,8 +801,8 @@ class TestOptimizationToSimulationPipeline:
             "cumulative_metrics": {
                 "total_cost_5year": sum(yr["total_cost"] for yr in yearly_results),
                 "final_workforce": yearly_results[-1]["workforce_count"],
-                "average_growth_rate": 0.05
-            }
+                "average_growth_rate": 0.05,
+            },
         }
 
 
@@ -749,49 +822,55 @@ class TestAdvancedOptimizationFeatures:
         """Test goal-seeking optimization workflow."""
 
         # Mock advanced optimization engine
-        with patch('streamlit_dashboard.advanced_optimization.AdvancedOptimizationEngine') as MockEngine:
+        with patch(
+            "streamlit_dashboard.advanced_optimization.AdvancedOptimizationEngine"
+        ) as MockEngine:
             mock_engine = Mock()
             MockEngine.return_value = mock_engine
 
             # Mock goal-seeking response
             mock_engine.goal_seek.return_value = {
-                'status': 'success',
-                'target_metric': 'budget_utilization',
-                'target_value': 0.95,
-                'achieved_value': 0.948,
-                'achievement_pct': 99.7,
-                'optimal_parameters': {
-                    'merit_rate_level_1': 0.0472,
-                    'merit_rate_level_2': 0.0419,
-                    'cola_rate': 0.0283
+                "status": "success",
+                "target_metric": "budget_utilization",
+                "target_value": 0.95,
+                "achieved_value": 0.948,
+                "achievement_pct": 99.7,
+                "optimal_parameters": {
+                    "merit_rate_level_1": 0.0472,
+                    "merit_rate_level_2": 0.0419,
+                    "cola_rate": 0.0283,
                 },
-                'iterations': 23,
-                'convergence_info': {
-                    'converged': True,
-                    'tolerance_met': True,
-                    'objective_improvement': 0.087
-                }
+                "iterations": 23,
+                "convergence_info": {
+                    "converged": True,
+                    "tolerance_met": True,
+                    "objective_improvement": 0.087,
+                },
             }
 
             # Execute goal-seeking
             engine = MockEngine.return_value
             result = engine.goal_seek(
-                target_metric='budget_utilization',
+                target_metric="budget_utilization",
                 target_value=0.95,
-                variable_parameters=['merit_rate_level_1', 'merit_rate_level_2', 'cola_rate'],
-                constraints={'max_iterations': 50}
+                variable_parameters=[
+                    "merit_rate_level_1",
+                    "merit_rate_level_2",
+                    "cola_rate",
+                ],
+                constraints={"max_iterations": 50},
             )
 
             # Validate goal-seeking results
-            assert result['status'] == 'success'
-            assert result['achievement_pct'] > 95.0  # Should achieve close to target
-            assert result['convergence_info']['converged']
+            assert result["status"] == "success"
+            assert result["achievement_pct"] > 95.0  # Should achieve close to target
+            assert result["convergence_info"]["converged"]
 
             # Validate optimal parameters are reasonable
-            optimal_params = result['optimal_parameters']
+            optimal_params = result["optimal_parameters"]
             schema = get_parameter_schema()
             validation_result = schema.validate_parameter_set(optimal_params)
-            assert validation_result['is_valid']
+            assert validation_result["is_valid"]
 
             print("✓ Goal-seeking workflow validated")
 
@@ -809,7 +888,7 @@ class TestAdvancedOptimizationFeatures:
         params = {
             "merit_rate_level_1": 0.045,
             "merit_rate_level_2": 0.040,
-            "cola_rate": 0.025
+            "cola_rate": 0.025,
         }
         objectives = {"cost": 0.6, "equity": 0.4}
 
@@ -844,7 +923,7 @@ class TestAdvancedOptimizationFeatures:
                 "merit_rate_level_2": 0.0419,
                 "merit_rate_level_3": 0.0365,
                 "cola_rate": 0.0283,
-                "new_hire_salary_adjustment": 1.18
+                "new_hire_salary_adjustment": 1.18,
             },
             objective_value=0.287,
             algorithm_used="SLSQP",
@@ -855,20 +934,17 @@ class TestAdvancedOptimizationFeatures:
                 "value": 2_150_000.0,
                 "unit": "USD",
                 "confidence": "high",
-                "breakdown": {
-                    "merit_costs": 1_800_000,
-                    "cola_costs": 350_000
-                }
+                "breakdown": {"merit_costs": 1_800_000, "cola_costs": 350_000},
             },
             estimated_employee_impact={
                 "count": 1287,
                 "percentage_of_workforce": 0.89,
                 "risk_level": "medium",
-                "retention_impact": "positive"
+                "retention_impact": "positive",
             },
             risk_assessment="MEDIUM",
             constraint_violations={},
-            solution_quality_score=0.91
+            solution_quality_score=0.91,
         )
 
         # Generate evidence report
@@ -910,7 +986,9 @@ class TestStressTestingAndResilience:
         self.test_env.cleanup()
 
     @pytest.mark.e2e
-    @pytest.mark.parametrize("scenario", UserJourneyGenerator.generate_stress_test_scenarios())
+    @pytest.mark.parametrize(
+        "scenario", UserJourneyGenerator.generate_stress_test_scenarios()
+    )
     def test_stress_scenario_resilience(self, scenario: UserJourneyScenario):
         """Test system resilience under stress scenarios."""
 
@@ -919,26 +997,32 @@ class TestStressTestingAndResilience:
         try:
             if scenario.name == "extreme_parameters":
                 # Should handle extreme parameters gracefully
-                validation_result = self.test_env.schema.validate_parameter_set(scenario.initial_parameters)
+                validation_result = self.test_env.schema.validate_parameter_set(
+                    scenario.initial_parameters
+                )
 
                 # May be invalid but should not crash
                 assert isinstance(validation_result, dict)
-                assert 'is_valid' in validation_result
+                assert "is_valid" in validation_result
 
-                if not validation_result['is_valid']:
-                    assert len(validation_result['errors']) > 0
+                if not validation_result["is_valid"]:
+                    assert len(validation_result["errors"]) > 0
 
             elif scenario.name == "conflicting_objectives":
                 # Should detect and handle conflicting objectives
                 with pytest.raises(ValueError):
                     total_weight = sum(scenario.business_objectives.values())
                     if abs(total_weight - 1.0) > 1e-6:
-                        raise ValueError(f"Objective weights must sum to 1.0, got {total_weight}")
+                        raise ValueError(
+                            f"Objective weights must sum to 1.0, got {total_weight}"
+                        )
 
             execution_time = time.time() - start_time
 
             # Should complete quickly even under stress
-            assert execution_time < 10.0, f"Stress test took too long: {execution_time:.2f}s"
+            assert (
+                execution_time < 10.0
+            ), f"Stress test took too long: {execution_time:.2f}s"
 
             print(f"✓ Stress scenario {scenario.name} handled gracefully")
 
@@ -959,13 +1043,15 @@ class TestStressTestingAndResilience:
             try:
                 # Each user works with slightly different parameters
                 params = get_default_parameters()
-                params['merit_rate_level_1'] += user_id * 0.001
+                params["merit_rate_level_1"] += user_id * 0.001
 
                 # Validate parameters
                 validation_result = self.test_env.schema.validate_parameter_set(params)
 
                 # Transform parameters
-                comp_format = self.test_env.schema.transform_to_compensation_tuning_format(params)
+                comp_format = (
+                    self.test_env.schema.transform_to_compensation_tuning_format(params)
+                )
 
                 # Simulate brief processing time
                 time.sleep(0.1)
@@ -973,32 +1059,34 @@ class TestStressTestingAndResilience:
                 return {
                     "user_id": user_id,
                     "success": True,
-                    "validation_passed": validation_result['is_valid']
+                    "validation_passed": validation_result["is_valid"],
                 }
 
             except Exception as e:
-                return {
-                    "user_id": user_id,
-                    "success": False,
-                    "error": str(e)
-                }
+                return {"user_id": user_id, "success": False, "error": str(e)}
 
         # Simulate 10 concurrent users
         with concurrent.futures.ThreadPoolExecutor(max_workers=10) as executor:
             futures = [executor.submit(simulate_user_session, i) for i in range(10)]
-            results = [future.result() for future in concurrent.futures.as_completed(futures)]
+            results = [
+                future.result() for future in concurrent.futures.as_completed(futures)
+            ]
 
         # Validate concurrent execution
         assert len(results) == 10
 
         successful_sessions = [r for r in results if r["success"]]
-        assert len(successful_sessions) >= 8, f"Too many concurrent session failures: {10 - len(successful_sessions)}"
+        assert (
+            len(successful_sessions) >= 8
+        ), f"Too many concurrent session failures: {10 - len(successful_sessions)}"
 
         # All successful sessions should have valid validation
         for session in successful_sessions:
             assert session["validation_passed"]
 
-        print(f"✓ Concurrent user simulation: {len(successful_sessions)}/10 sessions successful")
+        print(
+            f"✓ Concurrent user simulation: {len(successful_sessions)}/10 sessions successful"
+        )
 
     @pytest.mark.e2e
     def test_resource_exhaustion_recovery(self):
@@ -1019,7 +1107,9 @@ class TestStressTestingAndResilience:
                 large_datasets.append(large_params)
 
                 # Try to validate (most parameters will be unknown)
-                validation_result = self.test_env.schema.validate_parameter_set(large_params)
+                validation_result = self.test_env.schema.validate_parameter_set(
+                    large_params
+                )
 
                 # Should handle gracefully
                 assert isinstance(validation_result, dict)
@@ -1036,22 +1126,28 @@ class TestStressTestingAndResilience:
             # Cleanup
             del large_datasets
             import gc
+
             gc.collect()
 
         # System should still function after stress
         normal_params = get_default_parameters()
         validation_result = self.test_env.schema.validate_parameter_set(normal_params)
-        assert validation_result['is_valid']
+        assert validation_result["is_valid"]
 
         print("✓ Resource exhaustion recovery validated")
 
 
 if __name__ == "__main__":
     # Run end-to-end tests
-    pytest.main([
-        __file__ + "::TestCompleteUserJourneys::test_business_scenario_end_to_end",
-        __file__ + "::TestOptimizationToSimulationPipeline::test_parameter_optimization_pipeline",
-        __file__ + "::TestAdvancedOptimizationFeatures::test_goal_seeking_workflow",
-        __file__ + "::TestStressTestingAndResilience::test_concurrent_user_simulation",
-        "-v", "-s"
-    ])
+    pytest.main(
+        [
+            __file__ + "::TestCompleteUserJourneys::test_business_scenario_end_to_end",
+            __file__
+            + "::TestOptimizationToSimulationPipeline::test_parameter_optimization_pipeline",
+            __file__ + "::TestAdvancedOptimizationFeatures::test_goal_seeking_workflow",
+            __file__
+            + "::TestStressTestingAndResilience::test_concurrent_user_simulation",
+            "-v",
+            "-s",
+        ]
+    )

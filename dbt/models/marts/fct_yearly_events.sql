@@ -4,7 +4,10 @@
   materialized='incremental',
   unique_key=['employee_id', 'simulation_year', 'event_sequence'],
   incremental_strategy='delete+insert',
-  on_schema_change='sync_all_columns'
+  on_schema_change='sync_all_columns',
+  pre_hook=[
+    "{% if adapter.get_relation(database=this.database, schema=this.schema, identifier=this.identifier) %}DELETE FROM {{ this }} WHERE simulation_year = {{ var('simulation_year', 2025) }};{% endif %}"
+  ]
 ) }}
 
 {% set simulation_year = var('simulation_year', none) %}

@@ -3,9 +3,9 @@
 Shared utilities for preventing concurrent execution across different orchestrator systems.
 """
 
+import atexit
 import os
 import time
-import atexit
 from pathlib import Path
 from typing import Optional
 
@@ -39,7 +39,7 @@ class ExecutionMutex:
             try:
                 if not self.lock_file.exists():
                     # Create lock file with process info
-                    with open(self.lock_file, 'w') as f:
+                    with open(self.lock_file, "w") as f:
                         f.write(f"pid:{os.getpid()}\n")
                         f.write(f"timestamp:{time.time()}\n")
 
@@ -54,7 +54,9 @@ class ExecutionMutex:
                         self.lock_file.unlink()
                         continue
 
-                    print(f"⏳ Simulation already running, waiting... ({int(time.time() - start_time)}s)")
+                    print(
+                        f"⏳ Simulation already running, waiting... ({int(time.time() - start_time)}s)"
+                    )
                     time.sleep(2)
 
             except Exception as e:

@@ -2,18 +2,17 @@ from pathlib import Path
 
 import duckdb
 
+from navigator_orchestrator.reports import (EXECUTIVE_SUMMARY_TEMPLATE,
+                                            ConsoleReporter, MultiYearReporter,
+                                            ReportTemplate, YearAuditor)
 from navigator_orchestrator.utils import DatabaseConnectionManager
-from navigator_orchestrator.validation import DataValidator, HireTerminationRatioRule
-from navigator_orchestrator.reports import (
-    YearAuditor,
-    MultiYearReporter,
-    ConsoleReporter,
-    ReportTemplate,
-    EXECUTIVE_SUMMARY_TEMPLATE,
-)
+from navigator_orchestrator.validation import (DataValidator,
+                                               HireTerminationRatioRule)
 
 
-def _seed_year(conn, year: int, active: int, hires: int, terms: int, participating: int):
+def _seed_year(
+    conn, year: int, active: int, hires: int, terms: int, participating: int
+):
     # workforce snapshot
     conn.execute(
         """
@@ -113,11 +112,17 @@ def test_report_export_json_and_csv(tmp_path: Path):
     assert json_path.exists() and json_path.read_text().startswith("{")
 
     myr = MultiYearReporter(mgr)
-    summary = myr.generate_summary([2027, 2027]) if False else myr.generate_summary([2026, 2027])
+    summary = (
+        myr.generate_summary([2027, 2027])
+        if False
+        else myr.generate_summary([2026, 2027])
+    )
     csv_path = tmp_path / "summary.csv"
     summary.export_csv(csv_path)
     data = csv_path.read_text().splitlines()
-    assert data[0].startswith("Year,Total Employees,Active Employees,Participation Rate")
+    assert data[0].startswith(
+        "Year,Total Employees,Active Employees,Participation Rate"
+    )
 
 
 def test_configurable_report_templates():

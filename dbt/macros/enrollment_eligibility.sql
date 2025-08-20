@@ -9,13 +9,18 @@
 {% macro is_eligible_for_auto_enrollment(hire_date_column, simulation_year_value) %}
   {% set scope = get_auto_enrollment_scope() %}
   {% set cutoff = get_hire_date_cutoff() %}
+  {% set start_year = var('start_year', 2025) | int %}
 
   CASE
     WHEN '{{ scope }}' = 'new_hires_only' THEN
-      -- New hires: hired during simulation year AND after cutoff (inclusive)
-      {{ hire_date_column }} >= '{{ cutoff }}'::DATE
-      AND {{ hire_date_column }} >= CAST({{ simulation_year_value }} || '-01-01' AS DATE)
-      AND {{ hire_date_column }} <= CAST({{ simulation_year_value }} || '-12-31' AS DATE)
+      CASE
+        WHEN {{ simulation_year_value }} = {{ start_year }} THEN
+          -- First year: eligible if hired after the cutoff date
+          {{ hire_date_column }} >= '{{ cutoff }}'::DATE
+        ELSE
+          -- Subsequent years: eligible if hired in the current simulation year
+          EXTRACT(YEAR FROM {{ hire_date_column }}) = {{ simulation_year_value }}
+      END
     WHEN '{{ scope }}' = 'all_eligible_employees' THEN
       -- All eligible: hired on or after cutoff date (inclusive)
       {{ hire_date_column }} >= '{{ cutoff }}'::DATE

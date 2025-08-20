@@ -8,13 +8,14 @@ Comprehensive validation script to verify that all three debugging issues have b
 This script runs end-to-end tests to confirm all fixes are working correctly.
 """
 
-import duckdb
-import pandas as pd
-import sys
-from pathlib import Path
 import logging
 import subprocess
-from typing import Dict, List, Tuple, Optional
+import sys
+from pathlib import Path
+from typing import Dict, List, Optional, Tuple
+
+import duckdb
+import pandas as pd
 
 # Add project root to Python path
 project_root = Path(__file__).parent.parent
@@ -22,10 +23,10 @@ sys.path.append(str(project_root))
 
 # Configure logging
 logging.basicConfig(
-    level=logging.INFO,
-    format='%(asctime)s - %(levelname)s - %(message)s'
+    level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s"
 )
 logger = logging.getLogger(__name__)
+
 
 def connect_to_database():
     """Connect to the simulation database"""
@@ -34,6 +35,7 @@ def connect_to_database():
         logger.error(f"Database not found at {db_path}")
         sys.exit(1)
     return duckdb.connect(str(db_path))
+
 
 def run_dbt_models() -> bool:
     """Run dbt models to generate fresh test data"""
@@ -49,7 +51,7 @@ def run_dbt_models() -> bool:
             cwd=dbt_dir,
             capture_output=True,
             text=True,
-            timeout=300  # 5 minute timeout
+            timeout=300,  # 5 minute timeout
         )
 
         if result.returncode == 0:
@@ -66,16 +68,17 @@ def run_dbt_models() -> bool:
         logger.error(f"❌ Error running dbt models: {e}")
         return False
 
+
 def validate_growth_variance_fix(conn, simulation_year: int = 2025) -> Dict[str, any]:
     """Validate that the Growth Variance issue has been fixed"""
     logger.info(f"📊 VALIDATING GROWTH VARIANCE FIX FOR YEAR {simulation_year}")
     logger.info("=" * 70)
 
     results = {
-        'test_name': 'Growth Variance Fix',
-        'passed': False,
-        'details': {},
-        'issues': []
+        "test_name": "Growth Variance Fix",
+        "passed": False,
+        "details": {},
+        "issues": [],
     }
 
     try:
@@ -87,7 +90,11 @@ def validate_growth_variance_fix(conn, simulation_year: int = 2025) -> Dict[str,
             AND UPPER(event_type) = 'TERMINATION'
         """
 
-        termination_count = conn.execute(termination_events_query, [simulation_year]).df().iloc[0]['termination_count']
+        termination_count = (
+            conn.execute(termination_events_query, [simulation_year])
+            .df()
+            .iloc[0]["termination_count"]
+        )
 
         # Count terminated employees in snapshot
         terminated_employees_query = """
@@ -97,17 +104,21 @@ def validate_growth_variance_fix(conn, simulation_year: int = 2025) -> Dict[str,
             AND employment_status = 'terminated'
         """
 
-        terminated_count = conn.execute(terminated_employees_query, [simulation_year]).df().iloc[0]['terminated_count']
+        terminated_count = (
+            conn.execute(terminated_employees_query, [simulation_year])
+            .df()
+            .iloc[0]["terminated_count"]
+        )
 
         # Calculate variance
         variance = abs(termination_count - terminated_count)
         variance_pct = (variance / max(termination_count, 1)) * 100
 
-        results['details'] = {
-            'termination_events': termination_count,
-            'terminated_employees': terminated_count,
-            'variance': variance,
-            'variance_percentage': variance_pct
+        results["details"] = {
+            "termination_events": termination_count,
+            "terminated_employees": terminated_count,
+            "variance": variance,
+            "variance_percentage": variance_pct,
         }
 
         logger.info(f"Termination events: {termination_count}")
@@ -117,10 +128,10 @@ def validate_growth_variance_fix(conn, simulation_year: int = 2025) -> Dict[str,
         # Pass if variance is within 5%
         if variance_pct <= 5.0:
             logger.info("✅ Growth variance within acceptable bounds (<5%)")
-            results['passed'] = True
+            results["passed"] = True
         else:
             logger.error(f"❌ Growth variance too high: {variance_pct:.1f}%")
-            results['issues'].append(f"High growth variance: {variance_pct:.1f}%")
+            results["issues"].append(f"High growth variance: {variance_pct:.1f}%")
 
         # Additional check: ensure case-insensitive termination matching is working
         case_check_query = """
@@ -141,20 +152,23 @@ def validate_growth_variance_fix(conn, simulation_year: int = 2025) -> Dict[str,
 
     except Exception as e:
         logger.error(f"❌ Error validating growth variance fix: {e}")
-        results['issues'].append(f"Validation error: {e}")
+        results["issues"].append(f"Validation error: {e}")
 
     return results
 
-def validate_compensation_anomaly_fix(conn, simulation_year: int = 2025) -> Dict[str, any]:
+
+def validate_compensation_anomaly_fix(
+    conn, simulation_year: int = 2025
+) -> Dict[str, any]:
     """Validate that the $25M compensation anomaly has been fixed"""
     logger.info(f"💰 VALIDATING COMPENSATION ANOMALY FIX FOR YEAR {simulation_year}")
     logger.info("=" * 70)
 
     results = {
-        'test_name': 'Compensation Anomaly Fix',
-        'passed': False,
-        'details': {},
-        'issues': []
+        "test_name": "Compensation Anomaly Fix",
+        "passed": False,
+        "details": {},
+        "issues": [],
     }
 
     try:
@@ -171,15 +185,17 @@ def validate_compensation_anomaly_fix(conn, simulation_year: int = 2025) -> Dict
         WHERE simulation_year = ?
         """
 
-        comp_stats = conn.execute(extreme_salaries_query, [simulation_year]).df().iloc[0]
+        comp_stats = (
+            conn.execute(extreme_salaries_query, [simulation_year]).df().iloc[0]
+        )
 
-        results['details'] = {
-            'total_employees': int(comp_stats['total_employees']),
-            'above_5M': int(comp_stats['above_5M']),
-            'above_2M': int(comp_stats['above_2M']),
-            'above_1M': int(comp_stats['above_1M']),
-            'max_compensation': float(comp_stats['max_compensation']),
-            'avg_compensation': float(comp_stats['avg_compensation'])
+        results["details"] = {
+            "total_employees": int(comp_stats["total_employees"]),
+            "above_5M": int(comp_stats["above_5M"]),
+            "above_2M": int(comp_stats["above_2M"]),
+            "above_1M": int(comp_stats["above_1M"]),
+            "max_compensation": float(comp_stats["max_compensation"]),
+            "avg_compensation": float(comp_stats["avg_compensation"]),
         }
 
         logger.info(f"Total employees: {comp_stats['total_employees']:,}")
@@ -190,17 +206,25 @@ def validate_compensation_anomaly_fix(conn, simulation_year: int = 2025) -> Dict
         logger.info(f"Avg compensation: ${comp_stats['avg_compensation']:,.2f}")
 
         # Pass if no employees above $5M and max is reasonable
-        if comp_stats['above_5M'] == 0 and comp_stats['max_compensation'] < 2000000:
+        if comp_stats["above_5M"] == 0 and comp_stats["max_compensation"] < 2000000:
             logger.info("✅ No extreme compensation anomalies found")
-            results['passed'] = True
+            results["passed"] = True
         else:
-            if comp_stats['above_5M'] > 0:
-                logger.error(f"❌ Found {comp_stats['above_5M']} employees with >$5M compensation")
-                results['issues'].append(f"{comp_stats['above_5M']} employees above $5M")
+            if comp_stats["above_5M"] > 0:
+                logger.error(
+                    f"❌ Found {comp_stats['above_5M']} employees with >$5M compensation"
+                )
+                results["issues"].append(
+                    f"{comp_stats['above_5M']} employees above $5M"
+                )
 
-            if comp_stats['max_compensation'] >= 2000000:
-                logger.error(f"❌ Maximum compensation too high: ${comp_stats['max_compensation']:,.2f}")
-                results['issues'].append(f"Max compensation: ${comp_stats['max_compensation']:,.2f}")
+            if comp_stats["max_compensation"] >= 2000000:
+                logger.error(
+                    f"❌ Maximum compensation too high: ${comp_stats['max_compensation']:,.2f}"
+                )
+                results["issues"].append(
+                    f"Max compensation: ${comp_stats['max_compensation']:,.2f}"
+                )
 
         # Check promotion and merit increase caps are working
         promotion_check_query = """
@@ -214,13 +238,17 @@ def validate_compensation_anomaly_fix(conn, simulation_year: int = 2025) -> Dict
         """
 
         promo_stats = conn.execute(promotion_check_query, [simulation_year]).df()
-        if not promo_stats.empty and promo_stats.iloc[0]['total_promotions'] > 0:
+        if not promo_stats.empty and promo_stats.iloc[0]["total_promotions"] > 0:
             promo_result = promo_stats.iloc[0]
-            logger.info(f"Promotion stats: {promo_result['total_promotions']} promotions, "
-                       f"max: ${promo_result['max_promo_salary']:,.2f}")
+            logger.info(
+                f"Promotion stats: {promo_result['total_promotions']} promotions, "
+                f"max: ${promo_result['max_promo_salary']:,.2f}"
+            )
 
-            if promo_result['max_promo_salary'] > 5000000:
-                results['issues'].append(f"Extreme promotion salary: ${promo_result['max_promo_salary']:,.2f}")
+            if promo_result["max_promo_salary"] > 5000000:
+                results["issues"].append(
+                    f"Extreme promotion salary: ${promo_result['max_promo_salary']:,.2f}"
+                )
 
         merit_check_query = """
         SELECT
@@ -233,19 +261,24 @@ def validate_compensation_anomaly_fix(conn, simulation_year: int = 2025) -> Dict
         """
 
         merit_stats = conn.execute(merit_check_query, [simulation_year]).df()
-        if not merit_stats.empty and merit_stats.iloc[0]['total_raises'] > 0:
+        if not merit_stats.empty and merit_stats.iloc[0]["total_raises"] > 0:
             merit_result = merit_stats.iloc[0]
-            logger.info(f"Merit raise stats: {merit_result['total_raises']} raises, "
-                       f"max: ${merit_result['max_raise_salary']:,.2f}")
+            logger.info(
+                f"Merit raise stats: {merit_result['total_raises']} raises, "
+                f"max: ${merit_result['max_raise_salary']:,.2f}"
+            )
 
-            if merit_result['max_raise_salary'] > 5000000:
-                results['issues'].append(f"Extreme merit salary: ${merit_result['max_raise_salary']:,.2f}")
+            if merit_result["max_raise_salary"] > 5000000:
+                results["issues"].append(
+                    f"Extreme merit salary: ${merit_result['max_raise_salary']:,.2f}"
+                )
 
     except Exception as e:
         logger.error(f"❌ Error validating compensation anomaly fix: {e}")
-        results['issues'].append(f"Validation error: {e}")
+        results["issues"].append(f"Validation error: {e}")
 
     return results
+
 
 def validate_raises_reporting_fix(conn, simulation_year: int = 2025) -> Dict[str, any]:
     """Validate that the 'Raises: 0' reporting bug has been fixed"""
@@ -253,10 +286,10 @@ def validate_raises_reporting_fix(conn, simulation_year: int = 2025) -> Dict[str
     logger.info("=" * 70)
 
     results = {
-        'test_name': 'Raises Reporting Fix',
-        'passed': False,
-        'details': {},
-        'issues': []
+        "test_name": "Raises Reporting Fix",
+        "passed": False,
+        "details": {},
+        "issues": [],
     }
 
     try:
@@ -272,14 +305,16 @@ def validate_raises_reporting_fix(conn, simulation_year: int = 2025) -> Dict[str
         WHERE simulation_year = ?
         """
 
-        validation_result = conn.execute(validation_query, [simulation_year]).df().iloc[0]
+        validation_result = (
+            conn.execute(validation_query, [simulation_year]).df().iloc[0]
+        )
 
-        results['details'] = {
-            'hire_events': int(validation_result['hire_events']),
-            'termination_events': int(validation_result['termination_events']),
-            'promotion_events': int(validation_result['promotion_events']),
-            'raise_events': int(validation_result['raise_events']),
-            'total_events': int(validation_result['total_events'])
+        results["details"] = {
+            "hire_events": int(validation_result["hire_events"]),
+            "termination_events": int(validation_result["termination_events"]),
+            "promotion_events": int(validation_result["promotion_events"]),
+            "raise_events": int(validation_result["raise_events"]),
+            "total_events": int(validation_result["total_events"]),
         }
 
         logger.info(f"Event validation results:")
@@ -290,10 +325,10 @@ def validate_raises_reporting_fix(conn, simulation_year: int = 2025) -> Dict[str
         logger.info(f"  Total events: {validation_result['total_events']}")
 
         # Check if raises are being reported correctly
-        if validation_result['total_events'] > 0:
-            if validation_result['raise_events'] > 0:
+        if validation_result["total_events"] > 0:
+            if validation_result["raise_events"] > 0:
                 logger.info("✅ Raise events are being counted correctly")
-                results['passed'] = True
+                results["passed"] = True
             else:
                 # Check if merit events exist but aren't being counted
                 direct_merit_query = """
@@ -309,18 +344,24 @@ def validate_raises_reporting_fix(conn, simulation_year: int = 2025) -> Dict[str
                 merit_df = conn.execute(direct_merit_query, [simulation_year]).df()
 
                 if merit_df.empty:
-                    logger.warning("⚠️  No merit/raise events found - may be expected if no eligible employees")
-                    results['passed'] = True  # Not an error if no eligible employees
-                    results['issues'].append("No merit events generated (may be expected)")
+                    logger.warning(
+                        "⚠️  No merit/raise events found - may be expected if no eligible employees"
+                    )
+                    results["passed"] = True  # Not an error if no eligible employees
+                    results["issues"].append(
+                        "No merit events generated (may be expected)"
+                    )
                 else:
-                    logger.error("❌ Merit events exist but not counted in validation query")
-                    results['issues'].append("Merit events exist but not counted")
+                    logger.error(
+                        "❌ Merit events exist but not counted in validation query"
+                    )
+                    results["issues"].append("Merit events exist but not counted")
                     logger.info("Found merit events:")
                     for _, row in merit_df.iterrows():
                         logger.info(f"  '{row['event_type']}': {row['count']} events")
         else:
             logger.warning("⚠️  No events found for validation")
-            results['issues'].append("No events found")
+            results["issues"].append("No events found")
 
         # Test case sensitivity variations
         case_test_query = """
@@ -341,9 +382,10 @@ def validate_raises_reporting_fix(conn, simulation_year: int = 2025) -> Dict[str
 
     except Exception as e:
         logger.error(f"❌ Error validating raises reporting fix: {e}")
-        results['issues'].append(f"Validation error: {e}")
+        results["issues"].append(f"Validation error: {e}")
 
     return results
+
 
 def run_end_to_end_test(conn) -> Dict[str, any]:
     """Run comprehensive end-to-end test"""
@@ -351,10 +393,10 @@ def run_end_to_end_test(conn) -> Dict[str, any]:
     logger.info("=" * 70)
 
     results = {
-        'test_name': 'End-to-End Validation',
-        'passed': False,
-        'details': {},
-        'issues': []
+        "test_name": "End-to-End Validation",
+        "passed": False,
+        "details": {},
+        "issues": [],
     }
 
     try:
@@ -386,8 +428,10 @@ def run_end_to_end_test(conn) -> Dict[str, any]:
         if not consistency_df.empty:
             logger.info("Data consistency check:")
             for _, row in consistency_df.iterrows():
-                logger.info(f"  {row['table_name']} {row['simulation_year']}: "
-                           f"{row['record_count']:,} records, {row['unique_employees']:,} unique employees")
+                logger.info(
+                    f"  {row['table_name']} {row['simulation_year']}: "
+                    f"{row['record_count']:,} records, {row['unique_employees']:,} unique employees"
+                )
 
         # Check that all major event types are represented
         event_summary_query = """
@@ -401,43 +445,48 @@ def run_end_to_end_test(conn) -> Dict[str, any]:
 
         event_summary_df = conn.execute(event_summary_query).df()
 
-        expected_events = ['HIRE', 'TERMINATION', 'PROMOTION', 'RAISE']
-        found_events = set(event_summary_df['event_type'].tolist())
+        expected_events = ["HIRE", "TERMINATION", "PROMOTION", "RAISE"]
+        found_events = set(event_summary_df["event_type"].tolist())
 
-        results['details']['event_types_found'] = list(found_events)
-        results['details']['expected_event_types'] = expected_events
+        results["details"]["event_types_found"] = list(found_events)
+        results["details"]["expected_event_types"] = expected_events
 
         missing_events = set(expected_events) - found_events
         if missing_events:
-            results['issues'].append(f"Missing event types: {missing_events}")
+            results["issues"].append(f"Missing event types: {missing_events}")
 
         # Basic data quality checks
         quality_issues = 0
 
         # Check for NULL employee IDs
-        null_check = conn.execute("SELECT COUNT(*) FROM fct_yearly_events WHERE employee_id IS NULL").fetchone()[0]
+        null_check = conn.execute(
+            "SELECT COUNT(*) FROM fct_yearly_events WHERE employee_id IS NULL"
+        ).fetchone()[0]
         if null_check > 0:
             quality_issues += 1
-            results['issues'].append(f"{null_check} NULL employee IDs in events")
+            results["issues"].append(f"{null_check} NULL employee IDs in events")
 
         # Check for negative compensations
-        neg_comp_check = conn.execute("SELECT COUNT(*) FROM fct_workforce_snapshot WHERE current_compensation < 0").fetchone()[0]
+        neg_comp_check = conn.execute(
+            "SELECT COUNT(*) FROM fct_workforce_snapshot WHERE current_compensation < 0"
+        ).fetchone()[0]
         if neg_comp_check > 0:
             quality_issues += 1
-            results['issues'].append(f"{neg_comp_check} negative compensation values")
+            results["issues"].append(f"{neg_comp_check} negative compensation values")
 
-        results['passed'] = len(missing_events) == 0 and quality_issues == 0
+        results["passed"] = len(missing_events) == 0 and quality_issues == 0
 
-        if results['passed']:
+        if results["passed"]:
             logger.info("✅ End-to-end validation passed")
         else:
             logger.error("❌ End-to-end validation failed")
 
     except Exception as e:
         logger.error(f"❌ Error in end-to-end test: {e}")
-        results['issues'].append(f"Test error: {e}")
+        results["issues"].append(f"Test error: {e}")
 
     return results
+
 
 def generate_summary_report(all_results: List[Dict[str, any]]) -> None:
     """Generate a comprehensive summary report"""
@@ -445,7 +494,7 @@ def generate_summary_report(all_results: List[Dict[str, any]]) -> None:
     logger.info("=" * 80)
 
     total_tests = len(all_results)
-    passed_tests = sum(1 for r in all_results if r['passed'])
+    passed_tests = sum(1 for r in all_results if r["passed"])
     failed_tests = total_tests - passed_tests
 
     logger.info(f"Total tests run: {total_tests}")
@@ -456,11 +505,11 @@ def generate_summary_report(all_results: List[Dict[str, any]]) -> None:
     logger.info("-" * 50)
 
     for result in all_results:
-        status = "✅ PASS" if result['passed'] else "❌ FAIL"
+        status = "✅ PASS" if result["passed"] else "❌ FAIL"
         logger.info(f"{result['test_name']}: {status}")
 
-        if result['issues']:
-            for issue in result['issues']:
+        if result["issues"]:
+            for issue in result["issues"]:
                 logger.info(f"  • {issue}")
 
     if failed_tests == 0:
@@ -475,6 +524,7 @@ def generate_summary_report(all_results: List[Dict[str, any]]) -> None:
 
     return failed_tests == 0
 
+
 def main():
     """Main validation orchestration"""
     logger.info("🔍 COMPREHENSIVE FIX VALIDATION")
@@ -487,7 +537,9 @@ def main():
 
     try:
         # Optionally run dbt models to ensure fresh data
-        run_fresh_data = input("Run dbt models for fresh test data? (y/N): ").lower().startswith('y')
+        run_fresh_data = (
+            input("Run dbt models for fresh test data? (y/N): ").lower().startswith("y")
+        )
         if run_fresh_data:
             if not run_dbt_models():
                 logger.error("❌ Failed to generate fresh test data")
@@ -524,6 +576,7 @@ def main():
     except Exception as e:
         logger.error(f"❌ Validation failed with error: {e}")
         sys.exit(1)
+
 
 if __name__ == "__main__":
     main()

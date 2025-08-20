@@ -5,18 +5,15 @@ Comprehensive integration tests to validate that the refactored pipeline
 produces identical results to the original implementation.
 """
 
-import pytest
 from unittest.mock import Mock, patch
-from dagster import OpExecutionContext
 
-from orchestrator.simulator_pipeline import (
-    run_year_simulation,
-    run_multi_year_simulation,
-    YearResult,
-    clean_duckdb_data,
-    run_dbt_event_models_for_year,
-    run_dbt_snapshot_for_year,
-)
+import pytest
+from dagster import OpExecutionContext
+from orchestrator.simulator_pipeline import (YearResult, clean_duckdb_data,
+                                             run_dbt_event_models_for_year,
+                                             run_dbt_snapshot_for_year,
+                                             run_multi_year_simulation,
+                                             run_year_simulation)
 
 
 class TestSimulationBehaviorComparison:

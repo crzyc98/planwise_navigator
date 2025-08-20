@@ -275,11 +275,14 @@ enrollment_events AS (
     END as event_probability,
 
     -- Event category for grouping (normalized to accepted values)
-    -- FIX: When auto-enrollment program is enabled (either new hires only or all eligible),
-    -- classify generated enrollment events as 'auto_enrollment' to reflect program-driven enrollment.
-    -- This ensures downstream state/snapshot mark these as auto enrollments.
+    -- Correct classification:
+    --  - 'all_eligible_employees': all enrollment events are auto-enrollment
+    --  - 'new_hires_only': only current-year new hires (per macro) are auto-enrolled;
+    --    experienced employees fall back to voluntary/proactive classification
     CASE
-      WHEN '{{ var("auto_enrollment_scope", "all_eligible_employees") }}' IN ('new_hires_only', 'all_eligible_employees')
+      WHEN '{{ var("auto_enrollment_scope", "all_eligible_employees") }}' = 'all_eligible_employees' THEN 'auto_enrollment'
+      WHEN '{{ var("auto_enrollment_scope", "all_eligible_employees") }}' = 'new_hires_only'
+           AND ({{ is_eligible_for_auto_enrollment('efo.employee_hire_date', 'efo.simulation_year') }})
         THEN 'auto_enrollment'
       ELSE (
         CASE efo.age_segment

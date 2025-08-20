@@ -9,35 +9,31 @@ Tracks performance metrics over time and detects degradation patterns.
 from __future__ import annotations
 
 import json
-import time
-import uuid
 import logging
 import sqlite3
-from decimal import Decimal
+import time
+import uuid
+from dataclasses import asdict, dataclass
 from datetime import date, datetime, timedelta
+from decimal import Decimal
 from pathlib import Path
-from typing import Dict, List, Any, Optional
-from dataclasses import dataclass, asdict
+from typing import Any, Dict, List, Optional
 
-import pandas as pd
-import numpy as np
-from scipy import stats
 import duckdb
+import numpy as np
+import pandas as pd
+from scipy import stats
 
-from config.events import (
-    SimulationEvent,
-    EventFactory,
-    EligibilityEventFactory,
-    EnrollmentEventFactory,
-    ContributionEventFactory,
-    VestingEventFactory,
-    PlanAdministrationEventFactory
-)
+from config.events import (ContributionEventFactory, EligibilityEventFactory,
+                           EnrollmentEventFactory, EventFactory,
+                           PlanAdministrationEventFactory, SimulationEvent,
+                           VestingEventFactory)
 
 
 @dataclass
 class PerformanceMetric:
     """Performance metric data structure."""
+
     metric_name: str
     value: float
     unit: str
@@ -50,6 +46,7 @@ class PerformanceMetric:
 @dataclass
 class RegressionAlert:
     """Regression alert data structure."""
+
     metric_name: str
     current_value: float
     baseline_value: float
@@ -65,7 +62,9 @@ class PerformanceMetricsCollector:
     def __init__(self):
         self.metrics: List[PerformanceMetric] = []
 
-    def collect_event_creation_performance(self, num_events: int = 10000) -> Dict[str, float]:
+    def collect_event_creation_performance(
+        self, num_events: int = 10000
+    ) -> Dict[str, float]:
         """Collect event creation performance metrics."""
 
         # Workforce event creation
@@ -80,7 +79,7 @@ class PerformanceMetricsCollector:
                 effective_date=date(2024, 1, 1),
                 employee_ssn=f"{100000000 + i}",
                 employee_birth_date=date(1990, 1, 1),
-                location="HQ"
+                location="HQ",
             )
         workforce_time = time.perf_counter() - start_time
 
@@ -97,7 +96,7 @@ class PerformanceMetricsCollector:
                 employer_contribution=Decimal("250.00"),
                 contribution_source="regular_payroll",
                 vesting_service_years=Decimal("1.0"),
-                effective_date=date(2024, 1, 15)
+                effective_date=date(2024, 1, 15),
             )
         dc_plan_time = time.perf_counter() - start_time
 
@@ -115,7 +114,7 @@ class PerformanceMetricsCollector:
                 hce_threshold=Decimal("135000.00"),
                 is_hce=True,
                 determination_date=date(2024, 1, 1),
-                effective_date=date(2024, 1, 1)
+                effective_date=date(2024, 1, 1),
             )
         admin_time = time.perf_counter() - start_time
 
@@ -129,7 +128,7 @@ class PerformanceMetricsCollector:
             effective_date=date(2024, 1, 1),
             employee_ssn="123456789",
             employee_birth_date=date(1990, 1, 1),
-            location="HQ"
+            location="HQ",
         )
 
         validation_times = []
@@ -145,10 +144,12 @@ class PerformanceMetricsCollector:
             "admin_events_per_second": (num_events // 4) / admin_time,
             "avg_validation_time_ms": np.mean(validation_times),
             "p95_validation_time_ms": np.percentile(validation_times, 95),
-            "p99_validation_time_ms": np.percentile(validation_times, 99)
+            "p99_validation_time_ms": np.percentile(validation_times, 99),
         }
 
-    def collect_bulk_ingest_performance(self, num_events: int = 50000) -> Dict[str, float]:
+    def collect_bulk_ingest_performance(
+        self, num_events: int = 50000
+    ) -> Dict[str, float]:
         """Collect bulk database ingest performance metrics."""
 
         # Generate test events
@@ -166,7 +167,7 @@ class PerformanceMetricsCollector:
                     effective_date=date(2024, 1, 1),
                     employee_ssn=f"{100000000 + i}",
                     employee_birth_date=date(1990, 1, 1),
-                    location="HQ"
+                    location="HQ",
                 )
             elif i % 4 == 1:
                 event = ContributionEventFactory.create_contribution_event(
@@ -179,7 +180,7 @@ class PerformanceMetricsCollector:
                     employer_contribution=Decimal("250.00"),
                     contribution_source="regular_payroll",
                     vesting_service_years=Decimal("1.0"),
-                    effective_date=date(2024, 1, 15)
+                    effective_date=date(2024, 1, 15),
                 )
             else:
                 event = EventFactory.create_merit_event(
@@ -188,7 +189,7 @@ class PerformanceMetricsCollector:
                     plan_design_id="STANDARD",
                     merit_percentage=Decimal("0.04"),
                     previous_compensation=Decimal("75000.00"),
-                    effective_date=date(2024, 3, 1)
+                    effective_date=date(2024, 3, 1),
                 )
             events.append(event)
 
@@ -199,15 +200,17 @@ class PerformanceMetricsCollector:
         conversion_start = time.perf_counter()
 
         for event in events:
-            event_data.append({
-                'event_id': str(event.event_id),
-                'employee_id': event.employee_id,
-                'scenario_id': event.scenario_id,
-                'plan_design_id': event.plan_design_id,
-                'effective_date': event.effective_date,
-                'event_type': event.payload.event_type,
-                'payload_json': event.model_dump_json()
-            })
+            event_data.append(
+                {
+                    "event_id": str(event.event_id),
+                    "employee_id": event.employee_id,
+                    "scenario_id": event.scenario_id,
+                    "plan_design_id": event.plan_design_id,
+                    "effective_date": event.effective_date,
+                    "event_type": event.payload.event_type,
+                    "payload_json": event.model_dump_json(),
+                }
+            )
 
         df = pd.DataFrame(event_data)
         conversion_time = time.perf_counter() - conversion_start
@@ -216,7 +219,8 @@ class PerformanceMetricsCollector:
         conn = duckdb.connect(":memory:")
         insert_start = time.perf_counter()
 
-        conn.execute("""
+        conn.execute(
+            """
             CREATE TABLE performance_events (
                 event_id VARCHAR,
                 employee_id VARCHAR,
@@ -226,9 +230,10 @@ class PerformanceMetricsCollector:
                 event_type VARCHAR,
                 payload_json VARCHAR
             )
-        """)
+        """
+        )
 
-        conn.register('events_df', df)
+        conn.register("events_df", df)
         conn.execute("INSERT INTO performance_events SELECT * FROM events_df")
 
         insert_time = time.perf_counter() - insert_start
@@ -245,8 +250,11 @@ class PerformanceMetricsCollector:
             "events_per_second_generation": num_events / generation_time,
             "conversion_time_seconds": conversion_time,
             "insert_time_seconds": insert_time,
-            "total_ingest_time_seconds": generation_time + conversion_time + insert_time,
-            "overall_events_per_second": num_events / (generation_time + conversion_time + insert_time)
+            "total_ingest_time_seconds": generation_time
+            + conversion_time
+            + insert_time,
+            "overall_events_per_second": num_events
+            / (generation_time + conversion_time + insert_time),
         }
 
     def collect_memory_usage_metrics(self) -> Dict[str, float]:
@@ -268,7 +276,7 @@ class PerformanceMetricsCollector:
                 effective_date=date(2024, 1, 1),
                 employee_ssn=f"{100000000 + i}",
                 employee_birth_date=date(1990, 1, 1),
-                location="HQ"
+                location="HQ",
             )
             events.append(event)
 
@@ -281,6 +289,7 @@ class PerformanceMetricsCollector:
         # Cleanup
         del events
         import gc
+
         gc.collect()
 
         final_memory = process.memory_info().rss / 1024 / 1024  # MB
@@ -291,7 +300,9 @@ class PerformanceMetricsCollector:
             "memory_delta_mb": memory_delta,
             "final_memory_mb": final_memory,
             "events_per_mb": events_per_mb,
-            "memory_efficiency_score": min(1.0, events_per_mb / 1000)  # Target: 1000 events/MB
+            "memory_efficiency_score": min(
+                1.0, events_per_mb / 1000
+            ),  # Target: 1000 events/MB
         }
 
 
@@ -305,7 +316,8 @@ class PerformanceDatabase:
     def init_database(self):
         """Initialize performance metrics database."""
         with sqlite3.connect(self.db_path) as conn:
-            conn.execute("""
+            conn.execute(
+                """
                 CREATE TABLE IF NOT EXISTS performance_metrics (
                     id INTEGER PRIMARY KEY AUTOINCREMENT,
                     metric_name TEXT NOT NULL,
@@ -317,9 +329,11 @@ class PerformanceDatabase:
                     branch_name TEXT,
                     created_at TEXT DEFAULT CURRENT_TIMESTAMP
                 )
-            """)
+            """
+            )
 
-            conn.execute("""
+            conn.execute(
+                """
                 CREATE TABLE IF NOT EXISTS performance_baselines (
                     metric_name TEXT PRIMARY KEY,
                     baseline_value REAL NOT NULL,
@@ -328,9 +342,11 @@ class PerformanceDatabase:
                     critical_threshold_pct REAL DEFAULT 25.0,
                     last_updated TEXT DEFAULT CURRENT_TIMESTAMP
                 )
-            """)
+            """
+            )
 
-            conn.execute("""
+            conn.execute(
+                """
                 CREATE TABLE IF NOT EXISTS regression_alerts (
                     id INTEGER PRIMARY KEY AUTOINCREMENT,
                     metric_name TEXT NOT NULL,
@@ -343,78 +359,99 @@ class PerformanceDatabase:
                     resolved BOOLEAN DEFAULT FALSE,
                     created_at TEXT DEFAULT CURRENT_TIMESTAMP
                 )
-            """)
+            """
+            )
 
-            conn.execute("CREATE INDEX IF NOT EXISTS idx_metrics_name_timestamp ON performance_metrics(metric_name, timestamp)")
-            conn.execute("CREATE INDEX IF NOT EXISTS idx_alerts_severity ON regression_alerts(severity, resolved)")
+            conn.execute(
+                "CREATE INDEX IF NOT EXISTS idx_metrics_name_timestamp ON performance_metrics(metric_name, timestamp)"
+            )
+            conn.execute(
+                "CREATE INDEX IF NOT EXISTS idx_alerts_severity ON regression_alerts(severity, resolved)"
+            )
 
     def store_metrics(self, metrics: List[PerformanceMetric]):
         """Store performance metrics in database."""
         with sqlite3.connect(self.db_path) as conn:
             for metric in metrics:
-                conn.execute("""
+                conn.execute(
+                    """
                     INSERT INTO performance_metrics
                     (metric_name, value, unit, timestamp, test_scenario, commit_hash, branch_name)
                     VALUES (?, ?, ?, ?, ?, ?, ?)
-                """, (
-                    metric.metric_name,
-                    metric.value,
-                    metric.unit,
-                    metric.timestamp.isoformat(),
-                    metric.test_scenario,
-                    metric.commit_hash,
-                    metric.branch_name
-                ))
+                """,
+                    (
+                        metric.metric_name,
+                        metric.value,
+                        metric.unit,
+                        metric.timestamp.isoformat(),
+                        metric.test_scenario,
+                        metric.commit_hash,
+                        metric.branch_name,
+                    ),
+                )
 
     def get_baseline(self, metric_name: str) -> Optional[Dict[str, Any]]:
         """Get baseline for a specific metric."""
         with sqlite3.connect(self.db_path) as conn:
             conn.row_factory = sqlite3.Row
-            cursor = conn.execute("""
+            cursor = conn.execute(
+                """
                 SELECT * FROM performance_baselines WHERE metric_name = ?
-            """, (metric_name,))
+            """,
+                (metric_name,),
+            )
             row = cursor.fetchone()
             return dict(row) if row else None
 
     def set_baseline(self, metric_name: str, baseline_value: float, unit: str):
         """Set or update baseline for a metric."""
         with sqlite3.connect(self.db_path) as conn:
-            conn.execute("""
+            conn.execute(
+                """
                 INSERT OR REPLACE INTO performance_baselines
                 (metric_name, baseline_value, unit, last_updated)
                 VALUES (?, ?, ?, CURRENT_TIMESTAMP)
-            """, (metric_name, baseline_value, unit))
+            """,
+                (metric_name, baseline_value, unit),
+            )
 
     def store_alert(self, alert: RegressionAlert):
         """Store regression alert."""
         with sqlite3.connect(self.db_path) as conn:
-            conn.execute("""
+            conn.execute(
+                """
                 INSERT INTO regression_alerts
                 (metric_name, current_value, baseline_value, percentage_change,
                  threshold_breached, severity, timestamp)
                 VALUES (?, ?, ?, ?, ?, ?, ?)
-            """, (
-                alert.metric_name,
-                alert.current_value,
-                alert.baseline_value,
-                alert.percentage_change,
-                alert.threshold_breached,
-                alert.severity,
-                alert.timestamp.isoformat()
-            ))
+            """,
+                (
+                    alert.metric_name,
+                    alert.current_value,
+                    alert.baseline_value,
+                    alert.percentage_change,
+                    alert.threshold_breached,
+                    alert.severity,
+                    alert.timestamp.isoformat(),
+                ),
+            )
 
     def get_metric_history(self, metric_name: str, days: int = 30) -> pd.DataFrame:
         """Get historical data for a metric."""
         with sqlite3.connect(self.db_path) as conn:
             since_date = (datetime.now() - timedelta(days=days)).isoformat()
-            df = pd.read_sql_query("""
+            df = pd.read_sql_query(
+                """
                 SELECT * FROM performance_metrics
                 WHERE metric_name = ? AND timestamp >= ?
                 ORDER BY timestamp
-            """, conn, params=(metric_name, since_date))
+            """,
+                conn,
+                params=(metric_name, since_date),
+            )
 
             if not df.empty:
-                df['timestamp'] = pd.to_datetime(df['timestamp'])
+                df["timestamp"] = pd.to_datetime(df["timestamp"])
             return df
 
 
@@ -430,9 +467,9 @@ class RegressionDetector:
         if not baseline:
             return None
 
-        baseline_value = baseline['baseline_value']
-        warning_threshold = baseline['warning_threshold_pct']
-        critical_threshold = baseline['critical_threshold_pct']
+        baseline_value = baseline["baseline_value"]
+        warning_threshold = baseline["warning_threshold_pct"]
+        critical_threshold = baseline["critical_threshold_pct"]
 
         # Calculate percentage change
         percentage_change = ((metric.value - baseline_value) / baseline_value) * 100
@@ -456,7 +493,7 @@ class RegressionDetector:
                 percentage_change=percentage_change,
                 threshold_breached=threshold_breached,
                 severity=severity,
-                timestamp=metric.timestamp
+                timestamp=metric.timestamp,
             )
 
         return None
@@ -466,14 +503,17 @@ class RegressionDetector:
         df = self.db.get_metric_history(metric_name, days=30)
 
         if df.empty or len(df) < 5:
-            return {"status": "insufficient_data", "message": "Not enough data for trend analysis"}
+            return {
+                "status": "insufficient_data",
+                "message": "Not enough data for trend analysis",
+            }
 
         # Convert timestamps to numeric for regression
-        df['timestamp_numeric'] = pd.to_numeric(df['timestamp'])
+        df["timestamp_numeric"] = pd.to_numeric(df["timestamp"])
 
         # Perform linear regression
         slope, intercept, r_value, p_value, std_err = stats.linregress(
-            df['timestamp_numeric'], df['value']
+            df["timestamp_numeric"], df["value"]
         )
 
         # Determine trend direction
@@ -486,20 +526,22 @@ class RegressionDetector:
             trend = "STABLE"
 
         # Calculate volatility
-        volatility = df['value'].std() / df['value'].mean() if df['value'].mean() != 0 else 0
+        volatility = (
+            df["value"].std() / df["value"].mean() if df["value"].mean() != 0 else 0
+        )
 
         return {
             "status": "analyzed",
             "trend": trend,
             "slope": slope,
-            "r_squared": r_value ** 2,
+            "r_squared": r_value**2,
             "p_value": p_value,
             "volatility": volatility,
             "data_points": len(df),
-            "latest_value": df['value'].iloc[-1],
-            "mean_value": df['value'].mean(),
-            "min_value": df['value'].min(),
-            "max_value": df['value'].max()
+            "latest_value": df["value"].iloc[-1],
+            "mean_value": df["value"].mean(),
+            "min_value": df["value"].min(),
+            "max_value": df["value"].max(),
         }
 
 
@@ -519,14 +561,16 @@ class PerformanceMonitor:
 
         handler = logging.StreamHandler()
         formatter = logging.Formatter(
-            '%(asctime)s - %(name)s - %(levelname)s - %(message)s'
+            "%(asctime)s - %(name)s - %(levelname)s - %(message)s"
         )
         handler.setFormatter(formatter)
         logger.addHandler(handler)
 
         return logger
 
-    def run_performance_suite(self, commit_hash: str = None, branch_name: str = None) -> Dict[str, Any]:
+    def run_performance_suite(
+        self, commit_hash: str = None, branch_name: str = None
+    ) -> Dict[str, Any]:
         """Run complete performance test suite."""
         self.logger.info("Starting performance monitoring suite...")
 
@@ -562,7 +606,7 @@ class PerformanceMonitor:
                     timestamp=timestamp,
                     test_scenario="automated_monitoring",
                     commit_hash=commit_hash,
-                    branch_name=branch_name
+                    branch_name=branch_name,
                 )
                 metrics.append(metric)
 
@@ -571,7 +615,9 @@ class PerformanceMonitor:
                 if alert:
                     alerts.append(alert)
                     self.database.store_alert(alert)
-                    self.logger.warning(f"Performance regression detected: {alert.metric_name} - {alert.severity}")
+                    self.logger.warning(
+                        f"Performance regression detected: {alert.metric_name} - {alert.severity}"
+                    )
 
             # Store metrics
             self.database.store_metrics(metrics)
@@ -580,17 +626,19 @@ class PerformanceMonitor:
                 "timestamp": timestamp.isoformat(),
                 "metrics": {m.metric_name: m.value for m in metrics},
                 "alerts": [asdict(alert) for alert in alerts],
-                "status": "SUCCESS"
+                "status": "SUCCESS",
             }
 
-            self.logger.info(f"Performance monitoring completed. {len(metrics)} metrics collected, {len(alerts)} alerts generated.")
+            self.logger.info(
+                f"Performance monitoring completed. {len(metrics)} metrics collected, {len(alerts)} alerts generated."
+            )
 
         except Exception as e:
             self.logger.error(f"Performance monitoring failed: {str(e)}")
             results = {
                 "timestamp": timestamp.isoformat(),
                 "error": str(e),
-                "status": "FAILED"
+                "status": "FAILED",
             }
 
         return results
@@ -616,12 +664,24 @@ class PerformanceMonitor:
 
         # Define target baselines for key metrics
         target_baselines = {
-            "workforce_events_per_second": {"target": 25000, "warning": 10, "critical": 20},
-            "dc_plan_events_per_second": {"target": 20000, "warning": 10, "critical": 20},
+            "workforce_events_per_second": {
+                "target": 25000,
+                "warning": 10,
+                "critical": 20,
+            },
+            "dc_plan_events_per_second": {
+                "target": 20000,
+                "warning": 10,
+                "critical": 20,
+            },
             "admin_events_per_second": {"target": 15000, "warning": 10, "critical": 20},
             "avg_validation_time_ms": {"target": 5.0, "warning": 15, "critical": 30},
-            "overall_events_per_second": {"target": 15000, "warning": 15, "critical": 25},
-            "memory_efficiency_score": {"target": 0.8, "warning": 15, "critical": 25}
+            "overall_events_per_second": {
+                "target": 15000,
+                "warning": 15,
+                "critical": 25,
+            },
+            "memory_efficiency_score": {"target": 0.8, "warning": 15, "critical": 25},
         }
 
         baselines_set = {}
@@ -632,7 +692,7 @@ class PerformanceMonitor:
 
             if not df.empty and len(df) >= 3:
                 # Use median of recent data as baseline
-                baseline_value = df['value'].median()
+                baseline_value = df["value"].median()
             else:
                 # Use target value if no historical data
                 baseline_value = config["target"]
@@ -641,21 +701,24 @@ class PerformanceMonitor:
             self.database.set_baseline(
                 metric_name=metric_name,
                 baseline_value=baseline_value,
-                unit=self._determine_unit(metric_name)
+                unit=self._determine_unit(metric_name),
             )
 
             # Update thresholds
             with sqlite3.connect(self.database.db_path) as conn:
-                conn.execute("""
+                conn.execute(
+                    """
                     UPDATE performance_baselines
                     SET warning_threshold_pct = ?, critical_threshold_pct = ?
                     WHERE metric_name = ?
-                """, (config["warning"], config["critical"], metric_name))
+                """,
+                    (config["warning"], config["critical"], metric_name),
+                )
 
             baselines_set[metric_name] = {
                 "baseline_value": baseline_value,
                 "warning_threshold": config["warning"],
-                "critical_threshold": config["critical"]
+                "critical_threshold": config["critical"],
             }
 
             self.logger.info(f"Baseline set for {metric_name}: {baseline_value:.2f}")
@@ -663,7 +726,7 @@ class PerformanceMonitor:
         return {
             "baselines_established": len(baselines_set),
             "baselines": baselines_set,
-            "status": "SUCCESS"
+            "status": "SUCCESS",
         }
 
     def generate_performance_report(self) -> str:
@@ -674,7 +737,7 @@ class PerformanceMonitor:
             f"**Generated:** {datetime.now().strftime('%Y-%m-%d %H:%M:%S UTC')}",
             "",
             "## Performance Metrics Summary",
-            ""
+            "",
         ]
 
         # Get recent metrics
@@ -683,7 +746,7 @@ class PerformanceMonitor:
             "dc_plan_events_per_second",
             "avg_validation_time_ms",
             "overall_events_per_second",
-            "memory_efficiency_score"
+            "memory_efficiency_score",
         ]
 
         for metric_name in key_metrics:
@@ -691,64 +754,72 @@ class PerformanceMonitor:
             baseline = self.database.get_baseline(metric_name)
 
             if not df.empty:
-                latest_value = df['value'].iloc[-1]
+                latest_value = df["value"].iloc[-1]
                 trend_analysis = self.detector.analyze_trend(metric_name)
 
                 status_icon = "✅"
                 if baseline:
-                    change_pct = ((latest_value - baseline['baseline_value']) / baseline['baseline_value']) * 100
-                    if change_pct <= -baseline['critical_threshold_pct']:
+                    change_pct = (
+                        (latest_value - baseline["baseline_value"])
+                        / baseline["baseline_value"]
+                    ) * 100
+                    if change_pct <= -baseline["critical_threshold_pct"]:
                         status_icon = "🔴"
-                    elif change_pct <= -baseline['warning_threshold_pct']:
+                    elif change_pct <= -baseline["warning_threshold_pct"]:
                         status_icon = "🟡"
 
                 unit = self._determine_unit(metric_name)
-                report_lines.extend([
-                    f"### {status_icon} {metric_name.replace('_', ' ').title()}",
-                    f"- **Current Value:** {latest_value:.2f} {unit}",
-                    f"- **Baseline:** {baseline['baseline_value']:.2f} {unit}" if baseline else "- **Baseline:** Not set",
-                    f"- **Trend:** {trend_analysis.get('trend', 'Unknown')}",
-                    ""
-                ])
+                report_lines.extend(
+                    [
+                        f"### {status_icon} {metric_name.replace('_', ' ').title()}",
+                        f"- **Current Value:** {latest_value:.2f} {unit}",
+                        f"- **Baseline:** {baseline['baseline_value']:.2f} {unit}"
+                        if baseline
+                        else "- **Baseline:** Not set",
+                        f"- **Trend:** {trend_analysis.get('trend', 'Unknown')}",
+                        "",
+                    ]
+                )
 
         # Recent alerts
         with sqlite3.connect(self.database.db_path) as conn:
             conn.row_factory = sqlite3.Row
-            recent_alerts = conn.execute("""
+            recent_alerts = conn.execute(
+                """
                 SELECT * FROM regression_alerts
                 WHERE timestamp >= datetime('now', '-7 days')
                 ORDER BY timestamp DESC
                 LIMIT 10
-            """).fetchall()
+            """
+            ).fetchall()
 
         if recent_alerts:
-            report_lines.extend([
-                "## Recent Performance Alerts",
-                ""
-            ])
+            report_lines.extend(["## Recent Performance Alerts", ""])
 
             for alert in recent_alerts:
-                severity_icon = "🔴" if alert['severity'] == "CRITICAL" else "🟡"
+                severity_icon = "🔴" if alert["severity"] == "CRITICAL" else "🟡"
                 report_lines.append(
                     f"- {severity_icon} **{alert['metric_name']}**: {alert['percentage_change']:.1f}% change "
                     f"({alert['current_value']:.2f} vs {alert['baseline_value']:.2f}) - {alert['timestamp'][:10]}"
                 )
 
-        report_lines.extend([
-            "",
-            "## Performance Targets Status",
-            "",
-            "| Metric | Target | Status |",
-            "|--------|--------|--------|",
-            "| Event Creation | ≥20K events/sec | ✅ Meeting target |",
-            "| Schema Validation | <10ms per event | ✅ Meeting target |",
-            "| Bulk Ingest | ≥100K events/sec | ⚠️ Monitoring |",
-            "| Memory Efficiency | <8GB per 100K events | ✅ Meeting target |",
-            "",
-            "---",
-            "",
-            "*Generated by Performance & Validation Framework (S072-06)*"
-        ])
+        report_lines.extend(
+            [
+                "",
+                "## Performance Targets Status",
+                "",
+                "| Metric | Target | Status |",
+                "|--------|--------|--------|",
+                "| Event Creation | ≥20K events/sec | ✅ Meeting target |",
+                "| Schema Validation | <10ms per event | ✅ Meeting target |",
+                "| Bulk Ingest | ≥100K events/sec | ⚠️ Monitoring |",
+                "| Memory Efficiency | <8GB per 100K events | ✅ Meeting target |",
+                "",
+                "---",
+                "",
+                "*Generated by Performance & Validation Framework (S072-06)*",
+            ]
+        )
 
         return "\n".join(report_lines)
 
@@ -757,10 +828,20 @@ def main():
     """Main entry point for performance monitoring."""
     import argparse
 
-    parser = argparse.ArgumentParser(description="Performance & Validation Framework - S072-06")
-    parser.add_argument("--establish-baselines", action="store_true", help="Establish performance baselines")
-    parser.add_argument("--run-suite", action="store_true", help="Run performance monitoring suite")
-    parser.add_argument("--generate-report", action="store_true", help="Generate performance report")
+    parser = argparse.ArgumentParser(
+        description="Performance & Validation Framework - S072-06"
+    )
+    parser.add_argument(
+        "--establish-baselines",
+        action="store_true",
+        help="Establish performance baselines",
+    )
+    parser.add_argument(
+        "--run-suite", action="store_true", help="Run performance monitoring suite"
+    )
+    parser.add_argument(
+        "--generate-report", action="store_true", help="Generate performance report"
+    )
     parser.add_argument("--commit-hash", help="Git commit hash for tracking")
     parser.add_argument("--branch-name", help="Git branch name for tracking")
 
@@ -774,11 +855,12 @@ def main():
 
     if args.run_suite:
         result = monitor.run_performance_suite(
-            commit_hash=args.commit_hash,
-            branch_name=args.branch_name
+            commit_hash=args.commit_hash, branch_name=args.branch_name
         )
         if result["status"] == "SUCCESS":
-            print(f"✅ Performance suite completed: {len(result['metrics'])} metrics, {len(result['alerts'])} alerts")
+            print(
+                f"✅ Performance suite completed: {len(result['metrics'])} metrics, {len(result['alerts'])} alerts"
+            )
         else:
             print(f"❌ Performance suite failed: {result.get('error', 'Unknown error')}")
 

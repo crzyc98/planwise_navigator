@@ -25,11 +25,12 @@ from typing import Any, Dict, List, Optional, Tuple
 import duckdb
 from pydantic import BaseModel, Field
 
-from .backup_manager import BackupManager, BackupMetadata, BackupConfiguration
+from .backup_manager import BackupConfiguration, BackupManager, BackupMetadata
 
 
 class RecoveryPoint(BaseModel):
     """Information about a recovery point"""
+
     backup_path: Path
     timestamp: datetime
     verification_status: str
@@ -42,6 +43,7 @@ class RecoveryPoint(BaseModel):
 
 class RecoveryValidation(BaseModel):
     """Results of recovery validation"""
+
     success: bool
     validation_time: float
     checks_performed: List[str]
@@ -52,6 +54,7 @@ class RecoveryValidation(BaseModel):
 
 class RecoveryOperation(BaseModel):
     """Record of a recovery operation"""
+
     operation_id: str
     timestamp: datetime
     operation_type: str  # "restore", "verify", "emergency_backup"
@@ -70,7 +73,9 @@ class RecoveryManager:
     and automated recovery procedures with safety checks.
     """
 
-    def __init__(self, backup_manager: BackupManager, db_path: str = "simulation.duckdb"):
+    def __init__(
+        self, backup_manager: BackupManager, db_path: str = "simulation.duckdb"
+    ):
         """
         Initialize recovery manager
 
@@ -128,7 +133,7 @@ class RecoveryManager:
                     checks_performed=checks_performed,
                     warnings=warnings,
                     errors=errors,
-                    data_integrity_score=0.0
+                    data_integrity_score=0.0,
                 )
 
             checks_performed.append("file_existence")
@@ -138,7 +143,9 @@ class RecoveryManager:
             if file_size < 1024:  # Less than 1KB
                 errors.append(f"Backup file suspiciously small: {file_size} bytes")
             elif file_size > 50 * 1024**3:  # More than 50GB
-                warnings.append(f"Backup file very large: {file_size / (1024**3):.2f} GB")
+                warnings.append(
+                    f"Backup file very large: {file_size / (1024**3):.2f} GB"
+                )
 
             checks_performed.append("file_size_validation")
 
@@ -166,7 +173,11 @@ class RecoveryManager:
                 checks_performed.append("table_enumeration")
 
                 # Check critical tables exist
-                critical_tables = ["fct_yearly_events", "fct_workforce_snapshot", "stg_census_data"]
+                critical_tables = [
+                    "fct_yearly_events",
+                    "fct_workforce_snapshot",
+                    "stg_census_data",
+                ]
                 missing_tables = []
 
                 table_names = [table[0] for table in tables]
@@ -180,12 +191,16 @@ class RecoveryManager:
                 checks_performed.append("critical_table_validation")
 
                 # Count total rows across all tables
-                for table_name, in tables:
+                for (table_name,) in tables:
                     try:
-                        count_result = conn.execute(f"SELECT COUNT(*) FROM {table_name}").fetchone()
+                        count_result = conn.execute(
+                            f"SELECT COUNT(*) FROM {table_name}"
+                        ).fetchone()
                         total_rows += count_result[0]
                     except Exception as e:
-                        warnings.append(f"Could not count rows in table {table_name}: {str(e)}")
+                        warnings.append(
+                            f"Could not count rows in table {table_name}: {str(e)}"
+                        )
 
                 checks_performed.append("row_count_validation")
 
@@ -207,9 +222,13 @@ class RecoveryManager:
 
                 # Test foreign key relationships if possible
                 try:
-                    if "fct_workforce_snapshot" in table_names and "fct_yearly_events" in table_names:
+                    if (
+                        "fct_workforce_snapshot" in table_names
+                        and "fct_yearly_events" in table_names
+                    ):
                         # Check for orphaned records
-                        orphan_check = conn.execute("""
+                        orphan_check = conn.execute(
+                            """
                             SELECT COUNT(*)
                             FROM fct_yearly_events e
                             LEFT JOIN fct_workforce_snapshot w
@@ -217,10 +236,13 @@ class RecoveryManager:
                                 AND e.simulation_year = w.simulation_year
                             WHERE w.employee_id IS NULL
                             LIMIT 1000
-                        """).fetchone()
+                        """
+                        ).fetchone()
 
                         if orphan_check[0] > 100:
-                            warnings.append(f"Many orphaned event records: {orphan_check[0]}")
+                            warnings.append(
+                                f"Many orphaned event records: {orphan_check[0]}"
+                            )
 
                     checks_performed.append("referential_integrity_check")
 
@@ -250,7 +272,7 @@ class RecoveryManager:
                 checks_performed=checks_performed,
                 warnings=warnings,
                 errors=errors,
-                data_integrity_score=integrity_score
+                data_integrity_score=integrity_score,
             )
 
         except Exception as e:
@@ -265,7 +287,7 @@ class RecoveryManager:
                 checks_performed=checks_performed,
                 warnings=warnings,
                 errors=errors,
-                data_integrity_score=0.0
+                data_integrity_score=0.0,
             )
 
     def get_recovery_points(self) -> List[RecoveryPoint]:
@@ -288,15 +310,21 @@ class RecoveryManager:
                     table_count = len(tables)
 
                     total_rows = 0
-                    for table_name, in tables[:10]:  # Sample first 10 tables for performance
+                    for (table_name,) in tables[
+                        :10
+                    ]:  # Sample first 10 tables for performance
                         try:
-                            count_result = conn.execute(f"SELECT COUNT(*) FROM {table_name}").fetchone()
+                            count_result = conn.execute(
+                                f"SELECT COUNT(*) FROM {table_name}"
+                            ).fetchone()
                             total_rows += count_result[0]
                         except Exception:
                             pass
 
                     # Basic integrity score based on table count and data presence
-                    integrity_score = min(1.0, (table_count / 10.0) * (1.0 if total_rows > 0 else 0.5))
+                    integrity_score = min(
+                        1.0, (table_count / 10.0) * (1.0 if total_rows > 0 else 0.5)
+                    )
 
                     recovery_point = RecoveryPoint(
                         backup_path=backup.backup_path,
@@ -306,7 +334,7 @@ class RecoveryManager:
                         table_count=table_count,
                         total_rows=total_rows,
                         file_size=backup.backup_size,
-                        recovery_tested=False
+                        recovery_tested=False,
                     )
 
                     recovery_points.append(recovery_point)
@@ -321,7 +349,7 @@ class RecoveryManager:
                     table_count=0,
                     total_rows=0,
                     file_size=backup.backup_size,
-                    recovery_tested=False
+                    recovery_tested=False,
                 )
 
                 recovery_points.append(recovery_point)
@@ -348,7 +376,11 @@ class RecoveryManager:
 
         # Update recovery point status
         recovery_point.recovery_tested = True
-        recovery_point.verification_status = "comprehensive_test_passed" if validation.success else "comprehensive_test_failed"
+        recovery_point.verification_status = (
+            "comprehensive_test_passed"
+            if validation.success
+            else "comprehensive_test_failed"
+        )
         recovery_point.data_integrity_score = validation.data_integrity_score
 
         return validation
@@ -369,7 +401,9 @@ class RecoveryManager:
             backup_metadata = self.backup_manager.create_backup()
 
             # Rename to indicate emergency backup
-            emergency_name = f"emergency_{operation_id}_{backup_metadata.backup_path.name}"
+            emergency_name = (
+                f"emergency_{operation_id}_{backup_metadata.backup_path.name}"
+            )
             emergency_path = backup_metadata.backup_path.parent / emergency_name
             backup_metadata.backup_path.rename(emergency_path)
             backup_metadata.backup_path = emergency_path
@@ -385,7 +419,7 @@ class RecoveryManager:
         self,
         backup_path: Optional[Path] = None,
         verify_before_restore: bool = True,
-        create_emergency_backup: bool = True
+        create_emergency_backup: bool = True,
     ) -> RecoveryOperation:
         """
         Restore database from backup with comprehensive safety checks
@@ -411,7 +445,7 @@ class RecoveryManager:
             target_database=self.db_path,
             success=False,
             duration=0.0,
-            details={}
+            details={},
         )
 
         try:
@@ -422,9 +456,14 @@ class RecoveryManager:
                     raise ValueError("No recovery points available")
 
                 # Use newest recovery point with good integrity
-                suitable_points = [rp for rp in recovery_points if rp.data_integrity_score >= 0.7]
+                suitable_points = [
+                    rp for rp in recovery_points if rp.data_integrity_score >= 0.7
+                ]
                 if not suitable_points:
-                    self._log("Warning: No high-integrity recovery points found, using newest available", "WARNING")
+                    self._log(
+                        "Warning: No high-integrity recovery points found, using newest available",
+                        "WARNING",
+                    )
                     backup_path = recovery_points[0].backup_path
                 else:
                     backup_path = suitable_points[0].backup_path
@@ -443,13 +482,15 @@ class RecoveryManager:
                 if not validation.success:
                     operation.success = False
                     operation.duration = time.time() - operation_start
-                    operation.details["error"] = f"Backup verification failed: {validation.errors}"
+                    operation.details[
+                        "error"
+                    ] = f"Backup verification failed: {validation.errors}"
                     raise ValueError(f"Backup verification failed: {validation.errors}")
 
                 if validation.data_integrity_score < 0.7:
                     self._log(
                         f"Warning: Low integrity score {validation.data_integrity_score:.2f}, proceeding with caution",
-                        "WARNING"
+                        "WARNING",
                     )
 
             # Step 3: Create emergency backup of current database
@@ -458,7 +499,9 @@ class RecoveryManager:
                 self._log("Creating emergency backup of current database")
                 emergency_backup = self.create_emergency_backup()
                 if emergency_backup:
-                    operation.details["emergency_backup_created"] = str(emergency_backup.backup_path)
+                    operation.details["emergency_backup_created"] = str(
+                        emergency_backup.backup_path
+                    )
                 else:
                     self._log("Warning: Could not create emergency backup", "WARNING")
 
@@ -466,7 +509,7 @@ class RecoveryManager:
             self._log(f"Restoring database from: {backup_path}")
 
             # Atomic restore using temporary file
-            temp_restore_path = self.db_path.with_suffix('.restore_temp')
+            temp_restore_path = self.db_path.with_suffix(".restore_temp")
 
             # Copy backup to temp location
             shutil.copy2(backup_path, temp_restore_path)
@@ -484,7 +527,9 @@ class RecoveryManager:
             # Step 5: Verify restored database
             self._log("Verifying restored database")
             post_restore_validation = self.verify_backup_comprehensive(self.db_path)
-            operation.details["post_restore_validation"] = post_restore_validation.dict()
+            operation.details[
+                "post_restore_validation"
+            ] = post_restore_validation.dict()
 
             if not post_restore_validation.success:
                 self._log("Warning: Post-restore verification had issues", "WARNING")
@@ -504,10 +549,13 @@ class RecoveryManager:
             operation.duration = time.time() - operation_start
             operation.details["error"] = str(e)
 
-            self._log(f"Database restore failed - Operation: {operation_id} - {str(e)}", "ERROR")
+            self._log(
+                f"Database restore failed - Operation: {operation_id} - {str(e)}",
+                "ERROR",
+            )
 
             # Cleanup temp files
-            temp_restore_path = self.db_path.with_suffix('.restore_temp')
+            temp_restore_path = self.db_path.with_suffix(".restore_temp")
             if temp_restore_path.exists():
                 temp_restore_path.unlink()
 
@@ -523,15 +571,24 @@ class RecoveryManager:
         recovery_points = self.get_recovery_points()
 
         # Calculate recovery readiness metrics
-        verified_points = [rp for rp in recovery_points if rp.data_integrity_score >= 0.8]
+        verified_points = [
+            rp for rp in recovery_points if rp.data_integrity_score >= 0.8
+        ]
         recent_points = [
-            rp for rp in recovery_points
+            rp
+            for rp in recovery_points
             if rp.timestamp > datetime.now() - timedelta(days=1)
         ]
 
-        recovery_readiness = "excellent" if len(verified_points) >= 3 else \
-                           "good" if len(verified_points) >= 1 else \
-                           "poor" if len(recovery_points) > 0 else "critical"
+        recovery_readiness = (
+            "excellent"
+            if len(verified_points) >= 3
+            else "good"
+            if len(verified_points) >= 1
+            else "poor"
+            if len(recovery_points) > 0
+            else "critical"
+        )
 
         return {
             "recovery_readiness": recovery_readiness,
@@ -539,15 +596,23 @@ class RecoveryManager:
             "verified_recovery_points": len(verified_points),
             "recent_recovery_points": len(recent_points),
             "latest_recovery_point": {
-                "timestamp": recovery_points[0].timestamp.isoformat() if recovery_points else None,
-                "integrity_score": recovery_points[0].data_integrity_score if recovery_points else 0.0,
-                "file_size_gb": recovery_points[0].file_size / (1024**3) if recovery_points else 0.0
+                "timestamp": recovery_points[0].timestamp.isoformat()
+                if recovery_points
+                else None,
+                "integrity_score": recovery_points[0].data_integrity_score
+                if recovery_points
+                else 0.0,
+                "file_size_gb": recovery_points[0].file_size / (1024**3)
+                if recovery_points
+                else 0.0,
             },
             "database_status": {
                 "exists": self.db_path.exists(),
-                "size_gb": self.db_path.stat().st_size / (1024**3) if self.db_path.exists() else 0.0,
-                "accessible": self._test_database_access()
-            }
+                "size_gb": self.db_path.stat().st_size / (1024**3)
+                if self.db_path.exists()
+                else 0.0,
+                "accessible": self._test_database_access(),
+            },
         }
 
     def _test_database_access(self) -> bool:

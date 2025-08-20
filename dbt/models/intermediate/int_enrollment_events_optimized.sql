@@ -45,8 +45,12 @@ eligibility_filtering AS (
   -- Apply step-by-step eligibility filtering with audit trail
   SELECT
     *,
-    -- Step 1: Basic eligibility (tenure >= 1 year)
-    current_tenure >= 1 as passes_tenure_check,
+    -- Step 1: Basic eligibility (tenure)
+    -- Allow 0-year tenure for newly hired employees when scope is 'new_hires_only'
+    CASE
+      WHEN '{{ var("auto_enrollment_scope", "all_eligible_employees") }}' = 'new_hires_only' THEN (current_tenure >= 0)
+      ELSE (current_tenure >= 1)
+    END as passes_tenure_check,
 
     -- Step 2: Not already enrolled
     employee_enrollment_date IS NULL as passes_enrollment_check,

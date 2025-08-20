@@ -2,15 +2,11 @@ from pathlib import Path
 
 import pytest
 
-from navigator_orchestrator.dbt_runner import (
-    DbtRunner,
-    DbtResult,
-    classify_dbt_error,
-    DbtCompilationError,
-    DbtExecutionError,
-    DbtDataQualityError,
-    retry_with_backoff,
-)
+from navigator_orchestrator.dbt_runner import (DbtCompilationError,
+                                               DbtDataQualityError,
+                                               DbtExecutionError, DbtResult,
+                                               DbtRunner, classify_dbt_error,
+                                               retry_with_backoff)
 
 
 def test_dbt_runner_successful_command_execution(tmp_path: Path):
@@ -25,11 +21,10 @@ def test_dbt_runner_successful_command_execution(tmp_path: Path):
 def test_dbt_runner_streaming_output_capture(tmp_path: Path):
     runner = DbtRunner(working_dir=tmp_path, executable="python")
     lines = []
-    code = (
-        "import time\n"
-        "[print(i) or time.sleep(0.01) for i in range(3)]\n"
+    code = "import time\n" "[print(i) or time.sleep(0.01) for i in range(3)]\n"
+    result = runner.execute_command(
+        ["-u", "-c", code], stream_output=True, on_line=lines.append
     )
-    result = runner.execute_command(["-u", "-c", code], stream_output=True, on_line=lines.append)
     assert result.success is True
     assert lines == ["0", "1", "2"]
 
@@ -49,15 +44,23 @@ def test_retry_logic_transient_failures():
 
 
 def test_error_classification_compilation_vs_execution():
-    assert isinstance(classify_dbt_error("", "Compilation Error in model x", 1), DbtCompilationError)
-    assert isinstance(classify_dbt_error("", "Database Error: failed", 1), DbtExecutionError)
-    assert isinstance(classify_dbt_error("some test failed", "", 1), DbtDataQualityError)
+    assert isinstance(
+        classify_dbt_error("", "Compilation Error in model x", 1), DbtCompilationError
+    )
+    assert isinstance(
+        classify_dbt_error("", "Database Error: failed", 1), DbtExecutionError
+    )
+    assert isinstance(
+        classify_dbt_error("some test failed", "", 1), DbtDataQualityError
+    )
 
 
 def test_command_templating_variable_injection(tmp_path: Path):
     runner = DbtRunner(working_dir=tmp_path, executable="dbt")
     # Build private method to inspect command
-    cmd = runner._build_command(["run"], simulation_year=2026, dbt_vars={"cola_rate": 0.01})
+    cmd = runner._build_command(
+        ["run"], simulation_year=2026, dbt_vars={"cola_rate": 0.01}
+    )
     # Should include --vars JSON with both keys
     assert "--vars" in cmd
     idx = cmd.index("--vars")

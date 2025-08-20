@@ -4,28 +4,27 @@ Comprehensive validation script for workforce snapshot architecture refactoring.
 Automates testing process and generates detailed validation report.
 """
 
-import subprocess
 import json
-import pandas as pd
-import duckdb
-import pytest
-import sys
-import os
-from pathlib import Path
-from datetime import datetime
-from typing import Dict, List, Tuple, Optional
 import logging
+import os
+import subprocess
+import sys
+from datetime import datetime
+from pathlib import Path
+from typing import Dict, List, Optional, Tuple
+
+import duckdb
+import pandas as pd
+import pytest
 
 # Set up logging
 logging.basicConfig(
     level=logging.INFO,
-    format='%(asctime)s - %(levelname)s - %(message)s',
-    handlers=[
-        logging.FileHandler('validation_results.log'),
-        logging.StreamHandler()
-    ]
+    format="%(asctime)s - %(levelname)s - %(message)s",
+    handlers=[logging.FileHandler("validation_results.log"), logging.StreamHandler()],
 )
 logger = logging.getLogger(__name__)
+
 
 class SnapshotRefactorValidator:
     """Validates the workforce snapshot architecture refactoring."""
@@ -40,7 +39,7 @@ class SnapshotRefactorValidator:
             "integration_tests": {},
             "behavior_validation": {},
             "performance_metrics": {},
-            "overall_status": "PENDING"
+            "overall_status": "PENDING",
         }
 
     def validate_contracts(self) -> Dict[str, bool]:
@@ -51,16 +50,35 @@ class SnapshotRefactorValidator:
         try:
             # Build the model with full refresh
             logger.info("Building fct_workforce_snapshot with full refresh...")
-            cmd = ["dbt", "build", "--select", "fct_workforce_snapshot", "--full-refresh", "--vars", '{"simulation_year": 2025, "scenario_id": "default"}']
-            result = subprocess.run(cmd, cwd=self.dbt_dir, capture_output=True, text=True)
+            cmd = [
+                "dbt",
+                "build",
+                "--select",
+                "fct_workforce_snapshot",
+                "--full-refresh",
+                "--vars",
+                '{"simulation_year": 2025, "scenario_id": "default"}',
+            ]
+            result = subprocess.run(
+                cmd, cwd=self.dbt_dir, capture_output=True, text=True
+            )
             results["model_build"] = result.returncode == 0
             if result.returncode != 0:
                 logger.error(f"Model build failed: {result.stderr}")
 
             # Run contract tests
             logger.info("Running contract tests...")
-            cmd = ["dbt", "test", "--select", "fct_workforce_snapshot", "--vars", '{"simulation_year": 2025, "scenario_id": "default"}']
-            result = subprocess.run(cmd, cwd=self.dbt_dir, capture_output=True, text=True)
+            cmd = [
+                "dbt",
+                "test",
+                "--select",
+                "fct_workforce_snapshot",
+                "--vars",
+                '{"simulation_year": 2025, "scenario_id": "default"}',
+            ]
+            result = subprocess.run(
+                cmd, cwd=self.dbt_dir, capture_output=True, text=True
+            )
             results["contract_tests"] = result.returncode == 0
             if result.returncode != 0:
                 logger.error(f"Contract tests failed: {result.stderr}")
@@ -88,12 +106,14 @@ class SnapshotRefactorValidator:
                 return False
 
             # Get column information
-            columns = conn.execute("""
+            columns = conn.execute(
+                """
                 SELECT column_name, data_type
                 FROM information_schema.columns
                 WHERE table_name = 'fct_workforce_snapshot'
                 ORDER BY ordinal_position
-            """).fetchall()
+            """
+            ).fetchall()
 
             # Expected columns based on actual schema
             expected_columns = {
@@ -106,7 +126,7 @@ class SnapshotRefactorValidator:
                 "current_age": "BIGINT",
                 "current_tenure": "BIGINT",
                 "age_band": "VARCHAR",
-                "tenure_band": "VARCHAR"
+                "tenure_band": "VARCHAR",
             }
 
             # Verify critical columns exist
@@ -129,10 +149,26 @@ class SnapshotRefactorValidator:
         results = {}
 
         test_configs = [
-            ("SCD Snapshots", ["scd_workforce_state_optimized+"], {"simulation_year": 2025}),
-            ("Mart Models", ["fct_compensation_growth", "fct_policy_optimization"], {"simulation_year": 2025}),
-            ("Monitoring Models", ["mon_pipeline_performance", "mon_data_quality"], {"simulation_year": 2025}),
-            ("Circular Dependencies", ["int_active_employees_prev_year_snapshot+"], {"simulation_year": 2026})
+            (
+                "SCD Snapshots",
+                ["scd_workforce_state_optimized+"],
+                {"simulation_year": 2025},
+            ),
+            (
+                "Mart Models",
+                ["fct_compensation_growth", "fct_policy_optimization"],
+                {"simulation_year": 2025},
+            ),
+            (
+                "Monitoring Models",
+                ["mon_pipeline_performance", "mon_data_quality"],
+                {"simulation_year": 2025},
+            ),
+            (
+                "Circular Dependencies",
+                ["int_active_employees_prev_year_snapshot+"],
+                {"simulation_year": 2026},
+            ),
         ]
 
         for test_name, models, vars_dict in test_configs:
@@ -140,7 +176,9 @@ class SnapshotRefactorValidator:
             try:
                 vars_json = json.dumps(vars_dict)
                 cmd = ["dbt", "build", "--select"] + models + ["--vars", vars_json]
-                result = subprocess.run(cmd, cwd=self.dbt_dir, capture_output=True, text=True)
+                result = subprocess.run(
+                    cmd, cwd=self.dbt_dir, capture_output=True, text=True
+                )
                 results[test_name] = result.returncode == 0
 
                 if result.returncode != 0:
@@ -161,10 +199,19 @@ class SnapshotRefactorValidator:
         results = {}
 
         test_suites = [
-            ("Simulation Behavior", "tests/integration/test_simulation_behavior_comparison.py"),
-            ("Multi-Year Cold Start", "tests/integration/test_multi_year_cold_start.py"),
+            (
+                "Simulation Behavior",
+                "tests/integration/test_simulation_behavior_comparison.py",
+            ),
+            (
+                "Multi-Year Cold Start",
+                "tests/integration/test_multi_year_cold_start.py",
+            ),
             ("SCD Data Consistency", "tests/integration/test_scd_data_consistency.py"),
-            ("Compensation Workflow", "tests/test_compensation_workflow_integration.py")
+            (
+                "Compensation Workflow",
+                "tests/test_compensation_workflow_integration.py",
+            ),
         ]
 
         for test_name, test_path in test_suites:
@@ -176,15 +223,28 @@ class SnapshotRefactorValidator:
                     results[test_name] = False
                     continue
 
-                cmd = [sys.executable, "-m", "pytest", str(full_path), "-v", "--tb=short"]
-                result = subprocess.run(cmd, cwd=self.project_root, capture_output=True, text=True)
+                cmd = [
+                    sys.executable,
+                    "-m",
+                    "pytest",
+                    str(full_path),
+                    "-v",
+                    "--tb=short",
+                ]
+                result = subprocess.run(
+                    cmd, cwd=self.project_root, capture_output=True, text=True
+                )
                 results[test_name] = result.returncode == 0
 
                 if result.returncode != 0:
                     logger.error(f"{test_name} tests failed")
                     # Extract failure details from pytest output
                     if "FAILED" in result.stdout:
-                        failures = [line for line in result.stdout.split('\n') if "FAILED" in line]
+                        failures = [
+                            line
+                            for line in result.stdout.split("\n")
+                            if "FAILED" in line
+                        ]
                         for failure in failures[:5]:  # Show first 5 failures
                             logger.error(f"  - {failure}")
                 else:
@@ -207,7 +267,8 @@ class SnapshotRefactorValidator:
 
             # Employee count validation
             logger.info("Validating employee counts...")
-            employee_counts = conn.execute("""
+            employee_counts = conn.execute(
+                """
                 SELECT
                     simulation_year,
                     employment_status,
@@ -217,12 +278,14 @@ class SnapshotRefactorValidator:
                 WHERE simulation_year >= 2024
                 GROUP BY simulation_year, employment_status
                 ORDER BY simulation_year, employment_status
-            """).fetchdf()
-            results["employee_counts"] = employee_counts.to_dict('records')
+            """
+            ).fetchdf()
+            results["employee_counts"] = employee_counts.to_dict("records")
 
             # Compensation validation
             logger.info("Validating compensation calculations...")
-            comp_stats = conn.execute("""
+            comp_stats = conn.execute(
+                """
                 SELECT
                     simulation_year,
                     employment_status,
@@ -235,12 +298,14 @@ class SnapshotRefactorValidator:
                 WHERE simulation_year >= 2024
                 GROUP BY simulation_year, employment_status
                 ORDER BY simulation_year, employment_status
-            """).fetchdf()
-            results["compensation_stats"] = comp_stats.to_dict('records')
+            """
+            ).fetchdf()
+            results["compensation_stats"] = comp_stats.to_dict("records")
 
             # Event distribution validation
             logger.info("Validating event distributions...")
-            event_dist = conn.execute("""
+            event_dist = conn.execute(
+                """
                 SELECT
                     simulation_year,
                     event_type,
@@ -249,12 +314,14 @@ class SnapshotRefactorValidator:
                 WHERE simulation_year >= 2024
                 GROUP BY simulation_year, event_type
                 ORDER BY simulation_year, event_type
-            """).fetchdf()
-            results["event_distribution"] = event_dist.to_dict('records')
+            """
+            ).fetchdf()
+            results["event_distribution"] = event_dist.to_dict("records")
 
             # Data quality checks
             logger.info("Running data quality checks...")
-            quality_checks = conn.execute("""
+            quality_checks = conn.execute(
+                """
                 SELECT
                     'null_employee_ids' as check_name,
                     COUNT(*) as issue_count
@@ -276,13 +343,13 @@ class SnapshotRefactorValidator:
                     COUNT(*) as issue_count
                 FROM fct_workforce_snapshot
                 WHERE current_age < 18 OR current_age > 100
-            """).fetchdf()
-            results["data_quality"] = quality_checks.to_dict('records')
+            """
+            ).fetchdf()
+            results["data_quality"] = quality_checks.to_dict("records")
 
             # Overall behavior validation status
             results["validation_passed"] = all(
-                row['issue_count'] == 0
-                for row in results["data_quality"]
+                row["issue_count"] == 0 for row in results["data_quality"]
             )
 
             conn.close()
@@ -305,8 +372,17 @@ class SnapshotRefactorValidator:
             logger.info("Measuring refactored model performance...")
             start_time = datetime.now()
 
-            cmd = ["dbt", "build", "--select", "+fct_workforce_snapshot", "--vars", '{"simulation_year": 2025}']
-            result = subprocess.run(cmd, cwd=self.dbt_dir, capture_output=True, text=True)
+            cmd = [
+                "dbt",
+                "build",
+                "--select",
+                "+fct_workforce_snapshot",
+                "--vars",
+                '{"simulation_year": 2025}',
+            ]
+            result = subprocess.run(
+                cmd, cwd=self.dbt_dir, capture_output=True, text=True
+            )
 
             end_time = datetime.now()
             execution_time = (end_time - start_time).total_seconds()
@@ -316,7 +392,7 @@ class SnapshotRefactorValidator:
 
             # Extract model timing information from dbt output
             if "Completed successfully" in result.stdout:
-                lines = result.stdout.split('\n')
+                lines = result.stdout.split("\n")
                 model_timings = []
                 for line in lines:
                     if "model" in line and "completed in" in line:
@@ -325,9 +401,18 @@ class SnapshotRefactorValidator:
 
             # Check incremental strategy
             logger.info("Testing incremental strategy...")
-            cmd = ["dbt", "run", "--select", "fct_workforce_snapshot", "--vars", '{"simulation_year": 2025}']
+            cmd = [
+                "dbt",
+                "run",
+                "--select",
+                "fct_workforce_snapshot",
+                "--vars",
+                '{"simulation_year": 2025}',
+            ]
             incremental_start = datetime.now()
-            result = subprocess.run(cmd, cwd=self.dbt_dir, capture_output=True, text=True)
+            result = subprocess.run(
+                cmd, cwd=self.dbt_dir, capture_output=True, text=True
+            )
             incremental_time = (datetime.now() - incremental_start).total_seconds()
 
             results["incremental_time_seconds"] = incremental_time
@@ -335,8 +420,9 @@ class SnapshotRefactorValidator:
 
             # Performance assessment
             results["performance_acceptable"] = (
-                execution_time < 300 and  # Less than 5 minutes for full build
-                incremental_time < 60     # Less than 1 minute for incremental
+                execution_time < 300
+                and incremental_time  # Less than 5 minutes for full build
+                < 60  # Less than 1 minute for incremental
             )
 
         except Exception as e:
@@ -353,11 +439,15 @@ class SnapshotRefactorValidator:
 
         # Determine overall status
         all_passed = (
-            all(self.results.get("contract_verification", {}).values()) and
-            all(self.results.get("dependency_tests", {}).values()) and
-            all(self.results.get("integration_tests", {}).values()) and
-            self.results.get("behavior_validation", {}).get("validation_passed", False) and
-            self.results.get("performance_metrics", {}).get("performance_acceptable", False)
+            all(self.results.get("contract_verification", {}).values())
+            and all(self.results.get("dependency_tests", {}).values())
+            and all(self.results.get("integration_tests", {}).values())
+            and self.results.get("behavior_validation", {}).get(
+                "validation_passed", False
+            )
+            and self.results.get("performance_metrics", {}).get(
+                "performance_acceptable", False
+            )
         )
 
         self.results["overall_status"] = "PASSED" if all_passed else "FAILED"
@@ -367,7 +457,7 @@ class SnapshotRefactorValidator:
             "# Workforce Snapshot Architecture Validation Report",
             f"\nGenerated: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}",
             f"\n## Overall Status: **{self.results['overall_status']}**",
-            "\n---\n"
+            "\n---\n",
         ]
 
         # Contract Verification
@@ -398,15 +488,21 @@ class SnapshotRefactorValidator:
             if "data_quality" in behavior:
                 for check in behavior["data_quality"]:
                     if check["issue_count"] > 0:
-                        report_lines.append(f"  - {check['check_name']}: {check['issue_count']} issues")
+                        report_lines.append(
+                            f"  - {check['check_name']}: {check['issue_count']} issues"
+                        )
 
         # Performance Metrics
         report_lines.append("\n## Performance Metrics")
         perf = self.results.get("performance_metrics", {})
         if "execution_time_seconds" in perf:
-            report_lines.append(f"- Full build time: {perf['execution_time_seconds']:.2f} seconds")
+            report_lines.append(
+                f"- Full build time: {perf['execution_time_seconds']:.2f} seconds"
+            )
         if "incremental_time_seconds" in perf:
-            report_lines.append(f"- Incremental build time: {perf['incremental_time_seconds']:.2f} seconds")
+            report_lines.append(
+                f"- Incremental build time: {perf['incremental_time_seconds']:.2f} seconds"
+            )
         if perf.get("performance_acceptable"):
             report_lines.append("✅ Performance is acceptable")
         else:
@@ -415,13 +511,17 @@ class SnapshotRefactorValidator:
         # Recommendations
         report_lines.append("\n## Recommendations")
         if self.results["overall_status"] == "PASSED":
-            report_lines.append("✅ The refactored snapshot architecture is ready for deployment.")
+            report_lines.append(
+                "✅ The refactored snapshot architecture is ready for deployment."
+            )
             report_lines.append("- All contracts are preserved")
             report_lines.append("- All dependencies are compatible")
             report_lines.append("- Behavior is consistent with original implementation")
             report_lines.append("- Performance is within acceptable limits")
         else:
-            report_lines.append("❌ The refactored architecture needs attention before deployment:")
+            report_lines.append(
+                "❌ The refactored architecture needs attention before deployment:"
+            )
             if not all(self.results.get("contract_verification", {}).values()):
                 report_lines.append("- Fix contract verification failures")
             if not all(self.results.get("dependency_tests", {}).values()):
@@ -452,7 +552,9 @@ class SnapshotRefactorValidator:
 
     def run_full_validation(self):
         """Execute all validation phases in sequence."""
-        logger.info("Starting comprehensive validation of snapshot architecture refactoring...")
+        logger.info(
+            "Starting comprehensive validation of snapshot architecture refactoring..."
+        )
 
         try:
             # Phase 1: Contract Verification
@@ -474,11 +576,11 @@ class SnapshotRefactorValidator:
             report = self.generate_report()
 
             # Print summary
-            print("\n" + "="*60)
+            print("\n" + "=" * 60)
             print(f"VALIDATION COMPLETE: {self.results['overall_status']}")
-            print("="*60)
+            print("=" * 60)
 
-            if self.results['overall_status'] == 'FAILED':
+            if self.results["overall_status"] == "FAILED":
                 sys.exit(1)
 
         except Exception as e:
@@ -488,10 +590,12 @@ class SnapshotRefactorValidator:
             self.generate_report()
             sys.exit(1)
 
+
 def main():
     """Main entry point for the validation script."""
     validator = SnapshotRefactorValidator()
     validator.run_full_validation()
+
 
 if __name__ == "__main__":
     main()

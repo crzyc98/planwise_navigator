@@ -6,20 +6,22 @@ Provides business impact scoring, risk analysis, and mitigation recommendations.
 
 from __future__ import annotations
 
-import pandas as pd
-import numpy as np
-from typing import Dict, List, Tuple, Optional, Literal
 from dataclasses import dataclass, field
+from datetime import date, datetime
 from enum import Enum
-import streamlit as st
-from datetime import datetime, date
-import plotly.graph_objects as go
+from typing import Dict, List, Literal, Optional, Tuple
+
+import numpy as np
+import pandas as pd
 import plotly.express as px
+import plotly.graph_objects as go
+import streamlit as st
 from plotly.subplots import make_subplots
 
 
 class RiskLevel(Enum):
     """Risk severity levels"""
+
     LOW = "low"
     MEDIUM = "medium"
     HIGH = "high"
@@ -28,6 +30,7 @@ class RiskLevel(Enum):
 
 class RiskCategory(Enum):
     """Risk assessment categories"""
+
     PARAMETER = "parameter"
     BUDGET = "budget"
     RETENTION = "retention"
@@ -38,6 +41,7 @@ class RiskCategory(Enum):
 @dataclass
 class RiskFactor:
     """Individual risk factor assessment"""
+
     name: str
     category: RiskCategory
     score: float  # 0-100 scale
@@ -52,6 +56,7 @@ class RiskFactor:
 @dataclass
 class ParameterRisk:
     """Risk assessment for a specific parameter"""
+
     parameter_name: str
     job_level: int
     current_value: float
@@ -66,6 +71,7 @@ class ParameterRisk:
 @dataclass
 class ComprehensiveRiskAssessment:
     """Complete risk assessment for all parameter changes"""
+
     parameter_risks: List[ParameterRisk] = field(default_factory=list)
     aggregate_risks: List[RiskFactor] = field(default_factory=list)
     overall_score: float = 0.0
@@ -90,7 +96,7 @@ class RiskAssessmentEngine:
             RiskCategory.BUDGET: 0.30,
             RiskCategory.RETENTION: 0.25,
             RiskCategory.EQUITY: 0.15,
-            RiskCategory.IMPLEMENTATION: 0.05
+            RiskCategory.IMPLEMENTATION: 0.05,
         }
 
         # Business impact weights by job level
@@ -99,45 +105,50 @@ class RiskAssessmentEngine:
             2: 0.30,  # Second largest population
             3: 0.20,  # Mid-level impact
             4: 0.10,  # Senior level, smaller population
-            5: 0.05   # Executive level, smallest population
+            5: 0.05,  # Executive level, smallest population
         }
 
         # Market benchmark ranges (typical industry ranges)
         self.market_benchmarks = {
-            'merit_base': {
-                1: {'min': 0.025, 'target': 0.04, 'max': 0.055},
-                2: {'min': 0.025, 'target': 0.035, 'max': 0.050},
-                3: {'min': 0.020, 'target': 0.030, 'max': 0.045},
-                4: {'min': 0.020, 'target': 0.030, 'max': 0.045},
-                5: {'min': 0.015, 'target': 0.025, 'max': 0.040}
+            "merit_base": {
+                1: {"min": 0.025, "target": 0.04, "max": 0.055},
+                2: {"min": 0.025, "target": 0.035, "max": 0.050},
+                3: {"min": 0.020, "target": 0.030, "max": 0.045},
+                4: {"min": 0.020, "target": 0.030, "max": 0.045},
+                5: {"min": 0.015, "target": 0.025, "max": 0.040},
             },
-            'cola_rate': {
-                'all': {'min': 0.015, 'target': 0.025, 'max': 0.040}
+            "cola_rate": {"all": {"min": 0.015, "target": 0.025, "max": 0.040}},
+            "promotion_probability": {
+                1: {"min": 0.08, "target": 0.12, "max": 0.18},
+                2: {"min": 0.06, "target": 0.10, "max": 0.15},
+                3: {"min": 0.04, "target": 0.08, "max": 0.12},
+                4: {"min": 0.02, "target": 0.05, "max": 0.08},
+                5: {"min": 0.01, "target": 0.03, "max": 0.05},
             },
-            'promotion_probability': {
-                1: {'min': 0.08, 'target': 0.12, 'max': 0.18},
-                2: {'min': 0.06, 'target': 0.10, 'max': 0.15},
-                3: {'min': 0.04, 'target': 0.08, 'max': 0.12},
-                4: {'min': 0.02, 'target': 0.05, 'max': 0.08},
-                5: {'min': 0.01, 'target': 0.03, 'max': 0.05}
+            "new_hire_salary_adjustment": {
+                "all": {"min": 1.05, "target": 1.10, "max": 1.20}
             },
-            'new_hire_salary_adjustment': {
-                'all': {'min': 1.05, 'target': 1.10, 'max': 1.20}
-            }
         }
 
-    def set_baseline_data(self, baseline_params: Dict, workforce_data: Optional[Dict] = None):
+    def set_baseline_data(
+        self, baseline_params: Dict, workforce_data: Optional[Dict] = None
+    ):
         """Set baseline parameters and workforce data for risk assessment"""
         self.baseline_parameters = baseline_params
         if workforce_data:
             self.workforce_metrics = workforce_data
 
-    def assess_parameter_risk(self, param_name: str, level: int,
-                            current_value: float, proposed_value: float) -> ParameterRisk:
+    def assess_parameter_risk(
+        self, param_name: str, level: int, current_value: float, proposed_value: float
+    ) -> ParameterRisk:
         """Assess risk for a single parameter change"""
 
         # Calculate variance from baseline
-        variance = abs(proposed_value - current_value) / current_value if current_value != 0 else 1.0
+        variance = (
+            abs(proposed_value - current_value) / current_value
+            if current_value != 0
+            else 1.0
+        )
 
         # Get business impact weight
         business_weight = self.job_level_weights.get(level, 0.1)
@@ -149,16 +160,22 @@ class RiskAssessmentEngine:
             current_value=current_value,
             proposed_value=proposed_value,
             variance_from_baseline=variance,
-            business_impact_weight=business_weight
+            business_impact_weight=business_weight,
         )
 
         # Assess different risk factors
-        param_risk.risk_factors.extend([
-            self._assess_magnitude_risk(param_name, level, current_value, proposed_value, variance),
-            self._assess_market_alignment_risk(param_name, level, proposed_value),
-            self._assess_competitive_risk(param_name, level, proposed_value),
-            self._assess_budget_sensitivity_risk(param_name, level, variance, business_weight)
-        ])
+        param_risk.risk_factors.extend(
+            [
+                self._assess_magnitude_risk(
+                    param_name, level, current_value, proposed_value, variance
+                ),
+                self._assess_market_alignment_risk(param_name, level, proposed_value),
+                self._assess_competitive_risk(param_name, level, proposed_value),
+                self._assess_budget_sensitivity_risk(
+                    param_name, level, variance, business_weight
+                ),
+            ]
+        )
 
         # Calculate overall parameter risk score
         param_risk.overall_score = np.mean([rf.score for rf in param_risk.risk_factors])
@@ -166,8 +183,14 @@ class RiskAssessmentEngine:
 
         return param_risk
 
-    def _assess_magnitude_risk(self, param_name: str, level: int, current: float,
-                             proposed: float, variance: float) -> RiskFactor:
+    def _assess_magnitude_risk(
+        self,
+        param_name: str,
+        level: int,
+        current: float,
+        proposed: float,
+        variance: float,
+    ) -> RiskFactor:
         """Assess risk based on magnitude of change"""
 
         # Calculate percentage change
@@ -204,10 +227,12 @@ class RiskAssessmentEngine:
             impact=impact,
             probability=1.0,  # Magnitude risk is certain
             mitigation="Phase implementation over multiple periods if change is large",
-            business_context=f"Level {level} represents ~{self.job_level_weights.get(level, 0.1)*100:.0f}% of workforce impact"
+            business_context=f"Level {level} represents ~{self.job_level_weights.get(level, 0.1)*100:.0f}% of workforce impact",
         )
 
-    def _assess_market_alignment_risk(self, param_name: str, level: int, proposed: float) -> RiskFactor:
+    def _assess_market_alignment_risk(
+        self, param_name: str, level: int, proposed: float
+    ) -> RiskFactor:
         """Assess risk based on market benchmark alignment"""
 
         # Get market benchmarks
@@ -215,7 +240,9 @@ class RiskAssessmentEngine:
             if level in self.market_benchmarks[param_name]:
                 benchmark = self.market_benchmarks[param_name][level]
             else:
-                benchmark = self.market_benchmarks[param_name].get('all', {'min': 0, 'target': proposed, 'max': float('inf')})
+                benchmark = self.market_benchmarks[param_name].get(
+                    "all", {"min": 0, "target": proposed, "max": float("inf")}
+                )
         else:
             # No benchmark available
             return RiskFactor(
@@ -227,11 +254,15 @@ class RiskAssessmentEngine:
                 impact="Unknown competitive positioning",
                 probability=0.3,
                 mitigation="Establish market benchmarking for this parameter",
-                business_context="Market data needed for informed decisions"
+                business_context="Market data needed for informed decisions",
             )
 
         # Calculate market position
-        min_val, target_val, max_val = benchmark['min'], benchmark['target'], benchmark['max']
+        min_val, target_val, max_val = (
+            benchmark["min"],
+            benchmark["target"],
+            benchmark["max"],
+        )
 
         if proposed < min_val:
             score = 80
@@ -242,13 +273,17 @@ class RiskAssessmentEngine:
         elif proposed < target_val:
             score = 40
             risk_level = RiskLevel.MEDIUM
-            description = f"Below market target ({proposed:.1%} vs {target_val:.1%} target)"
+            description = (
+                f"Below market target ({proposed:.1%} vs {target_val:.1%} target)"
+            )
             impact = "Moderate retention risk, competitive disadvantage"
             mitigation = "Monitor retention metrics closely"
         elif proposed <= max_val:
             score = 15
             risk_level = RiskLevel.LOW
-            description = f"Within market range ({proposed:.1%} vs {target_val:.1%} target)"
+            description = (
+                f"Within market range ({proposed:.1%} vs {target_val:.1%} target)"
+            )
             impact = "Competitive positioning maintained"
             mitigation = "Continue monitoring market trends"
         else:
@@ -267,16 +302,18 @@ class RiskAssessmentEngine:
             impact=impact,
             probability=0.8,
             mitigation=mitigation,
-            business_context=f"Market positioning affects talent acquisition and retention"
+            business_context=f"Market positioning affects talent acquisition and retention",
         )
 
-    def _assess_competitive_risk(self, param_name: str, level: int, proposed: float) -> RiskFactor:
+    def _assess_competitive_risk(
+        self, param_name: str, level: int, proposed: float
+    ) -> RiskFactor:
         """Assess competitive positioning risk"""
 
         # This would typically use external market data
         # For now, we'll use heuristics based on parameter types
 
-        if param_name == 'merit_base':
+        if param_name == "merit_base":
             if proposed < 0.025:
                 score = 75
                 risk_level = RiskLevel.HIGH
@@ -298,7 +335,7 @@ class RiskAssessmentEngine:
                 description = "Merit rate within competitive range"
                 impact = "Balanced compensation approach"
 
-        elif param_name == 'cola_rate':
+        elif param_name == "cola_rate":
             if proposed < 0.015:
                 score = 70
                 risk_level = RiskLevel.HIGH
@@ -331,11 +368,12 @@ class RiskAssessmentEngine:
             impact=impact,
             probability=0.7,
             mitigation="Regular market benchmarking and talent retention analysis",
-            business_context="Competitive positioning affects talent retention and acquisition costs"
+            business_context="Competitive positioning affects talent retention and acquisition costs",
         )
 
-    def _assess_budget_sensitivity_risk(self, param_name: str, level: int,
-                                      variance: float, business_weight: float) -> RiskFactor:
+    def _assess_budget_sensitivity_risk(
+        self, param_name: str, level: int, variance: float, business_weight: float
+    ) -> RiskFactor:
         """Assess budget impact sensitivity risk"""
 
         # Calculate budget sensitivity score
@@ -371,7 +409,7 @@ class RiskAssessmentEngine:
             impact=impact,
             probability=0.9,
             mitigation="Detailed budget modeling and approval required",
-            business_context=f"Level {level} workforce segment weight: {business_weight:.1%}"
+            business_context=f"Level {level} workforce segment weight: {business_weight:.1%}",
         )
 
     def assess_equity_risk(self, all_parameter_changes: Dict) -> List[RiskFactor]:
@@ -383,7 +421,7 @@ class RiskAssessmentEngine:
         for (param_name, level), (current, proposed) in all_parameter_changes.items():
             if param_name not in param_groups:
                 param_groups[param_name] = {}
-            param_groups[param_name][level] = {'current': current, 'proposed': proposed}
+            param_groups[param_name][level] = {"current": current, "proposed": proposed}
 
         # Assess equity within each parameter type
         for param_name, level_data in param_groups.items():
@@ -393,14 +431,16 @@ class RiskAssessmentEngine:
 
         return equity_risks
 
-    def _assess_parameter_equity(self, param_name: str, level_data: Dict) -> Optional[RiskFactor]:
+    def _assess_parameter_equity(
+        self, param_name: str, level_data: Dict
+    ) -> Optional[RiskFactor]:
         """Assess equity risk for a specific parameter across levels"""
 
         if len(level_data) < 2:
             return None
 
         # Calculate coefficient of variation for proposed values
-        proposed_values = [data['proposed'] for data in level_data.values()]
+        proposed_values = [data["proposed"] for data in level_data.values()]
         mean_val = np.mean(proposed_values)
         std_val = np.std(proposed_values)
         cv = std_val / mean_val if mean_val != 0 else 0
@@ -408,10 +448,10 @@ class RiskAssessmentEngine:
         # Calculate range ratio (max/min)
         max_val = max(proposed_values)
         min_val = min(proposed_values)
-        range_ratio = max_val / min_val if min_val != 0 else float('inf')
+        range_ratio = max_val / min_val if min_val != 0 else float("inf")
 
         # Assess equity based on parameter type expectations
-        if param_name == 'merit_base':
+        if param_name == "merit_base":
             # Merit rates should generally decrease or stay similar at higher levels
             expected_trend = "decreasing"
             if cv > 0.3 or range_ratio > 2.0:
@@ -425,7 +465,7 @@ class RiskAssessmentEngine:
                 description = "Reasonable merit rate distribution"
                 impact = "Equitable compensation approach"
 
-        elif param_name == 'cola_rate':
+        elif param_name == "cola_rate":
             # COLA should typically be uniform across levels
             if cv > 0.1:
                 score = 80
@@ -460,11 +500,12 @@ class RiskAssessmentEngine:
             impact=impact,
             probability=0.6,
             mitigation="Review compensation philosophy and level differentiation strategy",
-            business_context=f"CV: {cv:.2f}, Range ratio: {range_ratio:.2f}"
+            business_context=f"CV: {cv:.2f}, Range ratio: {range_ratio:.2f}",
         )
 
-    def assess_implementation_risk(self, parameter_changes: Dict,
-                                 implementation_timeline: int = 90) -> List[RiskFactor]:
+    def assess_implementation_risk(
+        self, parameter_changes: Dict, implementation_timeline: int = 90
+    ) -> List[RiskFactor]:
         """Assess implementation and change management risks"""
         implementation_risks = []
 
@@ -482,7 +523,7 @@ class RiskAssessmentEngine:
                 impact="Complex change management, communication challenges",
                 probability=0.8,
                 mitigation="Phase implementation or prioritize most critical changes",
-                business_context="Multiple changes increase execution complexity"
+                business_context="Multiple changes increase execution complexity",
             )
             implementation_risks.append(volume_risk)
         elif total_changes > 5:
@@ -495,7 +536,7 @@ class RiskAssessmentEngine:
                 impact="Manageable change complexity",
                 probability=0.5,
                 mitigation="Clear communication plan and change timeline",
-                business_context="Moderate change management requirements"
+                business_context="Moderate change management requirements",
             )
             implementation_risks.append(volume_risk)
 
@@ -510,7 +551,7 @@ class RiskAssessmentEngine:
                 impact="High execution risk, insufficient communication time",
                 probability=0.9,
                 mitigation="Extend timeline or reduce scope of changes",
-                business_context="Rushed implementation increases failure risk"
+                business_context="Rushed implementation increases failure risk",
             )
             implementation_risks.append(timeline_risk)
         elif implementation_timeline < 60:
@@ -523,26 +564,31 @@ class RiskAssessmentEngine:
                 impact="Moderate execution risk",
                 probability=0.6,
                 mitigation="Detailed project plan and stakeholder communication",
-                business_context="Compressed timeline requires careful management"
+                business_context="Compressed timeline requires careful management",
             )
             implementation_risks.append(timeline_risk)
 
         return implementation_risks
 
-    def calculate_overall_risk_assessment(self, parameter_changes: Dict,
-                                        implementation_timeline: int = 90) -> ComprehensiveRiskAssessment:
+    def calculate_overall_risk_assessment(
+        self, parameter_changes: Dict, implementation_timeline: int = 90
+    ) -> ComprehensiveRiskAssessment:
         """Calculate comprehensive risk assessment for all proposed changes"""
 
         assessment = ComprehensiveRiskAssessment()
 
         # Assess individual parameter risks
         for (param_name, level), (current, proposed) in parameter_changes.items():
-            param_risk = self.assess_parameter_risk(param_name, level, current, proposed)
+            param_risk = self.assess_parameter_risk(
+                param_name, level, current, proposed
+            )
             assessment.parameter_risks.append(param_risk)
 
         # Assess aggregate risks
         assessment.aggregate_risks.extend(self.assess_equity_risk(parameter_changes))
-        assessment.aggregate_risks.extend(self.assess_implementation_risk(parameter_changes, implementation_timeline))
+        assessment.aggregate_risks.extend(
+            self.assess_implementation_risk(parameter_changes, implementation_timeline)
+        )
 
         # Calculate overall scores
         all_risk_factors = []
@@ -560,14 +606,18 @@ class RiskAssessmentEngine:
                 weighted_score += risk_factor.score * weight * risk_factor.probability
                 total_weight += weight * risk_factor.probability
 
-            assessment.overall_score = weighted_score / total_weight if total_weight > 0 else 0
+            assessment.overall_score = (
+                weighted_score / total_weight if total_weight > 0 else 0
+            )
             assessment.overall_level = self._score_to_level(assessment.overall_score)
 
         # Generate recommendations
         assessment.recommendations = self._generate_risk_recommendations(assessment)
 
         # Estimate budget impact
-        assessment.estimated_budget_impact = self._estimate_budget_impact(parameter_changes)
+        assessment.estimated_budget_impact = self._estimate_budget_impact(
+            parameter_changes
+        )
 
         # Calculate confidence level
         assessment.confidence_level = self._calculate_confidence_level(assessment)
@@ -585,35 +635,59 @@ class RiskAssessmentEngine:
         else:
             return RiskLevel.CRITICAL
 
-    def _generate_risk_recommendations(self, assessment: ComprehensiveRiskAssessment) -> List[str]:
+    def _generate_risk_recommendations(
+        self, assessment: ComprehensiveRiskAssessment
+    ) -> List[str]:
         """Generate actionable risk mitigation recommendations"""
         recommendations = []
 
         # High-level recommendations based on overall risk
         if assessment.overall_level in [RiskLevel.HIGH, RiskLevel.CRITICAL]:
-            recommendations.append("🚨 Consider phased implementation to reduce overall risk exposure")
-            recommendations.append("📋 Develop comprehensive change management and communication plan")
-            recommendations.append("📊 Establish enhanced monitoring and feedback mechanisms")
+            recommendations.append(
+                "🚨 Consider phased implementation to reduce overall risk exposure"
+            )
+            recommendations.append(
+                "📋 Develop comprehensive change management and communication plan"
+            )
+            recommendations.append(
+                "📊 Establish enhanced monitoring and feedback mechanisms"
+            )
 
         # Category-specific recommendations
         category_counts = {}
-        for risk in assessment.aggregate_risks + [rf for pr in assessment.parameter_risks for rf in pr.risk_factors]:
+        for risk in assessment.aggregate_risks + [
+            rf for pr in assessment.parameter_risks for rf in pr.risk_factors
+        ]:
             if risk.level in [RiskLevel.HIGH, RiskLevel.CRITICAL]:
-                category_counts[risk.category] = category_counts.get(risk.category, 0) + 1
+                category_counts[risk.category] = (
+                    category_counts.get(risk.category, 0) + 1
+                )
 
         if category_counts.get(RiskCategory.BUDGET, 0) > 0:
-            recommendations.append("💰 Conduct detailed budget impact analysis before implementation")
+            recommendations.append(
+                "💰 Conduct detailed budget impact analysis before implementation"
+            )
 
         if category_counts.get(RiskCategory.RETENTION, 0) > 0:
-            recommendations.append("👥 Monitor retention metrics closely during and after implementation")
+            recommendations.append(
+                "👥 Monitor retention metrics closely during and after implementation"
+            )
 
         if category_counts.get(RiskCategory.EQUITY, 0) > 0:
-            recommendations.append("⚖️ Review compensation philosophy and equity guidelines")
+            recommendations.append(
+                "⚖️ Review compensation philosophy and equity guidelines"
+            )
 
         # Parameter-specific recommendations
-        high_risk_params = [pr for pr in assessment.parameter_risks if pr.overall_level in [RiskLevel.HIGH, RiskLevel.CRITICAL]]
+        high_risk_params = [
+            pr
+            for pr in assessment.parameter_risks
+            if pr.overall_level in [RiskLevel.HIGH, RiskLevel.CRITICAL]
+        ]
         if high_risk_params:
-            recommendations.append(f"🎯 Focus attention on high-risk parameters: {', '.join([f'{p.parameter_name} L{p.job_level}' for p in high_risk_params])}")
+            recommendations.append(
+                f"🎯 Focus attention on high-risk parameters: {', '.join([f'{p.parameter_name} L{p.job_level}' for p in high_risk_params])}"
+            )
 
         return recommendations
 
@@ -629,7 +703,9 @@ class RiskAssessmentEngine:
 
         return total_impact * 100  # Convert to percentage
 
-    def _calculate_confidence_level(self, assessment: ComprehensiveRiskAssessment) -> float:
+    def _calculate_confidence_level(
+        self, assessment: ComprehensiveRiskAssessment
+    ) -> float:
         """Calculate confidence level in the risk assessment"""
         # Higher confidence when we have more data points and lower variance
         data_completeness = min(len(assessment.parameter_risks) / 10, 1.0)  # Normalized
@@ -645,16 +721,23 @@ def create_risk_dashboard(assessment: ComprehensiveRiskAssessment) -> go.Figure:
 
     # Create subplots
     fig = make_subplots(
-        rows=2, cols=2,
-        subplot_titles=('Risk Score Distribution', 'Risk by Category',
-                       'Parameter Risk Heatmap', 'Risk Trends'),
-        specs=[[{"type": "bar"}, {"type": "pie"}],
-               [{"type": "heatmap", "colspan": 2}, None]],
-        vertical_spacing=0.12
+        rows=2,
+        cols=2,
+        subplot_titles=(
+            "Risk Score Distribution",
+            "Risk by Category",
+            "Parameter Risk Heatmap",
+            "Risk Trends",
+        ),
+        specs=[
+            [{"type": "bar"}, {"type": "pie"}],
+            [{"type": "heatmap", "colspan": 2}, None],
+        ],
+        vertical_spacing=0.12,
     )
 
     # 1. Risk Score Distribution
-    risk_levels = ['Low', 'Medium', 'High', 'Critical']
+    risk_levels = ["Low", "Medium", "High", "Critical"]
     risk_counts = [0, 0, 0, 0]
 
     for param_risk in assessment.parameter_risks:
@@ -667,31 +750,41 @@ def create_risk_dashboard(assessment: ComprehensiveRiskAssessment) -> go.Figure:
         else:
             risk_counts[3] += 1
 
-    colors = ['#2E8B57', '#FFD700', '#FF8C00', '#DC143C']
+    colors = ["#2E8B57", "#FFD700", "#FF8C00", "#DC143C"]
 
     fig.add_trace(
-        go.Bar(x=risk_levels, y=risk_counts, marker_color=colors, name="Risk Distribution"),
-        row=1, col=1
+        go.Bar(
+            x=risk_levels, y=risk_counts, marker_color=colors, name="Risk Distribution"
+        ),
+        row=1,
+        col=1,
     )
 
     # 2. Risk by Category
     category_scores = {}
     category_counts = {}
 
-    all_risks = assessment.aggregate_risks + [rf for pr in assessment.parameter_risks for rf in pr.risk_factors]
+    all_risks = assessment.aggregate_risks + [
+        rf for pr in assessment.parameter_risks for rf in pr.risk_factors
+    ]
 
     for risk in all_risks:
         cat = risk.category.value
         category_scores[cat] = category_scores.get(cat, 0) + risk.score
         category_counts[cat] = category_counts.get(cat, 0) + 1
 
-    category_avg_scores = {cat: score/category_counts[cat] for cat, score in category_scores.items()}
+    category_avg_scores = {
+        cat: score / category_counts[cat] for cat, score in category_scores.items()
+    }
 
     fig.add_trace(
-        go.Pie(labels=list(category_avg_scores.keys()),
-               values=list(category_avg_scores.values()),
-               name="Category Risk"),
-        row=1, col=2
+        go.Pie(
+            labels=list(category_avg_scores.keys()),
+            values=list(category_avg_scores.values()),
+            name="Category Risk",
+        ),
+        row=1,
+        col=2,
     )
 
     # 3. Parameter Risk Heatmap
@@ -722,12 +815,20 @@ def create_risk_dashboard(assessment: ComprehensiveRiskAssessment) -> go.Figure:
             z_matrix.append(row)
 
         fig.add_trace(
-            go.Heatmap(z=z_matrix, x=unique_levels, y=unique_params,
-                      colorscale='RdYlGn_r', name="Parameter Risk Heatmap"),
-            row=2, col=1
+            go.Heatmap(
+                z=z_matrix,
+                x=unique_levels,
+                y=unique_params,
+                colorscale="RdYlGn_r",
+                name="Parameter Risk Heatmap",
+            ),
+            row=2,
+            col=1,
         )
 
-    fig.update_layout(height=800, showlegend=False, title_text="Risk Assessment Dashboard")
+    fig.update_layout(
+        height=800, showlegend=False, title_text="Risk Assessment Dashboard"
+    )
 
     return fig
 
@@ -740,22 +841,35 @@ def display_risk_indicators(assessment: ComprehensiveRiskAssessment):
         RiskLevel.LOW: "🟢",
         RiskLevel.MEDIUM: "🟡",
         RiskLevel.HIGH: "🟠",
-        RiskLevel.CRITICAL: "🔴"
+        RiskLevel.CRITICAL: "🔴",
     }
 
-    st.markdown(f"""
+    st.markdown(
+        f"""
     <div style="background-color: #f0f2f6; padding: 1rem; border-radius: 0.5rem; margin: 1rem 0;">
         <h3>{risk_color_map[assessment.overall_level]} Overall Risk Level: {assessment.overall_level.value.upper()}</h3>
         <p><strong>Risk Score:</strong> {assessment.overall_score:.1f}/100</p>
         <p><strong>Confidence Level:</strong> {assessment.confidence_level:.1%}</p>
         <p><strong>Estimated Budget Impact:</strong> {assessment.estimated_budget_impact:.1f}%</p>
     </div>
-    """, unsafe_allow_html=True)
+    """,
+        unsafe_allow_html=True,
+    )
 
     # Critical risks warning
-    critical_risks = [risk for param_risk in assessment.parameter_risks for risk in param_risk.risk_factors
-                     if risk.level == RiskLevel.CRITICAL]
-    critical_risks.extend([risk for risk in assessment.aggregate_risks if risk.level == RiskLevel.CRITICAL])
+    critical_risks = [
+        risk
+        for param_risk in assessment.parameter_risks
+        for risk in param_risk.risk_factors
+        if risk.level == RiskLevel.CRITICAL
+    ]
+    critical_risks.extend(
+        [
+            risk
+            for risk in assessment.aggregate_risks
+            if risk.level == RiskLevel.CRITICAL
+        ]
+    )
 
     if critical_risks:
         st.error("🚨 Critical Risks Detected!")
@@ -763,9 +877,15 @@ def display_risk_indicators(assessment: ComprehensiveRiskAssessment):
             st.error(f"**{risk.name}**: {risk.description} - {risk.impact}")
 
     # High risks warning
-    high_risks = [risk for param_risk in assessment.parameter_risks for risk in param_risk.risk_factors
-                 if risk.level == RiskLevel.HIGH]
-    high_risks.extend([risk for risk in assessment.aggregate_risks if risk.level == RiskLevel.HIGH])
+    high_risks = [
+        risk
+        for param_risk in assessment.parameter_risks
+        for risk in param_risk.risk_factors
+        if risk.level == RiskLevel.HIGH
+    ]
+    high_risks.extend(
+        [risk for risk in assessment.aggregate_risks if risk.level == RiskLevel.HIGH]
+    )
 
     if high_risks:
         st.warning("⚠️ High Risks Identified:")

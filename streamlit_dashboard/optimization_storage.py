@@ -15,22 +15,24 @@ Features:
 """
 
 from __future__ import annotations
-from typing import Dict, Any, List, Optional, Tuple, Union, Literal
-from pydantic import BaseModel, Field, validator
-from dataclasses import dataclass, asdict
-from datetime import datetime, date
-from pathlib import Path
+
+import hashlib
 import json
-import pandas as pd
+import logging
+import os
 import pickle
 import uuid
-import hashlib
-import duckdb
-import logging
+from dataclasses import asdict, dataclass
+from datetime import date, datetime
 from enum import Enum
-import os
-import yaml
+from pathlib import Path
+from typing import Any, Dict, List, Literal, Optional, Tuple, Union
+
+import duckdb
+import pandas as pd
 import streamlit as st
+import yaml
+from pydantic import BaseModel, Field, validator
 
 # Set up logging
 logger = logging.getLogger(__name__)
@@ -38,6 +40,7 @@ logger = logging.getLogger(__name__)
 
 class OptimizationType(str, Enum):
     """Types of optimization runs supported."""
+
     ADVANCED_SCIPY = "advanced_scipy"
     COMPENSATION_TUNING = "compensation_tuning"
     POLICY_OPTIMIZATION = "policy_optimization"
@@ -46,6 +49,7 @@ class OptimizationType(str, Enum):
 
 class OptimizationStatus(str, Enum):
     """Status of optimization runs."""
+
     RUNNING = "running"
     COMPLETED = "completed"
     FAILED = "failed"
@@ -55,6 +59,7 @@ class OptimizationStatus(str, Enum):
 
 class OptimizationEngine(str, Enum):
     """Optimization engines/algorithms used."""
+
     SCIPY_SLSQP = "scipy_slsqp"
     SCIPY_DE = "scipy_de"
     SCIPY_LBFGSB = "scipy_lbfgsb"
@@ -65,6 +70,7 @@ class OptimizationEngine(str, Enum):
 
 class ExportFormat(str, Enum):
     """Supported export formats."""
+
     JSON = "json"
     CSV = "csv"
     EXCEL = "excel"
@@ -75,6 +81,7 @@ class ExportFormat(str, Enum):
 @dataclass
 class OptimizationObjective:
     """Single optimization objective configuration."""
+
     name: str
     weight: float
     target_value: Optional[float] = None
@@ -85,6 +92,7 @@ class OptimizationObjective:
 @dataclass
 class OptimizationConstraint:
     """Optimization constraint definition."""
+
     name: str
     constraint_type: Literal["equality", "inequality"]
     bounds: Optional[Tuple[float, float]] = None
@@ -93,6 +101,7 @@ class OptimizationConstraint:
 
 class OptimizationMetadata(BaseModel):
     """Metadata for optimization runs."""
+
     run_id: str = Field(default_factory=lambda: str(uuid.uuid4()))
     scenario_id: str
     user_id: Optional[str] = None
@@ -121,13 +130,14 @@ class OptimizationMetadata(BaseModel):
     tags: List[str] = Field(default_factory=list)
     business_justification: str = ""
 
-    @validator('updated_at', always=True)
+    @validator("updated_at", always=True)
     def set_updated_at(cls, v):
         return datetime.now()
 
 
 class OptimizationConfiguration(BaseModel):
     """Complete optimization configuration."""
+
     objectives: List[OptimizationObjective] = Field(default_factory=list)
     constraints: List[OptimizationConstraint] = Field(default_factory=list)
     initial_parameters: Dict[str, float] = Field(default_factory=dict)
@@ -142,6 +152,7 @@ class OptimizationConfiguration(BaseModel):
 
 class OptimizationResults(BaseModel):
     """Optimization results data."""
+
     objective_value: Optional[float] = None
     objective_breakdown: Dict[str, float] = Field(default_factory=dict)
     optimal_parameters: Dict[str, float] = Field(default_factory=dict)
@@ -166,6 +177,7 @@ class OptimizationResults(BaseModel):
 
 class OptimizationRun(BaseModel):
     """Complete optimization run record."""
+
     metadata: OptimizationMetadata
     configuration: OptimizationConfiguration
     results: OptimizationResults
@@ -174,7 +186,7 @@ class OptimizationRun(BaseModel):
     class Config:
         json_encoders = {
             datetime: lambda v: v.isoformat(),
-            date: lambda v: v.isoformat()
+            date: lambda v: v.isoformat(),
         }
 
 
@@ -192,7 +204,8 @@ class OptimizationStorage:
         """Initialize storage tables in DuckDB."""
         with duckdb.connect(str(self.db_path)) as conn:
             # Create optimization runs table
-            conn.execute("""
+            conn.execute(
+                """
                 CREATE TABLE IF NOT EXISTS optimization_runs (
                     run_id VARCHAR PRIMARY KEY,
                     scenario_id VARCHAR NOT NULL,
@@ -217,10 +230,12 @@ class OptimizationStorage:
                     business_justification VARCHAR,
                     configuration_hash VARCHAR
                 )
-            """)
+            """
+            )
 
             # Create optimization configurations table
-            conn.execute("""
+            conn.execute(
+                """
                 CREATE TABLE IF NOT EXISTS optimization_configurations (
                     configuration_hash VARCHAR PRIMARY KEY,
                     objectives VARCHAR NOT NULL,
@@ -230,10 +245,12 @@ class OptimizationStorage:
                     algorithm_config VARCHAR,
                     created_at TIMESTAMP NOT NULL
                 )
-            """)
+            """
+            )
 
             # Create optimization results table
-            conn.execute("""
+            conn.execute(
+                """
                 CREATE TABLE IF NOT EXISTS optimization_results (
                     run_id VARCHAR PRIMARY KEY,
                     objective_value DOUBLE,
@@ -251,10 +268,12 @@ class OptimizationStorage:
                     sensitivity_analysis VARCHAR,
                     parameter_correlations VARCHAR
                 )
-            """)
+            """
+            )
 
             # Create optimization simulation data table
-            conn.execute("""
+            conn.execute(
+                """
                 CREATE TABLE IF NOT EXISTS optimization_simulation_data (
                     run_id VARCHAR PRIMARY KEY,
                     simulation_results VARCHAR,
@@ -263,10 +282,12 @@ class OptimizationStorage:
                     data_quality_metrics VARCHAR,
                     created_at TIMESTAMP NOT NULL
                 )
-            """)
+            """
+            )
 
             # Create optimization exports table for tracking exports
-            conn.execute("""
+            conn.execute(
+                """
                 CREATE TABLE IF NOT EXISTS optimization_exports (
                     export_id VARCHAR PRIMARY KEY,
                     run_id VARCHAR NOT NULL,
@@ -276,12 +297,17 @@ class OptimizationStorage:
                     exported_by VARCHAR,
                     file_size_bytes BIGINT
                 )
-            """)
+            """
+            )
 
             # Create indexes for better performance
             try:
-                conn.execute("CREATE INDEX IF NOT EXISTS idx_optimization_runs_created_desc ON optimization_runs(created_at DESC)")
-                conn.execute("CREATE INDEX IF NOT EXISTS idx_optimization_runs_scenario_status ON optimization_runs(scenario_id, status)")
+                conn.execute(
+                    "CREATE INDEX IF NOT EXISTS idx_optimization_runs_created_desc ON optimization_runs(created_at DESC)"
+                )
+                conn.execute(
+                    "CREATE INDEX IF NOT EXISTS idx_optimization_runs_scenario_status ON optimization_runs(scenario_id, status)"
+                )
             except:
                 pass  # Indexes might already exist
 
@@ -291,24 +317,35 @@ class OptimizationStorage:
             with duckdb.connect(str(self.db_path)) as conn:
                 # Save configuration (if new)
                 config_hash = run.configuration.calculate_hash()
-                conn.execute("""
+                conn.execute(
+                    """
                     INSERT OR REPLACE INTO optimization_configurations
                     (configuration_hash, objectives, constraints, initial_parameters,
                      parameter_bounds, algorithm_config, created_at)
                     VALUES (?, ?, ?, ?, ?, ?, ?)
-                """, [
-                    config_hash,
-                    json.dumps([asdict(obj) for obj in run.configuration.objectives]),
-                    json.dumps([asdict(constraint) for constraint in run.configuration.constraints]),
-                    json.dumps(run.configuration.initial_parameters),
-                    json.dumps(run.configuration.parameter_bounds),
-                    json.dumps(run.configuration.algorithm_config),
-                    datetime.now()
-                ])
+                """,
+                    [
+                        config_hash,
+                        json.dumps(
+                            [asdict(obj) for obj in run.configuration.objectives]
+                        ),
+                        json.dumps(
+                            [
+                                asdict(constraint)
+                                for constraint in run.configuration.constraints
+                            ]
+                        ),
+                        json.dumps(run.configuration.initial_parameters),
+                        json.dumps(run.configuration.parameter_bounds),
+                        json.dumps(run.configuration.algorithm_config),
+                        datetime.now(),
+                    ],
+                )
 
                 # Save metadata
                 metadata = run.metadata
-                conn.execute("""
+                conn.execute(
+                    """
                     INSERT OR REPLACE INTO optimization_runs
                     (run_id, scenario_id, user_id, session_id, optimization_type,
                      optimization_engine, status, created_at, updated_at, completed_at,
@@ -316,50 +353,87 @@ class OptimizationStorage:
                      runtime_seconds, function_evaluations, converged, convergence_message,
                      description, tags, business_justification, configuration_hash)
                     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-                """, [
-                    metadata.run_id, metadata.scenario_id, metadata.user_id, metadata.session_id,
-                    metadata.optimization_type.value, metadata.optimization_engine.value,
-                    metadata.status.value, metadata.created_at, metadata.updated_at, metadata.completed_at,
-                    metadata.random_seed, metadata.max_evaluations, metadata.timeout_minutes, metadata.use_synthetic_mode,
-                    metadata.runtime_seconds, metadata.function_evaluations, metadata.converged, metadata.convergence_message,
-                    metadata.description, json.dumps(metadata.tags), metadata.business_justification, config_hash
-                ])
+                """,
+                    [
+                        metadata.run_id,
+                        metadata.scenario_id,
+                        metadata.user_id,
+                        metadata.session_id,
+                        metadata.optimization_type.value,
+                        metadata.optimization_engine.value,
+                        metadata.status.value,
+                        metadata.created_at,
+                        metadata.updated_at,
+                        metadata.completed_at,
+                        metadata.random_seed,
+                        metadata.max_evaluations,
+                        metadata.timeout_minutes,
+                        metadata.use_synthetic_mode,
+                        metadata.runtime_seconds,
+                        metadata.function_evaluations,
+                        metadata.converged,
+                        metadata.convergence_message,
+                        metadata.description,
+                        json.dumps(metadata.tags),
+                        metadata.business_justification,
+                        config_hash,
+                    ],
+                )
 
                 # Save results
                 results = run.results
-                conn.execute("""
+                conn.execute(
+                    """
                     INSERT OR REPLACE INTO optimization_results
                     (run_id, objective_value, objective_breakdown, optimal_parameters,
                      parameter_history, objective_history, constraint_violations, parameter_warnings,
                      risk_level, risk_assessment, estimated_cost_impact, estimated_employee_impact,
                      projected_outcomes, sensitivity_analysis, parameter_correlations)
                     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-                """, [
-                    metadata.run_id, results.objective_value,
-                    json.dumps(results.objective_breakdown), json.dumps(results.optimal_parameters),
-                    json.dumps(results.parameter_history), json.dumps(results.objective_history),
-                    json.dumps(results.constraint_violations), json.dumps(results.parameter_warnings),
-                    results.risk_level, json.dumps(results.risk_assessment),
-                    json.dumps(results.estimated_cost_impact), json.dumps(results.estimated_employee_impact),
-                    json.dumps(results.projected_outcomes), json.dumps(results.sensitivity_analysis),
-                    json.dumps(results.parameter_correlations)
-                ])
+                """,
+                    [
+                        metadata.run_id,
+                        results.objective_value,
+                        json.dumps(results.objective_breakdown),
+                        json.dumps(results.optimal_parameters),
+                        json.dumps(results.parameter_history),
+                        json.dumps(results.objective_history),
+                        json.dumps(results.constraint_violations),
+                        json.dumps(results.parameter_warnings),
+                        results.risk_level,
+                        json.dumps(results.risk_assessment),
+                        json.dumps(results.estimated_cost_impact),
+                        json.dumps(results.estimated_employee_impact),
+                        json.dumps(results.projected_outcomes),
+                        json.dumps(results.sensitivity_analysis),
+                        json.dumps(results.parameter_correlations),
+                    ],
+                )
 
                 # Save simulation data if present
                 if run.simulation_data:
-                    conn.execute("""
+                    conn.execute(
+                        """
                         INSERT OR REPLACE INTO optimization_simulation_data
                         (run_id, simulation_results, workforce_snapshots, event_data,
                          data_quality_metrics, created_at)
                         VALUES (?, ?, ?, ?, ?, ?)
-                    """, [
-                        metadata.run_id,
-                        json.dumps(run.simulation_data.get('simulation_results', {})),
-                        json.dumps(run.simulation_data.get('workforce_snapshots', {})),
-                        json.dumps(run.simulation_data.get('event_data', {})),
-                        json.dumps(run.simulation_data.get('data_quality_metrics', {})),
-                        datetime.now()
-                    ])
+                    """,
+                        [
+                            metadata.run_id,
+                            json.dumps(
+                                run.simulation_data.get("simulation_results", {})
+                            ),
+                            json.dumps(
+                                run.simulation_data.get("workforce_snapshots", {})
+                            ),
+                            json.dumps(run.simulation_data.get("event_data", {})),
+                            json.dumps(
+                                run.simulation_data.get("data_quality_metrics", {})
+                            ),
+                            datetime.now(),
+                        ],
+                    )
 
             # Update cache
             self.cache[metadata.run_id] = run
@@ -379,28 +453,40 @@ class OptimizationStorage:
         try:
             with duckdb.connect(str(self.db_path)) as conn:
                 # Load metadata
-                metadata_row = conn.execute("""
+                metadata_row = conn.execute(
+                    """
                     SELECT * FROM optimization_runs WHERE run_id = ?
-                """, [run_id]).fetchone()
+                """,
+                    [run_id],
+                ).fetchone()
 
                 if not metadata_row:
                     return None
 
                 # Load configuration
-                config_row = conn.execute("""
+                config_row = conn.execute(
+                    """
                     SELECT * FROM optimization_configurations
                     WHERE configuration_hash = ?
-                """, [metadata_row[21]]).fetchone()  # configuration_hash column
+                """,
+                    [metadata_row[21]],
+                ).fetchone()  # configuration_hash column
 
                 # Load results
-                results_row = conn.execute("""
+                results_row = conn.execute(
+                    """
                     SELECT * FROM optimization_results WHERE run_id = ?
-                """, [run_id]).fetchone()
+                """,
+                    [run_id],
+                ).fetchone()
 
                 # Load simulation data
-                sim_data_row = conn.execute("""
+                sim_data_row = conn.execute(
+                    """
                     SELECT * FROM optimization_simulation_data WHERE run_id = ?
-                """, [run_id]).fetchone()
+                """,
+                    [run_id],
+                ).fetchone()
 
                 # Reconstruct objects
                 run = self._reconstruct_optimization_run(
@@ -417,7 +503,9 @@ class OptimizationStorage:
             logger.error(f"Failed to load optimization run {run_id}: {e}")
             return None
 
-    def _reconstruct_optimization_run(self, metadata_row, config_row, results_row, sim_data_row) -> OptimizationRun:
+    def _reconstruct_optimization_run(
+        self, metadata_row, config_row, results_row, sim_data_row
+    ) -> OptimizationRun:
         """Reconstruct OptimizationRun from database rows."""
         # Reconstruct metadata
         metadata = OptimizationMetadata(
@@ -441,7 +529,7 @@ class OptimizationStorage:
             convergence_message=metadata_row[17],
             description=metadata_row[18],
             tags=json.loads(metadata_row[19]) if metadata_row[19] else [],
-            business_justification=metadata_row[20]
+            business_justification=metadata_row[20],
         )
 
         # Reconstruct configuration
@@ -450,14 +538,16 @@ class OptimizationStorage:
             objectives = [OptimizationObjective(**obj) for obj in objectives_data]
 
             constraints_data = json.loads(config_row[2]) if config_row[2] else []
-            constraints = [OptimizationConstraint(**const) for const in constraints_data]
+            constraints = [
+                OptimizationConstraint(**const) for const in constraints_data
+            ]
 
             configuration = OptimizationConfiguration(
                 objectives=objectives,
                 constraints=constraints,
                 initial_parameters=json.loads(config_row[3]),
                 parameter_bounds=json.loads(config_row[4]) if config_row[4] else {},
-                algorithm_config=json.loads(config_row[5]) if config_row[5] else {}
+                algorithm_config=json.loads(config_row[5]) if config_row[5] else {},
             )
         else:
             configuration = OptimizationConfiguration()
@@ -466,19 +556,33 @@ class OptimizationStorage:
         if results_row:
             results = OptimizationResults(
                 objective_value=results_row[1],
-                objective_breakdown=json.loads(results_row[2]) if results_row[2] else {},
+                objective_breakdown=json.loads(results_row[2])
+                if results_row[2]
+                else {},
                 optimal_parameters=json.loads(results_row[3]),
                 parameter_history=json.loads(results_row[4]) if results_row[4] else [],
                 objective_history=json.loads(results_row[5]) if results_row[5] else [],
-                constraint_violations=json.loads(results_row[6]) if results_row[6] else [],
+                constraint_violations=json.loads(results_row[6])
+                if results_row[6]
+                else [],
                 parameter_warnings=json.loads(results_row[7]) if results_row[7] else [],
                 risk_level=results_row[8] or "MEDIUM",
                 risk_assessment=json.loads(results_row[9]) if results_row[9] else {},
-                estimated_cost_impact=json.loads(results_row[10]) if results_row[10] else None,
-                estimated_employee_impact=json.loads(results_row[11]) if results_row[11] else None,
-                projected_outcomes=json.loads(results_row[12]) if results_row[12] else {},
-                sensitivity_analysis=json.loads(results_row[13]) if results_row[13] else {},
-                parameter_correlations=json.loads(results_row[14]) if results_row[14] else {}
+                estimated_cost_impact=json.loads(results_row[10])
+                if results_row[10]
+                else None,
+                estimated_employee_impact=json.loads(results_row[11])
+                if results_row[11]
+                else None,
+                projected_outcomes=json.loads(results_row[12])
+                if results_row[12]
+                else {},
+                sensitivity_analysis=json.loads(results_row[13])
+                if results_row[13]
+                else {},
+                parameter_correlations=json.loads(results_row[14])
+                if results_row[14]
+                else {},
             )
         else:
             results = OptimizationResults()
@@ -487,17 +591,23 @@ class OptimizationStorage:
         simulation_data = None
         if sim_data_row:
             simulation_data = {
-                'simulation_results': json.loads(sim_data_row[1]) if sim_data_row[1] else {},
-                'workforce_snapshots': json.loads(sim_data_row[2]) if sim_data_row[2] else {},
-                'event_data': json.loads(sim_data_row[3]) if sim_data_row[3] else {},
-                'data_quality_metrics': json.loads(sim_data_row[4]) if sim_data_row[4] else {}
+                "simulation_results": json.loads(sim_data_row[1])
+                if sim_data_row[1]
+                else {},
+                "workforce_snapshots": json.loads(sim_data_row[2])
+                if sim_data_row[2]
+                else {},
+                "event_data": json.loads(sim_data_row[3]) if sim_data_row[3] else {},
+                "data_quality_metrics": json.loads(sim_data_row[4])
+                if sim_data_row[4]
+                else {},
             }
 
         return OptimizationRun(
             metadata=metadata,
             configuration=configuration,
             results=results,
-            simulation_data=simulation_data
+            simulation_data=simulation_data,
         )
 
     def list_optimization_runs(
@@ -506,7 +616,7 @@ class OptimizationStorage:
         optimization_type: Optional[OptimizationType] = None,
         status: Optional[OptimizationStatus] = None,
         limit: int = 100,
-        offset: int = 0
+        offset: int = 0,
     ) -> List[OptimizationMetadata]:
         """List optimization runs with optional filters."""
         try:
@@ -558,7 +668,7 @@ class OptimizationStorage:
                         convergence_message=row[17],
                         description=row[18],
                         tags=json.loads(row[19]) if row[19] else [],
-                        business_justification=row[20]
+                        business_justification=row[20],
                     )
                     results.append(metadata)
 
@@ -573,9 +683,16 @@ class OptimizationStorage:
         try:
             with duckdb.connect(str(self.db_path)) as conn:
                 # Delete in reverse dependency order
-                conn.execute("DELETE FROM optimization_exports WHERE run_id = ?", [run_id])
-                conn.execute("DELETE FROM optimization_simulation_data WHERE run_id = ?", [run_id])
-                conn.execute("DELETE FROM optimization_results WHERE run_id = ?", [run_id])
+                conn.execute(
+                    "DELETE FROM optimization_exports WHERE run_id = ?", [run_id]
+                )
+                conn.execute(
+                    "DELETE FROM optimization_simulation_data WHERE run_id = ?",
+                    [run_id],
+                )
+                conn.execute(
+                    "DELETE FROM optimization_results WHERE run_id = ?", [run_id]
+                )
                 conn.execute("DELETE FROM optimization_runs WHERE run_id = ?", [run_id])
 
             # Remove from cache
@@ -594,7 +711,7 @@ class OptimizationStorage:
         run_id: str,
         format: ExportFormat,
         output_path: Optional[str] = None,
-        include_simulation_data: bool = True
+        include_simulation_data: bool = True,
     ) -> str:
         """Export an optimization run to specified format."""
         run = self.load_optimization_run(run_id)
@@ -609,16 +726,16 @@ class OptimizationStorage:
 
         try:
             if format == ExportFormat.JSON:
-                with open(output_path, 'w') as f:
+                with open(output_path, "w") as f:
                     json.dump(run.dict(), f, indent=2, default=str)
 
             elif format == ExportFormat.PICKLE:
-                with open(output_path, 'wb') as f:
+                with open(output_path, "wb") as f:
                     pickle.dump(run, f)
 
             elif format == ExportFormat.CSV:
                 # Export as multiple CSV files in a directory
-                export_dir = output_path.with_suffix('')
+                export_dir = output_path.with_suffix("")
                 export_dir.mkdir(exist_ok=True)
 
                 # Metadata CSV
@@ -636,7 +753,9 @@ class OptimizationStorage:
 
                 # Objectives CSV
                 objectives_df = pd.DataFrame([run.results.objective_breakdown])
-                objectives_df.to_csv(export_dir / "objective_breakdown.csv", index=False)
+                objectives_df.to_csv(
+                    export_dir / "objective_breakdown.csv", index=False
+                )
 
             elif format == ExportFormat.EXCEL:
                 with pd.ExcelWriter(output_path) as writer:
@@ -646,33 +765,41 @@ class OptimizationStorage:
 
                     # Parameters sheet
                     params_df = pd.DataFrame([run.results.optimal_parameters])
-                    params_df.to_excel(writer, sheet_name="Optimal_Parameters", index=False)
+                    params_df.to_excel(
+                        writer, sheet_name="Optimal_Parameters", index=False
+                    )
 
                     # Parameter history sheet
                     if run.results.parameter_history:
                         history_df = pd.DataFrame(run.results.parameter_history)
-                        history_df.to_excel(writer, sheet_name="Parameter_History", index=False)
+                        history_df.to_excel(
+                            writer, sheet_name="Parameter_History", index=False
+                        )
 
                     # Objectives sheet
                     objectives_df = pd.DataFrame([run.results.objective_breakdown])
-                    objectives_df.to_excel(writer, sheet_name="Objective_Breakdown", index=False)
+                    objectives_df.to_excel(
+                        writer, sheet_name="Objective_Breakdown", index=False
+                    )
 
                     # Risk assessment sheet
                     if run.results.risk_assessment:
                         risk_df = pd.DataFrame([run.results.risk_assessment])
-                        risk_df.to_excel(writer, sheet_name="Risk_Assessment", index=False)
+                        risk_df.to_excel(
+                            writer, sheet_name="Risk_Assessment", index=False
+                        )
 
             elif format == ExportFormat.PARQUET:
                 # Convert to DataFrame and save as parquet
                 export_data = {
-                    'run_id': [run.metadata.run_id],
-                    'scenario_id': [run.metadata.scenario_id],
-                    'optimization_type': [run.metadata.optimization_type.value],
-                    'status': [run.metadata.status.value],
-                    'created_at': [run.metadata.created_at],
-                    'objective_value': [run.results.objective_value],
-                    'optimal_parameters': [json.dumps(run.results.optimal_parameters)],
-                    'risk_level': [run.results.risk_level]
+                    "run_id": [run.metadata.run_id],
+                    "scenario_id": [run.metadata.scenario_id],
+                    "optimization_type": [run.metadata.optimization_type.value],
+                    "status": [run.metadata.status.value],
+                    "created_at": [run.metadata.created_at],
+                    "objective_value": [run.results.objective_value],
+                    "optimal_parameters": [json.dumps(run.results.optimal_parameters)],
+                    "risk_level": [run.results.risk_level],
                 }
                 df = pd.DataFrame(export_data)
                 df.to_parquet(output_path, index=False)
@@ -691,14 +818,26 @@ class OptimizationStorage:
         """Record an export in the database."""
         try:
             export_id = str(uuid.uuid4())
-            file_size = Path(export_path).stat().st_size if Path(export_path).exists() else 0
+            file_size = (
+                Path(export_path).stat().st_size if Path(export_path).exists() else 0
+            )
 
             with duckdb.connect(str(self.db_path)) as conn:
-                conn.execute("""
+                conn.execute(
+                    """
                     INSERT INTO optimization_exports
                     (export_id, run_id, export_format, export_path, exported_at, file_size_bytes)
                     VALUES (?, ?, ?, ?, ?, ?)
-                """, [export_id, run_id, format.value, export_path, datetime.now(), file_size])
+                """,
+                    [
+                        export_id,
+                        run_id,
+                        format.value,
+                        export_path,
+                        datetime.now(),
+                        file_size,
+                    ],
+                )
 
         except Exception as e:
             logger.warning(f"Failed to record export: {e}")
@@ -707,20 +846,23 @@ class OptimizationStorage:
         """Get export history for a run."""
         try:
             with duckdb.connect(str(self.db_path)) as conn:
-                rows = conn.execute("""
+                rows = conn.execute(
+                    """
                     SELECT export_id, export_format, export_path, exported_at, file_size_bytes
                     FROM optimization_exports
                     WHERE run_id = ?
                     ORDER BY exported_at DESC
-                """, [run_id]).fetchall()
+                """,
+                    [run_id],
+                ).fetchall()
 
                 return [
                     {
-                        'export_id': row[0],
-                        'format': row[1],
-                        'path': row[2],
-                        'exported_at': row[3],
-                        'file_size_bytes': row[4]
+                        "export_id": row[0],
+                        "format": row[1],
+                        "path": row[2],
+                        "exported_at": row[3],
+                        "file_size_bytes": row[4],
                     }
                     for row in rows
                 ]
@@ -730,13 +872,11 @@ class OptimizationStorage:
             return []
 
     def search_optimization_runs(
-        self,
-        query: str,
-        search_fields: List[str] = None
+        self, query: str, search_fields: List[str] = None
     ) -> List[OptimizationMetadata]:
         """Search optimization runs by text query."""
         if search_fields is None:
-            search_fields = ['scenario_id', 'description', 'business_justification']
+            search_fields = ["scenario_id", "description", "business_justification"]
 
         try:
             with duckdb.connect(str(self.db_path)) as conn:
@@ -779,7 +919,7 @@ class OptimizationStorage:
                         convergence_message=row[17],
                         description=row[18],
                         tags=json.loads(row[19]) if row[19] else [],
-                        business_justification=row[20]
+                        business_justification=row[20],
                     )
                     results.append(metadata)
 
@@ -802,10 +942,10 @@ class OptimizationStorageManager:
         """Initialize Streamlit session state for optimization storage."""
         if self.session_key not in st.session_state:
             st.session_state[self.session_key] = {
-                'recent_runs': [],
-                'current_run_id': None,
-                'cached_results': {},
-                'last_refresh': datetime.now()
+                "recent_runs": [],
+                "current_run_id": None,
+                "cached_results": {},
+                "last_refresh": datetime.now(),
             }
 
     def save_run_with_session_cache(self, run: OptimizationRun) -> str:
@@ -813,68 +953,70 @@ class OptimizationStorageManager:
         run_id = self.storage.save_optimization_run(run)
 
         # Update session state if available
-        if 'st' in globals() and hasattr(st, 'session_state'):
+        if "st" in globals() and hasattr(st, "session_state"):
             self.init_session_state()
             cache = st.session_state[self.session_key]
-            cache['current_run_id'] = run_id
-            cache['cached_results'][run_id] = run
-            cache['last_refresh'] = datetime.now()
+            cache["current_run_id"] = run_id
+            cache["cached_results"][run_id] = run
+            cache["last_refresh"] = datetime.now()
 
             # Add to recent runs
-            if run_id not in [r.run_id for r in cache['recent_runs']]:
-                cache['recent_runs'].insert(0, run.metadata)
-                cache['recent_runs'] = cache['recent_runs'][:10]  # Keep only 10 most recent
+            if run_id not in [r.run_id for r in cache["recent_runs"]]:
+                cache["recent_runs"].insert(0, run.metadata)
+                cache["recent_runs"] = cache["recent_runs"][
+                    :10
+                ]  # Keep only 10 most recent
 
         return run_id
 
     def load_run_with_session_cache(self, run_id: str) -> Optional[OptimizationRun]:
         """Load run with session caching."""
         # Check session cache first
-        if 'st' in globals() and hasattr(st, 'session_state'):
+        if "st" in globals() and hasattr(st, "session_state"):
             self.init_session_state()
             cache = st.session_state[self.session_key]
-            if run_id in cache['cached_results']:
-                return cache['cached_results'][run_id]
+            if run_id in cache["cached_results"]:
+                return cache["cached_results"][run_id]
 
         # Load from storage
         run = self.storage.load_optimization_run(run_id)
 
         # Cache in session if available
-        if run and 'st' in globals() and hasattr(st, 'session_state'):
+        if run and "st" in globals() and hasattr(st, "session_state"):
             cache = st.session_state[self.session_key]
-            cache['cached_results'][run_id] = run
+            cache["cached_results"][run_id] = run
 
         return run
 
     def get_recent_runs(self, limit: int = 10) -> List[OptimizationMetadata]:
         """Get recent optimization runs."""
         # Try session cache first
-        if 'st' in globals() and hasattr(st, 'session_state'):
+        if "st" in globals() and hasattr(st, "session_state"):
             self.init_session_state()
             cache = st.session_state[self.session_key]
-            if cache['recent_runs'] and len(cache['recent_runs']) >= limit:
-                return cache['recent_runs'][:limit]
+            if cache["recent_runs"] and len(cache["recent_runs"]) >= limit:
+                return cache["recent_runs"][:limit]
 
         # Load from storage
         recent_runs = self.storage.list_optimization_runs(limit=limit)
 
         # Update session cache
-        if 'st' in globals() and hasattr(st, 'session_state'):
+        if "st" in globals() and hasattr(st, "session_state"):
             cache = st.session_state[self.session_key]
-            cache['recent_runs'] = recent_runs
-            cache['last_refresh'] = datetime.now()
+            cache["recent_runs"] = recent_runs
+            cache["last_refresh"] = datetime.now()
 
         return recent_runs
 
     def clear_session_cache(self):
         """Clear session cache."""
-        if 'st' in globals() and hasattr(st, 'session_state'):
+        if "st" in globals() and hasattr(st, "session_state"):
             if self.session_key in st.session_state:
                 st.session_state[self.session_key] = {
-                    'recent_runs': [],
-                    'current_run_id': None,
-                    'cached_results': {},
-                    'last_refresh': datetime.now()
+                    "recent_runs": [],
+                    "current_run_id": None,
+                    "cached_results": {},
+                    "last_refresh": datetime.now(),
                 }
 
 
@@ -896,7 +1038,7 @@ def save_optimization_result(
     optimization_type: str,
     results: Dict[str, Any],
     configuration: Dict[str, Any] = None,
-    metadata: Dict[str, Any] = None
+    metadata: Dict[str, Any] = None,
 ) -> str:
     """Legacy function to save optimization results."""
     storage = get_optimization_storage()
@@ -907,16 +1049,14 @@ def save_optimization_result(
         optimization_type=OptimizationType(optimization_type),
         optimization_engine=OptimizationEngine.MANUAL,
         status=OptimizationStatus.COMPLETED,
-        **(metadata or {})
+        **(metadata or {}),
     )
 
     opt_config = OptimizationConfiguration(**(configuration or {}))
     opt_results = OptimizationResults(**(results or {}))
 
     run = OptimizationRun(
-        metadata=opt_metadata,
-        configuration=opt_config,
-        results=opt_results
+        metadata=opt_metadata, configuration=opt_config, results=opt_results
     )
 
     return storage.save_run_with_session_cache(run)
@@ -951,20 +1091,20 @@ if __name__ == "__main__":
         max_evaluations=100,
         runtime_seconds=45.2,
         function_evaluations=87,
-        converged=True
+        converged=True,
     )
 
     configuration = OptimizationConfiguration(
         objectives=[
             OptimizationObjective(name="cost", weight=0.4, direction="minimize"),
             OptimizationObjective(name="equity", weight=0.3, direction="minimize"),
-            OptimizationObjective(name="targets", weight=0.3, direction="minimize")
+            OptimizationObjective(name="targets", weight=0.3, direction="minimize"),
         ],
         initial_parameters={
             "merit_rate_level_1": 0.045,
             "merit_rate_level_2": 0.040,
-            "cola_rate": 0.025
-        }
+            "cola_rate": 0.025,
+        },
     )
 
     results = OptimizationResults(
@@ -972,15 +1112,13 @@ if __name__ == "__main__":
         optimal_parameters={
             "merit_rate_level_1": 0.042,
             "merit_rate_level_2": 0.038,
-            "cola_rate": 0.023
+            "cola_rate": 0.023,
         },
-        risk_level="MEDIUM"
+        risk_level="MEDIUM",
     )
 
     run = OptimizationRun(
-        metadata=metadata,
-        configuration=configuration,
-        results=results
+        metadata=metadata, configuration=configuration, results=results
     )
 
     # Save the run

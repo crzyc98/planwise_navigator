@@ -14,12 +14,15 @@ import sys
 import time
 from pathlib import Path
 
+
 def run_command(cmd, description):
     """Run a command and return success/failure."""
     print(f"🔧 {description}...")
 
     try:
-        result = subprocess.run(cmd, shell=True, check=True, capture_output=True, text=True)
+        result = subprocess.run(
+            cmd, shell=True, check=True, capture_output=True, text=True
+        )
         print(f"✅ {description} completed")
         return True
     except subprocess.CalledProcessError as e:
@@ -27,6 +30,7 @@ def run_command(cmd, description):
         print(f"   stdout: {e.stdout}")
         print(f"   stderr: {e.stderr}")
         return False
+
 
 def main():
     """Main function - just do staging setup."""
@@ -70,6 +74,7 @@ def main():
         pass
 
     return 0
+
 
 if __name__ == "__main__":
     sys.exit(main())

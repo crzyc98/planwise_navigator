@@ -6,14 +6,17 @@ This script validates that the model correctly uses deferral rates from both:
 2. Enrollment events (new hires and rate changes)
 """
 
-import duckdb
 import sys
 from pathlib import Path
+
+import duckdb
+
 
 def get_connection():
     """Get database connection."""
     db_path = Path("simulation.duckdb")
     return duckdb.connect(str(db_path), read_only=True)
+
 
 def validate_deferral_rates():
     """Validate that deferral rates are correctly sourced."""
@@ -40,7 +43,11 @@ def validate_deferral_rates():
     print(f"  Employees with positive deferral: {result[1]}")
     print(f"  Employees with zero deferral: {result[2]}")
     print(f"  Employees with null deferral: {result[3]}")
-    print(f"  Average deferral rate (positive only): {result[4]:.2%}" if result[4] else "  No positive rates")
+    print(
+        f"  Average deferral rate (positive only): {result[4]:.2%}"
+        if result[4]
+        else "  No positive rates"
+    )
 
     # Check enrollment event deferral rates
     print("\n2. ENROLLMENT EVENT DEFERRAL RATES (2025):")
@@ -60,7 +67,11 @@ def validate_deferral_rates():
     print(f"  Total enrollment events: {result[0]}")
     print(f"  Enrollments with positive deferral: {result[1]}")
     print(f"  Enrollments with zero deferral: {result[2]}")
-    print(f"  Average enrollment deferral rate: {result[3]:.2%}" if result[3] else "  No rates")
+    print(
+        f"  Average enrollment deferral rate: {result[3]:.2%}"
+        if result[3]
+        else "  No rates"
+    )
 
     # Check contribution calculations
     print("\n3. CONTRIBUTION CALCULATIONS (2025):")
@@ -88,7 +99,9 @@ def validate_deferral_rates():
         print(f"  Defaulted to zero: {result[6]}")
     except Exception as e:
         print(f"  ERROR: Could not query contributions - {e}")
-        print("  Model may need to be rebuilt with: dbt run --select int_employee_contributions")
+        print(
+            "  Model may need to be rebuilt with: dbt run --select int_employee_contributions"
+        )
 
     # Critical validation: Zero deferral should mean zero contributions
     print("\n4. CRITICAL VALIDATION - ZERO DEFERRAL CONTRIBUTIONS:")
@@ -105,7 +118,9 @@ def validate_deferral_rates():
     try:
         result = conn.execute(zero_contrib_query).fetchone()
         if result[0] > 0:
-            print(f"  ❌ ISSUE FOUND: {result[0]} employees with 0% deferral have contributions!")
+            print(
+                f"  ❌ ISSUE FOUND: {result[0]} employees with 0% deferral have contributions!"
+            )
             print(f"  Total incorrect contributions: ${result[1]:,.2f}")
         else:
             print("  ✅ PASSED: No employees with 0% deferral have contributions")
@@ -138,7 +153,9 @@ def validate_deferral_rates():
         result = conn.execute(hardcode_check_query).fetchone()
         print(f"  Employees with exactly 5% deferral: {result[0]}")
         if result[1] > 0:
-            print(f"  ❌ SUSPICIOUS: {result[1]} employees have 5% but not from any source!")
+            print(
+                f"  ❌ SUSPICIOUS: {result[1]} employees have 5% but not from any source!"
+            )
             print("     This suggests the hardcoded value is still being used")
         else:
             print("  ✅ All 5% rates are legitimate (from census or enrollment)")
@@ -149,6 +166,7 @@ def validate_deferral_rates():
     print("\n" + "=" * 80)
     print("VALIDATION COMPLETE")
     print("=" * 80)
+
 
 if __name__ == "__main__":
     try:

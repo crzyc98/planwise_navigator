@@ -10,13 +10,14 @@ from __future__ import annotations
 from pathlib import Path
 from typing import Iterable, Optional
 
-from .config import load_simulation_config, SimulationConfig
+from .config import SimulationConfig, load_simulation_config
 from .dbt_runner import DbtRunner
-from .utils import DatabaseConnectionManager
-from .registries import RegistryManager
-from .validation import DataValidator, ValidationRule, HireTerminationRatioRule, EventSequenceRule
-from .reports import MultiYearReporter
 from .pipeline import PipelineOrchestrator
+from .registries import RegistryManager
+from .reports import MultiYearReporter
+from .utils import DatabaseConnectionManager
+from .validation import (DataValidator, EventSequenceRule,
+                         HireTerminationRatioRule, ValidationRule)
 
 
 class OrchestratorBuilder:
@@ -31,8 +32,12 @@ class OrchestratorBuilder:
         self._config = load_simulation_config(Path(path))
         return self
 
-    def with_database(self, db_path: Optional[Path | str] = None) -> "OrchestratorBuilder":
-        self._db = DatabaseConnectionManager(Path(db_path) if db_path else Path("simulation.duckdb"))
+    def with_database(
+        self, db_path: Optional[Path | str] = None
+    ) -> "OrchestratorBuilder":
+        self._db = DatabaseConnectionManager(
+            Path(db_path) if db_path else Path("simulation.duckdb")
+        )
         return self
 
     def with_rules(self, rules: Iterable[ValidationRule]) -> "OrchestratorBuilder":
@@ -60,7 +65,11 @@ class OrchestratorBuilder:
         for r in self._rules:
             dv.register_rule(r)
 
-        runner = DbtRunner(working_dir=Path("dbt"), threads=self._threads, executable=self._dbt_executable)
+        runner = DbtRunner(
+            working_dir=Path("dbt"),
+            threads=self._threads,
+            executable=self._dbt_executable,
+        )
         registries = RegistryManager(self._db)
 
         return PipelineOrchestrator(
@@ -72,7 +81,13 @@ class OrchestratorBuilder:
         )
 
 
-def create_orchestrator(config_path: Path | str, *, threads: int = 4, db_path: Optional[Path | str] = None, dbt_executable: str = "dbt") -> PipelineOrchestrator:
+def create_orchestrator(
+    config_path: Path | str,
+    *,
+    threads: int = 4,
+    db_path: Optional[Path | str] = None,
+    dbt_executable: str = "dbt",
+) -> PipelineOrchestrator:
     return (
         OrchestratorBuilder()
         .with_config(config_path)

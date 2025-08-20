@@ -5,14 +5,14 @@ Provides enterprise-grade logging with JSON structure, run correlation,
 and performance monitoring capabilities for production observability.
 """
 
-import logging
 import json
-import uuid
+import logging
 import os
+import uuid
 from datetime import datetime
 from logging.handlers import RotatingFileHandler
 from pathlib import Path
-from typing import Dict, Any, Optional
+from typing import Any, Dict, Optional
 
 
 class JSONFormatter(logging.Formatter):
@@ -33,7 +33,7 @@ class JSONFormatter(logging.Formatter):
             "function": record.funcName,
             "line": record.lineno,
             "thread": record.thread,
-            "process": record.process
+            "process": record.process,
         }
 
         # Add exception information if present
@@ -41,11 +41,11 @@ class JSONFormatter(logging.Formatter):
             log_data["exception"] = {
                 "type": record.exc_info[0].__name__ if record.exc_info[0] else None,
                 "message": str(record.exc_info[1]) if record.exc_info[1] else None,
-                "traceback": self.formatException(record.exc_info)
+                "traceback": self.formatException(record.exc_info),
             }
 
         # Add any extra data attached to the record
-        if hasattr(record, 'extra_data'):
+        if hasattr(record, "extra_data"):
             log_data.update(record.extra_data)
 
         return json.dumps(log_data, ensure_ascii=False)
@@ -89,7 +89,7 @@ class ProductionLogger:
         logs_dir.mkdir(exist_ok=True)
 
         # Create logger instance
-        self.logger = logging.getLogger(f'navigator.{self.run_id}')
+        self.logger = logging.getLogger(f"navigator.{self.run_id}")
         self.logger.setLevel(self.log_level)
 
         # Prevent duplicate handlers if logger already exists
@@ -100,7 +100,7 @@ class ProductionLogger:
         json_handler = RotatingFileHandler(
             logs_dir / "navigator.log",
             maxBytes=10 * 1024 * 1024,  # 10MB
-            backupCount=10
+            backupCount=10,
         )
         json_handler.setFormatter(JSONFormatter(self.run_id))
         json_handler.setLevel(self.log_level)
@@ -108,8 +108,8 @@ class ProductionLogger:
         # Console handler for human-readable output
         console_handler = logging.StreamHandler()
         console_formatter = logging.Formatter(
-            '%(asctime)s [%(levelname)s] [%(name)s] %(message)s',
-            datefmt='%Y-%m-%d %H:%M:%S'
+            "%(asctime)s [%(levelname)s] [%(name)s] %(message)s",
+            datefmt="%Y-%m-%d %H:%M:%S",
         )
         console_handler.setFormatter(console_formatter)
         console_handler.setLevel(self.log_level)
@@ -134,11 +134,11 @@ class ProductionLogger:
         record = self.logger.makeRecord(
             name=self.logger.name,
             level=getattr(logging, level.upper()),
-            fn='',
+            fn="",
             lno=0,
             msg=message,
             args=(),
-            exc_info=None
+            exc_info=None,
         )
         record.extra_data = kwargs
 
@@ -147,34 +147,34 @@ class ProductionLogger:
 
     def debug(self, message: str, **kwargs) -> None:
         """Log debug message"""
-        self.log_event('DEBUG', message, **kwargs)
+        self.log_event("DEBUG", message, **kwargs)
 
     def info(self, message: str, **kwargs) -> None:
         """Log info message"""
-        self.log_event('INFO', message, **kwargs)
+        self.log_event("INFO", message, **kwargs)
 
     def warning(self, message: str, **kwargs) -> None:
         """Log warning message"""
-        self.log_event('WARNING', message, **kwargs)
+        self.log_event("WARNING", message, **kwargs)
 
     def error(self, message: str, **kwargs) -> None:
         """Log error message"""
-        self.log_event('ERROR', message, **kwargs)
+        self.log_event("ERROR", message, **kwargs)
 
     def critical(self, message: str, **kwargs) -> None:
         """Log critical message"""
-        self.log_event('CRITICAL', message, **kwargs)
+        self.log_event("CRITICAL", message, **kwargs)
 
     def exception(self, message: str, **kwargs) -> None:
         """Log exception with traceback"""
         record = self.logger.makeRecord(
             name=self.logger.name,
             level=logging.ERROR,
-            fn='',
+            fn="",
             lno=0,
             msg=message,
             args=(),
-            exc_info=True  # Capture current exception
+            exc_info=True,  # Capture current exception
         )
         record.extra_data = kwargs
         self.logger.handle(record)
@@ -190,7 +190,9 @@ class ProductionLogger:
             self.logger.removeHandler(handler)
 
 
-def get_logger(run_id: Optional[str] = None, log_level: str = "INFO") -> ProductionLogger:
+def get_logger(
+    run_id: Optional[str] = None, log_level: str = "INFO"
+) -> ProductionLogger:
     """
     Factory function to get a configured production logger
 

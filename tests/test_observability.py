@@ -5,18 +5,24 @@ Tests structured logging, performance monitoring, run summaries,
 and integrated observability management.
 """
 
-import pytest
 import json
-import time
-import tempfile
 import shutil
+import tempfile
+import time
 from pathlib import Path
-from unittest.mock import patch, MagicMock
+from unittest.mock import MagicMock, patch
 
-from navigator_orchestrator.logger import ProductionLogger, JSONFormatter, get_logger
-from navigator_orchestrator.performance_monitor import PerformanceMonitor, PerformanceMetrics
-from navigator_orchestrator.run_summary import RunSummaryGenerator, RunIssue, RunMetadata
-from navigator_orchestrator.observability import ObservabilityManager, create_observability_manager, observability_session
+import pytest
+
+from navigator_orchestrator.logger import (JSONFormatter, ProductionLogger,
+                                           get_logger)
+from navigator_orchestrator.observability import (ObservabilityManager,
+                                                  create_observability_manager,
+                                                  observability_session)
+from navigator_orchestrator.performance_monitor import (PerformanceMetrics,
+                                                        PerformanceMonitor)
+from navigator_orchestrator.run_summary import (RunIssue, RunMetadata,
+                                                RunSummaryGenerator)
 
 
 class TestProductionLogger:
@@ -28,11 +34,13 @@ class TestProductionLogger:
         self.original_cwd = Path.cwd()
         # Change to test directory to avoid polluting real logs
         import os
+
         os.chdir(self.test_dir)
 
     def teardown_method(self):
         """Cleanup test environment"""
         import os
+
         os.chdir(self.original_cwd)
         shutil.rmtree(self.test_dir, ignore_errors=True)
 
@@ -82,11 +90,9 @@ class TestProductionLogger:
         """Test structured logging with custom fields"""
         logger = ProductionLogger(run_id="test-structured")
 
-        logger.info("Test message",
-                   year=2025,
-                   operation="test_op",
-                   duration=1.5,
-                   success=True)
+        logger.info(
+            "Test message", year=2025, operation="test_op", duration=1.5, success=True
+        )
 
         log_file = Path("logs/navigator.log")
         with open(log_file) as f:
@@ -130,6 +136,7 @@ class TestPerformanceMonitor:
         self.test_dir = Path(tempfile.mkdtemp())
         self.original_cwd = Path.cwd()
         import os
+
         os.chdir(self.test_dir)
 
         self.logger = ProductionLogger(run_id="perf-test")
@@ -138,6 +145,7 @@ class TestPerformanceMonitor:
     def teardown_method(self):
         """Cleanup test environment"""
         import os
+
         os.chdir(self.original_cwd)
         shutil.rmtree(self.test_dir, ignore_errors=True)
 
@@ -198,7 +206,9 @@ class TestPerformanceMonitor:
     def test_data_quality_logging(self):
         """Test data quality check logging"""
         self.monitor.log_data_quality_check(2025, "row_count", 1000, 1200)
-        self.monitor.log_data_quality_check(2025, "error_rate", 0.05, 0.01)  # Should trigger warning
+        self.monitor.log_data_quality_check(
+            2025, "error_rate", 0.05, 0.01
+        )  # Should trigger warning
 
         # Verify logs were created (basic check)
         log_file = Path("logs/navigator.log")
@@ -213,15 +223,19 @@ class TestRunSummaryGenerator:
         self.test_dir = Path(tempfile.mkdtemp())
         self.original_cwd = Path.cwd()
         import os
+
         os.chdir(self.test_dir)
 
         self.logger = ProductionLogger(run_id="summary-test")
         self.performance_monitor = PerformanceMonitor(self.logger)
-        self.summary = RunSummaryGenerator("summary-test", self.logger, self.performance_monitor)
+        self.summary = RunSummaryGenerator(
+            "summary-test", self.logger, self.performance_monitor
+        )
 
     def teardown_method(self):
         """Cleanup test environment"""
         import os
+
         os.chdir(self.original_cwd)
         shutil.rmtree(self.test_dir, ignore_errors=True)
 
@@ -288,8 +302,15 @@ class TestRunSummaryGenerator:
         """Test export format for monitoring systems"""
         export_data = self.summary.export_for_monitoring()
 
-        required_fields = ["run_id", "status", "error_count", "warning_count",
-                          "start_time", "environment", "user"]
+        required_fields = [
+            "run_id",
+            "status",
+            "error_count",
+            "warning_count",
+            "start_time",
+            "environment",
+            "user",
+        ]
 
         for field in required_fields:
             assert field in export_data
@@ -303,11 +324,13 @@ class TestObservabilityManager:
         self.test_dir = Path(tempfile.mkdtemp())
         self.original_cwd = Path.cwd()
         import os
+
         os.chdir(self.test_dir)
 
     def teardown_method(self):
         """Cleanup test environment"""
         import os
+
         os.chdir(self.original_cwd)
         shutil.rmtree(self.test_dir, ignore_errors=True)
 
@@ -389,11 +412,13 @@ class TestIntegration:
         self.test_dir = Path(tempfile.mkdtemp())
         self.original_cwd = Path.cwd()
         import os
+
         os.chdir(self.test_dir)
 
     def teardown_method(self):
         """Cleanup test environment"""
         import os
+
         os.chdir(self.original_cwd)
         shutil.rmtree(self.test_dir, ignore_errors=True)
 
@@ -401,11 +426,9 @@ class TestIntegration:
         """Test a complete simulation workflow with full observability"""
         with observability_session(run_id="simulation-test") as obs:
             # Set up simulation
-            obs.set_configuration({
-                "start_year": 2025,
-                "end_year": 2027,
-                "growth_rate": 0.03
-            })
+            obs.set_configuration(
+                {"start_year": 2025, "end_year": 2027, "growth_rate": 0.03}
+            )
 
             # Simulate multi-year processing
             total_events = 0
@@ -436,7 +459,9 @@ class TestIntegration:
         assert summary["execution_summary"]["total_warnings"] == 1
         assert summary["execution_summary"]["total_errors"] == 0
         assert summary["performance_metrics"]["total_operations"] == 3
-        assert summary["custom_metrics"]["total_events_processed"]["value"] == total_events
+        assert (
+            summary["custom_metrics"]["total_events_processed"]["value"] == total_events
+        )
 
         # Verify all artifacts were created
         artifacts_dir = Path("artifacts/runs/simulation-test")

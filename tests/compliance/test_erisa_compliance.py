@@ -6,24 +6,20 @@ including requirement coverage, data classification, audit procedures,
 and compliance reporting.
 """
 
-import pytest
 import json
 import tempfile
 from datetime import date, datetime, timedelta
 from decimal import Decimal
 from pathlib import Path
 
-from config.erisa_compliance import (
-    ERISAComplianceValidator,
-    ERISAComplianceLevel,
-    ERISASection,
-    IRSCode,
-    DataClassification,
-    ERISARequirement,
-    ERISAComplianceChecklist,
-    DataFieldClassification,
-    AuditTrailManager
-)
+import pytest
+
+from config.erisa_compliance import (AuditTrailManager, DataClassification,
+                                     DataFieldClassification,
+                                     ERISAComplianceChecklist,
+                                     ERISAComplianceLevel,
+                                     ERISAComplianceValidator,
+                                     ERISARequirement, ERISASection, IRSCode)
 
 
 class TestERISAComplianceValidator:
@@ -44,7 +40,12 @@ class TestERISAComplianceValidator:
         assert len(validator.data_classifications) > 0
 
         # Verify all critical fields are classified
-        critical_fields = ['ssn', 'birth_date', 'annual_compensation', 'contribution_amount']
+        critical_fields = [
+            "ssn",
+            "birth_date",
+            "annual_compensation",
+            "contribution_amount",
+        ]
         for field in critical_fields:
             assert field in validator.data_classifications
 
@@ -60,9 +61,16 @@ class TestERISAComplianceValidator:
         # Verify requirements coverage
         requirement_ids = [req.requirement_id for req in checklist.requirements]
         expected_requirements = [
-            'ERISA_404_A', 'ERISA_404_C', 'ERISA_101_A', 'ERISA_402_A',
-            'ERISA_203_A', 'ERISA_204_H', 'ERISA_406_A', 'ERISA_107_A',
-            'IRS_402G', 'IRS_415C'
+            "ERISA_404_A",
+            "ERISA_404_C",
+            "ERISA_101_A",
+            "ERISA_402_A",
+            "ERISA_203_A",
+            "ERISA_204_H",
+            "ERISA_406_A",
+            "ERISA_107_A",
+            "IRS_402G",
+            "IRS_415C",
         ]
 
         for req_id in expected_requirements:
@@ -73,43 +81,45 @@ class TestERISAComplianceValidator:
         coverage = validator.validate_event_coverage()
 
         # Verify coverage structure
-        assert 'total_requirements' in coverage
-        assert 'compliant_requirements' in coverage
-        assert 'event_type_coverage' in coverage
-        assert 'section_coverage' in coverage
+        assert "total_requirements" in coverage
+        assert "compliant_requirements" in coverage
+        assert "event_type_coverage" in coverage
+        assert "section_coverage" in coverage
 
         # Verify high compliance rate (should be 100% for implemented requirements)
-        assert coverage['compliance_percentage'] >= 90.0
+        assert coverage["compliance_percentage"] >= 90.0
 
         # Verify critical event types are covered
-        critical_events = ['contribution', 'distribution', 'vesting', 'forfeiture']
+        critical_events = ["contribution", "distribution", "vesting", "forfeiture"]
         for event in critical_events:
-            assert event in coverage['event_type_coverage']
-            assert len(coverage['event_type_coverage'][event]) > 0
+            assert event in coverage["event_type_coverage"]
+            assert len(coverage["event_type_coverage"][event]) > 0
 
     def test_field_classification_validation(self, validator):
         """Test data field classification validation."""
         # Test restricted field
-        ssn_validation = validator.validate_field_classification('ssn')
-        assert ssn_validation['classification'] == 'RESTRICTED'
-        assert ssn_validation['compliance_requirements']['encryption_required'] is True
-        assert ssn_validation['compliance_requirements']['audit_required'] is True
-        assert ssn_validation['pii_type'] == 'Social Security Number'
+        ssn_validation = validator.validate_field_classification("ssn")
+        assert ssn_validation["classification"] == "RESTRICTED"
+        assert ssn_validation["compliance_requirements"]["encryption_required"] is True
+        assert ssn_validation["compliance_requirements"]["audit_required"] is True
+        assert ssn_validation["pii_type"] == "Social Security Number"
 
         # Test confidential field
-        comp_validation = validator.validate_field_classification('annual_compensation')
-        assert comp_validation['classification'] == 'CONFIDENTIAL'
-        assert comp_validation['compliance_requirements']['encryption_required'] is True
+        comp_validation = validator.validate_field_classification("annual_compensation")
+        assert comp_validation["classification"] == "CONFIDENTIAL"
+        assert comp_validation["compliance_requirements"]["encryption_required"] is True
 
         # Test internal field
-        emp_validation = validator.validate_field_classification('employee_id')
-        assert emp_validation['classification'] == 'INTERNAL'
-        assert emp_validation['compliance_requirements']['encryption_required'] is False
+        emp_validation = validator.validate_field_classification("employee_id")
+        assert emp_validation["classification"] == "INTERNAL"
+        assert emp_validation["compliance_requirements"]["encryption_required"] is False
 
         # Test unknown field (should get default classification)
-        unknown_validation = validator.validate_field_classification('unknown_field')
-        assert unknown_validation['classification'] == 'INTERNAL'
-        assert unknown_validation['compliance_requirements']['retention_required'] is True
+        unknown_validation = validator.validate_field_classification("unknown_field")
+        assert unknown_validation["classification"] == "INTERNAL"
+        assert (
+            unknown_validation["compliance_requirements"]["retention_required"] is True
+        )
 
     def test_compliance_report_generation(self, validator):
         """Test generation of comprehensive compliance report."""
@@ -136,7 +146,7 @@ class TestERISAComplianceValidator:
 
     def test_checklist_export_import(self, validator):
         """Test export and import of compliance checklist."""
-        with tempfile.NamedTemporaryFile(mode='w', suffix='.json', delete=False) as f:
+        with tempfile.NamedTemporaryFile(mode="w", suffix=".json", delete=False) as f:
             temp_path = f.name
 
         try:
@@ -147,20 +157,25 @@ class TestERISAComplianceValidator:
             assert Path(temp_path).exists()
 
             # Verify JSON structure
-            with open(temp_path, 'r') as f:
+            with open(temp_path, "r") as f:
                 data = json.load(f)
 
-            assert 'checklist_version' in data
-            assert 'requirements' in data
-            assert len(data['requirements']) > 0
+            assert "checklist_version" in data
+            assert "requirements" in data
+            assert len(data["requirements"]) > 0
 
             # Create new validator and import
             new_validator = ERISAComplianceValidator()
             new_validator.import_checklist(temp_path)
 
             # Verify import worked
-            assert new_validator.compliance_checklist.checklist_version == validator.compliance_checklist.checklist_version
-            assert len(new_validator.compliance_checklist.requirements) == len(validator.compliance_checklist.requirements)
+            assert (
+                new_validator.compliance_checklist.checklist_version
+                == validator.compliance_checklist.checklist_version
+            )
+            assert len(new_validator.compliance_checklist.requirements) == len(
+                validator.compliance_checklist.requirements
+            )
 
         finally:
             # Clean up
@@ -178,7 +193,7 @@ class TestERISARequirement:
             description="Test requirement",
             compliance_level=ERISAComplianceLevel.COMPLIANT,
             event_types_covered=["contribution", "distribution"],
-            validation_notes="Test validation"
+            validation_notes="Test validation",
         )
 
         assert requirement.requirement_id == "TEST_001"
@@ -195,7 +210,7 @@ class TestERISARequirement:
                 description="Test requirement",
                 compliance_level=ERISAComplianceLevel.COMPLIANT,
                 event_types_covered=["invalid_event_type"],
-                validation_notes="Test validation"
+                validation_notes="Test validation",
             )
 
     def test_requirement_with_irs_code(self):
@@ -207,7 +222,7 @@ class TestERISARequirement:
             description="Test IRS requirement",
             compliance_level=ERISAComplianceLevel.COMPLIANT,
             event_types_covered=["contribution"],
-            validation_notes="Test IRS validation"
+            validation_notes="Test IRS validation",
         )
 
         assert requirement.irs_code_reference == IRSCode.CODE_402G
@@ -227,7 +242,7 @@ class TestDataFieldClassification:
             retention_years=7,
             erisa_reference="ERISA Section 107",
             audit_on_access=True,
-            pii_type="Social Security Number"
+            pii_type="Social Security Number",
         )
 
         assert classification.classification == DataClassification.RESTRICTED
@@ -245,7 +260,7 @@ class TestDataFieldClassification:
                 encryption_required=False,
                 access_roles=["admin"],
                 retention_years=5,  # Invalid: less than 7 years
-                erisa_reference="Test reference"
+                erisa_reference="Test reference",
             )
 
     def test_confidential_classification(self):
@@ -256,7 +271,7 @@ class TestDataFieldClassification:
             encryption_required=True,
             access_roles=["admin", "analyst", "auditor"],
             retention_years=7,
-            erisa_reference="ERISA Section 204"
+            erisa_reference="ERISA Section 204",
         )
 
         assert classification.classification == DataClassification.CONFIDENTIAL
@@ -276,7 +291,7 @@ class TestERISAComplianceChecklist:
                 description="Test 1",
                 compliance_level=ERISAComplianceLevel.COMPLIANT,
                 event_types_covered=["contribution"],
-                validation_notes="Test"
+                validation_notes="Test",
             ),
             ERISARequirement(
                 requirement_id="REQ_002",
@@ -284,7 +299,7 @@ class TestERISAComplianceChecklist:
                 description="Test 2",
                 compliance_level=ERISAComplianceLevel.NEEDS_REVIEW,
                 event_types_covered=["distribution"],
-                validation_notes="Test"
+                validation_notes="Test",
             ),
             ERISARequirement(
                 requirement_id="REQ_003",
@@ -292,8 +307,8 @@ class TestERISAComplianceChecklist:
                 description="Test 3",
                 compliance_level=ERISAComplianceLevel.COMPLIANT,
                 event_types_covered=["vesting"],
-                validation_notes="Test"
-            )
+                validation_notes="Test",
+            ),
         ]
 
         checklist = ERISAComplianceChecklist(
@@ -301,7 +316,7 @@ class TestERISAComplianceChecklist:
             reviewed_by="Test Counsel",
             plan_sponsor="Test Sponsor",
             requirements=requirements,
-            overall_compliance=ERISAComplianceLevel.NEEDS_REVIEW
+            overall_compliance=ERISAComplianceLevel.NEEDS_REVIEW,
         )
 
         percentage = checklist.calculate_compliance_percentage()
@@ -316,7 +331,7 @@ class TestERISAComplianceChecklist:
                 description="Compliant requirement",
                 compliance_level=ERISAComplianceLevel.COMPLIANT,
                 event_types_covered=["contribution"],
-                validation_notes="Test"
+                validation_notes="Test",
             ),
             ERISARequirement(
                 requirement_id="REQ_002",
@@ -324,7 +339,7 @@ class TestERISAComplianceChecklist:
                 description="Non-compliant requirement",
                 compliance_level=ERISAComplianceLevel.NON_COMPLIANT,
                 event_types_covered=["distribution"],
-                validation_notes="Test"
+                validation_notes="Test",
             ),
             ERISARequirement(
                 requirement_id="REQ_003",
@@ -332,8 +347,8 @@ class TestERISAComplianceChecklist:
                 description="Needs review requirement",
                 compliance_level=ERISAComplianceLevel.NEEDS_REVIEW,
                 event_types_covered=["vesting"],
-                validation_notes="Test"
-            )
+                validation_notes="Test",
+            ),
         ]
 
         checklist = ERISAComplianceChecklist(
@@ -341,7 +356,7 @@ class TestERISAComplianceChecklist:
             reviewed_by="Test Counsel",
             plan_sponsor="Test Sponsor",
             requirements=requirements,
-            overall_compliance=ERISAComplianceLevel.NEEDS_REVIEW
+            overall_compliance=ERISAComplianceLevel.NEEDS_REVIEW,
         )
 
         gaps = checklist.identify_critical_gaps()
@@ -391,13 +406,15 @@ class TestIntegrationScenarios:
         """Test the complete workflow of compliance validation."""
         # Step 1: Validate event coverage
         coverage = validator.validate_event_coverage()
-        assert coverage['compliance_percentage'] >= 90.0
+        assert coverage["compliance_percentage"] >= 90.0
 
         # Step 2: Validate data classifications
-        sensitive_fields = ['ssn', 'birth_date', 'annual_compensation']
+        sensitive_fields = ["ssn", "birth_date", "annual_compensation"]
         for field in sensitive_fields:
             classification = validator.validate_field_classification(field)
-            assert classification['compliance_requirements']['encryption_required'] is True
+            assert (
+                classification["compliance_requirements"]["encryption_required"] is True
+            )
 
         # Step 3: Generate compliance report
         report = validator.generate_compliance_report()
@@ -418,7 +435,7 @@ class TestIntegrationScenarios:
             "ERISA Section Coverage",
             "Detailed Requirements Analysis",
             "Data Classification Summary",
-            "Compliance Certification"
+            "Compliance Certification",
         ]
 
         for section in required_sections:
@@ -446,15 +463,18 @@ class TestIntegrationScenarios:
 
         # Verify compliance metrics are documented
         coverage = validator.validate_event_coverage()
-        assert 'section_coverage' in coverage
-        assert len(coverage['section_coverage']) > 0
+        assert "section_coverage" in coverage
+        assert len(coverage["section_coverage"]) > 0
 
         # Verify all ERISA sections are addressed
-        erisa_sections = [req.section_reference.value for req in validator.compliance_checklist.requirements]
+        erisa_sections = [
+            req.section_reference.value
+            for req in validator.compliance_checklist.requirements
+        ]
         critical_sections = [
             "ERISA Section 404 - Fiduciary Duties",
             "ERISA Section 107 - Recordkeeping",
-            "ERISA Section 101 - Reporting and Disclosure"
+            "ERISA Section 101 - Reporting and Disclosure",
         ]
 
         for section in critical_sections:
@@ -471,7 +491,7 @@ class TestErrorHandling:
             reviewed_by="Test",
             plan_sponsor="Test",
             requirements=[],
-            overall_compliance=ERISAComplianceLevel.NEEDS_REVIEW
+            overall_compliance=ERISAComplianceLevel.NEEDS_REVIEW,
         )
 
         assert checklist.calculate_compliance_percentage() == 0.0
@@ -486,7 +506,7 @@ class TestErrorHandling:
                 description="Test",
                 compliance_level=ERISAComplianceLevel.COMPLIANT,
                 event_types_covered=["nonexistent_event_type"],
-                validation_notes="Test"
+                validation_notes="Test",
             )
 
     def test_classification_fallback(self):
@@ -497,9 +517,9 @@ class TestErrorHandling:
         result = validator.validate_field_classification("unknown_field_name")
 
         # Should get default INTERNAL classification
-        assert result['classification'] == 'INTERNAL'
-        assert result['compliance_requirements']['retention_required'] is True
-        assert result['erisa_reference'] == "General recordkeeping"
+        assert result["classification"] == "INTERNAL"
+        assert result["compliance_requirements"]["retention_required"] is True
+        assert result["erisa_reference"] == "General recordkeeping"
 
 
 # Performance tests
@@ -532,7 +552,7 @@ class TestPerformance:
 
         # Should complete validation in under 0.1 seconds
         assert (end_time - start_time) < 0.1
-        assert 'compliance_percentage' in coverage
+        assert "compliance_percentage" in coverage
 
 
 if __name__ == "__main__":
@@ -541,7 +561,9 @@ if __name__ == "__main__":
 
     # Test validator creation
     validator = ERISAComplianceValidator()
-    print(f"✅ Validator created with {len(validator.compliance_checklist.requirements)} requirements")
+    print(
+        f"✅ Validator created with {len(validator.compliance_checklist.requirements)} requirements"
+    )
 
     # Test report generation
     report = validator.generate_compliance_report()
@@ -549,7 +571,9 @@ if __name__ == "__main__":
 
     # Test coverage analysis
     coverage = validator.validate_event_coverage()
-    print(f"✅ Event coverage validated ({coverage['compliance_percentage']:.1f}% compliant)")
+    print(
+        f"✅ Event coverage validated ({coverage['compliance_percentage']:.1f}% compliant)"
+    )
 
     # Test audit procedures
     procedures = AuditTrailManager.generate_audit_procedures()

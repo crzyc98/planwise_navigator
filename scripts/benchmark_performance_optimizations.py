@@ -18,16 +18,20 @@ import os
 import sys
 import time
 from pathlib import Path
-from typing import Dict, List, Any, Optional
+from typing import Any, Dict, List, Optional
 
 # Add the project root to the Python path
 project_root = Path(__file__).parent.parent
 sys.path.insert(0, str(project_root))
 
-from orchestrator_mvp.core.optimized_multi_year_engine import create_optimized_multi_year_engine
-from orchestrator_mvp.core.database_manager import clear_database, get_connection
-from orchestrator_mvp.core.duckdb_optimizations import apply_duckdb_optimizations
-from orchestrator_mvp.utils.dbt_batch_executor import create_optimized_dbt_executor
+from orchestrator_mvp.core.database_manager import (clear_database,
+                                                    get_connection)
+from orchestrator_mvp.core.duckdb_optimizations import \
+    apply_duckdb_optimizations
+from orchestrator_mvp.core.optimized_multi_year_engine import \
+    create_optimized_multi_year_engine
+from orchestrator_mvp.utils.dbt_batch_executor import \
+    create_optimized_dbt_executor
 
 
 class PerformanceBenchmark:
@@ -40,7 +44,7 @@ class PerformanceBenchmark:
             "baseline": {},
             "optimized": {},
             "comparison": {},
-            "system_info": {}
+            "system_info": {},
         }
 
         self._collect_system_info()
@@ -54,7 +58,7 @@ class PerformanceBenchmark:
             "memory_gb": round(psutil.virtual_memory().total / (1024**3), 1),
             "python_version": sys.version,
             "platform": sys.platform,
-            "timestamp": time.strftime("%Y-%m-%d %H:%M:%S")
+            "timestamp": time.strftime("%Y-%m-%d %H:%M:%S"),
         }
 
     def run_baseline_benchmark(self) -> Dict[str, Any]:
@@ -67,7 +71,7 @@ class PerformanceBenchmark:
             "year_processing_ms": 0,
             "total_simulation_ms": 0,
             "operations": {},
-            "errors": []
+            "errors": [],
         }
 
         simulation_start = time.perf_counter()
@@ -90,13 +94,17 @@ class PerformanceBenchmark:
             baseline_results["foundation_setup_ms"] = foundation_time
             baseline_results["operations"]["foundation_setup"] = foundation_time
 
-            print(f"    ⏱️  Foundation setup: {foundation_time:.0f}ms ({foundation_time/1000:.1f}s)")
+            print(
+                f"    ⏱️  Foundation setup: {foundation_time:.0f}ms ({foundation_time/1000:.1f}s)"
+            )
 
             # Year Processing Baseline
             print("2️⃣  Baseline Year Processing...")
             year_times = []
 
-            for year in self.simulation_years[:2]:  # Test with first 2 years for baseline
+            for year in self.simulation_years[
+                :2
+            ]:  # Test with first 2 years for baseline
                 year_start = time.perf_counter()
 
                 # Set year variable
@@ -107,7 +115,7 @@ class PerformanceBenchmark:
                     "int_baseline_workforce",
                     "int_employee_compensation_by_year",
                     "int_enrollment_events",
-                    "int_workforce_active_for_events"
+                    "int_workforce_active_for_events",
                 ]
 
                 for model in intermediate_models:
@@ -121,7 +129,9 @@ class PerformanceBenchmark:
                 year_time = (time.perf_counter() - year_start) * 1000
                 year_times.append(year_time)
 
-                print(f"    📅 Year {year}: {year_time:.0f}ms ({year_time/1000/60:.1f}min)")
+                print(
+                    f"    📅 Year {year}: {year_time:.0f}ms ({year_time/1000/60:.1f}min)"
+                )
 
             avg_year_time = sum(year_times) / len(year_times) if year_times else 0
             baseline_results["year_processing_ms"] = avg_year_time
@@ -135,8 +145,12 @@ class PerformanceBenchmark:
         baseline_results["total_simulation_ms"] = total_time
 
         print(f"\n📊 Baseline Benchmark Results:")
-        print(f"  🏗️  Foundation Setup: {baseline_results['foundation_setup_ms']:.0f}ms")
-        print(f"  📅 Avg Year Processing: {baseline_results['year_processing_ms']:.0f}ms")
+        print(
+            f"  🏗️  Foundation Setup: {baseline_results['foundation_setup_ms']:.0f}ms"
+        )
+        print(
+            f"  📅 Avg Year Processing: {baseline_results['year_processing_ms']:.0f}ms"
+        )
         print(f"  ⏱️  Total Time: {total_time:.0f}ms ({total_time/1000:.1f}s)")
 
         self.benchmark_results["baseline"] = baseline_results
@@ -153,31 +167,41 @@ class PerformanceBenchmark:
             "total_simulation_ms": 0,
             "operations": {},
             "compression_stats": {},
-            "errors": []
+            "errors": [],
         }
 
         simulation_start = time.perf_counter()
 
         try:
             # Create optimized engine
-            baseline_metrics = self.benchmark_results.get("baseline", {}).get("operations", {})
+            baseline_metrics = self.benchmark_results.get("baseline", {}).get(
+                "operations", {}
+            )
 
             engine = create_optimized_multi_year_engine(
                 dbt_project_path=str(self.dbt_project_path),
                 simulation_years=self.simulation_years[:2],  # Test with first 2 years
                 baseline_metrics=baseline_metrics,
-                pool_size=4
+                pool_size=4,
             )
 
             # Run optimized foundation setup
             print("1️⃣  Optimized Foundation Setup...")
             foundation_result = engine.execute_foundation_setup_optimized()
 
-            optimized_results["foundation_setup_ms"] = foundation_result.get("execution_time_ms", 0)
-            optimized_results["operations"]["foundation_setup"] = foundation_result.get("execution_time_ms", 0)
+            optimized_results["foundation_setup_ms"] = foundation_result.get(
+                "execution_time_ms", 0
+            )
+            optimized_results["operations"]["foundation_setup"] = foundation_result.get(
+                "execution_time_ms", 0
+            )
 
-            print(f"    ⏱️  Foundation setup: {foundation_result.get('execution_time_ms', 0):.0f}ms")
-            print(f"    🎯 Improvement: {foundation_result.get('performance_improvement', 0):.1f}%")
+            print(
+                f"    ⏱️  Foundation setup: {foundation_result.get('execution_time_ms', 0):.0f}ms"
+            )
+            print(
+                f"    🎯 Improvement: {foundation_result.get('performance_improvement', 0):.1f}%"
+            )
 
             # Run optimized year processing
             print("2️⃣  Optimized Year Processing...")
@@ -186,24 +210,38 @@ class PerformanceBenchmark:
 
             previous_year_data = None
             for year in self.simulation_years[:2]:
-                year_result = engine.execute_year_processing_optimized(year, previous_year_data)
+                year_result = engine.execute_year_processing_optimized(
+                    year, previous_year_data
+                )
 
                 year_time = year_result.get("execution_time_ms", 0)
                 year_times.append(year_time)
                 compression_ratios.append(year_result.get("state_compression_ratio", 0))
 
-                print(f"    📅 Year {year}: {year_time:.0f}ms ({year_time/1000/60:.1f}min)")
-                print(f"    🗜️  Compression: {year_result.get('state_compression_ratio', 0):.1f}x")
-                print(f"    🎯 Improvement: {year_result.get('performance_improvement', 0):.1f}%")
+                print(
+                    f"    📅 Year {year}: {year_time:.0f}ms ({year_time/1000/60:.1f}min)"
+                )
+                print(
+                    f"    🗜️  Compression: {year_result.get('state_compression_ratio', 0):.1f}x"
+                )
+                print(
+                    f"    🎯 Improvement: {year_result.get('performance_improvement', 0):.1f}%"
+                )
 
                 previous_year_data = engine._get_compressed_year_data(year)
 
             avg_year_time = sum(year_times) / len(year_times) if year_times else 0
-            avg_compression = sum(compression_ratios) / len(compression_ratios) if compression_ratios else 0
+            avg_compression = (
+                sum(compression_ratios) / len(compression_ratios)
+                if compression_ratios
+                else 0
+            )
 
             optimized_results["year_processing_ms"] = avg_year_time
             optimized_results["operations"]["year_processing"] = avg_year_time
-            optimized_results["compression_stats"]["avg_compression_ratio"] = avg_compression
+            optimized_results["compression_stats"][
+                "avg_compression_ratio"
+            ] = avg_compression
 
             # Cleanup
             engine.cleanup()
@@ -216,9 +254,15 @@ class PerformanceBenchmark:
         optimized_results["total_simulation_ms"] = total_time
 
         print(f"\n📊 Optimized Benchmark Results:")
-        print(f"  🏗️  Foundation Setup: {optimized_results['foundation_setup_ms']:.0f}ms")
-        print(f"  📅 Avg Year Processing: {optimized_results['year_processing_ms']:.0f}ms")
-        print(f"  🗜️  Avg Compression: {optimized_results['compression_stats'].get('avg_compression_ratio', 0):.1f}x")
+        print(
+            f"  🏗️  Foundation Setup: {optimized_results['foundation_setup_ms']:.0f}ms"
+        )
+        print(
+            f"  📅 Avg Year Processing: {optimized_results['year_processing_ms']:.0f}ms"
+        )
+        print(
+            f"  🗜️  Avg Compression: {optimized_results['compression_stats'].get('avg_compression_ratio', 0):.1f}x"
+        )
         print(f"  ⏱️  Total Time: {total_time:.0f}ms ({total_time/1000:.1f}s)")
 
         self.benchmark_results["optimized"] = optimized_results
@@ -233,7 +277,9 @@ class PerformanceBenchmark:
         optimized = self.benchmark_results.get("optimized", {})
 
         if not baseline or not optimized:
-            print("❌ Cannot calculate comparison - missing baseline or optimized results")
+            print(
+                "❌ Cannot calculate comparison - missing baseline or optimized results"
+            )
             return {}
 
         comparison_results = {
@@ -241,11 +287,15 @@ class PerformanceBenchmark:
             "year_processing": {},
             "total_simulation": {},
             "overall_improvement": 0.0,
-            "target_achievement": "Unknown"
+            "target_achievement": "Unknown",
         }
 
         # Calculate improvements for each operation
-        operations = ["foundation_setup_ms", "year_processing_ms", "total_simulation_ms"]
+        operations = [
+            "foundation_setup_ms",
+            "year_processing_ms",
+            "total_simulation_ms",
+        ]
         operation_names = ["foundation_setup", "year_processing", "total_simulation"]
 
         for op, name in zip(operations, operation_names):
@@ -261,7 +311,7 @@ class PerformanceBenchmark:
                     "optimized_ms": optimized_time,
                     "improvement_percent": improvement,
                     "speedup_factor": speedup,
-                    "time_saved_ms": baseline_time - optimized_time
+                    "time_saved_ms": baseline_time - optimized_time,
                 }
 
                 print(f"🔍 {name.replace('_', ' ').title()}:")
@@ -277,7 +327,9 @@ class PerformanceBenchmark:
         optimized_total = optimized.get("total_simulation_ms", 0)
 
         if baseline_total > 0:
-            overall_improvement = ((baseline_total - optimized_total) / baseline_total) * 100
+            overall_improvement = (
+                (baseline_total - optimized_total) / baseline_total
+            ) * 100
             comparison_results["overall_improvement"] = overall_improvement
 
             # Determine target achievement
@@ -294,13 +346,17 @@ class PerformanceBenchmark:
             print(f"🏆 Overall Performance Achievement:")
             print(f"    📈 Total Improvement: {overall_improvement:.1f}%")
             print(f"    🎯 Target (82%): {achievement_status}")
-            print(f"    ⏱️  Total Time Saved: {(baseline_total - optimized_total)/1000:.1f}s")
+            print(
+                f"    ⏱️  Total Time Saved: {(baseline_total - optimized_total)/1000:.1f}s"
+            )
 
             # Additional insights
             if overall_improvement >= 82:
                 print(f"    🎉 Congratulations! Performance target exceeded!")
             elif overall_improvement >= 70:
-                print(f"    🔶 Very close to target - additional optimizations may reach 82%")
+                print(
+                    f"    🔶 Very close to target - additional optimizations may reach 82%"
+                )
             else:
                 print(f"    💡 Consider additional optimization strategies")
 
@@ -319,7 +375,7 @@ class PerformanceBenchmark:
             f"🗓️  Test Years: {len(self.simulation_years)} years ({min(self.simulation_years)}-{max(self.simulation_years)})",
             "",
             "📊 PERFORMANCE COMPARISON",
-            "-" * 30
+            "-" * 30,
         ]
 
         comparison = self.benchmark_results.get("comparison", {})
@@ -328,70 +384,81 @@ class PerformanceBenchmark:
             # Foundation Setup
             foundation = comparison.get("foundation_setup", {})
             if foundation:
-                report_lines.extend([
-                    "🏗️  Foundation Setup:",
-                    f"    Baseline:    {foundation['baseline_ms']:.0f}ms ({foundation['baseline_ms']/1000:.1f}s)",
-                    f"    Optimized:   {foundation['optimized_ms']:.0f}ms ({foundation['optimized_ms']/1000:.1f}s)",
-                    f"    Improvement: {foundation['improvement_percent']:.1f}% ({foundation['speedup_factor']:.1f}x faster)",
-                    ""
-                ])
+                report_lines.extend(
+                    [
+                        "🏗️  Foundation Setup:",
+                        f"    Baseline:    {foundation['baseline_ms']:.0f}ms ({foundation['baseline_ms']/1000:.1f}s)",
+                        f"    Optimized:   {foundation['optimized_ms']:.0f}ms ({foundation['optimized_ms']/1000:.1f}s)",
+                        f"    Improvement: {foundation['improvement_percent']:.1f}% ({foundation['speedup_factor']:.1f}x faster)",
+                        "",
+                    ]
+                )
 
             # Year Processing
             year_proc = comparison.get("year_processing", {})
             if year_proc:
-                report_lines.extend([
-                    "📅 Year Processing:",
-                    f"    Baseline:    {year_proc['baseline_ms']:.0f}ms ({year_proc['baseline_ms']/1000/60:.1f}min)",
-                    f"    Optimized:   {year_proc['optimized_ms']:.0f}ms ({year_proc['optimized_ms']/1000/60:.1f}min)",
-                    f"    Improvement: {year_proc['improvement_percent']:.1f}% ({year_proc['speedup_factor']:.1f}x faster)",
-                    ""
-                ])
+                report_lines.extend(
+                    [
+                        "📅 Year Processing:",
+                        f"    Baseline:    {year_proc['baseline_ms']:.0f}ms ({year_proc['baseline_ms']/1000/60:.1f}min)",
+                        f"    Optimized:   {year_proc['optimized_ms']:.0f}ms ({year_proc['optimized_ms']/1000/60:.1f}min)",
+                        f"    Improvement: {year_proc['improvement_percent']:.1f}% ({year_proc['speedup_factor']:.1f}x faster)",
+                        "",
+                    ]
+                )
 
             # Overall Results
-            report_lines.extend([
-                "🎯 OVERALL ACHIEVEMENT",
-                "-" * 25,
-                f"📈 Total Performance Improvement: {comparison['overall_improvement']:.1f}%",
-                f"🏆 Target Achievement: {comparison['target_achievement']}",
-                f"⏱️  Total Time Saved: {comparison.get('total_simulation', {}).get('time_saved_ms', 0)/1000:.1f}s",
-                ""
-            ])
+            report_lines.extend(
+                [
+                    "🎯 OVERALL ACHIEVEMENT",
+                    "-" * 25,
+                    f"📈 Total Performance Improvement: {comparison['overall_improvement']:.1f}%",
+                    f"🏆 Target Achievement: {comparison['target_achievement']}",
+                    f"⏱️  Total Time Saved: {comparison.get('total_simulation', {}).get('time_saved_ms', 0)/1000:.1f}s",
+                    "",
+                ]
+            )
 
             # Recommendations
-            improvement = comparison['overall_improvement']
-            report_lines.extend([
-                "💡 RECOMMENDATIONS",
-                "-" * 20
-            ])
+            improvement = comparison["overall_improvement"]
+            report_lines.extend(["💡 RECOMMENDATIONS", "-" * 20])
 
             if improvement >= 82:
-                report_lines.extend([
-                    "✅ Performance target achieved! Consider:",
-                    "   • Monitoring production performance",
-                    "   • Scaling optimizations to larger datasets",
-                    "   • Documenting optimization strategies"
-                ])
+                report_lines.extend(
+                    [
+                        "✅ Performance target achieved! Consider:",
+                        "   • Monitoring production performance",
+                        "   • Scaling optimizations to larger datasets",
+                        "   • Documenting optimization strategies",
+                    ]
+                )
             elif improvement >= 70:
-                report_lines.extend([
-                    "🔶 Very close to target! Consider:",
-                    "   • Fine-tuning DuckDB memory settings",
-                    "   • Additional query optimization",
-                    "   • Hardware-specific optimizations"
-                ])
+                report_lines.extend(
+                    [
+                        "🔶 Very close to target! Consider:",
+                        "   • Fine-tuning DuckDB memory settings",
+                        "   • Additional query optimization",
+                        "   • Hardware-specific optimizations",
+                    ]
+                )
             else:
-                report_lines.extend([
-                    "⚠️ Additional optimization needed:",
-                    "   • Review query execution plans",
-                    "   • Consider hardware upgrades",
-                    "   • Analyze bottleneck operations",
-                    "   • Implement additional caching strategies"
-                ])
+                report_lines.extend(
+                    [
+                        "⚠️ Additional optimization needed:",
+                        "   • Review query execution plans",
+                        "   • Consider hardware upgrades",
+                        "   • Analyze bottleneck operations",
+                        "   • Implement additional caching strategies",
+                    ]
+                )
 
-        report_lines.extend([
-            "",
-            "=" * 60,
-            "📋 Report generated by PlanWise Navigator Performance Benchmark"
-        ])
+        report_lines.extend(
+            [
+                "",
+                "=" * 60,
+                "📋 Report generated by PlanWise Navigator Performance Benchmark",
+            ]
+        )
 
         return "\n".join(report_lines)
 
@@ -400,7 +467,7 @@ class PerformanceBenchmark:
         output_path = Path(output_file)
         output_path.parent.mkdir(parents=True, exist_ok=True)
 
-        with open(output_path, 'w') as f:
+        with open(output_path, "w") as f:
             json.dump(self.benchmark_results, f, indent=2)
 
         print(f"📁 Benchmark results saved to: {output_path}")
@@ -416,7 +483,7 @@ class PerformanceBenchmark:
                 capture_output=True,
                 text=True,
                 timeout=timeout,
-                check=True
+                check=True,
             )
             return result
         except subprocess.CalledProcessError as e:
@@ -431,12 +498,26 @@ class PerformanceBenchmark:
 def main():
     """Main benchmark execution function."""
     parser = argparse.ArgumentParser(description="Performance Optimization Benchmark")
-    parser.add_argument("--baseline-only", action="store_true", help="Run only baseline benchmark")
-    parser.add_argument("--optimized-only", action="store_true", help="Run only optimized benchmark")
-    parser.add_argument("--full-benchmark", action="store_true", help="Run complete benchmark suite")
+    parser.add_argument(
+        "--baseline-only", action="store_true", help="Run only baseline benchmark"
+    )
+    parser.add_argument(
+        "--optimized-only", action="store_true", help="Run only optimized benchmark"
+    )
+    parser.add_argument(
+        "--full-benchmark", action="store_true", help="Run complete benchmark suite"
+    )
     parser.add_argument("--dbt-project", default="dbt", help="Path to dbt project")
-    parser.add_argument("--years", nargs="+", type=int, default=[2024, 2025, 2026], help="Simulation years")
-    parser.add_argument("--output", default="benchmark_results.json", help="Output file for results")
+    parser.add_argument(
+        "--years",
+        nargs="+",
+        type=int,
+        default=[2024, 2025, 2026],
+        help="Simulation years",
+    )
+    parser.add_argument(
+        "--output", default="benchmark_results.json", help="Output file for results"
+    )
 
     args = parser.parse_args()
 
@@ -479,7 +560,9 @@ def main():
         if comparison:
             improvement = comparison.get("overall_improvement", 0)
             if improvement >= 82:
-                print(f"\n🎉 SUCCESS: {improvement:.1f}% improvement achieved! (Target: 82%)")
+                print(
+                    f"\n🎉 SUCCESS: {improvement:.1f}% improvement achieved! (Target: 82%)"
+                )
                 sys.exit(0)
             else:
                 print(f"\n⚠️ PARTIAL: {improvement:.1f}% improvement (Target: 82%)")
@@ -491,6 +574,7 @@ def main():
     except Exception as e:
         print(f"\n❌ Benchmark failed: {e}")
         import traceback
+
         traceback.print_exc()
         sys.exit(1)
 

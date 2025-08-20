@@ -1,7 +1,7 @@
 {{ config(
     materialized='incremental',
     unique_key=['employee_id', 'simulation_year'],
-    on_schema_change='fail',
+    on_schema_change='sync_all_columns',
     indexes=[
         {'columns': ['simulation_year', 'employee_id'], 'type': 'btree', 'unique': true},
         {'columns': ['level_id', 'simulation_year'], 'type': 'btree'},

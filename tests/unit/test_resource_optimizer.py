@@ -11,37 +11,24 @@ This test suite validates:
 - Integration with existing simulation pipeline
 """
 
-import pytest
 import os
 import tempfile
-import time
 import threading
+import time
 from datetime import datetime, timedelta
 from decimal import Decimal
 from pathlib import Path
-from typing import Dict, List, Any, Optional
-from unittest.mock import Mock, MagicMock, patch
+from typing import Any, Dict, List, Optional
+from unittest.mock import MagicMock, Mock, patch
 
+import pytest
 from orchestrator_mvp.utils.resource_optimizer import (
-    PersistenceLevel,
-    OptimizationStrategy,
-    ResourceType,
-    CompressionType,
-    ResourceLimits,
-    MemoryRequirements,
-    OptimizationConfig,
-    MemoryOptimizationResult,
-    IOOptimizationResult,
-    ResourceMetrics,
-    StreamingOptimizationStrategy,
-    InMemoryOptimizationStrategy,
-    MemoryManager,
-    IOOptimizer,
-    ResourceMonitor,
-    ResourceOptimizer,
-    create_resource_optimizer,
-    get_system_resource_status
-)
+    CompressionType, InMemoryOptimizationStrategy, IOOptimizationResult,
+    IOOptimizer, MemoryManager, MemoryOptimizationResult, MemoryRequirements,
+    OptimizationConfig, OptimizationStrategy, PersistenceLevel, ResourceLimits,
+    ResourceMetrics, ResourceMonitor, ResourceOptimizer, ResourceType,
+    StreamingOptimizationStrategy, create_resource_optimizer,
+    get_system_resource_status)
 
 
 class TestResourceLimits:
@@ -54,7 +41,7 @@ class TestResourceLimits:
             max_memory_percentage=0.75,
             max_disk_space_gb=100.0,
             chunk_size_mb=200,
-            io_batch_size=2000
+            io_batch_size=2000,
         )
 
         assert limits.max_memory_gb == 16.0
@@ -70,11 +57,15 @@ class TestResourceLimits:
         assert valid_limits.max_memory_percentage == 0.8
 
         # Test percentage too low
-        with pytest.raises(ValueError, match="Memory percentage should be between 0.1 and 0.95"):
+        with pytest.raises(
+            ValueError, match="Memory percentage should be between 0.1 and 0.95"
+        ):
             ResourceLimits(max_memory_percentage=0.05)
 
         # Test percentage too high
-        with pytest.raises(ValueError, match="Memory percentage should be between 0.1 and 0.95"):
+        with pytest.raises(
+            ValueError, match="Memory percentage should be between 0.1 and 0.95"
+        ):
             ResourceLimits(max_memory_percentage=0.98)
 
     def test_default_values(self):
@@ -99,7 +90,7 @@ class TestMemoryRequirements:
             baseline_gb=2.0,
             buffer_gb=1.5,
             workforce_data_gb=6.0,
-            event_data_gb=4.5
+            event_data_gb=4.5,
         )
 
         assert requirements.total_gb == 12.5
@@ -120,7 +111,7 @@ class TestMemoryRequirements:
             peak_gb=3.9,
             baseline_gb=0.5,
             workforce_data_gb=1.5,
-            event_data_gb=1.0
+            event_data_gb=1.0,
         )
         assert small_requirements.is_large_simulation is False
 
@@ -130,7 +121,7 @@ class TestMemoryRequirements:
             peak_gb=10.4,
             baseline_gb=1.0,
             workforce_data_gb=4.0,
-            event_data_gb=3.0
+            event_data_gb=3.0,
         )
         assert large_requirements.is_large_simulation is True
 
@@ -147,7 +138,7 @@ class TestOptimizationConfig:
             overlap_buffer_percentage=0.15,
             preload_years=1,
             enable_caching=True,
-            cache_size_mb=750
+            cache_size_mb=750,
         )
 
         assert config.strategy_type == OptimizationStrategy.STREAMING
@@ -164,24 +155,28 @@ class TestOptimizationConfig:
         valid_config = OptimizationConfig(
             strategy_type=OptimizationStrategy.CHUNKED,
             memory_usage_gb=4.0,
-            overlap_buffer_percentage=0.2
+            overlap_buffer_percentage=0.2,
         )
         assert valid_config.overlap_buffer_percentage == 0.2
 
         # Overlap buffer too high
-        with pytest.raises(ValueError, match="Overlap buffer should be between 0.0 and 0.5"):
+        with pytest.raises(
+            ValueError, match="Overlap buffer should be between 0.0 and 0.5"
+        ):
             OptimizationConfig(
                 strategy_type=OptimizationStrategy.CHUNKED,
                 memory_usage_gb=4.0,
-                overlap_buffer_percentage=0.6
+                overlap_buffer_percentage=0.6,
             )
 
         # Negative overlap buffer
-        with pytest.raises(ValueError, match="Overlap buffer should be between 0.0 and 0.5"):
+        with pytest.raises(
+            ValueError, match="Overlap buffer should be between 0.0 and 0.5"
+        ):
             OptimizationConfig(
                 strategy_type=OptimizationStrategy.CHUNKED,
                 memory_usage_gb=4.0,
-                overlap_buffer_percentage=-0.1
+                overlap_buffer_percentage=-0.1,
             )
 
 
@@ -196,7 +191,7 @@ class TestResourceMetrics:
             memory_percentage=0.28,
             cpu_percentage=0.65,
             disk_io_read_mb_per_sec=15.5,
-            disk_io_write_mb_per_sec=8.2
+            disk_io_write_mb_per_sec=8.2,
         )
 
         assert metrics.memory_used_gb == 4.5
@@ -214,7 +209,7 @@ class TestResourceMetrics:
             memory_used_gb=2.0,
             memory_available_gb=14.0,
             memory_percentage=0.45,
-            cpu_percentage=0.3
+            cpu_percentage=0.3,
         )
         assert low_pressure.memory_pressure_level == "low"
 
@@ -223,7 +218,7 @@ class TestResourceMetrics:
             memory_used_gb=5.0,
             memory_available_gb=11.0,
             memory_percentage=0.7,
-            cpu_percentage=0.5
+            cpu_percentage=0.5,
         )
         assert moderate_pressure.memory_pressure_level == "moderate"
 
@@ -232,7 +227,7 @@ class TestResourceMetrics:
             memory_used_gb=13.0,
             memory_available_gb=3.0,
             memory_percentage=0.85,
-            cpu_percentage=0.8
+            cpu_percentage=0.8,
         )
         assert high_pressure.memory_pressure_level == "high"
 
@@ -241,7 +236,7 @@ class TestResourceMetrics:
             memory_used_gb=14.5,
             memory_available_gb=1.5,
             memory_percentage=0.95,
-            cpu_percentage=0.9
+            cpu_percentage=0.9,
         )
         assert critical_pressure.memory_pressure_level == "critical"
 
@@ -251,18 +246,14 @@ class TestOptimizationStrategies:
 
     def test_streaming_optimization_strategy(self):
         """Test streaming optimization strategy configuration."""
-        strategy = StreamingOptimizationStrategy(
-            chunk_size=20000,
-            overlap_buffer=0.1
-        )
+        strategy = StreamingOptimizationStrategy(chunk_size=20000, overlap_buffer=0.1)
 
         assert strategy.chunk_size == 20000
         assert strategy.overlap_buffer == 0.1
 
         # Test configuration creation
         config = strategy.create_optimized_config(
-            simulation_years=[2024, 2025, 2026],
-            workforce_size=50000
+            simulation_years=[2024, 2025, 2026], workforce_size=50000
         )
 
         assert config.strategy_type == OptimizationStrategy.STREAMING
@@ -284,8 +275,7 @@ class TestOptimizationStrategies:
 
         # Test configuration creation
         config = strategy.create_optimized_config(
-            simulation_years=[2024, 2025],
-            workforce_size=25000
+            simulation_years=[2024, 2025], workforce_size=25000
         )
 
         assert config.strategy_type == OptimizationStrategy.IN_MEMORY
@@ -308,9 +298,7 @@ class TestMemoryManager:
     def memory_manager(self):
         """Create memory manager for testing."""
         limits = ResourceLimits(
-            max_memory_gb=8.0,
-            max_memory_percentage=0.8,
-            chunk_size_mb=100
+            max_memory_gb=8.0, max_memory_percentage=0.8, chunk_size_mb=100
         )
         return MemoryManager(limits)
 
@@ -323,8 +311,7 @@ class TestMemoryManager:
         """Test memory requirements calculation for different simulation sizes."""
         # Small simulation
         small_requirements = memory_manager.calculate_memory_requirements(
-            simulation_years=[2024, 2025],
-            workforce_size=5000
+            simulation_years=[2024, 2025], workforce_size=5000
         )
 
         assert small_requirements.workforce_data_gb > 0
@@ -335,13 +322,14 @@ class TestMemoryManager:
 
         # Large simulation
         large_requirements = memory_manager.calculate_memory_requirements(
-            simulation_years=[2024, 2025, 2026, 2027, 2028],
-            workforce_size=100000
+            simulation_years=[2024, 2025, 2026, 2027, 2028], workforce_size=100000
         )
 
         # Large simulation should require more memory
         assert large_requirements.total_gb > small_requirements.total_gb
-        assert large_requirements.workforce_data_gb > small_requirements.workforce_data_gb
+        assert (
+            large_requirements.workforce_data_gb > small_requirements.workforce_data_gb
+        )
         assert large_requirements.event_data_gb > small_requirements.event_data_gb
         assert large_requirements.is_large_simulation is True
 
@@ -353,7 +341,7 @@ class TestMemoryManager:
             peak_gb=2.6,
             baseline_gb=0.5,
             workforce_data_gb=1.0,
-            event_data_gb=0.5
+            event_data_gb=0.5,
         )
 
         small_strategy = memory_manager.select_optimal_strategy(small_requirements)
@@ -365,7 +353,7 @@ class TestMemoryManager:
             peak_gb=19.5,
             baseline_gb=0.5,
             workforce_data_gb=8.0,
-            event_data_gb=6.5
+            event_data_gb=6.5,
         )
 
         large_strategy = memory_manager.select_optimal_strategy(large_requirements)
@@ -373,6 +361,7 @@ class TestMemoryManager:
 
     def test_memory_management_context(self, memory_manager):
         """Test memory management context manager."""
+
         def memory_intensive_operation():
             # Allocate some memory
             data = [i for i in range(100000)]
@@ -407,57 +396,65 @@ class TestIOOptimizer:
         # High frequency, comprehensive persistence
         high_io_analysis = io_optimizer.analyze_io_patterns(
             checkpoint_frequency=1,  # Very frequent
-            result_persistence_level=PersistenceLevel.COMPREHENSIVE
+            result_persistence_level=PersistenceLevel.COMPREHENSIVE,
         )
 
-        assert high_io_analysis['checkpoint_frequency'] == 1
-        assert high_io_analysis['persistence_level'] == 'comprehensive'
-        assert high_io_analysis['estimated_checkpoint_size_mb'] == 500  # Comprehensive level
-        assert high_io_analysis['total_checkpoint_data_mb'] > 0
-        assert high_io_analysis['compression_potential'] > 0.5
-        assert high_io_analysis['batching_potential'] > 0.2
+        assert high_io_analysis["checkpoint_frequency"] == 1
+        assert high_io_analysis["persistence_level"] == "comprehensive"
+        assert (
+            high_io_analysis["estimated_checkpoint_size_mb"] == 500
+        )  # Comprehensive level
+        assert high_io_analysis["total_checkpoint_data_mb"] > 0
+        assert high_io_analysis["compression_potential"] > 0.5
+        assert high_io_analysis["batching_potential"] > 0.2
 
         # Low frequency, minimal persistence
         low_io_analysis = io_optimizer.analyze_io_patterns(
             checkpoint_frequency=10,  # Infrequent
-            result_persistence_level=PersistenceLevel.MINIMAL
+            result_persistence_level=PersistenceLevel.MINIMAL,
         )
 
-        assert low_io_analysis['checkpoint_frequency'] == 10
-        assert low_io_analysis['persistence_level'] == 'minimal'
-        assert low_io_analysis['estimated_checkpoint_size_mb'] == 10  # Minimal level
-        assert low_io_analysis['compression_potential'] < high_io_analysis['compression_potential']
-        assert low_io_analysis['batching_potential'] < high_io_analysis['batching_potential']
+        assert low_io_analysis["checkpoint_frequency"] == 10
+        assert low_io_analysis["persistence_level"] == "minimal"
+        assert low_io_analysis["estimated_checkpoint_size_mb"] == 10  # Minimal level
+        assert (
+            low_io_analysis["compression_potential"]
+            < high_io_analysis["compression_potential"]
+        )
+        assert (
+            low_io_analysis["batching_potential"]
+            < high_io_analysis["batching_potential"]
+        )
 
     def test_optimize_compression(self, io_optimizer):
         """Test compression optimization recommendations."""
         # Small data - no compression
         small_optimization = io_optimizer.optimize_compression(5.0)  # 5MB
 
-        assert small_optimization['recommended_compression'] == 'none'
-        assert small_optimization['estimated_savings_percentage'] == 0.0
-        assert small_optimization['performance_impact'] == 'none'
+        assert small_optimization["recommended_compression"] == "none"
+        assert small_optimization["estimated_savings_percentage"] == 0.0
+        assert small_optimization["performance_impact"] == "none"
 
         # Medium data - gzip compression
         medium_optimization = io_optimizer.optimize_compression(50.0)  # 50MB
 
-        assert medium_optimization['recommended_compression'] == 'gzip'
-        assert medium_optimization['estimated_savings_percentage'] == 0.4
-        assert medium_optimization['performance_impact'] == 'low'
+        assert medium_optimization["recommended_compression"] == "gzip"
+        assert medium_optimization["estimated_savings_percentage"] == 0.4
+        assert medium_optimization["performance_impact"] == "low"
 
         # Large data - lzma compression
         large_optimization = io_optimizer.optimize_compression(200.0)  # 200MB
 
-        assert large_optimization['recommended_compression'] == 'lzma'
-        assert large_optimization['estimated_savings_percentage'] == 0.6
-        assert large_optimization['performance_impact'] == 'moderate'
+        assert large_optimization["recommended_compression"] == "lzma"
+        assert large_optimization["estimated_savings_percentage"] == 0.6
+        assert large_optimization["performance_impact"] == "moderate"
 
     def test_compress_and_save(self, io_optimizer):
         """Test data compression and saving functionality."""
         test_data = {
             "simulation_results": [f"result_{i}" for i in range(1000)],
             "workforce_data": {"employees": list(range(500))},
-            "metadata": {"version": "1.0", "timestamp": "2025-01-01"}
+            "metadata": {"version": "1.0", "timestamp": "2025-01-01"},
         }
 
         with tempfile.TemporaryDirectory() as temp_dir:
@@ -467,33 +464,33 @@ class TestIOOptimizer:
             result = io_optimizer.compress_and_save(
                 data=test_data,
                 file_path=file_path,
-                compression_type=CompressionType.GZIP
+                compression_type=CompressionType.GZIP,
             )
 
             # Verify save result
-            assert result['file_path'] == str(file_path)
-            assert result['original_size_bytes'] > 0
-            assert result['compressed_size_bytes'] > 0
-            assert result['compression_ratio'] < 1.0  # Should be compressed
-            assert result['compression_percentage'] > 0
-            assert result['compression_type'] == 'gzip'
-            assert result['save_duration_seconds'] > 0
-            assert result['throughput_mb_per_sec'] > 0
+            assert result["file_path"] == str(file_path)
+            assert result["original_size_bytes"] > 0
+            assert result["compressed_size_bytes"] > 0
+            assert result["compression_ratio"] < 1.0  # Should be compressed
+            assert result["compression_percentage"] > 0
+            assert result["compression_type"] == "gzip"
+            assert result["save_duration_seconds"] > 0
+            assert result["throughput_mb_per_sec"] > 0
 
             # Verify file was actually created
             assert file_path.exists()
-            assert file_path.stat().st_size == result['compressed_size_bytes']
+            assert file_path.stat().st_size == result["compressed_size_bytes"]
 
             # Test no compression
             uncompressed_path = Path(temp_dir) / "test_uncompressed_data.bin"
             uncompressed_result = io_optimizer.compress_and_save(
                 data=test_data,
                 file_path=uncompressed_path,
-                compression_type=CompressionType.NONE
+                compression_type=CompressionType.NONE,
             )
 
-            assert uncompressed_result['compression_ratio'] == 1.0  # No compression
-            assert uncompressed_result['compression_percentage'] == 0.0
+            assert uncompressed_result["compression_ratio"] == 1.0  # No compression
+            assert uncompressed_result["compression_percentage"] == 0.0
 
 
 class TestResourceMonitor:
@@ -551,35 +548,36 @@ class TestResourceMonitor:
                 memory_available_gb=12.0 - i * 0.05,
                 memory_percentage=0.25 + i * 0.01,
                 cpu_percentage=0.3 + i * 0.02,
-                timestamp=datetime.utcnow() - timedelta(minutes=i)
+                timestamp=datetime.utcnow() - timedelta(minutes=i),
             )
             resource_monitor._metrics_history.append(mock_metrics)
 
         # Get summary
         summary = resource_monitor.get_metrics_summary(minutes=15)
 
-        assert summary['time_period_minutes'] == 15
-        assert summary['sample_count'] == 10
-        assert 'memory_usage' in summary
-        assert 'cpu_usage' in summary
-        assert 'disk_io' in summary
+        assert summary["time_period_minutes"] == 15
+        assert summary["sample_count"] == 10
+        assert "memory_usage" in summary
+        assert "cpu_usage" in summary
+        assert "disk_io" in summary
 
         # Verify memory usage summary
-        memory_usage = summary['memory_usage']
-        assert 'current_percentage' in memory_usage
-        assert 'average_percentage' in memory_usage
-        assert 'peak_percentage' in memory_usage
-        assert 'current_gb' in memory_usage
-        assert 'pressure_level' in memory_usage
+        memory_usage = summary["memory_usage"]
+        assert "current_percentage" in memory_usage
+        assert "average_percentage" in memory_usage
+        assert "peak_percentage" in memory_usage
+        assert "current_gb" in memory_usage
+        assert "pressure_level" in memory_usage
 
         # Verify CPU usage summary
-        cpu_usage = summary['cpu_usage']
-        assert 'current_percentage' in cpu_usage
-        assert 'average_percentage' in cpu_usage
-        assert 'peak_percentage' in cpu_usage
+        cpu_usage = summary["cpu_usage"]
+        assert "current_percentage" in cpu_usage
+        assert "average_percentage" in cpu_usage
+        assert "peak_percentage" in cpu_usage
 
     def test_monitor_context(self, resource_monitor):
         """Test resource monitoring context manager."""
+
         def test_operation():
             # Simulate work
             data = [i * i for i in range(10000)]
@@ -601,13 +599,10 @@ class TestResourceOptimizer:
     def resource_optimizer(self):
         """Create resource optimizer for testing."""
         limits = ResourceLimits(
-            max_memory_gb=8.0,
-            max_memory_percentage=0.8,
-            chunk_size_mb=100
+            max_memory_gb=8.0, max_memory_percentage=0.8, chunk_size_mb=100
         )
         return ResourceOptimizer(
-            resource_limits=limits,
-            enable_monitoring=False  # Disable for testing
+            resource_limits=limits, enable_monitoring=False  # Disable for testing
         )
 
     def test_resource_optimizer_initialization(self, resource_optimizer):
@@ -622,23 +617,29 @@ class TestResourceOptimizer:
         """Test comprehensive memory usage optimization."""
         # Small simulation
         small_result = resource_optimizer.optimize_memory_usage(
-            simulation_years=[2024, 2025],
-            workforce_size=10000
+            simulation_years=[2024, 2025], workforce_size=10000
         )
 
         assert isinstance(small_result, MemoryOptimizationResult)
-        assert small_result.strategy_type in [OptimizationStrategy.IN_MEMORY, OptimizationStrategy.STREAMING]
+        assert small_result.strategy_type in [
+            OptimizationStrategy.IN_MEMORY,
+            OptimizationStrategy.STREAMING,
+        ]
         assert small_result.memory_savings_gb >= 0
         assert isinstance(small_result.config, OptimizationConfig)
         assert len(small_result.performance_impact) > 0
         assert small_result.recommended_chunk_size > 0
         assert small_result.estimated_processing_time_minutes > 0
-        assert small_result.efficiency_rating in ['excellent', 'good', 'acceptable', 'marginal']
+        assert small_result.efficiency_rating in [
+            "excellent",
+            "good",
+            "acceptable",
+            "marginal",
+        ]
 
         # Large simulation
         large_result = resource_optimizer.optimize_memory_usage(
-            simulation_years=[2024, 2025, 2026, 2027, 2028],
-            workforce_size=100000
+            simulation_years=[2024, 2025, 2026, 2027, 2028], workforce_size=100000
         )
 
         assert isinstance(large_result, MemoryOptimizationResult)
@@ -652,25 +653,28 @@ class TestResourceOptimizer:
         # High I/O scenario
         high_io_result = resource_optimizer.optimize_io_operations(
             checkpoint_frequency=1,  # Very frequent
-            result_persistence_level=PersistenceLevel.COMPREHENSIVE
+            result_persistence_level=PersistenceLevel.COMPREHENSIVE,
         )
 
         assert isinstance(high_io_result, IOOptimizationResult)
-        assert 'checkpoint_optimization' in high_io_result.checkpoint_optimization
-        assert 'persistence_optimization' in high_io_result.persistence_optimization
-        assert 'compression_optimization' in high_io_result.compression_optimization
+        assert "checkpoint_optimization" in high_io_result.checkpoint_optimization
+        assert "persistence_optimization" in high_io_result.persistence_optimization
+        assert "compression_optimization" in high_io_result.compression_optimization
         assert high_io_result.total_io_reduction_percentage >= 0
         assert isinstance(high_io_result.is_significant_improvement, bool)
 
         # Low I/O scenario
         low_io_result = resource_optimizer.optimize_io_operations(
             checkpoint_frequency=10,  # Infrequent
-            result_persistence_level=PersistenceLevel.MINIMAL
+            result_persistence_level=PersistenceLevel.MINIMAL,
         )
 
         assert isinstance(low_io_result, IOOptimizationResult)
         # High I/O scenario should have more optimization potential
-        assert high_io_result.total_io_reduction_percentage >= low_io_result.total_io_reduction_percentage
+        assert (
+            high_io_result.total_io_reduction_percentage
+            >= low_io_result.total_io_reduction_percentage
+        )
 
     def test_get_optimization_recommendations(self, resource_optimizer):
         """Test comprehensive optimization recommendations."""
@@ -678,54 +682,54 @@ class TestResourceOptimizer:
             simulation_years=[2024, 2025, 2026],
             workforce_size=50000,
             checkpoint_frequency=5,
-            persistence_level=PersistenceLevel.STANDARD
+            persistence_level=PersistenceLevel.STANDARD,
         )
 
         # Verify recommendation structure
-        assert 'simulation_parameters' in recommendations
-        assert 'memory_optimization' in recommendations
-        assert 'io_optimization' in recommendations
-        assert 'current_system_status' in recommendations
-        assert 'overall_recommendation' in recommendations
+        assert "simulation_parameters" in recommendations
+        assert "memory_optimization" in recommendations
+        assert "io_optimization" in recommendations
+        assert "current_system_status" in recommendations
+        assert "overall_recommendation" in recommendations
 
         # Verify simulation parameters
-        sim_params = recommendations['simulation_parameters']
-        assert sim_params['years'] == 3
-        assert sim_params['workforce_size'] == 50000
-        assert sim_params['checkpoint_frequency'] == 5
-        assert sim_params['persistence_level'] == 'standard'
+        sim_params = recommendations["simulation_parameters"]
+        assert sim_params["years"] == 3
+        assert sim_params["workforce_size"] == 50000
+        assert sim_params["checkpoint_frequency"] == 5
+        assert sim_params["persistence_level"] == "standard"
 
         # Verify memory optimization
-        memory_opt = recommendations['memory_optimization']
-        assert 'strategy' in memory_opt
-        assert 'savings_gb' in memory_opt
-        assert 'efficiency_rating' in memory_opt
-        assert 'recommended_chunk_size' in memory_opt
-        assert 'estimated_time_minutes' in memory_opt
+        memory_opt = recommendations["memory_optimization"]
+        assert "strategy" in memory_opt
+        assert "savings_gb" in memory_opt
+        assert "efficiency_rating" in memory_opt
+        assert "recommended_chunk_size" in memory_opt
+        assert "estimated_time_minutes" in memory_opt
 
         # Verify I/O optimization
-        io_opt = recommendations['io_optimization']
-        assert 'total_reduction_percentage' in io_opt
-        assert 'significant_improvement' in io_opt
-        assert 'compression_strategy' in io_opt
-        assert 'checkpoint_strategy' in io_opt
+        io_opt = recommendations["io_optimization"]
+        assert "total_reduction_percentage" in io_opt
+        assert "significant_improvement" in io_opt
+        assert "compression_strategy" in io_opt
+        assert "checkpoint_strategy" in io_opt
 
         # Verify system status
-        system_status = recommendations['current_system_status']
-        assert 'memory_used_gb' in system_status
-        assert 'memory_available_gb' in system_status
-        assert 'memory_pressure' in system_status
-        assert 'cpu_percentage' in system_status
+        system_status = recommendations["current_system_status"]
+        assert "memory_used_gb" in system_status
+        assert "memory_available_gb" in system_status
+        assert "memory_pressure" in system_status
+        assert "cpu_percentage" in system_status
 
         # Verify overall recommendation
-        overall = recommendations['overall_recommendation']
-        assert 'overall_rating' in overall
-        assert 'summary' in overall
-        assert 'memory_assessment' in overall
-        assert 'io_assessment' in overall
-        assert 'system_assessment' in overall
-        assert 'key_recommendations' in overall
-        assert isinstance(overall['key_recommendations'], list)
+        overall = recommendations["overall_recommendation"]
+        assert "overall_rating" in overall
+        assert "summary" in overall
+        assert "memory_assessment" in overall
+        assert "io_assessment" in overall
+        assert "system_assessment" in overall
+        assert "key_recommendations" in overall
+        assert isinstance(overall["key_recommendations"], list)
 
     def test_generate_key_recommendations(self, resource_optimizer):
         """Test key recommendations generation logic."""
@@ -736,21 +740,21 @@ class TestResourceOptimizer:
             config=Mock(),
             performance_impact="Low impact with streaming processing",
             recommended_chunk_size=15000,
-            estimated_processing_time_minutes=75.0
+            estimated_processing_time_minutes=75.0,
         )
 
         io_result = IOOptimizationResult(
             checkpoint_optimization={},
             persistence_optimization={},
-            compression_optimization={'recommended_compression': 'gzip'},
-            total_io_reduction_percentage=0.35
+            compression_optimization={"recommended_compression": "gzip"},
+            total_io_reduction_percentage=0.35,
         )
 
         current_metrics = ResourceMetrics(
             memory_used_gb=6.0,
             memory_available_gb=10.0,
             memory_percentage=0.6,
-            cpu_percentage=0.4
+            cpu_percentage=0.4,
         )
 
         recommendations = resource_optimizer._generate_key_recommendations(
@@ -761,12 +765,16 @@ class TestResourceOptimizer:
         assert len(recommendations) > 0
 
         # Should include streaming recommendation
-        streaming_rec = any("streaming processing" in rec.lower() for rec in recommendations)
+        streaming_rec = any(
+            "streaming processing" in rec.lower() for rec in recommendations
+        )
         assert streaming_rec
 
         # Should include compression recommendation if significant
         if io_result.is_significant_improvement:
-            compression_rec = any("gzip compression" in rec.lower() for rec in recommendations)
+            compression_rec = any(
+                "gzip compression" in rec.lower() for rec in recommendations
+            )
             assert compression_rec
 
     def test_cleanup(self, resource_optimizer):
@@ -787,7 +795,9 @@ class TestResourceOptimizer:
         """Test resource optimizer as context manager."""
         limits = ResourceLimits(max_memory_gb=4.0)
 
-        with ResourceOptimizer(resource_limits=limits, enable_monitoring=False) as optimizer:
+        with ResourceOptimizer(
+            resource_limits=limits, enable_monitoring=False
+        ) as optimizer:
             assert isinstance(optimizer, ResourceOptimizer)
             assert optimizer.resource_limits.max_memory_gb == 4.0
 
@@ -800,9 +810,7 @@ class TestFactoryFunctions:
     def test_create_resource_optimizer(self):
         """Test resource optimizer factory function."""
         optimizer = create_resource_optimizer(
-            max_memory_gb=16.0,
-            max_memory_percentage=0.85,
-            enable_monitoring=False
+            max_memory_gb=16.0, max_memory_percentage=0.85, enable_monitoring=False
         )
 
         assert isinstance(optimizer, ResourceOptimizer)
@@ -814,37 +822,37 @@ class TestFactoryFunctions:
         status = get_system_resource_status()
 
         # Verify status structure
-        assert 'memory' in status
-        assert 'cpu' in status
-        assert 'disk' in status
-        assert 'recommendations' in status
+        assert "memory" in status
+        assert "cpu" in status
+        assert "disk" in status
+        assert "recommendations" in status
 
         # Verify memory status
-        memory_status = status['memory']
-        assert 'total_gb' in memory_status
-        assert 'available_gb' in memory_status
-        assert 'used_percentage' in memory_status
-        assert 'pressure_level' in memory_status
-        assert memory_status['total_gb'] > 0
-        assert memory_status['available_gb'] >= 0
+        memory_status = status["memory"]
+        assert "total_gb" in memory_status
+        assert "available_gb" in memory_status
+        assert "used_percentage" in memory_status
+        assert "pressure_level" in memory_status
+        assert memory_status["total_gb"] > 0
+        assert memory_status["available_gb"] >= 0
 
         # Verify CPU status
-        cpu_status = status['cpu']
-        assert 'logical_cores' in cpu_status
-        assert 'current_usage_percentage' in cpu_status
-        assert cpu_status['logical_cores'] > 0
+        cpu_status = status["cpu"]
+        assert "logical_cores" in cpu_status
+        assert "current_usage_percentage" in cpu_status
+        assert cpu_status["logical_cores"] > 0
 
         # Verify disk status
-        disk_status = status['disk']
-        assert 'free_space_gb' in disk_status
-        assert disk_status['free_space_gb'] > 0
+        disk_status = status["disk"]
+        assert "free_space_gb" in disk_status
+        assert disk_status["free_space_gb"] > 0
 
         # Verify recommendations
-        recommendations = status['recommendations']
-        assert 'suitable_for_large_simulation' in recommendations
-        assert 'recommended_max_memory_gb' in recommendations
-        assert 'streaming_recommended' in recommendations
-        assert isinstance(recommendations['suitable_for_large_simulation'], bool)
+        recommendations = status["recommendations"]
+        assert "suitable_for_large_simulation" in recommendations
+        assert "recommended_max_memory_gb" in recommendations
+        assert "streaming_recommended" in recommendations
+        assert isinstance(recommendations["suitable_for_large_simulation"], bool)
 
 
 class TestPerformanceOptimization:
@@ -856,7 +864,7 @@ class TestPerformanceOptimization:
 
         # Test various simulation sizes
         test_cases = [
-            ([2024], 5000),      # Small: 1 year, 5K employees
+            ([2024], 5000),  # Small: 1 year, 5K employees
             ([2024, 2025], 25000),  # Medium: 2 years, 25K employees
             ([2024, 2025, 2026, 2027, 2028], 100000),  # Large: 5 years, 100K employees
         ]
@@ -865,8 +873,7 @@ class TestPerformanceOptimization:
             start_time = time.perf_counter()
 
             result = optimizer.optimize_memory_usage(
-                simulation_years=years,
-                workforce_size=workforce_size
+                simulation_years=years, workforce_size=workforce_size
             )
 
             end_time = time.perf_counter()
@@ -887,16 +894,15 @@ class TestPerformanceOptimization:
         # Test various I/O scenarios
         test_cases = [
             (1, PersistenceLevel.COMPREHENSIVE),  # High I/O
-            (5, PersistenceLevel.STANDARD),       # Medium I/O
-            (10, PersistenceLevel.MINIMAL),       # Low I/O
+            (5, PersistenceLevel.STANDARD),  # Medium I/O
+            (10, PersistenceLevel.MINIMAL),  # Low I/O
         ]
 
         for frequency, persistence in test_cases:
             start_time = time.perf_counter()
 
             result = optimizer.optimize_io_operations(
-                checkpoint_frequency=frequency,
-                result_persistence_level=persistence
+                checkpoint_frequency=frequency, result_persistence_level=persistence
             )
 
             end_time = time.perf_counter()
@@ -946,21 +952,20 @@ class TestPerformanceOptimization:
     def test_large_simulation_memory_efficiency(self):
         """Test memory efficiency for large simulations."""
         optimizer = create_resource_optimizer(
-            max_memory_gb=8.0,  # Limited memory
-            enable_monitoring=False
+            max_memory_gb=8.0, enable_monitoring=False  # Limited memory
         )
 
         # Very large simulation that exceeds memory limits
         result = optimizer.optimize_memory_usage(
             simulation_years=[2024, 2025, 2026, 2027, 2028, 2029],  # 6 years
-            workforce_size=200000  # 200K employees
+            workforce_size=200000,  # 200K employees
         )
 
         # Should select streaming strategy for large simulation
         assert result.strategy_type == OptimizationStrategy.STREAMING
         assert result.memory_savings_gb > 5.0  # Significant savings
         assert result.recommended_chunk_size < 200000  # Should be chunked
-        assert result.efficiency_rating in ['excellent', 'good', 'acceptable']
+        assert result.efficiency_rating in ["excellent", "good", "acceptable"]
 
     def test_compression_effectiveness(self):
         """Test compression effectiveness for different data sizes."""
@@ -971,18 +976,17 @@ class TestPerformanceOptimization:
 
         for size_mb in data_sizes:
             io_result = optimizer.optimize_io_operations(
-                checkpoint_frequency=3,
-                result_persistence_level=PersistenceLevel.FULL
+                checkpoint_frequency=3, result_persistence_level=PersistenceLevel.FULL
             )
 
             compression_info = io_result.compression_optimization
 
             if size_mb >= 100:  # Large data should use better compression
-                assert compression_info['recommended_compression'] in ['lzma', 'gzip']
-                assert compression_info['estimated_savings_percentage'] >= 0.4
+                assert compression_info["recommended_compression"] in ["lzma", "gzip"]
+                assert compression_info["estimated_savings_percentage"] >= 0.4
             elif size_mb >= 10:  # Medium data should use basic compression
-                assert compression_info['recommended_compression'] == 'gzip'
-                assert compression_info['estimated_savings_percentage'] >= 0.3
+                assert compression_info["recommended_compression"] == "gzip"
+                assert compression_info["estimated_savings_percentage"] >= 0.3
             else:  # Small data might not need compression
                 # May or may not use compression based on size threshold
                 pass
