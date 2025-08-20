@@ -2,29 +2,29 @@
   "year": 2029,
   "workforce_breakdown": {
     "year": 2029,
-    "total_employees": 5991,
+    "total_employees": 5984,
     "active_employees": 5137,
     "breakdown_by_status": {
       "continuous_active": 4387,
       "new_hire_active": 750,
-      "experienced_termination": 605,
+      "experienced_termination": 598,
       "new_hire_termination": 249
     },
     "participation_rate": 0.8662643566283823
   },
   "event_summary": {
     "year": 2029,
-    "total_events": 9961,
+    "total_events": 9895,
     "events_by_type": {
-      "raise": 4688,
-      "deferral_escalation": 1749,
+      "raise": 4681,
+      "deferral_escalation": 1698,
       "enrollment": 999,
-      "promotion": 618,
+      "promotion": 617,
       "enrollment_change": 54,
       "hire": 999,
-      "termination": 854
+      "termination": 847
     },
-    "hire_termination_ratio": 1.1697892271662764
+    "hire_termination_ratio": 1.179456906729634
   },
   "growth_analysis": {
     "previous_active": 4985,
@@ -34,20 +34,20 @@
   },
   "contribution_summary": {
     "enrolled_employees_active_eoy": 5137,
-    "total_contributions_active_eoy": 38373775.0,
-    "avg_contribution_active_eoy": 7470.0,
-    "avg_deferral_rate_active_eoy": 4.8
+    "total_contributions_active_eoy": 43452530.0,
+    "avg_contribution_active_eoy": 8459.0,
+    "avg_deferral_rate_active_eoy": 6.0
   },
   "data_quality_results": [
     {
       "rule_name": "hire_termination_ratio",
       "severity": "warning",
       "passed": true,
-      "message": "Hire/termination ratio: 1.17 (PASS)",
+      "message": "Hire/termination ratio: 1.18 (PASS)",
       "details": {
         "hires": 999,
-        "terminations": 853,
-        "ratio": 1.1711606096131302,
+        "terminations": 847,
+        "ratio": 1.179456906729634,
         "min_ratio": 0.3,
         "max_ratio": 3.0
       },
@@ -64,5 +64,5 @@
       "affected_records": null
     }
   ],
-  "generated_at": "2025-08-19T17:12:23.583508"
+  "generated_at": "2025-08-20T16:46:35.412147"
 }

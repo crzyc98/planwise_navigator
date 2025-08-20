@@ -183,6 +183,8 @@ class PipelineOrchestrator:
 
         # Optional: clear existing rows for this year based on config.setup
         self._maybe_clear_year_data(year)
+        # Always clear fact rows for the target year to avoid residue across runs
+        self._clear_year_fact_rows(year)
 
         # Ensure seeds are loaded once
         if not self._seeded:
@@ -472,6 +474,8 @@ class PipelineOrchestrator:
                 self.registry_manager.get_enrollment_registry().update_post_year(year)
             if stage.name == WorkflowStage.STATE_ACCUMULATION:
                 self.registry_manager.get_deferral_registry().update_post_year(year)
+                # Guardrail: ensure the year snapshot populated correctly; retry build if empty
+                self._verify_year_population(year)
 
             # Stage-level validation hook
             if stage.name in (WorkflowStage.STATE_ACCUMULATION, WorkflowStage.VALIDATION):
@@ -641,6 +645,24 @@ class PipelineOrchestrator:
         if cleared:
             print(f"🧹 Full reset: cleared all rows in {cleared} table(s) per setup.clear_table_patterns")
 
+    def _clear_year_fact_rows(self, year: int) -> None:
+        """Idempotency guard: remove current-year rows in core fact tables before rebuild.
+
+        This avoids duplicate events/snapshots when event sequencing changes between runs.
+        """
+        def _run(conn):
+            for table in ("fct_yearly_events", "fct_workforce_snapshot", "fct_employer_match_events"):
+                try:
+                    conn.execute(f"DELETE FROM {table} WHERE simulation_year = ?", [year])
+                except Exception:
+                    # Table may not exist yet; ignore
+                    pass
+            return True
+        try:
+            self.db_manager.execute_with_retry(_run)
+        except Exception:
+            pass
+
     def _define_year_workflow(self, year: int) -> List[StageDefinition]:
         # Align initialization with working runner: broader staging on first year
         if year == self.config.simulation.start_year:
@@ -693,6 +715,8 @@ class PipelineOrchestrator:
                 dependencies=[WorkflowStage.FOUNDATION],
                 # Match working runner ordering exactly for determinism
                 models=[
+                    # Ensure census synthetic baseline events are materialized (used by accumulators)
+                    "int_synthetic_baseline_enrollment_events",
                     "int_termination_events",
                     "int_hiring_events",
                     "int_new_hire_termination_events",
@@ -714,6 +738,7 @@ class PipelineOrchestrator:
                 dependencies=[WorkflowStage.EVENT_GENERATION],
                 models=[
                     "fct_yearly_events",
+                    "int_active_employees_prev_year_snapshot",
                     # Build proration snapshot before contributions so all bases are prorated
                     "int_workforce_snapshot_optimized",
                     "int_enrollment_state_accumulator",
