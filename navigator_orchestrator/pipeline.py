@@ -236,11 +236,17 @@ class PipelineOrchestrator:
 
             # Comprehensive validation for foundation models
             if stage.name == WorkflowStage.FOUNDATION:
+                start_year = self.config.simulation.start_year
 
                 def _chk(conn):
                     baseline = conn.execute(
                         "SELECT COUNT(*) FROM int_baseline_workforce WHERE simulation_year = ?",
                         [year],
+                    ).fetchone()[0]
+                    # For years > start_year, baseline lives in start_year; fetch preserved baseline rows
+                    preserved_baseline = conn.execute(
+                        "SELECT COUNT(*) FROM int_baseline_workforce WHERE simulation_year = ?",
+                        [start_year],
                     ).fetchone()[0]
                     compensation = conn.execute(
                         "SELECT COUNT(*) FROM int_employee_compensation_by_year WHERE simulation_year = ?",
@@ -282,6 +288,7 @@ class PipelineOrchestrator:
                     ).fetchone()[0]
                     return (
                         int(baseline),
+                        int(preserved_baseline),
                         int(compensation),
                         int(wn),
                         int(wnbl),
@@ -293,6 +300,7 @@ class PipelineOrchestrator:
 
                 (
                     baseline_cnt,
+                    preserved_baseline_cnt,
                     comp_cnt,
                     wn_cnt,
                     wnbl_cnt,
@@ -302,15 +310,21 @@ class PipelineOrchestrator:
                     level_hires_needed,
                 ) = self.db_manager.execute_with_retry(_chk)
                 print(f"   📊 Foundation model validation for year {year}:")
-                print(f"      int_baseline_workforce: {baseline_cnt} rows")
+                if year == start_year:
+                    print(f"      int_baseline_workforce: {baseline_cnt} rows")
+                else:
+                    # Baseline is only populated in start_year; show preserved baseline for clarity
+                    print(
+                        f"      int_baseline_workforce: {baseline_cnt} rows (current year); preserved baseline {preserved_baseline_cnt} rows (start_year={start_year})"
+                    )
                 print(f"      int_employee_compensation_by_year: {comp_cnt} rows")
                 print(f"      int_workforce_needs: {wn_cnt} rows")
                 print(f"      int_workforce_needs_by_level: {wnbl_cnt} rows")
                 print(
-                    f"      int_employer_eligibility: {employer_elig_cnt} rows (may be 0 in FOUNDATION)"
+                    f"      int_employer_eligibility: {employer_elig_cnt} rows (not built in FOUNDATION)"
                 )
                 print(
-                    f"      int_employer_core_contributions: {employer_core_cnt} rows"
+                    f"      int_employer_core_contributions: {employer_core_cnt} rows (built later in STATE_ACCUMULATION)"
                 )
                 print(f"      hiring_demand.total_hires_needed: {total_hires_needed}")
                 print(f"      hiring_demand.sum_by_level: {level_hires_needed}")
@@ -322,7 +336,7 @@ class PipelineOrchestrator:
                     )
                 elif baseline_cnt == 0 and year > self.config.simulation.start_year:
                     print(
-                        f"ℹ️ int_baseline_workforce has 0 rows for year {year} (expected for year 2+, using incremental preservation)"
+                        f"ℹ️ int_baseline_workforce has 0 rows for year {year} (expected). Baseline is preserved in start_year={start_year} with {preserved_baseline_cnt} rows."
                     )
                 if comp_cnt == 0:
                     raise PipelineStageError(
@@ -334,11 +348,11 @@ class PipelineOrchestrator:
                     )
                 if employer_elig_cnt == 0:
                     print(
-                        f"ℹ️ int_employer_eligibility has 0 rows for year {year} (expected before EVENT_GENERATION builds eligibility)."
+                        f"ℹ️ int_employer_eligibility has 0 rows for year {year} (expected before EVENT_GENERATION)."
                     )
                 if employer_core_cnt == 0:
                     print(
-                        f"ℹ️ int_employer_core_contributions has 0 rows for year {year} (expected during foundation stage - built later in state accumulation)."
+                        f"ℹ️ int_employer_core_contributions has 0 rows for year {year} (expected; built during STATE_ACCUMULATION)."
                     )
                 if total_hires_needed == 0 or level_hires_needed == 0:
                     print(
@@ -859,6 +873,13 @@ class PipelineOrchestrator:
                 dependencies=[WorkflowStage.FOUNDATION],
                 # Match working runner ordering exactly for determinism
                 models=[
+                    # E049: Ensure synthetic baseline enrollment events are built in the first year
+                    # so census deferral rates feed the state accumulator and snapshot participation.
+                    *(
+                        ["int_synthetic_baseline_enrollment_events"]
+                        if year == self.config.simulation.start_year
+                        else []
+                    ),
                     "int_termination_events",
                     "int_hiring_events",
                     "int_new_hire_termination_events",
