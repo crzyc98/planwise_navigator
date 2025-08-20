@@ -1,4 +1,5 @@
 """
+from navigator_orchestrator.config import get_database_path
 Production Data Safety & Backup System (Epic E043)
 
 Story S043-01: Automated Backup System
@@ -62,7 +63,7 @@ class BackupManager:
     def __init__(
         self,
         config: Optional[BackupConfiguration] = None,
-        db_path: str = "simulation.duckdb",
+        db_path: str = str(get_database_path()),
     ):
         """
         Initialize backup manager

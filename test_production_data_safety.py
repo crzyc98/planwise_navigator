@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 """
+from navigator_orchestrator.config import get_database_path
 Production Data Safety System Comprehensive Test
 
 Epic E043: Production Data Safety & Backup System
@@ -48,7 +49,7 @@ class ProductionDataSafetyTest:
         os.chdir(self.test_dir)
 
         # Create test database
-        self.test_db = self.test_dir / "simulation.duckdb"
+        self.test_db = self.test_dir / str(get_database_path())
         self._create_test_database()
 
         # Initialize components

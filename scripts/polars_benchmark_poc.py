@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 """
+from navigator_orchestrator.config import get_database_path
 Polars Performance Proof of Concept
 
 Benchmark pandas vs Polars performance on existing workforce simulation data.
@@ -22,7 +23,7 @@ import psutil
 class WorkforcePerformanceBenchmark:
     """Benchmark pandas vs Polars on workforce simulation operations."""
 
-    def __init__(self, database_path: str = "simulation.duckdb"):
+    def __init__(self, database_path: str = str(get_database_path())):
         """Initialize benchmark with DuckDB connection."""
         self.database_path = database_path
         self.results = {}

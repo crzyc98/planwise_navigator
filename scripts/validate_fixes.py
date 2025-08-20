@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 """
+from navigator_orchestrator.config import get_database_path
 Comprehensive validation script to verify that all three debugging issues have been resolved:
 1. Growth Variance in termination logic
 2. $25M compensation anomaly
@@ -30,7 +31,7 @@ logger = logging.getLogger(__name__)
 
 def connect_to_database():
     """Connect to the simulation database"""
-    db_path = project_root / "simulation.duckdb"
+    db_path = project_root / str(get_database_path())
     if not db_path.exists():
         logger.error(f"Database not found at {db_path}")
         sys.exit(1)

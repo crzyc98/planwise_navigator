@@ -10,6 +10,7 @@ on:
 env:
   PYTHON_VERSION: '3.11'
   DAGSTER_HOME: .dagster
+  DATABASE_PATH: 'dbt/simulation.duckdb'
 
 jobs:
   lint:

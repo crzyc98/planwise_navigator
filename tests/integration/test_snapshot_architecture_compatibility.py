@@ -1,4 +1,5 @@
 """
+from navigator_orchestrator.config import get_database_path
 Integration tests for snapshot architecture compatibility.
 
 Tests that the refactored intermediate snapshot models produce identical results
@@ -48,7 +49,7 @@ class TestSnapshotArchitectureCompatibility:
         return {
             "root": project_root,
             "dbt": project_root / "dbt",
-            "db_path": "simulation.duckdb",
+            "db_path": str(get_database_path()),
         }
 
     # ===== Contract Validation Tests =====

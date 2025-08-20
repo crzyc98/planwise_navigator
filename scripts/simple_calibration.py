@@ -8,13 +8,14 @@ to achieve 2% compensation growth target.
 
 import duckdb
 import pandas as pd
+from navigator_orchestrator.config import get_database_path
 
 
 def main():
     print("🎯 SIMPLE COMPENSATION CALIBRATION")
     print("=" * 50)
 
-    conn = duckdb.connect("simulation.duckdb")
+    conn = duckdb.connect(str(get_database_path()))
 
     # Show current compensation growth issue
     print("\n📊 Current Problem (from S050 analysis):")

@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 """
+from navigator_orchestrator.config import get_database_path
 Debug script for investigating "Raises: 0" bug in Year Transition Validation reporting.
 Traces the raise event counting logic through the validation system to identify why
 raise counts are showing as zero when merit events should be generated.
@@ -18,7 +19,7 @@ sys.path.append(str(project_root))
 
 def connect_to_database():
     """Connect to the simulation database"""
-    db_path = project_root / "simulation.duckdb"
+    db_path = project_root / str(get_database_path())
     if not db_path.exists():
         print(f"❌ Database not found at {db_path}")
         sys.exit(1)

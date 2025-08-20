@@ -1,4 +1,5 @@
 """
+from navigator_orchestrator.config import get_database_path
 Unified Optimization Results Storage and Retrieval System for PlanWise Navigator
 
 This module provides a comprehensive storage system for optimization results from both
@@ -193,7 +194,7 @@ class OptimizationRun(BaseModel):
 class OptimizationStorage:
     """Unified storage manager for optimization results."""
 
-    def __init__(self, db_path: str = "simulation.duckdb"):
+    def __init__(self, db_path: str = str(get_database_path())):
         """Initialize the storage manager."""
         self.db_path = Path(db_path)
         self.cache = {}
@@ -933,7 +934,7 @@ class OptimizationStorage:
 class OptimizationStorageManager:
     """High-level manager for optimization storage with caching and session integration."""
 
-    def __init__(self, db_path: str = "simulation.duckdb"):
+    def __init__(self, db_path: str = str(get_database_path())):
         """Initialize the storage manager."""
         self.storage = OptimizationStorage(db_path)
         self.session_key = "optimization_storage_cache"

@@ -10,7 +10,7 @@ from __future__ import annotations
 from pathlib import Path
 from typing import Iterable, Optional
 
-from .config import SimulationConfig, load_simulation_config
+from .config import SimulationConfig, load_simulation_config, get_database_path
 from .dbt_runner import DbtRunner
 from .pipeline import PipelineOrchestrator
 from .registries import RegistryManager
@@ -36,7 +36,7 @@ class OrchestratorBuilder:
         self, db_path: Optional[Path | str] = None
     ) -> "OrchestratorBuilder":
         self._db = DatabaseConnectionManager(
-            Path(db_path) if db_path else Path("simulation.duckdb")
+            Path(db_path) if db_path else get_database_path()
         )
         return self
 

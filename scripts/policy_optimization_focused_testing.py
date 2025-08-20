@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 """
+from navigator_orchestrator.config import get_database_path
 S052 Focused Policy Parameter Optimization Testing
 Testing realistic policy adjustments based on initial findings
 
@@ -32,7 +33,7 @@ class FocusedPolicyTester:
             self.project_root / "config" / "policy_test_scenarios_revised.yaml"
         )
         self.dbt_project_dir = self.project_root / "dbt"
-        self.db_file = self.project_root / "simulation.duckdb"
+        self.db_file = self.project_root / str(get_database_path())
         self.results_dir = self.project_root / "results"
 
         # Ensure results directory exists
