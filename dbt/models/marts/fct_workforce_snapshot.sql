@@ -1,11 +1,15 @@
 {{ config(
     materialized='incremental',
+    incremental_strategy='delete+insert',
     unique_key=['employee_id', 'simulation_year'],
     on_schema_change='sync_all_columns',
     indexes=[
         {'columns': ['simulation_year', 'employee_id'], 'type': 'btree', 'unique': true},
         {'columns': ['level_id', 'simulation_year'], 'type': 'btree'},
         {'columns': ['employment_status', 'simulation_year'], 'type': 'btree'}
+    ],
+    pre_hook=[
+        "{% if adapter.get_relation(database=this.database, schema=this.schema, identifier=this.identifier) %}DELETE FROM {{ this }} WHERE simulation_year = {{ var('simulation_year', 2025) }};{% endif %}"
     ]
 ) }}
 
@@ -659,8 +663,10 @@ final_workforce AS (
         CASE
             WHEN COALESCE(dsa.current_deferral_rate, 0.00) > 0 THEN
                 CASE
-                    WHEN COALESCE(esa.enrollment_method, 'voluntary') = 'auto' THEN 'participating - auto enrollment'
-                    ELSE 'participating - voluntary enrollment'
+                    WHEN esa.enrollment_method = 'auto' THEN 'participating - auto enrollment'
+                    WHEN esa.enrollment_method = 'voluntary' THEN 'participating - voluntary enrollment'
+                    WHEN esa.enrollment_method IS NULL THEN 'participating - census enrollment'
+                    ELSE 'participating - voluntary enrollment'  -- fallback for other values
                 END
             ELSE -- not participating
                 CASE

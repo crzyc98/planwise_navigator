@@ -279,6 +279,15 @@ deferral_auto_escalation:
 deferral_baseline:
   mode: "frozen"   # "frozen" (default) or "evented" (future)
 
+# Epic E049: Census Deferral Rate Integration Configuration
+deferral_rates:
+  use_census_rates: true              # Use actual census deferral rates instead of hard-coded defaults
+  census_rate_field: "employee_deferral_rate"  # Field in census data containing deferral rates
+  pre_enrolled_fallback: 0.03         # Fallback rate for pre-enrolled employees with missing/invalid rates
+  plan_deferral_cap: 0.75             # Maximum deferral rate (75% IRS limit)
+  normalize_percentages: true         # Automatically convert percentages to decimals (7.5 -> 0.075)
+  generate_synthetic_events: true     # Create synthetic enrollment events for census pre-enrolled participants
+
 # Dagster op configuration (maintained for backward compatibility)
 ops:
   run_multi_year_simulation:

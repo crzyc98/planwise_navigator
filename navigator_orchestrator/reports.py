@@ -575,14 +575,15 @@ class MultiYearReporter:
         """Display participation breakdown by enrollment method."""
         # Note: Breakdown metrics are also Active EOY
         print("\n📋 Participation Breakdown by Method (Active EOY):")
-        print("   Year  | Auto Enroll | Voluntary  | Opted Out  | Not Auto   | Unenrolled")
-        print("   ------|-------------|------------|------------|------------|------------")
+        print("   Year  | Auto Enroll | Voluntary  | Census     | Opted Out  | Not Auto   | Unenrolled")
+        print("   ------|-------------|------------|------------|------------|------------|------------")
 
         detail_query = """
         SELECT
             simulation_year,
             COUNT(CASE WHEN employment_status = 'active' AND participation_status_detail = 'participating - auto enrollment' THEN 1 END) as auto_enrolled,
             COUNT(CASE WHEN employment_status = 'active' AND participation_status_detail = 'participating - voluntary enrollment' THEN 1 END) as voluntary,
+            COUNT(CASE WHEN employment_status = 'active' AND participation_status_detail = 'participating - census enrollment' THEN 1 END) as census,
             COUNT(CASE WHEN employment_status = 'active' AND participation_status_detail = 'not_participating - opted out of AE' THEN 1 END) as opted_out,
             COUNT(CASE WHEN employment_status = 'active' AND participation_status_detail = 'not_participating - not auto enrolled' THEN 1 END) as not_auto,
             COUNT(CASE WHEN employment_status = 'active' AND participation_status_detail = 'not_participating - proactively unenrolled' THEN 1 END) as unenrolled
@@ -595,8 +596,8 @@ class MultiYearReporter:
         results = conn.execute(detail_query, completed_years).fetchall()
 
         if results:
-            for year, auto, voluntary, opted_out, not_auto, unenrolled in results:
-                print(f"   {year} | {auto:11,} | {voluntary:10,} | {opted_out:10,} | {not_auto:10,} | {unenrolled:10,}")
+            for year, auto, voluntary, census, opted_out, not_auto, unenrolled in results:
+                print(f"   {year} | {auto:11,} | {voluntary:10,} | {census:10,} | {opted_out:10,} | {not_auto:10,} | {unenrolled:10,}")
 
     def _display_overall_growth_analysis(self, conn, completed_years: List[int]) -> None:
         """Display overall growth analysis with CAGR."""

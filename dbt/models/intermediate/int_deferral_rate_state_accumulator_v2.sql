@@ -177,20 +177,20 @@ historical_enrollments AS (
     SELECT * FROM historical_enrollments_from_yearly_events
 ),
 
--- CRITICAL FIX: Get pre-enrolled employees from baseline workforce
--- These are employees who were enrolled before the simulation started but need carryover rates
-baseline_pre_enrolled AS (
+-- EPIC E049: Use synthetic baseline events instead of hard-coded 6% rates
+-- Get pre-enrolled employees from synthetic baseline enrollment events
+synthetic_baseline_enrollments AS (
     SELECT
         employee_id,
-        employee_enrollment_date as enrollment_date,
-        0.06 as initial_deferral_rate,  -- Default 6% for pre-enrolled employees
-        EXTRACT(YEAR FROM employee_enrollment_date) as enrollment_year,
-        'baseline_workforce' as source
-    FROM {{ ref('int_baseline_workforce') }}
+        effective_date as enrollment_date,
+        employee_deferral_rate as initial_deferral_rate,  -- Use actual census rates
+        EXTRACT(YEAR FROM effective_date) as enrollment_year,
+        'synthetic_baseline' as source,
+        1 as rn  -- Synthetic events are primary source
+    FROM {{ ref('int_synthetic_baseline_enrollment_events') }}
     WHERE simulation_year = {{ simulation_year }}
-        AND employee_enrollment_date IS NOT NULL
-        AND employee_enrollment_date < '{{ simulation_year }}-01-01'::DATE
         AND employee_id IS NOT NULL
+        AND employee_deferral_rate > 0
         -- Only include if not already in event-based enrollments
         AND employee_id NOT IN (
             SELECT employee_id
@@ -218,7 +218,7 @@ first_year_enrolled_employees AS (
         initial_deferral_rate,
         enrollment_year,
         source
-    FROM baseline_pre_enrolled
+    FROM synthetic_baseline_enrollments
 ),
 
 {% else %}
@@ -373,7 +373,18 @@ first_year_state AS (
                 OR COALESCE(ce.new_deferral_rate, he.initial_deferral_rate, br.fallback_rate, 0.03) > 1
                 THEN 'INVALID_RATE'
             ELSE 'VALID'
-        END as data_quality_flag
+        END as data_quality_flag,
+
+        -- Epic E049: Rate source tracking for lineage
+        CASE
+            WHEN oo.employee_id IS NOT NULL THEN 'opt_out'
+            WHEN ce.employee_id IS NOT NULL THEN 'escalation_event'
+            WHEN he.source = 'synthetic_baseline' THEN 'census_rate'
+            WHEN he.source = 'int_enrollment_events' THEN 'enrollment_event'
+            WHEN he.source = 'fct_yearly_events' THEN 'fallback_event'
+            WHEN br.employee_id IS NOT NULL THEN 'demographic_fallback'
+            ELSE 'hard_fallback'
+        END as rate_source
 
     FROM current_year_workforce w
     FULL OUTER JOIN first_year_enrolled_employees he ON w.employee_id = he.employee_id
@@ -463,7 +474,18 @@ subsequent_year_state AS (
                 OR COALESCE(ce.new_deferral_rate, ne.initial_deferral_rate, ps.previous_deferral_rate, br.fallback_rate, 0.03) > 1
                 THEN 'INVALID_RATE'
             ELSE 'VALID'
-        END as data_quality_flag
+        END as data_quality_flag,
+
+        -- Epic E049: Rate source tracking for lineage (subsequent years)
+        CASE
+            WHEN oo.employee_id IS NOT NULL THEN 'opt_out'
+            WHEN ce.employee_id IS NOT NULL THEN 'escalation_event'
+            WHEN ne.source = 'synthetic_baseline' THEN 'census_rate'
+            WHEN ne.source = 'int_enrollment_events' THEN 'enrollment_event'
+            WHEN ps.employee_id IS NOT NULL THEN 'carried_forward'
+            WHEN br.employee_id IS NOT NULL THEN 'demographic_fallback'
+            ELSE 'hard_fallback'
+        END as rate_source
 
     FROM current_year_workforce w
     FULL OUTER JOIN previous_year_state ps ON w.employee_id = ps.employee_id

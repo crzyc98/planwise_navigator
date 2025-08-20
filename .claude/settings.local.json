@@ -378,7 +378,8 @@
       "Bash(/Users/nicholasamaral/planwise_navigator/venv/bin/dbt compile --models int_employer_eligibility --vars \"{simulation_year: 2025}\")",
       "Bash(/Users/nicholasamaral/planwise_navigator/venv/bin/dbt run --models int_employer_eligibility --vars '{\"\"simulation_year\"\": 2025, \"\"core_minimum_tenure_years\"\": 0, \"\"core_require_active_eoy\"\": true, \"\"core_minimum_hours\"\": 1000, \"\"core_allow_new_hires\"\": true, \"\"core_allow_terminated_new_hires\"\": false}')",
       "Bash(/Users/nicholasamaral/planwise_navigator/venv/bin/dbt run --models int_employer_eligibility --vars '{\n  \"\"simulation_year\"\": 2025,\n  \"\"employer_core_contribution\"\": {\n    \"\"eligibility\"\": {\n      \"\"minimum_tenure_years\"\": 0,\n      \"\"require_active_at_year_end\"\": true,\n      \"\"minimum_hours_annual\"\": 1000,\n      \"\"allow_new_hires\"\": true,\n      \"\"allow_terminated_new_hires\"\": false\n    }\n  }\n}')",
-      "Bash(/Users/nicholasamaral/planwise_navigator/venv/bin/dbt run --models int_employer_eligibility --vars \"simulation_year: 2025\")"
+      "Bash(/Users/nicholasamaral/planwise_navigator/venv/bin/dbt run --models int_employer_eligibility --vars \"simulation_year: 2025\")",
+      "Bash(/Users/nicholasamaral/planwise_navigator/venv/bin/dbt run --select int_synthetic_baseline_enrollment_events --vars \"simulation_year: 2025\")"
     ],
     "deny": []
   }
