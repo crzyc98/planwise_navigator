@@ -1,9 +1,10 @@
 # filename: config/schema.py
 """Configuration schema for PlanWise Navigator."""
 
-from pydantic import BaseModel, Field, validator
-from typing import Dict, Optional, Literal
 from datetime import date, datetime
+from typing import Dict, Literal, Optional
+
+from pydantic import BaseModel, Field, validator
 
 
 class SimulationConfig(BaseModel):

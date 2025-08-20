@@ -6,16 +6,14 @@ and validate mathematical consistency, workforce composition evolution,
 compensation trends, and cumulative event totals.
 """
 
-import pytest
-from unittest.mock import Mock, patch
-from dagster import OpExecutionContext
-import tempfile
 import os
+import tempfile
+from unittest.mock import Mock, patch
 
-from orchestrator.simulator_pipeline import (
-    run_multi_year_simulation,
-    YearResult,
-)
+import pytest
+from dagster import OpExecutionContext
+from orchestrator.simulator_pipeline import (YearResult,
+                                             run_multi_year_simulation)
 
 
 class TestFiveYearProjectionValidation:

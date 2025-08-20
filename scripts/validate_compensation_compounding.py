@@ -7,20 +7,23 @@ simulation years. It runs multi-year simulations and verifies that each year's
 starting salary matches the previous year's ending salary (post-raise).
 """
 
-import duckdb
-import pandas as pd
-import numpy as np
-from pathlib import Path
-from datetime import datetime
-from typing import Dict, List, Tuple
 import json
 import sys
+from datetime import datetime
+from pathlib import Path
+from typing import Dict, List, Tuple
+
+import duckdb
+import numpy as np
+import pandas as pd
 
 # Add parent directory to path to import project modules
 sys.path.append(str(Path(__file__).parent.parent))
 
 
-def connect_to_database(db_path: str = "simulation.duckdb") -> duckdb.DuckDBPyConnection:
+def connect_to_database(
+    db_path: str = "simulation.duckdb",
+) -> duckdb.DuckDBPyConnection:
     """Connect to the DuckDB database."""
     return duckdb.connect(db_path)
 
@@ -60,7 +63,9 @@ def run_validation_query(conn: duckdb.DuckDBPyConnection) -> pd.DataFrame:
     return conn.execute(query).df()
 
 
-def analyze_specific_employee(conn: duckdb.DuckDBPyConnection, starting_salary: float = 176000) -> pd.DataFrame:
+def analyze_specific_employee(
+    conn: duckdb.DuckDBPyConnection, starting_salary: float = 176000
+) -> pd.DataFrame:
     """Analyze a specific employee's compensation progression to verify compounding."""
     query = f"""
     WITH target_employees AS (
@@ -110,12 +115,16 @@ def calculate_compounding_metrics(validation_df: pd.DataFrame) -> Dict[str, any]
     if total_records == 0:
         return {
             "total_validations": 0,
-            "error_message": "No year-over-year data found. Run multi-year simulation first."
+            "error_message": "No year-over-year data found. Run multi-year simulation first.",
         }
 
-    correct_count = len(validation_df[validation_df['compounding_status'] == 'CORRECT'])
-    incorrect_count = len(validation_df[validation_df['compounding_status'] == 'INCORRECT_NO_COMPOUND'])
-    mismatch_count = len(validation_df[validation_df['compounding_status'] == 'MISMATCH'])
+    correct_count = len(validation_df[validation_df["compounding_status"] == "CORRECT"])
+    incorrect_count = len(
+        validation_df[validation_df["compounding_status"] == "INCORRECT_NO_COMPOUND"]
+    )
+    mismatch_count = len(
+        validation_df[validation_df["compounding_status"] == "MISMATCH"]
+    )
 
     metrics = {
         "total_validations": total_records,
@@ -125,14 +134,30 @@ def calculate_compounding_metrics(validation_df: pd.DataFrame) -> Dict[str, any]
         "incorrect_percentage": round(100 * incorrect_count / total_records, 2),
         "mismatches": mismatch_count,
         "mismatch_percentage": round(100 * mismatch_count / total_records, 2),
-        "avg_discrepancy": round(validation_df[validation_df['compounding_status'] != 'CORRECT']['salary_discrepancy'].abs().mean(), 2) if incorrect_count + mismatch_count > 0 else 0,
-        "total_lost_compensation": round(validation_df[validation_df['compounding_status'] == 'INCORRECT_NO_COMPOUND']['salary_discrepancy'].sum(), 2)
+        "avg_discrepancy": round(
+            validation_df[validation_df["compounding_status"] != "CORRECT"][
+                "salary_discrepancy"
+            ]
+            .abs()
+            .mean(),
+            2,
+        )
+        if incorrect_count + mismatch_count > 0
+        else 0,
+        "total_lost_compensation": round(
+            validation_df[
+                validation_df["compounding_status"] == "INCORRECT_NO_COMPOUND"
+            ]["salary_discrepancy"].sum(),
+            2,
+        ),
     }
 
     return metrics
 
 
-def generate_example_report(validation_df: pd.DataFrame, employee_df: pd.DataFrame) -> str:
+def generate_example_report(
+    validation_df: pd.DataFrame, employee_df: pd.DataFrame
+) -> str:
     """Generate a detailed report with specific examples of compounding behavior."""
     report = []
     report.append("=" * 80)
@@ -151,11 +176,19 @@ def generate_example_report(validation_df: pd.DataFrame, employee_df: pd.DataFra
     report.append("SUMMARY METRICS:")
     report.append("-" * 40)
     report.append(f"Total Year-over-Year Validations: {metrics['total_validations']:,}")
-    report.append(f"Correct Compounding: {metrics['correct_compounding']:,} ({metrics['correct_percentage']}%)")
-    report.append(f"Incorrect (No Compound): {metrics['incorrect_no_compound']:,} ({metrics['incorrect_percentage']}%)")
-    report.append(f"Mismatches: {metrics['mismatches']:,} ({metrics['mismatch_percentage']}%)")
+    report.append(
+        f"Correct Compounding: {metrics['correct_compounding']:,} ({metrics['correct_percentage']}%)"
+    )
+    report.append(
+        f"Incorrect (No Compound): {metrics['incorrect_no_compound']:,} ({metrics['incorrect_percentage']}%)"
+    )
+    report.append(
+        f"Mismatches: {metrics['mismatches']:,} ({metrics['mismatch_percentage']}%)"
+    )
     report.append(f"Average Discrepancy: ${metrics['avg_discrepancy']:,.2f}")
-    report.append(f"Total Lost Compensation: ${metrics['total_lost_compensation']:,.2f}")
+    report.append(
+        f"Total Lost Compensation: ${metrics['total_lost_compensation']:,.2f}"
+    )
     report.append("")
 
     # Specific employee example
@@ -163,28 +196,38 @@ def generate_example_report(validation_df: pd.DataFrame, employee_df: pd.DataFra
         report.append("EXAMPLE: $176,000 EMPLOYEE PROGRESSION")
         report.append("-" * 40)
 
-        for employee_id in employee_df['employee_id'].unique()[:1]:  # Show first employee
-            emp_data = employee_df[employee_df['employee_id'] == employee_id]
+        for employee_id in employee_df["employee_id"].unique()[
+            :1
+        ]:  # Show first employee
+            emp_data = employee_df[employee_df["employee_id"] == employee_id]
             report.append(f"Employee ID: {employee_id}")
             report.append("")
-            report.append("Year | Starting Salary | Ending Salary | Raise % | Expected (4.3%) | Status")
+            report.append(
+                "Year | Starting Salary | Ending Salary | Raise % | Expected (4.3%) | Status"
+            )
             report.append("-" * 80)
 
             prev_ending = None
             for _, row in emp_data.iterrows():
-                year = int(row['simulation_year'])
-                starting = row['starting_salary']
-                ending = row['ending_salary']
-                expected = row['expected_salary_4_3_pct']
-                raise_pct = row['raise_percentage'] if pd.notna(row['raise_percentage']) else 0
+                year = int(row["simulation_year"])
+                starting = row["starting_salary"]
+                ending = row["ending_salary"]
+                expected = row["expected_salary_4_3_pct"]
+                raise_pct = (
+                    row["raise_percentage"] if pd.notna(row["raise_percentage"]) else 0
+                )
 
                 # Check if starting matches previous ending
                 if prev_ending is not None:
-                    status = "✓ CORRECT" if abs(starting - prev_ending) < 0.01 else "✗ ERROR"
+                    status = (
+                        "✓ CORRECT" if abs(starting - prev_ending) < 0.01 else "✗ ERROR"
+                    )
                 else:
                     status = "BASELINE"
 
-                report.append(f"{year} | ${starting:>13,.2f} | ${ending:>12,.2f} | {raise_pct:>6.1f}% | ${expected:>14,.2f} | {status}")
+                report.append(
+                    f"{year} | ${starting:>13,.2f} | ${ending:>12,.2f} | {raise_pct:>6.1f}% | ${expected:>14,.2f} | {status}"
+                )
                 prev_ending = ending
 
             report.append("")
@@ -193,15 +236,23 @@ def generate_example_report(validation_df: pd.DataFrame, employee_df: pd.DataFra
     report.append("TOP 10 DISCREPANCIES:")
     report.append("-" * 40)
 
-    top_errors = validation_df[validation_df['compounding_status'] != 'CORRECT'].nlargest(10, 'salary_discrepancy', keep='all')
+    top_errors = validation_df[
+        validation_df["compounding_status"] != "CORRECT"
+    ].nlargest(10, "salary_discrepancy", keep="all")
     if len(top_errors) > 0:
-        report.append("Employee ID | Year | Prev End Salary | Curr Start Salary | Discrepancy | Status")
+        report.append(
+            "Employee ID | Year | Prev End Salary | Curr Start Salary | Discrepancy | Status"
+        )
         report.append("-" * 80)
 
         for _, row in top_errors.iterrows():
-            report.append(f"{row['employee_id']} | {int(row['current_year'])} | ${row['previous_year_ending_salary']:,.2f} | ${row['current_year_starting_salary']:,.2f} | ${row['salary_discrepancy']:,.2f} | {row['compounding_status']}")
+            report.append(
+                f"{row['employee_id']} | {int(row['current_year'])} | ${row['previous_year_ending_salary']:,.2f} | ${row['current_year_starting_salary']:,.2f} | ${row['salary_discrepancy']:,.2f} | {row['compounding_status']}"
+            )
     else:
-        report.append("No discrepancies found - all compensation is compounding correctly!")
+        report.append(
+            "No discrepancies found - all compensation is compounding correctly!"
+        )
 
     report.append("")
     report.append("=" * 80)
@@ -209,7 +260,9 @@ def generate_example_report(validation_df: pd.DataFrame, employee_df: pd.DataFra
     return "\n".join(report)
 
 
-def validate_multi_year_simulation(conn: duckdb.DuckDBPyConnection, start_year: int = 2025, end_year: int = 2029) -> bool:
+def validate_multi_year_simulation(
+    conn: duckdb.DuckDBPyConnection, start_year: int = 2025, end_year: int = 2029
+) -> bool:
     """
     Validate that a multi-year simulation has proper compensation compounding.
     Returns True if validation passes, False otherwise.
@@ -225,7 +278,9 @@ def validate_multi_year_simulation(conn: duckdb.DuckDBPyConnection, start_year: 
     years_df = conn.execute(years_query).df()
 
     if len(years_df) < 2:
-        print(f"ERROR: Not enough simulation years found. Expected {start_year}-{end_year}, found: {years_df['simulation_year'].tolist()}")
+        print(
+            f"ERROR: Not enough simulation years found. Expected {start_year}-{end_year}, found: {years_df['simulation_year'].tolist()}"
+        )
         return False
 
     print(f"Found simulation data for years: {years_df['simulation_year'].tolist()}")
@@ -246,12 +301,16 @@ def validate_multi_year_simulation(conn: duckdb.DuckDBPyConnection, start_year: 
 
     # Pass if >95% correct compounding
     pass_threshold = 95.0
-    passed = metrics['correct_percentage'] >= pass_threshold
+    passed = metrics["correct_percentage"] >= pass_threshold
 
     if passed:
-        print(f"\n✓ VALIDATION PASSED: {metrics['correct_percentage']}% of employees have correct compensation compounding")
+        print(
+            f"\n✓ VALIDATION PASSED: {metrics['correct_percentage']}% of employees have correct compensation compounding"
+        )
     else:
-        print(f"\n✗ VALIDATION FAILED: Only {metrics['correct_percentage']}% of employees have correct compensation compounding (threshold: {pass_threshold}%)")
+        print(
+            f"\n✗ VALIDATION FAILED: Only {metrics['correct_percentage']}% of employees have correct compensation compounding (threshold: {pass_threshold}%)"
+        )
 
     return passed
 
@@ -275,7 +334,7 @@ def main():
         print(f"ERROR: {e}")
         sys.exit(1)
     finally:
-        if 'conn' in locals():
+        if "conn" in locals():
             conn.close()
 
 

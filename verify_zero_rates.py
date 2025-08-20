@@ -3,7 +3,7 @@
 
 import duckdb
 
-conn = duckdb.connect('/Users/nicholasamaral/planwise_navigator/simulation.duckdb')
+conn = duckdb.connect("/Users/nicholasamaral/planwise_navigator/simulation.duckdb")
 
 print("=== VERIFYING ZERO DEFERRAL RATE HANDLING ===")
 print()
@@ -21,8 +21,16 @@ WHERE simulation_year = 2025
 result = conn.execute(query1).fetchone()
 print(f"Employees with ≤0.1% deferral rate:")
 print(f"  Count: {result[0]}")
-print(f"  Max contributions: ${result[1]:.2f}" if result[1] else "  Max contributions: $0.00")
-print(f"  Avg contributions: ${result[2]:.2f}" if result[2] else "  Avg contributions: $0.00")
+print(
+    f"  Max contributions: ${result[1]:.2f}"
+    if result[1]
+    else "  Max contributions: $0.00"
+)
+print(
+    f"  Avg contributions: ${result[2]:.2f}"
+    if result[2]
+    else "  Avg contributions: $0.00"
+)
 print()
 
 # Sample employees with very low deferral rates
@@ -44,7 +52,9 @@ results = conn.execute(query2).fetchall()
 if results:
     print("Sample employees with ≤0.1% deferral rate:")
     for row in results:
-        print(f"  {row[0]}: rate={row[1]:.4f}, contributions=${row[2]:.2f}, effective={row[3]:.4f}, enrolled={row[4]}, flag={row[5]}")
+        print(
+            f"  {row[0]}: rate={row[1]:.4f}, contributions=${row[2]:.2f}, effective={row[3]:.4f}, enrolled={row[4]}, flag={row[5]}"
+        )
 else:
     print("No employees found with ≤0.1% deferral rate")
 
@@ -80,6 +90,8 @@ result = conn.execute(query4).fetchone()
 if result[0] == 0:
     print("✅ SUCCESS: No employees with 0% deferral rate have contributions > $0.01")
 else:
-    print(f"❌ FAILURE: {result[0]} employees with 0% deferral rate have contributions > $0.01")
+    print(
+        f"❌ FAILURE: {result[0]} employees with 0% deferral rate have contributions > $0.01"
+    )
 
 conn.close()

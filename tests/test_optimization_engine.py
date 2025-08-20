@@ -2,23 +2,19 @@
 Tests for S047 Optimization Engine
 """
 
-import pytest
-import pandas as pd
-import numpy as np
-from unittest.mock import Mock, patch
 from pathlib import Path
+from unittest.mock import Mock, patch
 
-from orchestrator.optimization.optimization_schemas import (
-    OptimizationRequest,
-    OptimizationResult,
-    OptimizationError,
-    PARAMETER_SCHEMA,
-    OptimizationCache
-)
+import numpy as np
+import pandas as pd
+import pytest
 from orchestrator.optimization.constraint_solver import CompensationOptimizer
-from orchestrator.optimization.objective_functions import ObjectiveFunctions
-from orchestrator.optimization.sensitivity_analysis import SensitivityAnalyzer
 from orchestrator.optimization.evidence_generator import EvidenceGenerator
+from orchestrator.optimization.objective_functions import ObjectiveFunctions
+from orchestrator.optimization.optimization_schemas import (
+    PARAMETER_SCHEMA, OptimizationCache, OptimizationError,
+    OptimizationRequest, OptimizationResult)
+from orchestrator.optimization.sensitivity_analysis import SensitivityAnalyzer
 
 
 class TestOptimizationSchemas:
@@ -30,11 +26,8 @@ class TestOptimizationSchemas:
         # Valid request
         request = OptimizationRequest(
             scenario_id="test_scenario",
-            initial_parameters={
-                "merit_rate_level_1": 0.045,
-                "cola_rate": 0.025
-            },
-            objectives={"cost": 0.6, "equity": 0.4}
+            initial_parameters={"merit_rate_level_1": 0.045, "cola_rate": 0.025},
+            objectives={"cost": 0.6, "equity": 0.4},
         )
 
         assert request.scenario_id == "test_scenario"
@@ -47,8 +40,7 @@ class TestOptimizationSchemas:
         with pytest.raises(ValueError):
             # Objectives don't sum to 1.0
             CompensationOptimizer(Mock(), "test")._validate_inputs(
-                {"merit_rate_level_1": 0.045},
-                {"cost": 0.8, "equity": 0.4}  # Sum = 1.2
+                {"merit_rate_level_1": 0.045}, {"cost": 0.8, "equity": 0.4}  # Sum = 1.2
             )
 
     def test_parameter_schema_bounds(self):
@@ -102,7 +94,7 @@ class TestObjectiveFunctions:
 
         obj_funcs = ObjectiveFunctions(mock_resource, "test_scenario")
 
-        with patch.object(obj_funcs, '_update_parameters'):
+        with patch.object(obj_funcs, "_update_parameters"):
             cost = obj_funcs.cost_objective({"merit_rate_level_1": 0.045})
 
         # Should return cost in millions
@@ -117,12 +109,12 @@ class TestObjectiveFunctions:
         mock_conn.execute.return_value.fetchall.return_value = [
             (1, 50000, 5000),  # job_level, avg_comp, stddev_comp
             (2, 60000, 3000),
-            (3, 70000, 7000)
+            (3, 70000, 7000),
         ]
 
         obj_funcs = ObjectiveFunctions(mock_resource, "test_scenario")
 
-        with patch.object(obj_funcs, '_update_parameters'):
+        with patch.object(obj_funcs, "_update_parameters"):
             equity = obj_funcs.equity_objective({"merit_rate_level_1": 0.045})
 
         # Should return average coefficient of variation
@@ -136,13 +128,12 @@ class TestObjectiveFunctions:
         obj_funcs = ObjectiveFunctions(mock_resource, "test_scenario")
 
         # Mock individual objectives
-        with patch.object(obj_funcs, 'cost_objective', return_value=2.5), \
-             patch.object(obj_funcs, 'equity_objective', return_value=0.1), \
-             patch.object(obj_funcs, 'targets_objective', return_value=0.05):
-
+        with patch.object(obj_funcs, "cost_objective", return_value=2.5), patch.object(
+            obj_funcs, "equity_objective", return_value=0.1
+        ), patch.object(obj_funcs, "targets_objective", return_value=0.05):
             result = obj_funcs.combined_objective(
                 {"merit_rate_level_1": 0.045},
-                {"cost": 0.5, "equity": 0.3, "targets": 0.2}
+                {"cost": 0.5, "equity": 0.3, "targets": 0.2},
             )
 
         expected = 0.5 * 2.5 + 0.3 * 0.1 + 0.2 * 0.05
@@ -234,7 +225,7 @@ class TestSensitivityAnalysis:
         sensitivities = {
             "merit_rate_level_1": 0.5,
             "cola_rate": -0.3,
-            "merit_rate_level_2": 0.1
+            "merit_rate_level_2": 0.1,
         }
 
         ranking = mock_analyzer.rank_parameter_importance(sensitivities)
@@ -260,11 +251,19 @@ class TestEvidenceGenerator:
             iterations=45,
             function_evaluations=127,
             runtime_seconds=4.2,
-            estimated_cost_impact={"value": 2450000.0, "unit": "USD", "confidence": "high"},
-            estimated_employee_impact={"count": 1200, "percentage_of_workforce": 0.85, "risk_level": "medium"},
+            estimated_cost_impact={
+                "value": 2450000.0,
+                "unit": "USD",
+                "confidence": "high",
+            },
+            estimated_employee_impact={
+                "count": 1200,
+                "percentage_of_workforce": 0.85,
+                "risk_level": "medium",
+            },
             risk_assessment="MEDIUM",
             constraint_violations={},
-            solution_quality_score=0.87
+            solution_quality_score=0.87,
         )
 
     def test_report_generation(self, mock_optimization_result):
@@ -293,7 +292,8 @@ class TestEvidenceGenerator:
 
 # Property-based testing with hypothesis
 try:
-    from hypothesis import given, strategies as st
+    from hypothesis import given
+    from hypothesis import strategies as st
 
     class TestOptimizationProperties:
         """Property-based tests for optimization invariants."""
@@ -306,13 +306,15 @@ try:
             bounds = PARAMETER_SCHEMA["merit_rate_level_1"]["range"]
             assert bounds[0] <= merit_rate <= bounds[1]
 
-        @given(st.lists(st.floats(min_value=0.1, max_value=1.0), min_size=3, max_size=3))
+        @given(
+            st.lists(st.floats(min_value=0.1, max_value=1.0), min_size=3, max_size=3)
+        )
         def test_objective_weights_normalization(self, weights):
             """Test objective weight normalization."""
 
             # Normalize weights
             total = sum(weights)
-            normalized = [w/total for w in weights]
+            normalized = [w / total for w in weights]
 
             # Should sum to 1.0
             assert abs(sum(normalized) - 1.0) < 1e-10
@@ -342,7 +344,7 @@ class TestIntegration:
         request = OptimizationRequest(
             scenario_id="integration_test",
             initial_parameters={"merit_rate_level_1": 0.045},
-            objectives={"cost": 1.0}
+            objectives={"cost": 1.0},
         )
 
         assert request.scenario_id == "integration_test"

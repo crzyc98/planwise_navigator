@@ -1,10 +1,10 @@
 #!/usr/bin/env python3
 """Enhanced debug script for navigator orchestrator"""
 
-import sys
-import subprocess
-from pathlib import Path
 import shutil
+import subprocess
+import sys
+from pathlib import Path
 
 print("=== NAVIGATOR ORCHESTRATOR ENHANCED DEBUG ===\n")
 
@@ -31,10 +31,17 @@ print()
 print("3. TESTING DBT RUN DIRECTLY:")
 try:
     result = subprocess.run(
-        ["dbt", "run", "--select", "stg_census_data", "--vars", '{"simulation_year": 2025}'],
+        [
+            "dbt",
+            "run",
+            "--select",
+            "stg_census_data",
+            "--vars",
+            '{"simulation_year": 2025}',
+        ],
         capture_output=True,
         text=True,
-        cwd=Path("dbt")
+        cwd=Path("dbt"),
     )
     print(f"   Direct dbt run return code: {result.returncode}")
     if result.returncode != 0:
@@ -50,6 +57,7 @@ print()
 print("4. TESTING DbtRunner --version:")
 try:
     from navigator_orchestrator.dbt_runner import DbtRunner
+
     runner = DbtRunner(verbose=True)
     print(f"   DbtRunner working_dir: {runner.working_dir.absolute()}")
     print(f"   DbtRunner executable: {runner.executable}")
@@ -59,7 +67,7 @@ try:
         ["--version"],
         description="Testing dbt version",
         stream_output=False,
-        retry=False
+        retry=False,
     )
     print(f"   Success: {result.success}")
     print(f"   Return code: {result.return_code}")
@@ -70,6 +78,7 @@ try:
 except Exception as e:
     print(f"   ERROR: {e}")
     import traceback
+
     traceback.print_exc()
 print()
 
@@ -77,6 +86,7 @@ print()
 print("5. TESTING DbtRunner WITH SIMPLE MODEL:")
 try:
     from navigator_orchestrator.dbt_runner import DbtRunner
+
     runner = DbtRunner(verbose=True)
 
     # Test run_model method
@@ -85,7 +95,7 @@ try:
         simulation_year=2025,
         description="Testing single model",
         stream_output=False,
-        retry=False
+        retry=False,
     )
     print(f"   run_model success: {result.success}")
     print(f"   Return code: {result.return_code}")
@@ -98,6 +108,7 @@ try:
 except Exception as e:
     print(f"   ERROR: {e}")
     import traceback
+
     traceback.print_exc()
 print()
 
@@ -105,10 +116,10 @@ print()
 print("6. TESTING PIPELINE INITIALIZATION:")
 try:
     from navigator_orchestrator.config import load_simulation_config
-    from navigator_orchestrator.utils import DatabaseConnectionManager
-    from navigator_orchestrator.registries import RegistryManager
-    from navigator_orchestrator.validation import DataValidator
     from navigator_orchestrator.pipeline import PipelineOrchestrator
+    from navigator_orchestrator.registries import RegistryManager
+    from navigator_orchestrator.utils import DatabaseConnectionManager
+    from navigator_orchestrator.validation import DataValidator
 
     config = load_simulation_config(Path("config/simulation_config.yaml"))
     print(f"   Config loaded: start_year={config.simulation.start_year}")
@@ -125,21 +136,20 @@ try:
     validator = DataValidator(db)
     print(f"   DataValidator created")
 
-    orch = PipelineOrchestrator(
-        config, db, runner, registries, validator, verbose=True
-    )
+    orch = PipelineOrchestrator(config, db, runner, registries, validator, verbose=True)
     print(f"   PipelineOrchestrator created successfully")
 
 except Exception as e:
     print(f"   ERROR during initialization: {e}")
     import traceback
+
     traceback.print_exc()
 print()
 
 # 7. Test running the first stage
 print("7. TESTING FIRST STAGE EXECUTION:")
 try:
-    if 'orch' in locals():
+    if "orch" in locals():
         # Get the first stage
         stages = orch._define_year_workflow(2025)
         first_stage = stages[0]
@@ -155,7 +165,7 @@ try:
                 simulation_year=2025,
                 dbt_vars=orch._dbt_vars,
                 stream_output=False,
-                retry=False
+                retry=False,
             )
             print(f"   Success: {result.success}")
             if not result.success:
@@ -169,6 +179,7 @@ try:
 except Exception as e:
     print(f"   ERROR: {e}")
     import traceback
+
     traceback.print_exc()
 
 print("\n=== END ENHANCED DEBUG ===")

@@ -23,28 +23,29 @@ Usage as a Python module:
         print("Command failed:", result.error_message)
 """
 
-import os
-import sys
-import subprocess
-import shlex
-from pathlib import Path
-from typing import List, Dict, Optional, Union
-from dataclasses import dataclass
 import json
+import os
+import shlex
+import subprocess
+import sys
+from dataclasses import dataclass
 from datetime import datetime
+from pathlib import Path
+from typing import Dict, List, Optional, Union
 
 # Import our environment detection utility
 try:
-    from .smart_environment import SmartEnvironment, CommandType
+    from .smart_environment import CommandType, SmartEnvironment
 except ImportError:
     # Handle case where we're running directly
     sys.path.append(str(Path(__file__).parent))
-    from smart_environment import SmartEnvironment, CommandType
+    from smart_environment import CommandType, SmartEnvironment
 
 
 @dataclass
 class CommandResult:
     """Result of command execution."""
+
     success: bool
     returncode: int
     stdout: Optional[str] = None
@@ -129,10 +130,14 @@ class SmartCommandWrapper:
             "project_root": str(config.project_root),
             "venv_path": str(config.venv_path) if config.venv_path else None,
             "dbt_path": str(config.dbt_path),
-            "python_executable": str(config.python_executable) if config.python_executable else None,
-            "database_files": {name: str(path) for name, path in config.database_files.items()},
+            "python_executable": str(config.python_executable)
+            if config.python_executable
+            else None,
+            "database_files": {
+                name: str(path) for name, path in config.database_files.items()
+            },
             "errors": config.errors,
-            "validation_timestamp": datetime.now().isoformat()
+            "validation_timestamp": datetime.now().isoformat(),
         }
 
     def dry_run(self, command_line: str) -> Dict:
@@ -151,7 +156,7 @@ class SmartCommandWrapper:
             return {
                 "valid": False,
                 "errors": self.environment.get_validation_errors(),
-                "setup_instructions": self.environment.get_setup_instructions()
+                "setup_instructions": self.environment.get_setup_instructions(),
             }
 
         command_type = self.environment.classify_command(command_line)
@@ -176,13 +181,16 @@ class SmartCommandWrapper:
             "working_directory": str(context["working_dir"]),
             "environment_variables": context["environment_vars"],
             "requires_venv": context["requires_venv"],
-            "executable": str(context["executable"]) if context["executable"] else None
+            "executable": str(context["executable"]) if context["executable"] else None,
         }
 
-    def execute(self, command_line: str,
-                capture_output: bool = False,
-                timeout: Optional[int] = None,
-                check_returncode: bool = True) -> CommandResult:
+    def execute(
+        self,
+        command_line: str,
+        capture_output: bool = False,
+        timeout: Optional[int] = None,
+        check_returncode: bool = True,
+    ) -> CommandResult:
         """
         Execute a command with intelligent environment setup.
 
@@ -204,7 +212,7 @@ class SmartCommandWrapper:
                 success=False,
                 returncode=-1,
                 error_message=f"Environment validation failed: {'; '.join(self.environment.get_validation_errors())}",
-                command=command_line
+                command=command_line,
             )
 
         # Get execution context
@@ -213,7 +221,7 @@ class SmartCommandWrapper:
 
         self._log(f"Command type: {command_type.value}")
         self._log(f"Working directory: {context['working_dir']}")
-        if context['environment_vars']:
+        if context["environment_vars"]:
             self._log(f"Environment variables: {context['environment_vars']}")
 
         # Prepare command with proper executable paths
@@ -221,7 +229,14 @@ class SmartCommandWrapper:
         original_command = cmd_parts[0]
 
         if context["requires_venv"] and context["executable"]:
-            if cmd_parts[0] in ["python", "dbt", "dagster", "streamlit", "pytest", "pip"]:
+            if cmd_parts[0] in [
+                "python",
+                "dbt",
+                "dagster",
+                "streamlit",
+                "pytest",
+                "pip",
+            ]:
                 if cmd_parts[0] == "python":
                     cmd_parts[0] = str(context["executable"])
                 else:
@@ -250,17 +265,12 @@ class SmartCommandWrapper:
             # Execute the command
             self._log(f"Running in directory: {context['working_dir']}")
 
-            process_kwargs = {
-                "cwd": context["working_dir"],
-                "env": env,
-                "text": True
-            }
+            process_kwargs = {"cwd": context["working_dir"], "env": env, "text": True}
 
             if capture_output:
-                process_kwargs.update({
-                    "stdout": subprocess.PIPE,
-                    "stderr": subprocess.PIPE
-                })
+                process_kwargs.update(
+                    {"stdout": subprocess.PIPE, "stderr": subprocess.PIPE}
+                )
 
             if timeout:
                 process_kwargs["timeout"] = timeout
@@ -268,7 +278,9 @@ class SmartCommandWrapper:
             result = subprocess.run(cmd_parts, **process_kwargs)
 
             duration = (datetime.now() - start_time).total_seconds()
-            self._log(f"Command completed in {duration:.2f}s with return code {result.returncode}")
+            self._log(
+                f"Command completed in {duration:.2f}s with return code {result.returncode}"
+            )
 
             success = result.returncode == 0 if check_returncode else True
 
@@ -277,7 +289,9 @@ class SmartCommandWrapper:
                 returncode=result.returncode,
                 stdout=result.stdout if capture_output else None,
                 stderr=result.stderr if capture_output else None,
-                error_message=None if success else f"Command failed with return code {result.returncode}",
+                error_message=None
+                if success
+                else f"Command failed with return code {result.returncode}",
                 command=resolved_command,
                 working_dir=context["working_dir"],
                 duration_seconds=duration,
@@ -285,8 +299,8 @@ class SmartCommandWrapper:
                     "command_type": command_type.value,
                     "working_dir": str(context["working_dir"]),
                     "environment_vars": context["environment_vars"],
-                    "requires_venv": context["requires_venv"]
-                }
+                    "requires_venv": context["requires_venv"],
+                },
             )
 
         except subprocess.TimeoutExpired:
@@ -297,7 +311,7 @@ class SmartCommandWrapper:
                 error_message=f"Command timed out after {timeout} seconds",
                 command=resolved_command,
                 working_dir=context["working_dir"],
-                duration_seconds=duration
+                duration_seconds=duration,
             )
 
         except FileNotFoundError as e:
@@ -306,7 +320,7 @@ class SmartCommandWrapper:
                 returncode=-1,
                 error_message=f"Command not found: {original_command}. Error: {e}",
                 command=command_line,
-                working_dir=context["working_dir"]
+                working_dir=context["working_dir"],
             )
 
         except Exception as e:
@@ -315,12 +329,15 @@ class SmartCommandWrapper:
                 returncode=-1,
                 error_message=f"Unexpected error executing command: {e}",
                 command=command_line,
-                working_dir=context["working_dir"]
+                working_dir=context["working_dir"],
             )
 
-    def execute_sequence(self, commands: List[str],
-                        stop_on_failure: bool = True,
-                        capture_output: bool = False) -> List[CommandResult]:
+    def execute_sequence(
+        self,
+        commands: List[str],
+        stop_on_failure: bool = True,
+        capture_output: bool = False,
+    ) -> List[CommandResult]:
         """
         Execute a sequence of commands with proper environment setup.
 
@@ -341,7 +358,9 @@ class SmartCommandWrapper:
             results.append(result)
 
             if not result.success and stop_on_failure:
-                self._log(f"Stopping sequence due to failure: {result.error_message}", "ERROR")
+                self._log(
+                    f"Stopping sequence due to failure: {result.error_message}", "ERROR"
+                )
                 break
 
         successful = sum(1 for r in results if r.success)
@@ -362,43 +381,37 @@ class SmartCommandWrapper:
         help_text = ["🔧 PlanWise Navigator Environment Setup Help", "=" * 50]
 
         if self._validation_result:
-            help_text.extend([
-                "✅ Your environment is properly configured!",
-                "",
-                "Available commands:",
-                "  • dbt run                    # Run dbt models",
-                "  • dagster dev               # Start Dagster development server",
-                "  • streamlit run main.py     # Launch Streamlit dashboard",
-                "  • python script.py         # Run Python scripts",
-                "  • pytest tests/            # Run tests",
-                "",
-                "All commands will automatically use the correct:",
-                "  - Working directory (project root or dbt/)",
-                "  - Virtual environment activation",
-                "  - Environment variables (DAGSTER_HOME, etc.)"
-            ])
+            help_text.extend(
+                [
+                    "✅ Your environment is properly configured!",
+                    "",
+                    "Available commands:",
+                    "  • dbt run                    # Run dbt models",
+                    "  • dagster dev               # Start Dagster development server",
+                    "  • streamlit run main.py     # Launch Streamlit dashboard",
+                    "  • python script.py         # Run Python scripts",
+                    "  • pytest tests/            # Run tests",
+                    "",
+                    "All commands will automatically use the correct:",
+                    "  - Working directory (project root or dbt/)",
+                    "  - Virtual environment activation",
+                    "  - Environment variables (DAGSTER_HOME, etc.)",
+                ]
+            )
         else:
-            help_text.extend([
-                "❌ Environment setup required. Issues found:",
-                ""
-            ])
+            help_text.extend(["❌ Environment setup required. Issues found:", ""])
 
             for error in self.environment.get_validation_errors():
                 help_text.append(f"   - {error}")
 
-            help_text.extend([
-                "",
-                "🛠️ Setup Instructions:",
-                ""
-            ])
+            help_text.extend(["", "🛠️ Setup Instructions:", ""])
 
             for instruction in self.environment.get_setup_instructions():
                 help_text.append(f"   {instruction}")
 
-            help_text.extend([
-                "",
-                "After setup, run this script again to validate the environment."
-            ])
+            help_text.extend(
+                ["", "After setup, run this script again to validate the environment."]
+            )
 
         return "\n".join(help_text)
 
@@ -417,18 +430,32 @@ Examples:
   %(prog)s --dry-run "streamlit run main.py"  # Show what would be executed
   %(prog)s --validate                   # Check environment setup
   %(prog)s --help-setup                 # Show setup instructions
-        """
+        """,
     )
 
     parser.add_argument("command", nargs="?", help="Command to execute")
-    parser.add_argument("--dry-run", action="store_true", help="Show execution plan without running")
-    parser.add_argument("--validate", action="store_true", help="Validate environment and exit")
-    parser.add_argument("--help-setup", action="store_true", help="Show environment setup help")
+    parser.add_argument(
+        "--dry-run", action="store_true", help="Show execution plan without running"
+    )
+    parser.add_argument(
+        "--validate", action="store_true", help="Validate environment and exit"
+    )
+    parser.add_argument(
+        "--help-setup", action="store_true", help="Show environment setup help"
+    )
     parser.add_argument("--verbose", action="store_true", help="Enable verbose output")
-    parser.add_argument("--capture-output", action="store_true", help="Capture and display command output")
+    parser.add_argument(
+        "--capture-output",
+        action="store_true",
+        help="Capture and display command output",
+    )
     parser.add_argument("--timeout", type=int, help="Command timeout in seconds")
-    parser.add_argument("--working-dir", help="Override working directory for environment detection")
-    parser.add_argument("--json", action="store_true", help="Output results in JSON format")
+    parser.add_argument(
+        "--working-dir", help="Override working directory for environment detection"
+    )
+    parser.add_argument(
+        "--json", action="store_true", help="Output results in JSON format"
+    )
 
     args = parser.parse_args()
 
@@ -475,7 +502,7 @@ Examples:
                 print(f"   Resolved: {plan['resolved_command']}")
                 print(f"   Type: {plan['command_type']}")
                 print(f"   Working Dir: {plan['working_directory']}")
-                if plan['environment_variables']:
+                if plan["environment_variables"]:
                     print(f"   Environment: {plan['environment_variables']}")
                 print(f"   Requires venv: {plan['requires_venv']}")
             else:
@@ -486,9 +513,7 @@ Examples:
 
     # Execute command
     result = wrapper.execute(
-        args.command,
-        capture_output=args.capture_output,
-        timeout=args.timeout
+        args.command, capture_output=args.capture_output, timeout=args.timeout
     )
 
     if args.json:
@@ -502,7 +527,7 @@ Examples:
             "command": result.command,
             "working_dir": str(result.working_dir) if result.working_dir else None,
             "duration_seconds": result.duration_seconds,
-            "environment_setup": result.environment_setup
+            "environment_setup": result.environment_setup,
         }
         print(json.dumps(result_dict, indent=2))
     else:

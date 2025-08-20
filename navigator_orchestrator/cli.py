@@ -12,14 +12,15 @@ import sys
 from pathlib import Path
 from typing import Optional
 
+from .checkpoint_manager import CheckpointManager
 from .config import load_simulation_config
 from .dbt_runner import DbtRunner
-from .utils import DatabaseConnectionManager
-from .registries import RegistryManager
-from .validation import DataValidator, HireTerminationRatioRule, EventSequenceRule
 from .pipeline import PipelineOrchestrator
-from .checkpoint_manager import CheckpointManager
 from .recovery_orchestrator import RecoveryOrchestrator
+from .registries import RegistryManager
+from .utils import DatabaseConnectionManager
+from .validation import (DataValidator, EventSequenceRule,
+                         HireTerminationRatioRule)
 
 
 def _parse_years(s: str) -> tuple[int, int]:
@@ -38,21 +39,33 @@ def _build_validator(db: DatabaseConnectionManager) -> DataValidator:
 
 
 def cmd_run(args: argparse.Namespace) -> int:
-    config_path = Path(args.config) if args.config else Path("config/simulation_config.yaml")
+    config_path = (
+        Path(args.config) if args.config else Path("config/simulation_config.yaml")
+    )
     cfg = load_simulation_config(config_path)
     db_path = Path(args.database) if args.database else Path("dbt/simulation.duckdb")
     db = DatabaseConnectionManager(db_path)
-    runner = DbtRunner(threads=args.threads or 4, executable=("echo" if args.dry_run else "dbt"), verbose=bool(args.verbose))
+    runner = DbtRunner(
+        threads=args.threads or 4,
+        executable=("echo" if args.dry_run else "dbt"),
+        verbose=bool(args.verbose),
+    )
     registries = RegistryManager(db)
     dv = _build_validator(db)
-    orch = PipelineOrchestrator(cfg, db, runner, registries, dv, verbose=bool(args.verbose))
+    orch = PipelineOrchestrator(
+        cfg, db, runner, registries, dv, verbose=bool(args.verbose)
+    )
 
     # Enhanced checkpoint and recovery integration
     checkpoint_manager = CheckpointManager(db_path=str(db_path))
     recovery_orchestrator = RecoveryOrchestrator(checkpoint_manager)
 
-    start_year = args.start_year or (cfg.simulation.start_year if not args.years else _parse_years(args.years)[0])
-    end_year = args.end_year or (cfg.simulation.end_year if not args.years else _parse_years(args.years)[1])
+    start_year = args.start_year or (
+        cfg.simulation.start_year if not args.years else _parse_years(args.years)[0]
+    )
+    end_year = args.end_year or (
+        cfg.simulation.end_year if not args.years else _parse_years(args.years)[1]
+    )
 
     # Calculate configuration hash for drift detection
     config_hash = recovery_orchestrator.calculate_config_hash(str(config_path))
@@ -75,8 +88,10 @@ def cmd_run(args: argparse.Namespace) -> int:
     # Show recovery status if verbose
     if args.verbose:
         status = recovery_orchestrator.get_recovery_status(config_hash)
-        print(f"📊 Recovery status: {len(status.get('recommendations', []))} recommendations")
-        for rec in status.get('recommendations', []):
+        print(
+            f"📊 Recovery status: {len(status.get('recommendations', []))} recommendations"
+        )
+        for rec in status.get("recommendations", []):
             print(f"   💡 {rec}")
 
     summary = orch.execute_multi_year_simulation(
@@ -92,7 +107,9 @@ def cmd_run(args: argparse.Namespace) -> int:
 
 
 def cmd_validate(args: argparse.Namespace) -> int:
-    cfg = load_simulation_config(Path(args.config) if args.config else Path("config/simulation_config.yaml"))
+    cfg = load_simulation_config(
+        Path(args.config) if args.config else Path("config/simulation_config.yaml")
+    )
     if getattr(args, "enforce_identifiers", False):
         cfg.require_identifiers()
     cfg_dict = cfg.model_dump()
@@ -104,7 +121,9 @@ def cmd_validate(args: argparse.Namespace) -> int:
 
 
 def cmd_checkpoint(args: argparse.Namespace) -> int:
-    config_path = Path(args.config) if args.config else Path("config/simulation_config.yaml")
+    config_path = (
+        Path(args.config) if args.config else Path("config/simulation_config.yaml")
+    )
     db_path = Path(args.database) if args.database else Path("dbt/simulation.duckdb")
 
     checkpoint_manager = CheckpointManager(db_path=str(db_path))
@@ -118,8 +137,10 @@ def cmd_checkpoint(args: argparse.Namespace) -> int:
 
         print(f"Found {len(checkpoints)} checkpoint(s):")
         for cp in checkpoints:
-            status = "✅" if cp['integrity_valid'] else "⚠️"
-            print(f"  {status} Year {cp['year']}: {cp['timestamp']} ({cp['format']}, {cp['file_size']} bytes)")
+            status = "✅" if cp["integrity_valid"] else "⚠️"
+            print(
+                f"  {status} Year {cp['year']}: {cp['timestamp']} ({cp['format']}, {cp['file_size']} bytes)"
+            )
         return 0
 
     elif args.action == "status":
@@ -129,39 +150,43 @@ def cmd_checkpoint(args: argparse.Namespace) -> int:
         print("🔍 Recovery Status:")
         print(f"  Checkpoints available: {status['checkpoints_available']}")
         print(f"  Total checkpoints: {status['total_checkpoints']}")
-        if status['latest_checkpoint_year']:
-            print(f"  Latest checkpoint: Year {status['latest_checkpoint_year']} ({status['latest_checkpoint_timestamp']})")
-        if status['resumable_year']:
+        if status["latest_checkpoint_year"]:
+            print(
+                f"  Latest checkpoint: Year {status['latest_checkpoint_year']} ({status['latest_checkpoint_timestamp']})"
+            )
+        if status["resumable_year"]:
             print(f"  Resumable from: Year {status['resumable_year']}")
         print(f"  Configuration compatible: {status['config_compatible']}")
 
-        if status['recommendations']:
+        if status["recommendations"]:
             print("\n💡 Recommendations:")
-            for rec in status['recommendations']:
+            for rec in status["recommendations"]:
                 print(f"  • {rec}")
         return 0
 
     elif args.action == "cleanup":
         keep_count = args.keep or 5
         removed = checkpoint_manager.cleanup_old_checkpoints(keep_count)
-        print(f"🧹 Cleaned up {removed} old checkpoint file(s), keeping latest {keep_count}")
+        print(
+            f"🧹 Cleaned up {removed} old checkpoint file(s), keeping latest {keep_count}"
+        )
         return 0
 
     elif args.action == "validate":
         validation = recovery_orchestrator.validate_recovery_environment()
-        if validation['valid']:
+        if validation["valid"]:
             print("✅ Recovery environment is valid")
         else:
             print("❌ Recovery environment has issues:")
-            for issue in validation['issues']:
+            for issue in validation["issues"]:
                 print(f"  • {issue}")
 
-        if validation['warnings']:
+        if validation["warnings"]:
             print("\n⚠️ Warnings:")
-            for warning in validation['warnings']:
+            for warning in validation["warnings"]:
                 print(f"  • {warning}")
 
-        return 0 if validation['valid'] else 1
+        return 0 if validation["valid"] else 1
 
     else:
         # Legacy behavior - show last checkpoint
@@ -170,13 +195,15 @@ def cmd_checkpoint(args: argparse.Namespace) -> int:
             print("No checkpoints found")
             return 0
 
-        latest = max(checkpoints, key=lambda x: x['year'])
+        latest = max(checkpoints, key=lambda x: x["year"])
         print(f"Last checkpoint: year={latest['year']} at {latest['timestamp']}")
         return 0
 
 
 def build_parser() -> argparse.ArgumentParser:
-    p = argparse.ArgumentParser(prog="navigator", description="PlanWise Navigator Orchestrator CLI")
+    p = argparse.ArgumentParser(
+        prog="navigator", description="PlanWise Navigator Orchestrator CLI"
+    )
     sub = p.add_subparsers(dest="command", required=True)
 
     # run
@@ -187,8 +214,14 @@ def build_parser() -> argparse.ArgumentParser:
     pr.add_argument("--end-year", type=int, help="Simulation end year")
     pr.add_argument("--years", type=str, help="Year range, e.g., 2025-2027")
     pr.add_argument("--resume", action="store_true", help="Resume from last checkpoint")
-    pr.add_argument("--force-restart", action="store_true", help="Ignore checkpoints and start fresh")
-    pr.add_argument("--dry-run", action="store_true", help="Skip dbt by echoing commands")
+    pr.add_argument(
+        "--force-restart",
+        action="store_true",
+        help="Ignore checkpoints and start fresh",
+    )
+    pr.add_argument(
+        "--dry-run", action="store_true", help="Skip dbt by echoing commands"
+    )
     pr.add_argument("--threads", type=int, help="dbt threads")
     pr.add_argument("--fail-on-validation-error", action="store_true")
     pr.add_argument("--verbose", "-v", action="store_true")
@@ -200,13 +233,23 @@ def build_parser() -> argparse.ArgumentParser:
     pv.set_defaults(func=cmd_validate)
 
     # checkpoint
-    pc = sub.add_parser("checkpoint", help="Checkpoint management and recovery operations")
+    pc = sub.add_parser(
+        "checkpoint", help="Checkpoint management and recovery operations"
+    )
     pc.add_argument("--config", "-c", help="Path to simulation config YAML")
     pc.add_argument("--database", help="Path to DuckDB database file")
-    pc.add_argument("action", nargs="?", default="show",
-                   choices=["list", "status", "cleanup", "validate", "show"],
-                   help="Checkpoint action: list, status, cleanup, validate, or show (default)")
-    pc.add_argument("--keep", type=int, help="Number of checkpoints to keep when cleaning up (default: 5)")
+    pc.add_argument(
+        "action",
+        nargs="?",
+        default="show",
+        choices=["list", "status", "cleanup", "validate", "show"],
+        help="Checkpoint action: list, status, cleanup, validate, or show (default)",
+    )
+    pc.add_argument(
+        "--keep",
+        type=int,
+        help="Number of checkpoints to keep when cleaning up (default: 5)",
+    )
     pc.set_defaults(func=cmd_checkpoint)
 
     return p

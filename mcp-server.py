@@ -43,12 +43,12 @@ class MCPServer:
 
         # Override with environment variables
         env_mapping = {
-            'GEMINI_ENABLED': ('enabled', lambda x: x.lower() == 'true'),
-            'GEMINI_AUTO_CONSULT': ('auto_consult', lambda x: x.lower() == 'true'),
-            'GEMINI_CLI_COMMAND': ('cli_command', str),
-            'GEMINI_TIMEOUT': ('timeout', int),
-            'GEMINI_RATE_LIMIT': ('rate_limit_delay', float),
-            'GEMINI_MODEL': ('model', str),
+            "GEMINI_ENABLED": ("enabled", lambda x: x.lower() == "true"),
+            "GEMINI_AUTO_CONSULT": ("auto_consult", lambda x: x.lower() == "true"),
+            "GEMINI_CLI_COMMAND": ("cli_command", str),
+            "GEMINI_TIMEOUT": ("timeout", int),
+            "GEMINI_RATE_LIMIT": ("rate_limit_delay", float),
+            "GEMINI_MODEL": ("model", str),
         }
 
         for env_key, (config_key, converter) in env_mapping.items():
@@ -60,6 +60,7 @@ class MCPServer:
 
     def _setup_tools(self):
         """Register all MCP tools"""
+
         @self.server.list_tools()
         async def handle_list_tools():
             return [
@@ -71,24 +72,24 @@ class MCPServer:
                         "properties": {
                             "query": {
                                 "type": "string",
-                                "description": "The question or topic to consult Gemini about"
+                                "description": "The question or topic to consult Gemini about",
                             },
                             "context": {
                                 "type": "string",
-                                "description": "Additional context for the consultation"
+                                "description": "Additional context for the consultation",
                             },
                             "comparison_mode": {
                                 "type": "boolean",
                                 "description": "Whether to request structured comparison format",
-                                "default": True
-                            }
+                                "default": True,
+                            },
                         },
-                        "required": ["query"]
-                    }
+                        "required": ["query"],
+                    },
                 ),
                 types.Tool(
                     name="gemini_status",
-                    description="Check Gemini integration status and statistics"
+                    description="Check Gemini integration status and statistics",
                 ),
                 types.Tool(
                     name="toggle_gemini_auto_consult",
@@ -98,11 +99,11 @@ class MCPServer:
                         "properties": {
                             "enable": {
                                 "type": "boolean",
-                                "description": "Enable (true) or disable (false) auto-consultation"
+                                "description": "Enable (true) or disable (false) auto-consultation",
                             }
-                        }
-                    }
-                )
+                        },
+                    },
+                ),
             ]
 
         @self.server.call_tool()
@@ -116,33 +117,39 @@ class MCPServer:
             else:
                 raise ValueError(f"Unknown tool: {name}")
 
-    async def _handle_consult_gemini(self, arguments: Dict[str, Any]) -> List[types.TextContent]:
+    async def _handle_consult_gemini(
+        self, arguments: Dict[str, Any]
+    ) -> List[types.TextContent]:
         """Handle Gemini consultation requests"""
-        query = arguments.get('query', '')
-        context = arguments.get('context', '')
-        comparison_mode = arguments.get('comparison_mode', True)
+        query = arguments.get("query", "")
+        context = arguments.get("context", "")
+        comparison_mode = arguments.get("comparison_mode", True)
 
         if not query:
-            return [types.TextContent(
-                type="text",
-                text="❌ Error: 'query' parameter is required for Gemini consultation"
-            )]
+            return [
+                types.TextContent(
+                    type="text",
+                    text="❌ Error: 'query' parameter is required for Gemini consultation",
+                )
+            ]
 
         result = await self.gemini.consult_gemini(
-            query=query,
-            context=context,
-            comparison_mode=comparison_mode
+            query=query, context=context, comparison_mode=comparison_mode
         )
 
-        if result['status'] == 'success':
+        if result["status"] == "success":
             response_text = f"🤖 **Gemini Second Opinion**\n\n{result['response']}\n\n"
-            response_text += f"⏱️ *Consultation completed in {result['execution_time']:.2f}s*"
+            response_text += (
+                f"⏱️ *Consultation completed in {result['execution_time']:.2f}s*"
+            )
         else:
             response_text = f"❌ **Gemini Consultation Failed**\n\nError: {result.get('error', 'Unknown error')}"
 
         return [types.TextContent(type="text", text=response_text)]
 
-    async def _handle_gemini_status(self, arguments: Dict[str, Any]) -> List[types.TextContent]:
+    async def _handle_gemini_status(
+        self, arguments: Dict[str, Any]
+    ) -> List[types.TextContent]:
         """Handle Gemini status requests"""
         status_lines = [
             "🤖 **Gemini Integration Status**",
@@ -164,9 +171,11 @@ class MCPServer:
 
         return [types.TextContent(type="text", text="\n".join(status_lines))]
 
-    async def _handle_toggle_auto_consult(self, arguments: Dict[str, Any]) -> List[types.TextContent]:
+    async def _handle_toggle_auto_consult(
+        self, arguments: Dict[str, Any]
+    ) -> List[types.TextContent]:
         """Handle toggle auto-consultation requests"""
-        enable = arguments.get('enable')
+        enable = arguments.get("enable")
 
         if enable is None:
             # Toggle current state
@@ -175,18 +184,17 @@ class MCPServer:
             self.gemini.auto_consult = enable
 
         status = "enabled" if self.gemini.auto_consult else "disabled"
-        return [types.TextContent(
-            type="text",
-            text=f"🔄 Auto-consultation has been **{status}**"
-        )]
+        return [
+            types.TextContent(
+                type="text", text=f"🔄 Auto-consultation has been **{status}**"
+            )
+        ]
 
     async def run(self):
         """Run the MCP server"""
         async with mcp.server.stdio.stdio_server() as (read_stream, write_stream):
             await self.server.run(
-                read_stream,
-                write_stream,
-                self.server.create_initialization_options()
+                read_stream, write_stream, self.server.create_initialization_options()
             )
 
 
@@ -194,8 +202,9 @@ async def main():
     import argparse
 
     parser = argparse.ArgumentParser(description="MCP Server with Gemini Integration")
-    parser.add_argument("--project-root", type=str, default=".",
-                       help="Project root directory")
+    parser.add_argument(
+        "--project-root", type=str, default=".", help="Project root directory"
+    )
     args = parser.parse_args()
 
     server = MCPServer(project_root=args.project_root)

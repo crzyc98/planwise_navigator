@@ -5,14 +5,16 @@ Traces termination logic through the workforce snapshot model to identify where
 termination events are not being properly applied to employee status.
 """
 
-import duckdb
-import pandas as pd
 import sys
 from pathlib import Path
+
+import duckdb
+import pandas as pd
 
 # Add project root to Python path
 project_root = Path(__file__).parent.parent
 sys.path.append(str(project_root))
+
 
 def connect_to_database():
     """Connect to the simulation database"""
@@ -21,6 +23,7 @@ def connect_to_database():
         print(f"❌ Database not found at {db_path}")
         sys.exit(1)
     return duckdb.connect(str(db_path))
+
 
 def query_event_counts(conn, simulation_year=2025):
     """Query termination event counts by type and category"""
@@ -47,9 +50,10 @@ def query_event_counts(conn, simulation_year=2025):
         return 0
     else:
         print(df.to_string(index=False))
-        total_terminations = df['event_count'].sum()
+        total_terminations = df["event_count"].sum()
         print(f"\n📈 Total termination events: {total_terminations}")
         return total_terminations
+
 
 def query_workforce_snapshot_status(conn, simulation_year=2025):
     """Query employment status counts in workforce snapshot"""
@@ -76,9 +80,12 @@ def query_workforce_snapshot_status(conn, simulation_year=2025):
         return 0
     else:
         print(df.to_string(index=False))
-        terminated_count = df[df['employment_status'] == 'terminated']['employee_count'].sum()
+        terminated_count = df[df["employment_status"] == "terminated"][
+            "employee_count"
+        ].sum()
         print(f"\n📈 Terminated employees in snapshot: {terminated_count}")
         return terminated_count
+
 
 def trace_termination_application(conn, simulation_year=2025):
     """Trace how termination events are applied in workforce snapshot"""
@@ -91,7 +98,9 @@ def trace_termination_application(conn, simulation_year=2025):
     FROM int_workforce_previous_year_v2
     WHERE simulation_year = ?
     """
-    base_count = conn.execute(base_query, [simulation_year]).df().iloc[0]['base_workforce_count']
+    base_count = (
+        conn.execute(base_query, [simulation_year]).df().iloc[0]["base_workforce_count"]
+    )
     print(f"Base workforce count: {base_count}")
 
     # Check the JOIN between base workforce and current year events
@@ -151,9 +160,12 @@ def trace_termination_application(conn, simulation_year=2025):
     ORDER BY count_after_terminations DESC
     """
 
-    termination_df = conn.execute(termination_logic_query, [simulation_year, simulation_year]).df()
+    termination_df = conn.execute(
+        termination_logic_query, [simulation_year, simulation_year]
+    ).df()
     print("\nStatus after termination logic:")
     print(termination_df.to_string(index=False))
+
 
 def sample_employee_tracing(conn, simulation_year=2025, sample_size=3):
     """Trace specific employees through the termination logic"""
@@ -176,7 +188,7 @@ def sample_employee_tracing(conn, simulation_year=2025, sample_size=3):
         return
 
     for _, row in sample_employees.iterrows():
-        employee_id = row['employee_id']
+        employee_id = row["employee_id"]
         print(f"\n--- Tracing Employee: {employee_id} ---")
 
         # Check in base workforce
@@ -188,7 +200,9 @@ def sample_employee_tracing(conn, simulation_year=2025, sample_size=3):
         base_df = conn.execute(base_check, [simulation_year, employee_id]).df()
 
         if not base_df.empty:
-            print(f"✅ Found in base workforce: status={base_df.iloc[0]['employment_status']}")
+            print(
+                f"✅ Found in base workforce: status={base_df.iloc[0]['employment_status']}"
+            )
         else:
             print("❌ NOT found in base workforce")
             continue
@@ -202,7 +216,9 @@ def sample_employee_tracing(conn, simulation_year=2025, sample_size=3):
         event_df = conn.execute(event_check, [simulation_year, employee_id]).df()
 
         if not event_df.empty:
-            print(f"✅ Found termination event: category={event_df.iloc[0]['event_category']}")
+            print(
+                f"✅ Found termination event: category={event_df.iloc[0]['event_category']}"
+            )
         else:
             print("❌ No termination event found")
             continue
@@ -216,12 +232,13 @@ def sample_employee_tracing(conn, simulation_year=2025, sample_size=3):
         final_df = conn.execute(final_check, [simulation_year, employee_id]).df()
 
         if not final_df.empty:
-            final_status = final_df.iloc[0]['employment_status']
+            final_status = final_df.iloc[0]["employment_status"]
             print(f"📋 Final status in snapshot: {final_status}")
-            if final_status != 'terminated':
+            if final_status != "terminated":
                 print("🚨 ISSUE: Employee should be terminated but isn't!")
         else:
             print("❌ Employee not found in final snapshot")
+
 
 def validate_join_conditions(conn, simulation_year=2025):
     """Validate JOIN conditions and data quality"""
@@ -268,6 +285,7 @@ def validate_join_conditions(conn, simulation_year=2025):
     print("\nCase sensitivity check:")
     print(case_df.to_string(index=False))
 
+
 def main():
     print("🔍 WORKFORCE TERMINATION LOGIC DEBUGGING")
     print("=" * 80)
@@ -288,7 +306,9 @@ def main():
         print(f"Variance: {variance} ({variance_pct:.1f}%)")
 
         if variance > 0:
-            print("🚨 ISSUE DETECTED: More termination events than terminated employees!")
+            print(
+                "🚨 ISSUE DETECTED: More termination events than terminated employees!"
+            )
         else:
             print("✅ Termination counts match")
 
@@ -301,6 +321,7 @@ def main():
     except Exception as e:
         print(f"❌ Error during debugging: {e}")
         sys.exit(1)
+
 
 if __name__ == "__main__":
     main()

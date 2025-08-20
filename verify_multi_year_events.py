@@ -6,9 +6,11 @@ This script verifies that fct_yearly_events properly accumulates data across all
 Run this after a multi-year simulation to confirm all years are present.
 """
 
-import duckdb
-from pathlib import Path
 import sys
+from pathlib import Path
+
+import duckdb
+
 
 def check_multi_year_events():
     """Check that fct_yearly_events contains data for all simulation years."""
@@ -81,7 +83,9 @@ def check_multi_year_events():
         type_results = conn.execute(type_query).fetchall()
 
         for event_type, count, years_present in type_results:
-            print(f"   {event_type:<20}: {count:>6,} events across {years_present} years")
+            print(
+                f"   {event_type:<20}: {count:>6,} events across {years_present} years"
+            )
 
         # Validate data quality
         print("\n🔍 Data Quality Checks:")
@@ -100,14 +104,23 @@ def check_multi_year_events():
         dq_results = conn.execute(dq_query).fetchone()
         total, missing_id, missing_year, missing_type, missing_date = dq_results
 
-        if missing_id == 0 and missing_year == 0 and missing_type == 0 and missing_date == 0:
+        if (
+            missing_id == 0
+            and missing_year == 0
+            and missing_type == 0
+            and missing_date == 0
+        ):
             print("   ✅ All required fields populated")
         else:
             print(f"   ⚠️ Data quality issues:")
-            if missing_id > 0: print(f"      - {missing_id:,} records missing employee_id")
-            if missing_year > 0: print(f"      - {missing_year:,} records missing simulation_year")
-            if missing_type > 0: print(f"      - {missing_type:,} records missing event_type")
-            if missing_date > 0: print(f"      - {missing_date:,} records missing effective_date")
+            if missing_id > 0:
+                print(f"      - {missing_id:,} records missing employee_id")
+            if missing_year > 0:
+                print(f"      - {missing_year:,} records missing simulation_year")
+            if missing_type > 0:
+                print(f"      - {missing_type:,} records missing event_type")
+            if missing_date > 0:
+                print(f"      - {missing_date:,} records missing effective_date")
 
         # Check for expected multi-year pattern
         if len(years_found) == 1:
@@ -130,7 +143,9 @@ def check_multi_year_events():
             missing_years = expected_years - actual_years
 
             if missing_years:
-                print(f"   ⚠️ Missing years: {', '.join(map(str, sorted(missing_years)))}")
+                print(
+                    f"   ⚠️ Missing years: {', '.join(map(str, sorted(missing_years)))}"
+                )
             else:
                 print(f"   ✅ Complete year sequence: {min_year} - {max_year}")
 
@@ -149,6 +164,7 @@ def check_multi_year_events():
         except:
             pass
 
+
 def main():
     """Main function."""
     print("🎯 Multi-Year Events Verification Tool")
@@ -163,6 +179,7 @@ def main():
     else:
         print("\n❌ Verification failed - see issues above")
         sys.exit(1)
+
 
 if __name__ == "__main__":
     main()

@@ -10,26 +10,23 @@ This module handles:
 """
 
 from __future__ import annotations
-from typing import Dict, Any, List, Optional, Tuple, Union
-from datetime import datetime, date, timedelta
-import streamlit as st
-import pandas as pd
-import duckdb
+
+import hashlib
 import json
 import logging
-from pathlib import Path
-import hashlib
 import pickle
-from functools import wraps
 import time
+from datetime import date, datetime, timedelta
+from functools import wraps
+from pathlib import Path
+from typing import Any, Dict, List, Optional, Tuple, Union
 
+import duckdb
+import pandas as pd
+import streamlit as st
 from optimization_results_manager import get_optimization_results_manager
-from optimization_storage import (
-    OptimizationRun,
-    OptimizationType,
-    OptimizationStatus,
-    get_optimization_storage
-)
+from optimization_storage import (OptimizationRun, OptimizationStatus,
+                                  OptimizationType, get_optimization_storage)
 
 # Set up logging
 logger = logging.getLogger(__name__)
@@ -38,7 +35,10 @@ logger = logging.getLogger(__name__)
 class DuckDBIntegration:
     """Integration layer for DuckDB operations with optimization results."""
 
-    def __init__(self, db_path: str = "/Users/nicholasamaral/planwise_navigator/simulation.duckdb"):
+    def __init__(
+        self,
+        db_path: str = "/Users/nicholasamaral/planwise_navigator/simulation.duckdb",
+    ):
         """Initialize DuckDB integration."""
         self.db_path = Path(db_path)
         self.schema = "main"
@@ -56,13 +56,14 @@ class DuckDBIntegration:
             "parameter_application_success": False,
             "data_completeness_score": 0.0,
             "warnings": [],
-            "errors": []
+            "errors": [],
         }
 
         try:
             with self.get_connection() as conn:
                 # Check workforce snapshot integrity
-                workforce_check = conn.execute("""
+                workforce_check = conn.execute(
+                    """
                     SELECT
                         COUNT(*) as total_records,
                         COUNT(DISTINCT simulation_year) as year_count,
@@ -71,23 +72,28 @@ class DuckDBIntegration:
                         COUNT(DISTINCT employee_id) as unique_employees
                     FROM fct_workforce_snapshot
                     WHERE simulation_year >= 2025
-                """).fetchone()
+                """
+                ).fetchone()
 
                 if workforce_check and workforce_check[0] > 0:
                     quality_metrics["workforce_snapshot_integrity"] = True
                     quality_metrics["data_completeness_score"] += 0.3
                 else:
-                    quality_metrics["warnings"].append("No recent workforce snapshot data found")
+                    quality_metrics["warnings"].append(
+                        "No recent workforce snapshot data found"
+                    )
 
                 # Check event data consistency
-                events_check = conn.execute("""
+                events_check = conn.execute(
+                    """
                     SELECT
                         COUNT(*) as total_events,
                         COUNT(DISTINCT event_type) as event_types,
                         COUNT(DISTINCT simulation_year) as event_years
                     FROM fct_yearly_events
                     WHERE simulation_year >= 2025
-                """).fetchone()
+                """
+                ).fetchone()
 
                 if events_check and events_check[0] > 0:
                     quality_metrics["event_data_consistency"] = True
@@ -96,20 +102,24 @@ class DuckDBIntegration:
                     quality_metrics["warnings"].append("Limited event data available")
 
                 # Check parameter application
-                params_check = conn.execute("""
+                params_check = conn.execute(
+                    """
                     SELECT
                         COUNT(*) as param_count,
                         COUNT(DISTINCT simulation_year) as param_years,
                         MAX(last_updated) as last_param_update
                     FROM int_effective_parameters
                     WHERE simulation_year >= 2025
-                """).fetchone()
+                """
+                ).fetchone()
 
                 if params_check and params_check[0] > 0:
                     quality_metrics["parameter_application_success"] = True
                     quality_metrics["data_completeness_score"] += 0.4
                 else:
-                    quality_metrics["errors"].append("Parameter application may have failed")
+                    quality_metrics["errors"].append(
+                        "Parameter application may have failed"
+                    )
 
                 # Additional consistency checks
                 self._check_data_consistency(conn, quality_metrics)
@@ -124,7 +134,8 @@ class DuckDBIntegration:
         """Perform additional data consistency checks."""
         try:
             # Check for reasonable workforce growth patterns
-            growth_check = conn.execute("""
+            growth_check = conn.execute(
+                """
                 SELECT
                     simulation_year,
                     COUNT(*) as headcount,
@@ -133,7 +144,8 @@ class DuckDBIntegration:
                 WHERE simulation_year BETWEEN 2025 AND 2029
                 GROUP BY simulation_year
                 ORDER BY simulation_year
-            """).fetchall()
+            """
+            ).fetchall()
 
             if growth_check:
                 for year_data in growth_check[1:]:  # Skip first year (no previous data)
@@ -147,12 +159,14 @@ class DuckDBIntegration:
                             )
 
             # Check for parameter value reasonableness
-            param_check = conn.execute("""
+            param_check = conn.execute(
+                """
                 SELECT parameter_name, parameter_value
                 FROM int_effective_parameters
                 WHERE simulation_year = 2025
                 AND parameter_name LIKE '%merit_rate%'
-            """).fetchall()
+            """
+            ).fetchall()
 
             for param_name, param_value in param_check:
                 if param_value < 0 or param_value > 0.2:  # Outside 0-20% range
@@ -168,7 +182,8 @@ class DuckDBIntegration:
         try:
             with self.get_connection() as conn:
                 # Workforce summary
-                workforce_summary = conn.execute("""
+                workforce_summary = conn.execute(
+                    """
                     SELECT
                         COUNT(*) as total_headcount,
                         AVG(current_compensation) as avg_compensation,
@@ -179,20 +194,26 @@ class DuckDBIntegration:
                         COUNT(CASE WHEN detailed_status_code LIKE '%termination%' THEN 1 END) as terminations
                     FROM fct_workforce_snapshot
                     WHERE simulation_year = ?
-                """, [year]).fetchone()
+                """,
+                    [year],
+                ).fetchone()
 
                 # Event summary
-                event_summary = conn.execute("""
+                event_summary = conn.execute(
+                    """
                     SELECT
                         event_type,
                         COUNT(*) as event_count
                     FROM fct_yearly_events
                     WHERE simulation_year = ?
                     GROUP BY event_type
-                """, [year]).fetchall()
+                """,
+                    [year],
+                ).fetchall()
 
                 # Parameter summary
-                param_summary = conn.execute("""
+                param_summary = conn.execute(
+                    """
                     SELECT
                         parameter_name,
                         parameter_value
@@ -202,28 +223,42 @@ class DuckDBIntegration:
                         'merit_rate_level_1', 'merit_rate_level_2', 'cola_rate',
                         'new_hire_salary_adjustment', 'promotion_probability_level_1'
                     )
-                """, [year]).fetchall()
+                """,
+                    [year],
+                ).fetchall()
 
                 return {
                     "year": year,
                     "workforce": {
-                        "total_headcount": workforce_summary[0] if workforce_summary else 0,
-                        "avg_compensation": workforce_summary[1] if workforce_summary else 0,
-                        "total_compensation": workforce_summary[2] if workforce_summary else 0,
+                        "total_headcount": workforce_summary[0]
+                        if workforce_summary
+                        else 0,
+                        "avg_compensation": workforce_summary[1]
+                        if workforce_summary
+                        else 0,
+                        "total_compensation": workforce_summary[2]
+                        if workforce_summary
+                        else 0,
                         "job_levels": workforce_summary[3] if workforce_summary else 0,
-                        "continuing_employees": workforce_summary[4] if workforce_summary else 0,
+                        "continuing_employees": workforce_summary[4]
+                        if workforce_summary
+                        else 0,
                         "new_hires": workforce_summary[5] if workforce_summary else 0,
-                        "terminations": workforce_summary[6] if workforce_summary else 0
+                        "terminations": workforce_summary[6]
+                        if workforce_summary
+                        else 0,
                     },
                     "events": {event[0]: event[1] for event in event_summary},
-                    "parameters": {param[0]: param[1] for param in param_summary}
+                    "parameters": {param[0]: param[1] for param in param_summary},
                 }
 
         except Exception as e:
             logger.error(f"Failed to get simulation summary for year {year}: {e}")
             return {"error": str(e)}
 
-    def get_multi_year_summary(self, start_year: int = 2025, end_year: int = 2029) -> Dict[str, Any]:
+    def get_multi_year_summary(
+        self, start_year: int = 2025, end_year: int = 2029
+    ) -> Dict[str, Any]:
         """Get simulation summary across multiple years."""
         summaries = {}
         for year in range(start_year, end_year + 1):
@@ -234,28 +269,41 @@ class DuckDBIntegration:
         years = sorted(summaries.keys())
         for i in range(1, len(years)):
             current_year = years[i]
-            prev_year = years[i-1]
+            prev_year = years[i - 1]
 
-            if 'error' not in summaries[current_year] and 'error' not in summaries[prev_year]:
+            if (
+                "error" not in summaries[current_year]
+                and "error" not in summaries[prev_year]
+            ):
                 current_hc = summaries[current_year]["workforce"]["total_headcount"]
                 prev_hc = summaries[prev_year]["workforce"]["total_headcount"]
 
-                current_comp = summaries[current_year]["workforce"]["total_compensation"]
+                current_comp = summaries[current_year]["workforce"][
+                    "total_compensation"
+                ]
                 prev_comp = summaries[prev_year]["workforce"]["total_compensation"]
 
                 yoy_metrics[current_year] = {
-                    "headcount_growth": (current_hc - prev_hc) / prev_hc if prev_hc > 0 else 0,
-                    "compensation_growth": (current_comp - prev_comp) / prev_comp if prev_comp > 0 else 0
+                    "headcount_growth": (current_hc - prev_hc) / prev_hc
+                    if prev_hc > 0
+                    else 0,
+                    "compensation_growth": (current_comp - prev_comp) / prev_comp
+                    if prev_comp > 0
+                    else 0,
                 }
 
         return {
             "year_summaries": summaries,
             "yoy_metrics": yoy_metrics,
             "overall": {
-                "years_analyzed": len([s for s in summaries.values() if 'error' not in s]),
+                "years_analyzed": len(
+                    [s for s in summaries.values() if "error" not in s]
+                ),
                 "total_years": len(summaries),
-                "data_quality": "good" if all('error' not in s for s in summaries.values()) else "partial"
-            }
+                "data_quality": "good"
+                if all("error" not in s for s in summaries.values())
+                else "partial",
+            },
         }
 
 
@@ -286,12 +334,14 @@ class OptimizationCache:
         file_time = datetime.fromtimestamp(cache_path.stat().st_mtime)
         return datetime.now() - file_time < self.cache_ttl
 
-    def get_cached_simulation_results(self, parameters: Dict[str, float], year: int) -> Optional[Dict[str, Any]]:
+    def get_cached_simulation_results(
+        self, parameters: Dict[str, float], year: int
+    ) -> Optional[Dict[str, Any]]:
         """Get cached simulation results for specific parameters and year."""
         cache_key_data = {
             "type": "simulation_results",
             "parameters": parameters,
-            "year": year
+            "year": year,
         }
         cache_key = self._get_cache_key(cache_key_data)
 
@@ -303,7 +353,7 @@ class OptimizationCache:
         cache_path = self._get_cache_path(cache_key)
         if self._is_cache_valid(cache_path):
             try:
-                with open(cache_path, 'rb') as f:
+                with open(cache_path, "rb") as f:
                     cached_data = pickle.load(f)
                     self.session_cache[cache_key] = cached_data
                     return cached_data
@@ -312,12 +362,14 @@ class OptimizationCache:
 
         return None
 
-    def cache_simulation_results(self, parameters: Dict[str, float], year: int, results: Dict[str, Any]):
+    def cache_simulation_results(
+        self, parameters: Dict[str, float], year: int, results: Dict[str, Any]
+    ):
         """Cache simulation results for specific parameters and year."""
         cache_key_data = {
             "type": "simulation_results",
             "parameters": parameters,
-            "year": year
+            "year": year,
         }
         cache_key = self._get_cache_key(cache_key_data)
 
@@ -327,17 +379,16 @@ class OptimizationCache:
         # Store in file cache
         cache_path = self._get_cache_path(cache_key)
         try:
-            with open(cache_path, 'wb') as f:
+            with open(cache_path, "wb") as f:
                 pickle.dump(results, f)
         except Exception as e:
             logger.warning(f"Failed to cache simulation results: {e}")
 
-    def get_cached_optimization_result(self, config_hash: str) -> Optional[OptimizationRun]:
+    def get_cached_optimization_result(
+        self, config_hash: str
+    ) -> Optional[OptimizationRun]:
         """Get cached optimization result by configuration hash."""
-        cache_key_data = {
-            "type": "optimization_result",
-            "config_hash": config_hash
-        }
+        cache_key_data = {"type": "optimization_result", "config_hash": config_hash}
         cache_key = self._get_cache_key(cache_key_data)
 
         # Check session cache first
@@ -348,7 +399,7 @@ class OptimizationCache:
         cache_path = self._get_cache_path(cache_key)
         if self._is_cache_valid(cache_path):
             try:
-                with open(cache_path, 'rb') as f:
+                with open(cache_path, "rb") as f:
                     cached_data = pickle.load(f)
                     self.session_cache[cache_key] = cached_data
                     return cached_data
@@ -359,10 +410,7 @@ class OptimizationCache:
 
     def cache_optimization_result(self, config_hash: str, result: OptimizationRun):
         """Cache optimization result by configuration hash."""
-        cache_key_data = {
-            "type": "optimization_result",
-            "config_hash": config_hash
-        }
+        cache_key_data = {"type": "optimization_result", "config_hash": config_hash}
         cache_key = self._get_cache_key(cache_key_data)
 
         # Store in session cache
@@ -371,7 +419,7 @@ class OptimizationCache:
         # Store in file cache
         cache_path = self._get_cache_path(cache_key)
         try:
-            with open(cache_path, 'wb') as f:
+            with open(cache_path, "wb") as f:
                 pickle.dump(result, f)
         except Exception as e:
             logger.warning(f"Failed to cache optimization result: {e}")
@@ -399,12 +447,13 @@ class OptimizationCache:
             "session_cache_size": len(self.session_cache),
             "file_cache_count": file_cache_count,
             "file_cache_size_mb": file_cache_size / (1024 * 1024),
-            "cache_directory": str(self.cache_dir)
+            "cache_directory": str(self.cache_dir),
         }
 
 
 def cached_function(cache_key_func=None, ttl_minutes=60):
     """Decorator for caching function results."""
+
     def decorator(func):
         @wraps(func)
         def wrapper(*args, **kwargs):
@@ -415,7 +464,7 @@ def cached_function(cache_key_func=None, ttl_minutes=60):
                 cache_key_data = {
                     "function": func.__name__,
                     "args": args,
-                    "kwargs": kwargs
+                    "kwargs": kwargs,
                 }
 
             cache_key = hashlib.md5(
@@ -441,12 +490,16 @@ def cached_function(cache_key_func=None, ttl_minutes=60):
 
             # Cleanup old cache entries (keep only last 50)
             if len(cache) > 50:
-                oldest_keys = sorted(cache.keys(), key=lambda k: cache[k][1])[:len(cache)-50]
+                oldest_keys = sorted(cache.keys(), key=lambda k: cache[k][1])[
+                    : len(cache) - 50
+                ]
                 for old_key in oldest_keys:
                     del cache[old_key]
 
             return result
+
         return wrapper
+
     return decorator
 
 
@@ -459,39 +512,37 @@ class LegacyCompatibility:
         # This function handles conversion from old pickle/JSON formats
         # that might exist in the system
 
-        from optimization_storage import (
-            OptimizationMetadata, OptimizationConfiguration,
-            OptimizationResults, OptimizationRun,
-            OptimizationType, OptimizationEngine, OptimizationStatus
-        )
+        from optimization_storage import (OptimizationConfiguration,
+                                          OptimizationEngine,
+                                          OptimizationMetadata,
+                                          OptimizationResults, OptimizationRun,
+                                          OptimizationStatus, OptimizationType)
 
         # Extract metadata
         metadata = OptimizationMetadata(
-            scenario_id=legacy_data.get('scenario_id', 'legacy_import'),
+            scenario_id=legacy_data.get("scenario_id", "legacy_import"),
             optimization_type=OptimizationType.MANUAL_ADJUSTMENT,
             optimization_engine=OptimizationEngine.MANUAL,
             status=OptimizationStatus.COMPLETED,
             description="Imported from legacy format",
-            tags=["legacy", "imported"]
+            tags=["legacy", "imported"],
         )
 
         # Extract configuration
         configuration = OptimizationConfiguration(
-            initial_parameters=legacy_data.get('initial_parameters', {}),
-            algorithm_config=legacy_data.get('algorithm_config', {})
+            initial_parameters=legacy_data.get("initial_parameters", {}),
+            algorithm_config=legacy_data.get("algorithm_config", {}),
         )
 
         # Extract results
         results = OptimizationResults(
-            objective_value=legacy_data.get('objective_value'),
-            optimal_parameters=legacy_data.get('optimal_parameters', {}),
-            risk_level=legacy_data.get('risk_level', 'MEDIUM')
+            objective_value=legacy_data.get("objective_value"),
+            optimal_parameters=legacy_data.get("optimal_parameters", {}),
+            risk_level=legacy_data.get("risk_level", "MEDIUM"),
         )
 
         return OptimizationRun(
-            metadata=metadata,
-            configuration=configuration,
-            results=results
+            metadata=metadata, configuration=configuration, results=results
         )
 
     @staticmethod
@@ -500,7 +551,7 @@ class LegacyCompatibility:
         imported_runs = []
 
         try:
-            with open(file_path, 'rb') as f:
+            with open(file_path, "rb") as f:
                 legacy_data = pickle.load(f)
 
             # Handle different legacy formats
@@ -570,7 +621,7 @@ def validate_optimization_environment() -> Dict[str, Any]:
         "cache_operational": False,
         "storage_initialized": False,
         "warnings": [],
-        "errors": []
+        "errors": [],
     }
 
     try:
@@ -586,7 +637,7 @@ def validate_optimization_environment() -> Dict[str, Any]:
             "fct_yearly_events",
             "int_effective_parameters",
             "optimization_runs",
-            "optimization_results"
+            "optimization_results",
         ]
 
         with db_integration.get_connection() as conn:
@@ -603,7 +654,10 @@ def validate_optimization_environment() -> Dict[str, Any]:
 
         # Check for recent data
         summary = get_cached_simulation_summary(2025)
-        if "error" not in summary and summary.get("workforce", {}).get("total_headcount", 0) > 0:
+        if (
+            "error" not in summary
+            and summary.get("workforce", {}).get("total_headcount", 0) > 0
+        ):
             validation_results["recent_data_available"] = True
         else:
             validation_results["warnings"].append("No recent simulation data found")

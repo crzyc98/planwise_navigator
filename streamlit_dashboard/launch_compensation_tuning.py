@@ -4,10 +4,11 @@ Simple launcher script for the compensation tuning interface.
 Run this script to start the Streamlit app for E012 compensation tuning.
 """
 
+import os
 import subprocess
 import sys
-import os
 from pathlib import Path
+
 
 def main():
     """Launch the compensation tuning Streamlit interface"""
@@ -29,17 +30,25 @@ def main():
         print("💡 Use Ctrl+C to stop the server")
         print("=" * 60)
 
-        subprocess.run([
-            sys.executable, "-m", "streamlit", "run",
-            "compensation_tuning.py",
-            "--server.port", "8501",
-            "--server.address", "localhost"
-        ])
+        subprocess.run(
+            [
+                sys.executable,
+                "-m",
+                "streamlit",
+                "run",
+                "compensation_tuning.py",
+                "--server.port",
+                "8501",
+                "--server.address",
+                "localhost",
+            ]
+        )
 
     except KeyboardInterrupt:
         print("\n👋 Shutting down Streamlit server...")
     except Exception as e:
         print(f"❌ Error launching Streamlit: {e}")
+
 
 if __name__ == "__main__":
     main()

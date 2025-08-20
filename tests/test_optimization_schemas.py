@@ -3,31 +3,28 @@ Tests for optimization_schemas.py module
 Validates parameter definitions, validation logic, and format transformations.
 """
 
-import pytest
-import sys
 import os
+import sys
 from pathlib import Path
+
+import pytest
 
 # Add the streamlit_dashboard directory to the path so we can import the schema
 sys.path.insert(0, str(Path(__file__).parent.parent / "streamlit_dashboard"))
 
-from optimization_schemas import (
-    ParameterSchema, ParameterDefinition, ParameterBounds, ParameterCategory,
-    ParameterType, ParameterUnit, RiskLevel, get_parameter_schema,
-    load_parameter_schema, get_default_parameters, validate_parameters,
-    assess_parameter_risk
-)
+from optimization_schemas import (ParameterBounds, ParameterCategory,
+                                  ParameterDefinition, ParameterSchema,
+                                  ParameterType, ParameterUnit, RiskLevel,
+                                  assess_parameter_risk,
+                                  get_default_parameters, get_parameter_schema,
+                                  load_parameter_schema, validate_parameters)
 
 
 class TestParameterBounds:
     """Test ParameterBounds validation."""
 
     def test_valid_bounds(self):
-        bounds = ParameterBounds(
-            min_value=0.01,
-            max_value=0.10,
-            default_value=0.05
-        )
+        bounds = ParameterBounds(min_value=0.01, max_value=0.10, default_value=0.05)
         assert bounds.min_value == 0.01
         assert bounds.max_value == 0.10
         assert bounds.default_value == 0.05
@@ -36,19 +33,11 @@ class TestParameterBounds:
 
     def test_invalid_bounds_order(self):
         with pytest.raises(ValueError, match="min_value.*must be less than max_value"):
-            ParameterBounds(
-                min_value=0.10,
-                max_value=0.01,
-                default_value=0.05
-            )
+            ParameterBounds(min_value=0.10, max_value=0.01, default_value=0.05)
 
     def test_invalid_default_value(self):
         with pytest.raises(ValueError, match="default_value.*must be within bounds"):
-            ParameterBounds(
-                min_value=0.01,
-                max_value=0.10,
-                default_value=0.15
-            )
+            ParameterBounds(min_value=0.01, max_value=0.10, default_value=0.15)
 
 
 class TestParameterDefinition:
@@ -64,7 +53,7 @@ class TestParameterDefinition:
             unit=ParameterUnit.PERCENTAGE,
             bounds=ParameterBounds(0.01, 0.10, 0.05),
             job_levels=[1, 2, 3],
-            is_level_specific=True
+            is_level_specific=True,
         )
 
         names = param.get_parameter_names()
@@ -80,7 +69,7 @@ class TestParameterDefinition:
             parameter_type=ParameterType.PERCENTAGE,
             unit=ParameterUnit.PERCENTAGE,
             bounds=ParameterBounds(0.0, 0.08, 0.025),
-            is_level_specific=False
+            is_level_specific=False,
         )
 
         names = param.get_parameter_names()
@@ -94,7 +83,7 @@ class TestParameterDefinition:
             category=ParameterCategory.MERIT,
             parameter_type=ParameterType.PERCENTAGE,
             unit=ParameterUnit.PERCENTAGE,
-            bounds=ParameterBounds(0.01, 0.10, 0.05, 0.02, 0.08)
+            bounds=ParameterBounds(0.01, 0.10, 0.05, 0.02, 0.08),
         )
 
         is_valid, messages, risk = param.validate_value(0.05)
@@ -109,7 +98,7 @@ class TestParameterDefinition:
             category=ParameterCategory.MERIT,
             parameter_type=ParameterType.PERCENTAGE,
             unit=ParameterUnit.PERCENTAGE,
-            bounds=ParameterBounds(0.01, 0.10, 0.05)
+            bounds=ParameterBounds(0.01, 0.10, 0.05),
         )
 
         is_valid, messages, risk = param.validate_value(0.15)
@@ -124,7 +113,7 @@ class TestParameterDefinition:
             category=ParameterCategory.MERIT,
             parameter_type=ParameterType.PERCENTAGE,
             unit=ParameterUnit.PERCENTAGE,
-            bounds=ParameterBounds(0.01, 0.15, 0.05)
+            bounds=ParameterBounds(0.01, 0.15, 0.05),
         )
 
         # Test high merit rate warning
@@ -152,8 +141,12 @@ class TestParameterSchema:
         cola_params = schema.get_parameters_by_category(ParameterCategory.COLA)
         assert len(cola_params) == 1  # Single COLA parameter
 
-        promotion_params = schema.get_parameters_by_category(ParameterCategory.PROMOTION)
-        assert len(promotion_params) == 10  # 5 levels × 2 parameters (probability + raise)
+        promotion_params = schema.get_parameters_by_category(
+            ParameterCategory.PROMOTION
+        )
+        assert (
+            len(promotion_params) == 10
+        )  # 5 levels × 2 parameters (probability + raise)
 
     def test_get_parameter(self):
         schema = ParameterSchema()
@@ -189,9 +182,9 @@ class TestParameterSchema:
         defaults = schema.get_default_parameters()
 
         results = schema.validate_parameter_set(defaults)
-        assert results['is_valid'] is True
-        assert results['overall_risk'] == RiskLevel.LOW
-        assert len(results['errors']) == 0
+        assert results["is_valid"] is True
+        assert results["overall_risk"] == RiskLevel.LOW
+        assert len(results["errors"]) == 0
 
     def test_parameter_set_validation_invalid(self):
         schema = ParameterSchema()
@@ -199,12 +192,12 @@ class TestParameterSchema:
 
         # Make some parameters invalid
         invalid_params = defaults.copy()
-        invalid_params['merit_rate_level_1'] = 0.20  # Above max
-        invalid_params['cola_rate'] = -0.01  # Below min
+        invalid_params["merit_rate_level_1"] = 0.20  # Above max
+        invalid_params["cola_rate"] = -0.01  # Below min
 
         results = schema.validate_parameter_set(invalid_params)
-        assert results['is_valid'] is False
-        assert len(results['errors']) > 0
+        assert results["is_valid"] is False
+        assert len(results["errors"]) > 0
 
     def test_format_transformation_to_compensation_tuning(self):
         schema = ParameterSchema()
@@ -213,55 +206,63 @@ class TestParameterSchema:
         comp_tuning_format = schema.transform_to_compensation_tuning_format(defaults)
 
         # Check structure
-        assert 'merit_base' in comp_tuning_format
-        assert 'cola_rate' in comp_tuning_format
-        assert 'new_hire_salary_adjustment' in comp_tuning_format
-        assert 'promotion_probability' in comp_tuning_format
-        assert 'promotion_raise' in comp_tuning_format
+        assert "merit_base" in comp_tuning_format
+        assert "cola_rate" in comp_tuning_format
+        assert "new_hire_salary_adjustment" in comp_tuning_format
+        assert "promotion_probability" in comp_tuning_format
+        assert "promotion_raise" in comp_tuning_format
 
         # Check merit rates are properly mapped
-        assert len(comp_tuning_format['merit_base']) == 5
+        assert len(comp_tuning_format["merit_base"]) == 5
         for level in range(1, 6):
-            assert level in comp_tuning_format['merit_base']
+            assert level in comp_tuning_format["merit_base"]
             expected_value = defaults[f"merit_rate_level_{level}"]
-            assert comp_tuning_format['merit_base'][level] == expected_value
+            assert comp_tuning_format["merit_base"][level] == expected_value
 
         # Check COLA is uniform across levels
-        assert len(comp_tuning_format['cola_rate']) == 5
-        cola_value = defaults['cola_rate']
+        assert len(comp_tuning_format["cola_rate"]) == 5
+        cola_value = defaults["cola_rate"]
         for level in range(1, 6):
-            assert comp_tuning_format['cola_rate'][level] == cola_value
+            assert comp_tuning_format["cola_rate"][level] == cola_value
 
     def test_format_transformation_from_compensation_tuning(self):
         schema = ParameterSchema()
 
         # Create compensation tuning format data
         comp_tuning_data = {
-            'merit_base': {1: 0.045, 2: 0.040, 3: 0.035, 4: 0.035, 5: 0.040},
-            'cola_rate': {1: 0.025, 2: 0.025, 3: 0.025, 4: 0.025, 5: 0.025},
-            'new_hire_salary_adjustment': {1: 1.15, 2: 1.15, 3: 1.15, 4: 1.15, 5: 1.15},
-            'promotion_probability': {1: 0.12, 2: 0.08, 3: 0.05, 4: 0.02, 5: 0.01},
-            'promotion_raise': {1: 0.12, 2: 0.12, 3: 0.12, 4: 0.12, 5: 0.12}
+            "merit_base": {1: 0.045, 2: 0.040, 3: 0.035, 4: 0.035, 5: 0.040},
+            "cola_rate": {1: 0.025, 2: 0.025, 3: 0.025, 4: 0.025, 5: 0.025},
+            "new_hire_salary_adjustment": {1: 1.15, 2: 1.15, 3: 1.15, 4: 1.15, 5: 1.15},
+            "promotion_probability": {1: 0.12, 2: 0.08, 3: 0.05, 4: 0.02, 5: 0.01},
+            "promotion_raise": {1: 0.12, 2: 0.12, 3: 0.12, 4: 0.12, 5: 0.12},
         }
 
-        standard_format = schema.transform_from_compensation_tuning_format(comp_tuning_data)
+        standard_format = schema.transform_from_compensation_tuning_format(
+            comp_tuning_data
+        )
 
         # Check merit rate conversion
         for level in range(1, 6):
             param_name = f"merit_rate_level_{level}"
             assert param_name in standard_format
-            assert standard_format[param_name] == comp_tuning_data['merit_base'][level]
+            assert standard_format[param_name] == comp_tuning_data["merit_base"][level]
 
         # Check uniform parameters
-        assert standard_format['cola_rate'] == 0.025
-        assert standard_format['new_hire_salary_adjustment'] == 1.15
+        assert standard_format["cola_rate"] == 0.025
+        assert standard_format["new_hire_salary_adjustment"] == 1.15
 
         # Check promotion parameters
         for level in range(1, 6):
             prob_name = f"promotion_probability_level_{level}"
             raise_name = f"promotion_raise_level_{level}"
-            assert standard_format[prob_name] == comp_tuning_data['promotion_probability'][level]
-            assert standard_format[raise_name] == comp_tuning_data['promotion_raise'][level]
+            assert (
+                standard_format[prob_name]
+                == comp_tuning_data["promotion_probability"][level]
+            )
+            assert (
+                standard_format[raise_name]
+                == comp_tuning_data["promotion_raise"][level]
+            )
 
     def test_round_trip_transformation(self):
         """Test that transformation to and from compensation tuning format preserves data."""
@@ -269,8 +270,12 @@ class TestParameterSchema:
         original_params = schema.get_default_parameters()
 
         # Transform to compensation tuning format and back
-        comp_tuning_format = schema.transform_to_compensation_tuning_format(original_params)
-        recovered_params = schema.transform_from_compensation_tuning_format(comp_tuning_format)
+        comp_tuning_format = schema.transform_to_compensation_tuning_format(
+            original_params
+        )
+        recovered_params = schema.transform_from_compensation_tuning_format(
+            comp_tuning_format
+        )
 
         # Check that we recover the original parameters
         for param_name, original_value in original_params.items():
@@ -282,22 +287,22 @@ class TestParameterSchema:
         groups = schema.get_parameter_groups()
 
         # Check expected groups exist
-        assert 'Merit Rates' in groups
-        assert 'Cost of Living' in groups
-        assert 'New Hire Parameters' in groups
-        assert 'Promotion Probabilities' in groups
-        assert 'Promotion Raises' in groups
+        assert "Merit Rates" in groups
+        assert "Cost of Living" in groups
+        assert "New Hire Parameters" in groups
+        assert "Promotion Probabilities" in groups
+        assert "Promotion Raises" in groups
 
         # Check merit rates group has 5 parameters
-        assert len(groups['Merit Rates']) == 5
+        assert len(groups["Merit Rates"]) == 5
 
         # Check promotion parameters are correctly separated
-        promo_probs = groups['Promotion Probabilities']
-        promo_raises = groups['Promotion Raises']
+        promo_probs = groups["Promotion Probabilities"]
+        promo_raises = groups["Promotion Raises"]
         assert len(promo_probs) == 5
         assert len(promo_raises) == 5
-        assert all('probability' in name for name in promo_probs.keys())
-        assert all('raise' in name for name in promo_raises.keys())
+        assert all("probability" in name for name in promo_probs.keys())
+        assert all("raise" in name for name in promo_raises.keys())
 
 
 class TestConvenienceFunctions:
@@ -315,12 +320,12 @@ class TestConvenienceFunctions:
         assert isinstance(schema_dict, dict)
 
         for param_name, param_info in schema_dict.items():
-            assert 'type' in param_info
-            assert 'unit' in param_info
-            assert 'range' in param_info
-            assert 'description' in param_info
-            assert len(param_info['range']) == 2
-            assert param_info['range'][0] < param_info['range'][1]
+            assert "type" in param_info
+            assert "unit" in param_info
+            assert "range" in param_info
+            assert "description" in param_info
+            assert len(param_info["range"]) == 2
+            assert param_info["range"][0] < param_info["range"][1]
 
     def test_get_default_parameters_function(self):
         defaults = get_default_parameters()
@@ -361,7 +366,7 @@ class TestIntegrationScenarios:
             value = defaults[param_name]
 
             # Check that default value is within range
-            assert param_info['range'][0] <= value <= param_info['range'][1]
+            assert param_info["range"][0] <= value <= param_info["range"][1]
 
     def test_compensation_tuning_compatibility(self):
         """Test compatibility with compensation_tuning.py usage patterns."""
@@ -369,24 +374,28 @@ class TestIntegrationScenarios:
 
         # Simulate loading parameters from compensation_tuning.py format
         comp_tuning_params = {
-            'merit_base': {1: 0.045, 2: 0.040, 3: 0.035, 4: 0.035, 5: 0.040},
-            'cola_rate': {1: 0.025, 2: 0.025, 3: 0.025, 4: 0.025, 5: 0.025},
-            'new_hire_salary_adjustment': {1: 1.15, 2: 1.15, 3: 1.15, 4: 1.15, 5: 1.15},
+            "merit_base": {1: 0.045, 2: 0.040, 3: 0.035, 4: 0.035, 5: 0.040},
+            "cola_rate": {1: 0.025, 2: 0.025, 3: 0.025, 4: 0.025, 5: 0.025},
+            "new_hire_salary_adjustment": {1: 1.15, 2: 1.15, 3: 1.15, 4: 1.15, 5: 1.15},
         }
 
         # Convert to standard format
-        standard_params = schema.transform_from_compensation_tuning_format(comp_tuning_params)
+        standard_params = schema.transform_from_compensation_tuning_format(
+            comp_tuning_params
+        )
 
         # Validate
         warnings, errors = validate_parameters(standard_params)
         assert len(errors) == 0
 
         # Convert back
-        recovered_params = schema.transform_to_compensation_tuning_format(standard_params)
+        recovered_params = schema.transform_to_compensation_tuning_format(
+            standard_params
+        )
 
         # Check key sections were preserved
-        assert recovered_params['merit_base'] == comp_tuning_params['merit_base']
-        assert recovered_params['cola_rate'] == comp_tuning_params['cola_rate']
+        assert recovered_params["merit_base"] == comp_tuning_params["merit_base"]
+        assert recovered_params["cola_rate"] == comp_tuning_params["cola_rate"]
 
     def test_extreme_parameter_values(self):
         """Test validation of extreme parameter values."""
@@ -394,17 +403,17 @@ class TestIntegrationScenarios:
 
         # Test extremely high values
         extreme_params = {
-            'merit_rate_level_1': 0.25,  # 25% merit increase
-            'cola_rate': 0.15,           # 15% COLA
-            'new_hire_salary_adjustment': 2.0,  # 200% premium
-            'promotion_probability_level_1': 0.8,  # 80% promotion rate
-            'promotion_raise_level_1': 0.5,     # 50% raise
+            "merit_rate_level_1": 0.25,  # 25% merit increase
+            "cola_rate": 0.15,  # 15% COLA
+            "new_hire_salary_adjustment": 2.0,  # 200% premium
+            "promotion_probability_level_1": 0.8,  # 80% promotion rate
+            "promotion_raise_level_1": 0.5,  # 50% raise
         }
 
         results = schema.validate_parameter_set(extreme_params)
-        assert results['is_valid'] is False
-        assert results['overall_risk'] in [RiskLevel.HIGH, RiskLevel.CRITICAL]
-        assert len(results['errors']) > 0
+        assert results["is_valid"] is False
+        assert results["overall_risk"] in [RiskLevel.HIGH, RiskLevel.CRITICAL]
+        assert len(results["errors"]) > 0
 
     def test_business_scenario_validation(self):
         """Test parameter sets representing realistic business scenarios."""
@@ -412,45 +421,47 @@ class TestIntegrationScenarios:
 
         # Conservative scenario
         conservative_params = {
-            'merit_rate_level_1': 0.02,
-            'merit_rate_level_2': 0.02,
-            'merit_rate_level_3': 0.02,
-            'merit_rate_level_4': 0.02,
-            'merit_rate_level_5': 0.02,
-            'cola_rate': 0.015,
-            'new_hire_salary_adjustment': 1.05,
-            'promotion_probability_level_1': 0.05,
-            'promotion_probability_level_2': 0.03,
-            'promotion_probability_level_3': 0.02,
-            'promotion_probability_level_4': 0.01,
-            'promotion_probability_level_5': 0.005,
-            'promotion_raise_level_1': 0.08,
-            'promotion_raise_level_2': 0.08,
-            'promotion_raise_level_3': 0.08,
-            'promotion_raise_level_4': 0.08,
-            'promotion_raise_level_5': 0.08,
+            "merit_rate_level_1": 0.02,
+            "merit_rate_level_2": 0.02,
+            "merit_rate_level_3": 0.02,
+            "merit_rate_level_4": 0.02,
+            "merit_rate_level_5": 0.02,
+            "cola_rate": 0.015,
+            "new_hire_salary_adjustment": 1.05,
+            "promotion_probability_level_1": 0.05,
+            "promotion_probability_level_2": 0.03,
+            "promotion_probability_level_3": 0.02,
+            "promotion_probability_level_4": 0.01,
+            "promotion_probability_level_5": 0.005,
+            "promotion_raise_level_1": 0.08,
+            "promotion_raise_level_2": 0.08,
+            "promotion_raise_level_3": 0.08,
+            "promotion_raise_level_4": 0.08,
+            "promotion_raise_level_5": 0.08,
         }
 
         results = schema.validate_parameter_set(conservative_params)
-        assert results['is_valid'] is True
-        assert results['overall_risk'] in [RiskLevel.LOW, RiskLevel.MEDIUM]
+        assert results["is_valid"] is True
+        assert results["overall_risk"] in [RiskLevel.LOW, RiskLevel.MEDIUM]
 
         # Aggressive scenario
         aggressive_params = conservative_params.copy()
-        aggressive_params.update({
-            'merit_rate_level_1': 0.08,
-            'merit_rate_level_2': 0.07,
-            'merit_rate_level_3': 0.06,
-            'merit_rate_level_4': 0.06,
-            'merit_rate_level_5': 0.07,
-            'cola_rate': 0.04,
-            'new_hire_salary_adjustment': 1.25,
-        })
+        aggressive_params.update(
+            {
+                "merit_rate_level_1": 0.08,
+                "merit_rate_level_2": 0.07,
+                "merit_rate_level_3": 0.06,
+                "merit_rate_level_4": 0.06,
+                "merit_rate_level_5": 0.07,
+                "cola_rate": 0.04,
+                "new_hire_salary_adjustment": 1.25,
+            }
+        )
 
         results = schema.validate_parameter_set(aggressive_params)
-        assert results['is_valid'] is True
+        assert results["is_valid"] is True
         # Risk could be medium or high depending on exact values
-        assert results['overall_risk'] in [RiskLevel.MEDIUM, RiskLevel.HIGH]
+        assert results["overall_risk"] in [RiskLevel.MEDIUM, RiskLevel.HIGH]
 
 
 if __name__ == "__main__":

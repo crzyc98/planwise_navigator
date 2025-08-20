@@ -5,28 +5,29 @@ This module tests circuit breakers, retry mechanisms, error classification,
 and multi-year simulation error handling capabilities.
 """
 
-import pytest
 import time
-from unittest.mock import Mock, patch, MagicMock
 from datetime import datetime, timedelta
-from typing import Dict, Any
+from typing import Any, Dict
+from unittest.mock import MagicMock, Mock, patch
 
-from orchestrator_mvp.utils.error_handling import (
-    CircuitBreaker, CircuitBreakerConfig, CircuitState,
-    RetryHandler, RetryConfig,
-    ErrorClassifier, ErrorSeverity, ErrorCategory,
-    ErrorContext, CircuitBreakerOpenError,
-    with_circuit_breaker, with_retry, with_error_handling
-)
+import pytest
+from orchestrator_mvp.utils.error_handling import (CircuitBreaker,
+                                                   CircuitBreakerConfig,
+                                                   CircuitBreakerOpenError,
+                                                   CircuitState, ErrorCategory,
+                                                   ErrorClassifier,
+                                                   ErrorContext, ErrorSeverity,
+                                                   RetryConfig, RetryHandler,
+                                                   with_circuit_breaker,
+                                                   with_error_handling,
+                                                   with_retry)
 from orchestrator_mvp.utils.multi_year_error_handling import (
-    CheckpointManager, CheckpointType, SimulationCheckpoint,
-    MultiYearStateRecovery, MultiYearErrorContext,
-    create_multi_year_error_context
-)
+    CheckpointManager, CheckpointType, MultiYearErrorContext,
+    MultiYearStateRecovery, SimulationCheckpoint,
+    create_multi_year_error_context)
 from orchestrator_mvp.utils.simulation_resilience import (
-    ResilientDbtExecutor, ResilientDatabaseManager,
-    MultiYearOrchestrationResilience
-)
+    MultiYearOrchestrationResilience, ResilientDatabaseManager,
+    ResilientDbtExecutor)
 
 
 class TestErrorClassifier:
@@ -150,7 +151,7 @@ class TestCircuitBreaker:
         config = CircuitBreakerConfig(
             failure_threshold=1,
             recovery_timeout_seconds=0.1,  # Very short for testing
-            success_threshold=1
+            success_threshold=1,
         )
         breaker = CircuitBreaker("test", config)
 
@@ -285,7 +286,7 @@ class TestRetryHandler:
         config = RetryConfig(
             base_delay_seconds=0.1,
             exponential_backoff_multiplier=2.0,
-            jitter_enabled=False
+            jitter_enabled=False,
         )
         handler = RetryHandler("test", config)
 
@@ -338,11 +339,7 @@ class TestErrorHandlingDecorators:
 
         attempt_count = 0
 
-        @with_error_handling(
-            "test_comprehensive",
-            circuit_config,
-            retry_config
-        )
+        @with_error_handling("test_comprehensive", circuit_config, retry_config)
         def test_func():
             nonlocal attempt_count
             attempt_count += 1
@@ -368,10 +365,7 @@ class TestCheckpointManager:
         state_data = {"year": 2025, "status": "completed"}
 
         checkpoint = checkpoint_manager.create_checkpoint(
-            CheckpointType.YEAR_COMPLETE,
-            2025,
-            state_data,
-            metadata={"test": True}
+            CheckpointType.YEAR_COMPLETE, 2025, state_data, metadata={"test": True}
         )
 
         assert checkpoint.checkpoint_type == CheckpointType.YEAR_COMPLETE
@@ -384,17 +378,13 @@ class TestCheckpointManager:
         """Test getting latest checkpoint."""
         # Create multiple checkpoints
         checkpoint1 = checkpoint_manager.create_checkpoint(
-            CheckpointType.YEAR_START,
-            2025,
-            {"status": "starting"}
+            CheckpointType.YEAR_START, 2025, {"status": "starting"}
         )
 
         time.sleep(0.01)  # Ensure different timestamps
 
         checkpoint2 = checkpoint_manager.create_checkpoint(
-            CheckpointType.YEAR_COMPLETE,
-            2025,
-            {"status": "completed"}
+            CheckpointType.YEAR_COMPLETE, 2025, {"status": "completed"}
         )
 
         # Get latest checkpoint
@@ -402,7 +392,9 @@ class TestCheckpointManager:
         assert latest.checkpoint_id == checkpoint2.checkpoint_id
 
         # Get latest of specific type
-        latest_start = checkpoint_manager.get_latest_checkpoint(2025, CheckpointType.YEAR_START)
+        latest_start = checkpoint_manager.get_latest_checkpoint(
+            2025, CheckpointType.YEAR_START
+        )
         assert latest_start.checkpoint_id == checkpoint1.checkpoint_id
 
     def test_checkpoint_validation(self, checkpoint_manager):
@@ -410,9 +402,7 @@ class TestCheckpointManager:
         state_data = {"year": 2025, "status": "test"}
 
         checkpoint = checkpoint_manager.create_checkpoint(
-            CheckpointType.YEAR_COMPLETE,
-            2025,
-            state_data
+            CheckpointType.YEAR_COMPLETE, 2025, state_data
         )
 
         # Should validate successfully
@@ -426,15 +416,11 @@ class TestCheckpointManager:
         """Test getting resume checkpoint."""
         # Create year complete checkpoints
         checkpoint_2025 = checkpoint_manager.create_checkpoint(
-            CheckpointType.YEAR_COMPLETE,
-            2025,
-            {"year": 2025, "status": "completed"}
+            CheckpointType.YEAR_COMPLETE, 2025, {"year": 2025, "status": "completed"}
         )
 
         checkpoint_2026 = checkpoint_manager.create_checkpoint(
-            CheckpointType.YEAR_COMPLETE,
-            2026,
-            {"year": 2026, "status": "completed"}
+            CheckpointType.YEAR_COMPLETE, 2026, {"year": 2026, "status": "completed"}
         )
 
         # Should resume from 2027 (after latest completed year)
@@ -449,15 +435,11 @@ class TestCheckpointManager:
         """Test checkpoint summary functionality."""
         # Create various checkpoints
         checkpoint_manager.create_checkpoint(
-            CheckpointType.YEAR_START,
-            2025,
-            {"status": "starting"}
+            CheckpointType.YEAR_START, 2025, {"status": "starting"}
         )
 
         checkpoint_manager.create_checkpoint(
-            CheckpointType.YEAR_COMPLETE,
-            2025,
-            {"status": "completed"}
+            CheckpointType.YEAR_COMPLETE, 2025, {"status": "completed"}
         )
 
         summary = checkpoint_manager.get_checkpoint_summary()
@@ -491,8 +473,10 @@ class TestMultiYearStateRecovery:
         """Create a state recovery manager for testing."""
         return MultiYearStateRecovery(checkpoint_manager)
 
-    @patch('orchestrator_mvp.utils.multi_year_error_handling.get_connection')
-    def test_detect_incomplete_simulation(self, mock_get_connection, state_recovery, mock_database_connection):
+    @patch("orchestrator_mvp.utils.multi_year_error_handling.get_connection")
+    def test_detect_incomplete_simulation(
+        self, mock_get_connection, state_recovery, mock_database_connection
+    ):
         """Test detection of incomplete simulation."""
         mock_get_connection.return_value = mock_database_connection
 
@@ -503,7 +487,7 @@ class TestMultiYearStateRecovery:
             if year == 2025:
                 result.fetchone.return_value = [100]  # Completed year
             else:
-                result.fetchone.return_value = [0]    # Missing year
+                result.fetchone.return_value = [0]  # Missing year
             return result
 
         mock_database_connection.execute.side_effect = mock_execute
@@ -516,8 +500,10 @@ class TestMultiYearStateRecovery:
         assert 2027 in detection["missing_years"]
         assert detection["resume_recommendation"] == 2026
 
-    @patch('orchestrator_mvp.utils.multi_year_error_handling.get_connection')
-    def test_validate_multi_year_consistency(self, mock_get_connection, state_recovery, mock_database_connection):
+    @patch("orchestrator_mvp.utils.multi_year_error_handling.get_connection")
+    def test_validate_multi_year_consistency(
+        self, mock_get_connection, state_recovery, mock_database_connection
+    ):
         """Test multi-year consistency validation."""
         mock_get_connection.return_value = mock_database_connection
 
@@ -535,13 +521,7 @@ class TestMultiYearStateRecovery:
         error = Exception("Test error")
 
         context = create_multi_year_error_context(
-            error,
-            "test_operation",
-            2025,
-            "test_step",
-            5,
-            [2024],
-            []
+            error, "test_operation", 2025, "test_step", 5, [2024], []
         )
 
         assert context.simulation_year == 2025
@@ -577,7 +557,7 @@ class TestResilientDbtExecutor:
         resource_error = Exception("memory exceeded")
         assert executor._classify_dbt_error(resource_error, "test") == "resource"
 
-    @patch('orchestrator_mvp.utils.simulation_resilience.run_dbt_model_with_vars')
+    @patch("orchestrator_mvp.utils.simulation_resilience.run_dbt_model_with_vars")
     def test_run_model_with_resilience_success(self, mock_run_dbt):
         """Test successful model execution with resilience."""
         mock_run_dbt.return_value = {"success": True}
@@ -609,7 +589,7 @@ class TestResilientDatabaseManager:
         assert hasattr(manager, "db_config")
         assert hasattr(manager, "retry_config")
 
-    @patch('orchestrator_mvp.utils.simulation_resilience.get_connection')
+    @patch("orchestrator_mvp.utils.simulation_resilience.get_connection")
     def test_execute_query_with_resilience(self, mock_get_connection):
         """Test resilient query execution."""
         mock_conn = Mock()
@@ -617,13 +597,15 @@ class TestResilientDatabaseManager:
         mock_get_connection.return_value = mock_conn
 
         manager = ResilientDatabaseManager()
-        result = manager.execute_query_with_resilience("SELECT * FROM test", operation_name="test_query")
+        result = manager.execute_query_with_resilience(
+            "SELECT * FROM test", operation_name="test_query"
+        )
 
         assert result == "query_result"
         mock_conn.execute.assert_called_once_with("SELECT * FROM test")
         mock_conn.close.assert_called_once()
 
-    @patch('orchestrator_mvp.utils.simulation_resilience.get_connection')
+    @patch("orchestrator_mvp.utils.simulation_resilience.get_connection")
     def test_validate_data_consistency(self, mock_get_connection):
         """Test data consistency validation."""
         mock_conn = Mock()
@@ -646,7 +628,9 @@ class TestMultiYearOrchestrationResilience:
     def orchestration_resilience(self, tmp_path):
         """Create orchestration resilience manager for testing."""
         # Mock checkpoint manager with temporary directory
-        with patch('orchestrator_mvp.utils.simulation_resilience.get_checkpoint_manager') as mock_get_cm:
+        with patch(
+            "orchestrator_mvp.utils.simulation_resilience.get_checkpoint_manager"
+        ) as mock_get_cm:
             mock_cm = CheckpointManager(str(tmp_path / "checkpoints"))
             mock_get_cm.return_value = mock_cm
 
@@ -666,8 +650,10 @@ class TestMultiYearOrchestrationResilience:
             pass
 
         # Check that year complete checkpoint was created
-        latest_checkpoint = orchestration_resilience.checkpoint_manager.get_latest_checkpoint(
-            2025, CheckpointType.YEAR_COMPLETE
+        latest_checkpoint = (
+            orchestration_resilience.checkpoint_manager.get_latest_checkpoint(
+                2025, CheckpointType.YEAR_COMPLETE
+            )
         )
         assert latest_checkpoint is not None
         assert latest_checkpoint.simulation_year == 2025
@@ -680,8 +666,10 @@ class TestMultiYearOrchestrationResilience:
                 raise ValueError("Simulated failure")
 
         # Check that error checkpoint was created
-        error_checkpoint = orchestration_resilience.checkpoint_manager.get_latest_checkpoint(
-            2025, CheckpointType.ERROR_CHECKPOINT
+        error_checkpoint = (
+            orchestration_resilience.checkpoint_manager.get_latest_checkpoint(
+                2025, CheckpointType.ERROR_CHECKPOINT
+            )
         )
         assert error_checkpoint is not None
         assert "failed" in error_checkpoint.state_data["status"]
@@ -693,8 +681,10 @@ class TestMultiYearOrchestrationResilience:
             time.sleep(0.01)  # Brief execution time
 
         # Check that step complete checkpoint was created
-        step_checkpoint = orchestration_resilience.checkpoint_manager.get_latest_checkpoint(
-            2025, CheckpointType.STEP_COMPLETE
+        step_checkpoint = (
+            orchestration_resilience.checkpoint_manager.get_latest_checkpoint(
+                2025, CheckpointType.STEP_COMPLETE
+            )
         )
         assert step_checkpoint is not None
         assert step_checkpoint.step_name == "test_step"
@@ -707,14 +697,18 @@ class TestMultiYearOrchestrationResilience:
                 raise RuntimeError("Step failed")
 
         # Check that error checkpoint was created
-        error_checkpoint = orchestration_resilience.checkpoint_manager.get_latest_checkpoint(
-            2025, CheckpointType.ERROR_CHECKPOINT
+        error_checkpoint = (
+            orchestration_resilience.checkpoint_manager.get_latest_checkpoint(
+                2025, CheckpointType.ERROR_CHECKPOINT
+            )
         )
         assert error_checkpoint is not None
         assert error_checkpoint.step_name == "test_step"
 
-    @patch('orchestrator_mvp.utils.simulation_resilience.get_connection')
-    def test_validate_resume_conditions(self, mock_get_connection, orchestration_resilience):
+    @patch("orchestrator_mvp.utils.simulation_resilience.get_connection")
+    def test_validate_resume_conditions(
+        self, mock_get_connection, orchestration_resilience
+    ):
         """Test validation of resume conditions."""
         # Mock database connection
         mock_conn = Mock()
@@ -723,9 +717,7 @@ class TestMultiYearOrchestrationResilience:
 
         # Create a year complete checkpoint
         orchestration_resilience.checkpoint_manager.create_checkpoint(
-            CheckpointType.YEAR_COMPLETE,
-            2025,
-            {"year": 2025, "status": "completed"}
+            CheckpointType.YEAR_COMPLETE, 2025, {"year": 2025, "status": "completed"}
         )
 
         validation = orchestration_resilience.validate_resume_conditions(2025, 2027)
@@ -747,11 +739,7 @@ class TestIntegration:
 
         attempt_count = 0
 
-        @with_error_handling(
-            "integration_test",
-            circuit_config,
-            retry_config
-        )
+        @with_error_handling("integration_test", circuit_config, retry_config)
         def test_function():
             nonlocal attempt_count
             attempt_count += 1
@@ -770,7 +758,7 @@ class TestIntegration:
         # Check that we made the expected number of attempts
         assert attempt_count == 3  # Max attempts from retry config
 
-    @patch('orchestrator_mvp.utils.multi_year_error_handling.get_connection')
+    @patch("orchestrator_mvp.utils.multi_year_error_handling.get_connection")
     def test_multi_year_error_recovery_integration(self, mock_get_connection, tmp_path):
         """Test integration of multi-year error recovery."""
         # Setup mock database
@@ -784,9 +772,7 @@ class TestIntegration:
 
         # Create some checkpoints
         checkpoint_manager.create_checkpoint(
-            CheckpointType.YEAR_COMPLETE,
-            2025,
-            {"year": 2025, "status": "completed"}
+            CheckpointType.YEAR_COMPLETE, 2025, {"year": 2025, "status": "completed"}
         )
 
         # Test incomplete simulation detection
@@ -815,7 +801,9 @@ class TestIntegration:
         assert "total_dbt_operations" in dbt_stats
 
         # Test error classification
-        error_type = dbt_executor._classify_dbt_error(Exception("compilation error"), "test")
+        error_type = dbt_executor._classify_dbt_error(
+            Exception("compilation error"), "test"
+        )
         assert error_type == "compilation"
 
 

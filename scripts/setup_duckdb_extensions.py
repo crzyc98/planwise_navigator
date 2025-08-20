@@ -4,13 +4,15 @@ Setup script to install DuckDB extensions locally.
 Run this once to avoid network download issues during pipeline execution.
 """
 
-import duckdb
 import sys
 from pathlib import Path
 
+import duckdb
+
+
 def setup_extensions():
     """Install DuckDB extensions locally."""
-    extensions_to_install = ['parquet', 'httpfs']
+    extensions_to_install = ["parquet", "httpfs"]
 
     print("Setting up DuckDB extensions...")
 
@@ -29,12 +31,14 @@ def setup_extensions():
 
         # Verify all extensions
         print("\nVerifying installed extensions:")
-        installed = conn.execute("""
+        installed = conn.execute(
+            """
             SELECT extension_name, installed, loaded
             FROM duckdb_extensions()
             WHERE extension_name IN ('parquet', 'httpfs')
             ORDER BY extension_name
-        """).fetchall()
+        """
+        ).fetchall()
 
         for ext_name, installed, loaded in installed:
             status = "✅" if installed and loaded else "❌"
@@ -66,6 +70,7 @@ def setup_extensions():
 
     print("\n🎉 DuckDB extension setup completed!")
     return True
+
 
 if __name__ == "__main__":
     success = setup_extensions()

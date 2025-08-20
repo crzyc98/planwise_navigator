@@ -15,15 +15,14 @@ from enum import Enum
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
-from .config import SimulationConfig
-from .config import to_dbt_vars
-from .dbt_runner import DbtRunner, DbtResult
+from .checkpoint_manager import CheckpointManager
+from .config import SimulationConfig, to_dbt_vars
+from .dbt_runner import DbtResult, DbtRunner
+from .recovery_orchestrator import RecoveryOrchestrator
 from .registries import RegistryManager
+from .reports import MultiYearReporter, MultiYearSummary, YearAuditor
 from .utils import DatabaseConnectionManager, ExecutionMutex, time_block
 from .validation import DataValidator
-from .reports import MultiYearReporter, YearAuditor, MultiYearSummary
-from .checkpoint_manager import CheckpointManager
-from .recovery_orchestrator import RecoveryOrchestrator
 
 
 class PipelineStageError(RuntimeError):
@@ -83,6 +82,7 @@ class PipelineOrchestrator:
         if self.verbose:
             try:
                 import json as _json
+
                 print("\n🔎 Navigator Orchestrator dbt_vars (from config):")
                 print(_json.dumps(self._dbt_vars, indent=2, sort_keys=True))
             except Exception:
@@ -96,10 +96,9 @@ class PipelineOrchestrator:
         self.enhanced_checkpoints = enhanced_checkpoints
         if enhanced_checkpoints:
             # Determine database path from db_manager
-            db_path = getattr(db_manager, 'db_path', 'simulation.duckdb')
+            db_path = getattr(db_manager, "db_path", "simulation.duckdb")
             self.checkpoint_manager = CheckpointManager(
-                checkpoint_dir=str(checkpoints_dir),
-                db_path=str(db_path)
+                checkpoint_dir=str(checkpoints_dir), db_path=str(db_path)
             )
             self.recovery_orchestrator = RecoveryOrchestrator(self.checkpoint_manager)
             self.config_hash = self._calculate_config_hash()
@@ -140,29 +139,55 @@ class PipelineOrchestrator:
                         er.reset()
                         dr.reset()
                         if self.verbose:
-                            print("🧹 Cleared enrollment/deferral registries for fresh run")
+                            print(
+                                "🧹 Cleared enrollment/deferral registries for fresh run"
+                            )
                 except Exception:
                     # Non-fatal; proceed even if reset fails
                     pass
             completed_years: List[int] = []
             for year in range(start, end + 1):
                 print(f"\n🔄 Starting simulation year {year}")
-                self._execute_year_workflow(year, fail_on_validation_error=fail_on_validation_error)
+                self._execute_year_workflow(
+                    year, fail_on_validation_error=fail_on_validation_error
+                )
 
                 # Create checkpoint using enhanced system if available
-                if self.enhanced_checkpoints and self.checkpoint_manager and self.config_hash:
+                if (
+                    self.enhanced_checkpoints
+                    and self.checkpoint_manager
+                    and self.config_hash
+                ):
                     try:
-                        run_id = f"multiyear_{datetime.utcnow().strftime('%Y%m%d_%H%M%S')}"
-                        checkpoint_data = self.checkpoint_manager.save_checkpoint(year, run_id, self.config_hash)
+                        run_id = (
+                            f"multiyear_{datetime.utcnow().strftime('%Y%m%d_%H%M%S')}"
+                        )
+                        checkpoint_data = self.checkpoint_manager.save_checkpoint(
+                            year, run_id, self.config_hash
+                        )
                         if self.verbose:
                             print(f"   ✅ Enhanced checkpoint saved for year {year}")
                     except Exception as e:
                         print(f"   ⚠️ Enhanced checkpoint failed for year {year}: {e}")
                         # Fall back to legacy checkpoint
-                        self._write_checkpoint(WorkflowCheckpoint(year, WorkflowStage.CLEANUP, datetime.utcnow().isoformat(), self._state_hash(year)))
+                        self._write_checkpoint(
+                            WorkflowCheckpoint(
+                                year,
+                                WorkflowStage.CLEANUP,
+                                datetime.utcnow().isoformat(),
+                                self._state_hash(year),
+                            )
+                        )
                 else:
                     # Legacy checkpoint system
-                    self._write_checkpoint(WorkflowCheckpoint(year, WorkflowStage.CLEANUP, datetime.utcnow().isoformat(), self._state_hash(year)))
+                    self._write_checkpoint(
+                        WorkflowCheckpoint(
+                            year,
+                            WorkflowStage.CLEANUP,
+                            datetime.utcnow().isoformat(),
+                            self._state_hash(year),
+                        )
+                    )
 
                 completed_years.append(year)
 
@@ -174,11 +199,16 @@ class PipelineOrchestrator:
         reporter.display_comprehensive_multi_year_summary(completed_years)
 
         # Persist multi-year CSV summary
-        out_csv = self.reports_dir / f"multi_year_summary_{completed_years[0]}_{completed_years[-1]}.csv"
+        out_csv = (
+            self.reports_dir
+            / f"multi_year_summary_{completed_years[0]}_{completed_years[-1]}.csv"
+        )
         summary.export_csv(out_csv)
         return summary
 
-    def _execute_year_workflow(self, year: int, *, fail_on_validation_error: bool) -> None:
+    def _execute_year_workflow(
+        self, year: int, *, fail_on_validation_error: bool
+    ) -> None:
         workflow = self._define_year_workflow(year)
 
         # Optional: clear existing rows for this year based on config.setup
@@ -190,7 +220,9 @@ class PipelineOrchestrator:
         if not self._seeded:
             seed_res = self.dbt_runner.execute_command(["seed"], stream_output=True)
             if not seed_res.success:
-                raise PipelineStageError(f"Dbt seed failed with code {seed_res.return_code}")
+                raise PipelineStageError(
+                    f"Dbt seed failed with code {seed_res.return_code}"
+                )
             self._seeded = True
 
         # Year 1 registry seeding
@@ -205,6 +237,7 @@ class PipelineOrchestrator:
 
             # Comprehensive validation for foundation models
             if stage.name == WorkflowStage.FOUNDATION:
+
                 def _chk(conn):
                     baseline = conn.execute(
                         "SELECT COUNT(*) FROM int_baseline_workforce WHERE simulation_year = ?",
@@ -274,29 +307,48 @@ class PipelineOrchestrator:
                 print(f"      int_employee_compensation_by_year: {comp_cnt} rows")
                 print(f"      int_workforce_needs: {wn_cnt} rows")
                 print(f"      int_workforce_needs_by_level: {wnbl_cnt} rows")
-                print(f"      int_employer_eligibility: {employer_elig_cnt} rows (may be 0 in FOUNDATION)")
-                print(f"      int_employer_core_contributions: {employer_core_cnt} rows")
+                print(
+                    f"      int_employer_eligibility: {employer_elig_cnt} rows (may be 0 in FOUNDATION)"
+                )
+                print(
+                    f"      int_employer_core_contributions: {employer_core_cnt} rows"
+                )
                 print(f"      hiring_demand.total_hires_needed: {total_hires_needed}")
                 print(f"      hiring_demand.sum_by_level: {level_hires_needed}")
 
                 # Epic E042 Fix: Only validate baseline workforce for first year
                 if baseline_cnt == 0 and year == self.config.simulation.start_year:
-                    raise PipelineStageError(f"CRITICAL: int_baseline_workforce has 0 rows for year {year}. Check census data processing.")
+                    raise PipelineStageError(
+                        f"CRITICAL: int_baseline_workforce has 0 rows for year {year}. Check census data processing."
+                    )
                 elif baseline_cnt == 0 and year > self.config.simulation.start_year:
-                    print(f"ℹ️ int_baseline_workforce has 0 rows for year {year} (expected for year 2+, using incremental preservation)")
+                    print(
+                        f"ℹ️ int_baseline_workforce has 0 rows for year {year} (expected for year 2+, using incremental preservation)"
+                    )
                 if comp_cnt == 0:
-                    raise PipelineStageError(f"CRITICAL: int_employee_compensation_by_year has 0 rows for year {year}. Foundation models are broken.")
+                    raise PipelineStageError(
+                        f"CRITICAL: int_employee_compensation_by_year has 0 rows for year {year}. Foundation models are broken."
+                    )
                 if wn_cnt == 0 or wnbl_cnt == 0:
-                    raise PipelineStageError(f"CRITICAL: workforce_needs rows={wn_cnt}, by_level rows={wnbl_cnt} for {year}. Hiring will fail.")
+                    raise PipelineStageError(
+                        f"CRITICAL: workforce_needs rows={wn_cnt}, by_level rows={wnbl_cnt} for {year}. Hiring will fail."
+                    )
                 if employer_elig_cnt == 0:
-                    print(f"ℹ️ int_employer_eligibility has 0 rows for year {year} (expected before EVENT_GENERATION builds eligibility).")
+                    print(
+                        f"ℹ️ int_employer_eligibility has 0 rows for year {year} (expected before EVENT_GENERATION builds eligibility)."
+                    )
                 if employer_core_cnt == 0:
-                    print(f"ℹ️ int_employer_core_contributions has 0 rows for year {year} (expected during foundation stage - built later in state accumulation).")
+                    print(
+                        f"ℹ️ int_employer_core_contributions has 0 rows for year {year} (expected during foundation stage - built later in state accumulation)."
+                    )
                 if total_hires_needed == 0 or level_hires_needed == 0:
-                    print("⚠️ Hiring demand calculated as 0; new hire events will not be generated. Verify target_growth_rate and termination rates.")
+                    print(
+                        "⚠️ Hiring demand calculated as 0; new hire events will not be generated. Verify target_growth_rate and termination rates."
+                    )
 
             # Post event-generation sanity check: ensure hires materialized and have compensation
             if stage.name == WorkflowStage.EVENT_GENERATION:
+
                 def _ev_chk(conn):
                     hires = conn.execute(
                         "SELECT COUNT(*) FROM int_hiring_events WHERE simulation_year = ?",
@@ -311,9 +363,16 @@ class PipelineOrchestrator:
                         [year],
                     ).fetchone()[0]
                     return int(hires), int(demand or 0), int(null_comp_hires)
-                hires_cnt, demand_cnt, null_comp_cnt = self.db_manager.execute_with_retry(_ev_chk)
+
+                (
+                    hires_cnt,
+                    demand_cnt,
+                    null_comp_cnt,
+                ) = self.db_manager.execute_with_retry(_ev_chk)
                 if demand_cnt > 0 and hires_cnt == 0:
-                    print(f"⚠️ Detected 0 hiring events but demand={demand_cnt}. Rebuilding hiring models.")
+                    print(
+                        f"⚠️ Detected 0 hiring events but demand={demand_cnt}. Rebuilding hiring models."
+                    )
                     self.dbt_runner.execute_command(
                         [
                             "run",
@@ -326,7 +385,9 @@ class PipelineOrchestrator:
                         stream_output=True,
                     )
                 if hires_cnt > 0 and null_comp_cnt > 0:
-                    print(f"⚠️ Detected {null_comp_cnt} hire(s) with NULL compensation. Rebuilding needs_by_level -> hiring.")
+                    print(
+                        f"⚠️ Detected {null_comp_cnt} hire(s) with NULL compensation. Rebuilding needs_by_level -> hiring."
+                    )
                     self.dbt_runner.execute_command(
                         [
                             "run",
@@ -341,6 +402,7 @@ class PipelineOrchestrator:
 
             # Post state accumulation check: ensure hires landed in yearly events and match events exist
             if stage.name == WorkflowStage.STATE_ACCUMULATION:
+
                 def _events_chk(conn):
                     hires_in_fact = conn.execute(
                         "SELECT COUNT(*) FROM fct_yearly_events WHERE simulation_year = ? AND lower(event_type) = 'hire'",
@@ -363,12 +425,26 @@ class PipelineOrchestrator:
                         "SELECT COUNT(*) FROM fct_employer_match_events WHERE simulation_year = ?",
                         [year],
                     ).fetchone()[0]
-                    return int(hires_in_fact), int(hires_src), int(null_comp_hires), int(contrib_with_deferrals), int(match_events)
+                    return (
+                        int(hires_in_fact),
+                        int(hires_src),
+                        int(null_comp_hires),
+                        int(contrib_with_deferrals),
+                        int(match_events),
+                    )
 
-                hires_in_fact, hires_src, null_comp_cnt, contrib_with_deferrals, match_events = self.db_manager.execute_with_retry(_events_chk)
+                (
+                    hires_in_fact,
+                    hires_src,
+                    null_comp_cnt,
+                    contrib_with_deferrals,
+                    match_events,
+                ) = self.db_manager.execute_with_retry(_events_chk)
 
                 if hires_src > 0 and hires_in_fact == 0:
-                    print("⚠️ fct_yearly_events missing hire rows; forcing targeted refresh of hires and facts.")
+                    print(
+                        "⚠️ fct_yearly_events missing hire rows; forcing targeted refresh of hires and facts."
+                    )
                     self.dbt_runner.execute_command(
                         [
                             "run",
@@ -396,11 +472,17 @@ class PipelineOrchestrator:
 
                 # Check employer match events
                 if contrib_with_deferrals > 0 and match_events == 0:
-                    print(f"⚠️ Found {contrib_with_deferrals} employees with contributions but 0 match events.")
+                    print(
+                        f"⚠️ Found {contrib_with_deferrals} employees with contributions but 0 match events."
+                    )
                     print("   Suggested checks:")
                     print("   - Verify dbt vars: active_match_formula, match_formulas")
-                    print("   - Check int_employee_match_calculations for non-zero employer_match_amount")
-                    print("   - Rebuild: dbt run --select int_employee_match_calculations fct_employer_match_events")
+                    print(
+                        "   - Check int_employee_match_calculations for non-zero employer_match_amount"
+                    )
+                    print(
+                        "   - Rebuild: dbt run --select int_employee_match_calculations fct_employer_match_events"
+                    )
 
                 # Epic E042 Guardrail: ensure contributions are populated when deferral state exists
                 def _contrib_guard(conn):
@@ -429,11 +511,25 @@ class PipelineOrchestrator:
                         "SELECT COUNT(*), COALESCE(SUM(annual_contribution_amount), 0) FROM int_employee_contributions WHERE simulation_year = ?",
                         [year],
                     ).fetchone()
-                    return int(dr_cnt), int(comp_cnt), int(overlap), int(contrib_rows), float(contrib_sum or 0.0)
+                    return (
+                        int(dr_cnt),
+                        int(comp_cnt),
+                        int(overlap),
+                        int(contrib_rows),
+                        float(contrib_sum or 0.0),
+                    )
 
-                dr_cnt, comp_cnt, overlap_cnt, contrib_rows, contrib_sum = self.db_manager.execute_with_retry(_contrib_guard)
+                (
+                    dr_cnt,
+                    comp_cnt,
+                    overlap_cnt,
+                    contrib_rows,
+                    contrib_sum,
+                ) = self.db_manager.execute_with_retry(_contrib_guard)
 
-                if dr_cnt > 0 and (overlap_cnt == 0 or contrib_rows == 0 or contrib_sum == 0.0):
+                if dr_cnt > 0 and (
+                    overlap_cnt == 0 or contrib_rows == 0 or contrib_sum == 0.0
+                ):
                     print(
                         f"⚠️ Detected deferral state ({dr_cnt}) but no contribution output (rows={contrib_rows}, sum={contrib_sum:.2f}, overlap={overlap_cnt}). Rebuilding staging → compensation → deferral_state → contributions."
                     )
@@ -478,10 +574,17 @@ class PipelineOrchestrator:
                 self._verify_year_population(year)
 
             # Stage-level validation hook
-            if stage.name in (WorkflowStage.STATE_ACCUMULATION, WorkflowStage.VALIDATION):
+            if stage.name in (
+                WorkflowStage.STATE_ACCUMULATION,
+                WorkflowStage.VALIDATION,
+            ):
                 dv_results = self.validator.validate_year_results(year)
-                if fail_on_validation_error and any((not r.passed and r.severity.value == "error") for r in dv_results):
-                    raise PipelineStageError(f"Validation errors detected for year {year}")
+                if fail_on_validation_error and any(
+                    (not r.passed and r.severity.value == "error") for r in dv_results
+                ):
+                    raise PipelineStageError(
+                        f"Validation errors detected for year {year}"
+                    )
 
         # Reporting per year
         auditor = YearAuditor(self.db_manager, self.validator)
@@ -497,14 +600,28 @@ class PipelineOrchestrator:
         if not stage.models:
             return
         # Run event generation and state accumulation sequentially to enforce order
-        if stage.name in (WorkflowStage.EVENT_GENERATION, WorkflowStage.STATE_ACCUMULATION):
+        if stage.name in (
+            WorkflowStage.EVENT_GENERATION,
+            WorkflowStage.STATE_ACCUMULATION,
+        ):
             setup = getattr(self.config, "setup", None)
-            force_full_refresh = bool(isinstance(setup, dict) and setup.get("clear_tables") and setup.get("clear_mode", "all").lower() == "all")
+            force_full_refresh = bool(
+                isinstance(setup, dict)
+                and setup.get("clear_tables")
+                and setup.get("clear_mode", "all").lower() == "all"
+            )
 
             for model in stage.models:
                 selection = ["run", "--select", model]
                 # Special case: always full-refresh models that have schema issues or self-references
-                if model in ["int_workforce_snapshot_optimized", "int_deferral_rate_escalation_events"] or force_full_refresh:
+                if (
+                    model
+                    in [
+                        "int_workforce_snapshot_optimized",
+                        "int_deferral_rate_escalation_events",
+                    ]
+                    or force_full_refresh
+                ):
                     selection.append("--full-refresh")
                     if self.verbose:
                         if model == "int_workforce_snapshot_optimized":
@@ -513,7 +630,9 @@ class PipelineOrchestrator:
                             reason = "self-reference incremental"
                         else:
                             reason = "clear_mode=all"
-                        print(f"   🔄 Rebuilding {model} with --full-refresh ({reason}) for year {year}")
+                        print(
+                            f"   🔄 Rebuilding {model} with --full-refresh ({reason}) for year {year}"
+                        )
                 res = self.dbt_runner.execute_command(
                     selection,
                     simulation_year=year,
@@ -521,7 +640,9 @@ class PipelineOrchestrator:
                     stream_output=True,
                 )
                 if not res.success:
-                    raise PipelineStageError(f"Dbt failed on model {model} in stage {stage.name.value} with code {res.return_code}")
+                    raise PipelineStageError(
+                        f"Dbt failed on model {model} in stage {stage.name.value} with code {res.return_code}"
+                    )
             return
 
         if stage.parallel_safe and len(stage.models) > 1:
@@ -533,18 +654,24 @@ class PipelineOrchestrator:
             )
             if not all(r.success for r in results):
                 failed = [r for r in results if not r.success]
-                raise PipelineStageError(f"Some models failed in stage {stage.name.value}: {[f.command for f in failed]}")
+                raise PipelineStageError(
+                    f"Some models failed in stage {stage.name.value}: {[f.command for f in failed]}"
+                )
         else:
             # Run as a single selection for consistent dependency behavior
             selection = ["run", "--select", " ".join(stage.models)]
             # Optimization: Only use --full-refresh for FOUNDATION on first year or when clear_mode == 'all'
             if stage.name == WorkflowStage.FOUNDATION:
                 setup = getattr(self.config, "setup", None)
-                clear_mode = (isinstance(setup, dict) and setup.get("clear_mode", "all").lower()) or "all"
+                clear_mode = (
+                    isinstance(setup, dict) and setup.get("clear_mode", "all").lower()
+                ) or "all"
                 if year == self.config.simulation.start_year or clear_mode == "all":
                     selection.append("--full-refresh")
                     if self.verbose:
-                        print(f"   🔄 Running {stage.name.value} with --full-refresh (year={year}, clear_mode={clear_mode})")
+                        print(
+                            f"   🔄 Running {stage.name.value} with --full-refresh (year={year}, clear_mode={clear_mode})"
+                        )
             res = self.dbt_runner.execute_command(
                 selection,
                 simulation_year=year,
@@ -552,7 +679,9 @@ class PipelineOrchestrator:
                 stream_output=True,
             )
             if not res.success:
-                raise PipelineStageError(f"Dbt failed in stage {stage.name.value} with code {res.return_code}")
+                raise PipelineStageError(
+                    f"Dbt failed in stage {stage.name.value} with code {res.return_code}"
+                )
 
     def _maybe_clear_year_data(self, year: int) -> None:
         """Clear year-scoped data for idempotent re-runs when configured.
@@ -575,14 +704,17 @@ class PipelineOrchestrator:
             return any(name.startswith(p) for p in patterns)
 
         def _run(conn):
-            tables = [r[0] for r in conn.execute(
-                """
+            tables = [
+                r[0]
+                for r in conn.execute(
+                    """
                 SELECT table_name
                 FROM information_schema.tables
                 WHERE table_schema = 'main'
                 ORDER BY table_name
                 """
-            ).fetchall()]
+                ).fetchall()
+            ]
             cleared = 0
             for t in tables:
                 if not _should_clear(t):
@@ -603,7 +735,9 @@ class PipelineOrchestrator:
 
         cleared = self.db_manager.execute_with_retry(_run)
         if cleared:
-            print(f"🧹 Cleared year {year} rows in {cleared} table(s) per setup.clear_table_patterns")
+            print(
+                f"🧹 Cleared year {year} rows in {cleared} table(s) per setup.clear_table_patterns"
+            )
 
     def _maybe_full_reset(self) -> None:
         """If configured, clear all rows from matching tables before yearly processing.
@@ -625,14 +759,17 @@ class PipelineOrchestrator:
             return any(name.startswith(p) for p in patterns)
 
         def _run(conn):
-            tables = [r[0] for r in conn.execute(
-                """
+            tables = [
+                r[0]
+                for r in conn.execute(
+                    """
                 SELECT table_name
                 FROM information_schema.tables
                 WHERE table_schema = 'main' AND table_type = 'BASE TABLE'
                 ORDER BY table_name
                 """
-            ).fetchall()]
+                ).fetchall()
+            ]
             cleared = 0
             for t in tables:
                 if not _should_clear(t):
@@ -643,21 +780,31 @@ class PipelineOrchestrator:
 
         cleared = self.db_manager.execute_with_retry(_run)
         if cleared:
-            print(f"🧹 Full reset: cleared all rows in {cleared} table(s) per setup.clear_table_patterns")
+            print(
+                f"🧹 Full reset: cleared all rows in {cleared} table(s) per setup.clear_table_patterns"
+            )
 
     def _clear_year_fact_rows(self, year: int) -> None:
         """Idempotency guard: remove current-year rows in core fact tables before rebuild.
 
         This avoids duplicate events/snapshots when event sequencing changes between runs.
         """
+
         def _run(conn):
-            for table in ("fct_yearly_events", "fct_workforce_snapshot", "fct_employer_match_events"):
+            for table in (
+                "fct_yearly_events",
+                "fct_workforce_snapshot",
+                "fct_employer_match_events",
+            ):
                 try:
-                    conn.execute(f"DELETE FROM {table} WHERE simulation_year = ?", [year])
+                    conn.execute(
+                        f"DELETE FROM {table} WHERE simulation_year = ?", [year]
+                    )
                 except Exception:
                     # Table may not exist yet; ignore
                     pass
             return True
+
         try:
             self.db_manager.execute_with_retry(_run)
         except Exception:
@@ -778,6 +925,7 @@ class PipelineOrchestrator:
 
     def _verify_year_population(self, year: int) -> None:
         """Verify critical tables have rows for the given year; attempt one retry if empty."""
+
         def _counts(conn):
             snap = conn.execute(
                 "SELECT COUNT(*) FROM fct_workforce_snapshot WHERE simulation_year = ?",
@@ -803,17 +951,22 @@ class PipelineOrchestrator:
             else:
                 snap_count, _ = self.db_manager.execute_with_retry(_counts)
         if snap_count == 0:
-            print(f"⚠️ fct_workforce_snapshot has 0 rows for {year}; verify upstream models and vars")
+            print(
+                f"⚠️ fct_workforce_snapshot has 0 rows for {year}; verify upstream models and vars"
+            )
 
     def _write_checkpoint(self, ckpt: WorkflowCheckpoint) -> None:
         path = self.checkpoints_dir / f"year_{ckpt.year}.json"
         with open(path, "w") as fh:
-            json.dump({
-                "year": ckpt.year,
-                "stage": ckpt.stage.value,
-                "timestamp": ckpt.timestamp,
-                "state_hash": ckpt.state_hash,
-            }, fh)
+            json.dump(
+                {
+                    "year": ckpt.year,
+                    "stage": ckpt.stage.value,
+                    "timestamp": ckpt.timestamp,
+                    "state_hash": ckpt.state_hash,
+                },
+                fh,
+            )
 
     def _find_last_checkpoint(self) -> Optional[WorkflowCheckpoint]:
         files = sorted(self.checkpoints_dir.glob("year_*.json"))
@@ -837,7 +990,7 @@ class PipelineOrchestrator:
         if config_path.exists():
             try:
                 config_content = config_path.read_text()
-                return hashlib.sha256(config_content.encode('utf-8')).hexdigest()
+                return hashlib.sha256(config_content.encode("utf-8")).hexdigest()
             except Exception:
                 pass
 
@@ -845,6 +998,6 @@ class PipelineOrchestrator:
         try:
             config_dict = self.config.model_dump()
             config_str = json.dumps(config_dict, sort_keys=True)
-            return hashlib.sha256(config_str.encode('utf-8')).hexdigest()
+            return hashlib.sha256(config_str.encode("utf-8")).hexdigest()
         except Exception:
             return "unknown"

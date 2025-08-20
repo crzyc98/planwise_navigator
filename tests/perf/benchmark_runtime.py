@@ -2,13 +2,14 @@
 """Performance benchmark harness for PlanWise Navigator."""
 
 import time
-import psutil
-import pandas as pd
 from contextlib import contextmanager
-from typing import Dict, Any, List
-import duckdb
-from pathlib import Path
 from datetime import datetime
+from pathlib import Path
+from typing import Any, Dict, List
+
+import duckdb
+import pandas as pd
+import psutil
 
 
 class BenchmarkResult:

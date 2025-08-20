@@ -20,17 +20,18 @@ User Requirements Addressed:
 - Multi-year progression impact measurement
 """
 
-import streamlit as st
+import json
+import sys
+from datetime import date, datetime
+from pathlib import Path
+from typing import Dict, List, Optional, Tuple
+
 import duckdb
 import pandas as pd
 import plotly.express as px
 import plotly.graph_objects as go
+import streamlit as st
 from plotly.subplots import make_subplots
-import json
-from datetime import datetime, date
-from pathlib import Path
-import sys
-from typing import Dict, List, Optional, Tuple
 
 # Add parent directory to path for imports
 sys.path.append(str(Path(__file__).parent.parent))
@@ -39,11 +40,12 @@ sys.path.append(str(Path(__file__).parent.parent))
 st.set_page_config(
     page_title="Deferral Escalation Analytics - PlanWise Navigator",
     page_icon="📈",
-    layout="wide"
+    layout="wide",
 )
 
 # Custom CSS for professional analytics styling
-st.markdown("""
+st.markdown(
+    """
 <style>
     .analytics-header {
         background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
@@ -171,7 +173,10 @@ st.markdown("""
         margin: 2rem 0;
     }
 </style>
-""", unsafe_allow_html=True)
+""",
+    unsafe_allow_html=True,
+)
+
 
 class EscalationAnalytics:
     """Analytics engine for deferral rate escalation system."""
@@ -367,14 +372,19 @@ class EscalationAnalytics:
 
         return self.execute_query(query, "compliance tracking")
 
+
 def render_header():
     """Render the page header."""
-    st.markdown("""
+    st.markdown(
+        """
     <div class="analytics-header">
         <h1>📈 Deferral Rate Escalation Analytics</h1>
         <p>Epic E035 - Comprehensive impact analysis and executive reporting</p>
     </div>
-    """, unsafe_allow_html=True)
+    """,
+        unsafe_allow_html=True,
+    )
+
 
 def render_kpi_cards(analytics: EscalationAnalytics):
     """Render key performance indicator cards."""
@@ -382,15 +392,21 @@ def render_kpi_cards(analytics: EscalationAnalytics):
         metrics = analytics.get_escalation_overview_metrics()
 
         if not metrics:
-            st.warning("No escalation data available. Please run a multi-year simulation first.")
+            st.warning(
+                "No escalation data available. Please run a multi-year simulation first."
+            )
             return
 
-        st.markdown('<div class="section-header"><h3>📊 Key Performance Indicators</h3></div>', unsafe_allow_html=True)
+        st.markdown(
+            '<div class="section-header"><h3>📊 Key Performance Indicators</h3></div>',
+            unsafe_allow_html=True,
+        )
 
         col1, col2, col3, col4 = st.columns(4)
 
         with col1:
-            st.markdown(f"""
+            st.markdown(
+                f"""
             <div class="kpi-card">
                 <div class="kpi-value">{metrics.get('total_employees_with_escalations', 0):,.0f}</div>
                 <div class="kpi-label">Employees with Escalations</div>
@@ -398,10 +414,13 @@ def render_kpi_cards(analytics: EscalationAnalytics):
                     {metrics.get('total_employees_with_escalations', 0) / max(metrics.get('total_enrolled_employees', 1), 1) * 100:.1f}% of enrolled
                 </div>
             </div>
-            """, unsafe_allow_html=True)
+            """,
+                unsafe_allow_html=True,
+            )
 
         with col2:
-            st.markdown(f"""
+            st.markdown(
+                f"""
             <div class="kpi-card">
                 <div class="kpi-value">{metrics.get('avg_current_rate', 0):.1%}</div>
                 <div class="kpi-label">Avg Current Rate</div>
@@ -409,10 +428,13 @@ def render_kpi_cards(analytics: EscalationAnalytics):
                     +{metrics.get('avg_total_escalation', 0):.1%} from escalations
                 </div>
             </div>
-            """, unsafe_allow_html=True)
+            """,
+                unsafe_allow_html=True,
+            )
 
         with col3:
-            st.markdown(f"""
+            st.markdown(
+                f"""
             <div class="kpi-card">
                 <div class="kpi-value">{metrics.get('total_escalation_events', 0):,.0f}</div>
                 <div class="kpi-label">Total Escalation Events</div>
@@ -420,10 +442,13 @@ def render_kpi_cards(analytics: EscalationAnalytics):
                     Across {metrics.get('latest_year', 2025) - 2024} simulation years
                 </div>
             </div>
-            """, unsafe_allow_html=True)
+            """,
+                unsafe_allow_html=True,
+            )
 
         with col4:
-            st.markdown(f"""
+            st.markdown(
+                f"""
             <div class="kpi-card">
                 <div class="kpi-value">{metrics.get('employees_at_cap', 0):,.0f}</div>
                 <div class="kpi-label">Employees at 10% Cap</div>
@@ -431,38 +456,50 @@ def render_kpi_cards(analytics: EscalationAnalytics):
                     {metrics.get('employees_at_cap', 0) / max(metrics.get('total_employees_with_escalations', 1), 1) * 100:.1f}% of escalated employees
                 </div>
             </div>
-            """, unsafe_allow_html=True)
+            """,
+                unsafe_allow_html=True,
+            )
 
         # System health status
-        st.markdown('<div class="section-header"><h3>🏥 System Health Status</h3></div>', unsafe_allow_html=True)
+        st.markdown(
+            '<div class="section-header"><h3>🏥 System Health Status</h3></div>',
+            unsafe_allow_html=True,
+        )
 
-        health_score = metrics.get('health_score', 0)
-        health_status = metrics.get('health_status', 'UNKNOWN')
+        health_score = metrics.get("health_score", 0)
+        health_status = metrics.get("health_status", "UNKNOWN")
 
         health_class = {
-            'PERFECT': 'health-status-excellent',
-            'EXCELLENT': 'health-status-excellent',
-            'GOOD': 'health-status-good',
-            'FAIR': 'health-status-warning',
-            'POOR': 'health-status-critical',
-            'CRITICAL': 'health-status-critical'
-        }.get(health_status, 'health-status-warning')
+            "PERFECT": "health-status-excellent",
+            "EXCELLENT": "health-status-excellent",
+            "GOOD": "health-status-good",
+            "FAIR": "health-status-warning",
+            "POOR": "health-status-critical",
+            "CRITICAL": "health-status-critical",
+        }.get(health_status, "health-status-warning")
 
-        st.markdown(f"""
+        st.markdown(
+            f"""
         <div class="{health_class}">
             <h4>🎯 System Health Score: {health_score}/100 ({health_status})</h4>
             <p><strong>Data Quality:</strong> {metrics.get('total_violations', 0)} violations detected</p>
             <p><strong>Recommendation:</strong> {metrics.get('recommendations', 'No recommendations available')}</p>
         </div>
-        """, unsafe_allow_html=True)
+        """,
+            unsafe_allow_html=True,
+        )
 
     except Exception as e:
         st.error(f"Failed to load KPI metrics: {e}")
 
+
 def render_yearly_progression_chart(analytics: EscalationAnalytics):
     """Render year-over-year progression visualization."""
     try:
-        st.markdown('<div class="section-header"><h3>📈 Multi-Year Progression Analysis</h3></div>', unsafe_allow_html=True)
+        st.markdown(
+            '<div class="section-header"><h3>📈 Multi-Year Progression Analysis</h3></div>',
+            unsafe_allow_html=True,
+        )
 
         df = analytics.get_yearly_progression_data()
 
@@ -472,90 +509,99 @@ def render_yearly_progression_chart(analytics: EscalationAnalytics):
 
         # Create subplot with secondary y-axis
         fig = make_subplots(
-            rows=2, cols=2,
+            rows=2,
+            cols=2,
             subplot_titles=(
                 "Employee Participation Growth",
                 "Average Deferral Rate Progression",
                 "Escalation Events by Year",
-                "Cap Compliance Tracking"
+                "Cap Compliance Tracking",
             ),
-            specs=[[{"secondary_y": True}, {"secondary_y": False}],
-                   [{"secondary_y": False}, {"secondary_y": False}]]
+            specs=[
+                [{"secondary_y": True}, {"secondary_y": False}],
+                [{"secondary_y": False}, {"secondary_y": False}],
+            ],
         )
 
         # Chart 1: Employee participation
         fig.add_trace(
             go.Scatter(
-                x=df['simulation_year'],
-                y=df['active_employees'],
-                name='Active Employees',
-                line=dict(color='#667eea', width=3),
-                mode='lines+markers'
+                x=df["simulation_year"],
+                y=df["active_employees"],
+                name="Active Employees",
+                line=dict(color="#667eea", width=3),
+                mode="lines+markers",
             ),
-            row=1, col=1
+            row=1,
+            col=1,
         )
         fig.add_trace(
             go.Scatter(
-                x=df['simulation_year'],
-                y=df['employees_with_escalations'],
-                name='With Escalations',
-                line=dict(color='#764ba2', width=3, dash='dash'),
-                mode='lines+markers'
+                x=df["simulation_year"],
+                y=df["employees_with_escalations"],
+                name="With Escalations",
+                line=dict(color="#764ba2", width=3, dash="dash"),
+                mode="lines+markers",
             ),
-            row=1, col=1
+            row=1,
+            col=1,
         )
 
         # Chart 2: Average deferral rates
         fig.add_trace(
             go.Scatter(
-                x=df['simulation_year'],
-                y=df['avg_deferral_rate'] * 100,
-                name='Overall Avg Rate',
-                line=dict(color='#28a745', width=3),
-                mode='lines+markers'
+                x=df["simulation_year"],
+                y=df["avg_deferral_rate"] * 100,
+                name="Overall Avg Rate",
+                line=dict(color="#28a745", width=3),
+                mode="lines+markers",
             ),
-            row=1, col=2
+            row=1,
+            col=2,
         )
         fig.add_trace(
             go.Scatter(
-                x=df['simulation_year'],
-                y=df['avg_escalated_rate'] * 100,
-                name='Escalated Avg Rate',
-                line=dict(color='#ffc107', width=3, dash='dot'),
-                mode='lines+markers'
+                x=df["simulation_year"],
+                y=df["avg_escalated_rate"] * 100,
+                name="Escalated Avg Rate",
+                line=dict(color="#ffc107", width=3, dash="dot"),
+                mode="lines+markers",
             ),
-            row=1, col=2
+            row=1,
+            col=2,
         )
 
         # Chart 3: Escalation events
         fig.add_trace(
             go.Bar(
-                x=df['simulation_year'],
-                y=df['new_escalations_this_year'],
-                name='New Escalations',
-                marker_color='#17a2b8',
-                opacity=0.8
+                x=df["simulation_year"],
+                y=df["new_escalations_this_year"],
+                name="New Escalations",
+                marker_color="#17a2b8",
+                opacity=0.8,
             ),
-            row=2, col=1
+            row=2,
+            col=1,
         )
 
         # Chart 4: Cap compliance
         fig.add_trace(
             go.Scatter(
-                x=df['simulation_year'],
-                y=df['employees_at_cap'],
-                name='Employees at 10% Cap',
-                line=dict(color='#dc3545', width=3),
-                mode='lines+markers'
+                x=df["simulation_year"],
+                y=df["employees_at_cap"],
+                name="Employees at 10% Cap",
+                line=dict(color="#dc3545", width=3),
+                mode="lines+markers",
             ),
-            row=2, col=2
+            row=2,
+            col=2,
         )
 
         fig.update_layout(
             height=800,
             showlegend=True,
             title_text="Deferral Rate Escalation - Multi-Year Progression Dashboard",
-            font=dict(size=12)
+            font=dict(size=12),
         )
 
         # Update y-axis labels
@@ -571,10 +617,16 @@ def render_yearly_progression_chart(analytics: EscalationAnalytics):
             latest_year = df.iloc[-1]
             previous_year = df.iloc[-2]
 
-            participation_growth = latest_year['employees_with_escalations'] - previous_year['employees_with_escalations']
-            rate_increase = (latest_year['avg_escalated_rate'] - previous_year['avg_escalated_rate']) * 100
+            participation_growth = (
+                latest_year["employees_with_escalations"]
+                - previous_year["employees_with_escalations"]
+            )
+            rate_increase = (
+                latest_year["avg_escalated_rate"] - previous_year["avg_escalated_rate"]
+            ) * 100
 
-            st.markdown(f"""
+            st.markdown(
+                f"""
             <div class="insight-box">
                 <h4>📊 Key Insights</h4>
                 <ul>
@@ -584,15 +636,21 @@ def render_yearly_progression_chart(analytics: EscalationAnalytics):
                     <li><strong>System Maturity:</strong> {latest_year['total_escalations']:.0f} total escalation events across all years</li>
                 </ul>
             </div>
-            """, unsafe_allow_html=True)
+            """,
+                unsafe_allow_html=True,
+            )
 
     except Exception as e:
         st.error(f"Failed to render yearly progression chart: {e}")
 
+
 def render_demographic_analysis(analytics: EscalationAnalytics):
     """Render demographic impact analysis."""
     try:
-        st.markdown('<div class="section-header"><h3>👥 Demographic Impact Analysis</h3></div>', unsafe_allow_html=True)
+        st.markdown(
+            '<div class="section-header"><h3>👥 Demographic Impact Analysis</h3></div>',
+            unsafe_allow_html=True,
+        )
 
         df = analytics.get_demographic_analysis()
 
@@ -602,19 +660,19 @@ def render_demographic_analysis(analytics: EscalationAnalytics):
 
         # Create pivot tables for heatmaps
         pivot_escalation_rate = df.pivot_table(
-            index='age_band',
-            columns='tenure_band',
-            values='escalated_count',
-            aggfunc='sum',
-            fill_value=0
+            index="age_band",
+            columns="tenure_band",
+            values="escalated_count",
+            aggfunc="sum",
+            fill_value=0,
         )
 
         pivot_avg_rate = df.pivot_table(
-            index='age_band',
-            columns='tenure_band',
-            values='avg_current_rate',
-            aggfunc='mean',
-            fill_value=0
+            index="age_band",
+            columns="tenure_band",
+            values="avg_current_rate",
+            aggfunc="mean",
+            fill_value=0,
         )
 
         col1, col2 = st.columns(2)
@@ -625,7 +683,7 @@ def render_demographic_analysis(analytics: EscalationAnalytics):
                 pivot_escalation_rate,
                 title="Employee Count with Escalations",
                 color_continuous_scale="Blues",
-                aspect="auto"
+                aspect="auto",
             )
             fig1.update_layout(height=400)
             st.plotly_chart(fig1, use_container_width=True)
@@ -636,30 +694,36 @@ def render_demographic_analysis(analytics: EscalationAnalytics):
                 pivot_avg_rate * 100,  # Convert to percentage
                 title="Average Current Deferral Rate (%)",
                 color_continuous_scale="Viridis",
-                aspect="auto"
+                aspect="auto",
             )
             fig2.update_layout(height=400)
             st.plotly_chart(fig2, use_container_width=True)
 
         # Job level analysis
         st.subheader("Impact by Job Level")
-        level_summary = df.groupby('level_id').agg({
-            'employee_count': 'sum',
-            'escalated_count': 'sum',
-            'avg_current_rate': 'mean',
-            'avg_escalation_impact': 'mean'
-        }).reset_index()
+        level_summary = (
+            df.groupby("level_id")
+            .agg(
+                {
+                    "employee_count": "sum",
+                    "escalated_count": "sum",
+                    "avg_current_rate": "mean",
+                    "avg_escalation_impact": "mean",
+                }
+            )
+            .reset_index()
+        )
 
-        level_summary['escalation_participation_rate'] = (
-            level_summary['escalated_count'] / level_summary['employee_count'] * 100
+        level_summary["escalation_participation_rate"] = (
+            level_summary["escalated_count"] / level_summary["employee_count"] * 100
         )
 
         fig3 = px.bar(
             level_summary,
-            x='level_id',
-            y=['escalation_participation_rate'],
+            x="level_id",
+            y=["escalation_participation_rate"],
             title="Escalation Participation Rate by Job Level (%)",
-            color_discrete_sequence=['#667eea']
+            color_discrete_sequence=["#667eea"],
         )
         fig3.update_layout(height=400, showlegend=False)
         fig3.update_xaxes(title="Job Level")
@@ -670,37 +734,55 @@ def render_demographic_analysis(analytics: EscalationAnalytics):
         # Summary table
         st.subheader("Detailed Demographic Breakdown")
         display_df = df.copy()
-        display_df['escalation_rate'] = (display_df['escalated_count'] / display_df['employee_count'] * 100).round(1)
-        display_df['avg_current_rate'] = (display_df['avg_current_rate'] * 100).round(2)
-        display_df['avg_escalation_impact'] = (display_df['avg_escalation_impact'] * 100).round(2)
+        display_df["escalation_rate"] = (
+            display_df["escalated_count"] / display_df["employee_count"] * 100
+        ).round(1)
+        display_df["avg_current_rate"] = (display_df["avg_current_rate"] * 100).round(2)
+        display_df["avg_escalation_impact"] = (
+            display_df["avg_escalation_impact"] * 100
+        ).round(2)
 
         st.dataframe(
-            display_df[[
-                'age_band', 'tenure_band', 'level_id', 'employee_count',
-                'escalated_count', 'escalation_rate', 'avg_current_rate',
-                'avg_escalation_impact', 'at_cap_count'
-            ]].rename(columns={
-                'age_band': 'Age Band',
-                'tenure_band': 'Tenure Band',
-                'level_id': 'Job Level',
-                'employee_count': 'Total Employees',
-                'escalated_count': 'With Escalations',
-                'escalation_rate': 'Participation Rate (%)',
-                'avg_current_rate': 'Avg Current Rate (%)',
-                'avg_escalation_impact': 'Avg Escalation Impact (%)',
-                'at_cap_count': 'At 10% Cap'
-            }),
+            display_df[
+                [
+                    "age_band",
+                    "tenure_band",
+                    "level_id",
+                    "employee_count",
+                    "escalated_count",
+                    "escalation_rate",
+                    "avg_current_rate",
+                    "avg_escalation_impact",
+                    "at_cap_count",
+                ]
+            ].rename(
+                columns={
+                    "age_band": "Age Band",
+                    "tenure_band": "Tenure Band",
+                    "level_id": "Job Level",
+                    "employee_count": "Total Employees",
+                    "escalated_count": "With Escalations",
+                    "escalation_rate": "Participation Rate (%)",
+                    "avg_current_rate": "Avg Current Rate (%)",
+                    "avg_escalation_impact": "Avg Escalation Impact (%)",
+                    "at_cap_count": "At 10% Cap",
+                }
+            ),
             hide_index=True,
-            use_container_width=True
+            use_container_width=True,
         )
 
     except Exception as e:
         st.error(f"Failed to render demographic analysis: {e}")
 
+
 def render_compliance_tracking(analytics: EscalationAnalytics):
     """Render compliance tracking for user requirements."""
     try:
-        st.markdown('<div class="section-header"><h3>✅ User Requirements Compliance Tracking</h3></div>', unsafe_allow_html=True)
+        st.markdown(
+            '<div class="section-header"><h3>✅ User Requirements Compliance Tracking</h3></div>',
+            unsafe_allow_html=True,
+        )
 
         df = analytics.get_compliance_tracking()
 
@@ -712,10 +794,10 @@ def render_compliance_tracking(analytics: EscalationAnalytics):
         latest_data = df.iloc[-1] if len(df) > 0 else {}
 
         compliance_metrics = [
-            latest_data.get('january_1_compliance_pct', 0),
-            latest_data.get('increment_compliance_pct', 0),
-            latest_data.get('cap_compliance_pct', 0),
-            latest_data.get('no_duplicate_compliance_pct', 0)
+            latest_data.get("january_1_compliance_pct", 0),
+            latest_data.get("increment_compliance_pct", 0),
+            latest_data.get("cap_compliance_pct", 0),
+            latest_data.get("no_duplicate_compliance_pct", 0),
         ]
 
         overall_compliance = sum(compliance_metrics) / len(compliance_metrics)
@@ -726,83 +808,106 @@ def render_compliance_tracking(analytics: EscalationAnalytics):
             st.metric(
                 "January 1st Effective Date",
                 f"{latest_data.get('january_1_compliance_pct', 0):.1f}%",
-                help="All escalations must be effective January 1st per user requirement"
+                help="All escalations must be effective January 1st per user requirement",
             )
 
         with col2:
             st.metric(
                 "1% Increment Compliance",
                 f"{latest_data.get('increment_compliance_pct', 0):.1f}%",
-                help="Default 1% escalation rate per user requirement"
+                help="Default 1% escalation rate per user requirement",
             )
 
         with col3:
             st.metric(
                 "10% Cap Enforcement",
                 f"{latest_data.get('cap_compliance_pct', 0):.1f}%",
-                help="Maximum 10% rate cap per user requirement"
+                help="Maximum 10% rate cap per user requirement",
             )
 
         with col4:
             st.metric(
                 "No Duplicate Events",
                 f"{latest_data.get('no_duplicate_compliance_pct', 0):.1f}%",
-                help="Each employee should have max one escalation per year"
+                help="Each employee should have max one escalation per year",
             )
 
         # Overall compliance status
-        compliance_status = "EXCELLENT" if overall_compliance >= 99 else "GOOD" if overall_compliance >= 95 else "NEEDS ATTENTION"
-        compliance_color = "#28a745" if compliance_status == "EXCELLENT" else "#ffc107" if compliance_status == "GOOD" else "#dc3545"
+        compliance_status = (
+            "EXCELLENT"
+            if overall_compliance >= 99
+            else "GOOD"
+            if overall_compliance >= 95
+            else "NEEDS ATTENTION"
+        )
+        compliance_color = (
+            "#28a745"
+            if compliance_status == "EXCELLENT"
+            else "#ffc107"
+            if compliance_status == "GOOD"
+            else "#dc3545"
+        )
 
-        st.markdown(f"""
+        st.markdown(
+            f"""
         <div style="background: {compliance_color}20; padding: 1rem; border-radius: 0.5rem; border-left: 4px solid {compliance_color}; margin: 1rem 0;">
             <h4 style="color: {compliance_color}; margin: 0;">Overall Compliance Score: {overall_compliance:.1f}% - {compliance_status}</h4>
             <p style="margin: 0.5rem 0 0 0;">System is {'meeting' if overall_compliance >= 95 else 'not meeting'} all user requirements for automatic deferral rate escalation.</p>
         </div>
-        """, unsafe_allow_html=True)
+        """,
+            unsafe_allow_html=True,
+        )
 
         # Compliance trend chart
         if len(df) > 1:
             fig = go.Figure()
 
-            fig.add_trace(go.Scatter(
-                x=df['simulation_year'],
-                y=df['january_1_compliance_pct'],
-                name='January 1st Compliance',
-                line=dict(color='#667eea', width=2),
-                mode='lines+markers'
-            ))
+            fig.add_trace(
+                go.Scatter(
+                    x=df["simulation_year"],
+                    y=df["january_1_compliance_pct"],
+                    name="January 1st Compliance",
+                    line=dict(color="#667eea", width=2),
+                    mode="lines+markers",
+                )
+            )
 
-            fig.add_trace(go.Scatter(
-                x=df['simulation_year'],
-                y=df['increment_compliance_pct'],
-                name='1% Increment Compliance',
-                line=dict(color='#28a745', width=2),
-                mode='lines+markers'
-            ))
+            fig.add_trace(
+                go.Scatter(
+                    x=df["simulation_year"],
+                    y=df["increment_compliance_pct"],
+                    name="1% Increment Compliance",
+                    line=dict(color="#28a745", width=2),
+                    mode="lines+markers",
+                )
+            )
 
-            fig.add_trace(go.Scatter(
-                x=df['simulation_year'],
-                y=df['cap_compliance_pct'],
-                name='10% Cap Compliance',
-                line=dict(color='#ffc107', width=2),
-                mode='lines+markers'
-            ))
+            fig.add_trace(
+                go.Scatter(
+                    x=df["simulation_year"],
+                    y=df["cap_compliance_pct"],
+                    name="10% Cap Compliance",
+                    line=dict(color="#ffc107", width=2),
+                    mode="lines+markers",
+                )
+            )
 
-            fig.add_trace(go.Scatter(
-                x=df['simulation_year'],
-                y=df['no_duplicate_compliance_pct'],
-                name='No Duplicate Compliance',
-                line=dict(color='#17a2b8', width=2),
-                mode='lines+markers'
-            ))
+            fig.add_trace(
+                go.Scatter(
+                    x=df["simulation_year"],
+                    y=df["no_duplicate_compliance_pct"],
+                    name="No Duplicate Compliance",
+                    line=dict(color="#17a2b8", width=2),
+                    mode="lines+markers",
+                )
+            )
 
             fig.update_layout(
                 title="Compliance Metrics Trend Analysis",
                 xaxis_title="Simulation Year",
                 yaxis_title="Compliance Percentage (%)",
                 height=400,
-                yaxis=dict(range=[0, 105])
+                yaxis=dict(range=[0, 105]),
             )
 
             st.plotly_chart(fig, use_container_width=True)
@@ -810,10 +915,14 @@ def render_compliance_tracking(analytics: EscalationAnalytics):
     except Exception as e:
         st.error(f"Failed to render compliance tracking: {e}")
 
+
 def render_executive_summary(analytics: EscalationAnalytics):
     """Render executive summary with ROI analysis."""
     try:
-        st.markdown('<div class="section-header"><h3>📋 Executive Summary & ROI Analysis</h3></div>', unsafe_allow_html=True)
+        st.markdown(
+            '<div class="section-header"><h3>📋 Executive Summary & ROI Analysis</h3></div>',
+            unsafe_allow_html=True,
+        )
 
         # Get ROI metrics
         roi_data = analytics.get_roi_analysis()
@@ -823,13 +932,17 @@ def render_executive_summary(analytics: EscalationAnalytics):
             st.warning("Insufficient data for executive summary.")
             return
 
-        st.markdown("""
+        st.markdown(
+            """
         <div class="executive-summary">
             <h3>🎯 Deferral Rate Escalation System - Executive Summary</h3>
-        """, unsafe_allow_html=True)
+        """,
+            unsafe_allow_html=True,
+        )
 
         # Key findings section
-        st.markdown(f"""
+        st.markdown(
+            f"""
             <h4>📈 Key Performance Outcomes</h4>
             <ul>
                 <li><strong>Participation Impact:</strong> {overview_data.get('total_employees_with_escalations', 0):,.0f} employees have benefited from automatic escalations</li>
@@ -861,7 +974,9 @@ def render_executive_summary(analytics: EscalationAnalytics):
                 <li><strong>Long-term Planning:</strong> Evaluate escalation parameters for next planning cycle</li>
             </ul>
         </div>
-        """, unsafe_allow_html=True)
+        """,
+            unsafe_allow_html=True,
+        )
 
         # Executive dashboard metrics
         col1, col2, col3 = st.columns(3)
@@ -870,25 +985,26 @@ def render_executive_summary(analytics: EscalationAnalytics):
             st.metric(
                 "💼 Business Impact Score",
                 "A+",
-                help="Overall assessment of escalation system business value"
+                help="Overall assessment of escalation system business value",
             )
 
         with col2:
             st.metric(
                 "🔒 Compliance Score",
                 "100%",
-                help="Adherence to all user requirements and regulatory guidelines"
+                help="Adherence to all user requirements and regulatory guidelines",
             )
 
         with col3:
             st.metric(
                 "📊 System Health",
                 f"{overview_data.get('health_score', 0)}/100",
-                help="Data quality and operational reliability score"
+                help="Data quality and operational reliability score",
             )
 
     except Exception as e:
         st.error(f"Failed to render executive summary: {e}")
+
 
 def main():
     """Main application logic."""
@@ -899,18 +1015,24 @@ def main():
 
     # Check database connection
     if analytics.get_connection() is None:
-        st.error("Unable to connect to simulation database. Please ensure simulation has been run.")
-        st.info("Run the following command to generate data: `python run_multi_year.py`")
+        st.error(
+            "Unable to connect to simulation database. Please ensure simulation has been run."
+        )
+        st.info(
+            "Run the following command to generate data: `python run_multi_year.py`"
+        )
         return
 
     # Create tabs for different analysis views
-    tab1, tab2, tab3, tab4, tab5 = st.tabs([
-        "📊 Overview KPIs",
-        "📈 Multi-Year Trends",
-        "👥 Demographics",
-        "✅ Compliance",
-        "📋 Executive Summary"
-    ])
+    tab1, tab2, tab3, tab4, tab5 = st.tabs(
+        [
+            "📊 Overview KPIs",
+            "📈 Multi-Year Trends",
+            "👥 Demographics",
+            "✅ Compliance",
+            "📋 Executive Summary",
+        ]
+    )
 
     with tab1:
         render_kpi_cards(analytics)
@@ -929,11 +1051,15 @@ def main():
 
     # Footer
     st.markdown("---")
-    st.markdown(f"""
+    st.markdown(
+        f"""
     <div style='text-align: center; color: #666; margin-top: 2rem;'>
         <p><small>Epic E035: Deferral Rate Escalation Analytics • Generated {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}</small></p>
     </div>
-    """, unsafe_allow_html=True)
+    """,
+        unsafe_allow_html=True,
+    )
+
 
 if __name__ == "__main__":
     main()

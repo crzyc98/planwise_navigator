@@ -19,29 +19,31 @@ Usage:
         print("Environment validation failed:", env.get_validation_errors())
 """
 
+import json
 import os
-import sys
-import subprocess
 import shutil
-from pathlib import Path
-from typing import Dict, List, Optional, Tuple, Union
+import subprocess
+import sys
 from dataclasses import dataclass
 from enum import Enum
-import json
+from pathlib import Path
+from typing import Dict, List, Optional, Tuple, Union
 
 
 class CommandType(Enum):
     """Categories of commands with specific directory and environment requirements."""
-    DAGSTER = "dagster"      # Run from project root with venv
-    DBT = "dbt"             # Run from dbt/ directory with venv
+
+    DAGSTER = "dagster"  # Run from project root with venv
+    DBT = "dbt"  # Run from dbt/ directory with venv
     STREAMLIT = "streamlit"  # Run from project root with venv
-    PYTHON = "python"       # Run from project root with venv
-    SYSTEM = "system"       # System commands (git, etc.)
+    PYTHON = "python"  # Run from project root with venv
+    SYSTEM = "system"  # System commands (git, etc.)
 
 
 @dataclass
 class EnvironmentConfig:
     """Configuration for the detected environment."""
+
     project_root: Path
     venv_path: Optional[Path]
     dbt_path: Path
@@ -75,32 +77,32 @@ class SmartEnvironment:
                 "commands": ["dagster", "definitions.py"],
                 "working_dir": "project_root",
                 "requires_venv": True,
-                "environment_vars": {"DAGSTER_HOME": "dagster_home"}
+                "environment_vars": {"DAGSTER_HOME": "dagster_home"},
             },
             CommandType.DBT: {
                 "commands": ["dbt"],
                 "working_dir": "dbt_path",
                 "requires_venv": True,
-                "environment_vars": {}
+                "environment_vars": {},
             },
             CommandType.STREAMLIT: {
                 "commands": ["streamlit"],
                 "working_dir": "project_root",
                 "requires_venv": True,
-                "environment_vars": {}
+                "environment_vars": {},
             },
             CommandType.PYTHON: {
                 "commands": ["python", "pytest"],
                 "working_dir": "project_root",
                 "requires_venv": True,
-                "environment_vars": {}
+                "environment_vars": {},
             },
             CommandType.SYSTEM: {
                 "commands": ["git", "make", "ls", "cat"],
                 "working_dir": "current",
                 "requires_venv": False,
-                "environment_vars": {}
-            }
+                "environment_vars": {},
+            },
         }
 
     def detect_project_root(self, start_path: Path) -> Optional[Path]:
@@ -113,11 +115,11 @@ class SmartEnvironment:
 
         # Key files that indicate project root
         indicators = [
-            "CLAUDE.md",           # Primary indicator
-            "definitions.py",      # Dagster entry point
-            "dbt/dbt_project.yml", # dbt project structure
-            "pyproject.toml",      # Python project
-            "Makefile"             # Build configuration
+            "CLAUDE.md",  # Primary indicator
+            "definitions.py",  # Dagster entry point
+            "dbt/dbt_project.yml",  # dbt project structure
+            "pyproject.toml",  # Python project
+            "Makefile",  # Build configuration
         ]
 
         # Walk up the directory tree
@@ -151,7 +153,9 @@ class SmartEnvironment:
         # 1. Find project root
         project_root = self.detect_project_root(self.start_path)
         if not project_root:
-            errors.append(f"Could not find PlanWise Navigator project root from {self.start_path}")
+            errors.append(
+                f"Could not find PlanWise Navigator project root from {self.start_path}"
+            )
             return EnvironmentConfig(
                 project_root=self.start_path,
                 venv_path=None,
@@ -159,7 +163,7 @@ class SmartEnvironment:
                 python_executable=None,
                 dagster_home=self.start_path / ".dagster",
                 database_files={},
-                errors=errors
+                errors=errors,
             )
 
         # 2. Check for virtual environment
@@ -168,7 +172,9 @@ class SmartEnvironment:
         if venv_path.exists() and (venv_path / "bin" / "activate").exists():
             python_executable = venv_path / "bin" / "python"
             if not python_executable.exists():
-                errors.append(f"Virtual environment found but Python executable missing: {python_executable}")
+                errors.append(
+                    f"Virtual environment found but Python executable missing: {python_executable}"
+                )
         else:
             errors.append(f"Virtual environment not found at {venv_path}")
             # Fallback to system Python
@@ -183,7 +189,9 @@ class SmartEnvironment:
         if not dbt_path.exists():
             errors.append(f"dbt directory not found: {dbt_path}")
         elif not (dbt_path / "dbt_project.yml").exists():
-            errors.append(f"dbt project configuration not found: {dbt_path / 'dbt_project.yml'}")
+            errors.append(
+                f"dbt project configuration not found: {dbt_path / 'dbt_project.yml'}"
+            )
 
         # 4. Check Dagster home
         dagster_home = project_root / ".dagster"
@@ -193,7 +201,10 @@ class SmartEnvironment:
         db_candidates = [
             ("simulation", project_root / "simulation.duckdb"),
             ("dbt_simulation", project_root / "dbt" / "simulation.duckdb"),
-            ("streamlit_simulation", project_root / "streamlit_dashboard" / "simulation.duckdb")
+            (
+                "streamlit_simulation",
+                project_root / "streamlit_dashboard" / "simulation.duckdb",
+            ),
         ]
 
         for name, path in db_candidates:
@@ -207,7 +218,9 @@ class SmartEnvironment:
                 cmd = [str(python_executable), "-c", "import dagster, dbt, streamlit"]
                 result = subprocess.run(cmd, capture_output=True, text=True, timeout=10)
                 if result.returncode != 0:
-                    errors.append("Required packages not available in virtual environment")
+                    errors.append(
+                        "Required packages not available in virtual environment"
+                    )
             except (subprocess.TimeoutExpired, FileNotFoundError):
                 errors.append("Could not validate Python environment")
 
@@ -219,7 +232,7 @@ class SmartEnvironment:
             dagster_home=dagster_home,
             database_files=database_files,
             errors=errors,
-            is_valid=len(errors) == 0
+            is_valid=len(errors) == 0,
         )
 
         return config
@@ -260,14 +273,18 @@ class SmartEnvironment:
                 return cmd_type
 
         # Special cases
-        if "python" in main_command and any(keyword in command_line for keyword in ["dagster", "definitions.py"]):
+        if "python" in main_command and any(
+            keyword in command_line for keyword in ["dagster", "definitions.py"]
+        ):
             return CommandType.DAGSTER
         if command_line.strip().endswith(".py"):
             return CommandType.PYTHON
 
         return CommandType.SYSTEM
 
-    def get_execution_context(self, command_type: CommandType) -> Dict[str, Union[Path, Dict[str, str]]]:
+    def get_execution_context(
+        self, command_type: CommandType
+    ) -> Dict[str, Union[Path, Dict[str, str]]]:
         """
         Get the execution context for a command type.
 
@@ -305,10 +322,12 @@ class SmartEnvironment:
             "working_dir": working_dir,
             "environment_vars": env_vars,
             "executable": executable,
-            "requires_venv": cmd_config["requires_venv"]
+            "requires_venv": cmd_config["requires_venv"],
         }
 
-    def execute_command(self, command_line: str, capture_output: bool = False) -> subprocess.CompletedProcess:
+    def execute_command(
+        self, command_line: str, capture_output: bool = False
+    ) -> subprocess.CompletedProcess:
         """
         Execute a command with proper environment setup.
 
@@ -320,7 +339,9 @@ class SmartEnvironment:
             subprocess.CompletedProcess result
         """
         if not self.validate():
-            raise RuntimeError(f"Environment validation failed: {self.get_validation_errors()}")
+            raise RuntimeError(
+                f"Environment validation failed: {self.get_validation_errors()}"
+            )
 
         command_type = self.classify_command(command_line)
         context = self.get_execution_context(command_type)
@@ -350,11 +371,13 @@ class SmartEnvironment:
                 cwd=context["working_dir"],
                 env=env,
                 capture_output=capture_output,
-                text=True
+                text=True,
             )
             return result
         except FileNotFoundError as e:
-            raise RuntimeError(f"Command not found: {e}. Ensure virtual environment is set up correctly.")
+            raise RuntimeError(
+                f"Command not found: {e}. Ensure virtual environment is set up correctly."
+            )
 
     def get_setup_instructions(self) -> List[str]:
         """
@@ -366,40 +389,46 @@ class SmartEnvironment:
             self.validate()
 
         if not self.config:
-            return ["Environment detection failed - please run from PlanWise Navigator project directory"]
+            return [
+                "Environment detection failed - please run from PlanWise Navigator project directory"
+            ]
 
         instructions = []
 
         # Virtual environment setup
         if not self.config.venv_path or not self.config.venv_path.exists():
-            instructions.extend([
-                "# Set up virtual environment:",
-                f"cd {self.config.project_root}",
-                "python3.11 -m venv venv",
-                "source venv/bin/activate",
-                "pip install --upgrade pip",
-                "pip install -r requirements.txt",
-                "pip install -r requirements-dev.txt"
-            ])
+            instructions.extend(
+                [
+                    "# Set up virtual environment:",
+                    f"cd {self.config.project_root}",
+                    "python3.11 -m venv venv",
+                    "source venv/bin/activate",
+                    "pip install --upgrade pip",
+                    "pip install -r requirements.txt",
+                    "pip install -r requirements-dev.txt",
+                ]
+            )
 
         # dbt setup
         if not self.config.dbt_path.exists():
-            instructions.extend([
-                "# dbt directory missing - check project structure"
-            ])
+            instructions.extend(["# dbt directory missing - check project structure"])
         elif not (self.config.dbt_path / "dbt_project.yml").exists():
-            instructions.extend([
-                "# Set up dbt project:",
-                f"cd {self.config.dbt_path}",
-                "dbt deps",
-                "dbt seed"
-            ])
+            instructions.extend(
+                [
+                    "# Set up dbt project:",
+                    f"cd {self.config.dbt_path}",
+                    "dbt deps",
+                    "dbt seed",
+                ]
+            )
 
         # Dagster home
-        instructions.extend([
-            "# Ensure Dagster home directory exists:",
-            f"mkdir -p {self.config.dagster_home}"
-        ])
+        instructions.extend(
+            [
+                "# Ensure Dagster home directory exists:",
+                f"mkdir -p {self.config.dagster_home}",
+            ]
+        )
 
         return instructions
 
@@ -440,9 +469,15 @@ def main():
     """CLI interface for environment detection."""
     import argparse
 
-    parser = argparse.ArgumentParser(description="Smart environment detection for PlanWise Navigator")
-    parser.add_argument("--validate", action="store_true", help="Validate environment and exit")
-    parser.add_argument("--summary", action="store_true", help="Print environment summary")
+    parser = argparse.ArgumentParser(
+        description="Smart environment detection for PlanWise Navigator"
+    )
+    parser.add_argument(
+        "--validate", action="store_true", help="Validate environment and exit"
+    )
+    parser.add_argument(
+        "--summary", action="store_true", help="Print environment summary"
+    )
     parser.add_argument("--setup", action="store_true", help="Print setup instructions")
     parser.add_argument("--execute", help="Execute command with smart environment")
     parser.add_argument("--working-dir", help="Override working directory")

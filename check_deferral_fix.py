@@ -3,11 +3,12 @@
 
 import duckdb
 
+
 def check_data_quality():
     # Connect to the database where dbt models are materialized
-    conn = duckdb.connect('/Users/nicholasamaral/planwise_navigator/simulation.duckdb')
+    conn = duckdb.connect("/Users/nicholasamaral/planwise_navigator/simulation.duckdb")
 
-    print('=== CHECKING DATA QUALITY ISSUES ===')
+    print("=== CHECKING DATA QUALITY ISSUES ===")
     print()
 
     # Zero-deferral with positive contributions using current schema
@@ -21,10 +22,10 @@ def check_data_quality():
     WHERE simulation_year = 2025
     """
     result = conn.execute(query1).fetchone()
-    print(f'Total records: {result[0]}')
-    print(f'Zero deferral with contributions: {result[1]}')
-    print(f'Valid records: {result[2]}')
-    print(f'Other data quality issues: {result[3]}')
+    print(f"Total records: {result[0]}")
+    print(f"Zero deferral with contributions: {result[1]}")
+    print(f"Valid records: {result[2]}")
+    print(f"Other data quality issues: {result[3]}")
     print()
 
     # Deferral rate source quality distribution (updated column)
@@ -37,9 +38,9 @@ def check_data_quality():
     GROUP BY deferral_rate_source_quality
     """
     results = conn.execute(query2).fetchall()
-    print('Deferral rate source quality distribution:')
+    print("Deferral rate source quality distribution:")
     for src, cnt in results:
-        print(f'  {src}: {cnt}')
+        print(f"  {src}: {cnt}")
     print()
 
     # Basic stats on deferral rates present in current contributions table
@@ -53,12 +54,12 @@ def check_data_quality():
     WHERE simulation_year = 2025
     """
     result = conn.execute(query3).fetchone()
-    print('Deferral rates:')
-    print(f'  Count: {result[0]}')
+    print("Deferral rates:")
+    print(f"  Count: {result[0]}")
     if result[1]:
-        print(f'  Average rate: {result[1]:.2%}')
-        print(f'  Min rate: {result[2]:.2%}')
-        print(f'  Max rate: {result[3]:.2%}')
+        print(f"  Average rate: {result[1]:.2%}")
+        print(f"  Min rate: {result[2]:.2%}")
+        print(f"  Max rate: {result[3]:.2%}")
     print()
 
     # Show sample of any remaining issues
@@ -77,11 +78,13 @@ def check_data_quality():
     """
     results = conn.execute(query4).fetchall()
     if results:
-        print('Sample of employees with ZERO_DEFERRAL_WITH_CONTRIBUTIONS:')
+        print("Sample of employees with ZERO_DEFERRAL_WITH_CONTRIBUTIONS:")
         for row in results:
-            print(f'  {row[0]}: rate={row[1]:.2%}, contributions=${row[2]:.2f}, flag={row[3]}, source={row[4]}')
+            print(
+                f"  {row[0]}: rate={row[1]:.2%}, contributions=${row[2]:.2f}, flag={row[3]}, source={row[4]}"
+            )
     else:
-        print('✅ NO employees with ZERO_DEFERRAL_WITH_CONTRIBUTIONS issue!')
+        print("✅ NO employees with ZERO_DEFERRAL_WITH_CONTRIBUTIONS issue!")
 
     # Check distribution of data quality flags
     query5 = """
@@ -94,12 +97,13 @@ def check_data_quality():
     ORDER BY count DESC
     """
     print()
-    print('Data quality flag distribution:')
+    print("Data quality flag distribution:")
     results = conn.execute(query5).fetchall()
     for flag, count in results:
-        print(f'  {flag}: {count}')
+        print(f"  {flag}: {count}")
 
     conn.close()
 
-if __name__ == '__main__':
+
+if __name__ == "__main__":
     check_data_quality()

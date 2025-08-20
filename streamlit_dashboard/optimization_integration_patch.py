@@ -9,18 +9,17 @@ Usage:
 3. Add save calls after successful optimizations
 """
 
-from typing import Dict, Any, Optional, List
-import streamlit as st
-from datetime import datetime
 import logging
+from datetime import datetime
+from typing import Any, Dict, List, Optional
+
+import streamlit as st
 
 # Import the new system components
 try:
-    from integration_hooks import (
-        AdvancedOptimizationIntegration,
-        CompensationTuningIntegration,
-        OptimizationSession
-    )
+    from integration_hooks import (AdvancedOptimizationIntegration,
+                                   CompensationTuningIntegration,
+                                   OptimizationSession)
     from optimization_results_manager import get_optimization_results_manager
     from optimization_storage import OptimizationType
 
@@ -56,7 +55,7 @@ def enhanced_save_optimization_results(
     algorithm: str,
     optimization_config: Dict[str, Any],
     results: Dict[str, Any],
-    **kwargs
+    **kwargs,
 ) -> Optional[str]:
     """
     Enhanced save function that saves to the new unified system.
@@ -70,7 +69,7 @@ def enhanced_save_optimization_results(
             algorithm=algorithm,
             optimization_config=optimization_config,
             results=results,
-            **kwargs
+            **kwargs,
         )
 
         st.success(f"✅ Saved optimization results to unified storage: {run_id[:8]}...")
@@ -91,7 +90,7 @@ def enhanced_save_tuning_results(
     scenario_id: str,
     parameters: Dict[str, float],
     simulation_results: Dict[str, Any],
-    **kwargs
+    **kwargs,
 ) -> Optional[str]:
     """
     Enhanced save function for compensation tuning results.
@@ -104,7 +103,7 @@ def enhanced_save_tuning_results(
             scenario_id=scenario_id,
             parameters=parameters,
             simulation_results=simulation_results,
-            **kwargs
+            **kwargs,
         )
 
         st.success(f"✅ Saved tuning results to unified storage: {run_id[:8]}...")
@@ -145,15 +144,21 @@ def add_results_viewer_widget():
 
         if recent_runs:
             for i, run in enumerate(recent_runs):
-                with st.sidebar.expander(f"🔍 {run.scenario_id[:20]}..." if len(run.scenario_id) > 20 else run.scenario_id):
-                    st.write(f"**Type:** {run.optimization_type.value.replace('_', ' ').title()}")
+                with st.sidebar.expander(
+                    f"🔍 {run.scenario_id[:20]}..."
+                    if len(run.scenario_id) > 20
+                    else run.scenario_id
+                ):
+                    st.write(
+                        f"**Type:** {run.optimization_type.value.replace('_', ' ').title()}"
+                    )
                     st.write(f"**Created:** {run.created_at.strftime('%m/%d %H:%M')}")
                     st.write(f"**Status:** {run.status.value.title()}")
                     if run.runtime_seconds:
                         st.write(f"**Runtime:** {run.runtime_seconds:.1f}s")
 
                     if st.button("📋 View Details", key=f"view_{i}"):
-                        st.session_state['selected_run_details'] = run.run_id
+                        st.session_state["selected_run_details"] = run.run_id
                         st.switch_page("optimization_dashboard.py")
         else:
             st.sidebar.info("No recent results")
@@ -177,23 +182,23 @@ def add_optimization_status_indicator():
     try:
         status = AdvancedOptimizationIntegration.get_optimization_status()
 
-        if status['system_healthy']:
+        if status["system_healthy"]:
             st.sidebar.success("✅ Optimization System Online")
 
             # Show quick stats
-            if status.get('recent_runs_count', 0) > 0:
-                st.sidebar.metric("Recent Runs", status['recent_runs_count'])
+            if status.get("recent_runs_count", 0) > 0:
+                st.sidebar.metric("Recent Runs", status["recent_runs_count"])
 
-            if status.get('last_run_time'):
-                last_run = datetime.fromisoformat(status['last_run_time'])
+            if status.get("last_run_time"):
+                last_run = datetime.fromisoformat(status["last_run_time"])
                 hours_ago = (datetime.now() - last_run).total_seconds() / 3600
                 st.sidebar.metric("Last Run", f"{hours_ago:.1f}h ago")
         else:
             st.sidebar.error("❌ System Issues Detected")
-            if 'warning' in status:
-                st.sidebar.warning(status['warning'])
-            if 'error' in status:
-                st.sidebar.error(status['error'])
+            if "warning" in status:
+                st.sidebar.warning(status["warning"])
+            if "error" in status:
+                st.sidebar.error(status["error"])
 
     except Exception as e:
         st.sidebar.warning(f"Status check failed: {e}")
@@ -217,21 +222,22 @@ def get_parameter_comparison_widget(current_parameters: Dict[str, float]):
             comparison_data = []
 
             # Add current parameters
-            comparison_data.append({
-                'Run': 'Current',
-                'Timestamp': 'Now',
-                **current_parameters
-            })
+            comparison_data.append(
+                {"Run": "Current", "Timestamp": "Now", **current_parameters}
+            )
 
             # Add historical parameters
             for i, hist in enumerate(param_history[:3]):  # Last 3 runs
-                comparison_data.append({
-                    'Run': f"Run {i+1}",
-                    'Timestamp': hist['timestamp'].strftime('%m/%d %H:%M'),
-                    **hist['parameters']
-                })
+                comparison_data.append(
+                    {
+                        "Run": f"Run {i+1}",
+                        "Timestamp": hist["timestamp"].strftime("%m/%d %H:%M"),
+                        **hist["parameters"],
+                    }
+                )
 
             import pandas as pd
+
             comparison_df = pd.DataFrame(comparison_data)
 
             # Display comparison
@@ -240,15 +246,19 @@ def get_parameter_comparison_widget(current_parameters: Dict[str, float]):
             # Highlight differences
             if len(comparison_data) > 1:
                 st.write("**Key Differences from Last Run:**")
-                last_run_params = param_history[0]['parameters']
+                last_run_params = param_history[0]["parameters"]
 
                 differences = []
                 for param, current_value in current_parameters.items():
                     if param in last_run_params:
                         last_value = last_run_params[param]
-                        if abs(current_value - last_value) > 0.001:  # Significant difference
+                        if (
+                            abs(current_value - last_value) > 0.001
+                        ):  # Significant difference
                             diff = current_value - last_value
-                            differences.append(f"- {param}: {diff:+.4f} ({diff/last_value*100:+.1f}%)")
+                            differences.append(
+                                f"- {param}: {diff:+.4f} ({diff/last_value*100:+.1f}%)"
+                            )
 
                 if differences:
                     for diff in differences[:5]:  # Show top 5 differences
@@ -274,26 +284,26 @@ def create_optimization_summary_card(results: Dict[str, Any]):
     col1, col2, col3, col4 = st.columns(4)
 
     with col1:
-        algorithm = results.get('algorithm_used', results.get('algorithm', 'Unknown'))
+        algorithm = results.get("algorithm_used", results.get("algorithm", "Unknown"))
         st.metric("Algorithm", algorithm)
 
     with col2:
-        converged = results.get('converged', False)
+        converged = results.get("converged", False)
         st.metric("Converged", "✅ Yes" if converged else "❌ No")
 
     with col3:
-        runtime = results.get('runtime_seconds', 0)
+        runtime = results.get("runtime_seconds", 0)
         if runtime < 60:
             st.metric("Runtime", f"{runtime:.1f}s")
         else:
             st.metric("Runtime", f"{runtime/60:.1f}m")
 
     with col4:
-        run_id = results.get('run_id')
+        run_id = results.get("run_id")
         if run_id:
             st.metric("Run ID", run_id[:8] + "...")
         else:
-            st.metric("Evaluations", results.get('function_evaluations', 'N/A'))
+            st.metric("Evaluations", results.get("function_evaluations", "N/A"))
 
     # Quick actions
     col1, col2, col3 = st.columns(3)
@@ -305,7 +315,7 @@ def create_optimization_summary_card(results: Dict[str, Any]):
     with col2:
         if st.button("📥 Export Results"):
             if run_id:
-                st.session_state['export_runs'] = [run_id]
+                st.session_state["export_runs"] = [run_id]
                 st.switch_page("optimization_dashboard.py")
             else:
                 st.warning("No run ID available for export")
@@ -313,11 +323,11 @@ def create_optimization_summary_card(results: Dict[str, Any]):
     with col3:
         if st.button("⚖️ Compare Results"):
             if run_id:
-                if 'comparison_runs' not in st.session_state:
-                    st.session_state['comparison_runs'] = []
+                if "comparison_runs" not in st.session_state:
+                    st.session_state["comparison_runs"] = []
 
-                if run_id not in st.session_state['comparison_runs']:
-                    st.session_state['comparison_runs'].append(run_id)
+                if run_id not in st.session_state["comparison_runs"]:
+                    st.session_state["comparison_runs"].append(run_id)
 
                 st.switch_page("optimization_dashboard.py")
             else:
@@ -344,7 +354,11 @@ class EnhancedOptimizationSession:
 
     def __enter__(self):
         if INTEGRATION_AVAILABLE:
-            opt_type = OptimizationType.ADVANCED_SCIPY if self.optimization_type == "advanced" else OptimizationType.COMPENSATION_TUNING
+            opt_type = (
+                OptimizationType.ADVANCED_SCIPY
+                if self.optimization_type == "advanced"
+                else OptimizationType.COMPENSATION_TUNING
+            )
             self.session = OptimizationSession(self.session_name, opt_type)
             self.session.__enter__()
 
@@ -354,13 +368,21 @@ class EnhancedOptimizationSession:
         if self.session:
             self.session.__exit__(exc_type, exc_val, exc_tb)
 
-    def save_results(self, scenario_id: str, algorithm: str, config: Dict[str, Any], results: Dict[str, Any]) -> Optional[str]:
+    def save_results(
+        self,
+        scenario_id: str,
+        algorithm: str,
+        config: Dict[str, Any],
+        results: Dict[str, Any],
+    ) -> Optional[str]:
         """Save optimization results."""
         if self.optimization_type == "advanced":
-            run_id = enhanced_save_optimization_results(scenario_id, algorithm, config, results)
+            run_id = enhanced_save_optimization_results(
+                scenario_id, algorithm, config, results
+            )
         else:
             # For tuning type
-            parameters = config.get('parameters', {})
+            parameters = config.get("parameters", {})
             run_id = enhanced_save_tuning_results(scenario_id, parameters, results)
 
         if run_id and self.session:
@@ -379,6 +401,7 @@ def patch_advanced_optimization():
     if INTEGRATION_AVAILABLE:
         # Replace the global load_optimization_results function
         import sys
+
         current_module = sys.modules[__name__]
         current_module.load_optimization_results = enhanced_load_optimization_results
 
@@ -396,16 +419,16 @@ def patch_compensation_tuning():
 
 # Export commonly used functions
 __all__ = [
-    'enhanced_load_optimization_results',
-    'enhanced_save_optimization_results',
-    'enhanced_save_tuning_results',
-    'add_results_viewer_widget',
-    'add_optimization_status_indicator',
-    'get_parameter_comparison_widget',
-    'create_optimization_summary_card',
-    'EnhancedOptimizationSession',
-    'patch_advanced_optimization',
-    'patch_compensation_tuning'
+    "enhanced_load_optimization_results",
+    "enhanced_save_optimization_results",
+    "enhanced_save_tuning_results",
+    "add_results_viewer_widget",
+    "add_optimization_status_indicator",
+    "get_parameter_comparison_widget",
+    "create_optimization_summary_card",
+    "EnhancedOptimizationSession",
+    "patch_advanced_optimization",
+    "patch_compensation_tuning",
 ]
 
 

@@ -27,14 +27,13 @@ from typing import Dict, List
 import duckdb
 
 # Import the production safety components
-from navigator_orchestrator.backup_manager import BackupManager, BackupConfiguration
+from navigator_orchestrator.backup_manager import (BackupConfiguration,
+                                                   BackupManager)
+from navigator_orchestrator.config import (OrchestrationConfig,
+                                           ProductionSafetySettings,
+                                           create_example_orchestration_config,
+                                           validate_production_configuration)
 from navigator_orchestrator.recovery_manager import RecoveryManager
-from navigator_orchestrator.config import (
-    OrchestrationConfig,
-    ProductionSafetySettings,
-    validate_production_configuration,
-    create_example_orchestration_config
-)
 
 
 class ProductionDataSafetyTest:
@@ -57,7 +56,7 @@ class ProductionDataSafetyTest:
             backup_dir=self.test_dir / "backups",
             retention_days=3,
             verify_backups=True,
-            max_backup_size_gb=1.0
+            max_backup_size_gb=1.0,
         )
 
         self.backup_manager = BackupManager(self.backup_config, str(self.test_db))
@@ -71,7 +70,8 @@ class ProductionDataSafetyTest:
         """Create a test database with sample data"""
         with duckdb.connect(str(self.test_db)) as conn:
             # Create sample tables similar to actual simulation database
-            conn.execute("""
+            conn.execute(
+                """
                 CREATE TABLE fct_yearly_events (
                     event_id VARCHAR PRIMARY KEY,
                     employee_id VARCHAR,
@@ -80,9 +80,11 @@ class ProductionDataSafetyTest:
                     effective_date DATE,
                     event_details JSON
                 )
-            """)
+            """
+            )
 
-            conn.execute("""
+            conn.execute(
+                """
                 CREATE TABLE fct_workforce_snapshot (
                     employee_id VARCHAR,
                     simulation_year INTEGER,
@@ -92,9 +94,11 @@ class ProductionDataSafetyTest:
                     annual_compensation DECIMAL(12,2),
                     PRIMARY KEY (employee_id, simulation_year)
                 )
-            """)
+            """
+            )
 
-            conn.execute("""
+            conn.execute(
+                """
                 CREATE TABLE stg_census_data (
                     employee_id VARCHAR PRIMARY KEY,
                     employee_hire_date DATE,
@@ -102,44 +106,43 @@ class ProductionDataSafetyTest:
                     employee_gross_compensation DECIMAL(12,2),
                     active BOOLEAN
                 )
-            """)
+            """
+            )
 
             # Insert sample data
             sample_events = [
                 ("EVT_001", "EMP_001", 2025, "hire", "2025-01-15", "{}"),
                 ("EVT_002", "EMP_002", 2025, "hire", "2025-02-01", "{}"),
                 ("EVT_003", "EMP_001", 2025, "enrollment", "2025-02-15", "{}"),
-                ("EVT_004", "EMP_003", 2025, "termination", "2025-03-01", "{}")
+                ("EVT_004", "EMP_003", 2025, "termination", "2025-03-01", "{}"),
             ]
 
             for event in sample_events:
                 conn.execute(
-                    "INSERT INTO fct_yearly_events VALUES (?, ?, ?, ?, ?, ?)",
-                    event
+                    "INSERT INTO fct_yearly_events VALUES (?, ?, ?, ?, ?, ?)", event
                 )
 
             sample_workforce = [
                 ("EMP_001", 2025, "2025-01-15", 30, "active", 75000.00),
                 ("EMP_002", 2025, "2025-02-01", 25, "active", 65000.00),
-                ("EMP_003", 2025, "2025-03-01", 35, "terminated", 80000.00)
+                ("EMP_003", 2025, "2025-03-01", 35, "terminated", 80000.00),
             ]
 
             for workforce in sample_workforce:
                 conn.execute(
                     "INSERT INTO fct_workforce_snapshot VALUES (?, ?, ?, ?, ?, ?)",
-                    workforce
+                    workforce,
                 )
 
             sample_census = [
                 ("EMP_001", "2025-01-15", "1994-06-15", 75000.00, True),
                 ("EMP_002", "2025-02-01", "1999-03-20", 65000.00, True),
-                ("EMP_003", "2025-03-01", "1989-12-10", 80000.00, False)
+                ("EMP_003", "2025-03-01", "1989-12-10", 80000.00, False),
             ]
 
             for census in sample_census:
                 conn.execute(
-                    "INSERT INTO stg_census_data VALUES (?, ?, ?, ?, ?)",
-                    census
+                    "INSERT INTO stg_census_data VALUES (?, ?, ?, ?, ?)", census
                 )
 
     def _log_test(self, test_name: str, success: bool, details: List[str]) -> None:
@@ -176,7 +179,9 @@ class ProductionDataSafetyTest:
             if backup_metadata.backup_size < 1024:
                 details.append("⚠️  Backup file very small")
             else:
-                details.append(f"✅ Backup size: {backup_metadata.backup_size / 1024:.1f} KB")
+                details.append(
+                    f"✅ Backup size: {backup_metadata.backup_size / 1024:.1f} KB"
+                )
 
             # Test latest symlink
             latest_link = self.backup_config.backup_dir / "latest.duckdb"
@@ -201,7 +206,9 @@ class ProductionDataSafetyTest:
             backup_metadata = self.backup_manager.create_backup()
 
             # Test comprehensive verification
-            validation = self.recovery_manager.verify_backup_comprehensive(backup_metadata.backup_path)
+            validation = self.recovery_manager.verify_backup_comprehensive(
+                backup_metadata.backup_path
+            )
 
             details.append(f"✅ Verification success: {validation.success}")
             details.append(f"✅ Integrity score: {validation.data_integrity_score:.2f}")
@@ -237,23 +244,20 @@ class ProductionDataSafetyTest:
                     "start_year": 2025,
                     "end_year": 2029,
                     "random_seed": 42,
-                    "target_growth_rate": 0.03
+                    "target_growth_rate": 0.03,
                 },
-                "compensation": {
-                    "cola_rate": 0.005,
-                    "merit_budget": 0.025
-                },
+                "compensation": {"cola_rate": 0.005, "merit_budget": 0.025},
                 "workforce": {
                     "total_termination_rate": 0.12,
-                    "new_hire_termination_rate": 0.25
+                    "new_hire_termination_rate": 0.25,
                 },
                 "production_safety": {
                     "db_path": str(self.test_db),
                     "backup_dir": str(self.backup_config.backup_dir),
                     "backup_retention_days": 3,
                     "verify_backups": True,
-                    "log_level": "INFO"
-                }
+                    "log_level": "INFO",
+                },
             }
 
             # Test configuration creation and validation
@@ -266,13 +270,16 @@ class ProductionDataSafetyTest:
 
             # Test backup configuration extraction
             from navigator_orchestrator.config import get_backup_configuration
+
             backup_config = get_backup_configuration(config)
             details.append("✅ Backup configuration extracted")
 
             # Test invalid configuration
             try:
                 invalid_config_data = config_data.copy()
-                invalid_config_data["production_safety"]["db_path"] = "/nonexistent/path.duckdb"
+                invalid_config_data["production_safety"][
+                    "db_path"
+                ] = "/nonexistent/path.duckdb"
 
                 invalid_config = OrchestrationConfig(**invalid_config_data)
                 validate_production_configuration(invalid_config)
@@ -319,7 +326,9 @@ class ProductionDataSafetyTest:
 
             # Test recovery point testing
             if recovery_points:
-                validation = self.recovery_manager.test_recovery_point(recovery_points[0])
+                validation = self.recovery_manager.test_recovery_point(
+                    recovery_points[0]
+                )
                 details.append(f"✅ Recovery point test: {validation.success}")
 
             self._log_test(test_name, True, details)
@@ -338,7 +347,9 @@ class ProductionDataSafetyTest:
             emergency_backup = self.recovery_manager.create_emergency_backup()
 
             if emergency_backup:
-                details.append(f"✅ Emergency backup created: {emergency_backup.backup_path.name}")
+                details.append(
+                    f"✅ Emergency backup created: {emergency_backup.backup_path.name}"
+                )
                 details.append(f"✅ Size: {emergency_backup.backup_size / 1024:.1f} KB")
 
                 # Verify it's actually an emergency backup
@@ -364,12 +375,16 @@ class ProductionDataSafetyTest:
         try:
             # Create backup first
             original_backup = self.backup_manager.create_backup()
-            details.append(f"✅ Original backup created: {original_backup.backup_path.name}")
+            details.append(
+                f"✅ Original backup created: {original_backup.backup_path.name}"
+            )
 
             # Modify database to simulate data changes
             with duckdb.connect(str(self.test_db)) as conn:
-                conn.execute("INSERT INTO fct_yearly_events VALUES (?, ?, ?, ?, ?, ?)",
-                           ("EVT_999", "EMP_999", 2025, "test", "2025-12-31", "{}"))
+                conn.execute(
+                    "INSERT INTO fct_yearly_events VALUES (?, ?, ?, ?, ?, ?)",
+                    ("EVT_999", "EMP_999", 2025, "test", "2025-12-31", "{}"),
+                )
 
             details.append("✅ Database modified for restore test")
 
@@ -377,7 +392,7 @@ class ProductionDataSafetyTest:
             restore_operation = self.recovery_manager.restore_from_backup(
                 backup_path=original_backup.backup_path,
                 verify_before_restore=True,
-                create_emergency_backup=True
+                create_emergency_backup=True,
             )
 
             details.append(f"✅ Restore operation: {restore_operation.operation_id}")
@@ -404,7 +419,9 @@ class ProductionDataSafetyTest:
 
                 self._log_test(test_name, True, details)
             else:
-                details.append(f"❌ Restore failed: {restore_operation.details.get('error', 'Unknown')}")
+                details.append(
+                    f"❌ Restore failed: {restore_operation.details.get('error', 'Unknown')}"
+                )
                 self._log_test(test_name, False, details)
 
         except Exception as e:
@@ -425,16 +442,22 @@ class ProductionDataSafetyTest:
 
             # Get recovery system status
             recovery_status = self.recovery_manager.get_recovery_status()
-            details.append(f"✅ Recovery readiness: {recovery_status['recovery_readiness']}")
-            details.append(f"✅ Verified points: {recovery_status['verified_recovery_points']}")
-            details.append(f"✅ Database accessible: {recovery_status['database_status']['accessible']}")
+            details.append(
+                f"✅ Recovery readiness: {recovery_status['recovery_readiness']}"
+            )
+            details.append(
+                f"✅ Verified points: {recovery_status['verified_recovery_points']}"
+            )
+            details.append(
+                f"✅ Database accessible: {recovery_status['database_status']['accessible']}"
+            )
 
             # Check for reasonable status values
             success = (
-                backup_status['backup_count'] > 0 and
-                backup_status['database_exists'] and
-                recovery_status['database_status']['accessible'] and
-                recovery_status['recovery_readiness'] in ['excellent', 'good']
+                backup_status["backup_count"] > 0
+                and backup_status["database_exists"]
+                and recovery_status["database_status"]["accessible"]
+                and recovery_status["recovery_readiness"] in ["excellent", "good"]
             )
 
             self._log_test(test_name, success, details)
@@ -452,8 +475,7 @@ class ProductionDataSafetyTest:
             # Test backup of non-existent database
             try:
                 fake_backup_manager = BackupManager(
-                    self.backup_config,
-                    "/nonexistent/database.duckdb"
+                    self.backup_config, "/nonexistent/database.duckdb"
                 )
                 fake_backup_manager.create_backup()
                 details.append("❌ Should have failed with non-existent database")
@@ -476,7 +498,9 @@ class ProductionDataSafetyTest:
             corrupted_backup = self.backup_config.backup_dir / "corrupted.duckdb"
             corrupted_backup.write_text("This is not a valid database file")
 
-            validation = self.recovery_manager.verify_backup_comprehensive(corrupted_backup)
+            validation = self.recovery_manager.verify_backup_comprehensive(
+                corrupted_backup
+            )
             if not validation.success:
                 details.append("✅ Properly detects corrupted backup")
             else:
@@ -551,14 +575,16 @@ class ProductionDataSafetyTest:
             self.test_full_restore,
             self.test_system_status,
             self.test_error_handling,
-            self.test_backup_cleanup
+            self.test_backup_cleanup,
         ]
 
         for test_method in test_methods:
             try:
                 test_method()
             except Exception as e:
-                test_name = test_method.__name__.replace("test_", "").replace("_", " ").title()
+                test_name = (
+                    test_method.__name__.replace("test_", "").replace("_", " ").title()
+                )
                 self._log_test(test_name, False, [f"❌ Unexpected exception: {str(e)}"])
 
             print()  # Add spacing between tests
@@ -637,6 +663,7 @@ def main():
     except Exception as e:
         print(f"\n💥 Test suite failed with exception: {str(e)}")
         import traceback
+
         traceback.print_exc()
         return 1
 

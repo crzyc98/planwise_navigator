@@ -5,16 +5,14 @@ These tests target high-impact functions that are currently uncovered,
 providing minimal but meaningful coverage to reach the 95% target.
 """
 
-import pytest
-from unittest.mock import Mock, patch, MagicMock
-from dagster import OpExecutionContext, AssetExecutionContext
+from unittest.mock import MagicMock, Mock, patch
 
-from orchestrator.simulator_pipeline import (
-    clean_orphaned_data_outside_range,
-    run_dbt_event_models_for_year,
-    baseline_workforce_validated,
-    validate_year_results,
-)
+import pytest
+from dagster import AssetExecutionContext, OpExecutionContext
+from orchestrator.simulator_pipeline import (baseline_workforce_validated,
+                                             clean_orphaned_data_outside_range,
+                                             run_dbt_event_models_for_year,
+                                             validate_year_results)
 
 
 class TestCleanOrphanedDataOutsideRange:
@@ -34,7 +32,9 @@ class TestCleanOrphanedDataOutsideRange:
         result = clean_orphaned_data_outside_range(mock_context, [])
 
         assert result == {"fct_yearly_events": 0, "fct_workforce_snapshot": 0}
-        mock_context.log.info.assert_called_with("No simulation range specified - no orphaned data cleanup")
+        mock_context.log.info.assert_called_with(
+            "No simulation range specified - no orphaned data cleanup"
+        )
 
     @patch("orchestrator.simulator_pipeline.duckdb.connect")
     def test_successful_orphaned_data_cleanup(self, mock_duckdb_connect, mock_context):
@@ -51,7 +51,9 @@ class TestCleanOrphanedDataOutsideRange:
 
         assert result == {"fct_yearly_events": 50, "fct_workforce_snapshot": 30}
         # Check that the initial log message was called (among others)
-        mock_context.log.info.assert_any_call("Cleaning orphaned data outside simulation range 2025-2027")
+        mock_context.log.info.assert_any_call(
+            "Cleaning orphaned data outside simulation range 2025-2027"
+        )
         mock_conn.close.assert_called()
 
     @patch("orchestrator.simulator_pipeline.duckdb.connect")
@@ -64,7 +66,9 @@ class TestCleanOrphanedDataOutsideRange:
         result = clean_orphaned_data_outside_range(mock_context, [2025])
 
         assert result == {"fct_yearly_events": 10, "fct_workforce_snapshot": 5}
-        mock_context.log.info.assert_any_call("Cleaning orphaned data outside simulation range 2025")
+        mock_context.log.info.assert_any_call(
+            "Cleaning orphaned data outside simulation range 2025"
+        )
 
 
 class TestRunDbtEventModelsForYear:
@@ -91,7 +95,9 @@ class TestRunDbtEventModelsForYear:
 
     @patch("orchestrator.simulator_pipeline.execute_dbt_command")
     @patch("orchestrator.simulator_pipeline._log_hiring_calculation_debug")
-    def test_successful_event_models_execution(self, mock_log_hiring, mock_execute_dbt, mock_context, sample_config):
+    def test_successful_event_models_execution(
+        self, mock_log_hiring, mock_execute_dbt, mock_context, sample_config
+    ):
         """Test successful execution of event models."""
         # Mock hiring debug info
         mock_log_hiring.return_value = {"debug_info": "test"}
@@ -127,7 +133,9 @@ class TestBaselineWorkforceValidated:
     def test_successful_baseline_validation(self, mock_duckdb_connect, mock_context):
         """Test successful baseline workforce validation."""
         mock_conn = Mock()
-        mock_conn.execute.return_value.fetchone.return_value = [1500]  # Baseline workforce count
+        mock_conn.execute.return_value.fetchone.return_value = [
+            1500
+        ]  # Baseline workforce count
         mock_duckdb_connect.return_value = mock_conn
 
         result = baseline_workforce_validated(mock_context)
@@ -140,7 +148,9 @@ class TestBaselineWorkforceValidated:
     def test_baseline_validation_failure(self, mock_duckdb_connect, mock_context):
         """Test baseline validation failure with no workforce data."""
         mock_conn = Mock()
-        mock_conn.execute.return_value.fetchone.return_value = [0]  # No baseline workforce
+        mock_conn.execute.return_value.fetchone.return_value = [
+            0
+        ]  # No baseline workforce
         mock_duckdb_connect.return_value = mock_conn
 
         result = baseline_workforce_validated(mock_context)
@@ -163,7 +173,9 @@ class TestValidateYearResults:
 
     @patch("orchestrator.simulator_pipeline.assert_year_complete")
     @patch("orchestrator.simulator_pipeline.duckdb.connect")
-    def test_successful_year_validation(self, mock_duckdb_connect, mock_assert_year_complete, mock_context):
+    def test_successful_year_validation(
+        self, mock_duckdb_connect, mock_assert_year_complete, mock_context
+    ):
         """Test successful year results validation."""
         # Mock assert_year_complete to succeed
         mock_assert_year_complete.return_value = None
@@ -172,10 +184,10 @@ class TestValidateYearResults:
         # Mock all validation queries to return valid data
         mock_conn.execute.return_value.fetchone.side_effect = [
             [1500],  # Workforce snapshot count
-            [200],   # Yearly events count
+            [200],  # Yearly events count
             [1600],  # Final workforce count
-            [100],   # Hire events
-            [80],    # Termination events
+            [100],  # Hire events
+            [80],  # Termination events
         ]
         mock_duckdb_connect.return_value = mock_conn
 
@@ -188,7 +200,9 @@ class TestValidateYearResults:
 
     @patch("orchestrator.simulator_pipeline.assert_year_complete")
     @patch("orchestrator.simulator_pipeline.duckdb.connect")
-    def test_year_validation_failure(self, mock_duckdb_connect, mock_assert_year_complete, mock_context):
+    def test_year_validation_failure(
+        self, mock_duckdb_connect, mock_assert_year_complete, mock_context
+    ):
         """Test year validation failure with assertion error."""
         # Mock assert_year_complete to raise an exception
         mock_assert_year_complete.side_effect = AssertionError("Year validation failed")

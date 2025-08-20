@@ -12,34 +12,33 @@ This module provides extensive test coverage for:
 Design follows PlanWise Navigator testing patterns and Enterprise-grade requirements.
 """
 
-import pytest
-import pandas as pd
-import numpy as np
-import os
-import tempfile
-import time
-import subprocess
 import json
-import yaml
+import os
 import sqlite3
+import subprocess
+import tempfile
 import threading
-import psutil
-from pathlib import Path
-from unittest.mock import Mock, patch, MagicMock
-from typing import Dict, Any, List, Optional, Tuple
-from dataclasses import dataclass
-from contextlib import contextmanager
+import time
 import warnings
+from contextlib import contextmanager
+from dataclasses import dataclass
+from pathlib import Path
+from typing import Any, Dict, List, Optional, Tuple
+from unittest.mock import MagicMock, Mock, patch
+
+import numpy as np
+import pandas as pd
+import psutil
+import pytest
+import yaml
 
 # Import modules under test
-from streamlit_dashboard.optimization_schemas import (
-    ParameterSchema,
-    get_parameter_schema,
-    ParameterCategory,
-    RiskLevel,
-    get_default_parameters,
-    validate_parameters
-)
+from streamlit_dashboard.optimization_schemas import (ParameterCategory,
+                                                      ParameterSchema,
+                                                      RiskLevel,
+                                                      get_default_parameters,
+                                                      get_parameter_schema,
+                                                      validate_parameters)
 
 # Test configuration
 TEST_DB_PATH = "/tmp/test_compensation_tuning.duckdb"
@@ -50,6 +49,7 @@ PERFORMANCE_TIMEOUT = 300  # 5 minutes max for performance tests
 @dataclass
 class TestScenario:
     """Define test scenarios for business validation."""
+
     name: str
     description: str
     budget_constraint: float
@@ -62,6 +62,7 @@ class TestScenario:
 @dataclass
 class PerformanceMetrics:
     """Track performance metrics during tests."""
+
     execution_time: float
     memory_usage_mb: float
     cpu_usage_percent: float
@@ -80,6 +81,7 @@ class TestEdgeCases:
     def teardown_method(self):
         """Cleanup after each test method."""
         import shutil
+
         shutil.rmtree(self.temp_dir, ignore_errors=True)
 
     def test_extreme_parameter_values(self):
@@ -91,7 +93,9 @@ class TestEdgeCases:
             min_params[param_name] = param_def.bounds.min_value
 
         validation_result = self.schema.validate_parameter_set(min_params)
-        assert validation_result['is_valid'], f"Minimum values should be valid: {validation_result['errors']}"
+        assert validation_result[
+            "is_valid"
+        ], f"Minimum values should be valid: {validation_result['errors']}"
 
         # Test maximum values
         max_params = {}
@@ -99,7 +103,9 @@ class TestEdgeCases:
             max_params[param_name] = param_def.bounds.max_value
 
         validation_result = self.schema.validate_parameter_set(max_params)
-        assert validation_result['is_valid'], f"Maximum values should be valid: {validation_result['errors']}"
+        assert validation_result[
+            "is_valid"
+        ], f"Maximum values should be valid: {validation_result['errors']}"
 
         # Test beyond bounds (should fail)
         beyond_max_params = {}
@@ -107,8 +113,8 @@ class TestEdgeCases:
             beyond_max_params[param_name] = param_def.bounds.max_value * 1.1
 
         validation_result = self.schema.validate_parameter_set(beyond_max_params)
-        assert not validation_result['is_valid'], "Beyond-max values should be invalid"
-        assert len(validation_result['errors']) > 0, "Should have validation errors"
+        assert not validation_result["is_valid"], "Beyond-max values should be invalid"
+        assert len(validation_result["errors"]) > 0, "Should have validation errors"
 
     def test_empty_datasets(self):
         """Test behavior with empty datasets and missing data."""
@@ -119,13 +125,10 @@ class TestEdgeCases:
 
         # Should handle gracefully, possibly with warnings for missing params
         assert isinstance(validation_result, dict)
-        assert 'is_valid' in validation_result
+        assert "is_valid" in validation_result
 
         # Test with None values
-        none_params = {
-            "merit_rate_level_1": None,
-            "cola_rate": None
-        }
+        none_params = {"merit_rate_level_1": None, "cola_rate": None}
 
         with pytest.raises((TypeError, ValueError)):
             self.schema.validate_parameter_set(none_params)
@@ -137,7 +140,7 @@ class TestEdgeCases:
 
         # Test graceful handling of missing files
         with pytest.raises(FileNotFoundError):
-            with open(missing_file_path, 'r') as f:
+            with open(missing_file_path, "r") as f:
                 yaml.safe_load(f)
 
     def test_corrupted_parameter_file(self):
@@ -145,7 +148,7 @@ class TestEdgeCases:
 
         # Create corrupted CSV file
         corrupted_csv_path = os.path.join(self.temp_dir, "corrupted_comp_levers.csv")
-        with open(corrupted_csv_path, 'w') as f:
+        with open(corrupted_csv_path, "w") as f:
             f.write("invalid,csv,format\n")
             f.write("not,a,proper,compensation,file\n")
             f.write("missing,required,columns\n")
@@ -154,7 +157,7 @@ class TestEdgeCases:
         try:
             df = pd.read_csv(corrupted_csv_path)
             # Should not have expected columns
-            expected_columns = ['parameter_name', 'job_level', 'year', 'value']
+            expected_columns = ["parameter_name", "job_level", "year", "value"]
             for col in expected_columns:
                 assert col not in df.columns
         except Exception as e:
@@ -167,7 +170,7 @@ class TestEdgeCases:
         invalid_params = {
             "merit_rate_level_1": "not_a_number",
             "cola_rate": [1, 2, 3],  # List instead of float
-            "promotion_probability_level_1": {"invalid": "dict"}
+            "promotion_probability_level_1": {"invalid": "dict"},
         }
 
         with pytest.raises((TypeError, ValueError)):
@@ -179,12 +182,12 @@ class TestEdgeCases:
         # Test with unicode parameter names (should fail validation)
         unicode_params = {
             "merit_rate_lével_1": 0.045,  # Non-ASCII character
-            "côla_rate": 0.025
+            "côla_rate": 0.025,
         }
 
         validation_result = self.schema.validate_parameter_set(unicode_params)
         # Should warn about unknown parameters
-        assert len(validation_result['warnings']) > 0
+        assert len(validation_result["warnings"]) > 0
 
     def test_extremely_large_numbers(self):
         """Test handling of extremely large numbers."""
@@ -192,7 +195,7 @@ class TestEdgeCases:
         large_params = {
             "merit_rate_level_1": 1e10,  # Extremely large
             "cola_rate": np.inf,  # Infinity
-            "promotion_probability_level_1": float('nan')  # NaN
+            "promotion_probability_level_1": float("nan"),  # NaN
         }
 
         # Should handle gracefully with appropriate errors/warnings
@@ -217,23 +220,27 @@ class TestIntegrationScenarios:
             "merit_rate_level_1": 0.055,
             "merit_rate_level_2": 0.050,
             "cola_rate": 0.030,
-            "optimization_score": 0.85
+            "optimization_score": 0.85,
         }
 
         # Validate synthetic parameters are within bounds
         validation_result = self.schema.validate_parameter_set(synthetic_result)
-        assert validation_result['is_valid'], "Synthetic result should be valid"
+        assert validation_result["is_valid"], "Synthetic result should be valid"
 
         # Test parameter format conversion for real simulation
-        comp_tuning_format = self.schema.transform_to_compensation_tuning_format(synthetic_result)
+        comp_tuning_format = self.schema.transform_to_compensation_tuning_format(
+            synthetic_result
+        )
 
-        assert 'merit_base' in comp_tuning_format
-        assert 'cola_rate' in comp_tuning_format
-        assert comp_tuning_format['merit_base'][1] == 0.055
-        assert comp_tuning_format['cola_rate'][1] == 0.030
+        assert "merit_base" in comp_tuning_format
+        assert "cola_rate" in comp_tuning_format
+        assert comp_tuning_format["merit_base"][1] == 0.055
+        assert comp_tuning_format["cola_rate"][1] == 0.030
 
         # Test reverse transformation
-        converted_back = self.schema.transform_from_compensation_tuning_format(comp_tuning_format)
+        converted_back = self.schema.transform_from_compensation_tuning_format(
+            comp_tuning_format
+        )
 
         for key in synthetic_result:
             if key != "optimization_score":  # Skip non-parameter fields
@@ -251,15 +258,15 @@ class TestIntegrationScenarios:
             "merit_rate_level_4": 0.02,
             "merit_rate_level_5": 0.02,
             "cola_rate": 0.0,  # Zero COLA
-            "new_hire_salary_adjustment": 1.0  # No premium
+            "new_hire_salary_adjustment": 1.0,  # No premium
         }
 
         # Should still validate even if challenging
         validation_result = self.schema.validate_parameter_set(challenging_params)
-        assert validation_result['is_valid']
+        assert validation_result["is_valid"]
 
         # Should generate warnings about extreme values
-        assert validation_result['overall_risk'] in [RiskLevel.MEDIUM, RiskLevel.HIGH]
+        assert validation_result["overall_risk"] in [RiskLevel.MEDIUM, RiskLevel.HIGH]
 
     @pytest.mark.integration
     def test_multi_method_execution_consistency(self):
@@ -269,7 +276,7 @@ class TestIntegrationScenarios:
         test_params = {
             "merit_rate_level_1": 0.045,
             "merit_rate_level_2": 0.040,
-            "cola_rate": 0.025
+            "cola_rate": 0.025,
         }
 
         # Method 1: Direct parameter validation
@@ -281,19 +288,16 @@ class TestIntegrationScenarios:
             param_def = self.schema.get_parameter(param_name)
             if param_def:
                 is_valid, messages, risk = param_def.validate_value(value)
-                individual_results[param_name] = {
-                    'is_valid': is_valid,
-                    'risk': risk
-                }
+                individual_results[param_name] = {"is_valid": is_valid, "risk": risk}
 
         # Results should be consistent
         for param_name in test_params:
             if param_name in individual_results:
-                direct_param_result = direct_result['parameter_results'][param_name]
+                direct_param_result = direct_result["parameter_results"][param_name]
                 individual_result = individual_results[param_name]
 
-                assert direct_param_result['is_valid'] == individual_result['is_valid']
-                assert direct_param_result['risk_level'] == individual_result['risk']
+                assert direct_param_result["is_valid"] == individual_result["is_valid"]
+                assert direct_param_result["risk_level"] == individual_result["risk"]
 
     @pytest.mark.integration
     def test_parameter_dependency_validation(self):
@@ -302,14 +306,16 @@ class TestIntegrationScenarios:
         # Test merit rate progression (should generally increase with level)
         inconsistent_merit_params = {
             "merit_rate_level_1": 0.08,  # Very high for level 1
-            "merit_rate_level_5": 0.02   # Very low for level 5
+            "merit_rate_level_5": 0.02,  # Very low for level 5
         }
 
-        validation_result = self.schema.validate_parameter_set(inconsistent_merit_params)
+        validation_result = self.schema.validate_parameter_set(
+            inconsistent_merit_params
+        )
 
         # Should validate individual parameters but might warn about inconsistency
         # This depends on business logic implementation
-        assert validation_result['is_valid']  # Individual parameters are valid
+        assert validation_result["is_valid"]  # Individual parameters are valid
 
     @pytest.mark.integration
     def test_cross_component_data_flow(self):
@@ -321,28 +327,30 @@ class TestIntegrationScenarios:
         ui_input = {
             "merit_sliders": {1: 4.5, 2: 4.0, 3: 3.5, 4: 3.5, 5: 4.0},  # Percentages
             "cola_slider": 2.5,
-            "new_hire_premium": 115  # Percentage
+            "new_hire_premium": 115,  # Percentage
         }
 
         # 2. Convert to parameter format
         parameters = {}
         for level, value in ui_input["merit_sliders"].items():
-            parameters[f"merit_rate_level_{level}"] = value / 100.0  # Convert to decimal
+            parameters[f"merit_rate_level_{level}"] = (
+                value / 100.0
+            )  # Convert to decimal
 
         parameters["cola_rate"] = ui_input["cola_slider"] / 100.0
         parameters["new_hire_salary_adjustment"] = ui_input["new_hire_premium"] / 100.0
 
         # 3. Validate parameters
         validation_result = self.schema.validate_parameter_set(parameters)
-        assert validation_result['is_valid']
+        assert validation_result["is_valid"]
 
         # 4. Transform for compensation tuning format
         comp_format = self.schema.transform_to_compensation_tuning_format(parameters)
 
         # 5. Verify data integrity throughout pipeline
-        assert comp_format['merit_base'][1] == 0.045
-        assert comp_format['cola_rate'][1] == 0.025
-        assert comp_format['new_hire_salary_adjustment'][1] == 1.15
+        assert comp_format["merit_base"][1] == 0.045
+        assert comp_format["cola_rate"][1] == 0.025
+        assert comp_format["new_hire_salary_adjustment"][1] == 1.15
 
 
 class TestPerformance:
@@ -374,7 +382,7 @@ class TestPerformance:
             memory_usage_mb=final_memory - initial_memory,
             cpu_usage_percent=(start_cpu + end_cpu) / 2,
             database_operations=0,  # Would need to instrument DB calls
-            optimization_iterations=0  # Would need to instrument optimization
+            optimization_iterations=0,  # Would need to instrument optimization
         )
 
         return metrics, result
@@ -401,15 +409,18 @@ class TestPerformance:
         individual_time = time.time() - start_time
 
         # Should complete quickly
-        assert individual_time < 1.0, f"Individual validation took {individual_time:.2f}s"
+        assert (
+            individual_time < 1.0
+        ), f"Individual validation took {individual_time:.2f}s"
 
         # Test bulk validation
         metrics, result = self.measure_performance(
-            self.schema.validate_parameter_set,
-            get_default_parameters()
+            self.schema.validate_parameter_set, get_default_parameters()
         )
 
-        assert metrics.execution_time < 0.1, f"Bulk validation took {metrics.execution_time:.2f}s"
+        assert (
+            metrics.execution_time < 0.1
+        ), f"Bulk validation took {metrics.execution_time:.2f}s"
 
     @pytest.mark.performance
     def test_memory_usage_limits(self):
@@ -421,7 +432,7 @@ class TestPerformance:
             params = get_default_parameters()
             # Slight variations
             for key in params:
-                params[key] *= (1 + np.random.normal(0, 0.01))  # 1% random variation
+                params[key] *= 1 + np.random.normal(0, 0.01)  # 1% random variation
             parameter_variations.append(params)
 
         initial_memory = psutil.Process().memory_info().rss / 1024 / 1024
@@ -457,7 +468,7 @@ class TestPerformance:
 
             # Should complete but we can measure the time
             assert execution_time > 0.4  # Should take at least the sleep time
-            assert result['is_valid']
+            assert result["is_valid"]
 
         except Exception as e:
             # If timeout mechanism is implemented, this is acceptable
@@ -475,7 +486,7 @@ class TestPerformance:
             try:
                 params = get_default_parameters()
                 # Add some variation
-                params['merit_rate_level_1'] += np.random.uniform(-0.01, 0.01)
+                params["merit_rate_level_1"] += np.random.uniform(-0.01, 0.01)
                 result = self.schema.validate_parameter_set(params)
                 results.append(result)
             except Exception as e:
@@ -520,8 +531,10 @@ class TestPerformance:
                 if param_def:
                     # Keep within bounds
                     varied_value = base_value * variation
-                    varied_value = max(param_def.bounds.min_value,
-                                     min(param_def.bounds.max_value, varied_value))
+                    varied_value = max(
+                        param_def.bounds.min_value,
+                        min(param_def.bounds.max_value, varied_value),
+                    )
                     large_dataset[f"{param_name}_scenario_{scenario_id}"] = varied_value
 
         # Test processing time
@@ -541,7 +554,9 @@ class TestPerformance:
         processing_time = time.time() - start_time
 
         # Should handle large datasets efficiently
-        assert processing_time < 10.0, f"Large dataset processing took {processing_time:.2f}s"
+        assert (
+            processing_time < 10.0
+        ), f"Large dataset processing took {processing_time:.2f}s"
 
 
 class TestScenarioValidation:
@@ -569,8 +584,8 @@ class TestScenarioValidation:
                     "merit_rate_level_3": 0.02,
                     "merit_rate_level_4": 0.02,
                     "merit_rate_level_5": 0.02,
-                    "cola_rate": 0.015
-                }
+                    "cola_rate": 0.015,
+                },
             ),
             TestScenario(
                 name="aggressive_growth",
@@ -586,8 +601,8 @@ class TestScenarioValidation:
                     "merit_rate_level_4": 0.07,
                     "merit_rate_level_5": 0.08,
                     "cola_rate": 0.05,
-                    "new_hire_salary_adjustment": 1.25
-                }
+                    "new_hire_salary_adjustment": 1.25,
+                },
             ),
             TestScenario(
                 name="retention_focused",
@@ -603,8 +618,8 @@ class TestScenarioValidation:
                     "merit_rate_level_4": 0.045,
                     "merit_rate_level_5": 0.05,
                     "promotion_probability_level_1": 0.15,
-                    "promotion_probability_level_2": 0.10
-                }
+                    "promotion_probability_level_2": 0.10,
+                },
             ),
             TestScenario(
                 name="cost_cutting",
@@ -620,8 +635,8 @@ class TestScenarioValidation:
                     "merit_rate_level_4": 0.01,
                     "merit_rate_level_5": 0.01,
                     "cola_rate": 0.0,
-                    "new_hire_salary_adjustment": 1.0
-                }
+                    "new_hire_salary_adjustment": 1.0,
+                },
             ),
             TestScenario(
                 name="market_competitive",
@@ -637,44 +652,59 @@ class TestScenarioValidation:
                     "merit_rate_level_4": 0.04,
                     "merit_rate_level_5": 0.045,
                     "cola_rate": 0.03,
-                    "new_hire_salary_adjustment": 1.20
-                }
-            )
+                    "new_hire_salary_adjustment": 1.20,
+                },
+            ),
         ]
 
-    @pytest.mark.parametrize("scenario", [
-        scenario for scenario in TestScenarioValidation()._create_business_scenarios()
-    ], ids=lambda scenario: scenario.name)
+    @pytest.mark.parametrize(
+        "scenario",
+        [
+            scenario
+            for scenario in TestScenarioValidation()._create_business_scenarios()
+        ],
+        ids=lambda scenario: scenario.name,
+    )
     def test_business_scenario_validation(self, scenario: TestScenario):
         """Test validation of specific business scenarios."""
 
         # Validate scenario parameters
-        validation_result = self.schema.validate_parameter_set(scenario.parameter_overrides)
+        validation_result = self.schema.validate_parameter_set(
+            scenario.parameter_overrides
+        )
 
         # All scenarios should have valid parameters
-        assert validation_result['is_valid'], f"Scenario {scenario.name} has invalid parameters: {validation_result['errors']}"
+        assert validation_result[
+            "is_valid"
+        ], f"Scenario {scenario.name} has invalid parameters: {validation_result['errors']}"
 
         # Check risk level alignment
-        actual_risk = validation_result['overall_risk']
+        actual_risk = validation_result["overall_risk"]
 
         # Allow some flexibility in risk assessment
-        risk_hierarchy = [RiskLevel.LOW, RiskLevel.MEDIUM, RiskLevel.HIGH, RiskLevel.CRITICAL]
+        risk_hierarchy = [
+            RiskLevel.LOW,
+            RiskLevel.MEDIUM,
+            RiskLevel.HIGH,
+            RiskLevel.CRITICAL,
+        ]
         scenario_risk_index = risk_hierarchy.index(scenario.risk_tolerance)
         actual_risk_index = risk_hierarchy.index(actual_risk)
 
         # Actual risk should be within ±1 level of expected
-        assert abs(actual_risk_index - scenario_risk_index) <= 1, \
-            f"Scenario {scenario.name}: Expected risk {scenario.risk_tolerance}, got {actual_risk}"
+        assert (
+            abs(actual_risk_index - scenario_risk_index) <= 1
+        ), f"Scenario {scenario.name}: Expected risk {scenario.risk_tolerance}, got {actual_risk}"
 
     def test_budget_constraint_scenarios(self):
         """Test scenarios with various budget constraints."""
 
         budget_scenarios = [
-            (0.01, "very_tight"),   # 1% budget
-            (0.03, "tight"),        # 3% budget
-            (0.05, "moderate"),     # 5% budget
-            (0.08, "generous"),     # 8% budget
-            (0.12, "very_generous") # 12% budget
+            (0.01, "very_tight"),  # 1% budget
+            (0.03, "tight"),  # 3% budget
+            (0.05, "moderate"),  # 5% budget
+            (0.08, "generous"),  # 8% budget
+            (0.12, "very_generous"),  # 12% budget
         ]
 
         for budget_limit, scenario_name in budget_scenarios:
@@ -685,7 +715,7 @@ class TestScenarioValidation:
                 "merit_rate_level_3": budget_limit * 0.3,
                 "merit_rate_level_4": budget_limit * 0.35,
                 "merit_rate_level_5": budget_limit * 0.4,
-                "cola_rate": budget_limit * 0.3  # Use 30% of budget for COLA
+                "cola_rate": budget_limit * 0.3,  # Use 30% of budget for COLA
             }
 
             # Ensure parameters are within schema bounds
@@ -694,11 +724,13 @@ class TestScenarioValidation:
                 if param_def:
                     conservative_params[param_name] = max(
                         param_def.bounds.min_value,
-                        min(param_def.bounds.max_value, value)
+                        min(param_def.bounds.max_value, value),
                     )
 
             validation_result = self.schema.validate_parameter_set(conservative_params)
-            assert validation_result['is_valid'], f"Budget scenario {scenario_name} failed validation"
+            assert validation_result[
+                "is_valid"
+            ], f"Budget scenario {scenario_name} failed validation"
 
     def test_growth_target_scenarios(self):
         """Test scenarios with various growth targets."""
@@ -709,7 +741,7 @@ class TestScenarioValidation:
             (0.0, "steady_state"),
             (0.05, "moderate_growth"),
             (0.10, "significant_growth"),
-            (0.20, "aggressive_growth")
+            (0.20, "aggressive_growth"),
         ]
 
         for growth_rate, scenario_name in growth_scenarios:
@@ -718,8 +750,12 @@ class TestScenarioValidation:
 
             if growth_rate > 0.10:  # Aggressive growth
                 # Higher new hire premiums and merit rates
-                base_params["new_hire_salary_adjustment"] = min(1.30, base_params.get("new_hire_salary_adjustment", 1.15) * 1.1)
-                base_params["merit_rate_level_1"] = min(0.08, base_params.get("merit_rate_level_1", 0.045) * 1.2)
+                base_params["new_hire_salary_adjustment"] = min(
+                    1.30, base_params.get("new_hire_salary_adjustment", 1.15) * 1.1
+                )
+                base_params["merit_rate_level_1"] = min(
+                    0.08, base_params.get("merit_rate_level_1", 0.045) * 1.2
+                )
             elif growth_rate < -0.05:  # Reduction scenarios
                 # Lower merit rates and no new hire premium
                 base_params["new_hire_salary_adjustment"] = 1.0
@@ -729,7 +765,9 @@ class TestScenarioValidation:
                         base_params[merit_key] = max(0.01, base_params[merit_key] * 0.5)
 
             validation_result = self.schema.validate_parameter_set(base_params)
-            assert validation_result['is_valid'], f"Growth scenario {scenario_name} failed validation"
+            assert validation_result[
+                "is_valid"
+            ], f"Growth scenario {scenario_name} failed validation"
 
     def test_industry_benchmark_scenarios(self):
         """Test scenarios based on industry benchmarks."""
@@ -740,22 +778,22 @@ class TestScenarioValidation:
                 "merit_rate_level_2": 0.075,
                 "merit_rate_level_3": 0.07,
                 "new_hire_salary_adjustment": 1.25,
-                "promotion_probability_level_1": 0.20
+                "promotion_probability_level_1": 0.20,
             },
             "traditional_finance": {
                 "merit_rate_level_1": 0.03,
                 "merit_rate_level_2": 0.035,
                 "merit_rate_level_3": 0.04,
                 "new_hire_salary_adjustment": 1.10,
-                "promotion_probability_level_1": 0.08
+                "promotion_probability_level_1": 0.08,
             },
             "government_org": {
                 "merit_rate_level_1": 0.025,
                 "merit_rate_level_2": 0.025,
                 "merit_rate_level_3": 0.025,
                 "cola_rate": 0.02,
-                "new_hire_salary_adjustment": 1.05
-            }
+                "new_hire_salary_adjustment": 1.05,
+            },
         }
 
         for industry, benchmark_params in industry_benchmarks.items():
@@ -764,15 +802,24 @@ class TestScenarioValidation:
             full_params.update(benchmark_params)
 
             validation_result = self.schema.validate_parameter_set(full_params)
-            assert validation_result['is_valid'], f"Industry benchmark {industry} failed validation"
+            assert validation_result[
+                "is_valid"
+            ], f"Industry benchmark {industry} failed validation"
 
             # Industry-specific risk assessments
             if industry == "tech_startup":
                 # Tech startups can have higher risk tolerance
-                assert validation_result['overall_risk'] in [RiskLevel.LOW, RiskLevel.MEDIUM, RiskLevel.HIGH]
+                assert validation_result["overall_risk"] in [
+                    RiskLevel.LOW,
+                    RiskLevel.MEDIUM,
+                    RiskLevel.HIGH,
+                ]
             elif industry == "government_org":
                 # Government should be low risk
-                assert validation_result['overall_risk'] in [RiskLevel.LOW, RiskLevel.MEDIUM]
+                assert validation_result["overall_risk"] in [
+                    RiskLevel.LOW,
+                    RiskLevel.MEDIUM,
+                ]
 
 
 class TestErrorHandling:
@@ -786,6 +833,7 @@ class TestErrorHandling:
     def teardown_method(self):
         """Cleanup after error handling tests."""
         import shutil
+
         shutil.rmtree(self.temp_dir, ignore_errors=True)
 
     def test_database_lock_handling(self):
@@ -846,25 +894,25 @@ class TestErrorHandling:
 
         # Create invalid YAML configuration
         invalid_yaml_path = os.path.join(self.temp_dir, "invalid_config.yaml")
-        with open(invalid_yaml_path, 'w') as f:
+        with open(invalid_yaml_path, "w") as f:
             f.write("invalid: yaml: content:\n")
             f.write("  - incomplete\n")
             f.write("  - structure\n")
-            f.write("missing_quotes: this is \"unclosed\n")
+            f.write('missing_quotes: this is "unclosed\n')
 
         # Test loading invalid YAML
         with pytest.raises(yaml.YAMLError):
-            with open(invalid_yaml_path, 'r') as f:
+            with open(invalid_yaml_path, "r") as f:
                 yaml.safe_load(f)
 
         # Create invalid JSON configuration
         invalid_json_path = os.path.join(self.temp_dir, "invalid_config.json")
-        with open(invalid_json_path, 'w') as f:
+        with open(invalid_json_path, "w") as f:
             f.write('{"invalid": json, "missing": quotes}')
 
         # Test loading invalid JSON
         with pytest.raises(json.JSONDecodeError):
-            with open(invalid_json_path, 'r') as f:
+            with open(invalid_json_path, "r") as f:
                 json.load(f)
 
     def test_permission_error_handling(self):
@@ -872,7 +920,7 @@ class TestErrorHandling:
 
         # Create a file and remove write permissions
         restricted_file = os.path.join(self.temp_dir, "restricted.yaml")
-        with open(restricted_file, 'w') as f:
+        with open(restricted_file, "w") as f:
             f.write("test: content")
 
         # Remove write permissions
@@ -880,7 +928,7 @@ class TestErrorHandling:
 
         try:
             # Try to write to restricted file
-            with open(restricted_file, 'w') as f:
+            with open(restricted_file, "w") as f:
                 f.write("new content")
         except PermissionError:
             # Expected behavior
@@ -927,27 +975,32 @@ class TestErrorHandling:
             {
                 "name": "negative_values",
                 "params": {"merit_rate_level_1": -0.05},
-                "expected_error": "below minimum"
+                "expected_error": "below minimum",
             },
             {
                 "name": "excessive_values",
                 "params": {"merit_rate_level_1": 0.50},
-                "expected_error": "above maximum"
+                "expected_error": "above maximum",
             },
             {
                 "name": "missing_required",
                 "params": {},
-                "expected_error": None  # Should handle gracefully
-            }
+                "expected_error": None,  # Should handle gracefully
+            },
         ]
 
         for scenario in invalid_scenarios:
             try:
-                validation_result = self.schema.validate_parameter_set(scenario["params"])
+                validation_result = self.schema.validate_parameter_set(
+                    scenario["params"]
+                )
 
                 if scenario["expected_error"]:
                     # Should have validation errors
-                    assert not validation_result['is_valid'] or len(validation_result['warnings']) > 0
+                    assert (
+                        not validation_result["is_valid"]
+                        or len(validation_result["warnings"]) > 0
+                    )
                 else:
                     # Should handle gracefully
                     assert isinstance(validation_result, dict)
@@ -969,7 +1022,9 @@ class TestErrorHandling:
             """Thread function to modify parameters concurrently."""
             try:
                 local_params = shared_params.copy()
-                local_params[f"merit_rate_level_{(thread_id % 5) + 1}"] += 0.001 * thread_id
+                local_params[f"merit_rate_level_{(thread_id % 5) + 1}"] += (
+                    0.001 * thread_id
+                )
 
                 result = self.schema.validate_parameter_set(local_params)
                 results.append((thread_id, result))
@@ -1016,20 +1071,25 @@ class TestDataConsistency:
             "cola_rate": 0.025,
             "new_hire_salary_adjustment": 1.15,
             "promotion_probability_level_1": 0.12,
-            "promotion_raise_level_1": 0.12
+            "promotion_raise_level_1": 0.12,
         }
 
         # Convert to compensation tuning format
-        comp_tuning_format = self.schema.transform_to_compensation_tuning_format(optimization_params)
+        comp_tuning_format = self.schema.transform_to_compensation_tuning_format(
+            optimization_params
+        )
 
         # Convert back to optimization format
-        converted_back = self.schema.transform_from_compensation_tuning_format(comp_tuning_format)
+        converted_back = self.schema.transform_from_compensation_tuning_format(
+            comp_tuning_format
+        )
 
         # Should be identical (within floating point precision)
         for key in optimization_params:
             if key in converted_back:
-                assert abs(optimization_params[key] - converted_back[key]) < 1e-10, \
-                    f"Parameter {key}: original={optimization_params[key]}, converted={converted_back[key]}"
+                assert (
+                    abs(optimization_params[key] - converted_back[key]) < 1e-10
+                ), f"Parameter {key}: original={optimization_params[key]}, converted={converted_back[key]}"
 
     def test_validation_result_consistency(self):
         """Test consistency of validation results across multiple calls."""
@@ -1045,10 +1105,18 @@ class TestDataConsistency:
         # All results should be identical
         first_result = results[0]
         for i, result in enumerate(results[1:], 1):
-            assert result['is_valid'] == first_result['is_valid'], f"Run {i}: is_valid differs"
-            assert result['overall_risk'] == first_result['overall_risk'], f"Run {i}: overall_risk differs"
-            assert len(result['warnings']) == len(first_result['warnings']), f"Run {i}: warnings count differs"
-            assert len(result['errors']) == len(first_result['errors']), f"Run {i}: errors count differs"
+            assert (
+                result["is_valid"] == first_result["is_valid"]
+            ), f"Run {i}: is_valid differs"
+            assert (
+                result["overall_risk"] == first_result["overall_risk"]
+            ), f"Run {i}: overall_risk differs"
+            assert len(result["warnings"]) == len(
+                first_result["warnings"]
+            ), f"Run {i}: warnings count differs"
+            assert len(result["errors"]) == len(
+                first_result["errors"]
+            ), f"Run {i}: errors count differs"
 
     def test_parameter_bounds_consistency(self):
         """Test consistency of parameter bounds across schema."""
@@ -1059,12 +1127,17 @@ class TestDataConsistency:
 
             # Basic bound consistency
             assert bounds.min_value < bounds.max_value, f"{param_name}: min >= max"
-            assert bounds.min_value <= bounds.default_value <= bounds.max_value, \
-                f"{param_name}: default outside bounds"
+            assert (
+                bounds.min_value <= bounds.default_value <= bounds.max_value
+            ), f"{param_name}: default outside bounds"
 
             # Recommended bounds should be within absolute bounds
-            assert bounds.min_value <= bounds.recommended_min <= bounds.recommended_max <= bounds.max_value, \
-                f"{param_name}: recommended bounds outside absolute bounds"
+            assert (
+                bounds.min_value
+                <= bounds.recommended_min
+                <= bounds.recommended_max
+                <= bounds.max_value
+            ), f"{param_name}: recommended bounds outside absolute bounds"
 
     def test_risk_assessment_consistency(self):
         """Test consistency of risk assessments."""
@@ -1086,11 +1159,12 @@ class TestDataConsistency:
             param_set = get_default_parameters()
             param_set[param_name] = value
             set_result = self.schema.validate_parameter_set(param_set)
-            set_param_risk = set_result['parameter_results'][param_name]['risk_level']
+            set_param_risk = set_result["parameter_results"][param_name]["risk_level"]
 
             # Risk assessments should be consistent
-            assert risk == set_param_risk, \
-                f"Risk assessment inconsistent for {param_name}={value}: individual={risk}, set={set_param_risk}"
+            assert (
+                risk == set_param_risk
+            ), f"Risk assessment inconsistent for {param_name}={value}: individual={risk}, set={set_param_risk}"
 
     def test_default_parameter_consistency(self):
         """Test consistency of default parameters across methods."""
@@ -1102,12 +1176,14 @@ class TestDataConsistency:
         convenience_defaults = get_default_parameters()
 
         # Should be identical
-        assert set(schema_defaults.keys()) == set(convenience_defaults.keys()), \
-            "Default parameter keys differ between methods"
+        assert set(schema_defaults.keys()) == set(
+            convenience_defaults.keys()
+        ), "Default parameter keys differ between methods"
 
         for key in schema_defaults:
-            assert abs(schema_defaults[key] - convenience_defaults[key]) < 1e-10, \
-                f"Default value for {key} differs: schema={schema_defaults[key]}, convenience={convenience_defaults[key]}"
+            assert (
+                abs(schema_defaults[key] - convenience_defaults[key]) < 1e-10
+            ), f"Default value for {key} differs: schema={schema_defaults[key]}, convenience={convenience_defaults[key]}"
 
     def test_category_grouping_consistency(self):
         """Test consistency of parameter category groupings."""
@@ -1119,8 +1195,9 @@ class TestDataConsistency:
         all_categorized_params = set()
         for group_name, group_params in category_groups.items():
             for param_name in group_params:
-                assert param_name not in all_categorized_params, \
-                    f"Parameter {param_name} appears in multiple groups"
+                assert (
+                    param_name not in all_categorized_params
+                ), f"Parameter {param_name} appears in multiple groups"
                 all_categorized_params.add(param_name)
 
         # Check that all schema parameters are categorized
@@ -1136,7 +1213,9 @@ class TestMockDataGeneration:
     """Mock data generation utilities for testing."""
 
     @staticmethod
-    def generate_workforce_data(num_employees: int = 1000, random_seed: int = 42) -> pd.DataFrame:
+    def generate_workforce_data(
+        num_employees: int = 1000, random_seed: int = 42
+    ) -> pd.DataFrame:
         """Generate mock workforce data for testing."""
 
         np.random.seed(random_seed)
@@ -1145,25 +1224,35 @@ class TestMockDataGeneration:
         employees = []
         for i in range(num_employees):
             employee = {
-                'employee_id': f"EMP_{i:06d}",
-                'job_level': np.random.choice([1, 2, 3, 4, 5], p=[0.4, 0.3, 0.2, 0.08, 0.02]),
-                'current_compensation': np.random.normal(65000, 15000),
-                'years_of_service': np.random.exponential(5),
-                'department': np.random.choice(['Engineering', 'Finance', 'HR', 'Sales', 'Marketing']),
-                'location': np.random.choice(['New York', 'San Francisco', 'Chicago', 'Remote']),
-                'performance_rating': np.random.choice([1, 2, 3, 4, 5], p=[0.05, 0.15, 0.6, 0.15, 0.05])
+                "employee_id": f"EMP_{i:06d}",
+                "job_level": np.random.choice(
+                    [1, 2, 3, 4, 5], p=[0.4, 0.3, 0.2, 0.08, 0.02]
+                ),
+                "current_compensation": np.random.normal(65000, 15000),
+                "years_of_service": np.random.exponential(5),
+                "department": np.random.choice(
+                    ["Engineering", "Finance", "HR", "Sales", "Marketing"]
+                ),
+                "location": np.random.choice(
+                    ["New York", "San Francisco", "Chicago", "Remote"]
+                ),
+                "performance_rating": np.random.choice(
+                    [1, 2, 3, 4, 5], p=[0.05, 0.15, 0.6, 0.15, 0.05]
+                ),
             }
 
             # Adjust compensation based on job level
             level_multipliers = {1: 0.8, 2: 1.0, 3: 1.4, 4: 2.0, 5: 3.0}
-            employee['current_compensation'] *= level_multipliers[employee['job_level']]
+            employee["current_compensation"] *= level_multipliers[employee["job_level"]]
 
             employees.append(employee)
 
         return pd.DataFrame(employees)
 
     @staticmethod
-    def generate_parameter_scenarios(num_scenarios: int = 100, random_seed: int = 42) -> List[Dict[str, float]]:
+    def generate_parameter_scenarios(
+        num_scenarios: int = 100, random_seed: int = 42
+    ) -> List[Dict[str, float]]:
         """Generate mock parameter scenarios for testing."""
 
         np.random.seed(random_seed)
@@ -1190,7 +1279,9 @@ class TestMockDataGeneration:
         return scenarios
 
     @staticmethod
-    def generate_optimization_results(num_results: int = 50, random_seed: int = 42) -> List[Dict[str, Any]]:
+    def generate_optimization_results(
+        num_results: int = 50, random_seed: int = 42
+    ) -> List[Dict[str, Any]]:
         """Generate mock optimization results for testing."""
 
         np.random.seed(random_seed)
@@ -1198,14 +1289,16 @@ class TestMockDataGeneration:
 
         for i in range(num_results):
             result = {
-                'scenario_id': f"scenario_{i:03d}",
-                'converged': np.random.choice([True, False], p=[0.8, 0.2]),
-                'objective_value': np.random.uniform(0.1, 1.0),
-                'iterations': np.random.randint(10, 200),
-                'runtime_seconds': np.random.exponential(30),
-                'parameters': TestMockDataGeneration.generate_parameter_scenarios(1, random_seed + i)[0],
-                'cost_impact': np.random.uniform(-500000, 2000000),
-                'employee_impact_count': np.random.randint(800, 1500)
+                "scenario_id": f"scenario_{i:03d}",
+                "converged": np.random.choice([True, False], p=[0.8, 0.2]),
+                "objective_value": np.random.uniform(0.1, 1.0),
+                "iterations": np.random.randint(10, 200),
+                "runtime_seconds": np.random.exponential(30),
+                "parameters": TestMockDataGeneration.generate_parameter_scenarios(
+                    1, random_seed + i
+                )[0],
+                "cost_impact": np.random.uniform(-500000, 2000000),
+                "employee_impact_count": np.random.randint(800, 1500),
             }
             results.append(result)
 
@@ -1248,14 +1341,14 @@ class TestCrossBrowserCompatibility:
             "merit_rate_level_1",  # ASCII
             "mérit_rate_level_1",  # Latin-1
             "مmerit_rate_level_1",  # Arabic
-            "merit_rate_レベル_1"   # Japanese
+            "merit_rate_レベル_1",  # Japanese
         ]
 
         for test_string in test_strings:
             # Should handle encoding/decoding gracefully
             try:
-                encoded = test_string.encode('utf-8')
-                decoded = encoded.decode('utf-8')
+                encoded = test_string.encode("utf-8")
+                decoded = encoded.decode("utf-8")
                 assert decoded == test_string
             except UnicodeError:
                 # Some strings may not be valid, which is acceptable
@@ -1293,33 +1386,29 @@ class TestEnvironmentConfig:
     """Test configuration for different deployment environments."""
 
     ENVIRONMENTS = {
-        'development': {
-            'timeout_multiplier': 2.0,
-            'memory_limit_mb': 1000,
-            'performance_tolerance': 0.5
+        "development": {
+            "timeout_multiplier": 2.0,
+            "memory_limit_mb": 1000,
+            "performance_tolerance": 0.5,
         },
-        'staging': {
-            'timeout_multiplier': 1.5,
-            'memory_limit_mb': 500,
-            'performance_tolerance': 0.3
+        "staging": {
+            "timeout_multiplier": 1.5,
+            "memory_limit_mb": 500,
+            "performance_tolerance": 0.3,
         },
-        'production': {
-            'timeout_multiplier': 1.0,
-            'memory_limit_mb': 200,
-            'performance_tolerance': 0.1
-        }
+        "production": {
+            "timeout_multiplier": 1.0,
+            "memory_limit_mb": 200,
+            "performance_tolerance": 0.1,
+        },
     }
 
     @classmethod
-    def get_config(cls, env_name: str = 'development') -> Dict[str, Any]:
+    def get_config(cls, env_name: str = "development") -> Dict[str, Any]:
         """Get configuration for specified environment."""
-        return cls.ENVIRONMENTS.get(env_name, cls.ENVIRONMENTS['development'])
+        return cls.ENVIRONMENTS.get(env_name, cls.ENVIRONMENTS["development"])
 
 
 if __name__ == "__main__":
     # Run specific test categories
-    pytest.main([
-        __file__ + "::TestEdgeCases",
-        "-v",
-        "--tb=short"
-    ])
+    pytest.main([__file__ + "::TestEdgeCases", "-v", "--tb=short"])

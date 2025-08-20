@@ -5,28 +5,32 @@ This script shows how to use the circuit breaker patterns, retry mechanisms,
 checkpoint management, and resilient multi-year simulation orchestrator.
 """
 
-import sys
-import os
 import logging
+import os
+import sys
 import time
-from typing import Dict, Any
+from typing import Any, Dict
 
 # Add the project root to the Python path
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from orchestrator_mvp.utils import (
-    CircuitBreakerConfig, RetryConfig, with_circuit_breaker, with_retry,
-    with_error_handling, error_handling_context, get_all_circuit_breaker_stats,
-    CheckpointType, get_checkpoint_manager,
-    get_resilient_dbt_executor, get_resilient_db_manager, get_orchestration_resilience
-)
-from orchestrator_mvp.core.resilient_multi_year_orchestrator import ResilientMultiYearSimulationOrchestrator
+from orchestrator_mvp.core.resilient_multi_year_orchestrator import \
+    ResilientMultiYearSimulationOrchestrator
+from orchestrator_mvp.utils import (CheckpointType, CircuitBreakerConfig,
+                                    RetryConfig, error_handling_context,
+                                    get_all_circuit_breaker_stats,
+                                    get_checkpoint_manager,
+                                    get_orchestration_resilience,
+                                    get_resilient_db_manager,
+                                    get_resilient_dbt_executor,
+                                    with_circuit_breaker, with_error_handling,
+                                    with_retry)
 
 # Configure logging
 logging.basicConfig(
     level=logging.INFO,
-    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
-    datefmt='%Y-%m-%d %H:%M:%S'
+    format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
+    datefmt="%Y-%m-%d %H:%M:%S",
 )
 
 logger = logging.getLogger(__name__)
@@ -34,15 +38,13 @@ logger = logging.getLogger(__name__)
 
 def demo_circuit_breaker():
     """Demonstrate circuit breaker functionality."""
-    print("\n" + "="*60)
+    print("\n" + "=" * 60)
     print("🔌 CIRCUIT BREAKER DEMONSTRATION")
-    print("="*60)
+    print("=" * 60)
 
     # Configure circuit breaker for demo
     config = CircuitBreakerConfig(
-        failure_threshold=3,
-        recovery_timeout_seconds=2,
-        success_threshold=2
+        failure_threshold=3, recovery_timeout_seconds=2, success_threshold=2
     )
 
     failure_count = 0
@@ -85,16 +87,16 @@ def demo_circuit_breaker():
 
 def demo_retry_mechanism():
     """Demonstrate retry mechanism with exponential backoff."""
-    print("\n" + "="*60)
+    print("\n" + "=" * 60)
     print("🔄 RETRY MECHANISM DEMONSTRATION")
-    print("="*60)
+    print("=" * 60)
 
     # Configure retry for demo
     config = RetryConfig(
         max_attempts=4,
         base_delay_seconds=0.5,
         exponential_backoff_multiplier=2.0,
-        jitter_enabled=True
+        jitter_enabled=True,
     )
 
     attempt_count = 0
@@ -142,30 +144,22 @@ def demo_retry_mechanism():
 
 def demo_comprehensive_error_handling():
     """Demonstrate comprehensive error handling with both circuit breaker and retry."""
-    print("\n" + "="*60)
+    print("\n" + "=" * 60)
     print("🛡️  COMPREHENSIVE ERROR HANDLING DEMONSTRATION")
-    print("="*60)
+    print("=" * 60)
 
     # Configure comprehensive error handling
     circuit_config = CircuitBreakerConfig(
-        failure_threshold=2,
-        recovery_timeout_seconds=1,
-        success_threshold=1
+        failure_threshold=2, recovery_timeout_seconds=1, success_threshold=1
     )
 
     retry_config = RetryConfig(
-        max_attempts=3,
-        base_delay_seconds=0.2,
-        exponential_backoff_multiplier=1.5
+        max_attempts=3, base_delay_seconds=0.2, exponential_backoff_multiplier=1.5
     )
 
     operation_count = 0
 
-    @with_error_handling(
-        "comprehensive_demo",
-        circuit_config,
-        retry_config
-    )
+    @with_error_handling("comprehensive_demo", circuit_config, retry_config)
     def comprehensive_operation():
         nonlocal operation_count
         operation_count += 1
@@ -201,9 +195,9 @@ def demo_comprehensive_error_handling():
 
 def demo_checkpoint_management():
     """Demonstrate checkpoint management and state recovery."""
-    print("\n" + "="*60)
+    print("\n" + "=" * 60)
     print("💾 CHECKPOINT MANAGEMENT DEMONSTRATION")
-    print("="*60)
+    print("=" * 60)
 
     # Get checkpoint manager
     checkpoint_manager = get_checkpoint_manager(".demo_checkpoints")
@@ -218,7 +212,7 @@ def demo_checkpoint_management():
         CheckpointType.SIMULATION_START,
         2025,
         {"status": "starting", "config": {"growth_rate": 0.03}},
-        metadata={"demo": True}
+        metadata={"demo": True},
     )
     checkpoints.append(start_checkpoint)
     print(f"   ✅ Created simulation start checkpoint: {start_checkpoint.checkpoint_id}")
@@ -228,18 +222,24 @@ def demo_checkpoint_management():
         year_checkpoint = checkpoint_manager.create_checkpoint(
             CheckpointType.YEAR_COMPLETE,
             year,
-            {"year": year, "workforce_count": 1000 + year - 2025, "status": "completed"},
-            metadata={"employees": 1000 + year - 2025}
+            {
+                "year": year,
+                "workforce_count": 1000 + year - 2025,
+                "status": "completed",
+            },
+            metadata={"employees": 1000 + year - 2025},
         )
         checkpoints.append(year_checkpoint)
-        print(f"   ✅ Created year {year} completion checkpoint: {year_checkpoint.checkpoint_id}")
+        print(
+            f"   ✅ Created year {year} completion checkpoint: {year_checkpoint.checkpoint_id}"
+        )
 
     # Step completion checkpoint
     step_checkpoint = checkpoint_manager.create_checkpoint(
         CheckpointType.STEP_COMPLETE,
         2027,
         {"step": "event_generation", "events_created": 500, "status": "completed"},
-        step_name="event_generation"
+        step_name="event_generation",
     )
     checkpoints.append(step_checkpoint)
     print(f"   ✅ Created step completion checkpoint: {step_checkpoint.checkpoint_id}")
@@ -249,10 +249,14 @@ def demo_checkpoint_management():
     # Get latest checkpoint for a year
     latest_2026 = checkpoint_manager.get_latest_checkpoint(2026)
     if latest_2026:
-        print(f"   Latest 2026 checkpoint: {latest_2026.checkpoint_id} ({latest_2026.checkpoint_type.value})")
+        print(
+            f"   Latest 2026 checkpoint: {latest_2026.checkpoint_id} ({latest_2026.checkpoint_type.value})"
+        )
 
     # Get specific type of checkpoint
-    year_complete = checkpoint_manager.get_latest_checkpoint(2026, CheckpointType.YEAR_COMPLETE)
+    year_complete = checkpoint_manager.get_latest_checkpoint(
+        2026, CheckpointType.YEAR_COMPLETE
+    )
     if year_complete:
         print(f"   Year complete checkpoint: {year_complete.checkpoint_id}")
 
@@ -260,7 +264,9 @@ def demo_checkpoint_management():
     resume_info = checkpoint_manager.get_resume_checkpoint(2025, 2029)
     if resume_info:
         resume_year, checkpoint = resume_info
-        print(f"   Can resume from year {resume_year} using checkpoint: {checkpoint.checkpoint_id}")
+        print(
+            f"   Can resume from year {resume_year} using checkpoint: {checkpoint.checkpoint_id}"
+        )
 
     print("\n3. Checkpoint summary:")
     summary = checkpoint_manager.get_checkpoint_summary()
@@ -268,16 +274,18 @@ def demo_checkpoint_management():
     print(f"   Years with checkpoints: {summary['years_with_checkpoints']}")
     print(f"   Checkpoint types: {list(summary['checkpoint_types'].keys())}")
 
-    if summary['latest_checkpoint']:
-        latest = summary['latest_checkpoint']
-        print(f"   Latest: {latest['checkpoint_id']} (year {latest['year']}, {latest['type']})")
+    if summary["latest_checkpoint"]:
+        latest = summary["latest_checkpoint"]
+        print(
+            f"   Latest: {latest['checkpoint_id']} (year {latest['year']}, {latest['type']})"
+        )
 
 
 def demo_resilient_components():
     """Demonstrate resilient dbt executor and database manager."""
-    print("\n" + "="*60)
+    print("\n" + "=" * 60)
     print("🔧 RESILIENT COMPONENTS DEMONSTRATION")
-    print("="*60)
+    print("=" * 60)
 
     # Get resilient components
     dbt_executor = get_resilient_dbt_executor()
@@ -286,24 +294,36 @@ def demo_resilient_components():
 
     print("1. Resilient dbt executor:")
     print(f"   Name: {dbt_executor.name}")
-    print(f"   Model config failure threshold: {dbt_executor.model_config.failure_threshold}")
+    print(
+        f"   Model config failure threshold: {dbt_executor.model_config.failure_threshold}"
+    )
     print(f"   Retry config max attempts: {dbt_executor.retry_config.max_attempts}")
-    print(f"   Available fallback strategies: {list(dbt_executor.fallback_strategies.keys())}")
+    print(
+        f"   Available fallback strategies: {list(dbt_executor.fallback_strategies.keys())}"
+    )
 
     # Test error classification
     compilation_error = Exception("dbt compilation failed due to syntax error")
     error_type = dbt_executor._classify_dbt_error(compilation_error, "test_model")
-    print(f"   Error classification test: '{str(compilation_error)[:50]}...' → {error_type}")
+    print(
+        f"   Error classification test: '{str(compilation_error)[:50]}...' → {error_type}"
+    )
 
     print("\n2. Resilient database manager:")
     print(f"   Name: {db_manager.name}")
-    print(f"   Database config failure threshold: {db_manager.db_config.failure_threshold}")
+    print(
+        f"   Database config failure threshold: {db_manager.db_config.failure_threshold}"
+    )
     print(f"   Retry config max attempts: {db_manager.retry_config.max_attempts}")
 
     print("\n3. Multi-year orchestration resilience:")
     print(f"   Orchestrator name: {orchestration_resilience.orchestrator_name}")
-    print(f"   Year transition config: {orchestration_resilience.year_transition_config.failure_threshold} failures")
-    print(f"   Step execution config: {orchestration_resilience.step_execution_config.max_attempts} attempts")
+    print(
+        f"   Year transition config: {orchestration_resilience.year_transition_config.failure_threshold} failures"
+    )
+    print(
+        f"   Step execution config: {orchestration_resilience.step_execution_config.max_attempts} attempts"
+    )
 
     # Show execution statistics
     dbt_stats = dbt_executor.get_execution_stats()
@@ -314,9 +334,9 @@ def demo_resilient_components():
 
 def demo_error_handling_context():
     """Demonstrate error handling context manager."""
-    print("\n" + "="*60)
+    print("\n" + "=" * 60)
     print("📝 ERROR HANDLING CONTEXT DEMONSTRATION")
-    print("="*60)
+    print("=" * 60)
 
     print("1. Successful operation with context:")
 
@@ -340,48 +360,47 @@ def demo_error_handling_context():
 
 def demo_simulation_configuration():
     """Show how to configure the resilient multi-year orchestrator."""
-    print("\n" + "="*60)
+    print("\n" + "=" * 60)
     print("⚙️  RESILIENT ORCHESTRATOR CONFIGURATION")
-    print("="*60)
+    print("=" * 60)
 
     # Sample configuration
     config = {
-        'target_growth_rate': 0.03,
-        'workforce': {
-            'total_termination_rate': 0.12,
-            'new_hire_termination_rate': 0.25
+        "target_growth_rate": 0.03,
+        "workforce": {
+            "total_termination_rate": 0.12,
+            "new_hire_termination_rate": 0.25,
         },
-        'eligibility': {
-            'waiting_period_days': 365
-        },
-        'enrollment': {
-            'auto_enrollment': {
-                'hire_date_cutoff': '2024-01-01',
-                'scope': 'new_hires_only'
+        "eligibility": {"waiting_period_days": 365},
+        "enrollment": {
+            "auto_enrollment": {
+                "hire_date_cutoff": "2024-01-01",
+                "scope": "new_hires_only",
             }
         },
-        'random_seed': 42
+        "random_seed": 42,
     }
 
     print("1. Configuration example:")
     import json
+
     print(json.dumps(config, indent=2))
 
     print("\n2. Orchestrator initialization options:")
 
     initialization_options = {
-        'start_year': 2025,
-        'end_year': 2027,
-        'config': config,
-        'force_clear': False,
-        'preserve_data': True,
-        'enable_checkpoints': True,
-        'checkpoint_frequency': 'step'  # 'step', 'year', or 'major'
+        "start_year": 2025,
+        "end_year": 2027,
+        "config": config,
+        "force_clear": False,
+        "preserve_data": True,
+        "enable_checkpoints": True,
+        "checkpoint_frequency": "step",  # 'step', 'year', or 'major'
     }
 
     print("   Resilient orchestrator options:")
     for key, value in initialization_options.items():
-        if key != 'config':
+        if key != "config":
             print(f"     {key}: {value}")
 
     print("\n3. Error handling features enabled:")
@@ -392,7 +411,7 @@ def demo_simulation_configuration():
         "✅ State validation and consistency checking",
         "✅ Graceful degradation and fallback strategies",
         "✅ Resume capability from any simulation year",
-        "✅ Comprehensive error reporting and recovery guidance"
+        "✅ Comprehensive error reporting and recovery guidance",
     ]
 
     for feature in features:
@@ -402,10 +421,10 @@ def demo_simulation_configuration():
 def main():
     """Run all demonstrations."""
     print("🚀 COMPREHENSIVE ERROR HANDLING FRAMEWORK DEMONSTRATION")
-    print("="*80)
+    print("=" * 80)
     print("This demonstration shows the key features of the error handling system")
     print("implemented for the multi-year simulation orchestrator.")
-    print("="*80)
+    print("=" * 80)
 
     try:
         # Run individual demonstrations
@@ -417,9 +436,9 @@ def main():
         demo_error_handling_context()
         demo_simulation_configuration()
 
-        print("\n" + "="*80)
+        print("\n" + "=" * 80)
         print("🎉 DEMONSTRATION COMPLETED SUCCESSFULLY")
-        print("="*80)
+        print("=" * 80)
         print("All error handling components demonstrated successfully!")
         print("\nKey takeaways:")
         print("• Circuit breakers protect against cascading failures")

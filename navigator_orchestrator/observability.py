@@ -5,11 +5,11 @@ Provides a unified interface for logging, performance monitoring, and run tracki
 with enterprise-grade observability features.
 """
 
-from typing import Dict, Any, Optional, ContextManager
 from contextlib import contextmanager
+from typing import Any, ContextManager, Dict, Optional
 
 from .logger import ProductionLogger, get_logger
-from .performance_monitor import PerformanceMonitor, PerformanceMetrics
+from .performance_monitor import PerformanceMetrics, PerformanceMonitor
 from .run_summary import RunSummaryGenerator
 
 
@@ -39,7 +39,7 @@ class ObservabilityManager:
         self.run_summary = RunSummaryGenerator(
             run_id=self.logger.get_run_id(),
             logger=self.logger,
-            performance_monitor=self.performance_monitor
+            performance_monitor=self.performance_monitor,
         )
 
         # Store run ID for external access
@@ -50,7 +50,9 @@ class ObservabilityManager:
         return self.run_id
 
     @contextmanager
-    def track_operation(self, operation_name: str, **context) -> ContextManager[PerformanceMetrics]:
+    def track_operation(
+        self, operation_name: str, **context
+    ) -> ContextManager[PerformanceMetrics]:
         """
         Context manager that tracks an operation with full observability
 
@@ -61,7 +63,9 @@ class ObservabilityManager:
         Yields:
             PerformanceMetrics object for the operation
         """
-        with self.performance_monitor.time_operation(operation_name, **context) as metrics:
+        with self.performance_monitor.time_operation(
+            operation_name, **context
+        ) as metrics:
             yield metrics
 
     def log_info(self, message: str, **kwargs) -> None:
@@ -95,10 +99,13 @@ class ObservabilityManager:
         """Set backup path for audit trail"""
         self.run_summary.set_backup_path(backup_path)
 
-    def log_data_quality_check(self, year: int, check_name: str, result: Any,
-                              threshold: Any = None) -> None:
+    def log_data_quality_check(
+        self, year: int, check_name: str, result: Any, threshold: Any = None
+    ) -> None:
         """Log data quality check with threshold validation"""
-        self.performance_monitor.log_data_quality_check(year, check_name, result, threshold)
+        self.performance_monitor.log_data_quality_check(
+            year, check_name, result, threshold
+        )
 
     def get_performance_summary(self) -> Dict[str, Any]:
         """Get summary of performance metrics"""
@@ -108,7 +115,7 @@ class ObservabilityManager:
         """Get summary of issues for quick status check"""
         return self.run_summary.get_issue_summary()
 
-    def finalize_run(self, final_status: str = 'success') -> Dict[str, Any]:
+    def finalize_run(self, final_status: str = "success") -> Dict[str, Any]:
         """
         Finalize run and generate comprehensive summary
 
@@ -126,8 +133,9 @@ class ObservabilityManager:
 
 
 # Convenience functions for quick setup
-def create_observability_manager(run_id: Optional[str] = None,
-                                log_level: str = "INFO") -> ObservabilityManager:
+def create_observability_manager(
+    run_id: Optional[str] = None, log_level: str = "INFO"
+) -> ObservabilityManager:
     """
     Factory function to create a configured observability manager
 
@@ -142,8 +150,9 @@ def create_observability_manager(run_id: Optional[str] = None,
 
 
 @contextmanager
-def observability_session(run_id: Optional[str] = None,
-                         log_level: str = "INFO") -> ContextManager[ObservabilityManager]:
+def observability_session(
+    run_id: Optional[str] = None, log_level: str = "INFO"
+) -> ContextManager[ObservabilityManager]:
     """
     Context manager for complete observability session with automatic cleanup
 

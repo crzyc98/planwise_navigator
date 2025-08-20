@@ -5,14 +5,16 @@ Traces extreme salary values back through the event history to identify the root
 of unrealistic compensation calculations.
 """
 
-import duckdb
-import pandas as pd
 import sys
 from pathlib import Path
+
+import duckdb
+import pandas as pd
 
 # Add project root to Python path
 project_root = Path(__file__).parent.parent
 sys.path.append(str(project_root))
+
 
 def connect_to_database():
     """Connect to the simulation database"""
@@ -21,6 +23,7 @@ def connect_to_database():
         print(f"❌ Database not found at {db_path}")
         sys.exit(1)
     return duckdb.connect(str(db_path))
+
 
 def identify_extreme_salaries(conn, threshold=5000000):
     """Identify employees with extreme compensation values"""
@@ -48,9 +51,12 @@ def identify_extreme_salaries(conn, threshold=5000000):
     else:
         print(f"🚨 Found {len(df)} extreme salary records:")
         for _, row in df.iterrows():
-            print(f"  Employee {row['employee_id']}: ${row['employee_gross_compensation']:,.2f} "
-                  f"(Year {row['simulation_year']}, Level {row['level_id']}, Status: {row['employment_status']})")
+            print(
+                f"  Employee {row['employee_id']}: ${row['employee_gross_compensation']:,.2f} "
+                f"(Year {row['simulation_year']}, Level {row['level_id']}, Status: {row['employment_status']})"
+            )
         return df
+
 
 def trace_event_history(conn, employee_id, max_years=5):
     """Trace complete event history for a specific employee"""
@@ -72,7 +78,9 @@ def trace_event_history(conn, employee_id, max_years=5):
     LIMIT ?
     """
 
-    df = conn.execute(query, [employee_id, max_years * 10]).df()  # Assume max 10 events per year
+    df = conn.execute(
+        query, [employee_id, max_years * 10]
+    ).df()  # Assume max 10 events per year
 
     if df.empty:
         print(f"❌ No event history found for employee {employee_id}")
@@ -80,9 +88,16 @@ def trace_event_history(conn, employee_id, max_years=5):
 
     print("Event progression:")
     for _, row in df.iterrows():
-        comp_str = f"${row['employee_gross_compensation']:,.2f}" if pd.notna(row['employee_gross_compensation']) else "N/A"
-        level_str = f"L{row['level_id']}" if pd.notna(row['level_id']) else "N/A"
-        print(f"  {row['simulation_year']}: {row['event_type']} ({row['event_category']}) -> {comp_str} ({level_str})")
+        comp_str = (
+            f"${row['employee_gross_compensation']:,.2f}"
+            if pd.notna(row["employee_gross_compensation"])
+            else "N/A"
+        )
+        level_str = f"L{row['level_id']}" if pd.notna(row["level_id"]) else "N/A"
+        print(
+            f"  {row['simulation_year']}: {row['event_type']} ({row['event_category']}) -> {comp_str} ({level_str})"
+        )
+
 
 def analyze_promotion_logic(conn, simulation_year=2025):
     """Analyze promotion calculation logic for unrealistic increases"""
@@ -110,8 +125,10 @@ def analyze_promotion_logic(conn, simulation_year=2025):
 
     print("Top promotion compensations:")
     for _, row in df.iterrows():
-        print(f"  Employee {row['employee_id']}: ${row['new_compensation']:,.2f} (Level {row['level_id']})")
-        if pd.notna(row['additional_info']):
+        print(
+            f"  Employee {row['employee_id']}: ${row['new_compensation']:,.2f} (Level {row['level_id']})"
+        )
+        if pd.notna(row["additional_info"]):
             print(f"    Info: {row['additional_info']}")
 
     # Check for multiple promotions per employee
@@ -134,8 +151,11 @@ def analyze_promotion_logic(conn, simulation_year=2025):
     if not multiple_df.empty:
         print("\n🚨 Employees with multiple promotions:")
         for _, row in multiple_df.iterrows():
-            print(f"  Employee {row['employee_id']}: {row['promotion_count']} promotions "
-                  f"(${row['min_comp']:,.2f} -> ${row['max_comp']:,.2f})")
+            print(
+                f"  Employee {row['employee_id']}: {row['promotion_count']} promotions "
+                f"(${row['min_comp']:,.2f} -> ${row['max_comp']:,.2f})"
+            )
+
 
 def investigate_merit_cola_calculations(conn, simulation_year=2025):
     """Investigate merit and COLA calculation logic"""
@@ -164,10 +184,13 @@ def investigate_merit_cola_calculations(conn, simulation_year=2025):
 
     print("Top merit/COLA raises:")
     for _, row in df.iterrows():
-        print(f"  Employee {row['employee_id']}: ${row['new_compensation']:,.2f} "
-              f"({row['event_category']}, Level {row['level_id']})")
-        if pd.notna(row['additional_info']):
+        print(
+            f"  Employee {row['employee_id']}: ${row['new_compensation']:,.2f} "
+            f"({row['event_category']}, Level {row['level_id']})"
+        )
+        if pd.notna(row["additional_info"]):
             print(f"    Info: {row['additional_info']}")
+
 
 def check_seed_data_configuration(conn):
     """Check configuration tables for unrealistic compensation ranges"""
@@ -190,12 +213,16 @@ def check_seed_data_configuration(conn):
         df = conn.execute(job_levels_query).df()
         print("Job level salary ranges:")
         for _, row in df.iterrows():
-            print(f"  Level {row['level_id']} ({row['level_name']}): "
-                  f"${row['min_salary']:,.0f} - ${row['max_salary']:,.0f} "
-                  f"(Target: ${row['target_salary']:,.0f})")
+            print(
+                f"  Level {row['level_id']} ({row['level_name']}): "
+                f"${row['min_salary']:,.0f} - ${row['max_salary']:,.0f} "
+                f"(Target: ${row['target_salary']:,.0f})"
+            )
 
-            if row['max_salary'] > 10000000:  # $10M threshold
-                print(f"    🚨 WARNING: Extremely high max salary for level {row['level_id']}")
+            if row["max_salary"] > 10000000:  # $10M threshold
+                print(
+                    f"    🚨 WARNING: Extremely high max salary for level {row['level_id']}"
+                )
 
     except Exception as e:
         print(f"❌ Could not query job levels: {e}")
@@ -216,15 +243,20 @@ def check_seed_data_configuration(conn):
         hazard_df = conn.execute(hazard_query).df()
         print("\nHazard table merit percentages:")
         for _, row in hazard_df.iterrows():
-            print(f"  Level {row['level_id']}: Merit {row['merit_increase_pct']*100:.1f}% "
-                  f"Promo {row['promotion_probability']*100:.1f}% "
-                  f"Term {row['termination_probability']*100:.1f}%")
+            print(
+                f"  Level {row['level_id']}: Merit {row['merit_increase_pct']*100:.1f}% "
+                f"Promo {row['promotion_probability']*100:.1f}% "
+                f"Term {row['termination_probability']*100:.1f}%"
+            )
 
-            if row['merit_increase_pct'] > 0.5:  # >50% merit increase
-                print(f"    🚨 WARNING: Extremely high merit increase for level {row['level_id']}")
+            if row["merit_increase_pct"] > 0.5:  # >50% merit increase
+                print(
+                    f"    🚨 WARNING: Extremely high merit increase for level {row['level_id']}"
+                )
 
     except Exception as e:
         print(f"❌ Could not query hazard table: {e}")
+
 
 def validate_level_corrections(conn, simulation_year=2025):
     """Validate level correction logic in workforce snapshot"""
@@ -252,8 +284,11 @@ def validate_level_corrections(conn, simulation_year=2025):
 
     print("High-compensation employees in final snapshot:")
     for _, row in df.iterrows():
-        print(f"  Employee {row['employee_id']}: ${row['employee_gross_compensation']:,.2f} "
-              f"(Level {row['level_id']}, Status: {row['employment_status']})")
+        print(
+            f"  Employee {row['employee_id']}: ${row['employee_gross_compensation']:,.2f} "
+            f"(Level {row['level_id']}, Status: {row['employment_status']})"
+        )
+
 
 def detect_compounding_issues(conn, simulation_year=2025):
     """Detect employees with multiple events that could compound salary increases"""
@@ -286,10 +321,15 @@ def detect_compounding_issues(conn, simulation_year=2025):
 
     print("Employees with multiple compensation events:")
     for _, row in df.iterrows():
-        print(f"  Employee {row['employee_id']}: {row['total_events']} events "
-              f"({row['promotions']} promotions, {row['raises']} raises)")
-        print(f"    Compensation change: ${row['min_comp']:,.2f} -> ${row['max_comp']:,.2f} "
-              f"(+${row['comp_increase']:,.2f})")
+        print(
+            f"  Employee {row['employee_id']}: {row['total_events']} events "
+            f"({row['promotions']} promotions, {row['raises']} raises)"
+        )
+        print(
+            f"    Compensation change: ${row['min_comp']:,.2f} -> ${row['max_comp']:,.2f} "
+            f"(+${row['comp_increase']:,.2f})"
+        )
+
 
 def main():
     print("💰 COMPENSATION ANOMALY INVESTIGATION")
@@ -308,7 +348,7 @@ def main():
 
             top_cases = extreme_df.head(3)
             for _, row in top_cases.iterrows():
-                trace_event_history(conn, row['employee_id'])
+                trace_event_history(conn, row["employee_id"])
                 print()
 
         # Analyze calculation logic components
@@ -357,7 +397,7 @@ def main():
         summary_df = conn.execute(summary_query).df()
         print("Key metrics:")
         for _, row in summary_df.iterrows():
-            if 'Max compensation' in row['metric']:
+            if "Max compensation" in row["metric"]:
                 print(f"  {row['metric']}: ${row['value']:,.2f}")
             else:
                 print(f"  {row['metric']}: {row['value']:,}")
@@ -367,6 +407,7 @@ def main():
     except Exception as e:
         print(f"❌ Error during investigation: {e}")
         sys.exit(1)
+
 
 if __name__ == "__main__":
     main()
