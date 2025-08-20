@@ -20,13 +20,14 @@ Usage:
 """
 
 import argparse
-import duckdb
 import json
 import sys
-from datetime import datetime, date
+from datetime import date, datetime
 from decimal import Decimal
 from pathlib import Path
-from typing import Dict, List, Any, Optional
+from typing import Any, Dict, List, Optional
+
+import duckdb
 
 
 class EscalationSystemTester:
@@ -83,10 +84,15 @@ class EscalationSystemTester:
             """
             result = self.run_query(query, f"Parameter check for year {year}")
             if not result or result[0][0] == 0:
-                self.log(f"❌ Missing DEFERRAL_ESCALATION parameters for year {year}", "FAIL")
+                self.log(
+                    f"❌ Missing DEFERRAL_ESCALATION parameters for year {year}", "FAIL"
+                )
                 passed = False
             else:
-                self.log(f"✅ Found {result[0][0]} escalation parameters for year {year}", "PASS")
+                self.log(
+                    f"✅ Found {result[0][0]} escalation parameters for year {year}",
+                    "PASS",
+                )
 
         # Test 1.2: Validate parameter values meet user requirements
         query = """
@@ -110,10 +116,15 @@ class EscalationSystemTester:
         results = self.run_query(query, "Parameter value validation")
         for row in results:
             fiscal_year, job_level, param_name, param_value, check = row
-            if check == 'PASS':
-                self.log(f"✅ {param_name} = {param_value} meets user requirements", "PASS")
+            if check == "PASS":
+                self.log(
+                    f"✅ {param_name} = {param_value} meets user requirements", "PASS"
+                )
             else:
-                self.log(f"❌ {param_name} = {param_value} does not meet user requirements", "FAIL")
+                self.log(
+                    f"❌ {param_name} = {param_value} does not meet user requirements",
+                    "FAIL",
+                )
                 passed = False
 
         self.test_results.append(("Configuration Setup", passed))
@@ -136,7 +147,9 @@ class EscalationSystemTester:
         result = self.run_query(query, f"Escalation event count for {year}")
         if result and result[0][0] > 0:
             event_count = result[0][0]
-            self.log(f"✅ Generated {event_count} escalation events for year {year}", "PASS")
+            self.log(
+                f"✅ Generated {event_count} escalation events for year {year}", "PASS"
+            )
         else:
             self.log(f"❌ No escalation events generated for year {year}", "FAIL")
             passed = False
@@ -153,7 +166,10 @@ class EscalationSystemTester:
         if result and result[0][0] == 0:
             self.log("✅ All escalation events have January 1st effective date", "PASS")
         else:
-            self.log(f"❌ {result[0][0]} escalation events do not have January 1st effective date", "FAIL")
+            self.log(
+                f"❌ {result[0][0]} escalation events do not have January 1st effective date",
+                "FAIL",
+            )
             passed = False
 
         # Test 2.3: Verify escalation rates meet user requirements (1% default)
@@ -169,9 +185,14 @@ class EscalationSystemTester:
         if result:
             total, correct, avg_rate = result[0]
             if correct == total:
-                self.log(f"✅ All {total} events have correct 1% escalation rate", "PASS")
+                self.log(
+                    f"✅ All {total} events have correct 1% escalation rate", "PASS"
+                )
             else:
-                self.log(f"❌ {total - correct} events do not have 1% escalation rate (avg: {avg_rate:.1%})", "FAIL")
+                self.log(
+                    f"❌ {total - correct} events do not have 1% escalation rate (avg: {avg_rate:.1%})",
+                    "FAIL",
+                )
                 passed = False
 
         # Test 2.4: Verify maximum rate cap enforcement (10% default)
@@ -223,9 +244,15 @@ class EscalationSystemTester:
         if result:
             generated, in_pipeline = result[0]
             if generated == in_pipeline:
-                self.log(f"✅ All {generated} escalation events integrated into pipeline", "PASS")
+                self.log(
+                    f"✅ All {generated} escalation events integrated into pipeline",
+                    "PASS",
+                )
             else:
-                self.log(f"❌ Integration mismatch: {generated} generated, {in_pipeline} in pipeline", "FAIL")
+                self.log(
+                    f"❌ Integration mismatch: {generated} generated, {in_pipeline} in pipeline",
+                    "FAIL",
+                )
                 passed = False
 
         # Test 3.2: Workforce snapshot contains escalation data
@@ -241,12 +268,20 @@ class EscalationSystemTester:
         if result:
             total, with_data, with_escalations = result[0]
             if with_data == total:
-                self.log(f"✅ All {total} workforce records have escalation tracking data", "PASS")
+                self.log(
+                    f"✅ All {total} workforce records have escalation tracking data",
+                    "PASS",
+                )
             else:
-                self.log(f"❌ {total - with_data} workforce records missing escalation data", "FAIL")
+                self.log(
+                    f"❌ {total - with_data} workforce records missing escalation data",
+                    "FAIL",
+                )
                 passed = False
 
-            self.log(f"📊 {with_escalations} employees have received escalations", "INFO")
+            self.log(
+                f"📊 {with_escalations} employees have received escalations", "INFO"
+            )
 
         # Test 3.3: Contribution model uses escalated rates
         query = f"""
@@ -262,7 +297,9 @@ class EscalationSystemTester:
         if result and result[0][0] == 0:
             self.log("✅ Contribution model uses escalated deferral rates", "PASS")
         else:
-            self.log(f"❌ {result[0][0]} deferral rate mismatches between models", "FAIL")
+            self.log(
+                f"❌ {result[0][0]} deferral rate mismatches between models", "FAIL"
+            )
             passed = False
 
         self.test_results.append((f"Pipeline Integration {year}", passed))
@@ -295,9 +332,15 @@ class EscalationSystemTester:
         for row in results:
             year, employees, increases, decreases = row
             if decreases == 0:
-                self.log(f"✅ Year {year}: {increases} escalation increases, 0 decreases", "PASS")
+                self.log(
+                    f"✅ Year {year}: {increases} escalation increases, 0 decreases",
+                    "PASS",
+                )
             else:
-                self.log(f"❌ Year {year}: {decreases} escalation count decreases detected", "FAIL")
+                self.log(
+                    f"❌ Year {year}: {decreases} escalation count decreases detected",
+                    "FAIL",
+                )
                 passed = False
 
         # Test 4.2: Deferral rates progress logically
@@ -321,9 +364,15 @@ class EscalationSystemTester:
         for row in results:
             year, employees, avg_change, reversions = row
             if reversions == 0:
-                self.log(f"✅ Year {year}: No invalid rate reversions, avg change: {avg_change:.1%}", "PASS")
+                self.log(
+                    f"✅ Year {year}: No invalid rate reversions, avg change: {avg_change:.1%}",
+                    "PASS",
+                )
             else:
-                self.log(f"❌ Year {year}: {reversions} invalid rate reversions detected", "FAIL")
+                self.log(
+                    f"❌ Year {year}: {reversions} invalid rate reversions detected",
+                    "FAIL",
+                )
                 passed = False
 
         # Test 4.3: Maximum cap enforcement across years
@@ -343,9 +392,14 @@ class EscalationSystemTester:
         for row in results:
             year, at_cap, max_rate, violations = row
             if violations == 0:
-                self.log(f"✅ Year {year}: Cap enforced, max rate: {max_rate:.1%}", "PASS")
+                self.log(
+                    f"✅ Year {year}: Cap enforced, max rate: {max_rate:.1%}", "PASS"
+                )
             else:
-                self.log(f"❌ Year {year}: {violations} cap violations, max rate: {max_rate:.1%}", "FAIL")
+                self.log(
+                    f"❌ Year {year}: {violations} cap violations, max rate: {max_rate:.1%}",
+                    "FAIL",
+                )
                 passed = False
 
         self.test_results.append(("Multi-Year Progression", passed))
@@ -375,15 +429,23 @@ class EscalationSystemTester:
         if result:
             health_score, status, violations, records, rate, recommendations = result[0]
             if health_score >= 95:
-                self.log(f"✅ Excellent data quality: {health_score}/100 ({status})", "PASS")
+                self.log(
+                    f"✅ Excellent data quality: {health_score}/100 ({status})", "PASS"
+                )
             elif health_score >= 85:
                 self.log(f"✅ Good data quality: {health_score}/100 ({status})", "PASS")
             elif health_score >= 70:
-                self.log(f"⚠️  Fair data quality: {health_score}/100 ({status})", "WARN")
-                self.log(f"    Violations: {violations}/{records} ({rate:.1f}%)", "WARN")
+                self.log(
+                    f"⚠️  Fair data quality: {health_score}/100 ({status})", "WARN"
+                )
+                self.log(
+                    f"    Violations: {violations}/{records} ({rate:.1f}%)", "WARN"
+                )
             else:
                 self.log(f"❌ Poor data quality: {health_score}/100 ({status})", "FAIL")
-                self.log(f"    Violations: {violations}/{records} ({rate:.1f}%)", "FAIL")
+                self.log(
+                    f"    Violations: {violations}/{records} ({rate:.1f}%)", "FAIL"
+                )
                 self.log(f"    Recommendation: {recommendations}", "FAIL")
                 passed = False
         else:
@@ -415,7 +477,9 @@ class EscalationSystemTester:
         if result and result[0][0] == 0:
             self.log("✅ Only enrolled employees receive escalations", "PASS")
         else:
-            self.log(f"❌ {result[0][0]} non-enrolled employees received escalations", "FAIL")
+            self.log(
+                f"❌ {result[0][0]} non-enrolled employees received escalations", "FAIL"
+            )
             passed = False
 
         # Test 6.2: Tenure and age thresholds respected
@@ -432,9 +496,13 @@ class EscalationSystemTester:
             total, below_tenure, below_age = result[0]
             issues = below_tenure + below_age
             if issues == 0:
-                self.log(f"✅ All {total} escalations meet age/tenure thresholds", "PASS")
+                self.log(
+                    f"✅ All {total} escalations meet age/tenure thresholds", "PASS"
+                )
             else:
-                self.log(f"❌ {issues} escalations violate age/tenure thresholds", "FAIL")
+                self.log(
+                    f"❌ {issues} escalations violate age/tenure thresholds", "FAIL"
+                )
                 passed = False
 
         # Test 6.3: Meaningful increase threshold (prevent tiny escalations)
@@ -473,7 +541,9 @@ class EscalationSystemTester:
         if result and result[0][0] == 0:
             self.log("✅ No employees escalated beyond maximum rate", "PASS")
         else:
-            self.log(f"❌ {result[0][0]} employees over-escalated beyond maximum", "FAIL")
+            self.log(
+                f"❌ {result[0][0]} employees over-escalated beyond maximum", "FAIL"
+            )
             passed = False
 
         # Test 7.2: Employees reaching maximum escalation count stop getting increases
@@ -487,7 +557,9 @@ class EscalationSystemTester:
         if result and result[0][0] == 0:
             self.log("✅ No employees exceed maximum escalation count", "PASS")
         else:
-            self.log(f"❌ {result[0][0]} employees exceed maximum escalation count", "FAIL")
+            self.log(
+                f"❌ {result[0][0]} employees exceed maximum escalation count", "FAIL"
+            )
             passed = False
 
         # Test 7.3: Data quality flags are properly set
@@ -503,7 +575,7 @@ class EscalationSystemTester:
         valid_count = 0
         for row in results:
             flag, count = row
-            if flag == 'VALID':
+            if flag == "VALID":
                 valid_count += count
                 self.log(f"✅ {count} events with VALID data quality flag", "PASS")
             else:
@@ -546,7 +618,9 @@ class EscalationSystemTester:
         if passed_tests == total_tests:
             print("🎉 ALL TESTS PASSED! Epic E035 is ready for production.")
         else:
-            print(f"⚠️  {total_tests - passed_tests} test(s) failed. Review issues before deployment.")
+            print(
+                f"⚠️  {total_tests - passed_tests} test(s) failed. Review issues before deployment."
+            )
         print("=" * 60)
 
     def run_full_test_suite(self) -> bool:
@@ -573,7 +647,7 @@ class EscalationSystemTester:
 
     def __del__(self):
         """Clean up database connection."""
-        if hasattr(self, 'conn'):
+        if hasattr(self, "conn"):
             self.conn.close()
 
 
@@ -585,17 +659,13 @@ def main():
     parser.add_argument(
         "--db",
         default="simulation.duckdb",
-        help="Path to DuckDB database file (default: simulation.duckdb)"
+        help="Path to DuckDB database file (default: simulation.duckdb)",
     )
     parser.add_argument(
-        "--verbose", "-v",
-        action="store_true",
-        help="Enable verbose logging"
+        "--verbose", "-v", action="store_true", help="Enable verbose logging"
     )
     parser.add_argument(
-        "--year",
-        type=int,
-        help="Test specific year (runs full suite if not specified)"
+        "--year", type=int, help="Test specific year (runs full suite if not specified)"
     )
 
     args = parser.parse_args()
@@ -613,10 +683,10 @@ def main():
     if args.year:
         # Run specific year tests
         success = (
-            tester.test_event_generation(args.year) and
-            tester.test_pipeline_integration(args.year) and
-            tester.test_data_quality_validation(args.year) and
-            tester.test_business_requirements(args.year)
+            tester.test_event_generation(args.year)
+            and tester.test_pipeline_integration(args.year)
+            and tester.test_data_quality_validation(args.year)
+            and tester.test_business_requirements(args.year)
         )
     else:
         # Run full test suite

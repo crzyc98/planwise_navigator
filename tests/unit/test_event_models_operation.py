@@ -5,11 +5,12 @@ Comprehensive test suite for the event processing modularization,
 covering Epic 11.5 sequence validation, hiring calculations, and debug logging.
 """
 
-import pytest
 from unittest.mock import Mock, patch
-from dagster import OpExecutionContext
 
-from orchestrator.simulator_pipeline import _run_dbt_event_models_for_year_internal
+import pytest
+from dagster import OpExecutionContext
+from orchestrator.simulator_pipeline import \
+    _run_dbt_event_models_for_year_internal
 
 
 class TestEventModelsOperation:
@@ -106,11 +107,15 @@ class TestEventModelsOperation:
 
         # Mock database connection for debug query
         mock_conn = Mock()
-        mock_conn.execute.return_value.fetchone.return_value = [expected_workforce_count]
+        mock_conn.execute.return_value.fetchone.return_value = [
+            expected_workforce_count
+        ]
         mock_duckdb_connect.return_value = mock_conn
 
         # Execute and verify debug query was executed
-        result = _run_dbt_event_models_for_year_internal(mock_context, year, sample_config)
+        result = _run_dbt_event_models_for_year_internal(
+            mock_context, year, sample_config
+        )
         expected_debug_query = "SELECT COUNT(*) FROM int_baseline_workforce WHERE employment_status = 'active'"
         mock_conn.execute.assert_called_with(expected_debug_query)
 
@@ -179,7 +184,9 @@ class TestEventModelsOperation:
         mock_conn.execute.return_value.fetchone.return_value = [workforce_count]
         mock_duckdb_connect.return_value = mock_conn
 
-        result = _run_dbt_event_models_for_year_internal(mock_context, year, sample_config)
+        result = _run_dbt_event_models_for_year_internal(
+            mock_context, year, sample_config
+        )
 
         # Verify return structure
         assert "year" in result
@@ -261,7 +268,9 @@ class TestEventModelsOperation:
         mock_conn.execute.return_value.fetchone.return_value = [0]
         mock_duckdb_connect.return_value = mock_conn
 
-        result = _run_dbt_event_models_for_year_internal(mock_context, year, sample_config)
+        result = _run_dbt_event_models_for_year_internal(
+            mock_context, year, sample_config
+        )
 
         # Verify debug logging handles zero case
         mock_context.log.info.assert_any_call(
@@ -290,7 +299,9 @@ class TestEventModelsOperation:
         mock_conn.execute.return_value.fetchone.return_value = [large_workforce_count]
         mock_duckdb_connect.return_value = mock_conn
 
-        result = _run_dbt_event_models_for_year_internal(mock_context, year, sample_config)
+        result = _run_dbt_event_models_for_year_internal(
+            mock_context, year, sample_config
+        )
 
         # Verify large numbers are handled correctly
         assert result["hiring_debug"]["workforce_count"] == large_workforce_count
@@ -316,7 +327,9 @@ class TestEventModelsOperation:
         mock_conn.execute.return_value.fetchone.return_value = [100]
         mock_duckdb_connect.return_value = mock_conn
 
-        result = _run_dbt_event_models_for_year_internal(mock_context, year, sample_config)
+        result = _run_dbt_event_models_for_year_internal(
+            mock_context, year, sample_config
+        )
 
         # Verify year is correctly passed through
         assert result["year"] == year
@@ -450,7 +463,9 @@ class TestEventModelsOperationIntegration:
 
         # Execute multiple times
         for _ in range(3):
-            _run_dbt_event_models_for_year_internal(integration_context, year, realistic_config)
+            _run_dbt_event_models_for_year_internal(
+                integration_context, year, realistic_config
+            )
 
         # Verify sequence order is maintained in all executions
         expected_sequence = [

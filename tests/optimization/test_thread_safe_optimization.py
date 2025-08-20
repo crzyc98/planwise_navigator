@@ -5,33 +5,27 @@ Comprehensive test suite covering thread safety, numerical stability,
 and performance characteristics of the robust optimization engine.
 """
 
-import pytest
-import threading
-import time
 import math
-import numpy as np
-from unittest.mock import Mock, patch
-from concurrent.futures import ThreadPoolExecutor, as_completed
-from typing import Dict, List
-
+import os
 # Add the orchestrator directory to the path
 import sys
-import os
-sys.path.append(os.path.join(os.path.dirname(__file__), '..', '..', 'orchestrator'))
+import threading
+import time
+from concurrent.futures import ThreadPoolExecutor, as_completed
+from typing import Dict, List
+from unittest.mock import Mock, patch
+
+import numpy as np
+import pytest
+
+sys.path.append(os.path.join(os.path.dirname(__file__), "..", "..", "orchestrator"))
 
 from optimization.thread_safe_objective_functions import (
-    ThreadSafeObjectiveFunctions,
-    ThreadSafeParameterCache,
-    ThreadSafeAdaptivePenalty,
-    RobustNumericalCalculations,
-    OptimizationResult
-)
+    OptimizationResult, RobustNumericalCalculations, ThreadSafeAdaptivePenalty,
+    ThreadSafeObjectiveFunctions, ThreadSafeParameterCache)
 from optimization.thread_safe_optimization_engine import (
-    ThreadSafeOptimizationEngine,
-    OptimizationRequest,
-    OptimizationResponse,
-    ConcurrentOptimizationResults
-)
+    ConcurrentOptimizationResults, OptimizationRequest, OptimizationResponse,
+    ThreadSafeOptimizationEngine)
 
 
 class TestRobustNumericalCalculations:
@@ -72,14 +66,14 @@ class TestRobustNumericalCalculations:
         calc = RobustNumericalCalculations()
 
         # NaN inputs
-        assert calc.safe_growth_rate(float('nan'), 100) == 0.0
-        assert calc.safe_growth_rate(100, float('nan')) == 0.0
+        assert calc.safe_growth_rate(float("nan"), 100) == 0.0
+        assert calc.safe_growth_rate(100, float("nan")) == 0.0
 
         # Infinity inputs should be capped
-        result = calc.safe_growth_rate(float('inf'), 100)
+        result = calc.safe_growth_rate(float("inf"), 100)
         assert result <= 50.0
 
-        result = calc.safe_growth_rate(100, float('inf'))
+        result = calc.safe_growth_rate(100, float("inf"))
         assert not math.isinf(result)
 
     def test_safe_coefficient_of_variation(self):
@@ -94,8 +88,8 @@ class TestRobustNumericalCalculations:
         assert calc.safe_coefficient_of_variation(0, 10) == 0.0
 
         # NaN protection
-        assert calc.safe_coefficient_of_variation(float('nan'), 10) == 0.0
-        assert calc.safe_coefficient_of_variation(100, float('nan')) == 0.0
+        assert calc.safe_coefficient_of_variation(float("nan"), 10) == 0.0
+        assert calc.safe_coefficient_of_variation(100, float("nan")) == 0.0
 
         # High variation capping
         cv = calc.safe_coefficient_of_variation(1, 100)
@@ -126,8 +120,8 @@ class TestThreadSafeParameterCache:
         cache = ThreadSafeParameterCache()
 
         # Same parameters should generate same key
-        params1 = {'a': 1.0, 'b': 2.0}
-        params2 = {'b': 2.0, 'a': 1.0}  # Different order
+        params1 = {"a": 1.0, "b": 2.0}
+        params2 = {"b": 2.0, "a": 1.0}  # Different order
 
         key1 = cache.get_canonical_key(params1)
         key2 = cache.get_canonical_key(params2)
@@ -143,15 +137,15 @@ class TestThreadSafeParameterCache:
         def mock_compute(params, obj_type):
             return sum(params.values()) * 100
 
-        params = {'a': 1.0, 'b': 2.0}
+        params = {"a": 1.0, "b": 2.0}
 
         # First call should be a miss
-        result1 = cache.get_or_compute(params, 'test', mock_compute)
+        result1 = cache.get_or_compute(params, "test", mock_compute)
         assert not result1.cache_hit
         assert result1.objective_value == 300.0
 
         # Second call should be a hit
-        result2 = cache.get_or_compute(params, 'test', mock_compute)
+        result2 = cache.get_or_compute(params, "test", mock_compute)
         assert result2.cache_hit
         assert result2.objective_value == 300.0
 
@@ -166,11 +160,11 @@ class TestThreadSafeParameterCache:
             time.sleep(0.1)  # Simulate computation time
             return sum(params.values())
 
-        params = {'a': 1.0, 'b': 2.0}
+        params = {"a": 1.0, "b": 2.0}
 
         # Launch multiple threads accessing same parameters
         def access_cache():
-            return cache.get_or_compute(params, 'test', mock_compute)
+            return cache.get_or_compute(params, "test", mock_compute)
 
         with ThreadPoolExecutor(max_workers=5) as executor:
             futures = [executor.submit(access_cache) for _ in range(10)]
@@ -192,8 +186,8 @@ class TestThreadSafeParameterCache:
 
         # Fill cache beyond capacity
         for i in range(5):
-            params = {'param': float(i)}
-            cache.get_or_compute(params, 'test', mock_compute)
+            params = {"param": float(i)}
+            cache.get_or_compute(params, "test", mock_compute)
 
         # Cache should not exceed max size
         assert len(cache._cache) <= 3
@@ -270,11 +264,13 @@ class TestThreadSafeObjectiveFunctions:
     @pytest.fixture
     def objective_functions(self, mock_duckdb_resource):
         """Create thread-safe objective functions instance."""
-        return ThreadSafeObjectiveFunctions(mock_duckdb_resource, 'test_scenario', use_synthetic=True)
+        return ThreadSafeObjectiveFunctions(
+            mock_duckdb_resource, "test_scenario", use_synthetic=True
+        )
 
     def test_cost_objective_thread_safety(self, objective_functions):
         """Test cost objective function thread safety."""
-        params = {'merit_rate_level_1': 0.05, 'cola_rate': 0.02}
+        params = {"merit_rate_level_1": 0.05, "cola_rate": 0.02}
 
         def call_cost_objective():
             return objective_functions.cost_objective(params)
@@ -290,7 +286,7 @@ class TestThreadSafeObjectiveFunctions:
 
     def test_equity_objective_thread_safety(self, objective_functions):
         """Test equity objective function thread safety."""
-        params = {'merit_rate_level_1': 0.05, 'merit_rate_level_2': 0.04}
+        params = {"merit_rate_level_1": 0.05, "merit_rate_level_2": 0.04}
 
         def call_equity_objective():
             return objective_functions.equity_objective(params)
@@ -306,7 +302,7 @@ class TestThreadSafeObjectiveFunctions:
 
     def test_targets_objective_thread_safety(self, objective_functions):
         """Test targets objective function thread safety."""
-        params = {'merit_rate_level_1': 0.05, 'new_hire_salary_adjustment': 1.15}
+        params = {"merit_rate_level_1": 0.05, "new_hire_salary_adjustment": 1.15}
 
         def call_targets_objective():
             return objective_functions.targets_objective(params)
@@ -322,7 +318,7 @@ class TestThreadSafeObjectiveFunctions:
 
     def test_cache_performance(self, objective_functions):
         """Test cache performance statistics."""
-        params = {'merit_rate_level_1': 0.05}
+        params = {"merit_rate_level_1": 0.05}
 
         # Make several calls to populate cache
         for _ in range(5):
@@ -330,10 +326,10 @@ class TestThreadSafeObjectiveFunctions:
 
         stats = objective_functions.get_cache_stats()
 
-        assert 'cache_size' in stats
-        assert 'total_accesses' in stats
-        assert 'unique_computations' in stats
-        assert stats['total_accesses'] >= 5
+        assert "cache_size" in stats
+        assert "total_accesses" in stats
+        assert "unique_computations" in stats
+        assert stats["total_accesses"] >= 5
 
 
 class TestThreadSafeOptimizationEngine:
@@ -357,14 +353,14 @@ class TestThreadSafeOptimizationEngine:
     def sample_request(self):
         """Create sample optimization request."""
         return OptimizationRequest(
-            scenario_id='test_scenario',
-            initial_params={'merit_rate_level_1': 0.04, 'cola_rate': 0.02},
-            param_names=['merit_rate_level_1', 'cola_rate'],
+            scenario_id="test_scenario",
+            initial_params={"merit_rate_level_1": 0.04, "cola_rate": 0.02},
+            param_names=["merit_rate_level_1", "cola_rate"],
             param_bounds=[(0.01, 0.10), (0.005, 0.05)],
-            objectives={'cost': 0.5, 'equity': 0.3, 'targets': 0.2},
-            method='SLSQP',
+            objectives={"cost": 0.5, "equity": 0.3, "targets": 0.2},
+            method="SLSQP",
             max_evaluations=50,
-            use_synthetic=True
+            use_synthetic=True,
         )
 
     def test_single_optimization(self, optimization_engine, sample_request):
@@ -372,7 +368,7 @@ class TestThreadSafeOptimizationEngine:
         result = optimization_engine.optimize_single(sample_request)
 
         assert isinstance(result, OptimizationResponse)
-        assert result.scenario_id == 'test_scenario'
+        assert result.scenario_id == "test_scenario"
         assert isinstance(result.success, bool)
         assert isinstance(result.optimal_params, dict)
         assert isinstance(result.objective_value, float)
@@ -384,14 +380,14 @@ class TestThreadSafeOptimizationEngine:
         requests = []
         for i in range(5):
             request = OptimizationRequest(
-                scenario_id=f'scenario_{i}',
+                scenario_id=f"scenario_{i}",
                 initial_params=sample_request.initial_params,
                 param_names=sample_request.param_names,
                 param_bounds=sample_request.param_bounds,
                 objectives=sample_request.objectives,
                 method=sample_request.method,
                 max_evaluations=20,  # Shorter for faster testing
-                use_synthetic=True
+                use_synthetic=True,
             )
             requests.append(request)
 
@@ -408,13 +404,16 @@ class TestThreadSafeOptimizationEngine:
         """Test parameter bounds validation."""
         # Test with out-of-bounds initial parameters
         out_of_bounds_request = OptimizationRequest(
-            scenario_id='bounds_test',
-            initial_params={'merit_rate_level_1': 0.20, 'cola_rate': 0.10},  # Above bounds
-            param_names=['merit_rate_level_1', 'cola_rate'],
+            scenario_id="bounds_test",
+            initial_params={
+                "merit_rate_level_1": 0.20,
+                "cola_rate": 0.10,
+            },  # Above bounds
+            param_names=["merit_rate_level_1", "cola_rate"],
             param_bounds=[(0.01, 0.10), (0.005, 0.05)],
-            objectives={'cost': 1.0},
+            objectives={"cost": 1.0},
             max_evaluations=10,
-            use_synthetic=True
+            use_synthetic=True,
         )
 
         result = optimization_engine.optimize_single(out_of_bounds_request)
@@ -432,30 +431,32 @@ class TestThreadSafeOptimizationEngine:
         # Run optimizations with different objectives concurrently
         requests = [
             OptimizationRequest(
-                scenario_id='cost_focused',
+                scenario_id="cost_focused",
                 initial_params=sample_request.initial_params,
                 param_names=sample_request.param_names,
                 param_bounds=sample_request.param_bounds,
-                objectives={'cost': 1.0},  # Cost-only objective
+                objectives={"cost": 1.0},  # Cost-only objective
                 max_evaluations=20,
-                use_synthetic=True
+                use_synthetic=True,
             ),
             OptimizationRequest(
-                scenario_id='equity_focused',
+                scenario_id="equity_focused",
                 initial_params=sample_request.initial_params,
                 param_names=sample_request.param_names,
                 param_bounds=sample_request.param_bounds,
-                objectives={'equity': 1.0},  # Equity-only objective
+                objectives={"equity": 1.0},  # Equity-only objective
                 max_evaluations=20,
-                use_synthetic=True
-            )
+                use_synthetic=True,
+            ),
         ]
 
         result = optimization_engine.optimize_concurrent(requests)
 
         # Results should be different due to different objectives
-        cost_result = next(r for r in result.results if r.scenario_id == 'cost_focused')
-        equity_result = next(r for r in result.results if r.scenario_id == 'equity_focused')
+        cost_result = next(r for r in result.results if r.scenario_id == "cost_focused")
+        equity_result = next(
+            r for r in result.results if r.scenario_id == "equity_focused"
+        )
 
         # Should have different thread IDs (if run concurrently)
         assert cost_result.thread_id != equity_result.thread_id
@@ -472,23 +473,23 @@ class TestThreadSafeOptimizationEngine:
         # Check performance metrics
         metrics = optimization_engine.get_performance_metrics()
 
-        assert 'total_optimizations' in metrics
-        assert 'successful_optimizations' in metrics
-        assert 'failed_optimizations' in metrics
-        assert 'total_execution_time' in metrics
-        assert metrics['total_optimizations'] >= 1
+        assert "total_optimizations" in metrics
+        assert "successful_optimizations" in metrics
+        assert "failed_optimizations" in metrics
+        assert "total_execution_time" in metrics
+        assert metrics["total_optimizations"] >= 1
 
     def test_error_handling(self, optimization_engine):
         """Test error handling in optimization."""
         # Create request with invalid configuration
         invalid_request = OptimizationRequest(
-            scenario_id='invalid_test',
-            initial_params={'invalid_param': 0.05},
-            param_names=['invalid_param'],
+            scenario_id="invalid_test",
+            initial_params={"invalid_param": 0.05},
+            param_names=["invalid_param"],
             param_bounds=[(0.01, 0.10)],
-            objectives={'invalid_objective': 1.0},  # Invalid objective
+            objectives={"invalid_objective": 1.0},  # Invalid objective
             max_evaluations=10,
-            use_synthetic=True
+            use_synthetic=True,
         )
 
         result = optimization_engine.optimize_single(invalid_request)
@@ -500,15 +501,16 @@ class TestThreadSafeOptimizationEngine:
 
 # Property-based tests using hypothesis (if available)
 try:
-    from hypothesis import given, strategies as st
     import hypothesis
+    from hypothesis import given
+    from hypothesis import strategies as st
 
     class TestPropertyBasedOptimization:
         """Property-based tests for optimization robustness."""
 
         @given(
             baseline=st.floats(min_value=0, max_value=1e6),
-            current=st.floats(min_value=0, max_value=1e6)
+            current=st.floats(min_value=0, max_value=1e6),
         )
         def test_growth_rate_properties(self, baseline, current):
             """Test growth rate calculation properties."""
@@ -526,7 +528,8 @@ try:
             params=st.dictionaries(
                 st.text(min_size=1, max_size=20),
                 st.floats(min_value=0.001, max_value=1.0),
-                min_size=1, max_size=10
+                min_size=1,
+                max_size=10,
             )
         )
         def test_cache_key_consistency(self, params):

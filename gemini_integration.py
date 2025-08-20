@@ -20,24 +20,46 @@ logger = logging.getLogger(__name__)
 
 # Uncertainty patterns that trigger automatic Gemini consultation
 UNCERTAINTY_PATTERNS = [
-    r"\bI'm not sure\b", r"\bI think\b", r"\bpossibly\b", r"\bprobably\b",
-    r"\bmight be\b", r"\bcould be\b", r"\bI believe\b", r"\bIt seems\b",
-    r"\bappears to be\b", r"\buncertain\b", r"\bI would guess\b",
-    r"\blikely\b", r"\bperhaps\b", r"\bmaybe\b", r"\bI assume\b"
+    r"\bI'm not sure\b",
+    r"\bI think\b",
+    r"\bpossibly\b",
+    r"\bprobably\b",
+    r"\bmight be\b",
+    r"\bcould be\b",
+    r"\bI believe\b",
+    r"\bIt seems\b",
+    r"\bappears to be\b",
+    r"\buncertain\b",
+    r"\bI would guess\b",
+    r"\blikely\b",
+    r"\bperhaps\b",
+    r"\bmaybe\b",
+    r"\bI assume\b",
 ]
 
 # Complex decision patterns that benefit from second opinions
 COMPLEX_DECISION_PATTERNS = [
-    r"\bmultiple approaches\b", r"\bseveral options\b", r"\btrade-offs?\b",
-    r"\bconsider(?:ing)?\b", r"\balternatives?\b", r"\bpros and cons\b",
-    r"\bweigh(?:ing)? the options\b", r"\bchoice between\b", r"\bdecision\b"
+    r"\bmultiple approaches\b",
+    r"\bseveral options\b",
+    r"\btrade-offs?\b",
+    r"\bconsider(?:ing)?\b",
+    r"\balternatives?\b",
+    r"\bpros and cons\b",
+    r"\bweigh(?:ing)? the options\b",
+    r"\bchoice between\b",
+    r"\bdecision\b",
 ]
 
 # Critical operations that should trigger consultation
 CRITICAL_OPERATION_PATTERNS = [
-    r"\bproduction\b", r"\bdatabase migration\b", r"\bsecurity\b",
-    r"\bauthentication\b", r"\bencryption\b", r"\bAPI key\b",
-    r"\bcredentials?\b", r"\bperformance\s+critical\b"
+    r"\bproduction\b",
+    r"\bdatabase migration\b",
+    r"\bsecurity\b",
+    r"\bauthentication\b",
+    r"\bencryption\b",
+    r"\bAPI key\b",
+    r"\bcredentials?\b",
+    r"\bperformance\s+critical\b",
 ]
 
 
@@ -46,22 +68,26 @@ class GeminiIntegration:
 
     def __init__(self, config: Optional[Dict[str, Any]] = None):
         self.config = config or {}
-        self.enabled = self.config.get('enabled', True)
-        self.auto_consult = self.config.get('auto_consult', True)
-        self.cli_command = self.config.get('cli_command', 'gemini')
-        self.timeout = self.config.get('timeout', 60)
-        self.rate_limit_delay = self.config.get('rate_limit_delay', 2.0)
+        self.enabled = self.config.get("enabled", True)
+        self.auto_consult = self.config.get("auto_consult", True)
+        self.cli_command = self.config.get("cli_command", "gemini")
+        self.timeout = self.config.get("timeout", 60)
+        self.rate_limit_delay = self.config.get("rate_limit_delay", 2.0)
         self.last_consultation = 0
         self.consultation_log = []
-        self.max_context_length = self.config.get('max_context_length', 4000)
-        self.model = self.config.get('model', 'gemini-2.5-flash')
+        self.max_context_length = self.config.get("max_context_length", 4000)
+        self.model = self.config.get("model", "gemini-2.5-flash")
 
-    async def consult_gemini(self, query: str, context: str = "",
-                           comparison_mode: bool = True,
-                           force_consult: bool = False) -> Dict[str, Any]:
+    async def consult_gemini(
+        self,
+        query: str,
+        context: str = "",
+        comparison_mode: bool = True,
+        force_consult: bool = False,
+    ) -> Dict[str, Any]:
         """Consult Gemini CLI for second opinion"""
         if not self.enabled:
-            return {'status': 'disabled', 'message': 'Gemini integration is disabled'}
+            return {"status": "disabled", "message": "Gemini integration is disabled"}
 
         if not force_consult:
             await self._enforce_rate_limit()
@@ -76,29 +102,31 @@ class GeminiIntegration:
             result = await self._execute_gemini_cli(full_query)
 
             # Log consultation
-            if self.config.get('log_consultations', True):
-                self.consultation_log.append({
-                    'id': consultation_id,
-                    'timestamp': datetime.now().isoformat(),
-                    'query': query[:200] + "..." if len(query) > 200 else query,
-                    'status': 'success',
-                    'execution_time': result.get('execution_time', 0)
-                })
+            if self.config.get("log_consultations", True):
+                self.consultation_log.append(
+                    {
+                        "id": consultation_id,
+                        "timestamp": datetime.now().isoformat(),
+                        "query": query[:200] + "..." if len(query) > 200 else query,
+                        "status": "success",
+                        "execution_time": result.get("execution_time", 0),
+                    }
+                )
 
             return {
-                'status': 'success',
-                'response': result['output'],
-                'execution_time': result['execution_time'],
-                'consultation_id': consultation_id,
-                'timestamp': datetime.now().isoformat()
+                "status": "success",
+                "response": result["output"],
+                "execution_time": result["execution_time"],
+                "consultation_id": consultation_id,
+                "timestamp": datetime.now().isoformat(),
             }
 
         except Exception as e:
             logger.error(f"Error consulting Gemini: {str(e)}")
             return {
-                'status': 'error',
-                'error': str(e),
-                'consultation_id': consultation_id
+                "status": "error",
+                "error": str(e),
+                "consultation_id": consultation_id,
             }
 
     def detect_uncertainty(self, text: str) -> Tuple[bool, List[str]]:
@@ -136,7 +164,7 @@ class GeminiIntegration:
     def _prepare_query(self, query: str, context: str, comparison_mode: bool) -> str:
         """Prepare the full query for Gemini CLI"""
         if len(context) > self.max_context_length:
-            context = context[:self.max_context_length] + "\n[Context truncated...]"
+            context = context[: self.max_context_length] + "\n[Context truncated...]"
 
         parts = []
         if comparison_mode:
@@ -152,14 +180,16 @@ class GeminiIntegration:
         parts.append(query)
 
         if comparison_mode:
-            parts.extend([
-                "",
-                "Please structure your response with:",
-                "1. Your analysis and understanding",
-                "2. Recommendations or approach",
-                "3. Any concerns or considerations",
-                "4. Alternative approaches (if applicable)"
-            ])
+            parts.extend(
+                [
+                    "",
+                    "Please structure your response with:",
+                    "1. Your analysis and understanding",
+                    "2. Recommendations or approach",
+                    "3. Any concerns or considerations",
+                    "4. Alternative approaches (if applicable)",
+                ]
+            )
 
         return "\n".join(parts)
 
@@ -170,19 +200,16 @@ class GeminiIntegration:
         # Build command
         cmd = [self.cli_command]
         if self.model:
-            cmd.extend(['-m', self.model])
-        cmd.extend(['-p', query])  # Non-interactive mode
+            cmd.extend(["-m", self.model])
+        cmd.extend(["-p", query])  # Non-interactive mode
 
         try:
             process = await asyncio.create_subprocess_exec(
-                *cmd,
-                stdout=asyncio.subprocess.PIPE,
-                stderr=asyncio.subprocess.PIPE
+                *cmd, stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE
             )
 
             stdout, stderr = await asyncio.wait_for(
-                process.communicate(),
-                timeout=self.timeout
+                process.communicate(), timeout=self.timeout
             )
 
             execution_time = time.time() - start_time
@@ -193,10 +220,7 @@ class GeminiIntegration:
                     error_msg += "\nTip: Run 'gemini' interactively to authenticate"
                 raise Exception(f"Gemini CLI failed: {error_msg}")
 
-            return {
-                'output': stdout.decode().strip(),
-                'execution_time': execution_time
-            }
+            return {"output": stdout.decode().strip(), "execution_time": execution_time}
 
         except asyncio.TimeoutError:
             raise Exception(f"Gemini CLI timed out after {self.timeout} seconds")

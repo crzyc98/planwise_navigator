@@ -8,34 +8,22 @@ Validates discriminated union routing, factory methods, and serialization.
 from __future__ import annotations
 
 import uuid
-import pytest
-from decimal import Decimal
 from datetime import date, datetime
-from typing import Dict, Any, List
+from decimal import Decimal
+from typing import Any, Dict, List
 
+import pytest
 from pydantic import ValidationError
 
-from config.events import (
-    SimulationEvent,
-    EventFactory,
-    EligibilityEventFactory,
-    EnrollmentEventFactory,
-    ContributionEventFactory,
-    VestingEventFactory,
-    PlanAdministrationEventFactory,
-    # All payload types
-    HirePayload,
-    PromotionPayload,
-    TerminationPayload,
-    MeritPayload,
-    EligibilityPayload,
-    EnrollmentPayload,
-    ContributionPayload,
-    VestingPayload,
-    ForfeiturePayload,
-    HCEStatusPayload,
-    ComplianceEventPayload
-)
+from config.events import (ComplianceEventPayload,  # All payload types
+                           ContributionEventFactory, ContributionPayload,
+                           EligibilityEventFactory, EligibilityPayload,
+                           EnrollmentEventFactory, EnrollmentPayload,
+                           EventFactory, ForfeiturePayload, HCEStatusPayload,
+                           HirePayload, MeritPayload,
+                           PlanAdministrationEventFactory, PromotionPayload,
+                           SimulationEvent, TerminationPayload,
+                           VestingEventFactory, VestingPayload)
 
 
 class TestComprehensivePayloadCoverage:
@@ -47,13 +35,10 @@ class TestComprehensivePayloadCoverage:
             "employee_id": "TEST_001",
             "scenario_id": "TEST_SCENARIO",
             "plan_design_id": "TEST_DESIGN",
-            "effective_date": date(2024, 1, 15)
+            "effective_date": date(2024, 1, 15),
         }
 
-        self.plan_event_data = {
-            **self.base_event_data,
-            "plan_id": "TEST_PLAN_001"
-        }
+        self.plan_event_data = {**self.base_event_data, "plan_id": "TEST_PLAN_001"}
 
     # ========== WORKFORCE EVENT PAYLOAD TESTS ==========
 
@@ -67,7 +52,7 @@ class TestComprehensivePayloadCoverage:
             "starting_level": 3,
             "employee_ssn": "123456789",
             "employee_birth_date": date(1990, 5, 15),
-            "location": "HQ_BOSTON"
+            "location": "HQ_BOSTON",
         }
 
         payload = HirePayload(**valid_data)
@@ -108,7 +93,7 @@ class TestComprehensivePayloadCoverage:
             "new_level": 4,
             "new_compensation": Decimal("85000.00"),
             "previous_level": 3,
-            "previous_compensation": Decimal("75000.00")
+            "previous_compensation": Decimal("75000.00"),
         }
 
         payload = PromotionPayload(**valid_data)
@@ -141,7 +126,7 @@ class TestComprehensivePayloadCoverage:
         valid_data = {
             "event_type": "termination",
             "termination_reason": "voluntary",
-            "final_compensation": Decimal("80000.00")
+            "final_compensation": Decimal("80000.00"),
         }
 
         payload = TerminationPayload(**valid_data)
@@ -149,7 +134,13 @@ class TestComprehensivePayloadCoverage:
         assert payload.final_compensation == Decimal("80000.00")
 
         # Test all termination reasons
-        termination_reasons = ["voluntary", "involuntary", "retirement", "death", "disability"]
+        termination_reasons = [
+            "voluntary",
+            "involuntary",
+            "retirement",
+            "death",
+            "disability",
+        ]
         for reason in termination_reasons:
             reason_data = {**valid_data, "termination_reason": reason}
             reason_payload = TerminationPayload(**reason_data)
@@ -166,7 +157,9 @@ class TestComprehensivePayloadCoverage:
         assert "Input should be" in str(exc_info.value)
 
         with pytest.raises(ValidationError) as exc_info:
-            TerminationPayload(**{**valid_data, "final_compensation": Decimal("-100.00")})
+            TerminationPayload(
+                **{**valid_data, "final_compensation": Decimal("-100.00")}
+            )
         assert "greater than 0" in str(exc_info.value)
 
     def test_merit_payload_comprehensive_validation(self):
@@ -175,7 +168,7 @@ class TestComprehensivePayloadCoverage:
         valid_data = {
             "event_type": "merit",
             "merit_percentage": Decimal("0.04"),  # 4%
-            "previous_compensation": Decimal("75000.00")
+            "previous_compensation": Decimal("75000.00"),
         }
 
         payload = MeritPayload(**valid_data)
@@ -211,7 +204,7 @@ class TestComprehensivePayloadCoverage:
             "plan_id": "401K_PLAN",
             "eligibility_date": date(2024, 1, 1),
             "service_requirement_months": 3,
-            "age_requirement": None
+            "age_requirement": None,
         }
 
         payload = EligibilityPayload(**valid_data)
@@ -253,7 +246,7 @@ class TestComprehensivePayloadCoverage:
             "enrollment_date": date(2024, 2, 1),
             "deferral_percentage": Decimal("0.06"),
             "deferral_amount": None,
-            "catch_up_percentage": Decimal("0.00")
+            "catch_up_percentage": Decimal("0.00"),
         }
 
         payload = EnrollmentPayload(**valid_data)
@@ -262,7 +255,11 @@ class TestComprehensivePayloadCoverage:
         assert payload.catch_up_percentage == Decimal("0.00")
 
         # Edge case: deferral amount instead of percentage
-        amount_data = {**valid_data, "deferral_percentage": None, "deferral_amount": Decimal("500.00")}
+        amount_data = {
+            **valid_data,
+            "deferral_percentage": None,
+            "deferral_amount": Decimal("500.00"),
+        }
         amount_payload = EnrollmentPayload(**amount_data)
         assert amount_payload.deferral_percentage is None
         assert amount_payload.deferral_amount == Decimal("500.00")
@@ -296,7 +293,7 @@ class TestComprehensivePayloadCoverage:
             "employee_contribution": Decimal("500.00"),
             "employer_contribution": Decimal("250.00"),
             "contribution_source": "regular_payroll",
-            "vesting_service_years": Decimal("1.25")
+            "vesting_service_years": Decimal("1.25"),
         }
 
         payload = ContributionPayload(**valid_data)
@@ -324,11 +321,15 @@ class TestComprehensivePayloadCoverage:
 
         # Validation errors
         with pytest.raises(ValidationError) as exc_info:
-            ContributionPayload(**{**valid_data, "employee_contribution": Decimal("-100.00")})
+            ContributionPayload(
+                **{**valid_data, "employee_contribution": Decimal("-100.00")}
+            )
         assert "greater than or equal to 0" in str(exc_info.value)
 
         with pytest.raises(ValidationError) as exc_info:
-            ContributionPayload(**{**valid_data, "vesting_service_years": Decimal("-0.5")})
+            ContributionPayload(
+                **{**valid_data, "vesting_service_years": Decimal("-0.5")}
+            )
         assert "greater than or equal to 0" in str(exc_info.value)
 
     def test_vesting_payload_comprehensive_validation(self):
@@ -340,7 +341,7 @@ class TestComprehensivePayloadCoverage:
             "vesting_date": date(2024, 12, 31),
             "vesting_schedule_type": "graded",
             "vested_percentage": Decimal("0.60"),
-            "service_years": Decimal("3.0")
+            "service_years": Decimal("3.0"),
         }
 
         payload = VestingPayload(**valid_data)
@@ -385,7 +386,7 @@ class TestComprehensivePayloadCoverage:
             "forfeited_from_source": "employer_match",
             "amount": Decimal("2500.00"),
             "reason": "unvested_termination",
-            "vested_percentage": Decimal("0.25")
+            "vested_percentage": Decimal("0.25"),
         }
 
         payload = ForfeiturePayload(**valid_data)
@@ -434,7 +435,7 @@ class TestComprehensivePayloadCoverage:
             "hce_threshold": Decimal("135000.00"),
             "is_hce": True,
             "determination_date": date(2024, 1, 1),
-            "prior_year_hce": False
+            "prior_year_hce": False,
         }
 
         payload = HCEStatusPayload(**valid_data)
@@ -454,7 +455,7 @@ class TestComprehensivePayloadCoverage:
         current_year_data = {
             **valid_data,
             "determination_method": "current_year",
-            "prior_year_hce": None
+            "prior_year_hce": None,
         }
         current_payload = HCEStatusPayload(**current_year_data)
         assert current_payload.prior_year_hce is None
@@ -483,7 +484,7 @@ class TestComprehensivePayloadCoverage:
             "limit_type": "elective_deferral",
             "applicable_limit": Decimal("23000.00"),
             "current_amount": Decimal("21500.00"),
-            "monitoring_date": date(2024, 11, 15)
+            "monitoring_date": date(2024, 11, 15),
         }
 
         payload = ComplianceEventPayload(**valid_data)
@@ -493,7 +494,11 @@ class TestComprehensivePayloadCoverage:
         assert payload.current_amount == Decimal("21500.00")
 
         # Test all compliance types
-        compliance_types = ["402g_limit_approach", "415c_limit_approach", "catch_up_eligible"]
+        compliance_types = [
+            "402g_limit_approach",
+            "415c_limit_approach",
+            "catch_up_eligible",
+        ]
         for comp_type in compliance_types:
             type_data = {**valid_data, "compliance_type": comp_type}
             type_payload = ComplianceEventPayload(**type_data)
@@ -516,18 +521,22 @@ class TestComprehensivePayloadCoverage:
             **valid_data,
             "compliance_type": "catch_up_eligible",
             "limit_type": "catch_up",
-            "applicable_limit": Decimal("7500.00")
+            "applicable_limit": Decimal("7500.00"),
         }
         catchup_payload = ComplianceEventPayload(**catchup_data)
         assert catchup_payload.compliance_type == "catch_up_eligible"
 
         # Validation errors
         with pytest.raises(ValidationError) as exc_info:
-            ComplianceEventPayload(**{**valid_data, "applicable_limit": Decimal("0.00")})
+            ComplianceEventPayload(
+                **{**valid_data, "applicable_limit": Decimal("0.00")}
+            )
         assert "greater than 0" in str(exc_info.value)
 
         with pytest.raises(ValidationError) as exc_info:
-            ComplianceEventPayload(**{**valid_data, "current_amount": Decimal("-100.00")})
+            ComplianceEventPayload(
+                **{**valid_data, "current_amount": Decimal("-100.00")}
+            )
         assert "greater than or equal to 0" in str(exc_info.value)
 
     # ========== INTEGRATION AND DISCRIMINATED UNION TESTS ==========
@@ -545,7 +554,7 @@ class TestComprehensivePayloadCoverage:
             starting_level=3,
             employee_ssn="123456789",
             employee_birth_date=date(1990, 5, 15),
-            location="HQ"
+            location="HQ",
         )
         test_events.append(("hire", hire_event))
 
@@ -554,21 +563,21 @@ class TestComprehensivePayloadCoverage:
             new_level=4,
             new_compensation=Decimal("85000.00"),
             previous_level=3,
-            previous_compensation=Decimal("75000.00")
+            previous_compensation=Decimal("75000.00"),
         )
         test_events.append(("promotion", promotion_event))
 
         termination_event = EventFactory.create_termination_event(
             **self.base_event_data,
             termination_reason="voluntary",
-            final_compensation=Decimal("80000.00")
+            final_compensation=Decimal("80000.00"),
         )
         test_events.append(("termination", termination_event))
 
         merit_event = EventFactory.create_merit_event(
             **self.base_event_data,
             merit_percentage=Decimal("0.04"),
-            previous_compensation=Decimal("75000.00")
+            previous_compensation=Decimal("75000.00"),
         )
         test_events.append(("merit", merit_event))
 
@@ -577,7 +586,7 @@ class TestComprehensivePayloadCoverage:
             **self.plan_event_data,
             eligibility_date=date(2024, 1, 1),
             service_requirement_months=3,
-            age_requirement=None
+            age_requirement=None,
         )
         test_events.append(("eligibility", eligibility_event))
 
@@ -586,7 +595,7 @@ class TestComprehensivePayloadCoverage:
             enrollment_date=date(2024, 2, 1),
             deferral_percentage=Decimal("0.06"),
             deferral_amount=None,
-            catch_up_percentage=Decimal("0.00")
+            catch_up_percentage=Decimal("0.00"),
         )
         test_events.append(("enrollment", enrollment_event))
 
@@ -596,7 +605,7 @@ class TestComprehensivePayloadCoverage:
             employee_contribution=Decimal("500.00"),
             employer_contribution=Decimal("250.00"),
             contribution_source="regular_payroll",
-            vesting_service_years=Decimal("1.25")
+            vesting_service_years=Decimal("1.25"),
         )
         test_events.append(("contribution", contribution_event))
 
@@ -605,7 +614,7 @@ class TestComprehensivePayloadCoverage:
             vesting_date=date(2024, 12, 31),
             vesting_schedule_type="graded",
             vested_percentage=Decimal("0.60"),
-            service_years=Decimal("3.0")
+            service_years=Decimal("3.0"),
         )
         test_events.append(("vesting", vesting_event))
 
@@ -615,7 +624,7 @@ class TestComprehensivePayloadCoverage:
             forfeited_from_source="employer_match",
             amount=Decimal("2500.00"),
             reason="unvested_termination",
-            vested_percentage=Decimal("0.25")
+            vested_percentage=Decimal("0.25"),
         )
         test_events.append(("forfeiture", forfeiture_event))
 
@@ -626,17 +635,19 @@ class TestComprehensivePayloadCoverage:
             annualized_compensation=Decimal("150000.00"),
             hce_threshold=Decimal("135000.00"),
             is_hce=True,
-            determination_date=date(2024, 1, 1)
+            determination_date=date(2024, 1, 1),
         )
         test_events.append(("hce_status", hce_event))
 
-        compliance_event = PlanAdministrationEventFactory.create_compliance_monitoring_event(
-            **self.plan_event_data,
-            compliance_type="402g_limit_approach",
-            limit_type="elective_deferral",
-            applicable_limit=Decimal("23000.00"),
-            current_amount=Decimal("21500.00"),
-            monitoring_date=date(2024, 11, 15)
+        compliance_event = (
+            PlanAdministrationEventFactory.create_compliance_monitoring_event(
+                **self.plan_event_data,
+                compliance_type="402g_limit_approach",
+                limit_type="elective_deferral",
+                applicable_limit=Decimal("23000.00"),
+                current_amount=Decimal("21500.00"),
+                monitoring_date=date(2024, 11, 15),
+            )
         )
         test_events.append(("compliance", compliance_event))
 
@@ -655,28 +666,35 @@ class TestComprehensivePayloadCoverage:
             assert event == reconstructed
 
             # Verify discriminated union routing
-            assert type(event.payload).__name__.lower().startswith(event_type) or event_type in type(event.payload).__name__.lower()
+            assert (
+                type(event.payload).__name__.lower().startswith(event_type)
+                or event_type in type(event.payload).__name__.lower()
+            )
 
         # Verify we tested all 11 payload types
-        assert len(test_events) == 11, f"Expected 11 event types, tested {len(test_events)}"
+        assert (
+            len(test_events) == 11
+        ), f"Expected 11 event types, tested {len(test_events)}"
 
     def test_factory_method_coverage_and_validation(self):
         """Test all factory methods with validation and error handling."""
 
         # Test EventFactory methods
-        assert hasattr(EventFactory, 'create_hire_event')
-        assert hasattr(EventFactory, 'create_promotion_event')
-        assert hasattr(EventFactory, 'create_termination_event')
-        assert hasattr(EventFactory, 'create_merit_event')
+        assert hasattr(EventFactory, "create_hire_event")
+        assert hasattr(EventFactory, "create_promotion_event")
+        assert hasattr(EventFactory, "create_termination_event")
+        assert hasattr(EventFactory, "create_merit_event")
 
         # Test specialized factory classes
-        assert hasattr(EligibilityEventFactory, 'create_eligibility_event')
-        assert hasattr(EnrollmentEventFactory, 'create_enrollment_event')
-        assert hasattr(ContributionEventFactory, 'create_contribution_event')
-        assert hasattr(VestingEventFactory, 'create_vesting_event')
-        assert hasattr(PlanAdministrationEventFactory, 'create_forfeiture_event')
-        assert hasattr(PlanAdministrationEventFactory, 'create_hce_status_event')
-        assert hasattr(PlanAdministrationEventFactory, 'create_compliance_monitoring_event')
+        assert hasattr(EligibilityEventFactory, "create_eligibility_event")
+        assert hasattr(EnrollmentEventFactory, "create_enrollment_event")
+        assert hasattr(ContributionEventFactory, "create_contribution_event")
+        assert hasattr(VestingEventFactory, "create_vesting_event")
+        assert hasattr(PlanAdministrationEventFactory, "create_forfeiture_event")
+        assert hasattr(PlanAdministrationEventFactory, "create_hce_status_event")
+        assert hasattr(
+            PlanAdministrationEventFactory, "create_compliance_monitoring_event"
+        )
 
         # Test factory validation (invalid inputs should raise ValidationError)
         with pytest.raises(ValidationError):
@@ -686,7 +704,7 @@ class TestComprehensivePayloadCoverage:
                 starting_level=3,
                 employee_ssn="123456789",
                 employee_birth_date=date(1990, 5, 15),
-                location="HQ"
+                location="HQ",
             )
 
         with pytest.raises(ValidationError):
@@ -694,7 +712,7 @@ class TestComprehensivePayloadCoverage:
                 **self.plan_event_data,
                 eligibility_date=date(2024, 1, 1),
                 service_requirement_months=-1,  # Invalid negative
-                age_requirement=None
+                age_requirement=None,
             )
 
     def test_serialization_performance_and_accuracy(self):
@@ -710,7 +728,7 @@ class TestComprehensivePayloadCoverage:
             starting_level=3,
             employee_ssn="123456789",
             employee_birth_date=date(1990, 5, 15),
-            location="HQ"
+            location="HQ",
         )
         events.append(hire_event)
 
@@ -721,7 +739,7 @@ class TestComprehensivePayloadCoverage:
             employee_contribution=Decimal("1234.567890"),
             employer_contribution=Decimal("987.654321"),
             contribution_source="regular_payroll",
-            vesting_service_years=Decimal("2.333333")
+            vesting_service_years=Decimal("2.333333"),
         )
         events.append(contribution_event)
 
@@ -731,7 +749,7 @@ class TestComprehensivePayloadCoverage:
             vesting_date=date(2024, 12, 31),
             vesting_schedule_type="graded",
             vested_percentage=Decimal("0.6789"),  # 4 decimal places
-            service_years=Decimal("3.25")
+            service_years=Decimal("3.25"),
         )
         events.append(vesting_event)
 
@@ -757,7 +775,9 @@ class TestComprehensivePayloadCoverage:
             for field_name in event.payload.model_fields:
                 original_value = getattr(event.payload, field_name)
                 reconstructed_value = getattr(reconstructed.payload, field_name)
-                assert original_value == reconstructed_value, f"Field {field_name} mismatch: {original_value} != {reconstructed_value}"
+                assert (
+                    original_value == reconstructed_value
+                ), f"Field {field_name} mismatch: {original_value} != {reconstructed_value}"
 
     def test_payload_type_coverage_summary(self):
         """Verify comprehensive coverage of all 11 payload types."""
@@ -774,28 +794,37 @@ class TestComprehensivePayloadCoverage:
             "VestingPayload",
             "ForfeiturePayload",
             "HCEStatusPayload",
-            "ComplianceEventPayload"
+            "ComplianceEventPayload",
         }
 
         # Get all payload types from module
         import config.events as events_module
+
         actual_payload_types = set()
 
         for attr_name in dir(events_module):
             attr = getattr(events_module, attr_name)
-            if (hasattr(attr, '__bases__') and
-                hasattr(attr, 'event_type') and
-                attr_name.endswith('Payload')):
+            if (
+                hasattr(attr, "__bases__")
+                and hasattr(attr, "event_type")
+                and attr_name.endswith("Payload")
+            ):
                 actual_payload_types.add(attr_name)
 
         # Verify coverage
         missing_types = expected_payload_types - actual_payload_types
         extra_types = actual_payload_types - expected_payload_types
 
-        assert len(missing_types) == 0, f"Missing payload types in module: {missing_types}"
-        assert len(actual_payload_types) >= 11, f"Expected at least 11 payload types, found {len(actual_payload_types)}"
+        assert (
+            len(missing_types) == 0
+        ), f"Missing payload types in module: {missing_types}"
+        assert (
+            len(actual_payload_types) >= 11
+        ), f"Expected at least 11 payload types, found {len(actual_payload_types)}"
 
-        print(f"✅ Comprehensive payload coverage validated: {len(actual_payload_types)} payload types")
+        print(
+            f"✅ Comprehensive payload coverage validated: {len(actual_payload_types)} payload types"
+        )
         print(f"   Expected: {sorted(expected_payload_types)}")
         print(f"   Actual: {sorted(actual_payload_types)}")
 
@@ -808,9 +837,4 @@ if __name__ == "__main__":
     import pytest
 
     # Run with verbose output
-    pytest.main([
-        __file__,
-        "-v",
-        "--tb=short",
-        "--durations=10"
-    ])
+    pytest.main([__file__, "-v", "--tb=short", "--durations=10"])

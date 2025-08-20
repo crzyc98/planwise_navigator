@@ -10,12 +10,12 @@ Features
 
 from __future__ import annotations
 
+import os
 from pathlib import Path
 from typing import Any, Dict, Optional
-import os
 
 import yaml
-from pydantic import BaseModel, Field, ValidationError, ConfigDict
+from pydantic import BaseModel, ConfigDict, Field, ValidationError
 
 
 class SimulationSettings(BaseModel):
@@ -66,6 +66,7 @@ class AutoEnrollmentSettings(BaseModel):
 
 class ProactiveEnrollmentSettings(BaseModel):
     enabled: bool = True
+
     class TimingWindow(BaseModel):
         min_days: int = 7
         max_days: int = 35
@@ -96,25 +97,37 @@ class ProductionSafetySettings(BaseModel):
     """Production data safety and backup configuration"""
 
     # Database configuration
-    db_path: str = Field(default="simulation.duckdb", description="Path to simulation database")
+    db_path: str = Field(
+        default="simulation.duckdb", description="Path to simulation database"
+    )
 
     # Backup configuration
     backup_enabled: bool = Field(default=True, description="Enable automatic backups")
     backup_dir: str = Field(default="backups", description="Backup directory path")
-    backup_retention_days: int = Field(default=7, ge=1, description="Backup retention period")
-    backup_before_simulation: bool = Field(default=True, description="Create backup before each simulation")
+    backup_retention_days: int = Field(
+        default=7, ge=1, description="Backup retention period"
+    )
+    backup_before_simulation: bool = Field(
+        default=True, description="Create backup before each simulation"
+    )
 
     # Verification settings
     verify_backups: bool = Field(default=True, description="Enable backup verification")
-    max_backup_size_gb: float = Field(default=10.0, ge=0.1, description="Maximum backup size in GB")
+    max_backup_size_gb: float = Field(
+        default=10.0, ge=0.1, description="Maximum backup size in GB"
+    )
 
     # Logging configuration
     log_level: str = Field(default="INFO", description="Logging level")
     log_dir: str = Field(default="logs", description="Log directory path")
 
     # Safety checks
-    require_backup_before_run: bool = Field(default=True, description="Require backup before simulation")
-    enable_emergency_backups: bool = Field(default=True, description="Create emergency backup on restore")
+    require_backup_before_run: bool = Field(
+        default=True, description="Require backup before simulation"
+    )
+    enable_emergency_backups: bool = Field(
+        default=True, description="Create emergency backup on restore"
+    )
 
 
 class OrchestrationConfig(BaseModel):
@@ -273,9 +286,13 @@ def to_dbt_vars(cfg: SimulationConfig) -> Dict[str, Any]:
     if auto.window_days is not None:
         dbt_vars["auto_enrollment_window_days"] = int(auto.window_days)
     if auto.default_deferral_rate is not None:
-        dbt_vars["auto_enrollment_default_deferral_rate"] = float(auto.default_deferral_rate)
+        dbt_vars["auto_enrollment_default_deferral_rate"] = float(
+            auto.default_deferral_rate
+        )
     if auto.opt_out_grace_period is not None:
-        dbt_vars["auto_enrollment_opt_out_grace_period"] = int(auto.opt_out_grace_period)
+        dbt_vars["auto_enrollment_opt_out_grace_period"] = int(
+            auto.opt_out_grace_period
+        )
 
     # Opt-out rates by age
     age_rates = auto.opt_out_rates.by_age
@@ -324,50 +341,60 @@ def to_dbt_vars(cfg: SimulationConfig) -> Dict[str, Any]:
         dbt_vars["target_growth_rate"] = cfg.simulation.target_growth_rate
 
     # Termination rates (CRITICAL FIX)
-    if hasattr(cfg, 'workforce') and cfg.workforce:
+    if hasattr(cfg, "workforce") and cfg.workforce:
         if cfg.workforce.total_termination_rate is not None:
             dbt_vars["total_termination_rate"] = cfg.workforce.total_termination_rate
         if cfg.workforce.new_hire_termination_rate is not None:
-            dbt_vars["new_hire_termination_rate"] = cfg.workforce.new_hire_termination_rate
+            dbt_vars[
+                "new_hire_termination_rate"
+            ] = cfg.workforce.new_hire_termination_rate
 
     # Deferral auto-escalation (E035 - simplified)
     try:
-        dae = getattr(cfg, 'deferral_auto_escalation', None)
+        dae = getattr(cfg, "deferral_auto_escalation", None)
         if isinstance(dae, dict):
-            if 'enabled' in dae:
-                dbt_vars['deferral_escalation_enabled'] = bool(dae['enabled'])
-            if 'effective_day' in dae and dae['effective_day']:
+            if "enabled" in dae:
+                dbt_vars["deferral_escalation_enabled"] = bool(dae["enabled"])
+            if "effective_day" in dae and dae["effective_day"]:
                 # MM-DD string
-                dbt_vars['deferral_escalation_effective_mmdd'] = str(dae['effective_day'])
-            if 'increment_amount' in dae and dae['increment_amount'] is not None:
-                dbt_vars['deferral_escalation_increment'] = float(dae['increment_amount'])
-            if 'maximum_rate' in dae and dae['maximum_rate'] is not None:
-                dbt_vars['deferral_escalation_cap'] = float(dae['maximum_rate'])
-            if 'hire_date_cutoff' in dae and dae['hire_date_cutoff']:
-                dbt_vars['deferral_escalation_hire_date_cutoff'] = str(dae['hire_date_cutoff'])
-            if 'require_active_enrollment' in dae:
-                dbt_vars['deferral_escalation_require_enrollment'] = bool(dae['require_active_enrollment'])
+                dbt_vars["deferral_escalation_effective_mmdd"] = str(
+                    dae["effective_day"]
+                )
+            if "increment_amount" in dae and dae["increment_amount"] is not None:
+                dbt_vars["deferral_escalation_increment"] = float(
+                    dae["increment_amount"]
+                )
+            if "maximum_rate" in dae and dae["maximum_rate"] is not None:
+                dbt_vars["deferral_escalation_cap"] = float(dae["maximum_rate"])
+            if "hire_date_cutoff" in dae and dae["hire_date_cutoff"]:
+                dbt_vars["deferral_escalation_hire_date_cutoff"] = str(
+                    dae["hire_date_cutoff"]
+                )
+            if "require_active_enrollment" in dae:
+                dbt_vars["deferral_escalation_require_enrollment"] = bool(
+                    dae["require_active_enrollment"]
+                )
     except Exception:
         pass
 
     # Deferral baseline mode (Option A default: frozen)
     try:
-        db = getattr(cfg, 'deferral_baseline', None)
-        if isinstance(db, dict) and 'mode' in db and db['mode']:
-            dbt_vars['deferral_baseline_mode'] = str(db['mode']).lower()
+        db = getattr(cfg, "deferral_baseline", None)
+        if isinstance(db, dict) and "mode" in db and db["mode"]:
+            dbt_vars["deferral_baseline_mode"] = str(db["mode"]).lower()
         else:
-            dbt_vars['deferral_baseline_mode'] = 'frozen'
+            dbt_vars["deferral_baseline_mode"] = "frozen"
     except Exception:
-        dbt_vars['deferral_baseline_mode'] = 'frozen'
+        dbt_vars["deferral_baseline_mode"] = "frozen"
 
     # Employer match configuration (E039)
     # Map YAML employer_match block to dbt vars expected by match calculations
     try:
-        employer = getattr(cfg, 'employer_match', None)
+        employer = getattr(cfg, "employer_match", None)
         if employer:
             # employer is likely a dict due to extra=allow
-            active = employer.get('active_formula')
-            formulas = employer.get('formulas')
+            active = employer.get("active_formula")
+            formulas = employer.get("formulas")
             if active is not None:
                 dbt_vars["active_match_formula"] = str(active)
             if formulas is not None:
@@ -380,12 +407,12 @@ def to_dbt_vars(cfg: SimulationConfig) -> Dict[str, Any]:
     # Employer core contribution configuration
     # Map YAML employer_core_contribution block to dbt vars
     try:
-        core_contrib = getattr(cfg, 'employer_core_contribution', None)
+        core_contrib = getattr(cfg, "employer_core_contribution", None)
         if core_contrib:
             # core_contrib is likely a dict due to extra=allow
-            enabled = core_contrib.get('enabled')
-            rate = core_contrib.get('contribution_rate')
-            eligibility = core_contrib.get('eligibility')
+            enabled = core_contrib.get("enabled")
+            rate = core_contrib.get("contribution_rate")
+            eligibility = core_contrib.get("eligibility")
 
             if enabled is not None:
                 dbt_vars["employer_core_enabled"] = bool(enabled)
@@ -393,12 +420,16 @@ def to_dbt_vars(cfg: SimulationConfig) -> Dict[str, Any]:
                 dbt_vars["employer_core_contribution_rate"] = float(rate)
 
             if eligibility:
-                min_tenure = eligibility.get('minimum_tenure_years')
-                require_active = eligibility.get('require_active_at_year_end')
-                min_hours = eligibility.get('minimum_hours_annual')
-                allow_new_hires = eligibility.get('allow_new_hires')
-                allow_terminated_new_hires = eligibility.get('allow_terminated_new_hires')
-                allow_experienced_terminations = eligibility.get('allow_experienced_terminations')
+                min_tenure = eligibility.get("minimum_tenure_years")
+                require_active = eligibility.get("require_active_at_year_end")
+                min_hours = eligibility.get("minimum_hours_annual")
+                allow_new_hires = eligibility.get("allow_new_hires")
+                allow_terminated_new_hires = eligibility.get(
+                    "allow_terminated_new_hires"
+                )
+                allow_experienced_terminations = eligibility.get(
+                    "allow_experienced_terminations"
+                )
 
                 if min_tenure is not None:
                     dbt_vars["core_minimum_tenure_years"] = int(min_tenure)
@@ -409,9 +440,13 @@ def to_dbt_vars(cfg: SimulationConfig) -> Dict[str, Any]:
                 if allow_new_hires is not None:
                     dbt_vars["core_allow_new_hires"] = bool(allow_new_hires)
                 if allow_terminated_new_hires is not None:
-                    dbt_vars["core_allow_terminated_new_hires"] = bool(allow_terminated_new_hires)
+                    dbt_vars["core_allow_terminated_new_hires"] = bool(
+                        allow_terminated_new_hires
+                    )
                 if allow_experienced_terminations is not None:
-                    dbt_vars["core_allow_experienced_terminations"] = bool(allow_experienced_terminations)
+                    dbt_vars["core_allow_experienced_terminations"] = bool(
+                        allow_experienced_terminations
+                    )
     except Exception:
         # Non-fatal: fall back to model defaults
         pass
@@ -442,6 +477,7 @@ def validate_production_configuration(config: OrchestrationConfig) -> None:
     # Validate database is accessible
     try:
         import duckdb
+
         with duckdb.connect(str(db_path)) as conn:
             conn.execute("SELECT 1").fetchone()
     except Exception as e:
@@ -476,6 +512,7 @@ def validate_production_configuration(config: OrchestrationConfig) -> None:
     required_space = db_size * 2  # Database + backup + 100% buffer
 
     import shutil
+
     available_space = shutil.disk_usage(backup_dir).free
 
     if available_space < required_space:
@@ -489,7 +526,9 @@ def validate_production_configuration(config: OrchestrationConfig) -> None:
     # Validate log level
     valid_levels = {"DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"}
     if safety.log_level.upper() not in valid_levels:
-        raise ValueError(f"Invalid log level: {safety.log_level}. Must be one of {valid_levels}")
+        raise ValueError(
+            f"Invalid log level: {safety.log_level}. Must be one of {valid_levels}"
+        )
 
 
 def load_orchestration_config(
@@ -542,7 +581,7 @@ def load_orchestration_config(
     return config
 
 
-def get_backup_configuration(config: OrchestrationConfig) -> 'BackupConfiguration':
+def get_backup_configuration(config: OrchestrationConfig) -> "BackupConfiguration":
     """
     Extract backup configuration for BackupManager
 

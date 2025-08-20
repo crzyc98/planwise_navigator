@@ -7,27 +7,21 @@ optimization results across different optimization types in PlanWise Navigator.
 """
 
 from __future__ import annotations
-from typing import Dict, Any, List, Optional, Tuple, Union
-from datetime import datetime, date
-import streamlit as st
-import pandas as pd
+
 import json
 import logging
+from datetime import date, datetime
 from pathlib import Path
+from typing import Any, Dict, List, Optional, Tuple, Union
 
-from optimization_storage import (
-    OptimizationStorageManager,
-    OptimizationRun,
-    OptimizationMetadata,
-    OptimizationConfiguration,
-    OptimizationResults,
-    OptimizationType,
-    OptimizationEngine,
-    OptimizationStatus,
-    OptimizationObjective,
-    ExportFormat,
-    get_optimization_storage
-)
+import pandas as pd
+import streamlit as st
+from optimization_storage import (ExportFormat, OptimizationConfiguration,
+                                  OptimizationEngine, OptimizationMetadata,
+                                  OptimizationObjective, OptimizationResults,
+                                  OptimizationRun, OptimizationStatus,
+                                  OptimizationStorageManager, OptimizationType,
+                                  get_optimization_storage)
 
 # Set up logging
 logger = logging.getLogger(__name__)
@@ -49,11 +43,11 @@ class OptimizationResultsManager:
         """Initialize session state for the results manager."""
         if self.session_key not in st.session_state:
             st.session_state[self.session_key] = {
-                'current_results': None,
-                'comparison_mode': False,
-                'selected_runs': [],
-                'export_queue': [],
-                'last_refresh': datetime.now()
+                "current_results": None,
+                "comparison_mode": False,
+                "selected_runs": [],
+                "export_queue": [],
+                "last_refresh": datetime.now(),
             }
 
     def save_advanced_optimization_results(
@@ -71,7 +65,7 @@ class OptimizationResultsManager:
         parameter_history: List[Dict[str, float]] = None,
         objective_history: List[float] = None,
         risk_assessment: Dict[str, Any] = None,
-        business_context: Dict[str, Any] = None
+        business_context: Dict[str, Any] = None,
     ) -> str:
         """Save results from advanced optimization interface."""
 
@@ -79,7 +73,7 @@ class OptimizationResultsManager:
         engine_mapping = {
             "SLSQP": OptimizationEngine.SCIPY_SLSQP,
             "DE": OptimizationEngine.SCIPY_DE,
-            "L-BFGS-B": OptimizationEngine.SCIPY_LBFGSB
+            "L-BFGS-B": OptimizationEngine.SCIPY_LBFGSB,
         }
 
         engine = engine_mapping.get(algorithm, OptimizationEngine.SCIPY_SLSQP)
@@ -96,7 +90,9 @@ class OptimizationResultsManager:
             use_synthetic_mode=use_synthetic,
             description=f"Advanced SciPy optimization using {algorithm}",
             tags=["advanced", "scipy", algorithm.lower()],
-            business_justification=business_context.get('justification', '') if business_context else ''
+            business_justification=business_context.get("justification", "")
+            if business_context
+            else "",
         )
 
         # Create configuration
@@ -105,29 +101,26 @@ class OptimizationResultsManager:
                 name="cost",
                 weight=objective_weights.get("cost", 0.0),
                 direction="minimize",
-                description="Total compensation cost optimization"
+                description="Total compensation cost optimization",
             ),
             OptimizationObjective(
                 name="equity",
                 weight=objective_weights.get("equity", 0.0),
                 direction="minimize",
-                description="Compensation equity across levels"
+                description="Compensation equity across levels",
             ),
             OptimizationObjective(
                 name="targets",
                 weight=objective_weights.get("targets", 0.0),
                 direction="minimize",
-                description="Workforce growth target achievement"
-            )
+                description="Workforce growth target achievement",
+            ),
         ]
 
         configuration = OptimizationConfiguration(
             objectives=objectives,
             initial_parameters=initial_parameters,
-            algorithm_config={
-                "algorithm": algorithm,
-                "use_synthetic": use_synthetic
-            }
+            algorithm_config={"algorithm": algorithm, "use_synthetic": use_synthetic},
         )
 
         # Create results
@@ -137,17 +130,21 @@ class OptimizationResultsManager:
             optimal_parameters=optimal_parameters,
             parameter_history=parameter_history or [],
             objective_history=objective_history or [],
-            risk_level=risk_assessment.get('level', 'MEDIUM') if risk_assessment else 'MEDIUM',
+            risk_level=risk_assessment.get("level", "MEDIUM")
+            if risk_assessment
+            else "MEDIUM",
             risk_assessment=risk_assessment or {},
-            estimated_cost_impact=business_context.get('cost_impact') if business_context else None,
-            estimated_employee_impact=business_context.get('employee_impact') if business_context else None
+            estimated_cost_impact=business_context.get("cost_impact")
+            if business_context
+            else None,
+            estimated_employee_impact=business_context.get("employee_impact")
+            if business_context
+            else None,
         )
 
         # Create optimization run
         run = OptimizationRun(
-            metadata=metadata,
-            configuration=configuration,
-            results=results
+            metadata=metadata, configuration=configuration, results=results
         )
 
         # Save and update session
@@ -155,8 +152,8 @@ class OptimizationResultsManager:
 
         # Update session state
         manager_state = st.session_state[self.session_key]
-        manager_state['current_results'] = run
-        manager_state['last_refresh'] = datetime.now()
+        manager_state["current_results"] = run
+        manager_state["last_refresh"] = datetime.now()
 
         logger.info(f"Saved advanced optimization results: {run_id}")
         return run_id
@@ -171,7 +168,7 @@ class OptimizationResultsManager:
         random_seed: Optional[int] = None,
         execution_method: str = "dagster",
         workforce_metrics: Dict[str, Any] = None,
-        risk_assessment: Dict[str, Any] = None
+        risk_assessment: Dict[str, Any] = None,
     ) -> str:
         """Save results from compensation tuning interface."""
 
@@ -185,7 +182,7 @@ class OptimizationResultsManager:
             use_synthetic_mode=False,  # Compensation tuning uses real simulations
             description=f"Compensation parameter tuning ({apply_mode} mode)",
             tags=["compensation_tuning", apply_mode.lower(), execution_method],
-            business_justification=f"Parameter adjustment for years {', '.join(map(str, target_years))}"
+            business_justification=f"Parameter adjustment for years {', '.join(map(str, target_years))}",
         )
 
         # Create configuration
@@ -194,16 +191,16 @@ class OptimizationResultsManager:
             algorithm_config={
                 "apply_mode": apply_mode,
                 "target_years": target_years,
-                "execution_method": execution_method
-            }
+                "execution_method": execution_method,
+            },
         )
 
         # Process simulation results for objective value
         objective_value = 0.0
         if workforce_metrics:
             # Calculate a composite objective based on workforce metrics
-            total_comp = workforce_metrics.get('total_compensation', 0)
-            headcount = workforce_metrics.get('total_headcount', 1)
+            total_comp = workforce_metrics.get("total_compensation", 0)
+            headcount = workforce_metrics.get("total_headcount", 1)
             avg_comp = total_comp / headcount if headcount > 0 else 0
             objective_value = avg_comp / 1000000  # Normalize to millions
 
@@ -211,11 +208,17 @@ class OptimizationResultsManager:
         results = OptimizationResults(
             objective_value=objective_value,
             optimal_parameters=parameters,
-            risk_level=risk_assessment.get('level', 'MEDIUM') if risk_assessment else 'MEDIUM',
+            risk_level=risk_assessment.get("level", "MEDIUM")
+            if risk_assessment
+            else "MEDIUM",
             risk_assessment=risk_assessment or {},
             projected_outcomes=simulation_results,
-            estimated_cost_impact=workforce_metrics.get('cost_impact') if workforce_metrics else None,
-            estimated_employee_impact=workforce_metrics.get('employee_impact') if workforce_metrics else None
+            estimated_cost_impact=workforce_metrics.get("cost_impact")
+            if workforce_metrics
+            else None,
+            estimated_employee_impact=workforce_metrics.get("employee_impact")
+            if workforce_metrics
+            else None,
         )
 
         # Create optimization run
@@ -224,10 +227,10 @@ class OptimizationResultsManager:
             configuration=configuration,
             results=results,
             simulation_data={
-                'simulation_results': simulation_results,
-                'workforce_snapshots': workforce_metrics or {},
-                'data_quality_metrics': {}
-            }
+                "simulation_results": simulation_results,
+                "workforce_snapshots": workforce_metrics or {},
+                "data_quality_metrics": {},
+            },
         )
 
         # Save and update session
@@ -235,8 +238,8 @@ class OptimizationResultsManager:
 
         # Update session state
         manager_state = st.session_state[self.session_key]
-        manager_state['current_results'] = run
-        manager_state['last_refresh'] = datetime.now()
+        manager_state["current_results"] = run
+        manager_state["last_refresh"] = datetime.now()
 
         logger.info(f"Saved compensation tuning results: {run_id}")
         return run_id
@@ -254,16 +257,14 @@ class OptimizationResultsManager:
         query: str = None,
         optimization_type: OptimizationType = None,
         status: OptimizationStatus = None,
-        date_range: Tuple[datetime, datetime] = None
+        date_range: Tuple[datetime, datetime] = None,
     ) -> List[OptimizationMetadata]:
         """Search optimization results with various filters."""
         if query:
             return self.storage.storage.search_optimization_runs(query)
         else:
             return self.storage.storage.list_optimization_runs(
-                optimization_type=optimization_type,
-                status=status,
-                limit=50
+                optimization_type=optimization_type, status=status, limit=50
             )
 
     def compare_results(self, run_ids: List[str]) -> Dict[str, Any]:
@@ -286,13 +287,13 @@ class OptimizationResultsManager:
                     "optimization_type": run.metadata.optimization_type.value,
                     "created_at": run.metadata.created_at,
                     "objective_value": run.results.objective_value,
-                    "risk_level": run.results.risk_level
+                    "risk_level": run.results.risk_level,
                 }
                 for run in runs
             ],
             "parameter_comparison": self._compare_parameters(runs),
             "objective_comparison": self._compare_objectives(runs),
-            "risk_comparison": self._compare_risk_levels(runs)
+            "risk_comparison": self._compare_risk_levels(runs),
         }
 
         return comparison
@@ -308,17 +309,21 @@ class OptimizationResultsManager:
             values = []
             for run in runs:
                 value = run.results.optimal_parameters.get(param)
-                values.append({
-                    "run_id": run.metadata.run_id,
-                    "value": value,
-                    "scenario": run.metadata.scenario_id
-                })
+                values.append(
+                    {
+                        "run_id": run.metadata.run_id,
+                        "value": value,
+                        "scenario": run.metadata.scenario_id,
+                    }
+                )
 
             comparison[param] = {
                 "values": values,
                 "min": min([v["value"] for v in values if v["value"] is not None]),
                 "max": max([v["value"] for v in values if v["value"] is not None]),
-                "variance": self._calculate_variance([v["value"] for v in values if v["value"] is not None])
+                "variance": self._calculate_variance(
+                    [v["value"] for v in values if v["value"] is not None]
+                ),
             }
 
         return comparison
@@ -327,17 +332,21 @@ class OptimizationResultsManager:
         """Compare objective values across runs."""
         objectives = []
         for run in runs:
-            objectives.append({
-                "run_id": run.metadata.run_id,
-                "scenario": run.metadata.scenario_id,
-                "objective_value": run.results.objective_value,
-                "breakdown": run.results.objective_breakdown
-            })
+            objectives.append(
+                {
+                    "run_id": run.metadata.run_id,
+                    "scenario": run.metadata.scenario_id,
+                    "objective_value": run.results.objective_value,
+                    "breakdown": run.results.objective_breakdown,
+                }
+            )
 
         return {
             "objectives": objectives,
-            "best_run": min(objectives, key=lambda x: x["objective_value"] or float('inf')),
-            "worst_run": max(objectives, key=lambda x: x["objective_value"] or 0)
+            "best_run": min(
+                objectives, key=lambda x: x["objective_value"] or float("inf")
+            ),
+            "worst_run": max(objectives, key=lambda x: x["objective_value"] or 0),
         }
 
     def _compare_risk_levels(self, runs: List[OptimizationRun]) -> Dict[str, Any]:
@@ -347,10 +356,9 @@ class OptimizationResultsManager:
             risk_level = run.results.risk_level
             if risk_level not in risk_levels:
                 risk_levels[risk_level] = []
-            risk_levels[risk_level].append({
-                "run_id": run.metadata.run_id,
-                "scenario": run.metadata.scenario_id
-            })
+            risk_levels[risk_level].append(
+                {"run_id": run.metadata.run_id, "scenario": run.metadata.scenario_id}
+            )
 
         return risk_levels
 
@@ -368,24 +376,26 @@ class OptimizationResultsManager:
         run_id: str,
         format: ExportFormat,
         output_path: str = None,
-        include_comparison: bool = False
+        include_comparison: bool = False,
     ) -> str:
         """Export optimization results to specified format."""
         export_path = self.storage.storage.export_optimization_run(
             run_id=run_id,
             format=format,
             output_path=output_path,
-            include_simulation_data=True
+            include_simulation_data=True,
         )
 
         # Add to export queue in session state
         manager_state = st.session_state[self.session_key]
-        manager_state['export_queue'].append({
-            "run_id": run_id,
-            "format": format.value,
-            "path": export_path,
-            "exported_at": datetime.now()
-        })
+        manager_state["export_queue"].append(
+            {
+                "run_id": run_id,
+                "format": format.value,
+                "path": export_path,
+                "exported_at": datetime.now(),
+            }
+        )
 
         return export_path
 
@@ -400,12 +410,15 @@ class OptimizationResultsManager:
         if success:
             # Clear from session cache
             manager_state = st.session_state[self.session_key]
-            if manager_state['current_results'] and manager_state['current_results'].metadata.run_id == run_id:
-                manager_state['current_results'] = None
+            if (
+                manager_state["current_results"]
+                and manager_state["current_results"].metadata.run_id == run_id
+            ):
+                manager_state["current_results"] = None
 
             # Remove from comparison selection
-            manager_state['selected_runs'] = [
-                rid for rid in manager_state['selected_runs'] if rid != run_id
+            manager_state["selected_runs"] = [
+                rid for rid in manager_state["selected_runs"] if rid != run_id
             ]
 
         return success
@@ -415,12 +428,14 @@ class OptimizationResultsManager:
         st.header("🎯 Optimization Results Dashboard")
 
         # Tabs for different views
-        tab1, tab2, tab3, tab4 = st.tabs([
-            "📊 Recent Results",
-            "🔍 Search & Filter",
-            "⚖️ Compare Results",
-            "📥 Export & Archive"
-        ])
+        tab1, tab2, tab3, tab4 = st.tabs(
+            [
+                "📊 Recent Results",
+                "🔍 Search & Filter",
+                "⚖️ Compare Results",
+                "📥 Export & Archive",
+            ]
+        )
 
         with tab1:
             self._create_recent_results_view()
@@ -453,47 +468,60 @@ class OptimizationResultsManager:
         # Create results table
         results_data = []
         for run in recent_runs:
-            results_data.append({
-                "Run ID": run.run_id,
-                "Scenario": run.scenario_id,
-                "Type": run.optimization_type.value.replace("_", " ").title(),
-                "Engine": run.optimization_engine.value.replace("_", " ").title(),
-                "Status": run.status.value.title(),
-                "Created": run.created_at.strftime("%Y-%m-%d %H:%M"),
-                "Runtime": f"{run.runtime_seconds:.1f}s" if run.runtime_seconds else "N/A",
-                "Converged": "✅" if run.converged else "❌" if run.converged is False else "N/A"
-            })
+            results_data.append(
+                {
+                    "Run ID": run.run_id,
+                    "Scenario": run.scenario_id,
+                    "Type": run.optimization_type.value.replace("_", " ").title(),
+                    "Engine": run.optimization_engine.value.replace("_", " ").title(),
+                    "Status": run.status.value.title(),
+                    "Created": run.created_at.strftime("%Y-%m-%d %H:%M"),
+                    "Runtime": f"{run.runtime_seconds:.1f}s"
+                    if run.runtime_seconds
+                    else "N/A",
+                    "Converged": "✅"
+                    if run.converged
+                    else "❌"
+                    if run.converged is False
+                    else "N/A",
+                }
+            )
 
         df = pd.DataFrame(results_data)
 
         # Display table with selection
         selected_indices = st.dataframe(
-            df,
-            use_container_width=True,
-            selection_mode="multi-row",
-            on_select="rerun"
+            df, use_container_width=True, selection_mode="multi-row", on_select="rerun"
         )
 
         # Action buttons for selected results
-        if selected_indices and hasattr(selected_indices, 'selection') and selected_indices.selection['rows']:
-            selected_runs = [recent_runs[i] for i in selected_indices.selection['rows']]
+        if (
+            selected_indices
+            and hasattr(selected_indices, "selection")
+            and selected_indices.selection["rows"]
+        ):
+            selected_runs = [recent_runs[i] for i in selected_indices.selection["rows"]]
 
             col1, col2, col3 = st.columns(3)
             with col1:
                 if st.button("📋 View Details"):
-                    st.session_state['selected_run_details'] = selected_runs[0].run_id
+                    st.session_state["selected_run_details"] = selected_runs[0].run_id
             with col2:
                 if st.button("⚖️ Compare Selected"):
                     manager_state = st.session_state[self.session_key]
-                    manager_state['selected_runs'] = [run.run_id for run in selected_runs]
-                    manager_state['comparison_mode'] = True
+                    manager_state["selected_runs"] = [
+                        run.run_id for run in selected_runs
+                    ]
+                    manager_state["comparison_mode"] = True
             with col3:
                 if st.button("📥 Export Selected"):
-                    st.session_state['export_selected'] = [run.run_id for run in selected_runs]
+                    st.session_state["export_selected"] = [
+                        run.run_id for run in selected_runs
+                    ]
 
         # Show details if selected
-        if 'selected_run_details' in st.session_state:
-            self._show_run_details(st.session_state['selected_run_details'])
+        if "selected_run_details" in st.session_state:
+            self._show_run_details(st.session_state["selected_run_details"])
 
     def _create_search_filter_view(self):
         """Create the search and filter view."""
@@ -502,34 +530,40 @@ class OptimizationResultsManager:
         # Search controls
         col1, col2 = st.columns(2)
         with col1:
-            search_query = st.text_input("🔍 Search by scenario, description, or keywords")
+            search_query = st.text_input(
+                "🔍 Search by scenario, description, or keywords"
+            )
         with col2:
             optimization_type = st.selectbox(
                 "Filter by Type",
                 options=[None] + [t.value for t in OptimizationType],
-                format_func=lambda x: "All Types" if x is None else x.replace("_", " ").title()
+                format_func=lambda x: "All Types"
+                if x is None
+                else x.replace("_", " ").title(),
             )
 
         # Date range filter
         col3, col4 = st.columns(2)
         with col3:
-            start_date = st.date_input("Start Date", value=datetime.now().date() - pd.Timedelta(days=30))
+            start_date = st.date_input(
+                "Start Date", value=datetime.now().date() - pd.Timedelta(days=30)
+            )
         with col4:
             end_date = st.date_input("End Date", value=datetime.now().date())
 
         # Search button
         if st.button("🔍 Search", key="search_results"):
-            opt_type = OptimizationType(optimization_type) if optimization_type else None
+            opt_type = (
+                OptimizationType(optimization_type) if optimization_type else None
+            )
             results = self.search_results(
-                query=search_query if search_query else None,
-                optimization_type=opt_type
+                query=search_query if search_query else None, optimization_type=opt_type
             )
 
             # Filter by date range
             if results:
                 filtered_results = [
-                    r for r in results
-                    if start_date <= r.created_at.date() <= end_date
+                    r for r in results if start_date <= r.created_at.date() <= end_date
                 ]
 
                 if filtered_results:
@@ -546,10 +580,12 @@ class OptimizationResultsManager:
         st.subheader("Compare Optimization Results")
 
         manager_state = st.session_state[self.session_key]
-        selected_runs = manager_state.get('selected_runs', [])
+        selected_runs = manager_state.get("selected_runs", [])
 
         if len(selected_runs) < 2:
-            st.info("Select at least 2 results from the 'Recent Results' tab to compare them.")
+            st.info(
+                "Select at least 2 results from the 'Recent Results' tab to compare them."
+            )
             return
 
         # Display comparison
@@ -559,33 +595,36 @@ class OptimizationResultsManager:
         st.subheader("Comparison Overview")
         col1, col2, col3 = st.columns(3)
         with col1:
-            st.metric("Runs Compared", comparison['run_count'])
+            st.metric("Runs Compared", comparison["run_count"])
         with col2:
-            best_run = comparison['objective_comparison']['best_run']
+            best_run = comparison["objective_comparison"]["best_run"]
             st.metric("Best Objective", f"{best_run['objective_value']:.4f}")
         with col3:
-            risk_counts = {k: len(v) for k, v in comparison['risk_comparison'].items()}
+            risk_counts = {k: len(v) for k, v in comparison["risk_comparison"].items()}
             most_common_risk = max(risk_counts, key=risk_counts.get)
             st.metric("Most Common Risk", most_common_risk)
 
         # Parameter comparison chart
         st.subheader("Parameter Comparison")
-        if comparison['parameter_comparison']:
-            param_names = list(comparison['parameter_comparison'].keys())
+        if comparison["parameter_comparison"]:
+            param_names = list(comparison["parameter_comparison"].keys())
             selected_param = st.selectbox("Select parameter to compare", param_names)
 
             if selected_param:
-                param_data = comparison['parameter_comparison'][selected_param]
-                df = pd.DataFrame(param_data['values'])
+                param_data = comparison["parameter_comparison"][selected_param]
+                df = pd.DataFrame(param_data["values"])
 
                 import plotly.express as px
-                fig = px.bar(df, x='scenario', y='value', title=f"{selected_param} Comparison")
+
+                fig = px.bar(
+                    df, x="scenario", y="value", title=f"{selected_param} Comparison"
+                )
                 st.plotly_chart(fig, use_container_width=True)
 
         # Clear comparison
         if st.button("🗑️ Clear Comparison"):
-            manager_state['selected_runs'] = []
-            manager_state['comparison_mode'] = False
+            manager_state["selected_runs"] = []
+            manager_state["comparison_mode"] = False
             st.rerun()
 
     def _create_export_view(self):
@@ -593,7 +632,7 @@ class OptimizationResultsManager:
         st.subheader("Export & Archive Results")
 
         # Export controls
-        export_runs = st.session_state.get('export_selected', [])
+        export_runs = st.session_state.get("export_selected", [])
 
         if export_runs:
             st.info(f"Selected {len(export_runs)} runs for export")
@@ -603,18 +642,19 @@ class OptimizationResultsManager:
                 export_format = st.selectbox(
                     "Export Format",
                     options=[f.value for f in ExportFormat],
-                    format_func=lambda x: x.upper()
+                    format_func=lambda x: x.upper(),
                 )
             with col2:
-                include_simulation_data = st.checkbox("Include Simulation Data", value=True)
+                include_simulation_data = st.checkbox(
+                    "Include Simulation Data", value=True
+                )
 
             if st.button("📥 Export Selected Runs"):
                 export_paths = []
                 for run_id in export_runs:
                     try:
                         path = self.export_results(
-                            run_id=run_id,
-                            format=ExportFormat(export_format)
+                            run_id=run_id, format=ExportFormat(export_format)
                         )
                         export_paths.append(path)
                     except Exception as e:
@@ -632,7 +672,7 @@ class OptimizationResultsManager:
             selected_run_id = st.selectbox(
                 "View export history for run",
                 options=[r.run_id for r in recent_runs],
-                format_func=lambda x: f"{x[:8]}... ({next(r.scenario_id for r in recent_runs if r.run_id == x)})"
+                format_func=lambda x: f"{x[:8]}... ({next(r.scenario_id for r in recent_runs if r.run_id == x)})",
             )
 
             if selected_run_id:
@@ -661,16 +701,37 @@ class OptimizationResultsManager:
                 st.metric("Engine", run.metadata.optimization_engine.value)
                 st.metric("Status", run.metadata.status.value)
             with col2:
-                st.metric("Created", run.metadata.created_at.strftime("%Y-%m-%d %H:%M:%S"))
-                st.metric("Runtime", f"{run.metadata.runtime_seconds:.2f}s" if run.metadata.runtime_seconds else "N/A")
-                st.metric("Function Evaluations", run.metadata.function_evaluations or "N/A")
-                st.metric("Converged", "✅ Yes" if run.metadata.converged else "❌ No" if run.metadata.converged is False else "N/A")
+                st.metric(
+                    "Created", run.metadata.created_at.strftime("%Y-%m-%d %H:%M:%S")
+                )
+                st.metric(
+                    "Runtime",
+                    f"{run.metadata.runtime_seconds:.2f}s"
+                    if run.metadata.runtime_seconds
+                    else "N/A",
+                )
+                st.metric(
+                    "Function Evaluations", run.metadata.function_evaluations or "N/A"
+                )
+                st.metric(
+                    "Converged",
+                    "✅ Yes"
+                    if run.metadata.converged
+                    else "❌ No"
+                    if run.metadata.converged is False
+                    else "N/A",
+                )
 
         # Results
         with st.expander("🎯 Optimization Results", expanded=True):
             col1, col2 = st.columns(2)
             with col1:
-                st.metric("Objective Value", f"{run.results.objective_value:.6f}" if run.results.objective_value else "N/A")
+                st.metric(
+                    "Objective Value",
+                    f"{run.results.objective_value:.6f}"
+                    if run.results.objective_value
+                    else "N/A",
+                )
                 st.metric("Risk Level", run.results.risk_level)
             with col2:
                 if run.results.objective_breakdown:
@@ -679,29 +740,31 @@ class OptimizationResultsManager:
         # Parameters
         with st.expander("⚙️ Optimal Parameters"):
             if run.results.optimal_parameters:
-                params_df = pd.DataFrame([
-                    {"Parameter": k, "Value": v}
-                    for k, v in run.results.optimal_parameters.items()
-                ])
+                params_df = pd.DataFrame(
+                    [
+                        {"Parameter": k, "Value": v}
+                        for k, v in run.results.optimal_parameters.items()
+                    ]
+                )
                 st.dataframe(params_df, use_container_width=True)
 
         # Actions
         col1, col2, col3 = st.columns(3)
         with col1:
             if st.button("📥 Export This Run"):
-                st.session_state['export_selected'] = [run_id]
+                st.session_state["export_selected"] = [run_id]
         with col2:
             if st.button("⚖️ Compare With Others"):
                 manager_state = st.session_state[self.session_key]
-                if run_id not in manager_state['selected_runs']:
-                    manager_state['selected_runs'].append(run_id)
-                manager_state['comparison_mode'] = True
+                if run_id not in manager_state["selected_runs"]:
+                    manager_state["selected_runs"].append(run_id)
+                manager_state["comparison_mode"] = True
         with col3:
             if st.button("🗑️ Delete This Run", type="secondary"):
                 if st.confirm("Are you sure? This action cannot be undone."):
                     if self.delete_results(run_id):
                         st.success("Run deleted successfully")
-                        del st.session_state['selected_run_details']
+                        del st.session_state["selected_run_details"]
                         st.rerun()
                     else:
                         st.error("Failed to delete run")
@@ -730,7 +793,7 @@ def save_scipy_optimization_results(
     converged: bool,
     function_evaluations: int,
     runtime_seconds: float,
-    **kwargs
+    **kwargs,
 ) -> str:
     """Save SciPy optimization results."""
     manager = get_optimization_results_manager()
@@ -744,7 +807,7 @@ def save_scipy_optimization_results(
         converged=converged,
         function_evaluations=function_evaluations,
         runtime_seconds=runtime_seconds,
-        **kwargs
+        **kwargs,
     )
 
 
@@ -752,7 +815,7 @@ def save_tuning_optimization_results(
     scenario_id: str,
     parameters: Dict[str, float],
     simulation_results: Dict[str, Any],
-    **kwargs
+    **kwargs,
 ) -> str:
     """Save compensation tuning results."""
     manager = get_optimization_results_manager()
@@ -760,7 +823,7 @@ def save_tuning_optimization_results(
         scenario_id=scenario_id,
         parameters=parameters,
         simulation_results=simulation_results,
-        **kwargs
+        **kwargs,
     )
 
 
@@ -787,7 +850,7 @@ if __name__ == "__main__":
         objective_value=0.234567,
         converged=True,
         function_evaluations=87,
-        runtime_seconds=45.2
+        runtime_seconds=45.2,
     )
 
     print(f"Saved optimization result: {run_id}")

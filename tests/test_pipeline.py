@@ -2,12 +2,16 @@ from pathlib import Path
 
 import duckdb
 
-from navigator_orchestrator.config import SimulationConfig, SimulationSettings, CompensationSettings, EnrollmentSettings
-from navigator_orchestrator.utils import DatabaseConnectionManager
-from navigator_orchestrator.registries import RegistryManager
-from navigator_orchestrator.dbt_runner import DbtRunner, DbtResult
-from navigator_orchestrator.validation import DataValidator, HireTerminationRatioRule
+from navigator_orchestrator.config import (CompensationSettings,
+                                           EnrollmentSettings,
+                                           SimulationConfig,
+                                           SimulationSettings)
+from navigator_orchestrator.dbt_runner import DbtResult, DbtRunner
 from navigator_orchestrator.pipeline import PipelineOrchestrator
+from navigator_orchestrator.registries import RegistryManager
+from navigator_orchestrator.utils import DatabaseConnectionManager
+from navigator_orchestrator.validation import (DataValidator,
+                                               HireTerminationRatioRule)
 
 
 class DummyRunner(DbtRunner):
@@ -53,7 +57,8 @@ def _seed_minimal(db_path: Path, years):
         # simple events
         conn.executemany(
             "INSERT INTO fct_yearly_events VALUES (?,?,?, DATE '" + str(y) + "-06-01')",
-            [(f"E{y}{i}", "hire", y) for i in range(2)] + [(f"T{y}{i}", "termination", y) for i in range(1)],
+            [(f"E{y}{i}", "hire", y) for i in range(2)]
+            + [(f"T{y}{i}", "termination", y) for i in range(1)],
         )
     conn.close()
 
@@ -73,7 +78,15 @@ def test_multi_year_workflow_coordination(tmp_path: Path):
     dv = DataValidator(mgr)
     dv.register_rule(HireTerminationRatioRule())
 
-    orchestrator = PipelineOrchestrator(cfg, mgr, runner, registries, dv, reports_dir=tmp_path / "reports", checkpoints_dir=tmp_path / "ckpt")
+    orchestrator = PipelineOrchestrator(
+        cfg,
+        mgr,
+        runner,
+        registries,
+        dv,
+        reports_dir=tmp_path / "reports",
+        checkpoints_dir=tmp_path / "ckpt",
+    )
     summary = orchestrator.execute_multi_year_simulation()
 
     # Summary spans both years and writes CSV

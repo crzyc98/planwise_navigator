@@ -1,18 +1,14 @@
 """Unit tests for workforce event integration with unified event model."""
 
-import pytest
 from datetime import date, datetime
 from decimal import Decimal
 from uuid import UUID
 
-from config.events import (
-    SimulationEvent,
-    WorkforceEventFactory,
-    HirePayload,
-    PromotionPayload,
-    TerminationPayload,
-    MeritPayload,
-)
+import pytest
+
+from config.events import (HirePayload, MeritPayload, PromotionPayload,
+                           SimulationEvent, TerminationPayload,
+                           WorkforceEventFactory)
 
 
 class TestWorkforceEventPayloads:
@@ -25,14 +21,16 @@ class TestWorkforceEventPayloads:
             department="Engineering",
             job_level=3,
             annual_compensation=Decimal("120000.50"),
-            plan_id="401k-standard"
+            plan_id="401k-standard",
         )
 
         assert payload.event_type == "hire"
         assert payload.hire_date == date(2025, 1, 15)
         assert payload.department == "Engineering"
         assert payload.job_level == 3
-        assert payload.annual_compensation == Decimal("120000.500000")  # 6 decimal places
+        assert payload.annual_compensation == Decimal(
+            "120000.500000"
+        )  # 6 decimal places
         assert payload.plan_id == "401k-standard"
 
     def test_hire_payload_without_plan_id(self):
@@ -41,7 +39,7 @@ class TestWorkforceEventPayloads:
             hire_date=date(2025, 1, 15),
             department="Sales",
             job_level=2,
-            annual_compensation=Decimal("85000")
+            annual_compensation=Decimal("85000"),
         )
 
         assert payload.plan_id is None
@@ -52,7 +50,7 @@ class TestWorkforceEventPayloads:
             new_job_level=4,
             new_annual_compensation=Decimal("140000.75"),
             effective_date=date(2025, 4, 1),
-            plan_id="401k-enhanced"
+            plan_id="401k-enhanced",
         )
 
         assert payload.event_type == "promotion"
@@ -66,8 +64,7 @@ class TestWorkforceEventPayloads:
 
         for reason in reasons:
             payload = TerminationPayload(
-                termination_reason=reason,
-                final_pay_date=date(2025, 6, 30)
+                termination_reason=reason, final_pay_date=date(2025, 6, 30)
             )
 
             assert payload.event_type == "termination"
@@ -78,7 +75,7 @@ class TestWorkforceEventPayloads:
         """Test creating a merit payload with percentage validation."""
         payload = MeritPayload(
             new_compensation=Decimal("125000"),
-            merit_percentage=Decimal("0.0425")  # 4.25%
+            merit_percentage=Decimal("0.0425"),  # 4.25%
         )
 
         assert payload.event_type == "merit"
@@ -93,21 +90,20 @@ class TestWorkforceEventPayloads:
                 hire_date=date(2025, 1, 1),
                 department="IT",
                 job_level=11,  # Max is 10
-                annual_compensation=Decimal("100000")
+                annual_compensation=Decimal("100000"),
             )
 
         # Negative compensation
         with pytest.raises(ValueError):
             MeritPayload(
-                new_compensation=Decimal("-50000"),
-                merit_percentage=Decimal("0.03")
+                new_compensation=Decimal("-50000"), merit_percentage=Decimal("0.03")
             )
 
         # Merit percentage > 100%
         with pytest.raises(ValueError):
             MeritPayload(
                 new_compensation=Decimal("100000"),
-                merit_percentage=Decimal("1.5")  # 150%
+                merit_percentage=Decimal("1.5"),  # 150%
             )
 
 
@@ -124,7 +120,7 @@ class TestWorkforceEventFactory:
             department="Finance",
             job_level=3,
             annual_compensation=Decimal("95000"),
-            plan_id="401k-standard"
+            plan_id="401k-standard",
         )
 
         # Verify core event fields
@@ -151,7 +147,7 @@ class TestWorkforceEventFactory:
             plan_design_id="enhanced-401k",
             effective_date=date(2025, 7, 1),
             new_job_level=5,
-            new_annual_compensation=Decimal("175000.50")
+            new_annual_compensation=Decimal("175000.50"),
         )
 
         assert event.employee_id == "EMP-54321"
@@ -167,7 +163,7 @@ class TestWorkforceEventFactory:
             plan_design_id="standard-401k",
             effective_date=date(2025, 9, 30),
             termination_reason="involuntary",
-            final_pay_date=date(2025, 10, 15)
+            final_pay_date=date(2025, 10, 15),
         )
 
         assert isinstance(event.payload, TerminationPayload)
@@ -182,7 +178,7 @@ class TestWorkforceEventFactory:
             plan_design_id="standard-401k",
             effective_date=date(2025, 3, 1),
             new_compensation=Decimal("105000"),
-            merit_percentage=Decimal("0.05")  # 5%
+            merit_percentage=Decimal("0.05"),  # 5%
         )
 
         assert isinstance(event.payload, MeritPayload)
@@ -198,16 +194,16 @@ class TestWorkforceEventFactory:
             hire_date=date(2025, 1, 1),
             department="QA",
             job_level=2,
-            annual_compensation=Decimal("80000")
+            annual_compensation=Decimal("80000"),
         )
 
         # Serialize to dict
-        event_dict = event.model_dump(mode='json')
+        event_dict = event.model_dump(mode="json")
 
         # Verify structure
-        assert 'event_id' in event_dict
-        assert 'payload' in event_dict
-        assert event_dict['payload']['event_type'] == 'hire'
+        assert "event_id" in event_dict
+        assert "payload" in event_dict
+        assert event_dict["payload"]["event_type"] == "hire"
 
         # Deserialize back
         restored_event = SimulationEvent.model_validate(event_dict)
@@ -230,7 +226,7 @@ class TestDiscriminatedUnion:
             hire_date=date(2025, 1, 1),
             department="Test",
             job_level=1,
-            annual_compensation=Decimal("50000")
+            annual_compensation=Decimal("50000"),
         )
 
         promotion_event = WorkforceEventFactory.create_promotion_event(
@@ -239,7 +235,7 @@ class TestDiscriminatedUnion:
             plan_design_id="test",
             effective_date=date(2025, 6, 1),
             new_job_level=2,
-            new_annual_compensation=Decimal("60000")
+            new_annual_compensation=Decimal("60000"),
         )
 
         # Verify correct payload types
@@ -253,17 +249,19 @@ class TestDiscriminatedUnion:
     def test_invalid_discriminator(self):
         """Test that invalid discriminator values are rejected."""
         with pytest.raises(ValueError):
-            SimulationEvent.model_validate({
-                "employee_id": "EMP-001",
-                "effective_date": "2025-01-01",
-                "scenario_id": "test",
-                "plan_design_id": "test",
-                "source_system": "test",
-                "payload": {
-                    "event_type": "invalid_type",  # Not a valid discriminator
-                    "some_field": "value"
+            SimulationEvent.model_validate(
+                {
+                    "employee_id": "EMP-001",
+                    "effective_date": "2025-01-01",
+                    "scenario_id": "test",
+                    "plan_design_id": "test",
+                    "source_system": "test",
+                    "payload": {
+                        "event_type": "invalid_type",  # Not a valid discriminator
+                        "some_field": "value",
+                    },
                 }
-            })
+            )
 
 
 class TestBackwardCompatibility:
@@ -284,8 +282,8 @@ class TestBackwardCompatibility:
                 "hire_date": date(2025, 1, 1),
                 "department": "Legacy Dept",
                 "job_level": 3,
-                "annual_compensation": Decimal("100000")
-            }
+                "annual_compensation": Decimal("100000"),
+            },
         }
 
         event = EventFactory.create_event(event_data)
@@ -313,23 +311,21 @@ class TestBackwardCompatibility:
                     hire_date=date(2025, 1, 1),
                     department="Test",
                     job_level=1,
-                    annual_compensation=Decimal("50000")
+                    annual_compensation=Decimal("50000"),
                 )
             elif event_type == "promotion":
                 payload = PromotionPayload(
                     new_job_level=2,
                     new_annual_compensation=Decimal("60000"),
-                    effective_date=date(2025, 1, 1)
+                    effective_date=date(2025, 1, 1),
                 )
             elif event_type == "termination":
                 payload = TerminationPayload(
-                    termination_reason="voluntary",
-                    final_pay_date=date(2025, 1, 1)
+                    termination_reason="voluntary", final_pay_date=date(2025, 1, 1)
                 )
             else:  # merit
                 payload = MeritPayload(
-                    new_compensation=Decimal("55000"),
-                    merit_percentage=Decimal("0.05")
+                    new_compensation=Decimal("55000"), merit_percentage=Decimal("0.05")
                 )
 
             assert payload.event_type == event_type

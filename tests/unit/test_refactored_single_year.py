@@ -5,11 +5,11 @@ Comprehensive test suite for the refactored run_year_simulation operation,
 verifying modular component integration and behavior preservation.
 """
 
-import pytest
 from unittest.mock import Mock, patch
-from dagster import OpExecutionContext
 
-from orchestrator.simulator_pipeline import run_year_simulation, YearResult
+import pytest
+from dagster import OpExecutionContext
+from orchestrator.simulator_pipeline import YearResult, run_year_simulation
 
 
 class TestRefactoredSingleYearSimulation:

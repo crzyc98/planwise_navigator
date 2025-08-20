@@ -4,8 +4,8 @@ Test enhanced CI tag-based operations.
 This test validates the enhanced CI script functionality including
 tag-based validation layers and selective testing modes.
 """
-import subprocess
 import os
+import subprocess
 from pathlib import Path
 
 
@@ -21,7 +21,7 @@ class TestEnhancedCI:
                 capture_output=True,
                 text=True,
                 timeout=timeout,
-                cwd="/Users/nicholasamaral/planwise_navigator"
+                cwd="/Users/nicholasamaral/planwise_navigator",
             )
             return result
         except subprocess.TimeoutExpired:
@@ -29,14 +29,18 @@ class TestEnhancedCI:
 
     def test_ci_script_exists(self):
         """Test that enhanced CI script exists and is executable."""
-        ci_script = Path("/Users/nicholasamaral/planwise_navigator/scripts/run_ci_tests.sh")
+        ci_script = Path(
+            "/Users/nicholasamaral/planwise_navigator/scripts/run_ci_tests.sh"
+        )
         assert ci_script.exists(), "Enhanced CI script not found"
         assert os.access(ci_script, os.X_OK), "CI script not executable"
         print("✅ Enhanced CI script exists and is executable")
 
     def test_tag_based_validation_structure(self):
         """Test that CI script includes tag-based validation."""
-        ci_script = Path("/Users/nicholasamaral/planwise_navigator/scripts/run_ci_tests.sh")
+        ci_script = Path(
+            "/Users/nicholasamaral/planwise_navigator/scripts/run_ci_tests.sh"
+        )
         content = ci_script.read_text()
 
         # Check for enhanced tag-based validation
@@ -51,7 +55,9 @@ class TestEnhancedCI:
 
     def test_selective_testing_modes(self):
         """Test that selective testing modes are implemented."""
-        ci_script = Path("/Users/nicholasamaral/planwise_navigator/scripts/run_ci_tests.sh")
+        ci_script = Path(
+            "/Users/nicholasamaral/planwise_navigator/scripts/run_ci_tests.sh"
+        )
         content = ci_script.read_text()
 
         # Check for testing modes
@@ -64,7 +70,9 @@ class TestEnhancedCI:
 
     def test_enhanced_reporting(self):
         """Test that enhanced reporting features are present."""
-        ci_script = Path("/Users/nicholasamaral/planwise_navigator/scripts/run_ci_tests.sh")
+        ci_script = Path(
+            "/Users/nicholasamaral/planwise_navigator/scripts/run_ci_tests.sh"
+        )
         content = ci_script.read_text()
 
         # Check for enhanced reporting
@@ -79,11 +87,15 @@ class TestEnhancedCI:
     def test_dbt_tag_operations(self):
         """Test that dbt tag operations are available."""
         # Test basic tag listing
-        result = self.run_command("source venv/bin/activate && cd dbt && dbt list --select tag:critical | head -3")
+        result = self.run_command(
+            "source venv/bin/activate && cd dbt && dbt list --select tag:critical | head -3"
+        )
         if result and result.returncode == 0:
             print("✅ dbt tag operations working")
         else:
-            print("⚠️ dbt tag operations may have issues (this is expected if data not set up)")
+            print(
+                "⚠️ dbt tag operations may have issues (this is expected if data not set up)"
+            )
 
     def test_ci_mode_environment_variable(self):
         """Test CI_MODE environment variable handling."""
@@ -98,7 +110,9 @@ class TestEnhancedCI:
 
     def test_performance_metrics(self):
         """Test that performance metrics are implemented."""
-        ci_script = Path("/Users/nicholasamaral/planwise_navigator/scripts/run_ci_tests.sh")
+        ci_script = Path(
+            "/Users/nicholasamaral/planwise_navigator/scripts/run_ci_tests.sh"
+        )
         content = ci_script.read_text()
 
         # Check for performance tracking

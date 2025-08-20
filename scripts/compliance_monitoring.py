@@ -7,24 +7,21 @@ requirements. It can be run on a schedule to ensure ongoing compliance
 and generate alerts for any issues.
 """
 
-import sys
-import os
-import json
-import sqlite3
 import argparse
+import json
+import os
+import sqlite3
+import sys
 from datetime import date, datetime, timedelta
 from pathlib import Path
-from typing import Dict, List, Any, Optional
+from typing import Any, Dict, List, Optional
 
 # Add the project root to the Python path
 project_root = Path(__file__).parent.parent
 sys.path.insert(0, str(project_root))
 
-from config.erisa_compliance import (
-    ERISAComplianceValidator,
-    ERISAComplianceLevel,
-    AuditTrailManager
-)
+from config.erisa_compliance import (AuditTrailManager, ERISAComplianceLevel,
+                                     ERISAComplianceValidator)
 
 
 class ComplianceMonitor:
@@ -39,7 +36,8 @@ class ComplianceMonitor:
     def _init_database(self):
         """Initialize SQLite database for monitoring history."""
         with sqlite3.connect(self.db_path) as conn:
-            conn.execute("""
+            conn.execute(
+                """
                 CREATE TABLE IF NOT EXISTS compliance_checks (
                     id INTEGER PRIMARY KEY AUTOINCREMENT,
                     check_date DATE NOT NULL,
@@ -53,9 +51,11 @@ class ComplianceMonitor:
                     details TEXT,
                     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
                 )
-            """)
+            """
+            )
 
-            conn.execute("""
+            conn.execute(
+                """
                 CREATE TABLE IF NOT EXISTS data_classification_checks (
                     id INTEGER PRIMARY KEY AUTOINCREMENT,
                     check_date DATE NOT NULL,
@@ -67,9 +67,11 @@ class ComplianceMonitor:
                     status VARCHAR(20) NOT NULL,
                     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
                 )
-            """)
+            """
+            )
 
-            conn.execute("""
+            conn.execute(
+                """
                 CREATE TABLE IF NOT EXISTS compliance_alerts (
                     id INTEGER PRIMARY KEY AUTOINCREMENT,
                     alert_date DATE NOT NULL,
@@ -80,7 +82,8 @@ class ComplianceMonitor:
                     resolved_date DATE,
                     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
                 )
-            """)
+            """
+            )
 
             conn.commit()
 
@@ -93,10 +96,10 @@ class ComplianceMonitor:
             coverage = self.validator.validate_event_coverage()
 
             # Calculate metrics
-            compliance_percentage = coverage['compliance_percentage']
-            total_requirements = coverage['total_requirements']
-            compliant_requirements = coverage['compliant_requirements']
-            critical_gaps = len(coverage['coverage_gaps'])
+            compliance_percentage = coverage["compliance_percentage"]
+            total_requirements = coverage["total_requirements"]
+            compliant_requirements = coverage["compliant_requirements"]
+            critical_gaps = len(coverage["coverage_gaps"])
 
             # Determine overall status
             if compliance_percentage >= 100.0:
@@ -111,16 +114,16 @@ class ComplianceMonitor:
 
             # Record results
             result = {
-                'check_date': date.today(),
-                'check_type': 'FULL_COMPLIANCE',
-                'status': status,
-                'compliance_percentage': compliance_percentage,
-                'total_requirements': total_requirements,
-                'compliant_requirements': compliant_requirements,
-                'critical_gaps': critical_gaps,
-                'execution_time_ms': int(execution_time),
-                'details': json.dumps(coverage),
-                'coverage_analysis': coverage
+                "check_date": date.today(),
+                "check_type": "FULL_COMPLIANCE",
+                "status": status,
+                "compliance_percentage": compliance_percentage,
+                "total_requirements": total_requirements,
+                "compliant_requirements": compliant_requirements,
+                "critical_gaps": critical_gaps,
+                "execution_time_ms": int(execution_time),
+                "details": json.dumps(coverage),
+                "coverage_analysis": coverage,
             }
 
             self._record_compliance_check(result)
@@ -135,16 +138,16 @@ class ComplianceMonitor:
             # Record failure
             execution_time = (datetime.now() - start_time).total_seconds() * 1000
             error_result = {
-                'check_date': date.today(),
-                'check_type': 'FULL_COMPLIANCE',
-                'status': 'ERROR',
-                'compliance_percentage': 0.0,
-                'total_requirements': 0,
-                'compliant_requirements': 0,
-                'critical_gaps': 0,
-                'execution_time_ms': int(execution_time),
-                'details': json.dumps({'error': str(e)}),
-                'error': str(e)
+                "check_date": date.today(),
+                "check_type": "FULL_COMPLIANCE",
+                "status": "ERROR",
+                "compliance_percentage": 0.0,
+                "total_requirements": 0,
+                "compliant_requirements": 0,
+                "critical_gaps": 0,
+                "execution_time_ms": int(execution_time),
+                "details": json.dumps({"error": str(e)}),
+                "error": str(e),
             }
 
             self._record_compliance_check(error_result)
@@ -166,9 +169,15 @@ class ComplianceMonitor:
                 validation = self.validator.validate_field_classification(field_name)
 
                 # Check compliance requirements
-                encryption_required = validation['compliance_requirements']['encryption_required']
-                access_control_required = validation['compliance_requirements']['access_control_required']
-                retention_required = validation['compliance_requirements']['retention_required']
+                encryption_required = validation["compliance_requirements"][
+                    "encryption_required"
+                ]
+                access_control_required = validation["compliance_requirements"][
+                    "access_control_required"
+                ]
+                retention_required = validation["compliance_requirements"][
+                    "retention_required"
+                ]
 
                 # Determine compliance status
                 is_compliant = True
@@ -178,7 +187,9 @@ class ComplianceMonitor:
                     is_compliant = False
                     issues.append("encryption_missing")
 
-                if access_control_required and not self._verify_access_control(field_name):
+                if access_control_required and not self._verify_access_control(
+                    field_name
+                ):
                     is_compliant = False
                     issues.append("access_control_missing")
 
@@ -192,14 +203,16 @@ class ComplianceMonitor:
 
                 # Record field check
                 field_result = {
-                    'check_date': date.today(),
-                    'field_name': field_name,
-                    'classification': validation['classification'],
-                    'encryption_required': encryption_required,
-                    'access_control_compliant': not access_control_required or self._verify_access_control(field_name),
-                    'retention_compliant': not retention_required or self._verify_retention_policy(field_name),
-                    'status': status,
-                    'issues': issues
+                    "check_date": date.today(),
+                    "field_name": field_name,
+                    "classification": validation["classification"],
+                    "encryption_required": encryption_required,
+                    "access_control_compliant": not access_control_required
+                    or self._verify_access_control(field_name),
+                    "retention_compliant": not retention_required
+                    or self._verify_retention_policy(field_name),
+                    "status": status,
+                    "issues": issues,
                 }
 
                 self._record_classification_check(field_result)
@@ -208,32 +221,34 @@ class ComplianceMonitor:
             except Exception as e:
                 # Record error for this field
                 error_result = {
-                    'check_date': date.today(),
-                    'field_name': field_name,
-                    'classification': 'ERROR',
-                    'encryption_required': False,
-                    'access_control_compliant': False,
-                    'retention_compliant': False,
-                    'status': 'ERROR',
-                    'error': str(e)
+                    "check_date": date.today(),
+                    "field_name": field_name,
+                    "classification": "ERROR",
+                    "encryption_required": False,
+                    "access_control_compliant": False,
+                    "retention_compliant": False,
+                    "status": "ERROR",
+                    "error": str(e),
                 }
 
                 self._record_classification_check(error_result)
                 results.append(error_result)
 
         # Calculate overall metrics
-        compliance_percentage = (compliant_fields / total_fields * 100) if total_fields > 0 else 0
+        compliance_percentage = (
+            (compliant_fields / total_fields * 100) if total_fields > 0 else 0
+        )
 
         summary = {
-            'check_date': date.today(),
-            'total_fields': total_fields,
-            'compliant_fields': compliant_fields,
-            'compliance_percentage': compliance_percentage,
-            'field_results': results
+            "check_date": date.today(),
+            "total_fields": total_fields,
+            "compliant_fields": compliant_fields,
+            "compliance_percentage": compliance_percentage,
+            "field_results": results,
         }
 
         # Generate alerts for non-compliant fields
-        non_compliant_fields = [r for r in results if r['status'] == 'NON_COMPLIANT']
+        non_compliant_fields = [r for r in results if r["status"] == "NON_COMPLIANT"]
         if non_compliant_fields:
             self._generate_classification_alert(non_compliant_fields)
 
@@ -260,54 +275,62 @@ class ComplianceMonitor:
     def _record_compliance_check(self, result: Dict[str, Any]):
         """Record compliance check result in database."""
         with sqlite3.connect(self.db_path) as conn:
-            conn.execute("""
+            conn.execute(
+                """
                 INSERT INTO compliance_checks
                 (check_date, check_type, status, compliance_percentage,
                  total_requirements, compliant_requirements, critical_gaps,
                  execution_time_ms, details)
                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
-            """, (
-                result['check_date'],
-                result['check_type'],
-                result['status'],
-                result['compliance_percentage'],
-                result['total_requirements'],
-                result['compliant_requirements'],
-                result['critical_gaps'],
-                result['execution_time_ms'],
-                result['details']
-            ))
+            """,
+                (
+                    result["check_date"],
+                    result["check_type"],
+                    result["status"],
+                    result["compliance_percentage"],
+                    result["total_requirements"],
+                    result["compliant_requirements"],
+                    result["critical_gaps"],
+                    result["execution_time_ms"],
+                    result["details"],
+                ),
+            )
             conn.commit()
 
     def _record_classification_check(self, result: Dict[str, Any]):
         """Record data classification check result in database."""
         with sqlite3.connect(self.db_path) as conn:
-            conn.execute("""
+            conn.execute(
+                """
                 INSERT INTO data_classification_checks
                 (check_date, field_name, classification, encryption_required,
                  access_control_compliant, retention_compliant, status)
                 VALUES (?, ?, ?, ?, ?, ?, ?)
-            """, (
-                result['check_date'],
-                result['field_name'],
-                result['classification'],
-                result['encryption_required'],
-                result['access_control_compliant'],
-                result['retention_compliant'],
-                result['status']
-            ))
+            """,
+                (
+                    result["check_date"],
+                    result["field_name"],
+                    result["classification"],
+                    result["encryption_required"],
+                    result["access_control_compliant"],
+                    result["retention_compliant"],
+                    result["status"],
+                ),
+            )
             conn.commit()
 
     def _generate_compliance_alert(self, result: Dict[str, Any]):
         """Generate alert for compliance issues."""
-        severity = "HIGH" if result['status'] == "NON_COMPLIANT" else "MEDIUM"
+        severity = "HIGH" if result["status"] == "NON_COMPLIANT" else "MEDIUM"
         message = f"Compliance check failed: {result['compliance_percentage']:.1f}% compliant ({result['critical_gaps']} critical gaps)"
 
         self._record_alert("COMPLIANCE_FAILURE", severity, message)
 
-    def _generate_classification_alert(self, non_compliant_fields: List[Dict[str, Any]]):
+    def _generate_classification_alert(
+        self, non_compliant_fields: List[Dict[str, Any]]
+    ):
         """Generate alert for data classification issues."""
-        field_names = [f['field_name'] for f in non_compliant_fields]
+        field_names = [f["field_name"] for f in non_compliant_fields]
         message = f"Data classification non-compliance detected in fields: {', '.join(field_names)}"
 
         self._record_alert("CLASSIFICATION_FAILURE", "HIGH", message)
@@ -320,10 +343,13 @@ class ComplianceMonitor:
     def _record_alert(self, alert_type: str, severity: str, message: str):
         """Record alert in database."""
         with sqlite3.connect(self.db_path) as conn:
-            conn.execute("""
+            conn.execute(
+                """
                 INSERT INTO compliance_alerts (alert_date, alert_type, severity, message)
                 VALUES (?, ?, ?, ?)
-            """, (date.today(), alert_type, severity, message))
+            """,
+                (date.today(), alert_type, severity, message),
+            )
             conn.commit()
 
     def generate_monitoring_report(self, days: int = 30) -> str:
@@ -333,21 +359,28 @@ class ComplianceMonitor:
 
         with sqlite3.connect(self.db_path) as conn:
             # Get compliance check history
-            compliance_checks = conn.execute("""
+            compliance_checks = conn.execute(
+                """
                 SELECT * FROM compliance_checks
                 WHERE check_date BETWEEN ? AND ?
                 ORDER BY check_date DESC
-            """, (start_date, end_date)).fetchall()
+            """,
+                (start_date, end_date),
+            ).fetchall()
 
             # Get active alerts
-            active_alerts = conn.execute("""
+            active_alerts = conn.execute(
+                """
                 SELECT * FROM compliance_alerts
                 WHERE alert_date BETWEEN ? AND ? AND resolved = FALSE
                 ORDER BY severity DESC, alert_date DESC
-            """, (start_date, end_date)).fetchall()
+            """,
+                (start_date, end_date),
+            ).fetchall()
 
             # Get classification check summary
-            classification_summary = conn.execute("""
+            classification_summary = conn.execute(
+                """
                 SELECT
                     classification,
                     COUNT(*) as total_checks,
@@ -355,7 +388,9 @@ class ComplianceMonitor:
                 FROM data_classification_checks
                 WHERE check_date BETWEEN ? AND ?
                 GROUP BY classification
-            """, (start_date, end_date)).fetchall()
+            """,
+                (start_date, end_date),
+            ).fetchall()
 
         # Generate report
         report = f"""# ERISA Compliance Monitoring Report
@@ -371,11 +406,11 @@ class ComplianceMonitor:
         if compliance_checks:
             latest_check = compliance_checks[0]
             status_emoji = {
-                'COMPLIANT': '✅',
-                'WARNING': '⚠️',
-                'NON_COMPLIANT': '❌',
-                'ERROR': '🚨'
-            }.get(latest_check[3], '❓')
+                "COMPLIANT": "✅",
+                "WARNING": "⚠️",
+                "NON_COMPLIANT": "❌",
+                "ERROR": "🚨",
+            }.get(latest_check[3], "❓")
 
             report += f"""
 - **Current Status**: {status_emoji} {latest_check[3]}
@@ -396,7 +431,9 @@ class ComplianceMonitor:
                 alert_counts[severity] = alert_counts.get(severity, 0) + 1
 
             for severity, count in sorted(alert_counts.items()):
-                emoji = {'CRITICAL': '🚨', 'HIGH': '🔴', 'MEDIUM': '🟡', 'LOW': '🟢'}.get(severity, '❓')
+                emoji = {"CRITICAL": "🚨", "HIGH": "🔴", "MEDIUM": "🟡", "LOW": "🟢"}.get(
+                    severity, "❓"
+                )
                 report += f"- **{severity}**: {emoji} {count} alerts\n"
         else:
             report += "- **Status**: ✅ No active alerts\n"
@@ -405,16 +442,20 @@ class ComplianceMonitor:
         report += f"\n## Compliance Check History\n\n"
 
         if compliance_checks:
-            report += "| Date | Status | Compliance % | Critical Gaps | Execution Time |\n"
-            report += "|------|--------|--------------|---------------|----------------|\n"
+            report += (
+                "| Date | Status | Compliance % | Critical Gaps | Execution Time |\n"
+            )
+            report += (
+                "|------|--------|--------------|---------------|----------------|\n"
+            )
 
             for check in compliance_checks[:10]:  # Last 10 checks
                 status_emoji = {
-                    'COMPLIANT': '✅',
-                    'WARNING': '⚠️',
-                    'NON_COMPLIANT': '❌',
-                    'ERROR': '🚨'
-                }.get(check[3], '❓')
+                    "COMPLIANT": "✅",
+                    "WARNING": "⚠️",
+                    "NON_COMPLIANT": "❌",
+                    "ERROR": "🚨",
+                }.get(check[3], "❓")
 
                 report += f"| {check[1]} | {status_emoji} {check[3]} | {check[4]:.1f}% | {check[7]} | {check[8]}ms |\n"
         else:
@@ -424,7 +465,9 @@ class ComplianceMonitor:
         report += f"\n## Data Classification Compliance\n\n"
 
         if classification_summary:
-            report += "| Classification | Total Checks | Compliant | Compliance Rate |\n"
+            report += (
+                "| Classification | Total Checks | Compliant | Compliance Rate |\n"
+            )
             report += "|----------------|--------------|-----------|----------------|\n"
 
             for summary in classification_summary:
@@ -433,7 +476,7 @@ class ComplianceMonitor:
                 compliant = summary[2]
                 rate = (compliant / total * 100) if total > 0 else 0
 
-                rate_emoji = '✅' if rate >= 100 else '⚠️' if rate >= 95 else '❌'
+                rate_emoji = "✅" if rate >= 100 else "⚠️" if rate >= 95 else "❌"
                 report += f"| {classification} | {total} | {compliant} | {rate_emoji} {rate:.1f}% |\n"
         else:
             report += "No classification checks found in this period.\n"
@@ -444,11 +487,11 @@ class ComplianceMonitor:
         if active_alerts:
             for alert in active_alerts:
                 severity_emoji = {
-                    'CRITICAL': '🚨',
-                    'HIGH': '🔴',
-                    'MEDIUM': '🟡',
-                    'LOW': '🟢'
-                }.get(alert[3], '❓')
+                    "CRITICAL": "🚨",
+                    "HIGH": "🔴",
+                    "MEDIUM": "🟡",
+                    "LOW": "🟢",
+                }.get(alert[3], "❓")
 
                 report += f"### {severity_emoji} {alert[2]} - {alert[3]}\n"
                 report += f"**Date**: {alert[1]}  \n"
@@ -460,8 +503,8 @@ class ComplianceMonitor:
         report += f"\n## Recommendations\n\n"
 
         if active_alerts:
-            critical_alerts = [a for a in active_alerts if a[3] == 'CRITICAL']
-            high_alerts = [a for a in active_alerts if a[3] == 'HIGH']
+            critical_alerts = [a for a in active_alerts if a[3] == "CRITICAL"]
+            high_alerts = [a for a in active_alerts if a[3] == "HIGH"]
 
             if critical_alerts:
                 report += "### Immediate Actions Required\n"
@@ -492,22 +535,24 @@ class ComplianceMonitor:
     def get_active_alerts(self) -> List[Dict[str, Any]]:
         """Get all active alerts."""
         with sqlite3.connect(self.db_path) as conn:
-            alerts = conn.execute("""
+            alerts = conn.execute(
+                """
                 SELECT * FROM compliance_alerts
                 WHERE resolved = FALSE
                 ORDER BY severity DESC, alert_date DESC
-            """).fetchall()
+            """
+            ).fetchall()
 
         return [
             {
-                'id': alert[0],
-                'alert_date': alert[1],
-                'alert_type': alert[2],
-                'severity': alert[3],
-                'message': alert[4],
-                'resolved': bool(alert[5]),
-                'resolved_date': alert[6],
-                'created_at': alert[7]
+                "id": alert[0],
+                "alert_date": alert[1],
+                "alert_type": alert[2],
+                "severity": alert[3],
+                "message": alert[4],
+                "resolved": bool(alert[5]),
+                "resolved_date": alert[6],
+                "created_at": alert[7],
             }
             for alert in alerts
         ]
@@ -515,28 +560,42 @@ class ComplianceMonitor:
     def resolve_alert(self, alert_id: int):
         """Mark an alert as resolved."""
         with sqlite3.connect(self.db_path) as conn:
-            conn.execute("""
+            conn.execute(
+                """
                 UPDATE compliance_alerts
                 SET resolved = TRUE, resolved_date = ?
                 WHERE id = ?
-            """, (date.today(), alert_id))
+            """,
+                (date.today(), alert_id),
+            )
             conn.commit()
 
 
 def main():
     """Main entry point for compliance monitoring."""
     parser = argparse.ArgumentParser(description="ERISA Compliance Monitoring")
-    parser.add_argument('--check', action='store_true', help='Run compliance check')
-    parser.add_argument('--classification', action='store_true', help='Run data classification check')
-    parser.add_argument('--report', type=int, metavar='DAYS', help='Generate monitoring report for last N days')
-    parser.add_argument('--alerts', action='store_true', help='Show active alerts')
-    parser.add_argument('--resolve', type=int, metavar='ALERT_ID', help='Resolve alert by ID')
-    parser.add_argument('--output', type=str, help='Output file for reports')
-    parser.add_argument('--db', type=str, help='Database file path')
+    parser.add_argument("--check", action="store_true", help="Run compliance check")
+    parser.add_argument(
+        "--classification", action="store_true", help="Run data classification check"
+    )
+    parser.add_argument(
+        "--report",
+        type=int,
+        metavar="DAYS",
+        help="Generate monitoring report for last N days",
+    )
+    parser.add_argument("--alerts", action="store_true", help="Show active alerts")
+    parser.add_argument(
+        "--resolve", type=int, metavar="ALERT_ID", help="Resolve alert by ID"
+    )
+    parser.add_argument("--output", type=str, help="Output file for reports")
+    parser.add_argument("--db", type=str, help="Database file path")
 
     args = parser.parse_args()
 
-    if not any([args.check, args.classification, args.report, args.alerts, args.resolve]):
+    if not any(
+        [args.check, args.classification, args.report, args.alerts, args.resolve]
+    ):
         parser.print_help()
         return
 
@@ -565,7 +624,7 @@ def main():
             report = monitor.generate_monitoring_report(args.report)
 
             if args.output:
-                with open(args.output, 'w') as f:
+                with open(args.output, "w") as f:
                     f.write(report)
                 print(f"✅ Report saved to {args.output}")
             else:
@@ -577,12 +636,14 @@ def main():
                 print(f"Active alerts ({len(alerts)}):")
                 for alert in alerts:
                     severity_emoji = {
-                        'CRITICAL': '🚨',
-                        'HIGH': '🔴',
-                        'MEDIUM': '🟡',
-                        'LOW': '🟢'
-                    }.get(alert['severity'], '❓')
-                    print(f"  {alert['id']}: {severity_emoji} {alert['severity']} - {alert['message']}")
+                        "CRITICAL": "🚨",
+                        "HIGH": "🔴",
+                        "MEDIUM": "🟡",
+                        "LOW": "🟢",
+                    }.get(alert["severity"], "❓")
+                    print(
+                        f"  {alert['id']}: {severity_emoji} {alert['severity']} - {alert['message']}"
+                    )
             else:
                 print("✅ No active alerts")
 

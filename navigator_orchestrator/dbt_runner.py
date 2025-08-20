@@ -17,7 +17,8 @@ import subprocess
 import time
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any, Dict, Generator, Iterable, List, Optional, Sequence, Tuple, Callable
+from typing import (Any, Callable, Dict, Generator, Iterable, List, Optional,
+                    Sequence, Tuple)
 
 
 @dataclass
@@ -79,14 +80,21 @@ def retry_with_backoff(
         except retry_on as e:
             if attempt >= max_attempts - 1:
                 raise
-            delay = min(base_delay * (backoff_factor ** attempt), max_delay)
+            delay = min(base_delay * (backoff_factor**attempt), max_delay)
             jitter = random.uniform(0, 0.1) * delay
             time.sleep(delay + jitter)
             attempt += 1
 
 
 class DbtRunner:
-    def __init__(self, working_dir: Path = Path("dbt"), threads: int = 4, executable: str = "dbt", *, verbose: bool = False):
+    def __init__(
+        self,
+        working_dir: Path = Path("dbt"),
+        threads: int = 4,
+        executable: str = "dbt",
+        *,
+        verbose: bool = False,
+    ):
         self.working_dir = working_dir
         self.threads = threads
         self.executable = executable
@@ -110,7 +118,11 @@ class DbtRunner:
             vars_json = json.dumps(vars_dict)
             if self.verbose:
                 try:
-                    year_label = f" year={simulation_year}" if simulation_year is not None else ""
+                    year_label = (
+                        f" year={simulation_year}"
+                        if simulation_year is not None
+                        else ""
+                    )
                     print(f"🧩 DbtRunner --vars{year_label}: {vars_json}")
                 except Exception:
                     pass
@@ -119,8 +131,16 @@ class DbtRunner:
         if "--threads" not in cmd and self.executable == "dbt":
             # Only add threads to commands that support it
             threads_supported_commands = [
-                'run', 'test', 'build', 'compile', 'seed', 'snapshot',
-                'docs', 'source', 'freshness', 'run-operation'
+                "run",
+                "test",
+                "build",
+                "compile",
+                "seed",
+                "snapshot",
+                "docs",
+                "source",
+                "freshness",
+                "run-operation",
             ]
             if any(c in command_args for c in threads_supported_commands):
                 cmd.extend(["--threads", str(self.threads)])

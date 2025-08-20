@@ -12,17 +12,18 @@ References:
 - docs/sessions/2025/session_2025_07_18_promotion_events_fix.md
 """
 
-import os
-import sys
 import json
-import pandas as pd
-import numpy as np
-from datetime import datetime
-import duckdb
-from pathlib import Path
+import os
 import subprocess
+import sys
 import time
-from typing import Dict, List, Tuple, Optional
+from datetime import datetime
+from pathlib import Path
+from typing import Dict, List, Optional, Tuple
+
+import duckdb
+import numpy as np
+import pandas as pd
 
 # Add the project root to the Python path
 project_root = Path(__file__).parent.parent
@@ -37,9 +38,9 @@ class PromotionEventsValidator:
         self.db_path = db_path
         self.conn = None
         self.validation_results = {
-            'timestamp': datetime.now().isoformat(),
-            'tests': {},
-            'summary': {}
+            "timestamp": datetime.now().isoformat(),
+            "tests": {},
+            "summary": {},
         }
 
     def connect_db(self):
@@ -62,35 +63,37 @@ class PromotionEventsValidator:
                 [sys.executable, "orchestrator_mvp/run_mvp.py"],
                 capture_output=True,
                 text=True,
-                cwd=project_root
+                cwd=project_root,
             )
 
             elapsed_time = time.time() - start_time
 
             output_data = {
-                'success': result.returncode == 0,
-                'elapsed_time': elapsed_time,
-                'stdout': result.stdout,
-                'stderr': result.stderr,
-                'returncode': result.returncode
+                "success": result.returncode == 0,
+                "elapsed_time": elapsed_time,
+                "stdout": result.stdout,
+                "stderr": result.stderr,
+                "returncode": result.returncode,
             }
 
             # Parse debug output for promotion event counts
             if "Promotion Events Debug:" in result.stdout:
-                debug_lines = result.stdout.split('\n')
+                debug_lines = result.stdout.split("\n")
                 for i, line in enumerate(debug_lines):
                     if "Promotion Events Debug:" in line:
                         # Extract debug information
-                        output_data['debug_info'] = self._parse_debug_output(debug_lines[i:i+10])
+                        output_data["debug_info"] = self._parse_debug_output(
+                            debug_lines[i : i + 10]
+                        )
                         break
 
             return output_data
 
         except Exception as e:
             return {
-                'success': False,
-                'error': str(e),
-                'elapsed_time': time.time() - start_time
+                "success": False,
+                "error": str(e),
+                "elapsed_time": time.time() - start_time,
             }
 
     def _parse_debug_output(self, debug_lines: List[str]) -> Dict[str, any]:
@@ -99,17 +102,17 @@ class PromotionEventsValidator:
 
         for line in debug_lines:
             if "Total eligible employees:" in line:
-                debug_info['eligible_employees'] = int(line.split(':')[-1].strip())
+                debug_info["eligible_employees"] = int(line.split(":")[-1].strip())
             elif "Generated promotion events:" in line:
-                debug_info['promotion_events'] = int(line.split(':')[-1].strip())
+                debug_info["promotion_events"] = int(line.split(":")[-1].strip())
             elif "Level" in line and "eligible:" in line:
                 # Parse level-specific info
-                parts = line.split(',')
+                parts = line.split(",")
                 for part in parts:
                     if "Level" in part and "eligible:" in part:
-                        level = int(part.split()[1].strip(':'))
+                        level = int(part.split()[1].strip(":"))
                         count = int(part.split()[-1])
-                        debug_info[f'level_{level}_eligible'] = count
+                        debug_info[f"level_{level}_eligible"] = count
 
         return debug_info
 
@@ -129,15 +132,17 @@ class PromotionEventsValidator:
         total_events, promotion_events = result
 
         validation = {
-            'test_name': 'Event Count Validation',
-            'passed': promotion_events > 0,
-            'total_events': total_events,
-            'promotion_events': promotion_events,
-            'message': f"Generated {promotion_events} promotion events (expected > 0)"
+            "test_name": "Event Count Validation",
+            "passed": promotion_events > 0,
+            "total_events": total_events,
+            "promotion_events": promotion_events,
+            "message": f"Generated {promotion_events} promotion events (expected > 0)",
         }
 
         if promotion_events == 0:
-            validation['error'] = "CRITICAL: No promotion events generated (same as before fix)"
+            validation[
+                "error"
+            ] = "CRITICAL: No promotion events generated (same as before fix)"
 
         return validation
 
@@ -178,16 +183,16 @@ class PromotionEventsValidator:
 
         # Expected rates from session document
         expected_rates = {
-            1: (6, 8),    # Level 1: ~6-8%
-            2: (5, 7),    # Level 2: ~5-7%
-            3: (4, 6),    # Level 3: ~4-6%
-            4: (3, 4)     # Level 4: ~3-4%
+            1: (6, 8),  # Level 1: ~6-8%
+            2: (5, 7),  # Level 2: ~5-7%
+            3: (4, 6),  # Level 3: ~4-6%
+            4: (3, 4),  # Level 4: ~3-4%
         }
 
         rate_validation = {
-            'test_name': 'Promotion Rate Validation',
-            'passed': True,
-            'levels': {}
+            "test_name": "Promotion Rate Validation",
+            "passed": True,
+            "levels": {},
         }
 
         for level, employee_count, promotion_count, actual_rate in results:
@@ -195,16 +200,16 @@ class PromotionEventsValidator:
 
             level_passed = expected_min <= actual_rate <= expected_max
 
-            rate_validation['levels'][level] = {
-                'employee_count': employee_count,
-                'promotion_count': promotion_count,
-                'actual_rate': f"{actual_rate:.2f}%",
-                'expected_range': f"{expected_min}-{expected_max}%",
-                'passed': level_passed
+            rate_validation["levels"][level] = {
+                "employee_count": employee_count,
+                "promotion_count": promotion_count,
+                "actual_rate": f"{actual_rate:.2f}%",
+                "expected_range": f"{expected_min}-{expected_max}%",
+                "passed": level_passed,
             }
 
             if not level_passed:
-                rate_validation['passed'] = False
+                rate_validation["passed"] = False
 
         return rate_validation
 
@@ -235,17 +240,19 @@ class PromotionEventsValidator:
         unique_promoted, max_promotions, avg_promotions = result
 
         distribution_validation = {
-            'test_name': 'Random Distribution Analysis',
-            'passed': True,
-            'unique_promoted_employees': unique_promoted,
-            'max_promotions_per_employee': max_promotions,
-            'avg_promotions_per_employee': f"{avg_promotions:.2f}"
+            "test_name": "Random Distribution Analysis",
+            "passed": True,
+            "unique_promoted_employees": unique_promoted,
+            "max_promotions_per_employee": max_promotions,
+            "avg_promotions_per_employee": f"{avg_promotions:.2f}",
         }
 
         # Validate that no employee gets promoted multiple times in same year
         if max_promotions > 1:
-            distribution_validation['passed'] = False
-            distribution_validation['error'] = f"Employee promoted {max_promotions} times in same year"
+            distribution_validation["passed"] = False
+            distribution_validation[
+                "error"
+            ] = f"Employee promoted {max_promotions} times in same year"
 
         return distribution_validation
 
@@ -272,41 +279,61 @@ class PromotionEventsValidator:
         sample_events = self.conn.execute(query).fetchall()
 
         storage_validation = {
-            'test_name': 'Database Storage Validation',
-            'passed': True,
-            'sample_count': len(sample_events),
-            'issues': []
+            "test_name": "Database Storage Validation",
+            "passed": True,
+            "sample_count": len(sample_events),
+            "issues": [],
         }
 
         # Validate each sample event
         for event in sample_events:
-            event_id, employee_id, event_type, event_date, sim_year, scenario_id, event_data = event
+            (
+                event_id,
+                employee_id,
+                event_type,
+                event_date,
+                sim_year,
+                scenario_id,
+                event_data,
+            ) = event
 
             # Parse event_data JSON
             try:
                 data = json.loads(event_data)
 
                 # Check required fields
-                required_fields = ['old_level', 'new_level', 'old_salary', 'new_salary', 'promotion_percentage']
+                required_fields = [
+                    "old_level",
+                    "new_level",
+                    "old_salary",
+                    "new_salary",
+                    "promotion_percentage",
+                ]
                 for field in required_fields:
                     if field not in data:
-                        storage_validation['issues'].append(f"Missing field '{field}' in event {event_id}")
-                        storage_validation['passed'] = False
+                        storage_validation["issues"].append(
+                            f"Missing field '{field}' in event {event_id}"
+                        )
+                        storage_validation["passed"] = False
 
                 # Validate data integrity
-                if 'old_level' in data and 'new_level' in data:
-                    if data['new_level'] != data['old_level'] + 1:
-                        storage_validation['issues'].append(f"Invalid level progression in event {event_id}")
-                        storage_validation['passed'] = False
+                if "old_level" in data and "new_level" in data:
+                    if data["new_level"] != data["old_level"] + 1:
+                        storage_validation["issues"].append(
+                            f"Invalid level progression in event {event_id}"
+                        )
+                        storage_validation["passed"] = False
 
-                if 'old_salary' in data and 'new_salary' in data:
-                    if data['new_salary'] <= data['old_salary']:
-                        storage_validation['issues'].append(f"Invalid salary change in event {event_id}")
-                        storage_validation['passed'] = False
+                if "old_salary" in data and "new_salary" in data:
+                    if data["new_salary"] <= data["old_salary"]:
+                        storage_validation["issues"].append(
+                            f"Invalid salary change in event {event_id}"
+                        )
+                        storage_validation["passed"] = False
 
             except json.JSONDecodeError:
-                storage_validation['issues'].append(f"Invalid JSON in event {event_id}")
-                storage_validation['passed'] = False
+                storage_validation["issues"].append(f"Invalid JSON in event {event_id}")
+                storage_validation["passed"] = False
 
         return storage_validation
 
@@ -319,69 +346,97 @@ class PromotionEventsValidator:
             "# Promotion Events Fix Validation Report",
             f"\nGenerated: {self.validation_results['timestamp']}",
             "\n## Executive Summary",
-            ""
+            "",
         ]
 
         # Calculate overall pass/fail
-        all_passed = all(test.get('passed', False) for test in self.validation_results['tests'].values())
+        all_passed = all(
+            test.get("passed", False)
+            for test in self.validation_results["tests"].values()
+        )
 
         if all_passed:
             report_lines.append("✅ **ALL VALIDATION TESTS PASSED**")
             report_lines.append("\nThe promotion events fix is working correctly.")
         else:
             report_lines.append("❌ **VALIDATION FAILED**")
-            failed_tests = [name for name, test in self.validation_results['tests'].items() if not test.get('passed', False)]
+            failed_tests = [
+                name
+                for name, test in self.validation_results["tests"].items()
+                if not test.get("passed", False)
+            ]
             report_lines.append(f"\nFailed tests: {', '.join(failed_tests)}")
 
         # Add test results
-        report_lines.extend([
-            "\n## Test Results",
-            ""
-        ])
+        report_lines.extend(["\n## Test Results", ""])
 
-        for test_name, test_result in self.validation_results['tests'].items():
-            status = "✅ PASSED" if test_result.get('passed', False) else "❌ FAILED"
-            report_lines.append(f"### {test_result.get('test_name', test_name)}: {status}")
+        for test_name, test_result in self.validation_results["tests"].items():
+            status = "✅ PASSED" if test_result.get("passed", False) else "❌ FAILED"
+            report_lines.append(
+                f"### {test_result.get('test_name', test_name)}: {status}"
+            )
 
             # Add test-specific details
-            if test_name == 'orchestrator_run':
-                if test_result.get('success'):
-                    report_lines.append(f"- Execution time: {test_result.get('elapsed_time', 0):.2f} seconds")
-                    if 'debug_info' in test_result:
-                        debug = test_result['debug_info']
-                        report_lines.append(f"- Eligible employees: {debug.get('eligible_employees', 'N/A')}")
-                        report_lines.append(f"- Generated promotions: {debug.get('promotion_events', 'N/A')}")
+            if test_name == "orchestrator_run":
+                if test_result.get("success"):
+                    report_lines.append(
+                        f"- Execution time: {test_result.get('elapsed_time', 0):.2f} seconds"
+                    )
+                    if "debug_info" in test_result:
+                        debug = test_result["debug_info"]
+                        report_lines.append(
+                            f"- Eligible employees: {debug.get('eligible_employees', 'N/A')}"
+                        )
+                        report_lines.append(
+                            f"- Generated promotions: {debug.get('promotion_events', 'N/A')}"
+                        )
                 else:
-                    report_lines.append(f"- Error: {test_result.get('error', 'Unknown error')}")
+                    report_lines.append(
+                        f"- Error: {test_result.get('error', 'Unknown error')}"
+                    )
 
-            elif test_name == 'event_counts':
-                report_lines.append(f"- Total events: {test_result.get('total_events', 0):,}")
-                report_lines.append(f"- Promotion events: {test_result.get('promotion_events', 0):,}")
-                if 'error' in test_result:
+            elif test_name == "event_counts":
+                report_lines.append(
+                    f"- Total events: {test_result.get('total_events', 0):,}"
+                )
+                report_lines.append(
+                    f"- Promotion events: {test_result.get('promotion_events', 0):,}"
+                )
+                if "error" in test_result:
                     report_lines.append(f"- ⚠️ {test_result['error']}")
 
-            elif test_name == 'promotion_rates':
-                report_lines.append("\n| Level | Employees | Promotions | Actual Rate | Expected Range | Status |")
-                report_lines.append("|-------|-----------|------------|-------------|----------------|--------|")
+            elif test_name == "promotion_rates":
+                report_lines.append(
+                    "\n| Level | Employees | Promotions | Actual Rate | Expected Range | Status |"
+                )
+                report_lines.append(
+                    "|-------|-----------|------------|-------------|----------------|--------|"
+                )
 
-                for level, data in sorted(test_result.get('levels', {}).items()):
-                    status = "✅" if data['passed'] else "❌"
+                for level, data in sorted(test_result.get("levels", {}).items()):
+                    status = "✅" if data["passed"] else "❌"
                     report_lines.append(
                         f"| {level} | {data['employee_count']:,} | {data['promotion_count']:,} | "
                         f"{data['actual_rate']} | {data['expected_range']} | {status} |"
                     )
 
-            elif test_name == 'random_distribution':
-                report_lines.append(f"- Unique promoted employees: {test_result.get('unique_promoted_employees', 0):,}")
-                report_lines.append(f"- Max promotions per employee: {test_result.get('max_promotions_per_employee', 0)}")
-                if 'error' in test_result:
+            elif test_name == "random_distribution":
+                report_lines.append(
+                    f"- Unique promoted employees: {test_result.get('unique_promoted_employees', 0):,}"
+                )
+                report_lines.append(
+                    f"- Max promotions per employee: {test_result.get('max_promotions_per_employee', 0)}"
+                )
+                if "error" in test_result:
                     report_lines.append(f"- ⚠️ {test_result['error']}")
 
-            elif test_name == 'database_storage':
-                report_lines.append(f"- Sample events checked: {test_result.get('sample_count', 0)}")
-                if test_result.get('issues'):
+            elif test_name == "database_storage":
+                report_lines.append(
+                    f"- Sample events checked: {test_result.get('sample_count', 0)}"
+                )
+                if test_result.get("issues"):
                     report_lines.append("- Issues found:")
-                    for issue in test_result['issues']:
+                    for issue in test_result["issues"]:
                         report_lines.append(f"  - {issue}")
                 else:
                     report_lines.append("- No issues found")
@@ -389,31 +444,32 @@ class PromotionEventsValidator:
             report_lines.append("")
 
         # Add recommendations
-        report_lines.extend([
-            "\n## Recommendations",
-            ""
-        ])
+        report_lines.extend(["\n## Recommendations", ""])
 
         if all_passed:
-            report_lines.extend([
-                "1. The promotion events fix is working correctly and can be deployed.",
-                "2. Continue monitoring promotion rates to ensure they remain within expected ranges.",
-                "3. Consider implementing automated alerts for significant deviations from expected rates."
-            ])
+            report_lines.extend(
+                [
+                    "1. The promotion events fix is working correctly and can be deployed.",
+                    "2. Continue monitoring promotion rates to ensure they remain within expected ranges.",
+                    "3. Consider implementing automated alerts for significant deviations from expected rates.",
+                ]
+            )
         else:
-            report_lines.extend([
-                "1. Review the failed tests and debug the specific issues identified.",
-                "2. Check the session document for the original implementation details.",
-                "3. Verify that all seed data (promotion hazard configuration) is loaded correctly.",
-                "4. Ensure the correct workforce source (int_workforce_previous_year) is being used."
-            ])
+            report_lines.extend(
+                [
+                    "1. Review the failed tests and debug the specific issues identified.",
+                    "2. Check the session document for the original implementation details.",
+                    "3. Verify that all seed data (promotion hazard configuration) is loaded correctly.",
+                    "4. Ensure the correct workforce source (int_workforce_previous_year) is being used.",
+                ]
+            )
 
         # Build final report
-        report_content = '\n'.join(report_lines)
+        report_content = "\n".join(report_lines)
 
         # Save report if output path provided
         if output_path:
-            with open(output_path, 'w') as f:
+            with open(output_path, "w") as f:
                 f.write(report_content)
             print(f"Report saved to: {output_path}")
 
@@ -431,20 +487,33 @@ class PromotionEventsValidator:
 
             # Run MVP orchestrator
             orchestrator_result = self.run_mvp_orchestrator()
-            self.validation_results['tests']['orchestrator_run'] = orchestrator_result
+            self.validation_results["tests"]["orchestrator_run"] = orchestrator_result
 
-            if not orchestrator_result.get('success'):
+            if not orchestrator_result.get("success"):
                 print("❌ MVP orchestrator failed to run")
                 return False
 
             # Run validation tests
-            self.validation_results['tests']['event_counts'] = self.validate_event_counts()
-            self.validation_results['tests']['promotion_rates'] = self.check_promotion_rates()
-            self.validation_results['tests']['random_distribution'] = self.analyze_random_distribution()
-            self.validation_results['tests']['database_storage'] = self.validate_database_storage()
+            self.validation_results["tests"][
+                "event_counts"
+            ] = self.validate_event_counts()
+            self.validation_results["tests"][
+                "promotion_rates"
+            ] = self.check_promotion_rates()
+            self.validation_results["tests"][
+                "random_distribution"
+            ] = self.analyze_random_distribution()
+            self.validation_results["tests"][
+                "database_storage"
+            ] = self.validate_database_storage()
 
             # Generate report
-            report_path = project_root / "docs" / "validation" / "promotion_events_fix_validation_results.md"
+            report_path = (
+                project_root
+                / "docs"
+                / "validation"
+                / "promotion_events_fix_validation_results.md"
+            )
             report_path.parent.mkdir(parents=True, exist_ok=True)
 
             report_content = self.generate_validation_report(str(report_path))
@@ -454,16 +523,19 @@ class PromotionEventsValidator:
             print("VALIDATION SUMMARY")
             print("=" * 80)
 
-            all_passed = all(test.get('passed', False) for test in self.validation_results['tests'].values())
+            all_passed = all(
+                test.get("passed", False)
+                for test in self.validation_results["tests"].values()
+            )
 
             if all_passed:
                 print("✅ ALL TESTS PASSED - Promotion events fix is working correctly!")
             else:
                 print("❌ VALIDATION FAILED - See report for details")
                 failed_tests = [
-                    test['test_name']
-                    for test in self.validation_results['tests'].values()
-                    if not test.get('passed', False)
+                    test["test_name"]
+                    for test in self.validation_results["tests"].values()
+                    if not test.get("passed", False)
                 ]
                 print(f"Failed tests: {', '.join(failed_tests)}")
 
@@ -474,6 +546,7 @@ class PromotionEventsValidator:
         except Exception as e:
             print(f"❌ Validation error: {str(e)}")
             import traceback
+
             traceback.print_exc()
             return False
 

@@ -6,19 +6,24 @@ This script runs the multi-year simulation and monitors compensation growth
 to verify the calibration is hitting the 2% target.
 """
 
-import duckdb
-import pandas as pd
 import subprocess
 import time
+
+import duckdb
+import pandas as pd
 
 
 def run_dagster_asset(asset_name: str) -> bool:
     """Run a Dagster asset via CLI."""
     try:
         cmd = [
-            "dagster", "asset", "materialize",
-            "--select", asset_name,
-            "-f", "definitions.py"
+            "dagster",
+            "asset",
+            "materialize",
+            "--select",
+            asset_name,
+            "-f",
+            "definitions.py",
         ]
         result = subprocess.run(cmd, capture_output=True, text=True, cwd=".")
         if result.returncode == 0:
@@ -35,12 +40,13 @@ def run_dagster_asset(asset_name: str) -> bool:
 
 def check_current_parameters():
     """Display current calibrated parameters."""
-    conn = duckdb.connect('simulation.duckdb')
+    conn = duckdb.connect("simulation.duckdb")
 
     print("🎛️ CURRENT CALIBRATED PARAMETERS")
     print("=" * 50)
 
-    params = conn.execute("""
+    params = conn.execute(
+        """
         SELECT
             job_level,
             parameter_name,
@@ -51,17 +57,20 @@ def check_current_parameters():
           AND parameter_name IN ('cola_rate', 'merit_base')
           AND fiscal_year = 2025
         ORDER BY job_level, parameter_name
-    """).df()
+    """
+    ).df()
 
     print(params.to_string(index=False))
 
     # Show target
-    target = conn.execute("""
+    target = conn.execute(
+        """
         SELECT target_value * 100 || '%' as target_growth_rate
         FROM stg_comp_targets
         WHERE metric_name = 'compensation_growth_rate'
         LIMIT 1
-    """).fetchone()
+    """
+    ).fetchone()
 
     print(f"\n🎯 Target Growth Rate: {target[0] if target else '2.0%'}")
     print(f"💡 Expected Impact: COLA +1.5% + Merit +1.0% = +2.5% total")
@@ -70,18 +79,20 @@ def check_current_parameters():
 
 def analyze_simulation_results():
     """Analyze the results of the multi-year simulation."""
-    conn = duckdb.connect('simulation.duckdb')
+    conn = duckdb.connect("simulation.duckdb")
 
     print("\n📊 SIMULATION RESULTS ANALYSIS")
     print("=" * 50)
 
     # Check if we have recent simulation data
-    years = conn.execute("""
+    years = conn.execute(
+        """
         SELECT DISTINCT simulation_year
         FROM fct_workforce_snapshot
         WHERE employment_status = 'active'
         ORDER BY simulation_year
-    """).fetchall()
+    """
+    ).fetchall()
 
     if len(years) < 2:
         print("❌ Need at least 2 years of data for growth analysis")
@@ -89,7 +100,8 @@ def analyze_simulation_results():
         return
 
     # Calculate compensation growth
-    growth_analysis = conn.execute("""
+    growth_analysis = conn.execute(
+        """
         WITH yearly_averages AS (
             SELECT
                 simulation_year,
@@ -119,15 +131,16 @@ def analyze_simulation_results():
             FROM yearly_averages
         )
         SELECT * FROM growth_rates
-    """).df()
+    """
+    ).df()
 
     print("📈 Year-over-Year Compensation Growth:")
     print(growth_analysis.to_string(index=False))
 
     # Calculate success metrics
-    latest_growth = growth_analysis[growth_analysis['growth_rate_pct'].notna()]
+    latest_growth = growth_analysis[growth_analysis["growth_rate_pct"].notna()]
     if not latest_growth.empty:
-        actual_growth = latest_growth.iloc[-1]['growth_rate_pct']
+        actual_growth = latest_growth.iloc[-1]["growth_rate_pct"]
         target_growth = 2.0
 
         print(f"\n🎯 CALIBRATION RESULTS:")
@@ -144,7 +157,8 @@ def analyze_simulation_results():
 
     # Segment analysis
     print(f"\n👥 EMPLOYEE SEGMENT IMPACT:")
-    segment_analysis = conn.execute("""
+    segment_analysis = conn.execute(
+        """
         SELECT
             simulation_year,
             CASE
@@ -158,7 +172,8 @@ def analyze_simulation_results():
         GROUP BY simulation_year,
                  CASE WHEN employee_hire_date < '2025-01-01' THEN 'Continuous' ELSE 'New Hire' END
         ORDER BY simulation_year, employee_segment
-    """).df()
+    """
+    ).df()
 
     print(segment_analysis.to_string(index=False))
 

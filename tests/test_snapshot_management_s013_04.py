@@ -5,10 +5,10 @@ Tests the run_dbt_snapshot_for_year operation for centralized snapshot managemen
 across different simulation contexts with comprehensive validation and error handling.
 """
 
-import pytest
 from unittest.mock import Mock, patch
-from dagster import OpExecutionContext
 
+import pytest
+from dagster import OpExecutionContext
 from orchestrator.simulator_pipeline import run_dbt_snapshot_for_year
 
 
@@ -75,7 +75,9 @@ class TestSnapshotManagementOperation:
         )
 
         # Verify database connections were closed
-        assert mock_duckdb_connection.close.call_count == 3  # Pre-validation, cleanup, and post-validation
+        assert (
+            mock_duckdb_connection.close.call_count == 3
+        )  # Pre-validation, cleanup, and post-validation
 
         # Verify logging
         mock_context.log.info.assert_any_call(
@@ -339,7 +341,7 @@ class TestSnapshotOperationIntegration:
             # Reset side_effect for each iteration (3 connections: pre-validation, cleanup, post-validation)
             mock_conn.execute.return_value.fetchone.side_effect = [
                 [record_counts[i]],  # Pre-validation: workforce count
-                [record_counts[i]]   # Post-validation: final snapshot count
+                [record_counts[i]],  # Post-validation: final snapshot count
             ]
 
             result = run_dbt_snapshot_for_year(integration_context, year, "end_of_year")

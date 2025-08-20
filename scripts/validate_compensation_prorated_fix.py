@@ -14,23 +14,26 @@ Key validations:
 - Comparison with the previous incorrect behavior to confirm the fix
 """
 
-import duckdb
-import pandas as pd
-import numpy as np
-from pathlib import Path
-from datetime import datetime, date
-from typing import Dict, List, Tuple, Optional
 import json
-import sys
-import subprocess
-import tempfile
 import shutil
+import subprocess
+import sys
+import tempfile
+from datetime import date, datetime
+from pathlib import Path
+from typing import Dict, List, Optional, Tuple
+
+import duckdb
+import numpy as np
+import pandas as pd
 
 # Add parent directory to path to import project modules
 sys.path.append(str(Path(__file__).parent.parent))
 
 
-def connect_to_database(db_path: str = "simulation.duckdb") -> duckdb.DuckDBPyConnection:
+def connect_to_database(
+    db_path: str = "simulation.duckdb",
+) -> duckdb.DuckDBPyConnection:
     """Connect to the DuckDB database."""
     return duckdb.connect(db_path)
 
@@ -39,49 +42,87 @@ def setup_test_data(conn: duckdb.DuckDBPyConnection) -> None:
     """Set up test data for the prorated compensation validation."""
 
     # Create test workforce data
-    test_workforce = pd.DataFrame({
-        'employee_id': ['EMP_000001', 'EMP_000002', 'EMP_000003', 'EMP_000004', 'EMP_000005'],
-        'employee_ssn': ['111-11-1111', '222-22-2222', '333-33-3333', '444-44-4444', '555-55-5555'],
-        'employee_birth_date': pd.to_datetime(['1980-01-15', '1985-06-20', '1990-03-10', '1975-12-05', '1988-09-25']),
-        'employee_hire_date': pd.to_datetime(['2020-01-01', '2020-01-01', '2020-01-01', '2020-01-01', '2025-06-01']),
-        'employee_gross_compensation': [55000.0, 60000.0, 50700.0, 75000.0, 65000.0],
-        'level_id': [2, 2, 2, 3, 2],
-        'employment_status': ['active', 'active', 'active', 'active', 'active'],
-        'current_age': [45, 40, 35, 50, 37],
-        'current_tenure': [5, 5, 5, 20, 0.5],
-        'termination_date': [None, None, None, None, None],
-        'termination_reason': [None, None, None, None, None],
-        'simulation_year': [2025, 2025, 2025, 2025, 2025]
-    })
+    test_workforce = pd.DataFrame(
+        {
+            "employee_id": [
+                "EMP_000001",
+                "EMP_000002",
+                "EMP_000003",
+                "EMP_000004",
+                "EMP_000005",
+            ],
+            "employee_ssn": [
+                "111-11-1111",
+                "222-22-2222",
+                "333-33-3333",
+                "444-44-4444",
+                "555-55-5555",
+            ],
+            "employee_birth_date": pd.to_datetime(
+                ["1980-01-15", "1985-06-20", "1990-03-10", "1975-12-05", "1988-09-25"]
+            ),
+            "employee_hire_date": pd.to_datetime(
+                ["2020-01-01", "2020-01-01", "2020-01-01", "2020-01-01", "2025-06-01"]
+            ),
+            "employee_gross_compensation": [
+                55000.0,
+                60000.0,
+                50700.0,
+                75000.0,
+                65000.0,
+            ],
+            "level_id": [2, 2, 2, 3, 2],
+            "employment_status": ["active", "active", "active", "active", "active"],
+            "current_age": [45, 40, 35, 50, 37],
+            "current_tenure": [5, 5, 5, 20, 0.5],
+            "termination_date": [None, None, None, None, None],
+            "termination_reason": [None, None, None, None, None],
+            "simulation_year": [2025, 2025, 2025, 2025, 2025],
+        }
+    )
 
     # Create test yearly events including the user's specific scenario
     # EMP_000003: Only one raise on July 15th to match user's exact scenario
-    test_events = pd.DataFrame({
-        'event_id': ['evt_001', 'evt_002', 'evt_003', 'evt_004', 'evt_005'],
-        'employee_id': ['EMP_000001', 'EMP_000002', 'EMP_000003', 'EMP_000004', 'EMP_000005'],
-        'event_type': ['raise', 'raise', 'raise', 'raise', 'hire'],
-        'simulation_year': [2025, 2025, 2025, 2025, 2025],
-        'effective_date': pd.to_datetime(['2025-03-15', '2025-08-01', '2025-07-15', '2025-12-31', '2025-06-01']),
-        'compensation_amount': [57000.0, 62500.0, 53880.84, 78000.0, 65000.0],
-        'previous_compensation': [55000.0, 60000.0, 50700.0, 75000.0, None],
-        'event_reason': ['merit', 'merit', 'merit', 'promotion', 'new_hire']
-    })
+    test_events = pd.DataFrame(
+        {
+            "event_id": ["evt_001", "evt_002", "evt_003", "evt_004", "evt_005"],
+            "employee_id": [
+                "EMP_000001",
+                "EMP_000002",
+                "EMP_000003",
+                "EMP_000004",
+                "EMP_000005",
+            ],
+            "event_type": ["raise", "raise", "raise", "raise", "hire"],
+            "simulation_year": [2025, 2025, 2025, 2025, 2025],
+            "effective_date": pd.to_datetime(
+                ["2025-03-15", "2025-08-01", "2025-07-15", "2025-12-31", "2025-06-01"]
+            ),
+            "compensation_amount": [57000.0, 62500.0, 53880.84, 78000.0, 65000.0],
+            "previous_compensation": [55000.0, 60000.0, 50700.0, 75000.0, None],
+            "event_reason": ["merit", "merit", "merit", "promotion", "new_hire"],
+        }
+    )
 
     # Clear existing test data
     conn.execute("DROP TABLE IF EXISTS test_int_snapshot_hiring")
     conn.execute("DROP TABLE IF EXISTS test_fct_yearly_events")
 
     # Create and populate test tables
-    conn.register('workforce_data', test_workforce)
-    conn.execute("CREATE TABLE test_int_snapshot_hiring AS SELECT * FROM workforce_data")
+    conn.register("workforce_data", test_workforce)
+    conn.execute(
+        "CREATE TABLE test_int_snapshot_hiring AS SELECT * FROM workforce_data"
+    )
 
-    conn.register('events_data', test_events)
+    conn.register("events_data", test_events)
     conn.execute("CREATE TABLE test_fct_yearly_events AS SELECT * FROM events_data")
 
     print("✓ Test data setup complete")
 
 
-def run_prorated_compensation_calculation(conn: duckdb.DuckDBPyConnection) -> pd.DataFrame:
+def run_prorated_compensation_calculation(
+    conn: duckdb.DuckDBPyConnection,
+) -> pd.DataFrame:
     """Run the prorated compensation calculation using the updated logic."""
 
     query = """
@@ -203,7 +244,7 @@ def run_prorated_compensation_calculation(conn: duckdb.DuckDBPyConnection) -> pd
 def validate_user_scenario(results_df: pd.DataFrame) -> bool:
     """Validate the specific user scenario: EMP_000003."""
 
-    emp_003_row = results_df[results_df['employee_id'] == 'EMP_000003']
+    emp_003_row = results_df[results_df["employee_id"] == "EMP_000003"]
 
     if len(emp_003_row) == 0:
         print("❌ EMP_000003 not found in results")
@@ -241,19 +282,25 @@ def validate_user_scenario(results_df: pd.DataFrame) -> bool:
 
     # Validate within $1 tolerance
     tolerance = 1.0
-    prorated_diff = abs(row['prorated_annual_compensation'] - expected_prorated)
-    user_expected_diff = abs(row['prorated_annual_compensation'] - 52158.33)
+    prorated_diff = abs(row["prorated_annual_compensation"] - expected_prorated)
+    user_expected_diff = abs(row["prorated_annual_compensation"] - 52158.33)
 
     if prorated_diff <= tolerance:
-        print(f"✓ Prorated calculation matches manual calculation (diff: ${prorated_diff:.2f})")
+        print(
+            f"✓ Prorated calculation matches manual calculation (diff: ${prorated_diff:.2f})"
+        )
     else:
         print(f"❌ Prorated calculation mismatch (diff: ${prorated_diff:.2f})")
         return False
 
     if user_expected_diff <= tolerance:
-        print(f"✓ Prorated calculation matches user expectation of $52,158.33 (diff: ${user_expected_diff:.2f})")
+        print(
+            f"✓ Prorated calculation matches user expectation of $52,158.33 (diff: ${user_expected_diff:.2f})"
+        )
     else:
-        print(f"❌ Prorated calculation doesn't match user expectation (diff: ${user_expected_diff:.2f})")
+        print(
+            f"❌ Prorated calculation doesn't match user expectation (diff: ${user_expected_diff:.2f})"
+        )
         return False
 
     return True
@@ -286,13 +333,15 @@ def validate_multiple_raises_handling(conn: duckdb.DuckDBPyConnection) -> bool:
 
     print(f"\\n🔄 Multiple raises validation for EMP_000003:")
     for _, row in events_df.iterrows():
-        rank_indicator = "← LATEST (USED)" if row['event_rank'] == 1 else ""
-        print(f"  {row['effective_date'].strftime('%Y-%m-%d')}: ${row['compensation_amount']:,.2f} {rank_indicator}")
+        rank_indicator = "← LATEST (USED)" if row["event_rank"] == 1 else ""
+        print(
+            f"  {row['effective_date'].strftime('%Y-%m-%d')}: ${row['compensation_amount']:,.2f} {rank_indicator}"
+        )
 
     # Should use the September raise (55000.0) not the July raise (53880.84)
-    latest_raise = events_df[events_df['event_rank'] == 1].iloc[0]
+    latest_raise = events_df[events_df["event_rank"] == 1].iloc[0]
 
-    if latest_raise['compensation_amount'] == 55000.0:
+    if latest_raise["compensation_amount"] == 55000.0:
         print("✓ Multiple raises handled correctly - latest raise selected")
         return True
     else:
@@ -308,12 +357,17 @@ def validate_field_mapping_fix(results_df: pd.DataFrame) -> bool:
     all_correct = True
     for _, row in results_df.iterrows():
         # In the new system, current_compensation should equal prorated_annual_compensation
-        expected_current_comp = row['prorated_annual_compensation']
+        expected_current_comp = row["prorated_annual_compensation"]
 
-        print(f"  {row['employee_id']}: prorated=${expected_current_comp:,.2f}, full_year=${row['full_year_equivalent_compensation']:,.2f}")
+        print(
+            f"  {row['employee_id']}: prorated=${expected_current_comp:,.2f}, full_year=${row['full_year_equivalent_compensation']:,.2f}"
+        )
 
         # Check that prorated <= full_year_equivalent (should always be true)
-        if row['prorated_annual_compensation'] > row['full_year_equivalent_compensation']:
+        if (
+            row["prorated_annual_compensation"]
+            > row["full_year_equivalent_compensation"]
+        ):
             print(f"    ❌ Prorated compensation exceeds full year equivalent")
             all_correct = False
         else:
@@ -331,14 +385,20 @@ def run_dbt_models() -> bool:
         dbt_dir = Path(__file__).parent.parent / "dbt"
 
         # Run the specific models we care about
-        result = subprocess.run([
-            "dbt", "run",
-            "--select", "int_snapshot_compensation", "fct_workforce_snapshot",
-            "--vars", "simulation_year: 2025"
-        ],
-        cwd=dbt_dir,
-        capture_output=True,
-        text=True)
+        result = subprocess.run(
+            [
+                "dbt",
+                "run",
+                "--select",
+                "int_snapshot_compensation",
+                "fct_workforce_snapshot",
+                "--vars",
+                "simulation_year: 2025",
+            ],
+            cwd=dbt_dir,
+            capture_output=True,
+            text=True,
+        )
 
         if result.returncode == 0:
             print("✓ dbt models ran successfully")
@@ -373,26 +433,36 @@ def main():
 
         print(f"\\n📋 Calculation results:")
         for _, row in results_df.iterrows():
-            print(f"  {row['employee_id']}: ${row['prorated_annual_compensation']:,.2f} (prorated) / ${row['full_year_equivalent_compensation']:,.2f} (full year)")
+            print(
+                f"  {row['employee_id']}: ${row['prorated_annual_compensation']:,.2f} (prorated) / ${row['full_year_equivalent_compensation']:,.2f} (full year)"
+            )
 
         # Run validations
         validation_results = []
 
         # 1. Validate user scenario
-        validation_results.append(("User Scenario (EMP_000003)", validate_user_scenario(results_df)))
+        validation_results.append(
+            ("User Scenario (EMP_000003)", validate_user_scenario(results_df))
+        )
 
         # 2. Validate multiple raises handling
-        validation_results.append(("Multiple Raises Handling", validate_multiple_raises_handling(conn)))
+        validation_results.append(
+            ("Multiple Raises Handling", validate_multiple_raises_handling(conn))
+        )
 
         # 3. Validate field mapping fix
-        validation_results.append(("Field Mapping Fix", validate_field_mapping_fix(results_df)))
+        validation_results.append(
+            ("Field Mapping Fix", validate_field_mapping_fix(results_df))
+        )
 
         # 4. Run dbt models (optional - may not work in all environments)
         try:
             dbt_success = run_dbt_models()
             validation_results.append(("dbt Models Execution", dbt_success))
         except:
-            print("⚠️  Skipping dbt models execution (not available in this environment)")
+            print(
+                "⚠️  Skipping dbt models execution (not available in this environment)"
+            )
 
         # Summary
         print(f"\\n📊 Validation Summary:")
@@ -408,7 +478,9 @@ def main():
         print("=" * 50)
 
         if all_passed:
-            print("🎉 All validations passed! The compensation prorated fix is working correctly.")
+            print(
+                "🎉 All validations passed! The compensation prorated fix is working correctly."
+            )
             return True
         else:
             print("⚠️  Some validations failed. Please review the issues above.")

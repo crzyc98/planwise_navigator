@@ -6,9 +6,10 @@ This script allows you to manually adjust compensation parameters
 to achieve the 2% target growth rate based on S050 analysis findings.
 """
 
+from typing import Dict, List, Optional
+
 import duckdb
 import pandas as pd
-from typing import Dict, List, Optional
 
 
 class CompensationCalibrator:
@@ -21,7 +22,8 @@ class CompensationCalibrator:
     def show_current_parameters(self, scenario_id: str = "default") -> pd.DataFrame:
         """Display current parameter values."""
         with self.get_connection() as conn:
-            return conn.execute("""
+            return conn.execute(
+                """
                 SELECT
                     job_level,
                     parameter_name,
@@ -30,12 +32,15 @@ class CompensationCalibrator:
                 FROM stg_comp_levers
                 WHERE scenario_id = ?
                 ORDER BY fiscal_year, job_level, parameter_name
-            """, [scenario_id]).df()
+            """,
+                [scenario_id],
+            ).df()
 
     def show_current_targets(self, scenario_id: str = "default") -> pd.DataFrame:
         """Display current targets."""
         with self.get_connection() as conn:
-            return conn.execute("""
+            return conn.execute(
+                """
                 SELECT
                     metric_name,
                     target_value,
@@ -45,13 +50,22 @@ class CompensationCalibrator:
                 FROM stg_comp_targets
                 WHERE scenario_id = ?
                 ORDER BY priority, metric_name
-            """, [scenario_id]).df()
+            """,
+                [scenario_id],
+            ).df()
 
-    def update_parameter(self, scenario_id: str, job_level: int, parameter_name: str,
-                        new_value: float, fiscal_year: int = 2025):
+    def update_parameter(
+        self,
+        scenario_id: str,
+        job_level: int,
+        parameter_name: str,
+        new_value: float,
+        fiscal_year: int = 2025,
+    ):
         """Update a specific parameter value."""
         with self.get_connection() as conn:
-            conn.execute("""
+            conn.execute(
+                """
                 UPDATE comp_levers
                 SET parameter_value = ?,
                     updated_at = CURRENT_TIMESTAMP
@@ -59,15 +73,19 @@ class CompensationCalibrator:
                   AND job_level = ?
                   AND parameter_name = ?
                   AND fiscal_year = ?
-            """, [new_value, scenario_id, job_level, parameter_name, fiscal_year])
+            """,
+                [new_value, scenario_id, job_level, parameter_name, fiscal_year],
+            )
             print(f"✅ Updated {parameter_name} for Level {job_level} to {new_value}")
 
-    def create_calibration_scenario(self, new_scenario_id: str,
-                                  base_scenario_id: str = "default") -> str:
+    def create_calibration_scenario(
+        self, new_scenario_id: str, base_scenario_id: str = "default"
+    ) -> str:
         """Create a new scenario for calibration testing."""
         with self.get_connection() as conn:
             # Copy base scenario parameters
-            conn.execute("""
+            conn.execute(
+                """
                 INSERT INTO comp_levers
                 SELECT
                     ? as scenario_id,
@@ -81,10 +99,13 @@ class CompensationCalibrator:
                     'calibration_script' as created_by
                 FROM comp_levers
                 WHERE scenario_id = ?
-            """, [new_scenario_id, base_scenario_id])
+            """,
+                [new_scenario_id, base_scenario_id],
+            )
 
             # Copy targets
-            conn.execute("""
+            conn.execute(
+                """
                 INSERT INTO comp_targets
                 SELECT
                     ? as scenario_id,
@@ -98,7 +119,9 @@ class CompensationCalibrator:
                     'calibration_script' as created_by
                 FROM comp_targets
                 WHERE scenario_id = ?
-            """, [new_scenario_id, base_scenario_id])
+            """,
+                [new_scenario_id, base_scenario_id],
+            )
 
             print(f"✅ Created calibration scenario: {new_scenario_id}")
             return new_scenario_id
@@ -128,18 +151,28 @@ class CompensationCalibrator:
         }
 
         for job_level, new_merit_rate in merit_increases.items():
-            self.update_parameter(scenario_id, job_level, "merit_base", new_merit_rate, 2025)
-            self.update_parameter(scenario_id, job_level, "merit_base", new_merit_rate, 2026)
+            self.update_parameter(
+                scenario_id, job_level, "merit_base", new_merit_rate, 2025
+            )
+            self.update_parameter(
+                scenario_id, job_level, "merit_base", new_merit_rate, 2026
+            )
 
         print("\n✅ S050 recommendations applied!")
-        print("Combined impact: +4.0% COLA + Enhanced Merit = Expected +2.5% overall growth")
+        print(
+            "Combined impact: +4.0% COLA + Enhanced Merit = Expected +2.5% overall growth"
+        )
 
     def run_simulation_with_scenario(self, scenario_id: str):
         """Run a simulation with the calibrated parameters."""
         print(f"\n🚀 To run simulation with scenario '{scenario_id}':")
         print(f"   1. Start Dagster: dagster dev")
-        print(f"   2. Run simulation with scenario variable: --vars scenario_id:{scenario_id}")
-        print(f"   3. Check results in fct_workforce_snapshot WHERE parameter_scenario_id = '{scenario_id}'")
+        print(
+            f"   2. Run simulation with scenario variable: --vars scenario_id:{scenario_id}"
+        )
+        print(
+            f"   3. Check results in fct_workforce_snapshot WHERE parameter_scenario_id = '{scenario_id}'"
+        )
 
 
 def main():

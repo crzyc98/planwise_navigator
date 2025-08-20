@@ -1,6 +1,7 @@
 from pathlib import Path
 
-from navigator_orchestrator.factory import OrchestratorBuilder, create_orchestrator
+from navigator_orchestrator.factory import (OrchestratorBuilder,
+                                            create_orchestrator)
 from navigator_orchestrator.migration import MigrationManager
 
 
@@ -37,7 +38,9 @@ def test_orchestrator_builder_constructs(tmp_path: Path):
 
 def test_create_orchestrator_helper(tmp_path: Path):
     cfg = _write_config(tmp_path)
-    orch = create_orchestrator(cfg, threads=2, db_path=tmp_path / "db.duckdb", dbt_executable="echo")
+    orch = create_orchestrator(
+        cfg, threads=2, db_path=tmp_path / "db.duckdb", dbt_executable="echo"
+    )
     assert hasattr(orch, "execute_multi_year_simulation")
 
 

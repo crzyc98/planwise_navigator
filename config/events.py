@@ -37,11 +37,12 @@ Architecture:
 - Payload Classes: Domain-specific event data with comprehensive validation
 """
 
-from typing import Annotated, Union, Optional, Any, Literal, Dict
-from pydantic import BaseModel, Field, ConfigDict, field_validator
 from datetime import date, datetime
 from decimal import Decimal
+from typing import Annotated, Any, Dict, Literal, Optional, Union
 from uuid import UUID, uuid4
+
+from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 
 # Workforce Event Payloads
@@ -55,12 +56,12 @@ class HirePayload(BaseModel):
     job_level: int = Field(..., ge=1, le=10)
     annual_compensation: Decimal = Field(..., gt=0)
 
-    @field_validator('annual_compensation')
+    @field_validator("annual_compensation")
     @classmethod
     def validate_compensation(cls, v: Decimal) -> Decimal:
         """Ensure compensation has proper precision"""
         # Round to 6 decimal places for consistency
-        return v.quantize(Decimal('0.000001'))
+        return v.quantize(Decimal("0.000001"))
 
 
 class PromotionPayload(BaseModel):
@@ -72,11 +73,11 @@ class PromotionPayload(BaseModel):
     new_annual_compensation: Decimal = Field(..., gt=0)
     effective_date: date
 
-    @field_validator('new_annual_compensation')
+    @field_validator("new_annual_compensation")
     @classmethod
     def validate_compensation(cls, v: Decimal) -> Decimal:
         """Ensure compensation has proper precision"""
-        return v.quantize(Decimal('0.000001'))
+        return v.quantize(Decimal("0.000001"))
 
 
 class TerminationPayload(BaseModel):
@@ -98,17 +99,17 @@ class MeritPayload(BaseModel):
     new_compensation: Decimal = Field(..., gt=0)
     merit_percentage: Decimal = Field(..., ge=0, le=1)
 
-    @field_validator('new_compensation')
+    @field_validator("new_compensation")
     @classmethod
     def validate_compensation(cls, v: Decimal) -> Decimal:
         """Ensure compensation has proper precision"""
-        return v.quantize(Decimal('0.000001'))
+        return v.quantize(Decimal("0.000001"))
 
-    @field_validator('merit_percentage')
+    @field_validator("merit_percentage")
     @classmethod
     def validate_percentage(cls, v: Decimal) -> Decimal:
         """Ensure percentage has proper precision"""
-        return v.quantize(Decimal('0.0001'))
+        return v.quantize(Decimal("0.0001"))
 
 
 # DC Plan Event Payloads
@@ -119,12 +120,7 @@ class EligibilityPayload(BaseModel):
     plan_id: str = Field(..., min_length=1)
     eligible: bool
     eligibility_date: date
-    reason: Literal[
-        "age_and_service",
-        "immediate",
-        "hours_requirement",
-        "rehire"
-    ]
+    reason: Literal["age_and_service", "immediate", "hours_requirement", "rehire"]
 
 
 class EnrollmentPayload(BaseModel):
@@ -136,24 +132,35 @@ class EnrollmentPayload(BaseModel):
     pre_tax_contribution_rate: Decimal = Field(..., ge=0, le=1, decimal_places=4)
     roth_contribution_rate: Decimal = Field(..., ge=0, le=1, decimal_places=4)
     after_tax_contribution_rate: Decimal = Field(
-        default=Decimal('0'), ge=0, le=1, decimal_places=4
+        default=Decimal("0"), ge=0, le=1, decimal_places=4
     )
 
     # Enhanced auto-enrollment tracking for E023
     auto_enrollment: bool = False
     opt_out_window_expires: Optional[date] = None
     enrollment_source: Literal["proactive", "auto", "voluntary"] = "voluntary"
-    auto_enrollment_window_start: Optional[date] = None  # When auto-enrollment window opened
-    auto_enrollment_window_end: Optional[date] = None    # When auto-enrollment window closes
-    proactive_enrollment_eligible: bool = False          # Whether employee was eligible for proactive enrollment
-    window_timing_compliant: bool = True                 # Whether enrollment timing follows business rules
+    auto_enrollment_window_start: Optional[
+        date
+    ] = None  # When auto-enrollment window opened
+    auto_enrollment_window_end: Optional[
+        date
+    ] = None  # When auto-enrollment window closes
+    proactive_enrollment_eligible: bool = (
+        False  # Whether employee was eligible for proactive enrollment
+    )
+    window_timing_compliant: bool = (
+        True  # Whether enrollment timing follows business rules
+    )
 
-    @field_validator('pre_tax_contribution_rate', 'roth_contribution_rate',
-                     'after_tax_contribution_rate')
+    @field_validator(
+        "pre_tax_contribution_rate",
+        "roth_contribution_rate",
+        "after_tax_contribution_rate",
+    )
     @classmethod
     def validate_contribution_rate(cls, v: Decimal) -> Decimal:
         """Ensure contribution rate has proper precision"""
-        return v.quantize(Decimal('0.0001'))
+        return v.quantize(Decimal("0.0001"))
 
 
 class ContributionPayload(BaseModel):
@@ -162,9 +169,15 @@ class ContributionPayload(BaseModel):
     event_type: Literal["contribution"] = "contribution"
     plan_id: str = Field(..., min_length=1)
     source: Literal[
-        "employee_pre_tax", "employee_roth", "employee_after_tax", "employee_catch_up",
-        "employer_match", "employer_match_true_up", "employer_nonelective",
-        "employer_profit_sharing", "forfeiture_allocation"
+        "employee_pre_tax",
+        "employee_roth",
+        "employee_after_tax",
+        "employee_catch_up",
+        "employer_match",
+        "employer_match_true_up",
+        "employer_nonelective",
+        "employer_profit_sharing",
+        "forfeiture_allocation",
     ]
     amount: Decimal = Field(..., gt=0, decimal_places=6)
     pay_period_end: date
@@ -174,11 +187,11 @@ class ContributionPayload(BaseModel):
     irs_limit_applied: bool = False
     inferred_value: bool = False
 
-    @field_validator('amount', 'ytd_amount')
+    @field_validator("amount", "ytd_amount")
     @classmethod
     def validate_amount(cls, v: Decimal) -> Decimal:
         """Ensure amounts have proper precision (18,6)"""
-        return v.quantize(Decimal('0.000001'))
+        return v.quantize(Decimal("0.000001"))
 
 
 class VestingPayload(BaseModel):
@@ -191,7 +204,7 @@ class VestingPayload(BaseModel):
     # The balance in each source to which the new percentage is applied
     source_balances_vested: Dict[
         Literal["employer_match", "employer_nonelective", "employer_profit_sharing"],
-        Decimal
+        Decimal,
     ]
 
     vesting_schedule_type: Literal["graded", "cliff", "immediate"]
@@ -199,18 +212,19 @@ class VestingPayload(BaseModel):
     service_credited_hours: int = Field(..., ge=0)  # Required for audit
     service_period_end_date: date  # Required for audit
 
-    @field_validator('vested_percentage')
+    @field_validator("vested_percentage")
     @classmethod
     def validate_vested_percentage(cls, v: Decimal) -> Decimal:
         """Ensure vested percentage has proper precision"""
-        return v.quantize(Decimal('0.0001'))
+        return v.quantize(Decimal("0.0001"))
 
-    @field_validator('source_balances_vested')
+    @field_validator("source_balances_vested")
     @classmethod
     def validate_source_balances(cls, v: Dict[str, Decimal]) -> Dict[str, Decimal]:
         """Ensure source balances have proper precision"""
-        return {source: amount.quantize(Decimal('0.000001'))
-                for source, amount in v.items()}
+        return {
+            source: amount.quantize(Decimal("0.000001")) for source, amount in v.items()
+        }
 
 
 # Auto-Enrollment Window Management Event Payloads (E023)
@@ -227,11 +241,11 @@ class AutoEnrollmentWindowPayload(BaseModel):
     eligible_for_proactive: bool = True
     proactive_window_end: Optional[date] = None  # Last date for proactive enrollment
 
-    @field_validator('default_deferral_rate')
+    @field_validator("default_deferral_rate")
     @classmethod
     def validate_deferral_rate(cls, v: Decimal) -> Decimal:
         """Ensure deferral rate has proper precision"""
-        return v.quantize(Decimal('0.0001'))
+        return v.quantize(Decimal("0.0001"))
 
 
 class EnrollmentChangePayload(BaseModel):
@@ -241,23 +255,31 @@ class EnrollmentChangePayload(BaseModel):
     plan_id: str = Field(..., min_length=1)
     change_type: Literal["opt_out", "rate_change", "source_change", "cancellation"]
     change_reason: Literal[
-        "employee_opt_out", "plan_amendment", "compliance_correction", "system_correction"
+        "employee_opt_out",
+        "plan_amendment",
+        "compliance_correction",
+        "system_correction",
     ]
     previous_enrollment_date: Optional[date] = None
     new_pre_tax_rate: Decimal = Field(..., ge=0, le=1, decimal_places=4)
-    new_roth_rate: Decimal = Field(default=Decimal('0'), ge=0, le=1, decimal_places=4)
+    new_roth_rate: Decimal = Field(default=Decimal("0"), ge=0, le=1, decimal_places=4)
     previous_pre_tax_rate: Optional[Decimal] = None
     previous_roth_rate: Optional[Decimal] = None
     within_opt_out_window: bool = False
     penalty_applied: bool = False
 
-    @field_validator('new_pre_tax_rate', 'new_roth_rate', 'previous_pre_tax_rate', 'previous_roth_rate')
+    @field_validator(
+        "new_pre_tax_rate",
+        "new_roth_rate",
+        "previous_pre_tax_rate",
+        "previous_roth_rate",
+    )
     @classmethod
     def validate_contribution_rates(cls, v: Optional[Decimal]) -> Optional[Decimal]:
         """Ensure contribution rates have proper precision"""
         if v is None:
             return v
-        return v.quantize(Decimal('0.0001'))
+        return v.quantize(Decimal("0.0001"))
 
 
 # Plan Administration Event Payloads (S072-04)
@@ -267,25 +289,23 @@ class ForfeiturePayload(BaseModel):
     event_type: Literal["forfeiture"] = "forfeiture"
     plan_id: str = Field(..., min_length=1)
     forfeited_from_source: Literal[
-        "employer_match",
-        "employer_nonelective",
-        "employer_profit_sharing"
+        "employer_match", "employer_nonelective", "employer_profit_sharing"
     ]
     amount: Decimal = Field(..., gt=0, decimal_places=6)
     reason: Literal["unvested_termination", "break_in_service"]
     vested_percentage: Decimal = Field(..., ge=0, le=1, decimal_places=4)
 
-    @field_validator('amount')
+    @field_validator("amount")
     @classmethod
     def validate_amount(cls, v: Decimal) -> Decimal:
         """Ensure amount has proper precision (18,6)"""
-        return v.quantize(Decimal('0.000001'))
+        return v.quantize(Decimal("0.000001"))
 
-    @field_validator('vested_percentage')
+    @field_validator("vested_percentage")
     @classmethod
     def validate_vested_percentage(cls, v: Decimal) -> Decimal:
         """Ensure vested percentage has proper precision"""
-        return v.quantize(Decimal('0.0001'))
+        return v.quantize(Decimal("0.0001"))
 
 
 class HCEStatusPayload(BaseModel):
@@ -301,11 +321,11 @@ class HCEStatusPayload(BaseModel):
     determination_date: date
     prior_year_hce: Optional[bool] = None
 
-    @field_validator('ytd_compensation', 'annualized_compensation', 'hce_threshold')
+    @field_validator("ytd_compensation", "annualized_compensation", "hce_threshold")
     @classmethod
     def validate_compensation(cls, v: Decimal) -> Decimal:
         """Ensure compensation has proper precision (18,6)"""
-        return v.quantize(Decimal('0.000001'))
+        return v.quantize(Decimal("0.000001"))
 
 
 class ComplianceEventPayload(BaseModel):
@@ -314,33 +334,27 @@ class ComplianceEventPayload(BaseModel):
     event_type: Literal["compliance"] = "compliance"
     plan_id: str = Field(..., min_length=1)
     compliance_type: Literal[
-        "402g_limit_approach",    # Approaching elective deferral limit
-        "415c_limit_approach",    # Approaching annual additions limit
-        "catch_up_eligible"       # Participant becomes catch-up eligible
+        "402g_limit_approach",  # Approaching elective deferral limit
+        "415c_limit_approach",  # Approaching annual additions limit
+        "catch_up_eligible",  # Participant becomes catch-up eligible
     ]
-    limit_type: Literal[
-        "elective_deferral",
-        "annual_additions",
-        "catch_up"
-    ]
+    limit_type: Literal["elective_deferral", "annual_additions", "catch_up"]
     applicable_limit: Decimal = Field(..., gt=0, decimal_places=6)
     current_amount: Decimal = Field(..., ge=0, decimal_places=6)
     monitoring_date: date
 
-    @field_validator('applicable_limit', 'current_amount')
+    @field_validator("applicable_limit", "current_amount")
     @classmethod
     def validate_amount(cls, v: Decimal) -> Decimal:
         """Ensure amounts have proper precision (18,6)"""
-        return v.quantize(Decimal('0.000001'))
+        return v.quantize(Decimal("0.000001"))
 
 
 class SimulationEvent(BaseModel):
     """Unified event model for all workforce and DC plan events"""
 
     model_config = ConfigDict(
-        extra='forbid',
-        use_enum_values=True,
-        validate_assignment=True
+        extra="forbid", use_enum_values=True, validate_assignment=True
     )
 
     # Core identification
@@ -357,50 +371,50 @@ class SimulationEvent(BaseModel):
     # Discriminated union payload for event-specific data
     payload: Union[
         # Workforce Events
-        Annotated[HirePayload, Field(discriminator='event_type')],
-        Annotated[PromotionPayload, Field(discriminator='event_type')],
-        Annotated[TerminationPayload, Field(discriminator='event_type')],
-        Annotated[MeritPayload, Field(discriminator='event_type')],
+        Annotated[HirePayload, Field(discriminator="event_type")],
+        Annotated[PromotionPayload, Field(discriminator="event_type")],
+        Annotated[TerminationPayload, Field(discriminator="event_type")],
+        Annotated[MeritPayload, Field(discriminator="event_type")],
         # DC Plan Events (S072-03) - Core 4 events
-        Annotated[EligibilityPayload, Field(discriminator='event_type')],
-        Annotated[EnrollmentPayload, Field(discriminator='event_type')],
-        Annotated[ContributionPayload, Field(discriminator='event_type')],
-        Annotated[VestingPayload, Field(discriminator='event_type')],
+        Annotated[EligibilityPayload, Field(discriminator="event_type")],
+        Annotated[EnrollmentPayload, Field(discriminator="event_type")],
+        Annotated[ContributionPayload, Field(discriminator="event_type")],
+        Annotated[VestingPayload, Field(discriminator="event_type")],
         # Auto-Enrollment Events (E023)
-        Annotated[AutoEnrollmentWindowPayload, Field(discriminator='event_type')],
-        Annotated[EnrollmentChangePayload, Field(discriminator='event_type')],
+        Annotated[AutoEnrollmentWindowPayload, Field(discriminator="event_type")],
+        Annotated[EnrollmentChangePayload, Field(discriminator="event_type")],
         # Plan Administration Events (S072-04)
-        Annotated[ForfeiturePayload, Field(discriminator='event_type')],
-        Annotated[HCEStatusPayload, Field(discriminator='event_type')],
-        Annotated[ComplianceEventPayload, Field(discriminator='event_type')],
+        Annotated[ForfeiturePayload, Field(discriminator="event_type")],
+        Annotated[HCEStatusPayload, Field(discriminator="event_type")],
+        Annotated[ComplianceEventPayload, Field(discriminator="event_type")],
         # Additional event types can be added here as needed
-    ] = Field(..., discriminator='event_type')
+    ] = Field(..., discriminator="event_type")
 
     # Optional correlation for event tracing
     correlation_id: Optional[str] = None
 
-    @field_validator('employee_id')
+    @field_validator("employee_id")
     @classmethod
     def validate_employee_id(cls, v: str) -> str:
         """Validate employee_id is not empty"""
         if not v or not v.strip():
-            raise ValueError('employee_id cannot be empty')
+            raise ValueError("employee_id cannot be empty")
         return v.strip()
 
-    @field_validator('scenario_id')
+    @field_validator("scenario_id")
     @classmethod
     def validate_scenario_id(cls, v: str) -> str:
         """Validate scenario_id is not empty"""
         if not v or not v.strip():
-            raise ValueError('scenario_id cannot be empty')
+            raise ValueError("scenario_id cannot be empty")
         return v.strip()
 
-    @field_validator('plan_design_id')
+    @field_validator("plan_design_id")
     @classmethod
     def validate_plan_design_id(cls, v: str) -> str:
         """Validate plan_design_id is not empty"""
         if not v or not v.strip():
-            raise ValueError('plan_design_id cannot be empty')
+            raise ValueError("plan_design_id cannot be empty")
         return v.strip()
 
 
@@ -426,7 +440,7 @@ class EventFactory:
         scenario_id: str,
         plan_design_id: str,
         source_system: str = "event_factory",
-        correlation_id: Optional[str] = None
+        correlation_id: Optional[str] = None,
     ) -> SimulationEvent:
         """Create basic event with required context fields"""
         # This method is deprecated - use specific event factories instead
@@ -447,7 +461,7 @@ class WorkforceEventFactory(EventFactory):
         department: str,
         job_level: int,
         annual_compensation: Decimal,
-        plan_id: Optional[str] = None
+        plan_id: Optional[str] = None,
     ) -> SimulationEvent:
         """Create hire event with optional plan context"""
 
@@ -456,7 +470,7 @@ class WorkforceEventFactory(EventFactory):
             department=department,
             job_level=job_level,
             annual_compensation=annual_compensation,
-            plan_id=plan_id
+            plan_id=plan_id,
         )
 
         return SimulationEvent(
@@ -465,7 +479,7 @@ class WorkforceEventFactory(EventFactory):
             plan_design_id=plan_design_id,
             effective_date=hire_date,
             source_system="workforce_simulation",
-            payload=payload
+            payload=payload,
         )
 
     @staticmethod
@@ -476,7 +490,7 @@ class WorkforceEventFactory(EventFactory):
         effective_date: date,
         new_job_level: int,
         new_annual_compensation: Decimal,
-        plan_id: Optional[str] = None
+        plan_id: Optional[str] = None,
     ) -> SimulationEvent:
         """Create promotion event affecting HCE status"""
 
@@ -484,7 +498,7 @@ class WorkforceEventFactory(EventFactory):
             new_job_level=new_job_level,
             new_annual_compensation=new_annual_compensation,
             effective_date=effective_date,
-            plan_id=plan_id
+            plan_id=plan_id,
         )
 
         return SimulationEvent(
@@ -493,7 +507,7 @@ class WorkforceEventFactory(EventFactory):
             plan_design_id=plan_design_id,
             effective_date=effective_date,
             source_system="workforce_simulation",
-            payload=payload
+            payload=payload,
         )
 
     @staticmethod
@@ -506,14 +520,14 @@ class WorkforceEventFactory(EventFactory):
             "voluntary", "involuntary", "retirement", "death", "disability"
         ],
         final_pay_date: date,
-        plan_id: Optional[str] = None
+        plan_id: Optional[str] = None,
     ) -> SimulationEvent:
         """Create termination event triggering distribution eligibility"""
 
         payload = TerminationPayload(
             termination_reason=termination_reason,
             final_pay_date=final_pay_date,
-            plan_id=plan_id
+            plan_id=plan_id,
         )
 
         return SimulationEvent(
@@ -522,7 +536,7 @@ class WorkforceEventFactory(EventFactory):
             plan_design_id=plan_design_id,
             effective_date=effective_date,
             source_system="workforce_simulation",
-            payload=payload
+            payload=payload,
         )
 
     @staticmethod
@@ -533,14 +547,14 @@ class WorkforceEventFactory(EventFactory):
         effective_date: date,
         new_compensation: Decimal,
         merit_percentage: Decimal,
-        plan_id: Optional[str] = None
+        plan_id: Optional[str] = None,
     ) -> SimulationEvent:
         """Create merit event with HCE impact tracking"""
 
         payload = MeritPayload(
             new_compensation=new_compensation,
             merit_percentage=merit_percentage,
-            plan_id=plan_id
+            plan_id=plan_id,
         )
 
         return SimulationEvent(
@@ -549,7 +563,7 @@ class WorkforceEventFactory(EventFactory):
             plan_design_id=plan_design_id,
             effective_date=effective_date,
             source_system="workforce_simulation",
-            payload=payload
+            payload=payload,
         )
 
 
@@ -564,7 +578,7 @@ class DCPlanEventFactory(EventFactory):
         plan_design_id: str,
         eligible: bool,
         eligibility_date: date,
-        reason: Literal["age_and_service", "immediate", "hours_requirement", "rehire"]
+        reason: Literal["age_and_service", "immediate", "hours_requirement", "rehire"],
     ) -> SimulationEvent:
         """Create eligibility event for plan participation tracking"""
 
@@ -572,7 +586,7 @@ class DCPlanEventFactory(EventFactory):
             plan_id=plan_id,
             eligible=eligible,
             eligibility_date=eligibility_date,
-            reason=reason
+            reason=reason,
         )
 
         return SimulationEvent(
@@ -581,7 +595,7 @@ class DCPlanEventFactory(EventFactory):
             plan_design_id=plan_design_id,
             effective_date=eligibility_date,
             source_system="dc_plan_administration",
-            payload=payload
+            payload=payload,
         )
 
     @staticmethod
@@ -593,14 +607,14 @@ class DCPlanEventFactory(EventFactory):
         enrollment_date: date,
         pre_tax_contribution_rate: Decimal,
         roth_contribution_rate: Decimal,
-        after_tax_contribution_rate: Decimal = Decimal('0'),
+        after_tax_contribution_rate: Decimal = Decimal("0"),
         auto_enrollment: bool = False,
         opt_out_window_expires: Optional[date] = None,
         enrollment_source: Literal["proactive", "auto", "voluntary"] = "voluntary",
         auto_enrollment_window_start: Optional[date] = None,
         auto_enrollment_window_end: Optional[date] = None,
         proactive_enrollment_eligible: bool = False,
-        window_timing_compliant: bool = True
+        window_timing_compliant: bool = True,
     ) -> SimulationEvent:
         """Create enrollment event for deferral elections"""
 
@@ -616,7 +630,7 @@ class DCPlanEventFactory(EventFactory):
             auto_enrollment_window_start=auto_enrollment_window_start,
             auto_enrollment_window_end=auto_enrollment_window_end,
             proactive_enrollment_eligible=proactive_enrollment_eligible,
-            window_timing_compliant=window_timing_compliant
+            window_timing_compliant=window_timing_compliant,
         )
 
         return SimulationEvent(
@@ -625,7 +639,7 @@ class DCPlanEventFactory(EventFactory):
             plan_design_id=plan_design_id,
             effective_date=enrollment_date,
             source_system="dc_plan_administration",
-            payload=payload
+            payload=payload,
         )
 
     @staticmethod
@@ -635,9 +649,15 @@ class DCPlanEventFactory(EventFactory):
         scenario_id: str,
         plan_design_id: str,
         source: Literal[
-            "employee_pre_tax", "employee_roth", "employee_after_tax", "employee_catch_up",
-            "employer_match", "employer_match_true_up", "employer_nonelective",
-            "employer_profit_sharing", "forfeiture_allocation"
+            "employee_pre_tax",
+            "employee_roth",
+            "employee_after_tax",
+            "employee_catch_up",
+            "employer_match",
+            "employer_match_true_up",
+            "employer_nonelective",
+            "employer_profit_sharing",
+            "forfeiture_allocation",
         ],
         amount: Decimal,
         pay_period_end: date,
@@ -645,7 +665,7 @@ class DCPlanEventFactory(EventFactory):
         ytd_amount: Decimal,
         payroll_id: str,
         irs_limit_applied: bool = False,
-        inferred_value: bool = False
+        inferred_value: bool = False,
     ) -> SimulationEvent:
         """Create contribution event with required audit fields"""
 
@@ -658,7 +678,7 @@ class DCPlanEventFactory(EventFactory):
             ytd_amount=ytd_amount,
             payroll_id=payroll_id,
             irs_limit_applied=irs_limit_applied,
-            inferred_value=inferred_value
+            inferred_value=inferred_value,
         )
 
         return SimulationEvent(
@@ -667,7 +687,7 @@ class DCPlanEventFactory(EventFactory):
             plan_design_id=plan_design_id,
             effective_date=contribution_date,
             source_system="dc_plan_administration",
-            payload=payload
+            payload=payload,
         )
 
     @staticmethod
@@ -678,13 +698,15 @@ class DCPlanEventFactory(EventFactory):
         plan_design_id: str,
         vested_percentage: Decimal,
         source_balances_vested: Dict[
-            Literal["employer_match", "employer_nonelective", "employer_profit_sharing"],
-            Decimal
+            Literal[
+                "employer_match", "employer_nonelective", "employer_profit_sharing"
+            ],
+            Decimal,
         ],
         vesting_schedule_type: Literal["graded", "cliff", "immediate"],
         service_computation_date: date,
         service_credited_hours: int,
-        service_period_end_date: date
+        service_period_end_date: date,
     ) -> SimulationEvent:
         """Create vesting event with service hour tracking"""
 
@@ -695,7 +717,7 @@ class DCPlanEventFactory(EventFactory):
             vesting_schedule_type=vesting_schedule_type,
             service_computation_date=service_computation_date,
             service_credited_hours=service_credited_hours,
-            service_period_end_date=service_period_end_date
+            service_period_end_date=service_period_end_date,
         )
 
         return SimulationEvent(
@@ -704,7 +726,7 @@ class DCPlanEventFactory(EventFactory):
             plan_design_id=plan_design_id,
             effective_date=service_computation_date,
             source_system="dc_plan_administration",
-            payload=payload
+            payload=payload,
         )
 
     @staticmethod
@@ -719,7 +741,7 @@ class DCPlanEventFactory(EventFactory):
         window_duration_days: int,
         default_deferral_rate: Decimal,
         eligible_for_proactive: bool = True,
-        proactive_window_end: Optional[date] = None
+        proactive_window_end: Optional[date] = None,
     ) -> SimulationEvent:
         """Create auto-enrollment window lifecycle event"""
 
@@ -731,16 +753,18 @@ class DCPlanEventFactory(EventFactory):
             window_duration_days=window_duration_days,
             default_deferral_rate=default_deferral_rate,
             eligible_for_proactive=eligible_for_proactive,
-            proactive_window_end=proactive_window_end
+            proactive_window_end=proactive_window_end,
         )
 
         return SimulationEvent(
             employee_id=employee_id,
             scenario_id=scenario_id,
             plan_design_id=plan_design_id,
-            effective_date=window_start_date if window_action == "opened" else window_end_date,
+            effective_date=window_start_date
+            if window_action == "opened"
+            else window_end_date,
             source_system="auto_enrollment_engine",
-            payload=payload
+            payload=payload,
         )
 
     @staticmethod
@@ -752,15 +776,18 @@ class DCPlanEventFactory(EventFactory):
         effective_date: date,
         change_type: Literal["opt_out", "rate_change", "source_change", "cancellation"],
         change_reason: Literal[
-            "employee_opt_out", "plan_amendment", "compliance_correction", "system_correction"
+            "employee_opt_out",
+            "plan_amendment",
+            "compliance_correction",
+            "system_correction",
         ],
         new_pre_tax_rate: Decimal,
-        new_roth_rate: Decimal = Decimal('0'),
+        new_roth_rate: Decimal = Decimal("0"),
         previous_enrollment_date: Optional[date] = None,
         previous_pre_tax_rate: Optional[Decimal] = None,
         previous_roth_rate: Optional[Decimal] = None,
         within_opt_out_window: bool = False,
-        penalty_applied: bool = False
+        penalty_applied: bool = False,
     ) -> SimulationEvent:
         """Create enrollment change event for opt-outs and modifications"""
 
@@ -774,7 +801,7 @@ class DCPlanEventFactory(EventFactory):
             previous_pre_tax_rate=previous_pre_tax_rate,
             previous_roth_rate=previous_roth_rate,
             within_opt_out_window=within_opt_out_window,
-            penalty_applied=penalty_applied
+            penalty_applied=penalty_applied,
         )
 
         return SimulationEvent(
@@ -783,7 +810,7 @@ class DCPlanEventFactory(EventFactory):
             plan_design_id=plan_design_id,
             effective_date=effective_date,
             source_system="enrollment_change_processing",
-            payload=payload
+            payload=payload,
         )
 
 
@@ -848,7 +875,7 @@ class PlanAdministrationEventFactory(EventFactory):
         amount: Decimal,
         reason: Literal["unvested_termination", "break_in_service"],
         vested_percentage: Decimal,
-        effective_date: date
+        effective_date: date,
     ) -> SimulationEvent:
         """Create forfeiture event for unvested contributions"""
 
@@ -857,7 +884,7 @@ class PlanAdministrationEventFactory(EventFactory):
             forfeited_from_source=forfeited_from_source,
             amount=amount,
             reason=reason,
-            vested_percentage=vested_percentage
+            vested_percentage=vested_percentage,
         )
 
         return SimulationEvent(
@@ -866,7 +893,7 @@ class PlanAdministrationEventFactory(EventFactory):
             plan_design_id=plan_design_id,
             effective_date=effective_date,
             source_system="plan_administration",
-            payload=payload
+            payload=payload,
         )
 
     @staticmethod
@@ -881,7 +908,7 @@ class PlanAdministrationEventFactory(EventFactory):
         hce_threshold: Decimal,
         is_hce: bool,
         determination_date: date,
-        prior_year_hce: Optional[bool] = None
+        prior_year_hce: Optional[bool] = None,
     ) -> SimulationEvent:
         """Create HCE status determination event"""
 
@@ -893,7 +920,7 @@ class PlanAdministrationEventFactory(EventFactory):
             hce_threshold=hce_threshold,
             is_hce=is_hce,
             determination_date=determination_date,
-            prior_year_hce=prior_year_hce
+            prior_year_hce=prior_year_hce,
         )
 
         return SimulationEvent(
@@ -902,7 +929,7 @@ class PlanAdministrationEventFactory(EventFactory):
             plan_design_id=plan_design_id,
             effective_date=determination_date,
             source_system="hce_determination",
-            payload=payload
+            payload=payload,
         )
 
     @staticmethod
@@ -911,11 +938,13 @@ class PlanAdministrationEventFactory(EventFactory):
         plan_id: str,
         scenario_id: str,
         plan_design_id: str,
-        compliance_type: Literal["402g_limit_approach", "415c_limit_approach", "catch_up_eligible"],
+        compliance_type: Literal[
+            "402g_limit_approach", "415c_limit_approach", "catch_up_eligible"
+        ],
         limit_type: Literal["elective_deferral", "annual_additions", "catch_up"],
         applicable_limit: Decimal,
         current_amount: Decimal,
-        monitoring_date: date
+        monitoring_date: date,
     ) -> SimulationEvent:
         """Create compliance monitoring event for limit tracking"""
 
@@ -925,7 +954,7 @@ class PlanAdministrationEventFactory(EventFactory):
             limit_type=limit_type,
             applicable_limit=applicable_limit,
             current_amount=current_amount,
-            monitoring_date=monitoring_date
+            monitoring_date=monitoring_date,
         )
 
         return SimulationEvent(
@@ -934,7 +963,7 @@ class PlanAdministrationEventFactory(EventFactory):
             plan_design_id=plan_design_id,
             effective_date=monitoring_date,
             source_system="compliance_monitoring",
-            payload=payload
+            payload=payload,
         )
 
 

@@ -12,21 +12,20 @@ Target: Ensure S031-01 maintains full backward compatibility
 """
 
 import os
+# Import system under test
+import sys
 import tempfile
 import unittest
 from pathlib import Path
 from unittest.mock import Mock, patch
+
 import yaml
 
-# Import system under test
-import sys
 sys.path.insert(0, str(Path(__file__).parent.parent.parent / "orchestrator_dbt"))
 
-from run_multi_year import (
-    validate_configuration,
-    load_and_validate_config,
-    test_configuration_compatibility
-)
+from run_multi_year import (load_and_validate_config,
+                            test_configuration_compatibility,
+                            validate_configuration)
 
 
 class TestConfigurationValidation(unittest.TestCase):
@@ -35,15 +34,13 @@ class TestConfigurationValidation(unittest.TestCase):
     def test_validate_minimal_valid_configuration(self):
         """Test validation of minimal valid configuration."""
         minimal_config = {
-            'simulation': {
-                'start_year': 2025,
-                'end_year': 2027,
-                'target_growth_rate': 0.03
+            "simulation": {
+                "start_year": 2025,
+                "end_year": 2027,
+                "target_growth_rate": 0.03,
             },
-            'workforce': {
-                'total_termination_rate': 0.12
-            },
-            'random_seed': 42
+            "workforce": {"total_termination_rate": 0.12},
+            "random_seed": 42,
         }
 
         is_valid, errors = validate_configuration(minimal_config)
@@ -54,65 +51,62 @@ class TestConfigurationValidation(unittest.TestCase):
     def test_validate_comprehensive_configuration(self):
         """Test validation of comprehensive configuration matching production usage."""
         comprehensive_config = {
-            'simulation': {
-                'start_year': 2025,
-                'end_year': 2030,
-                'target_growth_rate': 0.035
+            "simulation": {
+                "start_year": 2025,
+                "end_year": 2030,
+                "target_growth_rate": 0.035,
             },
-            'workforce': {
-                'total_termination_rate': 0.15,
-                'new_hire_termination_rate': 0.28,
-                'voluntary_termination_rate': 0.10,
-                'involuntary_termination_rate': 0.05
+            "workforce": {
+                "total_termination_rate": 0.15,
+                "new_hire_termination_rate": 0.28,
+                "voluntary_termination_rate": 0.10,
+                "involuntary_termination_rate": 0.05,
             },
-            'eligibility': {
-                'waiting_period_days': 90,
-                'min_hours_per_week': 20,
-                'min_age': 18,
-                'max_age': 65,
-                'service_requirement_months': 12
+            "eligibility": {
+                "waiting_period_days": 90,
+                "min_hours_per_week": 20,
+                "min_age": 18,
+                "max_age": 65,
+                "service_requirement_months": 12,
             },
-            'enrollment': {
-                'auto_enrollment': {
-                    'hire_date_cutoff': '2023-01-01',
-                    'scope': 'all_eligible',
-                    'default_deferral_rate': 0.06,
-                    'auto_escalation': True,
-                    'escalation_rate': 0.01,
-                    'max_escalation_rate': 0.15
+            "enrollment": {
+                "auto_enrollment": {
+                    "hire_date_cutoff": "2023-01-01",
+                    "scope": "all_eligible",
+                    "default_deferral_rate": 0.06,
+                    "auto_escalation": True,
+                    "escalation_rate": 0.01,
+                    "max_escalation_rate": 0.15,
                 },
-                'opt_out_window_days': 90,
-                'annual_enrollment_window_days': 30
+                "opt_out_window_days": 90,
+                "annual_enrollment_window_days": 30,
             },
-            'compensation': {
-                'cola_rate': 0.028,
-                'merit_pool': 0.035,
-                'promotion_pool': 0.015,
-                'market_adjustment_pool': 0.005,
-                'salary_ranges': {
-                    'min_increase': 0.01,
-                    'max_increase': 0.20
-                }
+            "compensation": {
+                "cola_rate": 0.028,
+                "merit_pool": 0.035,
+                "promotion_pool": 0.015,
+                "market_adjustment_pool": 0.005,
+                "salary_ranges": {"min_increase": 0.01, "max_increase": 0.20},
             },
-            'plan_year': {
-                'start_month': 1,
-                'start_day': 1,
-                'end_month': 12,
-                'end_day': 31
+            "plan_year": {
+                "start_month": 1,
+                "start_day": 1,
+                "end_month": 12,
+                "end_day": 31,
             },
-            'employee_id_generation': {
-                'strategy': 'sequential',
-                'prefix': 'EMP',
-                'start_number': 1000,
-                'padding': 6
+            "employee_id_generation": {
+                "strategy": "sequential",
+                "prefix": "EMP",
+                "start_number": 1000,
+                "padding": 6,
             },
-            'raise_timing': {
-                'distribution': 'realistic',
-                'annual_review_month': 3,
-                'promotion_timing': 'any_time',
-                'cola_timing': 'january'
+            "raise_timing": {
+                "distribution": "realistic",
+                "annual_review_month": 3,
+                "promotion_timing": "any_time",
+                "cola_timing": "january",
             },
-            'random_seed': 42
+            "random_seed": 42,
         }
 
         is_valid, errors = validate_configuration(comprehensive_config)
@@ -124,20 +118,25 @@ class TestConfigurationValidation(unittest.TestCase):
         """Test validation fails with missing required sections."""
         invalid_configs = [
             # Missing simulation section
-            {
-                'workforce': {'total_termination_rate': 0.12},
-                'random_seed': 42
-            },
+            {"workforce": {"total_termination_rate": 0.12}, "random_seed": 42},
             # Missing workforce section
             {
-                'simulation': {'start_year': 2025, 'end_year': 2027, 'target_growth_rate': 0.03},
-                'random_seed': 42
+                "simulation": {
+                    "start_year": 2025,
+                    "end_year": 2027,
+                    "target_growth_rate": 0.03,
+                },
+                "random_seed": 42,
             },
             # Missing random_seed
             {
-                'simulation': {'start_year': 2025, 'end_year': 2027, 'target_growth_rate': 0.03},
-                'workforce': {'total_termination_rate': 0.12}
-            }
+                "simulation": {
+                    "start_year": 2025,
+                    "end_year": 2027,
+                    "target_growth_rate": 0.03,
+                },
+                "workforce": {"total_termination_rate": 0.12},
+            },
         ]
 
         for i, config in enumerate(invalid_configs):
@@ -152,28 +151,32 @@ class TestConfigurationValidation(unittest.TestCase):
         invalid_configs = [
             # Missing start_year
             {
-                'simulation': {'end_year': 2027, 'target_growth_rate': 0.03},
-                'workforce': {'total_termination_rate': 0.12},
-                'random_seed': 42
+                "simulation": {"end_year": 2027, "target_growth_rate": 0.03},
+                "workforce": {"total_termination_rate": 0.12},
+                "random_seed": 42,
             },
             # Missing end_year
             {
-                'simulation': {'start_year': 2025, 'target_growth_rate': 0.03},
-                'workforce': {'total_termination_rate': 0.12},
-                'random_seed': 42
+                "simulation": {"start_year": 2025, "target_growth_rate": 0.03},
+                "workforce": {"total_termination_rate": 0.12},
+                "random_seed": 42,
             },
             # Missing target_growth_rate
             {
-                'simulation': {'start_year': 2025, 'end_year': 2027},
-                'workforce': {'total_termination_rate': 0.12},
-                'random_seed': 42
+                "simulation": {"start_year": 2025, "end_year": 2027},
+                "workforce": {"total_termination_rate": 0.12},
+                "random_seed": 42,
             },
             # Missing total_termination_rate
             {
-                'simulation': {'start_year': 2025, 'end_year': 2027, 'target_growth_rate': 0.03},
-                'workforce': {'new_hire_termination_rate': 0.25},
-                'random_seed': 42
-            }
+                "simulation": {
+                    "start_year": 2025,
+                    "end_year": 2027,
+                    "target_growth_rate": 0.03,
+                },
+                "workforce": {"new_hire_termination_rate": 0.25},
+                "random_seed": 42,
+            },
         ]
 
         for i, config in enumerate(invalid_configs):
@@ -188,28 +191,44 @@ class TestConfigurationValidation(unittest.TestCase):
         invalid_configs = [
             # Invalid year range (end before start)
             {
-                'simulation': {'start_year': 2027, 'end_year': 2025, 'target_growth_rate': 0.03},
-                'workforce': {'total_termination_rate': 0.12},
-                'random_seed': 42
+                "simulation": {
+                    "start_year": 2027,
+                    "end_year": 2025,
+                    "target_growth_rate": 0.03,
+                },
+                "workforce": {"total_termination_rate": 0.12},
+                "random_seed": 42,
             },
             # Invalid growth rate (> 1.0)
             {
-                'simulation': {'start_year': 2025, 'end_year': 2027, 'target_growth_rate': 1.5},
-                'workforce': {'total_termination_rate': 0.12},
-                'random_seed': 42
+                "simulation": {
+                    "start_year": 2025,
+                    "end_year": 2027,
+                    "target_growth_rate": 1.5,
+                },
+                "workforce": {"total_termination_rate": 0.12},
+                "random_seed": 42,
             },
             # Invalid termination rate (negative)
             {
-                'simulation': {'start_year': 2025, 'end_year': 2027, 'target_growth_rate': 0.03},
-                'workforce': {'total_termination_rate': -0.05},
-                'random_seed': 42
+                "simulation": {
+                    "start_year": 2025,
+                    "end_year": 2027,
+                    "target_growth_rate": 0.03,
+                },
+                "workforce": {"total_termination_rate": -0.05},
+                "random_seed": 42,
             },
             # Invalid termination rate (> 1.0)
             {
-                'simulation': {'start_year': 2025, 'end_year': 2027, 'target_growth_rate': 0.03},
-                'workforce': {'total_termination_rate': 1.2},
-                'random_seed': 42
-            }
+                "simulation": {
+                    "start_year": 2025,
+                    "end_year": 2027,
+                    "target_growth_rate": 0.03,
+                },
+                "workforce": {"total_termination_rate": 1.2},
+                "random_seed": 42,
+            },
         ]
 
         for i, config in enumerate(invalid_configs):
@@ -223,18 +242,16 @@ class TestConfigurationValidation(unittest.TestCase):
         """Test validation generates warnings for edge cases."""
         # Large year range should generate warning but still be valid
         warning_config = {
-            'simulation': {
-                'start_year': 2025,
-                'end_year': 2040,  # 15 year range - should generate warning
-                'target_growth_rate': 0.03
+            "simulation": {
+                "start_year": 2025,
+                "end_year": 2040,  # 15 year range - should generate warning
+                "target_growth_rate": 0.03,
             },
-            'workforce': {
-                'total_termination_rate': 0.12
-            },
-            'random_seed': 42
+            "workforce": {"total_termination_rate": 0.12},
+            "random_seed": 42,
         }
 
-        with patch('logging.getLogger') as mock_logger:
+        with patch("logging.getLogger") as mock_logger:
             mock_logger_instance = Mock()
             mock_logger.return_value = mock_logger_instance
 
@@ -246,7 +263,9 @@ class TestConfigurationValidation(unittest.TestCase):
 
             # Check that warning was logged
             mock_logger_instance.warning.assert_called()
-            warning_calls = [call[0][0] for call in mock_logger_instance.warning.call_args_list]
+            warning_calls = [
+                call[0][0] for call in mock_logger_instance.warning.call_args_list
+            ]
             self.assertTrue(any("year range" in call for call in warning_calls))
 
 
@@ -258,37 +277,37 @@ class TestConfigurationLoading(unittest.TestCase):
         config = load_and_validate_config(None)
 
         # Verify default values are present
-        self.assertIn('simulation', config)
-        self.assertIn('workforce', config)
-        self.assertIn('eligibility', config)
-        self.assertIn('enrollment', config)
-        self.assertIn('compensation', config)
-        self.assertIn('random_seed', config)
+        self.assertIn("simulation", config)
+        self.assertIn("workforce", config)
+        self.assertIn("eligibility", config)
+        self.assertIn("enrollment", config)
+        self.assertIn("compensation", config)
+        self.assertIn("random_seed", config)
 
         # Verify specific default values
-        self.assertEqual(config['simulation']['start_year'], 2025)
-        self.assertEqual(config['simulation']['end_year'], 2029)
-        self.assertEqual(config['simulation']['target_growth_rate'], 0.03)
-        self.assertEqual(config['workforce']['total_termination_rate'], 0.12)
-        self.assertEqual(config['random_seed'], 42)
+        self.assertEqual(config["simulation"]["start_year"], 2025)
+        self.assertEqual(config["simulation"]["end_year"], 2029)
+        self.assertEqual(config["simulation"]["target_growth_rate"], 0.03)
+        self.assertEqual(config["workforce"]["total_termination_rate"], 0.12)
+        self.assertEqual(config["random_seed"], 42)
 
     def test_load_configuration_from_file(self):
         """Test loading configuration from YAML file."""
         test_config = {
-            'simulation': {
-                'start_year': 2026,
-                'end_year': 2028,
-                'target_growth_rate': 0.04
+            "simulation": {
+                "start_year": 2026,
+                "end_year": 2028,
+                "target_growth_rate": 0.04,
             },
-            'workforce': {
-                'total_termination_rate': 0.15,
-                'new_hire_termination_rate': 0.30
+            "workforce": {
+                "total_termination_rate": 0.15,
+                "new_hire_termination_rate": 0.30,
             },
-            'custom_field': 'custom_value',
-            'random_seed': 123
+            "custom_field": "custom_value",
+            "random_seed": 123,
         }
 
-        with tempfile.NamedTemporaryFile(mode='w', suffix='.yaml', delete=False) as f:
+        with tempfile.NamedTemporaryFile(mode="w", suffix=".yaml", delete=False) as f:
             yaml.dump(test_config, f)
             config_path = f.name
 
@@ -296,20 +315,20 @@ class TestConfigurationLoading(unittest.TestCase):
             config = load_and_validate_config(config_path)
 
             # Verify file values override defaults
-            self.assertEqual(config['simulation']['start_year'], 2026)
-            self.assertEqual(config['simulation']['end_year'], 2028)
-            self.assertEqual(config['simulation']['target_growth_rate'], 0.04)
-            self.assertEqual(config['workforce']['total_termination_rate'], 0.15)
-            self.assertEqual(config['workforce']['new_hire_termination_rate'], 0.30)
-            self.assertEqual(config['random_seed'], 123)
+            self.assertEqual(config["simulation"]["start_year"], 2026)
+            self.assertEqual(config["simulation"]["end_year"], 2028)
+            self.assertEqual(config["simulation"]["target_growth_rate"], 0.04)
+            self.assertEqual(config["workforce"]["total_termination_rate"], 0.15)
+            self.assertEqual(config["workforce"]["new_hire_termination_rate"], 0.30)
+            self.assertEqual(config["random_seed"], 123)
 
             # Verify custom fields are preserved
-            self.assertEqual(config['custom_field'], 'custom_value')
+            self.assertEqual(config["custom_field"], "custom_value")
 
             # Verify defaults are still present for missing fields
-            self.assertIn('eligibility', config)
-            self.assertIn('enrollment', config)
-            self.assertIn('compensation', config)
+            self.assertIn("eligibility", config)
+            self.assertIn("enrollment", config)
+            self.assertIn("compensation", config)
 
         finally:
             os.unlink(config_path)
@@ -317,24 +336,24 @@ class TestConfigurationLoading(unittest.TestCase):
     def test_load_configuration_deep_merge(self):
         """Test deep merging of nested configuration sections."""
         partial_config = {
-            'simulation': {
-                'start_year': 2026,
+            "simulation": {
+                "start_year": 2026,
                 # Missing end_year and target_growth_rate
             },
-            'workforce': {
-                'total_termination_rate': 0.16
+            "workforce": {
+                "total_termination_rate": 0.16
                 # Missing new_hire_termination_rate
             },
-            'enrollment': {
-                'auto_enrollment': {
-                    'scope': 'new_hires_only'
+            "enrollment": {
+                "auto_enrollment": {
+                    "scope": "new_hires_only"
                     # Missing other auto_enrollment fields
                 }
                 # Missing other enrollment fields
-            }
+            },
         }
 
-        with tempfile.NamedTemporaryFile(mode='w', suffix='.yaml', delete=False) as f:
+        with tempfile.NamedTemporaryFile(mode="w", suffix=".yaml", delete=False) as f:
             yaml.dump(partial_config, f)
             config_path = f.name
 
@@ -342,15 +361,24 @@ class TestConfigurationLoading(unittest.TestCase):
             config = load_and_validate_config(config_path)
 
             # Verify partial overrides work
-            self.assertEqual(config['simulation']['start_year'], 2026)
-            self.assertEqual(config['workforce']['total_termination_rate'], 0.16)
-            self.assertEqual(config['enrollment']['auto_enrollment']['scope'], 'new_hires_only')
+            self.assertEqual(config["simulation"]["start_year"], 2026)
+            self.assertEqual(config["workforce"]["total_termination_rate"], 0.16)
+            self.assertEqual(
+                config["enrollment"]["auto_enrollment"]["scope"], "new_hires_only"
+            )
 
             # Verify defaults fill in missing values
-            self.assertEqual(config['simulation']['end_year'], 2029)  # Default
-            self.assertEqual(config['simulation']['target_growth_rate'], 0.03)  # Default
-            self.assertEqual(config['workforce']['new_hire_termination_rate'], 0.25)  # Default
-            self.assertEqual(config['enrollment']['auto_enrollment']['hire_date_cutoff'], '2024-01-01')  # Default
+            self.assertEqual(config["simulation"]["end_year"], 2029)  # Default
+            self.assertEqual(
+                config["simulation"]["target_growth_rate"], 0.03
+            )  # Default
+            self.assertEqual(
+                config["workforce"]["new_hire_termination_rate"], 0.25
+            )  # Default
+            self.assertEqual(
+                config["enrollment"]["auto_enrollment"]["hire_date_cutoff"],
+                "2024-01-01",
+            )  # Default
 
         finally:
             os.unlink(config_path)
@@ -364,7 +392,7 @@ class TestConfigurationLoading(unittest.TestCase):
           invalid_syntax: [unclosed bracket
         """
 
-        with tempfile.NamedTemporaryFile(mode='w', suffix='.yaml', delete=False) as f:
+        with tempfile.NamedTemporaryFile(mode="w", suffix=".yaml", delete=False) as f:
             f.write(invalid_yaml_content)
             config_path = f.name
 
@@ -373,23 +401,25 @@ class TestConfigurationLoading(unittest.TestCase):
             config = load_and_validate_config(config_path)
 
             # Should have default values
-            self.assertEqual(config['simulation']['start_year'], 2025)
-            self.assertEqual(config['simulation']['end_year'], 2029)  # Default, not from invalid file
+            self.assertEqual(config["simulation"]["start_year"], 2025)
+            self.assertEqual(
+                config["simulation"]["end_year"], 2029
+            )  # Default, not from invalid file
 
         finally:
             os.unlink(config_path)
 
     def test_load_configuration_nonexistent_file(self):
         """Test handling of nonexistent configuration files."""
-        nonexistent_path = '/nonexistent/path/to/config.yaml'
+        nonexistent_path = "/nonexistent/path/to/config.yaml"
 
         # Should fall back to defaults without error
         config = load_and_validate_config(nonexistent_path)
 
         # Should have default values
-        self.assertEqual(config['simulation']['start_year'], 2025)
-        self.assertEqual(config['simulation']['end_year'], 2029)
-        self.assertEqual(config['random_seed'], 42)
+        self.assertEqual(config["simulation"]["start_year"], 2025)
+        self.assertEqual(config["simulation"]["end_year"], 2029)
+        self.assertEqual(config["random_seed"], 42)
 
 
 class TestBackwardCompatibility(unittest.TestCase):
@@ -399,28 +429,26 @@ class TestBackwardCompatibility(unittest.TestCase):
         """Test compatibility with existing simulation_config.yaml format."""
         # This represents the actual format used in the existing system
         existing_format = {
-            'simulation': {
-                'start_year': 2025,
-                'end_year': 2029,
-                'target_growth_rate': 0.03,
-                'random_seed': 42
+            "simulation": {
+                "start_year": 2025,
+                "end_year": 2029,
+                "target_growth_rate": 0.03,
+                "random_seed": 42,
             },
-            'workforce': {
-                'total_termination_rate': 0.12,
-                'new_hire_termination_rate': 0.25
+            "workforce": {
+                "total_termination_rate": 0.12,
+                "new_hire_termination_rate": 0.25,
             },
-            'eligibility': {
-                'waiting_period_days': 365
-            },
-            'enrollment': {
-                'auto_enrollment': {
-                    'hire_date_cutoff': '2024-01-01',
-                    'scope': 'new_hires_only'
+            "eligibility": {"waiting_period_days": 365},
+            "enrollment": {
+                "auto_enrollment": {
+                    "hire_date_cutoff": "2024-01-01",
+                    "scope": "new_hires_only",
                 }
-            }
+            },
         }
 
-        with tempfile.NamedTemporaryFile(mode='w', suffix='.yaml', delete=False) as f:
+        with tempfile.NamedTemporaryFile(mode="w", suffix=".yaml", delete=False) as f:
             yaml.dump(existing_format, f)
             config_path = f.name
 
@@ -429,14 +457,19 @@ class TestBackwardCompatibility(unittest.TestCase):
             config = load_and_validate_config(config_path)
 
             # Verify all existing values are preserved
-            self.assertEqual(config['simulation']['start_year'], 2025)
-            self.assertEqual(config['simulation']['end_year'], 2029)
-            self.assertEqual(config['simulation']['target_growth_rate'], 0.03)
-            self.assertEqual(config['workforce']['total_termination_rate'], 0.12)
-            self.assertEqual(config['workforce']['new_hire_termination_rate'], 0.25)
-            self.assertEqual(config['eligibility']['waiting_period_days'], 365)
-            self.assertEqual(config['enrollment']['auto_enrollment']['hire_date_cutoff'], '2024-01-01')
-            self.assertEqual(config['enrollment']['auto_enrollment']['scope'], 'new_hires_only')
+            self.assertEqual(config["simulation"]["start_year"], 2025)
+            self.assertEqual(config["simulation"]["end_year"], 2029)
+            self.assertEqual(config["simulation"]["target_growth_rate"], 0.03)
+            self.assertEqual(config["workforce"]["total_termination_rate"], 0.12)
+            self.assertEqual(config["workforce"]["new_hire_termination_rate"], 0.25)
+            self.assertEqual(config["eligibility"]["waiting_period_days"], 365)
+            self.assertEqual(
+                config["enrollment"]["auto_enrollment"]["hire_date_cutoff"],
+                "2024-01-01",
+            )
+            self.assertEqual(
+                config["enrollment"]["auto_enrollment"]["scope"], "new_hires_only"
+            )
 
             # Should validate successfully
             is_valid, errors = validate_configuration(config)
@@ -449,19 +482,17 @@ class TestBackwardCompatibility(unittest.TestCase):
     def test_legacy_nested_random_seed_format(self):
         """Test handling of legacy format where random_seed was nested in simulation."""
         legacy_format = {
-            'simulation': {
-                'start_year': 2025,
-                'end_year': 2027,
-                'target_growth_rate': 0.03,
-                'random_seed': 12345  # Legacy location
+            "simulation": {
+                "start_year": 2025,
+                "end_year": 2027,
+                "target_growth_rate": 0.03,
+                "random_seed": 12345,  # Legacy location
             },
-            'workforce': {
-                'total_termination_rate': 0.12
-            }
+            "workforce": {"total_termination_rate": 0.12}
             # No top-level random_seed
         }
 
-        with tempfile.NamedTemporaryFile(mode='w', suffix='.yaml', delete=False) as f:
+        with tempfile.NamedTemporaryFile(mode="w", suffix=".yaml", delete=False) as f:
             yaml.dump(legacy_format, f)
             config_path = f.name
 
@@ -470,7 +501,7 @@ class TestBackwardCompatibility(unittest.TestCase):
 
             # Should handle both locations gracefully
             # Either preserve nested or move to top-level, or use default
-            self.assertIn('random_seed', config)
+            self.assertIn("random_seed", config)
 
             # Should still validate
             is_valid, errors = validate_configuration(config)
@@ -483,18 +514,16 @@ class TestBackwardCompatibility(unittest.TestCase):
     def test_minimal_legacy_configuration(self):
         """Test minimal legacy configuration with only required fields."""
         minimal_legacy = {
-            'simulation': {
-                'start_year': 2025,
-                'end_year': 2027,
-                'target_growth_rate': 0.03
+            "simulation": {
+                "start_year": 2025,
+                "end_year": 2027,
+                "target_growth_rate": 0.03,
             },
-            'workforce': {
-                'total_termination_rate': 0.12
-            }
+            "workforce": {"total_termination_rate": 0.12}
             # Missing many optional fields that have defaults
         }
 
-        with tempfile.NamedTemporaryFile(mode='w', suffix='.yaml', delete=False) as f:
+        with tempfile.NamedTemporaryFile(mode="w", suffix=".yaml", delete=False) as f:
             yaml.dump(minimal_legacy, f)
             config_path = f.name
 
@@ -502,10 +531,10 @@ class TestBackwardCompatibility(unittest.TestCase):
             config = load_and_validate_config(config_path)
 
             # Should add defaults for missing sections
-            self.assertIn('eligibility', config)
-            self.assertIn('enrollment', config)
-            self.assertIn('compensation', config)
-            self.assertIn('random_seed', config)
+            self.assertIn("eligibility", config)
+            self.assertIn("enrollment", config)
+            self.assertIn("compensation", config)
+            self.assertIn("random_seed", config)
 
             # Should validate successfully
             is_valid, errors = validate_configuration(config)
@@ -519,33 +548,31 @@ class TestBackwardCompatibility(unittest.TestCase):
 class TestSystemCompatibility(unittest.TestCase):
     """Test compatibility across new and legacy systems."""
 
-    @patch('orchestrator_dbt.run_multi_year.MVP_AVAILABLE', True)
-    @patch('orchestrator_dbt.run_multi_year.MultiYearSimulationOrchestrator')
+    @patch("orchestrator_dbt.run_multi_year.MVP_AVAILABLE", True)
+    @patch("orchestrator_dbt.run_multi_year.MultiYearSimulationOrchestrator")
     def test_configuration_compatibility_success(self, mock_mvp_orchestrator):
         """Test successful configuration compatibility across systems."""
         compatible_config = {
-            'simulation': {
-                'start_year': 2025,
-                'end_year': 2027,
-                'target_growth_rate': 0.03
+            "simulation": {
+                "start_year": 2025,
+                "end_year": 2027,
+                "target_growth_rate": 0.03,
             },
-            'workforce': {
-                'total_termination_rate': 0.12,
-                'new_hire_termination_rate': 0.25
+            "workforce": {
+                "total_termination_rate": 0.12,
+                "new_hire_termination_rate": 0.25,
             },
-            'eligibility': {
-                'waiting_period_days': 365
-            },
-            'enrollment': {
-                'auto_enrollment': {
-                    'hire_date_cutoff': '2024-01-01',
-                    'scope': 'new_hires_only'
+            "eligibility": {"waiting_period_days": 365},
+            "enrollment": {
+                "auto_enrollment": {
+                    "hire_date_cutoff": "2024-01-01",
+                    "scope": "new_hires_only",
                 }
             },
-            'random_seed': 42
+            "random_seed": 42,
         }
 
-        with tempfile.NamedTemporaryFile(mode='w', suffix='.yaml', delete=False) as f:
+        with tempfile.NamedTemporaryFile(mode="w", suffix=".yaml", delete=False) as f:
             yaml.dump(compatible_config, f)
             config_path = f.name
 
@@ -556,77 +583,79 @@ class TestSystemCompatibility(unittest.TestCase):
             result = test_configuration_compatibility(config_path)
 
             # Should be compatible with both systems
-            self.assertTrue(result['config_valid'])
-            self.assertTrue(result['new_system_compatible'])
-            self.assertTrue(result['legacy_compatible'])
-            self.assertEqual(len(result['issues']), 0)
+            self.assertTrue(result["config_valid"])
+            self.assertTrue(result["new_system_compatible"])
+            self.assertTrue(result["legacy_compatible"])
+            self.assertEqual(len(result["issues"]), 0)
 
             # Should have positive recommendations
-            self.assertIn('recommendations', result)
-            self.assertGreater(len(result['recommendations']), 0)
+            self.assertIn("recommendations", result)
+            self.assertGreater(len(result["recommendations"]), 0)
 
         finally:
             os.unlink(config_path)
 
-    @patch('orchestrator_dbt.run_multi_year.MVP_AVAILABLE', True)
-    @patch('orchestrator_dbt.run_multi_year.MultiYearSimulationOrchestrator')
+    @patch("orchestrator_dbt.run_multi_year.MVP_AVAILABLE", True)
+    @patch("orchestrator_dbt.run_multi_year.MultiYearSimulationOrchestrator")
     def test_configuration_compatibility_legacy_failure(self, mock_mvp_orchestrator):
         """Test handling of legacy system incompatibility."""
         # Configuration that new system accepts but legacy system rejects
         new_format_config = {
-            'simulation': {
-                'start_year': 2025,
-                'end_year': 2027,
-                'target_growth_rate': 0.03
+            "simulation": {
+                "start_year": 2025,
+                "end_year": 2027,
+                "target_growth_rate": 0.03,
             },
-            'workforce': {
-                'total_termination_rate': 0.12
+            "workforce": {"total_termination_rate": 0.12},
+            "advanced_features": {  # New feature not supported by legacy
+                "parallel_processing": True,
+                "memory_optimization": "high",
             },
-            'advanced_features': {  # New feature not supported by legacy
-                'parallel_processing': True,
-                'memory_optimization': 'high'
-            },
-            'random_seed': 42
+            "random_seed": 42,
         }
 
-        with tempfile.NamedTemporaryFile(mode='w', suffix='.yaml', delete=False) as f:
+        with tempfile.NamedTemporaryFile(mode="w", suffix=".yaml", delete=False) as f:
             yaml.dump(new_format_config, f)
             config_path = f.name
 
         try:
             # Mock MVP orchestrator to reject new format
-            mock_mvp_orchestrator.side_effect = Exception("Unknown configuration field: advanced_features")
+            mock_mvp_orchestrator.side_effect = Exception(
+                "Unknown configuration field: advanced_features"
+            )
 
             result = test_configuration_compatibility(config_path)
 
             # Should be compatible with new system but not legacy
-            self.assertTrue(result['config_valid'])
-            self.assertTrue(result['new_system_compatible'])
-            self.assertFalse(result['legacy_compatible'])
+            self.assertTrue(result["config_valid"])
+            self.assertTrue(result["new_system_compatible"])
+            self.assertFalse(result["legacy_compatible"])
 
             # Should have issues reported
-            self.assertGreater(len(result['issues']), 0)
-            self.assertTrue(any("Legacy compatibility issue" in issue for issue in result['issues']))
+            self.assertGreater(len(result["issues"]), 0)
+            self.assertTrue(
+                any("Legacy compatibility issue" in issue for issue in result["issues"])
+            )
 
         finally:
             os.unlink(config_path)
 
-    @patch('orchestrator_dbt.run_multi_year.MVP_AVAILABLE', False)
-    def test_configuration_compatibility_no_mvp(self, ):
+    @patch("orchestrator_dbt.run_multi_year.MVP_AVAILABLE", False)
+    def test_configuration_compatibility_no_mvp(
+        self,
+    ):
         """Test configuration compatibility when MVP is not available."""
         test_config = {
-            'simulation': {
-                'start_year': 2025,
-                'end_year': 2027,
-                'target_growth_rate': 0.03
+            "simulation": {
+                "start_year": 2025,
+                "end_year": 2027,
+                "target_growth_rate": 0.03,
             },
-            'workforce': {
-                'total_termination_rate': 0.12
-            },
-            'random_seed': 42
+            "workforce": {"total_termination_rate": 0.12},
+            "random_seed": 42,
         }
 
-        with tempfile.NamedTemporaryFile(mode='w', suffix='.yaml', delete=False) as f:
+        with tempfile.NamedTemporaryFile(mode="w", suffix=".yaml", delete=False) as f:
             yaml.dump(test_config, f)
             config_path = f.name
 
@@ -634,14 +663,16 @@ class TestSystemCompatibility(unittest.TestCase):
             result = test_configuration_compatibility(config_path)
 
             # Should be compatible with new system
-            self.assertTrue(result['config_valid'])
-            self.assertTrue(result['new_system_compatible'])
+            self.assertTrue(result["config_valid"])
+            self.assertTrue(result["new_system_compatible"])
 
             # Legacy compatibility should be false when MVP not available
-            self.assertFalse(result['legacy_compatible'])
+            self.assertFalse(result["legacy_compatible"])
 
             # Should not have compatibility issues (since we can't test legacy)
-            legacy_issues = [issue for issue in result['issues'] if "Legacy compatibility" in issue]
+            legacy_issues = [
+                issue for issue in result["issues"] if "Legacy compatibility" in issue
+            ]
             self.assertEqual(len(legacy_issues), 0)
 
         finally:
@@ -656,27 +687,41 @@ class TestEdgeCaseHandling(unittest.TestCase):
         extreme_configs = [
             # Minimal values
             {
-                'simulation': {'start_year': 2025, 'end_year': 2025, 'target_growth_rate': 0.0},
-                'workforce': {'total_termination_rate': 0.0},
-                'random_seed': 1
+                "simulation": {
+                    "start_year": 2025,
+                    "end_year": 2025,
+                    "target_growth_rate": 0.0,
+                },
+                "workforce": {"total_termination_rate": 0.0},
+                "random_seed": 1,
             },
             # Maximum reasonable values
             {
-                'simulation': {'start_year': 2025, 'end_year': 2035, 'target_growth_rate': 0.50},
-                'workforce': {'total_termination_rate': 0.99},
-                'random_seed': 2147483647  # Max 32-bit int
+                "simulation": {
+                    "start_year": 2025,
+                    "end_year": 2035,
+                    "target_growth_rate": 0.50,
+                },
+                "workforce": {"total_termination_rate": 0.99},
+                "random_seed": 2147483647,  # Max 32-bit int
             },
             # Very long time horizons
             {
-                'simulation': {'start_year': 2025, 'end_year': 2050, 'target_growth_rate': 0.02},
-                'workforce': {'total_termination_rate': 0.08},
-                'random_seed': 42
-            }
+                "simulation": {
+                    "start_year": 2025,
+                    "end_year": 2050,
+                    "target_growth_rate": 0.02,
+                },
+                "workforce": {"total_termination_rate": 0.08},
+                "random_seed": 42,
+            },
         ]
 
         for i, config in enumerate(extreme_configs):
             with self.subTest(f"Extreme config {i+1}"):
-                with tempfile.NamedTemporaryFile(mode='w', suffix='.yaml', delete=False) as f:
+                with tempfile.NamedTemporaryFile(
+                    mode="w", suffix=".yaml", delete=False
+                ) as f:
                     yaml.dump(config, f)
                     config_path = f.name
 
@@ -700,23 +745,23 @@ class TestEdgeCaseHandling(unittest.TestCase):
     def test_unicode_and_special_characters(self):
         """Test handling of unicode and special characters in configuration."""
         unicode_config = {
-            'simulation': {
-                'start_year': 2025,
-                'end_year': 2027,
-                'target_growth_rate': 0.03
+            "simulation": {
+                "start_year": 2025,
+                "end_year": 2027,
+                "target_growth_rate": 0.03,
             },
-            'workforce': {
-                'total_termination_rate': 0.12
+            "workforce": {"total_termination_rate": 0.12},
+            "metadata": {
+                "description": "Test configuration with unicode: ñáëïöü 中文 🚀",
+                "author": "Tëst Ürér",
+                "notes": ["Special chars: @#$%^&*()", "Unicode: αβγδε"],
             },
-            'metadata': {
-                'description': 'Test configuration with unicode: ñáëïöü 中文 🚀',
-                'author': 'Tëst Ürér',
-                'notes': ['Special chars: @#$%^&*()', 'Unicode: αβγδε']
-            },
-            'random_seed': 42
+            "random_seed": 42,
         }
 
-        with tempfile.NamedTemporaryFile(mode='w', suffix='.yaml', delete=False, encoding='utf-8') as f:
+        with tempfile.NamedTemporaryFile(
+            mode="w", suffix=".yaml", delete=False, encoding="utf-8"
+        ) as f:
             yaml.dump(unicode_config, f, allow_unicode=True)
             config_path = f.name
 
@@ -725,8 +770,11 @@ class TestEdgeCaseHandling(unittest.TestCase):
             config = load_and_validate_config(config_path)
 
             # Verify unicode data is preserved
-            self.assertEqual(config['metadata']['description'], 'Test configuration with unicode: ñáëïöü 中文 🚀')
-            self.assertEqual(config['metadata']['author'], 'Tëst Ürér')
+            self.assertEqual(
+                config["metadata"]["description"],
+                "Test configuration with unicode: ñáëïöü 中文 🚀",
+            )
+            self.assertEqual(config["metadata"]["author"], "Tëst Ürér")
 
             # Should still validate
             is_valid, errors = validate_configuration(config)
@@ -738,44 +786,44 @@ class TestEdgeCaseHandling(unittest.TestCase):
     def test_deeply_nested_configuration(self):
         """Test handling of deeply nested configuration structures."""
         nested_config = {
-            'simulation': {
-                'start_year': 2025,
-                'end_year': 2027,
-                'target_growth_rate': 0.03,
-                'advanced': {
-                    'optimization': {
-                        'level': 'high',
-                        'parameters': {
-                            'batch_size': 1000,
-                            'workers': 4,
-                            'memory': {
-                                'compression': True,
-                                'cache_size': '256MB',
-                                'gc_threshold': 0.8
-                            }
-                        }
+            "simulation": {
+                "start_year": 2025,
+                "end_year": 2027,
+                "target_growth_rate": 0.03,
+                "advanced": {
+                    "optimization": {
+                        "level": "high",
+                        "parameters": {
+                            "batch_size": 1000,
+                            "workers": 4,
+                            "memory": {
+                                "compression": True,
+                                "cache_size": "256MB",
+                                "gc_threshold": 0.8,
+                            },
+                        },
                     }
-                }
+                },
             },
-            'workforce': {
-                'total_termination_rate': 0.12,
-                'segmentation': {
-                    'by_department': {
-                        'engineering': {'termination_rate': 0.08},
-                        'sales': {'termination_rate': 0.15},
-                        'support': {'termination_rate': 0.12}
+            "workforce": {
+                "total_termination_rate": 0.12,
+                "segmentation": {
+                    "by_department": {
+                        "engineering": {"termination_rate": 0.08},
+                        "sales": {"termination_rate": 0.15},
+                        "support": {"termination_rate": 0.12},
                     },
-                    'by_level': {
-                        'junior': {'termination_rate': 0.18},
-                        'senior': {'termination_rate': 0.10},
-                        'executive': {'termination_rate': 0.05}
-                    }
-                }
+                    "by_level": {
+                        "junior": {"termination_rate": 0.18},
+                        "senior": {"termination_rate": 0.10},
+                        "executive": {"termination_rate": 0.05},
+                    },
+                },
             },
-            'random_seed': 42
+            "random_seed": 42,
         }
 
-        with tempfile.NamedTemporaryFile(mode='w', suffix='.yaml', delete=False) as f:
+        with tempfile.NamedTemporaryFile(mode="w", suffix=".yaml", delete=False) as f:
             yaml.dump(nested_config, f)
             config_path = f.name
 
@@ -784,12 +832,28 @@ class TestEdgeCaseHandling(unittest.TestCase):
             config = load_and_validate_config(config_path)
 
             # Verify nested data is accessible
-            self.assertEqual(config['simulation']['advanced']['optimization']['level'], 'high')
-            self.assertEqual(config['simulation']['advanced']['optimization']['parameters']['batch_size'], 1000)
-            self.assertTrue(config['simulation']['advanced']['optimization']['parameters']['memory']['compression'])
+            self.assertEqual(
+                config["simulation"]["advanced"]["optimization"]["level"], "high"
+            )
+            self.assertEqual(
+                config["simulation"]["advanced"]["optimization"]["parameters"][
+                    "batch_size"
+                ],
+                1000,
+            )
+            self.assertTrue(
+                config["simulation"]["advanced"]["optimization"]["parameters"][
+                    "memory"
+                ]["compression"]
+            )
 
             # Verify workforce segmentation
-            self.assertEqual(config['workforce']['segmentation']['by_department']['engineering']['termination_rate'], 0.08)
+            self.assertEqual(
+                config["workforce"]["segmentation"]["by_department"]["engineering"][
+                    "termination_rate"
+                ],
+                0.08,
+            )
 
             # Should still validate core requirements
             is_valid, errors = validate_configuration(config)
@@ -799,5 +863,5 @@ class TestEdgeCaseHandling(unittest.TestCase):
             os.unlink(config_path)
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     unittest.main(verbosity=2)

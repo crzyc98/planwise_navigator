@@ -16,36 +16,38 @@ Error Handling Test Categories:
 Validates proper exception handling, error messages, and system stability.
 """
 
-import pytest
-import pandas as pd
-import numpy as np
-import os
 import json
-import time
-import tempfile
-import threading
-import subprocess
-from pathlib import Path
-from unittest.mock import Mock, patch, MagicMock, side_effect
-from typing import Dict, Any, List, Tuple, Optional
-import warnings
+import os
 import signal
 import sqlite3
-from contextlib import contextmanager
+import subprocess
 import sys
+import tempfile
+import threading
+import time
+import warnings
+from contextlib import contextmanager
+from pathlib import Path
+from typing import Any, Dict, List, Optional, Tuple
+from unittest.mock import MagicMock, Mock, patch, side_effect
+
+import numpy as np
+import pandas as pd
+import pytest
+from orchestrator.optimization.constraint_solver import CompensationOptimizer
+from orchestrator.optimization.evidence_generator import EvidenceGenerator
+from orchestrator.optimization.objective_functions import ObjectiveFunctions
+from orchestrator.optimization.optimization_schemas import (
+    OptimizationError, OptimizationRequest, OptimizationResult)
+from orchestrator.optimization.sensitivity_analysis import SensitivityAnalyzer
 
 # Import components under test
-from streamlit_dashboard.optimization_schemas import (
-    ParameterSchema, get_parameter_schema, get_default_parameters,
-    validate_parameters, assess_parameter_risk, RiskLevel
-)
-from orchestrator.optimization.constraint_solver import CompensationOptimizer
-from orchestrator.optimization.objective_functions import ObjectiveFunctions
-from orchestrator.optimization.sensitivity_analysis import SensitivityAnalyzer
-from orchestrator.optimization.evidence_generator import EvidenceGenerator
-from orchestrator.optimization.optimization_schemas import (
-    OptimizationRequest, OptimizationResult, OptimizationError
-)
+from streamlit_dashboard.optimization_schemas import (ParameterSchema,
+                                                      RiskLevel,
+                                                      assess_parameter_risk,
+                                                      get_default_parameters,
+                                                      get_parameter_schema,
+                                                      validate_parameters)
 
 
 class ErrorScenarioGenerator:
@@ -62,7 +64,7 @@ class ErrorScenarioGenerator:
             ("permission_denied", Exception("Permission denied")),
             ("disk_full", Exception("No space left on device")),
             ("connection_lost", Exception("Connection lost during query")),
-            ("corrupted_database", Exception("Database file is corrupted"))
+            ("corrupted_database", Exception("Database file is corrupted")),
         ]
 
     @staticmethod
@@ -76,7 +78,7 @@ class ErrorScenarioGenerator:
             ("infeasible_solution", "No feasible solution found"),
             ("gradient_failure", "Gradient calculation failed"),
             ("hessian_singular", "Hessian matrix is singular"),
-            ("evaluation_limit", "Maximum function evaluations exceeded")
+            ("evaluation_limit", "Maximum function evaluations exceeded"),
         ]
 
     @staticmethod
@@ -88,9 +90,9 @@ class ErrorScenarioGenerator:
             ("invalid_parameter_type", {"merit_rate_level_1": "not_a_number"}),
             ("missing_required_fields", {"incomplete": "data"}),
             ("negative_values", {"merit_rate_level_1": -0.05}),
-            ("infinity_values", {"merit_rate_level_1": float('inf')}),
-            ("nan_values", {"merit_rate_level_1": float('nan')}),
-            ("extreme_values", {"merit_rate_level_1": 999.99})
+            ("infinity_values", {"merit_rate_level_1": float("inf")}),
+            ("nan_values", {"merit_rate_level_1": float("nan")}),
+            ("extreme_values", {"merit_rate_level_1": 999.99}),
         ]
 
     @staticmethod
@@ -102,7 +104,7 @@ class ErrorScenarioGenerator:
             ("disk_space_error", OSError("No space left on device")),
             ("file_not_found", FileNotFoundError("Configuration file not found")),
             ("process_killed", KeyboardInterrupt("Process interrupted")),
-            ("timeout_error", TimeoutError("Operation timed out"))
+            ("timeout_error", TimeoutError("Operation timed out")),
         ]
 
 
@@ -113,9 +115,13 @@ class TestDatabaseErrorHandling:
         """Setup database error testing."""
         self.mock_duckdb = Mock()
         self.mock_conn = Mock()
-        self.mock_duckdb.get_connection.return_value.__enter__.return_value = self.mock_conn
+        self.mock_duckdb.get_connection.return_value.__enter__.return_value = (
+            self.mock_conn
+        )
 
-    @pytest.mark.parametrize("error_name,error_exception", ErrorScenarioGenerator.database_error_scenarios())
+    @pytest.mark.parametrize(
+        "error_name,error_exception", ErrorScenarioGenerator.database_error_scenarios()
+    )
     def test_database_connection_errors(self, error_name, error_exception):
         """Test handling of database connection errors."""
 
@@ -129,9 +135,13 @@ class TestDatabaseErrorHandling:
             obj_funcs.cost_objective({"merit_rate_level_1": 0.045})
 
         # Error should bubble up appropriately
-        assert str(error_exception) in str(exc_info.value) or type(error_exception).__name__ in str(exc_info.value)
+        assert str(error_exception) in str(exc_info.value) or type(
+            error_exception
+        ).__name__ in str(exc_info.value)
 
-    @pytest.mark.parametrize("error_name,error_exception", ErrorScenarioGenerator.database_error_scenarios())
+    @pytest.mark.parametrize(
+        "error_name,error_exception", ErrorScenarioGenerator.database_error_scenarios()
+    )
     def test_database_query_errors(self, error_name, error_exception):
         """Test handling of database query errors."""
 
@@ -145,7 +155,9 @@ class TestDatabaseErrorHandling:
             obj_funcs.cost_objective({"merit_rate_level_1": 0.045})
 
         # Error should be informative
-        assert str(error_exception) in str(exc_info.value) or type(error_exception).__name__ in str(exc_info.value)
+        assert str(error_exception) in str(exc_info.value) or type(
+            error_exception
+        ).__name__ in str(exc_info.value)
 
     def test_database_lock_handling(self):
         """Test specific handling of database lock scenarios."""
@@ -232,25 +244,30 @@ class TestOptimizationErrorHandling:
         """Setup optimization error testing."""
         self.mock_duckdb = Mock()
         self.mock_conn = Mock()
-        self.mock_duckdb.get_connection.return_value.__enter__.return_value = self.mock_conn
+        self.mock_duckdb.get_connection.return_value.__enter__.return_value = (
+            self.mock_conn
+        )
 
         # Setup successful database responses by default
         self.mock_conn.execute.return_value.fetchone.return_value = [1_000_000.0]
         self.mock_conn.execute.return_value.fetchall.return_value = [(1, 50000, 2500)]
 
-    @pytest.mark.parametrize("error_name,error_message", ErrorScenarioGenerator.optimization_error_scenarios())
+    @pytest.mark.parametrize(
+        "error_name,error_message",
+        ErrorScenarioGenerator.optimization_error_scenarios(),
+    )
     def test_optimization_algorithm_failures(self, error_name, error_message):
         """Test handling of optimization algorithm failures."""
 
         optimizer = CompensationOptimizer(self.mock_duckdb, "opt_error_test")
 
         # Mock scipy optimization failure
-        with patch('scipy.optimize.minimize') as mock_minimize:
+        with patch("scipy.optimize.minimize") as mock_minimize:
             mock_result = Mock()
             mock_result.success = False
             mock_result.message = error_message
             mock_result.x = None
-            mock_result.fun = float('inf')
+            mock_result.fun = float("inf")
             mock_result.nit = 0
             mock_result.nfev = 0
             mock_minimize.return_value = mock_result
@@ -258,7 +275,7 @@ class TestOptimizationErrorHandling:
             request = OptimizationRequest(
                 scenario_id="error_test",
                 initial_parameters=get_default_parameters(),
-                objectives={"cost": 1.0}
+                objectives={"cost": 1.0},
             )
 
             # Should handle optimization failure gracefully
@@ -266,7 +283,10 @@ class TestOptimizationErrorHandling:
 
             # Result should indicate failure
             assert result.converged is False
-            assert error_message.lower() in result.algorithm_used.lower() or not result.converged
+            assert (
+                error_message.lower() in result.algorithm_used.lower()
+                or not result.converged
+            )
 
     def test_objective_function_numerical_errors(self):
         """Test handling of numerical errors in objective functions."""
@@ -276,10 +296,10 @@ class TestOptimizationErrorHandling:
         # Test division by zero scenario
         self.mock_conn.execute.return_value.fetchall.return_value = [
             (1, 50000, 0),  # Zero standard deviation
-            (2, 60000, 0)
+            (2, 60000, 0),
         ]
 
-        with patch.object(obj_funcs, '_update_parameters'):
+        with patch.object(obj_funcs, "_update_parameters"):
             # Should handle division by zero gracefully
             try:
                 equity = obj_funcs.equity_objective({"merit_rate_level_1": 0.045})
@@ -296,7 +316,7 @@ class TestOptimizationErrorHandling:
         # Parameters that violate constraints
         invalid_params = {
             "merit_rate_level_1": 0.15,  # Above maximum
-            "cola_rate": -0.01  # Below minimum
+            "cola_rate": -0.01,  # Below minimum
         }
 
         objectives = {"cost": 1.0}
@@ -322,12 +342,12 @@ class TestOptimizationErrorHandling:
             mock_result.fun = 0.5
             return mock_result
 
-        with patch('scipy.optimize.minimize', side_effect=slow_minimize):
+        with patch("scipy.optimize.minimize", side_effect=slow_minimize):
             request = OptimizationRequest(
                 scenario_id="timeout_test",
                 initial_parameters={"merit_rate_level_1": 0.045},
                 objectives={"cost": 1.0},
-                max_evaluations=10  # Low limit to force quick completion
+                max_evaluations=10,  # Low limit to force quick completion
             )
 
             start_time = time.time()
@@ -351,13 +371,13 @@ class TestOptimizationErrorHandling:
         optimizer = CompensationOptimizer(self.mock_duckdb, "memory_test")
 
         # Mock memory error in optimization
-        with patch('scipy.optimize.minimize') as mock_minimize:
+        with patch("scipy.optimize.minimize") as mock_minimize:
             mock_minimize.side_effect = MemoryError("Unable to allocate memory")
 
             request = OptimizationRequest(
                 scenario_id="memory_test",
                 initial_parameters=get_default_parameters(),
-                objectives={"cost": 1.0}
+                objectives={"cost": 1.0},
             )
 
             # Should handle memory error gracefully
@@ -372,12 +392,14 @@ class TestOptimizationErrorHandling:
         # Mock database returning invalid values
         self.mock_conn.execute.return_value.fetchone.return_value = [None]  # NULL value
 
-        with patch.object(obj_funcs, '_update_parameters'):
+        with patch.object(obj_funcs, "_update_parameters"):
             # Should handle NULL/None values gracefully
             try:
                 cost = obj_funcs.cost_objective({"merit_rate_level_1": 0.045})
                 # Should return reasonable default or raise specific exception
-                assert cost is not None or True  # Either returns value or raises exception
+                assert (
+                    cost is not None or True
+                )  # Either returns value or raises exception
             except (ValueError, TypeError) as e:
                 # Specific handling of invalid values is acceptable
                 assert "None" in str(e) or "null" in str(e).lower()
@@ -390,7 +412,10 @@ class TestInputValidationErrorHandling:
         """Setup input validation testing."""
         self.schema = get_parameter_schema()
 
-    @pytest.mark.parametrize("error_name,invalid_input", ErrorScenarioGenerator.input_validation_error_scenarios())
+    @pytest.mark.parametrize(
+        "error_name,invalid_input",
+        ErrorScenarioGenerator.input_validation_error_scenarios(),
+    )
     def test_invalid_parameter_input_handling(self, error_name, invalid_input):
         """Test handling of invalid parameter inputs."""
 
@@ -403,7 +428,7 @@ class TestInputValidationErrorHandling:
             # Empty parameters should be handled gracefully
             result = self.schema.validate_parameter_set(invalid_input)
             assert isinstance(result, dict)
-            assert 'is_valid' in result
+            assert "is_valid" in result
 
         elif error_name == "invalid_parameter_type":
             # Invalid types should raise appropriate error
@@ -413,7 +438,7 @@ class TestInputValidationErrorHandling:
         else:
             # Other invalid inputs should return validation errors
             result = self.schema.validate_parameter_set(invalid_input)
-            assert not result['is_valid'] or len(result['warnings']) > 0
+            assert not result["is_valid"] or len(result["warnings"]) > 0
 
     def test_malformed_json_configuration(self):
         """Test handling of malformed JSON configuration."""
@@ -423,17 +448,18 @@ class TestInputValidationErrorHandling:
 
         try:
             # Create malformed JSON file
-            with open(malformed_json, 'w') as f:
+            with open(malformed_json, "w") as f:
                 f.write('{"invalid": json, "syntax": error}')
 
             # Should raise appropriate JSON error
             with pytest.raises(json.JSONDecodeError):
-                with open(malformed_json, 'r') as f:
+                with open(malformed_json, "r") as f:
                     json.load(f)
 
         finally:
             # Cleanup
             import shutil
+
             shutil.rmtree(temp_dir, ignore_errors=True)
 
     def test_missing_configuration_files(self):
@@ -443,7 +469,7 @@ class TestInputValidationErrorHandling:
 
         # Should raise appropriate file error
         with pytest.raises(FileNotFoundError):
-            with open(nonexistent_path, 'r') as f:
+            with open(nonexistent_path, "r") as f:
                 f.read()
 
     def test_unicode_encoding_errors(self):
@@ -454,13 +480,13 @@ class TestInputValidationErrorHandling:
 
         try:
             # Create file with problematic encoding
-            with open(unicode_file, 'wb') as f:
+            with open(unicode_file, "wb") as f:
                 f.write(b"parameter_name,value\n")
                 f.write(b"merit_rate_\xff\xfe,0.045\n")  # Invalid UTF-8 sequence
 
             # Should handle encoding errors gracefully
             try:
-                df = pd.read_csv(unicode_file, encoding='utf-8')
+                df = pd.read_csv(unicode_file, encoding="utf-8")
             except UnicodeDecodeError as e:
                 # Expected behavior
                 assert "utf-8" in str(e) or "decode" in str(e)
@@ -468,6 +494,7 @@ class TestInputValidationErrorHandling:
         finally:
             # Cleanup
             import shutil
+
             shutil.rmtree(temp_dir, ignore_errors=True)
 
     def test_parameter_validation_edge_cases(self):
@@ -476,15 +503,12 @@ class TestInputValidationErrorHandling:
         edge_cases = [
             # Very large dictionary
             {f"param_{i}": 0.045 for i in range(10000)},
-
             # Unicode parameter names
             {"paramètre_1": 0.045, "参数_2": 0.040},
-
             # Very long parameter names
             {"very_long_parameter_name_" + "x" * 1000: 0.045},
-
             # Special characters
-            {"param@#$%": 0.045, "param with spaces": 0.040}
+            {"param@#$%": 0.045, "param with spaces": 0.040},
         ]
 
         for i, params in enumerate(edge_cases):
@@ -507,9 +531,13 @@ class TestSystemResourceErrorHandling:
     def teardown_method(self):
         """Cleanup after tests."""
         import shutil
+
         shutil.rmtree(self.temp_dir, ignore_errors=True)
 
-    @pytest.mark.parametrize("error_name,error_exception", ErrorScenarioGenerator.system_resource_error_scenarios())
+    @pytest.mark.parametrize(
+        "error_name,error_exception",
+        ErrorScenarioGenerator.system_resource_error_scenarios(),
+    )
     def test_system_resource_errors(self, error_name, error_exception):
         """Test handling of system resource errors."""
 
@@ -537,14 +565,14 @@ class TestSystemResourceErrorHandling:
             test_file = os.path.join(self.temp_dir, "readonly.txt")
 
             # Create file and remove write permissions
-            with open(test_file, 'w') as f:
+            with open(test_file, "w") as f:
                 f.write("test content")
 
             os.chmod(test_file, 0o444)  # Read-only
 
             # Should raise permission error
             with pytest.raises(PermissionError):
-                with open(test_file, 'w') as f:
+                with open(test_file, "w") as f:
                     f.write("new content")
 
         elif error_name == "timeout_error":
@@ -576,7 +604,7 @@ class TestSystemResourceErrorHandling:
 
         try:
             # Create reasonably large file
-            with open(test_file, 'w') as f:
+            with open(test_file, "w") as f:
                 for i in range(1000):
                     f.write("x" * 1000)  # 1MB total
 
@@ -597,7 +625,7 @@ class TestSystemResourceErrorHandling:
         def file_writer(content):
             """Function to write to file concurrently."""
             try:
-                with open(test_file, 'w') as f:
+                with open(test_file, "w") as f:
                     f.write(content)
                     time.sleep(0.1)  # Hold file briefly
             except Exception as e:
@@ -651,7 +679,9 @@ class TestErrorRecoveryMechanisms:
         self.schema = get_parameter_schema()
         self.mock_duckdb = Mock()
         self.mock_conn = Mock()
-        self.mock_duckdb.get_connection.return_value.__enter__.return_value = self.mock_conn
+        self.mock_duckdb.get_connection.return_value.__enter__.return_value = (
+            self.mock_conn
+        )
 
     def test_graceful_degradation(self):
         """Test graceful degradation when features fail."""
@@ -665,11 +695,11 @@ class TestErrorRecoveryMechanisms:
             except Exception:
                 # Fallback to basic validation
                 basic_result = {
-                    'is_valid': True,
-                    'overall_risk': RiskLevel.MEDIUM,
-                    'warnings': ['Full validation unavailable, using basic validation'],
-                    'errors': [],
-                    'parameter_results': {}
+                    "is_valid": True,
+                    "overall_risk": RiskLevel.MEDIUM,
+                    "warnings": ["Full validation unavailable, using basic validation"],
+                    "errors": [],
+                    "parameter_results": {},
                 }
                 return basic_result
 
@@ -678,7 +708,7 @@ class TestErrorRecoveryMechanisms:
 
         # Should provide some result even if full validation fails
         assert isinstance(result, dict)
-        assert 'is_valid' in result
+        assert "is_valid" in result
 
     def test_fallback_optimization_methods(self):
         """Test fallback to alternative optimization methods."""
@@ -689,10 +719,10 @@ class TestErrorRecoveryMechanisms:
         method_attempts = []
 
         def mock_minimize(*args, **kwargs):
-            method = kwargs.get('method', 'SLSQP')
+            method = kwargs.get("method", "SLSQP")
             method_attempts.append(method)
 
-            if method == 'SLSQP' and len(method_attempts) == 1:
+            if method == "SLSQP" and len(method_attempts) == 1:
                 # First method fails
                 mock_result = Mock()
                 mock_result.success = False
@@ -712,12 +742,12 @@ class TestErrorRecoveryMechanisms:
         request = OptimizationRequest(
             scenario_id="fallback_test",
             initial_parameters={"merit_rate_level_1": 0.045},
-            objectives={"cost": 1.0}
+            objectives={"cost": 1.0},
         )
 
-        methods_to_try = ['SLSQP', 'L-BFGS-B', 'Powell']
+        methods_to_try = ["SLSQP", "L-BFGS-B", "Powell"]
 
-        with patch('scipy.optimize.minimize', side_effect=mock_minimize):
+        with patch("scipy.optimize.minimize", side_effect=mock_minimize):
             for method in methods_to_try:
                 request.method = method
                 result = optimizer.optimize(request)
@@ -737,25 +767,30 @@ class TestErrorRecoveryMechanisms:
         invalid_params = {
             "merit_rate_level_1": 0.15,  # Above maximum
             "cola_rate": -0.01,  # Below minimum
-            "invalid_param": 0.045  # Unknown parameter
+            "invalid_param": 0.045,  # Unknown parameter
         }
 
         validation_result = self.schema.validate_parameter_set(invalid_params)
 
         # Error messages should be specific and helpful
-        errors = validation_result.get('errors', [])
-        warnings = validation_result.get('warnings', [])
+        errors = validation_result.get("errors", [])
+        warnings = validation_result.get("warnings", [])
 
         if errors:
-            error_text = ' '.join(errors).lower()
+            error_text = " ".join(errors).lower()
             # Should mention specific parameter and issue
-            assert any(param in error_text for param in ['merit_rate_level_1', 'cola_rate'])
-            assert any(issue in error_text for issue in ['above', 'below', 'maximum', 'minimum'])
+            assert any(
+                param in error_text for param in ["merit_rate_level_1", "cola_rate"]
+            )
+            assert any(
+                issue in error_text
+                for issue in ["above", "below", "maximum", "minimum"]
+            )
 
         if warnings:
-            warning_text = ' '.join(warnings).lower()
+            warning_text = " ".join(warnings).lower()
             # Should mention unknown parameters
-            assert 'unknown' in warning_text or 'invalid' in warning_text
+            assert "unknown" in warning_text or "invalid" in warning_text
 
     def test_error_logging_and_reporting(self):
         """Test error logging and reporting mechanisms."""
@@ -769,13 +804,13 @@ class TestErrorRecoveryMechanisms:
         # Test logging during optimization failure
         optimizer = CompensationOptimizer(self.mock_duckdb, "logging_test")
 
-        with patch('scipy.optimize.minimize') as mock_minimize:
+        with patch("scipy.optimize.minimize") as mock_minimize:
             mock_minimize.side_effect = Exception("Optimization failed")
 
             request = OptimizationRequest(
                 scenario_id="logging_test",
                 initial_parameters=get_default_parameters(),
-                objectives={"cost": 1.0}
+                objectives={"cost": 1.0},
             )
 
             try:
@@ -810,8 +845,8 @@ class TestErrorRecoveryMechanisms:
         valid_params = get_default_parameters()
         result = schema.validate_parameter_set(valid_params)
 
-        assert result['is_valid']
-        assert isinstance(result['overall_risk'], RiskLevel)
+        assert result["is_valid"]
+        assert isinstance(result["overall_risk"], RiskLevel)
 
     def test_resource_cleanup_after_errors(self):
         """Test proper resource cleanup after errors."""
@@ -824,7 +859,9 @@ class TestErrorRecoveryMechanisms:
             connection_opened[0] = True
             mock_context = Mock()
             mock_context.__enter__ = Mock(return_value=self.mock_conn)
-            mock_context.__exit__ = Mock(side_effect=lambda *args: connection_closed.__setitem__(0, True))
+            mock_context.__exit__ = Mock(
+                side_effect=lambda *args: connection_closed.__setitem__(0, True)
+            )
             return mock_context
 
         self.mock_duckdb.get_connection.side_effect = mock_get_connection
@@ -846,11 +883,15 @@ class TestErrorRecoveryMechanisms:
 
 if __name__ == "__main__":
     # Run error handling tests
-    pytest.main([
-        __file__ + "::TestDatabaseErrorHandling::test_database_connection_errors",
-        __file__ + "::TestOptimizationErrorHandling::test_optimization_algorithm_failures",
-        __file__ + "::TestInputValidationErrorHandling::test_invalid_parameter_input_handling",
-        __file__ + "::TestSystemResourceErrorHandling::test_system_resource_errors",
-        __file__ + "::TestErrorRecoveryMechanisms::test_graceful_degradation",
-        "-v"
-    ])
+    pytest.main(
+        [
+            __file__ + "::TestDatabaseErrorHandling::test_database_connection_errors",
+            __file__
+            + "::TestOptimizationErrorHandling::test_optimization_algorithm_failures",
+            __file__
+            + "::TestInputValidationErrorHandling::test_invalid_parameter_input_handling",
+            __file__ + "::TestSystemResourceErrorHandling::test_system_resource_errors",
+            __file__ + "::TestErrorRecoveryMechanisms::test_graceful_degradation",
+            "-v",
+        ]
+    )

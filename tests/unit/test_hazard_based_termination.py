@@ -9,12 +9,13 @@ termination selection, ensuring:
 - Consistent behavior with promotion selection pattern
 """
 
-import pytest
 from unittest.mock import Mock, patch
-import pandas as pd
-from dagster import OpExecutionContext
 
-from orchestrator.simulator_pipeline import _run_dbt_event_models_for_year_internal
+import pandas as pd
+import pytest
+from dagster import OpExecutionContext
+from orchestrator.simulator_pipeline import \
+    _run_dbt_event_models_for_year_internal
 
 
 class TestHazardBasedTermination:
@@ -155,7 +156,9 @@ class TestHazardBasedTermination:
         mock_duckdb_connect.return_value = mock_conn
 
         # Execute and verify no errors
-        result = _run_dbt_event_models_for_year_internal(mock_context, year, termination_config)
+        result = _run_dbt_event_models_for_year_internal(
+            mock_context, year, termination_config
+        )
 
         # Verify execution completed successfully
         assert result["year"] == year
@@ -181,7 +184,9 @@ class TestHazardBasedTermination:
         mock_duckdb_connect.return_value = mock_conn
 
         # Execute with different rates
-        result = _run_dbt_event_models_for_year_internal(mock_context, year, termination_config)
+        result = _run_dbt_event_models_for_year_internal(
+            mock_context, year, termination_config
+        )
 
         # Verify rate was passed correctly
         termination_call = mock_execute_dbt.call_args_list[0]
@@ -267,7 +272,9 @@ class TestHazardBasedTermination:
         mock_duckdb_connect.return_value = mock_conn
 
         # Execute with standard configuration
-        result = _run_dbt_event_models_for_year_internal(mock_context, year, termination_config)
+        result = _run_dbt_event_models_for_year_internal(
+            mock_context, year, termination_config
+        )
 
         # Verify termination model execution
         termination_call = mock_execute_dbt.call_args_list[0]
@@ -307,7 +314,9 @@ class TestHazardBasedTermination:
         }
 
         # Should execute without errors
-        result = _run_dbt_event_models_for_year_internal(mock_context, year, legacy_config)
+        result = _run_dbt_event_models_for_year_internal(
+            mock_context, year, legacy_config
+        )
         assert result["year"] == year
 
         # Verify termination events model was called

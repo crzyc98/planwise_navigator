@@ -6,16 +6,18 @@ and audit trail management for the DC Plan event schema. It ensures all regulato
 requirements are met and provides documentation for benefits counsel review.
 """
 
-from typing import Dict, List, Optional, Any, Set
-from pydantic import BaseModel, Field, field_validator
-from datetime import date, datetime
-from enum import Enum
-from decimal import Decimal
 import json
+from datetime import date, datetime
+from decimal import Decimal
+from enum import Enum
+from typing import Any, Dict, List, Optional, Set
+
+from pydantic import BaseModel, Field, field_validator
 
 
 class ERISAComplianceLevel(str, Enum):
     """Defines the compliance status levels for ERISA requirements."""
+
     COMPLIANT = "compliant"
     NEEDS_REVIEW = "needs_review"
     NON_COMPLIANT = "non_compliant"
@@ -24,6 +26,7 @@ class ERISAComplianceLevel(str, Enum):
 
 class ERISASection(str, Enum):
     """Enumeration of key ERISA sections relevant to DC plans."""
+
     SECTION_101 = "ERISA Section 101 - Reporting and Disclosure"
     SECTION_102 = "ERISA Section 102 - Summary Plan Description"
     SECTION_103 = "ERISA Section 103 - Annual Reports"
@@ -41,6 +44,7 @@ class ERISASection(str, Enum):
 
 class IRSCode(str, Enum):
     """Enumeration of key IRS code sections for DC plans."""
+
     CODE_401A = "IRC Section 401(a) - Qualified Plans"
     CODE_401K = "IRC Section 401(k) - Cash or Deferred Arrangements"
     CODE_402G = "IRC Section 402(g) - Elective Deferral Limits"
@@ -54,43 +58,77 @@ class IRSCode(str, Enum):
 
 class DataClassification(str, Enum):
     """Data classification levels for sensitive information."""
-    RESTRICTED = "RESTRICTED"      # Highest protection (SSN, DOB)
+
+    RESTRICTED = "RESTRICTED"  # Highest protection (SSN, DOB)
     CONFIDENTIAL = "CONFIDENTIAL"  # High protection (compensation, balances)
-    INTERNAL = "INTERNAL"          # Standard protection (employee ID, dates)
-    PUBLIC = "PUBLIC"              # No special protection (plan name)
+    INTERNAL = "INTERNAL"  # Standard protection (employee ID, dates)
+    PUBLIC = "PUBLIC"  # No special protection (plan name)
 
 
 class ERISARequirement(BaseModel):
     """Defines an individual ERISA compliance requirement."""
-    requirement_id: str = Field(..., description="Unique identifier for the requirement")
+
+    requirement_id: str = Field(
+        ..., description="Unique identifier for the requirement"
+    )
     section_reference: ERISASection = Field(..., description="ERISA section reference")
-    irs_code_reference: Optional[IRSCode] = Field(None, description="Related IRS code section")
+    irs_code_reference: Optional[IRSCode] = Field(
+        None, description="Related IRS code section"
+    )
     description: str = Field(..., description="Description of the requirement")
-    compliance_level: ERISAComplianceLevel = Field(..., description="Current compliance status")
-    event_types_covered: List[str] = Field(..., description="Event types that address this requirement")
-    validation_notes: str = Field(..., description="Notes on how compliance is validated")
+    compliance_level: ERISAComplianceLevel = Field(
+        ..., description="Current compliance status"
+    )
+    event_types_covered: List[str] = Field(
+        ..., description="Event types that address this requirement"
+    )
+    validation_notes: str = Field(
+        ..., description="Notes on how compliance is validated"
+    )
 
     # Review tracking
     reviewer_name: Optional[str] = Field(None, description="Name of reviewer")
     review_date: Optional[date] = Field(None, description="Date of review")
-    remediation_required: bool = Field(False, description="Whether remediation is needed")
-    remediation_notes: Optional[str] = Field(None, description="Notes on required remediation")
+    remediation_required: bool = Field(
+        False, description="Whether remediation is needed"
+    )
+    remediation_notes: Optional[str] = Field(
+        None, description="Notes on required remediation"
+    )
 
     # Implementation tracking
     implementation_status: str = Field("pending", description="Implementation status")
-    test_coverage: bool = Field(False, description="Whether tests cover this requirement")
-    documentation_complete: bool = Field(False, description="Whether documentation is complete")
+    test_coverage: bool = Field(
+        False, description="Whether tests cover this requirement"
+    )
+    documentation_complete: bool = Field(
+        False, description="Whether documentation is complete"
+    )
 
-    @field_validator('event_types_covered')
+    @field_validator("event_types_covered")
     @classmethod
     def validate_event_types(cls, v):
         """Ensure event types are from the valid set."""
         valid_events = {
-            'hire', 'termination', 'promotion', 'merit',
-            'eligibility', 'enrollment', 'contribution', 'distribution',
-            'vesting', 'forfeiture', 'loan_initiated', 'loan_repayment',
-            'loan_default', 'rollover', 'investment_election', 'hce_status',
-            'compliance', 'plan_compliance_test', 'rmd_determination'
+            "hire",
+            "termination",
+            "promotion",
+            "merit",
+            "eligibility",
+            "enrollment",
+            "contribution",
+            "distribution",
+            "vesting",
+            "forfeiture",
+            "loan_initiated",
+            "loan_repayment",
+            "loan_default",
+            "rollover",
+            "investment_election",
+            "hce_status",
+            "compliance",
+            "plan_compliance_test",
+            "rmd_determination",
         }
         invalid_events = set(v) - valid_events
         if invalid_events:
@@ -100,6 +138,7 @@ class ERISARequirement(BaseModel):
 
 class ERISAComplianceChecklist(BaseModel):
     """Complete ERISA compliance validation checklist for the event schema."""
+
     checklist_version: str = Field("1.0", description="Version of the checklist")
     review_date: date = Field(..., description="Date of compliance review")
     reviewed_by: str = Field(..., description="Name of benefits counsel reviewer")
@@ -109,18 +148,28 @@ class ERISAComplianceChecklist(BaseModel):
     requirements: List[ERISARequirement] = Field(default_factory=list)
 
     # Overall assessment
-    overall_compliance: ERISAComplianceLevel = Field(..., description="Overall compliance status")
+    overall_compliance: ERISAComplianceLevel = Field(
+        ..., description="Overall compliance status"
+    )
     approval_granted: bool = Field(False, description="Whether approval is granted")
-    approval_conditions: List[str] = Field(default_factory=list, description="Conditions for approval")
+    approval_conditions: List[str] = Field(
+        default_factory=list, description="Conditions for approval"
+    )
 
     # Sign-off tracking
-    counsel_signature: Optional[str] = Field(None, description="Benefits counsel signature")
+    counsel_signature: Optional[str] = Field(
+        None, description="Benefits counsel signature"
+    )
     signature_date: Optional[datetime] = Field(None, description="Date of signature")
     next_review_date: Optional[date] = Field(None, description="Date for next review")
 
     # Metrics
-    compliance_percentage: Optional[float] = Field(None, description="Percentage of requirements met")
-    critical_gaps: List[str] = Field(default_factory=list, description="Critical compliance gaps")
+    compliance_percentage: Optional[float] = Field(
+        None, description="Percentage of requirements met"
+    )
+    critical_gaps: List[str] = Field(
+        default_factory=list, description="Critical compliance gaps"
+    )
 
     def calculate_compliance_percentage(self) -> float:
         """Calculate the percentage of requirements that are compliant."""
@@ -128,7 +177,8 @@ class ERISAComplianceChecklist(BaseModel):
             return 0.0
 
         compliant_count = sum(
-            1 for req in self.requirements
+            1
+            for req in self.requirements
             if req.compliance_level == ERISAComplianceLevel.COMPLIANT
         )
         return (compliant_count / len(self.requirements)) * 100
@@ -137,23 +187,31 @@ class ERISAComplianceChecklist(BaseModel):
         """Identify requirements that are non-compliant or need review."""
         gaps = []
         for req in self.requirements:
-            if req.compliance_level in [ERISAComplianceLevel.NON_COMPLIANT, ERISAComplianceLevel.NEEDS_REVIEW]:
+            if req.compliance_level in [
+                ERISAComplianceLevel.NON_COMPLIANT,
+                ERISAComplianceLevel.NEEDS_REVIEW,
+            ]:
                 gaps.append(f"{req.requirement_id}: {req.description}")
         return gaps
 
 
 class DataFieldClassification(BaseModel):
     """Classification rules for a specific data field."""
+
     field_name: str = Field(..., description="Name of the data field")
     classification: DataClassification = Field(..., description="Classification level")
     encryption_required: bool = Field(..., description="Whether encryption is required")
-    access_roles: List[str] = Field(..., description="Roles allowed to access this field")
+    access_roles: List[str] = Field(
+        ..., description="Roles allowed to access this field"
+    )
     retention_years: int = Field(..., description="Required retention period in years")
-    erisa_reference: str = Field(..., description="ERISA section requiring this protection")
+    erisa_reference: str = Field(
+        ..., description="ERISA section requiring this protection"
+    )
     audit_on_access: bool = Field(False, description="Whether access should be audited")
     pii_type: Optional[str] = Field(None, description="Type of PII if applicable")
 
-    @field_validator('retention_years')
+    @field_validator("retention_years")
     @classmethod
     def validate_retention(cls, v):
         """Ensure retention meets ERISA minimum of 7 years."""
@@ -179,15 +237,17 @@ class ERISAComplianceValidator:
                 description="Fiduciary acts solely in interest of participants",
                 compliance_level=ERISAComplianceLevel.COMPLIANT,
                 event_types_covered=[
-                    "contribution", "distribution", "investment_election",
-                    "forfeiture", "compliance"
+                    "contribution",
+                    "distribution",
+                    "investment_election",
+                    "forfeiture",
+                    "compliance",
                 ],
                 validation_notes="All events include complete audit trail with timestamps and source tracking",
                 implementation_status="implemented",
                 test_coverage=True,
-                documentation_complete=True
+                documentation_complete=True,
             ),
-
             ERISARequirement(
                 requirement_id="ERISA_404_C",
                 section_reference=ERISASection.SECTION_404C,
@@ -197,9 +257,8 @@ class ERISAComplianceValidator:
                 validation_notes="Investment elections include source_of_change and participant validation",
                 implementation_status="implemented",
                 test_coverage=True,
-                documentation_complete=True
+                documentation_complete=True,
             ),
-
             # Reporting and Disclosure (Section 101)
             ERISARequirement(
                 requirement_id="ERISA_101_A",
@@ -210,9 +269,8 @@ class ERISAComplianceValidator:
                 validation_notes="Event schema supports all SPD provisions with plan_id linkage",
                 implementation_status="implemented",
                 test_coverage=True,
-                documentation_complete=True
+                documentation_complete=True,
             ),
-
             # Plan Administration (Section 402)
             ERISARequirement(
                 requirement_id="ERISA_402_A",
@@ -220,15 +278,19 @@ class ERISAComplianceValidator:
                 description="Plan document compliance",
                 compliance_level=ERISAComplianceLevel.COMPLIANT,
                 event_types_covered=[
-                    "eligibility", "enrollment", "contribution", "vesting",
-                    "distribution", "forfeiture", "loan_initiated"
+                    "eligibility",
+                    "enrollment",
+                    "contribution",
+                    "vesting",
+                    "distribution",
+                    "forfeiture",
+                    "loan_initiated",
                 ],
                 validation_notes="All events reference plan_design_id ensuring plan document alignment",
                 implementation_status="implemented",
                 test_coverage=True,
-                documentation_complete=True
+                documentation_complete=True,
             ),
-
             # Vesting (Section 203)
             ERISARequirement(
                 requirement_id="ERISA_203_A",
@@ -240,9 +302,8 @@ class ERISAComplianceValidator:
                 validation_notes="Vesting events include service_credited_hours and schedule_type validation",
                 implementation_status="implemented",
                 test_coverage=True,
-                documentation_complete=True
+                documentation_complete=True,
             ),
-
             # Benefit Accrual (Section 204)
             ERISARequirement(
                 requirement_id="ERISA_204_H",
@@ -253,9 +314,8 @@ class ERISAComplianceValidator:
                 validation_notes="Plan amendment events tracked with effective dates for notice compliance",
                 implementation_status="implemented",
                 test_coverage=True,
-                documentation_complete=True
+                documentation_complete=True,
             ),
-
             # Prohibited Transactions (Section 406)
             ERISARequirement(
                 requirement_id="ERISA_406_A",
@@ -266,9 +326,8 @@ class ERISAComplianceValidator:
                 validation_notes="Loan events include compliance validation and term limits",
                 implementation_status="implemented",
                 test_coverage=True,
-                documentation_complete=True
+                documentation_complete=True,
             ),
-
             # Recordkeeping and Audit (Section 107)
             ERISARequirement(
                 requirement_id="ERISA_107_A",
@@ -276,15 +335,20 @@ class ERISAComplianceValidator:
                 description="Recordkeeping requirements",
                 compliance_level=ERISAComplianceLevel.COMPLIANT,
                 event_types_covered=[
-                    "hire", "termination", "contribution", "distribution",
-                    "vesting", "forfeiture", "hce_status", "compliance"
+                    "hire",
+                    "termination",
+                    "contribution",
+                    "distribution",
+                    "vesting",
+                    "forfeiture",
+                    "hce_status",
+                    "compliance",
                 ],
                 validation_notes="All events preserved with UUID, timestamps, and immutable audit trail",
                 implementation_status="implemented",
                 test_coverage=True,
-                documentation_complete=True
+                documentation_complete=True,
             ),
-
             # IRS Compliance Requirements
             ERISARequirement(
                 requirement_id="IRS_402G",
@@ -296,9 +360,8 @@ class ERISAComplianceValidator:
                 validation_notes="Contribution events validate against 402(g) limits with catch-up provisions",
                 implementation_status="implemented",
                 test_coverage=True,
-                documentation_complete=True
+                documentation_complete=True,
             ),
-
             ERISARequirement(
                 requirement_id="IRS_415C",
                 section_reference=ERISASection.SECTION_101,
@@ -309,8 +372,8 @@ class ERISAComplianceValidator:
                 validation_notes="All contribution sources tracked against 415(c) limits",
                 implementation_status="implemented",
                 test_coverage=True,
-                documentation_complete=True
-            )
+                documentation_complete=True,
+            ),
         ]
 
         checklist = ERISAComplianceChecklist(
@@ -318,7 +381,7 @@ class ERISAComplianceValidator:
             reviewed_by="[Pending Benefits Counsel Assignment]",
             plan_sponsor="Fidelity Investments",
             requirements=requirements,
-            overall_compliance=ERISAComplianceLevel.NEEDS_REVIEW
+            overall_compliance=ERISAComplianceLevel.NEEDS_REVIEW,
         )
 
         # Calculate metrics
@@ -339,9 +402,8 @@ class ERISAComplianceValidator:
                 retention_years=7,
                 erisa_reference="ERISA Section 107 - Recordkeeping",
                 audit_on_access=True,
-                pii_type="Social Security Number"
+                pii_type="Social Security Number",
             ),
-
             "birth_date": DataFieldClassification(
                 field_name="birth_date",
                 classification=DataClassification.RESTRICTED,
@@ -350,9 +412,8 @@ class ERISAComplianceValidator:
                 retention_years=7,
                 erisa_reference="ERISA Section 107 - Recordkeeping",
                 audit_on_access=True,
-                pii_type="Date of Birth"
+                pii_type="Date of Birth",
             ),
-
             # Confidential compensation data
             "annual_compensation": DataFieldClassification(
                 field_name="annual_compensation",
@@ -361,9 +422,8 @@ class ERISAComplianceValidator:
                 access_roles=["admin", "analyst", "auditor"],
                 retention_years=7,
                 erisa_reference="ERISA Section 204 - HCE determination",
-                audit_on_access=True
+                audit_on_access=True,
             ),
-
             "contribution_amount": DataFieldClassification(
                 field_name="contribution_amount",
                 classification=DataClassification.CONFIDENTIAL,
@@ -371,9 +431,8 @@ class ERISAComplianceValidator:
                 access_roles=["admin", "analyst", "auditor"],
                 retention_years=7,
                 erisa_reference="ERISA Section 101 - Benefit statements",
-                audit_on_access=False
+                audit_on_access=False,
             ),
-
             "account_balance": DataFieldClassification(
                 field_name="account_balance",
                 classification=DataClassification.CONFIDENTIAL,
@@ -381,9 +440,8 @@ class ERISAComplianceValidator:
                 access_roles=["admin", "analyst", "auditor", "participant"],
                 retention_years=7,
                 erisa_reference="ERISA Section 101 - Benefit statements",
-                audit_on_access=False
+                audit_on_access=False,
             ),
-
             # Internal administrative data
             "employee_id": DataFieldClassification(
                 field_name="employee_id",
@@ -392,9 +450,8 @@ class ERISAComplianceValidator:
                 access_roles=["admin", "analyst", "developer"],
                 retention_years=7,
                 erisa_reference="ERISA Section 107 - Recordkeeping",
-                audit_on_access=False
+                audit_on_access=False,
             ),
-
             "plan_id": DataFieldClassification(
                 field_name="plan_id",
                 classification=DataClassification.INTERNAL,
@@ -402,9 +459,8 @@ class ERISAComplianceValidator:
                 access_roles=["admin", "analyst", "developer"],
                 retention_years=7,
                 erisa_reference="ERISA Section 402 - Plan administration",
-                audit_on_access=False
+                audit_on_access=False,
             ),
-
             "event_id": DataFieldClassification(
                 field_name="event_id",
                 classification=DataClassification.INTERNAL,
@@ -412,8 +468,8 @@ class ERISAComplianceValidator:
                 access_roles=["admin", "analyst", "developer", "auditor"],
                 retention_years=7,
                 erisa_reference="ERISA Section 107 - Recordkeeping",
-                audit_on_access=False
-            )
+                audit_on_access=False,
+            ),
         }
 
         return classifications
@@ -421,57 +477,59 @@ class ERISAComplianceValidator:
     def validate_event_coverage(self) -> Dict[str, Any]:
         """Validate that all ERISA requirements are covered by event types."""
         coverage_analysis = {
-            'total_requirements': len(self.compliance_checklist.requirements),
-            'compliant_requirements': 0,
-            'needs_review': 0,
-            'non_compliant': 0,
-            'coverage_gaps': [],
-            'event_type_coverage': {},
-            'section_coverage': {}
+            "total_requirements": len(self.compliance_checklist.requirements),
+            "compliant_requirements": 0,
+            "needs_review": 0,
+            "non_compliant": 0,
+            "coverage_gaps": [],
+            "event_type_coverage": {},
+            "section_coverage": {},
         }
 
         # Analyze each requirement
         for requirement in self.compliance_checklist.requirements:
             # Track compliance levels
             if requirement.compliance_level == ERISAComplianceLevel.COMPLIANT:
-                coverage_analysis['compliant_requirements'] += 1
+                coverage_analysis["compliant_requirements"] += 1
             elif requirement.compliance_level == ERISAComplianceLevel.NEEDS_REVIEW:
-                coverage_analysis['needs_review'] += 1
+                coverage_analysis["needs_review"] += 1
             elif requirement.compliance_level == ERISAComplianceLevel.NON_COMPLIANT:
-                coverage_analysis['non_compliant'] += 1
-                coverage_analysis['coverage_gaps'].append({
-                    'requirement_id': requirement.requirement_id,
-                    'section': requirement.section_reference.value,
-                    'description': requirement.description,
-                    'remediation': requirement.remediation_notes
-                })
+                coverage_analysis["non_compliant"] += 1
+                coverage_analysis["coverage_gaps"].append(
+                    {
+                        "requirement_id": requirement.requirement_id,
+                        "section": requirement.section_reference.value,
+                        "description": requirement.description,
+                        "remediation": requirement.remediation_notes,
+                    }
+                )
 
             # Track event type coverage
             for event_type in requirement.event_types_covered:
-                if event_type not in coverage_analysis['event_type_coverage']:
-                    coverage_analysis['event_type_coverage'][event_type] = []
-                coverage_analysis['event_type_coverage'][event_type].append(
+                if event_type not in coverage_analysis["event_type_coverage"]:
+                    coverage_analysis["event_type_coverage"][event_type] = []
+                coverage_analysis["event_type_coverage"][event_type].append(
                     requirement.requirement_id
                 )
 
             # Track section coverage
             section = requirement.section_reference.value
-            if section not in coverage_analysis['section_coverage']:
-                coverage_analysis['section_coverage'][section] = {
-                    'total': 0,
-                    'compliant': 0,
-                    'requirements': []
+            if section not in coverage_analysis["section_coverage"]:
+                coverage_analysis["section_coverage"][section] = {
+                    "total": 0,
+                    "compliant": 0,
+                    "requirements": [],
                 }
-            coverage_analysis['section_coverage'][section]['total'] += 1
+            coverage_analysis["section_coverage"][section]["total"] += 1
             if requirement.compliance_level == ERISAComplianceLevel.COMPLIANT:
-                coverage_analysis['section_coverage'][section]['compliant'] += 1
-            coverage_analysis['section_coverage'][section]['requirements'].append(
+                coverage_analysis["section_coverage"][section]["compliant"] += 1
+            coverage_analysis["section_coverage"][section]["requirements"].append(
                 requirement.requirement_id
             )
 
-        coverage_analysis['compliance_percentage'] = (
-            coverage_analysis['compliant_requirements'] /
-            coverage_analysis['total_requirements']
+        coverage_analysis["compliance_percentage"] = (
+            coverage_analysis["compliant_requirements"]
+            / coverage_analysis["total_requirements"]
         ) * 100
 
         return coverage_analysis
@@ -490,7 +548,7 @@ class ERISAComplianceValidator:
                 access_roles=["admin", "developer"],
                 retention_years=7,
                 erisa_reference="General recordkeeping",
-                audit_on_access=False
+                audit_on_access=False,
             )
 
         return {
@@ -500,10 +558,10 @@ class ERISAComplianceValidator:
                 "encryption_required": classification.encryption_required,
                 "access_control_required": len(classification.access_roles) < 4,
                 "retention_required": classification.retention_years >= 7,
-                "audit_required": classification.audit_on_access
+                "audit_required": classification.audit_on_access,
             },
             "erisa_reference": classification.erisa_reference,
-            "pii_type": classification.pii_type
+            "pii_type": classification.pii_type,
         }
 
     def generate_compliance_report(self) -> str:
@@ -532,14 +590,20 @@ class ERISAComplianceValidator:
 |---------|-------------------|-----------|-----------------|
 """
 
-        for section, data in sorted(coverage['section_coverage'].items()):
-            rate = (data['compliant'] / data['total']) * 100 if data['total'] > 0 else 0
-            report += f"| {section} | {data['total']} | {data['compliant']} | {rate:.0f}% |\n"
+        for section, data in sorted(coverage["section_coverage"].items()):
+            rate = (data["compliant"] / data["total"]) * 100 if data["total"] > 0 else 0
+            report += (
+                f"| {section} | {data['total']} | {data['compliant']} | {rate:.0f}% |\n"
+            )
 
         report += "\n## Detailed Requirements Analysis\n"
 
         for requirement in self.compliance_checklist.requirements:
-            status_emoji = "✅" if requirement.compliance_level == ERISAComplianceLevel.COMPLIANT else "⚠️"
+            status_emoji = (
+                "✅"
+                if requirement.compliance_level == ERISAComplianceLevel.COMPLIANT
+                else "⚠️"
+            )
             report += f"""
 ### {status_emoji} {requirement.requirement_id}: {requirement.section_reference.value}
 
@@ -553,10 +617,14 @@ class ERISAComplianceValidator:
 """
 
             if requirement.irs_code_reference:
-                report += f"**IRS Code Reference**: {requirement.irs_code_reference.value}\n"
+                report += (
+                    f"**IRS Code Reference**: {requirement.irs_code_reference.value}\n"
+                )
 
             if requirement.remediation_required:
-                report += f"**⚠️ Remediation Required**: {requirement.remediation_notes}\n"
+                report += (
+                    f"**⚠️ Remediation Required**: {requirement.remediation_notes}\n"
+                )
 
         # Add event coverage summary
         report += """
@@ -566,8 +634,10 @@ class ERISAComplianceValidator:
 |------------|---------------------------|-------|
 """
 
-        for event_type, requirements in sorted(coverage['event_type_coverage'].items()):
-            report += f"| {event_type} | {', '.join(requirements)} | {len(requirements)} |\n"
+        for event_type, requirements in sorted(coverage["event_type_coverage"].items()):
+            report += (
+                f"| {event_type} | {', '.join(requirements)} | {len(requirements)} |\n"
+            )
 
         # Add data classification summary
         report += """
@@ -588,18 +658,22 @@ class ERISAComplianceValidator:
             if len(classification_examples[level]) < 3:
                 classification_examples[level].append(field_name)
 
-        for level in [DataClassification.RESTRICTED, DataClassification.CONFIDENTIAL,
-                      DataClassification.INTERNAL, DataClassification.PUBLIC]:
+        for level in [
+            DataClassification.RESTRICTED,
+            DataClassification.CONFIDENTIAL,
+            DataClassification.INTERNAL,
+            DataClassification.PUBLIC,
+        ]:
             count = classification_counts.get(level.value, 0)
-            examples = ', '.join(classification_examples.get(level.value, []))
+            examples = ", ".join(classification_examples.get(level.value, []))
             report += f"| {level.value} | {count} | {examples} |\n"
 
         # Add compliance gaps if any
-        if coverage['coverage_gaps']:
+        if coverage["coverage_gaps"]:
             report += "\n## ⚠️ Compliance Gaps Requiring Attention\n\n"
-            for gap in coverage['coverage_gaps']:
+            for gap in coverage["coverage_gaps"]:
                 report += f"- **{gap['requirement_id']}**: {gap['description']}\n"
-                if gap.get('remediation'):
+                if gap.get("remediation"):
                     report += f"  - Remediation: {gap['remediation']}\n"
 
         report += f"""
@@ -626,12 +700,12 @@ class ERISAComplianceValidator:
 
     def export_checklist(self, filepath: str) -> None:
         """Export the compliance checklist to a JSON file."""
-        with open(filepath, 'w') as f:
+        with open(filepath, "w") as f:
             json.dump(self.compliance_checklist.model_dump(), f, indent=2, default=str)
 
     def import_checklist(self, filepath: str) -> None:
         """Import a compliance checklist from a JSON file."""
-        with open(filepath, 'r') as f:
+        with open(filepath, "r") as f:
             data = json.load(f)
         self.compliance_checklist = ERISAComplianceChecklist(**data)
 

@@ -4,7 +4,8 @@
 import argparse
 import random
 from datetime import date, timedelta
-from typing import Dict, Any
+from typing import Any, Dict
+
 import pandas as pd
 from faker import Faker
 

@@ -15,36 +15,33 @@ Test Coverage:
 Follows PlanWise Navigator testing standards with enterprise-grade validation.
 """
 
-import pytest
-import pandas as pd
-import numpy as np
 import json
-import time
-import tempfile
 import os
-from pathlib import Path
-from unittest.mock import Mock, patch, MagicMock, call
-from typing import Dict, Any, List, Tuple, Optional
-from dataclasses import dataclass
+import tempfile
+import time
 import warnings
+from dataclasses import dataclass
+from pathlib import Path
+from typing import Any, Dict, List, Optional, Tuple
+from unittest.mock import MagicMock, Mock, call, patch
 
+import numpy as np
+import pandas as pd
+import pytest
 # Import optimization components
 from orchestrator.optimization.constraint_solver import CompensationOptimizer
-from orchestrator.optimization.objective_functions import ObjectiveFunctions
-from orchestrator.optimization.sensitivity_analysis import SensitivityAnalyzer
 from orchestrator.optimization.evidence_generator import EvidenceGenerator
+from orchestrator.optimization.objective_functions import ObjectiveFunctions
 from orchestrator.optimization.optimization_schemas import (
-    OptimizationRequest,
-    OptimizationResult,
-    OptimizationError,
-    PARAMETER_SCHEMA,
-    OptimizationCache
-)
+    PARAMETER_SCHEMA, OptimizationCache, OptimizationError,
+    OptimizationRequest, OptimizationResult)
+from orchestrator.optimization.sensitivity_analysis import SensitivityAnalyzer
 
 
 @dataclass
 class MockQueryResult:
     """Mock for database query results."""
+
     data: List[Tuple]
     columns: List[str] = None
 
@@ -67,7 +64,9 @@ class TestConstraintSolverAdvanced:
         """Setup for constraint solver tests."""
         self.mock_duckdb = Mock()
         self.mock_conn = Mock()
-        self.mock_duckdb.get_connection.return_value.__enter__.return_value = self.mock_conn
+        self.mock_duckdb.get_connection.return_value.__enter__.return_value = (
+            self.mock_conn
+        )
         self.optimizer = CompensationOptimizer(self.mock_duckdb, "test_scenario")
 
     def test_initialization_validation(self):
@@ -75,8 +74,8 @@ class TestConstraintSolverAdvanced:
         # Valid initialization
         assert self.optimizer.scenario_id == "test_scenario"
         assert self.optimizer.duckdb_resource == self.mock_duckdb
-        assert hasattr(self.optimizer, 'obj_funcs')
-        assert hasattr(self.optimizer, 'cache')
+        assert hasattr(self.optimizer, "obj_funcs")
+        assert hasattr(self.optimizer, "cache")
 
         # Test with None scenario_id
         with pytest.raises(ValueError, match="scenario_id cannot be empty"):
@@ -93,7 +92,7 @@ class TestConstraintSolverAdvanced:
             "merit_rate_level_1": 0.045,
             "merit_rate_level_2": 0.040,
             "cola_rate": 0.025,
-            "new_hire_salary_adjustment": 1.15
+            "new_hire_salary_adjustment": 1.15,
         }
 
         # Should not raise exception
@@ -142,7 +141,7 @@ class TestConstraintSolverAdvanced:
         params = {
             "merit_rate_level_1": 0.045,
             "merit_rate_level_2": 0.040,
-            "cola_rate": 0.025
+            "cola_rate": 0.025,
         }
 
         # Convert to array
@@ -162,7 +161,7 @@ class TestConstraintSolverAdvanced:
         reordered_params = {
             "cola_rate": 0.025,
             "merit_rate_level_1": 0.045,
-            "merit_rate_level_2": 0.040
+            "merit_rate_level_2": 0.040,
         }
 
         reordered_array = self.optimizer._parameters_to_array(reordered_params)
@@ -171,10 +170,7 @@ class TestConstraintSolverAdvanced:
 
     def test_constraint_functions(self):
         """Test constraint function generation and evaluation."""
-        params = {
-            "merit_rate_level_1": 0.045,
-            "cola_rate": 0.025
-        }
+        params = {"merit_rate_level_1": 0.045, "cola_rate": 0.025}
         objectives = {"cost": 1.0}
 
         constraints = self.optimizer._generate_constraints(params, objectives)
@@ -195,7 +191,7 @@ class TestConstraintSolverAdvanced:
         params = {
             "merit_rate_level_1": 0.045,
             "merit_rate_level_2": 0.040,
-            "cola_rate": 0.025
+            "cola_rate": 0.025,
         }
 
         bounds = self.optimizer._generate_bounds(params)
@@ -214,7 +210,7 @@ class TestConstraintSolverAdvanced:
         # Low risk parameters (center of ranges)
         low_risk_params = {
             "merit_rate_level_1": 0.05,  # Center of typical range
-            "cola_rate": 0.025
+            "cola_rate": 0.025,
         }
 
         risk = self.optimizer._assess_risk_level(low_risk_params)
@@ -223,7 +219,7 @@ class TestConstraintSolverAdvanced:
         # High risk parameters (at extremes)
         high_risk_params = {
             "merit_rate_level_1": 0.08,  # Near maximum
-            "cola_rate": 0.0  # At minimum
+            "cola_rate": 0.0,  # At minimum
         }
 
         risk = self.optimizer._assess_risk_level(high_risk_params)
@@ -232,7 +228,7 @@ class TestConstraintSolverAdvanced:
         # Mixed risk parameters
         mixed_risk_params = {
             "merit_rate_level_1": 0.045,  # Normal
-            "cola_rate": 0.07  # High
+            "cola_rate": 0.07,  # High
         }
 
         risk = self.optimizer._assess_risk_level(mixed_risk_params)
@@ -263,7 +259,7 @@ class TestConstraintSolverAdvanced:
         cache_result = cache.get(similar_params)
         # Implementation dependent - could be None or same value
 
-    @patch('scipy.optimize.minimize')
+    @patch("scipy.optimize.minimize")
     def test_optimization_algorithm_selection(self, mock_minimize):
         """Test optimization algorithm selection and fallback."""
         mock_minimize.return_value.success = True
@@ -280,16 +276,18 @@ class TestConstraintSolverAdvanced:
             scenario_id="test",
             initial_parameters=params,
             objectives=objectives,
-            method="SLSQP"
+            method="SLSQP",
         )
 
-        with patch.object(self.optimizer.obj_funcs, 'combined_objective', return_value=0.5):
+        with patch.object(
+            self.optimizer.obj_funcs, "combined_objective", return_value=0.5
+        ):
             result = self.optimizer.optimize(request)
 
         # Should use specified method
         mock_minimize.assert_called()
         call_args = mock_minimize.call_args
-        assert call_args[1]['method'] == 'SLSQP'
+        assert call_args[1]["method"] == "SLSQP"
 
         assert result.converged is True
         assert result.algorithm_used == "SLSQP"
@@ -299,7 +297,7 @@ class TestConstraintSolverAdvanced:
     def test_optimization_convergence_criteria(self):
         """Test optimization convergence criteria and stopping conditions."""
         # Mock an optimization that converges quickly
-        with patch('scipy.optimize.minimize') as mock_minimize:
+        with patch("scipy.optimize.minimize") as mock_minimize:
             mock_result = Mock()
             mock_result.success = True
             mock_result.x = [0.045]
@@ -316,10 +314,12 @@ class TestConstraintSolverAdvanced:
                 initial_parameters=params,
                 objectives=objectives,
                 max_evaluations=100,
-                tolerance=1e-6
+                tolerance=1e-6,
             )
 
-            with patch.object(self.optimizer.obj_funcs, 'combined_objective', return_value=0.1):
+            with patch.object(
+                self.optimizer.obj_funcs, "combined_objective", return_value=0.1
+            ):
                 result = self.optimizer.optimize(request)
 
             assert result.converged is True
@@ -327,7 +327,7 @@ class TestConstraintSolverAdvanced:
 
             # Check tolerance was passed to optimizer
             call_args = mock_minimize.call_args
-            assert 'options' in call_args[1]
+            assert "options" in call_args[1]
 
 
 class TestObjectiveFunctionsAdvanced:
@@ -337,7 +337,9 @@ class TestObjectiveFunctionsAdvanced:
         """Setup for objective functions tests."""
         self.mock_duckdb = Mock()
         self.mock_conn = Mock()
-        self.mock_duckdb.get_connection.return_value.__enter__.return_value = self.mock_conn
+        self.mock_duckdb.get_connection.return_value.__enter__.return_value = (
+            self.mock_conn
+        )
         self.obj_funcs = ObjectiveFunctions(self.mock_duckdb, "test_scenario")
 
     def test_cost_objective_calculation(self):
@@ -345,7 +347,7 @@ class TestObjectiveFunctionsAdvanced:
         # Test normal cost scenario
         self.mock_conn.execute.return_value.fetchone.return_value = [2_450_000.0]
 
-        with patch.object(self.obj_funcs, '_update_parameters'):
+        with patch.object(self.obj_funcs, "_update_parameters"):
             cost = self.obj_funcs.cost_objective({"merit_rate_level_1": 0.045})
 
         assert cost == 2.45  # Should return in millions
@@ -353,7 +355,7 @@ class TestObjectiveFunctionsAdvanced:
         # Test zero cost scenario
         self.mock_conn.execute.return_value.fetchone.return_value = [0.0]
 
-        with patch.object(self.obj_funcs, '_update_parameters'):
+        with patch.object(self.obj_funcs, "_update_parameters"):
             cost = self.obj_funcs.cost_objective({"merit_rate_level_1": 0.0})
 
         assert cost == 0.0
@@ -361,7 +363,7 @@ class TestObjectiveFunctionsAdvanced:
         # Test very high cost scenario
         self.mock_conn.execute.return_value.fetchone.return_value = [50_000_000.0]
 
-        with patch.object(self.obj_funcs, '_update_parameters'):
+        with patch.object(self.obj_funcs, "_update_parameters"):
             cost = self.obj_funcs.cost_objective({"merit_rate_level_1": 0.10})
 
         assert cost == 50.0
@@ -374,12 +376,12 @@ class TestObjectiveFunctionsAdvanced:
             (2, 60000, 3000),
             (3, 70000, 3500),
             (4, 80000, 4000),
-            (5, 90000, 4500)
+            (5, 90000, 4500),
         ]
 
         self.mock_conn.execute.return_value.fetchall.return_value = balanced_data
 
-        with patch.object(self.obj_funcs, '_update_parameters'):
+        with patch.object(self.obj_funcs, "_update_parameters"):
             equity = self.obj_funcs.equity_objective({"merit_rate_level_1": 0.045})
 
         # Should have reasonable coefficient of variation
@@ -389,27 +391,26 @@ class TestObjectiveFunctionsAdvanced:
         high_inequality_data = [
             (1, 50000, 15000),  # High variation
             (2, 60000, 25000),
-            (3, 70000, 20000)
+            (3, 70000, 20000),
         ]
 
         self.mock_conn.execute.return_value.fetchall.return_value = high_inequality_data
 
-        with patch.object(self.obj_funcs, '_update_parameters'):
+        with patch.object(self.obj_funcs, "_update_parameters"):
             high_equity = self.obj_funcs.equity_objective({"merit_rate_level_1": 0.045})
 
         # Higher inequality should result in higher (worse) equity score
         assert high_equity > equity
 
         # Test edge case: zero standard deviation
-        zero_variation_data = [
-            (1, 50000, 0),  # No variation
-            (2, 60000, 0)
-        ]
+        zero_variation_data = [(1, 50000, 0), (2, 60000, 0)]  # No variation
 
         self.mock_conn.execute.return_value.fetchall.return_value = zero_variation_data
 
-        with patch.object(self.obj_funcs, '_update_parameters'):
-            perfect_equity = self.obj_funcs.equity_objective({"merit_rate_level_1": 0.045})
+        with patch.object(self.obj_funcs, "_update_parameters"):
+            perfect_equity = self.obj_funcs.equity_objective(
+                {"merit_rate_level_1": 0.045}
+            )
 
         # Perfect equity should result in very low score
         assert perfect_equity < equity
@@ -418,15 +419,24 @@ class TestObjectiveFunctionsAdvanced:
         """Test targets objective with various achievement scenarios."""
         # Mock target achievement data
         target_achievement_data = [
-            ("budget_target", 2_000_000, 1_950_000, 0.975),  # target_name, target, actual, achievement
+            (
+                "budget_target",
+                2_000_000,
+                1_950_000,
+                0.975,
+            ),  # target_name, target, actual, achievement
             ("growth_target", 0.05, 0.048, 0.96),
-            ("retention_target", 0.90, 0.92, 1.022)
+            ("retention_target", 0.90, 0.92, 1.022),
         ]
 
-        self.mock_conn.execute.return_value.fetchall.return_value = target_achievement_data
+        self.mock_conn.execute.return_value.fetchall.return_value = (
+            target_achievement_data
+        )
 
-        with patch.object(self.obj_funcs, '_update_parameters'):
-            targets_score = self.obj_funcs.targets_objective({"merit_rate_level_1": 0.045})
+        with patch.object(self.obj_funcs, "_update_parameters"):
+            targets_score = self.obj_funcs.targets_objective(
+                {"merit_rate_level_1": 0.045}
+            )
 
         # Should calculate average deviation from targets
         expected_deviations = [abs(1 - 0.975), abs(1 - 0.96), abs(1 - 1.022)]
@@ -437,36 +447,42 @@ class TestObjectiveFunctionsAdvanced:
         # Test perfect target achievement
         perfect_data = [
             ("budget_target", 2_000_000, 2_000_000, 1.0),
-            ("growth_target", 0.05, 0.05, 1.0)
+            ("growth_target", 0.05, 0.05, 1.0),
         ]
 
         self.mock_conn.execute.return_value.fetchall.return_value = perfect_data
 
-        with patch.object(self.obj_funcs, '_update_parameters'):
-            perfect_score = self.obj_funcs.targets_objective({"merit_rate_level_1": 0.045})
+        with patch.object(self.obj_funcs, "_update_parameters"):
+            perfect_score = self.obj_funcs.targets_objective(
+                {"merit_rate_level_1": 0.045}
+            )
 
         assert perfect_score == 0.0  # Perfect achievement
 
         # Test missing targets
         self.mock_conn.execute.return_value.fetchall.return_value = []
 
-        with patch.object(self.obj_funcs, '_update_parameters'):
-            no_targets_score = self.obj_funcs.targets_objective({"merit_rate_level_1": 0.045})
+        with patch.object(self.obj_funcs, "_update_parameters"):
+            no_targets_score = self.obj_funcs.targets_objective(
+                {"merit_rate_level_1": 0.045}
+            )
 
         assert no_targets_score == 0.0  # No penalty for missing targets
 
     def test_combined_objective_weighting(self):
         """Test combined objective function with different weight combinations."""
         # Mock individual objectives
-        with patch.object(self.obj_funcs, 'cost_objective', return_value=2.5), \
-             patch.object(self.obj_funcs, 'equity_objective', return_value=0.1), \
-             patch.object(self.obj_funcs, 'targets_objective', return_value=0.05):
-
+        with patch.object(
+            self.obj_funcs, "cost_objective", return_value=2.5
+        ), patch.object(
+            self.obj_funcs, "equity_objective", return_value=0.1
+        ), patch.object(
+            self.obj_funcs, "targets_objective", return_value=0.05
+        ):
             # Test equal weighting
-            equal_weights = {"cost": 1/3, "equity": 1/3, "targets": 1/3}
+            equal_weights = {"cost": 1 / 3, "equity": 1 / 3, "targets": 1 / 3}
             result = self.obj_funcs.combined_objective(
-                {"merit_rate_level_1": 0.045},
-                equal_weights
+                {"merit_rate_level_1": 0.045}, equal_weights
             )
             expected = (2.5 + 0.1 + 0.05) / 3
             assert abs(result - expected) < 1e-6
@@ -474,8 +490,7 @@ class TestObjectiveFunctionsAdvanced:
             # Test cost-focused weighting
             cost_focused = {"cost": 0.8, "equity": 0.1, "targets": 0.1}
             result = self.obj_funcs.combined_objective(
-                {"merit_rate_level_1": 0.045},
-                cost_focused
+                {"merit_rate_level_1": 0.045}, cost_focused
             )
             expected = 0.8 * 2.5 + 0.1 * 0.1 + 0.1 * 0.05
             assert abs(result - expected) < 1e-6
@@ -483,8 +498,7 @@ class TestObjectiveFunctionsAdvanced:
             # Test equity-focused weighting
             equity_focused = {"cost": 0.2, "equity": 0.7, "targets": 0.1}
             result = self.obj_funcs.combined_objective(
-                {"merit_rate_level_1": 0.045},
-                equity_focused
+                {"merit_rate_level_1": 0.045}, equity_focused
             )
             expected = 0.2 * 2.5 + 0.7 * 0.1 + 0.1 * 0.05
             assert abs(result - expected) < 1e-6
@@ -494,7 +508,7 @@ class TestObjectiveFunctionsAdvanced:
         params = {
             "merit_rate_level_1": 0.045,
             "merit_rate_level_2": 0.040,
-            "cola_rate": 0.025
+            "cola_rate": 0.025,
         }
 
         # Test parameter update calls correct database operations
@@ -525,14 +539,18 @@ class TestObjectiveFunctionsAdvanced:
         self.mock_conn.execute.side_effect = None
 
         # Test invalid parameter values
-        with patch.object(self.obj_funcs, '_update_parameters', side_effect=ValueError("Invalid parameter")):
+        with patch.object(
+            self.obj_funcs,
+            "_update_parameters",
+            side_effect=ValueError("Invalid parameter"),
+        ):
             with pytest.raises(ValueError, match="Invalid parameter"):
                 self.obj_funcs.cost_objective({"invalid_param": 999})
 
         # Test empty result sets
         self.mock_conn.execute.return_value.fetchone.return_value = None
 
-        with patch.object(self.obj_funcs, '_update_parameters'):
+        with patch.object(self.obj_funcs, "_update_parameters"):
             # Should handle gracefully and return reasonable default
             cost = self.obj_funcs.cost_objective({"merit_rate_level_1": 0.045})
             assert cost >= 0  # Should return non-negative default
@@ -553,7 +571,10 @@ class TestSensitivityAnalysisAdvanced:
         base_value = 0.5
         perturbed_value = 0.52
 
-        self.analyzer.obj_funcs.combined_objective.side_effect = [base_value, perturbed_value]
+        self.analyzer.obj_funcs.combined_objective.side_effect = [
+            base_value,
+            perturbed_value,
+        ]
 
         params = {"merit_rate_level_1": 0.045}
         objectives = {"cost": 1.0}
@@ -564,7 +585,9 @@ class TestSensitivityAnalysisAdvanced:
 
         # Calculate expected sensitivity (finite difference)
         param_def = PARAMETER_SCHEMA["merit_rate_level_1"]
-        perturbation = (param_def["range"][1] - param_def["range"][0]) * 0.01  # 1% of range
+        perturbation = (
+            param_def["range"][1] - param_def["range"][0]
+        ) * 0.01  # 1% of range
         expected_sensitivity = (perturbed_value - base_value) / perturbation
 
         assert abs(sensitivities["merit_rate_level_1"] - expected_sensitivity) < 1e-10
@@ -576,7 +599,7 @@ class TestSensitivityAnalysisAdvanced:
             "merit_rate_level_2": -0.3,
             "cola_rate": 0.1,
             "merit_rate_level_3": -0.8,
-            "new_hire_salary_adjustment": 0.05
+            "new_hire_salary_adjustment": 0.05,
         }
 
         ranking = self.analyzer.rank_parameter_importance(sensitivities)
@@ -587,16 +610,13 @@ class TestSensitivityAnalysisAdvanced:
             ("merit_rate_level_1", 0.5),
             ("merit_rate_level_2", -0.3),
             ("cola_rate", 0.1),
-            ("new_hire_salary_adjustment", 0.05)
+            ("new_hire_salary_adjustment", 0.05),
         ]
 
         assert ranking == expected_order
 
         # Test with zero sensitivities
-        zero_sensitivities = {
-            "merit_rate_level_1": 0.0,
-            "merit_rate_level_2": 0.0
-        }
+        zero_sensitivities = {"merit_rate_level_1": 0.0, "merit_rate_level_2": 0.0}
 
         zero_ranking = self.analyzer.rank_parameter_importance(zero_sensitivities)
 
@@ -607,6 +627,7 @@ class TestSensitivityAnalysisAdvanced:
 
     def test_sensitivity_analysis_with_multiple_objectives(self):
         """Test sensitivity analysis with multiple objectives."""
+
         # Mock different objective responses
         def mock_combined_objective(params, objectives):
             # Simulate different sensitivities for different objectives
@@ -623,17 +644,22 @@ class TestSensitivityAnalysisAdvanced:
 
         # Test cost-focused sensitivity
         cost_objectives = {"cost": 0.8, "equity": 0.2}
-        cost_sensitivities = self.analyzer.calculate_sensitivities(params, cost_objectives)
+        cost_sensitivities = self.analyzer.calculate_sensitivities(
+            params, cost_objectives
+        )
 
         # Test equity-focused sensitivity
         equity_objectives = {"cost": 0.2, "equity": 0.8}
-        equity_sensitivities = self.analyzer.calculate_sensitivities(params, equity_objectives)
+        equity_sensitivities = self.analyzer.calculate_sensitivities(
+            params, equity_objectives
+        )
 
         # Sensitivities should differ based on objective weighting
         assert cost_sensitivities != equity_sensitivities
 
     def test_gradient_approximation_accuracy(self):
         """Test accuracy of gradient approximation methods."""
+
         # Create a quadratic test function for known gradient
         def quadratic_objective(params, objectives):
             x = params.get("merit_rate_level_1", 0.045)
@@ -655,21 +681,25 @@ class TestSensitivityAnalysisAdvanced:
 
             # Allow for finite difference approximation error
             tolerance = 1e-3  # Reasonable tolerance for finite differences
-            assert abs(sensitivities["merit_rate_level_1"] - expected_gradient) < tolerance
+            assert (
+                abs(sensitivities["merit_rate_level_1"] - expected_gradient) < tolerance
+            )
 
     def test_sensitivity_with_parameter_constraints(self):
         """Test sensitivity analysis respecting parameter constraints."""
         # Test near boundary conditions
         boundary_params = {
             "merit_rate_level_1": 0.08,  # Near upper bound
-            "cola_rate": 0.01  # Near lower bound
+            "cola_rate": 0.01,  # Near lower bound
         }
 
         # Mock objective function
         self.analyzer.obj_funcs.combined_objective.return_value = 0.5
 
         objectives = {"cost": 1.0}
-        sensitivities = self.analyzer.calculate_sensitivities(boundary_params, objectives)
+        sensitivities = self.analyzer.calculate_sensitivities(
+            boundary_params, objectives
+        )
 
         # Should calculate sensitivities even near boundaries
         assert "merit_rate_level_1" in sensitivities
@@ -680,7 +710,9 @@ class TestSensitivityAnalysisAdvanced:
             "merit_rate_level_1": PARAMETER_SCHEMA["merit_rate_level_1"]["range"][0]
         }
 
-        min_sensitivities = self.analyzer.calculate_sensitivities(min_boundary_params, objectives)
+        min_sensitivities = self.analyzer.calculate_sensitivities(
+            min_boundary_params, objectives
+        )
         assert "merit_rate_level_1" in min_sensitivities
 
     def test_sensitivity_caching_mechanism(self):
@@ -724,7 +756,7 @@ class TestEvidenceGeneratorAdvanced:
             optimal_parameters={
                 "merit_rate_level_1": 0.045,
                 "merit_rate_level_2": 0.040,
-                "cola_rate": 0.025
+                "cola_rate": 0.025,
             },
             objective_value=0.234567,
             algorithm_used="SLSQP",
@@ -734,16 +766,16 @@ class TestEvidenceGeneratorAdvanced:
             estimated_cost_impact={
                 "value": 2450000.0,
                 "unit": "USD",
-                "confidence": "high"
+                "confidence": "high",
             },
             estimated_employee_impact={
                 "count": 1200,
                 "percentage_of_workforce": 0.85,
-                "risk_level": "medium"
+                "risk_level": "medium",
             },
             risk_assessment="MEDIUM",
             constraint_violations={},
-            solution_quality_score=0.87
+            solution_quality_score=0.87,
         )
 
         self.generator = EvidenceGenerator(self.mock_result)
@@ -786,7 +818,7 @@ class TestEvidenceGeneratorAdvanced:
         assert "2.50%" in table
 
         # Check table structure
-        lines = table.split('\n')
+        lines = table.split("\n")
         header_line = next(line for line in lines if "Parameter" in line)
         assert "Parameter" in header_line
         assert "Value" in header_line
@@ -837,12 +869,12 @@ class TestEvidenceGeneratorAdvanced:
         violated_result.constraint_violations = {
             "budget_constraint": {
                 "violation_amount": 150000,
-                "description": "Exceeds budget by $150,000"
+                "description": "Exceeds budget by $150,000",
             },
             "equity_constraint": {
                 "violation_amount": 0.05,
-                "description": "Equity gap increased by 5%"
-            }
+                "description": "Equity gap increased by 5%",
+            },
         }
 
         violation_generator = EvidenceGenerator(violated_result)
@@ -884,7 +916,7 @@ class TestEvidenceGeneratorAdvanced:
             estimated_employee_impact=None,
             risk_assessment="UNKNOWN",
             constraint_violations={},
-            solution_quality_score=None
+            solution_quality_score=None,
         )
 
         incomplete_generator = EvidenceGenerator(incomplete_result)
@@ -941,16 +973,23 @@ class TestOptimizationSchemaValidation:
     def test_parameter_schema_completeness(self):
         """Test that parameter schema covers all required parameters."""
         required_parameters = [
-            "merit_rate_level_1", "merit_rate_level_2", "merit_rate_level_3",
-            "merit_rate_level_4", "merit_rate_level_5",
+            "merit_rate_level_1",
+            "merit_rate_level_2",
+            "merit_rate_level_3",
+            "merit_rate_level_4",
+            "merit_rate_level_5",
             "cola_rate",
             "new_hire_salary_adjustment",
-            "promotion_probability_level_1", "promotion_probability_level_2",
-            "promotion_probability_level_3", "promotion_probability_level_4",
+            "promotion_probability_level_1",
+            "promotion_probability_level_2",
+            "promotion_probability_level_3",
+            "promotion_probability_level_4",
             "promotion_probability_level_5",
-            "promotion_raise_level_1", "promotion_raise_level_2",
-            "promotion_raise_level_3", "promotion_raise_level_4",
-            "promotion_raise_level_5"
+            "promotion_raise_level_1",
+            "promotion_raise_level_2",
+            "promotion_raise_level_3",
+            "promotion_raise_level_4",
+            "promotion_raise_level_5",
         ]
 
         for param in required_parameters:
@@ -969,7 +1008,7 @@ class TestOptimizationSchemaValidation:
         valid_request = OptimizationRequest(
             scenario_id="test",
             initial_parameters={"merit_rate_level_1": 0.045},
-            objectives={"cost": 1.0}
+            objectives={"cost": 1.0},
         )
 
         assert valid_request.scenario_id == "test"
@@ -984,7 +1023,7 @@ class TestOptimizationSchemaValidation:
             method="L-BFGS-B",
             max_evaluations=500,
             tolerance=1e-8,
-            constraints={"budget_limit": 1000000}
+            constraints={"budget_limit": 1000000},
         )
 
         assert full_request.method == "L-BFGS-B"
@@ -1008,7 +1047,7 @@ class TestOptimizationSchemaValidation:
             estimated_employee_impact={"count": 1000},
             risk_assessment="MEDIUM",
             constraint_violations={},
-            solution_quality_score=0.85
+            solution_quality_score=0.85,
         )
 
         assert complete_result.converged is True
@@ -1020,7 +1059,7 @@ class TestOptimizationSchemaValidation:
             scenario_id="minimal_test",
             converged=False,
             optimal_parameters={},
-            objective_value=float('inf'),
+            objective_value=float("inf"),
             algorithm_used="FAILED",
             iterations=0,
             function_evaluations=0,
@@ -1029,11 +1068,11 @@ class TestOptimizationSchemaValidation:
             estimated_employee_impact=None,
             risk_assessment="UNKNOWN",
             constraint_violations={},
-            solution_quality_score=0.0
+            solution_quality_score=0.0,
         )
 
         assert minimal_result.converged is False
-        assert minimal_result.objective_value == float('inf')
+        assert minimal_result.objective_value == float("inf")
 
 
 class TestComponentIntegration:
@@ -1043,7 +1082,9 @@ class TestComponentIntegration:
         """Setup for integration tests."""
         self.mock_duckdb = Mock()
         self.mock_conn = Mock()
-        self.mock_duckdb.get_connection.return_value.__enter__.return_value = self.mock_conn
+        self.mock_duckdb.get_connection.return_value.__enter__.return_value = (
+            self.mock_conn
+        )
 
     def test_optimizer_to_objective_functions_integration(self):
         """Test integration between optimizer and objective functions."""
@@ -1078,7 +1119,7 @@ class TestComponentIntegration:
             estimated_employee_impact={"count": 1000},
             risk_assessment="MEDIUM",
             constraint_violations={},
-            solution_quality_score=0.85
+            solution_quality_score=0.85,
         )
 
         generator = EvidenceGenerator(result)
@@ -1095,7 +1136,7 @@ class TestComponentIntegration:
         self.mock_conn.execute.return_value.fetchone.return_value = [1_000_000.0]
         self.mock_conn.execute.return_value.fetchall.return_value = [
             (1, 50000, 2500),
-            (2, 60000, 3000)
+            (2, 60000, 3000),
         ]
 
         # Create optimizer
@@ -1105,11 +1146,11 @@ class TestComponentIntegration:
         request = OptimizationRequest(
             scenario_id="end_to_end_test",
             initial_parameters={"merit_rate_level_1": 0.045},
-            objectives={"cost": 1.0}
+            objectives={"cost": 1.0},
         )
 
         # Mock scipy optimization
-        with patch('scipy.optimize.minimize') as mock_minimize:
+        with patch("scipy.optimize.minimize") as mock_minimize:
             mock_result = Mock()
             mock_result.success = True
             mock_result.x = [0.045]
@@ -1136,10 +1177,16 @@ class TestComponentIntegration:
 
 if __name__ == "__main__":
     # Run specific test classes for development
-    pytest.main([
-        __file__ + "::TestConstraintSolverAdvanced::test_parameter_bounds_validation",
-        __file__ + "::TestObjectiveFunctionsAdvanced::test_cost_objective_calculation",
-        __file__ + "::TestSensitivityAnalysisAdvanced::test_sensitivity_calculation_methods",
-        __file__ + "::TestEvidenceGeneratorAdvanced::test_report_content_generation",
-        "-v"
-    ])
+    pytest.main(
+        [
+            __file__
+            + "::TestConstraintSolverAdvanced::test_parameter_bounds_validation",
+            __file__
+            + "::TestObjectiveFunctionsAdvanced::test_cost_objective_calculation",
+            __file__
+            + "::TestSensitivityAnalysisAdvanced::test_sensitivity_calculation_methods",
+            __file__
+            + "::TestEvidenceGeneratorAdvanced::test_report_content_generation",
+            "-v",
+        ]
+    )

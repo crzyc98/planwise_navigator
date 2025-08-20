@@ -9,8 +9,8 @@ This script showcases the performance improvements achieved through:
 - Intelligent fallback strategies
 """
 
-import sys
 import os
+import sys
 import time
 from pathlib import Path
 
@@ -19,15 +19,11 @@ project_root = Path(__file__).parent.parent
 sys.path.insert(0, str(project_root))
 
 from orchestrator_mvp.core.common_workflow import (
-    run_full_optimized_setup,
-    load_seed_data_and_build_staging_optimized,
-    clear_database_and_setup
-)
+    clear_database_and_setup, load_seed_data_and_build_staging_optimized,
+    run_full_optimized_setup)
 from orchestrator_mvp.core.duckdb_optimizations import (
-    apply_duckdb_optimizations,
-    optimize_dbt_execution_environment,
-    create_performance_indexes
-)
+    apply_duckdb_optimizations, create_performance_indexes,
+    optimize_dbt_execution_environment)
 from orchestrator_mvp.utils.performance_benchmark import PerformanceBenchmark
 
 
@@ -35,13 +31,13 @@ def demonstrate_optimizations():
     """Demonstrate the optimized orchestrator_dbt system."""
 
     print("🚀 ORCHESTRATOR_DBT OPTIMIZATION DEMONSTRATION")
-    print("="*80)
+    print("=" * 80)
     print("This script demonstrates significant performance improvements through:")
     print("  • Batch dbt operations (reduce startup overhead)")
     print("  • Parallel processing (utilize multiple cores)")
     print("  • DuckDB optimizations (memory and query tuning)")
     print("  • Intelligent fallback strategies (robust error handling)")
-    print("="*80)
+    print("=" * 80)
 
     benchmark = PerformanceBenchmark()
 
@@ -51,7 +47,9 @@ def demonstrate_optimizations():
 
     with benchmark.measure("environment_optimization"):
         env_results = optimize_dbt_execution_environment()
-        print(f"Applied {len(env_results['environment_variables'])} environment optimizations")
+        print(
+            f"Applied {len(env_results['environment_variables'])} environment optimizations"
+        )
 
     # Step 2: DuckDB optimizations
     print("\n📋 STEP 2: DUCKDB OPTIMIZATIONS")
@@ -59,9 +57,11 @@ def demonstrate_optimizations():
 
     with benchmark.measure("duckdb_optimizations"):
         duck_results = apply_duckdb_optimizations()
-        total_settings = (len(duck_results['memory_optimizations']) +
-                         len(duck_results['query_optimizations']) +
-                         len(duck_results['io_optimizations']))
+        total_settings = (
+            len(duck_results["memory_optimizations"])
+            + len(duck_results["query_optimizations"])
+            + len(duck_results["io_optimizations"])
+        )
         print(f"Applied {total_settings} DuckDB performance settings")
 
     # Step 3: Full optimized setup
@@ -86,7 +86,9 @@ def demonstrate_optimizations():
     benchmark.print_summary()
 
     # Calculate expected vs actual improvements
-    setup_time = next(r.execution_time for r in benchmark.results if r.name == "full_optimized_setup")
+    setup_time = next(
+        r.execution_time for r in benchmark.results if r.name == "full_optimized_setup"
+    )
 
     print(f"\n🎯 OPTIMIZATION RESULTS:")
     print(f"  • Total optimized setup time: {setup_time:.2f}s")
@@ -104,7 +106,7 @@ def run_quick_benchmark():
     """Run a quick performance benchmark of key operations."""
 
     print("\n🏁 QUICK PERFORMANCE BENCHMARK")
-    print("="*60)
+    print("=" * 60)
 
     benchmark = PerformanceBenchmark()
 
@@ -123,7 +125,7 @@ def run_quick_benchmark():
 
     approaches = {
         "individual_seeds": individual_approach,
-        "batch_seeds": batch_approach
+        "batch_seeds": batch_approach,
     }
 
     results = benchmark.compare_approaches(approaches)
