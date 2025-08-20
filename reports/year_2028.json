@@ -14,12 +14,12 @@
   },
   "event_summary": {
     "year": 2028,
-    "total_events": 9300,
+    "total_events": 9327,
     "events_by_type": {
-      "raise": 4514,
-      "deferral_escalation": 1383,
+      "raise": 4516,
+      "deferral_escalation": 1409,
       "enrollment": 970,
-      "promotion": 576,
+      "promotion": 575,
       "enrollment_change": 65,
       "hire": 970,
       "termination": 822
@@ -34,8 +34,8 @@
   },
   "contribution_summary": {
     "enrolled_employees_active_eoy": 4985,
-    "total_contributions_active_eoy": 39564106.0,
-    "avg_contribution_active_eoy": 7937.0,
+    "total_contributions_active_eoy": 39819363.0,
+    "avg_contribution_active_eoy": 7988.0,
     "avg_deferral_rate_active_eoy": 6.0
   },
   "data_quality_results": [
@@ -64,5 +64,5 @@
       "affected_records": null
     }
   ],
-  "generated_at": "2025-08-20T16:45:36.462318"
+  "generated_at": "2025-08-20T20:11:17.423644"
 }
