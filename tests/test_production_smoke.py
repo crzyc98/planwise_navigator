@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 """
+from navigator_orchestrator.config import get_database_path
 Production Smoke Tests
 
 Fast smoke tests validating basic functionality that should complete in <60 seconds.
@@ -50,7 +51,7 @@ class TestProductionSmoke:
             ), f"Single year simulation took {duration:.1f}s, expected <60s"
 
             # Verify database has expected content
-            with duckdb.connect("simulation.duckdb") as conn:
+            with duckdb.connect(str(get_database_path())) as conn:
                 workforce_count = conn.execute(
                     "SELECT COUNT(*) FROM fct_workforce_snapshot WHERE simulation_year = 2025"
                 ).fetchone()[0]
@@ -61,7 +62,7 @@ class TestProductionSmoke:
 
     def test_database_structure(self):
         """Verify expected tables and columns exist"""
-        with duckdb.connect("simulation.duckdb") as conn:
+        with duckdb.connect(str(get_database_path())) as conn:
             # Check critical tables exist
             tables = conn.execute("SHOW TABLES").fetchall()
             table_names = [t[0] for t in tables]
@@ -113,7 +114,7 @@ class TestProductionSmoke:
 
     def test_data_quality_baseline(self):
         """Verify no critical data quality issues"""
-        with duckdb.connect("simulation.duckdb") as conn:
+        with duckdb.connect(str(get_database_path())) as conn:
             # Verify tables have data
             tables_to_check = ["fct_yearly_events", "fct_workforce_snapshot"]
             for table in tables_to_check:
@@ -201,7 +202,7 @@ class TestProductionSmoke:
 
     def test_database_connection(self):
         """Verify we can connect to the simulation database"""
-        db_path = Path("simulation.duckdb")
+        db_path = get_database_path()
 
         # Test DuckDB connection
         with duckdb.connect(str(db_path)) as conn:

@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 """
+from navigator_orchestrator.config import get_database_path
 Verification Script: Multi-Year Events Accumulation
 
 This script verifies that fct_yearly_events properly accumulates data across all simulation years.
@@ -15,9 +16,9 @@ import duckdb
 def check_multi_year_events():
     """Check that fct_yearly_events contains data for all simulation years."""
 
-    db_path = Path("simulation.duckdb")
+    db_path = get_database_path()
     if not db_path.exists():
-        print("❌ Database file 'simulation.duckdb' not found")
+        print("❌ Database file str(get_database_path()) not found")
         return False
 
     try:

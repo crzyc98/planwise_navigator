@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 """
+from navigator_orchestrator.config import get_database_path
 Debug script for merit events compensation compounding.
 
 This script traces the compensation values used in merit event generation
@@ -25,7 +26,7 @@ import pandas as pd
 project_root = Path(__file__).parent.parent
 sys.path.append(str(project_root))
 
-DB_PATH = project_root / "simulation.duckdb"
+DB_PATH = project_root / str(get_database_path())
 
 
 def get_database_connection():

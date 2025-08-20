@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 """
+from navigator_orchestrator.config import get_database_path
 Standalone validation script for the promotion events fix.
 
 This script executes the validation plan outlined in the session document,
@@ -33,7 +34,7 @@ sys.path.insert(0, str(project_root))
 class PromotionEventsValidator:
     """Validates the promotion events fix implementation."""
 
-    def __init__(self, db_path: str = "simulation.duckdb"):
+    def __init__(self, db_path: str = str(get_database_path())):
         """Initialize the validator with database connection."""
         self.db_path = db_path
         self.conn = None

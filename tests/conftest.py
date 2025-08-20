@@ -544,8 +544,9 @@ def test_database():
     from pathlib import Path
 
     # Backup production database if it exists
-    prod_db = Path("simulation.duckdb")
-    backup_db = Path("simulation_backup.duckdb")
+    from navigator_orchestrator.config import get_database_path
+    prod_db = get_database_path()
+    backup_db = prod_db.parent / "simulation_backup.duckdb"
 
     if prod_db.exists():
         shutil.copy(prod_db, backup_db)
@@ -638,9 +639,10 @@ def database_health_checker():
         def check_table_exists(self, table_name):
             """Check if a table exists"""
             import duckdb
+            from navigator_orchestrator.config import get_database_path
 
             try:
-                with duckdb.connect("simulation.duckdb") as conn:
+                with duckdb.connect(str(get_database_path())) as conn:
                     tables = conn.execute("SHOW TABLES").fetchall()
                     table_names = [t[0] for t in tables]
                     exists = table_name in table_names
@@ -653,9 +655,10 @@ def database_health_checker():
         def check_table_not_empty(self, table_name):
             """Check if a table has data"""
             import duckdb
+            from navigator_orchestrator.config import get_database_path
 
             try:
-                with duckdb.connect("simulation.duckdb") as conn:
+                with duckdb.connect(str(get_database_path())) as conn:
                     count = conn.execute(
                         f"SELECT COUNT(*) FROM {table_name}"
                     ).fetchone()[0]
@@ -669,9 +672,10 @@ def database_health_checker():
         def check_data_quality(self, table_name, check_type, **kwargs):
             """Run specific data quality checks"""
             import duckdb
+            from navigator_orchestrator.config import get_database_path
 
             try:
-                with duckdb.connect("simulation.duckdb") as conn:
+                with duckdb.connect(str(get_database_path())) as conn:
                     if check_type == "no_nulls":
                         column = kwargs.get("column")
                         null_count = conn.execute(

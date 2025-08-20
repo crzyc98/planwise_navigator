@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 """
+from navigator_orchestrator.config import get_database_path
 Compensation Growth Analysis Script
 Quick analysis tool for analysts to check simulation results
 """
@@ -13,7 +14,7 @@ import pandas as pd
 
 def main():
     # Connect to database
-    db_path = Path(__file__).parent.parent / "simulation.duckdb"
+    db_path = Path(__file__).parent.parent / str(get_database_path())
     conn = duckdb.connect(str(db_path))
 
     print("=" * 70)

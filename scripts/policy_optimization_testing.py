@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 """
+from navigator_orchestrator.config import get_database_path
 S052 Policy Parameter Optimization Testing Script
 Systematic testing of all 35 COLA/Merit combinations for Epic E012 Phase 2B
 
@@ -44,7 +45,7 @@ class PolicyOptimizationTester:
         self.model_file = (
             self.dbt_project_dir / "models" / "marts" / "fct_policy_optimization.sql"
         )
-        self.db_file = self.project_root / "simulation.duckdb"
+        self.db_file = self.project_root / str(get_database_path())
         self.results_dir = self.project_root / "results"
 
         # Ensure results directory exists

@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 """
+from navigator_orchestrator.config import get_database_path
 Validate Compensation Prorated Fix Script
 
 This script validates that the compensation prorated calculation fix works correctly.
@@ -32,7 +33,7 @@ sys.path.append(str(Path(__file__).parent.parent))
 
 
 def connect_to_database(
-    db_path: str = "simulation.duckdb",
+    db_path: str = str(get_database_path()),
 ) -> duckdb.DuckDBPyConnection:
     """Connect to the DuckDB database."""
     return duckdb.connect(db_path)

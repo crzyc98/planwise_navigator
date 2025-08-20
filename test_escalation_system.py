@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 """
+from navigator_orchestrator.config import get_database_path
 Epic E035: Deferral Rate Escalation System - Multi-Year Validation Test Suite
 
 This comprehensive test suite validates the automatic deferral rate escalation system
@@ -33,7 +34,7 @@ import duckdb
 class EscalationSystemTester:
     """Comprehensive test suite for deferral rate escalation system."""
 
-    def __init__(self, db_path: str = "simulation.duckdb", verbose: bool = False):
+    def __init__(self, db_path: str = str(get_database_path()), verbose: bool = False):
         self.db_path = db_path
         self.verbose = verbose
         self.test_results = []
@@ -658,7 +659,7 @@ def main():
     )
     parser.add_argument(
         "--db",
-        default="simulation.duckdb",
+        default=str(get_database_path()),
         help="Path to DuckDB database file (default: simulation.duckdb)",
     )
     parser.add_argument(

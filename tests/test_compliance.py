@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 """
+from navigator_orchestrator.config import get_database_path
 Regulatory Compliance Tests
 
 Validate regulatory compliance requirements for production readiness.
@@ -18,7 +19,7 @@ class TestRegulatory:
     @pytest.fixture
     def db_connection(self):
         """Provide database connection for tests"""
-        return duckdb.connect("simulation.duckdb")
+        return duckdb.connect(str(get_database_path()))
 
     def test_irs_contribution_limits_2025(self, db_connection):
         """Verify 2025 IRS contribution limits are enforced"""

@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 """
+from navigator_orchestrator.config import get_database_path
 Validation script to test the deferral rate fix in int_employee_contributions model.
 This script validates that the model correctly uses deferral rates from both:
 1. Census data (existing employees)
@@ -14,7 +15,7 @@ import duckdb
 
 def get_connection():
     """Get database connection."""
-    db_path = Path("simulation.duckdb")
+    db_path = get_database_path()
     return duckdb.connect(str(db_path), read_only=True)
 
 

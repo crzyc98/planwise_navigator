@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 """
+from navigator_orchestrator.config import get_database_path
 Simple Multi-Year Simulation Runner
 
 ⚠️  DEPRECATION WARNING: Consider using orchestrator_dbt/run_multi_year.py for production workloads
@@ -206,7 +207,7 @@ def extract_dbt_vars_from_config(full_config: dict) -> dict:
 
 def get_database_connection():
     """Get DuckDB connection to the simulation database."""
-    db_path = Path("simulation.duckdb")
+    db_path = get_database_path()
     if not db_path.exists():
         print(f"⚠️ Database file not found: {db_path}")
         return None

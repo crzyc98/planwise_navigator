@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 """
+from navigator_orchestrator.config import get_database_path
 Validation script for prorated compensation calculation fix
 
 This script validates that the EMP_000003 proration issue has been resolved
@@ -14,7 +15,7 @@ import pandas as pd
 
 def connect_to_database():
     """Connect to the simulation database"""
-    db_path = Path(__file__).parent.parent / "simulation.duckdb"
+    db_path = Path(__file__).parent.parent / str(get_database_path())
     return duckdb.connect(str(db_path))
 
 

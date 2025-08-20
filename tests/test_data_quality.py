@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 """
+from navigator_orchestrator.config import get_database_path
 Data Quality Tests
 
 Comprehensive data quality validation for production readiness.
@@ -21,7 +22,7 @@ class TestDataQuality:
     @pytest.fixture
     def db_connection(self):
         """Provide database connection for tests"""
-        return duckdb.connect("simulation.duckdb")
+        return duckdb.connect(str(get_database_path()))
 
     def test_contribution_limits_compliance(self, db_connection):
         """Verify all contributions within IRS limits"""

@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 """
+from navigator_orchestrator.config import get_database_path
 Comprehensive validation script for workforce snapshot architecture refactoring.
 Automates testing process and generates detailed validation report.
 """
@@ -29,7 +30,7 @@ logger = logging.getLogger(__name__)
 class SnapshotRefactorValidator:
     """Validates the workforce snapshot architecture refactoring."""
 
-    def __init__(self, db_path: str = "simulation.duckdb"):
+    def __init__(self, db_path: str = str(get_database_path())):
         self.db_path = db_path
         self.project_root = Path(__file__).parent.parent
         self.dbt_dir = self.project_root / "dbt"

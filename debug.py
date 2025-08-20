@@ -5,6 +5,7 @@ import shutil
 import subprocess
 import sys
 from pathlib import Path
+from navigator_orchestrator.config import get_database_path
 
 print("=== NAVIGATOR ORCHESTRATOR ENHANCED DEBUG ===\n")
 
@@ -23,7 +24,7 @@ if dbt_dir.exists():
     print(f"   dbt/ absolute: {dbt_dir.absolute()}")
     print(f"   dbt_project.yml exists: {(dbt_dir / 'dbt_project.yml').exists()}")
 
-db_file = Path("simulation.duckdb")
+db_file = get_database_path()
 print(f"   simulation.duckdb exists: {db_file.exists()}")
 print()
 
@@ -124,7 +125,7 @@ try:
     config = load_simulation_config(Path("config/simulation_config.yaml"))
     print(f"   Config loaded: start_year={config.simulation.start_year}")
 
-    db = DatabaseConnectionManager(Path("simulation.duckdb"))
+    db = DatabaseConnectionManager(get_database_path())
     print(f"   Database connected: {db.db_path}")
 
     runner = DbtRunner(verbose=True)

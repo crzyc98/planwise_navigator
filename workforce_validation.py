@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 """
+from navigator_orchestrator.config import get_database_path
 Workforce Calculation Validation Framework
 
 Provides bounds checking and anomaly detection for workforce simulation calculations
@@ -56,7 +57,7 @@ class WorkforceValidationSummary:
 class WorkforceCalculationValidator:
     """Validator for workforce simulation calculations."""
 
-    def __init__(self, database_path: str = "simulation.duckdb"):
+    def __init__(self, database_path: str = str(get_database_path())):
         """
         Initialize validator.
 
