@@ -69,6 +69,7 @@ class OrchestratorBuilder:
             working_dir=Path("dbt"),
             threads=self._threads,
             executable=self._dbt_executable,
+            database_path=str(self._db.db_path),
         )
         registries = RegistryManager(self._db)
 

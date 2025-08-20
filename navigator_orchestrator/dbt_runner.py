@@ -94,11 +94,13 @@ class DbtRunner:
         executable: str = "dbt",
         *,
         verbose: bool = False,
+        database_path: Optional[str] = None,
     ):
         self.working_dir = working_dir
         self.threads = threads
         self.executable = executable
         self.verbose = verbose
+        self.database_path = database_path
 
     def _build_command(
         self,
@@ -208,12 +210,21 @@ class DbtRunner:
             return self._execute_with_streaming(cmd, on_line=on_line, start_ts=start)
         else:
             try:
+                # Set up environment with DATABASE_PATH if specified
+                env = None
+                if self.database_path:
+                    import os
+                    env = os.environ.copy()
+                    # For dbt running from /dbt directory, use relative path
+                    env['DATABASE_PATH'] = str(Path(self.database_path).name)
+
                 res = subprocess.run(
                     cmd,
                     cwd=self.working_dir,
                     check=False,
                     capture_output=True,
                     text=True,
+                    env=env,
                 )
             except Exception as e:
                 raise DbtExecutionError(str(e))
@@ -235,6 +246,14 @@ class DbtRunner:
         start_ts: float,
     ) -> DbtResult:
         try:
+            # Set up environment with DATABASE_PATH if specified
+            env = None
+            if self.database_path:
+                import os
+                env = os.environ.copy()
+                # For dbt running from /dbt directory, use relative path
+                env['DATABASE_PATH'] = str(Path(self.database_path).name)
+
             process = subprocess.Popen(
                 cmd,
                 cwd=self.working_dir,
@@ -243,6 +262,7 @@ class DbtRunner:
                 text=True,
                 bufsize=1,
                 universal_newlines=True,
+                env=env,
             )
         except Exception as e:
             raise DbtExecutionError(str(e))
