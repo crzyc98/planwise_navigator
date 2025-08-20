@@ -1,4 +1,5 @@
 """
+from navigator_orchestrator.config import get_database_path
 Production Data Safety & Recovery System (Epic E043)
 
 Story S043-03: Backup Verification & Recovery Procedures
@@ -74,7 +75,7 @@ class RecoveryManager:
     """
 
     def __init__(
-        self, backup_manager: BackupManager, db_path: str = "simulation.duckdb"
+        self, backup_manager: BackupManager, db_path: str = str(get_database_path())
     ):
         """
         Initialize recovery manager

@@ -18,6 +18,27 @@ import yaml
 from pydantic import BaseModel, ConfigDict, Field, ValidationError
 
 
+def get_database_path() -> Path:
+    """Get standardized database path with environment variable support.
+
+    This function implements Epic E050 database standardization by:
+    - Using DATABASE_PATH environment variable if set
+    - Defaulting to 'dbt/simulation.duckdb' (standardized location)
+    - Creating parent directory if it doesn't exist
+    - Returning resolved absolute path
+
+    Returns:
+        Path: Absolute path to the simulation database
+    """
+    db_path = os.getenv('DATABASE_PATH', 'dbt/simulation.duckdb')
+    path = Path(db_path)
+
+    # Ensure directory exists
+    path.parent.mkdir(parents=True, exist_ok=True)
+
+    return path.resolve()
+
+
 class SimulationSettings(BaseModel):
     start_year: int = Field(..., ge=2000)
     end_year: int = Field(..., ge=2000)
@@ -98,7 +119,8 @@ class ProductionSafetySettings(BaseModel):
 
     # Database configuration
     db_path: str = Field(
-        default="simulation.duckdb", description="Path to simulation database"
+        default_factory=lambda: str(get_database_path()),
+        description="Path to simulation database"
     )
 
     # Backup configuration

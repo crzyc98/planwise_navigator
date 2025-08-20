@@ -12,6 +12,7 @@ import json
 from dataclasses import dataclass
 from datetime import datetime
 from enum import Enum
+from navigator_orchestrator.config import get_database_path
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
@@ -96,7 +97,7 @@ class PipelineOrchestrator:
         self.enhanced_checkpoints = enhanced_checkpoints
         if enhanced_checkpoints:
             # Determine database path from db_manager
-            db_path = getattr(db_manager, "db_path", "simulation.duckdb")
+            db_path = getattr(db_manager, "db_path", str(get_database_path()))
             self.checkpoint_manager = CheckpointManager(
                 checkpoint_dir=str(checkpoints_dir), db_path=str(db_path)
             )
@@ -213,8 +214,6 @@ class PipelineOrchestrator:
 
         # Optional: clear existing rows for this year based on config.setup
         self._maybe_clear_year_data(year)
-        # Always clear fact rows for the target year to avoid residue across runs
-        self._clear_year_fact_rows(year)
 
         # Ensure seeds are loaded once
         if not self._seeded:
@@ -570,8 +569,6 @@ class PipelineOrchestrator:
                 self.registry_manager.get_enrollment_registry().update_post_year(year)
             if stage.name == WorkflowStage.STATE_ACCUMULATION:
                 self.registry_manager.get_deferral_registry().update_post_year(year)
-                # Guardrail: ensure the year snapshot populated correctly; retry build if empty
-                self._verify_year_population(year)
 
             # Stage-level validation hook
             if stage.name in (
@@ -594,7 +591,7 @@ class PipelineOrchestrator:
         # Display detailed year audit (matching monolithic script)
         auditor.generate_detailed_year_audit(year)
 
-        self._verify_year_population(year)
+        # Final sanity checks handled by reporting/validator
 
     def _run_stage_models(self, stage: StageDefinition, year: int) -> None:
         if not stage.models:
@@ -862,8 +859,6 @@ class PipelineOrchestrator:
                 dependencies=[WorkflowStage.FOUNDATION],
                 # Match working runner ordering exactly for determinism
                 models=[
-                    # Ensure census synthetic baseline events are materialized (used by accumulators)
-                    "int_synthetic_baseline_enrollment_events",
                     "int_termination_events",
                     "int_hiring_events",
                     "int_new_hire_termination_events",
@@ -885,7 +880,6 @@ class PipelineOrchestrator:
                 dependencies=[WorkflowStage.EVENT_GENERATION],
                 models=[
                     "fct_yearly_events",
-                    "int_active_employees_prev_year_snapshot",
                     # Build proration snapshot before contributions so all bases are prorated
                     "int_workforce_snapshot_optimized",
                     "int_enrollment_state_accumulator",

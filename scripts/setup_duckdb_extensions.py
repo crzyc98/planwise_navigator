@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 """
+from navigator_orchestrator.config import get_database_path
 Setup script to install DuckDB extensions locally.
 Run this once to avoid network download issues during pipeline execution.
 """
@@ -51,7 +52,7 @@ def setup_extensions():
         conn.close()
 
     # Test with file database (your actual simulation database)
-    db_path = Path(__file__).parent.parent / "simulation.duckdb"
+    db_path = Path(__file__).parent.parent / str(get_database_path())
     print(f"\nTesting with project database: {db_path}")
 
     if db_path.exists():

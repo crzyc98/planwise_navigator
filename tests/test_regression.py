@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 """
+from navigator_orchestrator.config import get_database_path
 Regression test suite for PlanWise Navigator
 Ensures critical functionality doesn't break with changes
 """
@@ -24,7 +25,7 @@ class TestRegressionSuite:
             db_path = f.name
 
         # Copy existing database for testing
-        shutil.copy("simulation.duckdb", db_path)
+        shutil.copy(str(get_database_path()), db_path)
 
         yield db_path
 

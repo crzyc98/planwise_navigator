@@ -1,3 +1,4 @@
+from navigator_orchestrator.config import get_database_path
 # filename: streamlit_dashboard/pages/3_Deferral_Escalation_Analytics.py
 """
 Epic E035: Deferral Rate Escalation Analytics Dashboard
@@ -181,7 +182,7 @@ st.markdown(
 class EscalationAnalytics:
     """Analytics engine for deferral rate escalation system."""
 
-    def __init__(self, db_path: str = "simulation.duckdb"):
+    def __init__(self, db_path: str = str(get_database_path())):
         self.db_path = db_path
         self.conn = None
 

@@ -18,6 +18,7 @@ from pathlib import Path
 from typing import Any, Dict, List, Optional
 
 import duckdb
+from navigator_orchestrator.config import get_database_path
 
 logger = logging.getLogger(__name__)
 
@@ -34,11 +35,11 @@ class CheckpointManager:
     def __init__(
         self,
         checkpoint_dir: str = ".navigator_checkpoints",
-        db_path: str = "simulation.duckdb",
+        db_path: Optional[str] = None,
     ):
         self.checkpoint_dir = Path(checkpoint_dir)
         self.checkpoint_dir.mkdir(exist_ok=True)
-        self.db_path = db_path
+        self.db_path = db_path or str(get_database_path())
         self.checkpoint_version = "2.0"
 
     def save_checkpoint(

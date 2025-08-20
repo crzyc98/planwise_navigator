@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 """
+from navigator_orchestrator.config import get_database_path
 Performance & Load Tests
 
 Validate performance requirements and ensure system can handle expected loads.
@@ -45,7 +46,7 @@ class TestPerformance:
         assert duration < 120, f"Single year took {duration:.1f}s, expected <120s"
 
         # Verify the simulation actually produced results
-        with duckdb.connect("simulation.duckdb") as conn:
+        with duckdb.connect(str(get_database_path())) as conn:
             event_count = conn.execute(
                 "SELECT COUNT(*) FROM fct_yearly_events WHERE simulation_year = 2025"
             ).fetchone()[0]
@@ -135,7 +136,7 @@ class TestPerformance:
 
     def test_database_query_performance(self):
         """Database queries should perform within acceptable limits"""
-        with duckdb.connect("simulation.duckdb") as conn:
+        with duckdb.connect(str(get_database_path())) as conn:
             # Test basic aggregation performance
             start_time = time.time()
 
@@ -187,7 +188,7 @@ class TestPerformance:
 
         def query_worker(result_queue):
             try:
-                with duckdb.connect("simulation.duckdb") as conn:
+                with duckdb.connect(str(get_database_path())) as conn:
                     start_time = time.time()
                     result = conn.execute(
                         """
@@ -231,7 +232,7 @@ class TestPerformance:
 
     def test_large_dataset_handling(self):
         """System should handle reasonably large datasets efficiently"""
-        with duckdb.connect("simulation.duckdb") as conn:
+        with duckdb.connect(str(get_database_path())) as conn:
             # Check current dataset size
             workforce_size = conn.execute(
                 "SELECT COUNT(*) FROM fct_workforce_snapshot"
@@ -284,7 +285,7 @@ class TestPerformance:
 
     def test_disk_io_performance(self):
         """Database I/O should be efficient"""
-        db_path = Path("simulation.duckdb")
+        db_path = get_database_path()
 
         if db_path.exists():
             # Check database file size

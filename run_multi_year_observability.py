@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 """
+from navigator_orchestrator.config import get_database_path
 Enhanced Multi-Year Simulation Runner with Production Observability
 
 Enterprise-grade multi-year simulation runner with structured logging,
@@ -121,7 +122,7 @@ def validate_database_state(obs: ObservabilityManager, year: int) -> bool:
     """
     with obs.track_operation("database_validation", year=year) as metrics:
         try:
-            conn = duckdb.connect("simulation.duckdb")
+            conn = duckdb.connect(str(get_database_path()))
 
             # Check workforce snapshot
             workforce_result = conn.execute(
@@ -196,7 +197,7 @@ def create_backup(obs: ObservabilityManager) -> str:
             Path("backups").mkdir(exist_ok=True)
 
             # Create backup using DuckDB export
-            conn = duckdb.connect("simulation.duckdb")
+            conn = duckdb.connect(str(get_database_path()))
             conn.execute(f"EXPORT DATABASE '{backup_path}' (FORMAT PARQUET)")
             conn.close()
 
