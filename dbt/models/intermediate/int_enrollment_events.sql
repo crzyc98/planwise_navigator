@@ -389,6 +389,165 @@ opt_out_events AS (
     )
 ),
 
+-- Epic E053: Voluntary Enrollment Events Integration
+voluntary_enrollment_events AS (
+  SELECT
+    ved.employee_id,
+    ved.employee_ssn,
+    'enrollment' as event_type,
+    ved.simulation_year,
+    ved.proposed_effective_date as effective_date,
+
+    -- Enhanced event details with demographic context
+    'Voluntary enrollment - ' || UPPER(ved.age_segment) || ' ' || UPPER(ved.income_segment) ||
+    ' employee - ' || CAST(ROUND(ved.selected_deferral_rate * 100, 1) AS VARCHAR) || '% deferral rate' as event_details,
+
+    ved.employee_compensation as compensation_amount,
+    NULL as previous_compensation,  -- First enrollment, no previous rate
+    ved.selected_deferral_rate as employee_deferral_rate,
+    0.00 as prev_employee_deferral_rate,  -- First enrollment
+    ved.current_age as employee_age,
+    ved.current_tenure as employee_tenure,
+    ved.level_id,
+
+    -- Age band for consistency with existing logic
+    CASE
+      WHEN ved.current_age < 25 THEN '< 25'
+      WHEN ved.current_age < 35 THEN '25-34'
+      WHEN ved.current_age < 45 THEN '35-44'
+      WHEN ved.current_age < 55 THEN '45-54'
+      WHEN ved.current_age < 65 THEN '55-64'
+      ELSE '65+'
+    END as age_band,
+
+    -- Tenure band for consistency
+    CASE
+      WHEN ved.current_tenure < 2 THEN '< 2'
+      WHEN ved.current_tenure < 5 THEN '2-4'
+      WHEN ved.current_tenure < 10 THEN '5-9'
+      WHEN ved.current_tenure < 20 THEN '10-19'
+      ELSE '20+'
+    END as tenure_band,
+
+    ved.final_enrollment_probability as event_probability,
+    'voluntary_enrollment' as event_category
+
+  FROM {{ ref('int_voluntary_enrollment_decision') }} ved
+  WHERE ved.will_enroll = true
+    AND ved.simulation_year = {{ var('simulation_year') }}
+),
+
+-- Epic E053: Year-over-Year Voluntary Enrollment for Non-Participants
+year_over_year_enrollment_events AS (
+  SELECT
+    aw.employee_id,
+    aw.employee_ssn,
+    'enrollment' as event_type,
+    aw.simulation_year,
+    CAST((aw.simulation_year || '-06-15 12:00:00') AS TIMESTAMP) as effective_date,  -- Mid-year enrollment
+
+    -- Event details for year-over-year conversions
+    'Year-over-year voluntary enrollment - ' ||
+    CASE
+      WHEN aw.current_age < 31 THEN 'Young'
+      WHEN aw.current_age < 46 THEN 'Mid-career'
+      WHEN aw.current_age < 56 THEN 'Mature'
+      ELSE 'Senior'
+    END || ' employee conversion - ' ||
+    CAST(ROUND(
+      CASE
+        WHEN aw.current_age < 31 THEN {{ var('year_over_year_conversion_deferral_rates_young', 0.03) }}
+        WHEN aw.current_age < 46 THEN {{ var('year_over_year_conversion_deferral_rates_mid_career', 0.04) }}
+        WHEN aw.current_age < 56 THEN {{ var('year_over_year_conversion_deferral_rates_mature', 0.05) }}
+        ELSE {{ var('year_over_year_conversion_deferral_rates_senior', 0.06) }}
+      END * 100, 1) AS VARCHAR) || '% deferral' as event_details,
+
+    aw.current_compensation as compensation_amount,
+    NULL as previous_compensation,
+
+    -- Conservative deferral rates for year-over-year conversions
+    CASE
+      WHEN aw.current_age < 31 THEN {{ var('year_over_year_conversion_deferral_rates_young', 0.03) }}
+      WHEN aw.current_age < 46 THEN {{ var('year_over_year_conversion_deferral_rates_mid_career', 0.04) }}
+      WHEN aw.current_age < 56 THEN {{ var('year_over_year_conversion_deferral_rates_mature', 0.05) }}
+      ELSE {{ var('year_over_year_conversion_deferral_rates_senior', 0.06) }}
+    END as employee_deferral_rate,
+
+    0.00 as prev_employee_deferral_rate,
+    aw.current_age as employee_age,
+    aw.current_tenure as employee_tenure,
+    aw.level_id,
+
+    -- Age band
+    CASE
+      WHEN aw.current_age < 25 THEN '< 25'
+      WHEN aw.current_age < 35 THEN '25-34'
+      WHEN aw.current_age < 45 THEN '35-44'
+      WHEN aw.current_age < 55 THEN '45-54'
+      WHEN aw.current_age < 65 THEN '55-64'
+      ELSE '65+'
+    END as age_band,
+
+    -- Tenure band
+    CASE
+      WHEN aw.current_tenure < 2 THEN '< 2'
+      WHEN aw.current_tenure < 5 THEN '2-4'
+      WHEN aw.current_tenure < 10 THEN '5-9'
+      WHEN aw.current_tenure < 20 THEN '10-19'
+      ELSE '20+'
+    END as tenure_band,
+
+    -- Conversion probability calculation
+    (CASE
+      WHEN aw.current_age < 31 THEN {{ var('year_over_year_conversion_base_rates_by_age_young', 0.03) }}
+      WHEN aw.current_age < 46 THEN {{ var('year_over_year_conversion_base_rates_by_age_mid_career', 0.05) }}
+      WHEN aw.current_age < 56 THEN {{ var('year_over_year_conversion_base_rates_by_age_mature', 0.07) }}
+      ELSE {{ var('year_over_year_conversion_base_rates_by_age_senior', 0.08) }}
+    END *
+    CASE
+      WHEN aw.current_compensation < 50000 THEN {{ var('year_over_year_conversion_income_multipliers_low_income', 0.8) }}
+      WHEN aw.current_compensation < 100000 THEN {{ var('year_over_year_conversion_income_multipliers_moderate', 1.0) }}
+      WHEN aw.current_compensation < 200000 THEN {{ var('year_over_year_conversion_income_multipliers_high', 1.2) }}
+      ELSE {{ var('year_over_year_conversion_income_multipliers_executive', 1.3) }}
+    END *
+    CASE
+      WHEN aw.current_tenure < 2 THEN {{ var('year_over_year_conversion_tenure_multipliers_new_employee', 0.7) }}
+      WHEN aw.current_tenure < 5 THEN {{ var('year_over_year_conversion_tenure_multipliers_established', 1.0) }}
+      ELSE {{ var('year_over_year_conversion_tenure_multipliers_veteran', 1.1) }}
+    END) as event_probability,
+
+    'year_over_year_voluntary' as event_category
+
+  FROM active_workforce aw
+  LEFT JOIN previous_enrollment_state pes ON aw.employee_id = pes.employee_id
+  WHERE
+    -- Only include employees not currently enrolled
+    COALESCE(pes.was_enrolled_previously, false) = false
+    -- Exclude recent hires (handled by new hire enrollment logic)
+    AND aw.employee_hire_date < CAST(aw.simulation_year || '-01-01' AS DATE)
+    -- Apply year-over-year conversion probability
+    AND {{ var('year_over_year_conversion_enabled', true) }}
+    AND (ABS(HASH(aw.employee_id || '-yoy-conversion-' || CAST(aw.simulation_year AS VARCHAR))) % 1000) / 1000.0 < (
+      CASE
+        WHEN aw.current_age < 31 THEN {{ var('year_over_year_conversion_base_rates_by_age_young', 0.03) }}
+        WHEN aw.current_age < 46 THEN {{ var('year_over_year_conversion_base_rates_by_age_mid_career', 0.05) }}
+        WHEN aw.current_age < 56 THEN {{ var('year_over_year_conversion_base_rates_by_age_mature', 0.07) }}
+        ELSE {{ var('year_over_year_conversion_base_rates_by_age_senior', 0.08) }}
+      END *
+      CASE
+        WHEN aw.current_compensation < 50000 THEN {{ var('year_over_year_conversion_income_multipliers_low_income', 0.8) }}
+        WHEN aw.current_compensation < 100000 THEN {{ var('year_over_year_conversion_income_multipliers_moderate', 1.0) }}
+        WHEN aw.current_compensation < 200000 THEN {{ var('year_over_year_conversion_income_multipliers_high', 1.2) }}
+        ELSE {{ var('year_over_year_conversion_income_multipliers_executive', 1.3) }}
+      END *
+      CASE
+        WHEN aw.current_tenure < 2 THEN {{ var('year_over_year_conversion_tenure_multipliers_new_employee', 0.7) }}
+        WHEN aw.current_tenure < 5 THEN {{ var('year_over_year_conversion_tenure_multipliers_established', 1.0) }}
+        ELSE {{ var('year_over_year_conversion_tenure_multipliers_veteran', 1.1) }}
+      END
+    )
+),
+
 -- Combine all enrollment-related events
 all_enrollment_events AS (
   SELECT
@@ -432,6 +591,52 @@ all_enrollment_events AS (
     event_probability,
     event_category
   FROM opt_out_events
+
+  UNION ALL
+
+  -- Epic E053: Add voluntary enrollment events
+  SELECT
+    employee_id,
+    employee_ssn,
+    event_type,
+    simulation_year,
+    effective_date,
+    event_details,
+    compensation_amount,
+    previous_compensation,
+    employee_deferral_rate,
+    prev_employee_deferral_rate,
+    employee_age,
+    employee_tenure,
+    level_id,
+    age_band,
+    tenure_band,
+    event_probability,
+    event_category
+  FROM voluntary_enrollment_events
+
+  UNION ALL
+
+  -- Epic E053: Add year-over-year conversion events
+  SELECT
+    employee_id,
+    employee_ssn,
+    event_type,
+    simulation_year,
+    effective_date,
+    event_details,
+    compensation_amount,
+    previous_compensation,
+    employee_deferral_rate,
+    prev_employee_deferral_rate,
+    employee_age,
+    employee_tenure,
+    level_id,
+    age_band,
+    tenure_band,
+    event_probability,
+    event_category
+  FROM year_over_year_enrollment_events
 )
 
 -- Final selection compatible with fct_yearly_events schema with event sourcing metadata

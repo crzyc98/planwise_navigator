@@ -113,6 +113,47 @@ enrollment:
   voluntary_enrollment:
     enabled: true  # Enable voluntary enrollment for non-auto-enrollment plans
     annual_enrollment_probability: 0.60  # Base probability of voluntary enrollment
+
+    # Epic E053: Enhanced demographic-based enrollment probabilities
+    base_rates_by_age:
+      young: 0.30      # Ages 18-30: 30% base enrollment rate
+      mid_career: 0.55 # Ages 31-45: 55% base enrollment rate
+      mature: 0.70     # Ages 46-55: 70% base enrollment rate
+      senior: 0.80     # Ages 56+: 80% base enrollment rate
+
+    income_multipliers:
+      low: 0.70        # <$50k: Lower enrollment (financial constraints)
+      moderate: 1.00   # $50k-$100k: Baseline enrollment
+      high: 1.15       # $100k-$200k: Higher enrollment
+      executive: 1.25  # >$200k: Highest enrollment
+
+    job_level_multipliers:
+      individual: 0.90 # Levels 1-2: Individual contributors
+      senior: 1.00     # Levels 3-4: Senior individual contributors
+      manager: 1.10    # Levels 5-6: Management roles
+      executive: 1.20  # Levels 7+: Executive roles
+
+    # Deferral rate selection with match optimization
+    deferral_rates:
+      match_optimization: true  # Enable match-maximizing behavior
+      demographic_base_rates:
+        young_low: 0.03       # Young, low income: 3%
+        young_moderate: 0.03  # Young, moderate income: 3%
+        young_high: 0.04      # Young, high income: 4%
+        young_executive: 0.06 # Young, executive: 6%
+        mid_career_low: 0.04
+        mid_career_moderate: 0.06
+        mid_career_high: 0.08
+        mid_career_executive: 0.10
+        mature_low: 0.05
+        mature_moderate: 0.08
+        mature_high: 0.10
+        mature_executive: 0.12
+        senior_low: 0.06
+        senior_moderate: 0.10
+        senior_high: 0.12
+        senior_executive: 0.15
+
     demographic_adjustments:
       age_factor_per_year: 0.01    # +1% per year over 25
       tenure_factor_per_year: 0.05 # +5% per year of service
@@ -121,6 +162,33 @@ enrollment:
       open_enrollment_period: 0.70  # 70% enroll during open enrollment
       mid_year_life_events: 0.20    # 20% enroll due to life events
       new_hire_immediate: 0.10      # 10% enroll immediately upon hire
+
+  # Epic E053: Year-over-year voluntary enrollment for non-participants
+  year_over_year_conversion:
+    enabled: true  # Enable year-over-year voluntary enrollment
+    base_rates_by_age:
+      young: 0.03      # 3% annual conversion for ages 18-30
+      mid_career: 0.05 # 5% annual conversion for ages 31-45
+      mature: 0.07     # 7% annual conversion for ages 46-55
+      senior: 0.08     # 8% annual conversion for ages 56+
+    income_multipliers:
+      low_income: 0.8  # Financial constraints reduce conversion
+      moderate: 1.0    # Baseline conversion rate
+      high: 1.2        # Increased financial capacity
+      executive: 1.3   # Financial sophistication drives conversion
+    tenure_multipliers:
+      new_employee: 0.7  # < 2 years: Still adjusting
+      established: 1.0   # 2-5 years: Baseline conversion
+      veteran: 1.1       # 5+ years: Company loyalty/stability
+    timing:
+      enrollment_month: 6  # Mid-year enrollment events
+      enrollment_day: 15   # 15th of the month
+    deferral_rates:
+      conservative: true  # Use conservative rates for new voluntary enrollees
+      young: 0.03         # 3% for young converters
+      mid_career: 0.04    # 4% for mid-career converters
+      mature: 0.05        # 5% for mature converters
+      senior: 0.06        # 6% for senior converters
 
   # Timing coordination and orchestration
   timing:
