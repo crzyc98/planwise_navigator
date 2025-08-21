@@ -289,6 +289,58 @@ deferral_escalation_events AS (
   {%- endif %}
 ),
 
+-- S051-02: Synthetic Baseline Enrollment Events Integration
+-- Map synthetic enrollment events from census data to yearly events schema
+synthetic_enrollment_events AS (
+  SELECT
+    se.employee_id,
+    -- Handle missing employee_ssn gracefully
+    COALESCE(bw.employee_ssn, 'UNKNOWN') AS employee_ssn,
+    se.event_type,
+    se.simulation_year,
+    se.effective_date,
+    se.event_details,
+    se.current_compensation AS compensation_amount,
+    CAST(NULL AS DECIMAL(18,2)) AS previous_compensation,
+    se.employee_deferral_rate::DECIMAL(5,4) AS employee_deferral_rate,
+    CAST(NULL AS DECIMAL(5,4)) AS prev_employee_deferral_rate,
+    se.current_age AS employee_age,
+    se.current_tenure AS employee_tenure,
+    se.level_id,
+    -- Calculate age_band from current_age for consistency
+    CASE
+      WHEN se.current_age < 25 THEN '< 25'
+      WHEN se.current_age < 35 THEN '25-34'
+      WHEN se.current_age < 45 THEN '35-44'
+      WHEN se.current_age < 55 THEN '45-54'
+      WHEN se.current_age < 65 THEN '55-64'
+      ELSE '65+'
+    END AS age_band,
+    -- Calculate tenure_band from current_tenure for consistency
+    CASE
+      WHEN se.current_tenure < 2 THEN '< 2'
+      WHEN se.current_tenure < 5 THEN '2-4'
+      WHEN se.current_tenure < 10 THEN '5-9'
+      WHEN se.current_tenure < 15 THEN '10-14'
+      WHEN se.current_tenure < 20 THEN '15-19'
+      ELSE '20+'
+    END AS tenure_band,
+    CAST(NULL AS DECIMAL(10,4)) AS event_probability,
+    'census_baseline' AS event_category
+  FROM {{ ref('int_synthetic_baseline_enrollment_events') }} se
+  LEFT JOIN {{ ref('int_baseline_workforce') }} bw
+    ON se.employee_id = bw.employee_id
+    AND se.simulation_year = bw.simulation_year
+  {%- if simulation_year %}
+  WHERE se.simulation_year = {{ simulation_year }}
+    -- Only include synthetic events for the start year to avoid duplicates
+    AND se.simulation_year = {{ var('start_year', 2025) }}
+  {%- else %}
+  -- Only include synthetic events for the start year to avoid duplicates
+  WHERE se.simulation_year = {{ var('start_year', 2025) }}
+  {%- endif %}
+),
+
 -- Union all event types with consistent schema
 all_events AS (
   SELECT
@@ -465,6 +517,29 @@ all_events AS (
     event_probability,
     event_category
   FROM deferral_escalation_events
+
+  UNION ALL
+
+  -- S051-02: Add synthetic baseline enrollment events
+  SELECT
+    employee_id,
+    employee_ssn,
+    event_type,
+    simulation_year,
+    effective_date,
+    event_details,
+    compensation_amount,
+    previous_compensation,
+    employee_deferral_rate,
+    prev_employee_deferral_rate,
+    employee_age,
+    employee_tenure,
+    level_id,
+    age_band,
+    tenure_band,
+    event_probability,
+    event_category
+  FROM synthetic_enrollment_events
 
   UNION ALL
 
