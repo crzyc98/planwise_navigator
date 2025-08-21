@@ -299,6 +299,12 @@ enrollment_events AS (
     -- Now that previous_enrollment_state properly checks accumulator for subsequent years,
     -- we can safely enforce this constraint across all years
     AND efo.is_already_enrolled = false
+    -- NEW: Exclude employees who have already enrolled proactively within auto-enrollment window
+    AND efo.employee_id NOT IN (
+      SELECT employee_id FROM {{ ref('int_proactive_voluntary_enrollment') }}
+      WHERE will_enroll_proactively = true
+        AND simulation_year = {{ var('simulation_year') }}
+    )
     -- BUSINESS CHANGE: If scope is new_hires_only OR all_eligible_employees → auto-enroll deterministically;
     -- otherwise keep probabilistic enrollment by demographics
     AND (
@@ -435,6 +441,36 @@ voluntary_enrollment_events AS (
   FROM {{ ref('int_voluntary_enrollment_decision') }} ved
   WHERE ved.will_enroll = true
     AND ved.simulation_year = {{ var('simulation_year') }}
+),
+
+-- Proactive Voluntary Enrollment Events (New Hires Within Auto-Enrollment Windows)
+proactive_voluntary_enrollment_events AS (
+  SELECT
+    pve.employee_id,
+    pve.employee_ssn,
+    'enrollment' as event_type,
+    pve.simulation_year,
+    pve.proactive_enrollment_date as effective_date,
+
+    -- Enhanced event details with proactive context
+    'Proactive voluntary enrollment - ' || UPPER(pve.age_segment) || ' ' || UPPER(pve.income_segment) ||
+    ' new hire - ' || CAST(ROUND(pve.proactive_deferral_rate * 100, 1) AS VARCHAR) || '% deferral rate' as event_details,
+
+    pve.employee_compensation as compensation_amount,
+    NULL as previous_compensation,  -- First enrollment, no previous rate
+    pve.proactive_deferral_rate as employee_deferral_rate,
+    0.00 as prev_employee_deferral_rate,  -- First enrollment
+    pve.current_age as employee_age,
+    pve.current_tenure as employee_tenure,
+    pve.level_id,
+    pve.age_band,
+    pve.tenure_band,
+    pve.final_enrollment_probability as event_probability,
+    pve.event_category
+
+  FROM {{ ref('int_proactive_voluntary_enrollment') }} pve
+  WHERE pve.will_enroll_proactively = true
+    AND pve.simulation_year = {{ var('simulation_year') }}
 ),
 
 -- Epic E053: Year-over-Year Voluntary Enrollment for Non-Participants
@@ -614,6 +650,29 @@ all_enrollment_events AS (
     event_probability,
     event_category
   FROM voluntary_enrollment_events
+
+  UNION ALL
+
+  -- Add proactive voluntary enrollment events (new hires within auto-enrollment windows)
+  SELECT
+    employee_id,
+    employee_ssn,
+    event_type,
+    simulation_year,
+    effective_date,
+    event_details,
+    compensation_amount,
+    previous_compensation,
+    employee_deferral_rate,
+    prev_employee_deferral_rate,
+    employee_age,
+    employee_tenure,
+    level_id,
+    age_band,
+    tenure_band,
+    event_probability,
+    event_category
+  FROM proactive_voluntary_enrollment_events
 
   UNION ALL
 
