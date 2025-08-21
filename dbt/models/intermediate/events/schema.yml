@@ -1,0 +1,73 @@
+version: 2
+
+models:
+  - name: int_synthetic_baseline_enrollment_events
+    description: >
+      Synthetic baseline enrollment events generated from census data for Epic E049.
+      Creates audit trail events for all pre-enrolled census participants to maintain
+      complete event-sourcing architecture while preserving actual deferral rates.
+    config:
+      tags: ["enrollment", "census_integration", "epic_e049", "event_sourcing"]
+    data_tests:
+      - dbt_utils.unique_combination_of_columns:
+          combination_of_columns:
+            - employee_id
+            - simulation_year
+          config:
+            severity: error
+            error_if: ">= 1"
+    columns:
+      - name: employee_id
+        description: Unique employee identifier from census data
+        data_tests:
+          - not_null
+          - unique:
+              config:
+                severity: error
+                where: "simulation_year = {{ var('start_year', 2025) }}"
+      - name: event_type
+        description: Event type (always 'enrollment' for synthetic baseline events)
+        data_tests:
+          - not_null
+          - accepted_values:
+              values: ['enrollment']
+      - name: simulation_year
+        description: Simulation year (should match start_year for baseline events)
+        data_tests:
+          - not_null
+          - accepted_values:
+              values: [2025, 2026, 2027, 2028, 2029]
+      - name: effective_date
+        description: Historical enrollment date from census data
+        data_tests:
+          - not_null
+      - name: employee_deferral_rate
+        description: Preserved census deferral rate (normalized to [0,1])
+        data_tests:
+          - not_null
+          - dbt_utils.accepted_range:
+              min_value: 0.0
+              max_value: 1.0
+              inclusive: true
+      - name: event_details
+        description: Human-readable event description with actual deferral rate
+        data_tests:
+          - not_null
+      - name: data_quality_flag
+        description: Data quality classification for rate source
+        data_tests:
+          - not_null
+          - accepted_values:
+              values: ['census_rate_preserved', 'capped_at_irs_limit', 'fallback_rate_applied']
+      - name: has_valid_rate
+        description: Boolean flag indicating valid deferral rate
+        data_tests:
+          - not_null
+          - accepted_values:
+              values: [true, false]
+      - name: is_pre_simulation_enrollment
+        description: Boolean flag confirming enrollment occurred before simulation start
+        data_tests:
+          - not_null
+          - accepted_values:
+              values: [true, false]
