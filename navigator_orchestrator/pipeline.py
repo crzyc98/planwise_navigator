@@ -891,6 +891,7 @@ class PipelineOrchestrator:
                     "int_merit_events",
                     "int_eligibility_determination",
                     "int_voluntary_enrollment_decision",
+                    "int_proactive_voluntary_enrollment",
                     "int_enrollment_events",
                     "int_deferral_rate_escalation_events",
                 ],
