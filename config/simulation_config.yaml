@@ -43,7 +43,7 @@ plan_year:
   annualization_method: "calendar_days"  # Method for annualizing partial year compensation (calendar_days vs work_days)
 
 eligibility:
-  waiting_period_days: 30  # Days employee must be employed before becoming eligible (0 = immediate, 365 = 1 year)
+  waiting_period_days: 0  # Days employee must be employed before becoming eligible (0 = immediate, 365 = 1 year)
   # Future: moved to Epic E026
   # minimum_age: 21
   # minimum_hours_annual: 1000
