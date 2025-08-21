@@ -9,12 +9,15 @@
 /*
   Employer Core Contributions Model - Enhanced with Configuration
 
+  FIXED: Decoupled from deferral rate calculations to prevent auto-escalation from affecting core contributions
+
   Calculates employer core (non-elective) contribution amounts
   based on configurable business rules:
   - Configurable contribution rate (default 2%) via simulation_config.yaml
   - Enhanced eligibility criteria including minimum tenure requirements
   - Can be enabled/disabled via configuration
   - 0% for ineligible employees
+  - Independent compensation proration logic (not affected by deferral rates)
 
   Configuration driven via dbt variables:
   - employer_core_enabled: Master on/off switch
@@ -23,10 +26,13 @@
   - core_require_active_eoy: Must be active at year-end
   - core_minimum_hours: Minimum annual hours requirement
 
-  Future enhancements may include:
-  - Level-based contribution rates
-  - Service-based vesting schedules
-  - Pro-ration for partial year employment
+  Bug Fix: Previously used int_employee_contributions for proration, which created
+  unwanted dependency on deferral rate calculations. New hire terminations were
+  incorrectly getting core contributions when auto-escalation was enabled for all
+  employees, because the deferral rate logic was affecting compensation proration.
+
+  Now uses independent proration logic to ensure core contributions are only
+  affected by employment status and eligibility rules, not deferral settings.
 */
 
 {% set simulation_year = var('simulation_year', 2025) | int %}
@@ -82,16 +88,73 @@ population AS (
     FROM new_hires_curr_year
 ),
 
--- Always-on proration source for employer contributions
+-- Independent workforce proration logic (decoupled from deferral rates)
+-- This ensures core contributions are not affected by auto-escalation settings
+hire_events AS (
+    SELECT
+        employee_id,
+        effective_date::DATE AS hire_date,
+        compensation_amount AS annual_salary,
+        employee_age
+    FROM {{ ref('fct_yearly_events') }}
+    WHERE simulation_year = {{ simulation_year }}
+      AND event_type = 'hire'
+),
+
+termination_events AS (
+    SELECT
+        employee_id,
+        effective_date::DATE AS termination_date
+    FROM {{ ref('fct_yearly_events') }}
+    WHERE simulation_year = {{ simulation_year }}
+      AND event_type = 'termination'
+),
+
+-- Calculate independent proration for new hires
+new_hire_proration AS (
+    SELECT
+        h.employee_id,
+        {{ simulation_year }} AS simulation_year,
+        h.annual_salary AS current_compensation,
+        -- Prorate from hire to termination (if any) else year end
+        ROUND(
+            h.annual_salary *
+            LEAST(365, GREATEST(0,
+                DATEDIFF('day', h.hire_date, COALESCE(t.termination_date, ({{ simulation_year }} || '-12-31')::DATE)) + 1
+            )) / 365.0
+        , 2) AS prorated_annual_compensation,
+        CASE WHEN t.termination_date IS NULL THEN 'active' ELSE 'terminated' END AS employment_status,
+        t.termination_date
+    FROM hire_events h
+    LEFT JOIN termination_events t USING (employee_id)
+),
+
+-- Independent workforce proration logic (decoupled from deferral rates)
 workforce_proration AS (
-    -- Use contribution model as the single source for prorated base
+    -- Snapshot population for existing employees
     SELECT
         employee_id,
         simulation_year,
-        total_contribution_base_compensation AS prorated_annual_compensation,
-        employment_status
-    FROM {{ ref('int_employee_contributions') }}
-    WHERE simulation_year = {{ simulation_year }}
+        employee_compensation AS current_compensation,
+        employee_compensation AS prorated_annual_compensation,
+        employment_status,
+        NULL::DATE AS termination_date
+    FROM employee_compensation
+
+    UNION ALL
+
+    -- Current-year new hires with independent proration
+    SELECT
+        employee_id,
+        simulation_year,
+        current_compensation,
+        prorated_annual_compensation,
+        employment_status,
+        termination_date
+    FROM new_hire_proration
+    WHERE employee_id NOT IN (
+        SELECT employee_id FROM employee_compensation
+    )
 ),
 
 eligibility_check AS (
@@ -159,6 +222,7 @@ SELECT
                 {% endif %}
             )
             -- Defensive guardrails: disallow terminations unless explicitly enabled
+            -- STRENGTHENED: Ensure new hire terminations are properly excluded when not allowed
             AND (
                 (COALESCE(term.has_new_hire_termination, FALSE) = FALSE OR ({{ 'true' if core_allow_terminated_new_hires else 'false' }}))
             )
