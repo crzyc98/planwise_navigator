@@ -67,19 +67,35 @@ deferral_rates AS (
 -- Removed legacy CTEs in favor of workforce_proration as the single source
 
 -- Workforce proration base: include prior-year actives (snapshot) and current-year new hires
+-- FIX: Add LEFT JOIN with termination events to properly handle terminated employees
 snapshot_proration AS (
     SELECT
-        employee_id,
+        comp.employee_id,
         {{ simulation_year }} AS simulation_year,
-        employee_compensation AS current_compensation,
-        -- Snapshot comp is already the working-year basis here
-        employee_compensation AS prorated_annual_compensation,
-        employment_status,
-        NULL::DATE AS termination_date,
-        employee_birth_date,
-        current_age
-    FROM {{ ref('int_employee_compensation_by_year') }}
-    WHERE simulation_year = (SELECT current_year FROM simulation_parameters)
+        comp.employee_compensation AS current_compensation,
+        -- FIX: Calculate prorated compensation for terminated employees
+        CASE
+            WHEN term.termination_date IS NOT NULL THEN
+                ROUND(
+                    comp.employee_compensation *
+                    LEAST(365, GREATEST(0,
+                        DATEDIFF('day', ({{ simulation_year }} || '-01-01')::DATE, term.termination_date) + 1
+                    )) / 365.0
+                , 2)
+            ELSE comp.employee_compensation
+        END AS prorated_annual_compensation,
+        -- FIX: Update employment status to 'terminated' when termination events exist
+        CASE
+            WHEN term.termination_date IS NOT NULL THEN 'terminated'
+            ELSE comp.employment_status
+        END AS employment_status,
+        -- FIX: Set termination_date field properly
+        term.termination_date,
+        comp.employee_birth_date,
+        comp.current_age
+    FROM {{ ref('int_employee_compensation_by_year') }} comp
+    LEFT JOIN termination_events term ON comp.employee_id = term.employee_id
+    WHERE comp.simulation_year = (SELECT current_year FROM simulation_parameters)
 ),
 
 hire_events AS (
@@ -197,7 +213,11 @@ employee_contributions AS (
         ) AS INTEGER) AS total_pay_periods_with_contributions,
         CAST('{{ simulation_year }}-01-01' AS DATE) AS first_contribution_date,
         COALESCE(wf.termination_date, CAST('{{ simulation_year }}-12-31' AS DATE)) AS last_contribution_date,
-        CASE WHEN wf.termination_date IS NOT NULL THEN 'partial_year' ELSE 'full_year' END AS contribution_duration_category,
+        -- FIX: Should be 'partial_year' for terminated employees, 'full_year' for active
+        CASE
+            WHEN wf.employment_status = 'terminated' OR wf.termination_date IS NOT NULL THEN 'partial_year'
+            ELSE 'full_year'
+        END AS contribution_duration_category,
         CASE
             WHEN (wf.prorated_annual_compensation * COALESCE(dr.deferral_rate, 0.0)) >
                  CASE WHEN wf.current_age >= il.catch_up_age_threshold

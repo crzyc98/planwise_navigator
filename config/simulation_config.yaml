@@ -272,7 +272,7 @@ deferral_auto_escalation:
   effective_day: "01-01"        # MM-DD for escalation effective date
   increment_amount: 0.01        # Annual escalation rate (default 1%)
   maximum_rate: 0.10            # Cap for deferral rate (default 10%)
-  hire_date_cutoff: "2025-01-01"        # Optional YYYY-MM-DD; only employees hired on/before this date are eligible
+  hire_date_cutoff: "1900-01-01"        # Optional YYYY-MM-DD; only employees hired on/before this date are eligible
   require_active_enrollment: true  # Only escalate enrolled participants
 
 # Deferral baseline behavior (Option A default)
