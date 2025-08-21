@@ -415,7 +415,8 @@
       "Bash(/Users/nicholasamaral/planwise_navigator/venv/bin/dbt compile --select int_proactive_voluntary_enrollment --vars \"simulation_year: 2025\")",
       "Bash(/Users/nicholasamaral/planwise_navigator/venv/bin/dbt compile --select int_enrollment_events --vars \"simulation_year: 2025\")",
       "Bash(/Users/nicholasamaral/planwise_navigator/venv/bin/dbt compile --select int_enrollment_events --vars \"simulation_year: 2025\" --project-dir /Users/nicholasamaral/planwise_navigator/dbt)",
-      "Bash(/Users/nicholasamaral/planwise_navigator/venv/bin/dbt run --select int_proactive_voluntary_enrollment --vars \"simulation_year: 2025\" --project-dir /Users/nicholasamaral/planwise_navigator/dbt)"
+      "Bash(/Users/nicholasamaral/planwise_navigator/venv/bin/dbt run --select int_proactive_voluntary_enrollment --vars \"simulation_year: 2025\" --project-dir /Users/nicholasamaral/planwise_navigator/dbt)",
+      "Bash(/Users/nicholasamaral/planwise_navigator/venv/bin/dbt run --select int_enrollment_events --vars \"simulation_year: 2026\" --threads 1)"
     ],
     "deny": []
   }

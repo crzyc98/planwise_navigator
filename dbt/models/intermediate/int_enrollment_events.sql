@@ -213,10 +213,26 @@ enrollment_events AS (
     NULL as previous_compensation,
 
     -- NEW: Employee deferral rate
-    -- If auto-enrollment program is enabled, use configured default_deferral_rate for enrolled participants.
+    -- CRITICAL FIX: Apply auto-enrollment default rate ONLY to auto_enrollment events
+    -- All other enrollment types (voluntary, proactive, year-over-year) use demographic-based rates
     CASE
-      WHEN '{{ var("auto_enrollment_scope", "all_eligible_employees") }}' IN ('new_hires_only', 'all_eligible_employees')
-        THEN {{ var('auto_enrollment_default_deferral_rate', 0.06) }}
+      WHEN (
+        CASE
+          WHEN '{{ var("auto_enrollment_scope", "all_eligible_employees") }}' = 'all_eligible_employees' THEN 'auto_enrollment'
+          WHEN '{{ var("auto_enrollment_scope", "all_eligible_employees") }}' = 'new_hires_only'
+               AND ({{ is_eligible_for_auto_enrollment('efo.employee_hire_date', 'efo.simulation_year') }})
+            THEN 'auto_enrollment'
+          ELSE (
+            CASE efo.age_segment
+              WHEN 'young' THEN 'auto_enrollment'
+              WHEN 'mid_career' THEN 'voluntary_enrollment'
+              WHEN 'mature' THEN 'proactive_enrollment'
+              ELSE 'voluntary_enrollment'
+            END
+          )
+        END
+      ) = 'auto_enrollment'
+        THEN {{ var('auto_enrollment_default_deferral_rate', 0.02) }}
       ELSE
         CASE efo.age_segment
           WHEN 'young' THEN
@@ -696,10 +712,31 @@ all_enrollment_events AS (
     event_probability,
     event_category
   FROM year_over_year_enrollment_events
+),
+
+-- Deduplication with event category prioritization
+-- Prevent duplicate enrollments per employee per year
+deduplicated_events AS (
+  SELECT *,
+    -- Prioritize enrollment events: voluntary > proactive > year_over_year > auto_enrollment
+    ROW_NUMBER() OVER (
+      PARTITION BY employee_id, simulation_year
+      ORDER BY
+        CASE event_category
+          WHEN 'voluntary_enrollment' THEN 1
+          WHEN 'proactive_voluntary_enrollment' THEN 2
+          WHEN 'year_over_year_voluntary' THEN 3
+          WHEN 'auto_enrollment' THEN 4
+          ELSE 5
+        END,
+        effective_date
+    ) as priority_rank
+  FROM all_enrollment_events
 )
 
 -- Final selection compatible with fct_yearly_events schema with event sourcing metadata
 -- Phase 2 Fix: Restored all critical WHERE clauses to prevent duplicate enrollments
+-- Phase 3 Fix: Added deduplication to prevent multiple enrollments per employee per year
 SELECT
   employee_id,
   employee_ssn,
@@ -731,8 +768,9 @@ SELECT
     WHEN compensation_amount IS NULL THEN 'INVALID_COMPENSATION'
     ELSE 'VALID'
   END as data_quality_flag
-FROM all_enrollment_events
-WHERE employee_id IS NOT NULL
+FROM deduplicated_events
+WHERE priority_rank = 1  -- Only keep the highest priority enrollment per employee per year
+  AND employee_id IS NOT NULL
   AND simulation_year IS NOT NULL
   AND effective_date IS NOT NULL
   AND event_type IS NOT NULL

@@ -22,7 +22,7 @@ This playbook tells Claude exactly how to turn high-level feature requests into 
 | **Storage** | DuckDB | 1.0.0 | Immutable event store; column-store OLAP engine |
 | **Transformation** | dbt-core | 1.8.8 | Declarative SQL models, tests, documentation |
 | **Adapter** | dbt-duckdb | 1.8.1 | Stable DuckDB integration |
-| **Orchestration** | run_multi_year.py | Direct | Python script with dbt subprocess calls for multi-year simulation workflow |
+| **Orchestration** | navigator_orchestrator.pipeline | Modular | PipelineOrchestrator with staged workflow execution and checkpoint support |
 | **Dashboard** | Streamlit | 1.39.0 | Interactive analytics and compensation tuning |
 | **Configuration** | Pydantic | 2.7.4 | Type-safe config management with validation |
 | **Parameters** | comp\_levers.csv | Dynamic | Analyst-adjustable compensation parameters |
@@ -34,17 +34,16 @@ This playbook tells Claude exactly how to turn high-level feature requests into 
 
 ```mermaid
 graph TD
-    config[config/simulation_config.yaml] --> runner[run_multi_year.py]
+    config[config/simulation_config.yaml] --> orchestrator[navigator_orchestrator.pipeline.PipelineOrchestrator]
     params[comp_levers.csv] --> parameters[int_effective_parameters]
     census[census_raw] --> baseline[int_baseline_workforce]
-    baseline --> compensation[int_employee_compensation_by_year]
-    compensation --> needs[int_workforce_needs]
-    needs --> events[Event Models]
-    events --> yearly_events[fct_yearly_events]
-    yearly_events --> accumulators[State Accumulators (int_*)]
-    accumulators --> workforce[fct_workforce_snapshot]
-    workforce --> audit[Year Audit Results]
-    audit --> tuning[Compensation Tuning UI]
+    orchestrator --> init[INITIALIZATION: staging.*]
+    init --> foundation[FOUNDATION: baseline + compensation + needs]
+    foundation --> events[EVENT_GENERATION: hire/term/promotion/merit/enrollment]
+    events --> state[STATE_ACCUMULATION: accumulators + snapshots]
+    state --> validation[VALIDATION: data quality checks]
+    validation --> reporting[REPORTING: audit + performance]
+    reporting --> tuning[Compensation Tuning UI]
     tuning --> params
 ```
 
@@ -101,11 +100,14 @@ Guidance: Avoid circular dependencies. Intermediate (`int_*`) models must not re
 
 ```
 planwise_navigator/
-├─ run_multi_year.py                 # Main multi-year simulation orchestrator
-├─ orchestrator_dbt/                 # Enhanced dbt orchestrator (production)
-│  ├─ run_multi_year.py             # Production multi-year runner
-│  ├─ core/                         # Core orchestration components
-│  └─ simulation/                   # Simulation logic modules
+├─ navigator_orchestrator/           # Production orchestration engine
+│  ├─ pipeline.py                   # PipelineOrchestrator main class
+│  ├─ config.py                     # SimulationConfig management
+│  ├─ dbt_runner.py                 # DbtRunner with streaming output
+│  ├─ registries.py                 # State management across years
+│  ├─ validation.py                 # Data quality validation
+│  └─ reports.py                    # Multi-year reporting
+├─ scripts/run_multi_year_simulation.py  # Simple CLI wrapper
 ├─ dbt/                              # dbt project
 │  ├─ models/                        # SQL transformation models
 │  │  ├─ staging/                    # Raw data cleaning (stg_*)
@@ -207,14 +209,22 @@ source venv/bin/activate
 pip install -r requirements.txt
 
 # Run Multi-Year Simulations
-python run_multi_year.py                                # Simple multi-year runner (development)
-python orchestrator_dbt/run_multi_year.py               # Enhanced multi-year runner (production)
+python scripts/run_multi_year_simulation.py --years 2025 2026 2027  # CLI wrapper
+python -m navigator_orchestrator.pipeline                           # Direct orchestrator (production)
 
-# dbt Development
+# Performance-optimized for work laptops (single-threaded)
+python scripts/run_multi_year_simulation.py --years 2025 2026 --threads 1 --optimization medium
+
+# dbt Development (optimized for work laptops)
 cd dbt
-dbt build --threads 4 --fail-fast               # Build + test
+dbt build --threads 1 --fail-fast               # Single-threaded for stability
+dbt build --threads 1 --select tag:foundation   # Build foundation models only
 dbt test --select tag:data_quality              # Run DQ-only tests
 dbt docs generate                               # Generate docs
+
+# Memory-efficient incremental builds
+dbt run --select int_baseline_workforce+ --threads 1
+dbt run --select fct_yearly_events+ --threads 1 --vars '{simulation_year: 2025}'
 
 # Single Year Development (for testing specific models)
 cd dbt
@@ -252,10 +262,23 @@ make run-optimization-dashboard                          # Launch optimization d
 # - random_seed for reproducibility
 
 # Development Pattern
-# 1. Test single year: dbt run --select model_name --vars "simulation_year: 2025"
-# 2. Test multi-year: python run_multi_year.py
+# 1. Test single year: dbt run --select model_name --vars "simulation_year: 2025" --threads 1
+# 2. Test multi-year: python scripts/run_multi_year_simulation.py --years 2025 2026 --optimization medium
 # 3. Validate results: check audit output and database contents
-# 4. Deploy changes: commit and use orchestrator_dbt/run_multi_year.py
+# 4. Deploy changes: use navigator_orchestrator.pipeline with production config
+
+# Navigator Orchestrator Usage
+python -c "
+from navigator_orchestrator import create_orchestrator
+from navigator_orchestrator.config import load_simulation_config
+
+config = load_simulation_config('config/simulation_config.yaml')
+orchestrator = create_orchestrator(config)
+summary = orchestrator.execute_multi_year_simulation(
+    start_year=2025, end_year=2026, fail_on_validation_error=False
+)
+print(f'Completed {len(summary.completed_years)} years')
+"
 
 # Enrollment Architecture Validation
 dbt run --select validate_enrollment_architecture --vars "simulation_year: 2025"
@@ -264,7 +287,162 @@ dbt run --select validate_enrollment_architecture --vars "simulation_year: 2025"
 
 -----
 
-### **7.1. Claude Database Interaction Capabilities**
+### **7.1. Single-Threaded Performance Optimizations**
+
+**Work Laptop Optimization Strategy**: PlanWise Navigator can be optimized for single-threaded execution on resource-constrained work environments.
+
+#### **Navigator Orchestrator Configuration**
+
+```yaml
+# config/simulation_config.yaml - Work laptop optimizations
+multi_year:
+  optimization:
+    level: "medium"  # Reduced from "high" for stability
+    max_workers: 1   # Single-threaded execution
+    batch_size: 500  # Smaller batches to reduce memory pressure
+    memory_limit_gb: 4.0  # Conservative memory limit
+
+  performance:
+    enable_state_compression: true    # Compress state between years
+    enable_concurrent_processing: false  # Disable parallel processing
+    enable_parallel_dbt: false       # Force sequential dbt execution
+    cache_workforce_snapshots: false # Disable caching to save memory
+
+  state:
+    enable_checkpointing: true       # Enable resume capability
+    preserve_intermediate_states: false  # Clean up to save disk space
+    compression_level: 9             # Maximum compression
+```
+
+#### **dbt Performance Patterns**
+
+```bash
+# Always use --threads 1 for stability
+dbt run --threads 1 --select staging.* --fail-fast
+
+# Build models in dependency order to reduce memory pressure
+dbt run --threads 1 --select int_baseline_workforce
+dbt run --threads 1 --select int_employee_compensation_by_year
+dbt run --threads 1 --select int_workforce_needs+
+
+# Use incremental strategy for large tables
+dbt run --threads 1 --select fct_yearly_events --vars '{simulation_year: 2025}'
+
+# Memory-efficient multi-year execution
+for year in 2025 2026 2027; do
+  echo "Processing year $year"
+  dbt run --threads 1 --select foundation --vars "{simulation_year: $year}"
+  dbt run --threads 1 --select events --vars "{simulation_year: $year}"
+  dbt run --threads 1 --select marts --vars "{simulation_year: $year}"
+done
+```
+
+#### **Memory Management Strategies**
+
+```python
+# Navigator Orchestrator with memory management
+from navigator_orchestrator import create_orchestrator
+from navigator_orchestrator.config import load_simulation_config
+
+# Load config with work laptop optimizations
+config = load_simulation_config('config/simulation_config.yaml')
+
+# Override for extreme memory constraints
+config.multi_year.optimization.batch_size = 250
+config.multi_year.performance.cache_workforce_snapshots = False
+
+orchestrator = create_orchestrator(config)
+
+# Execute with frequent checkpointing
+summary = orchestrator.execute_multi_year_simulation(
+    start_year=2025,
+    end_year=2027,
+    fail_on_validation_error=False
+)
+```
+
+#### **Sequential Model Execution**
+
+The PipelineOrchestrator enforces sequential execution through workflow stages:
+
+1. **INITIALIZATION**: Load seeds and staging data
+2. **FOUNDATION**: Build baseline workforce and compensation
+3. **EVENT_GENERATION**: Generate hire/termination/promotion events sequentially
+4. **STATE_ACCUMULATION**: Build accumulators and snapshots in dependency order
+5. **VALIDATION**: Run data quality checks
+6. **REPORTING**: Generate audit reports
+
+```python
+# Workflow stages execute sequentially within each year
+# No parallel model execution - optimal for single-threaded environments
+for year in range(start_year, end_year + 1):
+    for stage in workflow_stages:
+        for model in stage.models:
+            dbt_runner.execute_command(
+                ["run", "--select", model, "--threads", "1"],
+                simulation_year=year
+            )
+```
+
+#### **Incremental Model Strategy**
+
+```sql
+-- Optimized incremental configuration for work laptops
+{{ config(
+  materialized='incremental',
+  incremental_strategy='delete+insert',
+  unique_key=['scenario_id', 'plan_design_id', 'employee_id', 'simulation_year'],
+  pre_hook="DELETE FROM {{ this }} WHERE simulation_year = {{ var('simulation_year') }}"
+) }}
+
+-- Filter early to reduce memory usage
+SELECT *
+FROM {{ ref('upstream_model') }}
+WHERE simulation_year = {{ var('simulation_year') }}
+  {% if is_incremental() %}
+    AND simulation_year = {{ var('simulation_year') }}
+  {% endif %}
+```
+
+#### **Checkpoint and Resume**
+
+```bash
+# Enable resume capability for long-running simulations
+python scripts/run_multi_year_simulation.py \
+  --years 2025 2026 2027 \
+  --optimization medium \
+  --threads 1 \
+  --enable-compression
+
+# Resume from last checkpoint on failure
+python scripts/run_multi_year_simulation.py \
+  --years 2025 2026 2027 \
+  --resume-from-checkpoint
+```
+
+#### **Performance Monitoring**
+
+```python
+# Monitor memory usage during execution
+import psutil
+import gc
+
+def monitor_memory():
+    process = psutil.Process()
+    memory_mb = process.memory_info().rss / 1024 / 1024
+    print(f"Memory usage: {memory_mb:.1f} MB")
+
+    # Force garbage collection if memory is high
+    if memory_mb > 2000:  # 2GB threshold
+        gc.collect()
+
+# Use in orchestrator hooks
+orchestrator.add_stage_hook('post_stage', monitor_memory)
+```
+
+-----
+
+### **7.2. Claude Database Interaction Capabilities**
 
 Claude Code can directly interact with your DuckDB simulation database using multiple methods:
 
@@ -415,7 +593,7 @@ This section tracks the implementation of major epics and stories.
 
   * **Database Location**: The simulation database is `dbt/simulation.duckdb` (standardized location).
   * **dbt Commands**: Always run `dbt` commands from the `/dbt` directory.
-  * **Multi-year Orchestration**: Use `run_multi_year.py` from project root or `orchestrator_dbt/run_multi_year.py` for production.
+  * **Multi-year Orchestration**: Use `navigator_orchestrator.pipeline.PipelineOrchestrator` for production, or `scripts/run_multi_year_simulation.py` for development.
   * **Correct Pattern for Database Access**:
     ```python
     def get_database_connection():
