@@ -1123,3 +1123,47 @@ class PipelineOrchestrator:
         if updated:
             # Re-validate after updates
             self._validate_compensation_parameters()
+            # Force rebuild of parameter models to ensure changes take effect
+            print("🔄 Rebuilding parameter models to apply changes...")
+            self._rebuild_parameter_models()
+
+    def _rebuild_parameter_models(self) -> None:
+        """Force rebuild parameter models when compensation values change.
+
+        This is necessary because int_effective_parameters is materialized as a table
+        and needs --full-refresh to pick up new parameter values from config.
+        """
+        try:
+            # Get current simulation year from config or use start year
+            current_year = getattr(self.config.simulation, 'start_year', 2025)
+
+            print("   📋 Rebuilding int_effective_parameters with --full-refresh")
+            res = self.dbt_runner.execute_command(
+                ["run", "--select", "int_effective_parameters", "--full-refresh"],
+                simulation_year=current_year,
+                dbt_vars=self._dbt_vars,
+                stream_output=True
+            )
+
+            if res.success:
+                print("   ✅ int_effective_parameters rebuilt successfully")
+            else:
+                print(f"   ❌ Failed to rebuild int_effective_parameters: {res.return_code}")
+
+            # Also rebuild merit events to ensure they use new parameters
+            print("   📋 Rebuilding int_merit_events with new parameters")
+            merit_res = self.dbt_runner.execute_command(
+                ["run", "--select", "int_merit_events", "--full-refresh"],
+                simulation_year=current_year,
+                dbt_vars=self._dbt_vars,
+                stream_output=True
+            )
+
+            if merit_res.success:
+                print("   ✅ int_merit_events rebuilt successfully")
+            else:
+                print(f"   ❌ Failed to rebuild int_merit_events: {merit_res.return_code}")
+
+        except Exception as e:
+            print(f"   ⚠️ Error during parameter model rebuild: {e}")
+            print("   Manual rebuild may be required: dbt run --select int_effective_parameters int_merit_events --full-refresh")
