@@ -160,6 +160,15 @@ eligible_for_enrollment AS (
     -- CRITICAL: Track already enrolled status to prevent duplicates
     COALESCE(pe.was_enrolled_previously, false) as is_already_enrolled,
 
+    -- Explicit auto-enrollment row flag to drive default rate usage and categories
+    CASE
+      WHEN '{{ var("auto_enrollment_scope", "all_eligible_employees") }}' = 'all_eligible_employees' THEN true
+      WHEN '{{ var("auto_enrollment_scope", "all_eligible_employees") }}' = 'new_hires_only'
+           AND ({{ is_eligible_for_auto_enrollment('aw.employee_hire_date', 'aw.simulation_year') }})
+        THEN true
+      ELSE false
+    END AS is_auto_enrollment_row,
+
     -- Generate deterministic "random" values for enrollment decisions
     (ABS(HASH(aw.employee_id || '-enroll-' || CAST(aw.simulation_year AS VARCHAR))) % 1000) / 1000.0 as enrollment_random,
     (ABS(HASH(aw.employee_id || '-optout-' || CAST(aw.simulation_year AS VARCHAR))) % 1000) / 1000.0 as optout_random
@@ -216,23 +225,7 @@ enrollment_events AS (
     -- CRITICAL FIX: Apply auto-enrollment default rate ONLY to auto_enrollment events
     -- All other enrollment types (voluntary, proactive, year-over-year) use demographic-based rates
     CASE
-      WHEN (
-        CASE
-          WHEN '{{ var("auto_enrollment_scope", "all_eligible_employees") }}' = 'all_eligible_employees' THEN 'auto_enrollment'
-          WHEN '{{ var("auto_enrollment_scope", "all_eligible_employees") }}' = 'new_hires_only'
-               AND ({{ is_eligible_for_auto_enrollment('efo.employee_hire_date', 'efo.simulation_year') }})
-            THEN 'auto_enrollment'
-          ELSE (
-            CASE efo.age_segment
-              WHEN 'young' THEN 'auto_enrollment'
-              WHEN 'mid_career' THEN 'voluntary_enrollment'
-              WHEN 'mature' THEN 'proactive_enrollment'
-              ELSE 'voluntary_enrollment'
-            END
-          )
-        END
-      ) = 'auto_enrollment'
-        THEN {{ var('auto_enrollment_default_deferral_rate', 0.02) }}
+      WHEN efo.is_auto_enrollment_row THEN {{ default_deferral_rate() }}
       ELSE
         CASE efo.age_segment
           WHEN 'young' THEN
@@ -291,20 +284,13 @@ enrollment_events AS (
     END as event_probability,
 
     -- Event category for grouping (normalized to accepted values)
-    -- Correct classification:
-    --  - 'all_eligible_employees': all enrollment events are auto-enrollment
-    --  - 'new_hires_only': only current-year new hires (per macro) are auto-enrolled;
-    --    experienced employees fall back to voluntary/proactive classification
     CASE
-      WHEN '{{ var("auto_enrollment_scope", "all_eligible_employees") }}' = 'all_eligible_employees' THEN 'auto_enrollment'
-      WHEN '{{ var("auto_enrollment_scope", "all_eligible_employees") }}' = 'new_hires_only'
-           AND ({{ is_eligible_for_auto_enrollment('efo.employee_hire_date', 'efo.simulation_year') }})
-        THEN 'auto_enrollment'
+      WHEN efo.is_auto_enrollment_row THEN 'auto_enrollment'
       ELSE (
         CASE efo.age_segment
-          WHEN 'young' THEN 'auto_enrollment'
           WHEN 'mid_career' THEN 'voluntary_enrollment'
           WHEN 'mature' THEN 'proactive_enrollment'
+          WHEN 'young' THEN 'voluntary_enrollment'
           ELSE 'voluntary_enrollment'
         END
       )
@@ -321,10 +307,9 @@ enrollment_events AS (
       WHERE will_enroll_proactively = true
         AND simulation_year = {{ var('simulation_year') }}
     )
-    -- BUSINESS CHANGE: If scope is new_hires_only OR all_eligible_employees → auto-enroll deterministically;
-    -- otherwise keep probabilistic enrollment by demographics
+    -- BUSINESS RULE: auto-eligible rows enroll deterministically; others probabilistic by demographics
     AND (
-      CASE WHEN '{{ var("auto_enrollment_scope", "all_eligible_employees") }}' IN ('new_hires_only', 'all_eligible_employees') THEN true ELSE
+      CASE WHEN efo.is_auto_enrollment_row THEN true ELSE
         efo.enrollment_random < (
           CASE efo.age_segment
             WHEN 'young' THEN 0.30
@@ -718,16 +703,23 @@ all_enrollment_events AS (
 -- Prevent duplicate enrollments per employee per year
 deduplicated_events AS (
   SELECT *,
-    -- Prioritize enrollment events: voluntary > proactive > year_over_year > auto_enrollment
+    -- Keep one event per type (enrollment vs enrollment_change) per employee-year
+    -- Enrollment type prioritization: voluntary > proactive > yoy > auto
     ROW_NUMBER() OVER (
-      PARTITION BY employee_id, simulation_year
+      PARTITION BY employee_id, simulation_year, event_type
       ORDER BY
-        CASE event_category
-          WHEN 'voluntary_enrollment' THEN 1
-          WHEN 'proactive_voluntary_enrollment' THEN 2
-          WHEN 'year_over_year_voluntary' THEN 3
-          WHEN 'auto_enrollment' THEN 4
-          ELSE 5
+        CASE
+          WHEN event_type = 'enrollment' THEN (
+            CASE event_category
+              WHEN 'voluntary_enrollment' THEN 1
+              WHEN 'proactive_voluntary_enrollment' THEN 2
+              WHEN 'proactive_voluntary' THEN 2  -- alias handling
+              WHEN 'year_over_year_voluntary' THEN 3
+              WHEN 'auto_enrollment' THEN 4
+              ELSE 5
+            END
+          )
+          ELSE 1  -- For enrollment_change (opt-out), keep the single generated row
         END,
         effective_date
     ) as priority_rank
@@ -769,7 +761,7 @@ SELECT
     ELSE 'VALID'
   END as data_quality_flag
 FROM deduplicated_events
-WHERE priority_rank = 1  -- Only keep the highest priority enrollment per employee per year
+WHERE priority_rank = 1  -- Keep one per event_type per employee-year (enrollment + opt-out can coexist)
   AND employee_id IS NOT NULL
   AND simulation_year IS NOT NULL
   AND effective_date IS NOT NULL
