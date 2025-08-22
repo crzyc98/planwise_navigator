@@ -21,7 +21,7 @@ parameter_resolution AS (
         y.year,
         l.level_id,
         -- Use dynamic parameter lookup with fallback to hardcoded defaults
-        {{ get_parameter_value('l.level_id', 'raise', 'merit_base', 'y.year') }} AS merit_rate
+        {{ get_parameter_value('l.level_id', 'RAISE', 'merit_base', 'y.year') }} AS merit_rate
     FROM years y
     CROSS JOIN levels l
 )
