@@ -1,6 +1,7 @@
 {{ config(materialized='table') }}
 
 {% set simulation_year = var('simulation_year') %}
+{% set start_year = var('start_year', 2025) | int %}
 
 -- Generate hiring events based on centralized workforce needs calculations
 -- Refactored to use int_workforce_needs as single source of truth
@@ -74,7 +75,7 @@ new_hire_assignments AS (
     -- Generate SSN using 900M range with year offsets to prevent census collisions
     -- Census uses 100M range (SSN-100000001+), new hires use 900M+ range
     -- Format: 900 + (year_offset * 100000) + sequence_num
-    'SSN-' || LPAD(CAST(900000000 + ({{ simulation_year }} - 2025) * 100000 + hs.hire_sequence_num AS VARCHAR), 9, '0') AS employee_ssn,
+    'SSN-' || LPAD(CAST(900000000 + ({{ simulation_year }} - {{ start_year }}) * 100000 + hs.hire_sequence_num AS VARCHAR), 9, '0') AS employee_ssn,
 
     -- Simple age assignment (deterministic based on sequence)
     CASE

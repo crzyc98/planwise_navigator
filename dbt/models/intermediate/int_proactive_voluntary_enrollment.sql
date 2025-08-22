@@ -28,23 +28,24 @@
 */
 
 WITH new_hire_population AS (
-  -- Get new hires eligible for auto-enrollment
+  -- Get current-year new hires eligible for auto-enrollment
+  -- IMPORTANT: Use int_hiring_events for year N new hires since compensation_by_year
+  -- is built before hiring in this pipeline phase and will not include them yet.
   SELECT DISTINCT
-    aw.employee_id,
-    aw.employee_ssn,
-    aw.employee_hire_date,
-    aw.simulation_year,
-    aw.current_age,
-    aw.current_tenure,
-    aw.level_id,
-    aw.employee_compensation,
-    aw.employment_status
-  FROM {{ ref('int_employee_compensation_by_year') }} aw
-  WHERE aw.simulation_year = {{ var('simulation_year') }}
-    AND aw.employment_status = 'active'
-    AND aw.employee_id IS NOT NULL
+    he.employee_id,
+    he.employee_ssn,
+    he.effective_date::DATE AS employee_hire_date,
+    he.simulation_year,
+    he.employee_age AS current_age,
+    0.0 AS current_tenure,
+    he.level_id,
+    he.compensation_amount AS employee_compensation,
+    'active' AS employment_status
+  FROM {{ ref('int_hiring_events') }} he
+  WHERE he.simulation_year = {{ var('simulation_year') }}
+    AND he.employee_id IS NOT NULL
     -- Only include employees eligible for auto-enrollment
-    AND {{ is_eligible_for_auto_enrollment('aw.employee_hire_date', 'aw.simulation_year') }}
+    AND {{ is_eligible_for_auto_enrollment('he.effective_date::DATE', 'he.simulation_year') }}
 ),
 
 enrollment_status_check AS (
