@@ -96,6 +96,12 @@ snapshot_proration AS (
     FROM {{ ref('int_employee_compensation_by_year') }} comp
     LEFT JOIN termination_events term ON comp.employee_id = term.employee_id
     WHERE comp.simulation_year = (SELECT current_year FROM simulation_parameters)
+      -- CRITICAL FIX (E055): Exclude new hires from snapshot to prevent duplication
+      -- New hires should only appear in new_hire_proration with correct proration
+      AND NOT EXISTS (
+          SELECT 1 FROM hire_events h
+          WHERE h.employee_id = comp.employee_id
+      )
 ),
 
 hire_events AS (

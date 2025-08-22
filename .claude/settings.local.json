@@ -423,7 +423,12 @@
       "Bash(gh issue list:*)",
       "Bash(/Users/nicholasamaral/planwise_navigator/venv/bin/dbt debug --project-dir dbt)",
       "Bash(/Users/nicholasamaral/planwise_navigator/venv/bin/dbt run --select int_hazard_merit --full-refresh --vars \"simulation_year: 2025\" --project-dir /Users/nicholasamaral/planwise_navigator/dbt)",
-      "Bash(/Users/nicholasamaral/planwise_navigator/venv/bin/dbt run --select int_merit_events fct_yearly_events --full-refresh --vars \"simulation_year: 2025\" --project-dir /Users/nicholasamaral/planwise_navigator/dbt)"
+      "Bash(/Users/nicholasamaral/planwise_navigator/venv/bin/dbt run --select int_merit_events fct_yearly_events --full-refresh --vars \"simulation_year: 2025\" --project-dir /Users/nicholasamaral/planwise_navigator/dbt)",
+      "Bash(gh pr view:*)",
+      "Bash(gh pr merge:*)",
+      "Bash(git stash:*)",
+      "Bash(/Users/nicholasamaral/planwise_navigator/venv/bin/dbt run --select int_employee_match_calculations --vars \"simulation_year: 2025\" --full-refresh --project-dir /Users/nicholasamaral/planwise_navigator/dbt)",
+      "Bash(/Users/nicholasamaral/planwise_navigator/venv/bin/dbt run --select dq_new_hire_match_validation --vars \"simulation_year: 2025\" --project-dir /Users/nicholasamaral/planwise_navigator/dbt)"
     ],
     "deny": []
   }
