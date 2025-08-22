@@ -107,7 +107,7 @@ eligible_for_merit AS (
 cola_adjustments AS (
     SELECT
         {{ simulation_year }} AS year,
-        {{ get_parameter_value('1', 'raise', 'cola_rate', simulation_year) }} AS cola_rate
+        {{ get_parameter_value('1', 'RAISE', 'cola_rate', simulation_year) }} AS cola_rate
 )
 
 SELECT

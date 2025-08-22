@@ -79,6 +79,11 @@ class PipelineOrchestrator:
         self.validator = validator
         self.verbose = verbose
         self._dbt_vars = to_dbt_vars(config)
+
+        # Enhanced compensation parameter visibility
+        self._log_compensation_parameters()
+        self._validate_compensation_parameters()
+
         # Debug (optional): show dbt vars derived from config
         if self.verbose:
             try:
@@ -118,6 +123,9 @@ class PipelineOrchestrator:
     ) -> MultiYearSummary:
         start = start_year or self.config.simulation.start_year
         end = end_year or self.config.simulation.end_year
+
+        # Enhanced multi-year simulation startup logging
+        self._log_simulation_startup_summary(start, end)
 
         if resume_from_checkpoint:
             ckpt = self._find_last_checkpoint()
@@ -1018,3 +1026,144 @@ class PipelineOrchestrator:
             return hashlib.sha256(config_str.encode("utf-8")).hexdigest()
         except Exception:
             return "unknown"
+
+    def _log_compensation_parameters(self) -> None:
+        """Log compensation parameters with enhanced visibility for user verification."""
+        cola_rate = self._dbt_vars.get('cola_rate', self.config.compensation.cola_rate)
+        merit_budget = self._dbt_vars.get('merit_budget', self.config.compensation.merit_budget)
+
+        # Determine source of values
+        cola_source = "from configuration" if 'cola_rate' in self._dbt_vars else "using default"
+        merit_source = "from configuration" if 'merit_budget' in self._dbt_vars else "using default"
+
+        print("\n🔎 Navigator Orchestrator compensation parameters:")
+        print(f"   cola_rate: {cola_rate:.3f} ({cola_rate * 100:.1f}%) - {cola_source}")
+        print(f"   merit_budget: {merit_budget:.3f} ({merit_budget * 100:.1f}%) - {merit_source}")
+
+    def _validate_compensation_parameters(self) -> None:
+        """Validate compensation parameters and log warnings for unusual values."""
+        cola_rate = self._dbt_vars.get('cola_rate', self.config.compensation.cola_rate)
+        merit_budget = self._dbt_vars.get('merit_budget', self.config.compensation.merit_budget)
+
+        warnings = []
+
+        # Validate cola_rate
+        if cola_rate < 0 or cola_rate > 0.2:
+            warnings.append(f"cola_rate ({cola_rate:.3f}) outside typical range [0.0, 0.2]")
+        elif cola_rate > 0.1:
+            warnings.append(f"cola_rate ({cola_rate:.3f}) is unusually high (>10%)")
+
+        # Validate merit_budget
+        if merit_budget < 0 or merit_budget > 0.2:
+            warnings.append(f"merit_budget ({merit_budget:.3f}) outside typical range [0.0, 0.2]")
+        elif merit_budget > 0.15:
+            warnings.append(f"merit_budget ({merit_budget:.3f}) is unusually high (>15%)")
+
+        # Log any warnings
+        if warnings:
+            print("\n⚠️ Compensation parameter validation warnings:")
+            for warning in warnings:
+                print(f"   - {warning}")
+            print("   Please verify these values are intentional.")
+
+    def _log_simulation_startup_summary(self, start_year: int, end_year: int) -> None:
+        """Log a comprehensive summary of key simulation parameters at startup."""
+        print(f"\n🚀 Starting multi-year simulation ({start_year} - {end_year})")
+        print("📊 Key simulation parameters:")
+
+        # Compensation parameters
+        cola_rate = self._dbt_vars.get('cola_rate', self.config.compensation.cola_rate)
+        merit_budget = self._dbt_vars.get('merit_budget', self.config.compensation.merit_budget)
+        print(f"   Compensation:")
+        print(f"     • COLA Rate: {cola_rate:.1%}")
+        print(f"     • Merit Budget: {merit_budget:.1%}")
+
+        # Growth and workforce parameters
+        target_growth = self._dbt_vars.get('target_growth_rate', self.config.simulation.target_growth_rate)
+        total_term_rate = self._dbt_vars.get('total_termination_rate', getattr(self.config.workforce, 'total_termination_rate', 0.12))
+        nh_term_rate = self._dbt_vars.get('new_hire_termination_rate', getattr(self.config.workforce, 'new_hire_termination_rate', 0.25))
+        print(f"   Workforce modeling:")
+        print(f"     • Target Growth Rate: {target_growth:.1%}")
+        print(f"     • Total Termination Rate: {total_term_rate:.1%}")
+        print(f"     • New Hire Termination Rate: {nh_term_rate:.1%}")
+
+        # Other key parameters
+        random_seed = self._dbt_vars.get('random_seed', self.config.simulation.random_seed)
+        print(f"   Other settings:")
+        print(f"     • Random Seed: {random_seed}")
+        print(f"     • Years: {end_year - start_year + 1} ({start_year}-{end_year})")
+
+        print("")
+
+    def update_compensation_parameters(self, *, cola_rate: Optional[float] = None, merit_budget: Optional[float] = None) -> None:
+        """Update compensation parameters during runtime if needed.
+
+        Args:
+            cola_rate: New COLA rate (optional)
+            merit_budget: New merit budget (optional)
+        """
+        updated = False
+
+        if cola_rate is not None:
+            if cola_rate < 0 or cola_rate > 1:
+                raise ValueError(f"cola_rate must be between 0 and 1, got {cola_rate}")
+            self._dbt_vars['cola_rate'] = cola_rate
+            self.config.compensation.cola_rate = cola_rate
+            updated = True
+            print(f"✓ Updated cola_rate to {cola_rate:.3f} ({cola_rate * 100:.1f}%)")
+
+        if merit_budget is not None:
+            if merit_budget < 0 or merit_budget > 1:
+                raise ValueError(f"merit_budget must be between 0 and 1, got {merit_budget}")
+            self._dbt_vars['merit_budget'] = merit_budget
+            self.config.compensation.merit_budget = merit_budget
+            updated = True
+            print(f"✓ Updated merit_budget to {merit_budget:.3f} ({merit_budget * 100:.1f}%)")
+
+        if updated:
+            # Re-validate after updates
+            self._validate_compensation_parameters()
+            # Force rebuild of parameter models to ensure changes take effect
+            print("🔄 Rebuilding parameter models to apply changes...")
+            self._rebuild_parameter_models()
+
+    def _rebuild_parameter_models(self) -> None:
+        """Force rebuild parameter models when compensation values change.
+
+        This is necessary because int_effective_parameters is materialized as a table
+        and needs --full-refresh to pick up new parameter values from config.
+        """
+        try:
+            # Get current simulation year from config or use start year
+            current_year = getattr(self.config.simulation, 'start_year', 2025)
+
+            print("   📋 Rebuilding int_effective_parameters with --full-refresh")
+            res = self.dbt_runner.execute_command(
+                ["run", "--select", "int_effective_parameters", "--full-refresh"],
+                simulation_year=current_year,
+                dbt_vars=self._dbt_vars,
+                stream_output=True
+            )
+
+            if res.success:
+                print("   ✅ int_effective_parameters rebuilt successfully")
+            else:
+                print(f"   ❌ Failed to rebuild int_effective_parameters: {res.return_code}")
+
+            # Also rebuild merit events to ensure they use new parameters
+            print("   📋 Rebuilding int_merit_events with new parameters")
+            merit_res = self.dbt_runner.execute_command(
+                ["run", "--select", "int_merit_events", "--full-refresh"],
+                simulation_year=current_year,
+                dbt_vars=self._dbt_vars,
+                stream_output=True
+            )
+
+            if merit_res.success:
+                print("   ✅ int_merit_events rebuilt successfully")
+            else:
+                print(f"   ❌ Failed to rebuild int_merit_events: {merit_res.return_code}")
+
+        except Exception as e:
+            print(f"   ⚠️ Error during parameter model rebuild: {e}")
+            print("   Manual rebuild may be required: dbt run --select int_effective_parameters int_merit_events --full-refresh")

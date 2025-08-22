@@ -25,9 +25,9 @@ workforce:
   new_hire_termination_rate: 0.25
 
 compensation:
-  cola_rate: 0.005
-  merit_budget: 0.025
-  growth_target: 0.02
+  cola_rate: 0.0001
+  merit_budget: 0.001
+  growth_target: 0.005
   growth_tolerance: 0.005
   calculation_methodology: "full_year_equivalent"  # options: current, continuous, full_year_equivalent
 
