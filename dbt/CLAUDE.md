@@ -223,6 +223,72 @@ models:
 
 ## Performance Optimization
 
+### Work Laptop Optimizations
+
+For single-threaded execution on resource-constrained work environments:
+
+```bash
+# Always use --threads 1 for stability
+dbt run --threads 1 --select staging.* --fail-fast
+
+# Memory-efficient model execution in dependency order
+dbt run --threads 1 --select int_baseline_workforce
+dbt run --threads 1 --select int_employee_compensation_by_year
+dbt run --threads 1 --select int_workforce_needs+
+
+# Incremental builds for large tables
+dbt run --threads 1 --select fct_yearly_events --vars '{simulation_year: 2025}'
+
+# Sequential multi-year processing
+for year in 2025 2026 2027; do
+  echo "Processing year $year"
+  dbt run --threads 1 --select foundation --vars "{simulation_year: $year}"
+  dbt run --threads 1 --select events --vars "{simulation_year: $year}"
+  dbt run --threads 1 --select marts --vars "{simulation_year: $year}"
+done
+```
+
+### Navigator Orchestrator Workflow Stages
+
+The PipelineOrchestrator executes models in optimized sequence:
+
+1. **INITIALIZATION**: `staging.*`, `int_baseline_workforce` (Year 1 only)
+2. **FOUNDATION**: `int_employee_compensation_by_year`, `int_workforce_needs`, `int_workforce_needs_by_level`
+3. **EVENT_GENERATION**: `int_termination_events`, `int_hiring_events`, `int_promotion_events`, `int_merit_events`, `int_enrollment_events`
+4. **STATE_ACCUMULATION**: `fct_yearly_events`, `int_enrollment_state_accumulator`, `int_deferral_rate_state_accumulator_v2`, `fct_workforce_snapshot`
+5. **VALIDATION**: `dq_employee_contributions_validation`
+6. **REPORTING**: Audit and performance reports
+
+### Memory-Efficient Configuration
+
+```yaml
+# dbt_project.yml - Work laptop optimizations
+flags:
+  send_anonymous_usage_stats: false
+
+vars:
+  # Force single-threaded execution
+  dbt_threads: 1
+
+  # Memory management
+  max_batch_size: 500
+  enable_caching: false
+
+models:
+  planwise_navigator:
+    # Incremental models for large tables
+    intermediate:
+      events:
+        +materialized: incremental
+        +incremental_strategy: delete+insert
+        +on_schema_change: sync_all_columns
+
+    marts:
+      +materialized: incremental
+      +incremental_strategy: delete+insert
+      +unique_key: ['scenario_id', 'plan_design_id', 'employee_id', 'simulation_year']
+```
+
 ### Incremental Models (DuckDB)
 ```sql
 -- Scope by simulation_year and use delete+insert for idempotent re-runs
@@ -254,20 +320,29 @@ WHERE simulation_year = {{ var('simulation_year') }}
 
 ## Integration Points
 
-### Orchestrator MVP
+### Navigator Orchestrator Integration
 ```python
-# Called from orchestrator_mvp/loaders/staging_loader.py
-def run_dbt_model(model_name: str, run_vars: Dict[str, Any] | None = None, threads: int = 4):
-    """Run a dbt node with deterministic vars and threads."""
-    import yaml, subprocess
-    cmd = [
-        "dbt", "build", "--select", model_name,
-        "--threads", str(threads), "--fail-fast", "--warn-error",
-    ]
-    if run_vars:
-        cmd += ["--vars", yaml.safe_dump(run_vars, default_flow_style=True)]
-    subprocess.run(cmd, cwd="dbt/", check=True)
-    # DB location is the parent directory's simulation.duckdb
+# Integration with navigator_orchestrator.pipeline.PipelineOrchestrator
+from navigator_orchestrator import create_orchestrator
+from navigator_orchestrator.config import load_simulation_config
+
+# Load configuration and create orchestrator
+config = load_simulation_config('config/simulation_config.yaml')
+orchestrator = create_orchestrator(config)
+
+# Execute multi-year simulation with staged workflow
+summary = orchestrator.execute_multi_year_simulation(
+    start_year=2025, end_year=2027, fail_on_validation_error=False
+)
+
+# Individual model execution via DbtRunner
+from navigator_orchestrator.dbt_runner import DbtRunner
+dbt_runner = DbtRunner(project_dir="dbt", profiles_dir="dbt")
+result = dbt_runner.execute_command(
+    ["run", "--select", "int_baseline_workforce", "--threads", "1"],
+    simulation_year=2025,
+    stream_output=True
+)
 ```
 
 ### Eligibility Engine Integration
@@ -313,11 +388,21 @@ dbt run --full-refresh --select fct_yearly_events
 
 ### Multi-Year Simulation
 ```bash
-# Run full simulation for single year
-dbt run --vars "simulation_year: 2025"
+# Run full simulation for single year (work laptop optimized)
+dbt run --threads 1 --vars "simulation_year: 2025"
 
-# Multi-year via orchestrator_mvp
-python orchestrator_mvp/run_mvp.py --multi-year
+# Multi-year via Navigator Orchestrator
+python scripts/run_multi_year_simulation.py --years 2025 2026 2027 --threads 1
+
+# Direct orchestrator execution
+python -c "
+from navigator_orchestrator import create_orchestrator
+from navigator_orchestrator.config import load_simulation_config
+config = load_simulation_config('config/simulation_config.yaml')
+orchestrator = create_orchestrator(config)
+summary = orchestrator.execute_multi_year_simulation(start_year=2025, end_year=2027)
+print(f'Completed {len(summary.completed_years)} years')
+"
 ```
 
 ### Database Interaction (Claude Capabilities)
@@ -326,20 +411,31 @@ Claude can directly interact with your DuckDB simulation database:
 
 #### **Direct DuckDB Queries**
 ```bash
-# Query from project root (where simulation.duckdb lives)
-cd ..  # Go to project root from /dbt directory
+# Query simulation database (located at dbt/simulation.duckdb)
+duckdb dbt/simulation.duckdb "SELECT COUNT(*) FROM fct_yearly_events"
+duckdb dbt/simulation.duckdb "SELECT * FROM fct_workforce_snapshot WHERE simulation_year = 2025 LIMIT 5"
+
+# From dbt directory
+cd dbt
 duckdb simulation.duckdb "SELECT COUNT(*) FROM fct_yearly_events"
-duckdb simulation.duckdb "SELECT * FROM fct_workforce_snapshot WHERE simulation_year = 2025 LIMIT 5"
 ```
 
 #### **Python Database Access**
 ```bash
-# Python scripts for data validation
+# Python scripts for data validation using Navigator Orchestrator
+python -c "
+from navigator_orchestrator.config import get_database_path
+import duckdb
+conn = duckdb.connect(str(get_database_path()))
+tables = conn.execute('SHOW TABLES').fetchall()
+print('Available tables:', [t[0] for t in tables])
+conn.close()
+"
+
+# Direct database access
 python -c "
 import duckdb
-import os
-os.chdir('..')  # Go to project root
-conn = duckdb.connect('simulation.duckdb')
+conn = duckdb.connect('dbt/simulation.duckdb')
 tables = conn.execute('SHOW TABLES').fetchall()
 print('Available tables:', [t[0] for t in tables])
 conn.close()
@@ -349,7 +445,7 @@ conn.close()
 #### **Model Validation Queries**
 ```bash
 # Validate dbt model results
-duckdb ../simulation.duckdb "
+duckdb dbt/simulation.duckdb "
 SELECT
     model_name,
     COUNT(*) as row_count
@@ -458,11 +554,11 @@ dbt run --select model_name --profiles-dir profiles/
 Claude can help debug dbt models by directly querying the database:
 
 ```bash
-# Check model output after dbt run
-duckdb ../simulation.duckdb "SELECT COUNT(*), MIN(simulation_year), MAX(simulation_year) FROM fct_yearly_events"
+# Check model output after dbt run (using correct database path)
+duckdb dbt/simulation.duckdb "SELECT COUNT(*), MIN(simulation_year), MAX(simulation_year) FROM fct_yearly_events"
 
 # Investigate data quality issues
-duckdb ../simulation.duckdb "
+duckdb dbt/simulation.duckdb "
 SELECT
     simulation_year,
     event_type,
@@ -473,7 +569,7 @@ ORDER BY simulation_year, event_type
 "
 
 # Check for missing data
-duckdb ../simulation.duckdb "
+duckdb dbt/simulation.duckdb "
 SELECT
     COUNT(*) as total_employees,
     COUNT(enrollment_date) as employees_with_enrollment,
@@ -507,8 +603,8 @@ conn.close()
 
 **Key Reminders**:
 - Always run from `/dbt` directory for dbt commands
-- Database file `simulation.duckdb` is in PROJECT ROOT, not in `/dbt`
+- Database file `simulation.duckdb` is in `/dbt` directory (standardized location)
 - Use variables for parameterization
 - Test data quality assumptions
 - Document complex business logic
-- Optimize for DuckDB's columnar engine
+- Optimize for DuckDB's columnar engine\n- Use Navigator Orchestrator for production multi-year simulations\n- Always use `--threads 1` for work laptop stability\n- Enable checkpointing for long-running simulations
