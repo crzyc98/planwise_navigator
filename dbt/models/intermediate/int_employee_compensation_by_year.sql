@@ -54,6 +54,8 @@ WHERE employment_status = 'active'
 UNION ALL
 
 -- New hires for Year 1 (from staging model to break circular dependency)
+-- SUPPORTING FIX (E055): Only include new hires that don't exist in baseline workforce
+-- This prevents compensation source conflicts for employees
 SELECT
     simulation_year,
     employee_id,
@@ -74,6 +76,12 @@ SELECT
     ending_year_compensation,
     has_compensation_events
 FROM {{ ref('int_new_hire_compensation_staging') }}
+-- Ensure we don't duplicate employees who might exist in baseline workforce
+WHERE employee_id NOT IN (
+    SELECT employee_id
+    FROM {{ ref('int_baseline_workforce') }}
+    WHERE employment_status = 'active'
+)
 )
 
 -- Ensure one row per employee in year 1
