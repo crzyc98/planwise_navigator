@@ -79,12 +79,18 @@ hire_sequence AS (
   CROSS JOIN UNNEST(range(1::BIGINT, CAST(level_dist.hires_for_level AS BIGINT) + 1)) AS seq(i)
 ),
 
--- Get compensation by level from config
+-- Get compensation by level from config using configurable percentiles (Epic E056)
 level_compensation AS (
   SELECT
     level_id,
-    -- Use average of min and max as baseline new hire compensation
-    (min_compensation + COALESCE(max_compensation, min_compensation * 2)) / 2 AS avg_level_compensation
+    min_compensation,
+    max_compensation,
+    -- Use configurable percentile instead of hardcoded midpoint
+    (min_compensation +
+     (COALESCE(max_compensation, min_compensation * 2) - min_compensation) *
+     COALESCE({{ get_parameter_value('level_id', 'HIRE', 'compensation_percentile', simulation_year) }}, 0.50) *
+     COALESCE({{ get_parameter_value('level_id', 'HIRE', 'market_adjustment_multiplier', simulation_year) }}, 1.0)
+    ) AS avg_level_compensation
   FROM {{ ref('stg_config_job_levels') }}
 ),
 
