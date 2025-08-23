@@ -428,7 +428,11 @@
       "Bash(gh pr merge:*)",
       "Bash(git stash:*)",
       "Bash(/Users/nicholasamaral/planwise_navigator/venv/bin/dbt run --select int_employee_match_calculations --vars \"simulation_year: 2025\" --full-refresh --project-dir /Users/nicholasamaral/planwise_navigator/dbt)",
-      "Bash(/Users/nicholasamaral/planwise_navigator/venv/bin/dbt run --select dq_new_hire_match_validation --vars \"simulation_year: 2025\" --project-dir /Users/nicholasamaral/planwise_navigator/dbt)"
+      "Bash(/Users/nicholasamaral/planwise_navigator/venv/bin/dbt run --select dq_new_hire_match_validation --vars \"simulation_year: 2025\" --project-dir /Users/nicholasamaral/planwise_navigator/dbt)",
+      "Bash(/Users/nicholasamaral/planwise_navigator/venv/bin/dbt compile --select int_workforce_needs_by_level int_new_hire_compensation_staging --vars \"simulation_year: 2025\")",
+      "Bash(/Users/nicholasamaral/planwise_navigator/venv/bin/dbt seed --select comp_levers --threads 1)",
+      "Bash(/Users/nicholasamaral/planwise_navigator/venv/bin/dbt seed --select comp_levers --threads 1 --project-dir /Users/nicholasamaral/planwise_navigator/dbt)",
+      "Bash(/Users/nicholasamaral/planwise_navigator/venv/bin/dbt run --select stg_comp_levers int_effective_parameters --vars \"simulation_year: 2025\" --threads 1 --project-dir /Users/nicholasamaral/planwise_navigator/dbt)"
     ],
     "deny": []
   }

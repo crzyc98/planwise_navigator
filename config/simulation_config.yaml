@@ -25,11 +25,69 @@ workforce:
   new_hire_termination_rate: 0.25
 
 compensation:
-  cola_rate: 0.0001
-  merit_budget: 0.001
+  cola_rate: 0.01
+  merit_budget: 0.02
   growth_target: 0.005
   growth_tolerance: 0.005
   calculation_methodology: "full_year_equivalent"  # options: current, continuous, full_year_equivalent
+
+# Epic E056: New Hire Compensation Configurability
+new_hire_compensation:
+  # Compensation strategy selection
+  strategy: "percentile_based"  # Options: percentile_based, custom_distribution, market_adjusted
+
+  # Percentile-based hiring configuration
+  percentile_strategy:
+    default_percentile: 0.3    # 50th percentile (maintains current behavior)
+
+    # Level-specific percentile overrides for strategic hiring
+    level_overrides:
+      1: 0.40                   # Level 1: 40th percentile (conservative for entry level)
+      2: 0.50                   # Level 2: 50th percentile (baseline)
+      3: 0.60                   # Level 3: 60th percentile (competitive)
+      4: 0.75                   # Level 4: 75th percentile (aggressive for directors)
+      5: 0.80                   # Level 5: 80th percentile (premium for executives)
+
+    # Add realistic variance around target percentile
+    variance_enabled: true
+    variance_std_dev: 0.05      # 5% standard deviation for realism
+
+  # Market adjustment multipliers (applied after percentile calculation)
+  market_adjustments:
+    enabled: true
+    base_adjustment: 1.00       # No adjustment by default
+
+    # Level-specific market adjustments
+    level_adjustments:
+      1: 1.02                   # 2% premium for entry level (competitive market)
+      2: 1.00                   # No adjustment for managers
+      3: 0.98                   # 2% discount for senior managers (cost control)
+      4: 1.05                   # 5% premium for directors (talent retention)
+      5: 1.10                   # 10% premium for VPs (executive competition)
+
+    # Quick scenario multipliers for rapid modeling
+    scenarios:
+      conservative: 0.92        # 8% reduction for budget constraints
+      baseline: 1.00            # No adjustment (default)
+      competitive: 1.05         # 5% increase for competitive markets
+      aggressive: 1.15          # 15% increase for talent war scenarios
+
+  # Validation and bounds checking
+  validation:
+    min_percentile: 0.20        # Minimum allowable percentile (20th)
+    max_percentile: 0.90        # Maximum allowable percentile (90th)
+    min_market_adjustment: 0.80 # Minimum market adjustment (20% discount)
+    max_market_adjustment: 1.30 # Maximum market adjustment (30% premium)
+
+  # Future enhancement: Custom distribution modeling
+  custom_distribution:
+    enabled: false              # Disabled for initial implementation
+    distribution_type: "beta"   # Options: normal, beta, uniform, custom
+    parameters:
+      alpha: 2.0
+      beta: 5.0
+      min_percentile: 0.25
+      max_percentile: 0.85
 
 raise_timing:
   methodology: "realistic"  # Options: "legacy", "realistic", "custom"
@@ -274,7 +332,7 @@ employer_match:
 # Employer core (non-elective) contribution configuration
 employer_core_contribution:
   enabled: true                    # Master on/off switch
-  contribution_rate: 0.02         # 2% default core contribution rate
+  contribution_rate: 0.01         # 2% default core contribution rate
 
   # Eligibility requirements (dbt variables for int_employer_eligibility.sql)
   eligibility:
@@ -336,11 +394,11 @@ multi_year:
 
 # Epic E035: Automatic Annual Deferral Rate Escalation Configuration (Simplified)
 deferral_auto_escalation:
-  enabled: true                 # Master on/off switch
+  enabled: false                 # Master on/off switch
   effective_day: "01-01"        # MM-DD for escalation effective date
   increment_amount: 0.01        # Annual escalation rate (default 1%)
   maximum_rate: 0.10            # Cap for deferral rate (default 10%)
-  hire_date_cutoff: "1900-01-01"        # Optional YYYY-MM-DD; only employees hired on/before this date are eligible
+  hire_date_cutoff: "2999-01-01"        # Optional YYYY-MM-DD; only employees hired on/before this date are eligible
   require_active_enrollment: true  # Only escalate enrolled participants
 
 # Deferral baseline behavior (Option A default)
