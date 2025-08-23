@@ -95,8 +95,13 @@ compensation_planning AS (
     cr.min_compensation,
     cr.max_compensation,
     wbl.avg_compensation AS current_avg_compensation,
-    -- New hire compensation (market-adjusted)
-    wbl.avg_compensation * COALESCE({{ get_parameter_value('cr.level_id', 'hire', 'new_hire_salary_adjustment', simulation_year) }}, 1.0) AS new_hire_avg_compensation,
+    -- New hire compensation using configurable percentiles (Epic E056)
+    -- Calculate percentile-based compensation with market adjustments
+    (cr.min_compensation +
+     (cr.max_compensation - cr.min_compensation) *
+     COALESCE({{ get_parameter_value('cr.level_id', 'HIRE', 'compensation_percentile', simulation_year) }}, 0.50) *
+     COALESCE({{ get_parameter_value('cr.level_id', 'HIRE', 'market_adjustment_multiplier', simulation_year) }}, 1.0)
+    ) AS new_hire_avg_compensation,
     -- Merit increase planning
     wbl.total_compensation * COALESCE({{ get_parameter_value('cr.level_id', 'RAISE', 'merit_base', simulation_year) }}, 0.03) AS merit_increase_cost,
     -- COLA planning
