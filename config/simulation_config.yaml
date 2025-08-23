@@ -42,11 +42,11 @@ new_hire_compensation:
 
     # Level-specific percentile overrides for strategic hiring
     level_overrides:
-      1: 0.40                   # Level 1: 40th percentile (conservative for entry level)
-      2: 0.50                   # Level 2: 50th percentile (baseline)
-      3: 0.60                   # Level 3: 60th percentile (competitive)
-      4: 0.75                   # Level 4: 75th percentile (aggressive for directors)
-      5: 0.80                   # Level 5: 80th percentile (premium for executives)
+      1: 0.30                   # Level 1: 40th percentile (conservative for entry level)
+      2: 0.40                   # Level 2: 50th percentile (baseline)
+      3: 0.50                   # Level 3: 60th percentile (competitive)
+      4: 0.65                   # Level 4: 75th percentile (aggressive for directors)
+      5: 0.70                   # Level 5: 80th percentile (premium for executives)
 
     # Add realistic variance around target percentile
     variance_enabled: true
