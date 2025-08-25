@@ -2,41 +2,40 @@
   "year": 2026,
   "workforce_breakdown": {
     "year": 2026,
-    "total_employees": 5468,
-    "active_employees": 4694,
+    "total_employees": 5399,
+    "active_employees": 4634,
     "breakdown_by_status": {
-      "continuous_active": 4008,
-      "new_hire_active": 686,
-      "experienced_termination": 546,
-      "new_hire_termination": 228
+      "continuous_active": 3959,
+      "new_hire_active": 675,
+      "experienced_termination": 540,
+      "new_hire_termination": 225
     },
-    "participation_rate": 0.9544098849595228
+    "participation_rate": 0.9546827794561934
   },
   "event_summary": {
     "year": 2026,
-    "total_events": 13688,
+    "total_events": 9899,
     "events_by_type": {
-      "raise": 4252,
-      "deferral_escalation": 3670,
-      "enrollment": 3446,
-      "promotion": 593,
-      "enrollment_change": 39,
-      "hire": 914,
-      "termination": 774
+      "raise": 4199,
+      "enrollment": 3409,
+      "promotion": 588,
+      "enrollment_change": 38,
+      "hire": 900,
+      "termination": 765
     },
-    "hire_termination_ratio": 1.1808785529715762
+    "hire_termination_ratio": 1.1764705882352942
   },
   "growth_analysis": {
-    "previous_active": 4554,
-    "current_active": 4694,
-    "net_growth": 140,
-    "growth_pct": 3.0742204655248133
+    "previous_active": 4499,
+    "current_active": 4634,
+    "net_growth": 135,
+    "growth_pct": 3.000666814847744
   },
   "contribution_summary": {
-    "enrolled_employees_active_eoy": 4694,
-    "total_contributions_active_eoy": 32104280.0,
-    "avg_contribution_active_eoy": 6839.0,
-    "avg_deferral_rate_active_eoy": 5.9
+    "enrolled_employees_active_eoy": 4634,
+    "total_contributions_active_eoy": 31867184.0,
+    "avg_contribution_active_eoy": 6877.0,
+    "avg_deferral_rate_active_eoy": 6.0
   },
   "data_quality_results": [
     {
@@ -45,9 +44,9 @@
       "passed": true,
       "message": "Hire/termination ratio: 1.18 (PASS)",
       "details": {
-        "hires": 914,
-        "terminations": 774,
-        "ratio": 1.1808785529715762,
+        "hires": 900,
+        "terminations": 765,
+        "ratio": 1.1764705882352942,
         "min_ratio": 0.3,
         "max_ratio": 3.0
       },
@@ -64,5 +63,5 @@
       "affected_records": null
     }
   ],
-  "generated_at": "2025-08-23T11:35:02.585268"
+  "generated_at": "2025-08-25T17:41:46.065548"
 }
