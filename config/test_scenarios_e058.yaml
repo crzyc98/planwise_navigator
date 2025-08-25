@@ -1,0 +1,240 @@
+# Epic E058 Phase 4: Test Scenario Configurations
+# Comprehensive test scenarios for employer match eligibility validation
+
+test_scenarios:
+
+  # Scenario 1: Default/Backward Compatibility
+  # This maintains current behavior - all active employees with 1000+ hours get match
+  default_backward_compatibility:
+    name: "Default Backward Compatibility"
+    description: "Maintains existing behavior - backward compatibility mode with simple active+1000 hours rule"
+    employer_match:
+      apply_eligibility: false  # Backward compatibility mode
+      active_formula: 'simple_match'
+      eligibility:
+        # These settings are ignored when apply_eligibility=false
+        minimum_tenure_years: 0
+        require_active_at_year_end: true
+        minimum_hours_annual: 1000
+        allow_new_hires: true
+        allow_terminated_new_hires: false
+        allow_experienced_terminations: false
+      formulas:
+        simple_match:
+          name: 'Simple Match - Test'
+          type: 'simple'
+          match_rate: 0.50
+          max_match_percentage: 0.06
+    expected_results:
+      eligibility_method: "backward_compatibility"
+      match_eligibility_reason: "backward_compatibility_simple_rule"
+      eligible_employees: "All active employees with 1000+ hours"
+      ineligible_employees: "Terminated employees and active employees with <1000 hours"
+
+  # Scenario 2: Strict Eligibility Configuration
+  # High requirements - suitable for conservative employers
+  strict_eligibility:
+    name: "Strict Eligibility Rules"
+    description: "Conservative eligibility with 2-year tenure requirement, active at EOY, no exceptions"
+    employer_match:
+      apply_eligibility: true  # Enable eligibility configuration
+      active_formula: 'simple_match'
+      eligibility:
+        minimum_tenure_years: 2        # 2 years minimum service
+        require_active_at_year_end: true  # Must be active on Dec 31
+        minimum_hours_annual: 1000     # Standard 1000 hours
+        allow_new_hires: false         # No new hire exception
+        allow_terminated_new_hires: false  # No terminated new hire exception
+        allow_experienced_terminations: false  # No experienced termination exception
+      formulas:
+        simple_match:
+          name: 'Simple Match - Strict'
+          type: 'simple'
+          match_rate: 0.50
+          max_match_percentage: 0.06
+    expected_results:
+      eligibility_method: "configured_rules"
+      eligible_employees: "Active employees with 2+ years tenure and 1000+ hours"
+      ineligible_count_reasons:
+        insufficient_tenure: "Employees with <2 years tenure"
+        inactive_eoy: "Employees terminated before Dec 31"
+        insufficient_hours: "Employees with <1000 hours"
+
+  # Scenario 3: Liberal Eligibility Configuration
+  # Immediate eligibility for all - generous employer approach
+  liberal_eligibility:
+    name: "Liberal Eligibility Rules"
+    description: "Generous eligibility with immediate match, no tenure or hour requirements, includes terminated employees"
+    employer_match:
+      apply_eligibility: true  # Enable eligibility configuration
+      active_formula: 'simple_match'
+      eligibility:
+        minimum_tenure_years: 0        # Immediate eligibility
+        require_active_at_year_end: false  # Include terminated employees
+        minimum_hours_annual: 0        # No hour requirement
+        allow_new_hires: true          # New hires qualify
+        allow_terminated_new_hires: true  # Terminated new hires qualify
+        allow_experienced_terminations: true  # Experienced terminations qualify
+      formulas:
+        simple_match:
+          name: 'Simple Match - Liberal'
+          type: 'simple'
+          match_rate: 0.50
+          max_match_percentage: 0.06
+    expected_results:
+      eligibility_method: "configured_rules"
+      match_eligibility_reason: "eligible"
+      eligible_employees: "All employees regardless of status, tenure, or hours"
+      ineligible_employees: "None (universal eligibility)"
+
+  # Scenario 4: Medium/Standard Eligibility
+  # Balanced approach - typical corporate policy
+  standard_eligibility:
+    name: "Standard Corporate Eligibility"
+    description: "Balanced eligibility with 1-year tenure, standard hours, new hire exception"
+    employer_match:
+      apply_eligibility: true  # Enable eligibility configuration
+      active_formula: 'simple_match'
+      eligibility:
+        minimum_tenure_years: 1        # 1 year minimum service
+        require_active_at_year_end: true  # Must be active on Dec 31
+        minimum_hours_annual: 1000     # Standard 1000 hours
+        allow_new_hires: true          # New hires qualify (exception)
+        allow_terminated_new_hires: false  # No terminated new hire exception
+        allow_experienced_terminations: false  # No experienced termination exception
+      formulas:
+        simple_match:
+          name: 'Simple Match - Standard'
+          type: 'simple'
+          match_rate: 0.50
+          max_match_percentage: 0.06
+    expected_results:
+      eligibility_method: "configured_rules"
+      eligible_employees: "Active employees with 1+ years tenure OR new hires, with 1000+ hours"
+      ineligible_count_reasons:
+        insufficient_tenure: "Experienced employees with <1 year tenure (not new hires)"
+        inactive_eoy: "Terminated employees"
+        insufficient_hours: "Employees with <1000 hours"
+
+  # Scenario 5: Different from Core Contribution Requirements
+  # Match eligibility differs from core eligibility requirements
+  match_specific_eligibility:
+    name: "Match-Specific Different Rules"
+    description: "Match eligibility requirements differ from core contribution requirements"
+    employer_match:
+      apply_eligibility: true  # Enable match-specific eligibility
+      active_formula: 'simple_match'
+      eligibility:
+        minimum_tenure_years: 0        # Immediate match eligibility
+        require_active_at_year_end: false  # Allow terminated employees for match
+        minimum_hours_annual: 500      # Lower hour requirement for match
+        allow_new_hires: true
+        allow_terminated_new_hires: true
+        allow_experienced_terminations: true
+      formulas:
+        simple_match:
+          name: 'Simple Match - Different Rules'
+          type: 'simple'
+          match_rate: 0.75  # Higher match rate to offset liberal eligibility
+          max_match_percentage: 0.04  # Lower cap to manage costs
+    # Assume core contributions have different rules (would be in employer_core_contribution config)
+    employer_core_contribution:
+      eligibility:
+        minimum_tenure_years: 2        # Higher requirement for core
+        require_active_at_year_end: true  # Stricter for core
+        minimum_hours_annual: 1000     # Standard hours for core
+        allow_new_hires: false
+        allow_terminated_new_hires: false
+        allow_experienced_terminations: false
+    expected_results:
+      eligibility_method: "configured_rules"
+      note: "Match and core eligibility should be independent"
+      eligible_for_match: "More liberal than core eligibility"
+      eligible_for_core: "More restrictive than match eligibility"
+
+# Test execution plan - defines how scenarios should be tested
+test_execution:
+
+  # Phase 4A: Schema and Column Tests
+  schema_tests:
+    - name: "Column data type validation"
+      command: "dbt test --select int_employer_eligibility int_employee_match_calculations"
+      expected_result: "All tests pass"
+
+    - name: "Accepted values validation"
+      command: "dbt test --select 'test_type:data'"
+      expected_result: "All enum values within acceptable ranges"
+
+  # Phase 4B: Business Logic Tests
+  business_logic_tests:
+    - name: "E058 comprehensive business logic validation"
+      command: "dbt run --select validate_e058_business_logic"
+      expected_result: "All validation_result = 'PASS'"
+
+    - name: "Cross-model consistency checks"
+      command: "dbt test --select 'tag:e058'"
+      expected_result: "All business logic tests pass"
+
+  # Phase 4C: Scenario-Specific Tests
+  scenario_tests:
+    default_backward_compatibility:
+      setup_commands:
+        - "Update simulation_config.yaml with default_backward_compatibility scenario"
+        - "dbt run --select int_employer_eligibility int_employee_match_calculations --vars '{simulation_year: 2025}'"
+      validation_commands:
+        - "dbt run --select validate_e058_business_logic --vars '{simulation_year: 2025}'"
+        - "Verify all match_eligibility_reason = 'backward_compatibility_simple_rule'"
+        - "Verify all match_apply_eligibility = false"
+      expected_outcomes:
+        - "0 violations in business logic validation"
+        - "Behavior identical to pre-E058 implementation"
+
+    strict_eligibility:
+      setup_commands:
+        - "Update simulation_config.yaml with strict_eligibility scenario"
+        - "dbt run --select int_employer_eligibility int_employee_match_calculations --vars '{simulation_year: 2025}'"
+      validation_commands:
+        - "dbt run --select validate_e058_business_logic --vars '{simulation_year: 2025}'"
+        - "Verify match_eligibility_reason includes 'insufficient_tenure' for <2 year employees"
+        - "Verify 0 terminated employees are eligible"
+      expected_outcomes:
+        - "0 violations in business logic validation"
+        - "Significant reduction in eligible employees compared to default"
+        - "All ineligible employees receive $0 match"
+
+    liberal_eligibility:
+      setup_commands:
+        - "Update simulation_config.yaml with liberal_eligibility scenario"
+        - "dbt run --select int_employer_eligibility int_employee_match_calculations --vars '{simulation_year: 2025}'"
+      validation_commands:
+        - "dbt run --select validate_e058_business_logic --vars '{simulation_year: 2025}'"
+        - "Verify all employees eligible_for_match = true"
+        - "Verify all match_eligibility_reason = 'eligible'"
+      expected_outcomes:
+        - "0 violations in business logic validation"
+        - "Maximum eligible employee count (near 100%)"
+        - "All employees with deferrals receive calculated match"
+
+  # Phase 4D: Performance and Data Quality Tests
+  performance_tests:
+    - name: "Model build time validation"
+      command: "time dbt run --select int_employer_eligibility int_employee_match_calculations"
+      expected_result: "Builds complete in <30 seconds for 100K employees"
+
+    - name: "Row count drift validation"
+      command: "Compare row counts before/after E058 implementation"
+      expected_result: "Row count variance <0.5%"
+
+    - name: "Multi-year continuity test"
+      command: "dbt run --select int_employer_eligibility --vars '{simulation_year: 2026}'"
+      expected_result: "Year-over-year transitions logical and consistent"
+
+# Success criteria for Phase 4 completion
+success_criteria:
+  schema_tests: "100% pass rate on all dbt schema tests"
+  business_logic: "100% pass rate on validate_e058_business_logic"
+  scenario_coverage: "All 5 test scenarios execute without violations"
+  performance: "No degradation >10% in model build times"
+  backward_compatibility: "Identical behavior when apply_eligibility=false"
+  documentation: "All new columns and tests documented in schema.yml"
+  integration: "End-to-end simulation runs successfully with all scenarios"

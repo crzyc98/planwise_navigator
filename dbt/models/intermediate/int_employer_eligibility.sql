@@ -8,18 +8,27 @@
 
 /*
   Employer Contribution Eligibility Model - Story S039-01
+  Enhanced with Epic E058: Employer Match Eligibility Configuration
 
   Determines eligibility for employer contributions (both match and core)
-  based on simple business rules:
-  - Active employment status required
-  - Assumes 2080 hours worked for active employees (standard full-time)
-  - 1000 hour threshold for eligibility
+  with sophisticated business rules:
+  - Prorated hours calculation based on actual employment periods
+  - Configurable tenure, hours, and employment status requirements
+  - Support for new hire and termination exceptions
+  - Independent configuration for match vs core eligibility
 
-  This is an MVP implementation focusing on simplicity and correctness.
-  Future enhancements may include:
-  - Actual hours worked tracking
-  - Part-time employee logic
-  - Service-based eligibility rules
+  Epic E058 Phase 1 Changes:
+  - Added sophisticated match eligibility logic with backward compatibility
+  - Configurable parameters via employer_match.eligibility in simulation_config.yaml
+  - Backward compatibility toggle (apply_eligibility: false by default)
+  - Match eligibility reason codes for auditability
+  - Independent from core eligibility configuration
+
+  Key Features:
+  - Backward compatibility: When apply_eligibility=false, uses simple active+1000 hours rule
+  - Sophisticated eligibility: When apply_eligibility=true, applies configurable rules
+  - Audit trail: match_eligibility_reason provides detailed reason codes
+  - Metadata: All configuration parameters included for transparency
 */
 
 {% set simulation_year = var('simulation_year', 2025) | int %}
@@ -28,13 +37,26 @@
 {% set employer_core_config = var('employer_core_contribution', {}) %}
 {% set core_eligibility = employer_core_config.get('eligibility', {}) %}
 
--- Extract eligibility parameters with defaults
+-- Extract core eligibility parameters with defaults
 {% set core_minimum_tenure_years = core_eligibility.get('minimum_tenure_years', 1) | int %}
 {% set core_require_active_eoy = core_eligibility.get('require_active_at_year_end', true) %}
 {% set core_minimum_hours = core_eligibility.get('minimum_hours_annual', 1000) | int %}
 {% set core_allow_new_hires = core_eligibility.get('allow_new_hires', true) %}
 {% set core_allow_terminated_new_hires = core_eligibility.get('allow_terminated_new_hires', false) %}
 {% set core_allow_experienced_terminations = core_eligibility.get('allow_experienced_terminations', false) %}
+
+-- Epic E058: Read employer match eligibility configuration
+{% set employer_match_config = var('employer_match', {}) %}
+{% set match_apply_eligibility = employer_match_config.get('apply_eligibility', false) %}
+{% set match_eligibility = employer_match_config.get('eligibility', {}) %}
+
+-- Extract match eligibility parameters with defaults
+{% set match_minimum_tenure_years = match_eligibility.get('minimum_tenure_years', 0) | int %}
+{% set match_require_active_eoy = match_eligibility.get('require_active_at_year_end', true) %}
+{% set match_minimum_hours = match_eligibility.get('minimum_hours_annual', 1000) | int %}
+{% set match_allow_new_hires = match_eligibility.get('allow_new_hires', true) %}
+{% set match_allow_terminated_new_hires = match_eligibility.get('allow_terminated_new_hires', false) %}
+{% set match_allow_experienced_terminations = match_eligibility.get('allow_experienced_terminations', false) %}
 
 -- IMPORTANT: Use per-year compensation snapshot as the base population
 -- Using int_baseline_workforce limited eligibility to the first year only.
@@ -199,12 +221,79 @@ SELECT
     current_tenure,
     ROUND(annual_hours_worked, 0)::INTEGER AS annual_hours_worked,
 
-    -- Match eligibility - original simple logic
-    -- Requires active status and meets minimum hours threshold (1000)
+    -- Epic E058: Match eligibility with backward compatibility and sophisticated logic
     CASE
-        WHEN employment_status_eoy = 'active' AND annual_hours_worked >= 1000 THEN TRUE
+        -- Backward compatibility mode: use simple logic when apply_eligibility is false
+        WHEN NOT {{ match_apply_eligibility }} THEN
+            CASE
+                WHEN employment_status_eoy = 'active' AND annual_hours_worked >= 1000 THEN TRUE
+                ELSE FALSE
+            END
+        -- Sophisticated match eligibility logic when apply_eligibility is true
+        WHEN annual_hours_worked >= {{ match_minimum_hours }}
+         AND (
+              -- Meets tenure normally
+              current_tenure >= {{ match_minimum_tenure_years }}
+              -- or allowed as a new hire this year
+              OR ({{ 'true' if match_allow_new_hires else 'false' }} AND is_new_hire_this_year)
+         )
+         AND (
+              -- Require active at EOY unless exceptions are allowed
+              {% if match_require_active_eoy %}
+                  employment_status_eoy = 'active'
+                  OR ({{ 'true' if match_allow_terminated_new_hires else 'false' }} AND is_new_hire_this_year AND employment_status_eoy = 'terminated')
+                  OR ({{ 'true' if match_allow_experienced_terminations else 'false' }} AND NOT is_new_hire_this_year AND employment_status_eoy = 'terminated')
+              {% else %}
+                  TRUE
+              {% endif %}
+         )
+         -- If not allowed, exclude employees flagged as new-hire terminations even when termination is next year
+         AND (
+               {% if match_allow_terminated_new_hires %}
+                   TRUE
+               {% else %}
+                   NOT (is_new_hire_this_year AND COALESCE(has_new_hire_termination, FALSE))
+               {% endif %}
+         )
+         -- If not allowed, exclude employees with experienced termination in the current year
+         AND (
+                {% if match_allow_experienced_terminations %}
+                    TRUE
+                {% else %}
+                    NOT (NOT is_new_hire_this_year AND COALESCE(has_experienced_termination, FALSE))
+                {% endif %}
+         )
+        THEN TRUE
         ELSE FALSE
     END AS eligible_for_match,
+
+    -- Epic E058: Match eligibility reason codes for auditability
+    CASE
+        -- Backward compatibility mode
+        WHEN NOT {{ match_apply_eligibility }} THEN
+            CASE
+                WHEN employment_status_eoy = 'active' AND annual_hours_worked >= 1000 THEN 'backward_compatibility_simple_rule'
+                WHEN employment_status_eoy != 'active' THEN 'backward_compatibility_simple_rule'
+                WHEN annual_hours_worked < 1000 THEN 'backward_compatibility_simple_rule'
+                ELSE 'backward_compatibility_simple_rule'
+            END
+        -- Sophisticated eligibility mode reasons
+        WHEN annual_hours_worked < {{ match_minimum_hours }} THEN 'insufficient_hours'
+        WHEN current_tenure < {{ match_minimum_tenure_years }}
+             AND NOT ({{ 'true' if match_allow_new_hires else 'false' }} AND is_new_hire_this_year) THEN 'insufficient_tenure'
+        {% if match_require_active_eoy %}
+        WHEN employment_status_eoy != 'active'
+             AND NOT ({{ 'true' if match_allow_terminated_new_hires else 'false' }} AND is_new_hire_this_year AND employment_status_eoy = 'terminated')
+             AND NOT ({{ 'true' if match_allow_experienced_terminations else 'false' }} AND NOT is_new_hire_this_year AND employment_status_eoy = 'terminated') THEN 'inactive_eoy'
+        {% endif %}
+        {% if not match_allow_terminated_new_hires %}
+        WHEN is_new_hire_this_year AND COALESCE(has_new_hire_termination, FALSE) THEN 'inactive_eoy'
+        {% endif %}
+        {% if not match_allow_experienced_terminations %}
+        WHEN NOT is_new_hire_this_year AND COALESCE(has_experienced_termination, FALSE) THEN 'inactive_eoy'
+        {% endif %}
+        ELSE 'eligible'
+    END AS match_eligibility_reason,
 
     -- Core eligibility: allow configurable exceptions for new hires and their terminations
     CASE
@@ -253,12 +342,24 @@ SELECT
 
     -- Metadata
     'prorated_hours_with_tenure' AS eligibility_method,
+
+    -- Core eligibility metadata
     {{ core_minimum_tenure_years }} AS core_tenure_requirement,
     {{ core_minimum_hours }} AS core_hours_requirement,
     {{ core_require_active_eoy }} AS core_requires_active_eoy,
     {{ core_allow_new_hires }} AS core_allow_new_hires,
     {{ core_allow_terminated_new_hires }} AS core_allow_terminated_new_hires,
     {{ core_allow_experienced_terminations }} AS core_allow_experienced_terminations,
+
+    -- Epic E058: Match eligibility metadata
+    {{ match_apply_eligibility }} AS match_apply_eligibility,
+    {{ match_minimum_tenure_years }} AS match_tenure_requirement,
+    {{ match_minimum_hours }} AS match_hours_requirement,
+    {{ match_require_active_eoy }} AS match_requires_active_eoy,
+    {{ match_allow_new_hires }} AS match_allow_new_hires,
+    {{ match_allow_terminated_new_hires }} AS match_allow_terminated_new_hires,
+    {{ match_allow_experienced_terminations }} AS match_allow_experienced_terminations,
+
     CURRENT_TIMESTAMP AS created_at,
     '{{ var("scenario_id", "default") }}' AS scenario_id
 
