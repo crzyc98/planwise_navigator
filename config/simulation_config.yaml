@@ -31,6 +31,41 @@ compensation:
   growth_tolerance: 0.005
   calculation_methodology: "full_year_equivalent"  # options: current, continuous, full_year_equivalent
 
+  # Epic E059: Configurable Promotion Compensation Increases
+  promotion_compensation:
+    # Base (midpoint) increase percentage for promotions (maintains current 20% midpoint)
+    base_increase_pct: 0.20  # 20% base increase (current midpoint of 15-25% range)
+
+    # Distribution around the base (creates 15-25% range for backward compatibility)
+    distribution_range: 0.05  # ±5% around base (uniform distribution)
+
+    # Safety caps to prevent extreme increases
+    max_cap_pct: 0.30        # Maximum 30% increase allowed
+    max_cap_amount: 500000   # Maximum $500K increase allowed
+
+    # Distribution type for randomization
+    distribution_type: "uniform"  # Options: "uniform", "normal", "deterministic"
+
+    # Level-specific overrides (optional - uncomment and modify as needed)
+    # level_overrides:
+    #   1: 0.15  # Staff promotions: 15% base (conservative)
+    #   2: 0.18  # Manager promotions: 18% base
+    #   3: 0.20  # Senior Manager promotions: 20% base (default)
+    #   4: 0.25  # Director promotions: 25% base (higher responsibility)
+    #   5: 0.30  # VP promotions: 30% base (executive level)
+
+    # Advanced configuration
+    advanced:
+      # Normal distribution parameters (when distribution_type = "normal")
+      normal_std_dev: 0.02  # Standard deviation for normal distribution
+
+      # Market adjustment factors (optional - can be used for scenario testing)
+      # market_adjustments:
+      #   conservative: 0.85   # 15% reduction for cost-conscious scenarios
+      #   baseline: 1.00       # Default multiplier
+      #   competitive: 1.15    # 15% increase for competitive markets
+      #   aggressive: 1.30     # 30% increase for talent wars
+
 # Epic E056: New Hire Compensation Configurability
 new_hire_compensation:
   # Compensation strategy selection
@@ -344,7 +379,7 @@ employer_match:
 # Employer core (non-elective) contribution configuration
 employer_core_contribution:
   enabled: true                    # Master on/off switch
-  contribution_rate: 0.01         # 2% default core contribution rate
+  contribution_rate: 0.01         # core contribution rate
 
   # Eligibility requirements (dbt variables for int_employer_eligibility.sql)
   eligibility:
