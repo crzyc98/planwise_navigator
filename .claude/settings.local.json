@@ -432,7 +432,9 @@
       "Bash(/Users/nicholasamaral/planwise_navigator/venv/bin/dbt compile --select int_workforce_needs_by_level int_new_hire_compensation_staging --vars \"simulation_year: 2025\")",
       "Bash(/Users/nicholasamaral/planwise_navigator/venv/bin/dbt seed --select comp_levers --threads 1)",
       "Bash(/Users/nicholasamaral/planwise_navigator/venv/bin/dbt seed --select comp_levers --threads 1 --project-dir /Users/nicholasamaral/planwise_navigator/dbt)",
-      "Bash(/Users/nicholasamaral/planwise_navigator/venv/bin/dbt run --select stg_comp_levers int_effective_parameters --vars \"simulation_year: 2025\" --threads 1 --project-dir /Users/nicholasamaral/planwise_navigator/dbt)"
+      "Bash(/Users/nicholasamaral/planwise_navigator/venv/bin/dbt run --select stg_comp_levers int_effective_parameters --vars \"simulation_year: 2025\" --threads 1 --project-dir /Users/nicholasamaral/planwise_navigator/dbt)",
+      "Bash(/Users/nicholasamaral/planwise_navigator/venv/bin/dbt run --select dq_e057_new_hire_termination_validation --vars \"simulation_year: 2025\" --threads 1 --project-dir dbt)",
+      "Bash(/Users/nicholasamaral/planwise_navigator/venv/bin/dbt run --select int_workforce_needs --vars \"simulation_year: 2025\" --threads 1 --project-dir dbt)"
     ],
     "deny": []
   }
