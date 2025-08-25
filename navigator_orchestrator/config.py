@@ -114,6 +114,24 @@ class PlanEligibilitySettings(BaseModel):
     minimum_age: Optional[int] = None
 
 
+class EmployerMatchEligibilitySettings(BaseModel):
+    """Employer match eligibility requirements configuration"""
+    minimum_tenure_years: int = Field(default=0, ge=0, description="Minimum years of service")
+    require_active_at_year_end: bool = Field(default=True, description="Must be active on Dec 31")
+    minimum_hours_annual: int = Field(default=1000, ge=0, description="Minimum hours worked annually")
+    allow_new_hires: bool = Field(default=True, description="Allow new hires to qualify")
+    allow_terminated_new_hires: bool = Field(default=False, description="Allow new-hire terminations to qualify")
+    allow_experienced_terminations: bool = Field(default=False, description="Allow experienced terminations to qualify")
+
+
+class EmployerMatchSettings(BaseModel):
+    """Employer match configuration with eligibility requirements"""
+    active_formula: str = Field(default="simple_match", description="Active match formula name")
+    apply_eligibility: bool = Field(default=False, description="Apply eligibility filtering to match calculations")
+    eligibility: EmployerMatchEligibilitySettings = Field(default_factory=EmployerMatchEligibilitySettings)
+    formulas: Optional[Dict[str, Any]] = Field(default=None, description="Match formula definitions")
+
+
 class ProductionSafetySettings(BaseModel):
     """Production data safety and backup configuration"""
 
@@ -164,6 +182,7 @@ class OrchestrationConfig(BaseModel):
     enrollment: EnrollmentSettings = EnrollmentSettings()
     eligibility: EligibilitySettings = EligibilitySettings()
     plan_eligibility: PlanEligibilitySettings = PlanEligibilitySettings()
+    employer_match: Optional[EmployerMatchSettings] = Field(default=None, description="Employer match configuration")
 
     # Production safety configuration
     production_safety: ProductionSafetySettings = ProductionSafetySettings()
@@ -195,6 +214,7 @@ class SimulationConfig(BaseModel):
     enrollment: EnrollmentSettings = EnrollmentSettings()
     eligibility: EligibilitySettings = EligibilitySettings()
     plan_eligibility: PlanEligibilitySettings = PlanEligibilitySettings()
+    employer_match: Optional[EmployerMatchSettings] = Field(default=None, description="Employer match configuration")
 
     def require_identifiers(self) -> None:
         """Raise if scenario_id/plan_design_id are missing."""
@@ -409,22 +429,87 @@ def to_dbt_vars(cfg: SimulationConfig) -> Dict[str, Any]:
     except Exception:
         dbt_vars["deferral_baseline_mode"] = "frozen"
 
-    # Employer match configuration (E039)
-    # Map YAML employer_match block to dbt vars expected by match calculations
+    # Epic E058: Enhanced employer match configuration with eligibility
+    # Generate nested employer_match variable structure for dbt models
+    # Always provide employer_match variable with safe defaults for backward compatibility
+    employer_match_defaults = {
+        'apply_eligibility': False,
+        'eligibility': {
+            'minimum_tenure_years': 0,
+            'require_active_at_year_end': True,
+            'minimum_hours_annual': 1000,
+            'allow_new_hires': True,
+            'allow_terminated_new_hires': False,
+            'allow_experienced_terminations': False
+        }
+    }
+
     try:
-        employer = getattr(cfg, "employer_match", None)
-        if employer:
-            # employer is likely a dict due to extra=allow
-            active = employer.get("active_formula")
-            formulas = employer.get("formulas")
-            if active is not None:
-                dbt_vars["active_match_formula"] = str(active)
+        # Handle both Pydantic model and dict (for backward compatibility)
+        employer_match = cfg.employer_match
+        if employer_match is not None:
+            # Convert Pydantic model to dict if needed
+            if hasattr(employer_match, 'model_dump'):
+                employer_data = employer_match.model_dump()
+            else:
+                # Fallback for dict-based configuration (legacy)
+                employer_data = employer_match if isinstance(employer_match, dict) else {}
+
+            # Generate nested employer_match variable structure
+            dbt_employer_match = {
+                'apply_eligibility': employer_data.get('apply_eligibility', False),
+                'eligibility': {
+                    'minimum_tenure_years': employer_data.get('eligibility', {}).get('minimum_tenure_years', 0),
+                    'require_active_at_year_end': employer_data.get('eligibility', {}).get('require_active_at_year_end', True),
+                    'minimum_hours_annual': employer_data.get('eligibility', {}).get('minimum_hours_annual', 1000),
+                    'allow_new_hires': employer_data.get('eligibility', {}).get('allow_new_hires', True),
+                    'allow_terminated_new_hires': employer_data.get('eligibility', {}).get('allow_terminated_new_hires', False),
+                    'allow_experienced_terminations': employer_data.get('eligibility', {}).get('allow_experienced_terminations', False)
+                }
+            }
+            dbt_vars["employer_match"] = dbt_employer_match
+
+            # Maintain backward compatibility with existing variables
+            active_formula = employer_data.get("active_formula")
+            formulas = employer_data.get("formulas")
+            if active_formula is not None:
+                dbt_vars["active_match_formula"] = str(active_formula)
             if formulas is not None:
-                # Pass the full formulas mapping (JSON-serializable)
                 dbt_vars["match_formulas"] = formulas
-    except Exception:
-        # Non-fatal: fall back to model defaults
-        pass
+        else:
+            # Try to get legacy configuration from extra fields
+            employer_legacy = getattr(cfg, "employer_match", None)
+            if employer_legacy and isinstance(employer_legacy, dict):
+                # Legacy dict-based configuration from extra fields
+                dbt_employer_match = {
+                    'apply_eligibility': employer_legacy.get('apply_eligibility', False),
+                    'eligibility': {
+                        'minimum_tenure_years': employer_legacy.get('eligibility', {}).get('minimum_tenure_years', 0),
+                        'require_active_at_year_end': employer_legacy.get('eligibility', {}).get('require_active_at_year_end', True),
+                        'minimum_hours_annual': employer_legacy.get('eligibility', {}).get('minimum_hours_annual', 1000),
+                        'allow_new_hires': employer_legacy.get('eligibility', {}).get('allow_new_hires', True),
+                        'allow_terminated_new_hires': employer_legacy.get('eligibility', {}).get('allow_terminated_new_hires', False),
+                        'allow_experienced_terminations': employer_legacy.get('eligibility', {}).get('allow_experienced_terminations', False)
+                    }
+                }
+                dbt_vars["employer_match"] = dbt_employer_match
+
+                # Backward compatibility
+                if "active_formula" in employer_legacy:
+                    dbt_vars["active_match_formula"] = str(employer_legacy["active_formula"])
+                if "formulas" in employer_legacy:
+                    dbt_vars["match_formulas"] = employer_legacy["formulas"]
+            else:
+                # No employer_match configuration found - use safe defaults
+                dbt_vars["employer_match"] = employer_match_defaults
+
+    except Exception as e:
+        # Non-fatal: fall back to model defaults, but log the error
+        import traceback
+        print(f"Warning: Error processing employer_match configuration: {e}")
+        print(f"Traceback: {traceback.format_exc()}")
+        # Always provide defaults
+        dbt_vars["employer_match"] = employer_match_defaults
 
     # Employer core contribution configuration
     # Map YAML employer_core_contribution block to dbt vars
