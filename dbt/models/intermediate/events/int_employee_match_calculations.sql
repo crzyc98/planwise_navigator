@@ -8,14 +8,26 @@
 
 /*
   Employee Match Calculation Model - Story S025-02
+  Enhanced with Epic E058 Phase 2: Match Calculation Integration
 
   Calculates employer match amounts based on configurable formulas:
   - Simple percentage match (e.g., 50% of deferrals)
   - Tiered match (100% on first 3%, 50% on next 2%)
   - Maximum match caps (% of compensation)
 
-  Integrates with employee contributions from int_employee_contributions
-  to determine match amounts based on actual deferral rates.
+  Epic E058 Phase 2 Enhancements:
+  - Integrates with int_employer_eligibility for match eligibility determination
+  - Applies eligibility filtering: ineligible employees receive $0 match
+  - Adds match_status tracking: 'ineligible', 'no_deferrals', 'calculated'
+  - Maintains backward compatibility with existing formula logic
+  - Preserves audit trail with eligibility reason codes
+
+  Key Features:
+  - Zero match for ineligible employees when apply_eligibility=true
+  - Preserves existing match formulas and calculation logic
+  - Efficient LEFT JOIN on indexed columns (employee_id, simulation_year)
+  - Clear audit trail for match calculation outcomes
+  - Backward compatibility: identical behavior when apply_eligibility=false
 
   Performance: Optimized for 100K+ employees using DuckDB columnar processing
 */
@@ -66,7 +78,7 @@
 -- Formula type: {{ match_formulas[active_formula]['type'] }}
 
 WITH employee_contributions AS (
-    -- Get ALL employee contribution data (including non-enrolled with 0 contributions)
+    -- Get ALL employee contribution data with eligibility determination (Epic E058 Phase 2)
     SELECT
         ec.employee_id,
         ec.simulation_year,
@@ -76,8 +88,15 @@ WITH employee_contributions AS (
         ec.is_enrolled_flag AS is_enrolled,
         ec.first_contribution_date AS enrollment_date,
         ec.current_age AS age_as_of_december_31,
-        ec.employment_status
+        ec.employment_status,
+        -- Epic E058 Phase 2: Join with employer eligibility determination
+        COALESCE(elig.eligible_for_match, FALSE) AS is_eligible_for_match,
+        elig.match_eligibility_reason,
+        elig.match_apply_eligibility AS eligibility_config_applied
     FROM {{ ref('int_employee_contributions') }}  ec
+    LEFT JOIN {{ ref('int_employer_eligibility') }} elig
+        ON ec.employee_id = elig.employee_id
+       AND ec.simulation_year = elig.simulation_year
     WHERE ec.simulation_year = {{ simulation_year }}
         AND ec.employee_id IS NOT NULL
 ),
@@ -160,36 +179,62 @@ all_matches AS (
     {% endif %}
 ),
 
--- Apply match caps
+-- Apply match caps and eligibility filtering (Epic E058 Phase 2)
 final_match AS (
     SELECT
-        employee_id,
-        simulation_year,
-        eligible_compensation,
-        deferral_rate,
-        annual_deferrals,
-        formula_type,
-        -- Apply maximum match cap. For 'simple', cap is match_rate × (max matched deferral % × comp).
-        -- For 'tiered' and other types, cap is employer % of comp directly.
+        am.employee_id,
+        am.simulation_year,
+        am.eligible_compensation,
+        am.deferral_rate,
+        am.annual_deferrals,
+        am.formula_type,
+        -- Join eligibility data back from employee_contributions CTE
+        ec.is_eligible_for_match,
+        ec.match_eligibility_reason,
+        ec.eligibility_config_applied,
+        -- Apply maximum match cap first
         LEAST(
-            match_amount,
+            am.match_amount,
             CASE
-                WHEN formula_type = 'simple' THEN
-                    (eligible_compensation * {{ match_formulas[active_formula]['max_match_percentage'] }}) * {{ match_formulas[active_formula]['match_rate'] }}
+                WHEN am.formula_type = 'simple' THEN
+                    (am.eligible_compensation * {{ match_formulas[active_formula]['max_match_percentage'] }}) * {{ match_formulas[active_formula]['match_rate'] }}
                 ELSE
-                    eligible_compensation * {{ match_formulas[active_formula]['max_match_percentage'] }}
+                    am.eligible_compensation * {{ match_formulas[active_formula]['max_match_percentage'] }}
             END
-        ) AS employer_match_amount,
-        -- Track if cap was applied
+        ) AS capped_match_amount,
+        -- Epic E058 Phase 2: Apply eligibility filtering - ineligible employees get $0 match
         CASE
-            WHEN formula_type = 'simple' THEN
-                match_amount > (eligible_compensation * {{ match_formulas[active_formula]['max_match_percentage'] }}) * {{ match_formulas[active_formula]['match_rate'] }}
+            WHEN ec.is_eligible_for_match THEN
+                LEAST(
+                    am.match_amount,
+                    CASE
+                        WHEN am.formula_type = 'simple' THEN
+                            (am.eligible_compensation * {{ match_formulas[active_formula]['max_match_percentage'] }}) * {{ match_formulas[active_formula]['match_rate'] }}
+                        ELSE
+                            am.eligible_compensation * {{ match_formulas[active_formula]['max_match_percentage'] }}
+                    END
+                )
+            ELSE 0
+        END AS employer_match_amount,
+        -- Epic E058 Phase 2: Match status tracking field
+        CASE
+            WHEN NOT ec.is_eligible_for_match THEN 'ineligible'
+            WHEN ec.is_eligible_for_match AND am.annual_deferrals = 0 THEN 'no_deferrals'
+            WHEN ec.is_eligible_for_match AND am.annual_deferrals > 0 THEN 'calculated'
+            ELSE 'calculated'  -- Default fallback
+        END AS match_status,
+        -- Track if cap was applied (before eligibility filtering)
+        CASE
+            WHEN am.formula_type = 'simple' THEN
+                am.match_amount > (am.eligible_compensation * {{ match_formulas[active_formula]['max_match_percentage'] }}) * {{ match_formulas[active_formula]['match_rate'] }}
             ELSE
-                match_amount > eligible_compensation * {{ match_formulas[active_formula]['max_match_percentage'] }}
-            END AS match_cap_applied,
+                am.match_amount > am.eligible_compensation * {{ match_formulas[active_formula]['max_match_percentage'] }}
+        END AS match_cap_applied,
         -- Calculate uncapped match for analysis
-        match_amount AS uncapped_match_amount
-    FROM all_matches
+        am.match_amount AS uncapped_match_amount
+    FROM all_matches am
+    -- Join back to get eligibility information
+    JOIN employee_contributions ec ON am.employee_id = ec.employee_id AND am.simulation_year = ec.simulation_year
 )
 
 SELECT
@@ -200,8 +245,14 @@ SELECT
     ROUND(annual_deferrals, 2) AS annual_deferrals,
     ROUND(employer_match_amount, 2) AS employer_match_amount,
     ROUND(uncapped_match_amount, 2) AS uncapped_match_amount,
+    ROUND(capped_match_amount, 2) AS capped_match_amount,
     formula_type,
     match_cap_applied,
+    -- Epic E058 Phase 2: Eligibility integration fields
+    is_eligible_for_match,
+    match_eligibility_reason,
+    match_status,
+    eligibility_config_applied,
     '{{ active_formula }}' AS formula_id,
     '{{ match_formulas[active_formula]["name"] }}' AS formula_name,
     -- Calculate effective match rate
