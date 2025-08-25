@@ -200,6 +200,37 @@ models:
       - dbt_utils.expression_is_true:
           expression: "NOT (employment_status = 'terminated' AND EXTRACT(YEAR FROM employee_hire_date) = simulation_year) OR detailed_status_code = 'new_hire_termination'"
           name: "terminated_new_hires_classified_correctly"
+      # **EPIC E057 COMPREHENSIVE VALIDATION TESTS**: New hire termination and proration fixes
+      # Test E057-1: No future terminations beyond simulation year
+      - dbt_utils.expression_is_true:
+          expression: "employment_status != 'terminated' OR EXTRACT(YEAR FROM termination_date) <= simulation_year"
+          name: "e057_no_future_terminations"
+          config:
+            severity: error
+          meta:
+            description: "Epic E057: Ensures no employee termination dates are in future years"
+            epic: "E057"
+            test_category: "termination_date_validation"
+      # Test E057-2: No terminations before hire dates (especially for new hires)
+      - dbt_utils.expression_is_true:
+          expression: "termination_date IS NULL OR termination_date >= employee_hire_date"
+          name: "e057_no_terminations_before_hires"
+          config:
+            severity: error
+          meta:
+            description: "Epic E057: Ensures termination dates are never before hire dates"
+            epic: "E057"
+            test_category: "termination_date_validation"
+      # Test E057-3: New hire terminations are properly bounded within simulation year
+      - dbt_utils.expression_is_true:
+          expression: "detailed_status_code != 'new_hire_termination' OR (termination_date >= employee_hire_date + INTERVAL 1 DAY AND EXTRACT(YEAR FROM termination_date) = simulation_year)"
+          name: "e057_new_hire_termination_bounds"
+          config:
+            severity: error
+          meta:
+            description: "Epic E057: Validates new hire terminations are at least 1 day after hire and within simulation year"
+            epic: "E057"
+            test_category: "new_hire_termination_validation"
       # Epic E034: Contribution validation tests
       # Test that contribution components sum correctly
       - dbt_utils.expression_is_true:

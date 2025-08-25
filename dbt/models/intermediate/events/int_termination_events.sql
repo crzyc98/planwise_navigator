@@ -22,6 +22,10 @@ WITH workforce_needs AS (
 
 active_workforce AS (
     -- Use consistent data source with other event models
+    -- IMPORTANT: Exclude current-year new hires so experienced terminations
+    -- are selected only from prior-year active employees. This keeps
+    -- experienced terminations aligned with workforce needs targets and avoids
+    -- overlap with new-hire terminations.
     SELECT
         employee_id,
         employee_ssn,
@@ -30,11 +34,11 @@ active_workforce AS (
         current_age,
         current_tenure,
         level_id,
-        -- All employees in compensation table are experienced for termination
         'experienced' AS employee_type
     FROM {{ ref('int_employee_compensation_by_year') }}
     WHERE simulation_year = {{ simulation_year }}
-    AND employment_status = 'active'
+      AND employment_status = 'active'
+      AND employee_hire_date < CAST('{{ simulation_year }}-01-01' AS DATE)
 ),
 
 workforce_with_bands AS (

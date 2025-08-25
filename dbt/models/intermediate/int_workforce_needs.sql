@@ -16,6 +16,8 @@
 
 {% set simulation_year = var('simulation_year') %}
 {% set scenario_id = var('scenario_id', 'default') %}
+{% set start_year = var('start_year', 2025) | int %}
+{% set is_first_year = (simulation_year | int) == start_year %}
 
 WITH simulation_config AS (
   SELECT
@@ -28,11 +30,23 @@ WITH simulation_config AS (
     gen_random_uuid() AS workforce_needs_id
 ),
 
--- Current workforce baseline (consistent with event models)
+-- Current workforce baseline (switch source based on first year vs subsequent years)
 current_workforce AS (
+  {% if is_first_year %}
+  -- Year 1: Use baseline workforce only (do NOT include staging new hires)
   SELECT
     COUNT(*) AS total_active_workforce,
-    -- For first year, all employees are considered experienced
+    COUNT(*) AS experienced_workforce,
+    0 AS current_year_hires,
+    AVG(current_compensation) AS avg_compensation,
+    SUM(current_compensation) AS total_compensation
+  FROM {{ ref('int_baseline_workforce') }}
+  WHERE simulation_year = {{ simulation_year }}
+    AND employment_status = 'active'
+  {% else %}
+  -- Subsequent years: Use precomputed compensation by year (prior-year snapshot)
+  SELECT
+    COUNT(*) AS total_active_workforce,
     COUNT(*) AS experienced_workforce,
     0 AS current_year_hires,
     AVG(employee_compensation) AS avg_compensation,
@@ -40,6 +54,7 @@ current_workforce AS (
   FROM {{ ref('int_employee_compensation_by_year') }}
   WHERE simulation_year = {{ simulation_year }}
     AND employment_status = 'active'
+  {% endif %}
 ),
 
 -- Workforce by level for detailed planning
@@ -47,9 +62,9 @@ workforce_by_level AS (
   SELECT
     level_id,
     COUNT(*) AS level_headcount,
-    AVG(employee_compensation) AS avg_level_compensation,
-    SUM(employee_compensation) AS total_level_compensation
-  FROM {{ ref('int_employee_compensation_by_year') }}
+    AVG(current_compensation) AS avg_level_compensation,
+    SUM(current_compensation) AS total_level_compensation
+  FROM {{ ref('int_baseline_workforce') }}
   WHERE simulation_year = {{ simulation_year }}
     AND employment_status = 'active'
   GROUP BY level_id
@@ -84,17 +99,24 @@ hiring_requirements AS (
     gt.target_net_growth,
     tf.expected_experienced_terminations,
     sc.new_hire_termination_rate,
-    -- Core hiring formula
+    -- Core hiring formula: total hires needed accounting for NH attrition
     ROUND(
       (gt.target_net_growth + tf.expected_experienced_terminations) /
       (1 - sc.new_hire_termination_rate)
     ) AS total_hires_needed,
-    -- Expected new hire terminations
-    ROUND(
+    -- Identity-based NH attrition to avoid double rounding drift:
+    -- hires - experienced_terms - nh_terms = target_net_growth ⇒
+    -- nh_terms = hires - experienced_terms - target_net_growth
+    GREATEST(
       ROUND(
-        (gt.target_net_growth + tf.expected_experienced_terminations) /
-        (1 - sc.new_hire_termination_rate)
-      ) * sc.new_hire_termination_rate
+        ROUND(
+          (gt.target_net_growth + tf.expected_experienced_terminations) /
+          (1 - sc.new_hire_termination_rate)
+        )
+        - tf.expected_experienced_terminations
+        - gt.target_net_growth
+      ),
+      0
     ) AS expected_new_hire_terminations
   FROM growth_targets gt
   CROSS JOIN termination_forecasts tf

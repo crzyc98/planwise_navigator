@@ -516,19 +516,35 @@ employee_timeline_with_boundaries AS (
         LEAD(event_date) OVER (
             PARTITION BY employee_id
             ORDER BY event_sequence
-        ) AS next_event_date
+        ) AS next_event_date,
+        -- **Epic E057 FIX**: Add next event type for enhanced period_end logic
+        LEAD(event_type) OVER (
+            PARTITION BY employee_id
+            ORDER BY event_sequence
+        ) AS next_event_type
     FROM employee_compensation_timeline
 ),
 
 -- Step 3: Generate sequential non-overlapping periods
 all_compensation_periods AS (
     -- Baseline period: Start of year to first event (for non-hires)
+    -- **Epic E057 FIX**: Handle termination-only employees correctly
     SELECT
         t.employee_id,
         0 AS period_sequence,
         'baseline' AS period_type,
         '{{ simulation_year }}-01-01'::DATE AS period_start,
-        t.event_date - INTERVAL 1 DAY AS period_end,
+        -- **CRITICAL FIX**: For termination-only employees, include termination date
+        CASE
+            -- If first event is termination and no other compensation events exist, include termination date
+            WHEN t.event_type = 'termination' AND NOT EXISTS (
+                SELECT 1 FROM employee_compensation_timeline et
+                WHERE et.employee_id = t.employee_id
+                  AND et.event_type IN ('hire', 'promotion', 'raise')
+            ) THEN t.event_date
+            -- Otherwise, exclude next event to avoid overlap (existing logic)
+            ELSE t.event_date - INTERVAL 1 DAY
+        END AS period_end,
         -- Get baseline compensation from previous_compensation (start of year value)
         COALESCE(t.previous_compensation, w.employee_gross_compensation, 0) AS period_salary
     FROM employee_timeline_with_boundaries t
@@ -540,15 +556,22 @@ all_compensation_periods AS (
     UNION ALL
 
     -- Event periods: Each event creates a period from its date to next event
+    -- **Epic E057 FIX**: Enhanced period_end logic to include termination dates in compensation periods
     SELECT
         employee_id,
         event_sequence AS period_sequence,
         event_type || '_period' AS period_type,
         event_date AS period_start,
-        COALESCE(
-            next_event_date - INTERVAL 1 DAY,
-            '{{ simulation_year }}-12-31'::DATE
-        ) AS period_end,
+        -- **CRITICAL FIX**: Include termination date in compensation period for terminated employees
+        CASE
+            -- For periods ending with termination, include the termination date
+            WHEN next_event_type = 'termination' THEN next_event_date
+            -- For other periods, exclude next event to avoid overlap
+            ELSE COALESCE(
+                next_event_date - INTERVAL 1 DAY,
+                '{{ simulation_year }}-12-31'::DATE
+            )
+        END AS period_end,
         new_compensation AS period_salary
     FROM employee_timeline_with_boundaries
     WHERE event_type IN ('hire', 'promotion', 'raise')  -- Only compensation-affecting events

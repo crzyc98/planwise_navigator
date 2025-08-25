@@ -58,7 +58,7 @@ termination_by_level AS (
 
 -- Hiring distribution by level
 hiring_by_level AS (
-  -- Normalize target distribution across the levels that actually exist this year
+  -- Normalize target distribution across present levels and allocate hires using the largest remainder method
   WITH level_weights AS (
     SELECT
       level_id,
@@ -74,17 +74,49 @@ hiring_by_level AS (
   ),
   normalization AS (
     SELECT SUM(raw_weight) AS total_weight FROM level_weights
+  ),
+  shares AS (
+    SELECT
+      lw.level_id,
+      CASE WHEN n.total_weight = 0 THEN 0.0 ELSE lw.raw_weight / n.total_weight END AS share
+    FROM level_weights lw
+    CROSS JOIN normalization n
+  ),
+  base_alloc AS (
+    SELECT
+      s.level_id,
+      s.share,
+      wns.total_hires_needed AS total_hires_needed,
+      FLOOR(wns.total_hires_needed * s.share) AS base_hires,
+      (wns.total_hires_needed * s.share) - FLOOR(wns.total_hires_needed * s.share) AS remainder
+    FROM shares s
+    CROSS JOIN workforce_needs_summary wns
+  ),
+  totals AS (
+    SELECT
+      SUM(base_hires) AS sum_base,
+      MAX(total_hires_needed) AS total_hires_needed
+    FROM base_alloc
+  ),
+  ranked AS (
+    SELECT
+      ba.*,
+      ROW_NUMBER() OVER (ORDER BY remainder DESC, level_id) AS remainder_rank
+    FROM base_alloc ba
   )
   SELECT
-    lw.level_id,
-    CASE WHEN n.total_weight = 0 THEN 0.0 ELSE lw.raw_weight / n.total_weight END AS hiring_distribution,
-    CEIL(wns.total_hires_needed * (CASE WHEN n.total_weight = 0 THEN 0.0 ELSE lw.raw_weight / n.total_weight END)) AS hires_needed,
+    r.level_id,
+    r.share AS hiring_distribution,
+    CAST(
+      r.base_hires + CASE WHEN r.remainder_rank <= (t.total_hires_needed - t.sum_base) THEN 1 ELSE 0 END
+      AS INTEGER
+    ) AS hires_needed,
     -- New hire terminations by level
     ROUND(
-      CEIL(wns.total_hires_needed * (CASE WHEN n.total_weight = 0 THEN 0.0 ELSE lw.raw_weight / n.total_weight END)) * wns.new_hire_termination_rate
+      (r.base_hires + CASE WHEN r.remainder_rank <= (t.total_hires_needed - t.sum_base) THEN 1 ELSE 0 END) * wns.new_hire_termination_rate
     ) AS expected_new_hire_terminations
-  FROM level_weights lw
-  CROSS JOIN normalization n
+  FROM ranked r
+  CROSS JOIN totals t
   CROSS JOIN workforce_needs_summary wns
 ),
 

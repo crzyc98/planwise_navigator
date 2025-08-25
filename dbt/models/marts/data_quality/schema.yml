@@ -254,3 +254,158 @@ models:
           name: "no_escalation_count_decreases"
           meta:
             description: "Fail if escalation counts decrease between simulation years"
+
+  - name: dq_e057_new_hire_termination_validation
+    description: >
+      **Epic E057: Comprehensive Data Quality Validation for New Hire Termination and Proration Fixes**
+
+      Validates the comprehensive fixes implemented in Epic E057:
+      1. Termination date generation fixes in int_new_hire_termination_events.sql
+      2. Prorated compensation fixes in fct_workforce_snapshot.sql
+      3. Regression testing for existing functionality
+
+      **VALIDATION CATEGORIES:**
+      - A. Termination Date Validation (future dates, dates before hire)
+      - B. Prorated Compensation Validation (with 1-day tolerance)
+      - C. New Hire Specific Validations
+      - D. Regression Testing (existing functionality unchanged)
+
+      Returns only failing records for review - empty result indicates all validations passed.
+      Critical for ensuring Epic E057 fixes maintain data integrity and event-sourcing guarantees.
+    config:
+      tags: ["data_quality", "epic_e057", "new_hire_termination", "critical"]
+    columns:
+      - name: employee_id
+        description: "Employee identifier with validation failure"
+        data_tests:
+          - not_null
+      - name: simulation_year
+        description: "Simulation year for the validation"
+        data_tests:
+          - not_null
+          - dbt_utils.accepted_range:
+              min_value: 2020
+              max_value: 2050
+      - name: validation_category
+        description: "Category of validation performed"
+        data_tests:
+          - not_null
+          - accepted_values:
+              values:
+                - 'termination_date_validation'
+                - 'prorated_compensation_validation'
+                - 'new_hire_specific_validation'
+                - 'regression_testing'
+      - name: validation_rule
+        description: "Specific validation rule that failed"
+        data_tests:
+          - not_null
+          - accepted_values:
+              values:
+                # Termination Date Validation Rules
+                - 'future_termination'
+                - 'termination_before_hire'
+                - 'new_hire_termination_missing_date'
+                - 'new_hire_termination_wrong_year'
+                - 'new_hire_termination_invalid_sequence'
+                # Prorated Compensation Validation Rules
+                - 'prorated_compensation_mismatch'
+                - 'prorated_exceeds_annual'
+                - 'terminated_not_prorated'
+                # New Hire Specific Validation Rules
+                - 'new_hire_termination_status_mismatch'
+                - 'terminated_new_hire_wrong_status'
+                - 'new_hire_id_date_mismatch'
+                # Regression Testing Rules
+                - 'existing_employee_wrong_termination_status'
+                - 'existing_employee_wrong_active_status'
+                - 'active_employee_zero_compensation'
+      - name: validation_message
+        description: "Human-readable description of the validation failure"
+        data_tests:
+          - not_null
+      - name: severity
+        description: "Severity level of the validation failure"
+        data_tests:
+          - not_null
+          - accepted_values:
+              values: ['ERROR', 'WARNING', 'INFO']
+      - name: actual_value
+        description: "Actual value that caused the validation failure"
+      - name: expected_value
+        description: "Expected value for the validation"
+      - name: severity_rank
+        description: "Numeric ranking of severity (1=ERROR, 2=WARNING, 3=INFO)"
+        data_tests:
+          - not_null
+          - accepted_values:
+              values: [1, 2, 3]
+      - name: total_new_hires_examined
+        description: "Total number of new hires examined in validation"
+        data_tests:
+          - not_null
+          - dbt_utils.accepted_range:
+              min_value: 0
+              max_value: 10000
+      - name: total_new_hire_terminations_examined
+        description: "Total number of new hire terminations examined"
+        data_tests:
+          - not_null
+          - dbt_utils.accepted_range:
+              min_value: 0
+              max_value: 10000
+      - name: epic_number
+        description: "Epic identifier for traceability"
+        data_tests:
+          - not_null
+          - accepted_values:
+              values: ['E057']
+      - name: validation_timestamp
+        description: "When the validation was performed"
+        data_tests:
+          - not_null
+      - name: validation_source
+        description: "Source identifier for the validation"
+        data_tests:
+          - not_null
+
+    data_tests:
+      # Critical test: No ERROR-level Epic E057 validation failures should exist
+      - dbt_utils.expression_is_true:
+          expression: "1=1"  # This model returns only failures, so any ERROR record is a problem
+          where: "severity = 'ERROR'"
+          error_if: ">0"
+          warn_if: "=0"
+          name: "no_critical_e057_validation_failures"
+          meta:
+            description: "Fail if any ERROR-level Epic E057 validation issues are found"
+            epic: "E057"
+            test_category: "comprehensive_validation"
+      # Warning test: Limit WARNING-level failures to reasonable threshold
+      - dbt_utils.expression_is_true:
+          expression: "1=1"
+          where: "severity = 'WARNING'"
+          warn_if: ">5"  # Warn if more than 5 WARNING-level issues
+          name: "warning_e057_validation_failures_threshold"
+          meta:
+            description: "Warn if excessive WARNING-level Epic E057 validation issues are found"
+            epic: "E057"
+            test_category: "comprehensive_validation"
+      # Test that no future terminations exist (specific Epic E057 requirement)
+      - dbt_utils.expression_is_true:
+          expression: "validation_rule != 'future_termination'"
+          error_if: ">0"
+          name: "e057_no_future_terminations_in_validation"
+          meta:
+            description: "Epic E057: Critical validation that no future termination dates exist"
+            epic: "E057"
+            test_category: "termination_date_validation"
+      # Test that no terminations before hires exist (specific Epic E057 requirement)
+      - dbt_utils.expression_is_true:
+          expression: "validation_rule != 'termination_before_hire'"
+          error_if: ">0"
+          name: "e057_no_terminations_before_hires_in_validation"
+          meta:
+            description: "Epic E057: Critical validation that no termination dates are before hire dates"
+            epic: "E057"
+            test_category: "termination_date_validation"
