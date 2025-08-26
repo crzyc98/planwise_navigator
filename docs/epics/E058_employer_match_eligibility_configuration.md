@@ -44,10 +44,10 @@ Add a comprehensive eligibility configuration framework to the employer match fe
 ```yaml
 employer_match:
   active_formula: 'simple_match'
-  
+
   # NEW: Backward-compatibility toggle (default false keeps current behavior)
   apply_eligibility: false
-  
+
   # NEW: Eligibility requirements for match contributions
   eligibility:
     minimum_tenure_years: 0              # Minimum years of service (default: 0)
@@ -56,7 +56,7 @@ employer_match:
     allow_new_hires: true                # Allow new hires to qualify (tenure exception)
     allow_terminated_new_hires: false    # Allow new-hire terminations to qualify
     allow_experienced_terminations: false# Allow experienced terminations to qualify
-  
+
   formulas:
     # ... existing formula definitions ...
 ```
@@ -180,7 +180,7 @@ def get_dbt_variables(config, simulation_year):
     variables = {
         'simulation_year': simulation_year,
         # ... existing variables ...
-        
+
         # Match eligibility configuration
         'employer_match': {
             'apply_eligibility': bool(config.employer_match.apply_eligibility),
@@ -272,7 +272,7 @@ Note: The `int_employer_eligibility.sql` model should read match eligibility fro
 ### Integration Tests
 ```sql
 -- Test: Only eligible employees receive match
-SELECT 
+SELECT
     COUNT(*) as ineligible_with_match
 FROM {{ ref('int_employee_match_calculations') }} m
 JOIN {{ ref('int_employer_eligibility') }} e
@@ -283,7 +283,7 @@ WHERE e.eligible_for_match = FALSE
 -- Expected: 0
 
 -- Test: All eligible enrolled employees with deferrals receive match
-SELECT 
+SELECT
     COUNT(*) as eligible_without_match
 FROM {{ ref('int_employee_match_calculations') }} m
 JOIN {{ ref('int_employer_eligibility') }} e

@@ -46,9 +46,27 @@ class SimulationSettings(BaseModel):
     target_growth_rate: float = Field(default=0.03, ge=-1, le=1)
 
 
+class PromotionCompensationSettings(BaseModel):
+    """Promotion compensation increase configuration"""
+    base_increase_pct: float = Field(default=0.20, ge=0.0, le=1.0, description="Base (midpoint) promotion increase percentage")
+    distribution_range: float = Field(default=0.05, ge=0.0, le=0.20, description="Distribution range around base (+/- range)")
+    max_cap_pct: float = Field(default=0.30, ge=0.0, le=1.0, description="Maximum promotion increase percentage")
+    max_cap_amount: int = Field(default=500000, ge=0, description="Maximum promotion increase amount in dollars")
+    distribution_type: str = Field(default="uniform", description="Distribution type: uniform, normal, deterministic")
+    level_overrides: Optional[Dict[int, float]] = Field(default=None, description="Level-specific base increase overrides")
+
+    class Advanced(BaseModel):
+        """Advanced promotion compensation configuration"""
+        normal_std_dev: float = Field(default=0.02, ge=0.0, le=0.20, description="Standard deviation for normal distribution")
+        market_adjustments: Optional[Dict[str, float]] = Field(default=None, description="Market adjustment factors")
+
+    advanced: Advanced = Field(default_factory=lambda: PromotionCompensationSettings.Advanced())
+
+
 class CompensationSettings(BaseModel):
     cola_rate: float = Field(default=0.005, ge=0, le=1)
     merit_budget: float = Field(default=0.025, ge=0, le=1)
+    promotion_compensation: PromotionCompensationSettings = Field(default_factory=PromotionCompensationSettings)
 
 
 class WorkforceSettings(BaseModel):
@@ -511,16 +529,33 @@ def to_dbt_vars(cfg: SimulationConfig) -> Dict[str, Any]:
         # Always provide defaults
         dbt_vars["employer_match"] = employer_match_defaults
 
+    # Epic E059: Promotion compensation configuration
+    promotion = cfg.compensation.promotion_compensation
+    dbt_vars["promotion_base_increase_pct"] = promotion.base_increase_pct
+    dbt_vars["promotion_distribution_range"] = promotion.distribution_range
+    dbt_vars["promotion_max_cap_pct"] = promotion.max_cap_pct
+    dbt_vars["promotion_max_cap_amount"] = promotion.max_cap_amount
+    dbt_vars["promotion_distribution_type"] = promotion.distribution_type
+    dbt_vars["promotion_level_overrides"] = promotion.level_overrides or {}
+    dbt_vars["promotion_normal_std_dev"] = promotion.advanced.normal_std_dev
+
+    # Market adjustments (if configured)
+    if promotion.advanced.market_adjustments:
+        dbt_vars["promotion_market_adjustments"] = promotion.advanced.market_adjustments
+
     # Employer core contribution configuration
     # Map YAML employer_core_contribution block to dbt vars
+    # NOTE: int_employer_eligibility.sql reads nested employer_core_contribution.eligibility
+    # Ensure we pass the nested structure (keep flat vars for backward compatibility)
     try:
         core_contrib = getattr(cfg, "employer_core_contribution", None)
         if core_contrib:
             # core_contrib is likely a dict due to extra=allow
             enabled = core_contrib.get("enabled")
             rate = core_contrib.get("contribution_rate")
-            eligibility = core_contrib.get("eligibility")
+            eligibility = core_contrib.get("eligibility") or {}
 
+            # Flat vars (backward compatibility with older models/macros)
             if enabled is not None:
                 dbt_vars["employer_core_enabled"] = bool(enabled)
             if rate is not None:
@@ -531,12 +566,8 @@ def to_dbt_vars(cfg: SimulationConfig) -> Dict[str, Any]:
                 require_active = eligibility.get("require_active_at_year_end")
                 min_hours = eligibility.get("minimum_hours_annual")
                 allow_new_hires = eligibility.get("allow_new_hires")
-                allow_terminated_new_hires = eligibility.get(
-                    "allow_terminated_new_hires"
-                )
-                allow_experienced_terminations = eligibility.get(
-                    "allow_experienced_terminations"
-                )
+                allow_terminated_new_hires = eligibility.get("allow_terminated_new_hires")
+                allow_experienced_terminations = eligibility.get("allow_experienced_terminations")
 
                 if min_tenure is not None:
                     dbt_vars["core_minimum_tenure_years"] = int(min_tenure)
@@ -547,13 +578,34 @@ def to_dbt_vars(cfg: SimulationConfig) -> Dict[str, Any]:
                 if allow_new_hires is not None:
                     dbt_vars["core_allow_new_hires"] = bool(allow_new_hires)
                 if allow_terminated_new_hires is not None:
-                    dbt_vars["core_allow_terminated_new_hires"] = bool(
-                        allow_terminated_new_hires
-                    )
+                    dbt_vars["core_allow_terminated_new_hires"] = bool(allow_terminated_new_hires)
                 if allow_experienced_terminations is not None:
-                    dbt_vars["core_allow_experienced_terminations"] = bool(
-                        allow_experienced_terminations
-                    )
+                    dbt_vars["core_allow_experienced_terminations"] = bool(allow_experienced_terminations)
+
+            # Nested var (required by current int_employer_eligibility.sql)
+            dbt_core_nested: Dict[str, Any] = {}
+            if enabled is not None:
+                dbt_core_nested["enabled"] = bool(enabled)
+            if rate is not None:
+                dbt_core_nested["contribution_rate"] = float(rate)
+
+            nested_elig: Dict[str, Any] = {}
+            for key in (
+                "minimum_tenure_years",
+                "require_active_at_year_end",
+                "minimum_hours_annual",
+                "allow_new_hires",
+                "allow_terminated_new_hires",
+                "allow_experienced_terminations",
+            ):
+                if key in eligibility and eligibility.get(key) is not None:
+                    nested_elig[key] = eligibility.get(key)
+
+            if nested_elig:
+                dbt_core_nested["eligibility"] = nested_elig
+
+            if dbt_core_nested:
+                dbt_vars["employer_core_contribution"] = dbt_core_nested
     except Exception:
         # Non-fatal: fall back to model defaults
         pass

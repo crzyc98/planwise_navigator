@@ -12,13 +12,22 @@
 {% set simulation_year = var('simulation_year') %}
 {% set previous_year = simulation_year - 1 %}
 
+-- **EPIC E059: Configurable promotion compensation variables**
+{% set base_increase = var('promotion_base_increase_pct', 0.20) %}
+{% set distribution_range = var('promotion_distribution_range', 0.05) %}
+{% set max_cap_pct = var('promotion_max_cap_pct', 0.30) %}
+{% set max_cap_amount = var('promotion_max_cap_amount', 500000) %}
+{% set distribution_type = var('promotion_distribution_type', 'uniform') %}
+{% set level_overrides = var('promotion_level_overrides', {}) %}
+{% set normal_std_dev = var('promotion_normal_std_dev', 0.02) %}
+
 -- **OPTIMIZED PROMOTION EVENTS WITH FULL-YEAR EQUIVALENT COMPENSATION**
--- 
+--
 -- **CRITICAL FIX**: Uses full_year_equivalent_compensation from previous year-end
 -- snapshot to ensure promotions use actual end-of-year compensation that includes
 -- merit increases, not start-of-year baseline compensation.
 --
--- **BUSINESS LOGIC**: 
+-- **BUSINESS LOGIC**:
 -- - Promotions occur February 1st using compensation updated from July 15th merit/COLA
 -- - Merit increases occur July 15th (previous year)
 -- - full_year_equivalent_compensation ensures promotions use post-merit salary
@@ -31,7 +40,7 @@
 -- - Optimized age/tenure band calculations using CASE expressions
 
 WITH simulation_params AS (
-    SELECT 
+    SELECT
         {{ simulation_year }} AS current_year,
         {{ previous_year }} AS previous_year
 ),
@@ -113,17 +122,48 @@ promoted_employees AS (
         level_id AS from_level,
         level_id + 1 AS to_level,
         employee_gross_compensation AS previous_salary,
-        -- **OPTIMIZED SALARY CALCULATION**: Vectorized with caps
+        -- **CONFIGURABLE SALARY CALCULATION**: Epic E059 implementation
         ROUND(
             LEAST(
-                -- 30% increase cap
-                employee_gross_compensation * 1.30,
-                -- $500K absolute increase cap  
-                employee_gross_compensation + 500000,
-                -- Base 15-25% increase (deterministic)
-                employee_gross_compensation * (1.15 + ((ABS(HASH(employee_id || 'promo_pct')) % 100) / 1000.0))
+                -- Configurable percentage cap
+                employee_gross_compensation * (1 + {{ max_cap_pct }}),
+                -- Configurable absolute amount cap
+                employee_gross_compensation + {{ max_cap_amount }},
+                -- Configurable base increase with distribution, never reduce compensation
+                GREATEST(
+                    employee_gross_compensation * (
+                        1 + COALESCE(
+                            -- Level-specific override if configured
+                            {% for level, rate in level_overrides.items() %}
+                            CASE WHEN level_id = {{ level }} THEN {{ rate }} END,
+                            {% endfor %}
+                            -- Default base rate with configurable distribution
+                            {{ base_increase }} +
+                            {% if distribution_type == 'uniform' %}
+                                (((ABS(HASH(employee_id || 'promo_pct')) % 1000) / 1000.0 - 0.5) * 2 * {{ distribution_range }})
+                            {% elif distribution_type == 'normal' %}
+                                -- Normal distribution approximation using hash-based Box-Muller
+                                (SQRT(-2 * LN((ABS(HASH(employee_id || 'promo_pct1')) % 1000 + 1) / 1001.0))
+                                 * COS(2 * PI() * (ABS(HASH(employee_id || 'promo_pct2')) % 1000) / 1000.0)
+                                 * {{ normal_std_dev }})
+                            {% else %}
+                                -- Deterministic: no distribution
+                                0
+                            {% endif %}
+                        )
+                    ),
+                    employee_gross_compensation -- never reduce compensation on promotion
+                )
             ), 2
         ) AS new_salary,
+        -- Configuration metadata for audit trails
+        {{ base_increase }} AS config_base_increase,
+        {{ distribution_range }} AS config_distribution_range,
+        '{{ distribution_type }}' AS config_distribution_type,
+        {{ normal_std_dev }} AS config_normal_std_dev,
+        {{ max_cap_pct }} AS config_max_cap_pct,
+        {{ max_cap_amount }} AS config_max_cap_amount,
+
         current_age,
         current_tenure,
         age_band,
@@ -152,6 +192,13 @@ SELECT
     random_value,
     -- **QUALITY METRICS**: Salary increase analysis
     ROUND((new_salary - previous_salary) / previous_salary * 100, 2) AS salary_increase_pct,
-    new_salary - previous_salary AS salary_increase_amount
+    new_salary - previous_salary AS salary_increase_amount,
+    -- **CONFIGURATION AUDIT**: Epic E059 configuration tracking
+    config_base_increase,
+    config_distribution_range,
+    config_distribution_type,
+    config_normal_std_dev,
+    config_max_cap_pct,
+    config_max_cap_amount
 FROM promoted_employees
 ORDER BY employee_id
