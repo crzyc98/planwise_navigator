@@ -90,7 +90,7 @@ class DbtRunner:
     def __init__(
         self,
         working_dir: Path = Path("dbt"),
-        threads: int = 4,
+        threads: int = 1,
         executable: str = "dbt",
         *,
         verbose: bool = False,
