@@ -318,16 +318,18 @@ employer_match:
   active_formula: 'simple_match'  # Options: 'simple_match', 'tiered_match', 'stretch_match'
 
   # Epic E058: Employer match eligibility configuration
-  apply_eligibility: false  # Backward compatibility toggle (default: false for Phase 1)
+  # Epic E061: Enable eligibility enforcement to fix new hire termination match issue
+  apply_eligibility: true  # Enable sophisticated eligibility enforcement (was false for backward compatibility)
 
   # Match eligibility requirements (independent from core eligibility)
+  # Epic E061: Configure to exclude new hire terminations from match
   eligibility:
     minimum_tenure_years: 0        # Minimum years of service (default: 0 for immediate match eligibility)
-    require_active_at_year_end: true  # Must be active on Dec 31 (default: true)
+    require_active_at_year_end: true  # Must be active on Dec 31 (excludes year-of-hire terminations)
     minimum_hours_annual: 1000     # Minimum hours worked (default: 1000)
-    allow_new_hires: true          # Allow new hires to qualify (tenure exception)
-    allow_terminated_new_hires: false  # Allow new-hire terminations to qualify when enabled
-    allow_experienced_terminations: false  # Allow experienced terminations to qualify when enabled
+    allow_new_hires: true          # Allow active new hires to qualify (tenure exception)
+    allow_terminated_new_hires: false  # Exclude new-hire terminations from match eligibility
+    allow_experienced_terminations: false  # Exclude experienced terminations from match eligibility
 
   # Match formula definitions
   formulas:

@@ -409,3 +409,149 @@ models:
             description: "Epic E057: Critical validation that no termination dates are before hire dates"
             epic: "E057"
             test_category: "termination_date_validation"
+
+  - name: dq_new_hire_termination_match_validation
+    description: >
+      **Epic E061: New Hire Termination Employer Match Validation**
+
+      Identifies and validates the fix for new hire terminations incorrectly receiving
+      employer match contributions despite configuration that should exclude them.
+
+      **The Problem (Epic E061):**
+      - 126 out of 218 new hire terminations receiving incorrect match payments
+      - Total $110,713 in incorrect match payments in 2025
+      - Root cause: apply_eligibility=false bypassed configured eligibility rules
+
+      **The Solution:**
+      - Enable apply_eligibility=true in simulation_config.yaml
+      - Configure eligibility rules to exclude new hire terminations:
+        * require_active_at_year_end=true (excludes year-of-hire terminations)
+        * allow_terminated_new_hires=false (explicit exclusion)
+
+      Returns both detailed validation results and summary statistics.
+      Empty FAIL results indicate the fix is working correctly.
+      Critical for ensuring employer match compliance and cost accuracy.
+    config:
+      tags: ["data_quality", "epic_e061", "new_hire_termination", "employer_match", "critical"]
+    columns:
+      - name: record_type
+        description: "Type of record: DETAIL or SUMMARY"
+        data_tests:
+          - not_null
+          - accepted_values:
+              values: ['DETAIL', 'SUMMARY']
+      - name: employee_id
+        description: "Employee identifier (NULL for SUMMARY records)"
+      - name: simulation_year
+        description: "Simulation year for the validation"
+        data_tests:
+          - not_null
+          - dbt_utils.accepted_range:
+              min_value: 2020
+              max_value: 2050
+      - name: employee_category
+        description: "Category of employee: new_hire_termination, new_hire_active, continuing_employee"
+        data_tests:
+          - accepted_values:
+              values: ['new_hire_termination', 'new_hire_active', 'continuing_employee']
+      - name: new_hire_termination_match_validation
+        description: "Validation result for new hire terminations receiving match"
+        data_tests:
+          - accepted_values:
+              values: ['PASS', 'FAIL', 'EXPECTED_ISSUE', 'N/A']
+      - name: configuration_validation
+        description: "Validation of eligibility configuration settings"
+        data_tests:
+          - accepted_values:
+              values: ['CORRECT_CONFIG', 'BACKWARD_COMPATIBILITY', 'INCORRECT_CONFIG', 'UNKNOWN_CONFIG']
+      - name: eligibility_reason_validation
+        description: "Validation of eligibility reason codes for new hire terminations"
+        data_tests:
+          - accepted_values:
+              values: ['PASS', 'FAIL', 'BACKWARD_COMPATIBILITY', 'N/A']
+      - name: eligible_employee_match_validation
+        description: "Validation that eligible employees still receive proper match"
+        data_tests:
+          - accepted_values:
+              values: ['PASS', 'FAIL', 'N/A']
+      - name: incorrect_match_amount
+        description: "Amount of incorrect match payments for new hire terminations"
+        data_tests:
+          - dbt_utils.accepted_range:
+              min_value: 0
+              max_value: 100000
+      - name: match_apply_eligibility
+        description: "Whether eligibility enforcement is enabled"
+      - name: match_allow_terminated_new_hires
+        description: "Whether terminated new hires are allowed to receive match"
+      - name: match_requires_active_eoy
+        description: "Whether employees must be active at end of year for match"
+      - name: total_new_hire_terminations
+        description: "Total number of new hire terminations (SUMMARY only)"
+      - name: new_hire_terminations_with_incorrect_match
+        description: "Number of new hire terminations receiving incorrect match (SUMMARY only)"
+      - name: total_incorrect_match_payments
+        description: "Total dollar amount of incorrect match payments (SUMMARY only)"
+      - name: overall_validation_status
+        description: "Overall validation status (SUMMARY only)"
+        data_tests:
+          - accepted_values:
+              values: ['ALL_PASS', 'NEW_HIRE_TERMINATION_ISSUES', 'ELIGIBLE_EMPLOYEE_ISSUES', 'MIXED_ISSUES']
+
+    data_tests:
+      # Epic E061: Critical test - No new hire terminations should receive match when eligibility is enforced
+      - dbt_utils.expression_is_true:
+          expression: "new_hire_termination_match_validation != 'FAIL'"
+          where: "record_type = 'DETAIL' AND employee_category = 'new_hire_termination' AND match_apply_eligibility = true"
+          error_if: ">0"
+          name: "e061_no_new_hire_termination_match_when_enforced"
+          meta:
+            description: "Epic E061: Critical validation that new hire terminations receive no match when eligibility is enforced"
+            epic: "E061"
+            test_category: "new_hire_termination_match_validation"
+
+      # Epic E061: Critical test - Eligible employees should still receive match
+      - dbt_utils.expression_is_true:
+          expression: "eligible_employee_match_validation != 'FAIL'"
+          where: "record_type = 'DETAIL' AND eligible_employee_match_validation IS NOT NULL"
+          error_if: ">0"
+          warn_if: ">10"
+          name: "e061_eligible_employees_receive_match"
+          meta:
+            description: "Epic E061: Ensure eligible employees still receive proper match after fix"
+            epic: "E061"
+            test_category: "eligible_employee_validation"
+
+      # Epic E061: Configuration validation - Should have correct config when eligibility is enforced
+      - dbt_utils.expression_is_true:
+          expression: "configuration_validation = 'CORRECT_CONFIG'"
+          where: "record_type = 'DETAIL' AND match_apply_eligibility = true"
+          error_if: ">0"
+          name: "e061_correct_eligibility_configuration"
+          meta:
+            description: "Epic E061: Ensure eligibility configuration is correct when enforcement is enabled"
+            epic: "E061"
+            test_category: "configuration_validation"
+
+      # Epic E061: Financial impact validation - Total incorrect payments should be zero after fix
+      - dbt_utils.expression_is_true:
+          expression: "total_incorrect_match_payments = 0 OR total_incorrect_match_payments IS NULL"
+          where: "record_type = 'SUMMARY' AND overall_validation_status = 'ALL_PASS'"
+          error_if: ">0"
+          name: "e061_zero_incorrect_match_payments_after_fix"
+          meta:
+            description: "Epic E061: Validate that incorrect match payments are eliminated after fix"
+            epic: "E061"
+            test_category: "financial_impact_validation"
+
+      # Epic E061: Summary validation - Overall status should be ALL_PASS after fix
+      - dbt_utils.expression_is_true:
+          expression: "overall_validation_status = 'ALL_PASS'"
+          where: "record_type = 'SUMMARY'"
+          error_if: ">0"
+          warn_if: "=0"
+          name: "e061_overall_validation_passes"
+          meta:
+            description: "Epic E061: Ensure overall validation status is ALL_PASS after implementing fix"
+            epic: "E061"
+            test_category: "overall_validation"
