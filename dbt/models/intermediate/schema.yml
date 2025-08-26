@@ -1154,6 +1154,28 @@ models:
           - dbt_utils.accepted_range:
               min_value: 0
               inclusive: false
+          # **NEW BASELINE COMPENSATION VALIDATION TESTS**
+          # Critical bound: Baseline compensation should never exceed $1M (baseline should be reasonable)
+          - dbt_utils.accepted_range:
+              min_value: 0
+              max_value: 1000000
+              config:
+                severity: error
+              name: "baseline_compensation_critical_upper_bound"
+          # Warning bound: Flag baseline compensation over $500K for review
+          - dbt_utils.accepted_range:
+              min_value: 0
+              max_value: 500000
+              config:
+                severity: warn
+              name: "baseline_compensation_warning_upper_bound"
+          # Lower bound: Baseline should have reasonable minimum compensation
+          - dbt_utils.accepted_range:
+              min_value: 30000
+              max_value: 10000000
+              config:
+                where: "employment_status = 'active'"
+              name: "baseline_compensation_reasonable_lower_bound"
 
       - name: current_age
         description: Employee age as of simulation_effective_date
