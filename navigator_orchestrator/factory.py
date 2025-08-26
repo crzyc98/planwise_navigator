@@ -25,7 +25,7 @@ class OrchestratorBuilder:
         self._config: Optional[SimulationConfig] = None
         self._db: Optional[DatabaseConnectionManager] = None
         self._rules: list[ValidationRule] = []
-        self._threads: int = 4
+        self._threads: int = 1
         self._dbt_executable: str = "dbt"
 
     def with_config(self, path: Path | str) -> "OrchestratorBuilder":
@@ -85,7 +85,7 @@ class OrchestratorBuilder:
 def create_orchestrator(
     config_path: Path | str,
     *,
-    threads: int = 4,
+    threads: int = 1,
     db_path: Optional[Path | str] = None,
     dbt_executable: str = "dbt",
 ) -> PipelineOrchestrator:

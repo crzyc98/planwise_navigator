@@ -46,7 +46,7 @@ def cmd_run(args: argparse.Namespace) -> int:
     db_path = Path(args.database) if args.database else Path("dbt/simulation.duckdb")
     db = DatabaseConnectionManager(db_path)
     runner = DbtRunner(
-        threads=args.threads or 4,
+        threads=args.threads or 1,
         executable=("echo" if args.dry_run else "dbt"),
         verbose=bool(args.verbose),
     )
