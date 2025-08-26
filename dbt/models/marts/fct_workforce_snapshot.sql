@@ -7,9 +7,6 @@
         {'columns': ['simulation_year', 'employee_id'], 'type': 'btree', 'unique': true},
         {'columns': ['level_id', 'simulation_year'], 'type': 'btree'},
         {'columns': ['employment_status', 'simulation_year'], 'type': 'btree'}
-    ],
-    pre_hook=[
-        "{% if adapter.get_relation(database=this.database, schema=this.schema, identifier=this.identifier) %}DELETE FROM {{ this }} WHERE simulation_year = {{ var('simulation_year', 2025) }};{% endif %}"
     ]
 ) }}
 

@@ -466,6 +466,17 @@ class PipelineOrchestrator:
                     print(
                         "⚠️ fct_yearly_events missing hire rows; forcing targeted refresh of hires and facts."
                     )
+                    # Ensure snapshot year rows are cleared before rebuild
+                    try:
+                        def _clear(conn):
+                            conn.execute(
+                                "DELETE FROM fct_workforce_snapshot WHERE simulation_year = ?",
+                                [year],
+                            )
+                            return True
+                        self.db_manager.execute_with_retry(_clear)
+                    except Exception:
+                        pass
                     self.dbt_runner.execute_command(
                         [
                             "run",
@@ -479,6 +490,16 @@ class PipelineOrchestrator:
                     )
                 if null_comp_cnt > 0:
                     # After fixing compensation, make sure downstream facts/snapshots reflect it
+                    try:
+                        def _clear(conn):
+                            conn.execute(
+                                "DELETE FROM fct_workforce_snapshot WHERE simulation_year = ?",
+                                [year],
+                            )
+                            return True
+                        self.db_manager.execute_with_retry(_clear)
+                    except Exception:
+                        pass
                     self.dbt_runner.execute_command(
                         [
                             "run",
@@ -631,6 +652,24 @@ class PipelineOrchestrator:
             )
 
             for model in stage.models:
+                # If building the snapshot, clear the year's rows first to avoid dbt pre-hook concurrency
+                if model == "fct_workforce_snapshot":
+                    try:
+                        def _clear(conn):
+                            conn.execute(
+                                "DELETE FROM fct_workforce_snapshot WHERE simulation_year = ?",
+                                [year],
+                            )
+                            return True
+
+                        self.db_manager.execute_with_retry(_clear)
+                        if self.verbose:
+                            print(
+                                f"   🧹 Cleared fct_workforce_snapshot for simulation_year={year} before rebuild"
+                            )
+                    except Exception:
+                        # Non-fatal; proceed with dbt incremental upsert
+                        pass
                 selection = ["run", "--select", model]
                 # Special case: always full-refresh models that have schema issues or self-references
                 if (
@@ -965,6 +1004,16 @@ class PipelineOrchestrator:
         snap_count, event_count = self.db_manager.execute_with_retry(_counts)
         if snap_count == 0 and event_count > 0:
             # Attempt targeted rebuild of snapshot once
+            try:
+                def _clear(conn):
+                    conn.execute(
+                        "DELETE FROM fct_workforce_snapshot WHERE simulation_year = ?",
+                        [year],
+                    )
+                    return True
+                self.db_manager.execute_with_retry(_clear)
+            except Exception:
+                pass
             res = self.dbt_runner.execute_command(
                 ["run", "--select", "fct_workforce_snapshot"],
                 simulation_year=year,
