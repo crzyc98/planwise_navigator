@@ -1,7 +1,7 @@
 # fct_workforce_snapshot TransactionContext Conflict (DuckDB/dbt)
 
 - Date: 2025-08-26
-- Status: Mitigated via orchestration changes; further hardening optional
+- Status: RESOLVED - Testing confirms mitigation successful
 
 ## Summary
 Intermittent DuckDB TransactionContext errors during `fct_workforce_snapshot` builds:
