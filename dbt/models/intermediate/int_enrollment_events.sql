@@ -185,36 +185,44 @@ enrollment_events AS (
     efo.simulation_year,
     CAST((efo.simulation_year || '-01-15 08:00:00') AS TIMESTAMP) as effective_date, -- Fixed enrollment date
 
-    -- Event details based on demographics with deferral rate
-    CASE efo.age_segment
-      WHEN 'young' THEN 'Young employee auto-enrollment - ' || CAST(ROUND(
-        CASE efo.income_segment
-          WHEN 'low_income' THEN 0.03
-          WHEN 'moderate' THEN 0.03
-          WHEN 'high' THEN 0.04
-          ELSE 0.06
-        END * 100, 1) AS VARCHAR) || '% default deferral'
-      WHEN 'mid_career' THEN 'Mid-career voluntary enrollment - ' || CAST(ROUND(
-        CASE efo.income_segment
-          WHEN 'low_income' THEN 0.04
-          WHEN 'moderate' THEN 0.06
-          WHEN 'high' THEN 0.08
-          ELSE 0.10
-        END * 100, 1) AS VARCHAR) || '% deferral'
-      WHEN 'mature' THEN 'Mature employee enrollment - ' || CAST(ROUND(
-        CASE efo.income_segment
-          WHEN 'low_income' THEN 0.05
-          WHEN 'moderate' THEN 0.08
-          WHEN 'high' THEN 0.10
-          ELSE 0.12
-        END * 100, 1) AS VARCHAR) || '% deferral'
-      ELSE 'Senior employee enrollment - ' || CAST(ROUND(
-        CASE efo.income_segment
-          WHEN 'low_income' THEN 0.06
-          WHEN 'moderate' THEN 0.10
-          WHEN 'high' THEN 0.12
-          ELSE 0.15
-        END * 100, 1) AS VARCHAR) || '% deferral'
+    -- Event details based on enrollment type (Phase 2: E062 Fix)
+    CASE
+      WHEN efo.is_auto_enrollment_row THEN (
+        'Auto-enrollment - ' || CAST(ROUND({{ default_deferral_rate() }} * 100, 1) AS VARCHAR) || '% default deferral'
+      )
+      ELSE (
+        'Voluntary enrollment - ' || UPPER(efo.age_segment) || ' ' || UPPER(efo.income_segment) || ' employee - ' || CAST(ROUND(
+          CASE efo.age_segment
+            WHEN 'young' THEN
+              CASE efo.income_segment
+                WHEN 'low_income' THEN 0.03
+                WHEN 'moderate' THEN 0.03
+                WHEN 'high' THEN 0.04
+                ELSE 0.06
+              END
+            WHEN 'mid_career' THEN
+              CASE efo.income_segment
+                WHEN 'low_income' THEN 0.04
+                WHEN 'moderate' THEN 0.06
+                WHEN 'high' THEN 0.08
+                ELSE 0.10
+              END
+            WHEN 'mature' THEN
+              CASE efo.income_segment
+                WHEN 'low_income' THEN 0.05
+                WHEN 'moderate' THEN 0.08
+                WHEN 'high' THEN 0.10
+                ELSE 0.12
+              END
+            ELSE -- senior
+              CASE efo.income_segment
+                WHEN 'low_income' THEN 0.06
+                WHEN 'moderate' THEN 0.10
+                WHEN 'high' THEN 0.12
+                ELSE 0.15
+              END
+          END * 100, 1) AS VARCHAR) || '% deferral rate'
+      )
     END as event_details,
 
     -- Compensation amount (current compensation at time of enrollment)
