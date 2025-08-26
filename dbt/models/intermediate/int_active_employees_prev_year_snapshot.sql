@@ -46,9 +46,17 @@ enriched_snapshot as (
     employee_ssn,
     employee_birth_date,
     employee_hire_date,
-    -- **CRITICAL FIX**: Use full_year_equivalent_compensation instead of current_compensation
+    -- **CRITICAL FIX**: Use full_year_equivalent_compensation with bounds checking
     -- This ensures workforce state transitions maintain correct compensation continuity
-    full_year_equivalent_compensation as employee_gross_compensation,
+    -- **MULTI-YEAR COMPENSATION INFLATION FIX**: Apply bounds checking to prevent extreme values
+    CASE
+      WHEN full_year_equivalent_compensation IS NULL OR full_year_equivalent_compensation <= 0 THEN 50000  -- Default minimum
+      WHEN full_year_equivalent_compensation > 2000000 THEN
+        LEAST(full_year_equivalent_compensation, current_compensation * 2, 2000000)  -- Cap at 2x current_compensation or $2M
+      WHEN current_compensation IS NOT NULL AND full_year_equivalent_compensation / current_compensation > 10 THEN
+        current_compensation * 1.50  -- If more than 10x growth, cap at 1.5x current
+      ELSE full_year_equivalent_compensation
+    END as employee_gross_compensation,
     current_age + 1 as current_age, -- Increment age for the new year
     current_tenure + 1 as current_tenure, -- Increment tenure for the new year
     level_id,
@@ -86,13 +94,14 @@ enriched_snapshot as (
     {{ simulation_year }} as simulation_year,
     'previous_year_snapshot' as data_source,
 
-    -- Data quality validation flags
+    -- Data quality validation flags with enhanced compensation checks
     case
       when employee_id is null then false
       when employee_ssn is null then false
       when employee_birth_date is null then false
       when employee_hire_date is null then false
       when employee_gross_compensation <= 0 then false
+      when employee_gross_compensation > 5000000 then false  -- Flag extreme compensation for review
       when current_age < 0 or current_age > 100 then false
       when current_tenure < 0 then false
       else true

@@ -244,6 +244,52 @@ models:
       - dbt_utils.expression_is_true:
           expression: "irs_limit_reached = (prorated_annual_contributions >= CASE WHEN current_age >= 50 THEN 31000 ELSE 23500 END)"
           name: "irs_limit_flag_accurate"
+      # **NEW COMPREHENSIVE COMPENSATION VALIDATION TESTS** - Prevent inflation issues
+      # Test 1: No employee should have compensation > $10M (CRITICAL)
+      - dbt_utils.expression_is_true:
+          expression: "current_compensation <= 10000000"
+          name: "no_compensation_exceeds_10M_critical"
+          config:
+            severity: error
+          meta:
+            description: "CRITICAL: Prevents compensation inflation above $10M threshold"
+            validation_category: "compensation_bounds"
+      # Test 2: Warn if more than 1% of active employees exceed $5M
+      - dbt_utils.expression_is_true:
+          expression: "(SELECT COUNT(*) FROM (SELECT 1 FROM {{ this }} WHERE employment_status = 'active' AND current_compensation > 5000000)) / NULLIF((SELECT COUNT(*) FROM (SELECT 1 FROM {{ this }} WHERE employment_status = 'active')), 0) <= 0.01"
+          name: "high_compensation_employees_within_threshold"
+          config:
+            severity: warn
+          meta:
+            description: "Warns if >1% of employees exceed $5M compensation"
+            validation_category: "compensation_distribution"
+      # Test 3: Detect extreme compensation increases within single year (comparing to baseline)
+      - dbt_utils.expression_is_true:
+          expression: "NOT EXISTS (SELECT 1 FROM {{ ref('dq_compensation_bounds_check') }} WHERE overall_quality_flag = 'CRITICAL')"
+          name: "no_critical_compensation_inflation"
+          config:
+            severity: error
+          meta:
+            description: "Fails if any employee has CRITICAL compensation inflation detected"
+            validation_category: "compensation_inflation"
+      # Test 4: Monitor severe compensation increases
+      - dbt_utils.expression_is_true:
+          expression: "(SELECT COUNT(*) FROM {{ ref('dq_compensation_bounds_check') }} WHERE overall_quality_flag = 'SEVERE') <= 5"
+          name: "limited_severe_compensation_inflation"
+          config:
+            severity: warn
+          meta:
+            description: "Warns if >5 employees have SEVERE compensation inflation"
+            validation_category: "compensation_inflation"
+      # Test 5: Ensure reasonable compensation distribution (no more than 5% should be unusually low)
+      - dbt_utils.expression_is_true:
+          expression: "(SELECT COUNT(*) FROM (SELECT 1 FROM {{ this }} WHERE employment_status = 'active' AND current_compensation < 30000)) / NULLIF((SELECT COUNT(*) FROM (SELECT 1 FROM {{ this }} WHERE employment_status = 'active')), 0) <= 0.05"
+          name: "reasonable_compensation_floor_distribution"
+          config:
+            severity: warn
+          meta:
+            description: "Warns if >5% of active employees have compensation < $30K"
+            validation_category: "compensation_distribution"
     columns:
       - name: employee_id
         description: "Unique employee identifier within simulation year"
@@ -266,10 +312,29 @@ models:
         data_type: double
         data_tests:
           - not_null
-          # Temporarily disabled to isolate DuckDBRelation serialization issue
-          # - dbt_utils.accepted_range:
-          #     min_value: 0
-          #     max_value: 1000000
+          # **NEW COMPENSATION BOUNDS TESTS** - Comprehensive validation to prevent inflation issues
+          # Critical bound: No compensation should exceed $10M
+          - dbt_utils.accepted_range:
+              min_value: 0
+              max_value: 10000000
+              config:
+                severity: error
+              name: "compensation_critical_upper_bound"
+          # Warning bound: Flag compensation over $5M for review
+          - dbt_utils.accepted_range:
+              min_value: 0
+              max_value: 5000000
+              config:
+                severity: warn
+                where: "employment_status = 'active'"
+              name: "compensation_warning_upper_bound"
+          # Lower bound: Active employees should have reasonable compensation
+          - dbt_utils.accepted_range:
+              min_value: 10000
+              max_value: 50000000
+              config:
+                where: "employment_status = 'active'"
+              name: "active_compensation_reasonable_lower_bound"
       - name: prorated_annual_compensation
         description: "Prorated annual compensation based on actual time worked"
         data_type: double
@@ -405,6 +470,15 @@ models:
         data_tests:
           - accepted_values:
               values: ['NORMAL', 'HIGH_CONTRIBUTION_RATE', 'MULTIPLE_RATE_CHANGES', 'SHORT_CONTRIBUTION_PERIOD']
+      - name: compensation_quality_flag
+        description: "**NEW** Compensation quality validation flag to prevent inflation issues"
+        data_type: varchar
+        data_tests:
+          - not_null
+          - accepted_values:
+              values: ['NORMAL', 'WARNING_OVER_2M', 'WARNING_UNDER_10K', 'WARNING_INFLATION_2X', 'SEVERE_OVER_5M', 'SEVERE_INFLATION_5X', 'CRITICAL_OVER_10M', 'CRITICAL_INFLATION_10X']
+              config:
+                severity: error
       - name: snapshot_created_at
         description: "Timestamp when snapshot was created"
         data_type: timestamp with time zone

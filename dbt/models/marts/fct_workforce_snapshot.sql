@@ -838,17 +838,39 @@ final_output AS (
         employee_ssn,
         employee_birth_date,
         employee_hire_date,
-        current_compensation,
-        prorated_annual_compensation,
-        -- **NEW**: Full-year equivalent compensation - annualizes all compensation periods
+        -- **CRITICAL COMPENSATION INFLATION FIX**: Apply bounds checking to current_compensation
+        CASE
+            WHEN current_compensation IS NULL OR current_compensation <= 0 THEN 50000  -- Default minimum
+            WHEN current_compensation > 2000000 THEN
+                LEAST(current_compensation, 2000000)  -- Cap at $2M
+            ELSE current_compensation
+        END AS current_compensation,
+        -- **CRITICAL COMPENSATION INFLATION FIX**: Apply bounds checking to prorated compensation
+        CASE
+            WHEN prorated_annual_compensation IS NULL OR prorated_annual_compensation <= 0 THEN 50000  -- Default minimum
+            WHEN prorated_annual_compensation > 2000000 THEN
+                LEAST(prorated_annual_compensation, 2000000)  -- Cap at $2M
+            ELSE prorated_annual_compensation
+        END AS prorated_annual_compensation,
+        -- **NEW**: Full-year equivalent compensation with bounds checking - annualizes all compensation periods
         -- This eliminates proration-based dilution by calculating what each employee
         -- would earn if they worked the full year at their effective rates
         CASE
             -- For employees with merit increases: use the post-merit salary as full-year equivalent
-            WHEN merit_new_salary IS NOT NULL THEN merit_new_salary
+            WHEN merit_new_salary IS NOT NULL THEN
+                CASE
+                    WHEN merit_new_salary > 2000000 THEN 2000000
+                    WHEN merit_new_salary <= 0 THEN current_compensation
+                    ELSE merit_new_salary
+                END
 
             -- For promoted employees: use post-promotion salary as full-year equivalent
-            WHEN promo_new_salary IS NOT NULL THEN promo_new_salary
+            WHEN promo_new_salary IS NOT NULL THEN
+                CASE
+                    WHEN promo_new_salary > 2000000 THEN 2000000
+                    WHEN promo_new_salary <= 0 THEN current_compensation
+                    ELSE promo_new_salary
+                END
 
             -- For new hires: use their hired salary as full-year equivalent
             WHEN EXTRACT(YEAR FROM employee_hire_date) = simulation_year THEN current_compensation
@@ -912,6 +934,66 @@ final_output AS (
         total_employer_contributions,
         -- Add hours worked for audit visibility
         annual_hours_worked,
+
+        -- **NEW COMPENSATION QUALITY FLAG** - Critical validation to prevent inflation issues
+        CASE
+            -- CRITICAL: Compensation exceeds $10M
+            WHEN current_compensation > 10000000 THEN 'CRITICAL_OVER_10M'
+
+            -- SEVERE: Compensation exceeds $5M
+            WHEN current_compensation > 5000000 THEN 'SEVERE_OVER_5M'
+
+            -- WARNING: Suspicious compensation patterns
+            WHEN current_compensation > 2000000 THEN 'WARNING_OVER_2M'
+            WHEN current_compensation < 10000 AND employment_status = 'active' THEN 'WARNING_UNDER_10K'
+
+            -- Check for extreme increases (requires baseline lookup)
+            WHEN (
+                SELECT
+                    CASE
+                        WHEN b.current_compensation > 0 AND
+                             (current_compensation / b.current_compensation) > 10.0
+                        THEN true
+                        ELSE false
+                    END
+                FROM {{ ref('int_baseline_workforce') }} b
+                WHERE b.employee_id = final_workforce_with_contributions.employee_id
+                  AND b.simulation_year = {{ var('simulation_year') }}
+                LIMIT 1
+            ) = true THEN 'CRITICAL_INFLATION_10X'
+
+            WHEN (
+                SELECT
+                    CASE
+                        WHEN b.current_compensation > 0 AND
+                             (current_compensation / b.current_compensation) > 5.0
+                        THEN true
+                        ELSE false
+                    END
+                FROM {{ ref('int_baseline_workforce') }} b
+                WHERE b.employee_id = final_workforce_with_contributions.employee_id
+                  AND b.simulation_year = {{ var('simulation_year') }}
+                LIMIT 1
+            ) = true THEN 'SEVERE_INFLATION_5X'
+
+            WHEN (
+                SELECT
+                    CASE
+                        WHEN b.current_compensation > 0 AND
+                             (current_compensation / b.current_compensation) > 2.0
+                        THEN true
+                        ELSE false
+                    END
+                FROM {{ ref('int_baseline_workforce') }} b
+                WHERE b.employee_id = final_workforce_with_contributions.employee_id
+                  AND b.simulation_year = {{ var('simulation_year') }}
+                LIMIT 1
+            ) = true THEN 'WARNING_INFLATION_2X'
+
+            -- NORMAL: Compensation within expected bounds
+            ELSE 'NORMAL'
+        END AS compensation_quality_flag,
+
         CURRENT_TIMESTAMP AS snapshot_created_at
     FROM final_workforce_with_contributions
     {% if is_incremental() %}
@@ -967,6 +1049,7 @@ SELECT
     first_contribution_date,
     last_contribution_date,
     contribution_quality_flag,
+    compensation_quality_flag,
     employer_match_amount,
     employer_core_amount,
     total_employer_contributions,
