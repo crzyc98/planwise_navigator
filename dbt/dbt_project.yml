@@ -100,7 +100,7 @@ vars:
   # Core auto-enrollment settings
   auto_enrollment_enabled: true
   auto_enrollment_window_days: 45             # Configurable window (45 days default)
-  auto_enrollment_default_deferral_rate: 0.06 # 6% default deferral rate
+  auto_enrollment_default_deferral_rate: 0.02 # 2% default deferral rate
   auto_enrollment_opt_out_grace_period: 30    # Days after auto-enrollment for penalty-free opt-out
   # Default values for consistency (runtime variables from orchestrator take precedence)
   auto_enrollment_scope: "all_eligible_employees"  # Default scope for auto-enrollment
