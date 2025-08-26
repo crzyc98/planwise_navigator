@@ -110,7 +110,7 @@ auto_enrollment_window_calculation AS (
 
     CASE
       WHEN plan_type = 'executive_plan' THEN {{ var('executive_plan_default_deferral_rate', 0.10) }}
-      ELSE {{ var('auto_enrollment_default_deferral_rate', 0.06) }}
+      ELSE {{ var('auto_enrollment_default_deferral_rate', 0.02) }}
     END as default_deferral_rate,
 
     -- Calculate window boundaries using DuckDB date arithmetic

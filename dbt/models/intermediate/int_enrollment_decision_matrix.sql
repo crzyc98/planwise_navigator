@@ -103,7 +103,7 @@ plan_configuration_matrix AS (
     -- Default deferral rate by plan type
     CASE plan_type
       WHEN 'executive_plan' THEN {{ var('executive_plan_default_deferral_rate', 0.10) }}
-      ELSE {{ var('auto_enrollment_default_deferral_rate', 0.06) }}
+      ELSE {{ var('auto_enrollment_default_deferral_rate', 0.02) }}
     END as plan_default_deferral_rate,
 
     -- Scope check (new hires only vs all eligible employees)
