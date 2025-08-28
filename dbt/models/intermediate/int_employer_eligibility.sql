@@ -170,11 +170,13 @@ SELECT
         ELSE false
     END AS is_new_hire_this_year,
 
-    -- Derive end-of-year employment status using event termination when present
+    -- Derive end-of-year employment status using termination events
+    -- CRITICAL FIX: Treat new-hire terminations as terminated at EOY even if not in int_termination_events
     CASE
         WHEN COALESCE(ed.event_termination_date::DATE, ae.termination_date::DATE) IS NOT NULL
              AND COALESCE(ed.event_termination_date::DATE, ae.termination_date::DATE) <= '{{ simulation_year }}-12-31'::DATE
         THEN 'terminated'
+        WHEN COALESCE(nht.has_new_hire_termination, FALSE) THEN 'terminated'
         ELSE 'active'
     END AS employment_status_eoy,
 

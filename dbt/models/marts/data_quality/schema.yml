@@ -555,3 +555,249 @@ models:
             description: "Epic E061: Ensure overall validation status is ALL_PASS after implementing fix"
             epic: "E061"
             test_category: "overall_validation"
+
+  - name: dq_new_hire_core_proration_validation
+    description: >
+      **Story S065-02: New Hire Core Contribution Proration Validation**
+
+      Validates the comprehensive fix for new hire core contribution proration implemented in Story S065-02.
+      Ensures that new hire core contributions are properly calculated based on prorated compensation,
+      not full annual compensation, maintaining the ~1% contribution rate accuracy.
+
+      **The Problem (Story S065-02):**
+      - New hires were receiving core contributions based on full annual compensation
+      - Should receive contributions based on prorated compensation from hire date to year-end
+      - Employees with <1000 hours should receive $0 core contributions
+      - Core contribution rate should be approximately 1% of prorated compensation
+
+      **The Solution:**
+      - Fixed proration logic in int_employer_core_contributions.sql
+      - Proper calculation: prorated_compensation * core_contribution_rate
+      - Enforcement of <1000 hour rule for core contributions
+      - Validation of rate consistency across the workforce
+
+      **VALIDATION CATEGORIES:**
+      - A. New Hire Proration Validation (rate ~1% of prorated, not annual compensation)
+      - B. Low Hours Validation (<1000 hour employees receive $0 core)
+      - C. Rate Consistency Validation (deviation <= 0.1% from expected rate)
+      - D. Compensation Basis Validation (ensuring prorated vs annual usage)
+
+      Returns both detailed validation results and summary statistics.
+      Empty FAIL results indicate the fix is working correctly.
+      Critical for ensuring core contribution accuracy and compliance.
+    config:
+      tags: ["data_quality", "epic_s065", "new_hire_core_proration", "critical"]
+    columns:
+      - name: record_type
+        description: "Type of record: DETAIL or SUMMARY"
+        data_tests:
+          - not_null
+          - accepted_values:
+              values: ['DETAIL', 'SUMMARY']
+      - name: employee_id
+        description: "Employee identifier (NULL for SUMMARY records)"
+      - name: simulation_year
+        description: "Simulation year for the validation"
+        data_tests:
+          - not_null
+          - dbt_utils.accepted_range:
+              min_value: 2020
+              max_value: 2050
+      - name: employee_category
+        description: "Category of employee: new_hire_active, new_hire_termination, continuing_employee"
+        data_tests:
+          - accepted_values:
+              values: ['new_hire_active', 'new_hire_termination', 'continuing_employee']
+      - name: hire_date
+        description: "Employee hire date (for new hires only)"
+      - name: termination_date
+        description: "Employee termination date (if terminated in current year)"
+      - name: annual_compensation
+        description: "Full annual compensation amount (current_compensation from snapshot)"
+        data_tests:
+          - dbt_utils.accepted_range:
+              min_value: 0
+              max_value: 1000000
+      - name: prorated_annual_compensation
+        description: "Prorated compensation from hire date to year-end (or termination)"
+        data_tests:
+          - dbt_utils.accepted_range:
+              min_value: 0
+              max_value: 1000000
+      - name: annual_hours_worked
+        description: "Annual hours worked by the employee"
+        data_tests:
+          - dbt_utils.accepted_range:
+              min_value: 0
+              max_value: 3000
+      - name: employment_status
+        description: "Employment status (active or terminated)"
+        data_tests:
+          - accepted_values:
+              values: ['active', 'terminated']
+      - name: eligible_for_core
+        description: "Whether employee is eligible for core contributions"
+        data_tests:
+          - accepted_values:
+              values: [true, false]
+      - name: final_core_amount
+        description: "Final core contribution amount from workforce snapshot"
+        data_tests:
+          - dbt_utils.accepted_range:
+              min_value: 0
+              max_value: 10000
+      - name: expected_core_amount_prorated
+        description: "Expected core amount based on prorated compensation"
+        data_tests:
+          - dbt_utils.accepted_range:
+              min_value: 0
+              max_value: 10000
+      - name: actual_core_rate
+        description: "Actual core contribution rate (core_amount / prorated_compensation)"
+        data_tests:
+          - dbt_utils.accepted_range:
+              min_value: 0
+              max_value: 0.1
+      - name: core_amount_variance
+        description: "Variance between expected and actual core amount"
+        data_tests:
+          - dbt_utils.accepted_range:
+              min_value: -1000
+              max_value: 1000
+      - name: new_hire_proration_validation
+        description: "Validation result for new hire core proration"
+        data_tests:
+          - accepted_values:
+              values: ['PASS', 'FAIL', 'N/A']
+      - name: low_hours_validation
+        description: "Validation that <1000 hour employees receive $0 core"
+        data_tests:
+          - accepted_values:
+              values: ['PASS', 'FAIL', 'N/A']
+      - name: rate_consistency_validation
+        description: "Validation of core contribution rate consistency"
+        data_tests:
+          - accepted_values:
+              values: ['PASS', 'FAIL', 'N/A']
+      - name: compensation_basis_validation
+        description: "Validation of whether prorated or annual compensation is being used"
+        data_tests:
+          - accepted_values:
+              values: ['CORRECTLY_USING_PRORATED_COMPENSATION', 'LIKELY_USING_ANNUAL_COMPENSATION', 'N/A']
+      - name: total_new_hires
+        description: "Total number of new hires examined (SUMMARY only)"
+        data_tests:
+          - dbt_utils.accepted_range:
+              min_value: 0
+              max_value: 10000
+      - name: new_hires_proration_failures
+        description: "Number of new hires with proration validation failures (SUMMARY only)"
+        data_tests:
+          - dbt_utils.accepted_range:
+              min_value: 0
+              max_value: 10000
+      - name: total_low_hours_employees
+        description: "Total number of employees with <1000 hours (SUMMARY only)"
+        data_tests:
+          - dbt_utils.accepted_range:
+              min_value: 0
+              max_value: 10000
+      - name: low_hours_validation_failures
+        description: "Number of <1000 hour employees incorrectly receiving core (SUMMARY only)"
+        data_tests:
+          - dbt_utils.accepted_range:
+              min_value: 0
+              max_value: 10000
+      - name: rate_consistency_failures
+        description: "Number of employees with rate consistency failures (SUMMARY only)"
+        data_tests:
+          - dbt_utils.accepted_range:
+              min_value: 0
+              max_value: 10000
+      - name: likely_using_annual_compensation
+        description: "Number of new hires likely using annual vs prorated compensation (SUMMARY only)"
+        data_tests:
+          - dbt_utils.accepted_range:
+              min_value: 0
+              max_value: 10000
+      - name: total_absolute_variance
+        description: "Total absolute variance across all core calculations (SUMMARY only)"
+        data_tests:
+          - dbt_utils.accepted_range:
+              min_value: 0
+              max_value: 100000
+      - name: overall_validation_status
+        description: "Overall validation status (SUMMARY only)"
+        data_tests:
+          - accepted_values:
+              values: ['ALL_PASS', 'NEW_HIRE_PRORATION_ISSUES', 'LOW_HOURS_VALIDATION_ISSUES', 'RATE_CONSISTENCY_ISSUES', 'MIXED_ISSUES']
+
+    data_tests:
+      # Story S065-02: Critical test - No new hire proration validation failures should exist
+      - dbt_utils.expression_is_true:
+          expression: "new_hire_proration_validation != 'FAIL'"
+          where: "record_type = 'DETAIL' AND employee_category IN ('new_hire_active', 'new_hire_termination')"
+          error_if: ">0"
+          name: "s065_02_no_new_hire_proration_failures"
+          meta:
+            description: "Story S065-02: Critical validation that new hire core contributions use prorated compensation"
+            story: "S065-02"
+            test_category: "new_hire_proration_validation"
+
+      # Story S065-02: Critical test - No low hours validation failures should exist
+      - dbt_utils.expression_is_true:
+          expression: "low_hours_validation != 'FAIL'"
+          where: "record_type = 'DETAIL' AND annual_hours_worked < 1000"
+          error_if: ">0"
+          name: "s065_02_no_low_hours_validation_failures"
+          meta:
+            description: "Story S065-02: Critical validation that <1000 hour employees receive $0 core"
+            story: "S065-02"
+            test_category: "low_hours_validation"
+
+      # Story S065-02: Critical test - Rate consistency failures should be minimal
+      - dbt_utils.expression_is_true:
+          expression: "rate_consistency_validation != 'FAIL'"
+          where: "record_type = 'DETAIL' AND eligible_for_core = true AND annual_hours_worked >= 1000"
+          error_if: ">10"  # Allow small number of edge cases
+          warn_if: ">5"
+          name: "s065_02_rate_consistency_threshold"
+          meta:
+            description: "Story S065-02: Ensure core contribution rate consistency within tolerance"
+            story: "S065-02"
+            test_category: "rate_consistency_validation"
+
+      # Story S065-02: Critical test - New hires should use prorated compensation
+      - dbt_utils.expression_is_true:
+          expression: "compensation_basis_validation != 'LIKELY_USING_ANNUAL_COMPENSATION'"
+          where: "record_type = 'DETAIL' AND employee_category IN ('new_hire_active', 'new_hire_termination') AND eligible_for_core = true"
+          error_if: ">0"
+          name: "s065_02_new_hires_use_prorated_compensation"
+          meta:
+            description: "Story S065-02: Ensure new hires use prorated compensation, not annual compensation"
+            story: "S065-02"
+            test_category: "compensation_basis_validation"
+
+      # Story S065-02: Overall validation - System should pass all validations after fix
+      - dbt_utils.expression_is_true:
+          expression: "overall_validation_status = 'ALL_PASS'"
+          where: "record_type = 'SUMMARY'"
+          error_if: ">0"
+          warn_if: "=0"
+          name: "s065_02_overall_validation_passes"
+          meta:
+            description: "Story S065-02: Ensure overall validation status is ALL_PASS after implementing fix"
+            story: "S065-02"
+            test_category: "overall_validation"
+
+      # Story S065-02: Financial impact validation - Total variance should be minimal
+      - dbt_utils.expression_is_true:
+          expression: "total_absolute_variance < 1000"  # Allow for minor rounding differences
+          where: "record_type = 'SUMMARY'"
+          error_if: ">0"
+          warn_if: "=0"
+          name: "s065_02_minimal_financial_variance"
+          meta:
+            description: "Story S065-02: Ensure financial variance from expected core amounts is minimal"
+            story: "S065-02"
+            test_category: "financial_impact_validation"
