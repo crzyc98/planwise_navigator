@@ -16,7 +16,7 @@ WITH duplicate_raise_details AS (
         NULL as additional_info,
         COUNT(*) as occurrence_count
     FROM {{ ref('fct_yearly_events') }}
-    WHERE event_type = 'RAISE'
+    WHERE event_type = 'raise'
     GROUP BY employee_id, simulation_year, effective_date, compensation_amount
     HAVING COUNT(*) > 1
 ),

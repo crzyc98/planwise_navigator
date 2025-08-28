@@ -26,11 +26,11 @@ parameter_hierarchy AS (
   CROSS JOIN scenario_selection ss
   CROSS JOIN (
     {% if var('cola_rate', none) is not none %}
-    SELECT 'RAISE' AS event_type, 'cola_rate' AS parameter_name, {{ var('cola_rate') }} AS parameter_value
+    SELECT 'raise' AS event_type, 'cola_rate' AS parameter_name, {{ var('cola_rate') }} AS parameter_value
     {% endif %}
     {% if var('merit_budget', none) is not none %}
       {% if var('cola_rate', none) is not none %}UNION ALL{% endif %}
-    SELECT 'RAISE' AS event_type, 'merit_base' AS parameter_name, {{ var('merit_budget') }} AS parameter_value
+    SELECT 'raise' AS event_type, 'merit_base' AS parameter_name, {{ var('merit_budget') }} AS parameter_value
     {% endif %}
   ) config_params
 

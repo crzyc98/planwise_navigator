@@ -19,7 +19,7 @@ WITH test_results AS (
     FROM (
         SELECT employee_id, simulation_year, effective_date, compensation_amount
         FROM {{ ref('fct_yearly_events') }}
-        WHERE event_type = 'RAISE'
+        WHERE event_type = 'raise'
         GROUP BY employee_id, simulation_year, effective_date, compensation_amount
         HAVING COUNT(*) > 1
     )
