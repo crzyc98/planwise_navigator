@@ -150,6 +150,57 @@ class EmployerMatchSettings(BaseModel):
     formulas: Optional[Dict[str, Any]] = Field(default=None, description="Match formula definitions")
 
 
+class AdaptiveMemoryThresholds(BaseModel):
+    """Memory pressure thresholds in MB for adaptive management"""
+    moderate_mb: float = Field(default=2000.0, ge=500.0, description="Moderate pressure threshold in MB")
+    high_mb: float = Field(default=3000.0, ge=1000.0, description="High pressure threshold in MB")
+    critical_mb: float = Field(default=3500.0, ge=1500.0, description="Critical pressure threshold in MB")
+    gc_trigger_mb: float = Field(default=2500.0, ge=1000.0, description="Garbage collection trigger threshold in MB")
+    fallback_trigger_mb: float = Field(default=3200.0, ge=1500.0, description="Fallback mode trigger threshold in MB")
+
+
+class AdaptiveBatchSizes(BaseModel):
+    """Batch size configuration for different optimization levels"""
+    low: int = Field(default=250, ge=50, le=1000, description="Low optimization batch size")
+    medium: int = Field(default=500, ge=100, le=2000, description="Medium optimization batch size")
+    high: int = Field(default=1000, ge=200, le=5000, description="High optimization batch size")
+    fallback: int = Field(default=100, ge=25, le=500, description="Fallback mode batch size")
+
+
+class AdaptiveMemorySettings(BaseModel):
+    """Adaptive memory management configuration"""
+    enabled: bool = Field(default=True, description="Enable adaptive memory management")
+    monitoring_interval_seconds: float = Field(default=1.0, ge=0.1, le=60.0, description="Memory monitoring interval in seconds")
+    history_size: int = Field(default=100, ge=10, le=1000, description="Memory history buffer size")
+
+    thresholds: AdaptiveMemoryThresholds = Field(default_factory=AdaptiveMemoryThresholds, description="Memory pressure thresholds")
+    batch_sizes: AdaptiveBatchSizes = Field(default_factory=AdaptiveBatchSizes, description="Adaptive batch size configuration")
+
+    auto_gc_enabled: bool = Field(default=True, description="Enable automatic garbage collection")
+    fallback_enabled: bool = Field(default=True, description="Enable automatic fallback to smaller batch sizes")
+    profiling_enabled: bool = Field(default=False, description="Enable memory profiling hooks")
+
+    # Recommendation engine settings
+    recommendation_window_minutes: int = Field(default=5, ge=1, le=60, description="Recommendation analysis window in minutes")
+    min_samples_for_recommendation: int = Field(default=10, ge=5, le=100, description="Minimum samples needed for recommendations")
+
+    # Memory leak detection
+    leak_detection_enabled: bool = Field(default=True, description="Enable memory leak detection")
+    leak_threshold_mb: float = Field(default=800.0, ge=100.0, description="Memory leak detection threshold in MB")
+    leak_window_minutes: int = Field(default=15, ge=5, le=60, description="Memory leak detection window in minutes")
+
+
+class OptimizationSettings(BaseModel):
+    """Performance optimization configuration"""
+    level: str = Field(default="high", description="Optimization level: low, medium, high, fallback")
+    max_workers: int = Field(default=4, ge=1, le=16, description="Maximum concurrent workers")
+    batch_size: int = Field(default=1000, ge=50, le=10000, description="Default processing batch size")
+    memory_limit_gb: Optional[float] = Field(default=8.0, ge=1.0, description="Memory limit in GB")
+
+    # Adaptive memory management
+    adaptive_memory: AdaptiveMemorySettings = Field(default_factory=AdaptiveMemorySettings, description="Adaptive memory management settings")
+
+
 class ProductionSafetySettings(BaseModel):
     """Production data safety and backup configuration"""
 
@@ -202,6 +253,9 @@ class OrchestrationConfig(BaseModel):
     plan_eligibility: PlanEligibilitySettings = PlanEligibilitySettings()
     employer_match: Optional[EmployerMatchSettings] = Field(default=None, description="Employer match configuration")
 
+    # Performance optimization configuration
+    optimization: OptimizationSettings = Field(default_factory=OptimizationSettings, description="Performance optimization settings")
+
     # Production safety configuration
     production_safety: ProductionSafetySettings = ProductionSafetySettings()
 
@@ -233,6 +287,9 @@ class SimulationConfig(BaseModel):
     eligibility: EligibilitySettings = EligibilitySettings()
     plan_eligibility: PlanEligibilitySettings = PlanEligibilitySettings()
     employer_match: Optional[EmployerMatchSettings] = Field(default=None, description="Employer match configuration")
+
+    # Performance optimization configuration (optional for backward compatibility)
+    optimization: Optional[OptimizationSettings] = Field(default=None, description="Performance optimization settings")
 
     def require_identifiers(self) -> None:
         """Raise if scenario_id/plan_design_id are missing."""

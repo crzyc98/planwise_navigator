@@ -1,0 +1,176 @@
+# Corporate Network Configuration Template for PlanWise Navigator
+# Epic E063 - Story S063-07: Corporate Network and Proxy Support
+#
+# This template provides IT administrators with a starting point for
+# configuring PlanWise Navigator in corporate environments with proxies,
+# certificates, and restricted network access.
+#
+# Copy this section to your simulation_config.yaml file and customize
+# the values according to your corporate environment.
+
+corporate_network:
+  # Enable/disable corporate network support
+  enabled: true
+
+  # Auto-detect proxy settings from environment variables
+  # Set to false if you prefer manual configuration
+  auto_detect_proxy: true
+
+  # Proxy server configuration
+  proxy:
+    # Proxy server URLs (leave null for auto-detection from environment)
+    # Format: "http://proxy-server:port" or "https://proxy-server:port"
+    http_proxy: null    # Example: "http://proxy.company.com:8080"
+    https_proxy: null   # Example: "http://proxy.company.com:8080"
+    ftp_proxy: null     # Optional FTP proxy
+
+    # Hosts that should bypass the proxy
+    # Add your internal domains and IP ranges here
+    no_proxy:
+      - "localhost"
+      - "127.0.0.1"
+      - "*.local"
+      - "*.company.com"        # Replace with your corporate domain
+      - "10.0.0.0/8"          # Internal IP ranges
+      - "192.168.0.0/16"      # Private networks
+      - "172.16.0.0/12"       # Private networks
+
+    # Proxy authentication settings
+    username: null             # Leave null to use system authentication (recommended)
+    password: null             # Leave null to use system authentication (recommended)
+    use_system_auth: true      # Use NTLM/Kerberos system authentication
+
+    # Connection settings
+    proxy_timeout: 30          # Proxy connection timeout in seconds
+    proxy_retries: 3           # Number of retry attempts for proxy connections
+
+  # Corporate certificate configuration
+  certificates:
+    # Path to corporate CA certificate bundle
+    # Common paths:
+    #   Linux: "/etc/ssl/certs/ca-certificates.crt"
+    #   CentOS/RHEL: "/etc/pki/tls/certs/ca-bundle.crt"
+    #   Windows: Contact your IT administrator
+    ca_bundle_path: null       # Example: "/etc/ssl/certs/corporate-ca-bundle.crt"
+
+    # SSL verification settings
+    verify_ssl: true           # Always true for production environments
+    allow_self_signed: false   # Only set to true for development/testing
+    hostname_verification: true # Verify certificate hostnames
+
+    # Certificate chain validation
+    check_certificate_chain: true
+    max_chain_depth: 10        # Maximum certificate chain depth
+
+  # Network timeout configuration
+  timeouts:
+    # Basic connection timeouts
+    connection_timeout: 30     # TCP connection timeout (seconds)
+    read_timeout: 60           # Socket read timeout (seconds)
+    total_timeout: 300         # Total operation timeout (5 minutes)
+
+    # Application-specific timeouts
+    dagster_health_timeout: 5  # Dagster health check timeout
+    dbt_command_timeout: 1800  # dbt command timeout (30 minutes)
+    database_timeout: 60       # Database connection timeout
+
+    # Retry configuration
+    max_retries: 3             # Maximum number of retry attempts
+    retry_delay: 1.0           # Base delay between retries (seconds)
+    retry_backoff: 2.0         # Exponential backoff multiplier
+    max_retry_delay: 30.0      # Maximum retry delay (seconds)
+
+  # Performance optimization settings
+  performance:
+    enable_connection_pooling: true  # Enable HTTP connection pooling
+    max_pool_connections: 10         # Maximum connections per pool
+    pool_timeout: 30                 # Connection pool timeout
+    enable_gzip: true                # Enable gzip compression
+    chunk_size: 8192                 # Download chunk size (bytes)
+    buffer_size: 65536               # Network buffer size (bytes)
+
+    # Bandwidth management (optional)
+    rate_limiting: false             # Enable bandwidth rate limiting
+    max_bandwidth_mbps: null         # Maximum bandwidth in Mbps (null = unlimited)
+
+    # HTTP keep-alive settings
+    keep_alive: true                 # Enable HTTP keep-alive
+    keep_alive_timeout: 30           # Keep-alive timeout (seconds)
+
+  # Corporate environment detection
+  # Add your corporate domain suffixes here
+  corporate_domains:
+    - "company.com"            # Replace with your primary domain
+    - "corp.local"             # Common corporate internal domain
+    - "internal.company"       # Add other internal domains as needed
+
+  vpn_detection: true          # Attempt to detect VPN connections
+
+  # Network connectivity validation
+  connectivity_check: true     # Perform connectivity checks on startup
+
+  # Test endpoints for connectivity validation
+  # Customize this list based on what external sites your network can access
+  test_endpoints:
+    - "https://httpbin.org/get"      # HTTP testing service
+    - "https://www.google.com"       # General internet connectivity
+    - "https://github.com"           # Code repository access
+    # Add internal endpoints if needed:
+    # - "https://internal.company.com/health"
+
+# ============================================================================
+# CONFIGURATION INSTRUCTIONS FOR IT ADMINISTRATORS
+# ============================================================================
+
+# 1. PROXY CONFIGURATION
+#    - Set proxy URLs in the environment or in the configuration above
+#    - Use system authentication when possible (recommended)
+#    - Add all internal domains and IP ranges to no_proxy list
+#
+#    Environment Variables (Alternative to configuration above):
+#    export HTTP_PROXY="http://proxy.company.com:8080"
+#    export HTTPS_PROXY="http://proxy.company.com:8080"
+#    export NO_PROXY="localhost,127.0.0.1,*.company.com,10.0.0.0/8"
+
+# 2. CERTIFICATE CONFIGURATION
+#    - Provide path to corporate CA certificate bundle
+#    - Ensure the certificate file is readable by the application
+#    - Test certificate validation with: python scripts/network_diagnostics.py --cert-check
+#
+#    Environment Variables (Alternative):
+#    export REQUESTS_CA_BUNDLE="/path/to/corporate-ca-bundle.crt"
+#    export SSL_CERT_FILE="/path/to/corporate-ca-bundle.crt"
+
+# 3. SECURITY CONSIDERATIONS
+#    - Always use verify_ssl: true in production
+#    - Use system authentication for proxies when possible
+#    - Regularly update certificate bundles
+#    - Monitor network access logs
+
+# 4. TESTING AND VALIDATION
+#    - Run network diagnostics after configuration:
+#      python scripts/network_diagnostics.py --full
+#    - Test specific components:
+#      python scripts/network_diagnostics.py --proxy-test
+#      python scripts/network_diagnostics.py --cert-check
+#    - Export diagnostics report:
+#      python scripts/network_diagnostics.py --full --export network_report.json
+
+# 5. TROUBLESHOOTING
+#    - Check application logs for network-related errors
+#    - Use --detailed flag for verbose diagnostics output
+#    - Verify proxy server logs for connection attempts
+#    - Test connectivity with curl or similar tools
+#    - Contact network administrators for firewall/proxy issues
+
+# 6. PERFORMANCE TUNING
+#    - Adjust timeouts based on network performance
+#    - Enable connection pooling for better performance
+#    - Configure appropriate retry settings
+#    - Monitor bandwidth usage if rate limiting is needed
+
+# 7. MAINTENANCE
+#    - Schedule regular certificate bundle updates
+#    - Review and update proxy bypass rules
+#    - Monitor network health with diagnostic tools
+#    - Update configuration based on infrastructure changes

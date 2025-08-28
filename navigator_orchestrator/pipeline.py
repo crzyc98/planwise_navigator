@@ -16,6 +16,7 @@ from navigator_orchestrator.config import get_database_path
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
+from .adaptive_memory_manager import AdaptiveMemoryManager, create_adaptive_memory_manager, OptimizationLevel
 from .checkpoint_manager import CheckpointManager
 from .config import SimulationConfig, to_dbt_vars
 from .dbt_runner import DbtResult, DbtRunner
@@ -98,6 +99,9 @@ class PipelineOrchestrator:
         self.checkpoints_dir.mkdir(exist_ok=True)
         self._seeded = False
 
+        # S063-08: Adaptive Memory Management
+        self._setup_adaptive_memory_manager()
+
         # Enhanced checkpoint system
         self.enhanced_checkpoints = enhanced_checkpoints
         if enhanced_checkpoints:
@@ -112,6 +116,77 @@ class PipelineOrchestrator:
             self.checkpoint_manager = None
             self.recovery_orchestrator = None
             self.config_hash = None
+
+    def _setup_adaptive_memory_manager(self) -> None:
+        """Setup adaptive memory management system"""
+        try:
+            # Extract optimization config from simulation config
+            optimization_config = getattr(self.config, 'optimization', None)
+
+            if optimization_config and hasattr(optimization_config, 'adaptive_memory'):
+                adaptive_config = optimization_config.adaptive_memory
+
+                # Create adaptive memory manager with config
+                from .adaptive_memory_manager import AdaptiveConfig, MemoryThresholds, BatchSizeConfig
+
+                # Build adaptive config from simulation config
+                config = AdaptiveConfig(
+                    enabled=adaptive_config.enabled,
+                    monitoring_interval_seconds=adaptive_config.monitoring_interval_seconds,
+                    history_size=adaptive_config.history_size,
+                    thresholds=MemoryThresholds(
+                        moderate_mb=adaptive_config.thresholds.moderate_mb,
+                        high_mb=adaptive_config.thresholds.high_mb,
+                        critical_mb=adaptive_config.thresholds.critical_mb,
+                        gc_trigger_mb=adaptive_config.thresholds.gc_trigger_mb,
+                        fallback_trigger_mb=adaptive_config.thresholds.fallback_trigger_mb
+                    ),
+                    batch_sizes=BatchSizeConfig(
+                        low=adaptive_config.batch_sizes.low,
+                        medium=adaptive_config.batch_sizes.medium,
+                        high=adaptive_config.batch_sizes.high,
+                        fallback=adaptive_config.batch_sizes.fallback
+                    ),
+                    auto_gc_enabled=adaptive_config.auto_gc_enabled,
+                    fallback_enabled=adaptive_config.fallback_enabled,
+                    profiling_enabled=adaptive_config.profiling_enabled,
+                    recommendation_window_minutes=adaptive_config.recommendation_window_minutes,
+                    min_samples_for_recommendation=adaptive_config.min_samples_for_recommendation,
+                    leak_detection_enabled=adaptive_config.leak_detection_enabled,
+                    leak_threshold_mb=adaptive_config.leak_threshold_mb,
+                    leak_window_minutes=adaptive_config.leak_window_minutes
+                )
+
+                # Import logger
+                from .logger import ProductionLogger
+                logger = ProductionLogger("AdaptiveMemoryManager")
+
+                self.memory_manager = AdaptiveMemoryManager(
+                    config,
+                    logger,
+                    reports_dir=self.reports_dir / "memory"
+                )
+
+                if self.verbose:
+                    print("🧠 Adaptive Memory Manager initialized")
+                    print(f"   Thresholds: {adaptive_config.thresholds.moderate_mb}MB / {adaptive_config.thresholds.high_mb}MB / {adaptive_config.thresholds.critical_mb}MB")
+                    print(f"   Batch sizes: {adaptive_config.batch_sizes.fallback}-{adaptive_config.batch_sizes.high}")
+                    print(f"   Auto-GC: {adaptive_config.auto_gc_enabled}, Fallback: {adaptive_config.fallback_enabled}")
+            else:
+                # Create default adaptive memory manager for backward compatibility
+                self.memory_manager = create_adaptive_memory_manager(
+                    optimization_level=OptimizationLevel.MEDIUM,
+                    memory_limit_gb=4.0  # Default for work laptops
+                )
+                if self.verbose:
+                    print("🧠 Adaptive Memory Manager initialized (default configuration)")
+
+        except Exception as e:
+            # Fallback to None - orchestrator will work without adaptive memory management
+            self.memory_manager = None
+            if self.verbose:
+                print(f"⚠️ Failed to initialize Adaptive Memory Manager: {e}")
+                print("   Continuing without adaptive memory management")
 
     def execute_multi_year_simulation(
         self,
@@ -131,6 +206,13 @@ class PipelineOrchestrator:
             ckpt = self._find_last_checkpoint()
             if ckpt:
                 start = max(start, ckpt.year)
+
+        # Start adaptive memory monitoring
+        if self.memory_manager:
+            self.memory_manager.start_monitoring()
+            if self.verbose:
+                initial_snapshot = self.memory_manager.force_memory_check("simulation_startup")
+                print(f"🧠 Initial memory: {initial_snapshot.rss_mb:.1f}MB (pressure: {initial_snapshot.pressure_level.value})")
 
         with ExecutionMutex("navigator_orchestrator"):
             # Optional one-time full reset before the yearly loop
@@ -155,30 +237,55 @@ class PipelineOrchestrator:
                     # Non-fatal; proceed even if reset fails
                     pass
             completed_years: List[int] = []
-            for year in range(start, end + 1):
-                print(f"\n🔄 Starting simulation year {year}")
-                self._execute_year_workflow(
-                    year, fail_on_validation_error=fail_on_validation_error
-                )
 
-                # Create checkpoint using enhanced system if available
-                if (
-                    self.enhanced_checkpoints
-                    and self.checkpoint_manager
-                    and self.config_hash
-                ):
-                    try:
-                        run_id = (
-                            f"multiyear_{datetime.utcnow().strftime('%Y%m%d_%H%M%S')}"
-                        )
-                        checkpoint_data = self.checkpoint_manager.save_checkpoint(
-                            year, run_id, self.config_hash
-                        )
+            try:
+                for year in range(start, end + 1):
+                    print(f"\n🔄 Starting simulation year {year}")
+
+                    # Memory check before year processing
+                    if self.memory_manager:
+                        year_snapshot = self.memory_manager.force_memory_check(f"year_{year}_start")
                         if self.verbose:
-                            print(f"   ✅ Enhanced checkpoint saved for year {year}")
-                    except Exception as e:
-                        print(f"   ⚠️ Enhanced checkpoint failed for year {year}: {e}")
-                        # Fall back to legacy checkpoint
+                            print(f"🧠 Memory before year {year}: {year_snapshot.rss_mb:.1f}MB (batch size: {self.memory_manager.get_current_batch_size()})")
+
+                    self._execute_year_workflow(
+                        year, fail_on_validation_error=fail_on_validation_error
+                    )
+
+                    # Memory check after year processing
+                    if self.memory_manager:
+                        post_year_snapshot = self.memory_manager.force_memory_check(f"year_{year}_complete")
+                        if self.verbose:
+                            print(f"🧠 Memory after year {year}: {post_year_snapshot.rss_mb:.1f}MB")
+
+                    # Create checkpoint using enhanced system if available
+                    if (
+                        self.enhanced_checkpoints
+                        and self.checkpoint_manager
+                        and self.config_hash
+                    ):
+                        try:
+                            run_id = (
+                                f"multiyear_{datetime.utcnow().strftime('%Y%m%d_%H%M%S')}"
+                            )
+                            checkpoint_data = self.checkpoint_manager.save_checkpoint(
+                                year, run_id, self.config_hash
+                            )
+                            if self.verbose:
+                                print(f"   ✅ Enhanced checkpoint saved for year {year}")
+                        except Exception as e:
+                            print(f"   ⚠️ Enhanced checkpoint failed for year {year}: {e}")
+                            # Fall back to legacy checkpoint
+                            self._write_checkpoint(
+                                WorkflowCheckpoint(
+                                    year,
+                                    WorkflowStage.CLEANUP,
+                                    datetime.utcnow().isoformat(),
+                                    self._state_hash(year),
+                                )
+                            )
+                    else:
+                        # Legacy checkpoint system
                         self._write_checkpoint(
                             WorkflowCheckpoint(
                                 year,
@@ -187,32 +294,119 @@ class PipelineOrchestrator:
                                 self._state_hash(year),
                             )
                         )
-                else:
-                    # Legacy checkpoint system
-                    self._write_checkpoint(
-                        WorkflowCheckpoint(
-                            year,
-                            WorkflowStage.CLEANUP,
-                            datetime.utcnow().isoformat(),
-                            self._state_hash(year),
-                        )
-                    )
 
-                completed_years.append(year)
+                    # Track completed year regardless of checkpoint system used
+                    completed_years.append(year)
+
+            except Exception as e:
+                # Log memory state on error
+                if self.memory_manager:
+                    error_snapshot = self.memory_manager.force_memory_check("simulation_error")
+                    print(f"🧠 Memory at error: {error_snapshot.rss_mb:.1f}MB (pressure: {error_snapshot.pressure_level.value})")
+                raise
+
+            finally:
+                # Stop memory monitoring and generate final report
+                if self.memory_manager:
+                    self.memory_manager.stop_monitoring()
+
+                    # Generate memory statistics and recommendations
+                    stats = self.memory_manager.get_memory_statistics()
+                    recommendations = self.memory_manager.get_recommendations()
+
+                    if self.verbose:
+                        print("\n🧠 Adaptive Memory Management Summary:")
+                        print(f"   Peak Memory: {stats['trends']['peak_memory_mb']}MB")
+                        print(f"   GC Collections: {stats['stats']['total_gc_collections']}")
+                        print(f"   Batch Adjustments: {stats['stats']['batch_size_adjustments']}")
+                        print(f"   Fallback Events: {stats['stats']['automatic_fallbacks']}")
+
+                        if recommendations:
+                            print(f"   Recommendations: {len(recommendations)}")
+                            for rec in recommendations[-3:]:  # Show last 3
+                                print(f"     • {rec['type']}: {rec['description']}")
+
+                    # Export memory profile
+                    try:
+                        profile_path = self.memory_manager.export_memory_profile()
+                        if self.verbose:
+                            print(f"   Memory profile: {profile_path}")
+                    except Exception:
+                        pass
 
         # Final multi-year summary using reporter
         reporter = MultiYearReporter(self.db_manager)
-        summary = reporter.generate_summary(completed_years)
 
-        # Display comprehensive multi-year summary (matching monolithic script)
-        reporter.display_comprehensive_multi_year_summary(completed_years)
+        # Handle single-year runs gracefully to avoid raising an error
+        if len(completed_years) >= 2:
+            summary = reporter.generate_summary(completed_years)
 
-        # Persist multi-year CSV summary
+            # Display comprehensive multi-year summary (matching monolithic script)
+            reporter.display_comprehensive_multi_year_summary(completed_years)
+        elif len(completed_years) == 1:
+            # Construct a minimal single-year summary compatible with MultiYearSummary
+            year = completed_years[0]
+            with self.db_manager.get_connection() as conn:
+                # Workforce breakdown for the single year
+                progression = [reporter._workforce_breakdown(conn, year)]
+                # Growth analysis is zeroed for single-year context
+                growth = {
+                    "start_active": progression[0].active_employees,
+                    "end_active": progression[0].active_employees,
+                    "cagr_pct": 0.0,
+                    "total_growth_pct": 0.0,
+                }
+                # Event trends for the single year
+                rows = conn.execute(
+                    """
+                    SELECT lower(event_type) AS et, COUNT(*)
+                    FROM fct_yearly_events
+                    WHERE simulation_year = ?
+                    GROUP BY lower(event_type)
+                    """,
+                    [year],
+                ).fetchall()
+                event_trends = {t: [c] for t, c in rows}
+                participation_trends = [progression[0].participation_rate]
+
+            summary = MultiYearSummary(
+                start_year=year,
+                end_year=year,
+                workforce_progression=progression,
+                growth_analysis=growth,
+                event_trends=event_trends,
+                participation_trends=participation_trends,
+                generated_at=datetime.utcnow(),
+            )
+        else:
+            # No completed years – return an empty single-year shaped summary
+            # This should not normally occur, but protects the pipeline contract.
+            summary = MultiYearSummary(
+                start_year=self.config.simulation.start_year,
+                end_year=self.config.simulation.start_year,
+                workforce_progression=[],
+                growth_analysis={
+                    "start_active": 0,
+                    "end_active": 0,
+                    "cagr_pct": 0.0,
+                    "total_growth_pct": 0.0,
+                },
+                event_trends={},
+                participation_trends=[],
+                generated_at=datetime.utcnow(),
+            )
+
+        # Persist summary CSV (works for single or multi-year)
         out_csv = (
             self.reports_dir
             / f"multi_year_summary_{completed_years[0]}_{completed_years[-1]}.csv"
         )
         summary.export_csv(out_csv)
+        # Announce where the CSV summary was saved for discoverability
+        try:
+            print(f"📄 Multi-year CSV summary saved to: {out_csv}")
+        except Exception:
+            pass
         return summary
 
     def _execute_year_workflow(
@@ -239,8 +433,25 @@ class PipelineOrchestrator:
 
         for stage in workflow:
             print(f"   📋 Executing stage: {stage.name.value}")
+
+            # Memory check before stage
+            if self.memory_manager:
+                pre_stage_snapshot = self.memory_manager.force_memory_check(f"{stage.name.value}_start")
+
             with time_block(f"stage:{stage.name.value}"):
                 self._run_stage_models(stage, year)
+
+            # Memory check after stage
+            if self.memory_manager:
+                post_stage_snapshot = self.memory_manager.force_memory_check(f"{stage.name.value}_complete")
+                if self.verbose:
+                    memory_change = post_stage_snapshot.rss_mb - pre_stage_snapshot.rss_mb
+                    print(f"   🧠 Stage memory change: {memory_change:+.1f}MB (now: {post_stage_snapshot.rss_mb:.1f}MB)")
+
+                    # Check if we need to adjust batch size based on this stage
+                    if post_stage_snapshot.pressure_level != pre_stage_snapshot.pressure_level:
+                        print(f"   🧠 Memory pressure changed: {pre_stage_snapshot.pressure_level.value} → {post_stage_snapshot.pressure_level.value}")
+                        print(f"   🧠 Batch size: {self.memory_manager.get_current_batch_size()}")
 
             # Comprehensive validation for foundation models
             if stage.name == WorkflowStage.FOUNDATION:
@@ -635,6 +846,33 @@ class PipelineOrchestrator:
         auditor.generate_detailed_year_audit(year)
 
         # Final sanity checks handled by reporting/validator
+
+    def get_adaptive_batch_size(self) -> int:
+        """Get current adaptive batch size for dbt operations"""
+        if self.memory_manager:
+            return self.memory_manager.get_current_batch_size()
+        else:
+            # Fallback to configured batch size or default
+            optimization_config = getattr(self.config, 'optimization', None)
+            if optimization_config:
+                return optimization_config.batch_size
+            return 1000  # Default batch size
+
+    def get_memory_recommendations(self) -> List[Dict[str, Any]]:
+        """Get current memory optimization recommendations"""
+        if self.memory_manager:
+            return self.memory_manager.get_recommendations()
+        return []
+
+    def get_memory_statistics(self) -> Dict[str, Any]:
+        """Get comprehensive memory statistics"""
+        if self.memory_manager:
+            return self.memory_manager.get_memory_statistics()
+        return {
+            "current": {"memory_mb": 0, "optimization_level": "unknown"},
+            "stats": {},
+            "monitoring_active": False
+        }
 
     def _run_stage_models(self, stage: StageDefinition, year: int) -> None:
         if not stage.models:
