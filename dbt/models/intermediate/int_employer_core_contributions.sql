@@ -131,30 +131,34 @@ new_hire_proration AS (
 
 -- Independent workforce proration logic (decoupled from deferral rates)
 workforce_proration AS (
-    -- Snapshot population for existing employees
+    -- Existing employees (NOT new hires in current year) - use full annual compensation
+    -- FIXED: Exclude current-year new hires to prevent double-counting and ensure they use prorated compensation
     SELECT
         employee_id,
         simulation_year,
         employee_compensation AS current_compensation,
-        employee_compensation AS prorated_annual_compensation,
+        employee_compensation AS prorated_annual_compensation, -- Full year compensation for existing employees
         employment_status,
         NULL::DATE AS termination_date
     FROM employee_compensation
+    WHERE employee_id NOT IN (
+        -- Exclude current-year new hires - they will be processed separately with proper proration
+        SELECT employee_id FROM hire_events WHERE employee_id IS NOT NULL
+    )
 
     UNION ALL
 
-    -- Current-year new hires with independent proration
+    -- Current-year new hires with proper proration from hire date
+    -- FIXED: These employees get prorated compensation based on actual hire date, not full annual
     SELECT
         employee_id,
         simulation_year,
         current_compensation,
-        prorated_annual_compensation,
+        prorated_annual_compensation, -- Properly prorated from hire date to year-end (or termination)
         employment_status,
         termination_date
     FROM new_hire_proration
-    WHERE employee_id NOT IN (
-        SELECT employee_id FROM employee_compensation
-    )
+    -- All new hires should be included here since they were excluded from the first SELECT above
 ),
 
 eligibility_check AS (
