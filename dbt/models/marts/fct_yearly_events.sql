@@ -287,7 +287,7 @@ deferral_escalation_events AS (
   SELECT
     e.employee_id,
     e.employee_ssn,
-    'DEFERRAL_ESCALATION' AS event_type,
+    'deferral_escalation' AS event_type,
     e.simulation_year,
     e.effective_date,
     e.event_details,

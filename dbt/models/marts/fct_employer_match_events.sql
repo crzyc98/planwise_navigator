@@ -39,14 +39,14 @@ match_events AS (
         -- Deterministic unique event ID per employee/year for idempotent re-runs
         MD5(CONCAT(employee_id::VARCHAR, '-MATCH-', simulation_year::VARCHAR)) AS event_id,
         employee_id,
-        'EMPLOYER_MATCH' AS event_type,
+        'employer_match' AS event_type,
         simulation_year,
         -- Set effective date to end of plan year for annual match calculation
         MAKE_DATE(simulation_year, 12, 31) AS effective_date,
         employer_match_amount AS amount,
         -- Build comprehensive event payload
         TO_JSON({
-            'event_type': 'EMPLOYER_MATCH',
+            'event_type': 'employer_match',
             'formula_id': formula_id,
             'formula_name': formula_name,
             'formula_type': formula_type,

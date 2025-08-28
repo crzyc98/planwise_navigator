@@ -113,7 +113,7 @@ cola_adjustments AS (
 SELECT
     e.employee_id,
     e.employee_ssn,
-    'RAISE' AS event_type,  -- Fixed: uppercase for test compatibility
+    'raise' AS event_type,  -- Fixed: lowercase for fct_workforce_snapshot compatibility
     {{ simulation_year }} AS simulation_year,
     -- Use macro system for raise timing (supports both legacy and realistic modes)
     {{ get_realistic_raise_date('e.employee_id', simulation_year) }} AS effective_date,
@@ -136,7 +136,7 @@ SELECT
         ), 2
     ) AS compensation_amount,  -- Fixed: renamed from new_salary for test compatibility
     e.merit_raise AS event_probability,  -- Reused for event sourcing pattern
-    'RAISE' AS event_category,  -- Added for consistency
+    'raise' AS event_category,  -- Fixed: lowercase for consistency
     e.current_age AS employee_age,  -- Aligned column name
     e.current_tenure AS employee_tenure,  -- Aligned column name
     e.level_id,
