@@ -438,7 +438,10 @@
       "Bash(/dev/null)",
       "Bash(/Users/nicholasamaral/planwise_navigator/venv/bin/dbt run --select dq_new_hire_termination_match_validation --vars \"simulation_year: 2025\" --project-dir /Users/nicholasamaral/planwise_navigator/dbt)",
       "Bash(/Users/nicholasamaral/planwise_navigator/venv/bin/dbt test --select dq_new_hire_termination_match_validation --project-dir /Users/nicholasamaral/planwise_navigator/dbt)",
-      "Bash(/Users/nicholasamaral/planwise_navigator/venv/bin/dbt run --select int_employer_eligibility int_employee_match_calculations --vars \"simulation_year: 2025\" --project-dir /Users/nicholasamaral/planwise_navigator/dbt)"
+      "Bash(/Users/nicholasamaral/planwise_navigator/venv/bin/dbt run --select int_employer_eligibility int_employee_match_calculations --vars \"simulation_year: 2025\" --project-dir /Users/nicholasamaral/planwise_navigator/dbt)",
+      "Bash(/Users/nicholasamaral/planwise_navigator/venv/bin/dbt seed --select comp_levers --project-dir /Users/nicholasamaral/planwise_navigator/dbt)",
+      "Bash(/Users/nicholasamaral/planwise_navigator/venv/bin/dbt seed --select config_promotion_hazard_base --project-dir /Users/nicholasamaral/planwise_navigator/dbt)",
+      "Bash(/Users/nicholasamaral/planwise_navigator/venv/bin/dbt run --select stg_config_promotion_hazard_base int_hazard_promotion int_promotion_events --vars \"simulation_year: 2025\" --project-dir /Users/nicholasamaral/planwise_navigator/dbt --threads 1)"
     ],
     "deny": []
   }

@@ -1598,12 +1598,11 @@ models:
         data_tests:
           - not_null
       - name: event_type
-        description: Type of event (always 'RAISE')
+        description: Type of event (always 'raise')
         data_tests:
           - not_null
-          # Temporarily disabled due to case sensitivity issues
-          # - accepted_values:
-          #     values: ['RAISE']
+          - accepted_values:
+              values: ['raise']
       - name: simulation_year
         description: Year when merit increase occurs
         data_tests:

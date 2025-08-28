@@ -8,9 +8,9 @@ WITH parameter_validation AS (
         'default' AS scenario_id,
         2025 AS fiscal_year,
         1 AS job_level,
-        'RAISE' AS event_type,
+        'raise' AS event_type,
         'merit_base' AS parameter_name,
-        {{ get_parameter_value('1', 'RAISE', 'merit_base', '2025') }} AS resolved_value,
+        {{ get_parameter_value('1', 'raise', 'merit_base', '2025') }} AS resolved_value,
         0.035 AS expected_value
 
     UNION ALL
@@ -19,9 +19,9 @@ WITH parameter_validation AS (
         'default' AS scenario_id,
         2025 AS fiscal_year,
         5 AS job_level,
-        'RAISE' AS event_type,
+        'raise' AS event_type,
         'merit_base' AS parameter_name,
-        {{ get_parameter_value('5', 'RAISE', 'merit_base', '2025') }} AS resolved_value,
+        {{ get_parameter_value('5', 'raise', 'merit_base', '2025') }} AS resolved_value,
         0.055 AS expected_value
 
     UNION ALL
@@ -30,9 +30,9 @@ WITH parameter_validation AS (
         'default' AS scenario_id,
         2025 AS fiscal_year,
         1 AS job_level,
-        'RAISE' AS event_type,
+        'raise' AS event_type,
         'cola_rate' AS parameter_name,
-        {{ get_parameter_value('1', 'RAISE', 'cola_rate', '2025') }} AS resolved_value,
+        {{ get_parameter_value('1', 'raise', 'cola_rate', '2025') }} AS resolved_value,
         0.025 AS expected_value
 ),
 
