@@ -392,16 +392,50 @@ employer_core_contribution:
     allow_terminated_new_hires: false  # Allow new-hire terminations to qualify when enabled
     allow_experienced_terminations: false  # Allow experienced terminations to qualify when enabled
 
+# Performance optimization configuration
+optimization:
+  level: "high"  # Options: "high", "medium", "low", "fallback"
+  max_workers: 1  # Maximum concurrent workers (1 for single-threaded optimization)
+  batch_size: 1000  # Default processing batch size
+  memory_limit_gb: 4.0  # Memory limit in GB for work laptops
+
+  # S063-08: Adaptive Memory Management
+  adaptive_memory:
+    enabled: true  # Enable adaptive memory management
+    monitoring_interval_seconds: 1.0  # Memory monitoring frequency
+    history_size: 100  # Memory history buffer size
+
+    # Memory pressure thresholds (MB)
+    thresholds:
+      moderate_mb: 2000.0    # 2GB - start batch size reduction
+      high_mb: 3000.0        # 3GB - aggressive optimization
+      critical_mb: 3500.0    # 3.5GB - emergency fallback
+      gc_trigger_mb: 2500.0  # 2.5GB - trigger garbage collection
+      fallback_trigger_mb: 3200.0  # 3.2GB - enable fallback mode
+
+    # Adaptive batch sizes for different optimization levels
+    batch_sizes:
+      low: 250        # Conservative batch size
+      medium: 500     # Balanced batch size
+      high: 1000      # Performance batch size
+      fallback: 100   # Emergency fallback batch size
+
+    # Adaptive features
+    auto_gc_enabled: true        # Enable automatic garbage collection
+    fallback_enabled: true       # Enable automatic fallback mode
+    profiling_enabled: false     # Enable memory profiling hooks (disabled by default)
+
+    # Recommendation engine
+    recommendation_window_minutes: 5    # Analysis window for recommendations
+    min_samples_for_recommendation: 10  # Minimum samples needed
+
+    # Memory leak detection (tuned for simulation workloads)
+    leak_detection_enabled: true     # Enable leak detection
+    leak_threshold_mb: 800.0         # 800MB growth threshold (increased for simulation processing)
+    leak_window_minutes: 15          # Detection window (increased for more stable detection)
+
 # Multi-year simulation configuration
 multi_year:
-  # Optimization settings
-  optimization:
-    level: "high"  # Options: "high", "medium", "low", "fallback"
-    max_workers: 4  # Maximum concurrent workers for parallel processing
-    batch_size: 1000  # Processing batch size
-    memory_limit_gb: 8.0  # Memory limit in GB (null for no limit)
-
-  # Performance tuning
   performance:
     enable_state_compression: true  # Compress simulation state between years
     enable_concurrent_processing: true  # Enable concurrent year processing
@@ -462,6 +496,74 @@ deferral_rates:
   plan_deferral_cap: 0.75             # Maximum deferral rate (75% IRS limit)
   normalize_percentages: true         # Automatically convert percentages to decimals (7.5 -> 0.075)
   generate_synthetic_events: true     # Create synthetic enrollment events for census pre-enrolled participants
+
+# Epic E063: Corporate Network and Proxy Support Configuration
+corporate_network:
+  # Enable corporate network support
+  enabled: true
+  auto_detect_proxy: true
+
+  # Proxy configuration
+  proxy:
+    # Proxy server URLs (auto-detected from environment if not specified)
+    http_proxy: null   # e.g., "http://proxy.company.com:8080"
+    https_proxy: null  # e.g., "http://proxy.company.com:8080"
+    no_proxy: ["localhost", "127.0.0.1", "*.local"]
+
+    # Authentication (leave null to use system authentication)
+    username: null
+    password: null
+    use_system_auth: true
+
+    # Advanced settings
+    proxy_timeout: 30
+    proxy_retries: 3
+
+  # Corporate certificate configuration
+  certificates:
+    ca_bundle_path: null  # Path to corporate CA bundle (e.g., "/etc/ssl/certs/ca-certificates.crt")
+    verify_ssl: true
+    allow_self_signed: false  # Only for development environments
+    hostname_verification: true
+    check_certificate_chain: true
+    max_chain_depth: 10
+
+  # Network timeout configuration
+  timeouts:
+    connection_timeout: 30
+    read_timeout: 60
+    total_timeout: 300
+    dagster_health_timeout: 5
+    dbt_command_timeout: 1800  # 30 minutes
+    database_timeout: 60
+    max_retries: 3
+    retry_delay: 1.0
+    retry_backoff: 2.0
+    max_retry_delay: 30.0
+
+  # Performance optimization
+  performance:
+    enable_connection_pooling: true
+    max_pool_connections: 10
+    pool_timeout: 30
+    enable_gzip: true
+    chunk_size: 8192
+    buffer_size: 65536
+    rate_limiting: false
+    max_bandwidth_mbps: null
+    keep_alive: true
+    keep_alive_timeout: 30
+
+  # Corporate environment detection
+  corporate_domains: ["company.com", "corp.local"]
+  vpn_detection: true
+
+  # Connectivity validation
+  connectivity_check: true
+  test_endpoints:
+    - "https://httpbin.org/get"
+    - "https://www.google.com"
+    - "https://github.com"
 
 # Dagster op configuration (maintained for backward compatibility)
 ops:
