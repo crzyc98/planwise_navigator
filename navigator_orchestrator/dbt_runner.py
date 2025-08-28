@@ -218,14 +218,27 @@ class DbtRunner:
                     # For dbt running from /dbt directory, use relative path
                     env['DATABASE_PATH'] = str(Path(self.database_path).name)
 
-                res = subprocess.run(
-                    cmd,
-                    cwd=self.working_dir,
-                    check=False,
-                    capture_output=True,
-                    text=True,
-                    env=env,
-                )
+                # Use corporate network-aware subprocess if available
+                try:
+                    from .network_utils import test_subprocess_with_proxy
+                    res = test_subprocess_with_proxy(
+                        cmd,
+                        env=env,
+                        timeout=None  # Use configured timeout from network settings
+                    )
+                    # Convert to same interface as subprocess.run
+                    res.cwd = self.working_dir
+                except ImportError:
+                    # Fallback to standard subprocess
+                    res = subprocess.run(
+                        cmd,
+                        cwd=self.working_dir,
+                        check=False,
+                        capture_output=True,
+                        text=True,
+                        env=env,
+                    )
+
             except Exception as e:
                 raise DbtExecutionError(str(e))
             end = time.perf_counter()
@@ -246,13 +259,42 @@ class DbtRunner:
         start_ts: float,
     ) -> DbtResult:
         try:
-            # Set up environment with DATABASE_PATH if specified
+            # Set up environment with DATABASE_PATH and corporate network settings
             env = None
             if self.database_path:
                 import os
                 env = os.environ.copy()
                 # For dbt running from /dbt directory, use relative path
                 env['DATABASE_PATH'] = str(Path(self.database_path).name)
+
+            # Add corporate network environment variables if available
+            try:
+                from .network_utils import load_network_config
+                config = load_network_config()
+                if env is None:
+                    import os
+                    env = os.environ.copy()
+
+                # Add proxy settings to environment
+                if config.proxy.http_proxy:
+                    env['HTTP_PROXY'] = config.proxy.http_proxy
+                    env['http_proxy'] = config.proxy.http_proxy
+                if config.proxy.https_proxy:
+                    env['HTTPS_PROXY'] = config.proxy.https_proxy
+                    env['https_proxy'] = config.proxy.https_proxy
+                if config.proxy.no_proxy:
+                    env['NO_PROXY'] = ','.join(config.proxy.no_proxy)
+                    env['no_proxy'] = ','.join(config.proxy.no_proxy)
+
+                # Add certificate settings
+                if config.certificates.ca_bundle_path:
+                    env['REQUESTS_CA_BUNDLE'] = config.certificates.ca_bundle_path
+                    env['SSL_CERT_FILE'] = config.certificates.ca_bundle_path
+                    env['CURL_CA_BUNDLE'] = config.certificates.ca_bundle_path
+
+            except ImportError:
+                # Corporate network support not available, continue with standard env
+                pass
 
             process = subprocess.Popen(
                 cmd,
