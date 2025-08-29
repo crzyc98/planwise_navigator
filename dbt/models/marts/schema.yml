@@ -471,12 +471,12 @@ models:
           - accepted_values:
               values: ['NORMAL', 'HIGH_CONTRIBUTION_RATE', 'MULTIPLE_RATE_CHANGES', 'SHORT_CONTRIBUTION_PERIOD']
       - name: compensation_quality_flag
-        description: "**NEW** Compensation quality validation flag to prevent inflation issues"
+        description: "**E066 Enhanced** Compensation quality validation flag with annualization context"
         data_type: varchar
         data_tests:
           - not_null
           - accepted_values:
-              values: ['NORMAL', 'WARNING_OVER_2M', 'WARNING_UNDER_10K', 'WARNING_INFLATION_2X', 'SEVERE_OVER_5M', 'SEVERE_INFLATION_5X', 'CRITICAL_OVER_10M', 'CRITICAL_INFLATION_10X']
+              values: ['NORMAL', 'WARNING_OVER_2M', 'WARNING_UNDER_10K', 'WARNING_ANNUALIZED_LATE_HIRE', 'WARNING_INFLATION_5X', 'SEVERE_OVER_5M', 'SEVERE_INFLATION_10X', 'CRITICAL_OVER_10M', 'CRITICAL_OVER_20M', 'CRITICAL_OVER_50M', 'CRITICAL_INFLATION_50X', 'CRITICAL_INFLATION_100X']
               config:
                 severity: error
       - name: snapshot_created_at
