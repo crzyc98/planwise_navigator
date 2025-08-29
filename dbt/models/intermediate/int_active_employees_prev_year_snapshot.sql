@@ -46,15 +46,13 @@ enriched_snapshot as (
     employee_ssn,
     employee_birth_date,
     employee_hire_date,
-    -- **CRITICAL FIX**: Use full_year_equivalent_compensation with bounds checking
+    -- **E066 CONTINUATION FIX**: Use full_year_equivalent_compensation without hard caps
     -- This ensures workforce state transitions maintain correct compensation continuity
-    -- **MULTI-YEAR COMPENSATION INFLATION FIX**: Apply bounds checking to prevent extreme values
+    -- **REMOVE CAPS**: Trust mathematical correctness, rely on quality flags for monitoring
     CASE
-      WHEN full_year_equivalent_compensation IS NULL OR full_year_equivalent_compensation <= 0 THEN 50000  -- Default minimum
-      WHEN full_year_equivalent_compensation > 2000000 THEN
-        LEAST(full_year_equivalent_compensation, current_compensation * 2, 2000000)  -- Cap at 2x current_compensation or $2M
-      WHEN current_compensation IS NOT NULL AND full_year_equivalent_compensation / current_compensation > 10 THEN
-        current_compensation * 1.50  -- If more than 10x growth, cap at 1.5x current
+      WHEN full_year_equivalent_compensation IS NULL OR full_year_equivalent_compensation <= 0 THEN 50000  -- Default minimum only
+      -- **E066**: Removed hard caps - allow legitimate annualized compensation to persist across years
+      -- Quality monitoring happens in fct_workforce_snapshot via compensation_quality_flag
       ELSE full_year_equivalent_compensation
     END as employee_gross_compensation,
     current_age + 1 as current_age, -- Increment age for the new year
