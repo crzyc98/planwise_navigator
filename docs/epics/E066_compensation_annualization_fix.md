@@ -68,14 +68,20 @@ ON COALESCE(stg_inner.employee_annualized_compensation, stg_inner.employee_gross
 AND (COALESCE(stg_inner.employee_annualized_compensation, stg_inner.employee_gross_compensation) < levels.max_compensation OR levels.max_compensation IS NULL)
 ```
 
-### Bounds Checking (Optional Enhancement)
+### Compensation Cap Removal (E060 Conflict Resolution)
 
-**Problem**: Annualization can produce extreme values (e.g., $2.9M for 7-day employees)
+**Problem**: E060's $2M compensation caps conflict with legitimate annualization
 
-**Potential Solutions**:
-1. Cap annualized values at industry maximums (e.g., $1M)
-2. Use alternative logic for very late hires (assume gross IS annual for Dec hires)
-3. Add reasonableness validation in `stg_census_data.sql`
+**Analysis**:
+- E060 added $2M caps to prevent compensation inflation bugs
+- Our E066 fix addresses the root cause E060 was trying to mitigate
+- The caps now prevent legitimate annualized compensation (e.g., $2.9M for 7-day employee)
+
+**Solution**: Remove hard caps, rely on enhanced quality flags for monitoring
+1. Remove $2M caps from `fct_workforce_snapshot.sql`
+2. Enhance `compensation_quality_flag` with context-aware monitoring
+3. Add special `WARNING_ANNUALIZED_LATE_HIRE` flag for Nov/Dec hires
+4. Trust mathematical correctness while maintaining comprehensive monitoring
 
 ## Implementation Plan
 

@@ -835,38 +835,34 @@ final_output AS (
         employee_ssn,
         employee_birth_date,
         employee_hire_date,
-        -- **CRITICAL COMPENSATION INFLATION FIX**: Apply bounds checking to current_compensation
+        -- **E066 ANNUALIZATION FIX**: Remove hard caps, rely on quality flags for monitoring
+        -- This allows legitimate annualized compensation for late prior-year hires
         CASE
-            WHEN current_compensation IS NULL OR current_compensation <= 0 THEN 50000  -- Default minimum
-            WHEN current_compensation > 2000000 THEN
-                LEAST(current_compensation, 2000000)  -- Cap at $2M
-            ELSE current_compensation
+            WHEN current_compensation IS NULL OR current_compensation <= 0 THEN 50000  -- Default minimum only
+            ELSE current_compensation  -- No upper cap - rely on compensation_quality_flag monitoring
         END AS current_compensation,
-        -- **CRITICAL COMPENSATION INFLATION FIX**: Apply bounds checking to prorated compensation
+        -- **E066 ANNUALIZATION FIX**: Remove hard caps, rely on quality flags for monitoring
+        -- This preserves prorated compensation calculations without artificial limits
         CASE
-            WHEN prorated_annual_compensation IS NULL OR prorated_annual_compensation <= 0 THEN 50000  -- Default minimum
-            WHEN prorated_annual_compensation > 2000000 THEN
-                LEAST(prorated_annual_compensation, 2000000)  -- Cap at $2M
-            ELSE prorated_annual_compensation
+            WHEN prorated_annual_compensation IS NULL OR prorated_annual_compensation <= 0 THEN 50000  -- Default minimum only
+            ELSE prorated_annual_compensation  -- No upper cap - rely on compensation_quality_flag monitoring
         END AS prorated_annual_compensation,
-        -- **NEW**: Full-year equivalent compensation with bounds checking - annualizes all compensation periods
+        -- **E066 ANNUALIZATION FIX**: Full-year equivalent compensation without artificial caps
         -- This eliminates proration-based dilution by calculating what each employee
         -- would earn if they worked the full year at their effective rates
         CASE
             -- For employees with merit increases: use the post-merit salary as full-year equivalent
             WHEN merit_new_salary IS NOT NULL THEN
                 CASE
-                    WHEN merit_new_salary > 2000000 THEN 2000000
                     WHEN merit_new_salary <= 0 THEN current_compensation
-                    ELSE merit_new_salary
+                    ELSE merit_new_salary  -- No upper cap - preserve actual post-merit salary
                 END
 
             -- For promoted employees: use post-promotion salary as full-year equivalent
             WHEN promo_new_salary IS NOT NULL THEN
                 CASE
-                    WHEN promo_new_salary > 2000000 THEN 2000000
                     WHEN promo_new_salary <= 0 THEN current_compensation
-                    ELSE promo_new_salary
+                    ELSE promo_new_salary  -- No upper cap - preserve actual post-promotion salary
                 END
 
             -- For new hires: use their hired salary as full-year equivalent
@@ -932,19 +928,57 @@ final_output AS (
         -- Add hours worked for audit visibility
         annual_hours_worked,
 
-        -- **NEW COMPENSATION QUALITY FLAG** - Critical validation to prevent inflation issues
+        -- **E066 ENHANCED QUALITY FLAGS** - Intelligent monitoring with annualization context
         CASE
-            -- CRITICAL: Compensation exceeds $10M
+            -- CRITICAL: Extreme compensation (beyond any reasonable salary)
+            WHEN current_compensation > 50000000 THEN 'CRITICAL_OVER_50M'
+            WHEN current_compensation > 20000000 THEN 'CRITICAL_OVER_20M'
             WHEN current_compensation > 10000000 THEN 'CRITICAL_OVER_10M'
 
-            -- SEVERE: Compensation exceeds $5M
+            -- SEVERE: Very high compensation (C-suite level)
             WHEN current_compensation > 5000000 THEN 'SEVERE_OVER_5M'
 
-            -- WARNING: Suspicious compensation patterns
-            WHEN current_compensation > 2000000 THEN 'WARNING_OVER_2M'
+            -- WARNING: High but potentially legitimate compensation
+            WHEN current_compensation > 2000000 THEN
+                -- Context-aware flagging for annualized late hires
+                CASE
+                    WHEN EXTRACT(YEAR FROM employee_hire_date) = simulation_year
+                         AND employee_hire_date >= (simulation_year || '-11-01')::DATE
+                    THEN 'WARNING_ANNUALIZED_LATE_HIRE'  -- Special flag for legitimate annualization
+                    ELSE 'WARNING_OVER_2M'  -- Standard high compensation flag
+                END
+
             WHEN current_compensation < 10000 AND employment_status = 'active' THEN 'WARNING_UNDER_10K'
 
-            -- Check for extreme increases (requires baseline lookup)
+            -- Inflation detection with baseline comparison
+            WHEN (
+                SELECT
+                    CASE
+                        WHEN b.current_compensation > 0 AND
+                             (current_compensation / b.current_compensation) > 100.0
+                        THEN true
+                        ELSE false
+                    END
+                FROM {{ ref('int_baseline_workforce') }} b
+                WHERE b.employee_id = final_workforce_with_contributions.employee_id
+                  AND b.simulation_year = {{ var('simulation_year') }}
+                LIMIT 1
+            ) = true THEN 'CRITICAL_INFLATION_100X'
+
+            WHEN (
+                SELECT
+                    CASE
+                        WHEN b.current_compensation > 0 AND
+                             (current_compensation / b.current_compensation) > 50.0
+                        THEN true
+                        ELSE false
+                    END
+                FROM {{ ref('int_baseline_workforce') }} b
+                WHERE b.employee_id = final_workforce_with_contributions.employee_id
+                  AND b.simulation_year = {{ var('simulation_year') }}
+                LIMIT 1
+            ) = true THEN 'CRITICAL_INFLATION_50X'
+
             WHEN (
                 SELECT
                     CASE
@@ -957,7 +991,7 @@ final_output AS (
                 WHERE b.employee_id = final_workforce_with_contributions.employee_id
                   AND b.simulation_year = {{ var('simulation_year') }}
                 LIMIT 1
-            ) = true THEN 'CRITICAL_INFLATION_10X'
+            ) = true THEN 'SEVERE_INFLATION_10X'
 
             WHEN (
                 SELECT
@@ -971,21 +1005,7 @@ final_output AS (
                 WHERE b.employee_id = final_workforce_with_contributions.employee_id
                   AND b.simulation_year = {{ var('simulation_year') }}
                 LIMIT 1
-            ) = true THEN 'SEVERE_INFLATION_5X'
-
-            WHEN (
-                SELECT
-                    CASE
-                        WHEN b.current_compensation > 0 AND
-                             (current_compensation / b.current_compensation) > 2.0
-                        THEN true
-                        ELSE false
-                    END
-                FROM {{ ref('int_baseline_workforce') }} b
-                WHERE b.employee_id = final_workforce_with_contributions.employee_id
-                  AND b.simulation_year = {{ var('simulation_year') }}
-                LIMIT 1
-            ) = true THEN 'WARNING_INFLATION_2X'
+            ) = true THEN 'WARNING_INFLATION_5X'
 
             -- NORMAL: Compensation within expected bounds
             ELSE 'NORMAL'
