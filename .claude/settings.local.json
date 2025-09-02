@@ -11,7 +11,8 @@
       "Bash(find:*)",
       "Bash(dbt:*)",
       "Bash(dbt list:*)",
-      "Bash(PYTHONPATH=. python -m navigator_orchestrator run --years 2025 --verbose)"
+      "Bash(PYTHONPATH=. python -m navigator_orchestrator run --years 2025 --verbose)",
+      "Bash(git fetch:*)"
     ],
     "deny": [],
     "ask": []
