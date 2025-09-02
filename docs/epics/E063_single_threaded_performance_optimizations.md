@@ -238,14 +238,14 @@ done
 **CLI Usage:**
 ```bash
 # Enable resume capability for long-running simulations
-python scripts/run_multi_year_simulation.py \
+python navigator_orchestrator run \
   --years 2025 2026 2027 \
   --optimization medium \
   --threads 1 \
   --enable-compression
 
 # Resume from last checkpoint on failure
-python scripts/run_multi_year_simulation.py \
+python navigator_orchestrator run \
   --years 2025 2026 2027 \
   --resume-from-checkpoint
 ```

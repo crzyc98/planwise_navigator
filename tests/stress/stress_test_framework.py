@@ -378,7 +378,7 @@ class StressTestExecutor:
         try:
             # Construct simulation command
             cmd = [
-                'python', 'scripts/run_multi_year_simulation.py',
+                'python', 'navigator_orchestrator run',
                 '--years', str(min_year), str(max_year),
                 '--threads', '1',
                 '--optimization', opt_config.name,
