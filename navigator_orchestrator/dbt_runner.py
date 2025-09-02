@@ -20,6 +20,14 @@ from pathlib import Path
 from typing import (Any, Callable, Dict, Generator, Iterable, List, Optional,
                     Sequence, Tuple)
 
+# Import parallel execution components (lazy import to avoid circular dependencies)
+try:
+    from .parallel_execution_engine import ParallelExecutionEngine, ExecutionContext, ExecutionResult
+    from .model_dependency_analyzer import ModelDependencyAnalyzer
+    PARALLEL_EXECUTION_AVAILABLE = True
+except ImportError:
+    PARALLEL_EXECUTION_AVAILABLE = False
+
 
 @dataclass
 class DbtResult:
@@ -95,12 +103,92 @@ class DbtRunner:
         *,
         verbose: bool = False,
         database_path: Optional[str] = None,
+        threading_enabled: bool = True,
+        threading_mode: str = "selective",
+        enable_model_parallelization: bool = False,
+        model_parallelization_max_workers: int = 4,
+        model_parallelization_memory_limit_mb: float = 4000.0,
     ):
         self.working_dir = working_dir
         self.threads = threads
         self.executable = executable
         self.verbose = verbose
         self.database_path = database_path
+        self.threading_enabled = threading_enabled
+        self.threading_mode = threading_mode
+
+        # Model-level parallelization settings
+        self.enable_model_parallelization = enable_model_parallelization
+        self.model_parallelization_max_workers = model_parallelization_max_workers
+        self.model_parallelization_memory_limit_mb = model_parallelization_memory_limit_mb
+
+        # Initialize parallel execution engine if enabled and available
+        self._parallel_engine: Optional[ParallelExecutionEngine] = None
+        self._dependency_analyzer: Optional[ModelDependencyAnalyzer] = None
+
+        if enable_model_parallelization and PARALLEL_EXECUTION_AVAILABLE:
+            try:
+                self._dependency_analyzer = ModelDependencyAnalyzer(working_dir)
+                self._parallel_engine = ParallelExecutionEngine(
+                    dbt_runner=self,
+                    dependency_analyzer=self._dependency_analyzer,
+                    max_workers=model_parallelization_max_workers,
+                    memory_limit_mb=model_parallelization_memory_limit_mb,
+                    verbose=verbose
+                )
+                if verbose:
+                    print("🔧 Model-level parallelization engine initialized")
+            except Exception as e:
+                if verbose:
+                    print(f"⚠️ Failed to initialize parallel execution engine: {e}")
+                    print("   Falling back to standard dbt threading")
+                self._parallel_engine = None
+                self._dependency_analyzer = None
+
+        # Validate thread count on initialization
+        self._validate_thread_count(threads)
+
+        if self.verbose:
+            threading_status = "enabled" if threading_enabled else "disabled"
+            parallel_status = "enabled" if self._parallel_engine else "disabled"
+            print(f"🧩 DbtRunner initialized:")
+            print(f"   dbt threads: {threads} ({threading_status}, mode: {threading_mode})")
+            print(f"   Model parallelization: {parallel_status}")
+            if self._parallel_engine:
+                print(f"   Max parallel workers: {model_parallelization_max_workers}")
+                print(f"   Memory limit: {model_parallelization_memory_limit_mb}MB")
+
+    def _validate_thread_count(self, thread_count: int) -> None:
+        """Validate thread count with appropriate error messages"""
+        if thread_count < 1:
+            raise ValueError("thread_count must be at least 1")
+        if thread_count > 16:
+            raise ValueError("thread_count cannot exceed 16 (hardware limitation)")
+
+        # Log performance guidance
+        if self.verbose:
+            if thread_count > 8:
+                print(f"⚠️ High thread count ({thread_count}): Monitor memory usage and consider reducing if experiencing stability issues")
+            elif thread_count > 4:
+                print(f"ℹ️ Multi-threading enabled ({thread_count} threads): Expected 20-30% performance improvement")
+
+    def update_thread_count(self, new_thread_count: int) -> None:
+        """Update thread count dynamically with validation"""
+        self._validate_thread_count(new_thread_count)
+        old_threads = self.threads
+        self.threads = new_thread_count
+
+        if self.verbose:
+            print(f"🔧 Thread count updated: {old_threads} → {new_thread_count}")
+
+    def get_thread_utilization_info(self) -> Dict[str, Any]:
+        """Get current thread configuration and utilization info"""
+        return {
+            "thread_count": self.threads,
+            "threading_enabled": self.threading_enabled,
+            "threading_mode": self.threading_mode,
+            "single_threaded_fallback": self.threads == 1
+        }
 
     def _build_command(
         self,
@@ -145,7 +233,13 @@ class DbtRunner:
                 "run-operation",
             ]
             if any(c in command_args for c in threads_supported_commands):
-                cmd.extend(["--threads", str(self.threads)])
+                effective_threads = self.threads if self.threading_enabled else 1
+                cmd.extend(["--threads", str(effective_threads)])
+
+                # Log threading performance information
+                if self.verbose and effective_threads > 1:
+                    threading_info = self.get_thread_utilization_info()
+                    print(f"🧩 dbt threading: {effective_threads} threads (mode: {threading_info['threading_mode']})")
         return cmd
 
     def execute_command(
@@ -159,8 +253,15 @@ class DbtRunner:
         on_line: Optional[Callable[[str], None]] = None,
         retry: bool = True,
         max_attempts: int = 3,
+        log_performance: bool = True,
     ) -> DbtResult:
         """Execute a dbt command with enhanced error handling and optional retry."""
+
+        # Pre-execution thread utilization logging
+        if log_performance and self.verbose:
+            threading_info = self.get_thread_utilization_info()
+            if threading_info["thread_count"] > 1:
+                print(f"🔄 Executing with {threading_info['thread_count']} threads (mode: {threading_info['threading_mode']})")
 
         def _run_once() -> DbtResult:
             return self._execute_once(
@@ -173,20 +274,36 @@ class DbtRunner:
             )
 
         if not retry:
-            return _run_once()
+            result = _run_once()
+        else:
+            def _wrapped() -> DbtResult:
+                try:
+                    res = _run_once()
+                    if not res.success:
+                        err = classify_dbt_error(res.stdout, res.stderr, res.return_code)
+                        raise err
+                    return res
+                except DbtError:
+                    # Let retry_with_backoff decide on retries
+                    raise
 
-        def _wrapped() -> DbtResult:
-            try:
-                res = _run_once()
-                if not res.success:
-                    err = classify_dbt_error(res.stdout, res.stderr, res.return_code)
-                    raise err
-                return res
-            except DbtError:
-                # Let retry_with_backoff decide on retries
-                raise
+            result = retry_with_backoff(_wrapped, max_attempts=max_attempts)
 
-        return retry_with_backoff(_wrapped, max_attempts=max_attempts)
+        # Post-execution performance logging with thread utilization metrics
+        if log_performance and self.verbose and result.success:
+            threading_info = self.get_thread_utilization_info()
+            execution_time = result.execution_time
+
+            # Calculate rough thread utilization efficiency
+            if threading_info["thread_count"] > 1:
+                # This is a rough estimate - actual efficiency depends on dbt model dependencies
+                theoretical_single_thread_time = execution_time * threading_info["thread_count"]
+                efficiency_pct = min(100.0, (theoretical_single_thread_time / execution_time) / threading_info["thread_count"] * 100)
+                print(f"⚡ Performance: {execution_time:.1f}s with {threading_info['thread_count']} threads (est. efficiency: {efficiency_pct:.0f}%)")
+            else:
+                print(f"⚡ Performance: {execution_time:.1f}s (single-threaded)")
+
+        return result
 
     def _execute_once(
         self,
@@ -348,3 +465,220 @@ class DbtRunner:
         select_arg = " ".join(models)
         res = self.execute_command(["run", "--select", select_arg], **kwargs)
         return [res]
+
+    def run_models_with_smart_parallelization(
+        self,
+        models: List[str],
+        *,
+        stage_name: str = "unknown",
+        simulation_year: int,
+        dbt_vars: Optional[Dict[str, Any]] = None,
+        enable_conditional_parallelization: bool = False,
+        execution_id: Optional[str] = None,
+    ) -> ExecutionResult:
+        """Run models with intelligent model-level parallelization.
+
+        This method uses the parallel execution engine to analyze model dependencies
+        and execute independent models concurrently while preserving sequential
+        execution for state-dependent operations.
+
+        Args:
+            models: List of model names to execute
+            stage_name: Name of the workflow stage (for logging)
+            simulation_year: Simulation year for dbt vars
+            dbt_vars: Additional dbt variables
+            enable_conditional_parallelization: Allow parallelization of conditional models
+            execution_id: Unique identifier for this execution
+
+        Returns:
+            ExecutionResult with comprehensive execution information
+        """
+
+        if not self._parallel_engine or not self.enable_model_parallelization:
+            # Fallback to sequential execution
+            return self._run_models_sequential_fallback(
+                models, stage_name, simulation_year, dbt_vars or {}
+            )
+
+        # Refresh dependency analysis if needed
+        try:
+            self._dependency_analyzer.analyze_dependencies(refresh_cache=False)
+        except Exception as e:
+            if self.verbose:
+                print(f"⚠️ Failed to analyze dependencies: {e}")
+                print("   Falling back to sequential execution")
+            return self._run_models_sequential_fallback(
+                models, stage_name, simulation_year, dbt_vars or {}
+            )
+
+        # Create execution context
+        import uuid
+        context = ExecutionContext(
+            simulation_year=simulation_year,
+            dbt_vars=dbt_vars or {},
+            stage_name=stage_name,
+            execution_id=execution_id or str(uuid.uuid4())[:8]
+        )
+
+        # Execute with parallelization
+        return self._parallel_engine.execute_stage_with_parallelization(
+            models,
+            context,
+            enable_conditional_parallelization=enable_conditional_parallelization
+        )
+
+    def _run_models_sequential_fallback(
+        self,
+        models: List[str],
+        stage_name: str,
+        simulation_year: int,
+        dbt_vars: Dict[str, Any]
+    ) -> ExecutionResult:
+        """Fallback to sequential execution when parallelization is unavailable."""
+
+        start_time = time.perf_counter()
+        model_results = {}
+        errors = []
+
+        if self.verbose:
+            print(f"🔄 Sequential execution fallback for stage {stage_name}")
+
+        for model in models:
+            try:
+                result = self.execute_command(
+                    ["run", "--select", model],
+                    simulation_year=simulation_year,
+                    dbt_vars=dbt_vars,
+                    stream_output=True
+                )
+                model_results[model] = result
+
+                if not result.success:
+                    errors.append(f"Model {model} failed with code {result.return_code}")
+                    break  # Stop on first failure
+
+            except Exception as e:
+                errors.append(f"Model {model} raised exception: {str(e)}")
+                break
+
+        execution_time = time.perf_counter() - start_time
+
+        # Create ExecutionResult-compatible response
+        if PARALLEL_EXECUTION_AVAILABLE:
+            return ExecutionResult(
+                success=len(errors) == 0,
+                model_results=model_results,
+                execution_time=execution_time,
+                parallelism_achieved=1,
+                resource_usage={},
+                errors=errors
+            )
+        else:
+            # Fallback dict structure if ExecutionResult not available
+            return {
+                "success": len(errors) == 0,
+                "model_results": model_results,
+                "execution_time": execution_time,
+                "parallelism_achieved": 1,
+                "resource_usage": {},
+                "errors": errors
+            }
+
+    def get_parallelization_info(self) -> Dict[str, Any]:
+        """Get information about model parallelization capabilities."""
+
+        if not self._parallel_engine:
+            return {
+                "available": False,
+                "reason": "Parallel execution engine not initialized",
+                "fallback_mode": "sequential"
+            }
+
+        try:
+            stats = self._parallel_engine.get_parallelization_statistics()
+            return {
+                "available": True,
+                "statistics": stats,
+                "configuration": {
+                    "max_workers": self.model_parallelization_max_workers,
+                    "memory_limit_mb": self.model_parallelization_memory_limit_mb,
+                    "threading_mode": self.threading_mode,
+                    "dbt_threads": self.threads
+                }
+            }
+        except Exception as e:
+            return {
+                "available": False,
+                "reason": f"Error accessing parallelization engine: {e}",
+                "fallback_mode": "sequential"
+            }
+
+    def validate_stage_for_parallelization(self, stage_models: List[str]) -> Dict[str, Any]:
+        """Validate whether a stage can benefit from parallelization."""
+
+        if not self._parallel_engine:
+            return {
+                "parallelizable": False,
+                "reason": "Parallel execution engine not available"
+            }
+
+        try:
+            return self._parallel_engine.validate_stage_parallelization(stage_models)
+        except Exception as e:
+            return {
+                "parallelizable": False,
+                "reason": f"Validation error: {e}"
+            }
+
+    def enable_parallelization(
+        self,
+        max_workers: Optional[int] = None,
+        memory_limit_mb: Optional[float] = None
+    ) -> bool:
+        """Enable model-level parallelization with optional parameter updates."""
+
+        if not PARALLEL_EXECUTION_AVAILABLE:
+            if self.verbose:
+                print("⚠️ Cannot enable parallelization: parallel execution components not available")
+            return False
+
+        # Update parameters if provided
+        if max_workers is not None:
+            self.model_parallelization_max_workers = max_workers
+        if memory_limit_mb is not None:
+            self.model_parallelization_memory_limit_mb = memory_limit_mb
+
+        # Initialize or reinitialize parallel engine
+        try:
+            if not self._dependency_analyzer:
+                self._dependency_analyzer = ModelDependencyAnalyzer(self.working_dir)
+
+            self._parallel_engine = ParallelExecutionEngine(
+                dbt_runner=self,
+                dependency_analyzer=self._dependency_analyzer,
+                max_workers=self.model_parallelization_max_workers,
+                memory_limit_mb=self.model_parallelization_memory_limit_mb,
+                verbose=self.verbose
+            )
+
+            self.enable_model_parallelization = True
+
+            if self.verbose:
+                print(f"✅ Model-level parallelization enabled:")
+                print(f"   Max workers: {self.model_parallelization_max_workers}")
+                print(f"   Memory limit: {self.model_parallelization_memory_limit_mb}MB")
+
+            return True
+
+        except Exception as e:
+            if self.verbose:
+                print(f"❌ Failed to enable parallelization: {e}")
+            return False
+
+    def disable_parallelization(self) -> None:
+        """Disable model-level parallelization."""
+        self.enable_model_parallelization = False
+        self._parallel_engine = None
+
+        if self.verbose:
+            print("🔄 Model-level parallelization disabled")

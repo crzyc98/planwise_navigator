@@ -1,0 +1,243 @@
+{
+  "timestamp": "2025-09-02T15:21:35.118968",
+  "system_info": {
+    "cpu_cores": 12,
+    "memory_gb": 24,
+    "python_version": "3.11.12"
+  },
+  "test_configuration": {
+    "thread_counts": [
+      1,
+      2,
+      4
+    ],
+    "benchmark_models": [
+      "stg_census_data",
+      "stg_comp_levers",
+      "stg_comp_targets",
+      "int_baseline_workforce",
+      "int_employee_compensation_by_year",
+      "int_termination_events"
+    ],
+    "simulation_year": 2025
+  },
+  "dbt_runner": {
+    "1": {
+      "thread_count": 1,
+      "error": "no_successful_executions"
+    },
+    "2": {
+      "thread_count": 2,
+      "error": "no_successful_executions"
+    },
+    "4": {
+      "thread_count": 4,
+      "error": "no_successful_executions"
+    }
+  },
+  "parallel_engine": {
+    "1": {
+      "thread_count": 1,
+      "parallelization_stats": {
+        "total_models": 0,
+        "parallel_safe": 0,
+        "sequential_required": 0,
+        "conditional": 0,
+        "parallelization_ratio": 0,
+        "max_theoretical_speedup": 1,
+        "parallel_groups": {},
+        "resource_limits": {
+          "max_workers": 1,
+          "memory_limit_mb": 4000.0,
+          "cpu_threshold_pct": 90.0
+        }
+      },
+      "engine_initialization": "success"
+    },
+    "2": {
+      "thread_count": 2,
+      "parallelization_stats": {
+        "total_models": 0,
+        "parallel_safe": 0,
+        "sequential_required": 0,
+        "conditional": 0,
+        "parallelization_ratio": 0,
+        "max_theoretical_speedup": 1,
+        "parallel_groups": {},
+        "resource_limits": {
+          "max_workers": 2,
+          "memory_limit_mb": 4000.0,
+          "cpu_threshold_pct": 90.0
+        }
+      },
+      "engine_initialization": "success"
+    },
+    "4": {
+      "thread_count": 4,
+      "parallelization_stats": {
+        "total_models": 0,
+        "parallel_safe": 0,
+        "sequential_required": 0,
+        "conditional": 0,
+        "parallelization_ratio": 0,
+        "max_theoretical_speedup": 1,
+        "parallel_groups": {},
+        "resource_limits": {
+          "max_workers": 4,
+          "memory_limit_mb": 4000.0,
+          "cpu_threshold_pct": 90.0
+        }
+      },
+      "engine_initialization": "success"
+    }
+  },
+  "resource_manager": {
+    "conservative": {
+      "configuration": {
+        "memory": {
+          "thresholds": {
+            "moderate_mb": 1000,
+            "high_mb": 2000,
+            "critical_mb": 3000
+          }
+        },
+        "cpu": {
+          "thresholds": {
+            "moderate_percent": 50,
+            "high_percent": 70,
+            "critical_percent": 90
+          }
+        }
+      },
+      "optimization_results": [
+        {
+          "requested": 1,
+          "recommended": 1,
+          "reason": "no_adjustment_needed"
+        },
+        {
+          "requested": 2,
+          "recommended": 2,
+          "reason": "no_adjustment_needed"
+        },
+        {
+          "requested": 4,
+          "recommended": 4,
+          "reason": "no_adjustment_needed"
+        },
+        {
+          "requested": 8,
+          "recommended": 8,
+          "reason": "no_adjustment_needed"
+        }
+      ],
+      "resource_status": {
+        "timestamp": 1756840899.852128,
+        "memory": {
+          "pressure": "none",
+          "usage_mb": 174.0,
+          "percent": 64.0,
+          "trends": {
+            "trend": "insufficient_data",
+            "growth_rate_mb_per_minute": 0.0,
+            "peak_usage_mb": 0.0,
+            "average_usage_mb": 0.0
+          },
+          "leak_detected": false
+        },
+        "cpu": {
+          "pressure": "none",
+          "current_percent": 0.0,
+          "trends": {
+            "trend": "insufficient_data",
+            "average_cpu": 0.0,
+            "peak_cpu": 0.0,
+            "load_average_1m": 0.0
+          },
+          "optimal_thread_estimate": 8
+        },
+        "recommendations": {
+          "action": "continue_normal",
+          "thread_adjustment": 0
+        }
+      }
+    },
+    "aggressive": {
+      "configuration": {
+        "memory": {
+          "thresholds": {
+            "moderate_mb": 2000,
+            "high_mb": 4000,
+            "critical_mb": 6000
+          }
+        },
+        "cpu": {
+          "thresholds": {
+            "moderate_percent": 70,
+            "high_percent": 85,
+            "critical_percent": 95
+          }
+        }
+      },
+      "optimization_results": [
+        {
+          "requested": 1,
+          "recommended": 1,
+          "reason": "no_adjustment_needed"
+        },
+        {
+          "requested": 2,
+          "recommended": 2,
+          "reason": "no_adjustment_needed"
+        },
+        {
+          "requested": 4,
+          "recommended": 4,
+          "reason": "no_adjustment_needed"
+        },
+        {
+          "requested": 8,
+          "recommended": 8,
+          "reason": "no_adjustment_needed"
+        }
+      ],
+      "resource_status": {
+        "timestamp": 1756840900.860002,
+        "memory": {
+          "pressure": "none",
+          "usage_mb": 174.0625,
+          "percent": 63.8,
+          "trends": {
+            "trend": "insufficient_data",
+            "growth_rate_mb_per_minute": 0.0,
+            "peak_usage_mb": 0.0,
+            "average_usage_mb": 0.0
+          },
+          "leak_detected": false
+        },
+        "cpu": {
+          "pressure": "none",
+          "current_percent": 0.0,
+          "trends": {
+            "trend": "insufficient_data",
+            "average_cpu": 0.0,
+            "peak_cpu": 0.0,
+            "load_average_1m": 0.0
+          },
+          "optimal_thread_estimate": 8
+        },
+        "recommendations": {
+          "action": "continue_normal",
+          "thread_adjustment": 0
+        }
+      }
+    }
+  },
+  "analysis": {
+    "performance_summary": {},
+    "threading_effectiveness": {},
+    "recommendations": [
+      "Benchmark completed successfully - review detailed results for optimization opportunities"
+    ]
+  }
+}

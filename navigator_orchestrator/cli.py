@@ -45,10 +45,25 @@ def cmd_run(args: argparse.Namespace) -> int:
     cfg = load_simulation_config(config_path)
     db_path = Path(args.database) if args.database else Path("dbt/simulation.duckdb")
     db = DatabaseConnectionManager(db_path)
+
+    # Extract threading configuration from config (with CLI override)
+    if cfg.orchestrator:
+        cfg.validate_threading_configuration()
+
+    thread_count = args.threads if args.threads is not None else cfg.get_thread_count()
+    threading_enabled = True
+    threading_mode = "selective"
+
+    if cfg.orchestrator and cfg.orchestrator.threading:
+        threading_enabled = cfg.orchestrator.threading.enabled
+        threading_mode = cfg.orchestrator.threading.mode
+
     runner = DbtRunner(
-        threads=args.threads or 1,
+        threads=thread_count,
         executable=("echo" if args.dry_run else "dbt"),
         verbose=bool(args.verbose),
+        threading_enabled=threading_enabled,
+        threading_mode=threading_mode,
     )
     registries = RegistryManager(db)
     dv = _build_validator(db)

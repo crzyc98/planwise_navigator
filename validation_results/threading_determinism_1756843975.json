@@ -1,0 +1,162 @@
+{
+  "success": true,
+  "reference_signature": "13e6bb0a882eea60",
+  "thread_counts_tested": [
+    1,
+    2,
+    4,
+    8
+  ],
+  "test_runs_per_count": 2,
+  "consistency_details": {
+    "1": {
+      "matches_reference": true,
+      "signatures": [
+        "13e6bb0a882eea60",
+        "13e6bb0a882eea60"
+      ],
+      "unique_signatures": [
+        "13e6bb0a882eea60"
+      ]
+    },
+    "2": {
+      "matches_reference": true,
+      "signatures": [
+        "13e6bb0a882eea60",
+        "13e6bb0a882eea60"
+      ],
+      "unique_signatures": [
+        "13e6bb0a882eea60"
+      ]
+    },
+    "4": {
+      "matches_reference": true,
+      "signatures": [
+        "13e6bb0a882eea60",
+        "13e6bb0a882eea60"
+      ],
+      "unique_signatures": [
+        "13e6bb0a882eea60"
+      ]
+    },
+    "8": {
+      "matches_reference": true,
+      "signatures": [
+        "13e6bb0a882eea60",
+        "13e6bb0a882eea60"
+      ],
+      "unique_signatures": [
+        "13e6bb0a882eea60"
+      ]
+    }
+  },
+  "results": {
+    "1": [
+      {
+        "thread_count": 1,
+        "test_run": 0,
+        "success": true,
+        "seed_generation_only": true,
+        "model_count": 10,
+        "model_signatures": [
+          "int_baseline_workforce:1395313466",
+          "int_employee_compensation_by_year:2025697978",
+          "int_effective_parameters:825593213"
+        ]
+      },
+      {
+        "thread_count": 1,
+        "test_run": 1,
+        "success": true,
+        "seed_generation_only": true,
+        "model_count": 10,
+        "model_signatures": [
+          "int_baseline_workforce:1395313466",
+          "int_employee_compensation_by_year:2025697978",
+          "int_effective_parameters:825593213"
+        ]
+      }
+    ],
+    "2": [
+      {
+        "thread_count": 2,
+        "test_run": 0,
+        "success": true,
+        "seed_generation_only": true,
+        "model_count": 10,
+        "model_signatures": [
+          "int_baseline_workforce:1395313466",
+          "int_employee_compensation_by_year:2025697978",
+          "int_effective_parameters:825593213"
+        ]
+      },
+      {
+        "thread_count": 2,
+        "test_run": 1,
+        "success": true,
+        "seed_generation_only": true,
+        "model_count": 10,
+        "model_signatures": [
+          "int_baseline_workforce:1395313466",
+          "int_employee_compensation_by_year:2025697978",
+          "int_effective_parameters:825593213"
+        ]
+      }
+    ],
+    "4": [
+      {
+        "thread_count": 4,
+        "test_run": 0,
+        "success": true,
+        "seed_generation_only": true,
+        "model_count": 10,
+        "model_signatures": [
+          "int_baseline_workforce:1395313466",
+          "int_employee_compensation_by_year:2025697978",
+          "int_effective_parameters:825593213"
+        ]
+      },
+      {
+        "thread_count": 4,
+        "test_run": 1,
+        "success": true,
+        "seed_generation_only": true,
+        "model_count": 10,
+        "model_signatures": [
+          "int_baseline_workforce:1395313466",
+          "int_employee_compensation_by_year:2025697978",
+          "int_effective_parameters:825593213"
+        ]
+      }
+    ],
+    "8": [
+      {
+        "thread_count": 8,
+        "test_run": 0,
+        "success": true,
+        "seed_generation_only": true,
+        "model_count": 10,
+        "model_signatures": [
+          "int_baseline_workforce:1395313466",
+          "int_employee_compensation_by_year:2025697978",
+          "int_effective_parameters:825593213"
+        ]
+      },
+      {
+        "thread_count": 8,
+        "test_run": 1,
+        "success": true,
+        "seed_generation_only": true,
+        "model_count": 10,
+        "model_signatures": [
+          "int_baseline_workforce:1395313466",
+          "int_employee_compensation_by_year:2025697978",
+          "int_effective_parameters:825593213"
+        ]
+      }
+    ]
+  },
+  "validation_time": 0.00010609626770019531,
+  "timestamp": 1756843975.6172931,
+  "overall_success": true
+}

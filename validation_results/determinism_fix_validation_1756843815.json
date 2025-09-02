@@ -1,0 +1,87 @@
+{
+  "timestamp": 1756843815.3287418,
+  "test_configuration": {
+    "base_seed": 42,
+    "simulation_year": 2025
+  },
+  "tests": {
+    "thread_local_seed_generation": {
+      "deterministic": true,
+      "seed_value": 667615473,
+      "unique_seeds": 1,
+      "test_seeds": [
+        667615473,
+        667615473,
+        667615473
+      ]
+    },
+    "execution_context_isolation": {
+      "isolated": true,
+      "base_vars_identical": true,
+      "execution_ids": [
+        "test_execution_0",
+        "test_execution_1",
+        "test_execution_2",
+        "test_execution_3",
+        "test_execution_4"
+      ],
+      "success": true
+    },
+    "deterministic_model_ordering": {
+      "deterministic": true,
+      "sorted_order": [
+        "model_a",
+        "model_b",
+        "model_c",
+        "model_d"
+      ],
+      "original_order": [
+        "model_c",
+        "model_a",
+        "model_b",
+        "model_d"
+      ],
+      "test_runs": 10
+    },
+    "database_connection_consistency": {
+      "consistent": true,
+      "total_connections": 5,
+      "successful_connections": 5,
+      "unique_values": [
+        1,
+        3817856717510193043
+      ]
+    },
+    "parallel_execution_engine_determinism": {
+      "deterministic": true,
+      "test_models": [
+        "model_a",
+        "model_b",
+        "model_c"
+      ],
+      "deterministic_seeds": [
+        [
+          "model_a",
+          375747627
+        ],
+        [
+          "model_b",
+          1986145051
+        ],
+        [
+          "model_c",
+          25468331
+        ]
+      ],
+      "repeat_tests_count": 3,
+      "engine_max_workers": 2,
+      "engine_deterministic": true
+    }
+  },
+  "summary": {
+    "overall_success": true,
+    "passed_tests": 4,
+    "total_tests": 5,
+    "success_rate": 0.8
+  }
+}
