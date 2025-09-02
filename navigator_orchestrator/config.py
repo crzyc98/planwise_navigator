@@ -12,7 +12,7 @@ from __future__ import annotations
 
 import os
 from pathlib import Path
-from typing import Any, Dict, Optional
+from typing import Any, Dict, List, Optional
 
 import yaml
 from pydantic import BaseModel, ConfigDict, Field, ValidationError
@@ -190,6 +190,110 @@ class AdaptiveMemorySettings(BaseModel):
     leak_window_minutes: int = Field(default=15, ge=5, le=60, description="Memory leak detection window in minutes")
 
 
+class CPUMonitoringThresholds(BaseModel):
+    """CPU monitoring threshold configuration"""
+    moderate_percent: float = Field(default=70.0, ge=0.0, le=100.0, description="Moderate CPU usage threshold percentage")
+    high_percent: float = Field(default=85.0, ge=0.0, le=100.0, description="High CPU usage threshold percentage")
+    critical_percent: float = Field(default=95.0, ge=0.0, le=100.0, description="Critical CPU usage threshold percentage")
+
+
+class CPUMonitoringSettings(BaseModel):
+    """CPU monitoring configuration for Story S067-03"""
+    enabled: bool = Field(default=True, description="Enable CPU monitoring")
+    monitoring_interval_seconds: float = Field(default=1.0, ge=0.1, le=60.0, description="CPU monitoring interval in seconds")
+    history_size: int = Field(default=100, ge=10, le=1000, description="CPU history buffer size")
+
+    thresholds: CPUMonitoringThresholds = Field(default_factory=CPUMonitoringThresholds, description="CPU pressure thresholds")
+
+
+class ResourceManagerSettings(BaseModel):
+    """Advanced resource management configuration for Story S067-03"""
+    enabled: bool = Field(default=False, description="Enable advanced resource management")
+
+    # Memory monitoring settings
+    memory_monitoring: AdaptiveMemorySettings = Field(
+        default_factory=AdaptiveMemorySettings,
+        description="Memory monitoring configuration"
+    )
+
+    # CPU monitoring settings
+    cpu_monitoring: CPUMonitoringSettings = Field(
+        default_factory=CPUMonitoringSettings,
+        description="CPU monitoring configuration"
+    )
+
+    # Adaptive thread adjustment settings
+    adaptive_scaling_enabled: bool = Field(default=True, description="Enable adaptive thread count scaling")
+    min_threads: int = Field(default=1, ge=1, le=16, description="Minimum thread count")
+    max_threads: int = Field(default=8, ge=1, le=16, description="Maximum thread count")
+    adjustment_cooldown_seconds: float = Field(default=30.0, ge=5.0, le=300.0, description="Cooldown period between thread adjustments")
+
+    # Performance benchmarking
+    benchmarking_enabled: bool = Field(default=False, description="Enable performance benchmarking")
+    benchmark_thread_counts: List[int] = Field(default=[1, 2, 4, 6, 8], description="Thread counts to benchmark")
+
+    # Resource cleanup settings
+    auto_cleanup_enabled: bool = Field(default=True, description="Enable automatic resource cleanup")
+    cleanup_threshold_mb: float = Field(default=2500.0, ge=1000.0, description="Memory threshold for triggering cleanup in MB")
+
+
+class ModelParallelizationSettings(BaseModel):
+    """Model-level parallelization configuration for sophisticated execution control"""
+    enabled: bool = Field(default=False, description="Enable model-level parallelization")
+    max_workers: int = Field(default=4, ge=1, le=16, description="Maximum parallel workers for model execution")
+    memory_limit_mb: float = Field(default=4000.0, ge=1000.0, description="Memory limit for parallel execution in MB")
+    enable_conditional_parallelization: bool = Field(default=False, description="Allow parallelization of conditional models")
+    deterministic_execution: bool = Field(default=True, description="Ensure deterministic execution order")
+    resource_monitoring: bool = Field(default=True, description="Enable resource monitoring during execution")
+
+    class SafetySettings(BaseModel):
+        """Safety settings for model parallelization"""
+        fallback_on_resource_pressure: bool = Field(default=True, description="Fall back to sequential on resource pressure")
+        validate_execution_safety: bool = Field(default=True, description="Validate execution safety before parallelization")
+        abort_on_dependency_conflict: bool = Field(default=True, description="Abort if dependency conflicts detected")
+        max_retries_per_model: int = Field(default=2, ge=1, le=5, description="Maximum retries per failed model")
+
+    safety: SafetySettings = Field(default_factory=SafetySettings, description="Safety configuration")
+
+
+class ThreadingSettings(BaseModel):
+    """dbt threading configuration for Navigator Orchestrator"""
+    enabled: bool = Field(default=True, description="Enable configurable threading support")
+    thread_count: int = Field(default=1, ge=1, le=16, description="Number of threads for dbt execution (1-16)")
+    mode: str = Field(default="selective", description="Threading mode: selective, aggressive, sequential")
+    memory_per_thread_gb: float = Field(default=1.0, ge=0.25, le=8.0, description="Memory allocation per thread in GB")
+
+    # Model-level parallelization settings
+    model_parallelization: ModelParallelizationSettings = Field(
+        default_factory=ModelParallelizationSettings,
+        description="Model-level parallelization configuration"
+    )
+
+    # Advanced resource management (Story S067-03)
+    resource_management: ResourceManagerSettings = Field(
+        default_factory=ResourceManagerSettings,
+        description="Advanced resource management configuration"
+    )
+
+    def validate_thread_count(self) -> None:
+        """Validate thread count with clear error messages"""
+        if self.thread_count < 1:
+            raise ValueError("thread_count must be at least 1")
+        if self.thread_count > 16:
+            raise ValueError("thread_count cannot exceed 16 (hardware limitation)")
+
+        # Warn about aggressive threading on limited memory
+        total_memory_gb = self.thread_count * self.memory_per_thread_gb
+        if total_memory_gb > 12.0:
+            import warnings
+            warnings.warn(f"High memory usage detected: {total_memory_gb:.1f}GB ({self.thread_count} threads × {self.memory_per_thread_gb:.1f}GB/thread). Consider reducing thread_count or memory_per_thread_gb for stability.")
+
+
+class OrchestratorSettings(BaseModel):
+    """Orchestrator configuration including threading support"""
+    threading: ThreadingSettings = Field(default_factory=ThreadingSettings, description="dbt threading configuration")
+
+
 class OptimizationSettings(BaseModel):
     """Performance optimization configuration"""
     level: str = Field(default="high", description="Optimization level: low, medium, high, fallback")
@@ -291,12 +395,41 @@ class SimulationConfig(BaseModel):
     # Performance optimization configuration (optional for backward compatibility)
     optimization: Optional[OptimizationSettings] = Field(default=None, description="Performance optimization settings")
 
+    # Orchestrator configuration including threading support
+    orchestrator: Optional[OrchestratorSettings] = Field(default=None, description="Orchestrator configuration including threading")
+
     def require_identifiers(self) -> None:
         """Raise if scenario_id/plan_design_id are missing."""
         if not self.scenario_id or not self.plan_design_id:
             raise ValueError(
                 "scenario_id and plan_design_id are required for orchestrator runs"
             )
+
+    def get_thread_count(self) -> int:
+        """Get configured thread count with fallback to single-threaded execution"""
+        if self.orchestrator and self.orchestrator.threading.enabled:
+            return self.orchestrator.threading.thread_count
+        return 1
+
+    def validate_threading_configuration(self) -> None:
+        """Validate threading configuration and log warnings"""
+        if self.orchestrator and self.orchestrator.threading.enabled:
+            try:
+                self.orchestrator.threading.validate_thread_count()
+            except ValueError as e:
+                raise ValueError(f"Invalid threading configuration: {e}")
+
+            # Additional compatibility checks
+            thread_count = self.orchestrator.threading.thread_count
+            mode = self.orchestrator.threading.mode
+
+            if mode == "sequential" and thread_count > 1:
+                import warnings
+                warnings.warn(f"Threading mode is 'sequential' but thread_count is {thread_count}. Consider setting thread_count=1 or changing mode to 'selective'.")
+
+            if mode == "aggressive" and thread_count == 1:
+                import warnings
+                warnings.warn(f"Threading mode is 'aggressive' but thread_count is 1. Consider increasing thread_count or changing mode to 'sequential'.")
 
 
 def _lower_keys(d: Dict[str, Any]) -> Dict[str, Any]:
