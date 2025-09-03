@@ -107,7 +107,6 @@ planwise_navigator/
 │  ├─ registries.py                 # State management across years
 │  ├─ validation.py                 # Data quality validation
 │  └─ reports.py                    # Multi-year reporting
-├─ scripts/run_multi_year_simulation.py  # Simple CLI wrapper
 ├─ dbt/                              # dbt project
 │  ├─ models/                        # SQL transformation models
 │  │  ├─ staging/                    # Raw data cleaning (stg_*)
@@ -209,11 +208,11 @@ source venv/bin/activate
 pip install -r requirements.txt
 
 # Run Multi-Year Simulations
-python scripts/run_multi_year_simulation.py --years 2025 2026 2027  # CLI wrapper
-python -m navigator_orchestrator.pipeline                           # Direct orchestrator (production)
+python -m navigator_orchestrator run --years 2025 2026 2027 --verbose  # Production orchestrator
+python -m navigator_orchestrator.pipeline                              # Direct module execution
 
 # Performance-optimized for work laptops (single-threaded)
-python scripts/run_multi_year_simulation.py --years 2025 2026 --threads 1 --optimization medium
+python -m navigator_orchestrator run --years 2025 2026 --threads 1 --optimization medium
 
 # dbt Development (optimized for work laptops)
 cd dbt
@@ -263,7 +262,7 @@ make run-optimization-dashboard                          # Launch optimization d
 
 # Development Pattern
 # 1. Test single year: dbt run --select model_name --vars "simulation_year: 2025" --threads 1
-# 2. Test multi-year: python scripts/run_multi_year_simulation.py --years 2025 2026 --optimization medium
+# 2. Test multi-year: python -m navigator_orchestrator run --years 2025 2026 --optimization medium
 # 3. Validate results: check audit output and database contents
 # 4. Deploy changes: use navigator_orchestrator.pipeline with production config
 
@@ -408,14 +407,14 @@ WHERE simulation_year = {{ var('simulation_year') }}
 
 ```bash
 # Enable resume capability for long-running simulations
-python scripts/run_multi_year_simulation.py \
+python -m navigator_orchestrator run \
   --years 2025 2026 2027 \
   --optimization medium \
   --threads 1 \
   --enable-compression
 
 # Resume from last checkpoint on failure
-python scripts/run_multi_year_simulation.py \
+python -m navigator_orchestrator run \
   --years 2025 2026 2027 \
   --resume-from-checkpoint
 ```
@@ -593,7 +592,7 @@ This section tracks the implementation of major epics and stories.
 
   * **Database Location**: The simulation database is `dbt/simulation.duckdb` (standardized location).
   * **dbt Commands**: Always run `dbt` commands from the `/dbt` directory.
-  * **Multi-year Orchestration**: Use `navigator_orchestrator.pipeline.PipelineOrchestrator` for production, or `scripts/run_multi_year_simulation.py` for development.
+  * **Multi-year Orchestration**: Use `navigator_orchestrator.pipeline.PipelineOrchestrator` for production execution.
   * **Correct Pattern for Database Access**:
     ```python
     def get_database_connection():

@@ -392,7 +392,7 @@ dbt run --full-refresh --select fct_yearly_events
 dbt run --threads 1 --vars "simulation_year: 2025"
 
 # Multi-year via Navigator Orchestrator
-python scripts/run_multi_year_simulation.py --years 2025 2026 2027 --threads 1
+python -m navigator_orchestrator run --years 2025 2026 2027 --threads 1
 
 # Direct orchestrator execution
 python -c "

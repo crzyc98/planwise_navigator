@@ -26,6 +26,18 @@ from .reports import MultiYearReporter, MultiYearSummary, YearAuditor
 from .utils import DatabaseConnectionManager, ExecutionMutex, time_block
 from .validation import DataValidator
 
+# Import model parallelization components
+try:
+    from .parallel_execution_engine import ParallelExecutionEngine, ExecutionContext
+    from .model_dependency_analyzer import ModelDependencyAnalyzer
+    from .resource_manager import ResourceManager
+    from .logger import ProductionLogger
+    MODEL_PARALLELIZATION_AVAILABLE = True
+    RESOURCE_MANAGEMENT_AVAILABLE = True
+except ImportError:
+    MODEL_PARALLELIZATION_AVAILABLE = False
+    RESOURCE_MANAGEMENT_AVAILABLE = False
+
 
 class PipelineStageError(RuntimeError):
     pass
@@ -101,6 +113,9 @@ class PipelineOrchestrator:
 
         # S063-08: Adaptive Memory Management
         self._setup_adaptive_memory_manager()
+
+        # S067-02: Model-level parallelization setup
+        self._setup_model_parallelization()
 
         # Enhanced checkpoint system
         self.enhanced_checkpoints = enhanced_checkpoints
@@ -187,6 +202,215 @@ class PipelineOrchestrator:
             if self.verbose:
                 print(f"⚠️ Failed to initialize Adaptive Memory Manager: {e}")
                 print("   Continuing without adaptive memory management")
+
+    def _setup_model_parallelization(self) -> None:
+        """Setup model-level parallelization system with advanced resource management"""
+        try:
+            # Check if model parallelization is enabled in config
+            threading_config = getattr(self.config, 'orchestrator', None)
+            if threading_config and hasattr(threading_config, 'threading'):
+                parallelization_config = threading_config.threading.model_parallelization
+                resource_mgmt_config = threading_config.threading.resource_management
+            else:
+                # Fallback: check if enabled via optimization config
+                optimization_config = getattr(self.config, 'optimization', None)
+                parallelization_config = None
+                resource_mgmt_config = None
+                if optimization_config and hasattr(optimization_config, 'model_parallelization'):
+                    parallelization_config = optimization_config.model_parallelization
+
+            if (parallelization_config and
+                parallelization_config.enabled and
+                MODEL_PARALLELIZATION_AVAILABLE):
+
+                # Initialize dependency analyzer
+                working_dir = getattr(self.dbt_runner, 'working_dir', Path('dbt'))
+                dependency_analyzer = ModelDependencyAnalyzer(working_dir)
+
+                # Setup advanced resource management (S067-03)
+                resource_manager = None
+                if (resource_mgmt_config and
+                    resource_mgmt_config.enabled and
+                    RESOURCE_MANAGEMENT_AVAILABLE):
+                    resource_manager = self._create_resource_manager(resource_mgmt_config)
+
+                # Setup logger for resource management
+                logger = None
+                try:
+                    logger = ProductionLogger(log_level="INFO")
+                except Exception:
+                    pass  # Fallback to no logging
+
+                # Initialize parallel execution engine with advanced resource management
+                # DETERMINISM FIX: Always enable deterministic execution for reproducible results
+                deterministic = parallelization_config.deterministic_execution
+                if deterministic is None:
+                    deterministic = True  # Default to deterministic for production safety
+
+                parallel_engine = ParallelExecutionEngine(
+                    dbt_runner=self.dbt_runner,
+                    dependency_analyzer=dependency_analyzer,
+                    max_workers=parallelization_config.max_workers,
+                    resource_monitoring=parallelization_config.resource_monitoring,
+                    deterministic_execution=deterministic,
+                    memory_limit_mb=parallelization_config.memory_limit_mb,
+                    verbose=self.verbose,
+                    resource_manager=resource_manager,
+                    logger=logger,
+                    enable_adaptive_scaling=resource_mgmt_config.adaptive_scaling_enabled if resource_mgmt_config else False
+                )
+
+                if self.verbose and deterministic:
+                    print("🔐 Deterministic execution enabled for reproducible results")
+
+                # Store parallelization components
+                self.model_parallelization_enabled = True
+                self.parallel_execution_engine = parallel_engine
+                self.dependency_analyzer = dependency_analyzer
+                self.parallelization_config = parallelization_config
+                self.resource_manager = resource_manager
+
+                # Start resource monitoring if enabled
+                if resource_manager:
+                    resource_manager.start_monitoring()
+                    if self.verbose:
+                        print("📊 Advanced resource management enabled")
+                        print(f"   Memory monitoring: {resource_mgmt_config.memory_monitoring.enabled}")
+                        print(f"   CPU monitoring: {resource_mgmt_config.cpu_monitoring.enabled}")
+                        print(f"   Adaptive scaling: {resource_mgmt_config.adaptive_scaling_enabled}")
+                        print(f"   Thread range: {resource_mgmt_config.min_threads}-{resource_mgmt_config.max_threads}")
+
+                if self.verbose:
+                    print("🚀 Model-level parallelization engine initialized:")
+                    print(f"   Max workers: {parallelization_config.max_workers}")
+                    print(f"   Memory limit: {parallelization_config.memory_limit_mb}MB")
+                    print(f"   Conditional parallelization: {parallelization_config.enable_conditional_parallelization}")
+                    print(f"   Deterministic execution: {parallelization_config.deterministic_execution}")
+                    print(f"   Resource management: {'enabled' if resource_manager else 'disabled'}")
+
+                    # Display parallelization statistics
+                    stats = parallel_engine.get_parallelization_statistics()
+                    print(f"   Parallel-safe models: {stats['parallel_safe']}/{stats['total_models']}")
+                    print(f"   Max theoretical speedup: {stats['max_theoretical_speedup']:.1f}x")
+
+            else:
+                # Model parallelization disabled or not available
+                self.model_parallelization_enabled = False
+                self.parallel_execution_engine = None
+                self.dependency_analyzer = None
+                self.parallelization_config = None
+                self.resource_manager = None
+
+                if self.verbose and parallelization_config and parallelization_config.enabled:
+                    if not MODEL_PARALLELIZATION_AVAILABLE:
+                        print("⚠️ Model parallelization requested but components not available")
+                    else:
+                        print("ℹ️ Model parallelization disabled in configuration")
+
+        except Exception as e:
+            # Fallback to disabled state
+            self.model_parallelization_enabled = False
+            self.parallel_execution_engine = None
+            self.dependency_analyzer = None
+            self.parallelization_config = None
+            self.resource_manager = None
+
+            if self.verbose:
+                print(f"⚠️ Failed to initialize model parallelization: {e}")
+                print("   Continuing with sequential execution")
+
+    def _create_resource_manager(self, config) -> Optional[ResourceManager]:
+        """Create ResourceManager instance from configuration (S067-03)"""
+        try:
+            if not RESOURCE_MANAGEMENT_AVAILABLE:
+                return None
+
+            # Build resource manager configuration
+            resource_config = {
+                "memory": {
+                    "monitoring_interval": config.memory_monitoring.monitoring_interval_seconds,
+                    "history_size": config.memory_monitoring.history_size,
+                    "thresholds": {
+                        "moderate_mb": config.memory_monitoring.thresholds.moderate_mb,
+                        "high_mb": config.memory_monitoring.thresholds.high_mb,
+                        "critical_mb": config.memory_monitoring.thresholds.critical_mb,
+                        "gc_trigger_mb": config.memory_monitoring.thresholds.gc_trigger_mb,
+                        "fallback_trigger_mb": config.memory_monitoring.thresholds.fallback_trigger_mb
+                    }
+                },
+                "cpu": {
+                    "monitoring_interval": config.cpu_monitoring.monitoring_interval_seconds,
+                    "history_size": config.cpu_monitoring.history_size,
+                    "thresholds": {
+                        "moderate_percent": config.cpu_monitoring.thresholds.moderate_percent,
+                        "high_percent": config.cpu_monitoring.thresholds.high_percent,
+                        "critical_percent": config.cpu_monitoring.thresholds.critical_percent
+                    }
+                }
+            }
+
+            # Setup logger if available
+            logger = None
+            try:
+                logger = ProductionLogger(log_level="INFO")
+            except Exception:
+                pass  # Continue without logger
+
+            # Create resource manager
+            resource_manager = ResourceManager(
+                config=resource_config,
+                logger=logger
+            )
+
+            # Configure adaptive thread adjuster
+            if hasattr(resource_manager, 'thread_adjuster'):
+                resource_manager.thread_adjuster.min_threads = config.min_threads
+                resource_manager.thread_adjuster.max_threads = config.max_threads
+                resource_manager.thread_adjuster.adjustment_cooldown = config.adjustment_cooldown_seconds
+
+            return resource_manager
+
+        except Exception as e:
+            if self.verbose:
+                print(f"⚠️ Failed to create resource manager: {e}")
+            return None
+
+    def _cleanup_resources(self) -> None:
+        """Cleanup resource management components (S067-03)"""
+        try:
+            if hasattr(self, 'resource_manager') and self.resource_manager:
+                # Stop resource monitoring
+                self.resource_manager.stop_monitoring()
+
+                if self.verbose:
+                    # Log final resource statistics
+                    final_status = self.resource_manager.get_resource_status()
+                    print("📊 Final Resource Statistics:")
+                    print(f"   Memory: {final_status['memory']['usage_mb']:.0f}MB")
+                    print(f"   CPU: {final_status['cpu']['current_percent']:.1f}%")
+
+                    # Memory leak detection summary
+                    if final_status['memory']['leak_detected']:
+                        print("   🔍 Memory leaks detected during execution")
+
+                    # Thread adjustment summary
+                    if hasattr(self.resource_manager, 'thread_adjuster'):
+                        history = self.resource_manager.thread_adjuster.adjustment_history
+                        if history:
+                            print(f"   🔧 Thread adjustments made: {len(history)}")
+                            for adj in history[-3:]:  # Show last 3 adjustments
+                                print(f"      {adj['old_thread_count']} → {adj['new_thread_count']} ({adj['reason']})")
+
+        except Exception as e:
+            if self.verbose:
+                print(f"⚠️ Error cleaning up resources: {e}")
+
+    def __del__(self):
+        """Ensure resources are cleaned up when orchestrator is destroyed"""
+        try:
+            self._cleanup_resources()
+        except Exception:
+            pass  # Ignore cleanup errors in destructor
 
     def execute_multi_year_simulation(
         self,
@@ -407,6 +631,10 @@ class PipelineOrchestrator:
             print(f"📄 Multi-year CSV summary saved to: {out_csv}")
         except Exception:
             pass
+
+        # Cleanup resource management components (S067-03)
+        self._cleanup_resources()
+
         return summary
 
     def _execute_year_workflow(
@@ -434,24 +662,62 @@ class PipelineOrchestrator:
         for stage in workflow:
             print(f"   📋 Executing stage: {stage.name.value}")
 
-            # Memory check before stage
-            if self.memory_manager:
-                pre_stage_snapshot = self.memory_manager.force_memory_check(f"{stage.name.value}_start")
+            # Advanced resource management hooks (S067-03)
+            if hasattr(self, 'resource_manager') and self.resource_manager:
+                # Check resource health before stage execution
+                if not self.resource_manager.check_resource_health():
+                    if self.verbose:
+                        print(f"   ⚠️ Resource pressure detected before stage {stage.name.value}")
 
-            with time_block(f"stage:{stage.name.value}"):
-                self._run_stage_models(stage, year)
+                    # Trigger resource cleanup
+                    cleanup_result = self.resource_manager.trigger_resource_cleanup()
+                    if self.verbose:
+                        print(f"   🧹 Resource cleanup: {cleanup_result['memory_freed_mb']:+.1f}MB freed")
 
-            # Memory check after stage
-            if self.memory_manager:
-                post_stage_snapshot = self.memory_manager.force_memory_check(f"{stage.name.value}_complete")
+                # Get initial resource status
+                pre_stage_status = self.resource_manager.get_resource_status()
                 if self.verbose:
-                    memory_change = post_stage_snapshot.rss_mb - pre_stage_snapshot.rss_mb
-                    print(f"   🧠 Stage memory change: {memory_change:+.1f}MB (now: {post_stage_snapshot.rss_mb:.1f}MB)")
+                    print(f"   📊 Pre-stage resources: {pre_stage_status['memory']['usage_mb']:.0f}MB memory, {pre_stage_status['cpu']['current_percent']:.1f}% CPU")
 
-                    # Check if we need to adjust batch size based on this stage
-                    if post_stage_snapshot.pressure_level != pre_stage_snapshot.pressure_level:
-                        print(f"   🧠 Memory pressure changed: {pre_stage_snapshot.pressure_level.value} → {post_stage_snapshot.pressure_level.value}")
-                        print(f"   🧠 Batch size: {self.memory_manager.get_current_batch_size()}")
+                # Monitor stage execution with resource tracking
+                with self.resource_manager.monitor_execution(f"stage_{stage.name.value}_{year}", 1):
+                    with time_block(f"stage:{stage.name.value}"):
+                        self._run_stage_models(stage, year)
+
+                # Get post-stage resource status and analysis
+                post_stage_status = self.resource_manager.get_resource_status()
+                if self.verbose:
+                    memory_delta = post_stage_status['memory']['usage_mb'] - pre_stage_status['memory']['usage_mb']
+                    print(f"   📈 Post-stage resources: {post_stage_status['memory']['usage_mb']:.0f}MB memory ({memory_delta:+.0f}MB), {post_stage_status['cpu']['current_percent']:.1f}% CPU")
+
+                    # Report resource pressure changes
+                    if pre_stage_status['memory']['pressure'] != post_stage_status['memory']['pressure']:
+                        print(f"   🚨 Memory pressure changed: {pre_stage_status['memory']['pressure']} → {post_stage_status['memory']['pressure']}")
+
+                    # Memory leak detection
+                    if post_stage_status['memory']['leak_detected']:
+                        print(f"   🔍 Memory leak detected during stage {stage.name.value}")
+
+            else:
+                # Fallback to existing memory management
+                # Memory check before stage
+                if hasattr(self, 'memory_manager') and self.memory_manager:
+                    pre_stage_snapshot = self.memory_manager.force_memory_check(f"{stage.name.value}_start")
+
+                with time_block(f"stage:{stage.name.value}"):
+                    self._run_stage_models(stage, year)
+
+                # Memory check after stage
+                if hasattr(self, 'memory_manager') and self.memory_manager:
+                    post_stage_snapshot = self.memory_manager.force_memory_check(f"{stage.name.value}_complete")
+                    if self.verbose:
+                        memory_change = post_stage_snapshot.rss_mb - pre_stage_snapshot.rss_mb
+                        print(f"   🧠 Stage memory change: {memory_change:+.1f}MB (now: {post_stage_snapshot.rss_mb:.1f}MB)")
+
+                        # Check if we need to adjust batch size based on this stage
+                        if post_stage_snapshot.pressure_level != pre_stage_snapshot.pressure_level:
+                            print(f"   🧠 Memory pressure changed: {pre_stage_snapshot.pressure_level.value} → {post_stage_snapshot.pressure_level.value}")
+                            print(f"   🧠 Batch size: {self.memory_manager.get_current_batch_size()}")
 
             # Comprehensive validation for foundation models
             if stage.name == WorkflowStage.FOUNDATION:
@@ -877,6 +1143,86 @@ class PipelineOrchestrator:
     def _run_stage_models(self, stage: StageDefinition, year: int) -> None:
         if not stage.models:
             return
+
+        # Try to use model-level parallelization if enabled and appropriate
+        if (self.model_parallelization_enabled and
+            self.parallel_execution_engine and
+            self._should_use_model_parallelization(stage)):
+
+            self._run_stage_with_model_parallelization(stage, year)
+            return
+
+        # Fallback to existing sequential/parallel execution logic
+        self._run_stage_models_legacy(stage, year)
+
+    def _should_use_model_parallelization(self, stage: StageDefinition) -> bool:
+        """Determine if a stage should use model-level parallelization."""
+
+        # Don't use for stages that require strict sequencing
+        sequential_stages = {
+            WorkflowStage.EVENT_GENERATION,
+            WorkflowStage.STATE_ACCUMULATION
+        }
+
+        if stage.name in sequential_stages:
+            # These stages may have some parallelizable models but need careful handling
+            if self.parallelization_config.safety.validate_execution_safety:
+                # Only use if validation passes
+                validation = self.parallel_execution_engine.validate_stage_parallelization(stage.models)
+                return validation.get("parallelizable", False) and validation.get("safety_score", 0) > 80
+            return False
+
+        # Use for other stages if they have multiple models
+        return len(stage.models) > 1
+
+    def _run_stage_with_model_parallelization(self, stage: StageDefinition, year: int) -> None:
+        """Run stage using sophisticated model-level parallelization."""
+
+        if self.verbose:
+            print(f"   🚀 Using model-level parallelization for stage {stage.name.value}")
+
+        # Create execution context
+        import uuid
+        context = ExecutionContext(
+            simulation_year=year,
+            dbt_vars=self._dbt_vars,
+            stage_name=stage.name.value,
+            execution_id=str(uuid.uuid4())[:8]
+        )
+
+        # Execute with parallelization engine
+        result = self.parallel_execution_engine.execute_stage_with_parallelization(
+            stage.models,
+            context,
+            enable_conditional_parallelization=self.parallelization_config.enable_conditional_parallelization
+        )
+
+        if self.verbose:
+            print(f"   📊 Parallelization results:")
+            print(f"      Success: {result.success}")
+            print(f"      Models executed: {len(result.model_results)}")
+            print(f"      Execution time: {result.execution_time:.1f}s")
+            print(f"      Parallelism achieved: {result.parallelism_achieved}x")
+
+            if result.errors:
+                print(f"      Errors: {len(result.errors)}")
+                for error in result.errors[:3]:  # Show first 3 errors
+                    print(f"        - {error}")
+
+        if not result.success:
+            if result.errors:
+                error_msg = "; ".join(result.errors[:2])  # Show first 2 errors
+                raise PipelineStageError(
+                    f"Model-level parallelization failed in stage {stage.name.value}: {error_msg}"
+                )
+            else:
+                raise PipelineStageError(
+                    f"Model-level parallelization failed in stage {stage.name.value}"
+                )
+
+    def _run_stage_models_legacy(self, stage: StageDefinition, year: int) -> None:
+        """Legacy stage execution logic (sequential/basic parallel)."""
+
         # Run event generation and state accumulation sequentially to enforce order
         if stage.name in (
             WorkflowStage.EVENT_GENERATION,

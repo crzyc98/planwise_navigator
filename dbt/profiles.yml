@@ -1,17 +1,18 @@
 # ~/.dbt/profiles.yml
-# Optimized for Story S031-02: Year Processing Optimization
-# Configuration specifically tuned for analytical workloads and batch processing
+# Optimized for Epic E067: Multi-Threading Navigator Orchestrator
+# Configuration enhanced for multi-threaded execution with Navigator Orchestrator
 
 planwise_navigator:
-  target: optimized # Optimized target for S031-02 performance improvements
+  target: optimized # E067-ready target for multi-threading support
   outputs:
     optimized:
       type: duckdb
       path: "{{ env_var('DATABASE_PATH', 'simulation.duckdb') }}"
       schema: main
 
-      # Optimized threading for batch execution (3-4 threads per S031-02 requirements)
-      threads: 4 # Optimized for batch processing efficiency
+      # E067 Dynamic Threading: Navigator Orchestrator overrides this via --threads parameter
+      # This serves as fallback for direct dbt execution (E067 supports 1-16 threads)
+      threads: 4 # Baseline thread count - dynamically overridden by E067
 
       extensions:
         - parquet
