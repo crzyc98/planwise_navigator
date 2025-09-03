@@ -1,0 +1,113 @@
+# Example Configuration for Model-Level Parallelization (Story S067-02)
+# This configuration enables sophisticated model-level parallelization while preserving data integrity
+
+# Core simulation parameters
+simulation:
+  start_year: 2025
+  end_year: 2027
+  random_seed: 12345
+  target_growth_rate: 0.03
+
+# Compensation settings
+compensation:
+  cola_rate: 0.025
+  merit_budget: 0.03
+
+# Workforce parameters
+workforce:
+  total_termination_rate: 0.12
+  new_hire_termination_rate: 0.25
+
+# Performance optimization with model-level parallelization
+optimization:
+  level: "high"
+  max_workers: 4
+  batch_size: 1000
+  memory_limit_gb: 8.0
+
+# Orchestrator settings with model parallelization
+orchestrator:
+  threading:
+    enabled: true
+    thread_count: 4
+    mode: "selective"
+    memory_per_thread_gb: 2.0
+
+    # Model-level parallelization configuration
+    model_parallelization:
+      # Enable sophisticated model-level parallelization
+      enabled: true
+
+      # Maximum parallel workers for model execution (1-16)
+      max_workers: 4
+
+      # Memory limit for parallel execution in MB
+      memory_limit_mb: 6000.0
+
+      # Allow parallelization of conditional models (more aggressive)
+      enable_conditional_parallelization: false
+
+      # Ensure deterministic execution order for reproducibility
+      deterministic_execution: true
+
+      # Enable resource monitoring during execution
+      resource_monitoring: true
+
+      # Safety settings
+      safety:
+        # Fall back to sequential execution on resource pressure
+        fallback_on_resource_pressure: true
+
+        # Validate execution safety before parallelization
+        validate_execution_safety: true
+
+        # Abort if dependency conflicts are detected
+        abort_on_dependency_conflict: true
+
+        # Maximum retries per failed model
+        max_retries_per_model: 2
+
+# Enterprise identifiers (required)
+scenario_id: "S067_02_MODEL_PARALLELIZATION_TEST"
+plan_design_id: "DEFAULT_PLAN_2025"
+
+# Production safety settings
+production_safety:
+  backup_enabled: true
+  backup_before_simulation: true
+  log_level: "INFO"
+
+# Example usage notes:
+#
+# 1. PARALLEL_SAFE Models (execute concurrently):
+#    - Hazard calculations: int_hazard_termination, int_hazard_promotion, int_hazard_merit
+#    - Staging models: stg_census_data, stg_comp_levers, etc.
+#    - Independent logic: int_effective_parameters, int_workforce_needs
+#    - Data quality: dq_* models
+#
+# 2. SEQUENTIAL Models (execute in order):
+#    - State accumulators: int_enrollment_state_accumulator, int_deferral_rate_state_accumulator_v2
+#    - Fact tables: fct_yearly_events, fct_workforce_snapshot
+#    - Previous year models: int_workforce_previous_year
+#
+# 3. CONDITIONAL Models (may be parallelizable):
+#    - Event generation: int_termination_events, int_hiring_events
+#    - Contribution calculations: int_employee_contributions
+#    - Complex aggregations: int_employee_compensation_by_year
+#
+# Expected Performance Improvements:
+# - Hazard calculation stage: 3x speedup (3 models run concurrently)
+# - Staging stage: 2-4x speedup (multiple staging models)
+# - Foundation stage: 1.5-2x speedup (selective parallelization)
+# - Overall simulation: 20-40% faster execution time
+#
+# Memory Usage:
+# - Each parallel worker uses ~1.5GB memory
+# - Peak memory usage: ~6GB with 4 workers
+# - Resource monitoring prevents memory exhaustion
+#
+# Safety Features:
+# - Dependency analysis prevents incorrect parallelization
+# - State accumulator models remain sequential for data integrity
+# - Resource monitoring with automatic fallback
+# - Deterministic execution ensures reproducible results

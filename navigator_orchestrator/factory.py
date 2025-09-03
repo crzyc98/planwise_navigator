@@ -58,6 +58,19 @@ class OrchestratorBuilder:
         if not self._db:
             self._db = DatabaseConnectionManager()
 
+        # Validate threading configuration if present
+        if self._config.orchestrator:
+            self._config.validate_threading_configuration()
+
+        # Extract threading configuration from config (with fallback to builder settings)
+        thread_count = self._config.get_thread_count() if self._config.orchestrator else self._threads
+        threading_enabled = True
+        threading_mode = "selective"
+
+        if self._config.orchestrator and self._config.orchestrator.threading:
+            threading_enabled = self._config.orchestrator.threading.enabled
+            threading_mode = self._config.orchestrator.threading.mode
+
         # Default rules if none provided
         dv = DataValidator(self._db)
         if not self._rules:
@@ -66,10 +79,13 @@ class OrchestratorBuilder:
             dv.register_rule(r)
 
         runner = DbtRunner(
-            working_dir=Path("dbt"),
-            threads=self._threads,
+            working_dir=Path("dbt").resolve(),  # Use absolute path to avoid working directory issues
+            threads=thread_count,
             executable=self._dbt_executable,
             database_path=str(self._db.db_path),
+            threading_enabled=threading_enabled,
+            threading_mode=threading_mode,
+            verbose=True,  # Enable verbose mode for threading performance logging
         )
         registries = RegistryManager(self._db)
 

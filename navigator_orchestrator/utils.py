@@ -82,17 +82,57 @@ class DatabaseConnectionManager:
 
     Notes:
     - Creates a new connection for each context to avoid cross-thread issues.
+    - Ensures thread-safe and deterministic connections for reproducible results.
     - Keeps surface minimal; can be extended for pooling if needed.
     """
 
     db_path: Path = Path("dbt/simulation.duckdb")
 
-    def get_connection(self) -> duckdb.DuckDBPyConnection:
-        return duckdb.connect(str(self.db_path))
+    def get_connection(self, *, deterministic: bool = False, thread_id: Optional[str] = None) -> duckdb.DuckDBPyConnection:
+        """Get a database connection, optionally with deterministic configuration.
+
+        Args:
+            deterministic: If True, configure connection for deterministic behavior
+            thread_id: Optional thread identifier for connection isolation
+
+        Returns:
+            DuckDBPyConnection: A new database connection
+        """
+        conn = duckdb.connect(str(self.db_path))
+
+        if deterministic:
+            # DETERMINISM FIX: Configure connection for reproducible results
+            try:
+                # Set deterministic threading and memory settings
+                conn.execute("PRAGMA threads=1")  # Force single-threaded execution within connection
+                conn.execute("PRAGMA enable_external_access=false")  # Disable external access for consistency
+                conn.execute("PRAGMA preserve_insertion_order=true")  # Preserve order for deterministic results
+
+                # Set memory limits to ensure consistent resource usage
+                conn.execute("PRAGMA memory_limit='1GB'")  # Conservative limit for deterministic behavior
+
+                if thread_id:
+                    # Set a deterministic seed based on thread ID for any internal RNG
+                    import hashlib
+                    thread_seed = int(hashlib.md5(thread_id.encode()).hexdigest()[:8], 16) % (2**31)
+                    # Note: DuckDB doesn't have a direct seed setting, but this prepares for future use
+
+            except Exception as e:
+                # Pragma settings may not be available in all DuckDB versions
+                # Continue with connection but log the issue
+                print(f"⚠️ Warning: Could not set deterministic database settings: {e}")
+
+        return conn
 
     @contextmanager
-    def transaction(self) -> Generator[duckdb.DuckDBPyConnection, None, None]:
-        conn = self.get_connection()
+    def transaction(self, *, deterministic: bool = False, thread_id: Optional[str] = None) -> Generator[duckdb.DuckDBPyConnection, None, None]:
+        """Create a database transaction context with optional deterministic configuration.
+
+        Args:
+            deterministic: If True, use deterministic connection configuration
+            thread_id: Optional thread identifier for connection isolation
+        """
+        conn = self.get_connection(deterministic=deterministic, thread_id=thread_id)
         try:
             conn.begin()  # Start explicit transaction
             yield conn
@@ -113,19 +153,40 @@ class DatabaseConnectionManager:
         *,
         retries: int = 3,
         backoff_seconds: float = 0.5,
+        deterministic: bool = False,
+        thread_id: Optional[str] = None,
     ) -> T:
-        """Execute a function against a connection with simple retry logic."""
+        """Execute a function against a connection with simple retry logic.
+
+        Args:
+            fn: Function to execute with database connection
+            retries: Maximum number of retry attempts
+            backoff_seconds: Base backoff time between retries
+            deterministic: If True, use deterministic connection configuration
+            thread_id: Optional thread identifier for connection isolation
+
+        Returns:
+            Result from the executed function
+        """
         attempt = 0
         last_exc: Optional[Exception] = None
         while attempt <= retries:
             try:
-                with self.transaction() as conn:
+                with self.transaction(deterministic=deterministic, thread_id=thread_id) as conn:
                     return fn(conn)
             except Exception as e:  # pragma: no cover - external IO
                 last_exc = e
                 if attempt == retries:
                     break
-                time.sleep(backoff_seconds * (2**attempt))
+                # DETERMINISM FIX: Use deterministic backoff in deterministic mode
+                if deterministic:
+                    # Use fixed backoff for deterministic behavior
+                    sleep_time = backoff_seconds * (2**attempt)
+                else:
+                    # Add jitter for normal operation
+                    import random
+                    sleep_time = backoff_seconds * (2**attempt) * (0.5 + random.random() * 0.5)
+                time.sleep(sleep_time)
                 attempt += 1
         assert last_exc is not None
         raise last_exc
