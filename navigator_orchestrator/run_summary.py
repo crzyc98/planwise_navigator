@@ -225,6 +225,91 @@ class RunSummaryGenerator:
             },
         }
 
+        # Add top contributors by duration (operations) for quick insight
+        try:
+            top_contributors = []
+            if self.performance_monitor:
+                metrics = self.performance_monitor.get_metrics()
+                # Build sortable list: (name, duration, context)
+                items = []
+                for name, data in metrics.items():
+                    duration = data.get("duration_seconds") or 0
+                    items.append(
+                        {
+                            "name": name,
+                            "duration_seconds": duration,
+                            # capture common context fields if present
+                            "stage": data.get("stage"),
+                            "year": data.get("year"),
+                        }
+                    )
+                # Sort by duration descending and take top 5
+                items.sort(key=lambda x: (x["duration_seconds"] or 0), reverse=True)
+                top_contributors = items[:5]
+            summary["performance_top_contributors"] = top_contributors
+        except Exception:
+            # Do not fail summary generation if we cannot compute contributors
+            summary["performance_top_contributors"] = []
+
+        # Add compact per-year, per-stage breakdown table
+        try:
+            breakdown_rows = []
+            if self.performance_monitor:
+                metrics = self.performance_monitor.get_metrics()
+
+                # Collect stage durations per year
+                per_year: dict[int, dict[str, float]] = {}
+                totals: dict[int, float] = {}
+
+                for name, data in metrics.items():
+                    year = data.get("year")
+                    stage = data.get("stage")
+                    duration = data.get("duration_seconds") or 0.0
+                    if year is None:
+                        # Try to extract year from operation name (e.g., year_simulation_2025)
+                        if isinstance(name, str) and name.startswith("year_simulation_"):
+                            try:
+                                y = int(name.rsplit("_", 1)[-1])
+                                totals[y] = duration
+                            except Exception:
+                                pass
+                        continue
+
+                    # Normalize year to int
+                    try:
+                        year_int = int(year)
+                    except Exception:
+                        continue
+
+                    if stage:
+                        per_year.setdefault(year_int, {})[stage] = duration
+
+                # Build compact rows ordered by year
+                STAGE_ORDER = [
+                    "INITIALIZATION",
+                    "FOUNDATION",
+                    "EVENT_GENERATION",
+                    "STATE_ACCUMULATION",
+                    "VALIDATION",
+                    "REPORTING",
+                ]
+
+                for year in sorted(set(list(per_year.keys()) + list(totals.keys()))):
+                    row: dict[str, object] = {"year": year}
+                    for st in STAGE_ORDER:
+                        val = per_year.get(year, {}).get(st)
+                        if val is not None:
+                            # Round to 3 decimals for compactness
+                            row[st] = round(val, 3)
+                    # Add total if we have it
+                    if year in totals:
+                        row["total"] = round(totals[year], 3)
+                    breakdown_rows.append(row)
+
+            summary["performance_breakdown"] = {"by_year": breakdown_rows}
+        except Exception:
+            summary["performance_breakdown"] = {"by_year": []}
+
         # Save summary artifacts
         self._save_summary_artifacts(summary)
 
@@ -297,6 +382,41 @@ class RunSummaryGenerator:
             if perf_summary.get("slowest_operation"):
                 slowest = perf_summary["slowest_operation"]
                 print(f"  Slowest: {slowest['name']} ({slowest['duration']}s)")
+
+        # Compact per-year breakdown (if available)
+        breakdown = summary.get("performance_breakdown", {}).get("by_year", [])
+        if breakdown:
+            print("\nPerformance Breakdown (seconds):")
+            # Header (short labels)
+            print("  Year  Found  Events  State  Valid  Report  Total")
+            for row in breakdown:
+                year = row.get("year")
+                # Use get with default of None; print blanks if missing
+                found = row.get("FOUNDATION")
+                events = row.get("EVENT_GENERATION")
+                state = row.get("STATE_ACCUMULATION")
+                valid = row.get("VALIDATION")
+                report = row.get("REPORTING")
+                total = row.get("total")
+                def fmt(v):
+                    return f"{v:.3f}" if isinstance(v, (int, float)) else "   -  "
+                print(
+                    f"  {year}  {fmt(found):>6} {fmt(events):>7} {fmt(state):>6} {fmt(valid):>6} {fmt(report):>7} {fmt(total):>7}"
+                )
+
+        # Top contributors (if available)
+        top = summary.get("performance_top_contributors", [])
+        if top:
+            print("\nTop Contributors:")
+            for item in top:
+                name = item.get("name", "unknown")
+                duration = item.get("duration_seconds", 0)
+                stage = item.get("stage")
+                year = item.get("year")
+                label = name
+                if stage and year:
+                    label = f"{stage} {year}"
+                print(f"  • {label}: {duration:.3f}s")
 
         # Backup info
         if metadata["backup_path"]:

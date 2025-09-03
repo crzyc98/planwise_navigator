@@ -1,0 +1,520 @@
+{
+  "run_metadata": {
+    "run_id": "20250902_212648-bf81c91e",
+    "start_time": "2025-09-02T21:26:48.270328",
+    "end_time": "2025-09-02T21:31:30.495041",
+    "duration_seconds": 282.22,
+    "status": "success",
+    "backup_path": null,
+    "configuration": {
+      "scenario_id": null,
+      "plan_design_id": null,
+      "simulation": {
+        "start_year": 2025,
+        "end_year": 2029,
+        "random_seed": 42,
+        "target_growth_rate": 0.03
+      },
+      "compensation": {
+        "cola_rate": 0.01,
+        "merit_budget": 0.02,
+        "promotion_compensation": {
+          "base_increase_pct": 0.2,
+          "distribution_range": 0.05,
+          "max_cap_pct": 0.3,
+          "max_cap_amount": 500000,
+          "distribution_type": "uniform",
+          "level_overrides": null,
+          "advanced": {
+            "normal_std_dev": 0.02,
+            "market_adjustments": null
+          }
+        }
+      },
+      "workforce": {
+        "total_termination_rate": 0.12,
+        "new_hire_termination_rate": 0.25
+      },
+      "enrollment": {
+        "auto_enrollment": {
+          "enabled": true,
+          "scope": "new_hires_only",
+          "hire_date_cutoff": "2025-01-01",
+          "window_days": 45,
+          "default_deferral_rate": 0.02,
+          "opt_out_grace_period": 30,
+          "opt_out_rates": {
+            "by_age": {
+              "young": 0.1,
+              "mid_career": 0.07,
+              "mature": 0.05,
+              "senior": 0.03
+            },
+            "by_income": {
+              "low_income": 1.2,
+              "moderate": 1.0,
+              "high": 0.7,
+              "executive": 0.5
+            }
+          }
+        },
+        "proactive_enrollment": {
+          "enabled": true,
+          "timing_window": {
+            "min_days": 7,
+            "max_days": 35
+          },
+          "probability_by_demographics": {
+            "young": 0.25,
+            "mid_career": 0.45,
+            "mature": 0.65,
+            "senior": 0.75
+          }
+        },
+        "timing": {
+          "business_day_adjustment": true
+        }
+      },
+      "eligibility": {
+        "waiting_period_days": 0
+      },
+      "plan_eligibility": {
+        "minimum_age": 21
+      },
+      "employer_match": {
+        "active_formula": "simple_match",
+        "apply_eligibility": true,
+        "eligibility": {
+          "minimum_tenure_years": 0,
+          "require_active_at_year_end": true,
+          "minimum_hours_annual": 1000,
+          "allow_new_hires": true,
+          "allow_terminated_new_hires": false,
+          "allow_experienced_terminations": false
+        },
+        "formulas": {
+          "simple_match": {
+            "name": "Simple Match",
+            "type": "simple",
+            "match_rate": 0.5,
+            "max_match_percentage": 0.06
+          },
+          "tiered_match": {
+            "name": "Tiered Match",
+            "type": "tiered",
+            "tiers": [
+              {
+                "tier": 1,
+                "employee_min": 0.0,
+                "employee_max": 0.03,
+                "match_rate": 1.0
+              },
+              {
+                "tier": 2,
+                "employee_min": 0.03,
+                "employee_max": 0.05,
+                "match_rate": 0.5
+              }
+            ],
+            "max_match_percentage": 0.04
+          },
+          "stretch_match": {
+            "name": "Stretch Match (Encourages Higher Deferrals)",
+            "type": "tiered",
+            "tiers": [
+              {
+                "tier": 1,
+                "employee_min": 0.0,
+                "employee_max": 0.12,
+                "match_rate": 0.25
+              }
+            ],
+            "max_match_percentage": 0.03
+          },
+          "enhanced_tiered": {
+            "name": "Enhanced Tiered Match",
+            "type": "tiered",
+            "tiers": [
+              {
+                "tier": 1,
+                "employee_min": 0.0,
+                "employee_max": 0.03,
+                "match_rate": 1.0
+              },
+              {
+                "tier": 2,
+                "employee_min": 0.03,
+                "employee_max": 0.05,
+                "match_rate": 0.5
+              }
+            ],
+            "max_match_percentage": 0.04
+          }
+        }
+      },
+      "optimization": {
+        "level": "high",
+        "max_workers": 1,
+        "batch_size": 1000,
+        "memory_limit_gb": 4.0,
+        "adaptive_memory": {
+          "enabled": true,
+          "monitoring_interval_seconds": 1.0,
+          "history_size": 100,
+          "thresholds": {
+            "moderate_mb": 2000.0,
+            "high_mb": 3000.0,
+            "critical_mb": 3500.0,
+            "gc_trigger_mb": 2500.0,
+            "fallback_trigger_mb": 3200.0
+          },
+          "batch_sizes": {
+            "low": 250,
+            "medium": 500,
+            "high": 1000,
+            "fallback": 100
+          },
+          "auto_gc_enabled": true,
+          "fallback_enabled": true,
+          "profiling_enabled": false,
+          "recommendation_window_minutes": 5,
+          "min_samples_for_recommendation": 10,
+          "leak_detection_enabled": true,
+          "leak_threshold_mb": 800.0,
+          "leak_window_minutes": 15
+        }
+      },
+      "orchestrator": {
+        "threading": {
+          "enabled": true,
+          "thread_count": 4,
+          "mode": "selective",
+          "memory_per_thread_gb": 2.0,
+          "model_parallelization": {
+            "enabled": true,
+            "max_workers": 4,
+            "memory_limit_mb": 6000.0,
+            "enable_conditional_parallelization": true,
+            "deterministic_execution": true,
+            "resource_monitoring": true,
+            "safety": {
+              "fallback_on_resource_pressure": true,
+              "validate_execution_safety": true,
+              "abort_on_dependency_conflict": true,
+              "max_retries_per_model": 2
+            }
+          },
+          "resource_management": {
+            "enabled": true,
+            "memory_monitoring": {
+              "enabled": true,
+              "monitoring_interval_seconds": 5.0,
+              "history_size": 100,
+              "thresholds": {
+                "moderate_mb": 2048.0,
+                "high_mb": 3072.0,
+                "critical_mb": 4096.0,
+                "gc_trigger_mb": 2560.0,
+                "fallback_trigger_mb": 3584.0
+              },
+              "batch_sizes": {
+                "low": 250,
+                "medium": 500,
+                "high": 1000,
+                "fallback": 100
+              },
+              "auto_gc_enabled": true,
+              "fallback_enabled": true,
+              "profiling_enabled": false,
+              "recommendation_window_minutes": 5,
+              "min_samples_for_recommendation": 10,
+              "leak_detection_enabled": true,
+              "leak_threshold_mb": 800.0,
+              "leak_window_minutes": 15
+            },
+            "cpu_monitoring": {
+              "enabled": true,
+              "monitoring_interval_seconds": 5.0,
+              "history_size": 50,
+              "thresholds": {
+                "moderate_percent": 70.0,
+                "high_percent": 85.0,
+                "critical_percent": 95.0
+              }
+            },
+            "adaptive_scaling_enabled": true,
+            "min_threads": 1,
+            "max_threads": 8,
+            "adjustment_cooldown_seconds": 30.0,
+            "benchmarking_enabled": true,
+            "benchmark_thread_counts": [
+              1,
+              2,
+              4,
+              6,
+              8
+            ],
+            "auto_cleanup_enabled": true,
+            "cleanup_threshold_mb": 2500.0
+          }
+        }
+      },
+      "setup": {
+        "clear_tables": true,
+        "clear_mode": "year",
+        "clear_table_patterns": [
+          "int_"
+        ],
+        "load_seeds": true,
+        "run_staging_models": true,
+        "validate_results": false,
+        "fail_on_validation_error": true,
+        "census_parquet_path": "data/census_preprocessed.parquet",
+        "plan_year_start_date": "2024-01-01",
+        "plan_year_end_date": "2024-12-31",
+        "eligibility_waiting_period_days": 30
+      },
+      "new_hire_compensation": {
+        "strategy": "percentile_based",
+        "percentile_strategy": {
+          "default_percentile": 0.3,
+          "level_overrides": {
+            "1": 0.3,
+            "2": 0.4,
+            "3": 0.5,
+            "4": 0.65,
+            "5": 0.7
+          },
+          "variance_enabled": true,
+          "variance_std_dev": 0.05
+        },
+        "market_adjustments": {
+          "enabled": true,
+          "base_adjustment": 1.0,
+          "level_adjustments": {
+            "1": 1.02,
+            "2": 1.0,
+            "3": 0.98,
+            "4": 1.05,
+            "5": 1.1
+          },
+          "scenarios": {
+            "conservative": 0.92,
+            "baseline": 1.0,
+            "competitive": 1.05,
+            "aggressive": 1.15
+          }
+        },
+        "validation": {
+          "min_percentile": 0.2,
+          "max_percentile": 0.9,
+          "min_market_adjustment": 0.8,
+          "max_market_adjustment": 1.3
+        },
+        "custom_distribution": {
+          "enabled": false,
+          "distribution_type": "beta",
+          "parameters": {
+            "alpha": 2.0,
+            "beta": 5.0,
+            "min_percentile": 0.25,
+            "max_percentile": 0.85
+          }
+        }
+      },
+      "raise_timing": {
+        "methodology": "realistic",
+        "distribution_profile": "general_corporate",
+        "validation_tolerance": 0.02,
+        "deterministic_behavior": true
+      },
+      "plan_year": {
+        "start_date": "2024-01-01",
+        "end_date": "2024-12-31",
+        "annualization_method": "calendar_days"
+      },
+      "employee_id_generation": {
+        "baseline_format": "hybrid",
+        "new_hire_format": "hash_based",
+        "enable_cross_validation": true,
+        "migration_mode": false,
+        "batch_generation": true
+      },
+      "employer_core_contribution": {
+        "enabled": true,
+        "contribution_rate": 0.01,
+        "eligibility": {
+          "minimum_tenure_years": 0,
+          "require_active_at_year_end": true,
+          "minimum_hours_annual": 1000,
+          "allow_new_hires": true,
+          "allow_terminated_new_hires": false,
+          "allow_experienced_terminations": false
+        }
+      },
+      "multi_year": {
+        "performance": {
+          "enable_state_compression": true,
+          "enable_concurrent_processing": true,
+          "enable_parallel_dbt": true,
+          "cache_workforce_snapshots": true
+        },
+        "state": {
+          "enable_checkpointing": true,
+          "checkpoint_frequency": 1,
+          "preserve_intermediate_states": false,
+          "compression_level": 6
+        },
+        "resume": {
+          "enable_resume": true,
+          "auto_resume_on_failure": false,
+          "cleanup_on_success": true
+        },
+        "error_handling": {
+          "fail_fast": false,
+          "max_retries": 3,
+          "retry_delay_seconds": 5,
+          "validation_mode": "strict"
+        },
+        "transition": {
+          "strategy": "optimized",
+          "batch_workforce_updates": true,
+          "optimize_event_processing": true
+        },
+        "monitoring": {
+          "enable_performance_monitoring": true,
+          "enable_progress_reporting": true,
+          "log_level": "INFO",
+          "enable_memory_profiling": false
+        }
+      },
+      "deferral_auto_escalation": {
+        "enabled": false,
+        "effective_day": "01-01",
+        "increment_amount": 0.01,
+        "maximum_rate": 0.1,
+        "hire_date_cutoff": "2999-01-01",
+        "require_active_enrollment": true
+      },
+      "deferral_baseline": {
+        "mode": "frozen"
+      },
+      "deferral_rates": {
+        "use_census_rates": true,
+        "census_rate_field": "employee_deferral_rate",
+        "pre_enrolled_fallback": 0.03,
+        "plan_deferral_cap": 0.75,
+        "normalize_percentages": true,
+        "generate_synthetic_events": true
+      },
+      "corporate_network": {
+        "enabled": true,
+        "auto_detect_proxy": true,
+        "proxy": {
+          "http_proxy": null,
+          "https_proxy": null,
+          "no_proxy": [
+            "localhost",
+            "127.0.0.1",
+            "*.local"
+          ],
+          "username": null,
+          "password": null,
+          "use_system_auth": true,
+          "proxy_timeout": 30,
+          "proxy_retries": 3
+        },
+        "certificates": {
+          "ca_bundle_path": null,
+          "verify_ssl": true,
+          "allow_self_signed": false,
+          "hostname_verification": true,
+          "check_certificate_chain": true,
+          "max_chain_depth": 10
+        },
+        "timeouts": {
+          "connection_timeout": 30,
+          "read_timeout": 60,
+          "total_timeout": 300,
+          "dagster_health_timeout": 5,
+          "dbt_command_timeout": 1800,
+          "database_timeout": 60,
+          "max_retries": 3,
+          "retry_delay": 1.0,
+          "retry_backoff": 2.0,
+          "max_retry_delay": 30.0
+        },
+        "performance": {
+          "enable_connection_pooling": true,
+          "max_pool_connections": 10,
+          "pool_timeout": 30,
+          "enable_gzip": true,
+          "chunk_size": 8192,
+          "buffer_size": 65536,
+          "rate_limiting": false,
+          "max_bandwidth_mbps": null,
+          "keep_alive": true,
+          "keep_alive_timeout": 30
+        },
+        "corporate_domains": [
+          "company.com",
+          "corp.local"
+        ],
+        "vpn_detection": true,
+        "connectivity_check": true,
+        "test_endpoints": [
+          "https://httpbin.org/get",
+          "https://www.google.com",
+          "https://github.com"
+        ]
+      },
+      "ops": {
+        "run_multi_year_simulation": {
+          "config": {
+            "start_year": 2025,
+            "end_year": 2029,
+            "target_growth_rate": 0.03,
+            "total_termination_rate": 0.12,
+            "new_hire_termination_rate": 0.25,
+            "random_seed": 42,
+            "full_refresh": false
+          }
+        }
+      }
+    },
+    "environment": {
+      "python_version": "3.11.12 (main, Apr  8 2025, 14:15:29) [Clang 17.0.0 (clang-1700.0.13.3)]",
+      "platform": "macOS-15.6.1-arm64-arm-64bit",
+      "hostname": "Mac.localdomain",
+      "working_directory": "/Users/nicholasamaral/planwise_navigator",
+      "user": "nicholasamaral",
+      "timestamp": "2025-09-02T21:26:48.280525"
+    }
+  },
+  "execution_summary": {
+    "total_errors": 0,
+    "total_warnings": 0,
+    "has_backup": false,
+    "custom_metrics_count": 0
+  },
+  "performance_metrics": {
+    "total_operations": 1,
+    "successful_operations": 1,
+    "failed_operations": 0,
+    "total_duration_seconds": 54.1,
+    "average_duration_seconds": 54.1,
+    "slowest_operation": {
+      "name": "year_simulation",
+      "duration": 54.09979510307312
+    },
+    "fastest_operation": {
+      "name": "year_simulation",
+      "duration": 54.09979510307312
+    }
+  },
+  "custom_metrics": {},
+  "issues": {
+    "errors": [],
+    "warnings": []
+  }
+}

@@ -23,6 +23,7 @@ from .dbt_runner import DbtResult, DbtRunner
 from .recovery_orchestrator import RecoveryOrchestrator
 from .registries import RegistryManager
 from .reports import MultiYearReporter, MultiYearSummary, YearAuditor
+from .observability import ObservabilityManager
 from .utils import DatabaseConnectionManager, ExecutionMutex, time_block
 from .validation import DataValidator
 
@@ -110,6 +111,20 @@ class PipelineOrchestrator:
         self.checkpoints_dir = Path(checkpoints_dir)
         self.checkpoints_dir.mkdir(exist_ok=True)
         self._seeded = False
+
+        # Initialize observability (structured logs + performance metrics + run summary)
+        try:
+            self.observability = ObservabilityManager(log_level="INFO")
+            # Record configuration for audit trail
+            try:
+                self.observability.set_configuration(self.config.model_dump())
+            except Exception:
+                pass
+            if self.verbose:
+                print(f"🧭 Observability run_id: {self.observability.get_run_id()}")
+        except Exception:
+            # Proceed without observability if initialization fails
+            self.observability = None
 
         # S063-08: Adaptive Memory Management
         self._setup_adaptive_memory_manager()
@@ -438,68 +453,98 @@ class PipelineOrchestrator:
                 initial_snapshot = self.memory_manager.force_memory_check("simulation_startup")
                 print(f"🧠 Initial memory: {initial_snapshot.rss_mb:.1f}MB (pressure: {initial_snapshot.pressure_level.value})")
 
-        with ExecutionMutex("navigator_orchestrator"):
-            # Optional one-time full reset before the yearly loop
-            self._maybe_full_reset()
-            # Ensure orchestrator-managed registries start clean for a new run
-            # These tables are not year-partitioned; stale state can block auto-enrollment
-            if not resume_from_checkpoint:
-                try:
-                    er = self.registry_manager.get_enrollment_registry()
-                    dr = self.registry_manager.get_deferral_registry()
-                    er.create_table()
-                    dr.create_table()
-                    # Reset only when starting at configured first year (fresh simulation)
-                    if start == self.config.simulation.start_year:
-                        er.reset()
-                        dr.reset()
-                        if self.verbose:
-                            print(
-                                "🧹 Cleared enrollment/deferral registries for fresh run"
-                            )
-                except Exception:
-                    # Non-fatal; proceed even if reset fails
-                    pass
-            completed_years: List[int] = []
+        # Wrap the entire run in a performance-tracked operation when observability is enabled
+        if self.observability:
+            from contextlib import ExitStack
+            _run_ctx = self.observability.track_operation(
+                "multi_year_run", start_year=start, end_year=end
+            )
+        else:
+            from contextlib import nullcontext
+            _run_ctx = nullcontext()
 
-            try:
-                for year in range(start, end + 1):
-                    print(f"\n🔄 Starting simulation year {year}")
-
-                    # Memory check before year processing
-                    if self.memory_manager:
-                        year_snapshot = self.memory_manager.force_memory_check(f"year_{year}_start")
-                        if self.verbose:
-                            print(f"🧠 Memory before year {year}: {year_snapshot.rss_mb:.1f}MB (batch size: {self.memory_manager.get_current_batch_size()})")
-
-                    self._execute_year_workflow(
-                        year, fail_on_validation_error=fail_on_validation_error
-                    )
-
-                    # Memory check after year processing
-                    if self.memory_manager:
-                        post_year_snapshot = self.memory_manager.force_memory_check(f"year_{year}_complete")
-                        if self.verbose:
-                            print(f"🧠 Memory after year {year}: {post_year_snapshot.rss_mb:.1f}MB")
-
-                    # Create checkpoint using enhanced system if available
-                    if (
-                        self.enhanced_checkpoints
-                        and self.checkpoint_manager
-                        and self.config_hash
-                    ):
-                        try:
-                            run_id = (
-                                f"multiyear_{datetime.utcnow().strftime('%Y%m%d_%H%M%S')}"
-                            )
-                            checkpoint_data = self.checkpoint_manager.save_checkpoint(
-                                year, run_id, self.config_hash
-                            )
+        with _run_ctx:
+            with ExecutionMutex("navigator_orchestrator"):
+                # Optional one-time full reset before the yearly loop
+                self._maybe_full_reset()
+                # Ensure orchestrator-managed registries start clean for a new run
+                # These tables are not year-partitioned; stale state can block auto-enrollment
+                if not resume_from_checkpoint:
+                    try:
+                        er = self.registry_manager.get_enrollment_registry()
+                        dr = self.registry_manager.get_deferral_registry()
+                        er.create_table()
+                        dr.create_table()
+                        # Reset only when starting at configured first year (fresh simulation)
+                        if start == self.config.simulation.start_year:
+                            er.reset()
+                            dr.reset()
                             if self.verbose:
-                                print(f"   ✅ Enhanced checkpoint saved for year {year}")
-                        except Exception as e:
-                            print(f"   ⚠️ Enhanced checkpoint failed for year {year}: {e}")
-                            # Fall back to legacy checkpoint
+                                print(
+                                    "🧹 Cleared enrollment/deferral registries for fresh run"
+                                )
+                    except Exception:
+                        # Non-fatal; proceed even if reset fails
+                        pass
+                completed_years: List[int] = []
+
+                try:
+                    for year in range(start, end + 1):
+                        print(f"\n🔄 Starting simulation year {year}")
+
+                        # Memory check before year processing
+                        if self.memory_manager:
+                            year_snapshot = self.memory_manager.force_memory_check(f"year_{year}_start")
+                            if self.verbose:
+                                print(f"🧠 Memory before year {year}: {year_snapshot.rss_mb:.1f}MB (batch size: {self.memory_manager.get_current_batch_size()})")
+
+                        if self.observability:
+                            # Track end-to-end year execution with performance metrics (unique per year)
+                            with self.observability.track_operation(
+                                f"year_simulation_{year}", year=year
+                            ):
+                                self._execute_year_workflow(
+                                    year, fail_on_validation_error=fail_on_validation_error
+                                )
+                        else:
+                            self._execute_year_workflow(
+                                year, fail_on_validation_error=fail_on_validation_error
+                            )
+
+                        # Memory check after year processing
+                        if self.memory_manager:
+                            post_year_snapshot = self.memory_manager.force_memory_check(f"year_{year}_complete")
+                            if self.verbose:
+                                print(f"🧠 Memory after year {year}: {post_year_snapshot.rss_mb:.1f}MB")
+
+                        # Create checkpoint using enhanced system if available
+                        if (
+                            self.enhanced_checkpoints
+                            and self.checkpoint_manager
+                            and self.config_hash
+                        ):
+                            try:
+                                run_id = (
+                                    f"multiyear_{datetime.utcnow().strftime('%Y%m%d_%H%M%S')}"
+                                )
+                                checkpoint_data = self.checkpoint_manager.save_checkpoint(
+                                    year, run_id, self.config_hash
+                                )
+                                if self.verbose:
+                                    print(f"   ✅ Enhanced checkpoint saved for year {year}")
+                            except Exception as e:
+                                print(f"   ⚠️ Enhanced checkpoint failed for year {year}: {e}")
+                                # Fall back to legacy checkpoint
+                                self._write_checkpoint(
+                                    WorkflowCheckpoint(
+                                        year,
+                                        WorkflowStage.CLEANUP,
+                                        datetime.utcnow().isoformat(),
+                                        self._state_hash(year),
+                                    )
+                                )
+                        else:
+                            # Legacy checkpoint system
                             self._write_checkpoint(
                                 WorkflowCheckpoint(
                                     year,
@@ -508,55 +553,45 @@ class PipelineOrchestrator:
                                     self._state_hash(year),
                                 )
                             )
-                    else:
-                        # Legacy checkpoint system
-                        self._write_checkpoint(
-                            WorkflowCheckpoint(
-                                year,
-                                WorkflowStage.CLEANUP,
-                                datetime.utcnow().isoformat(),
-                                self._state_hash(year),
-                            )
-                        )
 
-                    # Track completed year regardless of checkpoint system used
-                    completed_years.append(year)
+                        # Track completed year regardless of checkpoint system used
+                        completed_years.append(year)
 
-            except Exception as e:
-                # Log memory state on error
-                if self.memory_manager:
-                    error_snapshot = self.memory_manager.force_memory_check("simulation_error")
-                    print(f"🧠 Memory at error: {error_snapshot.rss_mb:.1f}MB (pressure: {error_snapshot.pressure_level.value})")
-                raise
+                except Exception as e:
+                    # Log memory state on error
+                    if self.memory_manager:
+                        error_snapshot = self.memory_manager.force_memory_check("simulation_error")
+                        print(f"🧠 Memory at error: {error_snapshot.rss_mb:.1f}MB (pressure: {error_snapshot.pressure_level.value})")
+                    raise
 
-            finally:
-                # Stop memory monitoring and generate final report
-                if self.memory_manager:
-                    self.memory_manager.stop_monitoring()
+                finally:
+                    # Stop memory monitoring and generate final report
+                    if self.memory_manager:
+                        self.memory_manager.stop_monitoring()
 
-                    # Generate memory statistics and recommendations
-                    stats = self.memory_manager.get_memory_statistics()
-                    recommendations = self.memory_manager.get_recommendations()
+                        # Generate memory statistics and recommendations
+                        stats = self.memory_manager.get_memory_statistics()
+                        recommendations = self.memory_manager.get_recommendations()
 
-                    if self.verbose:
-                        print("\n🧠 Adaptive Memory Management Summary:")
-                        print(f"   Peak Memory: {stats['trends']['peak_memory_mb']}MB")
-                        print(f"   GC Collections: {stats['stats']['total_gc_collections']}")
-                        print(f"   Batch Adjustments: {stats['stats']['batch_size_adjustments']}")
-                        print(f"   Fallback Events: {stats['stats']['automatic_fallbacks']}")
-
-                        if recommendations:
-                            print(f"   Recommendations: {len(recommendations)}")
-                            for rec in recommendations[-3:]:  # Show last 3
-                                print(f"     • {rec['type']}: {rec['description']}")
-
-                    # Export memory profile
-                    try:
-                        profile_path = self.memory_manager.export_memory_profile()
                         if self.verbose:
-                            print(f"   Memory profile: {profile_path}")
-                    except Exception:
-                        pass
+                            print("\n🧠 Adaptive Memory Management Summary:")
+                            print(f"   Peak Memory: {stats['trends']['peak_memory_mb']}MB")
+                            print(f"   GC Collections: {stats['stats']['total_gc_collections']}")
+                            print(f"   Batch Adjustments: {stats['stats']['batch_size_adjustments']}")
+                            print(f"   Fallback Events: {stats['stats']['automatic_fallbacks']}")
+
+                            if recommendations:
+                                print(f"   Recommendations: {len(recommendations)}")
+                                for rec in recommendations[-3:]:  # Show last 3
+                                    print(f"     • {rec['type']}: {rec['description']}")
+
+                        # Export memory profile
+                        try:
+                            profile_path = self.memory_manager.export_memory_profile()
+                            if self.verbose:
+                                print(f"   Memory profile: {profile_path}")
+                        except Exception:
+                            pass
 
         # Final multi-year summary using reporter
         reporter = MultiYearReporter(self.db_manager)
@@ -635,6 +670,14 @@ class PipelineOrchestrator:
         # Cleanup resource management components (S067-03)
         self._cleanup_resources()
 
+        # Finalize observability (saves artifacts under artifacts/runs/<run_id>/)
+        try:
+            if self.observability:
+                final_status = "success"
+                self.observability.finalize_run(final_status)
+        except Exception:
+            pass
+
         return summary
 
     def _execute_year_workflow(
@@ -681,8 +724,18 @@ class PipelineOrchestrator:
 
                 # Monitor stage execution with resource tracking
                 with self.resource_manager.monitor_execution(f"stage_{stage.name.value}_{year}", 1):
-                    with time_block(f"stage:{stage.name.value}"):
-                        self._run_stage_models(stage, year)
+                    if self.observability:
+                        # Per-stage performance tracking
+                        with self.observability.track_operation(
+                            f"stage_{stage.name.value}_{year}",
+                            stage=stage.name.value,
+                            year=year,
+                        ):
+                            with time_block(f"stage:{stage.name.value}"):
+                                self._run_stage_models(stage, year)
+                    else:
+                        with time_block(f"stage:{stage.name.value}"):
+                            self._run_stage_models(stage, year)
 
                 # Get post-stage resource status and analysis
                 post_stage_status = self.resource_manager.get_resource_status()
@@ -704,8 +757,18 @@ class PipelineOrchestrator:
                 if hasattr(self, 'memory_manager') and self.memory_manager:
                     pre_stage_snapshot = self.memory_manager.force_memory_check(f"{stage.name.value}_start")
 
-                with time_block(f"stage:{stage.name.value}"):
-                    self._run_stage_models(stage, year)
+                if self.observability:
+                    # Per-stage performance tracking
+                    with self.observability.track_operation(
+                        f"stage_{stage.name.value}_{year}",
+                        stage=stage.name.value,
+                        year=year,
+                    ):
+                        with time_block(f"stage:{stage.name.value}"):
+                            self._run_stage_models(stage, year)
+                else:
+                    with time_block(f"stage:{stage.name.value}"):
+                        self._run_stage_models(stage, year)
 
                 # Memory check after stage
                 if hasattr(self, 'memory_manager') and self.memory_manager:
@@ -1157,6 +1220,18 @@ class PipelineOrchestrator:
 
     def _should_use_model_parallelization(self, stage: StageDefinition) -> bool:
         """Determine if a stage should use model-level parallelization."""
+
+        # Safety gate: DuckDB single-file databases do not support concurrent writer
+        # processes. Running multiple dbt processes in parallel will contend on the
+        # database file lock and fail. Detect this environment and disable
+        # model-level parallelization entirely.
+        try:
+            db_path = getattr(self.db_manager, "db_path", None)
+            if db_path and str(db_path).endswith(".duckdb"):
+                return False
+        except Exception:
+            # If detection fails, fall through to conservative defaults below
+            pass
 
         # Don't use for stages that require strict sequencing
         sequential_stages = {

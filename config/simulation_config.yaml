@@ -410,7 +410,7 @@ orchestrator:
 
     # Epic E067 Story S067-02: Model-Level Parallelization Configuration
     model_parallelization:
-      enabled: false  # Temporarily disable for testing basic threading
+      enabled: true   # Enable model-level parallelization for performance
       max_workers: 4  # Maximum parallel workers for model execution
       memory_limit_mb: 6000.0  # Memory limit for parallel execution (6GB)
       deterministic_execution: true  # Ensure reproducible results (CRITICAL for financial simulations)
