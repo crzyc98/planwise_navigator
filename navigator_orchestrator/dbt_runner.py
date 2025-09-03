@@ -341,10 +341,9 @@ class DbtRunner:
                     res = test_subprocess_with_proxy(
                         cmd,
                         env=env,
-                        timeout=None  # Use configured timeout from network settings
+                        timeout=None,  # Use configured timeout from network settings
+                        cwd=self.working_dir,
                     )
-                    # Convert to same interface as subprocess.run
-                    res.cwd = self.working_dir
                 except ImportError:
                     # Fallback to standard subprocess
                     res = subprocess.run(

@@ -1,0 +1,63 @@
+{
+  "year_simulation_2025": {
+    "operation": "year_simulation_2025",
+    "duration_seconds": 60.265,
+    "memory_delta_mb": 87.62,
+    "peak_memory_mb": 440.78,
+    "cpu_percent": 6.5,
+    "status": "success",
+    "error": null,
+    "year": 2025
+  },
+  "year_simulation_2026": {
+    "operation": "year_simulation_2026",
+    "duration_seconds": 55.518,
+    "memory_delta_mb": -75.72,
+    "peak_memory_mb": 702.25,
+    "cpu_percent": 6.8,
+    "status": "success",
+    "error": null,
+    "year": 2026
+  },
+  "year_simulation_2027": {
+    "operation": "year_simulation_2027",
+    "duration_seconds": 54.459,
+    "memory_delta_mb": -87.62,
+    "peak_memory_mb": 691.02,
+    "cpu_percent": 7.1,
+    "status": "success",
+    "error": null,
+    "year": 2027
+  },
+  "year_simulation_2028": {
+    "operation": "year_simulation_2028",
+    "duration_seconds": 54.019,
+    "memory_delta_mb": 102.11,
+    "peak_memory_mb": 598.8,
+    "cpu_percent": 7.0,
+    "status": "success",
+    "error": null,
+    "year": 2028
+  },
+  "year_simulation_2029": {
+    "operation": "year_simulation_2029",
+    "duration_seconds": 54.553,
+    "memory_delta_mb": -160.25,
+    "peak_memory_mb": 802.73,
+    "cpu_percent": 7.0,
+    "status": "success",
+    "error": null,
+    "year": 2029
+  },
+  "multi_year_run": {
+    "operation": "multi_year_run",
+    "duration_seconds": 280.291,
+    "memory_delta_mb": 374.41,
+    "peak_memory_mb": 639.97,
+    "cpu_percent": 80.8,
+    "status": "success",
+    "error": null,
+    "start_year": 2025,
+    "end_year": 2029
+  }
+}

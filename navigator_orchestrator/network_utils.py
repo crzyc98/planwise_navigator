@@ -386,8 +386,12 @@ def create_network_client(config_path: Optional[str] = None) -> CorporateNetwork
     return CorporateNetworkClient(config)
 
 
-def test_subprocess_with_proxy(command: List[str], env: Optional[Dict[str, str]] = None,
-                              timeout: Optional[int] = None) -> subprocess.CompletedProcess:
+def test_subprocess_with_proxy(
+    command: List[str],
+    env: Optional[Dict[str, str]] = None,
+    timeout: Optional[int] = None,
+    cwd: Optional[Union[str, Path]] = None,
+) -> subprocess.CompletedProcess:
     """
     Execute subprocess command with proxy environment variables.
 
@@ -434,7 +438,8 @@ def test_subprocess_with_proxy(command: List[str], env: Optional[Dict[str, str]]
             timeout=timeout,
             capture_output=True,
             text=True,
-            check=False
+            check=False,
+            cwd=str(cwd) if cwd is not None else None,
         )
     except subprocess.TimeoutExpired as e:
         # Create a mock CompletedProcess for timeout

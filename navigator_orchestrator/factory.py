@@ -79,7 +79,7 @@ class OrchestratorBuilder:
             dv.register_rule(r)
 
         runner = DbtRunner(
-            working_dir=Path("dbt").resolve(),  # Use absolute path to avoid working directory issues
+            working_dir=Path("dbt"),  # Use relative dbt path
             threads=thread_count,
             executable=self._dbt_executable,
             database_path=str(self._db.db_path),
