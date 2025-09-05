@@ -28,7 +28,8 @@
       "Bash(PYTHONPATH=. python -m navigator_orchestrator run --years 2025-2026 --threads 4 --verbose)",
       "Bash(./scripts/optimize_storage.sh:*)",
       "Bash(./optimize_storage.sh)",
-      "Bash(cat:*)"
+      "Bash(cat:*)",
+      "Bash(gh pr view:*)"
     ],
     "deny": [],
     "ask": []
