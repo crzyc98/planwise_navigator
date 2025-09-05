@@ -1,4 +1,7 @@
-{{ config(materialized='table') }}
+{{ config(
+    materialized='table',
+    tags=['FOUNDATION']
+) }}
 
 -- Compensation parameter levers staging model
 

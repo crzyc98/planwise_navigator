@@ -1,0 +1,182 @@
+# PlanWise Navigator Hybrid Pipeline Configuration (E068G)
+#
+# This configuration demonstrates the hybrid pipeline integration that supports
+# both SQL-based (traditional dbt models) and Polars-based (bulk factory) event generation.
+#
+# Key Features:
+# - Seamless mode switching between SQL and Polars
+# - Performance monitoring and comparison
+# - Automatic fallback mechanisms
+# - Optimized threading for each mode
+
+# Core simulation settings
+simulation:
+  start_year: 2025
+  end_year: 2029
+  random_seed: 12345
+  target_growth_rate: 0.03
+
+# Compensation parameters
+compensation:
+  cola_rate: 0.015     # 1.5% cost of living adjustment
+  merit_budget: 0.040  # 4.0% merit increase budget
+
+  # Epic E059: Enhanced promotion compensation
+  promotion_compensation:
+    base_increase_pct: 0.20          # 20% base promotion increase
+    distribution_range: 0.05         # ±5% variation around base
+    max_cap_pct: 0.30               # 30% maximum increase
+    max_cap_amount: 500000          # $500k maximum increase
+    distribution_type: "uniform"     # uniform, normal, deterministic
+    level_overrides:
+      1: 0.25  # Level 1 gets higher increases
+      2: 0.22
+      3: 0.20
+      4: 0.18
+      5: 0.15
+
+# Workforce modeling
+workforce:
+  total_termination_rate: 0.12
+  new_hire_termination_rate: 0.25
+
+# Performance optimization with hybrid event generation (E068G)
+optimization:
+  level: "high"
+  max_workers: 4
+  batch_size: 1000
+  memory_limit_gb: 8.0
+
+  # E068G: Event generation mode configuration
+  event_generation:
+    mode: "polars"  # "sql" or "polars"
+
+    # Polars-specific configuration
+    polars:
+      enabled: true
+      max_threads: 16                    # Maximum threads for Polars operations
+      batch_size: 10000                  # Employee processing batch size
+      output_path: "data/parquet/events" # Partitioned Parquet output directory
+      enable_compression: true           # Enable zstd compression
+      compression_level: 6               # Compression level (1-22)
+      enable_profiling: false            # Enable Polars query profiling
+      max_memory_gb: 8.0                # Memory limit for Polars operations
+      lazy_evaluation: true              # Enable lazy evaluation
+      streaming: true                    # Enable streaming mode
+      parallel_io: true                  # Enable parallel I/O
+      fallback_on_error: true           # Auto-fallback to SQL on errors
+
+  # E068C: Threading configuration
+  e068c_threading:
+    dbt_threads: 6          # dbt execution threads
+    event_shards: 1         # Event sharding (1 = no sharding)
+    max_parallel_years: 1   # Sequential year processing for determinism
+
+  # Adaptive memory management
+  adaptive_memory:
+    enabled: true
+    monitoring_interval_seconds: 1.0
+    history_size: 100
+
+    thresholds:
+      moderate_mb: 2000.0
+      high_mb: 3000.0
+      critical_mb: 3500.0
+      gc_trigger_mb: 2500.0
+      fallback_trigger_mb: 3200.0
+
+    batch_sizes:
+      low: 250
+      medium: 500
+      high: 1000
+      fallback: 100
+
+    auto_gc_enabled: true
+    fallback_enabled: true
+    profiling_enabled: false
+
+# Enterprise identifiers
+scenario_id: "hybrid_demo"
+plan_design_id: "polars_vs_sql_2025"
+
+# Enrollment settings
+enrollment:
+  auto_enrollment:
+    enabled: true
+    scope: "all_eligible_employees"
+    hire_date_cutoff: null
+    window_days: 45
+    default_deferral_rate: 0.06
+    opt_out_grace_period: 30
+
+    opt_out_rates:
+      by_age:
+        young: 0.10
+        mid_career: 0.07
+        mature: 0.05
+        senior: 0.03
+      by_income:
+        low_income: 1.20
+        moderate: 1.00
+        high: 0.70
+        executive: 0.50
+
+  proactive_enrollment:
+    enabled: true
+    timing_window:
+      min_days: 7
+      max_days: 35
+
+  timing:
+    business_day_adjustment: true
+
+# Plan eligibility
+eligibility:
+  waiting_period_days: null
+
+plan_eligibility:
+  minimum_age: null
+
+# Epic E058: Employer match configuration
+employer_match:
+  active_formula: "simple_match"
+  apply_eligibility: false
+  eligibility:
+    minimum_tenure_years: 0
+    require_active_at_year_end: true
+    minimum_hours_annual: 1000
+    allow_new_hires: true
+    allow_terminated_new_hires: false
+    allow_experienced_terminations: false
+  formulas:
+    simple_match:
+      match_rate: 0.50
+      match_cap: 0.06
+    enhanced_match:
+      match_rate: 1.00
+      match_cap: 0.04
+
+# Epic E039: Employer core contribution
+employer_core_contribution:
+  enabled: false
+  contribution_rate: 0.03
+  eligibility:
+    minimum_tenure_years: 1
+    require_active_at_year_end: true
+    minimum_hours_annual: 1000
+    allow_new_hires: false
+    allow_terminated_new_hires: false
+    allow_experienced_terminations: false
+
+# Epic E035: Deferral auto-escalation
+deferral_auto_escalation:
+  enabled: true
+  effective_day: "01-01"              # January 1st
+  increment_amount: 0.01              # 1% annual increase
+  maximum_rate: 0.15                  # 15% maximum deferral rate
+  hire_date_cutoff: "2020-01-01"     # Only employees hired after this date
+  require_active_enrollment: true     # Must be actively enrolled
+
+# Deferral baseline mode
+deferral_baseline:
+  mode: "frozen"  # frozen, dynamic, or census_based

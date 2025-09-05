@@ -1,8 +1,6 @@
 {{ config(
-    materialized='incremental',
-    incremental_strategy='delete+insert',
-    unique_key=['employee_id', 'simulation_year'],
-    on_schema_change='sync_all_columns'
+  materialized='ephemeral',
+  tags=['E068A_EPHEMERAL']
 ) }}
 
 {% set simulation_year = var('simulation_year') %}
@@ -34,29 +32,32 @@
 */
 
 {% if not esc_enabled %}
--- Escalation disabled via config; return no rows but preserve schema
+-- Escalation disabled via config; return no rows but preserve fused-events schema
 SELECT
     CAST(NULL AS VARCHAR)           AS employee_id,
     CAST(NULL AS VARCHAR)           AS employee_ssn,
     CAST('deferral_escalation' AS VARCHAR) AS event_type,
     CAST(NULL AS INTEGER)           AS simulation_year,
     CAST(NULL AS DATE)              AS effective_date,
-    CAST(NULL AS DECIMAL(5,4))      AS previous_deferral_rate,
+    CAST(NULL AS VARCHAR)           AS event_details,
+    -- Back-compat columns for state accumulator
     CAST(NULL AS DECIMAL(5,4))      AS new_deferral_rate,
+    CAST(NULL AS DECIMAL(5,4))      AS previous_deferral_rate,
     CAST(NULL AS DECIMAL(5,4))      AS escalation_rate,
-    CAST(NULL AS SMALLINT)          AS current_age,
-    CAST(NULL AS DECIMAL(10,2))     AS current_tenure,
-    CAST(NULL AS SMALLINT)          AS level_id,
-    CAST(NULL AS VARCHAR)           AS age_band,
-    CAST(NULL AS VARCHAR)           AS tenure_band,
     CAST(NULL AS INTEGER)           AS new_escalation_count,
     CAST(NULL AS INTEGER)           AS max_escalations,
     CAST(NULL AS DECIMAL(5,4))      AS max_escalation_rate,
-    CAST(NULL AS VARCHAR)           AS event_details,
-    CURRENT_TIMESTAMP               AS created_at,
-    CAST(NULL AS VARCHAR)           AS parameter_scenario_id,
-    'int_deferral_rate_escalation_events' AS event_source,
-    'VALID'                         AS data_quality_flag
+    CAST(NULL AS DECIMAL(15,2))     AS compensation_amount,
+    CAST(NULL AS DECIMAL(15,2))     AS previous_compensation,
+    CAST(NULL AS DECIMAL(5,4))      AS employee_deferral_rate,
+    CAST(NULL AS DECIMAL(5,4))      AS prev_employee_deferral_rate,
+    CAST(NULL AS SMALLINT)          AS employee_age,
+    CAST(NULL AS DECIMAL(10,2))     AS employee_tenure,
+    CAST(NULL AS SMALLINT)          AS level_id,
+    CAST(NULL AS VARCHAR)           AS age_band,
+    CAST(NULL AS VARCHAR)           AS tenure_band,
+    CAST(NULL AS DECIMAL(5,4))      AS event_probability,
+    'deferral_escalation'           AS event_category
 WHERE FALSE
 {% else %}
 
@@ -261,15 +262,20 @@ escalation_events AS (
         'deferral_escalation' as event_type,
         {{ simulation_year }} as simulation_year,
         '{{ simulation_year }}-{{ esc_mmdd }}'::DATE as effective_date,
-
-        -- Rate changes
-        e.current_deferral_rate as previous_deferral_rate,
-        e.new_deferral_rate,
-        e.escalation_rate,
-
-        -- Employee context
-        e.current_age,
-        e.current_tenure,
+    'Deferral escalation: ' || ROUND(e.current_deferral_rate * 100, 1) || '% → ' || ROUND(e.new_deferral_rate * 100, 1) || '% (+' || ROUND(e.escalation_rate * 100, 1) || '%)' AS event_details,
+    -- Back-compat columns for state accumulator
+    e.new_deferral_rate AS new_deferral_rate,
+    e.current_deferral_rate AS previous_deferral_rate,
+    e.escalation_rate AS escalation_rate,
+    1 AS new_escalation_count,
+    1000 AS max_escalations,
+    e.max_escalation_rate AS max_escalation_rate,
+    NULL::DECIMAL(15,2) AS compensation_amount,
+    NULL::DECIMAL(15,2) AS previous_compensation,
+    e.new_deferral_rate AS employee_deferral_rate,
+    e.current_deferral_rate AS prev_employee_deferral_rate,
+        e.current_age AS employee_age,
+        e.current_tenure AS employee_tenure,
         e.level_id,
         -- Age and tenure bands for analysis
         CASE
@@ -287,29 +293,8 @@ escalation_events AS (
             WHEN e.current_tenure < 20 THEN '10-19'
             ELSE '20+'
         END as tenure_band,
-
-        -- Escalation tracking
-        e.total_previous_escalations + 1 as new_escalation_count,
-        e.max_escalations,
-        e.max_escalation_rate,
-
-        -- Event details for fct_yearly_events integration
-        JSON_OBJECT(
-            'previous_rate', e.current_deferral_rate,
-            'new_rate', e.new_deferral_rate,
-            'escalation_amount', e.escalation_rate,
-            'escalation_count', e.total_previous_escalations + 1,
-            'max_rate', e.max_escalation_rate,
-            'reason', 'automatic_annual_escalation'
-        )::VARCHAR as event_details,
-
-        -- Metadata
-        CURRENT_TIMESTAMP as created_at,
-        'default' as parameter_scenario_id,
-        'int_deferral_rate_escalation_events' as event_source,
-
-        -- Data quality
-        'VALID' as data_quality_flag
+        e.escalation_rate AS event_probability,
+        'deferral_escalation' AS event_category
 
     FROM eligible_employees e
     WHERE

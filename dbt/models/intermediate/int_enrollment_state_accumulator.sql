@@ -7,7 +7,8 @@
         {'columns': ['simulation_year'], 'type': 'btree'},
         {'columns': ['employee_id'], 'type': 'btree'},
         {'columns': ['enrollment_status'], 'type': 'btree'}
-    ]
+    ],
+    tags=['STATE_ACCUMULATION']
 ) }}
 
 /*

@@ -16,7 +16,19 @@
       "Bash(tree:*)",
       "Bash(PYTHONPATH=/Users/nicholasamaral/planwise_navigator python -m navigator_orchestrator run --years 2025-2025 --threads 4 --verbose --force-restart)",
       "Bash(rm:*)",
-      "Read(//**)"
+      "Read(//**)",
+      "Bash(git checkout:*)",
+      "Bash(sed:*)",
+      "Bash(duckdb:*)",
+      "Bash(time dbt run:*)",
+      "Bash(grep:*)",
+      "Bash(PYTHONPATH=. python -c \"import navigator_orchestrator; print(''Success'')\")",
+      "Bash(time python:*)",
+      "Bash(PYTHONPATH=. time python -m navigator_orchestrator run --years 2025-2026 --threads 4 --verbose)",
+      "Bash(PYTHONPATH=. python -m navigator_orchestrator run --years 2025-2026 --threads 4 --verbose)",
+      "Bash(./scripts/optimize_storage.sh:*)",
+      "Bash(./optimize_storage.sh)",
+      "Bash(cat:*)"
     ],
     "deny": [],
     "ask": []

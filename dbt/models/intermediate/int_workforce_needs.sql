@@ -7,7 +7,7 @@
         {'columns': ['simulation_year', 'scenario_id'], 'type': 'btree'},
         {'columns': ['level_id'], 'type': 'btree'}
     ],
-    tags=['workforce_planning', 'core_calculations']
+    tags=['FOUNDATION', 'workforce_planning', 'core_calculations']
 ) }}
 
 -- Centralized workforce planning calculations

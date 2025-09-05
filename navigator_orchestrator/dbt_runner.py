@@ -196,6 +196,7 @@ class DbtRunner:
         *,
         simulation_year: Optional[int] = None,
         dbt_vars: Optional[Dict[str, Any]] = None,
+        threads: Optional[int] = None,
     ) -> List[str]:
         cmd: List[str] = [self.executable, *command_args]
 
@@ -233,7 +234,8 @@ class DbtRunner:
                 "run-operation",
             ]
             if any(c in command_args for c in threads_supported_commands):
-                effective_threads = self.threads if self.threading_enabled else 1
+                # Use provided threads parameter or instance default
+                effective_threads = threads or (self.threads if self.threading_enabled else 1)
                 cmd.extend(["--threads", str(effective_threads)])
 
                 # Log threading performance information
@@ -249,6 +251,7 @@ class DbtRunner:
         description: str = "Running dbt command",
         simulation_year: Optional[int] = None,
         dbt_vars: Optional[Dict[str, Any]] = None,
+        threads: Optional[int] = None,
         stream_output: bool = True,
         on_line: Optional[Callable[[str], None]] = None,
         retry: bool = True,
@@ -269,6 +272,7 @@ class DbtRunner:
                 description=description,
                 simulation_year=simulation_year,
                 dbt_vars=dbt_vars,
+                threads=threads,
                 stream_output=stream_output,
                 on_line=on_line,
             )
@@ -312,6 +316,7 @@ class DbtRunner:
         description: str,
         simulation_year: Optional[int],
         dbt_vars: Optional[Dict[str, Any]],
+        threads: Optional[int],
         stream_output: bool,
         on_line: Optional[Callable[[str], None]],
     ) -> DbtResult:
@@ -319,6 +324,7 @@ class DbtRunner:
             command_args,
             simulation_year=simulation_year,
             dbt_vars=dbt_vars,
+            threads=threads,
         )
 
         start = time.perf_counter()
@@ -681,3 +687,107 @@ class DbtRunner:
 
         if self.verbose:
             print("🔄 Model-level parallelization disabled")
+
+
+    def execute_command_with_threads(
+        self,
+        command_args: Sequence[str],
+        threads: int,
+        **kwargs: Any
+    ) -> DbtResult:
+        """Execute dbt command with explicit thread count (E068C)."""
+        # Temporarily override thread count
+        original_threads = self.threads
+        self.threads = threads
+
+        try:
+            return self.execute_command(command_args, **kwargs)
+        finally:
+            # Restore original thread count
+            self.threads = original_threads
+
+    def run_models_by_tag(
+        self,
+        tag: str,
+        simulation_year: int,
+        threads: Optional[int] = None,
+        **kwargs: Any,
+    ) -> DbtResult:
+        """Run all models with specified tag in parallel.
+
+        Args:
+            tag: dbt tag to select (e.g., 'EVENT_GENERATION', 'STATE_ACCUMULATION')
+            simulation_year: Simulation year for dbt vars
+            threads: Optional thread count override
+            **kwargs: Additional arguments passed to execute_command
+
+        Returns:
+            DbtResult from the tag-based model execution
+        """
+        effective_threads = threads or self.threads
+
+        if self.verbose:
+            print(f"🏷️ Running models with tag '{tag}' for year {simulation_year} (threads={effective_threads})")
+
+        return self.execute_command(
+            ["run", "--select", f"tag:{tag}"],
+            simulation_year=simulation_year,
+            **kwargs
+        )
+
+    def run_stage_models(
+        self,
+        stage: str,
+        simulation_year: int,
+        threads: Optional[int] = None,
+        **kwargs: Any,
+    ) -> List[DbtResult]:
+        """Run all models for a workflow stage with optimal threading.
+
+        Args:
+            stage: Workflow stage name (e.g., 'EVENT_GENERATION', 'STATE_ACCUMULATION')
+            simulation_year: Simulation year for dbt vars
+            threads: Optional thread count override
+            **kwargs: Additional arguments passed to execute_command
+
+        Returns:
+            List of DbtResult objects from stage execution
+        """
+        results = []
+        effective_threads = threads or self.threads
+
+        if self.verbose:
+            print(f"🎭 Running stage '{stage}' for year {simulation_year} (threads={effective_threads})")
+
+        # Map stage names to their execution strategy
+        if stage in ["EVENT_GENERATION", "STATE_ACCUMULATION", "VALIDATION", "FOUNDATION"]:
+            # Single parallel call for optimized stages
+            result = self.run_models_by_tag(stage, simulation_year, threads=effective_threads, **kwargs)
+            results.append(result)
+
+        elif stage == "INITIALIZATION":
+            # Run staging models sequentially for safety
+            result = self.execute_command(
+                ["run", "--select", "staging.*"],
+                simulation_year=simulation_year,
+                **kwargs
+            )
+            results.append(result)
+
+        elif stage == "REPORTING":
+            # Run reporting models with moderate threading
+            result = self.execute_command(
+                ["run", "--select", "tag:REPORTING"],
+                simulation_year=simulation_year,
+                **kwargs
+            )
+            results.append(result)
+
+        else:
+            # Legacy support: if stage is not recognized, try as tag
+            if self.verbose:
+                print(f"⚠️ Unknown stage '{stage}', attempting as tag")
+            result = self.run_models_by_tag(stage, simulation_year, threads=effective_threads, **kwargs)
+            results.append(result)
+
+        return results

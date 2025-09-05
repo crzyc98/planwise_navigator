@@ -2,7 +2,8 @@
     materialized='table',
     contract={
         "enforced": true
-    }
+    },
+    tags=['FOUNDATION']
 ) }}
 
 -- Standardize raw census data column names to PlanWise Navigator's canonical schema.

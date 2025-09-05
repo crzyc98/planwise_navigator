@@ -1,4 +1,7 @@
-{{ config(materialized='table') }}
+{{ config(
+  materialized='ephemeral',
+  tags=['E068A_EPHEMERAL']
+) }}
 
 {% set simulation_year = var('simulation_year') %}
 
@@ -32,7 +35,6 @@ eligible_new_hires AS (
         nh.level_id,
         nh.compensation_amount,
         nh.employee_age,
-        nh.birth_date,
         nh.effective_date AS hire_date,
         CAST('{{ simulation_year }}-12-31' AS DATE) AS year_end,
         -- Days between hire and year end
