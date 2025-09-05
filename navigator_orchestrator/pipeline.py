@@ -9,16 +9,19 @@ multi-year simulations with basic checkpoint/restart support.
 from __future__ import annotations
 
 import json
+import logging
 from dataclasses import dataclass
 from datetime import datetime
 from enum import Enum
 from navigator_orchestrator.config import get_database_path
 from pathlib import Path
 from typing import Any, Dict, List, Optional
+import time
+import json
 
 from .adaptive_memory_manager import AdaptiveMemoryManager, create_adaptive_memory_manager, OptimizationLevel
 from .checkpoint_manager import CheckpointManager
-from .config import SimulationConfig, to_dbt_vars
+from .config import SimulationConfig, to_dbt_vars, PolarsEventSettings
 from .dbt_runner import DbtResult, DbtRunner
 from .recovery_orchestrator import RecoveryOrchestrator
 from .registries import RegistryManager
@@ -94,6 +97,34 @@ class PipelineOrchestrator:
         self.verbose = verbose
         self._dbt_vars = to_dbt_vars(config)
 
+        # E068C: Extract threading configuration from new structured config
+        e068c_config = config.get_e068c_threading_config()
+        self.dbt_threads = e068c_config.dbt_threads
+        self.event_shards = e068c_config.event_shards
+        self.max_parallel_years = e068c_config.max_parallel_years
+
+        # E068G: Extract event generation configuration
+        self.event_generation_mode = config.get_event_generation_mode()
+        self.polars_settings = config.get_polars_settings()
+        self.is_polars_enabled = config.is_polars_mode_enabled()
+
+        # Log E068C threading configuration
+        if self.verbose:
+            print(f"🧵 E068C Threading Configuration:")
+            print(f"   dbt_threads: {self.dbt_threads}")
+            print(f"   event_shards: {self.event_shards}")
+            print(f"   max_parallel_years: {self.max_parallel_years}")
+
+            # E068G: Log event generation configuration
+            print(f"🔄 E068G Event Generation Configuration:")
+            print(f"   mode: {self.event_generation_mode}")
+            if self.event_generation_mode == "polars":
+                print(f"   polars_enabled: {self.is_polars_enabled}")
+                print(f"   max_threads: {self.polars_settings.max_threads}")
+                print(f"   batch_size: {self.polars_settings.batch_size:,}")
+                print(f"   output_path: {self.polars_settings.output_path}")
+                print(f"   fallback_on_error: {self.polars_settings.fallback_on_error}")
+
         # Enhanced compensation parameter visibility
         self._log_compensation_parameters()
         self._validate_compensation_parameters()
@@ -131,6 +162,12 @@ class PipelineOrchestrator:
 
         # S067-02: Model-level parallelization setup
         self._setup_model_parallelization()
+
+        # E068D: Initialize hazard cache manager for automatic change detection
+        self._setup_hazard_cache_manager()
+
+        # E068E: Initialize DuckDB performance monitoring system
+        self._setup_performance_monitoring()
 
         # Enhanced checkpoint system
         self.enhanced_checkpoints = enhanced_checkpoints
@@ -390,9 +427,124 @@ class PipelineOrchestrator:
                 print(f"⚠️ Failed to create resource manager: {e}")
             return None
 
-    def _cleanup_resources(self) -> None:
-        """Cleanup resource management components (S067-03)"""
+    def _setup_hazard_cache_manager(self) -> None:
+        """Setup hazard cache manager for automatic change detection (E068D)"""
         try:
+            from .hazard_cache_manager import HazardCacheManager
+
+            # Initialize hazard cache manager
+            self.hazard_cache_manager = HazardCacheManager(
+                config=self.config,
+                dbt_runner=self.dbt_runner,
+                logger=logging.getLogger(f"{__name__}.HazardCacheManager")
+            )
+
+            if self.verbose:
+                print("🗄️ Hazard Cache Manager initialized")
+                # Display cache status for debugging
+                try:
+                    cache_status = self.hazard_cache_manager.get_cache_status()
+                    current_hash = cache_status.get('current_params_hash', 'N/A')
+                    cached_hash = cache_status.get('cached_params_hash', 'N/A')
+                    needs_rebuild = cache_status.get('needs_rebuild', True)
+
+                    print(f"   Current params hash: {current_hash[:16] if current_hash != 'N/A' else 'N/A'}...")
+                    print(f"   Cached params hash: {cached_hash[:16] if cached_hash != 'N/A' else 'N/A'}...")
+                    print(f"   Cache rebuild needed: {needs_rebuild}")
+                    print(f"   Cache models: {len(cache_status.get('cache_models', []))}")
+                except Exception as e:
+                    print(f"   ⚠️ Could not get cache status: {e}")
+
+        except ImportError as e:
+            if self.verbose:
+                print(f"⚠️ Hazard cache manager not available: {e}")
+            self.hazard_cache_manager = None
+        except Exception as e:
+            if self.verbose:
+                print(f"⚠️ Failed to initialize hazard cache manager: {e}")
+            self.hazard_cache_manager = None
+
+    def _setup_performance_monitoring(self) -> None:
+        """Setup E068E DuckDB performance monitoring system"""
+        try:
+            from .performance_monitor import DuckDBPerformanceMonitor
+
+            # Get database path from db_manager or use default
+            db_path = getattr(self.db_manager, "db_path", get_database_path())
+
+            # Initialize DuckDB performance monitor
+            self.duckdb_performance_monitor = DuckDBPerformanceMonitor(
+                database_path=db_path,
+                logger=logging.getLogger(f"{__name__}.DuckDBPerformanceMonitor"),
+                reports_dir=self.reports_dir / "performance"
+            )
+
+            if self.verbose:
+                print("📊 E068E DuckDB Performance Monitor initialized")
+                print(f"   Database: {db_path}")
+                print(f"   Reports: {self.reports_dir / 'performance'}")
+                print(f"   Target: 15-25% performance improvement")
+
+        except Exception as e:
+            if self.verbose:
+                print(f"⚠️ Failed to initialize DuckDB performance monitoring: {e}")
+                print("   Continuing without E068E performance monitoring")
+            self.duckdb_performance_monitor = None
+
+    def _setup_hybrid_performance_monitoring(self) -> None:
+        """Setup E068G hybrid performance monitoring system for SQL/Polars comparison"""
+        try:
+            # Initialize hybrid performance monitor
+            self.hybrid_performance_monitor = HybridPerformanceMonitor(
+                reports_dir=self.reports_dir / "hybrid_performance"
+            )
+
+            if self.verbose:
+                print("🔄 E068G Hybrid Performance Monitor initialized")
+                print(f"   Mode switching: {self.event_generation_mode}")
+                print(f"   Reports: {self.reports_dir / 'hybrid_performance'}")
+                if self.is_polars_enabled:
+                    print(f"   Polars target: ≤60s for multi-year generation")
+                    print(f"   Fallback enabled: {self.polars_settings.fallback_on_error}")
+
+        except Exception as e:
+            if self.verbose:
+                print(f"⚠️ Failed to initialize hybrid performance monitoring: {e}")
+                print("   Continuing without E068G performance monitoring")
+            self.hybrid_performance_monitor = None
+
+    def _cleanup_resources(self) -> None:
+        """Cleanup resource management components (S067-03) and E068E performance monitoring"""
+        try:
+            # E068E: Stop DuckDB performance monitoring and generate final report
+            if hasattr(self, 'duckdb_performance_monitor') and self.duckdb_performance_monitor:
+                try:
+                    self.duckdb_performance_monitor.stop_monitoring()
+
+                    # Generate and save final performance report
+                    report = self.duckdb_performance_monitor.generate_report()
+                    if self.verbose and report:
+                        print("\n📊 E068E DuckDB Performance Summary:")
+                        # Print first few lines of the report
+                        report_lines = report.split('\n')
+                        for line in report_lines[:15]:  # First 15 lines
+                            print(f"   {line}")
+                        if len(report_lines) > 15:
+                            print("   ... (full report saved to performance directory)")
+
+                    # Export detailed performance data
+                    try:
+                        export_path = self.duckdb_performance_monitor.export_performance_data()
+                        if self.verbose:
+                            print(f"   📁 Performance data exported: {export_path}")
+                    except Exception as e:
+                        if self.verbose:
+                            print(f"   ⚠️ Failed to export performance data: {e}")
+
+                except Exception as e:
+                    if self.verbose:
+                        print(f"⚠️ Error stopping DuckDB performance monitoring: {e}")
+
             if hasattr(self, 'resource_manager') and self.resource_manager:
                 # Stop resource monitoring
                 self.resource_manager.stop_monitoring()
@@ -452,6 +604,12 @@ class PipelineOrchestrator:
             if self.verbose:
                 initial_snapshot = self.memory_manager.force_memory_check("simulation_startup")
                 print(f"🧠 Initial memory: {initial_snapshot.rss_mb:.1f}MB (pressure: {initial_snapshot.pressure_level.value})")
+
+        # E068E: Start DuckDB performance monitoring
+        if hasattr(self, 'duckdb_performance_monitor') and self.duckdb_performance_monitor:
+            self.duckdb_performance_monitor.start_monitoring()
+            if self.verbose:
+                print("📊 E068E DuckDB performance monitoring started")
 
         # Wrap the entire run in a performance-tracked operation when observability is enabled
         if self.observability:
@@ -667,6 +825,16 @@ class PipelineOrchestrator:
         except Exception:
             pass
 
+        # Generate and save hybrid performance report (E068G)
+        if hasattr(self, 'hybrid_performance_monitor') and self.hybrid_performance_monitor:
+            try:
+                report_path = self.hybrid_performance_monitor.save_performance_report()
+                if self.verbose:
+                    print(f"📊 Hybrid performance report saved: {report_path}")
+            except Exception as e:
+                if self.verbose:
+                    print(f"⚠️ Failed to save hybrid performance report: {e}")
+
         # Cleanup resource management components (S067-03)
         self._cleanup_resources()
 
@@ -678,7 +846,357 @@ class PipelineOrchestrator:
         except Exception:
             pass
 
+        # E068C: Add threading configuration to summary
+        if hasattr(summary, '__dict__'):
+            summary.threading_config = {
+                "dbt_threads": self.dbt_threads,
+                "event_shards": self.event_shards,
+                "event_generation_mode": self.config.get_event_generation_mode(),
+                "polars_enabled": self.config.is_polars_mode_enabled()
+            }
+
         return summary
+
+    def execute_workflow_stage(
+        self,
+        stage: StageDefinition,
+        year: int
+    ) -> Dict[str, Any]:
+        """Execute a workflow stage with optimal threading (E068C)."""
+        start_time = time.time()
+
+        try:
+            if self.verbose:
+                print(f"   📋 Starting {stage.name.value} with {self.dbt_threads} threads")
+
+            # Execute stage with appropriate threading strategy
+            if stage.name in (WorkflowStage.EVENT_GENERATION, WorkflowStage.STATE_ACCUMULATION):
+                results = self._execute_parallel_stage(stage, year)
+            else:
+                # Use existing sequential execution for other stages
+                self._run_stage_models(stage, year)
+                results = []
+
+            execution_time = time.time() - start_time
+            if self.verbose:
+                print(f"   ✅ Completed {stage.name.value} in {execution_time:.1f}s")
+
+            return {
+                "stage": stage.name.value,
+                "year": year,
+                "success": True,
+                "execution_time": execution_time,
+                "results": results
+            }
+
+        except Exception as e:
+            execution_time = time.time() - start_time
+            if self.verbose:
+                print(f"   ❌ Failed {stage.name.value} after {execution_time:.1f}s: {e}")
+
+            return {
+                "stage": stage.name.value,
+                "year": year,
+                "success": False,
+                "execution_time": execution_time,
+                "error": str(e)
+            }
+
+    def _execute_parallel_stage(
+        self,
+        stage: StageDefinition,
+        year: int
+    ) -> List[DbtResult]:
+        """Execute stage with dbt parallelization using tag-based selection (E068C)."""
+
+        if stage.name == WorkflowStage.EVENT_GENERATION and self.event_shards > 1:
+            return self._execute_sharded_event_generation(year)
+        else:
+            # Single parallel execution per stage using tags
+            tag_name = stage.name.value.upper()
+
+            if self.verbose:
+                print(f"   🚀 Executing tag:{tag_name} with {self.dbt_threads} threads")
+
+            result = self.dbt_runner.execute_command(
+                ["run", "--select", f"tag:{tag_name}"],
+                simulation_year=year,
+                dbt_vars=self._dbt_vars,
+                stream_output=True
+            )
+
+            if not result.success:
+                raise PipelineStageError(
+                    f"Parallel stage {stage.name.value} failed with code {result.return_code}"
+                )
+
+            return [result]
+
+    def _execute_sharded_event_generation(self, year: int) -> List[DbtResult]:
+        """Execute event generation with optional sharding for large datasets (E068C)."""
+        results = []
+
+        if self.verbose:
+            print(f"   🔀 Executing event generation with {self.event_shards} shards")
+
+        # Execute sharded event generation in parallel
+        for shard_id in range(self.event_shards):
+            shard_vars = self._dbt_vars.copy()
+            shard_vars.update({
+                "shard_id": shard_id,
+                "total_shards": self.event_shards
+            })
+
+            result = self.dbt_runner.execute_command(
+                ["run", "--select", f"events_y{year}_shard{shard_id}"],
+                simulation_year=year,
+                dbt_vars=shard_vars,
+                stream_output=True
+            )
+            results.append(result)
+
+            if not result.success:
+                raise PipelineStageError(
+                    f"Event shard {shard_id} failed with code {result.return_code}"
+                )
+
+        # Execute final union writer
+        union_result = self.dbt_runner.execute_command(
+            ["run", "--select", "fct_yearly_events"],
+            simulation_year=year,
+            dbt_vars=self._dbt_vars,
+            stream_output=True
+        )
+        results.append(union_result)
+
+        if not union_result.success:
+            raise PipelineStageError(
+                f"Event union writer failed with code {union_result.return_code}"
+            )
+
+        return results
+
+    def _execute_hybrid_event_generation(
+        self, years: List[int]
+    ) -> Dict[str, Any]:
+        """
+        Execute event generation using either SQL or Polars mode based on configuration.
+
+        This method implements the hybrid pipeline integration that supports both
+        SQL-based (traditional dbt models) and Polars-based (bulk factory) event generation.
+        """
+        event_mode = self.config.get_event_generation_mode()
+        start_time = time.time()
+
+        if self.verbose:
+            print(f"🔄 Executing event generation in {event_mode.upper()} mode for years {years}")
+
+        try:
+            if event_mode == "polars" and self.config.is_polars_mode_enabled():
+                return self._execute_polars_event_generation(years, start_time)
+            else:
+                return self._execute_sql_event_generation(years, start_time)
+        except Exception as e:
+            # Check if fallback is enabled for Polars mode
+            polars_settings = self.config.get_polars_settings()
+            if event_mode == "polars" and polars_settings.fallback_on_error:
+                if self.verbose:
+                    print(f"⚠️ Polars event generation failed: {e}")
+                    print("🔄 Falling back to SQL mode...")
+                return self._execute_sql_event_generation(years, start_time, fallback=True)
+            else:
+                raise
+
+    def _execute_polars_event_generation(
+        self, years: List[int], start_time: float, fallback: bool = False
+    ) -> Dict[str, Any]:
+        """
+        Execute event generation using Polars bulk event factory.
+
+        This provides high-performance vectorized event generation using Polars
+        with target performance of ≤60s for 5k employees × 5 years.
+        """
+        try:
+            from .polars_event_factory import PolarsEventGenerator, EventFactoryConfig
+        except ImportError as e:
+            if fallback:
+                raise ImportError(f"Polars event factory not available for fallback: {e}")
+            raise ImportError(f"Polars event factory not available: {e}. Install polars>=1.0.0")
+
+        polars_settings = self.config.get_polars_settings()
+
+        # Configure Polars event factory
+        factory_config = EventFactoryConfig(
+            start_year=min(years),
+            end_year=max(years),
+            output_path=Path(polars_settings.output_path),
+            scenario_id=getattr(self.config, 'scenario_id', 'default'),
+            plan_design_id=getattr(self.config, 'plan_design_id', 'default'),
+            random_seed=self.config.simulation.random_seed,
+            batch_size=polars_settings.batch_size,
+            enable_profiling=polars_settings.enable_profiling,
+            enable_compression=polars_settings.enable_compression,
+            compression_level=polars_settings.compression_level,
+            max_memory_gb=polars_settings.max_memory_gb,
+            lazy_evaluation=polars_settings.lazy_evaluation,
+            streaming=polars_settings.streaming,
+            parallel_io=polars_settings.parallel_io
+        )
+
+        if self.verbose:
+            print(f"📊 Polars event generation configuration:")
+            print(f"   Max threads: {polars_settings.max_threads}")
+            print(f"   Batch size: {polars_settings.batch_size:,}")
+            print(f"   Output path: {polars_settings.output_path}")
+            print(f"   Memory limit: {polars_settings.max_memory_gb}GB")
+            print(f"   Compression: {'enabled' if polars_settings.enable_compression else 'disabled'}")
+
+        # Set Polars thread count
+        import os
+        os.environ['POLARS_MAX_THREADS'] = str(polars_settings.max_threads)
+
+        # Generate events using Polars
+        generator = PolarsEventGenerator(factory_config)
+        generator.generate_multi_year_events()
+
+        polars_duration = time.time() - start_time
+        total_events = generator.stats.get('total_events_generated', 0)
+
+        if self.verbose:
+            print(f"✅ Polars event generation completed in {polars_duration:.1f}s")
+            print(f"📊 Generated {total_events:,} events")
+            if polars_duration > 0:
+                print(f"⚡ Performance: {total_events/polars_duration:.0f} events/second")
+
+            # Performance assessment
+            if polars_duration <= 60 and len(years) >= 3:
+                print("🎯 PERFORMANCE TARGET MET: ≤60s for multi-year generation")
+            elif polars_duration <= 60:
+                print("🎯 Performance target met for available years")
+            else:
+                print(f"⏰ Performance target missed: {polars_duration:.1f}s (target: ≤60s)")
+
+        # Update dbt variables to point to Polars output
+        self._dbt_vars.update({
+            'polars_events_path': str(factory_config.output_path),
+            'event_generation_mode': 'polars',
+            'polars_enabled': True
+        })
+
+        return {
+            'mode': 'polars',
+            'success': True,
+            'execution_time': polars_duration,
+            'total_events': total_events,
+            'output_path': str(factory_config.output_path),
+            'performance_target_met': polars_duration <= 60,
+            'fallback_used': fallback
+        }
+
+    def _execute_sql_event_generation(
+        self, years: List[int], start_time: float, fallback: bool = False
+    ) -> Dict[str, Any]:
+        """
+        Execute event generation using traditional SQL-based dbt models.
+
+        This uses the existing dbt event generation models with optional
+        threading and sharding optimizations.
+        """
+        if fallback and self.verbose:
+            print("🔄 Executing SQL event generation (fallback mode)")
+
+        total_events = 0
+        successful_years = []
+
+        # Execute event generation for each year using existing workflow
+        for year in years:
+            try:
+                # Use existing event generation stage execution
+                event_stage = StageDefinition(
+                    name=WorkflowStage.EVENT_GENERATION,
+                    dependencies=[WorkflowStage.FOUNDATION],
+                    models=self._get_event_generation_models(year),
+                    validation_rules=["hire_termination_ratio", "event_sequence"],
+                    parallel_safe=False
+                )
+
+                # Execute the stage using existing logic
+                if self.event_shards > 1:
+                    results = self._execute_sharded_event_generation(year)
+                else:
+                    # Single execution per stage using tags
+                    result = self.dbt_runner.execute_command(
+                        ["run", "--select", "tag:EVENT_GENERATION"],
+                        simulation_year=year,
+                        dbt_vars=self._dbt_vars,
+                        stream_output=True
+                    )
+                    results = [result]
+
+                if all(r.success for r in results):
+                    successful_years.append(year)
+                    # Count events from database
+                    def _count_events(conn):
+                        return conn.execute(
+                            "SELECT COUNT(*) FROM fct_yearly_events WHERE simulation_year = ?",
+                            [year]
+                        ).fetchone()[0]
+
+                    year_events = self.db_manager.execute_with_retry(_count_events)
+                    total_events += year_events
+                else:
+                    raise PipelineStageError(
+                        f"SQL event generation failed for year {year}"
+                    )
+
+            except Exception as e:
+                if fallback:
+                    raise PipelineStageError(f"SQL fallback failed for year {year}: {e}")
+                raise
+
+        sql_duration = time.time() - start_time
+
+        if self.verbose:
+            print(f"✅ SQL event generation completed in {sql_duration:.1f}s")
+            print(f"📊 Generated {total_events:,} events across {len(successful_years)} years")
+            if sql_duration > 0:
+                print(f"⚡ Performance: {total_events/sql_duration:.0f} events/second")
+
+        return {
+            'mode': 'sql',
+            'success': len(successful_years) == len(years),
+            'execution_time': sql_duration,
+            'total_events': total_events,
+            'successful_years': successful_years,
+            'fallback_used': fallback
+        }
+
+    def _get_event_generation_models(self, year: int) -> List[str]:
+        """
+        Get the list of event generation models for a specific year.
+
+        This matches the existing workflow definition logic.
+        """
+        models = [
+            # E049: Ensure synthetic baseline enrollment events are built in the first year
+            *([
+                "int_synthetic_baseline_enrollment_events"
+            ] if year == self.config.simulation.start_year else []),
+            "int_termination_events",
+            "int_hiring_events",
+            "int_new_hire_termination_events",
+            "int_employer_eligibility",
+            "int_hazard_promotion",
+            "int_hazard_merit",
+            "int_promotion_events",
+            "int_merit_events",
+            "int_eligibility_determination",
+            "int_voluntary_enrollment_decision",
+            "int_proactive_voluntary_enrollment",
+            "int_enrollment_events",
+            "int_deferral_rate_escalation_events",
+        ]
+        return models
 
     def _execute_year_workflow(
         self, year: int, *, fail_on_validation_error: bool
@@ -687,6 +1205,19 @@ class PipelineOrchestrator:
 
         # Optional: clear existing rows for this year based on config.setup
         self._maybe_clear_year_data(year)
+
+        # E068D: Ensure hazard caches are current before workflow execution
+        if hasattr(self, 'hazard_cache_manager') and self.hazard_cache_manager:
+            try:
+                if self.verbose:
+                    print("🗄️ Checking hazard cache currency...")
+                self.hazard_cache_manager.ensure_hazard_caches_current()
+            except Exception as e:
+                error_msg = f"Hazard cache management failed: {e}"
+                if self.verbose:
+                    print(f"⚠️ {error_msg}")
+                # Log error but continue execution (non-fatal for backward compatibility)
+                logging.getLogger(__name__).warning(error_msg)
 
         # Ensure seeds are loaded once
         if not self._seeded:
@@ -704,6 +1235,51 @@ class PipelineOrchestrator:
 
         for stage in workflow:
             print(f"   📋 Executing stage: {stage.name.value}")
+
+            # E068E: Record performance checkpoint before stage execution
+            if hasattr(self, 'duckdb_performance_monitor') and self.duckdb_performance_monitor:
+                checkpoint_name = f"{stage.name.value}_{year}_start"
+                self.duckdb_performance_monitor.record_checkpoint(checkpoint_name)
+
+            # E068G: Use hybrid event generation for EVENT_GENERATION stage
+            if stage.name == WorkflowStage.EVENT_GENERATION:
+                try:
+                    hybrid_result = self._execute_hybrid_event_generation([year])
+                    if not hybrid_result['success']:
+                        raise PipelineStageError(f"Hybrid event generation failed: {hybrid_result}")
+
+                    if self.verbose:
+                        mode = hybrid_result['mode'].upper()
+                        duration = hybrid_result['execution_time']
+                        events = hybrid_result['total_events']
+                        print(f"✅ {mode} event generation completed: {events:,} events in {duration:.1f}s")
+                        if hybrid_result.get('fallback_used'):
+                            print("⚡ Used fallback mode due to primary mode failure")
+
+                    # E068E: Record performance checkpoint after stage completion
+                    if hasattr(self, 'duckdb_performance_monitor') and self.duckdb_performance_monitor:
+                        checkpoint_name = f"{stage.name.value}_{year}_complete"
+                        self.duckdb_performance_monitor.record_checkpoint(checkpoint_name)
+
+                    # Skip the rest of the existing stage execution logic
+                    continue
+
+                except Exception as e:
+                    raise PipelineStageError(f"Hybrid event generation failed for year {year}: {e}")
+
+            # E068C: Use new workflow stage execution method for other supported stages
+            elif stage.name in (WorkflowStage.STATE_ACCUMULATION,):
+                stage_result = self.execute_workflow_stage(stage, year)
+                if not stage_result["success"]:
+                    raise PipelineStageError(f"Stage {stage.name.value} failed: {stage_result.get('error', 'Unknown error')}")
+
+                # E068E: Record performance checkpoint after stage completion
+                if hasattr(self, 'duckdb_performance_monitor') and self.duckdb_performance_monitor:
+                    checkpoint_name = f"{stage.name.value}_{year}_complete"
+                    self.duckdb_performance_monitor.record_checkpoint(checkpoint_name)
+
+                # Skip the rest of the existing stage execution logic
+                continue
 
             # Advanced resource management hooks (S067-03)
             if hasattr(self, 'resource_manager') and self.resource_manager:
@@ -781,6 +1357,11 @@ class PipelineOrchestrator:
                         if post_stage_snapshot.pressure_level != pre_stage_snapshot.pressure_level:
                             print(f"   🧠 Memory pressure changed: {pre_stage_snapshot.pressure_level.value} → {post_stage_snapshot.pressure_level.value}")
                             print(f"   🧠 Batch size: {self.memory_manager.get_current_batch_size()}")
+
+            # E068E: Record performance checkpoint after stage completion (for non-specialized stages)
+            if hasattr(self, 'duckdb_performance_monitor') and self.duckdb_performance_monitor:
+                checkpoint_name = f"{stage.name.value}_{year}_complete"
+                self.duckdb_performance_monitor.record_checkpoint(checkpoint_name)
 
             # Comprehensive validation for foundation models
             if stage.name == WorkflowStage.FOUNDATION:
@@ -1609,6 +2190,8 @@ class PipelineOrchestrator:
                 dependencies=[WorkflowStage.EVENT_GENERATION],
                 models=[
                     "fct_yearly_events",
+                    # Epic E068B: Build employee state accumulator early for O(1) state access
+                    "int_employee_state_by_year",
                     # Build proration snapshot before contributions so all bases are prorated
                     "int_workforce_snapshot_optimized",
                     "int_enrollment_state_accumulator",

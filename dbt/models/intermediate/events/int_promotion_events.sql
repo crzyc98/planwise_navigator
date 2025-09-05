@@ -1,12 +1,6 @@
 {{ config(
-    materialized='table',
-    indexes=[
-        {'columns': ['employee_id'], 'type': 'btree'},
-        {'columns': ['simulation_year'], 'type': 'btree'},
-        {'columns': ['effective_date'], 'type': 'btree'},
-        {'columns': ['from_level', 'to_level'], 'type': 'btree'}
-    ],
-    tags=['optimization', 'events', 'promotion_compensation_fix']
+  materialized='ephemeral',
+  tags=['EVENT_GENERATION', 'E068A_EPHEMERAL', 'optimization', 'events', 'promotion_compensation_fix']
 ) }}
 
 {% set simulation_year = var('simulation_year') %}
@@ -173,32 +167,24 @@ promoted_employees AS (
     FROM promotion_candidates
 )
 
--- **FINAL OUTPUT**: Comprehensive promotion events with metadata
+-- **FINAL OUTPUT**: Schema-aligned promotion events for fused model
 SELECT
     employee_id,
     employee_ssn,
     event_type,
     simulation_year,
     effective_date,
-    from_level,
-    to_level,
-    previous_salary,
-    new_salary,
-    current_age,
-    current_tenure,
+    'Promotion from Level ' || from_level || ' to Level ' || to_level || ' (+$' || CAST(ROUND(new_salary - previous_salary, 0) AS VARCHAR) || ' increase)' AS event_details,
+    new_salary AS compensation_amount,
+    previous_salary AS previous_compensation,
+    NULL::DECIMAL(5,4) AS employee_deferral_rate,
+    NULL::DECIMAL(5,4) AS prev_employee_deferral_rate,
+    current_age AS employee_age,
+    current_tenure AS employee_tenure,
+    to_level AS level_id,  -- Use promoted level
     age_band,
     tenure_band,
-    promotion_rate,
-    random_value,
-    -- **QUALITY METRICS**: Salary increase analysis
-    ROUND((new_salary - previous_salary) / previous_salary * 100, 2) AS salary_increase_pct,
-    new_salary - previous_salary AS salary_increase_amount,
-    -- **CONFIGURATION AUDIT**: Epic E059 configuration tracking
-    config_base_increase,
-    config_distribution_range,
-    config_distribution_type,
-    config_normal_std_dev,
-    config_max_cap_pct,
-    config_max_cap_amount
+    promotion_rate AS event_probability,
+    'promotion' AS event_category
 FROM promoted_employees
 ORDER BY employee_id

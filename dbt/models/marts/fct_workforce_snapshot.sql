@@ -7,7 +7,8 @@
         {'columns': ['simulation_year', 'employee_id'], 'type': 'btree', 'unique': true},
         {'columns': ['level_id', 'simulation_year'], 'type': 'btree'},
         {'columns': ['employment_status', 'simulation_year'], 'type': 'btree'}
-    ]
+    ],
+    tags=['STATE_ACCUMULATION']
 ) }}
 
 {% set simulation_year = var('simulation_year', 2025) | int %}

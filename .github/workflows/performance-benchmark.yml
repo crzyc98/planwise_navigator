@@ -1,0 +1,383 @@
+name: Performance Benchmarking
+
+on:
+  # Run on pull requests to detect regressions
+  pull_request:
+    branches: [ main, master ]
+    paths:
+      - 'dbt/models/**'
+      - 'navigator_orchestrator/**'
+      - 'scripts/**'
+      - '.github/workflows/performance-benchmark.yml'
+
+  # Run on main branch pushes to update baselines
+  push:
+    branches: [ main, master ]
+    paths:
+      - 'dbt/models/**'
+      - 'navigator_orchestrator/**'
+      - 'scripts/**'
+
+  # Schedule daily performance monitoring
+  schedule:
+    - cron: '0 6 * * *'  # Daily at 6 AM UTC
+
+  # Allow manual triggering with custom parameters
+  workflow_dispatch:
+    inputs:
+      benchmark_mode:
+        description: 'Benchmark mode'
+        required: true
+        default: 'regression-check'
+        type: choice
+        options:
+          - 'regression-check'
+          - 'baseline-update'
+          - 'performance-gate'
+          - 'stress-test'
+          - 'quick-validate'
+      scenarios:
+        description: 'Scenarios to test (space-separated)'
+        required: false
+        default: 'quick 1kx3'
+        type: string
+      target_time:
+        description: 'Target time in seconds for performance gate'
+        required: false
+        default: '60'
+        type: number
+      fail_on_regression:
+        description: 'Fail workflow on performance regression'
+        required: false
+        default: true
+        type: boolean
+
+env:
+  PYTHONPATH: ${{ github.workspace }}
+  BENCHMARK_OUTPUT_DIR: ${{ github.workspace }}/benchmark_results
+  BENCHMARK_BASELINE_DIR: ${{ github.workspace }}/benchmark_baselines
+  CI: true
+
+jobs:
+  performance-benchmark:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    strategy:
+      matrix:
+        python-version: ['3.11']
+      fail-fast: false
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      with:
+        fetch-depth: 0  # Full history for git analysis
+
+    - name: Set up Python ${{ matrix.python-version }}
+      uses: actions/setup-python@v4
+      with:
+        python-version: ${{ matrix.python-version }}
+
+    - name: Cache Python dependencies
+      uses: actions/cache@v3
+      with:
+        path: ~/.cache/pip
+        key: ${{ runner.os }}-pip-${{ hashFiles('**/requirements.txt') }}
+        restore-keys: |
+          ${{ runner.os }}-pip-
+
+    - name: Install dependencies
+      run: |
+        python -m pip install --upgrade pip
+        pip install -r requirements.txt
+        pip install numpy scipy psutil  # Benchmark framework dependencies
+
+        # Install dbt dependencies
+        cd dbt
+        dbt deps
+        cd ..
+
+    - name: Cache benchmark baselines
+      uses: actions/cache@v3
+      with:
+        path: benchmark_baselines
+        key: benchmark-baselines-${{ runner.os }}-${{ github.ref_name }}
+        restore-keys: |
+          benchmark-baselines-${{ runner.os }}-main
+          benchmark-baselines-${{ runner.os }}-
+
+    - name: Set up database
+      run: |
+        # Initialize database for benchmarking
+        python -c "
+        from navigator_orchestrator.config import get_database_path
+        from pathlib import Path
+        db_path = get_database_path()
+        db_path.parent.mkdir(parents=True, exist_ok=True)
+        print(f'Database will be created at: {db_path}')
+        "
+
+    - name: Determine benchmark mode
+      id: benchmark-mode
+      run: |
+        if [[ "${{ github.event_name }}" == "workflow_dispatch" ]]; then
+          echo "mode=${{ github.event.inputs.benchmark_mode }}" >> $GITHUB_OUTPUT
+          echo "scenarios=${{ github.event.inputs.scenarios }}" >> $GITHUB_OUTPUT
+          echo "target_time=${{ github.event.inputs.target_time }}" >> $GITHUB_OUTPUT
+          echo "fail_on_regression=${{ github.event.inputs.fail_on_regression }}" >> $GITHUB_OUTPUT
+        elif [[ "${{ github.event_name }}" == "pull_request" ]]; then
+          echo "mode=regression-check" >> $GITHUB_OUTPUT
+          echo "scenarios=quick 1kx3" >> $GITHUB_OUTPUT
+          echo "target_time=60" >> $GITHUB_OUTPUT
+          echo "fail_on_regression=true" >> $GITHUB_OUTPUT
+        elif [[ "${{ github.event_name }}" == "push" && ("${{ github.ref }}" == "refs/heads/main" || "${{ github.ref }}" == "refs/heads/master") ]]; then
+          echo "mode=baseline-update" >> $GITHUB_OUTPUT
+          echo "scenarios=quick 1kx3 5kx5" >> $GITHUB_OUTPUT
+          echo "target_time=60" >> $GITHUB_OUTPUT
+          echo "fail_on_regression=false" >> $GITHUB_OUTPUT
+        elif [[ "${{ github.event_name }}" == "schedule" ]]; then
+          echo "mode=daily-monitor" >> $GITHUB_OUTPUT
+          echo "scenarios=quick 1kx3 5kx5" >> $GITHUB_OUTPUT
+          echo "target_time=60" >> $GITHUB_OUTPUT
+          echo "fail_on_regression=false" >> $GITHUB_OUTPUT
+        else
+          echo "mode=quick-validate" >> $GITHUB_OUTPUT
+          echo "scenarios=quick" >> $GITHUB_OUTPUT
+          echo "target_time=10" >> $GITHUB_OUTPUT
+          echo "fail_on_regression=false" >> $GITHUB_OUTPUT
+        fi
+
+    - name: Run performance benchmark
+      id: benchmark
+      env:
+        GIT_COMMIT: ${{ github.sha }}
+        BUILD_NUMBER: ${{ github.run_number }}
+      run: |
+        set -e
+
+        # Create output directory
+        mkdir -p benchmark_results benchmark_baselines
+
+        # Set benchmark parameters
+        MODE="${{ steps.benchmark-mode.outputs.mode }}"
+        SCENARIOS="${{ steps.benchmark-mode.outputs.scenarios }}"
+        TARGET_TIME="${{ steps.benchmark-mode.outputs.target_time }}"
+        FAIL_ON_REGRESSION="${{ steps.benchmark-mode.outputs.fail_on_regression }}"
+
+        echo "Running benchmark mode: $MODE"
+        echo "Scenarios: $SCENARIOS"
+        echo "Target time: ${TARGET_TIME}s"
+        echo "Fail on regression: $FAIL_ON_REGRESSION"
+
+        # Run appropriate benchmark command
+        case "$MODE" in
+          "regression-check")
+            if [[ "$FAIL_ON_REGRESSION" == "true" ]]; then
+              ./scripts/benchmark_automation.sh regression-check --scenarios $SCENARIOS --fail-on-regression
+            else
+              ./scripts/benchmark_automation.sh regression-check --scenarios $SCENARIOS --no-fail-on-regression
+            fi
+            ;;
+          "baseline-update")
+            ./scripts/benchmark_automation.sh baseline-update --scenarios $SCENARIOS
+            ;;
+          "performance-gate")
+            ./scripts/benchmark_automation.sh release-gate --target-time $TARGET_TIME
+            ;;
+          "stress-test")
+            ./scripts/benchmark_automation.sh stress-test --scenarios $SCENARIOS --runs 5
+            ;;
+          "daily-monitor")
+            ./scripts/benchmark_automation.sh daily-monitor --scenarios $SCENARIOS
+            ;;
+          *)
+            ./scripts/benchmark_automation.sh quick-validate
+            ;;
+        esac
+
+    - name: Process benchmark results
+      if: always()
+      run: |
+        # Find the latest results
+        LATEST_RESULT_DIR=$(find benchmark_results -name "*.json" -type f -printf '%T@ %p\n' | sort -n | tail -1 | cut -d' ' -f2- | xargs dirname)
+
+        if [[ -n "$LATEST_RESULT_DIR" && -d "$LATEST_RESULT_DIR" ]]; then
+          echo "Latest results in: $LATEST_RESULT_DIR"
+
+          # Show summary
+          if [[ -f "$LATEST_RESULT_DIR/ci_summary_*.txt" ]]; then
+            echo "=== Benchmark Summary ==="
+            cat "$LATEST_RESULT_DIR"/ci_summary_*.txt
+          fi
+
+          # Set outputs for subsequent steps
+          echo "results_dir=$LATEST_RESULT_DIR" >> $GITHUB_OUTPUT
+
+          # Check if we have JSON results
+          if [[ -f "$LATEST_RESULT_DIR/benchmark_report_*.json" ]]; then
+            echo "has_results=true" >> $GITHUB_OUTPUT
+          else
+            echo "has_results=false" >> $GITHUB_OUTPUT
+          fi
+        else
+          echo "No results directory found"
+          echo "has_results=false" >> $GITHUB_OUTPUT
+        fi
+
+    - name: Upload benchmark artifacts
+      uses: actions/upload-artifact@v3
+      if: always()
+      with:
+        name: benchmark-results-${{ github.run_number }}
+        path: |
+          benchmark_results/
+          benchmark_baselines/
+        retention-days: 30
+
+    - name: Comment PR with results
+      if: github.event_name == 'pull_request' && always()
+      uses: actions/github-script@v6
+      with:
+        script: |
+          const fs = require('fs');
+          const path = require('path');
+
+          // Find benchmark summary file
+          const resultsDir = 'benchmark_results';
+          let summaryContent = 'Benchmark execution completed.';
+
+          try {
+            const files = fs.readdirSync(resultsDir, { recursive: true });
+            const summaryFiles = files.filter(f => f.includes('ci_summary_'));
+
+            if (summaryFiles.length > 0) {
+              const summaryPath = path.join(resultsDir, summaryFiles[0]);
+              if (fs.existsSync(summaryPath)) {
+                summaryContent = fs.readFileSync(summaryPath, 'utf8');
+              }
+            }
+          } catch (error) {
+            console.log('Could not read summary file:', error.message);
+          }
+
+          // Create PR comment
+          const comment = `## 📊 Performance Benchmark Results
+
+          **Run ID:** ${{ github.run_number }}
+          **Commit:** \`${{ github.sha }}\`
+          **Mode:** ${{ steps.benchmark-mode.outputs.mode }}
+          **Scenarios:** ${{ steps.benchmark-mode.outputs.scenarios }}
+
+          <details>
+          <summary>Detailed Results</summary>
+
+          \`\`\`
+          ${summaryContent}
+          \`\`\`
+
+          </details>
+
+          📎 Full results available in [workflow artifacts](https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}).
+          `;
+
+          github.rest.issues.createComment({
+            issue_number: context.issue.number,
+            owner: context.repo.owner,
+            repo: context.repo.repo,
+            body: comment
+          });
+
+    - name: Create performance trend issue
+      if: github.event_name == 'schedule' && always()
+      uses: actions/github-script@v6
+      with:
+        script: |
+          const fs = require('fs');
+
+          // Check for performance issues in daily monitoring
+          let hasIssues = false;
+          let issueContent = '';
+
+          try {
+            const resultsDir = 'benchmark_results';
+            const files = fs.readdirSync(resultsDir, { recursive: true });
+            const jsonFiles = files.filter(f => f.includes('ci_report_') && f.endsWith('.json'));
+
+            if (jsonFiles.length > 0) {
+              const reportPath = path.join(resultsDir, jsonFiles[0]);
+              const reportData = JSON.parse(fs.readFileSync(reportPath, 'utf8'));
+
+              const totalRegressions = reportData.total_regressions || 0;
+              const criticalRegressions = reportData.critical_regressions || 0;
+
+              if (totalRegressions > 0 || criticalRegressions > 0) {
+                hasIssues = true;
+                issueContent = `Daily performance monitoring detected ${totalRegressions} regressions (${criticalRegressions} critical).
+
+                Please review the benchmark results and consider performance optimizations.
+
+                **Report Details:**
+                - Total regressions: ${totalRegressions}
+                - Critical regressions: ${criticalRegressions}
+                - Build: ${{ github.run_number }}
+                - Commit: ${{ github.sha }}
+                `;
+              }
+            }
+          } catch (error) {
+            console.log('Could not analyze daily results:', error.message);
+          }
+
+          if (hasIssues) {
+            github.rest.issues.create({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              title: `Performance Regression Detected - Daily Monitoring ${new Date().toISOString().split('T')[0]}`,
+              body: issueContent,
+              labels: ['performance', 'regression', 'monitoring']
+            });
+          }
+
+    - name: Update performance dashboard
+      if: success() && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master')
+      run: |
+        # This could integrate with external dashboards or monitoring systems
+        echo "Would update performance dashboard with latest results"
+        # Example: curl -X POST "https://monitoring.example.com/api/performance" -d @benchmark_results/latest.json
+
+  # Separate job for comprehensive stress testing (only on schedule or manual trigger)
+  stress-test:
+    runs-on: ubuntu-latest
+    if: github.event_name == 'schedule' || (github.event_name == 'workflow_dispatch' && github.event.inputs.benchmark_mode == 'stress-test')
+    timeout-minutes: 60
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Set up Python
+      uses: actions/setup-python@v4
+      with:
+        python-version: '3.11'
+
+    - name: Install dependencies
+      run: |
+        python -m pip install --upgrade pip
+        pip install -r requirements.txt
+        pip install numpy scipy psutil
+
+    - name: Run stress test
+      env:
+        GIT_COMMIT: ${{ github.sha }}
+        BUILD_NUMBER: ${{ github.run_number }}
+      run: |
+        ./scripts/benchmark_automation.sh stress-test --runs 5 --verbose
+
+    - name: Upload stress test results
+      uses: actions/upload-artifact@v3
+      if: always()
+      with:
+        name: stress-test-results-${{ github.run_number }}
+        path: benchmark_results/
+        retention-days: 90

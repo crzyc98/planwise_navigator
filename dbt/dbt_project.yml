@@ -18,21 +18,21 @@ clean-targets:
   - "target"
   - "dbt_packages"
 
-# Model configuration
+# E068E: Model configuration with performance optimizations
 models:
   planwise_navigator:
-    # Global model settings
-    +materialized: table
+    # Global model settings - default to view for memory efficiency
+    +materialized: view
 
-    # Staging models - raw data cleaning
+    # Staging models - ephemeral for no disk I/O
     staging:
-      +materialized: table
+      +materialized: ephemeral
       +docs:
         node_color: "#E8F4FD"
 
-    # Intermediate models - business logic
+    # Intermediate models - ephemeral to keep in memory
     intermediate:
-      +materialized: table
+      +materialized: ephemeral
       +docs:
         node_color: "#FFF2CC"
 
@@ -40,26 +40,97 @@ models:
       # Dependency chain: fct_workforce_snapshot → int_active_employees_by_year → event models → fct_yearly_events
       int_active_employees_by_year:
         +tags: ["foundation", "critical", "data_integrity"]
-        +materialized: table
+        +materialized: ephemeral  # Keep in memory for performance
 
-    # Mart models - final outputs
+    # Mart models - incremental for efficient updates
     marts:
-      +materialized: table
+      +materialized: incremental
+      +incremental_strategy: 'delete+insert'
+      +on_schema_change: 'fail'
       +docs:
         node_color: "#D5E8D4"
 
-# Seeds configuration
+      # Specific event models configuration
+      fct_yearly_events:
+        +materialized: incremental
+        +incremental_strategy: 'delete+insert'
+        +unique_key: ['scenario_id', 'plan_design_id', 'employee_id', 'simulation_year', 'event_type']
+        +tags: ["events", "critical"]
+
+      fct_workforce_snapshot:
+        +materialized: incremental
+        +incremental_strategy: 'delete+insert'
+        +unique_key: ['scenario_id', 'plan_design_id', 'employee_id', 'simulation_year']
+        +tags: ["snapshot", "critical"]
+
+    # Dimension models - table materialization for caching
+    dimensions:
+      +materialized: table
+      +docs:
+        node_color: "#C7E9F1"
+      +tags: ["dimensions"]
+
+    # Debug models - development and testing
+    debug:
+      +materialized: ephemeral  # Default to ephemeral, overridden by model config
+      +tags: ["DEBUG", "DEVELOPMENT"]
+      +docs:
+        node_color: "#FFE6CC"
+      +enabled: "{{ var('enable_debug_models', false) }}"
+
+# E068E: Seeds configuration with performance optimizations
 seeds:
   planwise_navigator:
+    # Global seed column types for performance
     +column_types:
+      employee_id: varchar
+      scenario_id: varchar
+      plan_design_id: varchar
+      simulation_year: integer
       created_at: timestamp
       updated_at: timestamp
+      effective_date: date
+
+    # Specific seed configurations
     irs_contribution_limits:
       +column_types:
         limit_year: integer
         base_limit: integer
         catch_up_limit: integer
         catch_up_age_threshold: integer
+
+    comp_levers:
+      +column_types:
+        parameter_name: varchar
+        parameter_value: decimal(10,4)
+        effective_date: date
+        category: varchar
+
+    census_data:
+      +column_types:
+        employee_id: varchar
+        hire_date: date
+        salary: decimal(10,2)
+        level: varchar
+        department: varchar
+        age: integer
+
+    baseline_workforce:
+      +column_types:
+        employee_id: varchar
+        scenario_id: varchar
+        plan_design_id: varchar
+        simulation_year: integer
+        status: varchar
+
+    plan_designs:
+      +column_types:
+        plan_design_id: varchar
+        plan_name: varchar
+        plan_type: varchar
+        effective_date: date
+        employer_match_rate: decimal(5,4)
+        vesting_schedule: varchar
 
 # Snapshot configuration
 snapshots:
@@ -86,6 +157,43 @@ vars:
   simulation_end_year: 2029
   target_growth_rate: 0.03
   random_seed: 42
+
+  # E068F: Debug and Developer Ergonomics Configuration
+  # Debug mode controls
+  enable_debug_models: false          # Master switch for debug model materialization
+  debug_event: null                   # Set to 'hire', 'termination', 'promotion', etc.
+  debug_employee_id: null             # Focus on specific employee for detailed debugging
+
+  # Development subset controls
+  enable_dev_subset: false            # Master switch for development subset controls
+  dev_employee_limit: null            # Limit to N employees (exact count)
+  dev_subset_pct: null                # Limit to percentage of employees (0.0-1.0)
+  dev_employee_ids: null              # Specific employee ID list (comma-separated string)
+
+  # Determinism controls
+  preserve_order: true                # Ensure deterministic ordering in all models
+  enforce_deterministic_uuids: true   # Use deterministic UUIDs for event generation
+  validate_rng_distribution: false    # Enable RNG distribution validation (dev only)
+
+  # Debug event generation rates (for debug models only)
+  hire_rate_level_1: 0.15            # Entry level hire rate
+  hire_rate_level_2: 0.12            # Mid-level hire rate
+  hire_rate_level_3: 0.08            # Senior level hire rate
+  hire_rate_default: 0.10            # Default hire rate for other levels
+
+  term_rate_young: 0.18              # Termination rate for employees under 25
+  term_rate_early_career: 0.12       # Termination rate for ages 25-34
+  term_rate_mid_career: 0.08         # Termination rate for ages 35-44
+  term_rate_mature: 0.06             # Termination rate for ages 45-54
+  term_rate_pre_retirement: 0.15     # Termination rate for ages 55-64
+  term_rate_retirement: 0.25         # Termination rate for ages 65+
+
+  promotion_rate_level_1: 0.20       # Entry level promotion rate
+  promotion_rate_level_2: 0.15       # Mid-level promotion rate
+  promotion_rate_level_3: 0.10       # Senior level promotion rate
+  promotion_rate_level_4: 0.08       # Management level promotion rate
+  promotion_rate_level_5: 0.05       # Executive level promotion rate
+  promotion_rate_default: 0.03       # Default promotion rate for top levels
 
   # Raise timing configuration
   raise_timing_methodology: "calendar_driven"  # Options: "legacy", "realistic", "calendar_driven"
@@ -181,6 +289,23 @@ vars:
   database_name: 'planwise_navigator'
   schema_prefix: 'dbt_'
 
+  # E068E: Performance optimization variables
+  # Storage and I/O settings
+  temp_directory: "/tmp/duckdb"           # DuckDB temporary directory (override in production)
+  enable_profiling: false                # Enable query profiling (dev only)
+  profile_output_dir: "/tmp/profiles"    # Query profile output directory
+
+  # Memory and threading settings
+  duckdb_memory_limit: "48GB"            # DuckDB memory limit (75% of 64GB system)
+  duckdb_threads: 16                     # Thread count for 16 vCPU machine
+
+  # Batch processing settings
+  batch_processing_size: 10000           # Batch size for large operations
+  enable_parallel_processing: true       # Enable parallel processing where supported
+
+  # Storage format preferences
+  preferred_storage_format: "parquet"    # Preferred format for external data sources
+
 # Macros
 dispatch:
   - macro_namespace: dbt_utils
@@ -192,12 +317,33 @@ quoting:
   schema: false
   identifier: false
 
-# Hooks temporarily disabled to isolate DuckDBRelation serialization issue
-# on-run-start:
-#   - "{{ log('Starting dbt run for PlanWise Navigator', info=True) }}"
+# E068E: Engine & I/O Tuning - DuckDB Performance Optimization
+on-run-start:
+  # Thread optimization for 16 vCPU machine
+  - "PRAGMA threads=16"
 
-# on-run-end:
-#   - "{{ log('Completed dbt run for PlanWise Navigator', info=True) }}"
+  # Memory management (leave 16GB for OS/other processes)
+  - "PRAGMA memory_limit='48GB'"
+
+  # Query optimization
+  - "PRAGMA enable_object_cache=true"
+  - "PRAGMA preserve_insertion_order=false"  # Allow reordering for optimization
+  - "PRAGMA enable_progress_bar=false"  # Reduce logging overhead
+
+  # I/O optimization - use temp_directory variable with fallback
+  - "PRAGMA temp_directory='{{ var(\"temp_directory\", \"/tmp/duckdb\") }}'"
+  - "PRAGMA default_null_order='nulls_last'"
+
+  # Columnar storage optimization
+  - "SET enable_object_cache TO true"
+  - "SET memory_limit TO '48GB'"
+
+  # Startup logging
+  - "{{ log('Starting dbt run for PlanWise Navigator with performance optimizations', info=True) }}"
+
+on-run-end:
+  # Cleanup and performance reporting
+  - "{{ log('Completed dbt run for PlanWise Navigator', info=True) }}"
 
 # Freshness configuration
 sources:

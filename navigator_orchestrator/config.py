@@ -294,12 +294,79 @@ class OrchestratorSettings(BaseModel):
     threading: ThreadingSettings = Field(default_factory=ThreadingSettings, description="dbt threading configuration")
 
 
+class PolarsEventSettings(BaseModel):
+    """Polars event generation configuration for E068G"""
+    enabled: bool = Field(default=False, description="Enable Polars-based event generation")
+    max_threads: int = Field(default=16, ge=1, le=32, description="Maximum threads for Polars operations")
+    batch_size: int = Field(default=10000, ge=1000, le=50000, description="Batch size for employee processing")
+    output_path: str = Field(default="data/parquet/events", description="Output directory for partitioned Parquet files")
+    enable_compression: bool = Field(default=True, description="Enable zstd compression for Parquet files")
+    compression_level: int = Field(default=6, ge=1, le=22, description="Compression level for zstd (1-22)")
+    enable_profiling: bool = Field(default=False, description="Enable Polars query profiling")
+    max_memory_gb: float = Field(default=8.0, ge=1.0, le=64.0, description="Maximum memory usage in GB")
+    lazy_evaluation: bool = Field(default=True, description="Enable lazy evaluation for memory efficiency")
+    streaming: bool = Field(default=True, description="Enable streaming mode")
+    parallel_io: bool = Field(default=True, description="Enable parallel I/O operations")
+    fallback_on_error: bool = Field(default=True, description="Fall back to SQL mode on Polars errors")
+
+
+class EventGenerationSettings(BaseModel):
+    """Event generation mode configuration supporting SQL and Polars"""
+    mode: str = Field(default="sql", description="Event generation mode: 'sql' or 'polars'")
+    polars: PolarsEventSettings = Field(default_factory=PolarsEventSettings, description="Polars-specific configuration")
+
+    def validate_mode(self) -> None:
+        """Validate event generation mode configuration"""
+        valid_modes = {"sql", "polars"}
+        if self.mode not in valid_modes:
+            raise ValueError(f"Invalid event generation mode '{self.mode}'. Must be one of: {valid_modes}")
+
+        if self.mode == "polars" and not self.polars.enabled:
+            raise ValueError("Polars mode selected but polars.enabled is False")
+
+
+class E068CThreadingSettings(BaseModel):
+    """E068C Threading and parallelization configuration"""
+    dbt_threads: int = Field(default=6, ge=1, le=16, description="Number of threads for dbt execution (E068C)")
+    event_shards: int = Field(default=1, ge=1, le=8, description="Optional sharding for event generation (E068C)")
+    max_parallel_years: int = Field(default=1, ge=1, le=5, description="Sequential year processing for determinism (E068C)")
+
+    def validate_e068c_configuration(self) -> None:
+        """Validate E068C threading configuration with clear error messages"""
+        if self.dbt_threads < 1:
+            raise ValueError("dbt_threads must be at least 1")
+        if self.dbt_threads > 16:
+            raise ValueError("dbt_threads cannot exceed 16 (hardware limitation)")
+        if self.event_shards < 1:
+            raise ValueError("event_shards must be at least 1")
+        if self.event_shards > 8:
+            raise ValueError("event_shards cannot exceed 8 (reasonable limit)")
+        if self.max_parallel_years < 1:
+            raise ValueError("max_parallel_years must be at least 1")
+
+        # Warn about high thread counts
+        if self.dbt_threads > 8:
+            import warnings
+            warnings.warn(f"High dbt_threads count detected: {self.dbt_threads}. Consider reducing for stability on resource-constrained systems.")
+
+        # Warn about event sharding without sufficient threads
+        if self.event_shards > 1 and self.dbt_threads < self.event_shards:
+            import warnings
+            warnings.warn(f"Event sharding ({self.event_shards}) exceeds dbt_threads ({self.dbt_threads}). Consider increasing dbt_threads for optimal performance.")
+
+
 class OptimizationSettings(BaseModel):
     """Performance optimization configuration"""
     level: str = Field(default="high", description="Optimization level: low, medium, high, fallback")
     max_workers: int = Field(default=4, ge=1, le=16, description="Maximum concurrent workers")
     batch_size: int = Field(default=1000, ge=50, le=10000, description="Default processing batch size")
     memory_limit_gb: Optional[float] = Field(default=8.0, ge=1.0, description="Memory limit in GB")
+
+    # Event generation configuration
+    event_generation: EventGenerationSettings = Field(default_factory=EventGenerationSettings, description="Event generation mode and settings")
+
+    # E068C threading configuration
+    e068c_threading: E068CThreadingSettings = Field(default_factory=E068CThreadingSettings, description="E068C threading and parallelization settings")
 
     # Adaptive memory management
     adaptive_memory: AdaptiveMemorySettings = Field(default_factory=AdaptiveMemorySettings, description="Adaptive memory management settings")
@@ -407,17 +474,71 @@ class SimulationConfig(BaseModel):
 
     def get_thread_count(self) -> int:
         """Get configured thread count with fallback to single-threaded execution"""
-        if self.orchestrator and self.orchestrator.threading.enabled:
+        # Check E068C threading configuration first
+        if self.optimization and self.optimization.e068c_threading:
+            return self.optimization.e068c_threading.dbt_threads
+        # Fallback to orchestrator threading configuration
+        elif self.orchestrator and self.orchestrator.threading.enabled:
             return self.orchestrator.threading.thread_count
         return 1
 
+    def get_e068c_threading_config(self) -> E068CThreadingSettings:
+        """Get E068C threading configuration with defaults"""
+        if self.optimization and self.optimization.e068c_threading:
+            return self.optimization.e068c_threading
+        return E068CThreadingSettings()
+
+    def get_event_shards(self) -> int:
+        """Get configured event shards count"""
+        if self.optimization and self.optimization.e068c_threading:
+            return self.optimization.e068c_threading.event_shards
+        return 1
+
+    def get_max_parallel_years(self) -> int:
+        """Get configured maximum parallel years"""
+        if self.optimization and self.optimization.e068c_threading:
+            return self.optimization.e068c_threading.max_parallel_years
+        return 1
+
+    def get_event_generation_mode(self) -> str:
+        """Get configured event generation mode (sql or polars)"""
+        if self.optimization and self.optimization.event_generation:
+            return self.optimization.event_generation.mode
+        return "sql"
+
+    def get_polars_settings(self) -> PolarsEventSettings:
+        """Get Polars event generation settings"""
+        if self.optimization and self.optimization.event_generation:
+            return self.optimization.event_generation.polars
+        return PolarsEventSettings()
+
+    def is_polars_mode_enabled(self) -> bool:
+        """Check if Polars event generation mode is enabled and configured"""
+        return (self.get_event_generation_mode() == "polars" and
+                self.get_polars_settings().enabled)
+
     def validate_threading_configuration(self) -> None:
         """Validate threading configuration and log warnings"""
+        # Validate E068C threading configuration first
+        if self.optimization and self.optimization.e068c_threading:
+            try:
+                self.optimization.e068c_threading.validate_e068c_configuration()
+            except ValueError as e:
+                raise ValueError(f"Invalid E068C threading configuration: {e}")
+
+        # Validate event generation configuration
+        if self.optimization and self.optimization.event_generation:
+            try:
+                self.optimization.event_generation.validate_mode()
+            except ValueError as e:
+                raise ValueError(f"Invalid event generation configuration: {e}")
+
+        # Validate legacy orchestrator threading configuration if present
         if self.orchestrator and self.orchestrator.threading.enabled:
             try:
                 self.orchestrator.threading.validate_thread_count()
             except ValueError as e:
-                raise ValueError(f"Invalid threading configuration: {e}")
+                raise ValueError(f"Invalid orchestrator threading configuration: {e}")
 
             # Additional compatibility checks
             thread_count = self.orchestrator.threading.thread_count
@@ -732,6 +853,21 @@ def to_dbt_vars(cfg: SimulationConfig) -> Dict[str, Any]:
     # Market adjustments (if configured)
     if promotion.advanced.market_adjustments:
         dbt_vars["promotion_market_adjustments"] = promotion.advanced.market_adjustments
+
+    # E068C Threading configuration for dbt
+    e068c_config = cfg.get_e068c_threading_config()
+    dbt_vars["dbt_threads"] = e068c_config.dbt_threads
+    dbt_vars["event_shards"] = e068c_config.event_shards
+    dbt_vars["max_parallel_years"] = e068c_config.max_parallel_years
+
+    # E068G Event generation mode configuration
+    event_gen_mode = cfg.get_event_generation_mode()
+    polars_settings = cfg.get_polars_settings()
+    dbt_vars["event_generation_mode"] = event_gen_mode
+    dbt_vars["polars_enabled"] = cfg.is_polars_mode_enabled()
+    if event_gen_mode == "polars":
+        dbt_vars["polars_output_path"] = polars_settings.output_path
+        dbt_vars["polars_max_threads"] = polars_settings.max_threads
 
     # Employer core contribution configuration
     # Map YAML employer_core_contribution block to dbt vars

@@ -1,0 +1,261 @@
+# PlanWise Navigator - Benchmarking Framework Makefile
+#
+# Convenient targets for running performance benchmarks and analysis.
+# Include this file in your main Makefile or use directly.
+#
+# Usage:
+#   make -f Makefile.benchmarking benchmark-quick
+#   make -f Makefile.benchmarking benchmark-full
+#   make -f Makefile.benchmarking regression-check
+
+.PHONY: help benchmark-quick benchmark-dev benchmark-full benchmark-stress
+.PHONY: regression-check baseline-update performance-gate daily-monitor
+.PHONY: clean-benchmarks setup-benchmarks validate-environment
+
+# Configuration
+BENCHMARK_SCRIPT := scripts/benchmark_event_generation.py
+CI_SCRIPT := scripts/benchmark_ci_integration.py
+AUTOMATION_SCRIPT := scripts/benchmark_automation.sh
+OUTPUT_DIR := benchmark_results
+BASELINE_DIR := benchmark_baselines
+PYTHON := python3
+
+# Default target
+help:
+	@echo "PlanWise Navigator - Benchmarking Framework"
+	@echo ""
+	@echo "Available targets:"
+	@echo "  benchmark-quick     Quick validation benchmark (100 employees, 2 years)"
+	@echo "  benchmark-dev       Development benchmark (1k employees, 3 years)"
+	@echo "  benchmark-full      Full benchmark suite (up to 5k employees, 5 years)"
+	@echo "  benchmark-stress    Stress test benchmark (10k employees, 10 years)"
+	@echo ""
+	@echo "  regression-check    Check for performance regressions"
+	@echo "  baseline-update     Update performance baselines"
+	@echo "  performance-gate    Validate release performance gate"
+	@echo "  daily-monitor       Run daily performance monitoring"
+	@echo ""
+	@echo "  clean-benchmarks    Clean benchmark results and artifacts"
+	@echo "  setup-benchmarks    Setup benchmark environment"
+	@echo "  validate-environment Validate benchmark prerequisites"
+	@echo ""
+	@echo "Configuration:"
+	@echo "  OUTPUT_DIR     = $(OUTPUT_DIR)"
+	@echo "  BASELINE_DIR   = $(BASELINE_DIR)"
+	@echo "  PYTHON         = $(PYTHON)"
+
+# Environment validation
+validate-environment:
+	@echo "Validating benchmark environment..."
+	@command -v $(PYTHON) >/dev/null 2>&1 || { echo "Python3 not found"; exit 1; }
+	@$(PYTHON) -c "import numpy, scipy, psutil" 2>/dev/null || { echo "Required packages not installed: numpy scipy psutil"; exit 1; }
+	@test -f $(BENCHMARK_SCRIPT) || { echo "Benchmark script not found: $(BENCHMARK_SCRIPT)"; exit 1; }
+	@test -f $(CI_SCRIPT) || { echo "CI script not found: $(CI_SCRIPT)"; exit 1; }
+	@test -x $(AUTOMATION_SCRIPT) || { echo "Automation script not executable: $(AUTOMATION_SCRIPT)"; exit 1; }
+	@echo "✅ Environment validation passed"
+
+# Setup benchmark environment
+setup-benchmarks: validate-environment
+	@echo "Setting up benchmark environment..."
+	@mkdir -p $(OUTPUT_DIR) $(BASELINE_DIR)
+	@echo "📁 Created output directories"
+	@echo "✅ Benchmark environment ready"
+
+# Core benchmark targets
+benchmark-quick: setup-benchmarks
+	@echo "🚀 Running quick validation benchmark..."
+	$(PYTHON) $(BENCHMARK_SCRIPT) --quick --runs 1 --output-dir $(OUTPUT_DIR)/quick
+	@echo "✅ Quick benchmark completed"
+
+benchmark-dev: setup-benchmarks
+	@echo "🚀 Running development benchmark..."
+	$(PYTHON) $(BENCHMARK_SCRIPT) --scenario 1kx3 --runs 3 --output-dir $(OUTPUT_DIR)/dev
+	@echo "✅ Development benchmark completed"
+
+benchmark-full: setup-benchmarks
+	@echo "🚀 Running full benchmark suite..."
+	$(PYTHON) $(BENCHMARK_SCRIPT) --scenarios quick 1kx3 5kx5 --runs 3 --output-dir $(OUTPUT_DIR)/full
+	@echo "✅ Full benchmark completed"
+
+benchmark-stress: setup-benchmarks
+	@echo "🚀 Running stress test benchmark..."
+	$(PYTHON) $(BENCHMARK_SCRIPT) --scenario stress --runs 5 --output-dir $(OUTPUT_DIR)/stress
+	@echo "✅ Stress test completed"
+
+# Specific scenario targets
+benchmark-5kx5: setup-benchmarks
+	@echo "🚀 Running 5k×5 production target benchmark..."
+	$(PYTHON) $(BENCHMARK_SCRIPT) --scenario 5kx5 --runs 5 --output-dir $(OUTPUT_DIR)/5kx5
+	@echo "✅ 5k×5 benchmark completed"
+
+benchmark-polars-only: setup-benchmarks
+	@echo "🚀 Running Polars-only benchmark..."
+	$(PYTHON) $(BENCHMARK_SCRIPT) --scenarios quick 1kx3 5kx5 --modes polars --runs 3 --output-dir $(OUTPUT_DIR)/polars_only
+	@echo "✅ Polars-only benchmark completed"
+
+benchmark-sql-only: setup-benchmarks
+	@echo "🚀 Running SQL-only benchmark..."
+	$(PYTHON) $(BENCHMARK_SCRIPT) --scenarios quick 1kx3 --modes sql --runs 3 --output-dir $(OUTPUT_DIR)/sql_only
+	@echo "✅ SQL-only benchmark completed"
+
+# CI/CD integration targets
+regression-check: setup-benchmarks
+	@echo "🔍 Checking for performance regressions..."
+	$(PYTHON) $(CI_SCRIPT) --mode regression-check --baseline-dir $(BASELINE_DIR) --output-dir $(OUTPUT_DIR)/regression
+	@echo "✅ Regression check completed"
+
+regression-check-no-fail: setup-benchmarks
+	@echo "🔍 Checking for performance regressions (non-failing)..."
+	$(PYTHON) $(CI_SCRIPT) --mode regression-check --baseline-dir $(BASELINE_DIR) --output-dir $(OUTPUT_DIR)/regression --no-fail-on-regression
+	@echo "✅ Regression check completed"
+
+baseline-update: setup-benchmarks
+	@echo "📊 Updating performance baselines..."
+	$(PYTHON) $(CI_SCRIPT) --mode baseline-update --baseline-dir $(BASELINE_DIR) --output-dir $(OUTPUT_DIR)/baseline_update
+	@echo "✅ Baseline update completed"
+
+performance-gate: setup-benchmarks
+	@echo "🚪 Running performance gate validation..."
+	$(PYTHON) $(CI_SCRIPT) --mode performance-gate --scenario 5kx5 --target-time 60 --mode-single polars
+	@echo "✅ Performance gate completed"
+
+performance-gate-strict: setup-benchmarks
+	@echo "🚪 Running strict performance gate validation..."
+	$(PYTHON) $(CI_SCRIPT) --mode performance-gate --scenario 5kx5 --target-time 45 --mode-single polars
+	@echo "✅ Strict performance gate completed"
+
+# Automation script targets
+daily-monitor: setup-benchmarks
+	@echo "📈 Running daily performance monitoring..."
+	$(AUTOMATION_SCRIPT) daily-monitor --output-dir $(OUTPUT_DIR)/daily --baseline-dir $(BASELINE_DIR)
+	@echo "✅ Daily monitoring completed"
+
+release-gate: setup-benchmarks
+	@echo "🚪 Running release gate validation..."
+	$(AUTOMATION_SCRIPT) release-gate --target-time 60 --output-dir $(OUTPUT_DIR)/release_gate
+	@echo "✅ Release gate completed"
+
+stress-test-full: setup-benchmarks
+	@echo "💪 Running comprehensive stress testing..."
+	$(AUTOMATION_SCRIPT) stress-test --runs 5 --output-dir $(OUTPUT_DIR)/stress_full --verbose
+	@echo "✅ Comprehensive stress test completed"
+
+# Analysis and reporting targets
+analyze-results:
+	@echo "📊 Analyzing latest benchmark results..."
+	@if [ -d "$(OUTPUT_DIR)" ]; then \
+		find $(OUTPUT_DIR) -name "*.json" -type f -printf '%T@ %p\n' | sort -n | tail -5 | cut -d' ' -f2-; \
+		echo "Latest results files found above"; \
+	else \
+		echo "No results directory found: $(OUTPUT_DIR)"; \
+	fi
+
+show-baselines:
+	@echo "📊 Current performance baselines:"
+	@if [ -d "$(BASELINE_DIR)" ]; then \
+		find $(BASELINE_DIR) -name "*.json" -type f -exec echo "📄 {}" \; -exec head -n 10 {} \; -exec echo "" \;; \
+	else \
+		echo "No baselines directory found: $(BASELINE_DIR)"; \
+	fi
+
+compare-modes: setup-benchmarks
+	@echo "⚖️  Comparing SQL vs Polars performance..."
+	$(PYTHON) $(BENCHMARK_SCRIPT) --scenarios quick 1kx3 --modes sql polars --runs 3 --output-dir $(OUTPUT_DIR)/comparison
+	@echo "✅ Mode comparison completed"
+
+# Maintenance targets
+clean-benchmarks:
+	@echo "🧹 Cleaning benchmark results..."
+	@if [ -d "$(OUTPUT_DIR)" ]; then \
+		rm -rf $(OUTPUT_DIR)/*; \
+		echo "Cleaned $(OUTPUT_DIR)"; \
+	fi
+	@echo "✅ Benchmark cleanup completed"
+
+clean-baselines:
+	@echo "🧹 Cleaning performance baselines..."
+	@read -p "Are you sure you want to delete all baselines? [y/N] " -n 1 -r; \
+	echo; \
+	if [[ $$REPLY =~ ^[Yy]$$ ]]; then \
+		rm -rf $(BASELINE_DIR)/*; \
+		echo "Cleaned $(BASELINE_DIR)"; \
+	else \
+		echo "Baseline cleanup cancelled"; \
+	fi
+
+archive-results:
+	@echo "📦 Archiving benchmark results..."
+	@DATE=$$(date +%Y%m%d_%H%M%S); \
+	tar -czf benchmark_archive_$$DATE.tar.gz $(OUTPUT_DIR) $(BASELINE_DIR); \
+	echo "Created archive: benchmark_archive_$$DATE.tar.gz"
+
+# Development workflow targets
+pre-commit-check: benchmark-quick regression-check
+	@echo "✅ Pre-commit benchmark checks completed"
+
+pre-merge-check: benchmark-dev regression-check performance-gate
+	@echo "✅ Pre-merge benchmark checks completed"
+
+release-validation: benchmark-full performance-gate
+	@echo "✅ Release validation completed"
+
+# Convenience targets with different configurations
+quick-polars: setup-benchmarks
+	@echo "🚀 Quick Polars benchmark..."
+	$(PYTHON) $(BENCHMARK_SCRIPT) --quick --modes polars --runs 1
+
+quick-sql: setup-benchmarks
+	@echo "🚀 Quick SQL benchmark..."
+	$(PYTHON) $(BENCHMARK_SCRIPT) --quick --modes sql --runs 1
+
+# Performance profiling targets
+profile-polars: setup-benchmarks
+	@echo "🔍 Profiling Polars performance..."
+	$(PYTHON) $(BENCHMARK_SCRIPT) --scenario 1kx3 --modes polars --runs 1 --enable-profiling --verbose
+
+profile-memory: setup-benchmarks
+	@echo "🔍 Memory profiling benchmark..."
+	$(PYTHON) -m memory_profiler $(BENCHMARK_SCRIPT) --scenario quick --modes polars --runs 1
+
+# Parallel execution targets
+benchmark-parallel: setup-benchmarks
+	@echo "🚀 Running parallel benchmarks..."
+	@$(MAKE) -f Makefile.benchmarking benchmark-quick &
+	@$(MAKE) -f Makefile.benchmarking benchmark-dev &
+	@wait
+	@echo "✅ Parallel benchmarks completed"
+
+# Documentation targets
+benchmark-help:
+	@$(PYTHON) $(BENCHMARK_SCRIPT) --help
+
+ci-help:
+	@$(PYTHON) $(CI_SCRIPT) --help
+
+automation-help:
+	@$(AUTOMATION_SCRIPT) --help
+
+# Integration test targets
+test-benchmarks: setup-benchmarks
+	@echo "🧪 Testing benchmark framework..."
+	@$(PYTHON) -m pytest tests/test_benchmark_*.py -v || echo "Benchmark tests not found"
+	@echo "✅ Benchmark tests completed"
+
+# Environment info
+show-environment:
+	@echo "🔧 Benchmark environment information:"
+	@echo "Python version: $$($(PYTHON) --version)"
+	@echo "Working directory: $$(pwd)"
+	@echo "Output directory: $(OUTPUT_DIR)"
+	@echo "Baseline directory: $(BASELINE_DIR)"
+	@echo "Git commit: $$(git rev-parse HEAD 2>/dev/null || echo 'not a git repo')"
+	@echo "Date: $$(date)"
+	@echo "System: $$(uname -a)"
+	@$(PYTHON) -c "import psutil; print(f'Memory: {psutil.virtual_memory().total / 1e9:.1f}GB'); print(f'CPU cores: {psutil.cpu_count()}')" 2>/dev/null || echo "System info not available"
+
+# All-in-one targets
+benchmark-all: benchmark-quick benchmark-dev benchmark-full
+	@echo "✅ All benchmark scenarios completed"
+
+ci-full: regression-check performance-gate baseline-update
+	@echo "✅ Full CI benchmark pipeline completed"

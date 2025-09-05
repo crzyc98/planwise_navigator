@@ -1,4 +1,7 @@
-{{ config(materialized='table') }}
+{{ config(
+  materialized='ephemeral',
+  tags=['EVENT_GENERATION', 'E068A_EPHEMERAL']
+) }}
 
 /*
   Enrollment Events Model with Temporal State Accumulator (Phase 2: Architecture Fix)

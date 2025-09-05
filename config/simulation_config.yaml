@@ -399,6 +399,41 @@ optimization:
   batch_size: 1000  # Default processing batch size
   memory_limit_gb: 4.0  # Memory limit in GB for work laptops
 
+  # Epic E068C: Threading and parallelization configuration
+  e068c_threading:
+    dbt_threads: 6  # Number of threads for dbt execution (1-16)
+    event_shards: 1  # Optional sharding for event generation (1-8)
+    max_parallel_years: 1  # Sequential year processing for determinism (1-5)
+
+  # Epic E068G: Polars bulk event factory configuration
+  event_generation:
+    mode: "sql"  # Options: "sql", "polars"
+
+    # Polars-specific configuration
+    polars:
+      enabled: false  # Enable Polars bulk event generation
+      max_threads: 16  # Maximum threads for Polars (POLARS_MAX_THREADS)
+      batch_size: 10000  # Employee batch size for processing
+      output_path: "data/parquet/events"  # Output directory for Parquet files
+      enable_compression: true  # Enable ZSTD compression for Parquet
+      enable_profiling: false  # Enable performance profiling
+      fallback_on_error: true  # Fallback to SQL mode on Polars errors
+      validate_results: true  # Validate Polars output against SQL baseline
+
+      # Performance targets
+      target_runtime_seconds: 60  # Target ≤60s for 5k×5 years
+      target_throughput_events_per_second: 1000  # Target throughput
+
+      # Memory management
+      memory_limit_gb: 8.0  # Memory limit for Polars operations
+      enable_lazy_evaluation: true  # Use Polars lazy evaluation
+
+    # SQL mode configuration (existing)
+    sql:
+      dbt_threads: 6  # Number of threads for dbt SQL execution
+      use_event_sharding: false  # Enable event sharding for large datasets
+
+
 # Navigator Orchestrator configuration
 orchestrator:
   # Epic E067: Multi-Threading Support - dbt Threading Configuration

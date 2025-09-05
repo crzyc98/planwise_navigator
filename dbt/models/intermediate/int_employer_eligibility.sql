@@ -103,8 +103,10 @@ new_hire_termination_flags AS (
     SELECT
         employee_id,
         TRUE AS has_new_hire_termination
-    FROM {{ ref('int_new_hire_termination_events') }}
+    FROM {{ ref('fct_yearly_events') }}
     WHERE simulation_year = {{ simulation_year }}
+      AND event_type = 'termination'
+      AND event_details LIKE 'Termination - new_hire_departure%'
     GROUP BY employee_id
 ),
 

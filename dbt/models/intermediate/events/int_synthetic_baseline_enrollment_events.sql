@@ -1,10 +1,6 @@
 {{ config(
-    materialized='table',
-    indexes=[
-        {'columns': ['employee_id'], 'type': 'btree'},
-        {'columns': ['effective_date'], 'type': 'btree'},
-        {'columns': ['simulation_year'], 'type': 'btree'}
-    ]
+  materialized='ephemeral',
+  tags=['E068A_EPHEMERAL']
 ) }}
 
 /*
