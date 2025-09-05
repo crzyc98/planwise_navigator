@@ -1,4 +1,7 @@
-{{ config(materialized='table') }}
+{{ config(
+    materialized='table',
+    tags=['VALIDATION']
+) }}
 
 /*
   Enrollment Architecture Validation

@@ -10,16 +10,16 @@
       "experienced_termination": 524,
       "new_hire_termination": 218
     },
-    "participation_rate": 0.914203156256946
+    "participation_rate": 0.8215158924205379
   },
   "event_summary": {
     "year": 2025,
-    "total_events": 11785,
+    "total_events": 6443,
     "events_by_type": {
-      "enrollment": 6696,
-      "raise": 3343,
+      "raise": 3557,
+      "enrollment": 1113,
       "promotion": 91,
-      "enrollment_change": 40,
+      "enrollment_change": 67,
       "hire": 873,
       "termination": 742
     },
@@ -32,10 +32,10 @@
     "growth_pct": 0.0
   },
   "contribution_summary": {
-    "enrolled_employees_active_eoy": 4499,
-    "total_contributions_active_eoy": 31195750.0,
-    "avg_contribution_active_eoy": 6934.0,
-    "avg_deferral_rate_active_eoy": 6.4
+    "enrolled_employees_active_eoy": 0,
+    "total_contributions_active_eoy": 0.0,
+    "avg_contribution_active_eoy": 0.0,
+    "avg_deferral_rate_active_eoy": 0.0
   },
   "data_quality_results": [
     {
@@ -63,5 +63,5 @@
       "affected_records": null
     }
   ],
-  "generated_at": "2025-09-03T01:59:44.285588"
+  "generated_at": "2025-09-05T01:44:17.412399"
 }

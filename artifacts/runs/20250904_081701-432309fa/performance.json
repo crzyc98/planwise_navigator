@@ -1,0 +1,283 @@
+{
+  "stage_initialization_2025": {
+    "operation": "stage_initialization_2025",
+    "duration_seconds": 4.471,
+    "memory_delta_mb": -87.27,
+    "peak_memory_mb": 524.11,
+    "cpu_percent": 0.3,
+    "status": "success",
+    "error": null,
+    "stage": "initialization",
+    "year": 2025
+  },
+  "stage_foundation_2025": {
+    "operation": "stage_foundation_2025",
+    "duration_seconds": 2.016,
+    "memory_delta_mb": -61.23,
+    "peak_memory_mb": 436.91,
+    "cpu_percent": 0.5,
+    "status": "success",
+    "error": null,
+    "stage": "foundation",
+    "year": 2025
+  },
+  "stage_validation_2025": {
+    "operation": "stage_validation_2025",
+    "duration_seconds": 2.013,
+    "memory_delta_mb": null,
+    "peak_memory_mb": 421.98,
+    "cpu_percent": 0.5,
+    "status": "success",
+    "error": null,
+    "stage": "validation",
+    "year": 2025
+  },
+  "stage_reporting_2025": {
+    "operation": "stage_reporting_2025",
+    "duration_seconds": 0.505,
+    "memory_delta_mb": null,
+    "peak_memory_mb": 511.59,
+    "cpu_percent": 0.1,
+    "status": "success",
+    "error": null,
+    "stage": "reporting",
+    "year": 2025
+  },
+  "year_simulation_2025": {
+    "operation": "year_simulation_2025",
+    "duration_seconds": 21.396,
+    "memory_delta_mb": 119.84,
+    "peak_memory_mb": 398.73,
+    "cpu_percent": 104.7,
+    "status": "success",
+    "error": null,
+    "year": 2025
+  },
+  "stage_initialization_2026": {
+    "operation": "stage_initialization_2026",
+    "duration_seconds": 4.04,
+    "memory_delta_mb": -0.03,
+    "peak_memory_mb": 618.39,
+    "cpu_percent": 0.3,
+    "status": "success",
+    "error": null,
+    "stage": "initialization",
+    "year": 2026
+  },
+  "stage_foundation_2026": {
+    "operation": "stage_foundation_2026",
+    "duration_seconds": 2.518,
+    "memory_delta_mb": -25.06,
+    "peak_memory_mb": 618.39,
+    "cpu_percent": 0.7,
+    "status": "success",
+    "error": null,
+    "stage": "foundation",
+    "year": 2026
+  },
+  "stage_validation_2026": {
+    "operation": "stage_validation_2026",
+    "duration_seconds": 2.019,
+    "memory_delta_mb": null,
+    "peak_memory_mb": 581.67,
+    "cpu_percent": 0.6,
+    "status": "success",
+    "error": null,
+    "stage": "validation",
+    "year": 2026
+  },
+  "stage_reporting_2026": {
+    "operation": "stage_reporting_2026",
+    "duration_seconds": 0.505,
+    "memory_delta_mb": null,
+    "peak_memory_mb": 631.81,
+    "cpu_percent": 0.2,
+    "status": "success",
+    "error": null,
+    "stage": "reporting",
+    "year": 2026
+  },
+  "year_simulation_2026": {
+    "operation": "year_simulation_2026",
+    "duration_seconds": 16.967,
+    "memory_delta_mb": 154.86,
+    "peak_memory_mb": 639.11,
+    "cpu_percent": 100.0,
+    "status": "success",
+    "error": null,
+    "year": 2026
+  },
+  "stage_initialization_2027": {
+    "operation": "stage_initialization_2027",
+    "duration_seconds": 4.029,
+    "memory_delta_mb": -87.05,
+    "peak_memory_mb": 827.64,
+    "cpu_percent": 0.4,
+    "status": "success",
+    "error": null,
+    "stage": "initialization",
+    "year": 2027
+  },
+  "stage_foundation_2027": {
+    "operation": "stage_foundation_2027",
+    "duration_seconds": 3.026,
+    "memory_delta_mb": -249.88,
+    "peak_memory_mb": 740.64,
+    "cpu_percent": 0.5,
+    "status": "success",
+    "error": null,
+    "stage": "foundation",
+    "year": 2027
+  },
+  "stage_validation_2027": {
+    "operation": "stage_validation_2027",
+    "duration_seconds": 2.019,
+    "memory_delta_mb": null,
+    "peak_memory_mb": 239.02,
+    "cpu_percent": 0.3,
+    "status": "success",
+    "error": null,
+    "stage": "validation",
+    "year": 2027
+  },
+  "stage_reporting_2027": {
+    "operation": "stage_reporting_2027",
+    "duration_seconds": 0.504,
+    "memory_delta_mb": null,
+    "peak_memory_mb": 313.36,
+    "cpu_percent": 0.2,
+    "status": "success",
+    "error": null,
+    "stage": "reporting",
+    "year": 2027
+  },
+  "year_simulation_2027": {
+    "operation": "year_simulation_2027",
+    "duration_seconds": 17.555,
+    "memory_delta_mb": -306.64,
+    "peak_memory_mb": 830.55,
+    "cpu_percent": 103.8,
+    "status": "success",
+    "error": null,
+    "year": 2027
+  },
+  "stage_initialization_2028": {
+    "operation": "stage_initialization_2028",
+    "duration_seconds": 4.328,
+    "memory_delta_mb": -330.12,
+    "peak_memory_mb": 512.47,
+    "cpu_percent": 0.3,
+    "status": "success",
+    "error": null,
+    "stage": "initialization",
+    "year": 2028
+  },
+  "stage_foundation_2028": {
+    "operation": "stage_foundation_2028",
+    "duration_seconds": 3.029,
+    "memory_delta_mb": -0.06,
+    "peak_memory_mb": 182.58,
+    "cpu_percent": 0.2,
+    "status": "success",
+    "error": null,
+    "stage": "foundation",
+    "year": 2028
+  },
+  "stage_validation_2028": {
+    "operation": "stage_validation_2028",
+    "duration_seconds": 2.016,
+    "memory_delta_mb": 0.03,
+    "peak_memory_mb": 294.03,
+    "cpu_percent": 0.3,
+    "status": "success",
+    "error": null,
+    "stage": "validation",
+    "year": 2028
+  },
+  "stage_reporting_2028": {
+    "operation": "stage_reporting_2028",
+    "duration_seconds": 0.505,
+    "memory_delta_mb": 0.03,
+    "peak_memory_mb": 391.91,
+    "cpu_percent": 0.3,
+    "status": "success",
+    "error": null,
+    "stage": "reporting",
+    "year": 2028
+  },
+  "year_simulation_2028": {
+    "operation": "year_simulation_2028",
+    "duration_seconds": 18.022,
+    "memory_delta_mb": -29.2,
+    "peak_memory_mb": 519.47,
+    "cpu_percent": 103.8,
+    "status": "success",
+    "error": null,
+    "year": 2028
+  },
+  "stage_initialization_2029": {
+    "operation": "stage_initialization_2029",
+    "duration_seconds": 4.377,
+    "memory_delta_mb": -0.31,
+    "peak_memory_mb": 670.14,
+    "cpu_percent": 0.3,
+    "status": "success",
+    "error": null,
+    "stage": "initialization",
+    "year": 2029
+  },
+  "stage_foundation_2029": {
+    "operation": "stage_foundation_2029",
+    "duration_seconds": 2.521,
+    "memory_delta_mb": -26.08,
+    "peak_memory_mb": 669.88,
+    "cpu_percent": 0.7,
+    "status": "success",
+    "error": null,
+    "stage": "foundation",
+    "year": 2029
+  },
+  "stage_validation_2029": {
+    "operation": "stage_validation_2029",
+    "duration_seconds": 2.017,
+    "memory_delta_mb": 0.02,
+    "peak_memory_mb": 364.98,
+    "cpu_percent": 0.4,
+    "status": "success",
+    "error": null,
+    "stage": "validation",
+    "year": 2029
+  },
+  "stage_reporting_2029": {
+    "operation": "stage_reporting_2029",
+    "duration_seconds": 0.504,
+    "memory_delta_mb": null,
+    "peak_memory_mb": 485.14,
+    "cpu_percent": 0.2,
+    "status": "success",
+    "error": null,
+    "stage": "reporting",
+    "year": 2029
+  },
+  "year_simulation_2029": {
+    "operation": "year_simulation_2029",
+    "duration_seconds": 17.62,
+    "memory_delta_mb": -18.66,
+    "peak_memory_mb": 670.14,
+    "cpu_percent": 91.0,
+    "status": "success",
+    "error": null,
+    "year": 2029
+  },
+  "multi_year_run": {
+    "operation": "multi_year_run",
+    "duration_seconds": 93.375,
+    "memory_delta_mb": 373.06,
+    "peak_memory_mb": 516.59,
+    "cpu_percent": 34.3,
+    "status": "success",
+    "error": null,
+    "start_year": 2025,
+    "end_year": 2029
+  }
+}

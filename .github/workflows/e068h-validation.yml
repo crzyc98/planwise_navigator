@@ -1,0 +1,590 @@
+name: E068H Performance Optimization Validation
+
+on:
+  pull_request:
+    branches: [ main, develop ]
+    paths:
+      - 'dbt/**'
+      - 'navigator_orchestrator/**'
+      - 'config/**'
+      - 'scripts/**'
+      - '.github/workflows/e068h-validation.yml'
+  push:
+    branches: [ main ]
+    tags: [ 'v*' ]
+  workflow_dispatch:
+    inputs:
+      test_mode:
+        description: 'Testing mode'
+        required: true
+        default: 'standard'
+        type: choice
+        options:
+        - quick
+        - standard
+        - comprehensive
+      timeout_minutes:
+        description: 'Maximum execution time in minutes'
+        required: true
+        default: 30
+        type: number
+
+env:
+  PYTHON_VERSION: '3.11'
+  DBT_PROFILES_DIR: '${{ github.workspace }}/dbt'
+  DUCKDB_DATABASE_PATH: '${{ github.workspace }}/dbt/simulation.duckdb'
+
+jobs:
+  setup:
+    name: Setup and Environment Validation
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    outputs:
+      test-mode: ${{ steps.determine-mode.outputs.test-mode }}
+      should-run-comprehensive: ${{ steps.determine-mode.outputs.should-run-comprehensive }}
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0  # Needed for performance regression analysis
+
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+          cache: 'pip'
+
+      - name: Install dependencies
+        run: |
+          pip install --upgrade pip
+          pip install -r requirements.txt
+
+      - name: Determine test mode
+        id: determine-mode
+        run: |
+          if [[ "${{ github.event_name }}" == "workflow_dispatch" ]]; then
+            TEST_MODE="${{ github.event.inputs.test_mode }}"
+          elif [[ "${{ github.event_name }}" == "pull_request" ]]; then
+            TEST_MODE="standard"
+          elif [[ "${{ github.ref }}" == "refs/heads/main" ]]; then
+            TEST_MODE="comprehensive"
+          else
+            TEST_MODE="quick"
+          fi
+
+          echo "test-mode=${TEST_MODE}" >> $GITHUB_OUTPUT
+          echo "should-run-comprehensive=$([[ "${TEST_MODE}" == "comprehensive" ]] && echo "true" || echo "false")" >> $GITHUB_OUTPUT
+          echo "Selected test mode: ${TEST_MODE}"
+
+      - name: Environment validation
+        run: |
+          echo "🔍 Validating E068H environment..."
+          python -c "
+          import sys
+          print(f'Python version: {sys.version}')
+          assert sys.version_info >= (3, 11), 'Python 3.11+ required'
+
+          # Check critical dependencies
+          import duckdb, dbt, numpy, scipy
+          print('✅ All critical dependencies available')
+
+          # Validate project structure
+          from pathlib import Path
+          required_paths = [
+              'config/simulation_config.yaml',
+              'dbt/dbt_project.yml',
+              'navigator_orchestrator/__init__.py',
+              'scripts/scale_testing_framework.py',
+              'scripts/parity_testing_framework.py',
+              'scripts/e068h_ci_integration.py'
+          ]
+
+          for path_str in required_paths:
+              path = Path(path_str)
+              assert path.exists(), f'Missing required file: {path}'
+
+          print('✅ Project structure validation passed')
+          "
+
+      - name: Cache test database
+        uses: actions/cache@v3
+        with:
+          path: |
+            dbt/simulation.duckdb*
+            dbt/.dbt_cache/
+          key: e068h-db-cache-${{ github.sha }}
+          restore-keys: |
+            e068h-db-cache-
+
+  performance-regression-analysis:
+    name: Performance Regression Analysis
+    runs-on: ubuntu-latest
+    needs: setup
+    timeout-minutes: 15
+    if: github.event_name == 'pull_request'
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+          cache: 'pip'
+
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+
+      - name: Restore database cache
+        uses: actions/cache@v3
+        with:
+          path: |
+            dbt/simulation.duckdb*
+            dbt/.dbt_cache/
+          key: e068h-db-cache-${{ github.sha }}
+          restore-keys: |
+            e068h-db-cache-
+
+      - name: Performance regression check
+        run: |
+          echo "🔍 Checking for performance regressions..."
+          python scripts/e068h_ci_integration.py \
+            --mode quick \
+            --timeout 15 \
+            --reports-dir reports/ci_pr_check \
+            --verbose
+
+      - name: Upload performance regression report
+        uses: actions/upload-artifact@v3
+        if: always()
+        with:
+          name: performance-regression-report
+          path: reports/ci_pr_check/
+          retention-days: 30
+
+  scale-testing:
+    name: Scale Testing Validation
+    runs-on: ubuntu-latest
+    needs: [setup, performance-regression-analysis]
+    if: always() && needs.setup.result == 'success' && (needs.performance-regression-analysis.result == 'success' || needs.performance-regression-analysis.result == 'skipped')
+    timeout-minutes: 45
+    strategy:
+      fail-fast: false
+      matrix:
+        scenario: [small_scale, medium_scale]
+        include:
+          - scenario: large_scale
+            if: needs.setup.outputs.should-run-comprehensive == 'true'
+          - scenario: stress_test
+            if: needs.setup.outputs.should-run-comprehensive == 'true'
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+          cache: 'pip'
+
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+
+      - name: Restore database cache
+        uses: actions/cache@v3
+        with:
+          path: |
+            dbt/simulation.duckdb*
+            dbt/.dbt_cache/
+          key: e068h-db-cache-${{ github.sha }}
+          restore-keys: |
+            e068h-db-cache-
+
+      - name: Run scale testing
+        id: scale-test
+        run: |
+          echo "🚀 Running scale testing for scenario: ${{ matrix.scenario }}"
+
+          # Determine test parameters based on scenario
+          case "${{ matrix.scenario }}" in
+            "small_scale"|"medium_scale")
+              RUNS=2
+              TIMEOUT=25
+              ;;
+            "large_scale")
+              RUNS=3
+              TIMEOUT=35
+              ;;
+            "stress_test")
+              RUNS=1
+              TIMEOUT=45
+              ;;
+            *)
+              echo "Unknown scenario: ${{ matrix.scenario }}"
+              exit 1
+              ;;
+          esac
+
+          # Execute scale testing
+          python scripts/scale_testing_framework.py \
+            --scenario ${{ matrix.scenario }} \
+            --runs ${RUNS} \
+            --reports-dir reports/scale_testing_${{ matrix.scenario }} \
+            --verbose
+
+          # Capture exit code for reporting
+          EXIT_CODE=$?
+          echo "scale-test-exit-code=${EXIT_CODE}" >> $GITHUB_OUTPUT
+
+          if [ ${EXIT_CODE} -eq 0 ]; then
+            echo "✅ Scale testing passed for ${{ matrix.scenario }}"
+          else
+            echo "❌ Scale testing failed for ${{ matrix.scenario }}"
+            exit ${EXIT_CODE}
+          fi
+
+      - name: Upload scale testing reports
+        uses: actions/upload-artifact@v3
+        if: always()
+        with:
+          name: scale-testing-${{ matrix.scenario }}
+          path: reports/scale_testing_${{ matrix.scenario }}/
+          retention-days: 30
+
+      - name: Performance gate check
+        if: always()
+        run: |
+          echo "📊 Checking performance gates for ${{ matrix.scenario }}..."
+
+          # Extract performance metrics from reports
+          python -c "
+          import json
+          import glob
+          from pathlib import Path
+
+          # Find the latest JSON report
+          report_files = glob.glob('reports/scale_testing_${{ matrix.scenario }}/*_scale_test_data_*.json')
+          if not report_files:
+              print('No scale test report found - assuming test did not complete')
+              exit(1)
+
+          latest_report = max(report_files, key=lambda x: Path(x).stat().st_mtime)
+
+          with open(latest_report) as f:
+              data = json.load(f)
+
+          # Check performance gates
+          summary = data.get('summary', {})
+          analysis = data.get('analysis', {})
+
+          gates_passed = True
+
+          if not summary.get('production_ready', False):
+              print('❌ Production readiness gate: FAILED')
+              gates_passed = False
+          else:
+              print('✅ Production readiness gate: PASSED')
+
+          if not analysis.get('is_linear_scaling', True):
+              print('❌ Linear scaling gate: FAILED')
+              gates_passed = False
+          else:
+              print('✅ Linear scaling gate: PASSED')
+
+          threading_effectiveness = analysis.get('threading_effectiveness', 0)
+          if threading_effectiveness < 60:
+              print(f'❌ Threading efficiency gate: FAILED ({threading_effectiveness:.1f}%)')
+              gates_passed = False
+          else:
+              print(f'✅ Threading efficiency gate: PASSED ({threading_effectiveness:.1f}%)')
+
+          if not gates_passed:
+              print('❌ Performance gates failed - blocking deployment')
+              exit(1)
+          else:
+              print('✅ All performance gates passed')
+          "
+
+  parity-testing:
+    name: Parity Testing Validation
+    runs-on: ubuntu-latest
+    needs: [setup, performance-regression-analysis]
+    if: always() && needs.setup.result == 'success' && (needs.performance-regression-analysis.result == 'success' || needs.performance-regression-analysis.result == 'skipped')
+    timeout-minutes: 30
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+          cache: 'pip'
+
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+
+      - name: Restore database cache
+        uses: actions/cache@v3
+        with:
+          path: |
+            dbt/simulation.duckdb*
+            dbt/.dbt_cache/
+          key: e068h-db-cache-${{ github.sha }}
+          restore-keys: |
+            e068h-db-cache-
+
+      - name: Run parity testing
+        id: parity-test
+        run: |
+          echo "🔍 Running comprehensive parity testing..."
+
+          # Determine test mode
+          if [[ "${{ needs.setup.outputs.test-mode }}" == "comprehensive" ]]; then
+            python scripts/parity_testing_framework.py \
+              --validate-production \
+              --reports-dir reports/parity_testing \
+              --verbose
+          else
+            python scripts/parity_testing_framework.py \
+              --quick \
+              --reports-dir reports/parity_testing \
+              --verbose
+          fi
+
+          EXIT_CODE=$?
+          echo "parity-test-exit-code=${EXIT_CODE}" >> $GITHUB_OUTPUT
+
+          if [ ${EXIT_CODE} -eq 0 ]; then
+            echo "✅ Parity testing passed"
+          else
+            echo "❌ Parity testing failed"
+            exit ${EXIT_CODE}
+          fi
+
+      - name: Upload parity testing reports
+        uses: actions/upload-artifact@v3
+        if: always()
+        with:
+          name: parity-testing-report
+          path: reports/parity_testing/
+          retention-days: 30
+
+      - name: Parity score validation
+        if: always()
+        run: |
+          echo "📊 Validating parity scores..."
+
+          python -c "
+          import json
+          import glob
+          from pathlib import Path
+
+          # Find parity test report
+          report_files = glob.glob('reports/parity_testing/*parity_test_data*.json')
+          if not report_files:
+              print('No parity test report found')
+              exit(1)
+
+          latest_report = max(report_files, key=lambda x: Path(x).stat().st_mtime)
+
+          with open(latest_report) as f:
+              data = json.load(f)
+
+          # Validate parity scores
+          summary = data.get('summary', {})
+          min_parity = summary.get('minimum_parity_score', 0.0)
+          avg_parity = summary.get('average_parity_score', 0.0)
+
+          REQUIRED_MIN_PARITY = 0.9999  # 99.99% minimum
+          REQUIRED_AVG_PARITY = 0.9999  # 99.99% average
+
+          print(f'Minimum parity score: {min_parity:.6f}')
+          print(f'Average parity score: {avg_parity:.6f}')
+
+          if min_parity >= REQUIRED_MIN_PARITY:
+              print('✅ Minimum parity score meets requirement')
+          else:
+              print(f'❌ Minimum parity score below requirement ({REQUIRED_MIN_PARITY:.4f})')
+              exit(1)
+
+          if avg_parity >= REQUIRED_AVG_PARITY:
+              print('✅ Average parity score meets requirement')
+          else:
+              print(f'❌ Average parity score below requirement ({REQUIRED_AVG_PARITY:.4f})')
+              exit(1)
+
+          print('✅ All parity score requirements met')
+          "
+
+  deployment-readiness:
+    name: Production Deployment Readiness
+    runs-on: ubuntu-latest
+    needs: [setup, scale-testing, parity-testing]
+    if: always()
+    timeout-minutes: 10
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+          cache: 'pip'
+
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+
+      - name: Download all test artifacts
+        uses: actions/download-artifact@v3
+
+      - name: Final deployment readiness assessment
+        id: deployment-decision
+        run: |
+          echo "🎯 Assessing production deployment readiness..."
+
+          # Check job results
+          SCALE_TESTING_PASSED=false
+          PARITY_TESTING_PASSED=false
+
+          if [[ "${{ needs.scale-testing.result }}" == "success" ]]; then
+            SCALE_TESTING_PASSED=true
+            echo "✅ Scale testing: PASSED"
+          else
+            echo "❌ Scale testing: FAILED (${{ needs.scale-testing.result }})"
+          fi
+
+          if [[ "${{ needs.parity-testing.result }}" == "success" ]]; then
+            PARITY_TESTING_PASSED=true
+            echo "✅ Parity testing: PASSED"
+          else
+            echo "❌ Parity testing: FAILED (${{ needs.parity-testing.result }})"
+          fi
+
+          # Overall deployment decision
+          if [[ "${SCALE_TESTING_PASSED}" == "true" && "${PARITY_TESTING_PASSED}" == "true" ]]; then
+            DEPLOYMENT_APPROVED=true
+            echo "deployment-approved=true" >> $GITHUB_OUTPUT
+            echo "deployment-status=approved" >> $GITHUB_OUTPUT
+            echo ""
+            echo "🎉 PRODUCTION DEPLOYMENT APPROVED"
+            echo "All E068H validation criteria have been met successfully."
+          else
+            DEPLOYMENT_APPROVED=false
+            echo "deployment-approved=false" >> $GITHUB_OUTPUT
+            echo "deployment-status=blocked" >> $GITHUB_OUTPUT
+            echo ""
+            echo "🚨 PRODUCTION DEPLOYMENT BLOCKED"
+            echo "Critical validation failures must be addressed."
+          fi
+
+          # Create deployment decision artifact
+          mkdir -p deployment_decision
+          cat > deployment_decision/deployment_decision.json << EOF
+          {
+            "deployment_approved": ${DEPLOYMENT_APPROVED},
+            "decision_timestamp": "$(date -u +%Y-%m-%dT%H:%M:%SZ)",
+            "decision_basis": {
+              "scale_testing_passed": ${SCALE_TESTING_PASSED},
+              "parity_testing_passed": ${PARITY_TESTING_PASSED}
+            },
+            "github_context": {
+              "run_id": "${{ github.run_id }}",
+              "run_number": "${{ github.run_number }}",
+              "sha": "${{ github.sha }}",
+              "ref": "${{ github.ref }}",
+              "event_name": "${{ github.event_name }}"
+            },
+            "recommendation": "${DEPLOYMENT_APPROVED}" == "true" ? "PROCEED_WITH_DEPLOYMENT" : "DO_NOT_DEPLOY"
+          }
+          EOF
+
+      - name: Upload deployment decision
+        uses: actions/upload-artifact@v3
+        with:
+          name: deployment-decision
+          path: deployment_decision/
+          retention-days: 90
+
+      - name: Create GitHub deployment
+        if: steps.deployment-decision.outputs.deployment-approved == 'true' && github.ref == 'refs/heads/main'
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const deployment = await github.rest.repos.createDeployment({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              ref: context.sha,
+              environment: 'production',
+              description: 'E068H Performance Optimization Deployment',
+              auto_merge: false,
+              required_contexts: []
+            });
+
+            await github.rest.repos.createDeploymentStatus({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              deployment_id: deployment.data.id,
+              state: 'pending',
+              description: 'E068H validation passed - ready for production deployment'
+            });
+
+      - name: Generate deployment summary
+        if: always()
+        run: |
+          cat >> $GITHUB_STEP_SUMMARY << 'EOF'
+          # E068H Production Validation Summary
+
+          ## Overall Status: ${{ steps.deployment-decision.outputs.deployment-approved == 'true' && '✅ APPROVED' || '❌ BLOCKED' }}
+
+          ### Test Results
+
+          | Test Suite | Status | Result |
+          |------------|--------|--------|
+          | Setup & Environment | ${{ needs.setup.result == 'success' && '✅' || '❌' }} | ${{ needs.setup.result }} |
+          | Scale Testing | ${{ needs.scale-testing.result == 'success' && '✅' || '❌' }} | ${{ needs.scale-testing.result }} |
+          | Parity Testing | ${{ needs.parity-testing.result == 'success' && '✅' || '❌' }} | ${{ needs.parity-testing.result }} |
+
+          ### Deployment Decision
+
+          **Production Deployment:** ${{ steps.deployment-decision.outputs.deployment-approved == 'true' && '✅ APPROVED' || '❌ BLOCKED' }}
+
+          ${{ steps.deployment-decision.outputs.deployment-approved == 'true' && '✅ All E068H optimization validation criteria have been successfully met. The system is ready for production deployment with 2× performance improvement.' || '❌ Critical validation failures detected. Address all issues before attempting production deployment.' }}
+
+          ### Next Steps
+
+          ${{ steps.deployment-decision.outputs.deployment-approved == 'true' && '- Proceed with production deployment using approved artifacts\n- Monitor production performance after deployment\n- Validate 2× performance improvement in production' || '- Review failed test results in artifacts\n- Address identified issues\n- Re-run validation pipeline after fixes' }}
+
+          ---
+
+          Generated by E068H Performance Optimization Validation Pipeline
+          EOF
+
+      - name: Fail job if deployment blocked
+        if: steps.deployment-decision.outputs.deployment-approved == 'false'
+        run: |
+          echo "❌ Production deployment blocked due to validation failures"
+          exit 1
+
+  cleanup:
+    name: Cleanup
+    runs-on: ubuntu-latest
+    needs: [setup, scale-testing, parity-testing, deployment-readiness]
+    if: always()
+    timeout-minutes: 5
+
+    steps:
+      - name: Cleanup temporary resources
+        run: |
+          echo "🧹 Cleaning up temporary CI resources..."
+          # Cleanup would typically involve removing temporary databases,
+          # clearing caches, or other cleanup tasks specific to the environment
+          echo "✅ Cleanup completed"

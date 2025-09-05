@@ -1,0 +1,187 @@
+# Storage Configuration for Navigator Orchestrator
+# Epic E068E: Engine & I/O Tuning - Database Query Optimization
+# Target: 15-25% performance improvement through I/O and storage optimization
+
+# Storage Location Configuration
+# Optimize placement of database files, temp directories, and cache for best I/O performance
+storage:
+  # Database location - prefer local NVMe/SSD for best performance
+  # Environment variable DATABASE_PATH overrides this setting
+  database_path: "dbt/simulation.duckdb"
+
+  # Temporary directory for DuckDB operations
+  # Use fastest available storage (NVMe preferred)
+  temp_directory: "/tmp/duckdb_temp"
+
+  # Alternative temp directories by priority (DuckDB will try in order)
+  temp_directory_fallbacks:
+    - "/mnt/fast/tmp_duckdb"     # Dedicated NVMe mount
+    - "/var/tmp/duckdb"          # System temp with more space
+    - "/tmp/duckdb_temp"         # Default system temp
+
+  # Backup and archive location (can use slower storage)
+  backup_path: "/var/backups/navigator_duckdb"
+
+  # Parquet data cache for converted CSV files
+  parquet_cache_dir: "data/parquet_cache"
+
+  # Performance reports and monitoring data
+  reports_dir: "reports/performance"
+
+  # Checkpoint storage for orchestrator
+  checkpoints_dir: ".navigator_checkpoints"
+
+# DuckDB Performance Configuration
+# E068E-aligned settings for 16 vCPU / 64GB target system
+duckdb:
+  # Memory management
+  memory_limit: "48GB"          # Leave 16GB for OS/other processes
+  enable_object_cache: true     # Cache frequently accessed objects
+  preserve_insertion_order: false  # Allow reordering for optimization
+
+  # Thread configuration
+  threads: 16                   # Match vCPU count for target system
+
+  # I/O optimization
+  enable_progress_bar: false    # Reduce logging overhead in production
+  default_null_order: "nulls_last"  # Consistent NULL handling
+
+  # Query optimization
+  enable_profiling: false       # Disable by default (enable for debugging)
+  enable_optimizer: true        # Use query optimizer
+
+  # Temporary storage settings
+  max_temp_directory_size: "20GB"  # Limit temp space usage
+  temp_file_cleanup: true       # Clean up temp files automatically
+
+# File Format Optimization
+# Convert CSV sources to more efficient formats
+file_formats:
+  # Preferred formats in order of efficiency
+  preferred_formats:
+    - "parquet"                 # Best for analytics workloads
+    - "duckdb"                  # Native format
+    - "csv"                     # Fallback only
+
+  # Parquet configuration
+  parquet:
+    compression: "zstd"         # High compression ratio, good performance
+    row_group_size: 100000      # Optimize for typical query patterns
+    enable_statistics: true     # Collect column statistics
+
+  # CSV optimization
+  csv:
+    auto_detect: true           # Automatically detect column types
+    sample_size: 100000         # Larger sample for better type detection
+    normalize_names: true       # Consistent column naming
+
+# Cache Configuration
+caching:
+  # Query result caching
+  enable_query_cache: true
+  query_cache_size_mb: 1024     # 1GB query cache
+
+  # Metadata caching
+  enable_metadata_cache: true
+  metadata_cache_ttl: 3600      # 1 hour TTL
+
+  # Object caching (tables, views)
+  enable_object_cache: true
+  object_cache_size_mb: 2048    # 2GB object cache
+
+# Monitoring and Alerting
+monitoring:
+  # Performance thresholds aligned with E068E targets
+  thresholds:
+    memory_warning_gb: 32       # Warn above 32GB
+    memory_critical_gb: 48      # Critical above 48GB (E068E: peak <40GB)
+    cpu_target_percent: 80      # E068E: >80% utilization target
+    cpu_warning_percent: 95     # Warn above 95%
+    io_rate_warning_mbps: 500   # Warn above 500MB/s sustained
+    query_time_target_s: 30     # E068E: complex joins <30s
+    query_time_warning_s: 300   # Warn above 5 minutes
+    database_growth_target_gb: 1  # E068E: <1GB per simulation year
+    database_growth_warning_gb: 5 # Warn above 5GB per stage
+
+  # Monitoring intervals
+  memory_check_interval_s: 30   # Check memory every 30 seconds
+  io_check_interval_s: 60       # Check I/O every minute
+
+  # Performance data retention
+  keep_performance_data_days: 30  # Retain performance data for 30 days
+
+# Environment-specific Overrides
+environments:
+  # Development environment (laptops, limited resources)
+  development:
+    duckdb:
+      memory_limit: "4GB"       # Conservative for dev machines
+      threads: 2               # Single-threaded or dual-core
+    storage:
+      temp_directory: "/tmp/duckdb_dev"
+    monitoring:
+      thresholds:
+        memory_warning_gb: 2
+        memory_critical_gb: 4
+
+  # Production environment (16 vCPU / 64GB servers)
+  production:
+    duckdb:
+      memory_limit: "48GB"      # Full E068E specification
+      threads: 16               # Full vCPU utilization
+    storage:
+      temp_directory: "/mnt/fast/tmp_duckdb"  # Dedicated NVMe storage
+    monitoring:
+      thresholds:
+        memory_warning_gb: 32
+        memory_critical_gb: 48
+
+  # CI/CD environment (GitHub Actions, limited resources)
+  ci:
+    duckdb:
+      memory_limit: "2GB"       # Very conservative
+      threads: 2               # Limited parallelization
+    storage:
+      temp_directory: "/tmp/ci_duckdb"
+    caching:
+      enable_query_cache: false  # Save memory in CI
+      enable_object_cache: false
+
+# Storage Migration and Optimization
+optimization:
+  # Automatic CSV to Parquet conversion
+  auto_convert_csv_to_parquet: true
+  csv_size_threshold_mb: 10     # Convert CSV files larger than 10MB
+
+  # Database maintenance
+  auto_vacuum: true             # Reclaim space automatically
+  vacuum_threshold_mb: 100      # Vacuum when >100MB can be reclaimed
+
+  # Compression optimization
+  enable_compression: true      # Enable built-in compression
+  compression_level: 6          # Balance between speed and size (1-9)
+
+  # Storage health checks
+  check_disk_space: true        # Monitor available disk space
+  min_free_space_gb: 5          # Minimum 5GB free space required
+
+  # Performance optimization
+  optimize_for_analytics: true  # Optimize for analytical workloads
+  enable_vectorization: true    # Use vectorized operations
+
+# Integration Settings
+integration:
+  # dbt integration
+  dbt:
+    profiles_dir: "dbt"         # Location of dbt profiles
+    project_dir: "dbt"          # dbt project directory
+
+  # Navigator Orchestrator integration
+  orchestrator:
+    enable_performance_monitoring: true  # Enable E068E monitoring
+    checkpoint_frequency: "stage"        # Checkpoint after each stage
+
+  # External tools
+  external:
+    enable_parquet_tools: true  # Use pyarrow for Parquet operations
+    enable_compression_tools: true  # Use external compression when available

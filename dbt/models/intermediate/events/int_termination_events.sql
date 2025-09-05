@@ -1,4 +1,7 @@
-{{ config(materialized='table') }}
+{{ config(
+  materialized='ephemeral',
+  tags=['EVENT_GENERATION', 'E068A_EPHEMERAL']
+) }}
 
 {% set simulation_year = var('simulation_year') %}
 {% set start_year = var('start_year', var('simulation_year')) | int %}
@@ -122,9 +125,23 @@ final_experienced_terminations AS (
 -- Return the hazard-based terminations with workforce planning reference
 final_result AS (
   SELECT
-    fet.*,
-    wn.workforce_needs_id,
-    wn.scenario_id
+    fet.employee_id,
+    fet.employee_ssn,
+    fet.event_type,
+    fet.simulation_year,
+    fet.effective_date,
+    'Termination - ' || fet.termination_reason || ' (final compensation: $' || CAST(ROUND(fet.final_compensation, 0) AS VARCHAR) || ')' AS event_details,
+    fet.final_compensation AS compensation_amount,
+    fet.final_compensation AS previous_compensation,
+    NULL::DECIMAL(5,4) AS employee_deferral_rate,
+    NULL::DECIMAL(5,4) AS prev_employee_deferral_rate,
+    fet.current_age AS employee_age,
+    fet.current_tenure AS employee_tenure,
+    fet.level_id,
+    fet.age_band,
+    fet.tenure_band,
+    fet.termination_rate AS event_probability,
+    'termination' AS event_category
   FROM final_experienced_terminations fet
   CROSS JOIN workforce_needs wn
 )
