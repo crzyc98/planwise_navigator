@@ -1,4 +1,7 @@
-{{ config(materialized='table') }}
+{{ config(
+  materialized='ephemeral',
+  tags=['EVENT_GENERATION', 'E068A_EPHEMERAL']
+) }}
 
 {% set simulation_year = var('simulation_year') %}
 {% set start_year = var('start_year', 2025) | int %}
@@ -112,14 +115,25 @@ SELECT
   'hire' AS event_type,
   {{ simulation_year }} AS simulation_year,
   nha.hire_date AS effective_date,
-  nha.employee_age,
-  nha.birth_date,
-  nha.level_id,
+  'New hire - Level ' || nha.level_id || ' employee at $' || CAST(ROUND(nha.compensation_amount, 0) AS VARCHAR) || ' annual compensation' AS event_details,
   nha.compensation_amount,
-  'external_hire' AS hire_source,
-  CURRENT_TIMESTAMP AS created_at,
-  -- Add reference to workforce planning using subquery to avoid CROSS JOIN amplification
-  (SELECT workforce_needs_id FROM workforce_needs LIMIT 1) AS workforce_needs_id,
-  (SELECT scenario_id FROM workforce_needs LIMIT 1) AS scenario_id
+  NULL::DECIMAL(15,2) AS previous_compensation,
+  NULL::DECIMAL(5,4) AS employee_deferral_rate,
+  NULL::DECIMAL(5,4) AS prev_employee_deferral_rate,
+  nha.employee_age,
+  0.0 AS employee_tenure,
+  nha.level_id,
+  -- Age bands for consistency
+  CASE
+    WHEN nha.employee_age < 25 THEN '< 25'
+    WHEN nha.employee_age < 35 THEN '25-34'
+    WHEN nha.employee_age < 45 THEN '35-44'
+    WHEN nha.employee_age < 55 THEN '45-54'
+    WHEN nha.employee_age < 65 THEN '55-64'
+    ELSE '65+'
+  END AS age_band,
+  '< 2' AS tenure_band,
+  1.0 AS event_probability,
+  'hire' AS event_category
 FROM new_hire_assignments nha
 ORDER BY nha.hire_sequence_num

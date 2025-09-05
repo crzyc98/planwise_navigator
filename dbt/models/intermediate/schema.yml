@@ -1,6 +1,71 @@
 version: 2
 
 models:
+  - name: int_employee_state_by_year
+    description: "Epic E068B: Incremental employee state tracking - year N computed from year N-1 + events(N)"
+    config:
+      tags: ["STATE_ACCUMULATION", "E068B", "performance"]
+    columns:
+      - name: scenario_id
+        data_type: varchar
+        tests: [not_null]
+        description: "Scenario identifier for simulation runs"
+      - name: plan_design_id
+        data_type: varchar
+        tests: [not_null]
+        description: "Plan design identifier"
+      - name: employee_id
+        data_type: varchar
+        tests: [not_null]
+        description: "Unique employee identifier"
+      - name: simulation_year
+        data_type: integer
+        tests: [not_null]
+        description: "Simulation year for this state record"
+      - name: is_active
+        data_type: boolean
+        tests: [not_null]
+        description: "Employee active status flag"
+      - name: hire_date
+        data_type: date
+        description: "Employee hire date"
+      - name: current_level
+        data_type: varchar
+        description: "Current job level"
+      - name: current_salary
+        data_type: decimal(10,2)
+        description: "Current salary amount"
+      - name: is_enrolled
+        data_type: boolean
+        description: "Benefit enrollment status flag"
+      - name: deferral_rate
+        data_type: decimal(5,4)
+        description: "Current deferral rate"
+      - name: account_balance
+        data_type: decimal(12,2)
+        description: "Current account balance"
+      - name: tenure_months
+        data_type: integer
+        description: "Tenure in months"
+      - name: years_of_service
+        data_type: integer
+        description: "Years of service"
+      - name: current_age
+        data_type: integer
+        description: "Current age"
+      - name: employment_status
+        data_type: varchar
+        description: "Employment status (active/terminated)"
+      - name: level_id
+        data_type: integer
+        description: "Level identifier"
+    tests:
+      - unique:
+          column_name: "scenario_id || '-' || plan_design_id || '-' || employee_id || '-' || simulation_year"
+      - dbt_utils.expression_is_true:
+          expression: "deferral_rate >= 0.0 AND deferral_rate <= 1.0"
+      - dbt_utils.expression_is_true:
+          expression: "account_balance >= 0.0"
   - name: int_employer_eligibility
     description: >
       MVP employer contribution eligibility determination model.

@@ -1,6 +1,6 @@
 {{ config(
     materialized='table',
-    tags=['data_quality', 'monitoring', 'summary']
+    tags=['VALIDATION', 'data_quality', 'monitoring', 'summary']
 ) }}
 
 -- Data Quality Summary: High-level view of integrity status

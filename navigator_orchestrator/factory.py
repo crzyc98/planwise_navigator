@@ -58,18 +58,30 @@ class OrchestratorBuilder:
         if not self._db:
             self._db = DatabaseConnectionManager()
 
-        # Validate threading configuration if present
-        if self._config.orchestrator:
-            self._config.validate_threading_configuration()
+        # Extract E068C threading configuration
+        performance_config = getattr(self._config, 'performance', None)
+        thread_count = 6  # Default
+        event_shards = 1
+        max_parallel_years = 1
 
-        # Extract threading configuration from config (with fallback to builder settings)
-        thread_count = self._config.get_thread_count() if self._config.orchestrator else self._threads
+        if performance_config:
+            thread_count = getattr(performance_config, 'dbt_threads', 6)
+            event_sharding_config = getattr(performance_config, 'event_sharding', None)
+            if event_sharding_config and getattr(event_sharding_config, 'enabled', False):
+                event_shards = getattr(event_sharding_config, 'shard_count', 1)
+            max_parallel_years = getattr(performance_config, 'max_parallel_years', 1)
+
+        # Legacy orchestrator threading settings (for backward compatibility)
         threading_enabled = True
         threading_mode = "selective"
 
-        if self._config.orchestrator and self._config.orchestrator.threading:
+        if hasattr(self._config, 'orchestrator') and self._config.orchestrator and hasattr(self._config.orchestrator, 'threading'):
             threading_enabled = self._config.orchestrator.threading.enabled
             threading_mode = self._config.orchestrator.threading.mode
+
+        # Override with builder settings if explicitly provided
+        if hasattr(self, '_threads') and self._threads != 1:
+            thread_count = self._threads
 
         # Default rules if none provided
         dv = DataValidator(self._db)
@@ -89,6 +101,7 @@ class OrchestratorBuilder:
         )
         registries = RegistryManager(self._db)
 
+        # PipelineOrchestrator will extract E068C threading config directly from self._config
         return PipelineOrchestrator(
             config=self._config,
             db_manager=self._db,
@@ -105,11 +118,22 @@ def create_orchestrator(
     db_path: Optional[Path | str] = None,
     dbt_executable: str = "dbt",
 ) -> PipelineOrchestrator:
+    """Create a PipelineOrchestrator with E068C threading support.
+
+    Args:
+        config_path: Path to simulation configuration file
+        threads: Legacy thread count (overridden by E068C config if present)
+        db_path: Database path (optional)
+        dbt_executable: dbt executable path
+
+    Returns:
+        Configured PipelineOrchestrator with E068C threading settings
+    """
     return (
         OrchestratorBuilder()
         .with_config(config_path)
         .with_database(db_path)
-        .with_dbt_threads(threads)
+        .with_dbt_threads(threads)  # Will be overridden by E068C config if present
         .with_dbt_executable(dbt_executable)
         .build()
     )

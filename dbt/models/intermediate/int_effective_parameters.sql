@@ -1,4 +1,7 @@
-{{ config(materialized='table') }}
+{{ config(
+    materialized='table',
+    tags=['FOUNDATION']
+) }}
 
 -- Parameter resolution model that determines effective parameters per scenario, year, level, and event type
 

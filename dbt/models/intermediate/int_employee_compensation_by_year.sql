@@ -3,7 +3,7 @@
     unique_key=['employee_id', 'simulation_year'],
     incremental_strategy='delete+insert',
     on_schema_change='ignore',
-    tags=['foundation', 'critical', 'compensation']
+    tags=['FOUNDATION', 'critical', 'compensation']
 ) }}
 
 -- Pre-calculate employee compensation for event generation

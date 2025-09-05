@@ -6,7 +6,8 @@
     indexes=[
         {'columns': ['simulation_year'], 'type': 'btree'},
         {'columns': ['employee_id', 'simulation_year'], 'type': 'btree'}
-    ]
+    ],
+    tags=['FOUNDATION']
 ) }}
 
 -- Simplified Baseline Workforce Preparation

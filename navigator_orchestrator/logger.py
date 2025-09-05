@@ -13,6 +13,7 @@ from datetime import datetime
 from logging.handlers import RotatingFileHandler
 from pathlib import Path
 from typing import Any, Dict, Optional
+import sys
 
 
 class JSONFormatter(logging.Formatter):
@@ -38,11 +39,16 @@ class JSONFormatter(logging.Formatter):
 
         # Add exception information if present
         if record.exc_info:
-            log_data["exception"] = {
-                "type": record.exc_info[0].__name__ if record.exc_info[0] else None,
-                "message": str(record.exc_info[1]) if record.exc_info[1] else None,
-                "traceback": self.formatException(record.exc_info),
-            }
+            # Ensure exc_info is a tuple; logger.makeRecord may receive True if misused
+            exc_info = (
+                record.exc_info if isinstance(record.exc_info, tuple) else sys.exc_info()
+            )
+            if exc_info and isinstance(exc_info, tuple):
+                log_data["exception"] = {
+                    "type": exc_info[0].__name__ if exc_info[0] else None,
+                    "message": str(exc_info[1]) if exc_info[1] else None,
+                    "traceback": self.formatException(exc_info),
+                }
 
         # Add any extra data attached to the record
         if hasattr(record, "extra_data"):
@@ -174,7 +180,8 @@ class ProductionLogger:
             lno=0,
             msg=message,
             args=(),
-            exc_info=True,  # Capture current exception
+            # Capture current exception info tuple explicitly
+            exc_info=sys.exc_info(),
         )
         record.extra_data = kwargs
         self.logger.handle(record)
