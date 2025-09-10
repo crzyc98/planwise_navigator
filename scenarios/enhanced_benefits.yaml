@@ -1,0 +1,79 @@
+# Enhanced Benefits Scenario - Improved retirement benefits for retention
+# Models impact of enhanced 401k plan design for talent retention
+
+simulation:
+  start_year: 2025
+  end_year: 2029
+  random_seed: 400
+  target_growth_rate: 0.03  # Standard 3% growth
+
+scenario_id: "enhanced_benefits"
+plan_design_id: "premium_401k"
+
+# Enhanced employer match formula
+employer_match:
+  active_formula: 'enhanced_tiered'
+  apply_eligibility: true
+  eligibility:
+    minimum_tenure_years: 0
+    require_active_at_year_end: true
+    allow_new_hires: true
+    allow_terminated_new_hires: false
+    allow_experienced_terminations: false
+  formulas:
+    enhanced_tiered:
+      name: 'Enhanced Tiered Match'
+      type: 'tiered'
+      tiers:
+        - tier: 1
+          employee_min: 0.00
+          employee_max: 0.06  # Match up to 6%
+          match_rate: 1.00    # 100% match on first 6%
+        - tier: 2
+          employee_min: 0.06
+          employee_max: 0.08
+          match_rate: 0.50    # 50% match on next 2%
+      max_match_percentage: 0.07  # Cap at 7% of compensation
+
+# Add employer core contribution
+employer_core_contribution:
+  enabled: true
+  contribution_rate: 0.02  # 2% core contribution instead of 1%
+  eligibility:
+    minimum_tenure_years: 1  # 1 year service requirement
+    require_active_at_year_end: true
+    allow_new_hires: false  # New hires not eligible until 1 year
+
+# Enhanced auto-enrollment to increase participation
+enrollment:
+  auto_enrollment:
+    enabled: true
+    default_deferral_rate: 0.06  # 6% default instead of 2%
+    window_days: 30  # Shorter window for faster enrollment
+
+    # More aggressive opt-out rates (people more likely to stay enrolled)
+    opt_out_rates:
+      by_age:
+        young: 0.05      # 5% opt-out instead of 10%
+        mid_career: 0.03 # 3% opt-out instead of 7%
+        mature: 0.02     # 2% opt-out instead of 5%
+        senior: 0.01     # 1% opt-out instead of 3%
+
+      by_income:
+        low_income: 1.10  # Reduced multiplier
+        moderate: 1.00    # Base rate
+        high: 0.60        # Lower opt-out for high earners
+        executive: 0.40   # Even lower for executives
+
+# Enable annual deferral escalation
+deferral_auto_escalation:
+  enabled: true
+  effective_day: "01-01"
+  increment_amount: 0.01  # 1% annual increase
+  maximum_rate: 0.15      # Cap at 15%
+  require_active_enrollment: true
+
+# Reduced termination due to better benefits
+workforce:
+  total_termination_rate: 0.09  # 9% instead of 12%
+  new_hire_termination_rate: 0.18  # 18% instead of 25%
