@@ -282,6 +282,30 @@ print(f'Completed {len(summary.completed_years)} years')
 # Enrollment Architecture Validation
 dbt run --select validate_enrollment_architecture --vars "simulation_year: 2025"
 # Check for duplicate enrollments across years in fct_yearly_events
+
+# Scenario Batch Processing (E069) - Multiple Scenarios with Excel Export
+# Run all scenarios in the scenarios/ directory
+python -m navigator_orchestrator batch
+
+# Run specific scenarios
+python -m navigator_orchestrator batch --scenarios high_growth baseline cost_control
+
+# Custom configuration and output directories
+python -m navigator_orchestrator batch \
+  --config config/custom_simulation_config.yaml \
+  --scenarios-dir /path/to/scenarios \
+  --output-dir /path/to/analysis
+
+# Export formats and options
+python -m navigator_orchestrator batch --export-format csv
+python -m navigator_orchestrator batch --split-by-year  # Force per-year sheets
+
+# Batch processing creates timestamped directories with:
+# - Individual scenario databases (scenario_name.duckdb)
+# - Excel/CSV exports with workforce snapshots, metrics, events
+# - Metadata sheets with git SHA, seed, configuration
+# - Comparison reports across successful scenarios
+# - Batch summary JSON with execution statistics
 ```
 
 -----
@@ -524,6 +548,22 @@ The CI pipeline (GitHub Actions) performs:
 ### **9. Project Status & Changelog**
 
 This section tracks the implementation of major epics and stories.
+
+#### **Epic E069: Streamlined Scenario Batch Processing with Excel Export**
+
+  * **Status**: ✅ **COMPLETE** (100% - all 4 stories completed on September 10, 2025)
+  * **Summary**: Delivered comprehensive batch scenario processing capability enabling workforce planning analysts to run multiple configuration scenarios through five-year pipeline with automated Excel export. Eliminates manual configuration editing and database management friction through isolated scenario execution with professional Excel reporting.
+  * **Completed Stories** (12 of 12 points):
+      * **S069-01**: Scenario Batch Runner Core - `ScenarioBatchRunner` with database isolation and error resilience ✅
+      * **S069-02**: Excel Export Integration - `ExcelExporter` with metadata sheets and professional formatting ✅
+      * **S069-03**: CLI Batch Subcommand - `navigator_orchestrator batch` with full parameter support ✅
+      * **S069-04**: Example Scenarios & Documentation - 5 production scenarios with comprehensive documentation ✅
+  * **Key Features**:
+      * **Database isolation** with unique `.duckdb` files per scenario preventing cross-scenario contamination
+      * **Professional Excel export** with workforce snapshots, summary metrics, events, and metadata sheets
+      * **Error resilience** allowing batch continuation when individual scenarios fail
+      * **Deterministic execution** via persisted random seeds for reproducible results
+      * **CLI integration** with scenario discovery, timestamped output directories, and comparison reporting
 
 #### **Epic E021-A: DC Plan Event Schema Foundation**
 

@@ -1,0 +1,14 @@
+# Baseline Scenario - Default configuration for comparison
+# This scenario uses the standard parameters from the base configuration
+
+simulation:
+  start_year: 2025
+  end_year: 2029
+  random_seed: 100
+  target_growth_rate: 0.03  # 3% growth per year
+
+scenario_id: "baseline"
+plan_design_id: "standard_401k"
+
+# All other parameters inherited from base config
+# This scenario represents the standard business-as-usual case
