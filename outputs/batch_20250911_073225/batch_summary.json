@@ -1,0 +1,21 @@
+{
+  "batch_timestamp": "20250911_073225",
+  "total_scenarios": 1,
+  "successful_scenarios": 0,
+  "failed_scenarios": 1,
+  "success_rate": 0.0,
+  "total_execution_time_seconds": 0,
+  "scenarios": {
+    "successful": [],
+    "failed": [
+      "baseline"
+    ]
+  },
+  "detailed_results": {
+    "baseline": {
+      "status": "failed",
+      "error": "Could not acquire execution lock",
+      "traceback": "Traceback (most recent call last):\n  File \"/Users/nicholasamaral/planwise_navigator/navigator_orchestrator/scenario_batch_runner.py\", line 82, in run_batch\n    result = self._run_isolated_scenario(name, config_path, export_format)\n             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n  File \"/Users/nicholasamaral/planwise_navigator/navigator_orchestrator/scenario_batch_runner.py\", line 188, in _run_isolated_scenario\n    summary = orchestrator.execute_multi_year_simulation(\n              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n  File \"/Users/nicholasamaral/planwise_navigator/navigator_orchestrator/pipeline.py\", line 625, in execute_multi_year_simulation\n    with ExecutionMutex(\"navigator_orchestrator\"):\n  File \"/Users/nicholasamaral/planwise_navigator/navigator_orchestrator/utils.py\", line 72, in __enter__\n    raise RuntimeError(\"Could not acquire execution lock\")\nRuntimeError: Could not acquire execution lock\n"
+    }
+  }
+}

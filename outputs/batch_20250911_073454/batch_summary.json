@@ -1,0 +1,21 @@
+{
+  "batch_timestamp": "20250911_073454",
+  "total_scenarios": 1,
+  "successful_scenarios": 0,
+  "failed_scenarios": 1,
+  "success_rate": 0.0,
+  "total_execution_time_seconds": 0,
+  "scenarios": {
+    "successful": [],
+    "failed": [
+      "baseline"
+    ]
+  },
+  "detailed_results": {
+    "baseline": {
+      "status": "failed",
+      "error": "Unknown dbt error (code 1). Tail: [0m\n\u001b[0m11:35:36  \n\u001b[0m11:35:36    Runtime Error in model int_workforce_needs_by_level (models/intermediate/int_workforce_needs_by_level.sql)\n  Out of Range Error: Overflow in multiplication of DECIMAL(38) (349 * 6020000000000000000000000000000000000). You might want to add an explicit cast to a decimal with a smaller scale.\n\u001b[0m11:35:36  \n\u001b[0m11:35:36  Done. PASS=16 WARN=0 ERROR=1 SKIP=0 TOTAL=17",
+      "traceback": "Traceback (most recent call last):\n  File \"/Users/nicholasamaral/planwise_navigator/navigator_orchestrator/scenario_batch_runner.py\", line 82, in run_batch\n    result = self._run_isolated_scenario(name, config_path, export_format)\n             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n  File \"/Users/nicholasamaral/planwise_navigator/navigator_orchestrator/scenario_batch_runner.py\", line 188, in _run_isolated_scenario\n    summary = orchestrator.execute_multi_year_simulation(\n              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n  File \"/Users/nicholasamaral/planwise_navigator/navigator_orchestrator/pipeline.py\", line 664, in execute_multi_year_simulation\n    self._execute_year_workflow(\n  File \"/Users/nicholasamaral/planwise_navigator/navigator_orchestrator/pipeline.py\", line 1311, in _execute_year_workflow\n    self._run_stage_models(stage, year)\n  File \"/Users/nicholasamaral/planwise_navigator/navigator_orchestrator/pipeline.py\", line 1800, in _run_stage_models\n    self._run_stage_models_legacy(stage, year)\n  File \"/Users/nicholasamaral/planwise_navigator/navigator_orchestrator/pipeline.py\", line 1973, in _run_stage_models_legacy\n    res = self.dbt_runner.execute_command(\n          ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n  File \"/Users/nicholasamaral/planwise_navigator/navigator_orchestrator/dbt_runner.py\", line 294, in execute_command\n    result = retry_with_backoff(_wrapped, max_attempts=max_attempts)\n             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n  File \"/Users/nicholasamaral/planwise_navigator/navigator_orchestrator/dbt_runner.py\", line 87, in retry_with_backoff\n    return func()\n           ^^^^^^\n  File \"/Users/nicholasamaral/planwise_navigator/navigator_orchestrator/dbt_runner.py\", line 288, in _wrapped\n    raise err\nnavigator_orchestrator.dbt_runner.DbtError: Unknown dbt error (code 1). Tail: [0m\n\u001b[0m11:35:36  \n\u001b[0m11:35:36    Runtime Error in model int_workforce_needs_by_level (models/intermediate/int_workforce_needs_by_level.sql)\n  Out of Range Error: Overflow in multiplication of DECIMAL(38) (349 * 6020000000000000000000000000000000000). You might want to add an explicit cast to a decimal with a smaller scale.\n\u001b[0m11:35:36  \n\u001b[0m11:35:36  Done. PASS=16 WARN=0 ERROR=1 SKIP=0 TOTAL=17\n"
+    }
+  }
+}
