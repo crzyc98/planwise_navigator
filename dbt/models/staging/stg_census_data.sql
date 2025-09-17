@@ -45,36 +45,95 @@ WITH raw_data AS (
   FROM read_parquet('{{ var("census_parquet_path") }}')
 ),
 
--- Calculate annualized compensation for partial year workers
+-- Annualized compensation calculation
+-- IMPORTANT: The source column `employee_gross_compensation` is defined as an annual amount
+-- in the contract. To avoid double-annualizing, we only apply calendar-day gross-up when
+-- explicitly enabled via var('annualize_partial_year_compensation').
 annualized_data AS (
   SELECT
       *,
-      -- **NEW**: Annualize plan year compensation for partial year workers
+      -- Define plan year boundaries
+      '{{ var("plan_year_start_date", "2024-01-01") }}'::DATE AS plan_start,
+      '{{ var("plan_year_end_date", "2024-12-31") }}'::DATE   AS plan_end,
+
+      -- Compute effective active window within the plan year
+      GREATEST(employee_hire_date, '{{ var("plan_year_start_date", "2024-01-01") }}'::DATE) AS active_start,
+      LEAST(COALESCE(employee_termination_date, '{{ var("plan_year_end_date", "2024-12-31") }}'::DATE), '{{ var("plan_year_end_date", "2024-12-31") }}'::DATE) AS active_end,
+
+      -- Days active in plan year (0 if no overlap)
       CASE
-          -- New hire during plan year: gross up based on hire date to plan year end
-          WHEN employee_hire_date > '{{ var("plan_year_start_date", "2024-01-01") }}'::DATE
-               AND employee_hire_date <= '{{ var("plan_year_end_date", "2024-12-31") }}'::DATE
-          THEN raw_plan_year_compensation * 365.0 /
-               GREATEST(1, DATE_DIFF('day', employee_hire_date, '{{ var("plan_year_end_date", "2024-12-31") }}'::DATE) + 1)
+        WHEN employee_hire_date > '{{ var("plan_year_end_date", "2024-12-31") }}'::DATE
+          OR (employee_termination_date IS NOT NULL AND employee_termination_date < '{{ var("plan_year_start_date", "2024-01-01") }}'::DATE)
+        THEN 0
+        ELSE GREATEST(0, DATE_DIFF('day',
+                   GREATEST(employee_hire_date, '{{ var("plan_year_start_date", "2024-01-01") }}'::DATE),
+                   LEAST(COALESCE(employee_termination_date, '{{ var("plan_year_end_date", "2024-12-31") }}'::DATE), '{{ var("plan_year_end_date", "2024-12-31") }}'::DATE)
+               ) + 1)
+      END AS days_active_in_year,
 
-          -- Terminated during plan year: gross up based on termination date
-          WHEN employee_termination_date IS NOT NULL
-               AND employee_termination_date >= '{{ var("plan_year_start_date", "2024-01-01") }}'::DATE
-               AND employee_termination_date < '{{ var("plan_year_end_date", "2024-12-31") }}'::DATE
-          THEN raw_plan_year_compensation * 365.0 /
-               GREATEST(1, DATE_DIFF('day', '{{ var("plan_year_start_date", "2024-01-01") }}'::DATE, employee_termination_date) + 1)
+      -- Plan-year compensation (partial): pro-rate the annual salary by active days
+      CASE
+        WHEN (
+          employee_hire_date > '{{ var("plan_year_end_date", "2024-12-31") }}'::DATE OR
+          (employee_termination_date IS NOT NULL AND employee_termination_date < '{{ var("plan_year_start_date", "2024-01-01") }}'::DATE)
+        ) THEN 0.0
+        WHEN DATE_DIFF('day', '{{ var("plan_year_start_date", "2024-01-01") }}'::DATE, '{{ var("plan_year_end_date", "2024-12-31") }}'::DATE) + 1 <= 0 THEN employee_gross_compensation
+        ELSE employee_gross_compensation * ( (
+          CASE
+            WHEN employee_hire_date > '{{ var("plan_year_end_date", "2024-12-31") }}'::DATE OR (employee_termination_date IS NOT NULL AND employee_termination_date < '{{ var("plan_year_start_date", "2024-01-01") }}'::DATE)
+            THEN 0
+            ELSE GREATEST(0, DATE_DIFF('day',
+                     GREATEST(employee_hire_date, '{{ var("plan_year_start_date", "2024-01-01") }}'::DATE),
+                     LEAST(COALESCE(employee_termination_date, '{{ var("plan_year_end_date", "2024-12-31") }}'::DATE), '{{ var("plan_year_end_date", "2024-12-31") }}'::DATE)
+                 ) + 1)
+          END
+        )::DOUBLE / 365.0 )
+      END AS computed_plan_year_compensation,
 
-          -- Mid-year hire AND termination in same plan year
-          WHEN employee_hire_date > '{{ var("plan_year_start_date", "2024-01-01") }}'::DATE
-               AND employee_termination_date IS NOT NULL
-               AND employee_termination_date < '{{ var("plan_year_end_date", "2024-12-31") }}'::DATE
-               AND employee_hire_date <= employee_termination_date
-          THEN raw_plan_year_compensation * 365.0 /
-               GREATEST(1, DATE_DIFF('day', employee_hire_date, employee_termination_date) + 1)
-
-          -- Full year worker: plan year compensation IS the annualized amount
-          ELSE raw_plan_year_compensation
-      END AS employee_annualized_compensation
+      -- Annualized compensation: convert partial plan-year comp back to full-year equivalent
+      CASE
+        WHEN (
+          employee_hire_date > '{{ var("plan_year_end_date", "2024-12-31") }}'::DATE OR
+          (employee_termination_date IS NOT NULL AND employee_termination_date < '{{ var("plan_year_start_date", "2024-01-01") }}'::DATE)
+        ) THEN employee_gross_compensation
+        WHEN GREATEST(1, (
+          CASE
+            WHEN employee_hire_date > '{{ var("plan_year_end_date", "2024-12-31") }}'::DATE OR (employee_termination_date IS NOT NULL AND employee_termination_date < '{{ var("plan_year_start_date", "2024-01-01") }}'::DATE)
+            THEN 0
+            ELSE GREATEST(0, DATE_DIFF('day',
+                     GREATEST(employee_hire_date, '{{ var("plan_year_start_date", "2024-01-01") }}'::DATE),
+                     LEAST(COALESCE(employee_termination_date, '{{ var("plan_year_end_date", "2024-12-31") }}'::DATE), '{{ var("plan_year_end_date", "2024-12-31") }}'::DATE)
+                 ) + 1)
+          END
+        )) = 0 THEN employee_gross_compensation
+        ELSE (
+          (CASE
+            WHEN (
+              employee_hire_date > '{{ var("plan_year_end_date", "2024-12-31") }}'::DATE OR
+              (employee_termination_date IS NOT NULL AND employee_termination_date < '{{ var("plan_year_start_date", "2024-01-01") }}'::DATE)
+            ) THEN 0.0
+            ELSE employee_gross_compensation * ( (
+              CASE
+                WHEN employee_hire_date > '{{ var("plan_year_end_date", "2024-12-31") }}'::DATE OR (employee_termination_date IS NOT NULL AND employee_termination_date < '{{ var("plan_year_start_date", "2024-01-01") }}'::DATE)
+                THEN 0
+                ELSE GREATEST(0, DATE_DIFF('day',
+                         GREATEST(employee_hire_date, '{{ var("plan_year_start_date", "2024-01-01") }}'::DATE),
+                         LEAST(COALESCE(employee_termination_date, '{{ var("plan_year_end_date", "2024-12-31") }}'::DATE), '{{ var("plan_year_end_date", "2024-12-31") }}'::DATE)
+                     ) + 1)
+              END
+            )::DOUBLE / 365.0 )
+          END) * 365.0 /
+          GREATEST(1, (
+            CASE
+              WHEN employee_hire_date > '{{ var("plan_year_end_date", "2024-12-31") }}'::DATE OR (employee_termination_date IS NOT NULL AND employee_termination_date < '{{ var("plan_year_start_date", "2024-01-01") }}'::DATE)
+              THEN 0
+              ELSE GREATEST(0, DATE_DIFF('day',
+                       GREATEST(employee_hire_date, '{{ var("plan_year_start_date", "2024-01-01") }}'::DATE),
+                       LEAST(COALESCE(employee_termination_date, '{{ var("plan_year_end_date", "2024-12-31") }}'::DATE), '{{ var("plan_year_end_date", "2024-12-31") }}'::DATE)
+                   ) + 1)
+            END
+          ))
+        END AS employee_annualized_compensation
 
   FROM raw_data
   WHERE rn = 1
@@ -111,8 +170,8 @@ SELECT
     employee_termination_date,
     employee_gross_compensation,
     active,
-    -- **NEW**: Include both raw plan year compensation and annualized version
-    raw_plan_year_compensation AS employee_plan_year_compensation,
+    -- **NEW**: Include computed partial-year plan compensation and annualized version
+    computed_plan_year_compensation AS employee_plan_year_compensation,
     employee_annualized_compensation,
     employee_capped_compensation,
     employee_deferral_rate,

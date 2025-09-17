@@ -40,6 +40,9 @@
       WHEN '{{ parameter_name }}' = 'tenure_threshold' THEN 1  -- 1 year minimum tenure
       WHEN '{{ parameter_name }}' = 'age_threshold' THEN 21  -- 21 minimum age
       WHEN '{{ parameter_name }}' = 'max_escalations' THEN 10  -- Maximum 10 escalations
+      -- Epic E056: New hire compensation defaults
+      WHEN '{{ parameter_name }}' = 'compensation_percentile' THEN 0.50  -- 50th percentile default
+      WHEN '{{ parameter_name }}' = 'market_adjustment_multiplier' THEN 1.0  -- No adjustment
       ELSE 1.0
     END
   )

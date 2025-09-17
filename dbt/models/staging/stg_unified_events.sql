@@ -1,10 +1,7 @@
 {{
   config(
     materialized='view',
-    meta={
-      'description': 'Unified view for event data supporting both SQL and Polars generation modes (E068G)',
-      'tags': ['event_generation', 'hybrid_pipeline', 'staging']
-    }
+    enabled=false
   )
 }}
 

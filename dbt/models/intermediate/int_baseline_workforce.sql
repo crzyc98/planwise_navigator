@@ -21,10 +21,9 @@ SELECT
     stg.employee_ssn,
     stg.employee_birth_date,
     stg.employee_hire_date,
-    -- **E066 FIX**: Use annualized compensation to represent full-year equivalent for simulation
-    -- This ensures late prior-year hires have correct compensation baseline for all calculations
-    -- Previous logic used gross (partial year) which caused significant undervaluation
-    COALESCE(stg.employee_annualized_compensation, stg.employee_gross_compensation) AS current_compensation,
+    -- **HOTFIX**: Use gross compensation to avoid annualization calculation bug
+    -- TODO: Fix the annualization logic in stg_census_data.sql later
+    stg.employee_gross_compensation AS current_compensation,
     -- Calculate age and tenure based on the simulation_effective_date
     EXTRACT(YEAR FROM '{{ simulation_effective_date_str }}'::DATE) - EXTRACT(YEAR FROM stg.employee_birth_date) AS current_age,
     EXTRACT(YEAR FROM '{{ simulation_effective_date_str }}'::DATE) - EXTRACT(YEAR FROM stg.employee_hire_date) AS current_tenure,
@@ -75,8 +74,8 @@ LEFT JOIN (
         MIN(levels.level_id) as level_id
     FROM {{ ref('stg_census_data') }} stg_inner
     LEFT JOIN {{ ref('stg_config_job_levels') }} levels
-        ON COALESCE(stg_inner.employee_annualized_compensation, stg_inner.employee_gross_compensation) >= levels.min_compensation
-       AND (COALESCE(stg_inner.employee_annualized_compensation, stg_inner.employee_gross_compensation) < levels.max_compensation OR levels.max_compensation IS NULL)
+        ON stg_inner.employee_gross_compensation >= levels.min_compensation
+       AND (stg_inner.employee_gross_compensation < levels.max_compensation OR levels.max_compensation IS NULL)
     GROUP BY stg_inner.employee_id
 ) level_match ON stg.employee_id = level_match.employee_id
 WHERE stg.employee_termination_date IS NULL
