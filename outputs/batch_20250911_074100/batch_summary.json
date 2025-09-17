@@ -1,0 +1,21 @@
+{
+  "batch_timestamp": "20250911_074100",
+  "total_scenarios": 1,
+  "successful_scenarios": 0,
+  "failed_scenarios": 1,
+  "success_rate": 0.0,
+  "total_execution_time_seconds": 0,
+  "scenarios": {
+    "successful": [],
+    "failed": [
+      "baseline"
+    ]
+  },
+  "detailed_results": {
+    "baseline": {
+      "status": "failed",
+      "error": "Unknown dbt error (code 2). Tail: adapter does not support metadata-based freshness. A loaded_at_field must be specified for source 'polars_events.fct_yearly_events_polars'.\n\u001b[0m11:41:12  Encountered an error:\nCompilation Error\n  Model 'model.planwise_navigator.int_employee_compensation_by_year' (models/intermediate/int_employee_compensation_by_year.sql) depends on a node named 'int_new_hire_compensation_staging' which is disabled",
+      "traceback": "Traceback (most recent call last):\n  File \"/Users/nicholasamaral/planwise_navigator/navigator_orchestrator/scenario_batch_runner.py\", line 82, in run_batch\n    result = self._run_isolated_scenario(name, config_path, export_format)\n             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n  File \"/Users/nicholasamaral/planwise_navigator/navigator_orchestrator/scenario_batch_runner.py\", line 188, in _run_isolated_scenario\n    summary = orchestrator.execute_multi_year_simulation(\n              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n  File \"/Users/nicholasamaral/planwise_navigator/navigator_orchestrator/pipeline.py\", line 664, in execute_multi_year_simulation\n    self._execute_year_workflow(\n  File \"/Users/nicholasamaral/planwise_navigator/navigator_orchestrator/pipeline.py\", line 1224, in _execute_year_workflow\n    seed_res = self.dbt_runner.execute_command([\"seed\"], stream_output=True)\n               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n  File \"/Users/nicholasamaral/planwise_navigator/navigator_orchestrator/dbt_runner.py\", line 294, in execute_command\n    result = retry_with_backoff(_wrapped, max_attempts=max_attempts)\n             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n  File \"/Users/nicholasamaral/planwise_navigator/navigator_orchestrator/dbt_runner.py\", line 87, in retry_with_backoff\n    return func()\n           ^^^^^^\n  File \"/Users/nicholasamaral/planwise_navigator/navigator_orchestrator/dbt_runner.py\", line 288, in _wrapped\n    raise err\nnavigator_orchestrator.dbt_runner.DbtError: Unknown dbt error (code 2). Tail: adapter does not support metadata-based freshness. A loaded_at_field must be specified for source 'polars_events.fct_yearly_events_polars'.\n\u001b[0m11:41:12  Encountered an error:\nCompilation Error\n  Model 'model.planwise_navigator.int_employee_compensation_by_year' (models/intermediate/int_employee_compensation_by_year.sql) depends on a node named 'int_new_hire_compensation_staging' which is disabled\n"
+    }
+  }
+}
