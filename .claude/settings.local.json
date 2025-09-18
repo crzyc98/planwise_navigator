@@ -31,7 +31,8 @@
       "Bash(cat:*)",
       "Bash(gh pr view:*)",
       "Bash(PYTHONPATH=. python -m navigator_orchestrator batch --scenarios baseline ae_new_hires ae_all_eligible)",
-      "Bash(PYTHONPATH=. python -m navigator_orchestrator batch --scenarios baseline --export-format excel)"
+      "Bash(PYTHONPATH=. python -m navigator_orchestrator batch --scenarios baseline --export-format excel)",
+      "Bash(timeout:*)"
     ],
     "deny": [],
     "ask": []
