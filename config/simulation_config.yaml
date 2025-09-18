@@ -444,7 +444,7 @@ orchestrator:
     memory_per_thread_gb: 2.0  # Memory allocation per thread in GB
 
     # Epic E067 Story S067-02: Model-Level Parallelization Configuration
-    model_parallelization:
+    parallelization:
       enabled: true   # Enable model-level parallelization for performance
       max_workers: 4  # Maximum parallel workers for model execution
       memory_limit_mb: 6000.0  # Memory limit for parallel execution (6GB)

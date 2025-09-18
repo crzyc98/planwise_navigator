@@ -264,7 +264,7 @@ class ThreadingSettings(BaseModel):
     memory_per_thread_gb: float = Field(default=1.0, ge=0.25, le=8.0, description="Memory allocation per thread in GB")
 
     # Model-level parallelization settings
-    model_parallelization: ModelParallelizationSettings = Field(
+    parallelization: ModelParallelizationSettings = Field(
         default_factory=ModelParallelizationSettings,
         description="Model-level parallelization configuration"
     )

@@ -64,7 +64,7 @@ orchestrator:
     memory_per_thread_gb: 1.5
 
     # Model-level parallelization
-    model_parallelization:
+    parallelization:
       enabled: true
       max_workers: 4
       memory_limit_mb: 4000.0
