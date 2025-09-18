@@ -823,7 +823,7 @@ threading:
   mode: "selective"
   memory_per_thread_gb: 1.0
 
-  model_parallelization:
+  parallelization:
     enabled: true
     max_workers: 4
     aggressive_mode: false
@@ -867,8 +867,8 @@ dbt:
         assert config.threading.thread_count == 4
         assert config.threading.mode == "selective"
 
-        assert config.threading.model_parallelization.enabled == True
-        assert config.threading.model_parallelization.max_workers == 4
+        assert config.threading.parallelization.enabled == True
+        assert config.threading.parallelization.max_workers == 4
 
         assert config.threading.resource_management.max_workers == 4
         assert config.threading.resource_management.memory_limit_gb == 4.0
@@ -905,7 +905,7 @@ dbt:
 
             # Verify threading configuration would be passed correctly
             assert config.threading.thread_count == 4
-            assert config.threading.model_parallelization.enabled == True
+            assert config.threading.parallelization.enabled == True
 
     def test_performance_target_validation(self):
         """Validate that performance targets from Epic E067 are achievable."""

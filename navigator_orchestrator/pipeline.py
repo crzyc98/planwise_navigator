@@ -261,7 +261,7 @@ class PipelineOrchestrator:
             # Check if model parallelization is enabled in config
             threading_config = getattr(self.config, 'orchestrator', None)
             if threading_config and hasattr(threading_config, 'threading'):
-                parallelization_config = threading_config.threading.model_parallelization
+                parallelization_config = threading_config.threading.parallelization
                 resource_mgmt_config = threading_config.threading.resource_management
             else:
                 # Fallback: check if enabled via optimization config
