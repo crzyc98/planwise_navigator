@@ -53,87 +53,35 @@ annualized_data AS (
   SELECT
       *,
       -- Define plan year boundaries
-      '{{ var("plan_year_start_date", "2024-01-01") }}'::DATE AS plan_start,
-      '{{ var("plan_year_end_date", "2024-12-31") }}'::DATE   AS plan_end,
+      CAST('{{ var("plan_year_start_date", "2024-01-01") }}' AS DATE) AS plan_start,
+      CAST('{{ var("plan_year_end_date", "2024-12-31") }}' AS DATE)   AS plan_end,
 
       -- Compute effective active window within the plan year
-      GREATEST(employee_hire_date, '{{ var("plan_year_start_date", "2024-01-01") }}'::DATE) AS active_start,
-      LEAST(COALESCE(employee_termination_date, '{{ var("plan_year_end_date", "2024-12-31") }}'::DATE), '{{ var("plan_year_end_date", "2024-12-31") }}'::DATE) AS active_end,
+      GREATEST(employee_hire_date, CAST('{{ var("plan_year_start_date", "2024-01-01") }}' AS DATE)) AS active_start,
+      LEAST(COALESCE(employee_termination_date, CAST('{{ var("plan_year_end_date", "2024-12-31") }}' AS DATE)), CAST('{{ var("plan_year_end_date", "2024-12-31") }}' AS DATE)) AS active_end,
 
       -- Days active in plan year (0 if no overlap)
       CASE
-        WHEN employee_hire_date > '{{ var("plan_year_end_date", "2024-12-31") }}'::DATE
-          OR (employee_termination_date IS NOT NULL AND employee_termination_date < '{{ var("plan_year_start_date", "2024-01-01") }}'::DATE)
+        WHEN employee_hire_date > CAST('{{ var("plan_year_end_date", "2024-12-31") }}' AS DATE)
+          OR (employee_termination_date IS NOT NULL AND employee_termination_date < CAST('{{ var("plan_year_start_date", "2024-01-01") }}' AS DATE))
         THEN 0
         ELSE GREATEST(0, DATE_DIFF('day',
-                   GREATEST(employee_hire_date, '{{ var("plan_year_start_date", "2024-01-01") }}'::DATE),
-                   LEAST(COALESCE(employee_termination_date, '{{ var("plan_year_end_date", "2024-12-31") }}'::DATE), '{{ var("plan_year_end_date", "2024-12-31") }}'::DATE)
+                   GREATEST(employee_hire_date, CAST('{{ var("plan_year_start_date", "2024-01-01") }}' AS DATE)),
+                   LEAST(COALESCE(employee_termination_date, CAST('{{ var("plan_year_end_date", "2024-12-31") }}' AS DATE)), CAST('{{ var("plan_year_end_date", "2024-12-31") }}' AS DATE))
                ) + 1)
       END AS days_active_in_year,
 
       -- Plan-year compensation (partial): pro-rate the annual salary by active days
       CASE
-        WHEN (
-          employee_hire_date > '{{ var("plan_year_end_date", "2024-12-31") }}'::DATE OR
-          (employee_termination_date IS NOT NULL AND employee_termination_date < '{{ var("plan_year_start_date", "2024-01-01") }}'::DATE)
-        ) THEN 0.0
-        WHEN DATE_DIFF('day', '{{ var("plan_year_start_date", "2024-01-01") }}'::DATE, '{{ var("plan_year_end_date", "2024-12-31") }}'::DATE) + 1 <= 0 THEN employee_gross_compensation
-        ELSE employee_gross_compensation * ( (
-          CASE
-            WHEN employee_hire_date > '{{ var("plan_year_end_date", "2024-12-31") }}'::DATE OR (employee_termination_date IS NOT NULL AND employee_termination_date < '{{ var("plan_year_start_date", "2024-01-01") }}'::DATE)
-            THEN 0
-            ELSE GREATEST(0, DATE_DIFF('day',
-                     GREATEST(employee_hire_date, '{{ var("plan_year_start_date", "2024-01-01") }}'::DATE),
-                     LEAST(COALESCE(employee_termination_date, '{{ var("plan_year_end_date", "2024-12-31") }}'::DATE), '{{ var("plan_year_end_date", "2024-12-31") }}'::DATE)
-                 ) + 1)
-          END
-        )::DOUBLE / 365.0 )
+        WHEN days_active_in_year = 0 THEN 0.0
+        ELSE employee_gross_compensation * (days_active_in_year / 365.0)
       END AS computed_plan_year_compensation,
 
       -- Annualized compensation: convert partial plan-year comp back to full-year equivalent
       CASE
-        WHEN (
-          employee_hire_date > '{{ var("plan_year_end_date", "2024-12-31") }}'::DATE OR
-          (employee_termination_date IS NOT NULL AND employee_termination_date < '{{ var("plan_year_start_date", "2024-01-01") }}'::DATE)
-        ) THEN employee_gross_compensation
-        WHEN GREATEST(1, (
-          CASE
-            WHEN employee_hire_date > '{{ var("plan_year_end_date", "2024-12-31") }}'::DATE OR (employee_termination_date IS NOT NULL AND employee_termination_date < '{{ var("plan_year_start_date", "2024-01-01") }}'::DATE)
-            THEN 0
-            ELSE GREATEST(0, DATE_DIFF('day',
-                     GREATEST(employee_hire_date, '{{ var("plan_year_start_date", "2024-01-01") }}'::DATE),
-                     LEAST(COALESCE(employee_termination_date, '{{ var("plan_year_end_date", "2024-12-31") }}'::DATE), '{{ var("plan_year_end_date", "2024-12-31") }}'::DATE)
-                 ) + 1)
-          END
-        )) = 0 THEN employee_gross_compensation
-        ELSE (
-          (CASE
-            WHEN (
-              employee_hire_date > '{{ var("plan_year_end_date", "2024-12-31") }}'::DATE OR
-              (employee_termination_date IS NOT NULL AND employee_termination_date < '{{ var("plan_year_start_date", "2024-01-01") }}'::DATE)
-            ) THEN 0.0
-            ELSE employee_gross_compensation * ( (
-              CASE
-                WHEN employee_hire_date > '{{ var("plan_year_end_date", "2024-12-31") }}'::DATE OR (employee_termination_date IS NOT NULL AND employee_termination_date < '{{ var("plan_year_start_date", "2024-01-01") }}'::DATE)
-                THEN 0
-                ELSE GREATEST(0, DATE_DIFF('day',
-                         GREATEST(employee_hire_date, '{{ var("plan_year_start_date", "2024-01-01") }}'::DATE),
-                         LEAST(COALESCE(employee_termination_date, '{{ var("plan_year_end_date", "2024-12-31") }}'::DATE), '{{ var("plan_year_end_date", "2024-12-31") }}'::DATE)
-                     ) + 1)
-              END
-            )::DOUBLE / 365.0 )
-          END) * 365.0 /
-          GREATEST(1, (
-            CASE
-              WHEN employee_hire_date > '{{ var("plan_year_end_date", "2024-12-31") }}'::DATE OR (employee_termination_date IS NOT NULL AND employee_termination_date < '{{ var("plan_year_start_date", "2024-01-01") }}'::DATE)
-              THEN 0
-              ELSE GREATEST(0, DATE_DIFF('day',
-                       GREATEST(employee_hire_date, '{{ var("plan_year_start_date", "2024-01-01") }}'::DATE),
-                       LEAST(COALESCE(employee_termination_date, '{{ var("plan_year_end_date", "2024-12-31") }}'::DATE), '{{ var("plan_year_end_date", "2024-12-31") }}'::DATE)
-                   ) + 1)
-            END
-          ))
-        END AS employee_annualized_compensation
+        WHEN days_active_in_year = 0 THEN employee_gross_compensation
+        ELSE (computed_plan_year_compensation * 365.0 / GREATEST(1, days_active_in_year))
+      END AS employee_annualized_compensation
 
   FROM raw_data
   WHERE rn = 1
@@ -145,17 +93,18 @@ eligibility_data AS (
       ad.*,
       {{ var('eligibility_waiting_period_days', 30) }} AS waiting_period_days,
       -- Calculate eligibility date: hire date + waiting period
-      (ad.employee_hire_date + INTERVAL {{ var('eligibility_waiting_period_days', 30) }} DAY)::DATE AS employee_eligibility_date,
+      -- Use DATEADD for portability across DuckDB versions
+      CAST(DATEADD('day', {{ var('eligibility_waiting_period_days', 30) }}, ad.employee_hire_date) AS DATE) AS employee_eligibility_date,
       -- Determine current eligibility status based on eligibility date vs census year end
       CASE
-          WHEN (ad.employee_hire_date + INTERVAL {{ var('eligibility_waiting_period_days', 30) }} DAY)::DATE <= '{{ var("plan_year_end_date", "2024-12-31") }}'::DATE
+          WHEN CAST(DATEADD('day', {{ var('eligibility_waiting_period_days', 30) }}, ad.employee_hire_date) AS DATE) <= CAST('{{ var("plan_year_end_date", "2024-12-31") }}' AS DATE)
           THEN 'eligible'
           ELSE 'pending'
       END AS current_eligibility_status,
       -- Set enrollment date to end of census year only if employee has positive deferral rate
       CASE
           WHEN ad.employee_deferral_rate > 0
-          THEN '{{ var("plan_year_end_date", "2024-12-31") }}'::DATE
+          THEN CAST('{{ var("plan_year_end_date", "2024-12-31") }}' AS DATE)
           ELSE NULL
       END AS employee_enrollment_date
   FROM annualized_data ad
