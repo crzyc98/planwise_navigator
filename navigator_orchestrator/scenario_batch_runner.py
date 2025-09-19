@@ -156,6 +156,18 @@ class ScenarioBatchRunner:
         # Create isolated database path
         scenario_db = scenario_dir / f"{scenario_name}.duckdb"
 
+        # Ensure database file exists and is valid (DuckDB requires this)
+        if not scenario_db.exists():
+            print(f"   📂 Creating database file: {scenario_db}")
+            # Create a proper DuckDB database file
+            import duckdb
+            conn = duckdb.connect(str(scenario_db))
+            conn.close()
+            print(f"   ✅ Database file created successfully")
+
+        print(f"   💽 Database path: {scenario_db}")
+        print(f"   📁 Database exists: {scenario_db.exists()}")
+
         # Load and merge scenario configuration with base config
         config = self._load_merged_config(config_path)
         self._validate_config(config)
