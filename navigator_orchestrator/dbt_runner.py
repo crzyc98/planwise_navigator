@@ -344,13 +344,9 @@ class DbtRunner:
                     try:
                         relative_path = abs_db_path.relative_to(abs_working_dir)
                         env['DATABASE_PATH'] = str(relative_path)
-                        print(f"🐛 DEBUG: DATABASE_PATH set to: {relative_path}")
-                        print(f"🐛 DEBUG: Absolute db path: {abs_db_path}")
-                        print(f"🐛 DEBUG: Working dir: {abs_working_dir}")
-                    except ValueError as e:
+                    except ValueError:
                         # Fallback to absolute path if relative calculation fails
                         env['DATABASE_PATH'] = str(abs_db_path)
-                        print(f"🐛 DEBUG: Using absolute path fallback: {abs_db_path} (error: {e})")
 
                 # Use corporate network-aware subprocess if available
                 try:
@@ -403,11 +399,9 @@ class DbtRunner:
                 try:
                     relative_path = abs_db_path.relative_to(abs_working_dir)
                     env['DATABASE_PATH'] = str(relative_path)
-                    print(f"🐛 DEBUG: DATABASE_PATH set to: {relative_path}")
-                except ValueError as e:
+                except ValueError:
                     # Fallback to absolute path if relative calculation fails
                     env['DATABASE_PATH'] = str(abs_db_path)
-                    print(f"🐛 DEBUG: Using absolute path fallback: {abs_db_path} (error: {e})")
 
             # Add corporate network environment variables if available
             try:

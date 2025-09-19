@@ -153,8 +153,9 @@ class ScenarioBatchRunner:
         scenario_dir = self.batch_output_dir / scenario_name
         scenario_dir.mkdir(parents=True, exist_ok=True)
 
-        # Create isolated database path
-        scenario_db = scenario_dir / f"{scenario_name}.duckdb"
+        # Create isolated database path in dbt/ folder
+        dbt_dir = Path("dbt").absolute()
+        scenario_db = dbt_dir / f"{scenario_name}.duckdb"
 
         # Ensure database file exists and is valid (DuckDB requires this)
         if not scenario_db.exists():
