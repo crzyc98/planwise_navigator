@@ -3,9 +3,9 @@
 # Configuration enhanced for multi-threaded execution with Navigator Orchestrator
 
 planwise_navigator:
-  target: optimized # E067-ready target for multi-threading support
+  target: dev # E067-ready target for multi-threading support
   outputs:
-    optimized:
+    dev:
       type: duckdb
       path: "{{ env_var('DATABASE_PATH', 'simulation.duckdb') }}"
       schema: main
