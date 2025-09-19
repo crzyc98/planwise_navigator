@@ -69,22 +69,25 @@ annualized_data AS (
                    GREATEST(employee_hire_date, CAST('{{ var("plan_year_start_date", "2024-01-01") }}' AS DATE)),
                    LEAST(COALESCE(employee_termination_date, CAST('{{ var("plan_year_end_date", "2024-12-31") }}' AS DATE)), CAST('{{ var("plan_year_end_date", "2024-12-31") }}' AS DATE))
                ) + 1)
-      END AS days_active_in_year,
-
-      -- Plan-year compensation (partial): pro-rate the annual salary by active days
-      CASE
-        WHEN days_active_in_year = 0 THEN 0.0
-        ELSE employee_gross_compensation * (days_active_in_year / 365.0)
-      END AS computed_plan_year_compensation,
-
-      -- Annualized compensation: convert partial plan-year comp back to full-year equivalent
-      CASE
-        WHEN days_active_in_year = 0 THEN employee_gross_compensation
-        ELSE (computed_plan_year_compensation * 365.0 / GREATEST(1, days_active_in_year))
-      END AS employee_annualized_compensation
+      END AS days_active_in_year
 
   FROM raw_data
   WHERE rn = 1
+),
+
+-- Compensation calculations using previously derived days_active_in_year
+comp_data AS (
+  SELECT
+    ad.*,
+    CASE
+      WHEN ad.days_active_in_year = 0 THEN 0.0
+      ELSE ad.employee_gross_compensation * (ad.days_active_in_year / 365.0)
+    END AS computed_plan_year_compensation,
+    CASE
+      WHEN ad.days_active_in_year = 0 THEN ad.employee_gross_compensation
+      ELSE (ad.employee_gross_compensation * (ad.days_active_in_year / 365.0)) * 365.0 / GREATEST(1, ad.days_active_in_year)
+    END AS employee_annualized_compensation
+  FROM annualized_data ad
 ),
 
 -- Calculate eligibility and enrollment fields
@@ -107,7 +110,7 @@ eligibility_data AS (
           THEN CAST('{{ var("plan_year_end_date", "2024-12-31") }}' AS DATE)
           ELSE NULL
       END AS employee_enrollment_date
-  FROM annualized_data ad
+  FROM comp_data ad
 )
 
 -- **FIX**: Select only the first occurrence of each employee_id after deduplication
@@ -119,7 +122,6 @@ SELECT
     employee_termination_date,
     employee_gross_compensation,
     active,
-    -- **NEW**: Include computed partial-year plan compensation and annualized version
     computed_plan_year_compensation AS employee_plan_year_compensation,
     employee_annualized_compensation,
     employee_capped_compensation,
@@ -131,7 +133,6 @@ SELECT
     employer_core_contribution,
     employer_match_contribution,
     eligibility_entry_date,
-    -- **NEW**: Add eligibility and enrollment fields
     employee_eligibility_date,
     waiting_period_days,
     current_eligibility_status,
