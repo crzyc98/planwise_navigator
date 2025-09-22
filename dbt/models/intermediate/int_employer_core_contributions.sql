@@ -3,7 +3,7 @@
     indexes=[
         {'columns': ['employee_id', 'simulation_year'], 'unique': true}
     ],
-    tags=['employer_contributions', 'core_contributions', 'mvp']
+    tags=['employer_contributions', 'core_contributions', 'mvp', 'STATE_ACCUMULATION']
 ) }}
 
 /*
@@ -198,6 +198,22 @@ snapshot_flags AS (
     WHERE simulation_year = {{ simulation_year }}
 )
 
+-- Wrap to allow filtering on window function without exposing rn
+SELECT
+    employee_id,
+    simulation_year,
+    eligible_compensation,
+    employment_status,
+    eligible_for_core,
+    annual_hours_worked,
+    employer_core_amount,
+    core_contribution_rate,
+    contribution_method,
+    standard_core_rate,
+    created_at,
+    scenario_id,
+    parameter_scenario_id
+FROM (
 SELECT
     pop.employee_id,
     pop.simulation_year,
@@ -281,7 +297,11 @@ SELECT
     {{ employer_core_contribution_rate }} AS standard_core_rate,
     CURRENT_TIMESTAMP AS created_at,
     '{{ var("scenario_id", "default") }}' AS scenario_id,
-    '{{ var("parameter_scenario_id", "default") }}' AS parameter_scenario_id
+    '{{ var("parameter_scenario_id", "default") }}' AS parameter_scenario_id,
+    ROW_NUMBER() OVER (
+        PARTITION BY pop.employee_id, pop.simulation_year
+        ORDER BY pop.employee_id
+    ) AS rn
 
 FROM population pop
 LEFT JOIN workforce_proration wf
@@ -294,5 +314,5 @@ LEFT JOIN termination_flags term
 LEFT JOIN snapshot_flags snap
     ON pop.employee_id = snap.employee_id
 -- Deduplicate in case a new hire is also present in compensation snapshot (year 1)
-QUALIFY ROW_NUMBER() OVER (PARTITION BY pop.employee_id, pop.simulation_year ORDER BY pop.employee_id) = 1
-ORDER BY pop.employee_id
+)
+WHERE rn = 1

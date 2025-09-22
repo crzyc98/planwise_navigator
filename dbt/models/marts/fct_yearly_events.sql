@@ -7,9 +7,6 @@
   unique_key=['scenario_id', 'plan_design_id', 'employee_id', 'simulation_year', 'event_type', 'event_sequence'],
   incremental_strategy='delete+insert',
   on_schema_change='sync_all_columns',
-  pre_hook=[
-    "{% if adapter.get_relation(database=this.database, schema=this.schema, identifier=this.identifier) %}DELETE FROM {{ this }} WHERE simulation_year = {{ var('simulation_year', 2025) }};{% endif %}"
-  ],
   tags=['EVENT_GENERATION']
 ) }}
 
@@ -269,4 +266,6 @@ final_events AS (
 -- Insert-overwrite by simulation_year with deterministic ordering for stable diffs
 -- E068A: Single writer per year with explicit ORDER BY for reproducible results
 SELECT * FROM final_events
-ORDER BY scenario_id, plan_design_id, employee_id, simulation_year, event_type, effective_date
+-- Note: ORDER BY removed for incremental materialization compatibility
+-- Some DuckDB contexts reject ORDER BY in INSERT SELECT statements for incremental models
+-- ORDER BY scenario_id, plan_design_id, employee_id, simulation_year, event_type, effective_date

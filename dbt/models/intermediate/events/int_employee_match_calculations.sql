@@ -3,7 +3,7 @@
     indexes=[
         {'columns': ['employee_id', 'simulation_year'], 'unique': true}
     ],
-    tags=['match_engine', 'critical', 'core_calculation']
+    tags=['match_engine', 'critical', 'core_calculation', 'STATE_ACCUMULATION']
 ) }}
 
 /*
@@ -273,4 +273,3 @@ SELECT
     '{{ var("parameter_scenario_id", "default") }}' AS parameter_scenario_id
 FROM final_match
 WHERE employee_id IS NOT NULL
-ORDER BY employee_id
