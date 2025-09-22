@@ -401,7 +401,7 @@ optimization:
 
   # Epic E068C: Threading and parallelization configuration
   e068c_threading:
-    dbt_threads: 6  # Number of threads for dbt execution (1-16)
+    dbt_threads: 1  # Number of threads for dbt execution (1-16) - set to 1 for transaction safety
     event_shards: 1  # Optional sharding for event generation (1-8)
     max_parallel_years: 1  # Sequential year processing for determinism (1-5)
 
@@ -430,7 +430,7 @@ optimization:
 
     # SQL mode configuration (existing)
     sql:
-      dbt_threads: 6  # Number of threads for dbt SQL execution
+      dbt_threads: 1  # Number of threads for dbt SQL execution - set to 1 for transaction safety
       use_event_sharding: false  # Enable event sharding for large datasets
 
 
