@@ -10,7 +10,7 @@
     contract={
         "enforced": false
     },
-    tags=['optimization', 'S031-02', 'workforce_calculation']
+    tags=['optimization', 'S031-02', 'workforce_calculation', 'STATE_ACCUMULATION']
 ) }}
 
 {% set simulation_year = var('simulation_year', 2025) | int %}

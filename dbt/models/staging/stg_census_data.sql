@@ -1,7 +1,7 @@
 {{ config(
     materialized='table',
     contract={
-        "enforced": true
+        "enforced": var('enforce_contracts', true)
     },
     tags=['FOUNDATION']
 ) }}
@@ -96,11 +96,11 @@ eligibility_data AS (
       ad.*,
       {{ var('eligibility_waiting_period_days', 30) }} AS waiting_period_days,
       -- Calculate eligibility date: hire date + waiting period
-      -- Use DATEADD for portability across DuckDB versions
-      CAST(DATEADD('day', {{ var('eligibility_waiting_period_days', 30) }}, ad.employee_hire_date) AS DATE) AS employee_eligibility_date,
+      -- Use DATE_ADD for DuckDB compatibility
+      CAST(DATE_ADD(ad.employee_hire_date, INTERVAL {{ var('eligibility_waiting_period_days', 30) }} DAY) AS DATE) AS employee_eligibility_date,
       -- Determine current eligibility status based on eligibility date vs census year end
       CASE
-          WHEN CAST(DATEADD('day', {{ var('eligibility_waiting_period_days', 30) }}, ad.employee_hire_date) AS DATE) <= CAST('{{ var("plan_year_end_date", "2024-12-31") }}' AS DATE)
+          WHEN CAST(DATE_ADD(ad.employee_hire_date, INTERVAL {{ var('eligibility_waiting_period_days', 30) }} DAY) AS DATE) <= CAST('{{ var("plan_year_end_date", "2024-12-31") }}' AS DATE)
           THEN 'eligible'
           ELSE 'pending'
       END AS current_eligibility_status,

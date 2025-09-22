@@ -3,7 +3,7 @@
     indexes=[
         {'columns': ['employee_id', 'simulation_year'], 'unique': true}
     ],
-    tags=['employer_contributions', 'eligibility', 'foundation']
+    tags=['employer_contributions', 'eligibility', 'foundation', 'EVENT_GENERATION']
 ) }}
 
 /*

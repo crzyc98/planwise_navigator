@@ -1,6 +1,6 @@
 {{ config(
   materialized='ephemeral',
-  tags=['E068A_EPHEMERAL']
+  tags=['EVENT_GENERATION', 'E068A_EPHEMERAL']
 ) }}
 
 /*

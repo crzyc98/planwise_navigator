@@ -19,7 +19,7 @@ from __future__ import annotations
 import json
 import subprocess
 from pathlib import Path
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, Sequence
 
 import pandas as pd
 
@@ -73,7 +73,10 @@ class ExcelExporter:
                 return self._create_minimal_export(scenario_name, output_dir, export_format)
 
             # Determine total rows and whether to split by year
-            total_rows = pd.read_sql("SELECT COUNT(*) AS cnt FROM fct_workforce_snapshot", conn)["cnt"].iloc[0]
+            total_rows = self._query_to_df(
+                conn,
+                "SELECT COUNT(*) AS cnt FROM fct_workforce_snapshot",
+            )["cnt"].iloc[0]
             split = split_by_year if split_by_year is not None else total_rows > self.split_threshold
 
             if export_format.lower() == "csv":
@@ -104,6 +107,26 @@ class ExcelExporter:
                 return True
             except Exception:
                 return False
+
+    def _query_to_df(
+        self,
+        conn,
+        query: str,
+        params: Optional[Sequence[Any]] = None,
+    ) -> pd.DataFrame:
+        """Execute a SQL query using DuckDB and return the results as a DataFrame.
+
+        Args:
+            conn: DuckDB connection
+            query: SQL query to execute
+            params: Optional parameters for the query
+
+        Returns:
+            pandas DataFrame with query results
+        """
+        if params is None:
+            return conn.execute(query).df()
+        return conn.execute(query, params).df()
 
     def _create_minimal_export(self, scenario_name: str, output_dir: Path, export_format: str) -> Path:
         """Create minimal export when main tables are not available.
@@ -147,23 +170,23 @@ class ExcelExporter:
         # Export workforce snapshot
         if split:
             # Export per-year CSV files
-            years = pd.read_sql(
-                "SELECT DISTINCT simulation_year FROM fct_workforce_snapshot ORDER BY simulation_year",
+            years = self._query_to_df(
                 conn,
+                "SELECT DISTINCT simulation_year FROM fct_workforce_snapshot ORDER BY simulation_year",
             )["simulation_year"].tolist()
 
             for year in years:
-                df_year = pd.read_sql(
-                    "SELECT * FROM fct_workforce_snapshot WHERE simulation_year = ? ORDER BY employee_id",
+                df_year = self._query_to_df(
                     conn,
+                    "SELECT * FROM fct_workforce_snapshot WHERE simulation_year = ? ORDER BY employee_id",
                     params=[year],
                 )
                 df_year.to_csv(output_dir / f"{scenario_name}_workforce_{year}.csv", index=False)
         else:
             # Single workforce snapshot CSV
-            df_workforce = pd.read_sql(
-                "SELECT * FROM fct_workforce_snapshot ORDER BY simulation_year, employee_id",
+            df_workforce = self._query_to_df(
                 conn,
+                "SELECT * FROM fct_workforce_snapshot ORDER BY simulation_year, employee_id",
             )
             df_workforce.to_csv(output_dir / f"{scenario_name}_workforce_snapshot.csv", index=False)
 
@@ -205,17 +228,20 @@ class ExcelExporter:
 
             # Summary Metrics by Year
             df_summary = self._calculate_summary_metrics(conn)
+            df_summary = self._sanitize_for_excel(df_summary)
             df_summary.to_excel(writer, sheet_name="Summary_Metrics", index=False)
             self._format_worksheet(writer.book["Summary_Metrics"])
 
             # Events Summary (if events table exists)
             if self._check_table_exists(conn, "fct_yearly_events"):
                 df_events = self._calculate_events_summary(conn)
+                df_events = self._sanitize_for_excel(df_events)
                 df_events.to_excel(writer, sheet_name="Events_Summary", index=False)
                 self._format_worksheet(writer.book["Events_Summary"])
 
             # Metadata sheet
             df_metadata = self._build_metadata_dataframe(config, seed, conn, total_rows, split)
+            df_metadata = self._sanitize_for_excel(df_metadata)
             df_metadata.to_excel(writer, sheet_name="Metadata", index=False)
             self._format_worksheet(writer.book["Metadata"])
 
@@ -231,28 +257,67 @@ class ExcelExporter:
         """
         if split:
             # Create per-year sheets
-            years = pd.read_sql(
-                "SELECT DISTINCT simulation_year FROM fct_workforce_snapshot ORDER BY simulation_year",
+            years = self._query_to_df(
                 conn,
+                "SELECT DISTINCT simulation_year FROM fct_workforce_snapshot ORDER BY simulation_year",
             )["simulation_year"].tolist()
 
             for year in years:
-                df_year = pd.read_sql(
-                    "SELECT * FROM fct_workforce_snapshot WHERE simulation_year = ? ORDER BY employee_id",
+                df_year = self._query_to_df(
                     conn,
+                    "SELECT * FROM fct_workforce_snapshot WHERE simulation_year = ? ORDER BY employee_id",
                     params=[year],
                 )
                 sheet_name = f"Workforce_{year}"
+                df_year = self._sanitize_for_excel(df_year)
                 df_year.to_excel(writer, sheet_name=sheet_name, index=False)
                 self._format_worksheet(writer.book[sheet_name])
         else:
             # Single workforce snapshot sheet
-            df_workforce = pd.read_sql(
-                "SELECT * FROM fct_workforce_snapshot ORDER BY simulation_year, employee_id",
+            df_workforce = self._query_to_df(
                 conn,
+                "SELECT * FROM fct_workforce_snapshot ORDER BY simulation_year, employee_id",
             )
+            df_workforce = self._sanitize_for_excel(df_workforce)
             df_workforce.to_excel(writer, sheet_name="Workforce_Snapshot", index=False)
             self._format_worksheet(writer.book["Workforce_Snapshot"])
+
+    def _sanitize_for_excel(self, df: pd.DataFrame) -> pd.DataFrame:
+        """Ensure DataFrame is compatible with Excel writer.
+
+        - Remove timezone info from datetime columns (convert to UTC then drop tz)
+        - Leave other dtypes unchanged
+
+        Args:
+            df: Input DataFrame
+
+        Returns:
+            A copy of df safe to write to Excel
+        """
+        out = df.copy()
+        for col in out.columns:
+            ser = out[col]
+            # Datetime dtypes (including tz-aware)
+            if pd.api.types.is_datetime64_any_dtype(ser):
+                tz = getattr(ser.dtype, "tz", None)
+                if tz is not None:
+                    # Convert to UTC for consistency, then drop timezone
+                    out[col] = ser.dt.tz_convert("UTC").dt.tz_localize(None)
+            # Object columns may contain Timestamp objects with tz
+            elif ser.dtype == object:
+                try:
+                    if ser.apply(lambda x: isinstance(x, pd.Timestamp) and x.tz is not None).any():
+                        out[col] = ser.apply(
+                            lambda x: (
+                                x.tz_convert("UTC").tz_localize(None)
+                                if isinstance(x, pd.Timestamp) and x.tz is not None
+                                else x
+                            )
+                        )
+                except Exception:
+                    # If inspection fails, leave column as-is
+                    pass
+        return out
 
     def _calculate_summary_metrics(self, conn) -> pd.DataFrame:
         """Calculate summary metrics by simulation year.
@@ -263,23 +328,67 @@ class ExcelExporter:
         Returns:
             DataFrame with summary metrics by year
         """
-        return pd.read_sql(
-            """
+        # Introspect available columns to avoid binder errors across schema variants
+        cols = self._get_table_columns(conn, "fct_workforce_snapshot")
+
+        status_expr = None
+        if "employment_status" in cols:
+            status_expr = "COUNT(CASE WHEN employment_status = 'active' THEN 1 END) AS active_employees"
+        elif "status" in cols:
+            status_expr = "COUNT(CASE WHEN status = 'active' THEN 1 END) AS active_employees"
+        else:
+            status_expr = "CAST(NULL AS BIGINT) AS active_employees"
+
+        enrolled_expr = (
+            "COUNT(CASE WHEN enrollment_date IS NOT NULL THEN 1 END) AS enrolled_employees"
+            if "enrollment_date" in cols
+            else "CAST(NULL AS BIGINT) AS enrolled_employees"
+        )
+
+        salary_col = "current_salary" if "current_salary" in cols else ("salary" if "salary" in cols else None)
+        avg_salary_expr = (
+            f"ROUND(AVG({salary_col}), 2) AS avg_salary" if salary_col else "CAST(NULL AS DOUBLE) AS avg_salary"
+        )
+
+        ee_contrib_expr = (
+            "ROUND(SUM(COALESCE(employee_contribution_annual, 0)), 2) AS total_employee_contributions"
+            if "employee_contribution_annual" in cols
+            else "CAST(NULL AS DOUBLE) AS total_employee_contributions"
+        )
+
+        er_match_expr = (
+            "ROUND(SUM(COALESCE(employer_match_annual, 0)), 2) AS total_employer_match"
+            if "employer_match_annual" in cols
+            else "CAST(NULL AS DOUBLE) AS total_employer_match"
+        )
+
+        deferral_col = None
+        if "employee_deferral_rate" in cols:
+            deferral_col = "employee_deferral_rate"
+        elif "deferral_rate" in cols:
+            deferral_col = "deferral_rate"
+        avg_deferral_expr = (
+            f"ROUND(AVG(COALESCE({deferral_col}, 0)), 4) AS avg_deferral_rate"
+            if deferral_col
+            else "CAST(NULL AS DOUBLE) AS avg_deferral_rate"
+        )
+
+        query = f"""
             SELECT
                 simulation_year,
                 COUNT(*) AS total_employees,
-                COUNT(CASE WHEN status = 'active' THEN 1 END) AS active_employees,
-                COUNT(CASE WHEN enrollment_date IS NOT NULL THEN 1 END) AS enrolled_employees,
-                ROUND(AVG(current_salary), 2) AS avg_salary,
-                ROUND(SUM(COALESCE(employee_contribution_annual, 0)), 2) AS total_employee_contributions,
-                ROUND(SUM(COALESCE(employer_match_annual, 0)), 2) AS total_employer_match,
-                ROUND(AVG(COALESCE(deferral_rate, 0)), 4) AS avg_deferral_rate
+                {status_expr},
+                {enrolled_expr},
+                {avg_salary_expr},
+                {ee_contrib_expr},
+                {er_match_expr},
+                {avg_deferral_expr}
             FROM fct_workforce_snapshot
             GROUP BY simulation_year
             ORDER BY simulation_year
-            """,
-            conn,
-        )
+        """
+
+        return self._query_to_df(conn, query)
 
     def _calculate_events_summary(self, conn) -> pd.DataFrame:
         """Calculate events summary by simulation year and event type.
@@ -290,21 +399,21 @@ class ExcelExporter:
         Returns:
             DataFrame with event counts and metrics
         """
-        return pd.read_sql(
+        return self._query_to_df(
+            conn,
             """
             SELECT
                 simulation_year,
                 event_type,
                 COUNT(*) AS event_count,
                 ROUND(AVG(CASE
-                    WHEN event_type = 'raise' AND json_extract_scalar(event_data, '$.new_salary') IS NOT NULL
-                    THEN CAST(json_extract_scalar(event_data, '$.new_salary') AS DOUBLE)
+                    WHEN event_type = 'raise' AND compensation_amount IS NOT NULL
+                    THEN compensation_amount
                     END), 2) AS avg_new_salary_on_raise
             FROM fct_yearly_events
             GROUP BY simulation_year, event_type
             ORDER BY simulation_year, event_type
             """,
-            conn,
         )
 
     def _build_metadata_dataframe(self, config: Any, seed: int, conn, total_rows: Optional[int] = None, split: bool = False) -> pd.DataFrame:
@@ -325,9 +434,9 @@ class ExcelExporter:
 
         # Get simulation year range
         try:
-            years = pd.read_sql(
-                "SELECT MIN(simulation_year) AS min_y, MAX(simulation_year) AS max_y FROM fct_workforce_snapshot",
+            years = self._query_to_df(
                 conn,
+                "SELECT MIN(simulation_year) AS min_y, MAX(simulation_year) AS max_y FROM fct_workforce_snapshot",
             ).iloc[0]
             start_year = int(years["min_y"]) if not pd.isna(years["min_y"]) else config.simulation.start_year
             end_year = int(years["max_y"]) if not pd.isna(years["max_y"]) else config.simulation.end_year
@@ -338,7 +447,10 @@ class ExcelExporter:
         # Get total rows if not provided
         if total_rows is None:
             try:
-                total_rows = pd.read_sql("SELECT COUNT(*) AS cnt FROM fct_workforce_snapshot", conn)["cnt"].iloc[0]
+                total_rows = self._query_to_df(
+                    conn,
+                    "SELECT COUNT(*) AS cnt FROM fct_workforce_snapshot",
+                )["cnt"].iloc[0]
             except Exception:
                 total_rows = 0
 
@@ -429,6 +541,31 @@ class ExcelExporter:
 
         return metadata
 
+    def _get_table_columns(self, conn, table_name: str) -> List[str]:
+        """Return list of column names for a given table using DuckDB PRAGMA table_info.
+
+        Args:
+            conn: Database connection
+            table_name: Table name
+
+        Returns:
+            List of column names (lowercase)
+        """
+        try:
+            rows = conn.execute(f"PRAGMA table_info('{table_name}')").fetchall()
+            # DuckDB returns: cid, name, type, notnull, dflt_value, pk (varies by version)
+            cols = [str(r[1]).lower() for r in rows]
+            return cols
+        except Exception:
+            try:
+                # Fallback to information_schema
+                df = self._query_to_df(
+                    f"SELECT LOWER(column_name) AS name FROM information_schema.columns WHERE table_name = '{table_name}'",
+                )
+                return df["name"].tolist()
+            except Exception:
+                return []
+
     def _format_worksheet(self, worksheet) -> None:
         """Apply professional formatting to an Excel worksheet.
 
@@ -514,6 +651,7 @@ class ExcelExporter:
 
                 with pd.ExcelWriter(output_path, engine="openpyxl") as writer:
                     # Main comparison sheet
+                    comparison_df = self._sanitize_for_excel(comparison_df)
                     comparison_df.to_excel(writer, sheet_name="Scenario_Comparison", index=False)
                     self._format_worksheet(writer.book["Scenario_Comparison"])
 
@@ -524,6 +662,7 @@ class ExcelExporter:
                         values=["total_employees", "avg_salary", "avg_deferral_rate"],
                         aggfunc="first"
                     )
+                    pivot_df = self._sanitize_for_excel(pivot_df)
                     pivot_df.to_excel(writer, sheet_name="Year_by_Scenario_Pivot")
 
                     # Summary statistics
@@ -533,6 +672,7 @@ class ExcelExporter:
                         "avg_deferral_rate": ["min", "max", "mean"],
                         "execution_time_seconds": "first"
                     }).round(2)
+                    summary_stats = self._sanitize_for_excel(summary_stats)
                     summary_stats.to_excel(writer, sheet_name="Scenario_Summary")
 
                 print(f"   📊 Comparison workbook created with {len(comparison_data)} data points")
