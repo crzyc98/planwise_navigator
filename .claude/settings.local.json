@@ -50,7 +50,8 @@
       "Bash(PYTHONPATH=. python -m navigator_orchestrator batch --scenarios baseline)",
       "Bash(PYTHONPATH=. timeout 300 python -m navigator_orchestrator batch --scenarios baseline)",
       "Bash(git reset:*)",
-      "Bash(git rm:*)"
+      "Bash(git rm:*)",
+      "Bash(lsof:*)"
     ],
     "deny": [],
     "ask": []
