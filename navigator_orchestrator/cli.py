@@ -234,7 +234,9 @@ def cmd_batch(args: argparse.Namespace) -> int:
     runner = ScenarioBatchRunner(scenarios_dir, output_dir, base_config_path)
     results = runner.run_batch(
         scenario_names=args.scenarios,
-        export_format=args.export_format
+        export_format=args.export_format,
+        threads=args.threads,
+        optimization=args.optimization
     )
 
     if not results:
@@ -319,6 +321,8 @@ def build_parser() -> argparse.ArgumentParser:
     pb.add_argument("--scenarios", nargs="*", help="Specific scenario names to run (default: all)")
     pb.add_argument("--export-format", choices=["excel", "csv"], default="excel", help="Export format")
     pb.add_argument("--split-by-year", action="store_true", help="Split Workforce Snapshot into per-year sheets/files")
+    pb.add_argument("--threads", type=int, default=1, help="Number of dbt threads for parallel execution (default: 1)")
+    pb.add_argument("--optimization", choices=["low", "medium", "high"], default="medium", help="Optimization level (default: medium)")
     pb.set_defaults(func=cmd_batch)
 
     return p

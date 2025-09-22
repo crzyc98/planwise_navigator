@@ -26,7 +26,7 @@ import yaml
 from .config import SimulationConfig, load_simulation_config
 from .excel_exporter import ExcelExporter
 from .pipeline import PipelineOrchestrator
-from .utils import DatabaseConnectionManager
+from .utils import DatabaseConnectionManager, ExecutionMutex
 
 
 class ScenarioBatchRunner:
@@ -55,12 +55,14 @@ class ScenarioBatchRunner:
         # Create output directory
         self.batch_output_dir.mkdir(parents=True, exist_ok=True)
 
-    def run_batch(self, scenario_names: Optional[List[str]] = None, export_format: str = "excel") -> Dict[str, Any]:
+    def run_batch(self, scenario_names: Optional[List[str]] = None, export_format: str = "excel", threads: int = 1, optimization: str = "medium") -> Dict[str, Any]:
         """Execute batch of scenarios with isolated databases.
 
         Args:
             scenario_names: Optional list of specific scenario names to run (defaults to all)
             export_format: Export format ('excel' or 'csv')
+            threads: Number of dbt threads for parallel execution
+            optimization: Optimization level ('low', 'medium', 'high')
 
         Returns:
             Dictionary mapping scenario names to their execution results
@@ -71,22 +73,28 @@ class ScenarioBatchRunner:
             print(f"❌ No scenarios found in {self.scenarios_dir}")
             return {}
 
+        # Clean up any stale lock files before starting
+        self._cleanup_stale_locks()
+
         results = {}
         print(f"🎯 Starting batch execution: {len(scenarios)} scenarios")
         print(f"📂 Output directory: {self.batch_output_dir}")
+        print(f"🔧 Configuration: {threads} threads, {optimization} optimization")
 
         for i, (name, config_path) in enumerate(scenarios.items(), 1):
             print(f"\n[{i}/{len(scenarios)}] Processing scenario: {name}")
 
-            try:
-                result = self._run_isolated_scenario(name, config_path, export_format)
-                results[name] = result
-                print(f"✅ Scenario {name} completed successfully")
+            # Use ExecutionMutex to prevent concurrent database access
+            with ExecutionMutex(f"scenario_{name}"):
+                try:
+                    result = self._run_isolated_scenario(name, config_path, export_format, threads, optimization)
+                    results[name] = result
+                    print(f"✅ Scenario {name} completed successfully")
 
-            except Exception as e:
-                print(f"❌ Scenario {name} failed: {e}")
-                print(f"   Traceback: {traceback.format_exc()}")
-                results[name] = {"status": "failed", "error": str(e), "traceback": traceback.format_exc()}
+                except Exception as e:
+                    print(f"❌ Scenario {name} failed: {e}")
+                    print(f"   Traceback: {traceback.format_exc()}")
+                    results[name] = {"status": "failed", "error": str(e), "traceback": traceback.format_exc()}
 
         # Generate batch summary report
         self._generate_batch_summary(results)
@@ -138,13 +146,30 @@ class ScenarioBatchRunner:
 
         return scenarios
 
-    def _run_isolated_scenario(self, scenario_name: str, config_path: Path, export_format: str) -> Dict[str, Any]:
+    def _cleanup_stale_locks(self) -> None:
+        """Clean up stale lock files that may prevent scenario execution."""
+        import time
+        from pathlib import Path
+
+        # Look for lock files in current directory
+        for lock_file in Path(".").glob(".*.lock"):
+            try:
+                # Remove locks older than 1 hour
+                if time.time() - lock_file.stat().st_mtime > 3600:
+                    lock_file.unlink()
+                    print(f"   🧹 Cleaned up stale lock file: {lock_file}")
+            except Exception:
+                pass  # Best effort cleanup
+
+    def _run_isolated_scenario(self, scenario_name: str, config_path: Path, export_format: str, threads: int = 1, optimization: str = "medium") -> Dict[str, Any]:
         """Run single scenario with isolated database.
 
         Args:
             scenario_name: Name of the scenario
             config_path: Path to the scenario configuration file
             export_format: Export format ('excel' or 'csv')
+            threads: Number of dbt threads for parallel execution
+            optimization: Optimization level ('low', 'medium', 'high')
 
         Returns:
             Dictionary with execution results and metadata
@@ -192,46 +217,56 @@ class ScenarioBatchRunner:
         # Setup PipelineOrchestrator (importing here to avoid circular imports)
         from .factory import create_orchestrator
 
-        orchestrator = create_orchestrator(config, db_manager)
+        try:
+            orchestrator = create_orchestrator(config, db_manager, threads=threads)
 
-        # Execute multi-year simulation
-        print(f"   🔄 Running simulation: {config.simulation.start_year}-{config.simulation.end_year}")
-        start_time = datetime.now()
+            # Execute multi-year simulation
+            print(f"   🔄 Running simulation: {config.simulation.start_year}-{config.simulation.end_year}")
+            start_time = datetime.now()
 
-        summary = orchestrator.execute_multi_year_simulation(
-            start_year=config.simulation.start_year,
-            end_year=config.simulation.end_year,
-            fail_on_validation_error=False  # Continue batch processing even with validation warnings
-        )
+            summary = orchestrator.execute_multi_year_simulation(
+                start_year=config.simulation.start_year,
+                end_year=config.simulation.end_year,
+                fail_on_validation_error=False  # Continue batch processing even with validation warnings
+            )
 
-        execution_time = (datetime.now() - start_time).total_seconds()
-        print(f"   ⏱️  Execution time: {execution_time:.1f} seconds")
+            execution_time = (datetime.now() - start_time).total_seconds()
+            print(f"   ⏱️  Execution time: {execution_time:.1f} seconds")
 
-        # Export results
-        print(f"   📊 Exporting results ({export_format})")
-        excel_exporter = ExcelExporter(db_manager)
-        export_path = excel_exporter.export_scenario_results(
-            scenario_name=scenario_name,
-            output_dir=scenario_dir,
-            config=config,
-            seed=seed,
-            export_format=export_format
-        )
+            # Export results
+            print(f"   📊 Exporting results ({export_format})")
+            excel_exporter = ExcelExporter(db_manager)
+            export_path = excel_exporter.export_scenario_results(
+                scenario_name=scenario_name,
+                output_dir=scenario_dir,
+                config=config,
+                seed=seed,
+                export_format=export_format
+            )
 
-        # Save scenario configuration for reference
-        config_copy_path = scenario_dir / f"{scenario_name}_config.yaml"
-        self._save_config_copy(config, config_copy_path)
+            # Save scenario configuration for reference
+            config_copy_path = scenario_dir / f"{scenario_name}_config.yaml"
+            self._save_config_copy(config, config_copy_path)
 
-        return {
-            "status": "completed",
-            "summary": summary,
-            "database_path": str(scenario_db),
-            "export_path": str(export_path),
-            "scenario_dir": str(scenario_dir),
-            "execution_time_seconds": execution_time,
-            "seed": seed,
-            "config_path": str(config_copy_path)
-        }
+            return {
+                "status": "completed",
+                "summary": summary,
+                "database_path": str(scenario_db),
+                "export_path": str(export_path),
+                "scenario_dir": str(scenario_dir),
+                "execution_time_seconds": execution_time,
+                "seed": seed,
+                "config_path": str(config_copy_path)
+            }
+
+        finally:
+            # Ensure proper database connection cleanup
+            try:
+                # Force close any remaining connections
+                import gc
+                gc.collect()  # Force garbage collection to close lingering connections
+            except Exception:
+                pass  # Best effort cleanup
 
     def _load_merged_config(self, scenario_config_path: Path) -> SimulationConfig:
         """Load and merge scenario configuration with base configuration.
