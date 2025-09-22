@@ -870,8 +870,15 @@ class PipelineOrchestrator:
                 print(f"   📋 Starting {stage.name.value} with {self.dbt_threads} threads")
 
             # Execute stage with appropriate threading strategy
-            if stage.name in (WorkflowStage.EVENT_GENERATION, WorkflowStage.STATE_ACCUMULATION):
+            if stage.name == WorkflowStage.EVENT_GENERATION:
+                # EVENT_GENERATION can be parallelized safely
                 results = self._execute_parallel_stage(stage, year)
+            elif stage.name == WorkflowStage.STATE_ACCUMULATION:
+                # STATE_ACCUMULATION must run sequentially due to delete+insert transaction conflicts
+                if self.verbose:
+                    print(f"   🔒 Running STATE_ACCUMULATION sequentially to prevent transaction conflicts")
+                self._run_stage_models(stage, year)
+                results = []
             else:
                 # Use existing sequential execution for other stages
                 self._run_stage_models(stage, year)
