@@ -1,0 +1,50 @@
+# Cost Control Scenario - Conservative compensation and reduced growth
+# Models impact of economic downturn or budget constraints
+
+simulation:
+  start_year: 2025
+  end_year: 2029
+  random_seed: 300
+  target_growth_rate: 0.01  # 1% minimal growth
+
+scenario_id: "cost_control"
+plan_design_id: "cost_conscious_401k"
+
+# Conservative compensation adjustments
+compensation:
+  cola_rate: 0.005  # 0.5% COLA instead of 1%
+  merit_budget: 0.015  # 1.5% merit budget instead of 2%
+
+  # Reduced promotion increases
+  promotion_compensation:
+    base_increase_pct: 0.15  # 15% base increase instead of 20%
+    distribution_range: 0.03  # ±3% range
+    max_cap_pct: 0.20  # 20% max increase
+
+# Higher termination rates due to cost pressures
+workforce:
+  total_termination_rate: 0.15  # 15% instead of 12%
+  new_hire_termination_rate: 0.30  # 30% instead of 25%
+
+# Conservative new hire compensation
+new_hire_compensation:
+  strategy: "percentile_based"
+  percentile_strategy:
+    default_percentile: 0.25  # 25th percentile hiring
+    level_overrides:
+      1: 0.20  # Level 1: 20th percentile
+      2: 0.25  # Level 2: 25th percentile
+      3: 0.30  # Level 3: 30th percentile
+      4: 0.40  # Level 4: 40th percentile
+      5: 0.50  # Level 5: 50th percentile
+  market_adjustments:
+    enabled: true
+    base_adjustment: 0.95  # 5% discount across the board
+
+# Reduced employer match to control costs
+employer_match:
+  active_formula: 'simple_match'
+  formulas:
+    simple_match:
+      match_rate: 0.25  # 25% match instead of 50%
+      max_match_percentage: 0.03  # Cap at 3% of compensation

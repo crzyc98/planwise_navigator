@@ -34,7 +34,7 @@ orchestrator:
     memory_per_thread_gb: 2.0
 
     # Model-level parallelization configuration
-    model_parallelization:
+    parallelization:
       # Enable sophisticated model-level parallelization
       enabled: true
 

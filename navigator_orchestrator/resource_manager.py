@@ -1031,6 +1031,9 @@ class ResourceManager:
 
         start_time = time.time()
         initial_status = self.get_resource_status()
+        # Ensure variables are always defined for logging in finally
+        success = False
+        error: Optional[str] = None
 
         # Record performance start
         with self.memory_monitor.monitor_operation(operation_name):

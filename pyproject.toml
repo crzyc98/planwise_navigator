@@ -4,7 +4,10 @@ version = "0.1.0"
 description = "Workforce planning and simulation tool"
 authors = ["Your Name <your.email@example.com>"]
 readme = "README.md"
-packages = [{include = "orchestrator"}]
+packages = [{include = "navigator_orchestrator"}, {include = "planwise_cli"}]
+
+[tool.poetry.scripts]
+planwise = "planwise_cli.main:cli_main"
 
 [tool.poetry.dependencies]
 python = "^3.11"

@@ -264,7 +264,7 @@ class ThreadingSettings(BaseModel):
     memory_per_thread_gb: float = Field(default=1.0, ge=0.25, le=8.0, description="Memory allocation per thread in GB")
 
     # Model-level parallelization settings
-    model_parallelization: ModelParallelizationSettings = Field(
+    parallelization: ModelParallelizationSettings = Field(
         default_factory=ModelParallelizationSettings,
         description="Model-level parallelization configuration"
     )
@@ -757,6 +757,39 @@ def to_dbt_vars(cfg: SimulationConfig) -> Dict[str, Any]:
             dbt_vars["deferral_baseline_mode"] = "frozen"
     except Exception:
         dbt_vars["deferral_baseline_mode"] = "frozen"
+
+    # Staging/setup parameters: support file paths and plan-year settings from setup
+    try:
+        setup = getattr(cfg, "setup", None)
+        if isinstance(setup, dict):
+            # census_parquet_path: make absolute relative to repo root if given as relative path
+            cpp = setup.get("census_parquet_path")
+            if cpp:
+                cpp_path = Path(cpp)
+                if not cpp_path.is_absolute():
+                    # Repo root = navigator_orchestrator/.. (this file lives under navigator_orchestrator)
+                    repo_root = Path(__file__).resolve().parent.parent
+                    cpp_path = (repo_root / cpp_path).resolve()
+                dbt_vars["census_parquet_path"] = str(cpp_path)
+
+            # Optional plan-year & eligibility vars for staging models
+            pysd = setup.get("plan_year_start_date")
+            pyed = setup.get("plan_year_end_date")
+            ew = setup.get("eligibility_waiting_period_days")
+            if pysd:
+                dbt_vars["plan_year_start_date"] = str(pysd)
+            if pyed:
+                dbt_vars["plan_year_end_date"] = str(pyed)
+            if ew is not None:
+                dbt_vars["eligibility_waiting_period_days"] = int(ew)
+
+            # Optional contract enforcement toggle for portability
+            enf = setup.get("enforce_contracts")
+            if enf is not None:
+                dbt_vars["enforce_contracts"] = bool(enf)
+    except Exception:
+        # Non-fatal: continue with defaults
+        pass
 
     # Epic E058: Enhanced employer match configuration with eligibility
     # Generate nested employer_match variable structure for dbt models
