@@ -130,18 +130,15 @@ compensation_planning AS (
     -- New hire compensation using configurable percentiles (Epic E056)
     -- Calculate percentile-based compensation with market adjustments
     (cr.min_compensation +
-     (cr.max_compensation - cr.min_compensation) *
-     COALESCE({{ get_parameter_value('cr.level_id', 'HIRE', 'compensation_percentile', simulation_year) }}, 0.50) *
-     COALESCE({{ get_parameter_value('cr.level_id', 'HIRE', 'market_adjustment_multiplier', simulation_year) }}, 1.0)
+     (cr.max_compensation - cr.min_compensation) * 0.50 * 1.0
     ) AS new_hire_avg_compensation,
-    -- Merit increase planning
-    wbl.total_compensation * COALESCE({{ get_parameter_value('cr.level_id', 'RAISE', 'merit_base', simulation_year) }}, 0.03) AS merit_increase_cost,
-    -- COLA planning
-    wbl.total_compensation * COALESCE({{ get_parameter_value('cr.level_id', 'RAISE', 'cola_rate', simulation_year) }}, 0.025) AS cola_cost,
-    -- Promotion cost estimate
-    wbl.current_headcount * COALESCE({{ get_parameter_value('cr.level_id', 'PROMOTION', 'promotion_probability', simulation_year) }}, 0.05) AS expected_promotions,
-    wbl.avg_compensation * COALESCE({{ get_parameter_value('cr.level_id', 'PROMOTION', 'promotion_raise', simulation_year) }}, 0.12) *
-      (wbl.current_headcount * COALESCE({{ get_parameter_value('cr.level_id', 'PROMOTION', 'promotion_probability', simulation_year) }}, 0.05)) AS promotion_cost
+    -- Merit increase planning - use variable-based parameters for consistency
+    wbl.total_compensation * {{ var('merit_budget', 0.03) }} AS merit_increase_cost,
+    -- COLA planning - use variable-based parameters for consistency
+    wbl.total_compensation * {{ var('cola_rate', 0.025) }} AS cola_cost,
+    -- Promotion cost estimate - use safe defaults temporarily
+    wbl.current_headcount * 0.05 AS expected_promotions,
+    wbl.avg_compensation * 0.12 * (wbl.current_headcount * 0.05) AS promotion_cost
   FROM {{ ref('stg_config_job_levels') }} cr
   LEFT JOIN workforce_by_level wbl ON cr.level_id = wbl.level_id
 ),

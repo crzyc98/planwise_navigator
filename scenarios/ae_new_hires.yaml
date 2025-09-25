@@ -1,0 +1,20 @@
+# Baseline Scenario - Default configuration for comparison
+# This scenario uses the standard parameters from the base configuration
+
+simulation:
+  start_year: 2025
+  end_year: 2029
+  random_seed: 100
+  target_growth_rate: 0.03  # 3% growth per year
+
+scenario_id: "ae_new_hires"
+plan_design_id: "ae_new_hires"
+
+# Epic E035: Automatic Annual Deferral Rate Escalation Configuration (Simplified)
+deferral_auto_escalation:
+  enabled: true                 # Master on/off switch
+  effective_day: "01-01"        # MM-DD for escalation effective date
+  increment_amount: 0.01        # Annual escalation rate (default 1%)
+  maximum_rate: 0.10            # Cap for deferral rate (default 10%)
+  hire_date_cutoff: "2999-01-01"        # Optional YYYY-MM-DD; only employees hired on/before this date are eligible
+  require_active_enrollment: true  # Only escalate enrolled participants

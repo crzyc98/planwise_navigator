@@ -1,4 +1,7 @@
-{{ config(materialized='table') }}
+{{ config(
+  materialized='table',
+  tags=['FOUNDATION', 'EVENT_GENERATION']
+) }}
 
 -- Termination hazard model: computes termination probability for each combination of
 -- simulation year, job level, tenure band and age band.

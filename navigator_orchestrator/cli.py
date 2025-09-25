@@ -18,6 +18,7 @@ from .dbt_runner import DbtRunner
 from .pipeline import PipelineOrchestrator
 from .recovery_orchestrator import RecoveryOrchestrator
 from .registries import RegistryManager
+from .scenario_batch_runner import ScenarioBatchRunner
 from .utils import DatabaseConnectionManager
 from .validation import (DataValidator, EventSequenceRule,
                          HireTerminationRatioRule)
@@ -215,6 +216,51 @@ def cmd_checkpoint(args: argparse.Namespace) -> int:
         return 0
 
 
+def cmd_batch(args: argparse.Namespace) -> int:
+    """Execute batch scenario processing with Excel export."""
+    scenarios_dir = Path(args.scenarios_dir) if args.scenarios_dir else Path("scenarios")
+    output_dir = Path(args.output_dir) if args.output_dir else Path("outputs")
+    base_config_path = Path(args.config) if args.config else Path("config/simulation_config.yaml")
+
+    if not scenarios_dir.exists():
+        print(f"❌ Scenarios directory not found: {scenarios_dir}")
+        return 1
+
+    # Validate base configuration exists
+    if not base_config_path.exists():
+        print(f"❌ Base configuration not found: {base_config_path}")
+        return 1
+
+    runner = ScenarioBatchRunner(scenarios_dir, output_dir, base_config_path)
+    results = runner.run_batch(
+        scenario_names=args.scenarios,
+        export_format=args.export_format,
+        threads=args.threads,
+        optimization=args.optimization
+    )
+
+    if not results:
+        print("❌ No scenarios were processed")
+        return 1
+
+    # Report results
+    successful = [name for name, result in results.items() if result.get("status") == "completed"]
+    failed = [name for name, result in results.items() if result.get("status") == "failed"]
+
+    print(f"\n🎯 Batch execution completed:")
+    print(f"  ✅ Successful: {len(successful)} scenarios")
+    if successful:
+        print(f"     {', '.join(successful)}")
+    print(f"  ❌ Failed: {len(failed)} scenarios")
+    if failed:
+        print(f"     {', '.join(failed)}")
+
+    if successful:
+        print(f"  📊 Outputs: {runner.batch_output_dir}")
+
+    return 0 if not failed else 1
+
+
 def build_parser() -> argparse.ArgumentParser:
     p = argparse.ArgumentParser(
         prog="navigator", description="PlanWise Navigator Orchestrator CLI"
@@ -266,6 +312,18 @@ def build_parser() -> argparse.ArgumentParser:
         help="Number of checkpoints to keep when cleaning up (default: 5)",
     )
     pc.set_defaults(func=cmd_checkpoint)
+
+    # batch
+    pb = sub.add_parser("batch", help="Run multiple scenarios with Excel export")
+    pb.add_argument("--config", "-c", help="Base configuration file (default: config/simulation_config.yaml)")
+    pb.add_argument("--scenarios-dir", help="Directory containing scenario YAML files (default: scenarios/)")
+    pb.add_argument("--output-dir", help="Output directory for batch results (default: outputs/)")
+    pb.add_argument("--scenarios", nargs="*", help="Specific scenario names to run (default: all)")
+    pb.add_argument("--export-format", choices=["excel", "csv"], default="excel", help="Export format")
+    pb.add_argument("--split-by-year", action="store_true", help="Split Workforce Snapshot into per-year sheets/files")
+    pb.add_argument("--threads", type=int, default=1, help="Number of dbt threads for parallel execution (default: 1)")
+    pb.add_argument("--optimization", choices=["low", "medium", "high"], default="medium", help="Optimization level (default: medium)")
+    pb.set_defaults(func=cmd_batch)
 
     return p
 

@@ -1,4 +1,7 @@
-{{ config(materialized='table') }}
+{{ config(
+  materialized='table',
+  tags=['EVENT_GENERATION']
+) }}
 
 /*
   Proactive Voluntary Enrollment Model - Epic E053 Integration with Auto-Enrollment Windows

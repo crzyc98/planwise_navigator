@@ -1,4 +1,7 @@
-{{ config(materialized='table') }}
+{{ config(
+  materialized='table',
+  tags=['EVENT_GENERATION']
+) }}
 
 /*
   Voluntary Enrollment Decision Engine - Epic E053

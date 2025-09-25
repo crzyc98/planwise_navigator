@@ -1,4 +1,7 @@
-{{ config(materialized='table') }}
+{{ config(
+  materialized='table',
+  tags=['FOUNDATION', 'EVENT_GENERATION']
+) }}
 
 -- Promotion hazard model: computes promotion probability for each combination
 -- of year, level, tenure band, and age band.

@@ -1,7 +1,7 @@
 {{ config(
     materialized='table',
     contract={
-        "enforced": true
+        "enforced": var('enforce_contracts', true)
     },
     tags=['FOUNDATION']
 ) }}
@@ -45,39 +45,49 @@ WITH raw_data AS (
   FROM read_parquet('{{ var("census_parquet_path") }}')
 ),
 
--- Calculate annualized compensation for partial year workers
+-- Annualized compensation calculation
+-- IMPORTANT: The source column `employee_gross_compensation` is defined as an annual amount
+-- in the contract. To avoid double-annualizing, we only apply calendar-day gross-up when
+-- explicitly enabled via var('annualize_partial_year_compensation').
 annualized_data AS (
   SELECT
       *,
-      -- **NEW**: Annualize plan year compensation for partial year workers
+      -- Define plan year boundaries
+      CAST('{{ var("plan_year_start_date", "2024-01-01") }}' AS DATE) AS plan_start,
+      CAST('{{ var("plan_year_end_date", "2024-12-31") }}' AS DATE)   AS plan_end,
+
+      -- Compute effective active window within the plan year
+      GREATEST(employee_hire_date, CAST('{{ var("plan_year_start_date", "2024-01-01") }}' AS DATE)) AS active_start,
+      LEAST(COALESCE(employee_termination_date, CAST('{{ var("plan_year_end_date", "2024-12-31") }}' AS DATE)), CAST('{{ var("plan_year_end_date", "2024-12-31") }}' AS DATE)) AS active_end,
+
+      -- Days active in plan year (0 if no overlap)
       CASE
-          -- New hire during plan year: gross up based on hire date to plan year end
-          WHEN employee_hire_date > '{{ var("plan_year_start_date", "2024-01-01") }}'::DATE
-               AND employee_hire_date <= '{{ var("plan_year_end_date", "2024-12-31") }}'::DATE
-          THEN raw_plan_year_compensation * 365.0 /
-               GREATEST(1, DATE_DIFF('day', employee_hire_date, '{{ var("plan_year_end_date", "2024-12-31") }}'::DATE) + 1)
-
-          -- Terminated during plan year: gross up based on termination date
-          WHEN employee_termination_date IS NOT NULL
-               AND employee_termination_date >= '{{ var("plan_year_start_date", "2024-01-01") }}'::DATE
-               AND employee_termination_date < '{{ var("plan_year_end_date", "2024-12-31") }}'::DATE
-          THEN raw_plan_year_compensation * 365.0 /
-               GREATEST(1, DATE_DIFF('day', '{{ var("plan_year_start_date", "2024-01-01") }}'::DATE, employee_termination_date) + 1)
-
-          -- Mid-year hire AND termination in same plan year
-          WHEN employee_hire_date > '{{ var("plan_year_start_date", "2024-01-01") }}'::DATE
-               AND employee_termination_date IS NOT NULL
-               AND employee_termination_date < '{{ var("plan_year_end_date", "2024-12-31") }}'::DATE
-               AND employee_hire_date <= employee_termination_date
-          THEN raw_plan_year_compensation * 365.0 /
-               GREATEST(1, DATE_DIFF('day', employee_hire_date, employee_termination_date) + 1)
-
-          -- Full year worker: plan year compensation IS the annualized amount
-          ELSE raw_plan_year_compensation
-      END AS employee_annualized_compensation
+        WHEN employee_hire_date > CAST('{{ var("plan_year_end_date", "2024-12-31") }}' AS DATE)
+          OR (employee_termination_date IS NOT NULL AND employee_termination_date < CAST('{{ var("plan_year_start_date", "2024-01-01") }}' AS DATE))
+        THEN 0
+        ELSE GREATEST(0, DATE_DIFF('day',
+                   GREATEST(employee_hire_date, CAST('{{ var("plan_year_start_date", "2024-01-01") }}' AS DATE)),
+                   LEAST(COALESCE(employee_termination_date, CAST('{{ var("plan_year_end_date", "2024-12-31") }}' AS DATE)), CAST('{{ var("plan_year_end_date", "2024-12-31") }}' AS DATE))
+               ) + 1)
+      END AS days_active_in_year
 
   FROM raw_data
   WHERE rn = 1
+),
+
+-- Compensation calculations using previously derived days_active_in_year
+comp_data AS (
+  SELECT
+    ad.*,
+    CASE
+      WHEN ad.days_active_in_year = 0 THEN 0.0
+      ELSE ad.employee_gross_compensation * (ad.days_active_in_year / 365.0)
+    END AS computed_plan_year_compensation,
+    CASE
+      WHEN ad.days_active_in_year = 0 THEN ad.employee_gross_compensation
+      ELSE (ad.employee_gross_compensation * (ad.days_active_in_year / 365.0)) * 365.0 / GREATEST(1, ad.days_active_in_year)
+    END AS employee_annualized_compensation
+  FROM annualized_data ad
 ),
 
 -- Calculate eligibility and enrollment fields
@@ -86,20 +96,21 @@ eligibility_data AS (
       ad.*,
       {{ var('eligibility_waiting_period_days', 30) }} AS waiting_period_days,
       -- Calculate eligibility date: hire date + waiting period
-      (ad.employee_hire_date + INTERVAL {{ var('eligibility_waiting_period_days', 30) }} DAY)::DATE AS employee_eligibility_date,
+      -- Use DATE_ADD for DuckDB compatibility
+      CAST(DATE_ADD(ad.employee_hire_date, INTERVAL {{ var('eligibility_waiting_period_days', 30) }} DAY) AS DATE) AS employee_eligibility_date,
       -- Determine current eligibility status based on eligibility date vs census year end
       CASE
-          WHEN (ad.employee_hire_date + INTERVAL {{ var('eligibility_waiting_period_days', 30) }} DAY)::DATE <= '{{ var("plan_year_end_date", "2024-12-31") }}'::DATE
+          WHEN CAST(DATE_ADD(ad.employee_hire_date, INTERVAL {{ var('eligibility_waiting_period_days', 30) }} DAY) AS DATE) <= CAST('{{ var("plan_year_end_date", "2024-12-31") }}' AS DATE)
           THEN 'eligible'
           ELSE 'pending'
       END AS current_eligibility_status,
       -- Set enrollment date to end of census year only if employee has positive deferral rate
       CASE
           WHEN ad.employee_deferral_rate > 0
-          THEN '{{ var("plan_year_end_date", "2024-12-31") }}'::DATE
+          THEN CAST('{{ var("plan_year_end_date", "2024-12-31") }}' AS DATE)
           ELSE NULL
       END AS employee_enrollment_date
-  FROM annualized_data ad
+  FROM comp_data ad
 )
 
 -- **FIX**: Select only the first occurrence of each employee_id after deduplication
@@ -111,8 +122,7 @@ SELECT
     employee_termination_date,
     employee_gross_compensation,
     active,
-    -- **NEW**: Include both raw plan year compensation and annualized version
-    raw_plan_year_compensation AS employee_plan_year_compensation,
+    computed_plan_year_compensation AS employee_plan_year_compensation,
     employee_annualized_compensation,
     employee_capped_compensation,
     employee_deferral_rate,
@@ -123,7 +133,6 @@ SELECT
     employer_core_contribution,
     employer_match_contribution,
     eligibility_entry_date,
-    -- **NEW**: Add eligibility and enrollment fields
     employee_eligibility_date,
     waiting_period_days,
     current_eligibility_status,
