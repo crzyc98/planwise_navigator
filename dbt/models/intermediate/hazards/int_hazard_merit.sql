@@ -1,4 +1,7 @@
-{{ config(materialized='table') }}
+{{ config(
+  materialized='table',
+  tags=['FOUNDATION', 'EVENT_GENERATION']
+) }}
 
 -- Merit raise hazard model: calculates expected merit raise % by combination.
 -- Enhanced to use dynamic parameter system with job-level specific merit rates.

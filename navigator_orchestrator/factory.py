@@ -112,7 +112,8 @@ class OrchestratorBuilder:
 
 
 def create_orchestrator(
-    config_path: Path | str,
+    config_or_path: SimulationConfig | Path | str,
+    db_manager: Optional[DatabaseConnectionManager] = None,
     *,
     threads: int = 1,
     db_path: Optional[Path | str] = None,
@@ -121,18 +122,31 @@ def create_orchestrator(
     """Create a PipelineOrchestrator with E068C threading support.
 
     Args:
-        config_path: Path to simulation configuration file
+        config_or_path: Either a SimulationConfig object or path to configuration file
+        db_manager: Optional DatabaseConnectionManager (for scenario batch processing)
         threads: Legacy thread count (overridden by E068C config if present)
-        db_path: Database path (optional)
+        db_path: Database path (optional, ignored if db_manager provided)
         dbt_executable: dbt executable path
 
     Returns:
         Configured PipelineOrchestrator with E068C threading settings
     """
+    builder = OrchestratorBuilder()
+
+    # Handle config input
+    if isinstance(config_or_path, SimulationConfig):
+        builder._config = config_or_path
+    else:
+        builder.with_config(config_or_path)
+
+    # Handle database manager
+    if db_manager:
+        builder._db = db_manager
+    else:
+        builder.with_database(db_path)
+
     return (
-        OrchestratorBuilder()
-        .with_config(config_path)
-        .with_database(db_path)
+        builder
         .with_dbt_threads(threads)  # Will be overridden by E068C config if present
         .with_dbt_executable(dbt_executable)
         .build()

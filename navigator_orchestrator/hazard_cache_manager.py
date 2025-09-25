@@ -316,8 +316,9 @@ class HazardCacheManager:
                 for model in self.CACHE_MODELS:
                     self.logger.info(f"Rebuilding {model}...")
 
+                    # Use `dbt build` so seeds and dependent models are materialized
                     result = self.dbt_runner.execute_command(
-                        ["run", "--select", model, "--full-refresh"],
+                        ["build", "--select", model, "--full-refresh"],
                         dbt_vars=extra_vars
                     )
 
@@ -333,7 +334,7 @@ class HazardCacheManager:
                 # Update metadata table
                 self.logger.info("Updating hazard cache metadata...")
                 result = self.dbt_runner.execute_command(
-                    ["run", "--select", self.METADATA_MODEL, "--full-refresh"],
+                    ["build", "--select", self.METADATA_MODEL, "--full-refresh"],
                     dbt_vars=extra_vars
                 )
 
@@ -453,7 +454,7 @@ class HazardCacheManager:
                             cache_name,
                             built_at,
                             row_count,
-                            checksum
+                            data_checksum
                         FROM hazard_cache_metadata
                         WHERE is_current = TRUE
                         ORDER BY cache_name
@@ -461,8 +462,10 @@ class HazardCacheManager:
 
                     if results:
                         self.logger.info("Hazard cache statistics:")
-                        for cache_name, built_at, row_count, checksum in results:
-                            self.logger.info(f"  {cache_name}: {row_count} rows, checksum {checksum[:8]}...")
+                        for cache_name, built_at, row_count, data_checksum in results:
+                            # Protect against NULLs in early runs
+                            _prefix = (data_checksum or "")[0:8]
+                            self.logger.info(f"  {cache_name}: {row_count} rows, checksum {_prefix}...")
                     else:
                         self.logger.info("No current hazard cache statistics available")
                 else:

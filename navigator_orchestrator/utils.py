@@ -76,7 +76,6 @@ class ExecutionMutex:
         self.release()
 
 
-@dataclass(slots=True)
 class DatabaseConnectionManager:
     """Lightweight DuckDB connection manager with transaction and retry helpers.
 
@@ -86,7 +85,13 @@ class DatabaseConnectionManager:
     - Keeps surface minimal; can be extended for pooling if needed.
     """
 
-    db_path: Path = Path("dbt/simulation.duckdb")
+    def __init__(self, db_path: Optional[Path] = None):
+        """Initialize DatabaseConnectionManager with optional database path.
+
+        Args:
+            db_path: Path to the database file. Defaults to dbt/simulation.duckdb
+        """
+        self.db_path = db_path or Path("dbt/simulation.duckdb")
 
     def get_connection(self, *, deterministic: bool = False, thread_id: Optional[str] = None) -> duckdb.DuckDBPyConnection:
         """Get a database connection, optionally with deterministic configuration.

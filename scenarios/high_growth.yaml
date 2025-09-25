@@ -1,0 +1,42 @@
+# High Growth Scenario - Aggressive hiring and compensation growth
+# Models impact of rapid business expansion
+
+simulation:
+  start_year: 2025
+  end_year: 2029
+  random_seed: 200
+  target_growth_rate: 0.08  # 8% aggressive growth
+
+scenario_id: "high_growth"
+plan_design_id: "growth_optimized_401k"
+
+# Enhanced compensation to attract talent during rapid expansion
+compensation:
+  cola_rate: 0.03  # 3% COLA instead of 1%
+  merit_budget: 0.035  # 3.5% merit budget instead of 2%
+
+  # Higher promotion increases to retain talent
+  promotion_compensation:
+    base_increase_pct: 0.25  # 25% base increase instead of 20%
+    distribution_range: 0.075  # ±7.5% range
+    max_cap_pct: 0.40  # 40% max increase for exceptional cases
+
+# Reduced termination rates due to competitive compensation
+workforce:
+  total_termination_rate: 0.08  # 8% instead of 12%
+  new_hire_termination_rate: 0.15  # 15% instead of 25%
+
+# Enhanced new hire compensation for competitive hiring
+new_hire_compensation:
+  strategy: "percentile_based"
+  percentile_strategy:
+    default_percentile: 0.65  # 65th percentile hiring
+    level_overrides:
+      1: 0.50  # Level 1: 50th percentile
+      2: 0.60  # Level 2: 60th percentile
+      3: 0.70  # Level 3: 70th percentile
+      4: 0.80  # Level 4: 80th percentile
+      5: 0.85  # Level 5: 85th percentile
+  market_adjustments:
+    enabled: true
+    base_adjustment: 1.10  # 10% premium across the board
