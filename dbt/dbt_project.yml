@@ -148,7 +148,9 @@ data_tests:
 # Variables
 vars:
   # File paths
-  census_parquet_path: '/Users/nicholasamaral/planwise_navigator/data/census_preprocessed.parquet'
+  # Use an env-driven, repo-relative default so this works across machines
+  # When running dbt from the /dbt directory, ../data points to the repo's data folder
+  census_parquet_path: "{{ env_var('DATA_PATH', '../data') }}/census_preprocessed.parquet"
 
   # Simulation parameters
   simulation_year: 2025

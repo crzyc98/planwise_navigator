@@ -248,3 +248,18 @@ simulation.duckdb.zip
 reports/
 *.backup.py
 rebuild_everything.sh
+
+# Batch processing outputs and artifacts
+outputs/
+artifacts/
+batch_*/
+*_results.xlsx
+*_results.csv
+
+# Temporary files and runtime artifacts
+*.tmp
+*.temp
+seed.txt
+batch_summary.json
+summary.json
+performance.json

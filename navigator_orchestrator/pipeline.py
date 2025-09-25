@@ -261,7 +261,7 @@ class PipelineOrchestrator:
             # Check if model parallelization is enabled in config
             threading_config = getattr(self.config, 'orchestrator', None)
             if threading_config and hasattr(threading_config, 'threading'):
-                parallelization_config = threading_config.threading.model_parallelization
+                parallelization_config = threading_config.threading.parallelization
                 resource_mgmt_config = threading_config.threading.resource_management
             else:
                 # Fallback: check if enabled via optimization config
@@ -870,8 +870,15 @@ class PipelineOrchestrator:
                 print(f"   📋 Starting {stage.name.value} with {self.dbt_threads} threads")
 
             # Execute stage with appropriate threading strategy
-            if stage.name in (WorkflowStage.EVENT_GENERATION, WorkflowStage.STATE_ACCUMULATION):
+            if stage.name == WorkflowStage.EVENT_GENERATION:
+                # EVENT_GENERATION can be parallelized safely
                 results = self._execute_parallel_stage(stage, year)
+            elif stage.name == WorkflowStage.STATE_ACCUMULATION:
+                # STATE_ACCUMULATION must run sequentially due to delete+insert transaction conflicts
+                if self.verbose:
+                    print(f"   🔒 Running STATE_ACCUMULATION sequentially to prevent transaction conflicts")
+                self._run_stage_models(stage, year)
+                results = []
             else:
                 # Use existing sequential execution for other stages
                 self._run_stage_models(stage, year)

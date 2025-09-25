@@ -338,8 +338,15 @@ class DbtRunner:
                 if self.database_path:
                     import os
                     env = os.environ.copy()
-                    # For dbt running from /dbt directory, use relative path
-                    env['DATABASE_PATH'] = str(Path(self.database_path).name)
+                    # For dbt running from /dbt directory, use relative path from dbt/ to database
+                    abs_db_path = Path(self.database_path).absolute()
+                    abs_working_dir = self.working_dir.absolute()
+                    try:
+                        relative_path = abs_db_path.relative_to(abs_working_dir)
+                        env['DATABASE_PATH'] = str(relative_path)
+                    except ValueError:
+                        # Fallback to absolute path if relative calculation fails
+                        env['DATABASE_PATH'] = str(abs_db_path)
 
                 # Use corporate network-aware subprocess if available
                 try:
@@ -386,8 +393,15 @@ class DbtRunner:
             if self.database_path:
                 import os
                 env = os.environ.copy()
-                # For dbt running from /dbt directory, use relative path
-                env['DATABASE_PATH'] = str(Path(self.database_path).name)
+                # For dbt running from /dbt directory, use relative path from dbt/ to database
+                abs_db_path = Path(self.database_path).absolute()
+                abs_working_dir = self.working_dir.absolute()
+                try:
+                    relative_path = abs_db_path.relative_to(abs_working_dir)
+                    env['DATABASE_PATH'] = str(relative_path)
+                except ValueError:
+                    # Fallback to absolute path if relative calculation fails
+                    env['DATABASE_PATH'] = str(abs_db_path)
 
             # Add corporate network environment variables if available
             try:
