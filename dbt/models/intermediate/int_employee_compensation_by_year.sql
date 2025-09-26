@@ -1,6 +1,6 @@
 {{ config(
     materialized='incremental',
-    unique_key=['employee_id', 'simulation_year'],
+    unique_key="employee_id || '_' || simulation_year",
     incremental_strategy='delete+insert',
     on_schema_change='ignore',
     tags=['FOUNDATION', 'critical', 'compensation']

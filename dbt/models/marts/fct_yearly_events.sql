@@ -4,7 +4,7 @@
 
 {{ config(
   materialized='incremental',
-  unique_key=['scenario_id', 'plan_design_id', 'employee_id', 'simulation_year', 'event_type', 'event_sequence'],
+  unique_key="scenario_id || '_' || plan_design_id || '_' || employee_id || '_' || simulation_year || '_' || event_type || '_' || event_sequence",
   incremental_strategy='delete+insert',
   on_schema_change='sync_all_columns',
   tags=['EVENT_GENERATION']
