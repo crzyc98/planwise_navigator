@@ -54,9 +54,12 @@
       "Bash(lsof:*)",
       "Bash(gh pr list:*)",
       "Bash(pip install:*)",
-      "Bash(planwise:*)"
+      "Bash(planwise:*)",
+      "Bash(PYTHONPATH=. python -m navigator_orchestrator run --years 2025 --threads 1 --verbose)",
+      "Bash(PYTHONPATH=. python -m navigator_orchestrator run --years 2025-2025 --threads 1 --verbose)"
     ],
     "deny": [],
     "ask": []
   }
 }
+
