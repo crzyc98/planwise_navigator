@@ -1,5 +1,5 @@
 {{ config(
-  materialized='view',
+  materialized='table',
   tags=['EVENT_GENERATION', 'E068A_EPHEMERAL', 'optimization', 'events', 'promotion_compensation_fix']
 ) }}
 
