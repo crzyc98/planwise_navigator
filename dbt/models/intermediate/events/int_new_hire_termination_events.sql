@@ -1,5 +1,5 @@
 {{ config(
-  materialized='ephemeral',
+  materialized='view',
   tags=['EVENT_GENERATION', 'E068A_EPHEMERAL']
 ) }}
 
