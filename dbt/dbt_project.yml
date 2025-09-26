@@ -36,6 +36,11 @@ models:
       +docs:
         node_color: "#FFF2CC"
 
+      # Event models - table materialization for queryability and transaction compatibility
+      events:
+        +materialized: table
+        +tags: ["EVENT_GENERATION"]
+
       # Data integrity models should run before event models
       # Dependency chain: fct_workforce_snapshot → int_active_employees_by_year → event models → fct_yearly_events
       int_active_employees_by_year:
