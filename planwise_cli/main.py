@@ -122,7 +122,7 @@ def health(
 # Batch command
 @app.command("batch")
 def batch(
-    scenarios: Optional[list[str]] = typer.Option(None, "--scenarios", help="Specific scenario names to run"),
+    scenarios: Optional[list[str]] = typer.Option(None, "--scenarios", help="Specific scenario names to run (comma-separated or multiple flags)"),
     config: Optional[str] = typer.Option(None, "--config", "-c", help="Base configuration file"),
     scenarios_dir: Optional[str] = typer.Option(None, "--scenarios-dir", help="Directory containing scenario YAML files"),
     output_dir: Optional[str] = typer.Option(None, "--output-dir", help="Output directory for batch results"),
@@ -132,6 +132,10 @@ def batch(
     verbose: bool = typer.Option(False, "--verbose", "-v", help="Show detailed output"),
 ):
     """📊 Run multiple scenarios with Excel export."""
+    # Handle comma-separated scenario names for user convenience
+    if scenarios and len(scenarios) == 1 and "," in scenarios[0]:
+        scenarios = [s.strip() for s in scenarios[0].split(",")]
+
     run_batch(
         scenarios=scenarios,
         config=config,
