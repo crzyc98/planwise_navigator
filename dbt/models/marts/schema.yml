@@ -70,7 +70,7 @@ models:
         data_tests:
           - not_null
           - accepted_values:
-              values: ['termination', 'promotion', 'hire', 'RAISE', 'enrollment', 'enrollment_change', 'DEFERRAL_ESCALATION']
+              values: ['termination', 'promotion', 'hire', 'raise', 'enrollment', 'enrollment_change', 'deferral_escalation']
       - name: simulation_year
         description: "Year of simulation"
         data_type: integer
