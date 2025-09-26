@@ -53,6 +53,10 @@ def run_batch(
 ):
     """Run multiple scenarios with Excel export."""
     try:
+        # Handle comma-separated scenario names for user convenience
+        if scenarios and len(scenarios) == 1 and "," in scenarios[0]:
+            scenarios = [s.strip() for s in scenarios[0].split(",")]
+
         console.print("📊 [bold blue]Starting batch scenario processing[/bold blue]")
 
         # Setup paths
