@@ -1,7 +1,7 @@
 {{ config(
     materialized='incremental',
     incremental_strategy='delete+insert',
-    unique_key=['scenario_id', 'plan_design_id', 'employee_id', 'simulation_year'],
+    unique_key="scenario_id || '_' || plan_design_id || '_' || employee_id || '_' || simulation_year",
     pre_hook=[
       "{% if is_incremental() %}DELETE FROM int_employee_state_by_year WHERE simulation_year = {{ var('simulation_year') }}{% endif %}"
     ],
