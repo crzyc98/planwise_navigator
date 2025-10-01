@@ -254,11 +254,11 @@ default,2025,2,HIRE,compensation_percentile,0.30,1,2025-08-26,analyst
 default,2025,3,HIRE,compensation_percentile,0.35,1,2025-08-26,analyst
 default,2025,4,HIRE,compensation_percentile,0.40,1,2025-08-26,analyst
 default,2025,5,HIRE,compensation_percentile,0.45,1,2025-08-26,analyst
-default,2025,1,HIRE,market_adjustment_multiplier,0.70,1,2025-01-27,analyst
-default,2025,2,HIRE,market_adjustment_multiplier,0.65,1,2025-01-27,analyst
-default,2025,3,HIRE,market_adjustment_multiplier,0.60,1,2025-01-27,analyst
-default,2025,4,HIRE,market_adjustment_multiplier,0.55,1,2025-01-27,analyst
-default,2025,5,HIRE,market_adjustment_multiplier,0.50,1,2025-01-27,analyst
+default,2025,1,HIRE,market_adjustment_multiplier,0.35,1,2025-01-27,analyst
+default,2025,2,HIRE,market_adjustment_multiplier,0.33,1,2025-01-27,analyst
+default,2025,3,HIRE,market_adjustment_multiplier,0.30,1,2025-01-27,analyst
+default,2025,4,HIRE,market_adjustment_multiplier,0.28,1,2025-01-27,analyst
+default,2025,5,HIRE,market_adjustment_multiplier,0.25,1,2025-01-27,analyst
 default,2026,1,HIRE,compensation_percentile,0.25,0,2025-08-26,analyst
 default,2026,2,HIRE,compensation_percentile,0.30,0,2025-08-26,analyst
 default,2026,3,HIRE,compensation_percentile,0.35,0,2025-08-26,analyst
