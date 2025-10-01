@@ -47,27 +47,45 @@ WITH active_workforce AS (
 ),
 
 current_enrollment_status AS (
-  -- Check enrollment status from enrollment registry (avoids circular dependency)
+  -- CRITICAL FIX: Use enrollment_state_accumulator from previous year to account for opt-outs
+  -- This replaces enrollment_registry which doesn't properly track opt-out events
   {% set start_year = var('start_year', 2025) | int %}
   {% set current_year = var('simulation_year') | int %}
 
-  SELECT
-    employee_id,
-    is_enrolled as is_currently_enrolled
-  FROM main.enrollment_registry
-  WHERE is_enrolled = true
-    AND employee_id IS NOT NULL
-    AND first_enrollment_year <= {{ current_year }}
+  {% if current_year == start_year %}
+    -- Year 1: Use baseline workforce enrollment status
+    SELECT
+      employee_id,
+      is_enrolled_at_census as is_currently_enrolled,
+      false as ever_opted_out  -- Year 1: no one has opted out yet
+    FROM {{ ref('int_baseline_workforce') }}
+    WHERE employee_id IS NOT NULL
+  {% else %}
+    -- Year 2+: Use enrollment_state_accumulator from previous year
+    -- This correctly accounts for opt-outs (is_enrolled = false after opt-out)
+    -- Note: Using direct table reference to avoid circular dependency in dbt DAG
+    -- The previous year's accumulator was already built in the prior iteration
+    SELECT
+      employee_id,
+      is_enrolled as is_currently_enrolled,
+      ever_opted_out  -- Track opt-out history to exclude from voluntary enrollment
+    FROM int_enrollment_state_accumulator
+    WHERE simulation_year = {{ current_year - 1 }}
+      AND employee_id IS NOT NULL
+  {% endif %}
 ),
 
 eligible_employees AS (
-  -- Employees eligible for voluntary enrollment (not currently enrolled)
+  -- Employees eligible for voluntary enrollment (not currently enrolled AND never opted out)
+  -- CRITICAL: Exclude employees who have ever opted out - they made an explicit decision to not participate
   SELECT
     aw.*,
-    COALESCE(ces.is_currently_enrolled, false) as is_currently_enrolled
+    COALESCE(ces.is_currently_enrolled, false) as is_currently_enrolled,
+    COALESCE(ces.ever_opted_out, false) as ever_opted_out
   FROM active_workforce aw
   LEFT JOIN current_enrollment_status ces ON aw.employee_id = ces.employee_id
-  WHERE COALESCE(ces.is_currently_enrolled, false) = false
+  WHERE COALESCE(ces.is_currently_enrolled, false) = false  -- Not currently enrolled
+    AND COALESCE(ces.ever_opted_out, false) = false  -- Never opted out
 ),
 
 demographic_segmentation AS (

@@ -1,6 +1,9 @@
 {{ config(
-  materialized='ephemeral',
-  tags=['EVENT_GENERATION', 'E068A_EPHEMERAL']
+  materialized='incremental',
+  incremental_strategy='delete+insert',
+  unique_key=['employee_id', 'simulation_year', 'event_type', 'effective_date'],
+  on_schema_change='sync_all_columns',
+  tags=['EVENT_GENERATION']
 ) }}
 
 /*
@@ -87,24 +90,88 @@ active_workforce AS (
 ),
 
 previous_enrollment_state AS (
-  -- ORCHESTRATOR-LEVEL SOLUTION: Use enrollment_registry table maintained by orchestrator
-  -- This table is created/updated before event generation to prevent duplicate enrollments
-  -- No circular dependencies since registry is maintained outside dbt workflow
+  -- CRITICAL FIX: Read from incremental int_enrollment_events instead of enrollment_registry
+  -- This ensures we properly track all enrolled employees across all prior years
+  -- No circular dependency since we only read from PRIOR years (< current simulation_year)
   {% set start_year = var('start_year', 2025) | int %}
   {% set current_year = var('simulation_year') | int %}
 
-  SELECT
-    employee_id,
-    first_enrollment_date AS previous_enrollment_date,
-    is_enrolled AS was_enrolled_previously,
-    enrollment_source,
-    {{ current_year }} - first_enrollment_year as years_since_first_enrollment
-  FROM enrollment_registry
-  WHERE is_enrolled = true
-    AND employee_id IS NOT NULL
-    -- Only treat employees as previously enrolled if enrollment occurred
-    -- on or before the current simulation year (ignore future-year enrollments)
-    AND first_enrollment_year <= {{ current_year }}
+  {% if current_year == start_year %}
+    -- Year 1: Check int_employee_compensation_by_year for enrolled employees at baseline
+    SELECT
+      employee_id,
+      employee_enrollment_date AS previous_enrollment_date,
+      true AS was_enrolled_previously,
+      false AS ever_opted_out,  -- Year 1: no one has opted out yet
+      'baseline_compensation' AS enrollment_source,
+      0 AS years_since_first_enrollment
+    FROM {{ ref('int_employee_compensation_by_year') }}
+    WHERE simulation_year = {{ start_year }}
+      AND is_enrolled_flag = true
+      AND employee_id IS NOT NULL
+  {% else %}
+    -- Year 2+: Check int_enrollment_events (now incremental) for prior enrollment events
+    -- Use {{ this }} to reference already-materialized data from prior years
+    -- CRITICAL FIX: Account for opt-out events to prevent duplicate enrollments
+    -- Check if table exists first to avoid errors
+    {% set enrollment_relation = adapter.get_relation(database=this.database, schema=this.schema, identifier=this.identifier) %}
+    {% if enrollment_relation is not none %}
+      WITH enrollment_and_optout_events AS (
+        SELECT
+          employee_id,
+          event_type,
+          effective_date,
+          simulation_year,
+          event_details,
+          ROW_NUMBER() OVER (PARTITION BY employee_id ORDER BY effective_date DESC, simulation_year DESC) as event_rank
+        FROM {{ this }}
+        WHERE simulation_year < {{ current_year }}  -- Only prior years
+          AND event_type IN ('enrollment', 'enrollment_change')
+          AND employee_id IS NOT NULL
+      )
+      SELECT
+        employee_id,
+        MIN(CASE WHEN event_type = 'enrollment' THEN effective_date END) AS previous_enrollment_date,
+        -- If most recent event was an opt-out, employee is NOT enrolled
+        CASE
+          WHEN MAX(CASE WHEN event_rank = 1 AND event_type = 'enrollment_change'
+                        AND LOWER(event_details) LIKE '%opt-out%' THEN 1 ELSE 0 END) = 1
+            THEN false
+          ELSE true
+        END AS was_enrolled_previously,
+        -- Track if employee has EVER opted out (not just currently)
+        MAX(CASE WHEN event_type = 'enrollment_change' AND LOWER(event_details) LIKE '%opt-out%'
+                 THEN 1 ELSE 0 END) = 1 AS ever_opted_out,
+        'prior_year_enrollment' AS enrollment_source,
+        {{ current_year }} - MIN(CASE WHEN event_type = 'enrollment' THEN simulation_year END) AS years_since_first_enrollment
+      FROM enrollment_and_optout_events
+      GROUP BY employee_id
+
+      UNION
+    {% endif %}
+
+    -- Also include baseline enrolled employees (for employees enrolled at simulation start)
+    SELECT
+      employee_id,
+      employee_enrollment_date AS previous_enrollment_date,
+      true AS was_enrolled_previously,
+      false AS ever_opted_out,  -- Baseline employees haven't opted out (census data)
+      'baseline_compensation' AS enrollment_source,
+      {{ current_year }} - {{ start_year }} AS years_since_first_enrollment
+    FROM {{ ref('int_employee_compensation_by_year') }}
+    WHERE simulation_year = {{ start_year }}
+      AND is_enrolled_flag = true
+      AND employee_id IS NOT NULL
+    {% if enrollment_relation is not none %}
+      -- Exclude if already captured from enrollment events
+      AND employee_id NOT IN (
+        SELECT DISTINCT employee_id
+        FROM {{ this }}
+        WHERE simulation_year < {{ current_year }}
+          AND event_type = 'enrollment'
+      )
+    {% endif %}
+  {% endif %}
 ),
 
 auto_enrollment_eligible_population AS (
@@ -294,49 +361,14 @@ enrollment_events AS (
       ELSE 1.25                     -- Highest enrollment for executives
     END as event_probability,
 
-    -- Event category for grouping (normalized to accepted values)
-    CASE
-      WHEN efo.is_auto_enrollment_row THEN 'auto_enrollment'
-      ELSE (
-        CASE efo.age_segment
-          WHEN 'mid_career' THEN 'voluntary_enrollment'
-          WHEN 'mature' THEN 'proactive_enrollment'
-          WHEN 'young' THEN 'voluntary_enrollment'
-          ELSE 'voluntary_enrollment'
-        END
-      )
-    END as event_category
+    -- Event category: ONLY auto-enrollment (voluntary enrollments come from separate CTEs)
+    'auto_enrollment' as event_category
   FROM eligible_for_enrollment efo
   WHERE efo.is_eligible = true
     -- CRITICAL FIX: Prevent duplicate enrollments for ALL simulation years
-    -- Now that previous_enrollment_state properly checks accumulator for subsequent years,
-    -- we can safely enforce this constraint across all years
     AND efo.is_already_enrolled = false
-    -- NEW: Exclude employees who have already enrolled proactively within auto-enrollment window
-    AND efo.employee_id NOT IN (
-      SELECT employee_id FROM {{ ref('int_proactive_voluntary_enrollment') }}
-      WHERE will_enroll_proactively = true
-        AND simulation_year = {{ var('simulation_year') }}
-    )
-    -- BUSINESS RULE: auto-eligible rows enroll deterministically; others probabilistic by demographics
-    AND (
-      CASE WHEN efo.is_auto_enrollment_row THEN true ELSE
-        efo.enrollment_random < (
-          CASE efo.age_segment
-            WHEN 'young' THEN 0.30
-            WHEN 'mid_career' THEN 0.55
-            WHEN 'mature' THEN 0.70
-            ELSE 0.80
-          END *
-          CASE efo.income_segment
-            WHEN 'low_income' THEN 0.70
-            WHEN 'moderate' THEN 1.0
-            WHEN 'high' THEN 1.15
-            ELSE 1.25
-          END
-        )
-      END
-    )
+    -- ONLY generate auto-enrollment events (voluntary enrollments handled by dedicated CTEs)
+    AND efo.is_auto_enrollment_row = true
 ),
 
 -- Generate opt-out events using simplified logic
@@ -385,10 +417,22 @@ opt_out_events AS (
     'enrollment_opt_out' as event_category
   FROM eligible_for_enrollment efo
   WHERE
-    -- Eligible to opt out: previously enrolled OR newly enrolled this year
-    (COALESCE(efo.was_enrolled_previously, false) = true OR efo.employee_id IN (
-      SELECT employee_id FROM enrollment_events WHERE event_type = 'enrollment'
-    ))
+    -- CRITICAL FIX: ONLY employees who were AUTO-ENROLLED can opt out
+    -- Voluntary enrollments are explicit decisions and should NOT trigger automatic opt-out events
+    -- Check ALL enrollment event sources (enrollment_events + voluntary + proactive + year-over-year)
+    efo.employee_id IN (
+      SELECT employee_id FROM enrollment_events
+      WHERE event_type = 'enrollment'
+        AND event_category = 'auto_enrollment'  -- ONLY auto-enrollment events
+    )
+    -- EXCLUDE employees who enrolled through ANY voluntary method
+    AND efo.employee_id NOT IN (
+      SELECT employee_id FROM voluntary_enrollment_events
+      UNION
+      SELECT employee_id FROM proactive_voluntary_enrollment_events
+      UNION
+      SELECT employee_id FROM year_over_year_enrollment_events
+    )
     AND efo.employment_status = 'active'
     -- Apply probabilistic opt-out based on demographics (using configurable rates)
     AND efo.optout_random < (
@@ -571,6 +615,8 @@ year_over_year_enrollment_events AS (
   WHERE
     -- Only include employees not currently enrolled
     COALESCE(pes.was_enrolled_previously, false) = false
+    -- CRITICAL: Exclude employees who have ever opted out - they made an explicit decision to not participate
+    AND COALESCE(pes.ever_opted_out, false) = false
     -- Exclude recent hires (handled by new hire enrollment logic)
     AND aw.employee_hire_date < CAST(aw.simulation_year || '-01-01' AS DATE)
     -- Apply year-over-year conversion probability
@@ -710,6 +756,34 @@ all_enrollment_events AS (
   FROM year_over_year_enrollment_events
 ),
 
+-- DEFENSIVE FIX #3: Cross-year duplicate prevention
+-- Even if upstream models somehow generate duplicate enrollment decisions,
+-- this filter ensures employees who enrolled in prior years don't re-enroll
+-- Uses {{ this }} to avoid circular dependency with fct_yearly_events
+prior_year_enrollments AS (
+  {% set start_year = var('start_year', 2025) | int %}
+  {% set current_year = var('simulation_year') | int %}
+
+  {% if current_year > start_year %}
+    -- Year 2+: Check incremental int_enrollment_events table for prior enrollments
+    -- Use {{ this }} to reference already-materialized data from prior years
+    {% set enrollment_relation = adapter.get_relation(database=this.database, schema=this.schema, identifier=this.identifier) %}
+    {% if enrollment_relation is not none %}
+      SELECT DISTINCT employee_id
+      FROM {{ this }}
+      WHERE event_type = 'enrollment'
+        AND simulation_year < {{ current_year }}
+        AND employee_id IS NOT NULL
+    {% else %}
+      -- Table doesn't exist yet (first run), return empty set
+      SELECT CAST(NULL AS VARCHAR) as employee_id WHERE FALSE
+    {% endif %}
+  {% else %}
+    -- Year 1: No prior year enrollments to check
+    SELECT CAST(NULL AS VARCHAR) as employee_id WHERE FALSE
+  {% endif %}
+),
+
 -- Deduplication with event category prioritization
 -- Prevent duplicate enrollments per employee per year
 deduplicated_events AS (
@@ -735,6 +809,9 @@ deduplicated_events AS (
         effective_date
     ) as priority_rank
   FROM all_enrollment_events
+  -- DEFENSIVE: Exclude employees who already enrolled in prior years
+  WHERE event_type != 'enrollment'
+    OR employee_id NOT IN (SELECT employee_id FROM prior_year_enrollments WHERE employee_id IS NOT NULL)
 )
 
 -- Final selection compatible with fct_yearly_events schema with event sourcing metadata
@@ -777,6 +854,10 @@ WHERE priority_rank = 1  -- Keep one per event_type per employee-year (enrollmen
   AND simulation_year IS NOT NULL
   AND effective_date IS NOT NULL
   AND event_type IS NOT NULL
+  {% if is_incremental() %}
+  -- Incremental mode: only process current simulation year
+  AND simulation_year = {{ var('simulation_year') }}
+  {% endif %}
 ORDER BY employee_id, effective_date,
   CASE event_type
     WHEN 'enrollment' THEN 1

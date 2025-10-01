@@ -1,5 +1,5 @@
 {{ config(
-  materialized='ephemeral',
+  materialized='table',
   tags=['EVENT_GENERATION', 'E068A_EPHEMERAL']
 ) }}
 

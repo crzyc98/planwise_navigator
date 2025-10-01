@@ -23,6 +23,7 @@ This playbook tells Claude exactly how to turn high-level feature requests into 
 | **Transformation** | dbt-core | 1.8.8 | Declarative SQL models, tests, documentation |
 | **Adapter** | dbt-duckdb | 1.8.1 | Stable DuckDB integration |
 | **Orchestration** | navigator_orchestrator.pipeline | Modular | PipelineOrchestrator with staged workflow execution and checkpoint support |
+| **CLI Interface** | planwise_cli (Rich + Typer) | 1.0.0 | Beautiful terminal interface with progress tracking and enhanced UX |
 | **Dashboard** | Streamlit | 1.39.0 | Interactive analytics and compensation tuning |
 | **Configuration** | Pydantic | 2.7.4 | Type-safe config management with validation |
 | **Parameters** | comp\_levers.csv | Dynamic | Analyst-adjustable compensation parameters |
@@ -207,7 +208,36 @@ python3.11 -m venv venv
 source venv/bin/activate
 pip install -r requirements.txt
 
-# Run Multi-Year Simulations
+# PlanWise CLI (Rich Interface) - PREFERRED METHOD
+# Beautiful terminal interface with progress bars and enhanced UX
+
+# Quick system health check
+planwise health                                 # System readiness check
+planwise status                                 # Detailed system status
+planwise status --detailed                      # Full diagnostic information
+
+# Multi-year simulations with Rich progress tracking
+planwise simulate 2025-2027                     # Run 3-year simulation with progress bars
+planwise simulate 2025 --resume                 # Resume from checkpoint with enhanced feedback
+planwise simulate 2025-2026 --dry-run          # Preview execution plan
+planwise simulate 2025-2027 --verbose          # Detailed progress and logging
+
+# Batch scenario processing with Excel export
+planwise batch                                  # Run all scenarios in scenarios/ directory
+planwise batch --scenarios baseline high_growth # Run specific scenarios
+planwise batch --export-format excel           # Generate Excel reports with metadata
+planwise batch --scenarios baseline --verbose  # Detailed batch processing feedback
+
+# Configuration validation with detailed reporting
+planwise validate                               # Validate simulation configuration
+planwise validate --enforce-identifiers        # Require scenario_id and plan_design_id
+
+# Checkpoint management with Rich formatting
+planwise checkpoints list                      # Beautiful table of checkpoints
+planwise checkpoints status                    # Recovery status with recommendations
+planwise checkpoints cleanup --keep 3         # Clean old checkpoints, keep 3
+
+# Legacy navigator_orchestrator (argparse) - FALLBACK METHOD
 python -m navigator_orchestrator run --years 2025 2026 2027 --verbose  # Production orchestrator
 python -m navigator_orchestrator.pipeline                              # Direct module execution
 
