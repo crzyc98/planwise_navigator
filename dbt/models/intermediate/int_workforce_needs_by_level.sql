@@ -130,7 +130,9 @@ compensation_planning AS (
     -- New hire compensation using configurable percentiles (Epic E056)
     -- Calculate percentile-based compensation with market adjustments
     (cr.min_compensation +
-     (cr.max_compensation - cr.min_compensation) * 0.50 * 1.0
+     (cr.max_compensation - cr.min_compensation) *
+     COALESCE({{ resolve_parameter('cr.level_id', 'HIRE', 'compensation_percentile', simulation_year) }}, 0.50) *
+     COALESCE({{ resolve_parameter('cr.level_id', 'HIRE', 'market_adjustment_multiplier', simulation_year) }}, 1.0)
     ) AS new_hire_avg_compensation,
     -- Merit increase planning - use variable-based parameters for consistency
     wbl.total_compensation * {{ var('merit_budget', 0.03) }} AS merit_increase_cost,
