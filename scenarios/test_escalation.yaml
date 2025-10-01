@@ -1,0 +1,18 @@
+# Test Scenario for Deferral Escalation Fix
+simulation:
+  start_year: 2025
+  end_year: 2029  # Extended to test 10% cap
+  random_seed: 42
+  target_growth_rate: 0.03
+
+scenario_id: "test_escalation"
+plan_design_id: "test_escalation"
+
+# Enable deferral escalation to test the fix
+deferral_auto_escalation:
+  enabled: true
+  effective_day: "01-01"
+  increment_amount: 0.01
+  maximum_rate: 0.10
+  hire_date_cutoff: "1900-01-01"  # All employees eligible
+  require_active_enrollment: true
