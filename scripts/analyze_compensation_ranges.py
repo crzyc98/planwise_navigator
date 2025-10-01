@@ -4,82 +4,111 @@ Analyze compensation ranges from census data to inform job level configuration.
 
 Usage:
     python scripts/analyze_compensation_ranges.py
+    python scripts/analyze_compensation_ranges.py --census data/other_census.parquet
 """
 
+import argparse
 import pandas as pd
 from pathlib import Path
 
 
-def analyze_compensation_by_level(census_path: Path) -> pd.DataFrame:
-    """Analyze compensation statistics by job level."""
+def analyze_compensation_distribution(census_path: Path) -> pd.DataFrame:
+    """Analyze overall compensation statistics."""
     df = pd.read_parquet(census_path)
 
-    # Use CompensationAtYearStart as the primary compensation field
-    # Group by employee_level and calculate statistics
-    stats = df.groupby('employee_level')['CompensationAtYearStart'].agg([
-        ('count', 'count'),
-        ('min', 'min'),
-        ('p5', lambda x: x.quantile(0.05)),
-        ('p10', lambda x: x.quantile(0.10)),
-        ('p25', lambda x: x.quantile(0.25)),
-        ('median', 'median'),
-        ('p75', lambda x: x.quantile(0.75)),
-        ('p90', lambda x: x.quantile(0.90)),
-        ('p95', lambda x: x.quantile(0.95)),
-        ('max', 'max'),
-        ('mean', 'mean'),
-        ('std', 'std')
-    ]).round(0)
+    # Use employee_gross_compensation as the primary compensation field
+    comp_series = df['employee_gross_compensation'].dropna()
 
-    # Map level numbers to level names for readability
-    level_names = {
-        0: 'Level 0 (Unknown)',
-        1: 'Level 1 (Staff)',
-        2: 'Level 2 (Manager)',
-        3: 'Level 3 (SrMgr)',
-        4: 'Level 4 (Director)',
-        5: 'Level 5 (VP)'
-    }
-    stats.index = stats.index.map(lambda x: level_names.get(x, f'Level {x}'))
+    # Calculate comprehensive statistics
+    stats = pd.DataFrame({
+        'Metric': ['Count', 'Min', 'P5', 'P10', 'P25', 'Median', 'P75', 'P90', 'P95', 'Max', 'Mean', 'Std Dev'],
+        'Value': [
+            int(comp_series.count()),
+            int(comp_series.min()),
+            int(comp_series.quantile(0.05)),
+            int(comp_series.quantile(0.10)),
+            int(comp_series.quantile(0.25)),
+            int(comp_series.median()),
+            int(comp_series.quantile(0.75)),
+            int(comp_series.quantile(0.90)),
+            int(comp_series.quantile(0.95)),
+            int(comp_series.max()),
+            int(comp_series.mean()),
+            int(comp_series.std())
+        ]
+    })
 
-    return stats
+    return stats, comp_series
+
+
+def suggest_compensation_bands(comp_series: pd.Series, num_bands: int = 5) -> pd.DataFrame:
+    """Suggest compensation bands based on percentile distribution."""
+    percentiles = [i / num_bands for i in range(num_bands + 1)]
+    band_edges = [comp_series.quantile(p) for p in percentiles]
+
+    bands = []
+    for i in range(num_bands):
+        band_min = int(band_edges[i])
+        band_max = int(band_edges[i + 1])
+
+        # Count employees in this band
+        in_band = comp_series[(comp_series >= band_min) & (comp_series < band_max if i < num_bands - 1 else comp_series <= band_max)]
+        count = len(in_band)
+        median = int(in_band.median()) if len(in_band) > 0 else 0
+
+        bands.append({
+            'Band': f'Band {i + 1}',
+            'Min': band_min,
+            'Median': median,
+            'Max': band_max,
+            'Count': count,
+            'Percentage': f'{count / len(comp_series) * 100:.1f}%'
+        })
+
+    return pd.DataFrame(bands)
 
 
 def main():
-    # Path to census data
-    census_path = Path(__file__).parent.parent / 'data' / 'original.parquet'
+    # Argument parsing
+    parser = argparse.ArgumentParser(description='Analyze compensation ranges from census data')
+    parser.add_argument('--census', type=Path,
+                       default=Path(__file__).parent.parent / 'data' / 'census_preprocessed.parquet',
+                       help='Path to census parquet file (default: data/census_preprocessed.parquet)')
+    parser.add_argument('--bands', type=int, default=5,
+                       help='Number of compensation bands to suggest (default: 5)')
+    args = parser.parse_args()
+
+    census_path = args.census
 
     if not census_path.exists():
         print(f"Error: Census file not found at {census_path}")
         return
 
-    print("Analyzing compensation ranges by job level...")
+    print("Analyzing compensation ranges from census data...")
     print(f"Source: {census_path}\n")
 
-    stats = analyze_compensation_by_level(census_path)
+    stats, comp_series = analyze_compensation_distribution(census_path)
 
-    print("=" * 100)
-    print("COMPENSATION ANALYSIS BY JOB LEVEL")
-    print("=" * 100)
-    print(stats.to_string())
+    print("=" * 80)
+    print("COMPENSATION DISTRIBUTION ANALYSIS")
+    print("=" * 80)
+    print(stats.to_string(index=False))
     print("\n")
 
-    print("=" * 100)
-    print("RECOMMENDED RANGES (using P5 and P95 percentiles)")
-    print("=" * 100)
-    for level_name in stats.index:
-        min_comp = int(stats.loc[level_name, 'p5'])
-        max_comp = int(stats.loc[level_name, 'p95'])
-        median_comp = int(stats.loc[level_name, 'median'])
-        count = int(stats.loc[level_name, 'count'])
+    # Suggest compensation bands
+    bands = suggest_compensation_bands(comp_series, num_bands=args.bands)
 
-        print(f"{level_name:25} (n={count:5}): min={min_comp:>9,}  median={median_comp:>9,}  max={max_comp:>9,}")
-
+    print("=" * 80)
+    print(f"SUGGESTED COMPENSATION BANDS (n={args.bands})")
+    print("=" * 80)
+    print(bands.to_string(index=False))
     print("\n")
+
     print("Notes:")
-    print("- P5/P95 percentiles recommended to avoid outliers")
-    print("- Ensure no gaps between level max and next level min")
-    print("- Consider market data and organizational policy")
+    print("- Bands are based on equal percentile distribution")
+    print("- P5/P95 percentiles recommended to avoid outliers when defining custom ranges")
+    print("- Consider market data and organizational policy when finalizing bands")
+    print("- Use --bands N to adjust the number of suggested bands")
 
 
 if __name__ == '__main__':
