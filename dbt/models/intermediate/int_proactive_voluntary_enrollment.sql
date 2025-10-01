@@ -52,24 +52,50 @@ WITH new_hire_population AS (
 ),
 
 enrollment_status_check AS (
-  -- Check if employees are already enrolled
+  -- CRITICAL FIX: Use enrollment_state_accumulator from previous year to account for opt-outs
+  -- This replaces enrollment_registry which doesn't properly track opt-out events
+  {% set start_year = var('start_year', 2025) | int %}
   {% set current_year = var('simulation_year') | int %}
-  SELECT
-    nh.employee_id,
-    nh.employee_ssn,
-    nh.employee_hire_date,
-    nh.simulation_year,
-    nh.current_age,
-    nh.current_tenure,
-    nh.level_id,
-    nh.employee_compensation,
-    nh.employment_status,
-    COALESCE(er.is_enrolled, false) as is_already_enrolled
-  FROM new_hire_population nh
-  LEFT JOIN main.enrollment_registry er ON nh.employee_id = er.employee_id
-    AND er.is_enrolled = true
-    AND er.first_enrollment_year <= {{ current_year }}
-  WHERE COALESCE(er.is_enrolled, false) = false  -- Only non-enrolled employees
+
+  {% if current_year == start_year %}
+    -- Year 1: Check baseline workforce for enrolled employees
+    SELECT
+      nh.employee_id,
+      nh.employee_ssn,
+      nh.employee_hire_date,
+      nh.simulation_year,
+      nh.current_age,
+      nh.current_tenure,
+      nh.level_id,
+      nh.employee_compensation,
+      nh.employment_status,
+      COALESCE(bl.is_enrolled_at_census, false) as is_already_enrolled,
+      false as ever_opted_out  -- Year 1: no one has opted out yet
+    FROM new_hire_population nh
+    LEFT JOIN {{ ref('int_baseline_workforce') }} bl ON nh.employee_id = bl.employee_id
+    WHERE COALESCE(bl.is_enrolled_at_census, false) = false  -- Only non-enrolled employees
+      AND false = false  -- Placeholder for opt-out check (always true in year 1)
+  {% else %}
+    -- Year 2+: Use enrollment_state_accumulator from previous year
+    -- Note: Using direct table reference to avoid circular dependency in dbt DAG
+    SELECT
+      nh.employee_id,
+      nh.employee_ssn,
+      nh.employee_hire_date,
+      nh.simulation_year,
+      nh.current_age,
+      nh.current_tenure,
+      nh.level_id,
+      nh.employee_compensation,
+      nh.employment_status,
+      COALESCE(acc.is_enrolled, false) as is_already_enrolled,
+      COALESCE(acc.ever_opted_out, false) as ever_opted_out
+    FROM new_hire_population nh
+    LEFT JOIN int_enrollment_state_accumulator acc ON nh.employee_id = acc.employee_id
+      AND acc.simulation_year = {{ current_year - 1 }}
+    WHERE COALESCE(acc.is_enrolled, false) = false  -- Only non-enrolled employees
+      AND COALESCE(acc.ever_opted_out, false) = false  -- Never opted out
+  {% endif %}
 ),
 
 auto_enrollment_window_calculation AS (

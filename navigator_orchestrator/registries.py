@@ -72,7 +72,7 @@ class SQLTemplateManager:
     INSERT INTO enrollment_registry
     SELECT
         fye.employee_id,
-        COALESCE(MIN(fye.event_date), DATE '{year}-01-01') as first_enrollment_date,
+        COALESCE(MIN(fye.effective_date), DATE '{year}-01-01') as first_enrollment_date,
         {year} AS first_enrollment_year,
         'event' AS enrollment_source,
         true AS is_enrolled,
@@ -85,6 +85,21 @@ class SQLTemplateManager:
         SELECT 1 FROM enrollment_registry er WHERE er.employee_id = fye.employee_id
       )
     GROUP BY fye.employee_id
+    """
+
+    ENROLLMENT_REGISTRY_UPDATE_OPT_OUTS = """
+    UPDATE enrollment_registry AS er
+    SET
+        is_enrolled = false,
+        last_updated = CURRENT_TIMESTAMP
+    WHERE er.employee_id IN (
+        SELECT DISTINCT fye.employee_id
+        FROM fct_yearly_events fye
+        WHERE fye.event_type = 'enrollment_change'
+          AND LOWER(fye.event_details) LIKE '%opt-out%'
+          AND fye.simulation_year = {year}
+          AND fye.employee_id IS NOT NULL
+    )
     """
 
     DEFERRAL_ESCALATION_CREATE = """
@@ -184,7 +199,10 @@ class EnrollmentRegistry(Registry, TransactionalRegistry):
         ops = [
             self.sql.render_template(
                 self.sql.ENROLLMENT_REGISTRY_FROM_EVENTS, year=year
-            )
+            ),
+            self.sql.render_template(
+                self.sql.ENROLLMENT_REGISTRY_UPDATE_OPT_OUTS, year=year
+            ),
         ]
         return self.execute_transaction(ops)
 
