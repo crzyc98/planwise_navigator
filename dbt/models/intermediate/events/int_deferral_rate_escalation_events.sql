@@ -83,17 +83,37 @@ WITH active_workforce AS (
     {%- endif %}
 ),
 
--- FIX: Use actual current deferral rates from state accumulator (includes census + prior escalations)
--- This fixes the bug where employees with census rates > maximum_rate were incorrectly enrolled
-current_deferral_rates AS (
+-- FIX: Get initial enrollment rates from enrollment events (includes census data via synthetic baseline)
+-- This breaks the circular dependency with the state accumulator
+initial_enrollment_rates AS (
     SELECT
         employee_id,
-        current_deferral_rate,
-        employee_enrollment_date,
-        is_enrolled_flag
-    FROM {{ ref('int_deferral_rate_state_accumulator_v2') }}
-    WHERE simulation_year = {{ simulation_year }}
+        employee_deferral_rate as initial_deferral_rate,
+        effective_date as enrollment_date,
+        ROW_NUMBER() OVER (
+            PARTITION BY employee_id
+            ORDER BY effective_date
+        ) as rn
+    FROM {{ ref('int_enrollment_events') }}
+    WHERE LOWER(event_type) = 'enrollment'
         AND employee_id IS NOT NULL
+        AND employee_deferral_rate IS NOT NULL
+        AND simulation_year <= {{ simulation_year }}
+
+    UNION ALL
+
+    -- Include synthetic baseline enrollments for pre-enrolled census employees
+    SELECT
+        employee_id,
+        employee_deferral_rate as initial_deferral_rate,
+        effective_date as enrollment_date,
+        ROW_NUMBER() OVER (
+            PARTITION BY employee_id
+            ORDER BY effective_date
+        ) as rn
+    FROM {{ ref('int_synthetic_baseline_enrollment_events') }}
+    WHERE employee_id IS NOT NULL
+        AND employee_deferral_rate > 0
 ),
 
 -- Use enrollment status from compensation model (is_enrolled_flag)
@@ -159,9 +179,9 @@ workforce_with_status AS (
         -- Program participation flags (orchestrator-managed registry + baseline auto-escalate capability)
         -- Note: Since registry is empty by default, all employees default to auto-escalation eligible
         TRUE as in_auto_escalation_program,
-        -- FIX: Use ACTUAL current deferral rate from state accumulator (includes census data + prior escalations)
-        -- This ensures employees with census rates >= maximum_rate are NOT incorrectly enrolled
-        COALESCE(cdr.current_deferral_rate, 0.0) as current_deferral_rate,
+        -- FIX: Calculate current deferral rate from enrollment + prior escalations (no circular dependency)
+        -- This uses actual census rates from synthetic baseline events and ensures employees with rates >= maximum_rate are NOT enrolled
+        COALESCE(ier.initial_deferral_rate, 0.0) + COALESCE(h.cumulative_escalation_rate, 0.0) as current_deferral_rate,
         -- Escalation history
         COALESCE(h.total_escalations, 0) as total_previous_escalations,
         h.last_escalation_date,
@@ -173,12 +193,12 @@ workforce_with_status AS (
         END as days_since_last_escalation,
         -- Years since enrollment
         CASE
-            WHEN cdr.employee_enrollment_date IS NOT NULL
-            THEN EXTRACT('year' FROM ('{{ simulation_year }}-01-01'::DATE)) - EXTRACT('year' FROM cdr.employee_enrollment_date)
+            WHEN ier.enrollment_date IS NOT NULL
+            THEN EXTRACT('year' FROM ('{{ simulation_year }}-01-01'::DATE)) - EXTRACT('year' FROM ier.enrollment_date)
             ELSE 0
         END as years_since_enrollment
     FROM active_workforce w
-    LEFT JOIN current_deferral_rates cdr ON w.employee_id = cdr.employee_id
+    LEFT JOIN initial_enrollment_rates ier ON w.employee_id = ier.employee_id AND ier.rn = 1
     LEFT JOIN employee_enrollment_status e ON w.employee_id = e.employee_id
     LEFT JOIN previous_escalation_history h ON w.employee_id = h.employee_id
     -- Orchestrator-managed registry that tracks enrollment into the auto-escalation program

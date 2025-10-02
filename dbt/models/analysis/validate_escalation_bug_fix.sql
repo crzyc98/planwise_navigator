@@ -53,15 +53,12 @@ WITH escalation_config AS (
 )
 SELECT
     e.employee_id,
-    a.current_deferral_rate,
+    e.previous_deferral_rate as current_rate_before_escalation,
     e.new_deferral_rate,
     'BUG: Employee at/above max is escalating' as issue
 FROM {{ ref('int_deferral_rate_escalation_events') }} e
-JOIN {{ ref('int_deferral_rate_state_accumulator_v2') }} a
-  ON e.employee_id = a.employee_id
-  AND e.simulation_year = a.simulation_year
 CROSS JOIN escalation_config c
-WHERE a.current_deferral_rate >= c.maximum_rate
+WHERE e.previous_deferral_rate >= c.maximum_rate
   AND e.simulation_year = {{ var('simulation_year', 2025) }};
 
 
@@ -81,20 +78,32 @@ ORDER BY current_rate_pct;
 
 
 -- Query 4: First escalation delay validation
--- Verify escalations respect the configured delay
+-- Verify escalations respect the configured delay (default 1 year)
+WITH enrollment_dates AS (
+    SELECT
+        employee_id,
+        MIN(effective_date) as first_enrollment_date
+    FROM (
+        SELECT employee_id, effective_date
+        FROM {{ ref('int_enrollment_events') }}
+        WHERE LOWER(event_type) = 'enrollment'
+        UNION ALL
+        SELECT employee_id, effective_date
+        FROM {{ ref('int_synthetic_baseline_enrollment_events') }}
+    )
+    GROUP BY employee_id
+)
 SELECT
-    employee_id,
-    cdr.employee_enrollment_date,
-    e.effective_date as first_escalation_date,
-    EXTRACT(YEAR FROM e.effective_date) - EXTRACT(YEAR FROM cdr.employee_enrollment_date) as years_delay,
+    e.employee_id,
+    ed.first_enrollment_date,
+    e.effective_date as escalation_date,
+    EXTRACT(YEAR FROM e.effective_date) - EXTRACT(YEAR FROM ed.first_enrollment_date) as years_delay,
     CASE
-        WHEN EXTRACT(YEAR FROM e.effective_date) - EXTRACT(YEAR FROM cdr.employee_enrollment_date) < 1
+        WHEN EXTRACT(YEAR FROM e.effective_date) - EXTRACT(YEAR FROM ed.first_enrollment_date) < 1
         THEN 'BUG: Escalating too soon after enrollment'
         ELSE 'OK'
     END as validation_status
 FROM {{ ref('int_deferral_rate_escalation_events') }} e
-JOIN {{ ref('int_deferral_rate_state_accumulator_v2') }} cdr
-  ON e.employee_id = cdr.employee_id
-  AND e.simulation_year = cdr.simulation_year
+JOIN enrollment_dates ed ON e.employee_id = ed.employee_id
 WHERE e.simulation_year = {{ var('simulation_year', 2025) }}
 ORDER BY years_delay;

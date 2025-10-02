@@ -41,6 +41,14 @@ models:
         +materialized: table
         +tags: ["EVENT_GENERATION"]
 
+        # Override: int_employee_contributions belongs to STATE_ACCUMULATION, not EVENT_GENERATION
+        # It depends on int_deferral_rate_state_accumulator_v2 which hasn't been built yet during EVENT_GENERATION
+        int_employee_contributions:
+          +materialized: incremental
+          +tags: ["STATE_ACCUMULATION"]
+          +unique_key: ['employee_id', 'simulation_year']
+          +incremental_strategy: 'delete+insert'
+
       # Data integrity models should run before event models
       # Dependency chain: fct_workforce_snapshot → int_active_employees_by_year → event models → fct_yearly_events
       int_active_employees_by_year:

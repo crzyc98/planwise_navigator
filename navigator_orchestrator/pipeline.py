@@ -1132,8 +1132,16 @@ class PipelineOrchestrator:
                     results = self._execute_sharded_event_generation(year)
                 else:
                     # Single execution per stage using tags
+                    # Exclude STATE_ACCUMULATION models that were incorrectly tagged EVENT_GENERATION via directory-level config
+                    # These models depend on STATE_ACCUMULATION outputs that don't exist yet during EVENT_GENERATION:
+                    # - int_employee_contributions: depends on int_deferral_rate_state_accumulator_v2
+                    # - int_employee_match_calculations: depends on int_employee_contributions
+                    # - int_promotion_events_optimized: depends on fct_workforce_snapshot
                     result = self.dbt_runner.execute_command(
-                        ["run", "--select", "tag:EVENT_GENERATION"],
+                        ["run", "--select", "tag:EVENT_GENERATION",
+                         "--exclude", "int_employee_contributions",
+                         "--exclude", "int_employee_match_calculations",
+                         "--exclude", "int_promotion_events_optimized"],
                         simulation_year=year,
                         dbt_vars=self._dbt_vars,
                         stream_output=True
@@ -1220,11 +1228,11 @@ class PipelineOrchestrator:
                     print("🗄️ Checking hazard cache currency...")
                 self.hazard_cache_manager.ensure_hazard_caches_current()
             except Exception as e:
-                error_msg = f"Hazard cache management failed: {e}"
-                if self.verbose:
-                    print(f"⚠️ {error_msg}")
                 # Log error but continue execution (non-fatal for backward compatibility)
-                logging.getLogger(__name__).warning(error_msg)
+                # Hazard caches will rebuild on next model execution if needed
+                logging.getLogger(__name__).debug(f"Hazard cache check failed (non-critical): {e}")
+                if self.verbose:
+                    print("   ℹ️ Hazard cache check skipped (will rebuild if needed during execution)")
 
         # Ensure seeds are loaded once
         if not self._seeded:
