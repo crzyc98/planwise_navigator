@@ -12,6 +12,7 @@
 {% set esc_cap = var('deferral_escalation_cap', 0.10) %}
 {% set esc_hire_cutoff = var('deferral_escalation_hire_date_cutoff', none) %}
 {% set require_enrollment = var('deferral_escalation_require_enrollment', true) %}
+{% set first_delay_years = var('deferral_escalation_first_delay_years', 1) %}
 
 /*
   Generate deferral rate escalation events for eligible employees
@@ -82,60 +83,17 @@ WITH active_workforce AS (
     {%- endif %}
 ),
 
--- First year we see each employee in compensation snapshot (freeze baseline year)
-first_seen_year AS (
-    SELECT employee_id, MIN(simulation_year) AS first_year
-    FROM {{ ref('int_employee_compensation_by_year') }}
-    GROUP BY employee_id
-),
-
--- Attributes from first seen year for baseline mapping (frozen)
-first_year_attrs AS (
+-- FIX: Use actual current deferral rates from state accumulator (includes census + prior escalations)
+-- This fixes the bug where employees with census rates > maximum_rate were incorrectly enrolled
+current_deferral_rates AS (
     SELECT
-        c.employee_id,
-        c.current_age,
-        c.level_id,
-        c.employee_compensation,
-        f.first_year
-    FROM {{ ref('int_employee_compensation_by_year') }} c
-    JOIN first_seen_year f ON c.employee_id = f.employee_id AND c.simulation_year = f.first_year
-),
-
--- Frozen initial baseline (no re-basing in later years)
-initial_baseline_rates AS (
-    SELECT
-        fa.employee_id,
-        COALESCE(d.default_rate, 0.03) as baseline_deferral_rate  -- Default 3% fallback
-    FROM first_year_attrs fa
-    LEFT JOIN (
-        SELECT *, ROW_NUMBER() OVER (PARTITION BY age_segment, income_segment ORDER BY effective_date DESC) rn
-        FROM (
-            SELECT scenario_id, age_segment, income_segment, default_rate, effective_date FROM default_deferral_rates WHERE 1=1
-            UNION ALL
-            -- Fallback defaults if seed table is empty
-            SELECT 'default' as scenario_id, 'young' as age_segment, 'low_income' as income_segment, 0.03 as default_rate, CURRENT_DATE as effective_date
-            UNION ALL
-            SELECT 'default' as scenario_id, 'mid_career' as age_segment, 'moderate' as income_segment, 0.05 as default_rate, CURRENT_DATE as effective_date
-            UNION ALL
-            SELECT 'default' as scenario_id, 'senior' as age_segment, 'high' as income_segment, 0.07 as default_rate, CURRENT_DATE as effective_date
-            UNION ALL
-            SELECT 'default' as scenario_id, 'mature' as age_segment, 'executive' as income_segment, 0.10 as default_rate, CURRENT_DATE as effective_date
-        )
-        WHERE scenario_id = 'default'
-    ) d
-      ON d.rn = 1
-      AND (
-           CASE WHEN fa.current_age < 30 THEN 'young'
-                WHEN fa.current_age < 45 THEN 'mid_career'
-                WHEN fa.current_age < 55 THEN 'senior'
-                ELSE 'mature' END
-          ) = d.age_segment
-      AND (
-           CASE WHEN fa.level_id >= 5 OR fa.employee_compensation >= 250000 THEN 'executive'
-                WHEN fa.level_id >= 4 OR fa.employee_compensation >= 150000 THEN 'high'
-                WHEN fa.level_id >= 3 OR fa.employee_compensation >= 100000 THEN 'moderate'
-                ELSE 'low_income' END
-          ) = d.income_segment
+        employee_id,
+        current_deferral_rate,
+        employee_enrollment_date,
+        is_enrolled_flag
+    FROM {{ ref('int_deferral_rate_state_accumulator_v2') }}
+    WHERE simulation_year = {{ simulation_year }}
+        AND employee_id IS NOT NULL
 ),
 
 -- Use enrollment status from compensation model (is_enrolled_flag)
@@ -201,8 +159,9 @@ workforce_with_status AS (
         -- Program participation flags (orchestrator-managed registry + baseline auto-escalate capability)
         -- Note: Since registry is empty by default, all employees default to auto-escalation eligible
         TRUE as in_auto_escalation_program,
-        -- Current deferral rate basis: frozen baseline + cumulative prior escalations (no re-basing)
-        COALESCE(b.baseline_deferral_rate, 0.0) + COALESCE(h.cumulative_escalation_rate, 0.0) as current_deferral_rate,
+        -- FIX: Use ACTUAL current deferral rate from state accumulator (includes census data + prior escalations)
+        -- This ensures employees with census rates >= maximum_rate are NOT incorrectly enrolled
+        COALESCE(cdr.current_deferral_rate, 0.0) as current_deferral_rate,
         -- Escalation history
         COALESCE(h.total_escalations, 0) as total_previous_escalations,
         h.last_escalation_date,
@@ -214,12 +173,12 @@ workforce_with_status AS (
         END as days_since_last_escalation,
         -- Years since enrollment
         CASE
-            WHEN e.first_enrollment_date IS NOT NULL
-            THEN EXTRACT('year' FROM ('{{ simulation_year }}-01-01'::DATE)) - EXTRACT('year' FROM e.first_enrollment_date)
+            WHEN cdr.employee_enrollment_date IS NOT NULL
+            THEN EXTRACT('year' FROM ('{{ simulation_year }}-01-01'::DATE)) - EXTRACT('year' FROM cdr.employee_enrollment_date)
             ELSE 0
         END as years_since_enrollment
     FROM active_workforce w
-    LEFT JOIN initial_baseline_rates b ON w.employee_id = b.employee_id
+    LEFT JOIN current_deferral_rates cdr ON w.employee_id = cdr.employee_id
     LEFT JOIN employee_enrollment_status e ON w.employee_id = e.employee_id
     LEFT JOIN previous_escalation_history h ON w.employee_id = h.employee_id
     -- Orchestrator-managed registry that tracks enrollment into the auto-escalation program
@@ -247,9 +206,12 @@ eligible_employees AS (
         TRUE as meets_tenure_check,
         TRUE as meets_age_check,
         (w.total_previous_escalations < 1000) as under_escalation_limit_check,
-        (w.current_deferral_rate < {{ esc_cap }}) as under_rate_cap_check,
+        -- FIX: Ensure employees already at/above maximum are NOT enrolled in escalation
+        -- This prevents the bug where census rates of 15% would be reduced to 6%
+        (w.current_deferral_rate > 0 AND w.current_deferral_rate < {{ esc_cap }}) as under_rate_cap_check,
         (w.days_since_last_escalation >= 365) as timing_check,
-        (w.years_since_enrollment >= 1) as enrollment_maturity_check
+        -- FEATURE: Configurable first escalation delay (default 1 year)
+        (w.years_since_enrollment >= {{ first_delay_years }}) as enrollment_maturity_check
 
     FROM workforce_with_status w
 ),

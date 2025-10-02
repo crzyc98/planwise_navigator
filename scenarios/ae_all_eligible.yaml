@@ -18,3 +18,4 @@ deferral_auto_escalation:
   maximum_rate: 0.10            # Cap for deferral rate (default 10%)
   hire_date_cutoff: "1900-01-01"        # Optional YYYY-MM-DD; only employees hired on/before this date are eligible
   require_active_enrollment: true  # Only escalate enrolled participants
+  first_escalation_delay_years: 1  # NEW: Years to wait after enrollment before first escalation (default 1)
