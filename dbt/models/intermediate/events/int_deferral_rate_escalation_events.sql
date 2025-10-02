@@ -148,7 +148,7 @@ previous_year_rates AS (
 {% else %}
 -- Year 2+: Read current rates from previous year's state accumulator
 -- Use direct table reference to avoid circular dependency in dbt's dependency graph
--- (dbt doesn't understand temporal filtering, so {{ ref() }} would create a cycle)
+-- (dbt doesn't understand temporal filtering, so ref() would create a cycle)
 previous_year_rates AS (
     SELECT
         employee_id,
