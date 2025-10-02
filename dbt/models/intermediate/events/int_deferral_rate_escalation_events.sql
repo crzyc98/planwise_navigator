@@ -222,7 +222,8 @@ eligible_employees AS (
         -- FIX: Ensure employees already at/above maximum are NOT enrolled in escalation
         -- This prevents the bug where census rates of 15% would be reduced to 6%
         (w.current_deferral_rate > 0 AND w.current_deferral_rate < {{ esc_cap }}) as under_rate_cap_check,
-        (w.days_since_last_escalation >= 365) as timing_check,
+        -- Timing check: use calendar year (not days) so escalations happen on configured date each year
+        (w.last_rate_change_date IS NULL OR EXTRACT('year' FROM w.last_rate_change_date) < {{ simulation_year }}) as timing_check,
         -- FEATURE: Configurable first escalation delay (default 1 year)
         (w.years_since_enrollment >= {{ first_delay_years }}) as enrollment_maturity_check
 
