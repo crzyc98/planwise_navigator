@@ -745,6 +745,10 @@ def to_dbt_vars(cfg: SimulationConfig) -> Dict[str, Any]:
                 dbt_vars["deferral_escalation_require_enrollment"] = bool(
                     dae["require_active_enrollment"]
                 )
+            if "first_escalation_delay_years" in dae and dae["first_escalation_delay_years"] is not None:
+                dbt_vars["deferral_escalation_first_delay_years"] = int(
+                    dae["first_escalation_delay_years"]
+                )
     except Exception:
         pass
 

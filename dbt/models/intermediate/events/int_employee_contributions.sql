@@ -1,10 +1,13 @@
-{{ config(
+{{
+  config(
     materialized='incremental',
     unique_key=['employee_id', 'simulation_year'],
     incremental_strategy='delete+insert',
-    on_schema_change='sync_all_columns',
-    tags=['STATE_ACCUMULATION']
-) }}
+    on_schema_change='sync_all_columns'
+  )
+}}
+
+{# tags removed: now configured in dbt_project.yml to override directory-level EVENT_GENERATION tag #}
 
 {% set simulation_year = var('simulation_year', 2025) | int %}
 
