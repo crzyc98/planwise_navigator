@@ -47,6 +47,9 @@ def run_batch(
     optimization: str = typer.Option(
         "medium", "--optimization", help="Optimization level (low, medium, high)"
     ),
+    clean: bool = typer.Option(
+        False, "--clean", help="Delete DuckDB databases before running for a clean start"
+    ),
     verbose: bool = typer.Option(
         False, "--verbose", "-v", help="Show detailed output"
     ),
@@ -97,7 +100,8 @@ def run_batch(
                     scenario_names=scenarios,
                     export_format=export_format,
                     threads=threads,
-                    optimization=optimization
+                    optimization=optimization,
+                    clean_databases=clean
                 )
                 progress.update(main_task, completed=scenario_count, description="✅ Batch processing complete")
             except Exception as e:
@@ -140,6 +144,7 @@ def default(
     export_format: str = typer.Option("excel", "--export-format"),
     threads: int = typer.Option(1, "--threads"),
     optimization: str = typer.Option("medium", "--optimization"),
+    clean: bool = typer.Option(False, "--clean"),
     verbose: bool = typer.Option(False, "--verbose", "-v"),
 ):
     """Default batch command."""
@@ -151,5 +156,6 @@ def default(
         export_format=export_format,
         threads=threads,
         optimization=optimization,
+        clean=clean,
         verbose=verbose,
     )

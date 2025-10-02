@@ -129,6 +129,7 @@ def batch(
     export_format: str = typer.Option("excel", "--export-format", help="Export format (excel, csv)"),
     threads: int = typer.Option(1, "--threads", help="Number of dbt threads"),
     optimization: str = typer.Option("medium", "--optimization", help="Optimization level (low, medium, high)"),
+    clean: bool = typer.Option(False, "--clean", help="Delete DuckDB databases before running for a clean start"),
     verbose: bool = typer.Option(False, "--verbose", "-v", help="Show detailed output"),
 ):
     """📊 Run multiple scenarios with Excel export."""
@@ -144,6 +145,7 @@ def batch(
         export_format=export_format,
         threads=threads,
         optimization=optimization,
+        clean=clean,
         verbose=verbose,
     )
 
