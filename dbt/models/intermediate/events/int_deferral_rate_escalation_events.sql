@@ -178,10 +178,10 @@ workforce_with_status AS (
             THEN DATE_DIFF('day', pyr.last_rate_change_date, '{{ simulation_year }}-{{ esc_mmdd }}'::DATE)
             ELSE 9999
         END as days_since_last_escalation,
-        -- Years since enrollment
+        -- Years since enrollment (actual elapsed years, not calendar years)
         CASE
             WHEN ier.enrollment_date IS NOT NULL
-            THEN EXTRACT('year' FROM ('{{ simulation_year }}-01-01'::DATE)) - EXTRACT('year' FROM ier.enrollment_date)
+            THEN DATE_DIFF('year', ier.enrollment_date, '{{ simulation_year }}-{{ esc_mmdd }}'::DATE)
             ELSE 0
         END as years_since_enrollment
     FROM active_workforce w
