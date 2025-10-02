@@ -178,8 +178,12 @@ workforce_with_status AS (
             THEN DATE_DIFF('day', pyr.last_rate_change_date, '{{ simulation_year }}-{{ esc_mmdd }}'::DATE)
             ELSE 9999
         END as days_since_last_escalation,
-        -- Years since enrollment (actual elapsed years, not calendar years)
+        -- Years since enrollment for escalation eligibility
+        -- For census employees (pre-enrolled): use simulation start year as baseline
+        -- For new hires: use actual enrollment date
         CASE
+            WHEN ier.enrollment_date IS NOT NULL AND ier.enrollment_date < '{{ start_year }}-01-01'::DATE
+            THEN DATE_DIFF('year', '{{ start_year }}-01-01'::DATE, '{{ simulation_year }}-{{ esc_mmdd }}'::DATE)
             WHEN ier.enrollment_date IS NOT NULL
             THEN DATE_DIFF('year', ier.enrollment_date, '{{ simulation_year }}-{{ esc_mmdd }}'::DATE)
             ELSE 0
