@@ -236,7 +236,8 @@ def cmd_batch(args: argparse.Namespace) -> int:
         scenario_names=args.scenarios,
         export_format=args.export_format,
         threads=args.threads,
-        optimization=args.optimization
+        optimization=args.optimization,
+        clean_databases=args.clean
     )
 
     if not results:
@@ -323,6 +324,7 @@ def build_parser() -> argparse.ArgumentParser:
     pb.add_argument("--split-by-year", action="store_true", help="Split Workforce Snapshot into per-year sheets/files")
     pb.add_argument("--threads", type=int, default=1, help="Number of dbt threads for parallel execution (default: 1)")
     pb.add_argument("--optimization", choices=["low", "medium", "high"], default="medium", help="Optimization level (default: medium)")
+    pb.add_argument("--clean", action="store_true", help="Delete DuckDB databases before running for a clean start")
     pb.set_defaults(func=cmd_batch)
 
     return p

@@ -90,6 +90,9 @@ python -m navigator_orchestrator batch
 # Run specific scenarios
 python -m navigator_orchestrator batch --scenarios high_growth baseline cost_control
 
+# Clean databases before running for a fresh start
+python -m navigator_orchestrator batch --clean
+
 # Custom output directory and CSV format
 python -m navigator_orchestrator batch --output-dir analysis_results --export-format csv
 ```
@@ -441,6 +444,9 @@ python -m navigator_orchestrator batch --scenarios-dir scenarios/
 # Run specific scenarios
 python -m navigator_orchestrator batch --scenarios high_growth low_termination baseline
 
+# Clean databases before running for a fresh start
+python -m navigator_orchestrator batch --clean
+
 # Custom output location
 python -m navigator_orchestrator batch --output-dir /path/to/analysis --scenarios-dir /path/to/scenarios
 
@@ -449,6 +455,9 @@ python -m navigator_orchestrator batch --export-format csv
 
 # Force per-year splitting for very large snapshots
 python -m navigator_orchestrator batch --split-by-year
+
+# Combine options for a clean run with specific scenarios
+python -m navigator_orchestrator batch --scenarios baseline high_growth --clean
 ```
 
 ### Output Structure

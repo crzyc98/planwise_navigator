@@ -55,7 +55,7 @@ class ScenarioBatchRunner:
         # Create output directory
         self.batch_output_dir.mkdir(parents=True, exist_ok=True)
 
-    def run_batch(self, scenario_names: Optional[List[str]] = None, export_format: str = "excel", threads: int = 1, optimization: str = "medium") -> Dict[str, Any]:
+    def run_batch(self, scenario_names: Optional[List[str]] = None, export_format: str = "excel", threads: int = 1, optimization: str = "medium", clean_databases: bool = False) -> Dict[str, Any]:
         """Execute batch of scenarios with isolated databases.
 
         Args:
@@ -63,6 +63,7 @@ class ScenarioBatchRunner:
             export_format: Export format ('excel' or 'csv')
             threads: Number of dbt threads for parallel execution
             optimization: Optimization level ('low', 'medium', 'high')
+            clean_databases: If True, delete existing DuckDB databases before running
 
         Returns:
             Dictionary mapping scenario names to their execution results
@@ -75,6 +76,10 @@ class ScenarioBatchRunner:
 
         # Clean up any stale lock files before starting
         self._cleanup_stale_locks()
+
+        # Clean databases if requested
+        if clean_databases:
+            self._clean_scenario_databases(list(scenarios.keys()))
 
         results = {}
         print(f"🎯 Starting batch execution: {len(scenarios)} scenarios")
@@ -160,6 +165,33 @@ class ScenarioBatchRunner:
                     print(f"   🧹 Cleaned up stale lock file: {lock_file}")
             except Exception:
                 pass  # Best effort cleanup
+
+    def _clean_scenario_databases(self, scenario_names: List[str]) -> None:
+        """Delete DuckDB databases for the specified scenarios.
+
+        Args:
+            scenario_names: List of scenario names whose databases should be deleted
+        """
+        dbt_dir = Path("dbt").absolute()
+        deleted_count = 0
+
+        print(f"🧹 Cleaning databases for {len(scenario_names)} scenario(s)...")
+
+        for scenario_name in scenario_names:
+            scenario_db = dbt_dir / f"{scenario_name}.duckdb"
+
+            if scenario_db.exists():
+                try:
+                    scenario_db.unlink()
+                    deleted_count += 1
+                    print(f"   ✅ Deleted: {scenario_db}")
+                except Exception as e:
+                    print(f"   ⚠️  Failed to delete {scenario_db}: {e}")
+
+        if deleted_count > 0:
+            print(f"🧹 Deleted {deleted_count} database file(s)")
+        else:
+            print(f"ℹ️  No existing databases found to clean")
 
     def _run_isolated_scenario(self, scenario_name: str, config_path: Path, export_format: str, threads: int = 1, optimization: str = "medium") -> Dict[str, Any]:
         """Run single scenario with isolated database.

@@ -225,6 +225,7 @@ planwise simulate 2025-2027 --verbose          # Detailed progress and logging
 # Batch scenario processing with Excel export
 planwise batch                                  # Run all scenarios in scenarios/ directory
 planwise batch --scenarios baseline high_growth # Run specific scenarios
+planwise batch --clean                         # Delete databases before running for a clean start
 planwise batch --export-format excel           # Generate Excel reports with metadata
 planwise batch --scenarios baseline --verbose  # Detailed batch processing feedback
 
@@ -320,6 +321,9 @@ python -m navigator_orchestrator batch
 # Run specific scenarios
 python -m navigator_orchestrator batch --scenarios high_growth baseline cost_control
 
+# Clean databases before running for a fresh start
+python -m navigator_orchestrator batch --clean
+
 # Custom configuration and output directories
 python -m navigator_orchestrator batch \
   --config config/custom_simulation_config.yaml \
@@ -329,6 +333,9 @@ python -m navigator_orchestrator batch \
 # Export formats and options
 python -m navigator_orchestrator batch --export-format csv
 python -m navigator_orchestrator batch --split-by-year  # Force per-year sheets
+
+# Combine options for a clean run with specific scenarios
+python -m navigator_orchestrator batch --scenarios baseline high_growth --clean
 
 # Batch processing creates timestamped directories with:
 # - Individual scenario databases (scenario_name.duckdb)
