@@ -175,7 +175,7 @@ workforce_with_status AS (
         pyr.last_rate_change_date,
         CASE
             WHEN pyr.last_rate_change_date IS NOT NULL
-            THEN (('{{ simulation_year }}-{{ esc_mmdd }}'::DATE) - pyr.last_rate_change_date)
+            THEN DATE_DIFF('day', pyr.last_rate_change_date, '{{ simulation_year }}-{{ esc_mmdd }}'::DATE)
             ELSE 9999
         END as days_since_last_escalation,
         -- Years since enrollment
