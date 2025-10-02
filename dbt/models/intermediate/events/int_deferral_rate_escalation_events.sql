@@ -183,12 +183,12 @@ workforce_with_status AS (
         END as days_since_last_escalation,
         -- Years since enrollment for escalation eligibility
         -- For census employees (pre-enrolled): use simulation start year as baseline
-        -- For new hires: use actual enrollment date
+        -- For new hires: use calendar year difference (not days) so they get escalated on next year's escalation date
         CASE
             WHEN ier.enrollment_date IS NOT NULL AND ier.enrollment_date < '{{ start_year }}-01-01'::DATE
-            THEN DATE_DIFF('year', '{{ start_year }}-01-01'::DATE, '{{ simulation_year }}-{{ esc_mmdd }}'::DATE)
+            THEN {{ simulation_year }} - {{ start_year }}
             WHEN ier.enrollment_date IS NOT NULL
-            THEN DATE_DIFF('year', ier.enrollment_date, '{{ simulation_year }}-{{ esc_mmdd }}'::DATE)
+            THEN {{ simulation_year }} - EXTRACT('year' FROM ier.enrollment_date)
             ELSE 0
         END as years_since_enrollment
     FROM active_workforce w
