@@ -129,57 +129,53 @@ employee_enrollment_status AS (
         {%- endif %}
 ),
 
--- Calculate previous escalation history from this same model in prior years
-previous_escalation_history AS (
-{% if simulation_year == start_year %}
-    -- Base case: No previous escalations for first simulation year
-    SELECT
-        'dummy' as employee_id,
-        0 as total_escalations,
-        NULL::DATE as last_escalation_date,
-        0.00 as cumulative_escalation_rate
-    WHERE 1=0  -- Empty result set
-{% else %}
-    -- Get escalation history from previous years by reading from fct_yearly_events
-    -- (This model is ephemeral, so we must read from the persistent event store)
-    SELECT
-        employee_id,
-        COUNT(*) as total_escalations,
-        MAX(effective_date) as last_escalation_date,
-        SUM(COALESCE(escalation_rate, 0.01)) as cumulative_escalation_rate
-    FROM {{ ref('fct_yearly_events') }}
-    WHERE simulation_year < {{ simulation_year }}
-      AND event_type = 'deferral_escalation'
-      AND employee_id IS NOT NULL
-    GROUP BY employee_id
-{% endif %}
-),
-
 -- No external registry gating in simplified mode
 deferral_escalation_registry AS (
     SELECT CAST(NULL AS VARCHAR) as employee_id, CAST(NULL AS BOOLEAN) as is_enrolled
     WHERE FALSE
 ),
 
--- Combine workforce with enrollment and escalation history
+{% if simulation_year == start_year %}
+-- Year 1: Calculate rates from enrollment events (no previous accumulator)
+previous_year_rates AS (
+    SELECT
+        employee_id,
+        initial_deferral_rate as current_deferral_rate,
+        enrollment_date as last_rate_change_date
+    FROM initial_enrollment_rates
+    WHERE rn = 1
+),
+{% else %}
+-- Year 2+: Read current rates from previous year's state accumulator
+-- Use direct table reference to avoid circular dependency in dbt's dependency graph
+-- (dbt doesn't understand temporal filtering, so {{ ref() }} would create a cycle)
+previous_year_rates AS (
+    SELECT
+        employee_id,
+        current_deferral_rate,
+        last_rate_change_date
+    FROM {{ target.schema }}.int_deferral_rate_state_accumulator_v2
+    WHERE simulation_year = {{ prev_year }}
+      AND employee_id IS NOT NULL
+),
+{% endif %}
+
+-- Combine workforce with enrollment and previous year's rates
 workforce_with_status AS (
     SELECT
         w.*,
         COALESCE(e.is_enrolled, false) as is_enrolled,
         e.first_enrollment_date,
-        -- Program participation flags (orchestrator-managed registry + baseline auto-escalate capability)
-        -- Note: Since registry is empty by default, all employees default to auto-escalation eligible
+        -- Program participation flags
         TRUE as in_auto_escalation_program,
-        -- FIX: Calculate current deferral rate from enrollment + prior escalations (no circular dependency)
-        -- This uses actual census rates from synthetic baseline events and ensures employees with rates >= maximum_rate are NOT enrolled
-        COALESCE(ier.initial_deferral_rate, 0.0) + COALESCE(h.cumulative_escalation_rate, 0.0) as current_deferral_rate,
-        -- Escalation history
-        COALESCE(h.total_escalations, 0) as total_previous_escalations,
-        h.last_escalation_date,
-        -- Calculate eligibility timing
+        -- Use previous year's rate (includes all prior escalations via accumulator)
+        COALESCE(pyr.current_deferral_rate, ier.initial_deferral_rate, 0.0) as current_deferral_rate,
+        -- Escalation timing
+        0 as total_previous_escalations,  -- Tracked via accumulator, not needed here
+        pyr.last_rate_change_date,
         CASE
-            WHEN h.last_escalation_date IS NOT NULL
-            THEN (('{{ simulation_year }}-{{ esc_mmdd }}'::DATE) - h.last_escalation_date)
+            WHEN pyr.last_rate_change_date IS NOT NULL
+            THEN (('{{ simulation_year }}-{{ esc_mmdd }}'::DATE) - pyr.last_rate_change_date)
             ELSE 9999
         END as days_since_last_escalation,
         -- Years since enrollment
@@ -191,8 +187,7 @@ workforce_with_status AS (
     FROM active_workforce w
     LEFT JOIN initial_enrollment_rates ier ON w.employee_id = ier.employee_id AND ier.rn = 1
     LEFT JOIN employee_enrollment_status e ON w.employee_id = e.employee_id
-    LEFT JOIN previous_escalation_history h ON w.employee_id = h.employee_id
-    -- Orchestrator-managed registry that tracks enrollment into the auto-escalation program
+    LEFT JOIN previous_year_rates pyr ON w.employee_id = pyr.employee_id
     LEFT JOIN deferral_escalation_registry r ON w.employee_id = r.employee_id
 ),
 
