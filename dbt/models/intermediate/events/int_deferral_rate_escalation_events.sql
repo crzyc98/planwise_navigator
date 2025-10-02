@@ -140,27 +140,18 @@ previous_escalation_history AS (
         0.00 as cumulative_escalation_rate
     WHERE 1=0  -- Empty result set
 {% else %}
-    -- Get escalation history from previous years
-    -- Only reference existing table if it exists and has data
-    {% set escalation_relation = adapter.get_relation(database=this.database, schema=this.schema, identifier=this.identifier) %}
-    {% if escalation_relation is not none %}
+    -- Get escalation history from previous years by reading from fct_yearly_events
+    -- (This model is ephemeral, so we must read from the persistent event store)
     SELECT
         employee_id,
         COUNT(*) as total_escalations,
         MAX(effective_date) as last_escalation_date,
-        SUM(escalation_rate) as cumulative_escalation_rate
-    FROM {{ this }}
+        SUM(COALESCE(escalation_rate, 0.01)) as cumulative_escalation_rate
+    FROM {{ ref('fct_yearly_events') }}
     WHERE simulation_year < {{ simulation_year }}
+      AND event_type = 'deferral_escalation'
+      AND employee_id IS NOT NULL
     GROUP BY employee_id
-    {% else %}
-    -- Table doesn't exist yet, return empty result
-    SELECT
-        'dummy' as employee_id,
-        0 as total_escalations,
-        NULL::DATE as last_escalation_date,
-        0.00 as cumulative_escalation_rate
-    WHERE 1=0  -- Empty result set
-    {% endif %}
 {% endif %}
 ),
 
