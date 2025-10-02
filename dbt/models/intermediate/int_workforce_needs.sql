@@ -47,13 +47,14 @@ current_workforce AS (
   -- Subsequent years: Use actual ending workforce from previous year's snapshot
   -- FIX: Read from fct_workforce_snapshot instead of int_employee_compensation_by_year
   -- to capture all surviving employees including new hires from prior year
+  -- Uses dynamic relation reference to avoid false circular dependency in dbt DAG
   SELECT
     COUNT(*) AS total_active_workforce,
     COUNT(*) AS experienced_workforce,
     0 AS current_year_hires,
     AVG(current_compensation) AS avg_compensation,
     SUM(current_compensation) AS total_compensation
-  FROM {{ ref('fct_workforce_snapshot') }}
+  FROM {{ adapter.get_relation(database=this.database, schema=this.schema, identifier='fct_workforce_snapshot') }}
   WHERE simulation_year = {{ simulation_year - 1 }}
     AND employment_status = 'active'
   {% endif %}
@@ -75,12 +76,13 @@ workforce_by_level AS (
   {% else %}
   -- Subsequent years: Use actual ending workforce from previous year's snapshot
   -- FIX: Read from fct_workforce_snapshot to capture all surviving employees
+  -- Uses dynamic relation reference to avoid false circular dependency in dbt DAG
   SELECT
     level_id,
     COUNT(*) AS level_headcount,
     AVG(current_compensation) AS avg_level_compensation,
     SUM(current_compensation) AS total_level_compensation
-  FROM {{ ref('fct_workforce_snapshot') }}
+  FROM {{ adapter.get_relation(database=this.database, schema=this.schema, identifier='fct_workforce_snapshot') }}
   WHERE simulation_year = {{ simulation_year - 1 }}
     AND employment_status = 'active'
   GROUP BY level_id
