@@ -44,14 +44,16 @@ current_workforce AS (
   WHERE simulation_year = {{ simulation_year }}
     AND employment_status = 'active'
   {% else %}
-  -- Subsequent years: Use precomputed compensation by year (prior-year snapshot)
+  -- Subsequent years: Use actual ending workforce from previous year's snapshot
+  -- FIX: Read from fct_workforce_snapshot instead of int_employee_compensation_by_year
+  -- to capture all surviving employees including new hires from prior year
   SELECT
     COUNT(*) AS total_active_workforce,
     COUNT(*) AS experienced_workforce,
     0 AS current_year_hires,
-    AVG(employee_compensation) AS avg_compensation,
-    SUM(employee_compensation) AS total_compensation
-  FROM {{ ref('int_employee_compensation_by_year') }}
+    AVG(current_compensation) AS avg_compensation,
+    SUM(current_compensation) AS total_compensation
+  FROM {{ ref('fct_workforce_snapshot') }}
   WHERE simulation_year = {{ simulation_year - 1 }}
     AND employment_status = 'active'
   {% endif %}
@@ -71,13 +73,14 @@ workforce_by_level AS (
     AND employment_status = 'active'
   GROUP BY level_id
   {% else %}
-  -- Subsequent years: Use prior year's actual workforce
+  -- Subsequent years: Use actual ending workforce from previous year's snapshot
+  -- FIX: Read from fct_workforce_snapshot to capture all surviving employees
   SELECT
     level_id,
     COUNT(*) AS level_headcount,
-    AVG(employee_compensation) AS avg_level_compensation,
-    SUM(employee_compensation) AS total_level_compensation
-  FROM {{ ref('int_employee_compensation_by_year') }}
+    AVG(current_compensation) AS avg_level_compensation,
+    SUM(current_compensation) AS total_level_compensation
+  FROM {{ ref('fct_workforce_snapshot') }}
   WHERE simulation_year = {{ simulation_year - 1 }}
     AND employment_status = 'active'
   GROUP BY level_id
