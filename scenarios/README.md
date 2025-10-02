@@ -13,11 +13,17 @@ python -m navigator_orchestrator batch
 # Run specific scenarios
 python -m navigator_orchestrator batch --scenarios baseline high_growth
 
+# Clean databases before running for a fresh start
+python -m navigator_orchestrator batch --clean
+
 # Specify custom directories
 python -m navigator_orchestrator batch --scenarios-dir scenarios/ --output-dir my_analysis/
 
 # Export to CSV instead of Excel
 python -m navigator_orchestrator batch --export-format csv
+
+# Combine options for a clean run with specific scenarios
+python -m navigator_orchestrator batch --scenarios baseline high_growth --clean --export-format excel
 ```
 
 ## Available Scenarios
@@ -102,3 +108,4 @@ Each scenario Excel export includes:
 2. **Descriptive IDs**: Use meaningful `scenario_id` and `plan_design_id` for tracking and analysis
 3. **Focused Changes**: Override only the parameters you want to test, inherit everything else
 4. **Documentation**: Add comments in scenario files explaining the business case being modeled
+5. **Clean Runs**: Use `--clean` flag to delete existing databases before batch execution, ensuring a fresh start without stale data
