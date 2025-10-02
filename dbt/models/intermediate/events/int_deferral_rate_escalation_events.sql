@@ -153,7 +153,7 @@ previous_year_rates AS (
     SELECT
         employee_id,
         current_deferral_rate,
-        last_rate_change_date
+        COALESCE(last_rate_change_date, '{{ prev_year }}-12-31'::DATE) as last_rate_change_date
     FROM {{ target.schema }}.int_deferral_rate_state_accumulator_v2
     WHERE simulation_year = {{ prev_year }}
       AND employee_id IS NOT NULL
