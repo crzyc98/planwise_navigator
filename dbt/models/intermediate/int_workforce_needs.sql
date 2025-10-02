@@ -52,13 +52,15 @@ current_workforce AS (
     AVG(employee_compensation) AS avg_compensation,
     SUM(employee_compensation) AS total_compensation
   FROM {{ ref('int_employee_compensation_by_year') }}
-  WHERE simulation_year = {{ simulation_year }}
+  WHERE simulation_year = {{ simulation_year - 1 }}
     AND employment_status = 'active'
   {% endif %}
 ),
 
 -- Workforce by level for detailed planning
 workforce_by_level AS (
+  {% if is_first_year %}
+  -- Year 1: Use baseline workforce
   SELECT
     level_id,
     COUNT(*) AS level_headcount,
@@ -68,6 +70,18 @@ workforce_by_level AS (
   WHERE simulation_year = {{ simulation_year }}
     AND employment_status = 'active'
   GROUP BY level_id
+  {% else %}
+  -- Subsequent years: Use prior year's actual workforce
+  SELECT
+    level_id,
+    COUNT(*) AS level_headcount,
+    AVG(employee_compensation) AS avg_level_compensation,
+    SUM(employee_compensation) AS total_level_compensation
+  FROM {{ ref('int_employee_compensation_by_year') }}
+  WHERE simulation_year = {{ simulation_year - 1 }}
+    AND employment_status = 'active'
+  GROUP BY level_id
+  {% endif %}
 ),
 
 -- Growth target calculations

@@ -21,8 +21,8 @@ setup:
   eligibility_waiting_period_days: 30
 
 workforce:
-  total_termination_rate: 0.12
-  new_hire_termination_rate: 0.25
+  total_termination_rate: 0.25
+  new_hire_termination_rate: 0.40
 
 compensation:
   cola_rate: 0.01
