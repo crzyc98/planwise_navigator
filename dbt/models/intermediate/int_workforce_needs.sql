@@ -44,21 +44,25 @@ current_workforce AS (
   WHERE simulation_year = {{ simulation_year }}
     AND employment_status = 'active'
   {% else %}
-  -- Subsequent years: Use precomputed compensation by year (prior-year snapshot)
+  -- Subsequent years: Use helper model to get previous year's ending workforce
+  -- FIX: Read from int_prev_year_workforce_summary instead of int_employee_compensation_by_year
+  -- to capture all surviving employees including new hires from prior year
+  -- Helper model uses adapter.get_relation() to avoid circular dependency
   SELECT
-    COUNT(*) AS total_active_workforce,
-    COUNT(*) AS experienced_workforce,
-    0 AS current_year_hires,
-    AVG(employee_compensation) AS avg_compensation,
-    SUM(employee_compensation) AS total_compensation
-  FROM {{ ref('int_employee_compensation_by_year') }}
+    total_active_workforce,
+    experienced_workforce,
+    current_year_hires,
+    avg_compensation,
+    total_compensation
+  FROM {{ ref('int_prev_year_workforce_summary') }}
   WHERE simulation_year = {{ simulation_year }}
-    AND employment_status = 'active'
   {% endif %}
 ),
 
 -- Workforce by level for detailed planning
 workforce_by_level AS (
+  {% if is_first_year %}
+  -- Year 1: Use baseline workforce
   SELECT
     level_id,
     COUNT(*) AS level_headcount,
@@ -68,6 +72,18 @@ workforce_by_level AS (
   WHERE simulation_year = {{ simulation_year }}
     AND employment_status = 'active'
   GROUP BY level_id
+  {% else %}
+  -- Subsequent years: Use helper model to get previous year's level-specific workforce
+  -- FIX: Read from int_prev_year_workforce_by_level to capture all surviving employees
+  -- Helper model uses adapter.get_relation() to avoid circular dependency
+  SELECT
+    level_id,
+    level_headcount,
+    avg_level_compensation,
+    total_level_compensation
+  FROM {{ ref('int_prev_year_workforce_by_level') }}
+  WHERE simulation_year = {{ simulation_year }}
+  {% endif %}
 ),
 
 -- Growth target calculations
