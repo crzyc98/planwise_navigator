@@ -1,6 +1,6 @@
 {{ config(
     materialized='table',
-    tags=["foundation", "circular_dependency_resolution"]
+    tags=["FOUNDATION", "circular_dependency_resolution"]
 ) }}
 
 /*
