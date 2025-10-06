@@ -24,6 +24,7 @@ install: ## Install Python dependencies (using uv)
 	$(UV) venv $(VENV) --python $(PYTHON)
 	$(UV) pip install --python $(VENV)/bin/python -r requirements.txt
 	$(UV) pip install --python $(VENV)/bin/python -r requirements-dev.txt
+	$(UV) pip install --python $(VENV)/bin/python -e .
 	$(VENV)/bin/pre-commit install
 
 install-pyproject: ## Install using pyproject.toml (alternative method)
