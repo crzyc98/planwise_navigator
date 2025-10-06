@@ -157,6 +157,9 @@ source .venv/bin/activate
 
 # Install all dependencies (~40 seconds for 263 packages)
 uv pip install -r requirements.txt -r requirements-dev.txt
+
+# Install planwise CLI in editable mode
+uv pip install -e .
 ```
 
 3. **Install dbt dependencies**:
@@ -169,12 +172,14 @@ cd ..
 #### Alternative: Using Make (recommended for development)
 
 ```bash
-# One command to set up everything
+# One command to set up everything (includes planwise CLI installation)
 make install
 
 # Or for full development setup including dbt deps and seeds
 make dev-setup
 ```
+
+**Note**: The Makefile `install` target automatically installs dependencies and the planwise CLI.
 
 #### Legacy: Using pip
 
@@ -195,6 +200,9 @@ source .venv/bin/activate
 # Install dependencies
 pip install --upgrade pip
 pip install -r requirements.txt -r requirements-dev.txt
+
+# Install planwise CLI in editable mode
+pip install -e .
 ```
 
 #### Post-Installation Configuration
@@ -244,11 +252,12 @@ multi_year:
 # Test Python imports
 python -c "import duckdb, dbt, streamlit, pydantic, rich, typer; print('✅ Installation successful!')"
 
-# Check dbt
-cd dbt && dbt debug
-
-# Test planwise CLI
+# Verify planwise CLI is available
+planwise --version
 planwise health
+
+# Check dbt connection
+cd dbt && dbt debug
 ```
 
 ### Running the Platform
