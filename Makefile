@@ -2,9 +2,10 @@
 .PHONY: help dev-setup install test lint format clean run-simulation run-dashboard run-compensation-tuning run-optimization-dashboard docker-build
 
 PYTHON := python3.11
-VENV := venv
+VENV := .venv
 DBT_DIR := dbt
 DAGSTER_HOME := $(shell pwd)/.dagster
+UV := uv
 
 help: ## Show this help message
 	@echo 'Usage: make [target]'
@@ -19,11 +20,15 @@ dev-setup: install ## Complete development environment setup
 	cd $(DBT_DIR) && dbt seed
 	@echo "Development environment ready!"
 
-install: ## Install Python dependencies
-	$(PYTHON) -m venv $(VENV)
-	$(VENV)/bin/pip install --upgrade pip
-	$(VENV)/bin/pip install -r requirements.txt
-	$(VENV)/bin/pip install -r requirements-dev.txt
+install: ## Install Python dependencies (using uv)
+	$(UV) venv $(VENV) --python $(PYTHON)
+	$(UV) pip install --python $(VENV)/bin/python -r requirements.txt
+	$(UV) pip install --python $(VENV)/bin/python -r requirements-dev.txt
+	$(VENV)/bin/pre-commit install
+
+install-pyproject: ## Install using pyproject.toml (alternative method)
+	$(UV) venv $(VENV) --python $(PYTHON)
+	$(UV) pip install --python $(VENV)/bin/python -e ".[dev]"
 	$(VENV)/bin/pre-commit install
 
 test: ## Run all tests

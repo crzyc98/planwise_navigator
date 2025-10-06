@@ -1,20 +1,83 @@
-[tool.poetry]
+[project]
 name = "planwise-navigator"
 version = "0.1.0"
-description = "Workforce planning and simulation tool"
-authors = ["Your Name <your.email@example.com>"]
+description = "Workforce planning and simulation tool with immutable event sourcing"
 readme = "README.md"
-packages = [{include = "navigator_orchestrator"}, {include = "planwise_cli"}]
+requires-python = ">=3.11"
+authors = [
+    {name = "Your Name", email = "your.email@example.com"}
+]
 
-[tool.poetry.scripts]
+dependencies = [
+    # Core runtime dependencies
+    "duckdb==1.0.0",
+    "dbt-core==1.8.8",
+    "dbt-duckdb==1.8.1",
+    "dagster==1.10.21",
+    "dagster-webserver==1.10.21",
+    "dagster-dbt==0.26.21",
+    "streamlit==1.39.0",
+    "pydantic==2.7.4",
+    "python-dotenv>=1.0.0",
+    "pyyaml>=6.0.0",
+    "pandas>=2.0.0",
+    "numpy>=1.24.0",
+    "scipy>=1.10.0",
+    "scikit-learn>=1.3.0",
+    "hypothesis>=6.0.0",
+
+    # Performance optimization dependencies
+    "lz4>=4.3.3",
+    "psutil>=5.9.0",
+    "networkx>=3.0",
+
+    # Excel export dependencies
+    "openpyxl>=3.1.0",
+
+    # Corporate network and HTTP client dependencies
+    "requests>=2.28.0",
+    "urllib3>=1.26.0",
+
+    # CLI dependencies for PlanWise Navigator CLI
+    "rich>=13.0.0",
+    "typer>=0.9.0",
+    "inquirer>=3.1.0",
+]
+
+[project.optional-dependencies]
+dev = [
+    # Testing
+    "pytest==7.4.0",
+    "pytest-cov==4.1.0",
+    "pytest-mock==3.11.1",
+    "pytest-xdist==3.3.1",
+    "factory-boy==3.3.0",
+    "Faker==19.3.0",
+
+    # Code Quality
+    "ruff==0.4.3",
+    "black==23.9.1",
+    "isort==5.12.0",
+    "mypy==1.5.1",
+    "pylint==3.0.2",
+    "flake8==6.1.0",
+    "pre-commit==3.3.3",
+
+    # Docs / Dev tools
+    "mkdocs==1.5.2",
+    "mkdocs-material==9.3.1",
+    "mkdocstrings-python==1.5.0",
+    "jupyter==1.0.0",
+    "ipython==8.14.0",
+    "ipdb==0.13.13",
+]
+
+[project.scripts]
 planwise = "planwise_cli.main:cli_main"
 
-[tool.poetry.dependencies]
-python = "^3.11"
-
 [build-system]
-requires = ["poetry-core>=1.0.0"]
-build-backend = "poetry.core.masonry.api"
+requires = ["setuptools>=61.0"]
+build-backend = "setuptools.build_meta"
 
 [tool.dagster]
 # The python file where dagster.Definitions is defined
