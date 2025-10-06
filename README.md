@@ -121,10 +121,22 @@ planwise_navigator/
 **uv** is a blazing-fast Python package installer built in Rust. Installation takes ~40 seconds instead of 5+ minutes.
 
 1. **Install uv**:
+
+**On macOS/Linux:**
 ```bash
 curl -LsSf https://astral.sh/uv/install.sh | sh
 # Add to PATH if needed
 export PATH="$HOME/.local/bin:$PATH"
+```
+
+**On Windows (PowerShell):**
+```powershell
+powershell -c "irm https://astral.sh/uv/install.ps1 | iex"
+```
+
+**Alternative (all platforms):**
+```bash
+pip install uv
 ```
 
 2. **Clone and setup environment**:
@@ -134,7 +146,14 @@ cd planwise_navigator
 
 # Create virtual environment with uv
 uv venv .venv --python python3.11
+
+# Activate virtual environment
+# On macOS/Linux:
 source .venv/bin/activate
+# On Windows (PowerShell):
+# .venv\Scripts\Activate.ps1
+# On Windows (CMD):
+# .venv\Scripts\activate.bat
 
 # Install all dependencies (~40 seconds for 263 packages)
 uv pip install -r requirements.txt -r requirements-dev.txt
@@ -162,23 +181,46 @@ make dev-setup
 If uv is not available, use traditional pip:
 
 ```bash
+# Create virtual environment
 python3.11 -m venv .venv
+
+# Activate virtual environment
+# On macOS/Linux:
 source .venv/bin/activate
+# On Windows (PowerShell):
+# .venv\Scripts\Activate.ps1
+# On Windows (CMD):
+# .venv\Scripts\activate.bat
+
+# Install dependencies
 pip install --upgrade pip
 pip install -r requirements.txt -r requirements-dev.txt
 ```
 
 #### Post-Installation Configuration
 
-4. **Configure dbt profile** at `~/.dbt/profiles.yml`:
+4. **Configure dbt profile**:
+
+Create or edit the profiles file:
+- **macOS/Linux**: `~/.dbt/profiles.yml`
+- **Windows**: `%USERPROFILE%\.dbt\profiles.yml`
+
 ```yaml
 planwise_navigator:
   target: dev
   outputs:
     dev:
       type: duckdb
-      path: /absolute/path/to/planwise_navigator/dbt/simulation.duckdb
+      path: /absolute/path/to/planwise_navigator/dbt/simulation.duckdb  # Use absolute path
       threads: 1  # Single-threaded for work laptop stability
+```
+
+**Note**: On Windows, use forward slashes or escaped backslashes in the path:
+```yaml
+# Windows example:
+path: C:/Users/YourName/planwise_navigator/dbt/simulation.duckdb
+# Or:
+path: C:\\Users\\YourName\\planwise_navigator\\dbt\\simulation.duckdb
 ```
 
 5. **Configure simulation parameters** in `config/simulation_config.yaml`:
