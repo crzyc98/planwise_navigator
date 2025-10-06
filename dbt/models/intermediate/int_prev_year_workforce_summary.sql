@@ -38,8 +38,9 @@ workforce_summary AS (
     COUNT(*) AS total_active_workforce,
     COUNT(*) AS experienced_workforce,
     0 AS current_year_hires,
-    AVG(current_compensation) AS avg_compensation,
-    SUM(current_compensation) AS total_compensation
+    -- Handle zero workforce: use safe defaults for NULL aggregates
+    COALESCE(AVG(current_compensation), 50000) AS avg_compensation,
+    COALESCE(SUM(current_compensation), 0) AS total_compensation
   FROM previous_year_snapshot
 ),
 
