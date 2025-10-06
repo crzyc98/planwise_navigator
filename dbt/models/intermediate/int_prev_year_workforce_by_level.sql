@@ -21,18 +21,35 @@ WITH previous_year_snapshot AS (
   FROM {{ adapter.get_relation(database=this.database, schema=this.schema, identifier='fct_workforce_snapshot') }}
   WHERE simulation_year = {{ previous_year }}
     AND employment_status = 'active'
+),
+
+-- Get all possible levels from configuration to ensure we always have rows
+all_levels AS (
+  SELECT DISTINCT level_id
+  FROM {{ ref('stg_config_job_levels') }}
+),
+
+-- Calculate level aggregates with LEFT JOIN to handle zero workforce scenario
+level_aggregates AS (
+  SELECT
+    l.level_id,
+    COUNT(p.employee_id) AS level_headcount,
+    COALESCE(AVG(p.current_compensation), 0) AS avg_level_compensation,
+    COALESCE(SUM(p.current_compensation), 0) AS total_level_compensation
+  FROM all_levels l
+  LEFT JOIN previous_year_snapshot p ON l.level_id = p.level_id
+  GROUP BY l.level_id
 )
 
 SELECT
   {{ simulation_year }} AS simulation_year,
   level_id,
-  COUNT(*) AS level_headcount,
-  AVG(current_compensation) AS avg_level_compensation,
-  SUM(current_compensation) AS total_level_compensation,
+  level_headcount,
+  avg_level_compensation,
+  total_level_compensation,
   'previous_year_snapshot' AS data_source,
   CURRENT_TIMESTAMP AS created_at
-FROM previous_year_snapshot
-GROUP BY level_id
+FROM level_aggregates
 
 {% else %}
 
