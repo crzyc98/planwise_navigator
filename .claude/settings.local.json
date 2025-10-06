@@ -64,7 +64,14 @@
       "Bash(tee:*)",
       "Bash(PYTHONPATH=. python -m navigator_orchestrator batch --scenarios baseline --verbose)",
       "Bash(gh pr create:*)",
-      "Bash(PYTHONPATH=. python -m navigator_orchestrator run --years 2025-2026 --threads 1 --verbose)"
+      "Bash(PYTHONPATH=. python -m navigator_orchestrator run --years 2025-2026 --threads 1 --verbose)",
+      "Bash(PYTHONPATH=. python -m navigator_orchestrator run --years 2025-2026 --threads 1)",
+      "Bash(curl -LsSf https://astral.sh/uv/install.sh)",
+      "Bash(sh)",
+      "Bash(~/.local/bin/uv:*)",
+      "Bash(time:*)",
+      "Bash(.venv-test/bin/python:*)",
+      "Bash(.venv-test/bin/pytest --version)"
     ],
     "deny": [],
     "ask": []

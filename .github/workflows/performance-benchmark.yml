@@ -79,19 +79,22 @@ jobs:
       with:
         python-version: ${{ matrix.python-version }}
 
-    - name: Cache Python dependencies
+    - name: Install uv
+      run: curl -LsSf https://astral.sh/uv/install.sh | sh
+
+    - name: Cache uv dependencies
       uses: actions/cache@v3
       with:
-        path: ~/.cache/pip
-        key: ${{ runner.os }}-pip-${{ hashFiles('**/requirements.txt') }}
+        path: ~/.cache/uv
+        key: ${{ runner.os }}-uv-${{ hashFiles('**/requirements.txt', 'pyproject.toml') }}
         restore-keys: |
-          ${{ runner.os }}-pip-
+          ${{ runner.os }}-uv-
 
     - name: Install dependencies
       run: |
-        python -m pip install --upgrade pip
-        pip install -r requirements.txt
-        pip install numpy scipy psutil  # Benchmark framework dependencies
+        export PATH="$HOME/.local/bin:$PATH"
+        uv pip install --system -r requirements.txt
+        uv pip install --system numpy scipy psutil  # Benchmark framework dependencies
 
         # Install dbt dependencies
         cd dbt
@@ -361,11 +364,14 @@ jobs:
       with:
         python-version: '3.11'
 
+    - name: Install uv
+      run: curl -LsSf https://astral.sh/uv/install.sh | sh
+
     - name: Install dependencies
       run: |
-        python -m pip install --upgrade pip
-        pip install -r requirements.txt
-        pip install numpy scipy psutil
+        export PATH="$HOME/.local/bin:$PATH"
+        uv pip install --system -r requirements.txt
+        uv pip install --system numpy scipy psutil
 
     - name: Run stress test
       env:

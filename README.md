@@ -42,7 +42,8 @@ See `navigator_orchestrator/README.md` for usage, and the stories under `docs/st
 | **Storage** | DuckDB | 1.0.0 | Immutable event store; in-process OLAP engine |
 | **Transformation** | dbt-core | 1.8.8 | SQL-based data modeling and testing |
 | **Adapter** | dbt-duckdb | 1.8.1 | Stable DuckDB integration |
-| **Orchestration** | Dagster | 1.8.12 | Asset-based pipeline management |
+| **Orchestration** | navigator_orchestrator | Custom | Multi-year pipeline orchestration with checkpoints |
+| **CLI Interface** | planwise (Rich + Typer) | 1.0.0 | Beautiful terminal interface with progress tracking |
 | **Dashboard** | Streamlit | 1.39.0 | Interactive analytics interface |
 | **Configuration** | Pydantic | 2.7.4 | Type-safe parameter management |
 | **Python** | CPython | 3.11.x | Long-term support version |
@@ -72,75 +73,115 @@ Raw Census Data → Staging Models → Event Generation → Immutable Event Stor
 
 ```
 planwise_navigator/
-├── definitions.py                    # Dagster workspace entry point
-├── orchestrator/                     # Dagster pipeline code
-│   ├── simulation_pipeline.py       # Main simulation logic
-│   ├── assets/                       # Asset definitions
-│   ├── jobs/                         # Job workflows
-│   └── resources/                    # Shared resources (DuckDBResource)
+├── navigator_orchestrator/           # Production orchestration engine
+│   ├── pipeline.py                   # PipelineOrchestrator main class
+│   ├── config.py                     # SimulationConfig management
+│   ├── dbt_runner.py                 # DbtRunner with streaming output
+│   ├── registries.py                 # State management across years
+│   ├── validation.py                 # Data quality validation
+│   └── reports.py                    # Multi-year reporting
+├── planwise_cli/                     # CLI interface (Rich + Typer)
+│   └── main.py                       # planwise command entry point
 ├── dbt/                              # dbt project
 │   ├── models/                       # SQL transformation models
 │   │   ├── staging/                  # Raw data cleaning (stg_*)
 │   │   ├── intermediate/             # Business logic (int_*)
+│   │   │   ├── events/               # Event generation models
+│   │   │   └── accumulators/         # State accumulators
 │   │   └── marts/                    # Final outputs (fct_*, dim_*)
 │   ├── seeds/                        # Configuration data (CSV)
-│   └── macros/                       # Reusable SQL functions
+│   ├── macros/                       # Reusable SQL functions
+│   └── simulation.duckdb             # DuckDB database (standardized location)
 ├── streamlit_dashboard/              # Interactive dashboard
+│   ├── main.py                       # Main dashboard
+│   └── pages/                        # Dashboard pages
+│       └── 1_Compensation_Tuning.py  # Compensation tuning interface
 ├── config/                           # Configuration management
-│   └── simulation_config.yaml       # Simulation parameters
+│   ├── simulation_config.yaml        # Simulation parameters
+│   ├── schema.py                     # Legacy event schema (Pydantic v1)
+│   └── events.py                     # Unified event model (Pydantic v2)
 ├── scripts/                          # Utility scripts
 ├── tests/                            # Comprehensive testing
-├── data/                             # Raw input files (git-ignored)
-├── .dagster/                         # Dagster home directory (git-ignored)
-└── simulation.duckdb                 # DuckDB database file (git-ignored)
+└── data/                             # Raw input files (git-ignored)
 ```
 
 ## Getting Started
 
 ### Prerequisites
 
-- Python 3.11+
+- **Python 3.11+** (CPython 3.11.x recommended)
+- **uv** package manager (optional but recommended for 10× faster installs)
 - Access to raw employee census data
 - On-premises deployment environment
 
 ### Installation
 
-1. **Clone and setup environment**:
+#### Recommended: Using uv (10× faster)
+
+**uv** is a blazing-fast Python package installer built in Rust. Installation takes ~40 seconds instead of 5+ minutes.
+
+1. **Install uv**:
+```bash
+curl -LsSf https://astral.sh/uv/install.sh | sh
+# Add to PATH if needed
+export PATH="$HOME/.local/bin:$PATH"
+```
+
+2. **Clone and setup environment**:
 ```bash
 git clone <repository-url> planwise_navigator
 cd planwise_navigator
-python3.11 -m venv venv
-source venv/bin/activate
-pip install -r requirements.txt
+
+# Create virtual environment with uv
+uv venv .venv --python python3.11
+source .venv/bin/activate
+
+# Install all dependencies (~40 seconds for 263 packages)
+uv pip install -r requirements.txt -r requirements-dev.txt
 ```
 
-2. **Configure DAGSTER_HOME** (if not already set):
+3. **Install dbt dependencies**:
 ```bash
-export DAGSTER_HOME=~/dagster_home_planwise
-# Or run: ./scripts/set_dagster_home.sh
+cd dbt
+dbt deps
+cd ..
 ```
 
-3. **Configure dbt profile** at `~/.dbt/profiles.yml`:
+#### Alternative: Using Make (recommended for development)
+
+```bash
+# One command to set up everything
+make install
+
+# Or for full development setup including dbt deps and seeds
+make dev-setup
+```
+
+#### Legacy: Using pip
+
+If uv is not available, use traditional pip:
+
+```bash
+python3.11 -m venv .venv
+source .venv/bin/activate
+pip install --upgrade pip
+pip install -r requirements.txt -r requirements-dev.txt
+```
+
+#### Post-Installation Configuration
+
+4. **Configure dbt profile** at `~/.dbt/profiles.yml`:
 ```yaml
 planwise_navigator:
   target: dev
   outputs:
     dev:
       type: duckdb
-      path: /absolute/path/to/planwise_navigator/simulation.duckdb
-      threads: 4
+      path: /absolute/path/to/planwise_navigator/dbt/simulation.duckdb
+      threads: 1  # Single-threaded for work laptop stability
 ```
 
-### Running the Platform
-
-#### 1. Start Dagster Development Server
-```bash
-dagster dev
-# Access at http://localhost:3000
-```
-
-#### 2. Configure Simulation Parameters
-Edit `config/simulation_config.yaml`:
+5. **Configure simulation parameters** in `config/simulation_config.yaml`:
 ```yaml
 start_year: 2025
 end_year: 2029
@@ -148,24 +189,103 @@ target_growth_rate: 0.03
 total_termination_rate: 0.12
 new_hire_termination_rate: 0.25
 random_seed: 42
+
+multi_year:
+  optimization:
+    level: "medium"        # For work laptops
+    max_workers: 1         # Single-threaded
+    batch_size: 500
 ```
 
-#### 3. Run Simulations
+6. **Verify installation**:
 ```bash
-# Single year simulation
-dagster asset materialize --select simulation_year_state
+# Test Python imports
+python -c "import duckdb, dbt, streamlit, pydantic, rich, typer; print('✅ Installation successful!')"
 
-# Multi-year simulation
-dagster asset materialize --select multi_year_simulation
+# Check dbt
+cd dbt && dbt debug
 
-# Run all dbt models
-dagster asset materialize --select dbt_models
+# Test planwise CLI
+planwise health
 ```
 
-#### 4. Launch Interactive Dashboard
+### Running the Platform
+
+#### Option 1: Using planwise CLI (Recommended)
+
+The **planwise** CLI provides a beautiful, user-friendly interface with progress bars and enhanced feedback.
+
 ```bash
+# Quick system health check
+planwise health
+
+# Run multi-year simulation with progress tracking
+planwise simulate 2025-2027 --verbose
+
+# Resume from checkpoint after interruption
+planwise simulate 2025-2027 --resume
+
+# Preview execution plan (dry run)
+planwise simulate 2025-2026 --dry-run
+
+# Run batch scenarios with Excel export
+planwise batch --scenarios baseline high_growth
+planwise batch --export-format excel --clean
+
+# Validate configuration
+planwise validate
+
+# Manage checkpoints
+planwise checkpoints list
+planwise checkpoints status
+planwise checkpoints cleanup --keep 3
+```
+
+#### Option 2: Using Python API directly
+
+For programmatic access or advanced control:
+
+```bash
+# Single-year simulation
+python -m navigator_orchestrator run --years 2025 --threads 1 --verbose
+
+# Multi-year simulation (work laptop optimized)
+python -m navigator_orchestrator run --years 2025 2026 2027 --threads 1 --optimization medium
+
+# Batch scenario processing
+python -m navigator_orchestrator batch --scenarios baseline high_growth cost_control
+python -m navigator_orchestrator batch --clean --export-format excel
+```
+
+#### Option 3: Using dbt directly (Development)
+
+For testing specific models or debugging:
+
+```bash
+cd dbt
+
+# Build foundation models for a specific year
+dbt run --select tag:foundation --vars '{simulation_year: 2025}' --threads 1
+
+# Generate events for a specific year
+dbt run --select tag:EVENT_GENERATION --vars '{simulation_year: 2025}' --threads 1
+
+# Build complete pipeline for a year
+dbt build --vars '{simulation_year: 2025}' --threads 1
+```
+
+#### Launch Interactive Dashboards
+
+```bash
+# Main dashboard (port 8501)
 streamlit run streamlit_dashboard/main.py
-# Access at http://localhost:8501
+
+# Compensation tuning interface (port 8502)
+streamlit run streamlit_dashboard/pages/1_Compensation_Tuning.py --server.port 8502
+
+# Or use Make shortcuts
+make run-dashboard
+make run-compensation-tuning
 ```
 
 ### Development Workflow
@@ -196,21 +316,40 @@ The CI script performs:
 #### dbt Development
 ```bash
 cd dbt
-dbt run                   # Run all models
-dbt run --select staging  # Run specific layer
-dbt test                  # Run all tests
-dbt docs generate && dbt docs serve  # Documentation
+
+# Run all models for a year
+dbt run --vars '{simulation_year: 2025}' --threads 1
+
+# Run specific layer
+dbt run --select staging --threads 1
+dbt run --select tag:foundation --vars '{simulation_year: 2025}' --threads 1
+
+# Run tests
+dbt test --threads 1
+dbt test --select tag:data_quality
+
+# Generate and serve documentation
+dbt docs generate
+dbt docs serve
 ```
 
-#### Asset Development
+#### Orchestrator Development
 ```bash
-# Run specific asset groups
-dagster asset materialize --select workforce_simulation
-dagster asset materialize --select dashboard_data
+# Test single-year execution
+python -m navigator_orchestrator run --years 2025 --threads 1 --verbose
 
-# Run data quality checks
-dagster asset check --select validate_data_quality
-dagster asset check --select validate_simulation_results
+# Test multi-year execution with checkpoints
+python -m navigator_orchestrator run --years 2025 2026 --threads 1 --optimization medium
+
+# Validate configuration
+python -c "
+from navigator_orchestrator.config import load_simulation_config
+config = load_simulation_config('config/simulation_config.yaml')
+print('✅ Configuration valid!')
+"
+
+# Test batch processing
+python -m navigator_orchestrator batch --scenarios baseline --verbose
 ```
 
 ## Key Components
@@ -257,27 +396,40 @@ Key configuration options in `config/simulation_config.yaml`:
 ## Data Quality & Testing
 
 ### dbt Tests
-- **Schema Tests**: Data type and constraint validation
+- **Schema Tests**: Data type and constraint validation (90% coverage target)
 - **Custom Tests**: Business rule validation
 - **Relationship Tests**: Referential integrity checks
+- **Data Quality Tags**: Models tagged with `tag:data_quality`
 
-### Dagster Asset Checks
-- **Data Quality**: Row counts, null checks, distribution validation
-- **Simulation Validation**: Growth rate verification, event consistency
-- **Performance Monitoring**: Runtime and resource usage tracking
+### Navigator Orchestrator Validation
+- **Built-in Validation**: Automatic data quality checks during pipeline execution
+- **Rule-based Validation**: Configurable validation rules with thresholds
+- **Row Count Validation**: Detect unexpected data loss or duplication
+- **Distribution Validation**: Statistical tests for data drift detection
+- **Event Consistency**: Verify event sequences and state transitions
+
+### Python Testing (pytest)
+- **Unit Tests**: Individual component testing (95% line coverage target)
+- **Integration Tests**: End-to-end simulation validation
+- **Performance Tests**: Runtime and resource usage benchmarks
+- **Validation Framework**: Golden dataset testing for regression detection
 
 ## Deployment
 
 ### Local Development
 - Single-machine deployment with file-based DuckDB
-- Dagster development server for interactive development
-- Streamlit dashboard for immediate feedback
+- planwise CLI for interactive simulation execution
+- Streamlit dashboard for immediate feedback and compensation tuning
+- Checkpoint-based resumability for long-running simulations
 
 ### Production Deployment
-- On-premises Linux server deployment
-- Persistent DuckDB database with backup procedures
-- Process monitoring and automated restarts
-- Access control and audit logging
+- **On-premises Linux server** deployment (no cloud dependencies)
+- **Persistent DuckDB database** with automated backup procedures
+- **Process monitoring**: systemd services or supervisor for automated restarts
+- **CLI-based automation**: Cron jobs or scheduled tasks using planwise CLI
+- **Batch processing**: Multi-scenario execution with Excel export for reporting
+- **Access control**: File-system permissions and audit logging
+- **Resource optimization**: Single-threaded execution for stability on work laptops
 
 ## Performance Characteristics
 
@@ -308,10 +460,12 @@ Key configuration options in `config/simulation_config.yaml`:
 ## Contributing
 
 ### Development Standards
-- **Code Quality**: Type hints, comprehensive testing, documentation
+- **Code Quality**: Type hints, comprehensive testing, docstrings
 - **SQL Style**: 2-space indentation, uppercase keywords, CTEs for readability
-- **Asset Patterns**: Always return serializable objects from Dagster assets
-- **Configuration**: Pydantic models for type-safe parameter validation
+- **Python Style**: PEP 8, keep functions under 40 lines, explicit exceptions
+- **Configuration**: Pydantic v2 models for type-safe parameter validation
+- **Event Sourcing**: Immutable events with UUID and timestamp, discriminated unions
+- **State Management**: Use state accumulators, avoid circular dependencies
 
 ### Testing Requirements
 - **dbt Models**: 90% test coverage with schema and custom tests
@@ -322,29 +476,32 @@ Key configuration options in `config/simulation_config.yaml`:
 
 ### Common Issues
 
-#### DuckDB Serialization (CRITICAL)
+#### DuckDB Connection Management
 ```python
-# ✅ CORRECT: DuckDB Asset Pattern
-@asset
-def workforce_data(context: AssetExecutionContext, duckdb: DuckDBResource) -> pd.DataFrame:
-    with duckdb.get_connection() as conn:
-        # Convert immediately to DataFrame - serializable
-        df = conn.execute("SELECT * FROM employees").df()
-        return df  # Safe to return
+# ✅ CORRECT: Use get_database_path helper
+from navigator_orchestrator.config import get_database_path
+import duckdb
 
-# ❌ WRONG: Never return DuckDB objects
-@asset
-def broken_asset():
-    conn = duckdb.connect("db.duckdb")
-    return conn.table("employees")  # DuckDBPyRelation - NOT SERIALIZABLE!
+conn = duckdb.connect(str(get_database_path()))
+try:
+    result = conn.execute("SELECT * FROM fct_yearly_events").df()
+    # Process result
+finally:
+    conn.close()
+
+# Or use context manager (if available)
+with duckdb.connect(str(get_database_path())) as conn:
+    result = conn.execute(query).df()
 ```
 
-#### Connection Management
+#### Multi-Year State Management
 ```python
-# Always use context managers
-with duckdb_resource.get_connection() as conn:
-    result = conn.execute(query).df()
-# Connection automatically closed
+# ✅ CORRECT: Use state accumulators for cross-year data
+# Year N reads Year N-1 accumulator + Year N events
+# Example: int_enrollment_state_accumulator, int_deferral_rate_state_accumulator
+
+# ❌ WRONG: Don't create circular dependencies
+# int_* models should NEVER read from fct_* models
 ```
 
 #### Configuration Validation
@@ -356,11 +513,12 @@ class SimulationConfig(BaseModel):
 ```
 
 #### Version Compatibility Issues
-```python
+```bash
 # CRITICAL: Use only proven stable versions
 # DuckDB 1.0.0, dbt-core 1.8.8, dbt-duckdb 1.8.1
-# Dagster 1.8.12, Streamlit 1.39.0, Pydantic 2.7.4
-# Lock all versions in requirements.txt
+# Streamlit 1.39.0, Pydantic 2.7.4
+# Rich 13.0.0+, Typer 0.9.0+
+# All versions locked in requirements.txt and pyproject.toml
 ```
 
 #### CI Script Issues
@@ -388,19 +546,23 @@ pip install -r requirements.txt
 ```
 
 ### Getting Help
-- Check Dagster logs in the web interface
-- Run `dbt debug` for connection issues
-- Validate configuration with Pydantic models
-- Review asset lineage in Dagster for dependency issues
-- Ensure DAGSTER_HOME is set: `launchctl getenv DAGSTER_HOME`
+- Run `planwise health` for system diagnostics
+- Run `planwise status --detailed` for full system status
+- Check `dbt debug` for database connection issues
+- Validate configuration: `planwise validate`
+- Review orchestrator logs in terminal output with `--verbose` flag
+- Check checkpoint status: `planwise checkpoints status`
 - **CI Issues**: Run `./scripts/run_ci_tests.sh` for detailed error messages
+- **Database Issues**: Verify database path with `python -c "from navigator_orchestrator.config import get_database_path; print(get_database_path())"`
 
 ## Further Reading
 
 - [dbt Documentation](https://docs.getdbt.com/)
-- [Dagster Documentation](https://docs.dagster.io/)
 - [DuckDB Documentation](https://duckdb.org/docs/)
 - [Streamlit Documentation](https://docs.streamlit.io/)
+- [Rich Documentation](https://rich.readthedocs.io/)
+- [Typer Documentation](https://typer.tiangolo.com/)
+- [Pydantic Documentation](https://docs.pydantic.dev/)
 
 ---
 

@@ -203,10 +203,20 @@ Every feature request becomes a single Pull-Request following this checklist:
 ### **7. Local Development Environment**
 
 ```bash
-# Python Environment
-python3.11 -m venv venv
-source venv/bin/activate
-pip install -r requirements.txt
+# Python Environment (using uv - 10-100× faster than pip)
+uv venv .venv --python python3.11
+source .venv/bin/activate
+uv pip install -r requirements.txt -r requirements-dev.txt
+
+# Alternative: Install from pyproject.toml
+uv venv .venv --python python3.11
+source .venv/bin/activate
+uv pip install -e ".[dev]"
+
+# Legacy method (if uv is not available)
+# python3.11 -m venv .venv
+# source .venv/bin/activate
+# pip install -r requirements.txt -r requirements-dev.txt
 
 # PlanWise CLI (Rich Interface) - PREFERRED METHOD
 # Beautiful terminal interface with progress bars and enhanced UX
