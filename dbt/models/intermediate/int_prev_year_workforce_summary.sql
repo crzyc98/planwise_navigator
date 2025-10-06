@@ -18,8 +18,9 @@
 */
 
 {% set simulation_year = var('simulation_year') %}
+{% set start_year = var('start_year', 2025) | int %}
 {% set previous_year = simulation_year - 1 %}
-{% set is_first_simulation_year = (simulation_year == 2025) %}
+{% set is_first_simulation_year = (simulation_year == start_year) %}
 
 -- This model should only execute for years after the baseline year
 {% if not is_first_simulation_year %}
