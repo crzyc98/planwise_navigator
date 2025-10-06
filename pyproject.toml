@@ -76,9 +76,7 @@ planwise = "planwise_cli.main:cli_main"
 requires = ["setuptools>=61.0"]
 build-backend = "setuptools.build_meta"
 
-[tool.dagster]
-# The python file where dagster.Definitions is defined
-module_name = "definitions"
-# The variable defined in that file that is an instance of dagster.Definitions
-python_file = "definitions.py"
-working_directory = "."
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["navigator_orchestrator*", "planwise_cli*", "config*"]
+exclude = ["tests*", "docs*", "scripts*", "dbt*", "streamlit_dashboard*"]
