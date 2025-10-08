@@ -195,7 +195,7 @@ SELECT
 
   -- Compensation planning
   cp.new_hire_avg_compensation,
-  CAST(hbl.hires_needed * cp.new_hire_avg_compensation AS DOUBLE) AS total_new_hire_compensation,
+  (CAST(hbl.hires_needed AS DOUBLE) * cp.new_hire_avg_compensation) AS total_new_hire_compensation,
   cp.merit_increase_cost,
   cp.cola_cost,
   cp.expected_promotions,
@@ -208,18 +208,18 @@ SELECT
   ac.additional_termination_costs,
 
   -- Total costs by category
-  CAST((hbl.hires_needed * cp.new_hire_avg_compensation + ac.recruiting_costs + ac.training_costs) AS DOUBLE) AS total_hiring_costs,
-  CAST((tbl.termination_compensation_cost + ac.severance_costs + ac.additional_termination_costs) AS DOUBLE) AS total_termination_costs,
-  CAST((cp.merit_increase_cost + cp.cola_cost + cp.promotion_cost) AS DOUBLE) AS total_compensation_change_costs,
+  (CAST(hbl.hires_needed AS DOUBLE) * cp.new_hire_avg_compensation + ac.recruiting_costs + ac.training_costs) AS total_hiring_costs,
+  (tbl.termination_compensation_cost + ac.severance_costs + ac.additional_termination_costs) AS total_termination_costs,
+  (cp.merit_increase_cost + cp.cola_cost + cp.promotion_cost) AS total_compensation_change_costs,
 
   -- Net financial impact
-  CAST((hbl.hires_needed * cp.new_hire_avg_compensation + cp.merit_increase_cost + cp.cola_cost + cp.promotion_cost) -
-  tbl.termination_compensation_cost AS DOUBLE) AS net_compensation_change,
+  ((CAST(hbl.hires_needed AS DOUBLE) * cp.new_hire_avg_compensation + cp.merit_increase_cost + cp.cola_cost + cp.promotion_cost) -
+  tbl.termination_compensation_cost) AS net_compensation_change,
 
   -- Total budget impact
-  CAST((hbl.hires_needed * cp.new_hire_avg_compensation + ac.recruiting_costs + ac.training_costs +
+  (CAST(hbl.hires_needed AS DOUBLE) * cp.new_hire_avg_compensation + ac.recruiting_costs + ac.training_costs +
    cp.merit_increase_cost + cp.cola_cost + cp.promotion_cost +
-   ac.severance_costs + ac.additional_termination_costs) AS DOUBLE) AS total_budget_impact,
+   ac.severance_costs + ac.additional_termination_costs) AS total_budget_impact,
 
   -- Rates and ratios
   ROUND(hbl.hires_needed::DECIMAL / NULLIF(wbl.current_headcount, 0), 4) AS level_hiring_rate,
