@@ -587,9 +587,22 @@ class PolarsEventGenerator:
         if needs:
             hires_df = self._generate_hires_from_needs(needs, simulation_year)
             if hires_df.height > 0:
-                return hires_df
+                # Normalize to 8-column schema to match other event types
+                return hires_df.select([
+                    'scenario_id', 'plan_design_id', 'employee_id',
+                    'event_type', 'event_date', 'event_payload',
+                    'simulation_year', 'event_probability'
+                ])
 
-        return self._generate_hires_fallback(cohort, simulation_year)
+        fallback_hires = self._generate_hires_fallback(cohort, simulation_year)
+        if fallback_hires.height > 0:
+            return fallback_hires.select([
+                'scenario_id', 'plan_design_id', 'employee_id',
+                'event_type', 'event_date', 'event_payload',
+                'simulation_year', 'event_probability'
+            ])
+
+        return pl.DataFrame()
 
     def generate_termination_events(self, cohort: pl.DataFrame, simulation_year: int) -> pl.DataFrame:
         """Generate termination events with performance and tenure adjustments."""
