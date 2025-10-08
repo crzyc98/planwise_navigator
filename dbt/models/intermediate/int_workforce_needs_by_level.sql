@@ -124,23 +124,23 @@ hiring_by_level AS (
 compensation_planning AS (
   SELECT
     cr.level_id,
-    cr.min_compensation,
-    cr.max_compensation,
+    CAST(cr.min_compensation AS DOUBLE) AS min_compensation,
+    CAST(cr.max_compensation AS DOUBLE) AS max_compensation,
     wbl.avg_compensation AS current_avg_compensation,
     -- New hire compensation using configurable percentiles (Epic E056)
     -- Calculate percentile-based compensation with market adjustments
-    (cr.min_compensation +
+    CAST((cr.min_compensation +
      (cr.max_compensation - cr.min_compensation) *
      COALESCE({{ resolve_parameter('cr.level_id', 'HIRE', 'compensation_percentile', simulation_year) }}, 0.50) *
      COALESCE({{ resolve_parameter('cr.level_id', 'HIRE', 'market_adjustment_multiplier', simulation_year) }}, 1.0)
-    ) AS new_hire_avg_compensation,
+    ) AS DOUBLE) AS new_hire_avg_compensation,
     -- Merit increase planning - use variable-based parameters for consistency
-    wbl.total_compensation * {{ var('merit_budget', 0.03) }} AS merit_increase_cost,
+    CAST(wbl.total_compensation * {{ var('merit_budget', 0.03) }} AS DOUBLE) AS merit_increase_cost,
     -- COLA planning - use variable-based parameters for consistency
-    wbl.total_compensation * {{ var('cola_rate', 0.025) }} AS cola_cost,
+    CAST(wbl.total_compensation * {{ var('cola_rate', 0.025) }} AS DOUBLE) AS cola_cost,
     -- Promotion cost estimate - use safe defaults temporarily
-    wbl.current_headcount * 0.05 AS expected_promotions,
-    wbl.avg_compensation * 0.12 * (wbl.current_headcount * 0.05) AS promotion_cost
+    CAST(wbl.current_headcount * 0.05 AS DOUBLE) AS expected_promotions,
+    CAST(wbl.avg_compensation * 0.12 * (wbl.current_headcount * 0.05) AS DOUBLE) AS promotion_cost
   FROM {{ ref('stg_config_job_levels') }} cr
   LEFT JOIN workforce_by_level wbl ON cr.level_id = wbl.level_id
 ),
@@ -150,13 +150,13 @@ additional_costs AS (
   SELECT
     hbl.level_id,
     -- Hiring costs (recruiting, onboarding)
-    hbl.hires_needed * cp.new_hire_avg_compensation * 0.20 AS recruiting_costs,
+    CAST(hbl.hires_needed * cp.new_hire_avg_compensation * 0.20 AS DOUBLE) AS recruiting_costs,
     -- Training and ramp-up costs
-    hbl.hires_needed * cp.new_hire_avg_compensation * 0.25 AS training_costs,
+    CAST(hbl.hires_needed * cp.new_hire_avg_compensation * 0.25 AS DOUBLE) AS training_costs,
     -- Severance costs (2 weeks per year, avg 5 years tenure)
-    tbl.expected_terminations * wbl.avg_compensation * (5.0 * 2.0 / 52.0) AS severance_costs,
+    CAST(tbl.expected_terminations * wbl.avg_compensation * (5.0 * 2.0 / 52.0) AS DOUBLE) AS severance_costs,
     -- Benefits continuation and outplacement
-    tbl.expected_terminations * wbl.avg_compensation * 0.15 AS additional_termination_costs
+    CAST(tbl.expected_terminations * wbl.avg_compensation * 0.15 AS DOUBLE) AS additional_termination_costs
   FROM hiring_by_level hbl
   JOIN compensation_planning cp ON hbl.level_id = cp.level_id
   JOIN termination_by_level tbl ON hbl.level_id = tbl.level_id
@@ -195,7 +195,7 @@ SELECT
 
   -- Compensation planning
   cp.new_hire_avg_compensation,
-  hbl.hires_needed * cp.new_hire_avg_compensation AS total_new_hire_compensation,
+  CAST(hbl.hires_needed * cp.new_hire_avg_compensation AS DOUBLE) AS total_new_hire_compensation,
   cp.merit_increase_cost,
   cp.cola_cost,
   cp.expected_promotions,
@@ -208,18 +208,18 @@ SELECT
   ac.additional_termination_costs,
 
   -- Total costs by category
-  (hbl.hires_needed * cp.new_hire_avg_compensation + ac.recruiting_costs + ac.training_costs) AS total_hiring_costs,
-  (tbl.termination_compensation_cost + ac.severance_costs + ac.additional_termination_costs) AS total_termination_costs,
-  (cp.merit_increase_cost + cp.cola_cost + cp.promotion_cost) AS total_compensation_change_costs,
+  CAST((hbl.hires_needed * cp.new_hire_avg_compensation + ac.recruiting_costs + ac.training_costs) AS DOUBLE) AS total_hiring_costs,
+  CAST((tbl.termination_compensation_cost + ac.severance_costs + ac.additional_termination_costs) AS DOUBLE) AS total_termination_costs,
+  CAST((cp.merit_increase_cost + cp.cola_cost + cp.promotion_cost) AS DOUBLE) AS total_compensation_change_costs,
 
   -- Net financial impact
-  (hbl.hires_needed * cp.new_hire_avg_compensation + cp.merit_increase_cost + cp.cola_cost + cp.promotion_cost) -
-  tbl.termination_compensation_cost AS net_compensation_change,
+  CAST((hbl.hires_needed * cp.new_hire_avg_compensation + cp.merit_increase_cost + cp.cola_cost + cp.promotion_cost) -
+  tbl.termination_compensation_cost AS DOUBLE) AS net_compensation_change,
 
   -- Total budget impact
-  (hbl.hires_needed * cp.new_hire_avg_compensation + ac.recruiting_costs + ac.training_costs +
+  CAST((hbl.hires_needed * cp.new_hire_avg_compensation + ac.recruiting_costs + ac.training_costs +
    cp.merit_increase_cost + cp.cola_cost + cp.promotion_cost +
-   ac.severance_costs + ac.additional_termination_costs) AS total_budget_impact,
+   ac.severance_costs + ac.additional_termination_costs) AS DOUBLE) AS total_budget_impact,
 
   -- Rates and ratios
   ROUND(hbl.hires_needed::DECIMAL / NULLIF(wbl.current_headcount, 0), 4) AS level_hiring_rate,
