@@ -71,7 +71,9 @@
       "Bash(~/.local/bin/uv:*)",
       "Bash(time:*)",
       "Bash(.venv-test/bin/python:*)",
-      "Bash(.venv-test/bin/pytest --version)"
+      "Bash(.venv-test/bin/pytest --version)",
+      "Bash(pytest:*)",
+      "Bash(awk:*)"
     ],
     "deny": [],
     "ask": []

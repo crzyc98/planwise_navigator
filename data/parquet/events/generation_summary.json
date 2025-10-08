@@ -1,0 +1,36 @@
+{
+  "generation_summary": {
+    "start_year": 2026,
+    "end_year": 2026,
+    "total_events": 0,
+    "successful_years": [],
+    "failed_years": [
+      2026
+    ],
+    "total_duration_seconds": 0.07994580268859863,
+    "events_per_second": 0.0,
+    "generated_at": "2025-10-07T20:10:51.466546"
+  },
+  "configuration": {
+    "scenario_id": null,
+    "plan_design_id": null,
+    "random_seed": 42,
+    "batch_size": 10000,
+    "compression_enabled": true,
+    "max_threads": "16"
+  },
+  "statistics": {
+    "total_events_generated": 0,
+    "events_by_type": {},
+    "events_by_year": {},
+    "processing_time_by_year": {},
+    "memory_usage_peak_mb": 0.0
+  },
+  "performance_metrics": {
+    "target_performance": "\u226460s for 5k\u00d75 years",
+    "achieved_performance": "0.1s for 0 years",
+    "performance_ratio": 0.0013324300448099772,
+    "memory_efficient": true,
+    "meets_target": false
+  }
+}
