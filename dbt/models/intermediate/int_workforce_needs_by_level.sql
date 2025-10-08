@@ -31,12 +31,12 @@ workforce_by_level AS (
     -- For first year, all employees are considered experienced
     COUNT(*) AS experienced_headcount,
     0 AS new_hire_headcount,
-    AVG(employee_compensation) AS avg_compensation,
-    SUM(employee_compensation) AS total_compensation,
-    MIN(employee_compensation) AS min_compensation,
-    MAX(employee_compensation) AS max_compensation,
-    PERCENTILE_CONT(0.5) WITHIN GROUP (ORDER BY employee_compensation) AS median_compensation,
-    STDDEV(employee_compensation) AS compensation_std_dev
+    CAST(AVG(employee_compensation) AS DOUBLE) AS avg_compensation,
+    CAST(SUM(employee_compensation) AS DOUBLE) AS total_compensation,
+    CAST(MIN(employee_compensation) AS DOUBLE) AS min_compensation,
+    CAST(MAX(employee_compensation) AS DOUBLE) AS max_compensation,
+    CAST(PERCENTILE_CONT(0.5) WITHIN GROUP (ORDER BY employee_compensation) AS DOUBLE) AS median_compensation,
+    CAST(STDDEV(employee_compensation) AS DOUBLE) AS compensation_std_dev
   FROM {{ ref('int_employee_compensation_by_year') }}
   WHERE simulation_year = {{ simulation_year }}
     AND employment_status = 'active'
@@ -49,9 +49,9 @@ termination_by_level AS (
     wbl.level_id,
     wbl.experienced_headcount,
     -- Apply level-specific termination rates if available, otherwise use overall rate
-    wbl.experienced_headcount * wns.experienced_termination_rate AS expected_terminations_decimal,
-    ROUND(wbl.experienced_headcount * wns.experienced_termination_rate) AS expected_terminations,
-    ROUND(wbl.experienced_headcount * wns.experienced_termination_rate) * wbl.avg_compensation AS termination_compensation_cost
+    CAST(wbl.experienced_headcount * wns.experienced_termination_rate AS DOUBLE) AS expected_terminations_decimal,
+    CAST(ROUND(wbl.experienced_headcount * wns.experienced_termination_rate) AS INTEGER) AS expected_terminations,
+    CAST(ROUND(wbl.experienced_headcount * wns.experienced_termination_rate) * wbl.avg_compensation AS DOUBLE) AS termination_compensation_cost
   FROM workforce_by_level wbl
   CROSS JOIN workforce_needs_summary wns
 ),
