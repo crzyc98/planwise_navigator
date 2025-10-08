@@ -77,10 +77,21 @@ planwise = "planwise_cli.main:cli_main"
 requires = ["setuptools>=61.0"]
 build-backend = "setuptools.build_meta"
 
-[tool.setuptools.packages.find]
-where = ["."]
-include = ["navigator_orchestrator*", "planwise_cli*", "config*"]
-exclude = ["tests*", "docs*", "scripts*", "dbt*", "streamlit_dashboard*"]
+[tool.setuptools]
+packages = [
+    "navigator_orchestrator",
+    "navigator_orchestrator.pipeline",
+    "planwise_cli",
+    "planwise_cli.commands",
+    "planwise_cli.integration",
+    "planwise_cli.ui",
+    "planwise_cli.utils",
+    "config",
+]
+
+[tool.setuptools.package-data]
+navigator_orchestrator = ["py.typed"]
+config = ["*.yaml", "*.yml"]
 
 [tool.pytest.ini_options]
 # Exclude third-party packages and non-test directories
