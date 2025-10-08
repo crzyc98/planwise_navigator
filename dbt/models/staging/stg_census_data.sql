@@ -15,9 +15,9 @@ WITH raw_data AS (
   SELECT
       employee_id,
       employee_ssn,
-      employee_birth_date,
-      employee_hire_date,
-      employee_termination_date,
+      TRY_CAST(employee_birth_date AS DATE) AS employee_birth_date,
+      TRY_CAST(employee_hire_date AS DATE) AS employee_hire_date,
+      TRY_CAST(employee_termination_date AS DATE) AS employee_termination_date,
       employee_gross_compensation,
       active,
 
@@ -34,12 +34,12 @@ WITH raw_data AS (
       CAST(after_tax_contribution AS DECIMAL(12,2)) AS after_tax_contribution,
       CAST(employer_core_contribution AS DECIMAL(12,2)) AS employer_core_contribution,
       CAST(employer_match_contribution AS DECIMAL(12,2)) AS employer_match_contribution,
-      eligibility_entry_date,
+      TRY_CAST(eligibility_entry_date AS DATE) AS eligibility_entry_date,
 
       -- **FIX**: Add row_number for deduplication - prefer most recent hire_date
       ROW_NUMBER() OVER (
           PARTITION BY employee_id
-          ORDER BY employee_hire_date DESC, employee_gross_compensation DESC
+          ORDER BY TRY_CAST(employee_hire_date AS DATE) DESC, employee_gross_compensation DESC
       ) AS rn
 
   FROM read_parquet('{{ var("census_parquet_path") }}')
@@ -137,5 +137,4 @@ SELECT
     waiting_period_days,
     current_eligibility_status,
     employee_enrollment_date
-
 FROM eligibility_data

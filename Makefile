@@ -33,8 +33,27 @@ install-pyproject: ## Install using pyproject.toml (alternative method)
 	$(VENV)/bin/pre-commit install
 
 test: ## Run all tests
-	$(VENV)/bin/pytest tests/ -v --cov=planwise_navigator --cov-report=html
-	cd $(DBT_DIR) && $(VENV)/bin/dbt test
+	python -m pytest
+
+test-unit: ## Run fast unit tests only (<30s)
+	python -m pytest -m unit -v
+
+test-integration: ## Run integration tests only (<2min)
+	python -m pytest -m integration -v
+
+test-performance: ## Run performance benchmarks
+	python -m pytest -m performance -v --durations=10
+
+test-fast: ## Run all tests except slow ones
+	python -m pytest -m "not slow" -v
+
+test-coverage: ## Run tests with coverage report
+	python -m pytest --cov=navigator_orchestrator --cov=planwise_cli --cov=config \
+		--cov-report=html --cov-report=term
+	@echo "Coverage report: htmlcov/index.html"
+
+test-watch: ## Run tests in watch mode
+	ptw -- -m unit
 
 lint: ## Run linting checks
 	$(VENV)/bin/ruff check .

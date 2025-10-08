@@ -407,11 +407,11 @@ optimization:
 
   # Epic E068G: Polars bulk event factory configuration
   event_generation:
-    mode: "sql"  # Options: "sql", "polars"
+    mode: "polars"  # Options: "sql", "polars"
 
     # Polars-specific configuration
     polars:
-      enabled: false  # Enable Polars bulk event generation
+      enabled: true  # Enable Polars bulk event generation
       max_threads: 16  # Maximum threads for Polars (POLARS_MAX_THREADS)
       batch_size: 10000  # Employee batch size for processing
       output_path: "data/parquet/events"  # Output directory for Parquet files
