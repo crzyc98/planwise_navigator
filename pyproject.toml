@@ -27,6 +27,7 @@ dependencies = [
     "lz4>=4.3.3",
     "psutil>=5.9.0",
     "networkx>=3.0",
+    "matplotlib>=3.8.0",
 
     # Excel export dependencies
     "openpyxl>=3.1.0",
@@ -80,3 +81,71 @@ build-backend = "setuptools.build_meta"
 where = ["."]
 include = ["navigator_orchestrator*", "planwise_cli*", "config*"]
 exclude = ["tests*", "docs*", "scripts*", "dbt*", "streamlit_dashboard*"]
+
+[tool.pytest.ini_options]
+# Exclude third-party packages and non-test directories
+testpaths = ["tests"]
+norecursedirs = [
+    ".*",
+    "dbt",
+    "dbt_packages",
+    "venv",
+    ".venv",
+    "*.egg",
+    "dist",
+    "build",
+    "docs",
+    "scripts",
+    "streamlit_dashboard"
+]
+
+# Test discovery patterns
+python_files = ["test_*.py", "*_test.py"]
+python_classes = ["Test*"]
+python_functions = ["test_*"]
+
+# Console output
+console_output_style = "progress"
+addopts = [
+    "-ra",                    # Show summary of all test outcomes
+    "--strict-markers",       # Error on unregistered markers
+    "--strict-config",        # Error on config issues
+    "--showlocals",          # Show local variables in tracebacks
+    "--tb=short",            # Shorter traceback format
+    "-p no:warnings",        # Suppress warnings during collection
+]
+
+# Test markers
+markers = [
+    "unit: Fast unit tests for individual components",
+    "integration: Integration tests across components",
+    "performance: Performance and benchmarking tests",
+    "e2e: End-to-end workflow tests",
+    "edge_case: Edge case and boundary testing",
+    "error_handling: Error handling validation tests",
+    "slow: Slow running tests (>1 second)",
+    "stress: Stress tests for high-load scenarios",
+    "database: Tests requiring database access",
+    "asyncio: Async tests using asyncio event loop",
+]
+
+# Coverage options (when using pytest-cov)
+[tool.coverage.run]
+source = ["navigator_orchestrator", "planwise_cli", "config"]
+omit = [
+    "*/tests/*",
+    "*/venv/*",
+    "*/.venv/*",
+    "*/dbt/*",
+    "*/streamlit_dashboard/*",
+]
+
+[tool.coverage.report]
+exclude_lines = [
+    "pragma: no cover",
+    "def __repr__",
+    "raise AssertionError",
+    "raise NotImplementedError",
+    "if __name__ == .__main__.:",
+    "if TYPE_CHECKING:",
+]
