@@ -195,7 +195,17 @@ WITH all_events AS (
 -- Final selection with event sequencing for conflict resolution
 final_events AS (
   SELECT
-    CONCAT('EVT_', simulation_year, '_', LPAD(CAST(ROW_NUMBER() OVER (ORDER BY employee_id, event_type, effective_date) AS VARCHAR), 8, '0')) AS event_id,
+    -- BUGFIX: Use deterministic hash-based event_id to prevent duplicates
+    -- Hash combines all unique event attributes to guarantee uniqueness
+    'EVT_' || SUBSTR(MD5(
+      scenario_id || '_' ||
+      plan_design_id || '_' ||
+      employee_id || '_' ||
+      CAST(simulation_year AS VARCHAR) || '_' ||
+      event_type || '_' ||
+      CAST(effective_date AS VARCHAR) || '_' ||
+      COALESCE(CAST(compensation_amount AS VARCHAR), 'NULL')
+    ), 1, 24) AS event_id,
     scenario_id,
     plan_design_id,
     employee_id,
