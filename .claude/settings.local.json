@@ -73,7 +73,8 @@
       "Bash(.venv-test/bin/python:*)",
       "Bash(.venv-test/bin/pytest --version)",
       "Bash(pytest:*)",
-      "Bash(awk:*)"
+      "Bash(awk:*)",
+      "Bash(xargs:*)"
     ],
     "deny": [],
     "ask": []

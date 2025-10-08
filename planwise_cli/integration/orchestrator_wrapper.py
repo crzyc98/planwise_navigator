@@ -15,7 +15,7 @@ from typing import Any, Dict, Optional
 from navigator_orchestrator.checkpoint_manager import CheckpointManager
 from navigator_orchestrator.config import load_simulation_config
 from navigator_orchestrator.dbt_runner import DbtRunner
-from navigator_orchestrator.pipeline import PipelineOrchestrator
+from navigator_orchestrator.pipeline_orchestrator import PipelineOrchestrator
 from navigator_orchestrator.recovery_orchestrator import RecoveryOrchestrator
 from navigator_orchestrator.registries import RegistryManager
 from navigator_orchestrator.scenario_batch_runner import ScenarioBatchRunner

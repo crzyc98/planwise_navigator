@@ -12,7 +12,7 @@ from typing import Iterable, Optional
 
 from .config import SimulationConfig, load_simulation_config, get_database_path
 from .dbt_runner import DbtRunner
-from .pipeline import PipelineOrchestrator
+from .pipeline_orchestrator import PipelineOrchestrator
 from .registries import RegistryManager
 from .reports import MultiYearReporter
 from .utils import DatabaseConnectionManager

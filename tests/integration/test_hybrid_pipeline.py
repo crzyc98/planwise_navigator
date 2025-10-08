@@ -19,7 +19,7 @@ sys.path.insert(0, str(Path(__file__).parent.parent))
 
 from navigator_orchestrator.config import SimulationConfig, EventGenerationSettings, PolarsEventSettings
 from navigator_orchestrator.hybrid_performance_monitor import HybridPerformanceMonitor, EventGenerationMetrics
-from navigator_orchestrator.pipeline import PipelineOrchestrator
+from navigator_orchestrator.pipeline_orchestrator import PipelineOrchestrator
 
 
 class TestHybridPipelineConfiguration:
