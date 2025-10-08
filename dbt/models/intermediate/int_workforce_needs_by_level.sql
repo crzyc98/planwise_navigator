@@ -58,7 +58,7 @@ termination_by_level AS (
 
 -- Hiring distribution by level
 hiring_by_level AS (
-  -- Normalize target distribution across present levels and allocate hires using the largest remainder method
+  -- Allocate hires using deterministic largest-remainder logic with exact total reconciliation
   WITH level_weights AS (
     SELECT
       level_id,
@@ -72,52 +72,73 @@ hiring_by_level AS (
       END AS raw_weight
     FROM (SELECT DISTINCT level_id FROM workforce_by_level)
   ),
-  normalization AS (
-    SELECT SUM(raw_weight) AS total_weight FROM level_weights
+  level_stats AS (
+    SELECT
+      SUM(raw_weight) AS total_weight,
+      COUNT(*) AS level_count
+    FROM level_weights
   ),
   shares AS (
     SELECT
       lw.level_id,
-      CASE WHEN n.total_weight = 0 THEN 0.0 ELSE lw.raw_weight / n.total_weight END AS share
+      CASE
+        WHEN ls.total_weight > 0 THEN lw.raw_weight / ls.total_weight
+        WHEN ls.level_count > 0 THEN 1.0 / ls.level_count
+        ELSE 0.0
+      END AS share
     FROM level_weights lw
-    CROSS JOIN normalization n
+    CROSS JOIN level_stats ls
   ),
-  base_alloc AS (
+  share_bounds AS (
     SELECT
-      s.level_id,
-      s.share,
-      wns.total_hires_needed AS total_hires_needed,
-      FLOOR(wns.total_hires_needed * s.share) AS base_hires,
-      (wns.total_hires_needed * s.share) - FLOOR(wns.total_hires_needed * s.share) AS remainder
-    FROM shares s
-    CROSS JOIN workforce_needs_summary wns
+      level_id,
+      share,
+      SUM(share) OVER (ORDER BY level_id ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW) AS upper_bound
+    FROM shares
   ),
-  totals AS (
+  share_boundaries AS (
     SELECT
-      SUM(base_hires) AS sum_base,
-      MAX(total_hires_needed) AS total_hires_needed
-    FROM base_alloc
+      level_id,
+      share,
+      upper_bound,
+      LAG(upper_bound, 1, 0.0) OVER (ORDER BY level_id) AS lower_bound
+    FROM share_bounds
   ),
-  ranked AS (
+  total_requirements AS (
     SELECT
-      ba.*,
-      ROW_NUMBER() OVER (ORDER BY remainder DESC, level_id) AS remainder_rank
-    FROM base_alloc ba
+      CAST(COALESCE(MAX(wns.total_hires_needed), 0) AS BIGINT) AS total_hires_needed,
+      COALESCE(MAX(wns.new_hire_termination_rate), 0.0) AS new_hire_termination_rate
+    FROM workforce_needs_summary wns
+  ),
+  hire_slots AS (
+    SELECT
+      slots.slot_number,
+      (CAST(slots.slot_number AS DOUBLE) - 0.5) / NULLIF(tr.total_hires_needed, 0) AS slot_position
+    FROM total_requirements tr
+    CROSS JOIN LATERAL (
+      SELECT seq AS slot_number
+      FROM UNNEST(range(1, tr.total_hires_needed + 1)) AS r(seq)
+    ) slots
+  ),
+  allocated AS (
+    SELECT
+      sb.level_id,
+      COUNT(*) AS hires_needed
+    FROM hire_slots hs
+    JOIN share_boundaries sb
+      ON hs.slot_position > sb.lower_bound
+     AND hs.slot_position <= sb.upper_bound
+    GROUP BY sb.level_id
   )
   SELECT
-    r.level_id,
-    r.share AS hiring_distribution,
-    CAST(
-      r.base_hires + CASE WHEN r.remainder_rank <= (t.total_hires_needed - t.sum_base) THEN 1 ELSE 0 END
-      AS INTEGER
-    ) AS hires_needed,
+    sb.level_id,
+    sb.share AS hiring_distribution,
+    CAST(COALESCE(a.hires_needed, 0) AS INTEGER) AS hires_needed,
     -- New hire terminations by level
-    ROUND(
-      (r.base_hires + CASE WHEN r.remainder_rank <= (t.total_hires_needed - t.sum_base) THEN 1 ELSE 0 END) * wns.new_hire_termination_rate
-    ) AS expected_new_hire_terminations
-  FROM ranked r
-  CROSS JOIN totals t
-  CROSS JOIN workforce_needs_summary wns
+    ROUND(COALESCE(a.hires_needed, 0) * tr.new_hire_termination_rate) AS expected_new_hire_terminations
+  FROM share_boundaries sb
+  CROSS JOIN total_requirements tr
+  LEFT JOIN allocated a ON sb.level_id = a.level_id
 ),
 
 -- Compensation ranges and new hire costs
