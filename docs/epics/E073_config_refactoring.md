@@ -1,9 +1,11 @@
 # Epic E073: Config Module Refactoring
 
-**Status**: 🟢 READY TO IMPLEMENT
+**Status**: ⚠️ BLOCKED - TESTING REQUIRED (0% complete - not started)
 **Priority**: MEDIUM (Quality of Life)
-**Estimated Time**: 2-3 hours
+**Estimated Time**: 2-3 hours (refactoring) + 5-7 days (testing prerequisite)
 **Created**: 2025-10-07
+**Updated**: 2025-10-08 (clarified status after E075 completion)
+**Blocked By**: Inadequate test coverage (only 10% coverage, need 80%+)
 
 ---
 
@@ -484,26 +486,70 @@ config.require_identifiers()
 
 ## Risks & Mitigation
 
+### ⚠️ NEW RISK: Inadequate Test Coverage (CRITICAL)
+**Likelihood**: HIGH
+**Impact**: CRITICAL
+**Status**: **BLOCKING ISSUE** - Must be resolved before refactoring
+
+**Current State**:
+- Only **3 unit tests** exist for config module (~10% coverage)
+- **`to_dbt_vars()` is 90% untested** (977 lines, only 3 variables validated)
+- **Zero tests** for all validation methods
+- **Zero tests** for all property methods
+- **Zero tests** for backward compatibility scenarios
+- **27 files** across codebase depend on config module
+
+**Mitigation Strategy**:
+1. **Golden Master Testing** (CRITICAL):
+   - Capture `to_dbt_vars()` output for 10+ production configs before refactoring
+   - After refactoring, assert byte-for-byte equality
+   - Use snapshot testing for regression detection
+
+2. **Add Critical Path Tests** (5-7 days estimated):
+   - Test all validation methods: `validate_threading_configuration()`, `validate_e068c_configuration()`, `validate_production_configuration()`
+   - Test all property methods: `get_thread_count()`, `get_polars_settings()`, `is_polars_mode_enabled()`
+   - Test `to_dbt_vars()` exhaustively (all 90+ variable transformations)
+   - Test environment variable overrides (type coercion, edge cases)
+   - Test backward compatibility (legacy YAML formats, missing fields)
+
+3. **Integration Testing**:
+   - Run full multi-year simulation before/after refactoring
+   - Compare dbt variables JSON output (must be identical)
+   - Validate all 27 dependent files still work
+
+**Recommendation**:
+- **DO NOT PROCEED** with refactoring until test coverage reaches 80%+
+- **Estimated effort**: 5-7 days to develop comprehensive test suite
+- **Alternative**: Proceed with extreme caution and manual validation (higher risk)
+
+---
+
 ### Risk: Breaking existing imports
 **Likelihood**: LOW
 **Impact**: HIGH
-**Mitigation**: Comprehensive `__init__.py` re-exports preserve all existing imports. Test all imports before merging.
+**Mitigation**:
+- Comprehensive `__init__.py` re-exports preserve all existing imports
+- **Research complete**: All 12 public symbols identified and documented
+- **27 files analyzed**: Import patterns mapped across codebase
+- Test all imports before merging
 
 ### Risk: Circular import issues
-**Likelihood**: MEDIUM
+**Likelihood**: LOW (reduced from MEDIUM after analysis)
 **Impact**: MEDIUM
 **Mitigation**:
-- Use `TYPE_CHECKING` for type hints that cause circular imports
+- **Dependency analysis complete**: Clean unidirectional dependency graph confirmed
+- Only 1 circular import identified: `safety.py` → `backup_manager.py` (easily resolved with TYPE_CHECKING)
 - Keep `SimulationConfig` and `OrchestrationConfig` in `loader.py` (they depend on all other models)
-- Test imports in isolation for each module
+- Extract modules in correct order: base → compensation → enrollment → performance → safety → loader
 
 ### Risk: dbt vars mapping broken
-**Likelihood**: LOW
+**Likelihood**: MEDIUM (increased from LOW due to test coverage gap)
 **Impact**: CRITICAL
 **Mitigation**:
 - Keep `to_dbt_vars()` function completely unchanged (copy-paste)
-- Run integration test comparing dbt vars output before/after
+- **MANDATORY**: Run golden master test comparing dbt vars output before/after
 - Test full simulation to verify correct behavior
+- **New**: Add comprehensive unit tests for all 90+ variable transformations
 
 ### Risk: Performance regression
 **Likelihood**: LOW
@@ -724,4 +770,257 @@ Epic E073 delivers a focused, high-impact refactoring that improves developer ex
 | S073-09 | Validation & testing | 30 min | 2 | P0 |
 | **TOTAL** | **Complete refactoring** | **2.5-3 hours** | **21 points** | **MEDIUM** |
 
-**Ready to execute TODAY. All stories are well-defined, testable, and independent.**
+**⚠️ BLOCKED**: Cannot execute until test coverage is adequate. See detailed research findings below.
+
+---
+
+## 🔍 RESEARCH FINDINGS (2025-10-07)
+
+### Comprehensive Analysis Completed
+
+Three specialized agents performed deep analysis of the codebase to validate the refactoring approach:
+
+1. **Config Structure Analysis Agent** - Analyzed 1,209-line config.py
+2. **Backward Compatibility Agent** - Mapped all 27 dependent files
+3. **Test Coverage Analysis Agent** - Assessed testing readiness
+
+---
+
+### Key Findings Summary
+
+#### ✅ STRUCTURAL ANALYSIS (COMPLETE)
+
+**Config.py Breakdown by Target Module:**
+- `base.py`: ~80 lines (lines 21-46)
+  - `get_database_path()` function
+  - `SimulationSettings` model
+- `compensation.py`: ~100 lines (lines 49-74)
+  - 3 Pydantic models (PromotionCompensationSettings, CompensationSettings, WorkforceSettings)
+- `enrollment.py`: ~240 lines (lines 77-150)
+  - 11 Pydantic models (AutoEnrollment, OptOut, Proactive, Eligibility, EmployerMatch)
+- `performance.py`: ~450 lines (lines 153-373)
+  - 13 Pydantic models with complex validation methods
+  - Threading, Polars, AdaptiveMemory, ResourceManager settings
+- `safety.py`: ~180 lines (lines 375-410, 979-1054, 1106-1126)
+  - ProductionSafetySettings
+  - validate_production_configuration() (76 lines)
+  - get_backup_configuration()
+- `loader.py`: ~600 lines (lines 413-621, 623-976, 1056-1208)
+  - SimulationConfig and OrchestrationConfig (top-level models)
+  - load_simulation_config()
+  - **to_dbt_vars()** - 354 lines (CRITICAL FUNCTION)
+  - load_orchestration_config()
+  - create_example_orchestration_config()
+
+**Dependency Graph:**
+```
+base.py (no dependencies)
+  ↑
+  ├── compensation.py (no dependencies)
+  ├── enrollment.py (no dependencies)
+  ├── performance.py (no dependencies)
+  ├── safety.py (imports base.py)
+  └── loader.py (imports ALL above)
+```
+
+**Circular Import Risk**: ✅ **MINIMAL**
+- Only 1 identified: `safety.py` → `backup_manager.py`
+- **Resolution**: Use `TYPE_CHECKING` guard (standard pattern)
+
+---
+
+#### ✅ BACKWARD COMPATIBILITY ANALYSIS (COMPLETE)
+
+**Public API Symbols (12 total):**
+
+| Symbol | Usage Count | Import Priority |
+|--------|-------------|-----------------|
+| `get_database_path` | 14 files | **CRITICAL** ⚠️ Missing from current exports |
+| `SimulationConfig` | 7 files | High |
+| `load_simulation_config` | 7 files | High |
+| `ThreadingSettings` | 4 files | Medium |
+| `ResourceManagerSettings` | 4 files | Medium |
+| `ModelParallelizationSettings` | 4 files | Medium |
+| `to_dbt_vars` | 1 file | High (critical function) |
+| `SimulationSettings` | 1 file | Low |
+| `CompensationSettings` | 1 file | Low |
+| `EnrollmentSettings` | 1 file | Low |
+| `EventGenerationSettings` | 1 file | Low |
+| `PolarsEventSettings` | 1 file | Low |
+
+**Files Affected (27 total):**
+- Core orchestrator: 8 files
+- Tests: 13 files
+- Scripts: 4 files
+- Streamlit dashboards: 3 files
+- CLI: 1 file
+
+**Critical Finding**:
+- `get_database_path()` is used by **14 files** but is **NOT in current `__all__` export list**
+- All other public symbols are properly exported
+
+**High-Priority Files for Optional Import Optimization (S073-08):**
+1. `tests/performance/test_threading_comprehensive.py` - 5 symbols
+2. `tests/unit/orchestrator/test_pipeline.py` - 4 symbols
+3. `tests/performance/test_e067_threading_benchmarks.py` - 4 symbols
+4. `tests/performance/test_resource_validation.py` - 3 symbols
+5. `tests/stress/test_e067_threading_stress.py` - 3 symbols
+
+---
+
+#### ⚠️ TEST COVERAGE ANALYSIS (CRITICAL GAPS IDENTIFIED)
+
+**Current Test Coverage: ~10%** (3 unit tests only)
+
+**Existing Tests** (`tests/unit/orchestrator/test_config.py`):
+1. `test_load_simulation_config_valid_yaml()` - Basic YAML loading ✅
+2. `test_environment_variable_overrides()` - Env var override mechanism ✅
+3. `test_dbt_var_mapping()` - **Spot-checks only 3 variables** ⚠️
+
+**Critical Untested Functionality:**
+
+1. **`to_dbt_vars()` Function** (977 lines) - **90% UNTESTED**
+   - Only 3 of 90+ variable transformations tested
+   - Untested critical logic:
+     - Employer match nested structure (lines 799-878)
+     - Employer core contribution (lines 909-974)
+     - Deferral escalation (lines 723-753)
+     - Opt-out rate calculations (lines 669-684)
+     - Promotion compensation mapping (lines 881-893)
+     - E068C threading variables (lines 894-898)
+     - Census parquet path resolution (lines 766-796)
+     - Exception handling for legacy configs (5 try-except blocks)
+
+2. **Validation Methods** - **0% TESTED**
+   - `validate_threading_configuration()` - Used by scenario_batch_runner
+   - `validate_e068c_configuration()` - Complex boundary checks
+   - `validate_production_configuration()` - Database/disk validation
+   - `ThreadingSettings.validate_thread_count()` - Performance critical
+   - `EventGenerationSettings.validate_mode()` - Polars/SQL switching
+
+3. **Property Methods** - **0% TESTED**
+   - `get_thread_count()` - Used by orchestrator
+   - `get_e068c_threading_config()` - Threading extraction
+   - `get_event_shards()` - Event sharding logic
+   - `get_max_parallel_years()` - Multi-year orchestration
+   - `get_event_generation_mode()` - Mode detection
+   - `get_polars_settings()` - Polars configuration
+   - `is_polars_mode_enabled()` - Boolean logic
+
+4. **Environment Variable Overrides** - **PARTIALLY TESTED**
+   - ✅ Basic override functionality tested
+   - ❌ Type coercion edge cases (invalid integers, floats)
+   - ❌ Boolean parsing variants ("TRUE", "True", "1")
+   - ❌ Nested path resolution errors
+   - ❌ Invalid environment variable formats
+
+5. **Backward Compatibility** - **0% TESTED**
+   - ❌ Legacy YAML configuration formats
+   - ❌ Missing optional fields handling
+   - ❌ Unknown extra fields (`ConfigDict(extra="allow")`)
+   - ❌ Migration scenarios
+
+6. **Database Path Management** - **0% TESTED**
+   - ❌ Environment variable handling
+   - ❌ Parent directory creation logic
+   - ❌ Path resolution behavior
+
+**Integration Test Coverage:**
+- `tests/integration/test_hybrid_pipeline.py` - Tests config indirectly
+- `tests/performance/*` - Tests threading config indirectly
+- **No dedicated config integration tests**
+
+---
+
+### Recommended Action Plan
+
+#### Option A: Safe Approach (RECOMMENDED) ✅
+
+**Phase 1: Test Development (5-7 days)**
+1. Implement golden master testing for `to_dbt_vars()`
+   - Capture output for 10+ production configs
+   - Assert byte-for-byte equality after refactoring
+2. Add comprehensive unit tests (30-50 tests):
+   - All validation methods
+   - All property methods
+   - Environment variable edge cases
+   - Backward compatibility scenarios
+3. Add integration tests:
+   - Full simulation before/after comparison
+   - dbt variables JSON validation
+   - Config loading error scenarios
+
+**Phase 2: Refactoring (2-3 hours)**
+1. Execute S073-01 through S073-07 with high confidence
+2. Validate with comprehensive test suite
+3. Compare golden master outputs
+
+**Total Timeline:** 6-8 days
+**Risk Level:** LOW
+**Confidence:** HIGH
+
+---
+
+#### Option B: Proceed Now with Rigorous Validation (HIGHER RISK) ⚠️
+
+**Immediate Actions:**
+1. **Before Refactoring:**
+   - Capture `to_dbt_vars()` output for 10+ configs (baseline)
+   - Run full multi-year simulation (capture all outputs)
+   - Document current behavior thoroughly
+
+2. **During Refactoring:**
+   - Copy `to_dbt_vars()` exactly (no modifications)
+   - Extract modules in precise order: base → compensation → enrollment → performance → safety → loader
+   - Test imports after each module extraction
+
+3. **After Refactoring:**
+   - Compare `to_dbt_vars()` output byte-for-byte (MUST match)
+   - Run full multi-year simulation (compare all outputs)
+   - Manual regression testing on all 27 dependent files
+   - Test all 12 public API imports
+
+**Total Timeline:** 1 day (refactoring + validation)
+**Risk Level:** MEDIUM-HIGH
+**Confidence:** MEDIUM
+
+---
+
+#### Option C: Hybrid Approach ⚡
+
+**Minimal Critical Testing + Refactoring (2-3 days)**
+1. Day 1: Add critical tests only
+   - Golden master test for `to_dbt_vars()` (essential)
+   - Validation methods tests (high-risk areas)
+   - Import compatibility tests
+2. Day 2: Execute refactoring with continuous validation
+3. Day 3: Manual regression testing + simulation comparison
+
+**Total Timeline:** 3 days
+**Risk Level:** MEDIUM
+**Confidence:** MEDIUM-HIGH
+
+---
+
+### Decision Required
+
+**Question for Product Owner/Tech Lead:**
+
+Which approach should we take?
+
+1. **Safe Approach (6-8 days)** - Comprehensive testing first, then refactor ✅ RECOMMENDED
+2. **Proceed Now (1 day)** - Refactor with rigorous manual validation ⚠️ HIGHER RISK
+3. **Hybrid (3 days)** - Minimal critical tests + refactoring ⚡ BALANCED
+
+**Recommendation**: **Option A (Safe Approach)** given:
+- Only 10% current test coverage
+- 27 files depend on config module
+- `to_dbt_vars()` is 977 lines with 90% untested
+- Config is critical foundation for entire simulation platform
+
+**Rationale**: Investment in comprehensive testing provides:
+- ✅ Confidence in refactoring safety
+- ✅ Foundation for future config changes
+- ✅ Documentation through tests
+- ✅ Regression prevention
+- ✅ Faster future development (tests enable safe iteration)

@@ -117,14 +117,33 @@ addopts = [
 
 # Test markers
 markers = [
-    "unit: Fast unit tests for individual components",
-    "integration: Integration tests across components",
-    "performance: Performance and benchmarking tests",
+    # Execution speed markers
+    "fast: Fast unit tests (<1s each)",
+    "slow: Slow integration tests (1-10s each)",
+    "very_slow: E2E tests (10s+ each)",
+
+    # Test type markers
+    "unit: Pure unit tests (no I/O)",
+    "integration: Integration tests (database, dbt)",
     "e2e: End-to-end workflow tests",
+
+    # Feature area markers
+    "orchestrator: Orchestrator component tests",
+    "events: Event schema tests",
+    "dbt: dbt integration tests",
+    "cli: CLI command tests",
+    "threading: Multi-threading tests",
+    "config: Configuration validation tests",
+
+    # Quality markers
+    "smoke: Critical path smoke tests",
+    "regression: Regression test suite",
+    "performance: Performance and benchmarking tests",
+    "stress: Stress tests for high-load scenarios",
+
+    # Legacy markers
     "edge_case: Edge case and boundary testing",
     "error_handling: Error handling validation tests",
-    "slow: Slow running tests (>1 second)",
-    "stress: Stress tests for high-load scenarios",
     "database: Tests requiring database access",
     "asyncio: Async tests using asyncio event loop",
 ]
@@ -141,6 +160,9 @@ omit = [
 ]
 
 [tool.coverage.report]
+precision = 2
+show_missing = true
+skip_covered = false
 exclude_lines = [
     "pragma: no cover",
     "def __repr__",

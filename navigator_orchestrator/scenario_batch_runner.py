@@ -25,7 +25,7 @@ import yaml
 
 from .config import SimulationConfig, load_simulation_config
 from .excel_exporter import ExcelExporter
-from .pipeline import PipelineOrchestrator
+from .pipeline_orchestrator import PipelineOrchestrator
 from .utils import DatabaseConnectionManager, ExecutionMutex
 
 

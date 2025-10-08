@@ -26,13 +26,31 @@ def pytest_collection_modifyitems(config, items):
         # Add markers based on test file paths
         if "/unit/" in item.nodeid:
             item.add_marker(pytest.mark.unit)
+            item.add_marker(pytest.mark.fast)  # Unit tests are fast by default
         elif "/integration/" in item.nodeid:
             item.add_marker(pytest.mark.integration)
+            item.add_marker(pytest.mark.slow)
+        elif "/e2e/" in item.nodeid:
+            item.add_marker(pytest.mark.e2e)
+            item.add_marker(pytest.mark.very_slow)
         elif "/performance/" in item.nodeid:
             item.add_marker(pytest.mark.performance)
             item.add_marker(pytest.mark.slow)
         elif "/stress/" in item.nodeid:
-            item.add_marker(pytest.mark.slow)
+            item.add_marker(pytest.mark.stress)
+            item.add_marker(pytest.mark.very_slow)
+
+        # Add feature area markers
+        if "/events/" in item.nodeid:
+            item.add_marker(pytest.mark.events)
+        if "/orchestrator/" in item.nodeid:
+            item.add_marker(pytest.mark.orchestrator)
+        if "/cli/" in item.nodeid:
+            item.add_marker(pytest.mark.cli)
+        if "threading" in item.nodeid.lower():
+            item.add_marker(pytest.mark.threading)
+        if "config" in item.nodeid.lower():
+            item.add_marker(pytest.mark.config)
 
         # Add database marker for tests requiring DB
         if "database" in item.nodeid or "dbt" in item.nodeid:

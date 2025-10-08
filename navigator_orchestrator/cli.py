@@ -15,7 +15,7 @@ from typing import Optional
 from .checkpoint_manager import CheckpointManager
 from .config import load_simulation_config
 from .dbt_runner import DbtRunner
-from .pipeline import PipelineOrchestrator
+from .pipeline_orchestrator import PipelineOrchestrator
 from .recovery_orchestrator import RecoveryOrchestrator
 from .registries import RegistryManager
 from .scenario_batch_runner import ScenarioBatchRunner
