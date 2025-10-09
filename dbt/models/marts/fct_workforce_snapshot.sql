@@ -49,6 +49,7 @@ base_workforce AS (
         termination_date,
         employment_status
     FROM {{ ref('int_active_employees_prev_year_snapshot') }}
+    WHERE simulation_year = {{ simulation_year }}
     {% endif %}
 ),
 

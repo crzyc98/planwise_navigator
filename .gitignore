@@ -263,3 +263,7 @@ seed.txt
 batch_summary.json
 summary.json
 performance.json
+
+# Data files (census data, input files)
+data/
+/data/

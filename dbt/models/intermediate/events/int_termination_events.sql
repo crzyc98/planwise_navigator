@@ -29,19 +29,35 @@ active_workforce AS (
     -- are selected only from prior-year active employees. This keeps
     -- experienced terminations aligned with workforce needs targets and avoids
     -- overlap with new-hire terminations.
+    {% if simulation_year == start_year %}
+    -- **Year 1**: Use baseline workforce (no helper model exists yet)
     SELECT
         employee_id,
         employee_ssn,
         employee_hire_date,
-        employee_compensation AS employee_gross_compensation,
+        current_compensation AS employee_gross_compensation,
         current_age,
         current_tenure,
         level_id,
         'experienced' AS employee_type
-    FROM {{ ref('int_employee_compensation_by_year') }}
+    FROM {{ ref('int_baseline_workforce') }}
     WHERE simulation_year = {{ simulation_year }}
       AND employment_status = 'active'
-      AND employee_hire_date < CAST('{{ simulation_year }}-01-01' AS DATE)
+    {% else %}
+    -- **Year 2+**: Use helper model to avoid circular dependency and get clean previous year snapshot
+    SELECT
+        employee_id,
+        employee_ssn,
+        employee_hire_date,
+        employee_gross_compensation,
+        current_age,
+        current_tenure,
+        level_id,
+        'experienced' AS employee_type
+    FROM {{ ref('int_active_employees_prev_year_snapshot') }}
+    WHERE simulation_year = {{ simulation_year }}
+      AND employment_status = 'active'
+    {% endif %}
 ),
 
 workforce_with_bands AS (
@@ -137,7 +153,6 @@ final_result AS (
     NULL AS event_probability,  -- E077: No probability, deterministic selection
     'termination' AS event_category
   FROM final_experienced_terminations fet
-  CROSS JOIN workforce_needs wn
 )
 
 SELECT * FROM final_result
