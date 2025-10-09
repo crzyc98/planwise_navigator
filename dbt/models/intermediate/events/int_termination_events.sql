@@ -68,34 +68,34 @@ workforce_with_bands AS (
 ),
 
 
--- SIMPLIFIED APPROACH: Use basic probability-based selection
-eligible_for_termination AS (
+-- E077: Per-Level Termination Quotas (ADR E077-B & E077-C)
+level_termination_quotas AS (
     SELECT
-        w.*,
-        wn.experienced_termination_rate AS termination_rate,
-        -- Generate deterministic random number for probability comparison
-        (ABS(HASH(w.employee_id)) % 1000) / 1000.0 AS random_value
-    FROM workforce_with_bands w
-    CROSS JOIN workforce_needs wn
+        level_id,
+        expected_terminations AS level_quota
+    FROM {{ ref('int_workforce_needs_by_level') }}
+    WHERE simulation_year = {{ simulation_year }}
+      AND scenario_id = '{{ var('scenario_id', 'default') }}'
 ),
 
--- SOPHISTICATED APPROACH: Hazard-based terminations + quota gap-filling to achieve target from workforce needs
+-- E077: Deterministic selection with hash-based ranking (ADR E077-C)
+workforce_with_ranking AS (
+    SELECT
+        w.*,
+        -- Deterministic hash (no floating point)
+        HASH(w.employee_id || '|' || {{ simulation_year }} || '|TERMINATION|{{ var('random_seed', 42) }}') % 1000000 AS selection_hash
+    FROM workforce_with_bands w
+),
+
+-- E077: Select exactly level_quota employees per level
 final_experienced_terminations AS (
-    -- Use centralized target from workforce needs
-    WITH target_calculation AS (
-        SELECT expected_experienced_terminations AS target_count
-        FROM workforce_needs
-    )
     SELECT
         w.employee_id,
         w.employee_ssn,
         'termination' AS event_type,
         {{ simulation_year }} AS simulation_year,
         (CAST('{{ simulation_year }}-01-01' AS DATE) + INTERVAL ((ABS(HASH(w.employee_id)) % 365)) DAY) AS effective_date,
-        CASE
-            WHEN e.random_value IS NOT NULL AND e.random_value < e.termination_rate THEN 'hazard_termination'
-            ELSE 'gap_filling_termination'
-        END AS termination_reason,
+        'deterministic_termination' AS termination_reason,
         w.employee_gross_compensation AS final_compensation,
         w.current_age,
         w.current_tenure,
@@ -103,26 +103,20 @@ final_experienced_terminations AS (
         w.age_band,
         w.tenure_band,
         w.employee_type,
-        COALESCE(e.termination_rate, 0.0) AS termination_rate,
-        COALESCE(e.random_value, (ABS(HASH(w.employee_id)) % 1000) / 1000.0) AS random_value,
-        CASE
-            WHEN e.random_value IS NOT NULL AND e.random_value < e.termination_rate THEN 'hazard_termination'
-            ELSE 'gap_filling'
-        END AS termination_type
-    FROM workforce_with_bands w
-    LEFT JOIN eligible_for_termination e ON w.employee_id = e.employee_id
-    CROSS JOIN target_calculation
-    -- FIXED: Apply only to experienced employees (previous year new hires handled separately)
-    WHERE w.employee_type = 'experienced'
+        lq.level_quota,
+        w.selection_hash
+    FROM workforce_with_ranking w
+    JOIN level_termination_quotas lq ON w.level_id = lq.level_id
+    -- E077: Deterministic selection with employee_id tiebreaker
     QUALIFY ROW_NUMBER() OVER (
+        PARTITION BY w.level_id
         ORDER BY
-            -- Prioritize hazard-based terminations first
-            CASE WHEN e.random_value IS NOT NULL AND e.random_value < e.termination_rate THEN 0 ELSE 1 END,
-            COALESCE(e.random_value, (ABS(HASH(w.employee_id)) % 1000) / 1000.0)
-    ) <= target_calculation.target_count
+            w.selection_hash,    -- Primary: deterministic hash
+            w.employee_id        -- Tiebreaker: unique ID for full determinism
+    ) <= lq.level_quota
 ),
 
--- Return the hazard-based terminations with workforce planning reference
+-- E077: Return deterministic terminations with workforce planning reference
 final_result AS (
   SELECT
     fet.employee_id,
@@ -130,7 +124,7 @@ final_result AS (
     fet.event_type,
     fet.simulation_year,
     fet.effective_date,
-    'Termination - ' || fet.termination_reason || ' (final compensation: $' || CAST(ROUND(fet.final_compensation, 0) AS VARCHAR) || ')' AS event_details,
+    'Termination - ' || fet.termination_reason || ' (level: ' || fet.level_id || ', hash: ' || fet.selection_hash || ', final compensation: $' || CAST(ROUND(fet.final_compensation, 0) AS VARCHAR) || ')' AS event_details,
     fet.final_compensation AS compensation_amount,
     fet.final_compensation AS previous_compensation,
     NULL::DECIMAL(5,4) AS employee_deferral_rate,
@@ -140,7 +134,7 @@ final_result AS (
     fet.level_id,
     fet.age_band,
     fet.tenure_band,
-    fet.termination_rate AS event_probability,
+    NULL AS event_probability,  -- E077: No probability, deterministic selection
     'termination' AS event_category
   FROM final_experienced_terminations fet
   CROSS JOIN workforce_needs wn
