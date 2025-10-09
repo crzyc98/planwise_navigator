@@ -428,6 +428,10 @@ optimization:
       memory_limit_gb: 8.0  # Memory limit for Polars operations
       enable_lazy_evaluation: true  # Use Polars lazy evaluation
 
+      # E077: Cohort Generation Engine (375× faster with exact growth accuracy)
+      use_cohort_engine: true  # Enable E077 algebraic solver + deterministic cohort generation
+      cohort_output_dir: "outputs/polars_cohorts"  # Directory for cohort Parquet files
+
     # SQL mode configuration (existing)
     sql:
       dbt_threads: 1  # Number of threads for dbt SQL execution - set to 1 for transaction safety

@@ -194,7 +194,7 @@ class EventGenerationExecutor:
             - Collects performance statistics for monitoring
         """
         try:
-            from .polars_event_factory import PolarsEventGenerator, EventFactoryConfig
+            from ..polars_event_factory import PolarsEventGenerator, EventFactoryConfig
         except ImportError as e:
             if fallback:
                 raise ImportError(f"Polars event factory not available for fallback: {e}")

@@ -1,5 +1,8 @@
 {{ config(
-    materialized='table',
+    materialized='incremental',
+    incremental_strategy='delete+insert',
+    unique_key=['employee_id', 'simulation_year'],
+    on_schema_change='sync_all_columns',
     indexes=[
         {'columns': ['employee_id']},
         {'columns': ['simulation_year']}
@@ -17,6 +20,10 @@
   **COMPENSATION FIX**: Uses full_year_equivalent_compensation instead of current_compensation
   to ensure workforce state transitions maintain correct compensation continuity.
   This fixes the promotion events compensation state management issue.
+
+  **E077 FIX**: Changed from table to incremental materialization to prevent race condition
+  where Year N+1 helper model reads Year N snapshot before it's fully materialized.
+  This ensures data persists across years and prevents year-over-year data loss.
 
   V2 Fix: Uses a dynamic relation reference (`adapter.get_relation`) instead of a static
   `ref()` to prevent dbt's parser from detecting a false circular dependency.
@@ -112,6 +119,9 @@ enriched_snapshot as (
 select *
 from enriched_snapshot
 where data_quality_valid = true
+{% if is_incremental() %}
+  and simulation_year = {{ simulation_year }}
+{% endif %}
 
 {% else %}
 

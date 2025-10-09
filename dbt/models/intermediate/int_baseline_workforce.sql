@@ -26,7 +26,8 @@ SELECT
     stg.employee_gross_compensation AS current_compensation,
     -- Calculate age and tenure based on the simulation_effective_date
     EXTRACT(YEAR FROM '{{ simulation_effective_date_str }}'::DATE) - EXTRACT(YEAR FROM stg.employee_birth_date) AS current_age,
-    EXTRACT(YEAR FROM '{{ simulation_effective_date_str }}'::DATE) - EXTRACT(YEAR FROM stg.employee_hire_date) AS current_tenure,
+    -- **E077 FIX**: Floor tenure at 0 to prevent negative values for employees hired after effective date
+    GREATEST(0, EXTRACT(YEAR FROM '{{ simulation_effective_date_str }}'::DATE) - EXTRACT(YEAR FROM stg.employee_hire_date)) AS current_tenure,
     -- Dynamically assign level_id with fallback for unmatched compensation ranges
     COALESCE(level_match.level_id, 1) AS level_id,
     -- Calculate age and tenure bands
@@ -39,10 +40,10 @@ SELECT
         ELSE '65+'
     END AS age_band,
     CASE
-        WHEN (EXTRACT(YEAR FROM '{{ simulation_effective_date_str }}'::DATE) - EXTRACT(YEAR FROM stg.employee_hire_date)) < 2 THEN '< 2'
-        WHEN (EXTRACT(YEAR FROM '{{ simulation_effective_date_str }}'::DATE) - EXTRACT(YEAR FROM stg.employee_hire_date)) < 5 THEN '2-4'
-        WHEN (EXTRACT(YEAR FROM '{{ simulation_effective_date_str }}'::DATE) - EXTRACT(YEAR FROM stg.employee_hire_date)) < 10 THEN '5-9'
-        WHEN (EXTRACT(YEAR FROM '{{ simulation_effective_date_str }}'::DATE) - EXTRACT(YEAR FROM stg.employee_hire_date)) < 20 THEN '10-19'
+        WHEN GREATEST(0, EXTRACT(YEAR FROM '{{ simulation_effective_date_str }}'::DATE) - EXTRACT(YEAR FROM stg.employee_hire_date)) < 2 THEN '< 2'
+        WHEN GREATEST(0, EXTRACT(YEAR FROM '{{ simulation_effective_date_str }}'::DATE) - EXTRACT(YEAR FROM stg.employee_hire_date)) < 5 THEN '2-4'
+        WHEN GREATEST(0, EXTRACT(YEAR FROM '{{ simulation_effective_date_str }}'::DATE) - EXTRACT(YEAR FROM stg.employee_hire_date)) < 10 THEN '5-9'
+        WHEN GREATEST(0, EXTRACT(YEAR FROM '{{ simulation_effective_date_str }}'::DATE) - EXTRACT(YEAR FROM stg.employee_hire_date)) < 20 THEN '10-19'
         ELSE '20+'
     END AS tenure_band,
     'active' AS employment_status,

@@ -74,7 +74,13 @@
       "Bash(.venv-test/bin/pytest --version)",
       "Bash(pytest:*)",
       "Bash(awk:*)",
-      "Bash(xargs:*)"
+      "Bash(xargs:*)",
+      "Bash(source:*)",
+      "Bash(wait)",
+      "Bash(pkill:*)",
+      "Bash(PYTHONPATH=. python -m navigator_orchestrator run --years 2025-2027 --threads 1 --verbose)",
+      "Bash(python3:*)",
+      "Bash(PYTHONPATH=. time python -m navigator_orchestrator run --years 2025-2027 --threads 1 --verbose)"
     ],
     "deny": [],
     "ask": []

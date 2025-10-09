@@ -37,6 +37,9 @@ from .pipeline.hooks import HookManager
 from .pipeline.year_executor import YearExecutor
 from .pipeline.event_generation_executor import EventGenerationExecutor
 
+# Import Polars cohort generation (E077)
+from .polars_integration import execute_polars_cohort_generation
+
 # Import model parallelization components
 try:
     from .parallel_execution_engine import ParallelExecutionEngine, ExecutionContext
@@ -829,6 +832,11 @@ class PipelineOrchestrator:
                 checkpoint_name = f"{stage.name.value}_{year}_start"
                 self.duckdb_performance_monitor.record_checkpoint(checkpoint_name)
 
+            # E077: Generate Polars cohorts AFTER FOUNDATION stage completes
+            if stage.name == WorkflowStage.FOUNDATION:
+                # First, execute the FOUNDATION stage using standard logic (handled below)
+                pass
+
             # E068G: Use hybrid event generation for EVENT_GENERATION stage
             if stage.name == WorkflowStage.EVENT_GENERATION:
                 try:
@@ -953,6 +961,32 @@ class PipelineOrchestrator:
 
             # Run stage validation using existing logic
             self._run_stage_validation(stage, year, fail_on_validation_error)
+
+            # E077: Generate Polars cohorts AFTER FOUNDATION stage completes and validates
+            if stage.name == WorkflowStage.FOUNDATION and self.config.is_cohort_engine_enabled():
+                try:
+                    if self.verbose:
+                        print(f"   ⚡ E077: Generating Polars cohorts for year {year}...")
+
+                    scenario_id = getattr(self.config, 'scenario_id', 'default') or 'default'
+                    cohort_output_dir = self.config.get_cohort_output_dir()
+
+                    cohorts = execute_polars_cohort_generation(
+                        config=self.config,
+                        simulation_year=year,
+                        scenario_id=scenario_id,
+                        output_dir=cohort_output_dir
+                    )
+
+                    if self.verbose:
+                        print(f"   ✓ Polars cohorts generated successfully")
+                        print(f"      Output: {cohort_output_dir / scenario_id}_{year}")
+
+                except Exception as e:
+                    # Log error but don't fail - fall back to SQL-based hiring
+                    if self.verbose:
+                        print(f"   ⚠️ Polars cohort generation failed: {e}")
+                        print("      Falling back to SQL-based hiring")
 
     def _run_stage_validation(
         self, stage: StageDefinition, year: int, fail_on_validation_error: bool

@@ -45,11 +45,11 @@ class PolarsIntegrationManager:
         self.output_dir.mkdir(parents=True, exist_ok=True)
 
         self.engine = WorkforcePlanningEngine(
-            random_seed=config.random_seed
+            random_seed=config.simulation.random_seed
         )
 
         logger.info(
-            f"Initialized Polars integration (random_seed={config.random_seed})"
+            f"Initialized Polars integration (random_seed={config.simulation.random_seed})"
         )
 
     def execute_year(
@@ -120,7 +120,7 @@ class PolarsIntegrationManager:
 
         try:
             # Determine source table based on year
-            start_year = self.config.start_year or simulation_year
+            start_year = self.config.simulation.start_year or simulation_year
 
             if simulation_year == start_year:
                 # Year 1: Use baseline workforce
@@ -143,7 +143,7 @@ class PolarsIntegrationManager:
                         employee_id,
                         employee_ssn,
                         level_id,
-                        employee_compensation,
+                        current_compensation AS employee_compensation,
                         current_age,
                         current_tenure
                     FROM fct_workforce_snapshot
@@ -151,7 +151,9 @@ class PolarsIntegrationManager:
                       AND employment_status = 'active'
                 """
 
-            df = conn.execute(query, [simulation_year]).pl()
+            # For Year N, read from Year N-1's snapshot
+            query_year = start_year if simulation_year == start_year else simulation_year - 1
+            df = conn.execute(query, [query_year]).pl()
             return df
 
         finally:
@@ -164,9 +166,9 @@ class PolarsIntegrationManager:
         """Calculate exact workforce needs using Polars engine."""
         needs = self.engine.calculate_exact_needs(
             starting_workforce=starting_workforce_count,
-            growth_rate=Decimal(str(self.config.target_growth_rate)),
-            exp_term_rate=Decimal(str(self.config.total_termination_rate)),
-            nh_term_rate=Decimal(str(self.config.new_hire_termination_rate))
+            growth_rate=Decimal(str(self.config.simulation.target_growth_rate)),
+            exp_term_rate=Decimal(str(self.config.workforce.total_termination_rate)),
+            nh_term_rate=Decimal(str(self.config.workforce.new_hire_termination_rate))
         )
 
         # Validate feasibility guards
