@@ -18,6 +18,17 @@ import yaml
 from pydantic import BaseModel, ConfigDict, Field, ValidationError
 
 
+def get_project_root() -> Path:
+    """Get project root directory (planwise_navigator/).
+
+    Returns:
+        Path: Absolute path to project root
+    """
+    # This file lives at navigator_orchestrator/config.py
+    # Project root is parent of navigator_orchestrator
+    return Path(__file__).resolve().parent.parent
+
+
 def get_database_path() -> Path:
     """Get standardized database path with environment variable support.
 
@@ -295,7 +306,7 @@ class OrchestratorSettings(BaseModel):
 
 
 class PolarsEventSettings(BaseModel):
-    """Polars event generation configuration for E068G"""
+    """Polars event generation configuration for E068G and E077"""
     enabled: bool = Field(default=False, description="Enable Polars-based event generation")
     max_threads: int = Field(default=16, ge=1, le=32, description="Maximum threads for Polars operations")
     batch_size: int = Field(default=10000, ge=1000, le=50000, description="Batch size for employee processing")
@@ -308,6 +319,10 @@ class PolarsEventSettings(BaseModel):
     streaming: bool = Field(default=True, description="Enable streaming mode")
     parallel_io: bool = Field(default=True, description="Enable parallel I/O operations")
     fallback_on_error: bool = Field(default=True, description="Fall back to SQL mode on Polars errors")
+
+    # E077: Cohort Generation Engine configuration
+    use_cohort_engine: bool = Field(default=False, description="Use E077 cohort generation engine (375× faster)")
+    cohort_output_dir: str = Field(default="outputs/polars_cohorts", description="Directory for cohort Parquet files")
 
 
 class EventGenerationSettings(BaseModel):
@@ -516,6 +531,16 @@ class SimulationConfig(BaseModel):
         """Check if Polars event generation mode is enabled and configured"""
         return (self.get_event_generation_mode() == "polars" and
                 self.get_polars_settings().enabled)
+
+    def is_cohort_engine_enabled(self) -> bool:
+        """Check if E077 Polars cohort generation engine is enabled"""
+        polars_settings = self.get_polars_settings()
+        return polars_settings.use_cohort_engine
+
+    def get_cohort_output_dir(self) -> Path:
+        """Get configured cohort output directory"""
+        polars_settings = self.get_polars_settings()
+        return get_project_root() / polars_settings.cohort_output_dir
 
     def validate_threading_configuration(self) -> None:
         """Validate threading configuration and log warnings"""
@@ -905,6 +930,10 @@ def to_dbt_vars(cfg: SimulationConfig) -> Dict[str, Any]:
     if event_gen_mode == "polars":
         dbt_vars["polars_output_path"] = polars_settings.output_path
         dbt_vars["polars_max_threads"] = polars_settings.max_threads
+
+    # E077: Polars cohort engine configuration
+    dbt_vars["use_polars_engine"] = cfg.is_cohort_engine_enabled()
+    dbt_vars["polars_cohort_dir"] = str(cfg.get_cohort_output_dir()) if cfg.is_cohort_engine_enabled() else "outputs/polars_cohorts"
 
     # Employer core contribution configuration
     # Map YAML employer_core_contribution block to dbt vars
