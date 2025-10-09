@@ -43,34 +43,87 @@ workforce_by_level AS (
   GROUP BY level_id
 ),
 
--- Termination distribution by level (using hazard rates if available)
+-- E077: Experienced Termination Quotas by Level (ADR E077-B with edge cases)
 termination_by_level AS (
+  WITH level_populations AS (
+    -- Get experienced employee counts by level (exclude empty levels)
+    SELECT
+      level_id,
+      experienced_headcount,
+      experienced_headcount * 1.0 / SUM(experienced_headcount) OVER () AS level_weight
+    FROM workforce_by_level
+    WHERE experienced_headcount > 0  -- Edge Case 2: Exclude empty levels
+  ),
+  fractional_allocation AS (
+    SELECT
+      lp.level_id,
+      lp.experienced_headcount,
+      lp.level_weight,
+      wns.expected_experienced_terminations,
+      wns.expected_experienced_terminations * lp.level_weight AS fractional_quota_uncapped,
+      -- Edge Case 1: Cap quota at available population
+      LEAST(
+        wns.expected_experienced_terminations * lp.level_weight,
+        lp.experienced_headcount
+      ) AS fractional_quota,
+      FLOOR(LEAST(
+        wns.expected_experienced_terminations * lp.level_weight,
+        lp.experienced_headcount
+      )) AS floor_quota,
+      (LEAST(
+        wns.expected_experienced_terminations * lp.level_weight,
+        lp.experienced_headcount
+      )) - FLOOR(LEAST(
+        wns.expected_experienced_terminations * lp.level_weight,
+        lp.experienced_headcount
+      )) AS fractional_remainder
+    FROM level_populations lp
+    CROSS JOIN workforce_needs_summary wns
+  ),
+  remainder_allocation AS (
+    SELECT
+      fa.level_id,
+      fa.experienced_headcount,
+      fa.floor_quota,
+      fa.fractional_remainder,
+      -- Edge Case 1: Only levels with available capacity can receive remainder
+      CASE WHEN fa.floor_quota < fa.experienced_headcount THEN 1 ELSE 0 END AS has_capacity,
+      ROW_NUMBER() OVER (
+        ORDER BY
+          CASE WHEN fa.floor_quota < fa.experienced_headcount THEN 1 ELSE 2 END,  -- Capacity first
+          fa.fractional_remainder DESC,  -- Then by remainder size (Edge Case 3)
+          fa.level_id ASC  -- Deterministic tiebreaker
+      ) AS remainder_rank,
+      (SELECT ANY_VALUE(expected_experienced_terminations) - SUM(floor_quota) FROM fractional_allocation) AS remainder_slots
+    FROM fractional_allocation fa
+  )
   SELECT
-    wbl.level_id,
-    wbl.experienced_headcount,
-    -- Apply level-specific termination rates if available, otherwise use overall rate
-    CAST(wbl.experienced_headcount * wns.experienced_termination_rate AS DOUBLE) AS expected_terminations_decimal,
-    CAST(ROUND(wbl.experienced_headcount * wns.experienced_termination_rate) AS INTEGER) AS expected_terminations,
-    CAST(ROUND(wbl.experienced_headcount * wns.experienced_termination_rate) * wbl.avg_compensation AS DOUBLE) AS termination_compensation_cost
-  FROM workforce_by_level wbl
-  CROSS JOIN workforce_needs_summary wns
+    ra.level_id,
+    ra.experienced_headcount,
+    -- Allocate remainder only to levels with capacity
+    ra.floor_quota + CASE
+      WHEN ra.has_capacity = 1 AND ra.remainder_rank <= ra.remainder_slots THEN 1
+      ELSE 0
+    END AS expected_terminations,
+    -- Compensation cost
+    (ra.floor_quota + CASE
+      WHEN ra.has_capacity = 1 AND ra.remainder_rank <= ra.remainder_slots THEN 1
+      ELSE 0
+    END) * wbl.avg_compensation AS termination_compensation_cost
+  FROM remainder_allocation ra
+  JOIN workforce_by_level wbl ON ra.level_id = wbl.level_id
 ),
 
--- Hiring distribution by level
+-- E077: Hiring Quotas by Level (ADR E077-B with adaptive distribution)
 hiring_by_level AS (
-  -- Allocate hires using deterministic largest-remainder logic with exact total reconciliation
+  -- Allocate hires using adaptive distribution (matches actual workforce composition)
   WITH level_weights AS (
     SELECT
       level_id,
-      CASE
-        WHEN level_id = 1 THEN 0.40
-        WHEN level_id = 2 THEN 0.30
-        WHEN level_id = 3 THEN 0.20
-        WHEN level_id = 4 THEN 0.08
-        WHEN level_id = 5 THEN 0.02
-        ELSE 0.0
-      END AS raw_weight
-    FROM (SELECT DISTINCT level_id FROM workforce_by_level)
+      current_headcount,
+      current_headcount * 1.0 / SUM(current_headcount) OVER () AS raw_weight
+    FROM workforce_by_level
+    WHERE current_headcount > 0  -- Exclude empty levels for weight calculation
   ),
   level_stats AS (
     SELECT
