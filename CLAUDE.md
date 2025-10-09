@@ -4,7 +4,7 @@ A comprehensive, opinionated reference for generating enterprise-grade, producti
 
 -----
 
-### **1. Purpose**
+## **1. Purpose**
 
 This playbook tells Claude exactly how to turn high-level feature requests into ready-to-ship artifacts for PlanWise Navigator, Fidelity's on-premises workforce-simulation platform. Follow it verbatim to guarantee:
 
@@ -15,44 +15,55 @@ This playbook tells Claude exactly how to turn high-level feature requests into 
 
 -----
 
-### **2. System Overview**
+## **2. Technology Stack**
 
 | Layer | Technology | Version | Responsibility |
 | :--- | :--- | :--- | :--- |
 | **Storage** | DuckDB | 1.0.0 | Immutable event store; column-store OLAP engine |
 | **Transformation** | dbt-core | 1.8.8 | Declarative SQL models, tests, documentation |
 | **Adapter** | dbt-duckdb | 1.8.1 | Stable DuckDB integration |
-| **Orchestration** | navigator_orchestrator.pipeline | Modular | PipelineOrchestrator with staged workflow execution and checkpoint support |
-| **CLI Interface** | planwise_cli (Rich + Typer) | 1.0.0 | Beautiful terminal interface with progress tracking and enhanced UX |
+| **Orchestration** | navigator_orchestrator | Modular | PipelineOrchestrator with staged workflow execution |
+| **CLI Interface** | planwise_cli (Rich + Typer) | 1.0.0 | Beautiful terminal interface with progress tracking |
 | **Dashboard** | Streamlit | 1.39.0 | Interactive analytics and compensation tuning |
 | **Configuration** | Pydantic | 2.7.4 | Type-safe config management with validation |
-| **Parameters** | comp\_levers.csv | Dynamic | Analyst-adjustable compensation parameters |
 | **Python** | CPython | 3.11.x | Long-term support version |
-| **Context** | Context7 MCP | Latest | Extended context management and tool integration |
-
-\<details\>
-\<summary\>Multi-Year Simulation Pipeline\</summary\>
-
-```mermaid
-graph TD
-    config[config/simulation_config.yaml] --> orchestrator[navigator_orchestrator.pipeline.PipelineOrchestrator]
-    params[comp_levers.csv] --> parameters[int_effective_parameters]
-    census[census_raw] --> baseline[int_baseline_workforce]
-    orchestrator --> init[INITIALIZATION: staging.*]
-    init --> foundation[FOUNDATION: baseline + compensation + needs]
-    foundation --> events[EVENT_GENERATION: hire/term/promotion/merit/enrollment]
-    events --> state[STATE_ACCUMULATION: accumulators + snapshots]
-    state --> validation[VALIDATION: data quality checks]
-    validation --> reporting[REPORTING: audit + performance]
-    reporting --> tuning[Compensation Tuning UI]
-    tuning --> params
-```
-
-\</details\>
+| **Package Manager** | uv | Latest | 10-100× faster than pip |
 
 -----
 
-### **3. Event Sourcing Architecture**
+## **3. Quick Start**
+
+```bash
+# Environment setup with uv (10-100× faster than pip)
+uv venv .venv --python python3.11
+source .venv/bin/activate
+uv pip install -e ".[dev]"
+
+# Primary workflow - PlanWise CLI (Rich interface)
+planwise health                                 # System readiness check
+planwise simulate 2025-2027                     # Multi-year simulation
+planwise batch --scenarios baseline high_growth # Batch processing
+planwise status --detailed                      # Full system diagnostic
+
+# Development workflow
+planwise simulate 2025 --dry-run               # Preview execution plan
+planwise simulate 2025 --verbose               # Detailed logging
+planwise checkpoints list                      # View recovery points
+
+# dbt development (always from /dbt directory)
+cd dbt
+dbt build --threads 1 --fail-fast              # Build all models
+dbt run --select int_baseline_workforce+ --threads 1  # Incremental build
+dbt test --select tag:data_quality             # Run quality tests
+
+# Database access (Claude can execute these)
+duckdb dbt/simulation.duckdb "SELECT COUNT(*) FROM fct_yearly_events"
+duckdb dbt/simulation.duckdb "SHOW TABLES"
+```
+
+-----
+
+## **4. Event Sourcing Architecture**
 
 PlanWise Navigator implements enterprise-grade event sourcing with immutable audit trails.
 
@@ -70,16 +81,42 @@ PlanWise Navigator implements enterprise-grade event sourcing with immutable aud
   * **TERMINATION**: Employee departure with reason codes.
   * **PROMOTION**: Level/band changes with compensation adjustments.
   * **RAISE**: Salary modifications (COLA, merit, market adjustment).
-  * **BENEFIT\_ENROLLMENT**: Plan participation changes.
-  * **DC PLAN EVENTS** (S072-03): Eligibility, enrollment, contributions, vesting.
-  * **PLAN ADMINISTRATION EVENTS** (S072-04): Forfeitures, HCE determination, compliance monitoring.
+  * **BENEFIT_ENROLLMENT**: Plan participation changes.
+  * **DC_PLAN_ELIGIBILITY**: Retirement plan eligibility determination.
+  * **DC_PLAN_ENROLLMENT**: Retirement plan participation events.
+  * **DC_PLAN_CONTRIBUTION**: Employee/employer contribution events.
+  * **DC_PLAN_VESTING**: Vesting schedule progression.
+  * **FORFEITURE**: Plan administration forfeiture events.
+  * **HCE_STATUS**: Highly Compensated Employee determination.
 
-**Unified Event Model** (S072-01):
+**Event Creation Pattern (Pydantic v2)**:
 
-  * **SimulationEvent**: Core event model using Pydantic v2 with discriminated unions.
-  * **Required Context**: `scenario_id`, `plan_design_id` for proper event isolation.
-  * **EventFactory**: Type-safe event creation with comprehensive validation.
-  * **Performance**: \<5ms validation, 1000 events/second creation rate.
+```python
+from config.events import WorkforceEventFactory, DCPlanEventFactory
+from decimal import Decimal
+from datetime import date
+
+# Workforce events
+hire_event = WorkforceEventFactory.create_hire_event(
+    employee_id="EMP_2025_001",
+    scenario_id="baseline_2025",
+    plan_design_id="standard_401k",
+    hire_date=date(2025, 1, 15),
+    department="Engineering",
+    job_level=3,
+    annual_compensation=Decimal("125000.00")
+)
+
+# DC plan events
+enrollment_event = DCPlanEventFactory.create_enrollment_event(
+    employee_id="EMP_2025_001",
+    scenario_id="baseline_2025",
+    plan_design_id="standard_401k",
+    enrollment_date=date(2025, 2, 1),
+    deferral_rate=Decimal("0.06"),
+    investment_election={"target_date_2055": Decimal("1.0")}
+)
+```
 
 **Modular Engines**:
 
@@ -87,343 +124,86 @@ PlanWise Navigator implements enterprise-grade event sourcing with immutable aud
   * **Termination Engine**: Hazard-based turnover modeling.
   * **Hiring Engine**: Growth-driven recruitment with realistic sampling.
   * **Promotion Engine**: Band-aware advancement probabilities.
-  * **Parameter Engine**: Analyst-driven compensation tuning via `comp_levers.csv`.
-  * **DC Plan Engine**: Retirement plan contribution, vesting, and distribution modeling (S072-03).
-  * **Plan Administration Engine**: Forfeiture processing, HCE determination, and IRS compliance monitoring (S072-04).
-
-**Snapshot Reconstruction**: Any workforce state can be instantly reconstructed from the event log for historical analysis and scenario validation.
-
-Guidance: Avoid circular dependencies. Intermediate (`int_*`) models must not read from marts (`fct_*`). Use temporal accumulators (e.g., enrollment/deferral state) to carry state across years using only `int_*` sources.
+  * **DC Plan Engine**: Retirement plan contribution, vesting, and distribution modeling.
+  * **Plan Administration Engine**: Forfeiture processing, HCE determination, IRS compliance.
 
 -----
 
-### **4. Directory Layout**
+## **5. Directory Structure**
 
 ```
 planwise_navigator/
 ├─ navigator_orchestrator/           # Production orchestration engine
-│  ├─ pipeline.py                   # PipelineOrchestrator main class
+│  ├─ pipeline/                      # Modular pipeline components (E072)
+│  │  ├─ workflow.py                # Stage definitions and workflow building
+│  │  ├─ state_manager.py           # Checkpoint and state management
+│  │  ├─ year_executor.py           # Stage-by-stage execution orchestration
+│  │  ├─ event_generation_executor.py # Hybrid SQL/Polars event generation
+│  │  ├─ hooks.py                   # Extensible callback system
+│  │  └─ data_cleanup.py            # Database cleanup operations
+│  ├─ pipeline_orchestrator.py      # Main orchestrator (1,220 lines)
 │  ├─ config.py                     # SimulationConfig management
 │  ├─ dbt_runner.py                 # DbtRunner with streaming output
-│  ├─ registries.py                 # State management across years
-│  ├─ validation.py                 # Data quality validation
-│  └─ reports.py                    # Multi-year reporting
+│  ├─ exceptions.py                 # Enhanced error handling (E074)
+│  ├─ error_catalog.py              # Pattern-based error recognition
+│  └─ validation.py                 # Data quality validation
+├─ planwise_cli/                     # Rich-based CLI (primary interface)
+│  ├─ commands/                      # Command implementations
+│  │  ├─ simulate.py                # Multi-year simulation
+│  │  ├─ batch.py                   # Batch scenario processing
+│  │  ├─ status.py                  # System health and status
+│  │  └─ checkpoint.py              # Checkpoint management
+│  └─ main.py                       # CLI entry point
 ├─ dbt/                              # dbt project
 │  ├─ models/                        # SQL transformation models
-│  │  ├─ staging/                    # Raw data cleaning (stg_*)
-│  │  ├─ intermediate/               # Business logic (int_*)
-│  │  │  ├─ events/                 # Event generation models
-│  │  │  └─ int_enrollment_state_accumulator.sql # Temporal enrollment state
-│  │  │  └─ int_deferral_rate_state_accumulator.sql # Temporal deferral rate state
-│  │  └─ marts/                      # Final outputs (fct_*, dim_*)
-│  ├─ seeds/                         # Configuration data (CSV)
-│  └─ macros/                        # Reusable SQL functions
+│  │  ├─ staging/                   # Raw data cleaning (stg_*) - 17 models
+│  │  ├─ intermediate/              # Business logic (int_*) - 62 models
+│  │  │  ├─ events/                # Event generation models
+│  │  │  ├─ int_enrollment_state_accumulator.sql
+│  │  │  └─ int_deferral_rate_state_accumulator.sql
+│  │  └─ marts/                     # Final outputs (fct_*, dim_*) - 27 models
+│  ├─ seeds/                        # Configuration data (CSV)
+│  └─ macros/                       # Reusable SQL functions
 ├─ streamlit_dashboard/              # Interactive dashboard
 ├─ config/                           # Configuration management
 │  ├─ simulation_config.yaml        # Simulation parameters
-│  ├─ schema.py                     # Legacy event schema (Pydantic v1)
-│  └─ events.py                     # Unified event model (Pydantic v2)
-├─ shared_utils.py                   # Shared utilities and mutex handling
-├─ scripts/                          # Utility scripts
-├─ tests/                            # Comprehensive testing
+│  └─ events.py                     # Unified event model (Pydantic v2, 971 lines)
+├─ tests/                            # Comprehensive testing (256 tests)
+│  ├─ fixtures/                     # Centralized fixture library (E075)
+│  │  ├─ database.py               # In-memory, populated, isolated databases
+│  │  ├─ config.py                 # Test configurations
+│  │  ├─ mock_dbt.py               # Mock dbt runners
+│  │  └─ workforce_data.py         # Sample employees and events
+│  └─ test_*.py                     # Test modules
 ├─ data/                             # Raw input files (git-ignored)
-└─ dbt/simulation.duckdb              # DuckDB database file (standardized location)
+└─ dbt/simulation.duckdb             # DuckDB database file (standardized location)
 ```
 
 -----
 
-### **5. Naming and Coding Standards**
+## **6. Pipeline Orchestration (E072 - Modular Architecture)**
 
-#### **Naming Conventions**
+The pipeline was refactored from a 2,478-line monolith into 6 focused modules:
 
-  * **dbt models**: `tier_entity_purpose` (e.g., `fct_workforce_snapshot`, `int_termination_events`).
-  * **Event tables**: `fct_yearly_events` (immutable), `fct_workforce_snapshot` (point-in-time).
-  * **Modular operations**: `action_entity` (e.g., `clean_duckdb_data`, `run_year_simulation`).
-  * **Python orchestration**: `snake_case`, descriptive (e.g., `run_year_simulation`, `audit_year_results`).
-  * **Python**: PEP 8; mandatory type-hints; Pydantic models for config.
-  * **Configuration**: `snake_case` in YAML, hierarchical structure.
-
-#### **Coding Standards**
-
-  * **SQL (dbt)**: Use 2-space indents, uppercase keywords, and one clause per line. Avoid `SELECT *`. Use `{{ ref() }}` and CTEs for readability.
-  * **Python**: Keep functions under 40 lines. Raise explicit exceptions. Use Pydantic for data modeling.
-
-Do/Don't (DuckDB/dbt):
-- Do filter heavy models by `{{ var('simulation_year') }}` and join on `(scenario_id, plan_design_id, employee_id)` (and year when relevant).
-- Do use incremental models with `incremental_strategy='delete+insert'` keyed by year for idempotent re-runs.
-- Don't use adapter-unsupported configs like physical `partition_by`/indexes; rely on logical partitioning by year.
-
-<!-- end list -->
+**Core Components**:
 
 ```python
-from __future__ import annotations
-from pydantic import BaseModel, Field
-from typing import Literal
-from datetime import date
-
-class EmployeeEvent(BaseModel):
-    employee_id: str = Field(..., min_length=1)
-    event_type: Literal["HIRE", "TERM", "PROMOTION", "RAISE"]
-    effective_date: date
-```
-
------
-
-### **6. Development Workflow and Testing**
-
-#### **Generation Workflow**
-
-Every feature request becomes a single Pull-Request following this checklist:
-
-1.  **Clarify scope**: Echo back requirements; call out unknowns.
-2.  **Plan**: Update `/docs/spec-${date}.md` with the solution outline.
-3.  **Generate code**: Create/modify dbt models, Dagster assets, or Python helpers.
-4.  **Write tests**: Use dbt `schema.yml` tests and Pytest for Python.
-5.  **Self-review**: Run `./scripts/lint && ./scripts/test`. Fix any failures.
-6.  **Document**: Add docstrings and dbt doc blocks.
-7.  **Commit**: Use conventional commits (`feat:`, `fix:`, `refactor:`).
-8.  **Open PR**: Attach the spec link, screenshots, and test output.
-
-#### **Testing Strategy**
-
-| Layer | Framework | Minimum Coverage |
-| :--- | :--- | :--- |
-| dbt | built-in tests + dbt-unit-testing | 90% of models |
-| Python | Pytest + pytest-dots | 95% lines |
-| Dashboards | Cypress end-to-end (critical paths) | smoke |
-
-#### **Data-Quality Gates**
-
-1.  **Row counts**: Raw vs. staged table counts must have a difference of `<= 0.5%`.
-2.  **Uniqueness**: Primary key uniqueness tests on every model.
-3.  **Distribution drift**: Maintain baseline distributions; Kolmogorov-Smirnov test p-value should be `>= 0.1`.
-
------
-
-### **7. Local Development Environment**
-
-```bash
-# Python Environment (using uv - 10-100× faster than pip)
-uv venv .venv --python python3.11
-source .venv/bin/activate
-uv pip install -r requirements.txt -r requirements-dev.txt
-
-# Alternative: Install from pyproject.toml
-uv venv .venv --python python3.11
-source .venv/bin/activate
-uv pip install -e ".[dev]"
-
-# Legacy method (if uv is not available)
-# python3.11 -m venv .venv
-# source .venv/bin/activate
-# pip install -r requirements.txt -r requirements-dev.txt
-
-# PlanWise CLI (Rich Interface) - PREFERRED METHOD
-# Beautiful terminal interface with progress bars and enhanced UX
-
-# Quick system health check
-planwise health                                 # System readiness check
-planwise status                                 # Detailed system status
-planwise status --detailed                      # Full diagnostic information
-
-# Multi-year simulations with Rich progress tracking
-planwise simulate 2025-2027                     # Run 3-year simulation with progress bars
-planwise simulate 2025 --resume                 # Resume from checkpoint with enhanced feedback
-planwise simulate 2025-2026 --dry-run          # Preview execution plan
-planwise simulate 2025-2027 --verbose          # Detailed progress and logging
-
-# Batch scenario processing with Excel export
-planwise batch                                  # Run all scenarios in scenarios/ directory
-planwise batch --scenarios baseline high_growth # Run specific scenarios
-planwise batch --clean                         # Delete databases before running for a clean start
-planwise batch --export-format excel           # Generate Excel reports with metadata
-planwise batch --scenarios baseline --verbose  # Detailed batch processing feedback
-
-# Configuration validation with detailed reporting
-planwise validate                               # Validate simulation configuration
-planwise validate --enforce-identifiers        # Require scenario_id and plan_design_id
-
-# Checkpoint management with Rich formatting
-planwise checkpoints list                      # Beautiful table of checkpoints
-planwise checkpoints status                    # Recovery status with recommendations
-planwise checkpoints cleanup --keep 3         # Clean old checkpoints, keep 3
-
-# Legacy navigator_orchestrator (argparse) - FALLBACK METHOD
-python -m navigator_orchestrator run --years 2025 2026 2027 --verbose  # Production orchestrator
-python -m navigator_orchestrator.pipeline                              # Direct module execution
-
-# Performance-optimized for work laptops (single-threaded)
-python -m navigator_orchestrator run --years 2025 2026 --threads 1 --optimization medium
-
-# dbt Development (optimized for work laptops)
-cd dbt
-dbt build --threads 1 --fail-fast               # Single-threaded for stability
-dbt build --threads 1 --select tag:foundation   # Build foundation models only
-dbt test --select tag:data_quality              # Run DQ-only tests
-dbt docs generate                               # Generate docs
-
-# Memory-efficient incremental builds
-dbt run --select int_baseline_workforce+ --threads 1
-dbt run --select fct_yearly_events+ --threads 1 --vars '{simulation_year: 2025}'
-
-# Single Year Development (for testing specific models)
-cd dbt
-dbt build --select stg_census_data int_baseline_workforce --vars "simulation_year: 2025"
-dbt build --select int_enrollment_events --vars "simulation_year: 2025"
-dbt build --select fct_yearly_events fct_workforce_snapshot --vars "simulation_year: 2025"
-
-# DuckDB Direct Access (Claude can execute these)
-duckdb dbt/simulation.duckdb "SELECT COUNT(*) FROM fct_yearly_events"
-duckdb dbt/simulation.duckdb "SELECT * FROM fct_workforce_snapshot WHERE simulation_year = 2025 LIMIT 10"
-duckdb dbt/simulation.duckdb "SHOW TABLES"
-
-# Python DuckDB Access (Claude can execute these)
-python -c "
-from navigator_orchestrator.config import get_database_path
-import duckdb
-conn = duckdb.connect(str(get_database_path()))
-result = conn.execute('SELECT COUNT(*) FROM fct_yearly_events').fetchall()
-print(f'Total events: {result[0][0]}')
-conn.close()
-"
-
-# Streamlit Dashboards
-streamlit run streamlit_dashboard/main.py
-# Or use Make targets for convenience:
-make run-dashboard                                       # Launch main dashboard (port 8501)
-make run-compensation-tuning                             # Launch compensation tuning interface (port 8502)
-make run-optimization-dashboard                          # Launch optimization dashboard (port 8503)
-
-# Configuration Management
-# Edit config/simulation_config.yaml for simulation parameters:
-# - start_year, end_year (e.g., 2025-2029)
-# - target_growth_rate
-# - termination_rates
-# - random_seed for reproducibility
-
-# Development Pattern
-# 1. Test single year: dbt run --select model_name --vars "simulation_year: 2025" --threads 1
-# 2. Test multi-year: python -m navigator_orchestrator run --years 2025 2026 --optimization medium
-# 3. Validate results: check audit output and database contents
-# 4. Deploy changes: use navigator_orchestrator.pipeline with production config
-
-# Navigator Orchestrator Usage
-python -c "
-from navigator_orchestrator import create_orchestrator
-from navigator_orchestrator.config import load_simulation_config
-
-config = load_simulation_config('config/simulation_config.yaml')
-orchestrator = create_orchestrator(config)
-summary = orchestrator.execute_multi_year_simulation(
-    start_year=2025, end_year=2026, fail_on_validation_error=False
+from navigator_orchestrator.pipeline import (
+    WorkflowBuilder,      # Stage definitions and workflow building
+    StateManager,         # Checkpoint and state management
+    YearExecutor,         # Stage-by-stage execution orchestration
+    EventGenerationExecutor,  # Hybrid SQL/Polars event generation
+    HookManager,          # Extensible callback system
+    DataCleanupManager    # Database cleanup operations
 )
-print(f'Completed {len(summary.completed_years)} years')
-"
 
-# Enrollment Architecture Validation
-dbt run --select validate_enrollment_architecture --vars "simulation_year: 2025"
-# Check for duplicate enrollments across years in fct_yearly_events
+from navigator_orchestrator.pipeline_orchestrator import PipelineOrchestrator
 
-# Scenario Batch Processing (E069) - Multiple Scenarios with Excel Export
-# Run all scenarios in the scenarios/ directory
-python -m navigator_orchestrator batch
-
-# Run specific scenarios
-python -m navigator_orchestrator batch --scenarios high_growth baseline cost_control
-
-# Clean databases before running for a fresh start
-python -m navigator_orchestrator batch --clean
-
-# Custom configuration and output directories
-python -m navigator_orchestrator batch \
-  --config config/custom_simulation_config.yaml \
-  --scenarios-dir /path/to/scenarios \
-  --output-dir /path/to/analysis
-
-# Export formats and options
-python -m navigator_orchestrator batch --export-format csv
-python -m navigator_orchestrator batch --split-by-year  # Force per-year sheets
-
-# Combine options for a clean run with specific scenarios
-python -m navigator_orchestrator batch --scenarios baseline high_growth --clean
-
-# Batch processing creates timestamped directories with:
-# - Individual scenario databases (scenario_name.duckdb)
-# - Excel/CSV exports with workforce snapshots, metrics, events
-# - Metadata sheets with git SHA, seed, configuration
-# - Comparison reports across successful scenarios
-# - Batch summary JSON with execution statistics
-```
-
------
-
-### **7.1. Single-Threaded Performance Optimizations**
-
-**Work Laptop Optimization Strategy**: PlanWise Navigator can be optimized for single-threaded execution on resource-constrained work environments.
-
-#### **Navigator Orchestrator Configuration**
-
-```yaml
-# config/simulation_config.yaml - Work laptop optimizations
-multi_year:
-  optimization:
-    level: "medium"  # Reduced from "high" for stability
-    max_workers: 1   # Single-threaded execution
-    batch_size: 500  # Smaller batches to reduce memory pressure
-    memory_limit_gb: 4.0  # Conservative memory limit
-
-  performance:
-    enable_state_compression: true    # Compress state between years
-    enable_concurrent_processing: false  # Disable parallel processing
-    enable_parallel_dbt: false       # Force sequential dbt execution
-    cache_workforce_snapshots: false # Disable caching to save memory
-
-  state:
-    enable_checkpointing: true       # Enable resume capability
-    preserve_intermediate_states: false  # Clean up to save disk space
-    compression_level: 9             # Maximum compression
-```
-
-#### **dbt Performance Patterns**
-
-```bash
-# Always use --threads 1 for stability
-dbt run --threads 1 --select staging.* --fail-fast
-
-# Build models in dependency order to reduce memory pressure
-dbt run --threads 1 --select int_baseline_workforce
-dbt run --threads 1 --select int_employee_compensation_by_year
-dbt run --threads 1 --select int_workforce_needs+
-
-# Use incremental strategy for large tables
-dbt run --threads 1 --select fct_yearly_events --vars '{simulation_year: 2025}'
-
-# Memory-efficient multi-year execution
-for year in 2025 2026 2027; do
-  echo "Processing year $year"
-  dbt run --threads 1 --select foundation --vars "{simulation_year: $year}"
-  dbt run --threads 1 --select events --vars "{simulation_year: $year}"
-  dbt run --threads 1 --select marts --vars "{simulation_year: $year}"
-done
-```
-
-#### **Memory Management Strategies**
-
-```python
-# Navigator Orchestrator with memory management
-from navigator_orchestrator import create_orchestrator
-from navigator_orchestrator.config import load_simulation_config
-
-# Load config with work laptop optimizations
+# Create orchestrator
 config = load_simulation_config('config/simulation_config.yaml')
+orchestrator = PipelineOrchestrator(config)
 
-# Override for extreme memory constraints
-config.multi_year.optimization.batch_size = 250
-config.multi_year.performance.cache_workforce_snapshots = False
-
-orchestrator = create_orchestrator(config)
-
-# Execute with frequent checkpointing
+# Execute multi-year simulation
 summary = orchestrator.execute_multi_year_simulation(
     start_year=2025,
     end_year=2027,
@@ -431,33 +211,125 @@ summary = orchestrator.execute_multi_year_simulation(
 )
 ```
 
-#### **Sequential Model Execution**
-
-The PipelineOrchestrator enforces sequential execution through workflow stages:
+**Workflow Stages** (sequential execution within each year):
 
 1. **INITIALIZATION**: Load seeds and staging data
 2. **FOUNDATION**: Build baseline workforce and compensation
-3. **EVENT_GENERATION**: Generate hire/termination/promotion events sequentially
-4. **STATE_ACCUMULATION**: Build accumulators and snapshots in dependency order
+3. **EVENT_GENERATION**: Generate hire/termination/promotion events
+4. **STATE_ACCUMULATION**: Build accumulators and snapshots
 5. **VALIDATION**: Run data quality checks
 6. **REPORTING**: Generate audit reports
 
+-----
+
+## **7. Error Handling (E074 - Enhanced Diagnostics)**
+
 ```python
-# Workflow stages execute sequentially within each year
-# No parallel model execution - optimal for single-threaded environments
-for year in range(start_year, end_year + 1):
-    for stage in workflow_stages:
-        for model in stage.models:
-            dbt_runner.execute_command(
-                ["run", "--select", model, "--threads", "1"],
-                simulation_year=year
-            )
+from navigator_orchestrator.exceptions import (
+    NavigatorError,       # Base exception with execution context
+    DatabaseError,        # Database operations
+    ConfigurationError,   # Config validation
+    PipelineError,        # Pipeline execution
+    DbtError,             # dbt command failures
+    ResourceError,        # Resource constraints
+    StateError            # State management
+)
+
+from navigator_orchestrator.error_catalog import ErrorCatalog
+
+# Structured error handling with context
+try:
+    orchestrator.execute_year(2025)
+except DbtError as e:
+    # Error includes execution context, correlation ID, resolution hints
+    print(f"Error: {e.message}")
+    print(f"Stage: {e.context.stage}")
+    print(f"Model: {e.context.model}")
+    print(f"Resolution: {e.resolution_hint}")
 ```
 
-#### **Incremental Model Strategy**
+-----
+
+## **8. Development Workflow**
+
+### **Testing Infrastructure (E075 - Fixture Library)**
+
+```bash
+# Fast unit tests (TDD workflow) - 87 tests in ~5 seconds
+pytest -m fast
+
+# Component-specific tests
+pytest -m "fast and orchestrator"       # Orchestrator tests
+pytest -m "fast and events"             # Event schema tests
+pytest -m "fast and config"             # Configuration tests
+
+# Integration tests
+pytest -m integration                   # Full integration suite
+
+# Full suite with coverage
+pytest --cov=navigator_orchestrator \
+       --cov=planwise_cli \
+       --cov-report=html
+```
+
+**Using Fixtures**:
+
+```python
+# tests/test_my_feature.py
+from tests.fixtures.database import in_memory_db, populated_db
+from tests.fixtures.config import minimal_config
+from tests.fixtures.workforce_data import sample_employees
+
+def test_hire_event_generation(populated_db, minimal_config):
+    """Test hire event generation with pre-populated database."""
+    orchestrator = PipelineOrchestrator(minimal_config)
+    result = orchestrator.execute_year(2025)
+    assert result.success
+```
+
+### **Database Access Pattern**
+
+```python
+# CORRECT: Use get_database_path() for all database access
+from navigator_orchestrator.config import get_database_path
+import duckdb
+
+def query_events(year: int):
+    conn = duckdb.connect(str(get_database_path()))
+    result = conn.execute(
+        "SELECT COUNT(*) FROM fct_yearly_events WHERE simulation_year = ?",
+        [year]
+    ).fetchall()
+    conn.close()
+    return result[0][0]
+
+# Claude can execute DuckDB queries directly via Bash
+# duckdb dbt/simulation.duckdb "SELECT * FROM fct_workforce_snapshot LIMIT 10"
+```
+
+### **dbt Development Patterns**
+
+```bash
+# Always run from /dbt directory with --threads 1 for stability
+cd dbt
+
+# Single model development
+dbt run --select int_baseline_workforce --vars "simulation_year: 2025" --threads 1
+
+# Incremental build pattern
+dbt run --select int_baseline_workforce+ --threads 1
+
+# Event generation models (filtered by year)
+dbt run --select tag:EVENT_GENERATION --vars "simulation_year: 2025" --threads 1
+
+# Full build (safe for work laptops)
+dbt build --threads 1 --fail-fast
+```
+
+**Incremental Model Pattern**:
 
 ```sql
--- Optimized incremental configuration for work laptops
+-- Optimized incremental configuration
 {{ config(
   materialized='incremental',
   incremental_strategy='delete+insert',
@@ -474,364 +346,182 @@ WHERE simulation_year = {{ var('simulation_year') }}
   {% endif %}
 ```
 
-#### **Checkpoint and Resume**
+-----
 
-```bash
-# Enable resume capability for long-running simulations
-python -m navigator_orchestrator run \
-  --years 2025 2026 2027 \
-  --optimization medium \
-  --threads 1 \
-  --enable-compression
+## **9. Naming and Coding Standards**
 
-# Resume from last checkpoint on failure
-python -m navigator_orchestrator run \
-  --years 2025 2026 2027 \
-  --resume-from-checkpoint
-```
+### **Naming Conventions**
 
-#### **Performance Monitoring**
+  * **dbt models**: `tier_entity_purpose` (e.g., `fct_workforce_snapshot`, `int_termination_events`)
+  * **Event tables**: `fct_yearly_events` (immutable), `fct_workforce_snapshot` (point-in-time)
+  * **Python orchestration**: `snake_case`, descriptive (e.g., `run_year_simulation`, `audit_year_results`)
+  * **Python**: PEP 8; mandatory type-hints; Pydantic v2 models for config
+  * **Configuration**: `snake_case` in YAML, hierarchical structure
+
+### **Coding Standards**
+
+  * **SQL (dbt)**: Use 2-space indents, uppercase keywords, one clause per line. Avoid `SELECT *`. Use `{{ ref() }}` and CTEs for readability.
+  * **Python**: Keep functions under 40 lines. Raise explicit exceptions. Use Pydantic v2 for data modeling.
+
+**Do/Don't (DuckDB/dbt)**:
+- ✅ Filter heavy models by `{{ var('simulation_year') }}`
+- ✅ Join on `(scenario_id, plan_design_id, employee_id)` and year when relevant
+- ✅ Use incremental models with `incremental_strategy='delete+insert'`
+- ❌ Don't use adapter-unsupported configs like physical `partition_by`/indexes
+- ❌ Don't read from `fct_*` tables in `int_*` models (circular dependencies)
+
+**Python Type-Safe Example**:
 
 ```python
-# Monitor memory usage during execution
-import psutil
-import gc
+from __future__ import annotations
+from pydantic import BaseModel, Field
+from typing import Literal
+from datetime import date
+from decimal import Decimal
 
-def monitor_memory():
-    process = psutil.Process()
-    memory_mb = process.memory_info().rss / 1024 / 1024
-    print(f"Memory usage: {memory_mb:.1f} MB")
-
-    # Force garbage collection if memory is high
-    if memory_mb > 2000:  # 2GB threshold
-        gc.collect()
-
-# Use in orchestrator hooks
-orchestrator.add_stage_hook('post_stage', monitor_memory)
+class EmployeeEvent(BaseModel):
+    employee_id: str = Field(..., min_length=1)
+    event_type: Literal["HIRE", "TERMINATION", "PROMOTION", "RAISE"]
+    effective_date: date
+    annual_compensation: Decimal
 ```
 
 -----
 
-### **7.2. Claude Database Interaction Capabilities**
+## **10. Critical Patterns**
 
-Claude Code can directly interact with your DuckDB simulation database using multiple methods:
+### **Temporal State Accumulators**
 
-#### **Direct DuckDB CLI Access**
-Claude can execute DuckDB commands via the Bash tool:
-```bash
-# Query simulation data
-duckdb dbt/simulation.duckdb "SELECT COUNT(*) FROM fct_yearly_events WHERE simulation_year = 2025"
+**Pattern**: Year N reads Year N-1 accumulator data + Year N events to produce state without circular dependencies.
 
-# Inspect table structure
-duckdb dbt/simulation.duckdb "DESCRIBE fct_workforce_snapshot"
-
-# Check database health
-duckdb dbt/simulation.duckdb "SHOW TABLES"
+**Example**: Enrollment state tracking
+```sql
+-- int_enrollment_state_accumulator.sql
+WITH prior_year_state AS (
+  SELECT *
+  FROM {{ this }}
+  WHERE simulation_year = {{ var('simulation_year') }} - 1
+),
+current_year_events AS (
+  SELECT *
+  FROM {{ ref('int_enrollment_events') }}
+  WHERE simulation_year = {{ var('simulation_year') }}
+)
+SELECT
+  COALESCE(e.employee_id, p.employee_id) AS employee_id,
+  COALESCE(e.enrollment_date, p.enrollment_date) AS enrollment_date,
+  {{ var('simulation_year') }} AS simulation_year
+FROM current_year_events e
+FULL OUTER JOIN prior_year_state p
+  ON e.employee_id = p.employee_id
 ```
 
-#### **Python DuckDB Library Access**
-Claude can run Python scripts that use the DuckDB library:
+**Build Order**: Accumulator → `int_*` models → `fct_yearly_events` → `fct_workforce_snapshot`
+
+### **Batch Scenario Processing (E069)**
+
+```bash
+# Run all scenarios in scenarios/ directory
+planwise batch
+
+# Run specific scenarios with clean start
+planwise batch --scenarios baseline high_growth --clean
+
+# Export to Excel with metadata
+planwise batch --export-format excel
+
+# Batch creates timestamped directories with:
+# - Individual scenario databases (scenario_name.duckdb)
+# - Excel exports with workforce snapshots, metrics, events
+# - Metadata sheets with git SHA, seed, configuration
+# - Comparison reports across scenarios
+```
+
+-----
+
+## **11. Troubleshooting**
+
+### **Database and Path Issues**
+
+  * **Database Location**: `dbt/simulation.duckdb` (standardized location)
+  * **dbt Commands**: Always run from `/dbt` directory
+  * **Database Access**: Always use `get_database_path()` from `navigator_orchestrator.config`
+
 ```python
-# Data validation scripts
-python -c "
+# CORRECT pattern
 from navigator_orchestrator.config import get_database_path
 import duckdb
+
 conn = duckdb.connect(str(get_database_path()))
-result = conn.execute('SELECT simulation_year, COUNT(*) FROM fct_yearly_events GROUP BY simulation_year').fetchall()
-for year, count in result:
-    print(f'Year {year}: {count} events')
+result = conn.execute("SELECT COUNT(*) FROM fct_yearly_events WHERE simulation_year = ?", [year]).fetchall()
 conn.close()
-"
 ```
 
-#### **Data Quality Monitoring**
-Claude can proactively monitor data quality:
+### **Virtual Environment**
+
+  * **Problem**: `ModuleNotFoundError` when running Python or dbt commands
+  * **Cause**: Using system-installed packages instead of virtual environment packages
+  * **Solution**: Always activate the virtual environment (`source .venv/bin/activate`)
+
+### **Database Locks**
+
+  * **Problem**: Simulations fail due to `Conflicting lock is held` error
+  * **Cause**: Active database connection held by IDE (VS Code, Windsurf, DBeaver)
+  * **Solution**: Close all database connections in other tools before running simulation
+  * **Check**: `planwise health` will detect active locks
+
+### **Enrollment Architecture**
+
+  * **Problem**: Duplicate enrollment events across years or missing enrollment dates
+  * **Cause**: Circular dependencies in enrollment tracking
+  * **Solution**: Use `int_enrollment_state_accumulator` model with proper temporal state tracking
+  * **Validation**: `dbt run --select validate_enrollment_architecture --vars "simulation_year: 2025"`
+
+### **CLI Errors**
+
 ```bash
-# Check for data anomalies
-duckdb dbt/simulation.duckdb "
-SELECT
-    simulation_year,
-    COUNT(CASE WHEN event_type = 'hire' THEN 1 END) as hires,
-    COUNT(CASE WHEN event_type = 'termination' THEN 1 END) as terminations
-FROM fct_yearly_events
-GROUP BY simulation_year
-ORDER BY simulation_year
-"
+# Check system health
+planwise health                      # Quick diagnostic
+
+# Detailed system status
+planwise status --detailed           # Full system information
+
+# View checkpoints for recovery
+planwise checkpoints list            # Available recovery points
+planwise checkpoints status          # Recovery recommendations
 ```
 
-#### **Integration with dbt Models**
-Claude can verify dbt model outputs and troubleshoot issues:
-```bash
-# Validate model results after dbt run
-duckdb dbt/simulation.duckdb "
-SELECT
-    COUNT(*) as total_employees,
-    COUNT(CASE WHEN enrollment_date IS NOT NULL THEN 1 END) as enrolled_count
-FROM fct_workforce_snapshot
-WHERE simulation_year = 2025
-"
-```
+-----
 
-This enables Claude to:
-- **Debug simulation issues** by querying raw data
-- **Validate data transformations** after dbt runs
-- **Monitor data quality** across simulation years
-- **Investigate performance issues** with query analysis
-- **Provide real-time insights** during development
+## **12. Project Status**
+
+### **Completed Epics (Production-Ready)**
+
+- ✅ **E068**: Performance Optimization - 2× improvement (285s → 150s), 375× with Polars mode
+- ✅ **E069**: Batch Scenario Processing - Excel export with metadata, database isolation
+- ✅ **E072**: Pipeline Modularization - 51% code reduction (2,478 → 1,220 lines), 6 focused modules
+- ✅ **E074**: Enhanced Error Handling - Context-rich diagnostics, <5min bug diagnosis
+- ✅ **E075**: Testing Infrastructure - 256 tests, fixture library, 90%+ coverage
+- ✅ **E023**: Enrollment Architecture Fix - Temporal state accumulator pattern
+
+### **In Progress**
+
+- 🟡 **E021-A**: DC Plan Event Schema Foundation (81% - 5 of 7 stories complete)
+  - ✅ Core Event Model (Pydantic v2)
+  - ✅ Workforce Events
+  - ✅ DC Plan Events
+  - ✅ Plan Administration Events
+  - ❌ Loan & Investment Events (outstanding)
+  - ❌ ERISA Compliance Review (outstanding)
 
 -----
 
-### **8. Deployment**
-
-The CI pipeline (GitHub Actions) performs:
-
-1.  Lint → Pytest → dbt build –fail-fast
-2.  Multi-year simulation validation using orchestrator_dbt/run_multi_year.py
-3.  Tag & release Docker image `ghcr.io/fidelity/planwise:${sha}`
-4.  Ansible playbook updates the on-prem server (zero-downtime blue-green).
-
------
-
-### **9. Project Status & Changelog**
-
-This section tracks the implementation of major epics and stories.
-
-#### **Epic E069: Streamlined Scenario Batch Processing with Excel Export**
-
-  * **Status**: ✅ **COMPLETE** (100% - all 4 stories completed on September 10, 2025)
-  * **Summary**: Delivered comprehensive batch scenario processing capability enabling workforce planning analysts to run multiple configuration scenarios through five-year pipeline with automated Excel export. Eliminates manual configuration editing and database management friction through isolated scenario execution with professional Excel reporting.
-  * **Completed Stories** (12 of 12 points):
-      * **S069-01**: Scenario Batch Runner Core - `ScenarioBatchRunner` with database isolation and error resilience ✅
-      * **S069-02**: Excel Export Integration - `ExcelExporter` with metadata sheets and professional formatting ✅
-      * **S069-03**: CLI Batch Subcommand - `navigator_orchestrator batch` with full parameter support ✅
-      * **S069-04**: Example Scenarios & Documentation - 5 production scenarios with comprehensive documentation ✅
-  * **Key Features**:
-      * **Database isolation** with unique `.duckdb` files per scenario preventing cross-scenario contamination
-      * **Professional Excel export** with workforce snapshots, summary metrics, events, and metadata sheets
-      * **Error resilience** allowing batch continuation when individual scenarios fail
-      * **Deterministic execution** via persisted random seeds for reproducible results
-      * **CLI integration** with scenario discovery, timestamped output directories, and comparison reporting
-
-#### **Epic E021-A: DC Plan Event Schema Foundation**
-
-  * **Status**: 🟡 Partially Complete (81% - 5 of 7 stories completed on 2025-07-11)
-  * **Summary**: Establishing a comprehensive, enterprise-grade event schema for DC plan operations. Successfully delivered core event model, workforce integration, DC plan events, and performance framework. Outstanding work includes loan/investment events and ERISA compliance review.
-  * **Completed Stories** (26 of 32 points):
-      * **S072-01**: Core Event Model (Pydantic v2 discriminated unions) ✅
-      * **S072-02**: Workforce Events (Hire, Promotion, Termination, Merit) ✅
-      * **S072-03**: Core DC Plan Events (Eligibility, Enrollment, Contribution, Vesting) ✅
-      * **S072-04**: Plan Administration Events (Forfeiture, HCE, Compliance) ✅
-      * **S072-06**: Performance & Validation Framework ✅
-  * **Outstanding Stories** (6 of 32 points):
-      * **S072-05**: Loan & Investment Events (3 points) ❌
-      * **S072-07**: ERISA Compliance Review & Documentation (3 points) ❌
-
-#### **Story S072-04: Plan Administration Events**
-
-  * **Status**: Completed (2025-07-11)
-  * **Summary**: Implemented essential plan administration events for governance and compliance, including `ForfeiturePayload`, `HCEStatusPayload`, and `ComplianceEventPayload`. Integrated into the `SimulationEvent` discriminated union with a full suite of 24 unit tests.
-
-#### **Epic E020: Polars Integration MVP**
-
-  * **Status**: Completed (2025-07-10)
-  * **Summary**: A proof-of-concept demonstrated that Polars offers a **2.1x speedup** for complex aggregation queries compared to pandas on the project's dataset. While pandas remains faster for simpler operations, Polars is recommended for future complex analytics, especially for multi-year simulations.
-  * **Details**: Polars `1.31.0` was installed and tested, showing no conflicts with the existing environment.
-
-#### **Epic E013-S013-01: dbt Command Utility Enhancement**
-
-  * **Status**: Completed
-  * **Summary**: Centralized all dbt command execution by creating a new `execute_dbt_command_streaming()` utility. This function provides streaming output for long-running dbt operations like `dbt build` and is now used across the orchestrator assets.
-
-#### **Fix: dbt Contract Compliance**
-
-  * **Status**: Resolved
-  * **Summary**: Fixed a multi-year simulation failure caused by dbt contract errors. The `schema.yml` for `fct_yearly_events` and `fct_workforce_snapshot` was updated to include data type definitions for all columns and correct several data type mismatches.
-
-#### **Epic E012: Compensation Tuning System**
-
-  * **Status**: Mostly complete; auto-optimization features are planned.
-  * **Summary**: Enables analysts to dynamically adjust compensation parameters via a Streamlit UI, which updates `comp_levers.csv` to influence simulation results without code changes.
-  * **Completed Stories**:
-      * **S043**: Parameter foundation (`comp_levers.csv`).
-      * **S044**: Dynamic parameter integration into models.
-      * **S046**: Streamlit analyst interface.
-  * **Planned Stories**:
-      * **S045**: Auto-optimization loops (goal-seeking).
-      * **S047**: SciPy optimization engine integration.
-
-#### **Epic E068: Phase 1 Foundation Performance Optimization**
-
-  * **Status**: ✅ Completed (2025-09-05)
-  * **Summary**: Successfully implemented comprehensive E068 Phase 1 foundation performance optimization, delivering 2× performance improvement (285s → 150s) with 100% computational accuracy maintained. Establishes enterprise-grade performance foundation for production workforce simulation platform.
-  * **Performance Achievement**:
-      * **2× overall performance improvement** in production simulation runtime (285s → 150s target)
-      * **Alternative Polars mode**: 375× performance improvement (0.16s vs 60s target, 52,134 events/second)
-      * **Threading optimization**: 100% efficiency with 4-thread ParallelExecutionEngine configuration
-      * **Storage optimization**: 60% reduction in I/O overhead with automated Parquet conversion
-      * **Memory optimization**: Consistent 233.2 MB baseline with intelligent caching system
-  * **Key Deliverables Completed** (All 8 sub-epics):
-      * **E068F**: Determinism & Developer Ergonomics with hash-based RNG and debug models ✅
-      * **E068A**: Fused Event Generation with unified UNION ALL pattern ✅
-      * **E068B**: Incremental State Accumulation with O(n) linear scaling (60%+ faster) ✅
-      * **E068D**: Hazard Caches with SHA256 parameter fingerprinting and automatic change detection ✅
-      * **E068E**: Engine & I/O Tuning with DuckDB PRAGMA optimization and performance monitoring ✅
-      * **E068C**: Orchestrator Threading with ParallelExecutionEngine and adaptive resource management ✅
-      * **E068H**: Scale & Parity Testing with 99.99% accuracy validation and CI/CD integration ✅
-      * **E068G**: Polars Bulk Event Factory with hybrid pipeline orchestrator ✅
-  * **Production Impact**:
-      * **Enterprise-grade CI/CD pipeline** with automated performance regression detection
-      * **Comprehensive validation framework** ensuring zero computational errors
-      * **Developer productivity increase** of 50-1000× through debug capabilities and subset controls
-      * **Scalable architecture** supporting linear performance scaling to 20k+ employees
-      * **Complete documentation** with implementation guides and troubleshooting procedures
-  * **Infrastructure Delivered**: GitHub Actions workflows, Jenkins pipeline, benchmarking framework, storage optimization scripts, performance monitoring, and emergency rollback procedures
-
-#### **Epic E023: Enrollment Architecture Fix**
-
-  * **Status**: ✅ Completed (2025-01-05)
-  * **Summary**: Fixed critical enrollment architecture issues that caused 321 employees to have enrollment events but no enrollment dates in workforce snapshots. Implemented temporal state accumulator pattern to eliminate circular dependencies.
-  * **Key Improvements**:
-      * **Created** `int_enrollment_state_accumulator.sql` - temporal state tracking without circular dependencies
-      * **Fixed** `int_enrollment_events.sql` - restored essential WHERE clauses to prevent duplicate enrollments
-      * **Updated** `fct_workforce_snapshot.sql` - proper event-to-state flow for enrollment dates
-      * **Removed** broken `int_historical_enrollment_tracker.sql` model
-      * **Added** `validate_enrollment_architecture.sql` for ongoing data quality monitoring
-  * **Results**: Zero employees with enrollment events missing enrollment dates, proper multi-year enrollment continuity
-
-#### **Epic E072: Pipeline Modularization**
-
-  * **Status**: ✅ **COMPLETE** (100% - October 7, 2025)
-  * **Duration**: 4 hours (single session)
-  * **Summary**: Successfully transformed 2,478-line monolithic `pipeline.py` into 6 focused modules with 51% code reduction and 100% backward compatibility.
-  * **Achievement**: Refactored into modular package architecture with clear separation of concerns
-  * **Key Improvements**:
-      * **Created** `navigator_orchestrator/pipeline/` package with 6 specialized modules (2,251 lines total):
-        - `workflow.py` (212 lines) - Stage definitions and workflow building
-        - `event_generation_executor.py` (491 lines) - Hybrid SQL/Polars event generation
-        - `state_manager.py` (406 lines) - Checkpoint and state management
-        - `year_executor.py` (555 lines) - Stage-by-stage execution orchestration
-        - `hooks.py` (219 lines) - Extensible callback system
-        - `data_cleanup.py` (322 lines) - Database cleanup operations
-      * **Reduced** `pipeline_orchestrator.py` from 2,478 → 1,220 lines (51% reduction)
-      * **Maintained** all E068 performance optimizations (zero regression)
-      * **Eliminated** circular dependencies with clean module boundaries
-      * **Enhanced** maintainability with 6-8 methods per module (vs. 54 in monolith)
-  * **Developer Impact**: 20-minute onboarding (vs. 2+ hours), isolated testing, safer modifications
-  * **Production Ready**: Immediate deployment with zero migration needed
-
-#### **Epic E074: Enhanced Error Handling & Diagnostic Framework**
-
-  * **Status**: ✅ **COMPLETE** (Foundation, October 7, 2025)
-  * **Duration**: 90 minutes (50% faster than estimated)
-  * **Summary**: Delivered comprehensive error handling infrastructure transforming generic exceptions into actionable, context-rich diagnostics with <5 minute bug diagnosis capability.
-  * **Key Deliverables**:
-      * **Created** `navigator_orchestrator/exceptions.py` (548 lines):
-        - `NavigatorError` base class with execution context
-        - `ExecutionContext` dataclass with correlation IDs, year, stage, model tracking
-        - 15+ specialized exception classes (Database, Configuration, dbt, Resource, Pipeline, Network, State)
-        - Severity levels (CRITICAL, ERROR, RECOVERABLE, WARNING)
-        - Diagnostic message formatting with 80-character wrapping
-      * **Created** `navigator_orchestrator/error_catalog.py` (224 lines):
-        - Pattern-based error recognition with regex matching
-        - 7 pre-configured resolution patterns covering 90%+ of production errors
-        - Automated resolution hints with step-by-step guidance
-        - Frequency tracking for trend analysis
-      * **Created** `docs/guides/error_troubleshooting.md` - comprehensive troubleshooting guide
-  * **Test Coverage**: 51 tests, 100% passing (21 exception tests + 30 catalog tests)
-  * **Business Impact**: 50-80% reduction in debugging time through contextual error messages
-  * **Future Work**: Orchestrator integration (231 exception handlers), structured logging integration
-
-#### **Epic E075: Testing Infrastructure Improvements**
-
-  * **Status**: ✅ **COMPLETE** (100% - October 8, 2025)
-  * **Duration**: 2 hours (50% faster than estimated)
-  * **Summary**: Transformed test suite into enterprise-grade infrastructure with 256 tests, 87 fast unit tests (4.7s execution), and centralized fixture library.
-  * **Achievement**: 50% developer productivity increase through faster feedback loops
-  * **Key Improvements**:
-      * **Created** `tests/fixtures/` package with 11 reusable fixtures:
-        - `database.py` - In-memory, populated, and isolated databases (<0.01s setup)
-        - `config.py` - Minimal, single-threaded, and multi-threaded configurations
-        - `mock_dbt.py` - Mock dbt runners for unit testing
-        - `workforce_data.py` - Sample employees and events
-      * **Configured** comprehensive marker system with 15+ markers (fast, slow, unit, integration, e2e, orchestrator, events, dbt, threading, config)
-      * **Fixed** 3 import errors preventing test collection (PipelineOrchestrator paths)
-      * **Created** `tests/TEST_INFRASTRUCTURE.md` (500+ lines) - complete testing guide
-      * **Created** `tests/QUICK_START.md` - developer quick reference
-  * **Performance**: 256 tests collected (37% more than expected), 87 fast tests in 4.7s (2× faster than 10s target)
-  * **Coverage**: 92.91% on config.events module (exceeds 90% target)
-  * **Developer Experience**: Centralized fixtures, automatic marker application, clear organization
-
------
-
-### **10. Troubleshooting and Common Issues**
-
-#### **CRITICAL: Database and Path Issues**
-
-  * **Database Location**: The simulation database is `dbt/simulation.duckdb` (standardized location).
-  * **dbt Commands**: Always run `dbt` commands from the `/dbt` directory.
-  * **Multi-year Orchestration**: Use `navigator_orchestrator.pipeline.PipelineOrchestrator` for production execution.
-  * **Correct Pattern for Database Access**:
-    ```python
-    def get_database_connection():
-        from navigator_orchestrator.config import get_database_path
-        return duckdb.connect(str(get_database_path()))
-
-    # Query pattern
-    conn = get_database_connection()
-    result = conn.execute("SELECT * FROM fct_yearly_events WHERE simulation_year = ?", [year]).fetchall()
-    conn.close()
-    ```
-
-#### **Virtual Environment and Versioning**
-
-  * **Problem**: `ModuleNotFoundError` when running Python or dbt commands.
-  * **Cause**: Using system-installed packages instead of virtual environment packages.
-  * **Solution**: Always activate the virtual environment (`source venv/bin/activate`) before running commands, or call the binary directly (`venv/bin/python`, `venv/bin/dbt`).
-  * **Compatible Versions**: `dbt-core: 1.8.8`, `dbt-duckdb: 1.8.1`, `duckdb: 1.0.0`.
-
-#### **Database Locks and State Management**
-
-  * **Problem**: Simulations fail due to a `Conflicting lock is held` error.
-  * **Cause**: An active database connection is held by an IDE (like VS Code or Windsurf).
-  * **Solution**: Close all open database connections in other tools before running a simulation. The Streamlit UI has built-in error detection for this.
-  * **Data Persistence**: To persist data across runs in a multi-year simulation, ensure the job is configured with `full_refresh: False`.
-
-#### **Cumulative Growth Calculation**
-
-  * **Problem**: Year-over-year growth appears flat.
-  * **Cause**: Calculating growth from the baseline each year instead of cumulatively.
-  * **Solution**: Sum all events from the beginning of the simulation up to the current year to get the correct state.
-    ```sql
-    -- CORRECT: Calculate cumulative metrics from all events
-    SELECT
-        SUM(CASE WHEN event_type = 'hire' THEN 1 ELSE 0 END) as total_hires,
-        SUM(CASE WHEN event_type = 'termination' THEN 1 ELSE 0 END) as total_terminations
-    FROM fct_yearly_events
-    WHERE simulation_year <= ?
-    ```
-
-#### **Enrollment Architecture and Temporal State**
-
-  * **Problem**: Duplicate enrollment events across years or missing enrollment dates in workforce snapshots.
-  * **Cause**: Circular dependencies in enrollment tracking or incorrect temporal state accumulation.
-  * **Solution**: Use the `int_enrollment_state_accumulator` model which implements proper temporal state tracking:
-    - Year N uses Year N-1 accumulator data + Year N events
-    - No circular dependencies
-    - Maintains enrollment state across simulation years
-  * **Validation**: Run `dbt run --select validate_enrollment_architecture` to check for data integrity issues.
-
-#### **Deferral Rate State Accumulator (E036)**
-
-  * **Pattern**: Year N reads Year N-1 state + current-year enrollment/escalation (from `int_*`) to produce deferral rates without touching `fct_*`.
-  * **Order**: Build accumulator before `int_employee_contributions`, then `fct_yearly_events`, then `fct_workforce_snapshot`.
-  * **Incremental**: Filter by `{{ var('simulation_year') }}`; prefer `delete+insert` keyed by composite unique key including year.
-
------
-
-### **11. Further Reading**
+## **13. Further Reading**
 
   * `/docs/architecture.md` – Deep-dive diagrams
   * `/docs/events.md` – Workforce event taxonomy
-  * `/docs/issues/enrollment-architecture-fix-plan.md` – Enrollment architecture fix documentation
+  * `/docs/guides/error_troubleshooting.md` – Comprehensive troubleshooting guide
+  * `/tests/TEST_INFRASTRUCTURE.md` – Testing guide and fixture documentation
+  * `/tests/QUICK_START.md` – Developer quick reference
   * [dbt Style Guide](https://docs.getdbt.com/docs/collaborate/style-guide)
   * [DuckDB Documentation](https://duckdb.org/docs/)
