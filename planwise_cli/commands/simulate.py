@@ -69,6 +69,9 @@ def run_simulation(
     growth: Optional[str] = typer.Option(
         None, "--growth", help="Target growth rate (e.g., '3.5%' or '0.035')"
     ),
+    use_polars_engine: bool = typer.Option(
+        False, "--use-polars-engine", help="Use E077 Polars cohort engine (375× faster)"
+    ),
 ):
     """
     Run multi-year workforce simulation with Rich progress tracking.
@@ -94,7 +97,12 @@ def run_simulation(
             console.print(f"📁 Config: {config_path}")
             console.print(f"🗄️ Database: {db_path}")
 
-        wrapper = OrchestratorWrapper(config_path, db_path, verbose=verbose)
+        wrapper = OrchestratorWrapper(
+            config_path,
+            db_path,
+            verbose=verbose,
+            use_polars_engine=use_polars_engine
+        )
 
         # Check system health before starting
         health = wrapper.check_system_health()
@@ -141,6 +149,10 @@ def run_simulation(
 
         # Create orchestrator (live progress disabled temporarily to avoid stdout conflicts)
         progress_tracker = LiveProgressTracker(total_years, actual_start_year, end_year, verbose)
+
+        # Show Polars engine status if enabled
+        if use_polars_engine:
+            console.print("⚡ [bold green]Polars cohort engine enabled[/bold green] - 375× performance improvement")
 
         orchestrator = wrapper.create_orchestrator(
             threads=threads,
@@ -298,7 +310,7 @@ def _show_simulation_summary(summary, start_year: int, end_year: int, verbose: b
             for key, value in summary.performance_metrics.items():
                 console.print(f"   {key}: {value}")
 
-# Default command
+# Default command (required for `planwise simulate 2025` syntax)
 @simulate_command.command(name="", hidden=True)
 def default(
     years: str = typer.Argument(..., help="Year range (e.g., '2025-2027' or '2025')"),
@@ -310,6 +322,8 @@ def default(
     dry_run: bool = typer.Option(False, "--dry-run"),
     fail_on_validation_error: bool = typer.Option(False, "--fail-on-validation-error"),
     verbose: bool = typer.Option(False, "--verbose", "-v"),
+    growth: Optional[str] = typer.Option(None, "--growth", help="Target growth rate (e.g., '3.5%' or '0.035')"),
+    use_polars_engine: bool = typer.Option(False, "--use-polars-engine", help="Use E077 Polars cohort engine (375× faster)"),
 ):
     """Default simulate command."""
     run_simulation(
@@ -322,6 +336,8 @@ def default(
         dry_run=dry_run,
         fail_on_validation_error=fail_on_validation_error,
         verbose=verbose,
+        growth=growth,
+        use_polars_engine=use_polars_engine,
     )
 
 
@@ -649,32 +665,3 @@ def _show_enhanced_simulation_summary(summary, start_year: int, end_year: int, v
         console.print(f"\n💡 [bold]Next Steps & Recommendations[/bold]")
         for rec in recommendations:
             console.print(f"  • {rec}")
-
-
-# Also update the default command to include growth parameter
-@simulate_command.command(name="", hidden=True)
-def default(
-    years: str = typer.Argument(..., help="Year range (e.g., '2025-2027' or '2025')"),
-    config: Optional[str] = typer.Option(None, "--config", "-c"),
-    database: Optional[str] = typer.Option(None, "--database"),
-    threads: Optional[int] = typer.Option(None, "--threads"),
-    resume: bool = typer.Option(False, "--resume"),
-    force_restart: bool = typer.Option(False, "--force-restart"),
-    dry_run: bool = typer.Option(False, "--dry-run"),
-    fail_on_validation_error: bool = typer.Option(False, "--fail-on-validation-error"),
-    verbose: bool = typer.Option(False, "--verbose", "-v"),
-    growth: Optional[str] = typer.Option(None, "--growth", help="Target growth rate (e.g., '3.5%' or '0.035')"),
-):
-    """Default simulate command."""
-    run_simulation(
-        years=years,
-        config=config,
-        database=database,
-        threads=threads,
-        resume=resume,
-        force_restart=force_restart,
-        dry_run=dry_run,
-        fail_on_validation_error=fail_on_validation_error,
-        verbose=verbose,
-        growth=growth,
-    )
