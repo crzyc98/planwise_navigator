@@ -253,8 +253,20 @@ class EventGenerationExecutor:
                 print(f"⏰ Performance target missed: {polars_duration:.1f}s (target: ≤60s)")
 
         # Update dbt variables to point to Polars output
+        # Note: Path must be relative to dbt/ directory where dbt runs
+        polars_path = Path(factory_config.output_path)
+        if polars_path.is_absolute():
+            # Convert absolute to relative from dbt/ directory
+            dbt_relative_path = polars_path.relative_to(Path.cwd())
+            polars_events_path = f"../{dbt_relative_path}"
+        elif not str(polars_path).startswith('../'):
+            # If relative from project root, make it relative from dbt/
+            polars_events_path = f"../{polars_path}"
+        else:
+            polars_events_path = str(polars_path)
+
         self.dbt_vars.update({
-            'polars_events_path': str(factory_config.output_path),
+            'polars_events_path': polars_events_path,
             'event_generation_mode': 'polars',
             'polars_enabled': True
         })
