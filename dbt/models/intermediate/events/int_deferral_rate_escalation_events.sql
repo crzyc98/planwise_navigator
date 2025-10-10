@@ -183,12 +183,12 @@ workforce_with_status AS (
         END as days_since_last_escalation,
         -- Years since enrollment for escalation eligibility
         -- For census employees (pre-enrolled): use simulation start year as baseline
-        -- For new hires: use actual enrollment date
+        -- For new hires: use calendar year difference (not days) so they get escalated on next year's escalation date
         CASE
             WHEN ier.enrollment_date IS NOT NULL AND ier.enrollment_date < '{{ start_year }}-01-01'::DATE
-            THEN DATE_DIFF('year', '{{ start_year }}-01-01'::DATE, '{{ simulation_year }}-{{ esc_mmdd }}'::DATE)
+            THEN {{ simulation_year }} - {{ start_year }}
             WHEN ier.enrollment_date IS NOT NULL
-            THEN DATE_DIFF('year', ier.enrollment_date, '{{ simulation_year }}-{{ esc_mmdd }}'::DATE)
+            THEN {{ simulation_year }} - EXTRACT('year' FROM ier.enrollment_date)
             ELSE 0
         END as years_since_enrollment
     FROM active_workforce w
@@ -222,7 +222,8 @@ eligible_employees AS (
         -- FIX: Ensure employees already at/above maximum are NOT enrolled in escalation
         -- This prevents the bug where census rates of 15% would be reduced to 6%
         (w.current_deferral_rate > 0 AND w.current_deferral_rate < {{ esc_cap }}) as under_rate_cap_check,
-        (w.days_since_last_escalation >= 365) as timing_check,
+        -- Timing check: use calendar year (not days) so escalations happen on configured date each year
+        (w.last_rate_change_date IS NULL OR EXTRACT('year' FROM w.last_rate_change_date) < {{ simulation_year }}) as timing_check,
         -- FEATURE: Configurable first escalation delay (default 1 year)
         (w.years_since_enrollment >= {{ first_delay_years }}) as enrollment_maturity_check
 

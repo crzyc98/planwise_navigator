@@ -23,17 +23,20 @@ jobs:
         with:
           python-version: ${{ env.PYTHON_VERSION }}
 
-      - name: Cache dependencies
+      - name: Install uv
+        run: curl -LsSf https://astral.sh/uv/install.sh | sh
+
+      - name: Cache uv dependencies
         uses: actions/cache@v3
         with:
-          path: ~/.cache/pip
-          key: ${{ runner.os }}-pip-${{ hashFiles('requirements*.txt') }}
+          path: ~/.cache/uv
+          key: ${{ runner.os }}-uv-${{ hashFiles('requirements*.txt', 'pyproject.toml') }}
 
       - name: Install dependencies
         run: |
-          python -m pip install --upgrade pip
-          pip install -r requirements.txt
-          pip install -r requirements-dev.txt
+          export PATH="$HOME/.local/bin:$PATH"
+          uv pip install --system -r requirements.txt
+          uv pip install --system -r requirements-dev.txt
 
       - name: Run linting
         run: |
@@ -52,17 +55,20 @@ jobs:
         with:
           python-version: ${{ env.PYTHON_VERSION }}
 
-      - name: Cache dependencies
+      - name: Install uv
+        run: curl -LsSf https://astral.sh/uv/install.sh | sh
+
+      - name: Cache uv dependencies
         uses: actions/cache@v3
         with:
-          path: ~/.cache/pip
-          key: ${{ runner.os }}-pip-${{ hashFiles('requirements*.txt') }}
+          path: ~/.cache/uv
+          key: ${{ runner.os }}-uv-${{ hashFiles('requirements*.txt', 'pyproject.toml') }}
 
       - name: Install dependencies
         run: |
-          python -m pip install --upgrade pip
-          pip install -r requirements.txt
-          pip install -r requirements-dev.txt
+          export PATH="$HOME/.local/bin:$PATH"
+          uv pip install --system -r requirements.txt
+          uv pip install --system -r requirements-dev.txt
 
       - name: Run Python tests
         run: |
@@ -115,9 +121,13 @@ jobs:
         with:
           python-version: ${{ env.PYTHON_VERSION }}
 
+      - name: Install uv
+        run: curl -LsSf https://astral.sh/uv/install.sh | sh
+
       - name: Install dbt
         run: |
-          pip install dbt-core==1.8.8 dbt-duckdb==1.8.1
+          export PATH="$HOME/.local/bin:$PATH"
+          uv pip install --system dbt-core==1.8.8 dbt-duckdb==1.8.1
 
       - name: Validate dbt project
         run: |

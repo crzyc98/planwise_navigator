@@ -56,13 +56,15 @@ jobs:
         uses: actions/setup-python@v4
         with:
           python-version: ${{ env.PYTHON_VERSION }}
-          cache: 'pip'
+      - name: Install uv
+        run: curl -LsSf https://astral.sh/uv/install.sh | sh
+
 
       - name: Install dependencies
         run: |
-          pip install --upgrade pip
-          pip install -r requirements.txt
-          pip install faker
+          export PATH="$HOME/.local/bin:$PATH"
+          uv pip install --system -r requirements.txt
+          export PATH="$HOME/.local/bin:$PATH"; uv pip install --system faker
 
       - name: Generate realistic workforce data
         id: database-setup
@@ -380,13 +382,15 @@ jobs:
         uses: actions/setup-python@v4
         with:
           python-version: ${{ env.PYTHON_VERSION }}
-          cache: 'pip'
+      - name: Install uv
+        run: curl -LsSf https://astral.sh/uv/install.sh | sh
+
 
       - name: Install dependencies
         run: |
-          pip install --upgrade pip
-          pip install -r requirements.txt
-          pip install -r requirements-dev.txt
+          export PATH="$HOME/.local/bin:$PATH"
+          uv pip install --system -r requirements.txt
+          export PATH="$HOME/.local/bin:$PATH"; uv pip install --system -r requirements-dev.txt
 
       - name: Download test database
         uses: actions/download-artifact@v4
@@ -532,13 +536,15 @@ jobs:
         uses: actions/setup-python@v4
         with:
           python-version: ${{ env.PYTHON_VERSION }}
-          cache: 'pip'
+      - name: Install uv
+        run: curl -LsSf https://astral.sh/uv/install.sh | sh
+
 
       - name: Install dependencies
         run: |
-          pip install --upgrade pip
-          pip install -r requirements.txt
-          pip install networkx matplotlib
+          export PATH="$HOME/.local/bin:$PATH"
+          uv pip install --system -r requirements.txt
+          export PATH="$HOME/.local/bin:$PATH"; uv pip install --system networkx matplotlib
 
       - name: Download test database
         uses: actions/download-artifact@v4

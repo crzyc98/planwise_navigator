@@ -9,6 +9,9 @@ simulation.duckdb.wal
 *.duckdb
 *.duckdb.wal
 
+# Data
+data/secret/
+
 # Claude
 .claude/
 
@@ -263,3 +266,7 @@ seed.txt
 batch_summary.json
 summary.json
 performance.json
+
+# Data files (census data, input files)
+data/
+/data/

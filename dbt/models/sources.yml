@@ -127,7 +127,7 @@ sources:
       - name: fct_yearly_events_polars
         description: "All yearly events from Polars bulk factory - partitioned by simulation_year for optimal query performance"
         external:
-          location: "{{ var('polars_events_path', 'data/parquet/polars_events') }}/simulation_year=*/*.parquet"
+          location: "{{ var('polars_events_path', 'data/parquet/events') }}/simulation_year=*/*.parquet"
           file_format: parquet
         columns:
           - name: event_id

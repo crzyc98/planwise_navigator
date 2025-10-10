@@ -7,7 +7,7 @@ from navigator_orchestrator.config import (CompensationSettings,
                                            SimulationConfig,
                                            SimulationSettings)
 from navigator_orchestrator.dbt_runner import DbtResult, DbtRunner
-from navigator_orchestrator.pipeline import PipelineOrchestrator
+from navigator_orchestrator.pipeline_orchestrator import PipelineOrchestrator
 from navigator_orchestrator.registries import RegistryManager
 from navigator_orchestrator.utils import DatabaseConnectionManager
 from navigator_orchestrator.validation import (DataValidator,

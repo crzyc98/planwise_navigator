@@ -2150,7 +2150,10 @@ class PipelineOrchestrator:
         else:
             # Year 2+: Skip baseline workforce (use incremental data preservation)
             # int_baseline_workforce is incremental and preserves Year 1 data
+            # Include helper models for Year N-1 workforce data (circular dependency fix)
             foundation_models = [
+                "int_prev_year_workforce_summary",
+                "int_prev_year_workforce_by_level",
                 "int_employee_compensation_by_year",
                 "int_effective_parameters",
                 "int_workforce_needs",

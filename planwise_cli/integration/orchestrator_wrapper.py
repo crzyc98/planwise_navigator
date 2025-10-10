@@ -15,7 +15,7 @@ from typing import Any, Dict, Optional
 from navigator_orchestrator.checkpoint_manager import CheckpointManager
 from navigator_orchestrator.config import load_simulation_config
 from navigator_orchestrator.dbt_runner import DbtRunner
-from navigator_orchestrator.pipeline import PipelineOrchestrator
+from navigator_orchestrator.pipeline_orchestrator import PipelineOrchestrator
 from navigator_orchestrator.recovery_orchestrator import RecoveryOrchestrator
 from navigator_orchestrator.registries import RegistryManager
 from navigator_orchestrator.scenario_batch_runner import ScenarioBatchRunner
@@ -25,10 +25,11 @@ from navigator_orchestrator.validation import DataValidator, EventSequenceRule, 
 class OrchestratorWrapper:
     """Wrapper for navigator_orchestrator components with CLI enhancements."""
 
-    def __init__(self, config_path: Path, db_path: Path, verbose: bool = False):
+    def __init__(self, config_path: Path, db_path: Path, verbose: bool = False, use_polars_engine: bool = False):
         self.config_path = config_path
         self.db_path = db_path
         self.verbose = verbose
+        self.use_polars_engine = use_polars_engine
 
         # Lazy initialization
         self._config = None
@@ -43,6 +44,19 @@ class OrchestratorWrapper:
             if not self.config_path.exists():
                 raise FileNotFoundError(f"Configuration file not found: {self.config_path}")
             self._config = load_simulation_config(self.config_path)
+
+            # Enable Polars cohort engine if requested via CLI flag
+            if self.use_polars_engine:
+                # Ensure optimization settings exist
+                if not self._config.optimization:
+                    from navigator_orchestrator.config import OptimizationSettings
+                    self._config.optimization = OptimizationSettings()
+
+                # Enable Polars event generation and cohort engine
+                self._config.optimization.event_generation.mode = "polars"
+                self._config.optimization.event_generation.polars.enabled = True
+                self._config.optimization.event_generation.polars.use_cohort_engine = True
+
         return self._config
 
     @property

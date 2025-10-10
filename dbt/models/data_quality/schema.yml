@@ -1,0 +1,60 @@
+version: 2
+
+models:
+  - name: dq_duplicate_events_detection
+    description: |
+      Critical data quality check for duplicate event detection in fct_yearly_events.
+
+      **Purpose:**
+      Monitors for duplicate events that should be unique per employee/year/type/date combination.
+      Prevents event multiplication bugs caused by non-deterministic event_id generation.
+
+      **Alert Thresholds:**
+      - 0 duplicates: PASS (expected state)
+      - 1-10 duplicates: WARNING (investigate data pipeline)
+      - 11+ duplicates: CRITICAL (event generation bug present)
+
+      **Root Cause Fixed:**
+      Original bug: ROW_NUMBER() based event_id was non-deterministic
+      Fix: MD5 hash-based event_id using all unique event attributes
+
+      **Usage:**
+      Run after every simulation to validate data quality:
+      ```bash
+      dbt run --select dq_duplicate_events_detection
+      dbt test --select dq_duplicate_events_detection
+      ```
+
+    columns:
+      - name: simulation_year
+        description: Year in which duplicate events occurred
+
+      - name: employee_id
+        description: Employee with duplicate events
+
+      - name: event_type
+        description: Type of duplicated event (hire, termination, raise, etc.)
+
+      - name: duplicate_count
+        description: Number of times this exact event appears (should always be 1)
+
+      - name: duplicate_event_ids
+        description: Comma-separated list of duplicate event_id values
+
+      - name: data_quality_status
+        description: |
+          Overall data quality status:
+          - PASS: No duplicates detected
+          - WARNING: 1-10 duplicates (investigate)
+          - CRITICAL: 11+ duplicates (bug detected)
+
+      - name: overall_duplicate_events
+        description: Total count of duplicate events across all years
+
+    tests:
+      - dbt_utils.expression_is_true:
+          expression: "overall_duplicate_events = 0"
+          config:
+            severity: error
+            error_if: ">0"
+            warn_if: ">10"

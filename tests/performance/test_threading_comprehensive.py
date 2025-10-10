@@ -42,7 +42,7 @@ from navigator_orchestrator.parallel_execution_engine import (
 )
 from navigator_orchestrator.resource_manager import ResourceManager, CPUMonitor, MemoryMonitor
 from navigator_orchestrator.model_dependency_analyzer import ModelDependencyAnalyzer
-from navigator_orchestrator.pipeline import PipelineOrchestrator
+from navigator_orchestrator.pipeline_orchestrator import PipelineOrchestrator
 
 
 class TestThreadingConfiguration:
