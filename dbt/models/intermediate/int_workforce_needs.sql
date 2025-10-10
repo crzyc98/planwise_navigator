@@ -44,21 +44,25 @@ current_workforce AS (
   WHERE simulation_year = {{ simulation_year }}
     AND employment_status = 'active'
   {% else %}
-  -- Subsequent years: Use precomputed compensation by year (prior-year snapshot)
+  -- Subsequent years: Use helper model to get previous year's ending workforce
+  -- FIX: Read from int_prev_year_workforce_summary instead of int_employee_compensation_by_year
+  -- to capture all surviving employees including new hires from prior year
+  -- Helper model uses adapter.get_relation() to avoid circular dependency
   SELECT
-    COUNT(*) AS total_active_workforce,
-    COUNT(*) AS experienced_workforce,
-    0 AS current_year_hires,
-    AVG(employee_compensation) AS avg_compensation,
-    SUM(employee_compensation) AS total_compensation
-  FROM {{ ref('int_employee_compensation_by_year') }}
+    total_active_workforce,
+    experienced_workforce,
+    current_year_hires,
+    avg_compensation,
+    total_compensation
+  FROM {{ ref('int_prev_year_workforce_summary') }}
   WHERE simulation_year = {{ simulation_year }}
-    AND employment_status = 'active'
   {% endif %}
 ),
 
 -- Workforce by level for detailed planning
 workforce_by_level AS (
+  {% if is_first_year %}
+  -- Year 1: Use baseline workforce
   SELECT
     level_id,
     COUNT(*) AS level_headcount,
@@ -68,59 +72,136 @@ workforce_by_level AS (
   WHERE simulation_year = {{ simulation_year }}
     AND employment_status = 'active'
   GROUP BY level_id
+  {% else %}
+  -- Subsequent years: Use helper model to get previous year's level-specific workforce
+  -- FIX: Read from int_prev_year_workforce_by_level to capture all surviving employees
+  -- Helper model uses adapter.get_relation() to avoid circular dependency
+  SELECT
+    level_id,
+    level_headcount,
+    avg_level_compensation,
+    total_level_compensation
+  FROM {{ ref('int_prev_year_workforce_by_level') }}
+  WHERE simulation_year = {{ simulation_year }}
+  {% endif %}
 ),
 
--- Growth target calculations
-growth_targets AS (
+-- E077: Single-Rounding Algebraic Solver (ADR E077-A)
+-- Strategic rounding: ROUND (target), FLOOR (exp terms), CEILING (hires), residual (implied NH terms)
+exact_math AS (
   SELECT
     sc.target_growth_rate,
-    cw.total_active_workforce,
-    cw.total_active_workforce * sc.target_growth_rate AS target_growth_amount_decimal,
-    ROUND(cw.total_active_workforce * sc.target_growth_rate) AS target_net_growth,
-    ROUND(cw.total_active_workforce * (1 + sc.target_growth_rate)) AS target_ending_workforce
+    sc.experienced_termination_rate,
+    sc.new_hire_termination_rate,
+    cw.total_active_workforce AS n_start,
+    cw.avg_compensation,
+    -- Exact algebra (no rounding until strategic points)
+    CAST(cw.total_active_workforce * (1 + sc.target_growth_rate) AS DOUBLE) AS target_ending_exact,
+    CAST(cw.experienced_workforce * sc.experienced_termination_rate AS DOUBLE) AS exp_terms_exact
   FROM current_workforce cw
   CROSS JOIN simulation_config sc
 ),
-
--- Termination forecasts (experienced employees only)
+strategic_rounding AS (
+  SELECT
+    *,
+    -- Step 1: Target ending (banker's rounding)
+    CAST(ROUND(target_ending_exact) AS INTEGER) AS target_ending_workforce,
+    -- Step 2: Experienced terminations (FLOOR for conservative)
+    CAST(FLOOR(exp_terms_exact) AS INTEGER) AS expected_experienced_terminations,
+    -- Step 3: Survivors
+    n_start - CAST(FLOOR(exp_terms_exact) AS INTEGER) AS survivors,
+    -- Step 4: Net new hires needed
+    CAST(ROUND(target_ending_exact) AS INTEGER) - (n_start - CAST(FLOOR(exp_terms_exact) AS INTEGER)) AS net_from_hires
+  FROM exact_math
+),
+feasibility_checks AS (
+  SELECT
+    *,
+    -- Guard 1: NH term rate feasibility
+    CASE WHEN (1 - new_hire_termination_rate) <= 0.01
+      THEN 'FAIL_NH_TERM_RATE'
+      ELSE 'PASS'
+    END AS nh_term_rate_check,
+    -- Guard 2: Growth rate bounds
+    CASE WHEN ABS(target_growth_rate) > 1.0
+      THEN 'FAIL_GROWTH_BOUNDS'
+      ELSE 'PASS'
+    END AS growth_bounds_check
+  FROM strategic_rounding
+),
+hire_calculation AS (
+  SELECT
+    *,
+    -- RIF branch (negative/zero growth)
+    CASE
+      WHEN net_from_hires <= 0 THEN 0
+      ELSE CAST(CEILING(CAST(net_from_hires AS DOUBLE) / (1 - new_hire_termination_rate)) AS INTEGER)
+    END AS total_hires_needed,
+    -- RIF additional terminations
+    CASE
+      WHEN net_from_hires <= 0 THEN ABS(net_from_hires)
+      ELSE 0
+    END AS additional_rif_terms
+  FROM feasibility_checks
+),
+implied_nh_terms_calculation AS (
+  SELECT
+    *,
+    -- Step 5: Implied NH terms (residual to force exact balance)
+    CASE
+      WHEN net_from_hires <= 0 THEN 0  -- No NH terms in RIF
+      ELSE total_hires_needed - net_from_hires
+    END AS implied_new_hire_terminations,
+    -- Total exp terms (includes RIF)
+    expected_experienced_terminations + additional_rif_terms AS total_exp_terms
+  FROM hire_calculation
+),
+final_validation AS (
+  SELECT
+    *,
+    -- Guard 3: Hire ratio feasibility (default 50%)
+    CASE
+      WHEN total_hires_needed > n_start * 0.50
+      THEN 'FAIL_HIRE_RATIO'
+      ELSE 'PASS'
+    END AS hire_ratio_check,
+    -- Guard 4: Implied NH terms validity
+    CASE
+      WHEN implied_new_hire_terminations < 0 OR implied_new_hire_terminations > total_hires_needed
+      THEN 'FAIL_IMPLIED_NH_TERMS'
+      ELSE 'PASS'
+    END AS implied_nh_terms_check,
+    -- Step 6: Validate exact balance
+    n_start + total_hires_needed - total_exp_terms - implied_new_hire_terminations AS calculated_ending,
+    (n_start + total_hires_needed - total_exp_terms - implied_new_hire_terminations) - target_ending_workforce AS reconciliation_error
+  FROM implied_nh_terms_calculation
+),
+-- Reformat for downstream compatibility
+growth_targets AS (
+  SELECT
+    target_growth_rate,
+    n_start AS total_active_workforce,
+    net_from_hires AS target_growth_amount_decimal,
+    net_from_hires AS target_net_growth,
+    target_ending_workforce
+  FROM final_validation
+),
 termination_forecasts AS (
   SELECT
-    sc.experienced_termination_rate,
-    cw.experienced_workforce,
-    ROUND(cw.experienced_workforce * sc.experienced_termination_rate) AS expected_experienced_terminations,
-    cw.experienced_workforce * sc.experienced_termination_rate * cw.avg_compensation AS expected_termination_compensation_cost
-  FROM current_workforce cw
-  CROSS JOIN simulation_config sc
+    experienced_termination_rate,
+    n_start AS experienced_workforce,
+    total_exp_terms AS expected_experienced_terminations,
+    total_exp_terms * avg_compensation AS expected_termination_compensation_cost
+  FROM final_validation
 ),
-
--- Hiring requirements calculation (accounting for new hire attrition)
 hiring_requirements AS (
   SELECT
-    gt.target_net_growth,
-    tf.expected_experienced_terminations,
-    sc.new_hire_termination_rate,
-    -- Core hiring formula: total hires needed accounting for NH attrition
-    ROUND(
-      (gt.target_net_growth + tf.expected_experienced_terminations) /
-      (1 - sc.new_hire_termination_rate)
-    ) AS total_hires_needed,
-    -- Identity-based NH attrition to avoid double rounding drift:
-    -- hires - experienced_terms - nh_terms = target_net_growth ⇒
-    -- nh_terms = hires - experienced_terms - target_net_growth
-    GREATEST(
-      ROUND(
-        ROUND(
-          (gt.target_net_growth + tf.expected_experienced_terminations) /
-          (1 - sc.new_hire_termination_rate)
-        )
-        - tf.expected_experienced_terminations
-        - gt.target_net_growth
-      ),
-      0
-    ) AS expected_new_hire_terminations
-  FROM growth_targets gt
-  CROSS JOIN termination_forecasts tf
-  CROSS JOIN simulation_config sc
+    net_from_hires AS target_net_growth,
+    total_exp_terms AS expected_experienced_terminations,
+    new_hire_termination_rate,
+    total_hires_needed,
+    implied_new_hire_terminations AS expected_new_hire_terminations
+  FROM final_validation
 ),
 
 -- Financial impact calculations
@@ -141,7 +222,7 @@ financial_impact AS (
   CROSS JOIN termination_forecasts tf
 ),
 
--- Workforce balance validation
+-- E077: Workforce balance validation (exact reconciliation required)
 workforce_balance AS (
   SELECT
     hr.total_hires_needed,
@@ -149,18 +230,23 @@ workforce_balance AS (
     tf.expected_experienced_terminations,
     hr.total_hires_needed - tf.expected_experienced_terminations - hr.expected_new_hire_terminations AS calculated_net_change,
     gt.target_net_growth,
-    ABS(
-      (hr.total_hires_needed - tf.expected_experienced_terminations - hr.expected_new_hire_terminations) -
-      gt.target_net_growth
-    ) AS growth_variance,
+    -- E077: Reconciliation error (MUST be 0)
+    fv.reconciliation_error AS growth_variance,
     CASE
-      WHEN ABS((hr.total_hires_needed - tf.expected_experienced_terminations - hr.expected_new_hire_terminations) - gt.target_net_growth) <= 1 THEN 'BALANCED'
-      WHEN ABS((hr.total_hires_needed - tf.expected_experienced_terminations - hr.expected_new_hire_terminations) - gt.target_net_growth) <= 3 THEN 'MINOR_VARIANCE'
+      WHEN fv.reconciliation_error = 0 THEN 'EXACT_MATCH'
+      WHEN ABS(fv.reconciliation_error) <= 1 THEN 'MINOR_VARIANCE'
+      WHEN ABS(fv.reconciliation_error) <= 3 THEN 'MODERATE_VARIANCE'
       ELSE 'SIGNIFICANT_VARIANCE'
-    END AS balance_status
+    END AS balance_status,
+    -- E077: Feasibility guard results
+    fv.nh_term_rate_check,
+    fv.growth_bounds_check,
+    fv.hire_ratio_check,
+    fv.implied_nh_terms_check
   FROM hiring_requirements hr
   CROSS JOIN termination_forecasts tf
   CROSS JOIN growth_targets gt
+  CROSS JOIN final_validation fv
 ),
 
 -- Hiring distribution by level
@@ -226,10 +312,16 @@ SELECT
   fi.expected_termination_compensation_cost,
   fi.net_compensation_change_forecast,
 
-  -- Workforce balance validation
+  -- Workforce balance validation (E077)
   wb.calculated_net_change,
   wb.growth_variance,
   wb.balance_status,
+
+  -- E077: Feasibility guard results
+  wb.nh_term_rate_check,
+  wb.growth_bounds_check,
+  wb.hire_ratio_check,
+  wb.implied_nh_terms_check,
 
   -- Calculated rates
   ROUND(hr.total_hires_needed::DECIMAL / NULLIF(cw.total_active_workforce, 0), 4) AS hiring_rate,
@@ -237,7 +329,7 @@ SELECT
   ROUND(wb.calculated_net_change::DECIMAL / NULLIF(cw.total_active_workforce, 0), 4) AS actual_growth_rate,
 
   -- Audit metadata
-  'workforce_planning_engine' AS created_by,
+  'workforce_planning_engine_e077' AS created_by,
   '{{ invocation_id }}' AS dbt_invocation_id
 
 FROM simulation_config sc

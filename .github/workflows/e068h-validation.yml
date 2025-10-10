@@ -53,12 +53,14 @@ jobs:
         uses: actions/setup-python@v4
         with:
           python-version: ${{ env.PYTHON_VERSION }}
-          cache: 'pip'
+      - name: Install uv
+        run: curl -LsSf https://astral.sh/uv/install.sh | sh
+
 
       - name: Install dependencies
         run: |
-          pip install --upgrade pip
-          pip install -r requirements.txt
+          export PATH="$HOME/.local/bin:$PATH"
+          uv pip install --system -r requirements.txt
 
       - name: Determine test mode
         id: determine-mode
@@ -134,10 +136,14 @@ jobs:
         uses: actions/setup-python@v4
         with:
           python-version: ${{ env.PYTHON_VERSION }}
-          cache: 'pip'
+      - name: Install uv
+        run: curl -LsSf https://astral.sh/uv/install.sh | sh
+
 
       - name: Install dependencies
-        run: pip install -r requirements.txt
+        run: |
+          export PATH="$HOME/.local/bin:$PATH"
+          uv pip install --system -r requirements.txt
 
       - name: Restore database cache
         uses: actions/cache@v3
@@ -190,10 +196,14 @@ jobs:
         uses: actions/setup-python@v4
         with:
           python-version: ${{ env.PYTHON_VERSION }}
-          cache: 'pip'
+      - name: Install uv
+        run: curl -LsSf https://astral.sh/uv/install.sh | sh
+
 
       - name: Install dependencies
-        run: pip install -r requirements.txt
+        run: |
+          export PATH="$HOME/.local/bin:$PATH"
+          uv pip install --system -r requirements.txt
 
       - name: Restore database cache
         uses: actions/cache@v3
@@ -325,10 +335,14 @@ jobs:
         uses: actions/setup-python@v4
         with:
           python-version: ${{ env.PYTHON_VERSION }}
-          cache: 'pip'
+      - name: Install uv
+        run: curl -LsSf https://astral.sh/uv/install.sh | sh
+
 
       - name: Install dependencies
-        run: pip install -r requirements.txt
+        run: |
+          export PATH="$HOME/.local/bin:$PATH"
+          uv pip install --system -r requirements.txt
 
       - name: Restore database cache
         uses: actions/cache@v3
@@ -438,10 +452,14 @@ jobs:
         uses: actions/setup-python@v4
         with:
           python-version: ${{ env.PYTHON_VERSION }}
-          cache: 'pip'
+      - name: Install uv
+        run: curl -LsSf https://astral.sh/uv/install.sh | sh
+
 
       - name: Install dependencies
-        run: pip install -r requirements.txt
+        run: |
+          export PATH="$HOME/.local/bin:$PATH"
+          uv pip install --system -r requirements.txt
 
       - name: Download all test artifacts
         uses: actions/download-artifact@v3

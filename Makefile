@@ -2,9 +2,10 @@
 .PHONY: help dev-setup install test lint format clean run-simulation run-dashboard run-compensation-tuning run-optimization-dashboard docker-build
 
 PYTHON := python3.11
-VENV := venv
+VENV := .venv
 DBT_DIR := dbt
 DAGSTER_HOME := $(shell pwd)/.dagster
+UV := uv
 
 help: ## Show this help message
 	@echo 'Usage: make [target]'
@@ -19,16 +20,40 @@ dev-setup: install ## Complete development environment setup
 	cd $(DBT_DIR) && dbt seed
 	@echo "Development environment ready!"
 
-install: ## Install Python dependencies
-	$(PYTHON) -m venv $(VENV)
-	$(VENV)/bin/pip install --upgrade pip
-	$(VENV)/bin/pip install -r requirements.txt
-	$(VENV)/bin/pip install -r requirements-dev.txt
+install: ## Install Python dependencies (using uv)
+	$(UV) venv $(VENV) --python $(PYTHON)
+	$(UV) pip install --python $(VENV)/bin/python -r requirements.txt
+	$(UV) pip install --python $(VENV)/bin/python -r requirements-dev.txt
+	$(UV) pip install --python $(VENV)/bin/python -e .
+	$(VENV)/bin/pre-commit install
+
+install-pyproject: ## Install using pyproject.toml (alternative method)
+	$(UV) venv $(VENV) --python $(PYTHON)
+	$(UV) pip install --python $(VENV)/bin/python -e ".[dev]"
 	$(VENV)/bin/pre-commit install
 
 test: ## Run all tests
-	$(VENV)/bin/pytest tests/ -v --cov=planwise_navigator --cov-report=html
-	cd $(DBT_DIR) && $(VENV)/bin/dbt test
+	python -m pytest
+
+test-unit: ## Run fast unit tests only (<30s)
+	python -m pytest -m unit -v
+
+test-integration: ## Run integration tests only (<2min)
+	python -m pytest -m integration -v
+
+test-performance: ## Run performance benchmarks
+	python -m pytest -m performance -v --durations=10
+
+test-fast: ## Run all tests except slow ones
+	python -m pytest -m "not slow" -v
+
+test-coverage: ## Run tests with coverage report
+	python -m pytest --cov=navigator_orchestrator --cov=planwise_cli --cov=config \
+		--cov-report=html --cov-report=term
+	@echo "Coverage report: htmlcov/index.html"
+
+test-watch: ## Run tests in watch mode
+	ptw -- -m unit
 
 lint: ## Run linting checks
 	$(VENV)/bin/ruff check .

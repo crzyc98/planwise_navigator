@@ -31,116 +31,190 @@ workforce_by_level AS (
     -- For first year, all employees are considered experienced
     COUNT(*) AS experienced_headcount,
     0 AS new_hire_headcount,
-    AVG(employee_compensation) AS avg_compensation,
-    SUM(employee_compensation) AS total_compensation,
-    MIN(employee_compensation) AS min_compensation,
-    MAX(employee_compensation) AS max_compensation,
-    PERCENTILE_CONT(0.5) WITHIN GROUP (ORDER BY employee_compensation) AS median_compensation,
-    STDDEV(employee_compensation) AS compensation_std_dev
+    CAST(AVG(employee_compensation) AS DOUBLE) AS avg_compensation,
+    CAST(SUM(employee_compensation) AS DOUBLE) AS total_compensation,
+    CAST(MIN(employee_compensation) AS DOUBLE) AS min_compensation,
+    CAST(MAX(employee_compensation) AS DOUBLE) AS max_compensation,
+    CAST(PERCENTILE_CONT(0.5) WITHIN GROUP (ORDER BY employee_compensation) AS DOUBLE) AS median_compensation,
+    CAST(STDDEV(employee_compensation) AS DOUBLE) AS compensation_std_dev
   FROM {{ ref('int_employee_compensation_by_year') }}
   WHERE simulation_year = {{ simulation_year }}
     AND employment_status = 'active'
   GROUP BY level_id
 ),
 
--- Termination distribution by level (using hazard rates if available)
+-- E077: Experienced Termination Quotas by Level (ADR E077-B with edge cases)
 termination_by_level AS (
+  WITH level_populations AS (
+    -- Get experienced employee counts by level (exclude empty levels)
+    SELECT
+      level_id,
+      experienced_headcount,
+      experienced_headcount * 1.0 / SUM(experienced_headcount) OVER () AS level_weight
+    FROM workforce_by_level
+    WHERE experienced_headcount > 0  -- Edge Case 2: Exclude empty levels
+  ),
+  fractional_allocation AS (
+    SELECT
+      lp.level_id,
+      lp.experienced_headcount,
+      lp.level_weight,
+      wns.expected_experienced_terminations,
+      wns.expected_experienced_terminations * lp.level_weight AS fractional_quota_uncapped,
+      -- Edge Case 1: Cap quota at available population
+      LEAST(
+        wns.expected_experienced_terminations * lp.level_weight,
+        lp.experienced_headcount
+      ) AS fractional_quota,
+      FLOOR(LEAST(
+        wns.expected_experienced_terminations * lp.level_weight,
+        lp.experienced_headcount
+      )) AS floor_quota,
+      (LEAST(
+        wns.expected_experienced_terminations * lp.level_weight,
+        lp.experienced_headcount
+      )) - FLOOR(LEAST(
+        wns.expected_experienced_terminations * lp.level_weight,
+        lp.experienced_headcount
+      )) AS fractional_remainder
+    FROM level_populations lp
+    CROSS JOIN workforce_needs_summary wns
+  ),
+  remainder_allocation AS (
+    SELECT
+      fa.level_id,
+      fa.experienced_headcount,
+      fa.floor_quota,
+      fa.fractional_remainder,
+      -- Edge Case 1: Only levels with available capacity can receive remainder
+      CASE WHEN fa.floor_quota < fa.experienced_headcount THEN 1 ELSE 0 END AS has_capacity,
+      ROW_NUMBER() OVER (
+        ORDER BY
+          CASE WHEN fa.floor_quota < fa.experienced_headcount THEN 1 ELSE 2 END,  -- Capacity first
+          fa.fractional_remainder DESC,  -- Then by remainder size (Edge Case 3)
+          fa.level_id ASC  -- Deterministic tiebreaker
+      ) AS remainder_rank,
+      (SELECT ANY_VALUE(expected_experienced_terminations) - SUM(floor_quota) FROM fractional_allocation) AS remainder_slots
+    FROM fractional_allocation fa
+  )
   SELECT
-    wbl.level_id,
-    wbl.experienced_headcount,
-    -- Apply level-specific termination rates if available, otherwise use overall rate
-    wbl.experienced_headcount * wns.experienced_termination_rate AS expected_terminations_decimal,
-    ROUND(wbl.experienced_headcount * wns.experienced_termination_rate) AS expected_terminations,
-    ROUND(wbl.experienced_headcount * wns.experienced_termination_rate) * wbl.avg_compensation AS termination_compensation_cost
-  FROM workforce_by_level wbl
-  CROSS JOIN workforce_needs_summary wns
+    ra.level_id,
+    ra.experienced_headcount,
+    -- Allocate remainder only to levels with capacity
+    ra.floor_quota + CASE
+      WHEN ra.has_capacity = 1 AND ra.remainder_rank <= ra.remainder_slots THEN 1
+      ELSE 0
+    END AS expected_terminations,
+    -- Compensation cost
+    (ra.floor_quota + CASE
+      WHEN ra.has_capacity = 1 AND ra.remainder_rank <= ra.remainder_slots THEN 1
+      ELSE 0
+    END) * wbl.avg_compensation AS termination_compensation_cost
+  FROM remainder_allocation ra
+  JOIN workforce_by_level wbl ON ra.level_id = wbl.level_id
 ),
 
--- Hiring distribution by level
+-- E077: Hiring Quotas by Level (ADR E077-B with adaptive distribution)
 hiring_by_level AS (
-  -- Normalize target distribution across present levels and allocate hires using the largest remainder method
+  -- Allocate hires using adaptive distribution (matches actual workforce composition)
   WITH level_weights AS (
     SELECT
       level_id,
-      CASE
-        WHEN level_id = 1 THEN 0.40
-        WHEN level_id = 2 THEN 0.30
-        WHEN level_id = 3 THEN 0.20
-        WHEN level_id = 4 THEN 0.08
-        WHEN level_id = 5 THEN 0.02
-        ELSE 0.0
-      END AS raw_weight
-    FROM (SELECT DISTINCT level_id FROM workforce_by_level)
+      current_headcount,
+      current_headcount * 1.0 / SUM(current_headcount) OVER () AS raw_weight
+    FROM workforce_by_level
+    WHERE current_headcount > 0  -- Exclude empty levels for weight calculation
   ),
-  normalization AS (
-    SELECT SUM(raw_weight) AS total_weight FROM level_weights
+  level_stats AS (
+    SELECT
+      SUM(raw_weight) AS total_weight,
+      COUNT(*) AS level_count
+    FROM level_weights
   ),
   shares AS (
     SELECT
       lw.level_id,
-      CASE WHEN n.total_weight = 0 THEN 0.0 ELSE lw.raw_weight / n.total_weight END AS share
+      CASE
+        WHEN ls.total_weight > 0 THEN lw.raw_weight / ls.total_weight
+        WHEN ls.level_count > 0 THEN 1.0 / ls.level_count
+        ELSE 0.0
+      END AS share
     FROM level_weights lw
-    CROSS JOIN normalization n
+    CROSS JOIN level_stats ls
   ),
-  base_alloc AS (
+  share_bounds AS (
     SELECT
-      s.level_id,
-      s.share,
-      wns.total_hires_needed AS total_hires_needed,
-      FLOOR(wns.total_hires_needed * s.share) AS base_hires,
-      (wns.total_hires_needed * s.share) - FLOOR(wns.total_hires_needed * s.share) AS remainder
-    FROM shares s
-    CROSS JOIN workforce_needs_summary wns
+      level_id,
+      share,
+      SUM(share) OVER (ORDER BY level_id ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW) AS upper_bound
+    FROM shares
   ),
-  totals AS (
+  share_boundaries AS (
     SELECT
-      SUM(base_hires) AS sum_base,
-      MAX(total_hires_needed) AS total_hires_needed
-    FROM base_alloc
+      level_id,
+      share,
+      upper_bound,
+      LAG(upper_bound, 1, 0.0) OVER (ORDER BY level_id) AS lower_bound
+    FROM share_bounds
   ),
-  ranked AS (
+  total_requirements AS (
     SELECT
-      ba.*,
-      ROW_NUMBER() OVER (ORDER BY remainder DESC, level_id) AS remainder_rank
-    FROM base_alloc ba
+      CAST(COALESCE(MAX(wns.total_hires_needed), 0) AS BIGINT) AS total_hires_needed,
+      COALESCE(MAX(wns.new_hire_termination_rate), 0.0) AS new_hire_termination_rate
+    FROM workforce_needs_summary wns
+  ),
+  hire_slots AS (
+    SELECT
+      slots.slot_number,
+      (CAST(slots.slot_number AS DOUBLE) - 0.5) / NULLIF(tr.total_hires_needed, 0) AS slot_position
+    FROM total_requirements tr
+    CROSS JOIN LATERAL (
+      SELECT seq AS slot_number
+      FROM UNNEST(range(1, tr.total_hires_needed + 1)) AS r(seq)
+    ) slots
+  ),
+  allocated AS (
+    SELECT
+      sb.level_id,
+      COUNT(*) AS hires_needed
+    FROM hire_slots hs
+    JOIN share_boundaries sb
+      ON hs.slot_position > sb.lower_bound
+     AND hs.slot_position <= sb.upper_bound
+    GROUP BY sb.level_id
   )
   SELECT
-    r.level_id,
-    r.share AS hiring_distribution,
-    CAST(
-      r.base_hires + CASE WHEN r.remainder_rank <= (t.total_hires_needed - t.sum_base) THEN 1 ELSE 0 END
-      AS INTEGER
-    ) AS hires_needed,
+    sb.level_id,
+    sb.share AS hiring_distribution,
+    CAST(COALESCE(a.hires_needed, 0) AS INTEGER) AS hires_needed,
     -- New hire terminations by level
-    ROUND(
-      (r.base_hires + CASE WHEN r.remainder_rank <= (t.total_hires_needed - t.sum_base) THEN 1 ELSE 0 END) * wns.new_hire_termination_rate
-    ) AS expected_new_hire_terminations
-  FROM ranked r
-  CROSS JOIN totals t
-  CROSS JOIN workforce_needs_summary wns
+    ROUND(COALESCE(a.hires_needed, 0) * tr.new_hire_termination_rate) AS expected_new_hire_terminations
+  FROM share_boundaries sb
+  CROSS JOIN total_requirements tr
+  LEFT JOIN allocated a ON sb.level_id = a.level_id
 ),
 
 -- Compensation ranges and new hire costs
 compensation_planning AS (
   SELECT
     cr.level_id,
-    cr.min_compensation,
-    cr.max_compensation,
+    CAST(cr.min_compensation AS DOUBLE) AS min_compensation,
+    CAST(cr.max_compensation AS DOUBLE) AS max_compensation,
     wbl.avg_compensation AS current_avg_compensation,
     -- New hire compensation using configurable percentiles (Epic E056)
     -- Calculate percentile-based compensation with market adjustments
-    (cr.min_compensation +
+    CAST((cr.min_compensation +
      (cr.max_compensation - cr.min_compensation) *
      COALESCE({{ resolve_parameter('cr.level_id', 'HIRE', 'compensation_percentile', simulation_year) }}, 0.50) *
      COALESCE({{ resolve_parameter('cr.level_id', 'HIRE', 'market_adjustment_multiplier', simulation_year) }}, 1.0)
-    ) AS new_hire_avg_compensation,
+    ) AS DOUBLE) AS new_hire_avg_compensation,
     -- Merit increase planning - use variable-based parameters for consistency
-    wbl.total_compensation * {{ var('merit_budget', 0.03) }} AS merit_increase_cost,
+    CAST(wbl.total_compensation * {{ var('merit_budget', 0.03) }} AS DOUBLE) AS merit_increase_cost,
     -- COLA planning - use variable-based parameters for consistency
-    wbl.total_compensation * {{ var('cola_rate', 0.025) }} AS cola_cost,
+    CAST(wbl.total_compensation * {{ var('cola_rate', 0.025) }} AS DOUBLE) AS cola_cost,
     -- Promotion cost estimate - use safe defaults temporarily
-    wbl.current_headcount * 0.05 AS expected_promotions,
-    wbl.avg_compensation * 0.12 * (wbl.current_headcount * 0.05) AS promotion_cost
+    CAST(wbl.current_headcount * 0.05 AS DOUBLE) AS expected_promotions,
+    CAST(wbl.avg_compensation * 0.12 * (wbl.current_headcount * 0.05) AS DOUBLE) AS promotion_cost
   FROM {{ ref('stg_config_job_levels') }} cr
   LEFT JOIN workforce_by_level wbl ON cr.level_id = wbl.level_id
 ),
@@ -150,13 +224,13 @@ additional_costs AS (
   SELECT
     hbl.level_id,
     -- Hiring costs (recruiting, onboarding)
-    hbl.hires_needed * cp.new_hire_avg_compensation * 0.20 AS recruiting_costs,
+    CAST(hbl.hires_needed * cp.new_hire_avg_compensation * 0.20 AS DOUBLE) AS recruiting_costs,
     -- Training and ramp-up costs
-    hbl.hires_needed * cp.new_hire_avg_compensation * 0.25 AS training_costs,
+    CAST(hbl.hires_needed * cp.new_hire_avg_compensation * 0.25 AS DOUBLE) AS training_costs,
     -- Severance costs (2 weeks per year, avg 5 years tenure)
-    tbl.expected_terminations * wbl.avg_compensation * (5.0 * 2.0 / 52.0) AS severance_costs,
+    CAST(tbl.expected_terminations * wbl.avg_compensation * (5.0 * 2.0 / 52.0) AS DOUBLE) AS severance_costs,
     -- Benefits continuation and outplacement
-    tbl.expected_terminations * wbl.avg_compensation * 0.15 AS additional_termination_costs
+    CAST(tbl.expected_terminations * wbl.avg_compensation * 0.15 AS DOUBLE) AS additional_termination_costs
   FROM hiring_by_level hbl
   JOIN compensation_planning cp ON hbl.level_id = cp.level_id
   JOIN termination_by_level tbl ON hbl.level_id = tbl.level_id
@@ -195,7 +269,7 @@ SELECT
 
   -- Compensation planning
   cp.new_hire_avg_compensation,
-  hbl.hires_needed * cp.new_hire_avg_compensation AS total_new_hire_compensation,
+  (CAST(hbl.hires_needed AS DOUBLE) * cp.new_hire_avg_compensation) AS total_new_hire_compensation,
   cp.merit_increase_cost,
   cp.cola_cost,
   cp.expected_promotions,
@@ -208,16 +282,16 @@ SELECT
   ac.additional_termination_costs,
 
   -- Total costs by category
-  (hbl.hires_needed * cp.new_hire_avg_compensation + ac.recruiting_costs + ac.training_costs) AS total_hiring_costs,
+  (CAST(hbl.hires_needed AS DOUBLE) * cp.new_hire_avg_compensation + ac.recruiting_costs + ac.training_costs) AS total_hiring_costs,
   (tbl.termination_compensation_cost + ac.severance_costs + ac.additional_termination_costs) AS total_termination_costs,
   (cp.merit_increase_cost + cp.cola_cost + cp.promotion_cost) AS total_compensation_change_costs,
 
   -- Net financial impact
-  (hbl.hires_needed * cp.new_hire_avg_compensation + cp.merit_increase_cost + cp.cola_cost + cp.promotion_cost) -
-  tbl.termination_compensation_cost AS net_compensation_change,
+  ((CAST(hbl.hires_needed AS DOUBLE) * cp.new_hire_avg_compensation + cp.merit_increase_cost + cp.cola_cost + cp.promotion_cost) -
+  tbl.termination_compensation_cost) AS net_compensation_change,
 
   -- Total budget impact
-  (hbl.hires_needed * cp.new_hire_avg_compensation + ac.recruiting_costs + ac.training_costs +
+  (CAST(hbl.hires_needed AS DOUBLE) * cp.new_hire_avg_compensation + ac.recruiting_costs + ac.training_costs +
    cp.merit_increase_cost + cp.cola_cost + cp.promotion_cost +
    ac.severance_costs + ac.additional_termination_costs) AS total_budget_impact,
 

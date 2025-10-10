@@ -26,7 +26,7 @@ import argparse
 import numpy as np
 import polars as pl
 from pathlib import Path
-from datetime import date, datetime
+from datetime import date, datetime, timedelta
 from dataclasses import dataclass, field
 from typing import List, Dict, Any, Optional, Union
 
@@ -163,6 +163,7 @@ class PolarsEventGenerator:
             'processing_time_by_year': {},
             'memory_usage_peak_mb': 0.0
         }
+        self._workforce_needs_cache: Dict[int, Optional[Dict[str, Any]]] = {}
 
         # Load baseline workforce and parameters
         self.logger.info("Loading baseline workforce and parameters...")
@@ -336,6 +337,240 @@ class PolarsEventGenerator:
 
         return parameters
 
+    def _fetch_workforce_needs(self, simulation_year: int) -> Optional[Dict[str, Any]]:
+        """Load workforce planning needs for the given year from DuckDB."""
+        if simulation_year in self._workforce_needs_cache:
+            return self._workforce_needs_cache[simulation_year]
+
+        try:
+            import duckdb  # Local import to avoid hard dependency when unused
+        except ImportError:
+            self.logger.warning(
+                "DuckDB not available; Polars hire generation will fall back to heuristics"
+            )
+            self._workforce_needs_cache[simulation_year] = None
+            return None
+
+        db_path = get_database_path()
+        if not db_path.exists():
+            self.logger.warning(
+                "Workforce needs unavailable; database %s does not exist", db_path
+            )
+            self._workforce_needs_cache[simulation_year] = None
+            return None
+
+        try:
+            with duckdb.connect(str(db_path)) as conn:
+                total_row = conn.execute(
+                    """
+                    SELECT total_hires_needed
+                    FROM int_workforce_needs
+                    WHERE simulation_year = ?
+                      AND scenario_id = ?
+                    """,
+                    [simulation_year, self.config.scenario_id],
+                ).fetchone()
+
+                if not total_row:
+                    self.logger.warning(
+                        "No workforce needs found for %s; falling back to heuristics",
+                        simulation_year,
+                    )
+                    self._workforce_needs_cache[simulation_year] = None
+                    return None
+
+                level_rows = conn.execute(
+                    """
+                    SELECT level_id, hires_needed, COALESCE(new_hire_avg_compensation, avg_compensation)
+                    FROM int_workforce_needs_by_level
+                    WHERE simulation_year = ?
+                      AND scenario_id = ?
+                    ORDER BY level_id
+                    """,
+                    [simulation_year, self.config.scenario_id],
+                ).fetchall()
+
+        except Exception as exc:
+            self.logger.warning(
+                "Error loading workforce needs for %s: %s", simulation_year, exc
+            )
+            self._workforce_needs_cache[simulation_year] = None
+            return None
+
+        total_value = total_row[0] if total_row and total_row[0] is not None else 0
+        total_hires = int(round(total_value))
+        if total_hires <= 0:
+            self._workforce_needs_cache[simulation_year] = None
+            return None
+
+        levels: List[Dict[str, Any]] = []
+        for level_id, hires_needed, avg_comp in level_rows:
+            hires_val = int(hires_needed or 0)
+            if hires_val <= 0:
+                continue
+            levels.append(
+                {
+                    'level_id': int(level_id or 1),
+                    'hires_needed': hires_val,
+                    'avg_comp': float(avg_comp or 60000.0),
+                }
+            )
+
+        if not levels:
+            # Fallback to standard distribution if level breakdown missing
+            default_distribution = [
+                (1, 0.40),
+                (2, 0.30),
+                (3, 0.20),
+                (4, 0.08),
+                (5, 0.02),
+            ]
+            levels = []
+            for level_id, pct in default_distribution:
+                hires = max(0, int(round(total_hires * pct)))
+                if hires:
+                    levels.append(
+                        {
+                            'level_id': level_id,
+                            'hires_needed': hires,
+                            'avg_comp': 60000.0 + (level_id - 1) * 10000.0,
+                        }
+                    )
+
+        # Ensure rounding errors don't lose hires
+        assigned = sum(level['hires_needed'] for level in levels)
+        remainder = total_hires - assigned
+        idx = 0
+        while remainder > 0 and levels:
+            levels[idx % len(levels)]['hires_needed'] += 1
+            remainder -= 1
+            idx += 1
+
+        needs = {'total_hires': total_hires, 'levels': levels}
+        self._workforce_needs_cache[simulation_year] = needs
+        return needs
+
+    @staticmethod
+    def _deterministic_new_hire_age(sequence_num: int) -> int:
+        """Match SQL pattern for deterministic new hire ages."""
+        pattern = [25, 28, 32, 35, 40]
+        return pattern[sequence_num % len(pattern)]
+
+    @staticmethod
+    def _age_band(age: int) -> str:
+        """Return age band string matching workforce snapshot logic."""
+        if age < 25:
+            return '< 25'
+        if age < 35:
+            return '25-34'
+        if age < 45:
+            return '35-44'
+        if age < 55:
+            return '45-54'
+        if age < 65:
+            return '55-64'
+        return '65+'
+
+    def _build_hire_record(
+        self,
+        simulation_year: int,
+        sequence_num: int,
+        level_id: int,
+        avg_compensation: float,
+    ) -> Dict[str, Any]:
+        """Construct a hire event record aligned with SQL event fields."""
+        hire_date = date(simulation_year, 1, 1) + timedelta(days=sequence_num % 365)
+        age = self._deterministic_new_hire_age(sequence_num)
+        compensation = round(avg_compensation * (0.9 + (sequence_num % 10) * 0.02), 2)
+        employee_id = f"NH_{simulation_year}_{sequence_num:06d}"
+        ssn_offset = max(0, simulation_year - self.config.start_year) * 100000 + sequence_num
+        employee_ssn = f"SSN-{900000000 + ssn_offset:09d}"
+
+        return {
+            'scenario_id': self.config.scenario_id,
+            'plan_design_id': self.config.plan_design_id,
+            'employee_id': employee_id,
+            'employee_ssn': employee_ssn,
+            'event_type': 'hire',
+            'event_category': 'hiring',
+            'simulation_year': int(simulation_year),
+            'event_date': hire_date,
+            'effective_date': hire_date,
+            'event_details': f"New hire - Level {level_id}",
+            'compensation_amount': compensation,
+            'previous_compensation': None,
+            'employee_deferral_rate': None,
+            'prev_employee_deferral_rate': None,
+            'employee_age': age,
+            'employee_tenure': 0,
+            'level_id': int(level_id),
+            'age_band': self._age_band(age),
+            'tenure_band': '< 2',
+            'event_probability': 1.0,
+            'event_payload': json.dumps({'level_id': int(level_id)}),
+            'employee_birth_date': hire_date - timedelta(days=age * 365),
+        }
+
+    def _generate_hires_from_needs(
+        self, needs: Dict[str, Any], simulation_year: int
+    ) -> pl.DataFrame:
+        """Generate hire events based on workforce planning needs."""
+        records: List[Dict[str, Any]] = []
+        sequence_num = 0
+
+        for level in needs.get('levels', []):
+            level_id = level['level_id']
+            hires_needed = level['hires_needed']
+            avg_comp = level['avg_comp']
+            for _ in range(max(0, hires_needed)):
+                sequence_num += 1
+                records.append(
+                    self._build_hire_record(simulation_year, sequence_num, level_id, avg_comp)
+                )
+
+        total_hires = needs.get('total_hires', sequence_num)
+        # If rounding trimmed hires, distribute remainder evenly
+        while sequence_num < total_hires and records:
+            sequence_num += 1
+            level = records[(sequence_num - 1) % len(records)]['level_id']
+            avg_comp = next(
+                (lvl['avg_comp'] for lvl in needs['levels'] if lvl['level_id'] == level),
+                records[(sequence_num - 1) % len(records)]['compensation_amount'],
+            )
+            records.append(
+                self._build_hire_record(simulation_year, sequence_num, level, avg_comp)
+            )
+
+        if not records:
+            return pl.DataFrame()
+
+        return pl.DataFrame(records)
+
+    def _generate_hires_fallback(
+        self, cohort: pl.DataFrame, simulation_year: int
+    ) -> pl.DataFrame:
+        """Fallback hire generation when workforce needs are unavailable."""
+        hire_rate = self._get_parameter('HIRE', 'hire_probability', default=0.15)
+        estimated_hires = max(0, int(len(cohort) * hire_rate * 0.1))
+        if estimated_hires == 0:
+            return pl.DataFrame()
+
+        self.logger.warning(
+            "Using heuristic hire generation for %s (%s hires)",
+            simulation_year,
+            estimated_hires,
+        )
+
+        records: List[Dict[str, Any]] = []
+        for sequence_num in range(1, estimated_hires + 1):
+            level_id = 1 + ((sequence_num - 1) % 5)
+            avg_comp = 60000.0 + (level_id - 1) * 8000.0
+            records.append(
+                self._build_hire_record(simulation_year, sequence_num, level_id, avg_comp)
+            )
+
+        return pl.DataFrame(records)
+
     def _get_parameter(self, event_type: str, parameter_name: str, level: int = 1, default: float = 0.0) -> float:
         """Get parameter value with fallback to defaults."""
         key = f"{event_type}_{parameter_name}_level_{level}"
@@ -348,37 +583,26 @@ class PolarsEventGenerator:
         Matches logic in int_hiring_events.sql but uses Polars
         for significantly better performance.
         """
-        hire_rate = self._get_parameter('HIRE', 'hire_probability', default=0.15)
+        needs = self._fetch_workforce_needs(simulation_year)
+        if needs:
+            hires_df = self._generate_hires_from_needs(needs, simulation_year)
+            if hires_df.height > 0:
+                # Normalize to 8-column schema to match other event types
+                return hires_df.select([
+                    'scenario_id', 'plan_design_id', 'employee_id',
+                    'event_type', 'event_date', 'event_payload',
+                    'simulation_year', 'event_probability'
+                ])
 
-        # For hiring, we need to generate new employees rather than filter existing ones
-        # This is a simplified version - full implementation would use workforce_needs
-        target_hires = max(1, int(len(cohort) * hire_rate * 0.1))  # 10% of hire rate as new hires
+        fallback_hires = self._generate_hires_fallback(cohort, simulation_year)
+        if fallback_hires.height > 0:
+            return fallback_hires.select([
+                'scenario_id', 'plan_design_id', 'employee_id',
+                'event_type', 'event_date', 'event_payload',
+                'simulation_year', 'event_probability'
+            ])
 
-        if target_hires == 0:
-            return pl.DataFrame()
-
-        # Generate new hire records
-        hire_data = []
-        for i in range(target_hires):
-            # Generate deterministic employee ID
-            employee_id = f"NH_{simulation_year}_{i+1:06d}"
-
-            hire_data.append({
-                'scenario_id': self.config.scenario_id,
-                'plan_design_id': self.config.plan_design_id,
-                'employee_id': employee_id,
-                'event_type': 'hire',
-                'event_date': date(simulation_year, 6, 15),  # Mid-year hiring
-                'event_payload': json.dumps({
-                    'level': 1 + (i % 5),  # Distribute across levels 1-5
-                    'department': 'new_hire',
-                    'starting_salary': 50000 + (i % 5) * 10000  # $50k-$90k range
-                }),
-                'simulation_year': int(simulation_year),
-                'event_probability': 1.0  # All generated hires occur
-            })
-
-        return pl.DataFrame(hire_data)
+        return pl.DataFrame()
 
     def generate_termination_events(self, cohort: pl.DataFrame, simulation_year: int) -> pl.DataFrame:
         """Generate termination events with performance and tenure adjustments."""
