@@ -34,37 +34,22 @@
 {% set start_year = var('start_year', 2025) | int %}
 
 WITH
--- Get current year's new enrollment events (for new employees this year)
-current_year_new_enrollments_from_events AS (
+-- Get current year's new enrollment events from fct_yearly_events
+-- (supports both SQL and Polars event generation modes)
+current_year_new_enrollments AS (
     SELECT
         employee_id,
         effective_date as enrollment_date,
-        employee_deferral_rate as initial_deferral_rate,
-        simulation_year,
-        'int_enrollment_events' as source,
-        ROW_NUMBER() OVER (
-            PARTITION BY employee_id
-            ORDER BY effective_date
-        ) as rn
-    FROM {{ ref('int_enrollment_events') }}
-    WHERE LOWER(event_type) = 'enrollment'
-      AND employee_id IS NOT NULL
-      AND employee_deferral_rate IS NOT NULL
-      AND simulation_year = {{ simulation_year }}
-),
-
--- FALLBACK: Get current year enrollments from fct_yearly_events
-current_year_new_enrollments_from_yearly_events AS (
-    SELECT
-        employee_id,
-        effective_date as enrollment_date,
-        -- Extract deferral rate from event_details using regex
-        CASE
-            WHEN REGEXP_EXTRACT(event_details, '([0-9]+\.?[0-9]*)%\s*deferral', 1) IS NOT NULL
-                 AND REGEXP_EXTRACT(event_details, '([0-9]+\.?[0-9]*)%\s*deferral', 1) != ''
-            THEN CAST(REGEXP_EXTRACT(event_details, '([0-9]+\.?[0-9]*)%\s*deferral', 1) AS DECIMAL(6,4)) / 100.0
-            ELSE 0.06  -- Default fallback
-        END as initial_deferral_rate,
+        -- Use employee_deferral_rate if available, otherwise extract from event_details
+        COALESCE(
+            employee_deferral_rate,
+            CASE
+                WHEN REGEXP_EXTRACT(event_details, '([0-9]+\.?[0-9]*)%\s*deferral', 1) IS NOT NULL
+                     AND REGEXP_EXTRACT(event_details, '([0-9]+\.?[0-9]*)%\s*deferral', 1) != ''
+                THEN CAST(REGEXP_EXTRACT(event_details, '([0-9]+\.?[0-9]*)%\s*deferral', 1) AS DECIMAL(6,4)) / 100.0
+                ELSE 0.06
+            END
+        ) as initial_deferral_rate,
         simulation_year,
         'fct_yearly_events' as source,
         ROW_NUMBER() OVER (
@@ -75,21 +60,6 @@ current_year_new_enrollments_from_yearly_events AS (
     WHERE LOWER(event_type) = 'enrollment'
       AND employee_id IS NOT NULL
       AND simulation_year = {{ simulation_year }}
-      -- Only include if not already in int_enrollment_events
-      AND employee_id NOT IN (
-          SELECT employee_id
-          FROM current_year_new_enrollments_from_events
-          WHERE rn = 1
-      )
-),
-
--- Combine both sources for current year
-current_year_new_enrollments AS (
-    SELECT employee_id, enrollment_date, initial_deferral_rate, simulation_year, source, rn
-    FROM current_year_new_enrollments_from_events
-    UNION ALL
-    SELECT employee_id, enrollment_date, initial_deferral_rate, simulation_year, source, rn
-    FROM current_year_new_enrollments_from_yearly_events
 ),
 
 -- Get current year's escalation events
@@ -110,11 +80,12 @@ current_year_escalations AS (
 ),
 
 -- Capture current year's opt-out events (set deferral to 0 and unenroll)
+-- (supports both SQL and Polars event generation modes)
 current_year_opt_outs AS (
     SELECT DISTINCT
         employee_id,
         effective_date
-    FROM {{ ref('int_enrollment_events') }}
+    FROM {{ ref('fct_yearly_events') }}
     WHERE simulation_year = {{ simulation_year }}
       AND LOWER(event_type) = 'enrollment_change'
       AND COALESCE(employee_deferral_rate, 0) = 0
@@ -122,37 +93,22 @@ current_year_opt_outs AS (
 ),
 
 {% if simulation_year == start_year %}
--- BASE CASE: First simulation year - get enrollments from both int_enrollment_events and fct_yearly_events
-historical_enrollments_from_events AS (
+-- BASE CASE: First simulation year - get enrollments from fct_yearly_events
+-- (supports both SQL and Polars event generation modes)
+historical_enrollments AS (
     SELECT
         employee_id,
         effective_date as enrollment_date,
-        employee_deferral_rate as initial_deferral_rate,
-        simulation_year as enrollment_year,
-        'int_enrollment_events' as source,
-        ROW_NUMBER() OVER (
-            PARTITION BY employee_id
-            ORDER BY simulation_year, effective_date
-        ) as rn
-    FROM {{ ref('int_enrollment_events') }}
-    WHERE LOWER(event_type) = 'enrollment'
-      AND employee_id IS NOT NULL
-      AND employee_deferral_rate IS NOT NULL
-      AND simulation_year <= {{ simulation_year }}
-),
-
--- FALLBACK: Extract from fct_yearly_events for employees missing from int_enrollment_events
-historical_enrollments_from_yearly_events AS (
-    SELECT
-        employee_id,
-        effective_date as enrollment_date,
-        -- Extract deferral rate from event_details using regex
-        CASE
-            WHEN REGEXP_EXTRACT(event_details, '([0-9]+\.?[0-9]*)%\s*deferral', 1) IS NOT NULL
-                 AND REGEXP_EXTRACT(event_details, '([0-9]+\.?[0-9]*)%\s*deferral', 1) != ''
-            THEN CAST(REGEXP_EXTRACT(event_details, '([0-9]+\.?[0-9]*)%\s*deferral', 1) AS DECIMAL(6,4)) / 100.0
-            ELSE 0.06  -- Default fallback
-        END as initial_deferral_rate,
+        -- Use employee_deferral_rate if available, otherwise extract from event_details
+        COALESCE(
+            employee_deferral_rate,
+            CASE
+                WHEN REGEXP_EXTRACT(event_details, '([0-9]+\.?[0-9]*)%\s*deferral', 1) IS NOT NULL
+                     AND REGEXP_EXTRACT(event_details, '([0-9]+\.?[0-9]*)%\s*deferral', 1) != ''
+                THEN CAST(REGEXP_EXTRACT(event_details, '([0-9]+\.?[0-9]*)%\s*deferral', 1) AS DECIMAL(6,4)) / 100.0
+                ELSE 0.06
+            END
+        ) as initial_deferral_rate,
         simulation_year as enrollment_year,
         'fct_yearly_events' as source,
         ROW_NUMBER() OVER (
@@ -163,19 +119,6 @@ historical_enrollments_from_yearly_events AS (
     WHERE LOWER(event_type) = 'enrollment'
       AND employee_id IS NOT NULL
       AND simulation_year <= {{ simulation_year }}
-      -- Only include if not already in int_enrollment_events
-      AND employee_id NOT IN (
-          SELECT employee_id
-          FROM historical_enrollments_from_events
-          WHERE rn = 1
-      )
-),
-
--- Combine both sources
-historical_enrollments AS (
-    SELECT * FROM historical_enrollments_from_events
-    UNION ALL
-    SELECT * FROM historical_enrollments_from_yearly_events
 ),
 
 -- EPIC E049: Use synthetic baseline events instead of hard-coded 6% rates
@@ -254,38 +197,22 @@ current_year_workforce AS (
 
     UNION
 
-    -- Include new hires that might not be in compensation table yet
-    SELECT
-        employee_id::VARCHAR as employee_id,
-        employee_ssn::VARCHAR as employee_ssn,
-        compensation_amount::DECIMAL(12,2) as employee_compensation,
-        employee_age::SMALLINT as current_age,
-        level_id::SMALLINT as level_id
-    FROM {{ ref('int_hiring_events') }}
-    WHERE simulation_year = {{ simulation_year }}
-      AND employee_id IS NOT NULL
-
-    UNION
-
-    -- FALLBACK: Extract employee list from fct_yearly_events if workforce tables are empty
+    -- FALLBACK: Extract new hire employee list from fct_yearly_events
+    -- (supports both SQL and Polars event generation modes)
     SELECT DISTINCT
         employee_id::VARCHAR as employee_id,
-        'UNKNOWN'::VARCHAR as employee_ssn,
-        50000.00::DECIMAL(12,2) as employee_compensation,  -- Default compensation
-        35::SMALLINT as current_age,                       -- Default age
-        2::SMALLINT as level_id                            -- Default level
+        employee_ssn::VARCHAR as employee_ssn,
+        COALESCE(compensation_amount, 50000.00)::DECIMAL(12,2) as employee_compensation,
+        COALESCE(employee_age, 35)::SMALLINT as current_age,
+        COALESCE(level_id, 2)::SMALLINT as level_id
     FROM {{ ref('fct_yearly_events') }}
     WHERE simulation_year = {{ simulation_year }}
-      AND event_type IN ('enrollment', 'hire')
+      AND event_type = 'hire'
       AND employee_id IS NOT NULL
-      -- Only include if not already in workforce tables
+      -- Only include if not already in workforce compensation table
       AND employee_id NOT IN (
           SELECT employee_id
           FROM {{ ref('int_employee_compensation_by_year') }}
-          WHERE simulation_year = {{ simulation_year }}
-          UNION
-          SELECT employee_id
-          FROM {{ ref('int_hiring_events') }}
           WHERE simulation_year = {{ simulation_year }}
       )
 ),
@@ -381,8 +308,7 @@ first_year_state AS (
             WHEN oo.employee_id IS NOT NULL THEN 'opt_out'
             WHEN ce.employee_id IS NOT NULL THEN 'escalation_event'
             WHEN he.source = 'synthetic_baseline' THEN 'census_rate'
-            WHEN he.source = 'int_enrollment_events' THEN 'enrollment_event'
-            WHEN he.source = 'fct_yearly_events' THEN 'fallback_event'
+            WHEN he.source = 'fct_yearly_events' THEN 'enrollment_event'
             WHEN br.employee_id IS NOT NULL THEN 'demographic_fallback'
             ELSE 'hard_fallback'
         END as rate_source
@@ -482,7 +408,7 @@ subsequent_year_state AS (
             WHEN oo.employee_id IS NOT NULL THEN 'opt_out'
             WHEN ce.employee_id IS NOT NULL THEN 'escalation_event'
             WHEN ne.source = 'synthetic_baseline' THEN 'census_rate'
-            WHEN ne.source = 'int_enrollment_events' THEN 'enrollment_event'
+            WHEN ne.source = 'fct_yearly_events' THEN 'enrollment_event'
             WHEN ps.employee_id IS NOT NULL THEN 'carried_forward'
             WHEN br.employee_id IS NOT NULL THEN 'demographic_fallback'
             ELSE 'hard_fallback'

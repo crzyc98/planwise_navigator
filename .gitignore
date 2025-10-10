@@ -9,6 +9,9 @@ simulation.duckdb.wal
 *.duckdb
 *.duckdb.wal
 
+# Data
+data/secret/
+
 # Claude
 .claude/
 
