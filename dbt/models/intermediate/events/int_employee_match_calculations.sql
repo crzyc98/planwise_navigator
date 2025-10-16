@@ -3,7 +3,7 @@
     indexes=[
         {'columns': ['employee_id', 'simulation_year'], 'unique': true}
     ],
-    tags=['match_engine', 'critical', 'core_calculation', 'STATE_ACCUMULATION']
+    tags=['match_engine', 'critical', 'core_calculation', 'STATE_ACCUMULATION', 'EVENT_GENERATION']
 ) }}
 
 /*
