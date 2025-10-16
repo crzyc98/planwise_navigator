@@ -62,21 +62,29 @@ current_year_new_enrollments AS (
       AND simulation_year = {{ simulation_year }}
 ),
 
--- Get current year's escalation events
+-- Get current year's escalation events from fct_yearly_events
+-- (supports both SQL and Polars event generation modes)
 current_year_escalations AS (
     SELECT
         employee_id,
         effective_date,
-        new_deferral_rate,
-        escalation_rate,
+        employee_deferral_rate as new_deferral_rate,
+        -- Extract escalation_rate from event_details if available
+        CASE
+            WHEN REGEXP_EXTRACT(event_details, 'escalation_rate[:\s]+([0-9]+\.?[0-9]*)%?', 1) IS NOT NULL
+                 AND REGEXP_EXTRACT(event_details, 'escalation_rate[:\s]+([0-9]+\.?[0-9]*)%?', 1) != ''
+            THEN CAST(REGEXP_EXTRACT(event_details, 'escalation_rate[:\s]+([0-9]+\.?[0-9]*)%?', 1) AS DECIMAL(5,4)) / 100.0
+            ELSE 0.01
+        END as escalation_rate,
         ROW_NUMBER() OVER (
             PARTITION BY employee_id
             ORDER BY effective_date DESC
         ) as rn
-    FROM {{ ref('int_deferral_rate_escalation_events') }}
+    FROM {{ ref('fct_yearly_events') }}
     WHERE simulation_year = {{ simulation_year }}
+        AND LOWER(event_type) IN ('deferral_escalation', 'enrollment_change')
         AND employee_id IS NOT NULL
-        AND new_deferral_rate IS NOT NULL
+        AND employee_deferral_rate IS NOT NULL
 ),
 
 -- Capture current year's opt-out events (set deferral to 0 and unenroll)
@@ -121,8 +129,9 @@ historical_enrollments AS (
       AND simulation_year <= {{ simulation_year }}
 ),
 
--- EPIC E049: Use synthetic baseline events instead of hard-coded 6% rates
+-- EPIC E049: Use synthetic baseline events from fct_yearly_events
 -- Get pre-enrolled employees from synthetic baseline enrollment events
+-- (supports both SQL and Polars event generation modes)
 synthetic_baseline_enrollments AS (
     SELECT
         employee_id,
@@ -131,8 +140,10 @@ synthetic_baseline_enrollments AS (
         EXTRACT(YEAR FROM effective_date) as enrollment_year,
         'synthetic_baseline' as source,
         1 as rn  -- Synthetic events are primary source
-    FROM {{ ref('int_synthetic_baseline_enrollment_events') }}
+    FROM {{ ref('fct_yearly_events') }}
     WHERE simulation_year = {{ simulation_year }}
+        AND LOWER(event_type) = 'enrollment'
+        AND LOWER(COALESCE(event_details, '')) LIKE '%baseline%'
         AND employee_id IS NOT NULL
         AND employee_deferral_rate > 0
         -- Only include if not already in event-based enrollments
@@ -281,7 +292,7 @@ first_year_state AS (
         NULL::INTEGER as years_since_first_escalation,
         CASE
             WHEN ce.effective_date IS NOT NULL
-            THEN (DATE '{{ simulation_year }}-12-31' - ce.effective_date)::INTEGER
+            THEN DATEDIFF('day', ce.effective_date, DATE '{{ simulation_year }}-12-31')
             ELSE NULL
         END as days_since_last_escalation,
 
@@ -381,7 +392,7 @@ subsequent_year_state AS (
         NULL::INTEGER as years_since_first_escalation,
         CASE
             WHEN ce.effective_date IS NOT NULL
-            THEN (DATE '{{ simulation_year }}-12-31' - ce.effective_date)::INTEGER
+            THEN DATEDIFF('day', ce.effective_date, DATE '{{ simulation_year }}-12-31')
             ELSE NULL
         END as days_since_last_escalation,
 

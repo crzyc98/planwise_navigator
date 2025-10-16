@@ -80,7 +80,22 @@
       "Bash(pkill:*)",
       "Bash(PYTHONPATH=. python -m navigator_orchestrator run --years 2025-2027 --threads 1 --verbose)",
       "Bash(python3:*)",
-      "Bash(PYTHONPATH=. time python -m navigator_orchestrator run --years 2025-2027 --threads 1 --verbose)"
+      "Bash(PYTHONPATH=. time python -m navigator_orchestrator run --years 2025-2027 --threads 1 --verbose)",
+      "Bash(git pull:*)",
+      "Bash(git branch:*)",
+      "Bash(feature/E055-new-hire-employer-match-fix )",
+      "Bash(feature/E056-new-hire-compensation-configurability )",
+      "Bash(feature/E063-single-threaded-performance-optimizations )",
+      "Bash(feature/E065-new-hire-core-contribution-proration-fix )",
+      "Bash(feature/E066-compensation-annualization-fix )",
+      "Bash(feature/E067-multi-threading-navigator-orchestrator )",
+      "Bash(feature/performance-instrumentation )",
+      "Bash(fix/core-contributions-auto-escalation-bug )",
+      "Bash(fix/experienced-termination-contribution-proration-issue-17 )",
+      "Bash(fix/voluntary-enrollment-window-integration)",
+      "Bash(PYTHONPATH=. python -m navigator_orchestrator run --years 2025-2027 --threads 1)",
+      "Bash(PYTHONPATH=. python -m navigator_orchestrator run --years 2025-2025 --threads 1)",
+      "Bash(export PYTHONPATH=.)"
     ],
     "deny": [],
     "ask": []

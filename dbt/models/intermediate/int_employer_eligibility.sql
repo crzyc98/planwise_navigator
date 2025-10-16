@@ -84,16 +84,18 @@ events_data AS (
         SELECT employee_id,
                effective_date AS hire_date,
                CAST(NULL AS DATE) AS termination_date
-        FROM {{ ref('int_hiring_events') }}
+        FROM {{ ref('fct_yearly_events') }}
         WHERE simulation_year = {{ simulation_year }}
+          AND event_type = 'hire'
 
         UNION ALL
 
         SELECT employee_id,
                CAST(NULL AS DATE) AS hire_date,
                effective_date AS termination_date
-        FROM {{ ref('int_termination_events') }}
+        FROM {{ ref('fct_yearly_events') }}
         WHERE simulation_year = {{ simulation_year }}
+          AND event_type = 'termination'
     ) s
     GROUP BY employee_id
 ),
@@ -115,11 +117,10 @@ experienced_termination_flags AS (
     SELECT
         t.employee_id,
         TRUE AS has_experienced_termination
-    FROM {{ ref('int_termination_events') }} t
+    FROM {{ ref('fct_yearly_events') }} t
     WHERE t.simulation_year = {{ simulation_year }}
-      AND t.employee_id NOT IN (
-          SELECT employee_id FROM {{ ref('int_new_hire_termination_events') }} WHERE simulation_year = {{ simulation_year }}
-      )
+      AND t.event_type = 'termination'
+      AND t.event_details NOT LIKE 'Termination - new_hire_departure%'
     GROUP BY t.employee_id
 ),
 

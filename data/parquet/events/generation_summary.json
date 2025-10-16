@@ -1,15 +1,15 @@
 {
   "generation_summary": {
-    "start_year": 2025,
-    "end_year": 2025,
-    "total_events": 2249,
+    "start_year": 2029,
+    "end_year": 2029,
+    "total_events": 2340,
     "successful_years": [
-      2025
+      2029
     ],
     "failed_years": [],
-    "total_duration_seconds": 0.040625810623168945,
-    "events_per_second": 55358.89537961349,
-    "generated_at": "2025-10-09T20:53:29.443865"
+    "total_duration_seconds": 0.042351722717285156,
+    "events_per_second": 55251.58954266027,
+    "generated_at": "2025-10-15T09:04:38.556637"
   },
   "configuration": {
     "scenario_id": null,
@@ -20,26 +20,26 @@
     "max_threads": "16"
   },
   "statistics": {
-    "total_events_generated": 2249,
+    "total_events_generated": 2340,
     "events_by_type": {
       "hire": 101,
-      "termination": 1023,
-      "promotion": 99,
-      "merit": 249,
-      "enrollment": 777
+      "termination": 1128,
+      "promotion": 86,
+      "merit": 231,
+      "enrollment": 794
     },
     "events_by_year": {
-      "2025": 2249
+      "2029": 2340
     },
     "processing_time_by_year": {
-      "2025": 0.038648128509521484
+      "2029": 0.04023408889770508
     },
     "memory_usage_peak_mb": 0.0
   },
   "performance_metrics": {
     "target_performance": "\u226460s for 5k\u00d75 years",
     "achieved_performance": "0.0s for 1 years",
-    "performance_ratio": 0.0006770968437194824,
+    "performance_ratio": 0.0007058620452880859,
     "memory_efficient": true,
     "meets_target": false
   }

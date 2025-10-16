@@ -271,6 +271,26 @@ class EventGenerationExecutor:
             'polars_enabled': True
         })
 
+        # Build non-event dbt models that are needed for STATE_ACCUMULATION
+        # These models have EVENT_GENERATION tag but are not replaced by Polars
+        # (e.g., int_employer_eligibility which is used by int_employer_core_contributions)
+        if self.verbose:
+            print("📋 Building post-Polars dbt models (int_employer_eligibility)...")
+
+        for year in years:
+            result = self.dbt_runner.execute_command(
+                ["run", "--select", "int_employer_eligibility"],
+                simulation_year=year,
+                dbt_vars=self.dbt_vars,
+                stream_output=self.verbose
+            )
+            if not result.success:
+                raise PipelineStageError(
+                    f"Failed to build int_employer_eligibility for year {year}: {result.error_message}"
+                )
+
+        polars_duration = time.time() - start_time
+
         return {
             'mode': 'polars',
             'success': True,
