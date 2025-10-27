@@ -36,8 +36,13 @@ WITH previous_year_snapshot AS (
 workforce_summary AS (
   SELECT
     COUNT(*) AS total_active_workforce,
-    COUNT(*) AS experienced_workforce,
-    0 AS current_year_hires,
+    -- Experienced: employees hired BEFORE the previous year
+    -- These employees use the standard experienced_termination_rate (12%)
+    COUNT(*) FILTER (WHERE employee_hire_date < DATE '{{ previous_year }}-01-01') AS experienced_workforce,
+    -- Current year hires: employees hired DURING the previous year
+    -- These employees still have elevated termination risk (new_hire_termination_rate = 25%)
+    COUNT(*) FILTER (WHERE employee_hire_date >= DATE '{{ previous_year }}-01-01'
+                     AND employee_hire_date < DATE '{{ simulation_year }}-01-01') AS current_year_hires,
     -- Handle zero workforce: use safe defaults for NULL aggregates
     COALESCE(AVG(current_compensation), 50000) AS avg_compensation,
     COALESCE(SUM(current_compensation), 0) AS total_compensation

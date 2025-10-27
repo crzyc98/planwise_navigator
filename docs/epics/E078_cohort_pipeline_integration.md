@@ -480,19 +480,66 @@ The Polars integration is **almost complete**. We just need to update ~10 models
 
 ---
 
+## ⚠️ CRITICAL UPDATE (2025-10-16)
+
+**What Happened**: Commit `4007eb0` ("update") was **implementing E078** by updating STATE_ACCUMULATION models to read from `fct_yearly_events` instead of intermediate event models. However, this was **mistakenly reverted** on 2025-10-16 when investigating a simulation bug.
+
+**Root Cause of Confusion**:
+- The changes in commit 4007eb0 were CORRECT for Polars mode
+- The changes BROKE SQL mode because they read from `fct_yearly_events` too early in the pipeline
+- SQL mode expects STATE_ACCUMULATION to read from ephemeral `int_*_events` models
+- Polars mode expects STATE_ACCUMULATION to read from `fct_yearly_events` (since `int_*_events` don't exist)
+
+**What Was Reverted** (2025-10-16):
+- ❌ `int_deferral_rate_state_accumulator.sql` - reverted to `int_hiring_events`, `int_deferral_rate_escalation_events`, `int_enrollment_events`
+- ❌ `int_deferral_rate_state_accumulator_v2.sql` - reverted to `int_deferral_rate_escalation_events`
+- ❌ `int_deferral_escalation_state_accumulator.sql` - reverted to `int_deferral_rate_escalation_events`
+- ❌ `int_employer_eligibility.sql` - reverted to `int_hiring_events`, `int_termination_events`, `int_new_hire_termination_events`
+- ❌ `int_employee_match_calculations.sql` - removed duplicate `EVENT_GENERATION` tag
+
+**Current State After Reversion**:
+- ✅ SQL mode works perfectly (confirmed 2025-10-16)
+- ❌ Polars mode broken (STATE_ACCUMULATION models can't find `int_*_events`)
+- ⚙️ Polars mode disabled in config (`mode: "sql"`, `enabled: false`)
+
+**The Real Problem** (Not the Changes):
+The actual simulation bug causing -46% workforce decline and 0 enrollments was NOT the model references. The bug is likely:
+1. Config not being applied from `scenarios/ae_new_hires.yaml`
+2. Cohort engine not running (checking `is_cohort_engine_enabled()`)
+3. Growth calculation issue
+
+**Next Steps**:
+1. **Fix the actual bug** (config/cohort engine issue)
+2. **Re-implement E078 with mode-aware logic**: Models need to read from `int_*_events` in SQL mode and `fct_yearly_events` in Polars mode
+3. **Use Jinja conditionals** to make models work in both modes:
+
+```sql
+-- Pattern for mode-aware references:
+{% if var('event_generation_mode', 'sql') == 'polars' %}
+    FROM {{ ref('fct_yearly_events') }}
+    WHERE event_type = 'hire'
+      AND simulation_year = {{ var('simulation_year') }}
+{% else %}
+    FROM {{ ref('int_hiring_events') }}
+    WHERE simulation_year = {{ var('simulation_year') }}
+{% endif %}
+```
+
+---
+
 ## ✅ Completion Summary
 
-**Status**: Not started
+**Status**: REVERTED (needs re-implementation with mode-aware logic)
 
-**Timeline**: TBD
+**Timeline**:
+- 2025-10-10: Commit 4007eb0 implemented E078 changes
+- 2025-10-16: Changes mistakenly reverted during bug investigation
 
 **Results**:
-- Models updated: TBD
-- SQL mode runtime (2025-2027): TBD
-- Polars mode runtime (2025-2027): TBD
-- Speedup: TBD
-- Event count parity: TBD
-- Core contribution parity: TBD
+- Models updated in 4007eb0: 5 STATE_ACCUMULATION models
+- SQL mode runtime: Works correctly ✅
+- Polars mode runtime: Broken (models reverted) ❌
+- Lesson learned: Need mode-aware references, not blanket `fct_yearly_events` migration
 
 ---
 

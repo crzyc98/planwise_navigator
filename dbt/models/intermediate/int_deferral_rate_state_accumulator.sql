@@ -74,16 +74,14 @@ base_active AS (
 
 new_hires_current_year AS (
     -- Attributes for current-year hires (fills gap for first-year where base_active lacks NH_YYYY)
-    -- Read from fct_yearly_events (supports both SQL and Polars event generation modes)
     SELECT
         he.employee_id::VARCHAR as employee_id,
         he.employee_ssn::VARCHAR as employee_ssn,
         he.compensation_amount::DECIMAL(12,2) as employee_compensation,
         he.employee_age::SMALLINT as current_age,
         he.level_id::SMALLINT as level_id
-    FROM {{ ref('fct_yearly_events') }} he
+    FROM {{ ref('int_hiring_events') }} he
     WHERE he.simulation_year = {{ simulation_year }}
-      AND LOWER(he.event_type) = 'hire'
 ),
 
 current_workforce AS (
@@ -106,38 +104,28 @@ current_workforce AS (
 ),
 
 -- OPTIMIZED: Pre-filter escalation events by year range for better JOIN performance
--- Read from fct_yearly_events (supports both SQL and Polars event generation modes)
 escalation_events_filtered AS (
     SELECT
         employee_id::VARCHAR as employee_id,
         simulation_year::INTEGER as simulation_year,
         effective_date::DATE as effective_date,
-        employee_deferral_rate::DECIMAL(5,4) as new_deferral_rate,
-        -- Extract escalation_rate from event_details if available
-        CASE
-            WHEN REGEXP_EXTRACT(event_details, 'escalation_rate[:\s]+([0-9]+\.?[0-9]*)%?', 1) IS NOT NULL
-                 AND REGEXP_EXTRACT(event_details, 'escalation_rate[:\s]+([0-9]+\.?[0-9]*)%?', 1) != ''
-            THEN CAST(REGEXP_EXTRACT(event_details, 'escalation_rate[:\s]+([0-9]+\.?[0-9]*)%?', 1) AS DECIMAL(5,4)) / 100.0
-            ELSE 0.01
-        END::DECIMAL(5,4) as escalation_rate,
-        1::INTEGER as new_escalation_count,
+        new_deferral_rate::DECIMAL(5,4) as new_deferral_rate,
+        escalation_rate::DECIMAL(5,4) as escalation_rate,
+        new_escalation_count::INTEGER as new_escalation_count,
         event_details::VARCHAR as event_details
-    FROM {{ ref('fct_yearly_events') }}
+    FROM {{ ref('int_deferral_rate_escalation_events') }}
     WHERE simulation_year <= {{ simulation_year }}
-        AND LOWER(event_type) IN ('deferral_escalation', 'enrollment_change')
         AND employee_id IS NOT NULL  -- Prevent NULL joins
-        AND employee_deferral_rate IS NOT NULL
 ),
 
 -- CRITICAL FIX: Add enrollment events to capture initial deferral rates
--- Read from fct_yearly_events (supports both SQL and Polars event generation modes)
 enrollment_events AS (
     SELECT DISTINCT
         employee_id::VARCHAR as employee_id,
         simulation_year::INTEGER as simulation_year,
         employee_deferral_rate::DECIMAL(5,4) as enrollment_deferral_rate,
         effective_date::DATE as enrollment_date
-    FROM {{ ref('fct_yearly_events') }}
+    FROM {{ ref('int_enrollment_events') }}
     WHERE simulation_year <= {{ simulation_year }}
       AND LOWER(event_type) = 'enrollment'
       AND employee_id IS NOT NULL

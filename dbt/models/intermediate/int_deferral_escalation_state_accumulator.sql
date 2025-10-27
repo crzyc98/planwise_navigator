@@ -42,26 +42,17 @@ WITH current_workforce AS (
 
 escalation_events_history AS (
     -- Get all escalation events up to and including current year
-    -- Read from fct_yearly_events (supports both SQL and Polars event generation modes)
     SELECT
         employee_id,
         simulation_year,
         effective_date,
-        employee_deferral_rate as previous_deferral_rate,
-        employee_deferral_rate as new_deferral_rate,
-        -- Extract escalation_rate from event_details if available
-        CASE
-            WHEN REGEXP_EXTRACT(event_details, 'escalation_rate[:\s]+([0-9]+\.?[0-9]*)%?', 1) IS NOT NULL
-                 AND REGEXP_EXTRACT(event_details, 'escalation_rate[:\s]+([0-9]+\.?[0-9]*)%?', 1) != ''
-            THEN CAST(REGEXP_EXTRACT(event_details, 'escalation_rate[:\s]+([0-9]+\.?[0-9]*)%?', 1) AS DECIMAL(5,4)) / 100.0
-            ELSE 0.01
-        END as escalation_rate,
-        1 as new_escalation_count,
+        previous_deferral_rate,
+        new_deferral_rate,
+        escalation_rate,
+        new_escalation_count,
         event_details
-    FROM {{ ref('fct_yearly_events') }}
+    FROM {{ ref('int_deferral_rate_escalation_events') }}
     WHERE simulation_year <= {{ simulation_year }}
-      AND LOWER(event_type) IN ('deferral_escalation', 'enrollment_change')
-      AND employee_deferral_rate IS NOT NULL
 ),
 
 employee_escalation_summary AS (

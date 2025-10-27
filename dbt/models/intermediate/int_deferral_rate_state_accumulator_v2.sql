@@ -57,34 +57,26 @@ current_year_new_enrollments AS (
             ORDER BY effective_date
         ) as rn
     FROM {{ ref('fct_yearly_events') }}
-    WHERE LOWER(event_type) = 'enrollment'
+    WHERE LOWER(event_type) = 'benefit_enrollment'
       AND employee_id IS NOT NULL
       AND simulation_year = {{ simulation_year }}
 ),
 
--- Get current year's escalation events from fct_yearly_events
--- (supports both SQL and Polars event generation modes)
+-- Get current year's escalation events
 current_year_escalations AS (
     SELECT
         employee_id,
         effective_date,
-        employee_deferral_rate as new_deferral_rate,
-        -- Extract escalation_rate from event_details if available
-        CASE
-            WHEN REGEXP_EXTRACT(event_details, 'escalation_rate[:\s]+([0-9]+\.?[0-9]*)%?', 1) IS NOT NULL
-                 AND REGEXP_EXTRACT(event_details, 'escalation_rate[:\s]+([0-9]+\.?[0-9]*)%?', 1) != ''
-            THEN CAST(REGEXP_EXTRACT(event_details, 'escalation_rate[:\s]+([0-9]+\.?[0-9]*)%?', 1) AS DECIMAL(5,4)) / 100.0
-            ELSE 0.01
-        END as escalation_rate,
+        new_deferral_rate,
+        escalation_rate,
         ROW_NUMBER() OVER (
             PARTITION BY employee_id
             ORDER BY effective_date DESC
         ) as rn
-    FROM {{ ref('fct_yearly_events') }}
+    FROM {{ ref('int_deferral_rate_escalation_events') }}
     WHERE simulation_year = {{ simulation_year }}
-        AND LOWER(event_type) IN ('deferral_escalation', 'enrollment_change')
         AND employee_id IS NOT NULL
-        AND employee_deferral_rate IS NOT NULL
+        AND new_deferral_rate IS NOT NULL
 ),
 
 -- Capture current year's opt-out events (set deferral to 0 and unenroll)
@@ -124,28 +116,26 @@ historical_enrollments AS (
             ORDER BY simulation_year, effective_date
         ) as rn
     FROM {{ ref('fct_yearly_events') }}
-    WHERE LOWER(event_type) = 'enrollment'
+    WHERE LOWER(event_type) = 'benefit_enrollment'
       AND employee_id IS NOT NULL
       AND simulation_year <= {{ simulation_year }}
 ),
 
--- EPIC E049: Use synthetic baseline events from fct_yearly_events
--- Get pre-enrolled employees from synthetic baseline enrollment events
+-- EPIC E049: Get pre-enrolled employees directly from baseline workforce
+-- Pull baseline enrollment data from int_baseline_workforce (census data)
 -- (supports both SQL and Polars event generation modes)
 synthetic_baseline_enrollments AS (
     SELECT
         employee_id,
-        effective_date as enrollment_date,
+        employee_enrollment_date as enrollment_date,
         employee_deferral_rate as initial_deferral_rate,  -- Use actual census rates
-        EXTRACT(YEAR FROM effective_date) as enrollment_year,
+        EXTRACT(YEAR FROM COALESCE(employee_enrollment_date, '{{ simulation_year }}-01-01'::DATE)) as enrollment_year,
         'synthetic_baseline' as source,
-        1 as rn  -- Synthetic events are primary source
-    FROM {{ ref('fct_yearly_events') }}
-    WHERE simulation_year = {{ simulation_year }}
-        AND LOWER(event_type) = 'enrollment'
-        AND LOWER(COALESCE(event_details, '')) LIKE '%baseline%'
-        AND employee_id IS NOT NULL
+        1 as rn  -- Baseline data is primary source for existing employees
+    FROM {{ ref('int_baseline_workforce') }}
+    WHERE employee_id IS NOT NULL
         AND employee_deferral_rate > 0
+        AND employee_enrollment_date IS NOT NULL
         -- Only include if not already in event-based enrollments
         AND employee_id NOT IN (
             SELECT employee_id
