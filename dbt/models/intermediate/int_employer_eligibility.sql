@@ -84,24 +84,25 @@ events_data AS (
         SELECT employee_id,
                effective_date AS hire_date,
                CAST(NULL AS DATE) AS termination_date
-        FROM {{ ref('fct_yearly_events') }}
+        FROM {{ ref('int_hiring_events') }}
         WHERE simulation_year = {{ simulation_year }}
-          AND event_type = 'hire'
 
         UNION ALL
 
         SELECT employee_id,
                CAST(NULL AS DATE) AS hire_date,
                effective_date AS termination_date
-        FROM {{ ref('fct_yearly_events') }}
+        FROM {{ ref('int_termination_events') }}
         WHERE simulation_year = {{ simulation_year }}
-          AND event_type = 'termination'
     ) s
     GROUP BY employee_id
 ),
 
 -- Flag employees classified as new-hire terminations in this simulation year
+-- Epic E078: Mode-aware query - uses fct_yearly_events in Polars mode, int_new_hire_termination_events in SQL mode
 new_hire_termination_flags AS (
+    {% if var('event_generation_mode', 'sql') == 'polars' %}
+    -- Polars mode: fct_yearly_events is populated from Parquet files before EVENT_GENERATION
     SELECT
         employee_id,
         TRUE AS has_new_hire_termination
@@ -110,6 +111,15 @@ new_hire_termination_flags AS (
       AND event_type = 'termination'
       AND event_details LIKE 'Termination - new_hire_departure%'
     GROUP BY employee_id
+    {% else %}
+    -- SQL mode: Use intermediate event model that exists during EVENT_GENERATION
+    SELECT
+        employee_id,
+        TRUE AS has_new_hire_termination
+    FROM {{ ref('int_new_hire_termination_events') }}
+    WHERE simulation_year = {{ simulation_year }}
+    GROUP BY employee_id
+    {% endif %}
 ),
 
 -- Flag employees with experienced terminations (non-new-hire) in this simulation year
@@ -117,15 +127,19 @@ experienced_termination_flags AS (
     SELECT
         t.employee_id,
         TRUE AS has_experienced_termination
-    FROM {{ ref('fct_yearly_events') }} t
+    FROM {{ ref('int_termination_events') }} t
     WHERE t.simulation_year = {{ simulation_year }}
-      AND t.event_type = 'termination'
-      AND t.event_details NOT LIKE 'Termination - new_hire_departure%'
+      AND t.employee_id NOT IN (
+          SELECT employee_id FROM {{ ref('int_new_hire_termination_events') }} WHERE simulation_year = {{ simulation_year }}
+      )
     GROUP BY t.employee_id
 ),
 
 -- Get newly hired employees from yearly events (not in baseline workforce)
+-- Epic E078: Mode-aware query - uses fct_yearly_events in Polars mode, int_hiring_events in SQL mode
 new_hires_data AS (
+    {% if var('event_generation_mode', 'sql') == 'polars' %}
+    -- Polars mode: fct_yearly_events is populated from Parquet files before EVENT_GENERATION
     SELECT
         ye.employee_id,
         'active' AS employment_status,
@@ -141,6 +155,23 @@ new_hires_data AS (
             SELECT employee_id
             FROM baseline_data
         )
+    {% else %}
+    -- SQL mode: Use intermediate event model that exists during EVENT_GENERATION
+    SELECT
+        he.employee_id,
+        'active' AS employment_status,
+        0.0 AS current_tenure,  -- New hires start with 0 tenure
+        he.effective_date AS employee_hire_date,
+        NULL AS termination_date
+    FROM {{ ref('int_hiring_events') }} he
+    WHERE he.simulation_year = {{ simulation_year }}
+        AND he.employee_id IS NOT NULL
+        -- Only include if not already in baseline workforce
+        AND he.employee_id NOT IN (
+            SELECT employee_id
+            FROM baseline_data
+        )
+    {% endif %}
 ),
 
 -- Combine baseline workforce with new hires

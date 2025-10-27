@@ -95,7 +95,12 @@
       "Bash(fix/voluntary-enrollment-window-integration)",
       "Bash(PYTHONPATH=. python -m navigator_orchestrator run --years 2025-2027 --threads 1)",
       "Bash(PYTHONPATH=. python -m navigator_orchestrator run --years 2025-2025 --threads 1)",
-      "Bash(export PYTHONPATH=.)"
+      "Bash(export PYTHONPATH=.)",
+      "Bash(PYTHONPATH=. python -m navigator_orchestrator:*)",
+      "Bash(DATABASE_PATH=../simulation.duckdb dbt run:*)",
+      "Bash(DATABASE_PATH=/Users/nicholasamaral/planwise_navigator/dbt/simulation.duckdb dbt run:*)",
+      "Bash(PYTHONPATH=. python -m navigator_orchestrator.polars_event_factory:*)",
+      "Bash(git log:*)"
     ],
     "deny": [],
     "ask": []

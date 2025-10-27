@@ -207,8 +207,8 @@ class EventGenerationExecutor:
             start_year=min(years),
             end_year=max(years),
             output_path=Path(polars_settings.output_path),
-            scenario_id=getattr(self.config, 'scenario_id', 'default'),
-            plan_design_id=getattr(self.config, 'plan_design_id', 'default'),
+            scenario_id=getattr(self.config, 'scenario_id', 'default') or 'default',
+            plan_design_id=getattr(self.config, 'plan_design_id', 'default') or 'default',
             random_seed=self.config.simulation.random_seed,
             batch_size=polars_settings.batch_size,
             enable_profiling=polars_settings.enable_profiling,
@@ -217,7 +217,8 @@ class EventGenerationExecutor:
             max_memory_gb=polars_settings.max_memory_gb,
             lazy_evaluation=polars_settings.lazy_evaluation,
             streaming=polars_settings.streaming,
-            parallel_io=polars_settings.parallel_io
+            parallel_io=polars_settings.parallel_io,
+            database_path=self.db_manager.db_path  # Pass batch-specific database path
         )
 
         if self.verbose:

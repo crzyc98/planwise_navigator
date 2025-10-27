@@ -23,24 +23,30 @@ WITH workforce_needs_summary AS (
     AND scenario_id = '{{ scenario_id }}'
 ),
 
--- Current workforce by level
+-- Current workforce by level (from previous year's ending state)
 workforce_by_level AS (
   SELECT
     level_id,
-    COUNT(*) AS current_headcount,
-    -- For first year, all employees are considered experienced
-    COUNT(*) AS experienced_headcount,
-    0 AS new_hire_headcount,
-    CAST(AVG(employee_compensation) AS DOUBLE) AS avg_compensation,
-    CAST(SUM(employee_compensation) AS DOUBLE) AS total_compensation,
-    CAST(MIN(employee_compensation) AS DOUBLE) AS min_compensation,
-    CAST(MAX(employee_compensation) AS DOUBLE) AS max_compensation,
-    CAST(PERCENTILE_CONT(0.5) WITHIN GROUP (ORDER BY employee_compensation) AS DOUBLE) AS median_compensation,
-    CAST(STDDEV(employee_compensation) AS DOUBLE) AS compensation_std_dev
+    -- Use FILTER to count only employees who existed at start of year (for planning purposes)
+    -- This excludes employees who will be hired during the current year
+    COUNT(*) FILTER (WHERE employee_hire_date < DATE '{{ simulation_year }}-01-01') AS current_headcount,
+    -- Experienced: employees hired BEFORE the current year
+    COUNT(*) FILTER (WHERE employee_hire_date < DATE '{{ simulation_year }}-01-01') AS experienced_headcount,
+    -- New hire headcount: employees hired DURING the current year (should be 0 for planning)
+    COUNT(*) FILTER (WHERE employee_hire_date >= DATE '{{ simulation_year }}-01-01') AS new_hire_headcount,
+    -- Aggregate only over employees existing at start of year
+    CAST(AVG(employee_compensation) FILTER (WHERE employee_hire_date < DATE '{{ simulation_year }}-01-01') AS DOUBLE) AS avg_compensation,
+    CAST(SUM(employee_compensation) FILTER (WHERE employee_hire_date < DATE '{{ simulation_year }}-01-01') AS DOUBLE) AS total_compensation,
+    CAST(MIN(employee_compensation) FILTER (WHERE employee_hire_date < DATE '{{ simulation_year }}-01-01') AS DOUBLE) AS min_compensation,
+    CAST(MAX(employee_compensation) FILTER (WHERE employee_hire_date < DATE '{{ simulation_year }}-01-01') AS DOUBLE) AS max_compensation,
+    CAST(PERCENTILE_CONT(0.5) WITHIN GROUP (ORDER BY employee_compensation) FILTER (WHERE employee_hire_date < DATE '{{ simulation_year }}-01-01') AS DOUBLE) AS median_compensation,
+    CAST(STDDEV(employee_compensation) FILTER (WHERE employee_hire_date < DATE '{{ simulation_year }}-01-01') AS DOUBLE) AS compensation_std_dev
   FROM {{ ref('int_employee_compensation_by_year') }}
   WHERE simulation_year = {{ simulation_year }}
     AND employment_status = 'active'
   GROUP BY level_id
+  -- Filter out levels that have no employees at start of year
+  HAVING COUNT(*) FILTER (WHERE employee_hire_date < DATE '{{ simulation_year }}-01-01') > 0
 ),
 
 -- E077: Experienced Termination Quotas by Level (ADR E077-B with edge cases)
