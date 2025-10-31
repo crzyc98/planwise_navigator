@@ -203,12 +203,15 @@ class EventGenerationExecutor:
         polars_settings = self.config.get_polars_settings()
 
         # Configure Polars event factory
+        # E078 FIX: Use original simulation start_year, not min(years)
+        # When processing years individually (e.g., [2026]), min(years) would be 2026
+        # But we need to know the ORIGINAL start year (2025) to determine when to use baseline vs previous year
         factory_config = EventFactoryConfig(
-            start_year=min(years),
+            start_year=self.config.simulation.start_year,  # E078: Use original simulation start year
             end_year=max(years),
             output_path=Path(polars_settings.output_path),
-            scenario_id=getattr(self.config, 'scenario_id', 'default'),
-            plan_design_id=getattr(self.config, 'plan_design_id', 'default'),
+            scenario_id=getattr(self.config, 'scenario_id', 'default') or 'default',
+            plan_design_id=getattr(self.config, 'plan_design_id', 'default') or 'default',
             random_seed=self.config.simulation.random_seed,
             batch_size=polars_settings.batch_size,
             enable_profiling=polars_settings.enable_profiling,
@@ -217,7 +220,8 @@ class EventGenerationExecutor:
             max_memory_gb=polars_settings.max_memory_gb,
             lazy_evaluation=polars_settings.lazy_evaluation,
             streaming=polars_settings.streaming,
-            parallel_io=polars_settings.parallel_io
+            parallel_io=polars_settings.parallel_io,
+            database_path=self.db_manager.db_path  # Pass batch-specific database path
         )
 
         if self.verbose:
@@ -270,6 +274,39 @@ class EventGenerationExecutor:
             'event_generation_mode': 'polars',
             'polars_enabled': True
         })
+
+        # Build fct_yearly_events and non-event dbt models needed for STATE_ACCUMULATION
+        # Epic E078: fct_yearly_events must be built BEFORE int_employer_eligibility
+        # because int_employer_eligibility reads from fct_yearly_events in Polars mode
+        if self.verbose:
+            print("📋 Building post-Polars dbt models (fct_yearly_events, int_employer_eligibility)...")
+
+        for year in years:
+            # First build fct_yearly_events to load Polars parquet files
+            result = self.dbt_runner.execute_command(
+                ["run", "--select", "fct_yearly_events"],
+                simulation_year=year,
+                dbt_vars=self.dbt_vars,
+                stream_output=self.verbose
+            )
+            if not result.success:
+                raise PipelineStageError(
+                    f"Failed to build fct_yearly_events for year {year}: {result.error_message}"
+                )
+
+            # Then build int_employer_eligibility which depends on fct_yearly_events in Polars mode
+            result = self.dbt_runner.execute_command(
+                ["run", "--select", "int_employer_eligibility"],
+                simulation_year=year,
+                dbt_vars=self.dbt_vars,
+                stream_output=self.verbose
+            )
+            if not result.success:
+                raise PipelineStageError(
+                    f"Failed to build int_employer_eligibility for year {year}: {result.error_message}"
+                )
+
+        polars_duration = time.time() - start_time
 
         return {
             'mode': 'polars',

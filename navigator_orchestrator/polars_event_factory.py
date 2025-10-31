@@ -25,6 +25,7 @@ import logging
 import argparse
 import numpy as np
 import polars as pl
+import duckdb
 from pathlib import Path
 from datetime import date, datetime, timedelta
 from dataclasses import dataclass, field
@@ -36,6 +37,9 @@ os.environ.setdefault('POLARS_MAX_THREADS', '16')
 # Import project modules
 sys.path.insert(0, str(Path(__file__).parent.parent))
 from navigator_orchestrator.config import load_simulation_config, get_database_path
+
+# Module-level logger
+logger = logging.getLogger(__name__)
 
 
 @dataclass
@@ -57,6 +61,9 @@ class EventFactoryConfig:
     lazy_evaluation: bool = True
     streaming: bool = True
     parallel_io: bool = True
+
+    # Database path (for batch mode scenario isolation)
+    database_path: Optional[Path] = None  # If None, uses get_database_path()
 
     def __post_init__(self):
         """Validate configuration after initialization."""
@@ -205,7 +212,8 @@ class PolarsEventGenerator:
             # Try DuckDB database
             try:
                 import duckdb
-                db_path = get_database_path()
+                # Use database_path from config if specified (for batch mode), otherwise default
+                db_path = self.config.database_path if self.config.database_path else get_database_path()
                 if db_path.exists():
                     self.logger.info(f"Loading workforce from DuckDB: {db_path}")
                     conn = duckdb.connect(str(db_path))
@@ -351,7 +359,8 @@ class PolarsEventGenerator:
             self._workforce_needs_cache[simulation_year] = None
             return None
 
-        db_path = get_database_path()
+        # Use database_path from config if specified (for batch mode), otherwise default
+        db_path = self.config.database_path if self.config.database_path else get_database_path()
         if not db_path.exists():
             self.logger.warning(
                 "Workforce needs unavailable; database %s does not exist", db_path
@@ -497,11 +506,11 @@ class PolarsEventGenerator:
             'event_date': hire_date,
             'effective_date': hire_date,
             'event_details': f"New hire - Level {level_id}",
-            'compensation_amount': compensation,
-            'previous_compensation': None,
-            'employee_deferral_rate': None,
-            'prev_employee_deferral_rate': None,
-            'employee_age': age,
+            'compensation_amount': float(compensation),
+            'previous_compensation': None,  # Will be cast to Float64 when creating DataFrame
+            'employee_deferral_rate': None,  # Will be cast to Float64 when creating DataFrame
+            'prev_employee_deferral_rate': None,  # Will be cast to Float64 when creating DataFrame
+            'employee_age': int(age),
             'employee_tenure': 0,
             'level_id': int(level_id),
             'age_band': self._age_band(age),
@@ -544,7 +553,16 @@ class PolarsEventGenerator:
         if not records:
             return pl.DataFrame()
 
-        return pl.DataFrame(records)
+        df = pl.DataFrame(records)
+        # Explicitly cast NULL columns to Float64 to ensure schema compatibility with other event types
+        if 'previous_compensation' in df.columns:
+            df = df.with_columns(pl.col('previous_compensation').cast(pl.Float64))
+        if 'employee_deferral_rate' in df.columns:
+            df = df.with_columns(pl.col('employee_deferral_rate').cast(pl.Float64))
+        if 'prev_employee_deferral_rate' in df.columns:
+            df = df.with_columns(pl.col('prev_employee_deferral_rate').cast(pl.Float64))
+
+        return df
 
     def _generate_hires_fallback(
         self, cohort: pl.DataFrame, simulation_year: int
@@ -569,7 +587,19 @@ class PolarsEventGenerator:
                 self._build_hire_record(simulation_year, sequence_num, level_id, avg_comp)
             )
 
-        return pl.DataFrame(records)
+        if not records:
+            return pl.DataFrame()
+
+        df = pl.DataFrame(records)
+        # Explicitly cast NULL columns to Float64 to ensure schema compatibility
+        if 'previous_compensation' in df.columns:
+            df = df.with_columns(pl.col('previous_compensation').cast(pl.Float64))
+        if 'employee_deferral_rate' in df.columns:
+            df = df.with_columns(pl.col('employee_deferral_rate').cast(pl.Float64))
+        if 'prev_employee_deferral_rate' in df.columns:
+            df = df.with_columns(pl.col('prev_employee_deferral_rate').cast(pl.Float64))
+
+        return df
 
     def _get_parameter(self, event_type: str, parameter_name: str, level: int = 1, default: float = 0.0) -> float:
         """Get parameter value with fallback to defaults."""
@@ -587,60 +617,165 @@ class PolarsEventGenerator:
         if needs:
             hires_df = self._generate_hires_from_needs(needs, simulation_year)
             if hires_df.height > 0:
-                # Normalize to 8-column schema to match other event types
+                # Include all fields needed by fct_workforce_snapshot and fct_yearly_events
+                # These fields are critical for demographic tracking and state accumulation
                 return hires_df.select([
-                    'scenario_id', 'plan_design_id', 'employee_id',
-                    'event_type', 'event_date', 'event_payload',
+                    'scenario_id', 'plan_design_id', 'employee_id', 'employee_ssn',
+                    'event_type', 'event_category', 'event_date', 'effective_date',
+                    'event_details', 'event_payload',
+                    'compensation_amount', 'previous_compensation',
+                    'employee_deferral_rate', 'prev_employee_deferral_rate',
+                    'employee_age', 'employee_tenure', 'employee_birth_date',
+                    'level_id', 'age_band', 'tenure_band',
                     'simulation_year', 'event_probability'
                 ])
 
         fallback_hires = self._generate_hires_fallback(cohort, simulation_year)
         if fallback_hires.height > 0:
             return fallback_hires.select([
-                'scenario_id', 'plan_design_id', 'employee_id',
-                'event_type', 'event_date', 'event_payload',
+                'scenario_id', 'plan_design_id', 'employee_id', 'employee_ssn',
+                'event_type', 'event_category', 'event_date', 'effective_date',
+                'event_details', 'event_payload',
+                'compensation_amount', 'previous_compensation',
+                'employee_deferral_rate', 'prev_employee_deferral_rate',
+                'employee_age', 'employee_tenure', 'employee_birth_date',
+                'level_id', 'age_band', 'tenure_band',
                 'simulation_year', 'event_probability'
             ])
 
         return pl.DataFrame()
 
     def generate_termination_events(self, cohort: pl.DataFrame, simulation_year: int) -> pl.DataFrame:
-        """Generate termination events with performance and tenure adjustments."""
-        base_rate = self._get_parameter('TERMINATION', 'base_termination_rate', default=0.12)
+        """
+        Generate experienced employee termination events using exact targets from int_workforce_needs_by_level.
 
-        # Apply vectorized termination logic
-        terminations = cohort.with_columns([
-            # Compute adjusted termination probability
-            pl.when(pl.col('tenure_months') < 12)
-            .then(base_rate * 1.25)  # Higher for new employees
-            .when(pl.col('performance_tier') == 'low')
-            .then(base_rate * 2.0)   # Higher for low performers
-            .otherwise(base_rate)
-            .alias('term_probability')
-        ]).filter(
-            # Only existing employees can terminate
+        NOTE: This generates ONLY experienced terminations. New hire terminations are generated separately
+        by generate_new_hire_termination_events() to maintain separation of cohorts.
+        """
+        if cohort.height == 0:
+            return pl.DataFrame()
+
+        # Filter to only experienced employees (exclude current year hires)
+        # Current year hires will be handled by generate_new_hire_termination_events
+        experienced = cohort.filter(
             pl.col('employee_hire_date').is_not_null() &
-            # Apply termination probability
-            (pl.col('u_termination') < pl.col('term_probability'))
-        ).with_columns([
+            (pl.col('employee_hire_date') < pl.date(simulation_year, 1, 1))
+        )
+
+        if experienced.height == 0:
+            return pl.DataFrame()
+
+        # Query termination targets by level from int_workforce_needs_by_level
+        try:
+            db_path = self.config.database_path if self.config.database_path else get_database_path()
+            conn = duckdb.connect(str(db_path), read_only=True)
+            termination_targets_query = f"""
+                SELECT
+                    level_id,
+                    expected_terminations
+                FROM int_workforce_needs_by_level
+                WHERE simulation_year = {simulation_year}
+                  AND scenario_id = '{self.config.scenario_id}'
+            """
+            targets_df = conn.execute(termination_targets_query).pl()
+            conn.close()
+
+            if targets_df.height == 0:
+                logger.warning(
+                    "No termination targets found in int_workforce_needs_by_level for year %s",
+                    simulation_year
+                )
+                return pl.DataFrame()
+
+        except Exception as exc:
+            logger.error("Error loading termination targets for year %s: %s", simulation_year, exc)
+            return pl.DataFrame()
+
+        # Add deterministic random value for selection (matches SQL logic)
+        experienced = experienced.with_columns([
+            # Deterministic random based on employee_id hash (matches SQL pattern)
+            ((pl.col('employee_id').hash() % 10000) / 10000.0).alias('random_value')
+        ])
+
+        # Select terminations by level to match exact targets
+        selected_terminations = []
+        for row in targets_df.iter_rows(named=True):
+            level_id = row['level_id']
+            target_count = int(row['expected_terminations'])
+
+            if target_count <= 0:
+                continue
+
+            # Get employees at this level, ranked by deterministic random
+            level_employees = experienced.filter(
+                pl.col('level_id') == level_id
+            ).sort('random_value')
+
+            # Select exactly target_count employees
+            level_terminations = level_employees.head(target_count)
+            selected_terminations.append(level_terminations)
+
+        if not selected_terminations:
+            return pl.DataFrame()
+
+        # Combine all level terminations
+        all_terminations = pl.concat(selected_terminations, how='vertical')
+
+        # Add termination event fields
+        terminations = all_terminations.with_columns([
             pl.lit('termination').alias('event_type'),
+            pl.lit('termination').alias('event_category'),
             pl.date(simulation_year, 9, 15).alias('event_date'),  # Fall terminations
+            pl.date(simulation_year, 9, 15).alias('effective_date'),
+            pl.concat_str([
+                pl.lit('Termination - voluntary (tenure: '),
+                pl.col('tenure_months').cast(pl.Utf8),
+                pl.lit(' months)')
+            ]).alias('event_details'),
             pl.concat_str([
                 pl.lit('{"reason": "voluntary", "level_id": '),
                 pl.col('level_id').cast(pl.Utf8),
                 pl.lit(', "tenure_months": '),
                 pl.col('tenure_months').cast(pl.Utf8),
-                pl.lit(', "performance_tier": "'),
-                pl.col('performance_tier'),
-                pl.lit('"}')
+                pl.lit('}')
             ]).alias('event_payload'),
             pl.lit(simulation_year).cast(pl.Int64).alias('simulation_year'),
-            pl.col('term_probability').alias('event_probability')
+            pl.lit(0.12).alias('event_probability'),  # Base experienced termination rate
+            # Add demographic fields from cohort
+            pl.when(pl.col('employee_ssn').is_not_null())
+            .then(pl.col('employee_ssn'))
+            .otherwise(pl.lit(None).cast(pl.Utf8))
+            .alias('employee_ssn'),
+            pl.when(pl.col('employee_birth_date').is_not_null())
+            .then(pl.col('employee_birth_date'))
+            .otherwise(pl.lit(None).cast(pl.Date))
+            .alias('employee_birth_date'),
+            pl.col('tenure_years').cast(pl.Int32).alias('employee_tenure'),
+            # Add NULL compensation and deferral fields for consistency
+            pl.lit(None).cast(pl.Float64).alias('compensation_amount'),
+            pl.lit(None).cast(pl.Float64).alias('previous_compensation'),
+            pl.lit(None).cast(pl.Float64).alias('employee_deferral_rate'),
+            pl.lit(None).cast(pl.Float64).alias('prev_employee_deferral_rate'),
+            # Add NULL age fields - will be computed in second pass
+            pl.lit(None).cast(pl.Int32).alias('employee_age'),
+            pl.lit(None).cast(pl.Utf8).alias('age_band'),
+            # Compute tenure band
+            pl.when(pl.col('tenure_years') < 2).then(pl.lit('< 2'))
+            .when(pl.col('tenure_years') < 5).then(pl.lit('2-4'))
+            .when(pl.col('tenure_years') < 10).then(pl.lit('5-9'))
+            .when(pl.col('tenure_years') < 20).then(pl.lit('10-19'))
+            .otherwise(pl.lit('20+'))
+            .alias('tenure_band')
         ])
 
         return terminations.select([
-            'scenario_id', 'plan_design_id', 'employee_id',
-            'event_type', 'event_date', 'event_payload',
+            'scenario_id', 'plan_design_id', 'employee_id', 'employee_ssn',
+            'event_type', 'event_category', 'event_date', 'effective_date',
+            'event_details', 'event_payload',
+            'compensation_amount', 'previous_compensation',
+            'employee_deferral_rate', 'prev_employee_deferral_rate',
+            'employee_age', 'employee_tenure', 'employee_birth_date',
+            'level_id', 'age_band', 'tenure_band',
             'simulation_year', 'event_probability'
         ])
 
@@ -658,7 +793,18 @@ class PolarsEventGenerator:
             (pl.col('u_promotion') < base_promotion_rate)
         ).with_columns([
             pl.lit('promotion').alias('event_type'),
+            pl.lit('compensation').alias('event_category'),
             pl.date(simulation_year, 1, 1).alias('event_date'),  # Annual promotions
+            pl.date(simulation_year, 1, 1).alias('effective_date'),
+            pl.concat_str([
+                pl.lit('Promotion from level '),
+                pl.col('level_id').cast(pl.Utf8),
+                pl.lit(' to '),
+                (pl.col('level_id') + 1).cast(pl.Utf8),
+                pl.lit(' with '),
+                pl.lit(round(salary_increase * 100, 1)).cast(pl.Utf8),
+                pl.lit('% increase')
+            ]).alias('event_details'),
             pl.concat_str([
                 pl.lit('{"old_level": '),
                 pl.col('level_id').cast(pl.Utf8),
@@ -671,12 +817,30 @@ class PolarsEventGenerator:
                 pl.lit('}')
             ]).alias('event_payload'),
             pl.lit(simulation_year).cast(pl.Int64).alias('simulation_year'),
-            pl.lit(base_promotion_rate).alias('event_probability')
+            pl.lit(base_promotion_rate).alias('event_probability'),
+            # Add compensation fields
+            (pl.col('salary') * (1 + salary_increase)).round(2).alias('compensation_amount'),
+            pl.col('salary').alias('previous_compensation'),
+            # Add NULL deferral fields
+            pl.lit(None).cast(pl.Float64).alias('employee_deferral_rate'),
+            pl.lit(None).cast(pl.Float64).alias('prev_employee_deferral_rate'),
+            # Add demographic fields from cohort (with NULL fallback)
+            pl.col('employee_ssn').alias('employee_ssn'),
+            pl.col('employee_birth_date').alias('employee_birth_date'),
+            pl.lit(None).cast(pl.Int32).alias('employee_age'),  # Not critical for promotions
+            pl.col('tenure_years').cast(pl.Int32).alias('employee_tenure'),
+            pl.lit(None).cast(pl.Utf8).alias('age_band'),
+            pl.lit(None).cast(pl.Utf8).alias('tenure_band')
         ])
 
         return promotions.select([
-            'scenario_id', 'plan_design_id', 'employee_id',
-            'event_type', 'event_date', 'event_payload',
+            'scenario_id', 'plan_design_id', 'employee_id', 'employee_ssn',
+            'event_type', 'event_category', 'event_date', 'effective_date',
+            'event_details', 'event_payload',
+            'compensation_amount', 'previous_compensation',
+            'employee_deferral_rate', 'prev_employee_deferral_rate',
+            'employee_age', 'employee_tenure', 'employee_birth_date',
+            'level_id', 'age_band', 'tenure_band',
             'simulation_year', 'event_probability'
         ])
 
@@ -690,7 +854,14 @@ class PolarsEventGenerator:
             (pl.col('u_merit') < merit_rate)
         ).with_columns([
             pl.lit('merit').alias('event_type'),
+            pl.lit('compensation').alias('event_category'),
             pl.date(simulation_year, 3, 15).alias('event_date'),  # Annual merit cycle
+            pl.date(simulation_year, 3, 15).alias('effective_date'),
+            pl.concat_str([
+                pl.lit('Merit increase: '),
+                pl.lit(round(merit_increase * 100, 1)).cast(pl.Utf8),
+                pl.lit('% raise')
+            ]).alias('event_details'),
             pl.concat_str([
                 pl.lit('{"old_salary": '),
                 pl.col('salary').round(2).cast(pl.Utf8),
@@ -701,12 +872,29 @@ class PolarsEventGenerator:
                 pl.lit(', "merit_type": "annual_merit"}')
             ]).alias('event_payload'),
             pl.lit(simulation_year).cast(pl.Int64).alias('simulation_year'),
-            pl.lit(merit_rate).alias('event_probability')
+            pl.lit(merit_rate).alias('event_probability'),
+            # Add compensation fields
+            (pl.col('salary') * (1 + merit_increase)).round(2).alias('compensation_amount'),
+            pl.col('salary').alias('previous_compensation'),
+            # Add NULL fields for consistency
+            pl.lit(None).cast(pl.Float64).alias('employee_deferral_rate'),
+            pl.lit(None).cast(pl.Float64).alias('prev_employee_deferral_rate'),
+            pl.col('employee_ssn').alias('employee_ssn'),
+            pl.col('employee_birth_date').alias('employee_birth_date'),
+            pl.lit(None).cast(pl.Int32).alias('employee_age'),
+            pl.col('tenure_years').cast(pl.Int32).alias('employee_tenure'),
+            pl.lit(None).cast(pl.Utf8).alias('age_band'),
+            pl.lit(None).cast(pl.Utf8).alias('tenure_band')
         ])
 
         return merits.select([
-            'scenario_id', 'plan_design_id', 'employee_id',
-            'event_type', 'event_date', 'event_payload',
+            'scenario_id', 'plan_design_id', 'employee_id', 'employee_ssn',
+            'event_type', 'event_category', 'event_date', 'effective_date',
+            'event_details', 'event_payload',
+            'compensation_amount', 'previous_compensation',
+            'employee_deferral_rate', 'prev_employee_deferral_rate',
+            'employee_age', 'employee_tenure', 'employee_birth_date',
+            'level_id', 'age_band', 'tenure_band',
             'simulation_year', 'event_probability'
         ])
 
@@ -721,7 +909,14 @@ class PolarsEventGenerator:
             (pl.col('u_enrollment') < enrollment_rate)
         ).with_columns([
             pl.lit('benefit_enrollment').alias('event_type'),
+            pl.lit('benefits').alias('event_category'),
             pl.date(simulation_year, 4, 1).alias('event_date'),  # Open enrollment
+            pl.date(simulation_year, 4, 1).alias('effective_date'),
+            pl.concat_str([
+                pl.lit('Enrollment with '),
+                pl.lit(round(base_deferral_rate * 100, 1)).cast(pl.Utf8),
+                pl.lit('% deferral rate')
+            ]).alias('event_details'),
             pl.concat_str([
                 pl.lit('{"plan_design_id": "'),
                 pl.col('plan_design_id'),
@@ -732,14 +927,208 @@ class PolarsEventGenerator:
                 pl.lit('", "enrollment_type": "new_enrollment"}')
             ]).alias('event_payload'),
             pl.lit(simulation_year).cast(pl.Int64).alias('simulation_year'),
-            pl.lit(enrollment_rate).alias('event_probability')
+            pl.lit(enrollment_rate).alias('event_probability'),
+            # Add NULL compensation fields
+            pl.lit(None).cast(pl.Float64).alias('compensation_amount'),
+            pl.lit(None).cast(pl.Float64).alias('previous_compensation'),
+            # Add deferral rate fields
+            pl.lit(base_deferral_rate).cast(pl.Float64).alias('employee_deferral_rate'),
+            pl.lit(None).cast(pl.Float64).alias('prev_employee_deferral_rate'),
+            # Add demographic fields
+            pl.col('employee_ssn').alias('employee_ssn'),
+            pl.col('employee_birth_date').alias('employee_birth_date'),
+            pl.lit(None).cast(pl.Int32).alias('employee_age'),
+            pl.col('tenure_years').cast(pl.Int32).alias('employee_tenure'),
+            pl.lit(None).cast(pl.Utf8).alias('age_band'),
+            pl.lit(None).cast(pl.Utf8).alias('tenure_band')
         ])
 
         return enrollments.select([
-            'scenario_id', 'plan_design_id', 'employee_id',
-            'event_type', 'event_date', 'event_payload',
+            'scenario_id', 'plan_design_id', 'employee_id', 'employee_ssn',
+            'event_type', 'event_category', 'event_date', 'effective_date',
+            'event_details', 'event_payload',
+            'compensation_amount', 'previous_compensation',
+            'employee_deferral_rate', 'prev_employee_deferral_rate',
+            'employee_age', 'employee_tenure', 'employee_birth_date',
+            'level_id', 'age_band', 'tenure_band',
             'simulation_year', 'event_probability'
         ])
+
+    def generate_new_hire_termination_events(self, hire_events: pl.DataFrame, simulation_year: int) -> pl.DataFrame:
+        """
+        Generate termination events for new hires using exact target from int_workforce_needs.
+
+        New hires have elevated termination risk (25% vs 12% for experienced employees).
+        This matches the logic in int_new_hire_termination_events.sql.
+        """
+        if hire_events.height == 0:
+            return pl.DataFrame()
+
+        # Query exact new hire termination target from int_workforce_needs
+        try:
+            db_path = self.config.database_path if self.config.database_path else get_database_path()
+            conn = duckdb.connect(str(db_path), read_only=True)
+            target_query = f"""
+                SELECT expected_new_hire_terminations
+                FROM int_workforce_needs
+                WHERE simulation_year = {simulation_year}
+                  AND scenario_id = '{self.config.scenario_id}'
+            """
+            result = conn.execute(target_query).fetchone()
+            conn.close()
+
+            if not result or result[0] is None:
+                logger.warning(
+                    "No new hire termination target found in int_workforce_needs for year %s",
+                    simulation_year
+                )
+                return pl.DataFrame()
+
+            target_terminations = int(result[0])
+
+            if target_terminations <= 0:
+                logger.info("No new hire terminations needed for year %s", simulation_year)
+                return pl.DataFrame()
+
+        except Exception as exc:
+            logger.error("Error loading new hire termination target for year %s: %s", simulation_year, exc)
+            return pl.DataFrame()
+
+        # Add deterministic random for ranking (matches SQL logic)
+        hire_events = hire_events.with_columns([
+            ((pl.col('employee_id').hash() % 10000) / 10000.0).alias('random_value')
+        ])
+
+        # Rank by deterministic random and select exactly the target number
+        ranked_hires = hire_events.sort('random_value')
+        selected_terminations = ranked_hires.head(target_terminations)
+
+        # Add termination event fields
+        nh_terminations = selected_terminations.with_columns([
+            pl.lit('termination').alias('event_type'),
+            pl.lit('termination').alias('event_category'),
+            # Terminations occur in fall (September 15)
+            pl.date(simulation_year, 9, 15).alias('event_date'),
+            pl.date(simulation_year, 9, 15).alias('effective_date'),
+            pl.concat_str([
+                pl.lit('New hire termination - voluntary')
+            ]).alias('event_details'),
+            pl.concat_str([
+                pl.lit('{"reason": "voluntary", "employee_type": "new_hire", "level_id": '),
+                pl.col('level_id').cast(pl.Utf8),
+                pl.lit('}')
+            ]).alias('event_payload'),
+            # Termination probability (informational only)
+            pl.lit(0.25).alias('event_probability'),
+            # Clear compensation fields for terminations
+            pl.lit(None).cast(pl.Float64).alias('compensation_amount'),
+            pl.lit(None).cast(pl.Float64).alias('previous_compensation'),
+            pl.lit(None).cast(pl.Float64).alias('employee_deferral_rate'),
+            pl.lit(None).cast(pl.Float64).alias('prev_employee_deferral_rate'),
+            # Keep demographic fields from hire event
+            pl.lit(None).cast(pl.Utf8).alias('age_band'),
+            pl.lit(None).cast(pl.Utf8).alias('tenure_band'),
+            pl.lit(0).cast(pl.Int32).alias('employee_tenure')  # Zero tenure for new hires
+        ])
+
+        return nh_terminations.select([
+            'scenario_id', 'plan_design_id', 'employee_id', 'employee_ssn',
+            'event_type', 'event_category', 'event_date', 'effective_date',
+            'event_details', 'event_payload',
+            'compensation_amount', 'previous_compensation',
+            'employee_deferral_rate', 'prev_employee_deferral_rate',
+            'employee_age', 'employee_tenure', 'employee_birth_date',
+            'level_id', 'age_band', 'tenure_band',
+            'simulation_year', 'event_probability'
+        ])
+
+    def _get_updated_cohort_for_year(self, simulation_year: int) -> pl.DataFrame:
+        """
+        Get the appropriate cohort for the given year.
+
+        For year 1: Use baseline workforce
+        For year 2+: Load surviving workforce from database (accounts for previous year's hires/terminations)
+        """
+        if simulation_year == self.config.start_year:
+            # Year 1: Use baseline workforce
+            self.logger.info(f"Year {simulation_year}: Using baseline workforce ({self.baseline_workforce.height} employees)")
+            return self.baseline_workforce.clone()
+
+        # Year 2+: Query database for active workforce after previous year
+        try:
+            import duckdb
+            db_path = self.config.database_path if self.config.database_path else get_database_path()
+
+            if not db_path.exists():
+                self.logger.warning(f"Database not found for year {simulation_year}, falling back to baseline")
+                return self.baseline_workforce.clone()
+
+            with duckdb.connect(str(db_path)) as conn:
+                # Get all active employees from previous year's snapshot
+                prev_year = simulation_year - 1
+                query = """
+                    SELECT
+                        employee_id,
+                        employee_ssn,
+                        employee_birth_date,
+                        employee_hire_date,
+                        level_id,
+                        current_compensation as employee_gross_compensation,
+                        current_compensation as employee_annualized_compensation,
+                        COALESCE(effective_annual_deferral_rate, 0.0) as employee_deferral_rate,
+                        current_eligibility_status,
+                        employee_enrollment_date,
+                        CASE WHEN employment_status = 'active' THEN true ELSE false END as active
+                    FROM fct_workforce_snapshot
+                    WHERE simulation_year = ?
+                      AND employment_status = 'active'
+                """
+                result = conn.execute(query, [prev_year]).df()
+
+                if len(result) == 0:
+                    self.logger.warning(f"No active employees found for previous year {prev_year}, using baseline")
+                    return self.baseline_workforce.clone()
+
+                # Convert to Polars and add required fields
+                cohort = pl.from_pandas(result)
+
+                # Add computed fields (same as baseline loading)
+                cohort = cohort.with_columns([
+                    pl.lit(self.config.scenario_id).alias('scenario_id'),
+                    pl.lit(self.config.plan_design_id).alias('plan_design_id'),
+                    pl.col('employee_gross_compensation').alias('salary'),
+                    # Update tenure for new year
+                    pl.when(pl.col('employee_hire_date').is_not_null())
+                    .then(
+                        (pl.date(simulation_year, 1, 1) - pl.col('employee_hire_date').cast(pl.Date)).dt.total_days() / 365.25
+                    )
+                    .otherwise(2.0)
+                    .alias('tenure_years'),
+                    pl.when(pl.col('employee_hire_date').is_not_null())
+                    .then(
+                        (pl.date(simulation_year, 1, 1) - pl.col('employee_hire_date').cast(pl.Date)).dt.total_days() / 30.44
+                    )
+                    .otherwise(24.0)
+                    .alias('tenure_months'),
+                    # level_id is now loaded from fct_workforce_snapshot, no need to recompute
+                    pl.col('level_id').cast(pl.Int32).alias('level_id'),
+                    pl.when(pl.col('employee_id').str.slice(-1).is_in(['0', '1', '2']))
+                    .then(pl.lit('high'))
+                    .when(pl.col('employee_id').str.slice(-1).is_in(['3', '4', '5', '6']))
+                    .then(pl.lit('average'))
+                    .otherwise(pl.lit('low'))
+                    .alias('performance_tier'),
+                    (pl.col('employee_deferral_rate').fill_null(0.0) > 0.0).alias('is_enrolled')
+                ])
+
+                self.logger.info(f"Loaded {len(cohort)} surviving employees from year {prev_year}")
+                return cohort
+
+        except Exception as e:
+            self.logger.error(f"Error loading previous year workforce: {e}")
+            # E078 FIX: Raise exception instead of silently falling back to baseline
+            # This was causing duplicate terminations in multi-year simulations
+            raise RuntimeError(f"Failed to load workforce from year {prev_year}: {e}") from e
 
     def generate_year_events(self, simulation_year: int) -> pl.DataFrame:
         """
@@ -751,8 +1140,8 @@ class PolarsEventGenerator:
         year_start_time = time.time()
         self.logger.info(f"Generating events for year {simulation_year}...")
 
-        # Prepare cohort for the year
-        cohort = self.baseline_workforce.clone()
+        # Prepare cohort for the year (uses previous year's survivors for year 2+)
+        cohort = self._get_updated_cohort_for_year(simulation_year)
 
         if cohort.height == 0:
             self.logger.warning(f"No employees found for year {simulation_year}")
@@ -767,6 +1156,7 @@ class PolarsEventGenerator:
 
         event_dfs = []
         event_counts = {}
+        hire_events_df = None  # Store hire events for new hire termination generation
 
         # Generate each event type with timing
         for event_type, generator_method in [
@@ -784,13 +1174,32 @@ class PolarsEventGenerator:
                 event_dfs.append(events)
                 event_counts[event_type] = events.height
                 self.logger.info(f"Generated {events.height} {event_type} events in {event_duration:.2f}s")
+
+                # Capture hire events for new hire termination generation
+                if event_type == 'hire':
+                    hire_events_df = events
             else:
                 event_counts[event_type] = 0
                 self.logger.debug(f"No {event_type} events generated")
 
+        # Generate new hire terminations (must run after hire events)
+        if hire_events_df is not None and hire_events_df.height > 0:
+            event_start_time = time.time()
+            nh_term_events = self.generate_new_hire_termination_events(hire_events_df, simulation_year)
+            event_duration = time.time() - event_start_time
+
+            if nh_term_events.height > 0:
+                event_dfs.append(nh_term_events)
+                event_counts['new_hire_termination'] = nh_term_events.height
+                self.logger.info(f"Generated {nh_term_events.height} new_hire_termination events in {event_duration:.2f}s")
+            else:
+                event_counts['new_hire_termination'] = 0
+                self.logger.debug(f"No new_hire_termination events generated")
+
         # Combine all events if any were generated
+        # Use diagonal_relaxed to handle schema mismatches (NULL vs Float64, Int32 vs Int64, etc.)
         if event_dfs:
-            all_events = pl.concat(event_dfs, how='vertical')
+            all_events = pl.concat(event_dfs, how='diagonal_relaxed')
 
             # Add event IDs and audit fields
             all_events = all_events.with_columns([

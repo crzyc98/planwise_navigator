@@ -94,10 +94,18 @@ exact_math AS (
     sc.experienced_termination_rate,
     sc.new_hire_termination_rate,
     cw.total_active_workforce AS n_start,
+    cw.experienced_workforce,
+    cw.current_year_hires AS prior_year_new_hires,
     cw.avg_compensation,
     -- Exact algebra (no rounding until strategic points)
     CAST(cw.total_active_workforce * (1 + sc.target_growth_rate) AS DOUBLE) AS target_ending_exact,
-    CAST(cw.experienced_workforce * sc.experienced_termination_rate AS DOUBLE) AS exp_terms_exact
+    -- Expected terminations from truly experienced employees (12% rate)
+    CAST(cw.experienced_workforce * sc.experienced_termination_rate AS DOUBLE) AS exp_terms_from_experienced,
+    -- Expected terminations from prior year's new hires (25% rate - still elevated risk)
+    CAST(cw.current_year_hires * sc.new_hire_termination_rate AS DOUBLE) AS exp_terms_from_prior_new_hires,
+    -- Total expected experienced terminations (combines both cohorts)
+    CAST((cw.experienced_workforce * sc.experienced_termination_rate +
+          cw.current_year_hires * sc.new_hire_termination_rate) AS DOUBLE) AS exp_terms_exact
   FROM current_workforce cw
   CROSS JOIN simulation_config sc
 ),

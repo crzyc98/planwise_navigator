@@ -28,6 +28,8 @@ WITH workforce_needs AS (
 ),
 
 -- Get all new hires for current simulation year with in-year termination window
+-- E078: Use dynamic relation to support both SQL and Polars modes without circular dependency
+-- This uses adapter.get_relation() instead of ref() to avoid circular dependency with fct_yearly_events
 eligible_new_hires AS (
     SELECT
         nh.employee_id,
@@ -39,8 +41,9 @@ eligible_new_hires AS (
         CAST('{{ simulation_year }}-12-31' AS DATE) AS year_end,
         -- Days between hire and year end
         DATEDIFF('day', nh.effective_date, CAST('{{ simulation_year }}-12-31' AS DATE)) AS days_until_year_end
-    FROM {{ ref('int_hiring_events') }} nh
+    FROM {{ adapter.get_relation(database=this.database, schema=this.schema, identifier='fct_yearly_events') }} nh
     WHERE nh.simulation_year = {{ simulation_year }}
+      AND nh.event_type = 'hire'
 ),
 
 -- Compute a guaranteed in-year candidate termination date when possible

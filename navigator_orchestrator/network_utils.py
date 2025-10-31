@@ -438,6 +438,7 @@ def test_subprocess_with_proxy(
             timeout=timeout,
             capture_output=True,
             text=True,
+            encoding='utf-8',
             check=False,
             cwd=str(cwd) if cwd is not None else None,
         )

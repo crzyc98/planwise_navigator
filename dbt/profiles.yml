@@ -15,10 +15,6 @@ planwise_navigator:
       threads: 4 # Baseline thread count - dynamically overridden by E067
 
       extensions:
-        - parquet
-        - httpfs
-        - fts # Full-text search for debugging
-        - json # JSON functions for metadata
 
       settings:
         # S031-02 Memory Optimization: 1-2GB per model allocation
@@ -51,7 +47,5 @@ planwise_navigator:
       schema: main
       threads: 10
       extensions:
-        - parquet
-        - httpfs
       settings:
         memory_limit: '8GB'

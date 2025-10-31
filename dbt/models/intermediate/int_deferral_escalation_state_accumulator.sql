@@ -40,8 +40,25 @@ WITH current_workforce AS (
         AND comp.employment_status = 'active'
 ),
 
+-- Epic E078: Mode-aware query - uses fct_yearly_events in Polars mode, int_deferral_rate_escalation_events in SQL mode
 escalation_events_history AS (
     -- Get all escalation events up to and including current year
+    {% if var('event_generation_mode', 'sql') == 'polars' %}
+    -- Polars mode: Read from fct_yearly_events
+    SELECT
+        employee_id,
+        simulation_year,
+        effective_date,
+        prev_employee_deferral_rate as previous_deferral_rate,
+        employee_deferral_rate as new_deferral_rate,
+        CAST(NULL AS DECIMAL(5,4)) as escalation_rate,
+        CAST(NULL AS INTEGER) as new_escalation_count,
+        event_details
+    FROM {{ ref('fct_yearly_events') }}
+    WHERE simulation_year <= {{ simulation_year }}
+      AND event_type IN ('enrollment_change', 'deferral_escalation')
+    {% else %}
+    -- SQL mode: Use intermediate event model
     SELECT
         employee_id,
         simulation_year,
@@ -53,6 +70,7 @@ escalation_events_history AS (
         event_details
     FROM {{ ref('int_deferral_rate_escalation_events') }}
     WHERE simulation_year <= {{ simulation_year }}
+    {% endif %}
 ),
 
 employee_escalation_summary AS (

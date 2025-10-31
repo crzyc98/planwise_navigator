@@ -365,6 +365,7 @@ class DbtRunner:
                         check=False,
                         capture_output=True,
                         text=True,
+                        encoding='utf-8',
                         env=env,
                     )
 
@@ -440,6 +441,7 @@ class DbtRunner:
                 text=True,
                 bufsize=1,
                 universal_newlines=True,
+                encoding='utf-8',
                 env=env,
             )
         except Exception as e:

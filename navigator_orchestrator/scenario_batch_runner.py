@@ -462,6 +462,7 @@ class ScenarioBatchRunner:
                 ["git", "rev-parse", "HEAD"],
                 capture_output=True,
                 text=True,
+                encoding='utf-8',
                 check=True
             )
             metadata["git_sha"] = result.stdout.strip()
@@ -474,6 +475,7 @@ class ScenarioBatchRunner:
                 ["git", "rev-parse", "--abbrev-ref", "HEAD"],
                 capture_output=True,
                 text=True,
+                encoding='utf-8',
                 check=True
             )
             metadata["git_branch"] = result.stdout.strip()
@@ -486,6 +488,7 @@ class ScenarioBatchRunner:
                 ["git", "status", "--porcelain"],
                 capture_output=True,
                 text=True,
+                encoding='utf-8',
                 check=True
             )
             metadata["git_clean"] = len(result.stdout.strip()) == 0
