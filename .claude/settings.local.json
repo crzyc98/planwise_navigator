@@ -100,7 +100,8 @@
       "Bash(DATABASE_PATH=../simulation.duckdb dbt run:*)",
       "Bash(DATABASE_PATH=/Users/nicholasamaral/planwise_navigator/dbt/simulation.duckdb dbt run:*)",
       "Bash(PYTHONPATH=. python -m navigator_orchestrator.polars_event_factory:*)",
-      "Bash(git log:*)"
+      "Bash(git log:*)",
+      "Bash(git remote set-url:*)"
     ],
     "deny": [],
     "ask": []
