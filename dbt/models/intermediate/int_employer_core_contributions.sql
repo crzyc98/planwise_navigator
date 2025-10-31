@@ -196,24 +196,10 @@ snapshot_flags AS (
         detailed_status_code
     FROM {{ ref('int_workforce_snapshot_optimized') }}
     WHERE simulation_year = {{ simulation_year }}
-)
+),
 
--- Wrap to allow filtering on window function without exposing rn
-SELECT
-    employee_id,
-    simulation_year,
-    eligible_compensation,
-    employment_status,
-    eligible_for_core,
-    annual_hours_worked,
-    employer_core_amount,
-    core_contribution_rate,
-    contribution_method,
-    standard_core_rate,
-    created_at,
-    scenario_id,
-    parameter_scenario_id
-FROM (
+-- Main query with window function for deduplication
+core_contributions AS (
 SELECT
     pop.employee_id,
     pop.simulation_year,
@@ -313,6 +299,22 @@ LEFT JOIN termination_flags term
     ON pop.employee_id = term.employee_id
 LEFT JOIN snapshot_flags snap
     ON pop.employee_id = snap.employee_id
--- Deduplicate in case a new hire is also present in compensation snapshot (year 1)
 )
+
+-- Final SELECT - deduplicate in case a new hire is also present in compensation snapshot (year 1)
+SELECT
+    employee_id,
+    simulation_year,
+    eligible_compensation,
+    employment_status,
+    eligible_for_core,
+    annual_hours_worked,
+    employer_core_amount,
+    core_contribution_rate,
+    contribution_method,
+    standard_core_rate,
+    created_at,
+    scenario_id,
+    parameter_scenario_id
+FROM core_contributions
 WHERE rn = 1

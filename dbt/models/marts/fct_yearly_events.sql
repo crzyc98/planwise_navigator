@@ -28,65 +28,81 @@
 
 WITH polars_raw_events AS (
   SELECT
-    event_id,
+    -- Use event_id if available, otherwise generate one
+    COALESCE(
+      event_id,
+      MD5(CONCAT(
+        CAST(scenario_id AS VARCHAR), '|',
+        CAST(plan_design_id AS VARCHAR), '|',
+        employee_id, '|',
+        CAST(simulation_year AS VARCHAR), '|',
+        event_type
+      ))
+    ) AS event_id,
     -- Cast IDs to VARCHAR (Polars may output as INT)
     COALESCE(CAST(scenario_id AS VARCHAR), '{{ var("scenario_id", "default") }}') AS scenario_id,
     COALESCE(CAST(plan_design_id AS VARCHAR), '{{ var("plan_design_id", "default") }}') AS plan_design_id,
     employee_id,
-    NULL AS employee_ssn,  -- Not included in Polars output
+    -- Read demographic fields from Polars output (now included)
+    employee_ssn,
     event_type,
     simulation_year,
-    event_date AS effective_date,
+    COALESCE(effective_date, event_date) AS effective_date,
 
-    -- Extract event details from JSON payload
-    COALESCE(event_payload::text, '') AS event_details,
+    -- Use event_details if available, otherwise extract from JSON payload
+    COALESCE(event_details, event_payload::text, '') AS event_details,
 
-    -- Extract compensation from JSON based on event type
-    CASE
-      WHEN event_type IN ('promotion', 'merit') THEN
-        TRY_CAST(json_extract_string(event_payload, '$.new_salary') AS DECIMAL(10,2))
-      WHEN event_type = 'hire' THEN
-        TRY_CAST(json_extract_string(event_payload, '$.starting_salary') AS DECIMAL(10,2))
-      ELSE NULL
-    END AS compensation_amount,
-
-    CASE
-      WHEN event_type IN ('promotion', 'merit') THEN
-        TRY_CAST(json_extract_string(event_payload, '$.old_salary') AS DECIMAL(10,2))
-      ELSE NULL
-    END AS previous_compensation,
-
-    -- Extract deferral rates
-    CASE
-      WHEN event_type = 'benefit_enrollment' THEN
-        TRY_CAST(json_extract_string(event_payload, '$.initial_deferral_rate') AS DECIMAL(5,4))
-      ELSE NULL
-    END AS employee_deferral_rate,
-
-    NULL AS prev_employee_deferral_rate,  -- Not tracked in Polars events
-    NULL AS employee_age,                 -- Not included in Polars output
-    NULL AS employee_tenure,              -- Not included in Polars output
-
-    -- Extract level from JSON
+    -- Read compensation_amount directly if available, otherwise extract from JSON
     COALESCE(
-      TRY_CAST(json_extract_string(event_payload, '$.level_id') AS INTEGER),
-      TRY_CAST(json_extract_string(event_payload, '$.new_level') AS INTEGER),
-      TRY_CAST(json_extract_string(event_payload, '$.level') AS INTEGER),
-      1
-    ) AS level_id,
+      compensation_amount,
+      CASE
+        WHEN event_type IN ('promotion', 'merit') THEN
+          TRY_CAST(json_extract_string(event_payload, '$.new_salary') AS DECIMAL(10,2))
+        WHEN event_type = 'hire' THEN
+          TRY_CAST(json_extract_string(event_payload, '$.starting_salary') AS DECIMAL(10,2))
+        ELSE NULL
+      END
+    ) AS compensation_amount,
 
-    NULL AS age_band,                     -- Not included in Polars output
-    NULL AS tenure_band,                  -- Not included in Polars output
+    COALESCE(
+      previous_compensation,
+      CASE
+        WHEN event_type IN ('promotion', 'merit') THEN
+          TRY_CAST(json_extract_string(event_payload, '$.old_salary') AS DECIMAL(10,2))
+        ELSE NULL
+      END
+    ) AS previous_compensation,
+
+    -- Read deferral rates (with fallback to JSON extraction)
+    COALESCE(
+      employee_deferral_rate,
+      CASE
+        WHEN event_type = 'benefit_enrollment' THEN
+          TRY_CAST(json_extract_string(event_payload, '$.initial_deferral_rate') AS DECIMAL(5,4))
+        ELSE NULL
+      END
+    ) AS employee_deferral_rate,
+
+    prev_employee_deferral_rate,
+    -- Read demographic fields directly from Polars output (now included)
+    employee_age,
+    employee_tenure,
+    level_id,
+    age_band,
+    tenure_band,
     event_probability,
 
-    -- Categorize events
-    CASE
-      WHEN event_type IN ('hire', 'termination') THEN 'workforce'
-      WHEN event_type IN ('promotion', 'merit') THEN 'compensation'
-      WHEN event_type LIKE '%enrollment%' THEN 'benefits'
-      WHEN event_type LIKE 'deferral%' THEN 'benefits'
-      ELSE 'other'
-    END AS event_category,
+    -- Use event_category if available, otherwise infer from event_type
+    COALESCE(
+      event_category,
+      CASE
+        WHEN event_type IN ('hire', 'termination') THEN 'workforce'
+        WHEN event_type IN ('promotion', 'merit') THEN 'compensation'
+        WHEN event_type LIKE '%enrollment%' THEN 'benefits'
+        WHEN event_type LIKE 'deferral%' THEN 'benefits'
+        ELSE 'other'
+      END
+    ) AS event_category,
 
     created_at,
     '{{ var("scenario_id", "default") }}' AS parameter_scenario_id,

@@ -133,7 +133,8 @@ class ModelDependencyAnalyzer:
                     cwd=self.dbt_project_dir,
                     check=True,
                     capture_output=True,
-                    text=True
+                    text=True,
+                    encoding='utf-8'
                 )
             except subprocess.CalledProcessError as e:
                 raise RuntimeError(f"Failed to compile dbt project for manifest: {e}")

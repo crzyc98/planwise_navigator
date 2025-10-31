@@ -70,6 +70,50 @@ deferral_rates AS (
 
 -- Removed legacy CTEs in favor of workforce_proration as the single source
 
+-- Epic E078: Mode-aware query - uses fct_yearly_events in Polars mode, int_hiring_events in SQL mode
+hire_events AS (
+    {% if var('event_generation_mode', 'sql') == 'polars' %}
+    -- Polars mode: fct_yearly_events is populated from Parquet files before EVENT_GENERATION
+    SELECT
+        employee_id,
+        effective_date::DATE AS hire_date,
+        compensation_amount AS annual_salary,
+        employee_age
+    FROM {{ ref('fct_yearly_events') }}
+    WHERE simulation_year = (SELECT current_year FROM simulation_parameters)
+      AND event_type = 'hire'
+    {% else %}
+    -- SQL mode: Use intermediate event model that exists during EVENT_GENERATION
+    SELECT
+        employee_id,
+        effective_date::DATE AS hire_date,
+        compensation_amount AS annual_salary,
+        employee_age
+    FROM {{ ref('int_hiring_events') }}
+    WHERE simulation_year = (SELECT current_year FROM simulation_parameters)
+    {% endif %}
+),
+
+-- Epic E078: Mode-aware query - uses fct_yearly_events in Polars mode, int_termination_events in SQL mode
+termination_events AS (
+    {% if var('event_generation_mode', 'sql') == 'polars' %}
+    -- Polars mode: fct_yearly_events is populated from Parquet files before EVENT_GENERATION
+    SELECT
+        employee_id,
+        effective_date::DATE AS termination_date
+    FROM {{ ref('fct_yearly_events') }}
+    WHERE simulation_year = (SELECT current_year FROM simulation_parameters)
+      AND event_type = 'termination'
+    {% else %}
+    -- SQL mode: Use intermediate event model that exists during EVENT_GENERATION
+    SELECT
+        employee_id,
+        effective_date::DATE AS termination_date
+    FROM {{ ref('int_termination_events') }}
+    WHERE simulation_year = (SELECT current_year FROM simulation_parameters)
+    {% endif %}
+),
+
 -- Workforce proration base: include prior-year actives (snapshot) and current-year new hires
 -- FIX: Add LEFT JOIN with termination events to properly handle terminated employees
 snapshot_proration AS (
@@ -106,26 +150,6 @@ snapshot_proration AS (
           SELECT 1 FROM hire_events h
           WHERE h.employee_id = comp.employee_id
       )
-),
-
-hire_events AS (
-    SELECT
-        employee_id,
-        effective_date::DATE AS hire_date,
-        compensation_amount AS annual_salary,
-        employee_age
-    FROM {{ ref('fct_yearly_events') }}
-    WHERE simulation_year = (SELECT current_year FROM simulation_parameters)
-      AND event_type = 'hire'
-),
-
-termination_events AS (
-    SELECT
-        employee_id,
-        effective_date::DATE AS termination_date
-    FROM {{ ref('fct_yearly_events') }}
-    WHERE simulation_year = (SELECT current_year FROM simulation_parameters)
-      AND event_type = 'termination'
 ),
 
 new_hire_proration AS (

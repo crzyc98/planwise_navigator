@@ -652,6 +652,17 @@ def to_dbt_vars(cfg: SimulationConfig) -> Dict[str, Any]:
     """
     dbt_vars: Dict[str, Any] = {}
 
+    # Enterprise identifiers (CRITICAL: Must match Python event factory queries)
+    if cfg.scenario_id:
+        dbt_vars["scenario_id"] = cfg.scenario_id
+    else:
+        dbt_vars["scenario_id"] = "default"  # Explicit default for consistency
+
+    if cfg.plan_design_id:
+        dbt_vars["plan_design_id"] = cfg.plan_design_id
+    else:
+        dbt_vars["plan_design_id"] = "default"  # Explicit default for consistency
+
     # Simulation bounds
     if cfg.simulation.start_year is not None:
         dbt_vars["start_year"] = int(cfg.simulation.start_year)

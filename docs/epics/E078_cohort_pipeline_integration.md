@@ -1,779 +1,551 @@
-# Epic E078: Cohort-Based Pipeline Integration (E077 Completion)
+# Epic E078: Complete Polars Mode Integration
 
 ## 🎯 Epic Overview
 
-**Problem Statement**: The E077 Polars cohort engine successfully generates exact workforce cohorts with 100% growth accuracy, but the dbt pipeline still uses event-based SQL models (`int_hiring_events`, `int_termination_events`, etc.) instead of reading the cohort parquet files. This prevents us from achieving the full 60× performance improvement target (<30 seconds for 5-year simulation).
+**Problem Statement**: Polars event generation works and produces Parquet files successfully, but approximately 10 intermediate dbt models still reference event-specific models (`int_enrollment_events`, `int_hiring_events`, `int_employer_eligibility`) that don't exist when Polars mode is enabled. These models need to be updated to read from `fct_yearly_events` instead.
 
-**Current State** (After E077):
-- ✅ E077 cohort engine generates 4 exact cohort files per year (continuous_active, experienced_terminations, new_hires_active, new_hires_terminated)
-- ✅ Algebraic solver guarantees exact growth (±0 employee variance)
-- ✅ Deterministic selection with hash-based ranking
-- ❌ dbt pipeline still uses SQL event generation models (incompatible with cohorts)
-- ❌ `fct_workforce_snapshot` reads from event models, not cohort loader
-- ❌ `fct_yearly_events` tries to read from `int_hiring_events` (doesn't exist in cohort mode)
-- **Runtime**: Still 30 minutes (E068G Polars events) or fails (E077 cohort mode enabled)
+**Discovery Context**: This epic was scoped after hands-on debugging of Polars mode revealed that:
+1. ✅ Polars event generation already works (`EventGenerationExecutor` creates Parquet files)
+2. ✅ `fct_yearly_events` already reads Polars Parquet files (Polars mode support confirmed)
+3. ✅ Pattern for fixing models is proven (updated 2 models successfully)
+4. ❌ ~10 intermediate models still use old references
+
+**Current State** (October 2025):
+- ✅ Polars event generation creates Parquet files successfully
+- ✅ `fct_yearly_events` has full Polars mode support (`event_mode == 'polars'`)
+- ✅ `int_enrollment_state_accumulator.sql` - **FIXED** (reads from `fct_yearly_events`)
+- ✅ `int_deferral_rate_state_accumulator_v2.sql` - **FIXED** (reads from `fct_yearly_events`)
+- ❌ `int_employer_core_contributions.sql` - references `int_employer_eligibility` (in `eligibility_check` CTE)
+- ❌ Estimated 5-8 additional models need updates (E078-01 will determine exact count)
+- ⚙️ Polars mode **temporarily disabled** in config to maintain system stability
 
 **Target State**:
-- ✅ Cohort-based dbt pipeline replaces event-based models when E077 enabled
-- ✅ `fct_workforce_snapshot` reads directly from `int_polars_cohort_loader`
-- ✅ Conditional model selection: use cohorts if E077 enabled, SQL events otherwise
-- ✅ **Runtime: <30 seconds for 5-year simulation** (60× improvement from baseline)
-- ✅ **100% backward compatibility** - SQL event mode still works when E077 disabled
+- ✅ All intermediate models read from `fct_yearly_events` with event_type filters
+- ✅ Polars mode can be enabled without breaking the pipeline
+- ✅ Multi-year simulation works in both SQL and Polars modes
+- ✅ **Runtime improvement**: Achieve ≥2× performance improvement (estimated 2-5× faster)
+- ✅ **100% backward compatibility** - SQL mode continues to work unchanged
 
 **Business Impact**:
-- **Performance**: Unlock full 60× speedup (30 min → 30 sec) for scenario planning
-- **Accuracy**: Maintain E077's exact growth guarantee (±0 employee variance)
-- **Agility**: Enable rapid iteration on 10+ scenarios per hour vs. 2-3 currently
-- **Scalability**: Support 50k+ employee census files on work laptops
-- **Team Velocity**: Analysts get instant feedback instead of 30-minute wait times
+- **Performance**: Unlock Polars performance benefits for faster scenario planning
+- **Flexibility**: Teams can choose SQL mode (stability) or Polars mode (speed)
+- **Consumer Impact**: If you already use `fct_yearly_events`, nothing changes; performance improves automatically
 
-**Implementation Timeline**: 2-3 days (focused sprint)
+**Implementation Timeline**: 1 day (6-8 hours focused work)
 
 ---
 
-## 🏗️ Architecture: Hybrid Pipeline with Mode Switching
+## 📋 Data Contract
 
-### **Core Principle**: Conditional Model Selection Based on Configuration
+**Single Interface**: All downstream models read from `fct_yearly_events` with `event_type` and `simulation_year` filters. No references to `int_*_events` or `int_employer_eligibility`.
 
-The pipeline dynamically selects between **event-based** and **cohort-based** data flows:
+**Required Columns**: `simulation_year`, `employee_id`, `event_type`, `event_timestamp`, plus domain-specific fields used by downstream models (e.g., `eligible_for_core`, `annual_compensation`, `enrollment_date`).
 
-```yaml
-# config/simulation_config.yaml
-optimization:
-  event_generation:
-    polars:
-      use_cohort_engine: false  # SQL event mode (current default)
-      use_cohort_engine: true   # E077 cohort mode (target)
+**Event Types**: `hire`, `termination`, `promotion`, `raise`, `enrollment`, `enrollment_change`, `eligibility_determination`.
+
+**Partitioning**: Events are written under `data/parquet/events/simulation_year=YYYY/` in Polars mode.
+
+---
+
+## ✅ Acceptance Criteria
+
+1. **Zero Legacy References**: No remaining references to `int_*_events` or `int_employer_eligibility` in intermediate models
+2. **Polars Mode Works**: End-to-end simulation (2025-2027) completes with zero errors in Polars mode
+3. **Data Parity**: Row counts by `simulation_year × event_type` match within 2% vs. SQL mode (looser tolerance acceptable for event counts; strict parity expected for financial metrics)
+4. **Performance**: ≥2× faster for standard 3-year run compared to SQL mode
+5. **Escape Hatch**: SQL mode toggle works instantly if issues arise
+
+**Operational Validation**:
+- ✅ Parquet files exist for all simulated years under `data/parquet/events/simulation_year=YYYY/`
+- ✅ Total employer core contributions within 0.5% tolerance vs. SQL mode (financial precision)
+
+---
+
+## 🔍 Root Cause Analysis
+
+### What We Discovered During Debugging
+
+**The Pipeline Already Works (Mostly)**:
 ```
-
-### **Pipeline Architecture Comparison**
-
-| Component | SQL Event Mode (Current) | E077 Cohort Mode (Target) |
-|-----------|-------------------------|---------------------------|
-| **Workforce Needs** | `int_workforce_needs.sql` | `int_workforce_needs.sql` (unchanged) |
-| **Event Generation** | `int_hiring_events`, `int_termination_events`, etc. | **SKIP** - replaced by cohorts |
-| **Cohort Generation** | **SKIP** | `polars_integration.py` → Parquet files |
-| **Cohort Loader** | **SKIP** | `int_polars_cohort_loader.sql` |
-| **Event Aggregation** | `fct_yearly_events` (UNION ALL events) | **SKIP** or simplified cohort events |
-| **Workforce Snapshot** | Reads from event models | **Reads from cohort loader** |
-| **State Accumulation** | Same | Same |
-
-### **Data Flow Diagram**
-
-#### **Current (SQL Event Mode)**
-```
-int_baseline_workforce (Year N-1)
+Year N-1 Snapshot
     ↓
 int_workforce_needs (algebraic solver)
     ↓
-int_hiring_events, int_termination_events, int_promotion_events, ...
+[PYTHON] EventGenerationExecutor
     ↓
-fct_yearly_events (UNION ALL events)
+data/parquet/events/simulation_year=2025/events_2025.parquet ← Polars writes here
     ↓
-fct_workforce_snapshot (complex CTE joins)
+fct_yearly_events.sql (reads Parquet when event_mode='polars') ← This already works!
     ↓
-int_enrollment_state_accumulator, int_deferral_rate_state_accumulator
+❌ BREAKS HERE: Some models still try to read int_enrollment_events (doesn't exist)
 ```
 
-#### **Target (E077 Cohort Mode)**
+**The Real Problem**:
+When `event_mode = 'polars'`, the SQL event models (`int_enrollment_events`, `int_hiring_events`, etc.) are **skipped entirely**. Downstream models that reference these tables fail with "table does not exist" errors.
+
+**The Solution Pattern** (Already Proven):
+```sql
+-- ❌ OLD (SQL-only):
+FROM {{ ref('int_enrollment_events') }}
+
+-- ✅ NEW (both SQL and Polars):
+FROM {{ ref('fct_yearly_events') }}
+WHERE event_type IN ('enrollment', 'enrollment_change')
+  AND simulation_year = {{ var('simulation_year') }}
 ```
-int_baseline_workforce (Year N-1)
-    ↓
-int_workforce_needs (algebraic solver)
-    ↓
-[PYTHON] WorkforcePlanningEngine.generate_cohorts()
-    ↓
-outputs/polars_cohorts/default_2025/
-    ├── continuous_active.parquet
-    ├── experienced_terminations.parquet
-    ├── new_hires_active.parquet
-    └── new_hires_terminated.parquet
-    ↓
-int_polars_cohort_loader (read_parquet + UNION ALL)
-    ↓
-fct_workforce_snapshot_cohort_mode (simplified from cohorts)
-    ↓
-int_enrollment_state_accumulator, int_deferral_rate_state_accumulator
-```
+
+**Why This Works**:
+- `fct_yearly_events` exists in **both** SQL and Polars modes
+- SQL mode: `fct_yearly_events` = UNION ALL of `int_*_events` models
+- Polars mode: `fct_yearly_events` = `read_parquet(...)` from event files
+- Schema is identical in both modes
 
 ---
 
 ## 📋 Implementation Stories
 
-### **Story E078-01: Conditional Model Selection Framework**
+### **Story E078-01: Identify All Models Needing Updates**
 **Priority**: P0 (Foundation)
-**Effort**: 4 hours
+**Effort**: 1 hour
 
-**Description**: Implement dbt configuration and macros to enable/disable models based on `use_polars_engine` variable.
-
-**Implementation**:
-
-1. **Create mode-switching macro** (`dbt/macros/get_cohort_mode.sql`):
-```sql
-{% macro is_cohort_mode_enabled() %}
-    {{ return(var('use_polars_engine', false)) }}
-{% endmacro %}
-
-{% macro get_workforce_source() %}
-    {% if is_cohort_mode_enabled() %}
-        {{ return(ref('int_polars_cohort_loader')) }}
-    {% else %}
-        {{ return(ref('fct_yearly_events')) }}
-    {% endif %}
-{% endmacro %}
-```
-
-2. **Add config to event models** to disable in cohort mode:
-```sql
--- int_hiring_events.sql
-{{ config(
-    enabled=(not is_cohort_mode_enabled()),
-    materialized='ephemeral'
-) }}
-```
-
-3. **Update `int_polars_cohort_loader.sql`** to enable only in cohort mode:
-```sql
--- int_polars_cohort_loader.sql
-{{ config(
-    enabled=is_cohort_mode_enabled(),
-    materialized='ephemeral',
-    tags=['E077', 'COHORT_MODE']
-) }}
-```
-
-**Acceptance Criteria**:
-- ✅ `dbt list --select tag:EVENT_GENERATION` returns event models when `use_polars_engine=false`
-- ✅ `dbt list --select tag:COHORT_MODE` returns cohort loader when `use_polars_engine=true`
-- ✅ Both modes can coexist without conflicts
-
-**Files Modified**:
-- `dbt/macros/get_cohort_mode.sql` (NEW)
-- `dbt/models/intermediate/events/*.sql` (add `enabled` config)
-- `dbt/models/intermediate/int_polars_cohort_loader.sql` (add `enabled` config)
-
----
-
-### **Story E078-02: Cohort Loader Schema Alignment**
-**Priority**: P0 (Foundation)
-**Effort**: 6 hours
-
-**Description**: Update `int_polars_cohort_loader.sql` to match the schema expected by `fct_workforce_snapshot`.
-
-**Current Schema Gap**:
-- Cohort parquet files have: `employee_id`, `employee_ssn`, `level_id`, `employee_compensation`, `current_age`, `current_tenure`, `cohort_type`
-- `fct_workforce_snapshot` expects: full employee attributes (hire_date, termination_date, employment_status, etc.)
+**Description**: Create a checkbox list of all models that reference intermediate event tables or eligibility tables, noting the event types each model needs.
 
 **Implementation**:
 
-1. **Enrich cohort loader with census data**:
-```sql
--- int_polars_cohort_loader.sql (enhanced version)
-{{ config(
-    enabled=is_cohort_mode_enabled(),
-    materialized='ephemeral',
-    tags=['E077', 'COHORT_MODE', 'FOUNDATION']
-) }}
-
-{% set simulation_year = var('simulation_year') %}
-{% set scenario_id = var('scenario_id', 'default') %}
-{% set cohort_dir = var('polars_cohort_dir', 'outputs/polars_cohorts') %}
-
-WITH cohort_files AS (
-    -- Load all 4 cohort parquet files
-    SELECT * FROM read_parquet('{{ cohort_dir }}/{{ scenario_id }}_{{ simulation_year }}/continuous_active.parquet')
-    UNION ALL
-    SELECT * FROM read_parquet('{{ cohort_dir }}/{{ scenario_id }}_{{ simulation_year }}/experienced_terminations.parquet')
-    UNION ALL
-    SELECT * FROM read_parquet('{{ cohort_dir }}/{{ scenario_id }}_{{ simulation_year }}/new_hires_active.parquet')
-    UNION ALL
-    SELECT * FROM read_parquet('{{ cohort_dir }}/{{ scenario_id }}_{{ simulation_year }}/new_hires_terminated.parquet')
-),
-
--- Join with census data to get full employee attributes
-enriched_cohorts AS (
-    SELECT
-        c.employee_id,
-        c.employee_ssn,
-        c.level_id,
-        c.employee_compensation,
-        c.current_age,
-        c.current_tenure,
-        c.cohort_type,
-        {{ simulation_year }} AS simulation_year,
-        '{{ scenario_id }}' AS scenario_id,
-
-        -- Determine employment status from cohort type
-        CASE
-            WHEN c.cohort_type IN ('continuous_active', 'new_hire_active') THEN 'active'
-            WHEN c.cohort_type IN ('experienced_termination', 'new_hire_terminated') THEN 'terminated'
-        END AS employment_status,
-
-        -- Determine termination date for terminated cohorts
-        CASE
-            WHEN c.cohort_type = 'experienced_termination' THEN DATE '{{ simulation_year }}-06-30'  -- Mid-year termination
-            WHEN c.cohort_type = 'new_hire_terminated' THEN DATE '{{ simulation_year }}-09-30'  -- Q3 termination (after hire)
-            ELSE NULL
-        END AS termination_date,
-
-        -- Determine hire date for new hires
-        CASE
-            WHEN c.cohort_type IN ('new_hire_active', 'new_hire_terminated') THEN DATE '{{ simulation_year }}-01-15'  -- Mid-January hire
-            ELSE prev.employee_hire_date  -- Carry forward for continuing employees
-        END AS employee_hire_date,
-
-        -- Additional attributes from previous year (for continuing employees)
-        COALESCE(prev.employee_department, 'Engineering') AS employee_department,
-        COALESCE(prev.employee_location, 'HQ') AS employee_location
-
-    FROM cohort_files c
-
-    -- Left join with previous year to get historical attributes for continuing employees
-    LEFT JOIN {{ ref('fct_workforce_snapshot') }} prev
-        ON c.employee_id = prev.employee_id
-        AND prev.simulation_year = {{ simulation_year - 1 }}
-        AND prev.employment_status = 'active'
-
-    WHERE c.employee_id IS NOT NULL  -- Filter out empty rows from Polars
-)
-
-SELECT * FROM enriched_cohorts
-```
-
-2. **Add cohort metadata table** for tracking:
-```sql
--- fct_cohort_metadata.sql (NEW)
-{{ config(
-    enabled=is_cohort_mode_enabled(),
-    materialized='incremental',
-    unique_key=['scenario_id', 'simulation_year'],
-    tags=['E077', 'COHORT_MODE', 'METADATA']
-) }}
-
-SELECT
-    '{{ var('scenario_id', 'default') }}' AS scenario_id,
-    {{ var('simulation_year') }} AS simulation_year,
-    COUNT(*) FILTER (WHERE cohort_type = 'continuous_active') AS continuous_active_count,
-    COUNT(*) FILTER (WHERE cohort_type = 'experienced_termination') AS experienced_termination_count,
-    COUNT(*) FILTER (WHERE cohort_type = 'new_hire_active') AS new_hire_active_count,
-    COUNT(*) FILTER (WHERE cohort_type = 'new_hire_terminated') AS new_hire_terminated_count,
-    COUNT(*) FILTER (WHERE employment_status = 'active') AS ending_workforce_count,
-    CURRENT_TIMESTAMP AS cohort_loaded_at
-FROM {{ ref('int_polars_cohort_loader') }}
-```
-
-**Acceptance Criteria**:
-- ✅ `int_polars_cohort_loader` schema matches `fct_yearly_events` schema (all required columns)
-- ✅ New hire employees have hire_date = Year N
-- ✅ Continuing employees retain hire_date from Year N-1
-- ✅ Termination dates are populated correctly
-- ✅ Employment status ('active' vs 'terminated') is accurate
-
-**Files Modified**:
-- `dbt/models/intermediate/int_polars_cohort_loader.sql` (major enhancement)
-- `dbt/models/marts/fct_cohort_metadata.sql` (NEW)
-
----
-
-### **Story E078-03: Workforce Snapshot Cohort Mode**
-**Priority**: P0 (Critical Path)
-**Effort**: 8 hours
-
-**Description**: Create cohort-mode version of `fct_workforce_snapshot` that reads from cohort loader instead of event models.
-
-**Implementation**:
-
-1. **Create conditional wrapper** (`fct_workforce_snapshot.sql`):
-```sql
--- fct_workforce_snapshot.sql (refactored with conditional logic)
-{{ config(
-    materialized='incremental',
-    unique_key=['scenario_id', 'plan_design_id', 'employee_id', 'simulation_year'],
-    incremental_strategy='delete+insert',
-    tags=['SNAPSHOT', 'STATE_ACCUMULATION']
-) }}
-
-{% set simulation_year = var('simulation_year') %}
-
-{% if is_cohort_mode_enabled() %}
-    -- E077 Cohort Mode: Simplified snapshot from cohort loader
-    {{ get_snapshot_from_cohorts(simulation_year) }}
-{% else %}
-    -- SQL Event Mode: Original implementation
-    {{ get_snapshot_from_events(simulation_year) }}
-{% endif %}
-```
-
-2. **Create cohort-mode macro** (`dbt/macros/get_snapshot_from_cohorts.sql`):
-```sql
-{% macro get_snapshot_from_cohorts(simulation_year) %}
-
-WITH cohort_base AS (
-    SELECT * FROM {{ ref('int_polars_cohort_loader') }}
-    WHERE simulation_year = {{ simulation_year }}
-),
-
--- Add compensation and demographic attributes
-workforce_enriched AS (
-    SELECT
-        cb.*,
-
-        -- Compensation (from cohort data)
-        cb.employee_compensation AS current_compensation,
-
-        -- Demographics
-        cb.current_age AS employee_age,
-        cb.current_tenure,
-
-        -- Derived attributes
-        CASE
-            WHEN cb.current_age < 30 THEN 'young'
-            WHEN cb.current_age < 45 THEN 'mid_career'
-            WHEN cb.current_age < 55 THEN 'mature'
-            ELSE 'senior'
-        END AS age_band,
-
-        CASE
-            WHEN cb.current_tenure < 2 THEN 'new'
-            WHEN cb.current_tenure < 5 THEN 'established'
-            ELSE 'veteran'
-        END AS tenure_band,
-
-        -- Status codes for validation
-        cb.cohort_type AS detailed_status_code,
-
-        -- Metadata
-        '{{ var('plan_design_id', 'default') }}' AS plan_design_id,
-        CURRENT_TIMESTAMP AS snapshot_created_at
-
-    FROM cohort_base cb
-),
-
--- Add enrollment state (if exists from previous year)
-with_enrollment AS (
-    SELECT
-        we.*,
-        COALESCE(prev_enr.is_enrolled, false) AS is_enrolled,
-        COALESCE(prev_enr.enrollment_date, NULL) AS enrollment_date,
-        COALESCE(prev_enr.current_deferral_rate, 0.00) AS employee_deferral_rate
-
-    FROM workforce_enriched we
-
-    LEFT JOIN {{ ref('int_enrollment_state_accumulator') }} prev_enr
-        ON we.employee_id = prev_enr.employee_id
-        AND prev_enr.simulation_year = {{ simulation_year - 1 }}
-        AND prev_enr.as_of_month = 12  -- End of previous year
-)
-
-SELECT * FROM with_enrollment
-
-{% endmacro %}
-```
-
-3. **Extract existing event logic to macro** (`dbt/macros/get_snapshot_from_events.sql`):
-```sql
-{% macro get_snapshot_from_events(simulation_year) %}
-    -- Move existing fct_workforce_snapshot.sql logic here
-    -- (current 1,500+ lines of SQL)
-{% endmacro %}
-```
-
-**Acceptance Criteria**:
-- ✅ Cohort mode produces same schema as event mode
-- ✅ Row counts match between cohort metadata and snapshot
-- ✅ All active employees from `continuous_active` + `new_hires_active` appear in snapshot
-- ✅ All terminated employees from `experienced_termination` + `new_hires_terminated` appear with `employment_status='terminated'`
-- ✅ **Growth validation**: `ending_workforce = target_ending_workforce` (exact)
-
-**Files Modified**:
-- `dbt/models/marts/fct_workforce_snapshot.sql` (refactor with conditional wrapper)
-- `dbt/macros/get_snapshot_from_cohorts.sql` (NEW)
-- `dbt/macros/get_snapshot_from_events.sql` (NEW - extracted from existing)
-
----
-
-### **Story E078-04: Event Generation Stage Orchestration**
-**Priority**: P0 (Critical Path)
-**Effort**: 4 hours
-
-**Description**: Update orchestrator to skip SQL event generation models when cohort mode is enabled.
-
-**Implementation**:
-
-1. **Update workflow stage definition** (`navigator_orchestrator/pipeline/workflow.py`):
-```python
-# In get_workflow_stages()
-WorkflowStage.EVENT_GENERATION: StageConfig(
-    name=WorkflowStage.EVENT_GENERATION,
-    models=[
-        # Conditional: only run SQL event models if cohort mode disabled
-        'tag:EVENT_GENERATION' if not config.is_cohort_engine_enabled() else None,
-        # Cohort mode: int_polars_cohort_loader runs instead
-        'int_polars_cohort_loader' if config.is_cohort_engine_enabled() else None
-    ],
-    tags=['EVENT_GENERATION'],
-    description="Generate workforce events (SQL) or load cohorts (E077 Polars)",
-    validation_required=True
-)
-```
-
-2. **Add cohort validation** after EVENT_GENERATION:
-```python
-# In year_executor.py
-def _validate_cohort_generation(self, year: int) -> ValidationResult:
-    """Validate cohort files were generated and loaded correctly."""
-    if not self.config.is_cohort_engine_enabled():
-        return ValidationResult(status='SKIPPED')
-
-    conn = duckdb.connect(str(get_database_path()))
-
-    # Check cohort metadata
-    result = conn.execute(f"""
-        SELECT
-            continuous_active_count,
-            experienced_termination_count,
-            new_hire_active_count,
-            new_hire_terminated_count,
-            ending_workforce_count
-        FROM fct_cohort_metadata
-        WHERE simulation_year = {year}
-    """).fetchone()
-
-    if not result:
-        return ValidationResult(
-            status='FAILED',
-            message=f"No cohort metadata found for year {year}"
-        )
-
-    # Validate mass balance
-    cont_active, exp_term, nh_active, nh_term, ending = result
-    expected_ending = cont_active + nh_active
-
-    if ending != expected_ending:
-        return ValidationResult(
-            status='FAILED',
-            message=f"Cohort mass balance failed: {ending} != {expected_ending}"
-        )
-
-    conn.close()
-    return ValidationResult(status='PASSED')
-```
-
-**Acceptance Criteria**:
-- ✅ When `use_polars_engine=false`: EVENT_GENERATION runs SQL event models
-- ✅ When `use_polars_engine=true`: EVENT_GENERATION loads cohorts, skips SQL models
-- ✅ Cohort validation runs after EVENT_GENERATION in cohort mode
-- ✅ Mass balance validation passes (continuous_active + new_hires_active = ending_workforce)
-
-**Files Modified**:
-- `navigator_orchestrator/pipeline/workflow.py`
-- `navigator_orchestrator/pipeline/year_executor.py`
-
----
-
-### **Story E078-05: Performance Benchmarking & Validation**
-**Priority**: P1 (Validation)
-**Effort**: 4 hours
-
-**Description**: Run comprehensive performance benchmarks and validate E077 cohort mode meets <30 second target.
-
-**Implementation**:
-
-1. **Create benchmark script** (`scripts/benchmark_e078.py`):
-```python
-#!/usr/bin/env python3
-"""
-E078 Performance Benchmarking Script
-
-Compares performance between SQL event mode and E077 cohort mode.
-"""
-import time
-import subprocess
-from pathlib import Path
-
-def run_benchmark(mode: str, years: str) -> dict:
-    """Run simulation and measure performance."""
-    # Clean database
-    db_path = Path("dbt/simulation.duckdb")
-    if db_path.exists():
-        db_path.unlink()
-
-    # Run simulation with timing
-    start = time.time()
-    result = subprocess.run(
-        [
-            "python", "-m", "navigator_orchestrator",
-            "run", "--years", years, "--threads", "1"
-        ],
-        env={
-            "PYTHONPATH": ".",
-            "NAV_OPTIMIZATION__EVENT_GENERATION__POLARS__USE_COHORT_ENGINE":
-                "true" if mode == "cohort" else "false"
-        },
-        capture_output=True,
-        text=True
-    )
-    elapsed = time.time() - start
-
-    return {
-        'mode': mode,
-        'years': years,
-        'elapsed_seconds': elapsed,
-        'success': result.returncode == 0,
-        'stdout': result.stdout,
-        'stderr': result.stderr
-    }
-
-if __name__ == "__main__":
-    print("E078 Performance Benchmark\n" + "="*50)
-
-    # Benchmark 1: 3-year simulation
-    print("\n📊 Benchmark 1: 3-Year Simulation (2025-2027)")
-    sql_3yr = run_benchmark("sql", "2025-2027")
-    cohort_3yr = run_benchmark("cohort", "2025-2027")
-
-    print(f"  SQL Mode:    {sql_3yr['elapsed_seconds']:.1f}s")
-    print(f"  Cohort Mode: {cohort_3yr['elapsed_seconds']:.1f}s")
-    print(f"  Speedup:     {sql_3yr['elapsed_seconds'] / cohort_3yr['elapsed_seconds']:.1f}×")
-
-    # Benchmark 2: 5-year simulation
-    print("\n📊 Benchmark 2: 5-Year Simulation (2025-2029)")
-    sql_5yr = run_benchmark("sql", "2025-2029")
-    cohort_5yr = run_benchmark("cohort", "2025-2029")
-
-    print(f"  SQL Mode:    {sql_5yr['elapsed_seconds']:.1f}s")
-    print(f"  Cohort Mode: {cohort_5yr['elapsed_seconds']:.1f}s")
-    print(f"  Speedup:     {sql_5yr['elapsed_seconds'] / cohort_5yr['elapsed_seconds']:.1f}×")
-
-    # Success criteria
-    print("\n✅ Success Criteria:")
-    print(f"  5-year cohort mode < 30s: {'PASS' if cohort_5yr['elapsed_seconds'] < 30 else 'FAIL'}")
-    print(f"  Speedup > 10×: {'PASS' if sql_5yr['elapsed_seconds'] / cohort_5yr['elapsed_seconds'] > 10 else 'FAIL'}")
-```
-
-2. **Run benchmarks**:
 ```bash
-chmod +x scripts/benchmark_e078.py
-python scripts/benchmark_e078.py
+# 1. Find models referencing intermediate event tables
+rg "ref\('int_.*_events'\)" dbt/models/ -g "*.sql"
+
+# 2. Find models referencing eligibility tables
+rg "ref\('int_employer_eligibility'\)" dbt/models/ -g "*.sql"
+
+# 3. For each model, identify the CTE/section and required event types
 ```
 
-3. **Create validation report** (`docs/benchmarks/E078_performance_report.md`):
+**Deliverable**:
+
+Create `docs/epics/E078_model_updates_checklist.md`:
 ```markdown
-# E078 Performance Validation Report
+# E078 Model Update Checklist
 
-## Test Environment
-- Date: 2025-10-09
-- Hardware: MacBook Pro (work laptop)
-- Census Size: 637 employees
-- Python: 3.11.x
-- DuckDB: 1.0.0
-- Polars: 1.0.0
+## Already Fixed (Before E078)
+- ✅ int_enrollment_state_accumulator.sql → event_type IN ('enrollment', 'enrollment_change')
+- ✅ int_deferral_rate_state_accumulator_v2.sql → event_type IN ('enrollment', 'enrollment_change')
 
-## Benchmark Results
+## Identified During E078-01
+- ❌ int_employer_core_contributions.sql (eligibility_check CTE) → event_type = 'eligibility_determination'
+- ❌ [Model name] ([CTE name]) → event_type = '[type]'
+- ❌ [Model name] ([CTE name]) → event_type IN ('[type1]', '[type2]')
 
-| Scenario | SQL Mode | Cohort Mode | Speedup |
-|----------|----------|-------------|---------|
-| 3-year (2025-2027) | 45.2s | 4.1s | 11.0× |
-| 5-year (2025-2029) | 78.5s | 6.8s | 11.5× |
-
-## Growth Accuracy Validation
-
-| Year | Target Ending | Actual Ending | Error | Status |
-|------|---------------|---------------|-------|--------|
-| 2025 | 656 | 656 | 0 | ✅ EXACT |
-| 2026 | 676 | 676 | 0 | ✅ EXACT |
-| 2027 | 696 | 696 | 0 | ✅ EXACT |
-
-## Success Criteria
-
-- ✅ **Performance**: 5-year simulation completes in <30s (actual: 6.8s)
-- ✅ **Accuracy**: Growth error = 0 employees for all years
-- ✅ **Speedup**: >10× improvement (actual: 11.5×)
-- ✅ **Backward Compatibility**: SQL event mode still works
-
-## Conclusion
-
-Epic E078 successfully integrates E077 cohort engine with dbt pipeline, achieving:
-- **11× performance improvement** (exceeds 10× target)
-- **100% growth accuracy** (±0 employee variance)
-- **Full backward compatibility** with SQL event mode
+## Pattern
+Replace: `FROM {{ ref('int_*_events') }}` or `FROM {{ ref('int_employer_eligibility') }}`
+With: `FROM {{ ref('fct_yearly_events') }} WHERE event_type = '...' AND simulation_year = {{ var('simulation_year') }}`
 ```
 
 **Acceptance Criteria**:
-- ✅ 5-year cohort mode simulation completes in <30 seconds
-- ✅ Speedup vs SQL mode > 10×
-- ✅ Growth accuracy: error = 0 employees for all years
-- ✅ Both SQL and cohort modes produce identical ending workforce counts
+- ✅ Checkbox list created with model name + CTE/section + required event types
+- ✅ One line per model, no line number references
+- ✅ Event type mapping documented for each model
 
 **Files Created**:
-- `scripts/benchmark_e078.py` (NEW)
-- `docs/benchmarks/E078_performance_report.md` (NEW)
+- `docs/epics/E078_model_updates_checklist.md` (NEW)
 
 ---
 
-### **Story E078-06: Documentation & Migration Guide**
-**Priority**: P2 (Documentation)
-**Effort**: 3 hours
+### **Story E078-02: Update Models to Use fct_yearly_events Pattern**
+**Priority**: P0 (Critical Path)
+**Effort**: 3-4 hours
 
-**Description**: Create comprehensive documentation for E078 cohort mode usage and migration.
+**Description**: Apply the proven `fct_yearly_events` pattern to all models identified in S078-01.
 
-**Deliverables**:
+**Implementation Pattern** (Proven from prior fixes):
 
-1. **Update CLAUDE.md** with E078 usage:
-```markdown
-### E078: Cohort-Based Pipeline (High Performance Mode)
+```sql
+-- Example: int_employer_core_contributions.sql
 
-**When to Use**:
-- Rapid scenario planning (10+ scenarios per hour)
-- Large census files (50k+ employees)
-- Time-sensitive analysis requiring <30 second turnaround
+-- BEFORE (line 172):
+eligibility_check AS (
+    SELECT
+        employee_id,
+        simulation_year,
+        eligible_for_core,
+        eligible_for_contributions,
+        annual_hours_worked
+    FROM {{ ref('int_employer_eligibility') }}
+    WHERE simulation_year = {{ simulation_year }}
+        AND employee_id IS NOT NULL
+),
 
-**Configuration**:
-```yaml
-# config/simulation_config.yaml
-optimization:
-  event_generation:
-    mode: "polars"  # Must be "polars"
-    polars:
-      use_cohort_engine: true  # Enable E077 cohort mode
-      cohort_output_dir: "outputs/polars_cohorts"
+-- AFTER:
+eligibility_check AS (
+    SELECT
+        employee_id,
+        simulation_year,
+        eligible_for_core,
+        eligible_for_contributions,
+        annual_hours_worked
+    FROM {{ ref('fct_yearly_events') }}
+    WHERE simulation_year = {{ simulation_year }}
+        AND event_type = 'eligibility_determination'  -- Add event type filter
+        AND employee_id IS NOT NULL
+),
 ```
 
-**Usage**:
-```bash
-# Single simulation with cohort mode
-python -m navigator_orchestrator run --years 2025-2029 --threads 1
+**For Each Model**:
 
-# Batch scenarios with cohort mode
-python -m navigator_orchestrator batch --scenarios baseline high_growth --clean
+1. **Read the current model** to understand context
+2. **Identify the int_*_events reference**
+3. **Determine the appropriate event_type filter**:
+   - `int_enrollment_events` → `WHERE event_type IN ('enrollment', 'enrollment_change')`
+   - `int_hiring_events` → `WHERE event_type = 'hire'`
+   - `int_termination_events` → `WHERE event_type = 'termination'`
+   - `int_promotion_events` → `WHERE event_type = 'promotion'`
+   - `int_merit_events` → `WHERE event_type = 'raise'` (or `merit` if exists)
+   - `int_employer_eligibility` → `WHERE event_type = 'eligibility_determination'`
+4. **Update the SQL** with the new pattern
+5. **Test the model individually**:
+   ```bash
+   cd dbt
+   dbt run --select <model_name> --vars "simulation_year: 2025" --threads 1
+   ```
+6. **Update checklist** with ✅ status
 
-# Verify cohort mode is active
-duckdb dbt/simulation.duckdb "SELECT * FROM fct_cohort_metadata LIMIT 5"
+**Event Type Reference** (from fct_yearly_events schema):
+```sql
+-- Common event types in fct_yearly_events:
+-- - 'hire'
+-- - 'termination'
+-- - 'promotion'
+-- - 'raise' (includes COLA and merit)
+-- - 'enrollment'
+-- - 'enrollment_change'
+-- - 'eligibility_determination' (if tracked)
 ```
-
-**Performance**:
-- 3-year simulation: ~4 seconds (11× faster)
-- 5-year simulation: ~7 seconds (11× faster)
-- 50k employee census: <30 seconds for 5 years
-
-**Backward Compatibility**:
-Set `use_cohort_engine: false` to revert to SQL event mode if needed.
-```
-
-2. **Create troubleshooting guide** (`docs/guides/E078_troubleshooting.md`)
-
-3. **Update architecture diagrams** (`docs/architecture.md`)
 
 **Acceptance Criteria**:
-- ✅ CLAUDE.md updated with E078 section
-- ✅ Troubleshooting guide covers common issues
-- ✅ Architecture diagrams show both SQL and cohort modes
+- ✅ All models in checklist updated to use `fct_yearly_events`
+- ✅ Each model tested individually with `dbt run --select <model_name> --vars "simulation_year: 2025" --threads 1`
+- ✅ Zero references to `int_*_events` or `int_employer_eligibility` remain
+- ✅ Checklist updated with ✅ for each completed model
+
+**Files Modified**:
+- `dbt/models/intermediate/int_employer_core_contributions.sql`
+- `dbt/models/intermediate/<additional models from E078-01>`
+- `docs/epics/E078_model_updates_checklist.md` (status updates)
+
+---
+
+### **Story E078-03: Re-enable Polars Mode and Integration Test**
+**Priority**: P0 (Validation)
+**Effort**: 2 hours
+
+**Description**: Re-enable Polars mode in the configuration and run comprehensive multi-year simulation tests.
+
+**Implementation**:
+
+1. **Update configuration** (`config/simulation_config.yaml`):
+```yaml
+# Line 410: Re-enable Polars mode
+event_generation:
+  mode: "polars"  # Changed from "sql" - E078 POLARS MODE RE-ENABLED
+
+  # Polars-specific configuration
+  polars:
+    enabled: true  # Changed from false - E078 POLARS MODE RE-ENABLED
+    max_threads: 16
+    batch_size: 10000
+    output_path: "data/parquet/events"
+    enable_compression: true
+    # ... rest of config unchanged
+```
+
+2. **Clean database for fresh test**:
+```bash
+# IMPORTANT: Verify you're in a sandbox/test environment before deleting the database
+# The database will be recreated during simulation, but any manual work will be lost
+rm dbt/simulation.duckdb
+```
+
+3. **Run single-year test**:
+```bash
+planwise simulate 2025
+```
+
+**Expected Output**:
+```
+✅ Polars event generation creates Parquet file
+✅ fct_yearly_events loads from Parquet
+✅ All intermediate models run without errors
+✅ fct_workforce_snapshot builds successfully
+✅ Simulation completes
+```
+
+4. **Run multi-year test**:
+```bash
+planwise simulate 2025-2027
+```
+
+**Parity Check** (compare Polars vs SQL mode):
+```bash
+# 1. Run SQL mode baseline
+# Update config to mode: "sql", enabled: false
+rm dbt/simulation.duckdb
+time planwise simulate 2025-2027
+
+# Capture SQL mode metrics
+duckdb dbt/simulation.duckdb "
+SELECT simulation_year, event_type, COUNT(*) as count
+FROM fct_yearly_events
+GROUP BY simulation_year, event_type
+ORDER BY simulation_year, event_type
+" > sql_mode_events.txt
+
+duckdb dbt/simulation.duckdb "
+SELECT SUM(employer_core_contribution) as total_core
+FROM fct_workforce_snapshot
+WHERE simulation_year IN (2025, 2026, 2027)
+" > sql_mode_core.txt
+
+# 2. Run Polars mode
+# Update config to mode: "polars", enabled: true
+rm dbt/simulation.duckdb
+time planwise simulate 2025-2027
+
+# Capture Polars mode metrics
+duckdb dbt/simulation.duckdb "
+SELECT simulation_year, event_type, COUNT(*) as count
+FROM fct_yearly_events
+GROUP BY simulation_year, event_type
+ORDER BY simulation_year, event_type
+" > polars_mode_events.txt
+
+duckdb dbt/simulation.duckdb "
+SELECT SUM(employer_core_contribution) as total_core
+FROM fct_workforce_snapshot
+WHERE simulation_year IN (2025, 2026, 2027)
+" > polars_mode_core.txt
+
+# 3. Compare results (manually verify within 5% tolerance)
+```
+
+**Acceptance Criteria**:
+- ✅ Multi-year simulation (2025-2027) completes with zero errors in Polars mode
+- ✅ Event counts by `simulation_year × event_type` within 2% tolerance vs. SQL mode
+- ✅ Total employer core contributions within 0.5% tolerance vs. SQL mode
+- ✅ Performance: ≥2× faster wall-time for Polars mode (measured with `time` command)
+- ✅ Parquet files exist under `data/parquet/events/simulation_year=YYYY/`
+
+**Files Modified**:
+- `config/simulation_config.yaml` (re-enable Polars mode)
+
+---
+
+### **Story E078-04: Documentation and Validation**
+**Priority**: P1 (Documentation)
+**Effort**: 30 minutes
+
+**Description**: Add minimal Polars mode documentation to CLAUDE.md.
+
+**Implementation**:
+
+1. **Update CLAUDE.md** with Polars mode section:
+
+Add to Development Workflow section:
+
+```markdown
+### **Polars Mode (High Performance)**
+
+Polars mode uses vectorized event generation for 2-5× performance improvement.
+
+**Enable Polars Mode**:
+```yaml
+# config/simulation_config.yaml
+event_generation:
+  mode: "polars"
+  polars:
+    enabled: true
+```
+
+**Run Simulation**:
+```bash
+planwise simulate 2025-2027
+```
+
+**Disable Polars Mode** (revert to SQL):
+```yaml
+event_generation:
+  mode: "sql"
+  polars:
+    enabled: false
+```
+
+**Verify Active**:
+- Check for Parquet files: `ls data/parquet/events/simulation_year=2025/`
+- If issues arise, toggle back to SQL mode
+```
+
+2. **Record performance metrics in epic completion summary**
+
+**Acceptance Criteria**:
+- ✅ CLAUDE.md updated with Polars mode section
+- ✅ Performance metrics recorded (SQL vs Polars wall-time)
+- ✅ Epic marked complete with lean summary
+
+**Files Modified**:
+- `CLAUDE.md` (Polars mode documentation)
+- `docs/epics/E078_cohort_pipeline_integration.md` (completion summary)
 
 ---
 
 ## 🎯 Success Metrics
 
-| Metric | Baseline (SQL Mode) | Target (E078 Cohort Mode) | Actual |
-|--------|--------------------|-----------------------|--------|
-| **5-Year Runtime** | 78.5s | <30s | TBD |
-| **Performance Improvement** | 1× | >10× | TBD |
-| **Growth Accuracy** | ±0 employees | ±0 employees | TBD |
-| **Memory Usage** | 200MB | <300MB | TBD |
-| **Backward Compatibility** | N/A | 100% (both modes work) | TBD |
+| Metric | Baseline (SQL Mode) | Target (Polars Mode) | Measurement Method | Actual |
+|--------|--------------------|--------------------|-------------------|--------|
+| **3-Year Runtime** | ~2 minutes | <1 minute | `time planwise simulate 2025-2027` | TBD |
+| **Performance Improvement** | 1× | 2-5× | Compare wall-time (SQL vs Polars) | TBD |
+| **Model Updates Required** | N/A | ~10 models | Count files modified in E078-02 | TBD |
+| **Backward Compatibility** | N/A | 100% (SQL mode still works) | Run SQL mode after Polars validation | TBD |
+| **Event Count Parity** | N/A | Within 2% | DuckDB query comparison | TBD |
+| **Financial Parity** | N/A | Within 0.5% | Core contribution comparison | TBD |
 
 ---
 
 ## 🚨 Risks & Mitigation
 
-### **Risk 1: Schema Mismatch Between Cohorts and Events**
-**Likelihood**: Medium
-**Impact**: High (simulation fails)
+### **Risk 1: More Models Than Expected Need Updates**
+**Likelihood**: Medium | **Impact**: Low (just takes longer)
 
-**Mitigation**:
-- Comprehensive schema validation in Story E078-02
-- Integration tests comparing cohort and event schemas
-- Fallback to SQL mode if cohort schema issues detected
+**Mitigation**: Systematic search in E078-01 finds all issues upfront. Pattern is proven and simple to apply. Each model can be updated and tested independently.
 
 ---
 
-### **Risk 2: Performance Target Not Met (<30s)**
-**Likelihood**: Low
-**Impact**: Medium (still faster, but misses target)
+### **Risk 2: Event Type Mapping Mistakes**
+**Likelihood**: Low | **Impact**: Medium (incorrect event filtering)
 
-**Mitigation**:
-- E077 cohort generation already fast (<1s per year)
-- Cohort loader is simple (read_parquet + UNION ALL)
-- Fallback: 11× speedup still delivers major value even if not 60×
+**Mitigation**: Parity check (row counts by `simulation_year × event_type` + total employer core contributions) validates correctness. SQL mode toggle provides instant fallback.
 
 ---
 
-### **Risk 3: Backward Compatibility Breaks SQL Mode**
-**Likelihood**: Low
-**Impact**: High (breaks existing workflows)
+## 📋 Implementation Timeline (1 Day)
 
-**Mitigation**:
-- Conditional model selection ensures both modes coexist
-- Integration tests validate both SQL and cohort modes
-- All changes are additive (no deletions of SQL models)
+### **Morning (3 hours)**
+- E078-01: Identify models and create checklist (1h)
+- E078-02: Update models to use `fct_yearly_events` (2h)
 
----
+### **Afternoon (3 hours)**
+- E078-02: Finish model updates and test (1h)
+- E078-03: Re-enable Polars mode and parity check (1.5h)
+- E078-04: Documentation (0.5h)
 
-## 📋 Implementation Timeline (2-3 Days)
-
-### **Day 1: Foundation (Stories E078-01, E078-02)**
-- **Morning (4 hours)**: Implement conditional model selection framework
-- **Afternoon (6 hours)**: Enhance cohort loader with schema alignment
-
-### **Day 2: Integration (Stories E078-03, E078-04)**
-- **Morning (8 hours)**: Create workforce snapshot cohort mode
-- **Afternoon (4 hours)**: Update orchestrator stage orchestration
-
-### **Day 3: Validation (Stories E078-05, E078-06)**
-- **Morning (4 hours)**: Run performance benchmarks and validate
-- **Afternoon (3 hours)**: Documentation and migration guide
-
-**Total Effort**: 29 hours (~3 days for solo developer)
+**Total Effort**: 6 hours (1 focused day)
 
 ---
 
-## 🎓 Learning from E077
+## 🎓 Lessons Learned from Debugging
 
-**What Worked Well**:
-- ✅ Algebraic solver provides exact growth (no rounding errors)
-- ✅ Polars cohort generation is extremely fast (<1s per year)
-- ✅ Deterministic hash-based selection eliminates variance
-- ✅ Parquet files are compact and fast to load
+**What We Discovered**:
+1. ✅ Polars pipeline mostly works - only downstream models need updates
+2. ✅ `fct_yearly_events` is the universal interface for both modes
+3. ✅ Pattern is simple: replace `int_*_events` → `fct_yearly_events` + WHERE filter
+4. ✅ Two models already fixed prove the pattern works
 
-**What Needs Integration**:
-- ❌ dbt pipeline still uses event models (incompatible with cohorts)
-- ❌ No conditional logic to switch between SQL and cohort modes
-- ❌ Schema mismatch between cohorts and expected snapshot format
+**What We Avoided**:
+1. ❌ Creating parallel pipeline architectures (not needed)
+2. ❌ Conditional macros and complex mode switching (not needed)
+3. ❌ Schema enrichment and cohort loaders (not needed)
+4. ❌ 29 hours of work (reduced to 6-8 hours)
 
-**E078 Addresses These Gaps**:
-- ✅ Conditional model selection framework (Story E078-01)
-- ✅ Schema alignment and enrichment (Story E078-02)
-- ✅ Cohort-native snapshot generation (Story E078-03)
-- ✅ Orchestrator integration (Story E078-04)
+**Key Insight**:
+The Polars integration is **almost complete**. We just need to update ~10 models to use the existing `fct_yearly_events` table instead of intermediate event tables that don't exist in Polars mode.
 
 ---
 
 ## 📚 References
 
-### **Prerequisites**:
-- ✅ E077: Polars Cohort Engine (cohort generation working)
-- ✅ E072: Pipeline Modularization (orchestrator architecture)
-- ✅ E068G: Polars Event Factory (parquet loading patterns)
+### **Evidence from Debugging Session**:
+- ✅ `int_enrollment_state_accumulator.sql` line 77 updated successfully
+- ✅ `int_deferral_rate_state_accumulator_v2.sql` comprehensive refactor successful
+- ✅ `fct_yearly_events.sql` lines 20-96 have full Polars mode support
+- ❌ `int_employer_core_contributions.sql` line 172 needs update
 
-### **Related Documentation**:
-- [E077 Epic](./E077_bulletproof_workforce_growth_accuracy.md)
-- [E077 ADR-A: Growth Equation & Rounding Policy](../decisions/E077-A-growth-equation-rounding-policy.md)
-- [E077 ADR-C: Determinism & State Integrity](../decisions/E077-C-determinism-and-state-integrity.md)
-- [CLAUDE.md](../../CLAUDE.md)
+### **Related Files**:
+- `navigator_orchestrator/pipeline/event_generation_executor.py` (Polars event generation)
+- `dbt/models/marts/fct_yearly_events.sql` (event aggregation for both modes)
+- `config/simulation_config.yaml` (mode configuration)
+
+### **Related Epics**:
+- E077: Bulletproof Workforce Growth Accuracy (algebraic solver)
+- E068G: Polars Event Factory (Parquet generation)
+- E072: Pipeline Modularization (orchestrator architecture)
+
+---
+
+## ⚠️ CRITICAL UPDATE (2025-10-16)
+
+**What Happened**: Commit `4007eb0` ("update") was **implementing E078** by updating STATE_ACCUMULATION models to read from `fct_yearly_events` instead of intermediate event models. However, this was **mistakenly reverted** on 2025-10-16 when investigating a simulation bug.
+
+**Root Cause of Confusion**:
+- The changes in commit 4007eb0 were CORRECT for Polars mode
+- The changes BROKE SQL mode because they read from `fct_yearly_events` too early in the pipeline
+- SQL mode expects STATE_ACCUMULATION to read from ephemeral `int_*_events` models
+- Polars mode expects STATE_ACCUMULATION to read from `fct_yearly_events` (since `int_*_events` don't exist)
+
+**What Was Reverted** (2025-10-16):
+- ❌ `int_deferral_rate_state_accumulator.sql` - reverted to `int_hiring_events`, `int_deferral_rate_escalation_events`, `int_enrollment_events`
+- ❌ `int_deferral_rate_state_accumulator_v2.sql` - reverted to `int_deferral_rate_escalation_events`
+- ❌ `int_deferral_escalation_state_accumulator.sql` - reverted to `int_deferral_rate_escalation_events`
+- ❌ `int_employer_eligibility.sql` - reverted to `int_hiring_events`, `int_termination_events`, `int_new_hire_termination_events`
+- ❌ `int_employee_match_calculations.sql` - removed duplicate `EVENT_GENERATION` tag
+
+**Current State After Reversion**:
+- ✅ SQL mode works perfectly (confirmed 2025-10-16)
+- ❌ Polars mode broken (STATE_ACCUMULATION models can't find `int_*_events`)
+- ⚙️ Polars mode disabled in config (`mode: "sql"`, `enabled: false`)
+
+**The Real Problem** (Not the Changes):
+The actual simulation bug causing -46% workforce decline and 0 enrollments was NOT the model references. The bug is likely:
+1. Config not being applied from `scenarios/ae_new_hires.yaml`
+2. Cohort engine not running (checking `is_cohort_engine_enabled()`)
+3. Growth calculation issue
+
+**Next Steps**:
+1. **Fix the actual bug** (config/cohort engine issue)
+2. **Re-implement E078 with mode-aware logic**: Models need to read from `int_*_events` in SQL mode and `fct_yearly_events` in Polars mode
+3. **Use Jinja conditionals** to make models work in both modes:
+
+```sql
+-- Pattern for mode-aware references:
+{% if var('event_generation_mode', 'sql') == 'polars' %}
+    FROM {{ ref('fct_yearly_events') }}
+    WHERE event_type = 'hire'
+      AND simulation_year = {{ var('simulation_year') }}
+{% else %}
+    FROM {{ ref('int_hiring_events') }}
+    WHERE simulation_year = {{ var('simulation_year') }}
+{% endif %}
+```
+
+---
+
+## ✅ Completion Summary
+
+**Status**: REVERTED (needs re-implementation with mode-aware logic)
+
+**Timeline**:
+- 2025-10-10: Commit 4007eb0 implemented E078 changes
+- 2025-10-16: Changes mistakenly reverted during bug investigation
+
+**Results**:
+- Models updated in 4007eb0: 5 STATE_ACCUMULATION models
+- SQL mode runtime: Works correctly ✅
+- Polars mode runtime: Broken (models reverted) ❌
+- Lesson learned: Need mode-aware references, not blanket `fct_yearly_events` migration
 
 ---
 
 **Epic Owner**: Workforce Simulation Team
 **Created**: 2025-10-09
-**Target Completion**: 2-3 days (focused sprint)
-**Priority**: High - Unlocks 11× performance improvement
+**Revised**: 2025-10-10 (streamlined based on ChatGPT-5 feedback)
+**Target Completion**: 6 hours (1 focused day)
+**Priority**: Medium - Enables Polars performance benefits
 **Status**: Ready to Execute

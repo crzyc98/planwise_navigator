@@ -389,8 +389,9 @@ employee_eligibility AS (
     LEFT JOIN (
         -- Get hire information for new hires
         SELECT employee_id, effective_date
-        FROM {{ ref('int_hiring_events') }}
+        FROM {{ ref('fct_yearly_events') }}
         WHERE simulation_year = {{ simulation_year }}
+          AND event_type = 'hire'
     ) he ON accumulator.employee_id = he.employee_id
     -- Only include if they're not already in baseline (avoid duplicates)
     WHERE accumulator.employee_id NOT IN (
