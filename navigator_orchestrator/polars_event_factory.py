@@ -1051,6 +1051,7 @@ class PolarsEventGenerator:
         """
         if simulation_year == self.config.start_year:
             # Year 1: Use baseline workforce
+            self.logger.info(f"Year {simulation_year}: Using baseline workforce ({self.baseline_workforce.height} employees)")
             return self.baseline_workforce.clone()
 
         # Year 2+: Query database for active workforce after previous year
@@ -1074,7 +1075,7 @@ class PolarsEventGenerator:
                         level_id,
                         current_compensation as employee_gross_compensation,
                         current_compensation as employee_annualized_compensation,
-                        current_deferral_rate as employee_deferral_rate,
+                        COALESCE(effective_annual_deferral_rate, 0.0) as employee_deferral_rate,
                         current_eligibility_status,
                         employee_enrollment_date,
                         CASE WHEN employment_status = 'active' THEN true ELSE false END as active
@@ -1124,8 +1125,10 @@ class PolarsEventGenerator:
                 return cohort
 
         except Exception as e:
-            self.logger.warning(f"Error loading previous year workforce: {e}, using baseline")
-            return self.baseline_workforce.clone()
+            self.logger.error(f"Error loading previous year workforce: {e}")
+            # E078 FIX: Raise exception instead of silently falling back to baseline
+            # This was causing duplicate terminations in multi-year simulations
+            raise RuntimeError(f"Failed to load workforce from year {prev_year}: {e}") from e
 
     def generate_year_events(self, simulation_year: int) -> pl.DataFrame:
         """

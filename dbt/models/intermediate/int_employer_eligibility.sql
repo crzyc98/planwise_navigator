@@ -75,7 +75,34 @@ WITH baseline_data AS (
 ),
 
 -- Get new hire and termination events for the simulation year to get more accurate dates
+-- Epic E078: Mode-aware query - uses fct_yearly_events in Polars mode, int_*_events in SQL mode
 events_data AS (
+    {% if var('event_generation_mode', 'sql') == 'polars' %}
+    -- Polars mode: Read from fct_yearly_events
+    SELECT
+        employee_id,
+        MAX(hire_date) AS event_hire_date,
+        MAX(termination_date) AS event_termination_date
+    FROM (
+        SELECT employee_id,
+               effective_date AS hire_date,
+               CAST(NULL AS DATE) AS termination_date
+        FROM {{ ref('fct_yearly_events') }}
+        WHERE simulation_year = {{ simulation_year }}
+          AND event_type = 'hire'
+
+        UNION ALL
+
+        SELECT employee_id,
+               CAST(NULL AS DATE) AS hire_date,
+               effective_date AS termination_date
+        FROM {{ ref('fct_yearly_events') }}
+        WHERE simulation_year = {{ simulation_year }}
+          AND event_type = 'termination'
+    ) s
+    GROUP BY employee_id
+    {% else %}
+    -- SQL mode: Use intermediate event models
     SELECT
         employee_id,
         MAX(hire_date) AS event_hire_date,
@@ -96,6 +123,7 @@ events_data AS (
         WHERE simulation_year = {{ simulation_year }}
     ) s
     GROUP BY employee_id
+    {% endif %}
 ),
 
 -- Flag employees classified as new-hire terminations in this simulation year
@@ -123,7 +151,20 @@ new_hire_termination_flags AS (
 ),
 
 -- Flag employees with experienced terminations (non-new-hire) in this simulation year
+-- Epic E078: Mode-aware query - uses fct_yearly_events in Polars mode, int_*_events in SQL mode
 experienced_termination_flags AS (
+    {% if var('event_generation_mode', 'sql') == 'polars' %}
+    -- Polars mode: Read from fct_yearly_events
+    SELECT
+        t.employee_id,
+        TRUE AS has_experienced_termination
+    FROM {{ ref('fct_yearly_events') }} t
+    WHERE t.simulation_year = {{ simulation_year }}
+      AND t.event_type = 'termination'
+      AND t.event_details NOT LIKE 'Termination - new_hire_departure%'
+    GROUP BY t.employee_id
+    {% else %}
+    -- SQL mode: Use intermediate event models
     SELECT
         t.employee_id,
         TRUE AS has_experienced_termination
@@ -133,6 +174,7 @@ experienced_termination_flags AS (
           SELECT employee_id FROM {{ ref('int_new_hire_termination_events') }} WHERE simulation_year = {{ simulation_year }}
       )
     GROUP BY t.employee_id
+    {% endif %}
 ),
 
 -- Get newly hired employees from yearly events (not in baseline workforce)

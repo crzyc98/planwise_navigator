@@ -72,8 +72,22 @@ base_active AS (
       AND employee_id IS NOT NULL
 ),
 
+-- Epic E078: Mode-aware query - uses fct_yearly_events in Polars mode, int_hiring_events in SQL mode
 new_hires_current_year AS (
     -- Attributes for current-year hires (fills gap for first-year where base_active lacks NH_YYYY)
+    {% if var('event_generation_mode', 'sql') == 'polars' %}
+    -- Polars mode: Read from fct_yearly_events
+    SELECT
+        he.employee_id::VARCHAR as employee_id,
+        he.employee_ssn::VARCHAR as employee_ssn,
+        he.compensation_amount::DECIMAL(12,2) as employee_compensation,
+        he.employee_age::SMALLINT as current_age,
+        he.level_id::SMALLINT as level_id
+    FROM {{ ref('fct_yearly_events') }} he
+    WHERE he.simulation_year = {{ simulation_year }}
+      AND he.event_type = 'hire'
+    {% else %}
+    -- SQL mode: Use intermediate event model
     SELECT
         he.employee_id::VARCHAR as employee_id,
         he.employee_ssn::VARCHAR as employee_ssn,
@@ -82,6 +96,7 @@ new_hires_current_year AS (
         he.level_id::SMALLINT as level_id
     FROM {{ ref('int_hiring_events') }} he
     WHERE he.simulation_year = {{ simulation_year }}
+    {% endif %}
 ),
 
 current_workforce AS (
@@ -104,7 +119,24 @@ current_workforce AS (
 ),
 
 -- OPTIMIZED: Pre-filter escalation events by year range for better JOIN performance
+-- Epic E078: Mode-aware query - uses fct_yearly_events in Polars mode, int_deferral_rate_escalation_events in SQL mode
 escalation_events_filtered AS (
+    {% if var('event_generation_mode', 'sql') == 'polars' %}
+    -- Polars mode: Read from fct_yearly_events
+    SELECT
+        employee_id::VARCHAR as employee_id,
+        simulation_year::INTEGER as simulation_year,
+        effective_date::DATE as effective_date,
+        employee_deferral_rate::DECIMAL(5,4) as new_deferral_rate,
+        CAST(NULL AS DECIMAL(5,4)) as escalation_rate,
+        CAST(NULL AS INTEGER) as new_escalation_count,
+        event_details::VARCHAR as event_details
+    FROM {{ ref('fct_yearly_events') }}
+    WHERE simulation_year <= {{ simulation_year }}
+      AND event_type IN ('enrollment_change', 'deferral_escalation')
+      AND employee_id IS NOT NULL
+    {% else %}
+    -- SQL mode: Use intermediate event model
     SELECT
         employee_id::VARCHAR as employee_id,
         simulation_year::INTEGER as simulation_year,
@@ -116,10 +148,24 @@ escalation_events_filtered AS (
     FROM {{ ref('int_deferral_rate_escalation_events') }}
     WHERE simulation_year <= {{ simulation_year }}
         AND employee_id IS NOT NULL  -- Prevent NULL joins
+    {% endif %}
 ),
 
 -- CRITICAL FIX: Add enrollment events to capture initial deferral rates
+-- Epic E078: Mode-aware query - uses fct_yearly_events in Polars mode, int_enrollment_events in SQL mode
 enrollment_events AS (
+    {% if var('event_generation_mode', 'sql') == 'polars' %}
+    -- Polars mode: Read from fct_yearly_events
+    SELECT DISTINCT
+        employee_id::VARCHAR as employee_id,
+        simulation_year::INTEGER as simulation_year,
+        employee_deferral_rate::DECIMAL(5,4) as enrollment_deferral_rate,
+        effective_date::DATE as enrollment_date
+    FROM {{ ref('fct_yearly_events') }}
+    WHERE simulation_year <= {{ simulation_year }}
+      AND event_type IN ('enrollment', 'enrollment_change')
+    {% else %}
+    -- SQL mode: Use intermediate event model
     SELECT DISTINCT
         employee_id::VARCHAR as employee_id,
         simulation_year::INTEGER as simulation_year,
@@ -130,6 +176,7 @@ enrollment_events AS (
       AND LOWER(event_type) = 'enrollment'
       AND employee_id IS NOT NULL
       AND employee_deferral_rate IS NOT NULL
+    {% endif %}
 ),
 
 -- OPTIMIZED: Vectorized age/income segmentation for better DuckDB performance

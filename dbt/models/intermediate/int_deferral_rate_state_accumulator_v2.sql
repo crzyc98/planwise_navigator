@@ -63,7 +63,26 @@ current_year_new_enrollments AS (
 ),
 
 -- Get current year's escalation events
+-- Epic E078: Mode-aware query - uses fct_yearly_events in Polars mode, int_deferral_rate_escalation_events in SQL mode
 current_year_escalations AS (
+    {% if var('event_generation_mode', 'sql') == 'polars' %}
+    -- Polars mode: Read from fct_yearly_events
+    SELECT
+        employee_id,
+        effective_date,
+        employee_deferral_rate as new_deferral_rate,
+        CAST(NULL AS DECIMAL(5,4)) as escalation_rate,
+        ROW_NUMBER() OVER (
+            PARTITION BY employee_id
+            ORDER BY effective_date DESC
+        ) as rn
+    FROM {{ ref('fct_yearly_events') }}
+    WHERE simulation_year = {{ simulation_year }}
+        AND event_type IN ('enrollment_change', 'deferral_escalation')
+        AND employee_id IS NOT NULL
+        AND employee_deferral_rate IS NOT NULL
+    {% else %}
+    -- SQL mode: Use intermediate event model
     SELECT
         employee_id,
         effective_date,
@@ -77,6 +96,7 @@ current_year_escalations AS (
     WHERE simulation_year = {{ simulation_year }}
         AND employee_id IS NOT NULL
         AND new_deferral_rate IS NOT NULL
+    {% endif %}
 ),
 
 -- Capture current year's opt-out events (set deferral to 0 and unenroll)

@@ -30,10 +30,31 @@
   - Configuration from simulation_config.yaml
 */
 
+-- Epic E078: Mode-aware query - uses fct_yearly_events in Polars mode, int_hiring_events in SQL mode
 WITH new_hire_population AS (
   -- Get current-year new hires eligible for auto-enrollment
-  -- IMPORTANT: Use int_hiring_events for year N new hires since compensation_by_year
+  -- IMPORTANT: Use event data for year N new hires since compensation_by_year
   -- is built before hiring in this pipeline phase and will not include them yet.
+  {% if var('event_generation_mode', 'sql') == 'polars' %}
+  -- Polars mode: Read from fct_yearly_events
+  SELECT DISTINCT
+    he.employee_id,
+    he.employee_ssn,
+    he.effective_date::DATE AS employee_hire_date,
+    he.simulation_year,
+    he.employee_age AS current_age,
+    0.0 AS current_tenure,
+    he.level_id,
+    he.compensation_amount AS employee_compensation,
+    'active' AS employment_status
+  FROM {{ ref('fct_yearly_events') }} he
+  WHERE he.simulation_year = {{ var('simulation_year') }}
+    AND he.event_type = 'hire'
+    AND he.employee_id IS NOT NULL
+    -- Only include employees eligible for auto-enrollment
+    AND {{ is_eligible_for_auto_enrollment('he.effective_date::DATE', 'he.simulation_year') }}
+  {% else %}
+  -- SQL mode: Use intermediate event model
   SELECT DISTINCT
     he.employee_id,
     he.employee_ssn,
@@ -49,6 +70,7 @@ WITH new_hire_population AS (
     AND he.employee_id IS NOT NULL
     -- Only include employees eligible for auto-enrollment
     AND {{ is_eligible_for_auto_enrollment('he.effective_date::DATE', 'he.simulation_year') }}
+  {% endif %}
 ),
 
 enrollment_status_check AS (
