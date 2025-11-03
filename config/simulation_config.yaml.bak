@@ -1,0 +1,687 @@
+# Asset-level configuration (used by simulation_config asset)
+simulation:
+  start_year: 2025
+  end_year: 2029
+  random_seed: 42
+  target_growth_rate: 0.03
+
+
+# Setup configuration for orchestrator_dbt
+setup:
+  clear_tables: true
+  clear_mode: "year"  # Clear year-specific data only, preserve baseline
+  clear_table_patterns: ["int_"]  # Only clear intermediate tables, preserve fact tables for multi-year accumulation
+  load_seeds: true
+  run_staging_models: true
+  validate_results: false
+  fail_on_validation_error: true
+  census_parquet_path: "data/census_preprocessed.parquet"
+  plan_year_start_date: "2024-01-01"
+  plan_year_end_date: "2024-12-31"
+  eligibility_waiting_period_days: 30
+
+workforce:
+  total_termination_rate: 0.12
+  new_hire_termination_rate: 0.25
+
+compensation:
+  cola_rate: 0.01
+  merit_budget: 0.02
+  growth_target: 0.005
+  growth_tolerance: 0.005
+  calculation_methodology: "full_year_equivalent"  # options: current, continuous, full_year_equivalent
+
+  # Epic E059: Configurable Promotion Compensation Increases
+  promotion_compensation:
+    # Base (midpoint) increase percentage for promotions (maintains current 20% midpoint)
+    base_increase_pct: 0.20  # 20% base increase (current midpoint of 15-25% range)
+
+    # Distribution around the base (creates 15-25% range for backward compatibility)
+    distribution_range: 0.05  # ±5% around base (uniform distribution)
+
+    # Safety caps to prevent extreme increases
+    max_cap_pct: 0.30        # Maximum 30% increase allowed
+    max_cap_amount: 500000   # Maximum $500K increase allowed
+
+    # Distribution type for randomization
+    distribution_type: "uniform"  # Options: "uniform", "normal", "deterministic"
+
+    # Level-specific overrides (optional - uncomment and modify as needed)
+    # level_overrides:
+    #   1: 0.15  # Staff promotions: 15% base (conservative)
+    #   2: 0.18  # Manager promotions: 18% base
+    #   3: 0.20  # Senior Manager promotions: 20% base (default)
+    #   4: 0.25  # Director promotions: 25% base (higher responsibility)
+    #   5: 0.30  # VP promotions: 30% base (executive level)
+
+    # Advanced configuration
+    advanced:
+      # Normal distribution parameters (when distribution_type = "normal")
+      normal_std_dev: 0.02  # Standard deviation for normal distribution
+
+      # Market adjustment factors (optional - can be used for scenario testing)
+      # market_adjustments:
+      #   conservative: 0.85   # 15% reduction for cost-conscious scenarios
+      #   baseline: 1.00       # Default multiplier
+      #   competitive: 1.15    # 15% increase for competitive markets
+      #   aggressive: 1.30     # 30% increase for talent wars
+
+# Epic E056: New Hire Compensation Configurability
+new_hire_compensation:
+  # Compensation strategy selection
+  strategy: "percentile_based"  # Options: percentile_based, custom_distribution, market_adjusted
+
+  # Percentile-based hiring configuration
+  percentile_strategy:
+    default_percentile: 0.3    # 50th percentile (maintains current behavior)
+
+    # Level-specific percentile overrides for strategic hiring
+    level_overrides:
+      1: 0.30                   # Level 1: 40th percentile (conservative for entry level)
+      2: 0.40                   # Level 2: 50th percentile (baseline)
+      3: 0.50                   # Level 3: 60th percentile (competitive)
+      4: 0.65                   # Level 4: 75th percentile (aggressive for directors)
+      5: 0.70                   # Level 5: 80th percentile (premium for executives)
+
+    # Add realistic variance around target percentile
+    variance_enabled: true
+    variance_std_dev: 0.05      # 5% standard deviation for realism
+
+  # Market adjustment multipliers (applied after percentile calculation)
+  market_adjustments:
+    enabled: true
+    base_adjustment: 1.00       # No adjustment by default
+
+    # Level-specific market adjustments
+    level_adjustments:
+      1: 1.02                   # 2% premium for entry level (competitive market)
+      2: 1.00                   # No adjustment for managers
+      3: 0.98                   # 2% discount for senior managers (cost control)
+      4: 1.05                   # 5% premium for directors (talent retention)
+      5: 1.10                   # 10% premium for VPs (executive competition)
+
+    # Quick scenario multipliers for rapid modeling
+    scenarios:
+      conservative: 0.92        # 8% reduction for budget constraints
+      baseline: 1.00            # No adjustment (default)
+      competitive: 1.05         # 5% increase for competitive markets
+      aggressive: 1.15          # 15% increase for talent war scenarios
+
+  # Validation and bounds checking
+  validation:
+    min_percentile: 0.20        # Minimum allowable percentile (20th)
+    max_percentile: 0.90        # Maximum allowable percentile (90th)
+    min_market_adjustment: 0.80 # Minimum market adjustment (20% discount)
+    max_market_adjustment: 1.30 # Maximum market adjustment (30% premium)
+
+  # Future enhancement: Custom distribution modeling
+  custom_distribution:
+    enabled: false              # Disabled for initial implementation
+    distribution_type: "beta"   # Options: normal, beta, uniform, custom
+    parameters:
+      alpha: 2.0
+      beta: 5.0
+      min_percentile: 0.25
+      max_percentile: 0.85
+
+raise_timing:
+  methodology: "realistic"  # Options: "legacy", "realistic", "custom"
+  distribution_profile: "general_corporate"  # Future: "technology", "finance", "government"
+  validation_tolerance: 0.02  # ±2% tolerance for monthly distribution
+  deterministic_behavior: true  # Ensure reproducible results
+
+plan_year:
+  start_date: "2024-01-01"  # Plan year start date for compensation calculations
+  end_date: "2024-12-31"    # Plan year end date for compensation calculations
+  annualization_method: "calendar_days"  # Method for annualizing partial year compensation (calendar_days vs work_days)
+
+eligibility:
+  waiting_period_days: 0  # Days employee must be employed before becoming eligible (0 = immediate, 365 = 1 year)
+  # Future: moved to Epic E026
+  # minimum_age: 21
+  # minimum_hours_annual: 1000
+  # excluded_employee_types: ["intern", "contractor"]
+  # entry_date_type: "quarterly"
+
+# Plan eligibility (separate from employer contribution eligibility)
+plan_eligibility:
+  waiting_period_days: 0  # Default: immediate eligibility for plan participation
+  minimum_age: 21         # Minimum age to participate in the plan
+
+# Epic E023: Enrollment Engine Configuration
+enrollment:
+  # Auto-enrollment configuration
+  auto_enrollment:
+    enabled: true  # Global auto-enrollment enable/disable toggle
+    window_days: 45  # Configurable auto-enrollment window (default 45 days after hire)
+    default_deferral_rate: 0.02  # 2% default deferral rate for auto-enrolled participants
+    opt_out_grace_period: 30  # Days after auto-enrollment for opt-out without penalty
+    scope: "new_hires_only"  # Options: "new_hires_only", "all_eligible_employees"
+    hire_date_cutoff: "2020-01-01"  # Auto-enroll employees hired ON OR AFTER this date (includes census + all new hires)
+
+    # Opt-out rate configuration (industry-standard rates: 5-10% for well-designed programs)
+    opt_out_rates:
+      # Demographic-based opt-out rates (base rates)
+      by_age:
+        young: 0.10       # 10% opt-out rate for young employees (18-30)
+        mid_career: 0.07  # 7% opt-out rate for mid-career employees (31-45)
+        mature: 0.05      # 5% opt-out rate for mature employees (46-55)
+        senior: 0.03      # 3% opt-out rate for senior employees (56+)
+
+      # Income-based multipliers (applied to age-based rates)
+      by_income:
+        low_income: 1.20  # 20% higher opt-out for low income (was 1.60x = 60% higher)
+        moderate: 1.00    # Base rate for moderate income
+        high: 0.70        # 30% lower opt-out for high income (was 0.60x)
+        executive: 0.50   # 50% lower opt-out for executives (was 0.20x)
+
+    # Plan-specific overrides (future enhancement)
+    plan_overrides:
+      emergency_plan:
+        enabled: false  # Disable auto-enrollment for emergency/temporary plans
+        window_days: 30  # Shorter window for special plans
+      executive_plan:
+        enabled: true
+        window_days: 60  # Longer window for executive plans
+        default_deferral_rate: 0.10  # Higher default rate for executives
+
+  # Proactive enrollment configuration (voluntary enrollment within auto-enrollment window)
+  proactive_enrollment:
+    enabled: true  # Enable proactive enrollment before auto-enrollment deadline
+    timing_window:
+      min_days: 7   # Earliest proactive enrollment (7 days after eligibility)
+      max_days: 35  # Latest proactive enrollment (10 days before auto-enrollment deadline)
+    probability_by_demographics:
+      young: 0.25      # Ages 18-30: Lower proactive enrollment rate
+      mid_career: 0.45 # Ages 31-45: Moderate proactive enrollment rate
+      mature: 0.65     # Ages 46-55: Higher proactive enrollment rate
+      senior: 0.75     # Ages 56+: Highest proactive enrollment rate
+    timing_distribution:
+      immediate: 0.2   # Within 30 days of eligibility
+      early: 0.3       # 31-120 days after eligibility
+      mid: 0.3         # 121-270 days after eligibility
+      late: 0.2        # 271+ days after eligibility
+
+  # Voluntary-only enrollment (for plans without auto-enrollment)
+  voluntary_enrollment:
+    enabled: true  # Enable voluntary enrollment for non-auto-enrollment plans
+    annual_enrollment_probability: 0.60  # Base probability of voluntary enrollment
+
+    # Epic E053: Enhanced demographic-based enrollment probabilities
+    base_rates_by_age:
+      young: 0.30      # Ages 18-30: 30% base enrollment rate
+      mid_career: 0.55 # Ages 31-45: 55% base enrollment rate
+      mature: 0.70     # Ages 46-55: 70% base enrollment rate
+      senior: 0.80     # Ages 56+: 80% base enrollment rate
+
+    income_multipliers:
+      low: 0.70        # <$50k: Lower enrollment (financial constraints)
+      moderate: 1.00   # $50k-$100k: Baseline enrollment
+      high: 1.15       # $100k-$200k: Higher enrollment
+      executive: 1.25  # >$200k: Highest enrollment
+
+    job_level_multipliers:
+      individual: 0.90 # Levels 1-2: Individual contributors
+      senior: 1.00     # Levels 3-4: Senior individual contributors
+      manager: 1.10    # Levels 5-6: Management roles
+      executive: 1.20  # Levels 7+: Executive roles
+
+    # Deferral rate selection with match optimization
+    deferral_rates:
+      match_optimization: true  # Enable match-maximizing behavior
+      demographic_base_rates:
+        young_low: 0.03       # Young, low income: 3%
+        young_moderate: 0.03  # Young, moderate income: 3%
+        young_high: 0.04      # Young, high income: 4%
+        young_executive: 0.06 # Young, executive: 6%
+        mid_career_low: 0.04
+        mid_career_moderate: 0.06
+        mid_career_high: 0.08
+        mid_career_executive: 0.10
+        mature_low: 0.05
+        mature_moderate: 0.08
+        mature_high: 0.10
+        mature_executive: 0.12
+        senior_low: 0.06
+        senior_moderate: 0.10
+        senior_high: 0.12
+        senior_executive: 0.15
+
+    demographic_adjustments:
+      age_factor_per_year: 0.01    # +1% per year over 25
+      tenure_factor_per_year: 0.05 # +5% per year of service
+      salary_factor_high_earner: 0.15  # +15% for high earners (>$100k)
+    timing_distribution:
+      open_enrollment_period: 0.70  # 70% enroll during open enrollment
+      mid_year_life_events: 0.20    # 20% enroll due to life events
+      new_hire_immediate: 0.10      # 10% enroll immediately upon hire
+
+  # Epic E053: Year-over-year voluntary enrollment for non-participants
+  year_over_year_conversion:
+    enabled: true  # Enable year-over-year voluntary enrollment
+    base_rates_by_age:
+      young: 0.03      # 3% annual conversion for ages 18-30
+      mid_career: 0.05 # 5% annual conversion for ages 31-45
+      mature: 0.07     # 7% annual conversion for ages 46-55
+      senior: 0.08     # 8% annual conversion for ages 56+
+    income_multipliers:
+      low_income: 0.8  # Financial constraints reduce conversion
+      moderate: 1.0    # Baseline conversion rate
+      high: 1.2        # Increased financial capacity
+      executive: 1.3   # Financial sophistication drives conversion
+    tenure_multipliers:
+      new_employee: 0.7  # < 2 years: Still adjusting
+      established: 1.0   # 2-5 years: Baseline conversion
+      veteran: 1.1       # 5+ years: Company loyalty/stability
+    timing:
+      enrollment_month: 6  # Mid-year enrollment events
+      enrollment_day: 15   # 15th of the month
+    deferral_rates:
+      conservative: true  # Use conservative rates for new voluntary enrollees
+      young: 0.03         # 3% for young converters
+      mid_career: 0.04    # 4% for mid-career converters
+      mature: 0.05        # 5% for mature converters
+      senior: 0.06        # 6% for senior converters
+
+  # Timing coordination and orchestration
+  timing:
+    processing_frequency: "monthly"  # Options: "daily", "weekly", "monthly", "quarterly"
+    proactive_cutoff_before_auto: 10  # Days before auto-enrollment deadline for proactive enrollment
+    deterministic_timing: true       # Ensure reproducible simulation results
+    business_day_adjustment: true    # Adjust enrollment dates to business days
+    holiday_calendar: "us_federal"   # Holiday calendar for business day calculations
+
+  # Multi-year simulation considerations
+  multi_year:
+    preserve_enrollment_state: true          # Maintain enrollment status across simulation years
+    cross_year_eligibility_tracking: true   # Track eligibility changes across years
+    enrollment_anniversary_processing: true # Process enrollment anniversaries
+    re_enrollment_after_termination: true   # Handle re-enrollment for rehires
+
+  # Performance and optimization settings
+  performance:
+    batch_processing_size: 10000    # Process enrollment in batches for large populations
+    enable_parallel_processing: true # Enable parallel processing for performance
+    cache_demographic_calculations: true # Cache demographic-based probability calculations
+    materialization_strategy: "incremental" # dbt materialization strategy for enrollment models
+
+employee_id_generation:
+  baseline_format: "hybrid"  # Options: "legacy" (EMP_NNNNNN), "hybrid" (EMP_YYYY_NNNNNN), "unified" (EMP_YYYY_XXXXXXXX_NNNNNN)
+  new_hire_format: "hash_based"  # Options: "hash_based" (NH_YYYY_XXXXXXXX_NNNNNN), "simple" (NH_YYYY_NNNNNN)
+  enable_cross_validation: true  # Validate uniqueness across baseline and new hire IDs
+  migration_mode: false  # Support for transitioning from legacy formats
+  batch_generation: true  # Use batch generation for performance optimization
+
+# Employer match configuration
+employer_match:
+  # Active match formula selection
+  active_formula: 'simple_match'  # Options: 'simple_match', 'tiered_match', 'stretch_match'
+
+  # Epic E058: Employer match eligibility configuration
+  # Epic E061: Enable eligibility enforcement to fix new hire termination match issue
+  apply_eligibility: true  # Enable sophisticated eligibility enforcement (was false for backward compatibility)
+
+  # Match eligibility requirements (independent from core eligibility)
+  # Epic E061: Configure to exclude new hire terminations from match
+  eligibility:
+    minimum_tenure_years: 0        # Minimum years of service (default: 0 for immediate match eligibility)
+    require_active_at_year_end: true  # Must be active on Dec 31 (excludes year-of-hire terminations)
+    minimum_hours_annual: 1000     # Minimum hours worked (default: 1000)
+    allow_new_hires: true          # Allow active new hires to qualify (tenure exception)
+    allow_terminated_new_hires: false  # Exclude new-hire terminations from match eligibility
+    allow_experienced_terminations: false  # Exclude experienced terminations from match eligibility
+
+  # Match formula definitions
+  formulas:
+    simple_match:
+      name: 'Simple Match'
+      type: 'simple'
+      match_rate: 0.50  # 50% match on all deferrals
+      max_match_percentage: 0.06  # Cap at 3% of compensation
+
+    tiered_match:
+      name: 'Tiered Match'
+      type: 'tiered'
+      tiers:
+        - tier: 1
+          employee_min: 0.00
+          employee_max: 0.03
+          match_rate: 1.00    # 100% match on first 3%
+        - tier: 2
+          employee_min: 0.03
+          employee_max: 0.05
+          match_rate: 0.50    # 50% match on next 2%
+      max_match_percentage: 0.04  # Cap at 4% of compensation
+
+    stretch_match:
+      name: 'Stretch Match (Encourages Higher Deferrals)'
+      type: 'tiered'
+      tiers:
+        - tier: 1
+          employee_min: 0.00
+          employee_max: 0.12
+          match_rate: 0.25     # 25% match on first 12%
+      max_match_percentage: 0.03  # Cap at 3% of compensation
+
+    # Alternative tiered formula (for testing)
+    enhanced_tiered:
+      name: 'Enhanced Tiered Match'
+      type: 'tiered'
+      tiers:
+        - tier: 1
+          employee_min: 0.00
+          employee_max: 0.03
+          match_rate: 1.00    # 100% on first 3%
+        - tier: 2
+          employee_min: 0.03
+          employee_max: 0.05
+          match_rate: 0.50    # 50% on next 2%
+      max_match_percentage: 0.04  # Cap at 4% of compensation
+
+# Employer core (non-elective) contribution configuration
+employer_core_contribution:
+  enabled: true                    # Master on/off switch
+  contribution_rate: 0.01         # core contribution rate
+
+  # Eligibility requirements (dbt variables for int_employer_eligibility.sql)
+  eligibility:
+    minimum_tenure_years: 0        # Minimum years of service (default: 1 year)
+    require_active_at_year_end: true  # Must be active on Dec 31 (default: true)
+    minimum_hours_annual: 1000     # Minimum hours worked (default: 1000)
+    allow_new_hires: true          # Allow new hires to qualify (tenure exception)
+    allow_terminated_new_hires: false  # Allow new-hire terminations to qualify when enabled
+    allow_experienced_terminations: false  # Allow experienced terminations to qualify when enabled
+
+# Performance optimization configuration
+optimization:
+  level: "high"  # Options: "high", "medium", "low", "fallback"
+  max_workers: 1  # Maximum concurrent workers (1 for single-threaded optimization)
+  batch_size: 1000  # Default processing batch size
+  memory_limit_gb: 4.0  # Memory limit in GB for work laptops
+
+  # Epic E068C: Threading and parallelization configuration
+  e068c_threading:
+    dbt_threads: 1  # Number of threads for dbt execution (1-16) - set to 1 for transaction safety
+    event_shards: 1  # Optional sharding for event generation (1-8)
+    max_parallel_years: 1  # Sequential year processing for determinism (1-5)
+
+  # Epic E068G: Polars bulk event factory configuration
+  event_generation:
+    mode: "polars"  # Options: "sql", "polars" - E078 MODE-AWARE CONDITIONALS IMPLEMENTED
+
+    # Polars-specific configuration
+    polars:
+      enabled: false  # Disable Polars bulk event generation - E078 POLARS MODE RE-ENABLED
+      max_threads: 16  # Maximum threads for Polars (POLARS_MAX_THREADS)
+      batch_size: 10000  # Employee batch size for processing
+      output_path: "data/parquet/events"  # Output directory for Parquet files
+      enable_compression: true  # Enable ZSTD compression for Parquet
+      enable_profiling: false  # Enable performance profiling
+      fallback_on_error: true  # Fallback to SQL mode on Polars errors
+      validate_results: true  # Validate Polars output against SQL baseline
+
+      # Performance targets
+      target_runtime_seconds: 60  # Target ≤60s for 5k×5 years
+      target_throughput_events_per_second: 1000  # Target throughput
+
+      # Memory management
+      memory_limit_gb: 8.0  # Memory limit for Polars operations
+      enable_lazy_evaluation: true  # Use Polars lazy evaluation
+
+      # E077: Cohort Generation Engine (375× faster with exact growth accuracy)
+      use_cohort_engine: true  # Enable E077 algebraic solver + deterministic cohort generation
+      cohort_output_dir: "outputs/polars_cohorts"  # Directory for cohort Parquet files
+
+    # SQL mode configuration (existing)
+    sql:
+      dbt_threads: 1  # Number of threads for dbt SQL execution - set to 1 for transaction safety
+      use_event_sharding: false  # Enable event sharding for large datasets
+
+
+# Navigator Orchestrator configuration
+orchestrator:
+  # Epic E067: Multi-Threading Support - dbt Threading Configuration
+  threading:
+    enabled: true  # Enable configurable threading support
+    thread_count: 4  # Number of threads for dbt execution (1-16)
+    mode: "selective"  # Threading mode: selective, aggressive, sequential
+    memory_per_thread_gb: 2.0  # Memory allocation per thread in GB
+
+    # Epic E067 Story S067-02: Model-Level Parallelization Configuration
+    parallelization:
+      enabled: true   # Enable model-level parallelization for performance
+      max_workers: 4  # Maximum parallel workers for model execution
+      memory_limit_mb: 6000.0  # Memory limit for parallel execution (6GB)
+      deterministic_execution: true  # Ensure reproducible results (CRITICAL for financial simulations)
+      resource_monitoring: true  # Enable resource usage monitoring
+      enable_conditional_parallelization: true  # Allow conditional parallel execution
+
+      # Safety and validation settings
+      safety:
+        fallback_on_resource_pressure: true  # Fall back to sequential on resource pressure
+        validate_execution_safety: true  # Validate parallelization safety before execution
+        abort_on_dependency_conflict: true  # Abort if dependency conflicts detected
+        max_retries_per_model: 2  # Maximum retries per failed model
+
+    # Epic E067 Story S067-03: Advanced Resource Management Configuration
+    resource_management:
+      enabled: true  # Enable advanced resource management and optimization
+
+      # Memory monitoring configuration
+      memory_monitoring:
+        enabled: true
+        monitoring_interval_seconds: 5  # Resource check frequency
+        history_size: 100  # Resource history buffer size
+
+        # Memory pressure thresholds (MB)
+        thresholds:
+          moderate_mb: 2048  # 2GB - start resource optimization
+          high_mb: 3072      # 3GB - aggressive resource management
+          critical_mb: 4096  # 4GB - emergency fallback mode
+          gc_trigger_mb: 2560  # 2.5GB - trigger garbage collection
+          fallback_trigger_mb: 3584  # 3.5GB - force sequential execution
+
+      # CPU monitoring configuration
+      cpu_monitoring:
+        enabled: true
+        monitoring_interval_seconds: 5
+        history_size: 50
+
+        # CPU utilization thresholds (percentage)
+        thresholds:
+          moderate_percent: 70  # 70% CPU - start thread optimization
+          high_percent: 85      # 85% CPU - reduce thread count
+          critical_percent: 95  # 95% CPU - emergency throttling
+
+      # Adaptive thread scaling
+      adaptive_scaling_enabled: true
+      min_threads: 1  # Minimum thread count (always >= 1)
+      max_threads: 8  # Maximum thread count for scaling
+      adjustment_cooldown_seconds: 30  # Cooldown between thread adjustments
+
+      # Performance benchmarking
+      benchmarking_enabled: true  # Enable automatic performance benchmarking
+      benchmark_thread_counts: [1, 2, 4, 6, 8]  # Thread counts to benchmark
+
+      # Resource cleanup settings
+      auto_cleanup_enabled: true  # Enable automatic resource cleanup
+      cleanup_threshold_mb: 2500.0  # Memory threshold for triggering cleanup in MB
+
+  # S063-08: Adaptive Memory Management
+  adaptive_memory:
+    enabled: true  # Enable adaptive memory management
+    monitoring_interval_seconds: 1.0  # Memory monitoring frequency
+    history_size: 100  # Memory history buffer size
+
+    # Memory pressure thresholds (MB)
+    thresholds:
+      moderate_mb: 2000.0    # 2GB - start batch size reduction
+      high_mb: 3000.0        # 3GB - aggressive optimization
+      critical_mb: 3500.0    # 3.5GB - emergency fallback
+      gc_trigger_mb: 2500.0  # 2.5GB - trigger garbage collection
+      fallback_trigger_mb: 3200.0  # 3.2GB - enable fallback mode
+
+    # Adaptive batch sizes for different optimization levels
+    batch_sizes:
+      low: 250        # Conservative batch size
+      medium: 500     # Balanced batch size
+      high: 1000      # Performance batch size
+      fallback: 100   # Emergency fallback batch size
+
+    # Adaptive features
+    auto_gc_enabled: true        # Enable automatic garbage collection
+    fallback_enabled: true       # Enable automatic fallback mode
+    profiling_enabled: false     # Enable memory profiling hooks (disabled by default)
+
+    # Recommendation engine
+    recommendation_window_minutes: 5    # Analysis window for recommendations
+    min_samples_for_recommendation: 10  # Minimum samples needed
+
+    # Memory leak detection (tuned for simulation workloads)
+    leak_detection_enabled: true     # Enable leak detection
+    leak_threshold_mb: 800.0         # 800MB growth threshold (increased for simulation processing)
+    leak_window_minutes: 15          # Detection window (increased for more stable detection)
+
+# Multi-year simulation configuration
+multi_year:
+  performance:
+    enable_state_compression: true  # Compress simulation state between years
+    enable_concurrent_processing: true  # Enable concurrent year processing
+    enable_parallel_dbt: true  # Enable parallel dbt model execution
+    cache_workforce_snapshots: true  # Cache workforce snapshots for performance
+
+  # State management
+  state:
+    enable_checkpointing: true  # Enable simulation checkpointing for resume
+    checkpoint_frequency: 1  # Checkpoint every N years
+    preserve_intermediate_states: false  # Keep intermediate year states
+    compression_level: 6  # State compression level (1-9)
+
+  # Resume and error handling
+  resume:
+    enable_resume: true  # Allow resuming from checkpoints
+    auto_resume_on_failure: false  # Automatically resume from last checkpoint
+    cleanup_on_success: true  # Clean up intermediate files on successful completion
+
+  # Error handling
+  error_handling:
+    fail_fast: false  # Stop on first error vs continue processing other years
+    max_retries: 3  # Maximum retry attempts per year
+    retry_delay_seconds: 5  # Delay between retries
+    validation_mode: "strict"  # Options: "strict", "warnings", "disabled"
+
+  # Transition strategy
+  transition:
+    strategy: "optimized"  # Options: "optimized", "conservative", "parallel"
+    batch_workforce_updates: true  # Batch workforce state transitions
+    optimize_event_processing: true  # Optimize event generation and processing
+
+  # Monitoring and logging
+  monitoring:
+    enable_performance_monitoring: true  # Track performance metrics
+    enable_progress_reporting: true  # Report progress during execution
+    log_level: "INFO"  # Logging level for multi-year operations
+    enable_memory_profiling: false  # Enable memory usage profiling
+
+# Epic E035: Automatic Annual Deferral Rate Escalation Configuration (Simplified)
+deferral_auto_escalation:
+  enabled: true                 # Master on/off switch
+  effective_day: "01-01"        # MM-DD for escalation effective date
+  increment_amount: 0.01        # Annual escalation rate (default 1%)
+  maximum_rate: 0.10            # Cap for deferral rate (default 10%)
+  hire_date_cutoff: "2020-01-01"        # Optional YYYY-MM-DD; Only escalate employees hired ON OR AFTER this date
+  require_active_enrollment: true  # Only escalate enrolled participants
+  first_escalation_delay_years: 1  # Years to wait after enrollment before first escalation (default 1)
+
+# Deferral baseline behavior (Option A default)
+deferral_baseline:
+  mode: "frozen"   # "frozen" (default) or "evented" (future)
+
+# Epic E049: Census Deferral Rate Integration Configuration
+deferral_rates:
+  use_census_rates: true              # Use actual census deferral rates instead of hard-coded defaults
+  census_rate_field: "employee_deferral_rate"  # Field in census data containing deferral rates
+  pre_enrolled_fallback: 0.03         # Fallback rate for pre-enrolled employees with missing/invalid rates
+  plan_deferral_cap: 0.75             # Maximum deferral rate (75% IRS limit)
+  normalize_percentages: true         # Automatically convert percentages to decimals (7.5 -> 0.075)
+  generate_synthetic_events: true     # Create synthetic enrollment events for census pre-enrolled participants
+
+# Epic E063: Corporate Network and Proxy Support Configuration
+corporate_network:
+  # Enable corporate network support
+  enabled: true
+  auto_detect_proxy: true
+
+  # Proxy configuration
+  proxy:
+    # Proxy server URLs (auto-detected from environment if not specified)
+    http_proxy: null   # e.g., "http://proxy.company.com:8080"
+    https_proxy: null  # e.g., "http://proxy.company.com:8080"
+    no_proxy: ["localhost", "127.0.0.1", "*.local"]
+
+    # Authentication (leave null to use system authentication)
+    username: null
+    password: null
+    use_system_auth: true
+
+    # Advanced settings
+    proxy_timeout: 30
+    proxy_retries: 3
+
+  # Corporate certificate configuration
+  certificates:
+    ca_bundle_path: null  # Path to corporate CA bundle (e.g., "/etc/ssl/certs/ca-certificates.crt")
+    verify_ssl: true
+    allow_self_signed: false  # Only for development environments
+    hostname_verification: true
+    check_certificate_chain: true
+    max_chain_depth: 10
+
+  # Network timeout configuration
+  timeouts:
+    connection_timeout: 30
+    read_timeout: 60
+    total_timeout: 300
+    dagster_health_timeout: 5
+    dbt_command_timeout: 1800  # 30 minutes
+    database_timeout: 60
+    max_retries: 3
+    retry_delay: 1.0
+    retry_backoff: 2.0
+    max_retry_delay: 30.0
+
+  # Performance optimization
+  performance:
+    enable_connection_pooling: true
+    max_pool_connections: 10
+    pool_timeout: 30
+    enable_gzip: true
+    chunk_size: 8192
+    buffer_size: 65536
+    rate_limiting: false
+    max_bandwidth_mbps: null
+    keep_alive: true
+    keep_alive_timeout: 30
+
+  # Corporate environment detection
+  corporate_domains: ["company.com", "corp.local"]
+  vpn_detection: true
+
+  # Connectivity validation
+  connectivity_check: true
+  test_endpoints:
+    - "https://httpbin.org/get"
+    - "https://www.google.com"
+    - "https://github.com"
+
+# Dagster op configuration (maintained for backward compatibility)
+ops:
+  run_multi_year_simulation:
+    config:
+      start_year: 2025
+      end_year: 2029
+      target_growth_rate: 0.03
+      total_termination_rate: 0.12
+      new_hire_termination_rate: 0.25
+      random_seed: 42
+      full_refresh: false

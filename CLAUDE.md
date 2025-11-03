@@ -503,6 +503,7 @@ planwise checkpoints status          # Recovery recommendations
 - ✅ **E074**: Enhanced Error Handling - Context-rich diagnostics, <5min bug diagnosis
 - ✅ **E075**: Testing Infrastructure - 256 tests, fixture library, 90%+ coverage
 - ✅ **E023**: Enrollment Architecture Fix - Temporal state accumulator pattern
+- ✅ **E078**: Cohort Pipeline Integration - Polars event factory, multi-year termination fixes
 
 ### **In Progress**
 
@@ -513,6 +514,14 @@ planwise checkpoints status          # Recovery recommendations
   - ✅ Plan Administration Events
   - ❌ Loan & Investment Events (outstanding)
   - ❌ ERISA Compliance Review (outstanding)
+
+### **Blocked**
+
+- ⚠️ **E079**: Performance Architectural Simplification - BLOCKED by 60% regression
+  - **Status**: Not Started (epic document only, no implementation)
+  - **Blocker**: Performance regression detected (261s → 419s for 5-year simulation)
+  - **See**: `/docs/E079_PERFORMANCE_RESULTS.md` for detailed analysis
+  - **Action Required**: Investigate and fix regression before proceeding with optimization work
 
 -----
 

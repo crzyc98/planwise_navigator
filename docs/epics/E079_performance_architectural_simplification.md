@@ -1,16 +1,19 @@
 # E079: Performance Optimization Through Architectural Simplification
 
-**Status**: 🟡 In Progress
-**Priority**: P0 (Critical)
+**Status**: ⚠️ Not Started - Performance Regression Detected
+**Priority**: P0 (Critical) - BLOCKED by regression investigation
 **Owner**: TBD
 **Created**: 2025-11-03
-**Target Completion**: 2025-11-17 (2-week sprint)
+**Target Completion**: TBD (pending regression fix)
+**Last Updated**: 2025-11-03
 
 ---
 
 ## Executive Summary
 
-PlanWise Navigator currently takes **7+ minutes** (420 seconds) to simulate 5 years of workforce data on development laptops, and **5-10× longer** on work laptops and offshore HVDs. This performance issue is **NOT due to data volume** (only 44K rows in largest table) but rather **architectural over-engineering** with 155 SQL models containing extreme complexity.
+⚠️ **CRITICAL UPDATE (2025-11-03)**: Performance benchmarking reveals a **60% regression** since October 2, 2025. E079 optimizations have NOT been implemented. Current baseline: **261 seconds** (Oct 2) → **419 seconds** (Nov 3) for 5-year simulation.
+
+**Original Hypothesis**: PlanWise Navigator takes **7+ minutes** (420 seconds) to simulate 5 years of workforce data on development laptops, and **5-10× longer** on work laptops and offshore HVDs. This performance issue is **NOT due to data volume** (only 44K rows in largest table) but rather **architectural over-engineering** with 155 SQL models containing extreme complexity.
 
 **Root Cause**: The dbt transformation layer was designed for enterprise-scale data (100M+ rows) but processes a tiny dataset (44K rows). This creates massive computational overhead:
 - 27-CTE monoliths scanning the same small dataset repeatedly
@@ -1224,22 +1227,91 @@ Other:                             7s  (11.1%)
 
 ---
 
+## Actual Results (2025-11-03)
+
+### Performance Benchmarking Summary
+
+**Benchmark Document**: `/Users/nicholasamaral/planwise_navigator/docs/E079_PERFORMANCE_RESULTS.md`
+
+| Metric | Baseline (Oct 2) | Current (Nov 3) | Target | Status |
+|--------|------------------|-----------------|--------|--------|
+| **5-Year Simulation** | 261s | 419s | 45s | ❌ **+60% REGRESSION** |
+| **Peak Memory** | 407 MB | 243 MB | N/A | ✅ **-40% (better)** |
+| **Model Count** | 155 | ~165 | 80 | ❌ **+6% increase** |
+| **Max CTEs** | 27 | 27 | ≤10 | ❌ **No change** |
+
+### Implementation Status
+
+#### Phase 1: Quick Wins (Target: 168s)
+- ❌ **Story 1A**: Convert validation models to dbt tests - NOT IMPLEMENTED
+- ❌ **Story 1B**: Strategic materialization - NOT IMPLEMENTED
+- ❌ **Story 1C**: Consolidate event generation - NOT IMPLEMENTED
+- **Time Savings**: 0 seconds (Target: 480s)
+
+#### Phase 2: Architectural Fixes (Target: 84s)
+- ❌ **Story 2A**: Flatten `fct_workforce_snapshot` - NOT IMPLEMENTED
+- ❌ **Story 2B**: Fix circular dependencies - NOT IMPLEMENTED
+- ❌ **Story 2C**: Simplify enrollment events - NOT IMPLEMENTED
+- **Time Savings**: 0 seconds (Target: 195s)
+
+#### Phase 3: Connection Pooling (Target: 63s)
+- ❓ **Story 3A**: Database connection pool - STATUS UNKNOWN
+- **Time Savings**: Unknown (Target: 20s)
+
+### Root Cause of Regression
+
+1. **E079 NOT Implemented**: Epic document created but no implementation occurred
+2. **Scope Creep**: Other work (E078, new models) added computational overhead
+3. **Model Additions**: 10+ new intermediate models added since Oct 2
+4. **Complexity Increases**: Major models grew significantly in size
+
+### Lessons Learned
+
+1. **Epic Documentation ≠ Implementation**: Aspirational epic without execution tracking
+2. **Performance Monitoring Gap**: Regression went undetected for 30+ days
+3. **Scope Management**: Features added without performance impact assessment
+4. **Baseline Drift**: No automated performance benchmarking in CI/CD
+
+### Recommendations
+
+#### Immediate (P0)
+1. ✅ **Document Regression**: Create E079_PERFORMANCE_RESULTS.md (COMPLETE)
+2. 🔄 **Update Epic Status**: Change to "Not Started - Blocked" (IN PROGRESS)
+3. ⏳ **Root Cause Analysis**: Profile Nov 3 run, identify regression sources
+4. ⏳ **Restore Baseline**: Revert or optimize changes causing regression
+
+#### Short-Term (P1)
+5. ⏳ **Implement Phase 1A**: Convert validation models (low risk, high impact)
+6. ⏳ **Model Complexity Audit**: Review and simplify models added since Oct 2
+7. ⏳ **Performance CI/CD**: Add automated benchmarking to prevent future regressions
+
+#### Long-Term (P2)
+8. ⏳ **Resume E079 Implementation**: After baseline restored to ≤261s
+9. ⏳ **Polars Optimization**: Profile and optimize Polars event generation
+10. ⏳ **Architectural Simplification**: Proceed with Phases 2-3 as planned
+
+---
+
 ## Sign-Off
 
 **Author**: Claude Code
 **Date**: 2025-11-03
-**Status**: 🟡 Ready for Review
+**Status**: ⚠️ BLOCKED - Performance Regression
+
+**Updated**: 2025-11-03 (Performance Benchmarking Complete)
 
 **Approvals Required**:
-- [ ] Tech Lead (Architecture Review)
-- [ ] Data Engineer (SQL Optimization Review)
-- [ ] QA Lead (Testing Strategy Review)
-- [ ] Product Owner (Timeline & Priorities)
+- [ ] Tech Lead (Review regression findings)
+- [ ] Data Engineer (Approve root cause analysis plan)
+- [ ] QA Lead (Approve testing strategy)
+- [ ] Product Owner (Re-prioritize roadmap)
 
 ---
 
 **Next Steps**:
-1. Review and approve epic
-2. Create Jira tickets for 7 stories
-3. Assign Phase 1 stories to sprint
-4. Kick off implementation on Day 1
+1. ✅ **COMPLETE**: Performance benchmarking (see E079_PERFORMANCE_RESULTS.md)
+2. ⏳ **IN PROGRESS**: Update epic status and document findings
+3. ⏳ **TODO**: Investigate regression root cause (profile dbt execution)
+4. ⏳ **TODO**: Stakeholder meeting to decide: fix regression vs resume E079
+5. ⏳ **TODO**: Create action plan based on decision (Option A/B/C)
+6. ⏳ **BLOCKED**: Epic implementation cannot proceed until regression resolved
