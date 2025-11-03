@@ -227,6 +227,8 @@ class DatabaseConnectionManager:
             pool_size=5,
             deterministic=deterministic
         )
+        # Register cleanup at exit to ensure connections are closed
+        atexit.register(self.close_all)
 
     @contextmanager
     def get_connection(self, *, deterministic: Optional[bool] = None, thread_id: Optional[str] = None) -> Generator[duckdb.DuckDBPyConnection, None, None]:
