@@ -234,103 +234,106 @@ new_hire_edge_cases AS (
 )
 
 -- Return only failing records (0 rows = all tests pass)
-SELECT
-    test_name,
-    employee_id,
-    test_description as issue_description,
-    severity,
-    {{ simulation_year }} as simulation_year,
-    CURRENT_TIMESTAMP as validation_timestamp
-FROM ineligible_with_match
+-- DuckDB FIX: Wrap UNION in subquery before applying ORDER BY
+SELECT *
+FROM (
+    SELECT
+        test_name,
+        employee_id,
+        test_description as issue_description,
+        severity,
+        {{ simulation_year }} as simulation_year,
+        CURRENT_TIMESTAMP as validation_timestamp
+    FROM ineligible_with_match
 
-UNION ALL
+    UNION ALL
 
-SELECT
-    test_name,
-    employee_id,
-    test_description,
-    severity,
-    {{ simulation_year }},
-    CURRENT_TIMESTAMP
-FROM eligible_without_match
+    SELECT
+        test_name,
+        employee_id,
+        test_description,
+        severity,
+        {{ simulation_year }},
+        CURRENT_TIMESTAMP
+    FROM eligible_without_match
 
-UNION ALL
+    UNION ALL
 
-SELECT
-    test_name,
-    employee_id,
-    test_description,
-    severity,
-    {{ simulation_year }},
-    CURRENT_TIMESTAMP
-FROM match_status_consistency
+    SELECT
+        test_name,
+        employee_id,
+        test_description,
+        severity,
+        {{ simulation_year }},
+        CURRENT_TIMESTAMP
+    FROM match_status_consistency
 
-UNION ALL
+    UNION ALL
 
-SELECT
-    test_name,
-    employee_id,
-    test_description,
-    severity,
-    {{ simulation_year }},
-    CURRENT_TIMESTAMP
-FROM eligibility_reason_accuracy
+    SELECT
+        test_name,
+        employee_id,
+        test_description,
+        severity,
+        {{ simulation_year }},
+        CURRENT_TIMESTAMP
+    FROM eligibility_reason_accuracy
 
-UNION ALL
+    UNION ALL
 
-SELECT
-    test_name,
-    employee_id,
-    test_description,
-    severity,
-    {{ simulation_year }},
-    CURRENT_TIMESTAMP
-FROM backward_compatibility_validation
+    SELECT
+        test_name,
+        employee_id,
+        test_description,
+        severity,
+        {{ simulation_year }},
+        CURRENT_TIMESTAMP
+    FROM backward_compatibility_validation
 
-UNION ALL
+    UNION ALL
 
-SELECT
-    test_name,
-    CAST(employee_id AS VARCHAR),
-    test_description,
-    severity,
-    {{ simulation_year }},
-    CURRENT_TIMESTAMP
-FROM configuration_consistency
+    SELECT
+        test_name,
+        CAST(employee_id AS VARCHAR),
+        test_description,
+        severity,
+        {{ simulation_year }},
+        CURRENT_TIMESTAMP
+    FROM configuration_consistency
 
-UNION ALL
+    UNION ALL
 
-SELECT
-    test_name,
-    employee_id,
-    test_description,
-    severity,
-    {{ simulation_year }},
-    CURRENT_TIMESTAMP
-FROM capped_match_validation
+    SELECT
+        test_name,
+        employee_id,
+        test_description,
+        severity,
+        {{ simulation_year }},
+        CURRENT_TIMESTAMP
+    FROM capped_match_validation
 
-UNION ALL
+    UNION ALL
 
-SELECT
-    test_name,
-    employee_id,
-    test_description,
-    severity,
-    {{ simulation_year }},
-    CURRENT_TIMESTAMP
-FROM multi_year_transition_validation
+    SELECT
+        test_name,
+        employee_id,
+        test_description,
+        severity,
+        {{ simulation_year }},
+        CURRENT_TIMESTAMP
+    FROM multi_year_transition_validation
 
-UNION ALL
+    UNION ALL
 
-SELECT
-    test_name,
-    employee_id,
-    test_description,
-    severity,
-    {{ simulation_year }},
-    CURRENT_TIMESTAMP
-FROM new_hire_edge_cases
-
+    SELECT
+        test_name,
+        employee_id,
+        test_description,
+        severity,
+        {{ simulation_year }},
+        CURRENT_TIMESTAMP
+    FROM new_hire_edge_cases
+) all_validation_failures
 ORDER BY
     CASE severity
         WHEN 'HIGH' THEN 1
