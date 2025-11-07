@@ -235,6 +235,30 @@ class EventGenerationExecutor:
         # Set Polars thread count
         os.environ['POLARS_MAX_THREADS'] = str(polars_settings.max_threads)
 
+        # FIX: Build FOUNDATION models before Polars event generation
+        # Polars termination generation depends on int_workforce_needs_by_level
+        if self.verbose:
+            print("🔄 Building FOUNDATION models required by Polars event generation...")
+
+        foundation_start = time.time()
+        for year in years:
+            # Build workforce needs models that Polars termination generation depends on
+            result = self.dbt_runner.execute_command(
+                ["run", "--select", "int_workforce_needs int_workforce_needs_by_level"],
+                simulation_year=year,
+                dbt_vars=self.dbt_vars,
+                stream_output=self.verbose
+            )
+            if not result.success:
+                from ..exceptions import PipelineStageError
+                raise PipelineStageError(
+                    f"Failed to build workforce needs for year {year}: {result.error_message}"
+                )
+
+        foundation_duration = time.time() - foundation_start
+        if self.verbose:
+            print(f"✅ FOUNDATION models built in {foundation_duration:.1f}s")
+
         # Generate events using Polars
         generator = PolarsEventGenerator(factory_config)
         generator.generate_multi_year_events()
