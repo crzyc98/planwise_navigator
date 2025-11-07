@@ -109,46 +109,49 @@ validation_failures AS (
 )
 
 -- Return only failing records (0 rows = all validations pass)
-SELECT
-    employee_id,
-    validation_issue as validation_type,
-    validation_status,
-    issue_description,
-    current_deferral_rate,
-    employee_enrollment_date,
-    {{ simulation_year }} as simulation_year,
-    CURRENT_TIMESTAMP as validation_timestamp,
-    'S042-01 Source of Truth Architecture Fix' as story_reference
-FROM enrolled_without_events
+-- DuckDB FIX: Wrap UNION in subquery before applying ORDER BY
+SELECT *
+FROM (
+    SELECT
+        employee_id,
+        validation_issue as validation_type,
+        validation_status,
+        issue_description,
+        current_deferral_rate,
+        employee_enrollment_date,
+        {{ simulation_year }} as simulation_year,
+        CURRENT_TIMESTAMP as validation_timestamp,
+        'S042-01 Source of Truth Architecture Fix' as story_reference
+    FROM enrolled_without_events
 
-UNION ALL
+    UNION ALL
 
-SELECT
-    employee_id,
-    'SPECIFIC_TEST_CASE' as validation_type,
-    nh_validation_status as validation_status,
-    issue_description,
-    current_deferral_rate,
-    NULL as employee_enrollment_date,
-    {{ simulation_year }},
-    CURRENT_TIMESTAMP,
-    'S042-01 NH_2025_000007 test case'
-FROM nh_test_case
+    SELECT
+        employee_id,
+        'SPECIFIC_TEST_CASE' as validation_type,
+        nh_validation_status as validation_status,
+        issue_description,
+        current_deferral_rate,
+        NULL as employee_enrollment_date,
+        {{ simulation_year }},
+        CURRENT_TIMESTAMP,
+        'S042-01 NH_2025_000007 test case'
+    FROM nh_test_case
 
-UNION ALL
+    UNION ALL
 
-SELECT
-    NULL as employee_id,
-    validation_type,
-    validation_status,
-    issue_description || ' (Count: ' || CAST(failed_count AS VARCHAR) || ')' as issue_description,
-    NULL as current_deferral_rate,
-    NULL as employee_enrollment_date,
-    {{ simulation_year }},
-    CURRENT_TIMESTAMP,
-    'S042-01 Summary validation'
-FROM validation_failures
-
+    SELECT
+        NULL as employee_id,
+        validation_type,
+        validation_status,
+        issue_description || ' (Count: ' || CAST(failed_count AS VARCHAR) || ')' as issue_description,
+        NULL as current_deferral_rate,
+        NULL as employee_enrollment_date,
+        {{ simulation_year }},
+        CURRENT_TIMESTAMP,
+        'S042-01 Summary validation'
+    FROM validation_failures
+) all_validation_failures
 ORDER BY
     CASE validation_type
         WHEN 'DATA_QUALITY_CHECK' THEN 1
