@@ -468,6 +468,16 @@ class PipelineOrchestrator:
     def _cleanup_resources(self) -> None:
         """Cleanup resource management components"""
         try:
+            # Cleanup database connection pool (E079 Phase 3A)
+            if hasattr(self, 'db_manager') and self.db_manager:
+                try:
+                    self.db_manager.close_all()
+                    if self.verbose:
+                        print("✅ Database connection pool closed")
+                except Exception as e:
+                    if self.verbose:
+                        print(f"⚠️ Error closing database connection pool: {e}")
+
             # Cleanup parallel execution engine
             if hasattr(self, 'parallel_execution_engine') and self.parallel_execution_engine:
                 try:

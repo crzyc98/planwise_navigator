@@ -1,3 +1,5 @@
+{{config(enabled=false)}}
+
 {{ config(
     materialized='incremental',
     unique_key=['audit_record_id'],

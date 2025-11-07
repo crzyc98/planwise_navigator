@@ -62,10 +62,9 @@ class ExcelExporter:
         Returns:
             Path to the main export file or directory
         """
-        conn = self.db_manager.get_connection()
         output_dir.mkdir(parents=True, exist_ok=True)
 
-        try:
+        with self.db_manager.get_connection() as conn:
             # Check if workforce snapshot table exists
             table_exists = self._check_table_exists(conn, "fct_workforce_snapshot")
             if not table_exists:
@@ -83,9 +82,6 @@ class ExcelExporter:
                 return self._export_csv(scenario_name, output_dir, conn, config, seed, split)
             else:
                 return self._export_excel(scenario_name, output_dir, conn, config, seed, split, total_rows)
-
-        finally:
-            conn.close()
 
     def _check_table_exists(self, conn, table_name: str) -> bool:
         """Check if a table exists in the database.
@@ -623,9 +619,7 @@ class ExcelExporter:
 
                 # Connect to scenario database and extract summary metrics
                 scenario_db = DatabaseConnectionManager(db_path)
-                conn = scenario_db.get_connection()
-
-                try:
+                with scenario_db.get_connection() as conn:
                     # Get summary metrics for this scenario
                     summary_df = self._calculate_summary_metrics(conn)
 
@@ -644,9 +638,6 @@ class ExcelExporter:
                             "seed": result.get("seed", 0)
                         }
                         comparison_data.append(comparison_record)
-
-                finally:
-                    conn.close()
 
             if comparison_data:
                 # Create comparison workbook

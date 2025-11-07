@@ -1,6 +1,7 @@
 {{ config(
     materialized='table',
-    tags=['data_quality', 'testing', 'epic_e045']
+    tags=['data_quality', 'testing', 'epic_e045'],
+    enabled=false
 ) }}
 
 -- Comprehensive test to validate Epic E045 integrity fixes

@@ -16,7 +16,8 @@ import time
 from contextlib import contextmanager
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Callable, Generator, Optional, TypeVar
+from threading import Lock
+from typing import Callable, Dict, Generator, Optional, Set, TypeVar
 
 import duckdb
 
@@ -76,45 +77,53 @@ class ExecutionMutex:
         self.release()
 
 
-class DatabaseConnectionManager:
-    """Lightweight DuckDB connection manager with transaction and retry helpers.
+class DatabaseConnectionPool:
+    """Thread-safe connection pool for DuckDB with deterministic execution support.
 
-    Notes:
-    - Creates a new connection for each context to avoid cross-thread issues.
-    - Ensures thread-safe and deterministic connections for reproducible results.
-    - Keeps surface minimal; can be extended for pooling if needed.
+    Maintains a pool of reusable connections to avoid the overhead of creating
+    new connections for every database operation (~10-50ms per connection).
+
+    Features:
+    - Thread-safe checkout/checkin with Lock
+    - Deterministic mode support (PRAGMA threads=1) for reproducibility
+    - Context manager pattern for automatic cleanup
+    - Graceful pool exhaustion handling
     """
 
-    def __init__(self, db_path: Optional[Path] = None):
-        """Initialize DatabaseConnectionManager with optional database path.
+    def __init__(self, db_path: Path, pool_size: int = 5, deterministic: bool = True):
+        """Initialize connection pool.
 
         Args:
-            db_path: Path to the database file. Defaults to dbt/simulation.duckdb
+            db_path: Path to DuckDB database file
+            pool_size: Maximum number of connections to maintain (default: 5)
+            deterministic: If True, configure connections for deterministic behavior
         """
-        self.db_path = db_path or Path("dbt/simulation.duckdb")
+        self.db_path = db_path
+        self.pool_size = pool_size
+        self.deterministic = deterministic
+        self._pool: Dict[str, duckdb.DuckDBPyConnection] = {}
+        self._lock = Lock()
+        self._in_use: Set[str] = set()
 
-    def get_connection(self, *, deterministic: bool = False, thread_id: Optional[str] = None) -> duckdb.DuckDBPyConnection:
-        """Get a database connection, optionally with deterministic configuration.
+    def _create_connection(self, thread_id: str) -> duckdb.DuckDBPyConnection:
+        """Create a new connection with proper configuration.
 
         Args:
-            deterministic: If True, configure connection for deterministic behavior
-            thread_id: Optional thread identifier for connection isolation
+            thread_id: Thread identifier for connection tracking
 
         Returns:
-            DuckDBPyConnection: A new database connection
+            Configured DuckDB connection
         """
         conn = duckdb.connect(str(self.db_path))
 
-        if deterministic:
+        if self.deterministic:
             # DETERMINISM FIX: Configure connection for reproducible results
             try:
                 # Set deterministic threading and memory settings
-                conn.execute("PRAGMA threads=1")  # Force single-threaded execution within connection
-                conn.execute("PRAGMA enable_external_access=false")  # Disable external access for consistency
-                conn.execute("PRAGMA preserve_insertion_order=true")  # Preserve order for deterministic results
-
-                # Set memory limits to ensure consistent resource usage
-                conn.execute("PRAGMA memory_limit='1GB'")  # Conservative limit for deterministic behavior
+                conn.execute("PRAGMA threads=1")  # Force single-threaded execution
+                conn.execute("PRAGMA enable_external_access=false")  # Disable external access
+                conn.execute("PRAGMA preserve_insertion_order=true")  # Preserve order
+                conn.execute("PRAGMA memory_limit='1GB'")  # Conservative limit
 
                 if thread_id:
                     # Set a deterministic seed based on thread ID for any internal RNG
@@ -124,33 +133,142 @@ class DatabaseConnectionManager:
 
             except Exception as e:
                 # Pragma settings may not be available in all DuckDB versions
-                # Continue with connection but log the issue
                 print(f"⚠️ Warning: Could not set deterministic database settings: {e}")
 
         return conn
 
     @contextmanager
-    def transaction(self, *, deterministic: bool = False, thread_id: Optional[str] = None) -> Generator[duckdb.DuckDBPyConnection, None, None]:
-        """Create a database transaction context with optional deterministic configuration.
+    def get_connection(self, thread_id: Optional[str] = None) -> Generator[duckdb.DuckDBPyConnection, None, None]:
+        """Context manager for connection checkout/checkin.
+
+        Usage:
+            with pool.get_connection(thread_id='worker_1') as conn:
+                result = conn.execute("SELECT COUNT(*) FROM table").fetchall()
 
         Args:
-            deterministic: If True, use deterministic connection configuration
-            thread_id: Optional thread identifier for connection isolation
+            thread_id: Optional thread identifier for connection affinity
+
+        Yields:
+            DuckDB connection from pool
+
+        Raises:
+            RuntimeError: If connection pool is exhausted
         """
-        conn = self.get_connection(deterministic=deterministic, thread_id=thread_id)
+        thread_id = thread_id or 'main'
+        conn = None
+
+        # Checkout connection from pool
+        with self._lock:
+            # Reuse existing connection for this thread if available
+            if thread_id in self._pool and thread_id not in self._in_use:
+                conn = self._pool[thread_id]
+                self._in_use.add(thread_id)
+            else:
+                # Create new connection if pool not full
+                if len(self._pool) < self.pool_size:
+                    conn = self._create_connection(thread_id)
+                    self._pool[thread_id] = conn
+                    self._in_use.add(thread_id)
+                else:
+                    # Try to find an available connection
+                    available_threads = set(self._pool.keys()) - self._in_use
+                    if available_threads:
+                        thread_id = available_threads.pop()
+                        conn = self._pool[thread_id]
+                        self._in_use.add(thread_id)
+                    else:
+                        raise RuntimeError(
+                            f"Connection pool exhausted (size={self.pool_size}). "
+                            "All connections are in use."
+                        )
+
         try:
-            conn.begin()  # Start explicit transaction
             yield conn
-            conn.commit()
-        except Exception:
-            try:
-                conn.rollback()
-            except Exception:
-                # Rollback might fail if no transaction is active
-                pass
-            raise
         finally:
-            conn.close()
+            # Return connection to pool
+            with self._lock:
+                self._in_use.discard(thread_id)
+
+    def close_all(self) -> None:
+        """Close all connections in pool and clear pool state."""
+        with self._lock:
+            for conn in self._pool.values():
+                try:
+                    conn.close()
+                except Exception as e:
+                    print(f"⚠️ Warning: Error closing connection: {e}")
+            self._pool.clear()
+            self._in_use.clear()
+
+
+class DatabaseConnectionManager:
+    """Database connection manager using connection pool for performance.
+
+    Uses DatabaseConnectionPool to reuse connections and avoid the overhead
+    of creating new connections for every operation (~10-50ms per connection).
+
+    Notes:
+    - Thread-safe connection pooling with automatic cleanup
+    - Maintains deterministic mode for reproducible results
+    - Context manager pattern for safe connection handling
+    """
+
+    def __init__(self, db_path: Optional[Path] = None, deterministic: bool = True):
+        """Initialize DatabaseConnectionManager with connection pool.
+
+        Args:
+            db_path: Path to the database file. Defaults to dbt/simulation.duckdb
+            deterministic: If True, configure connections for deterministic behavior
+        """
+        self.db_path = db_path or Path("dbt/simulation.duckdb")
+        self.deterministic = deterministic
+        self._pool = DatabaseConnectionPool(
+            db_path=self.db_path,
+            pool_size=5,
+            deterministic=deterministic
+        )
+        # Register cleanup at exit to ensure connections are closed
+        atexit.register(self.close_all)
+
+    @contextmanager
+    def get_connection(self, *, deterministic: Optional[bool] = None, thread_id: Optional[str] = None) -> Generator[duckdb.DuckDBPyConnection, None, None]:
+        """Get a connection from the pool.
+
+        Args:
+            deterministic: Ignored (set at pool initialization)
+            thread_id: Optional thread identifier for connection affinity
+
+        Yields:
+            DuckDB connection from pool
+        """
+        # Note: deterministic parameter ignored after pool initialization
+        # To change deterministic mode, create new ConnectionManager
+        with self._pool.get_connection(thread_id=thread_id) as conn:
+            yield conn
+
+    @contextmanager
+    def transaction(self, *, deterministic: bool = False, thread_id: Optional[str] = None) -> Generator[duckdb.DuckDBPyConnection, None, None]:
+        """Create a database transaction context using pooled connection.
+
+        Args:
+            deterministic: Ignored (set at pool initialization)
+            thread_id: Optional thread identifier for connection affinity
+
+        Yields:
+            DuckDB connection with active transaction
+        """
+        with self._pool.get_connection(thread_id=thread_id) as conn:
+            try:
+                conn.begin()  # Start explicit transaction
+                yield conn
+                conn.commit()
+            except Exception:
+                try:
+                    conn.rollback()
+                except Exception:
+                    # Rollback might fail if no transaction is active
+                    pass
+                raise
 
     def execute_with_retry(
         self,
@@ -195,6 +313,13 @@ class DatabaseConnectionManager:
                 attempt += 1
         assert last_exc is not None
         raise last_exc
+
+    def close_all(self) -> None:
+        """Close all connections in the pool.
+
+        Should be called during cleanup to release database connections.
+        """
+        self._pool.close_all()
 
 
 @contextmanager

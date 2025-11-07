@@ -1,46 +1,59 @@
 {
   "generation_summary": {
-    "start_year": 2029,
+    "start_year": 2025,
     "end_year": 2029,
-    "total_events": 2340,
+    "total_events": 21851,
     "successful_years": [
+      2025,
+      2026,
+      2027,
+      2028,
       2029
     ],
     "failed_years": [],
-    "total_duration_seconds": 0.042351722717285156,
-    "events_per_second": 55251.58954266027,
-    "generated_at": "2025-10-15T09:04:38.556637"
+    "total_duration_seconds": 0.35552382469177246,
+    "events_per_second": 61461.4225050715,
+    "generated_at": "2025-11-06T19:48:15.291348"
   },
   "configuration": {
-    "scenario_id": null,
-    "plan_design_id": null,
+    "scenario_id": "default",
+    "plan_design_id": "default",
     "random_seed": 42,
     "batch_size": 10000,
     "compression_enabled": true,
     "max_threads": "16"
   },
   "statistics": {
-    "total_events_generated": 2340,
+    "total_events_generated": 21851,
     "events_by_type": {
-      "hire": 101,
-      "termination": 1128,
-      "promotion": 86,
-      "merit": 231,
-      "enrollment": 794
+      "hire": 7992,
+      "termination": 4916,
+      "promotion": 557,
+      "merit": 1286,
+      "enrollment": 5101,
+      "new_hire_termination": 1999
     },
     "events_by_year": {
-      "2029": 2340
+      "2025": 3626,
+      "2026": 4176,
+      "2027": 4529,
+      "2028": 4706,
+      "2029": 4814
     },
     "processing_time_by_year": {
-      "2029": 0.04023408889770508
+      "2025": 0.05817079544067383,
+      "2026": 0.06583189964294434,
+      "2027": 0.06851506233215332,
+      "2028": 0.06892108917236328,
+      "2029": 0.06824874877929688
     },
     "memory_usage_peak_mb": 0.0
   },
   "performance_metrics": {
     "target_performance": "\u226460s for 5k\u00d75 years",
-    "achieved_performance": "0.0s for 1 years",
-    "performance_ratio": 0.0007058620452880859,
+    "achieved_performance": "0.4s for 5 years",
+    "performance_ratio": 0.005925397078196208,
     "memory_efficient": true,
-    "meets_target": false
+    "meets_target": true
   }
 }
