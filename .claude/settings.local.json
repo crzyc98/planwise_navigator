@@ -118,7 +118,8 @@
       "Bash(PYTHONPATH=. .venv/bin/python:*)",
       "Bash(ps:*)",
       "Bash(cp:*)",
-      "Bash(gh pr diff:*)"
+      "Bash(gh pr diff:*)",
+      "Bash(./scripts/convert_validation_to_test.sh:*)"
     ],
     "deny": [],
     "ask": []
