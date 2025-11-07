@@ -394,20 +394,20 @@ employer_core_contribution:
 
 # Performance optimization configuration
 optimization:
-  level: "high"  # Options: "high", "medium", "low", "fallback"
+  level: "baseline"  # Options: "high", "medium", "low", "fallback", "baseline" - REVERTED FROM E079
   max_workers: 1  # Maximum concurrent workers (1 for single-threaded optimization)
   batch_size: 1000  # Default processing batch size
   memory_limit_gb: 4.0  # Memory limit in GB for work laptops
 
   # Epic E068C: Threading and parallelization configuration
   e068c_threading:
-    dbt_threads: 1  # Number of threads for dbt execution (1-16) - set to 1 for transaction safety
+    dbt_threads: 1  # Number of threads for dbt execution (1-16) - REVERTED: threading added 34s overhead
     event_shards: 1  # Optional sharding for event generation (1-8)
     max_parallel_years: 1  # Sequential year processing for determinism (1-5)
 
   # Epic E068G: Polars bulk event factory configuration
   event_generation:
-    mode: "polars"  # Options: "sql", "polars" - E078 MODE-AWARE CONDITIONALS IMPLEMENTED
+    mode: "polars"  # Options: "sql", "polars" - REVERTED TO SQL MODE FOR STABILITY
 
     # Polars-specific configuration
     polars:
@@ -434,7 +434,7 @@ optimization:
 
     # SQL mode configuration (existing)
     sql:
-      dbt_threads: 1  # Number of threads for dbt SQL execution - set to 1 for transaction safety
+      dbt_threads: 1  # Number of threads for dbt SQL execution - REVERTED: threading added 34s overhead
       use_event_sharding: false  # Enable event sharding for large datasets
 
 

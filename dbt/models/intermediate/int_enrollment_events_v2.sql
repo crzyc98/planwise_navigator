@@ -361,51 +361,62 @@ all_enrollment_events AS (
 
   -- Voluntary enrollment events (if they exist)
   SELECT
-    employee_id,
-    employee_ssn,
-    event_type,
-    simulation_year,
-    effective_date,
-    event_details,
-    compensation_amount,
-    previous_compensation,
-    employee_deferral_rate,
-    prev_employee_deferral_rate,
-    employee_age,
-    employee_tenure,
-    level_id,
-    age_band,
-    tenure_band,
-    event_probability,
-    event_category
+    ved.employee_id,
+    ved.employee_ssn,
+    'enrollment' as event_type,
+    ved.simulation_year,
+    ved.proposed_effective_date as effective_date,
+    'Voluntary enrollment - ' || CAST(ROUND(ved.selected_deferral_rate * 100, 1) AS VARCHAR) || '% deferral' as event_details,
+    ved.employee_compensation as compensation_amount,
+    ved.employee_compensation as previous_compensation,
+    ved.selected_deferral_rate as employee_deferral_rate,
+    0.00 as prev_employee_deferral_rate,
+    ved.current_age as employee_age,
+    ved.current_tenure as employee_tenure,
+    ved.level_id,
+    CASE
+      WHEN ved.current_age < 30 THEN '< 30'
+      WHEN ved.current_age < 40 THEN '30-39'
+      WHEN ved.current_age < 50 THEN '40-49'
+      ELSE '50+'
+    END as age_band,
+    CASE
+      WHEN ved.current_tenure < 24 THEN '< 2 years'
+      WHEN ved.current_tenure < 60 THEN '2-5 years'
+      WHEN ved.current_tenure < 120 THEN '5-10 years'
+      ELSE '10+ years'
+    END as tenure_band,
+    ved.final_enrollment_probability as event_probability,
+    ved.event_category
   FROM {{ ref('int_voluntary_enrollment_decision') }} ved
   WHERE ved.will_enroll = true
     AND ved.simulation_year = {{ simulation_year }}
 
-  UNION ALL
-
-  -- Proactive voluntary enrollment events
-  SELECT
-    employee_id,
-    employee_ssn,
-    event_type,
-    simulation_year,
-    proactive_enrollment_date as effective_date,
-    event_details,
-    compensation_amount,
-    previous_compensation,
-    proactive_deferral_rate as employee_deferral_rate,
-    prev_employee_deferral_rate,
-    employee_age,
-    employee_tenure,
-    level_id,
-    age_band,
-    tenure_band,
-    event_probability,
-    event_category
-  FROM {{ ref('int_proactive_voluntary_enrollment') }} pve
-  WHERE pve.will_enroll_proactively = true
-    AND pve.simulation_year = {{ simulation_year }}
+  -- DISABLED: Proactive voluntary enrollment (table not yet built)
+  -- UNION ALL
+  --
+  -- -- Proactive voluntary enrollment events
+  -- SELECT
+  --   employee_id,
+  --   employee_ssn,
+  --   event_type,
+  --   simulation_year,
+  --   proactive_enrollment_date as effective_date,
+  --   event_details,
+  --   compensation_amount,
+  --   previous_compensation,
+  --   proactive_deferral_rate as employee_deferral_rate,
+  --   prev_employee_deferral_rate,
+  --   employee_age,
+  --   employee_tenure,
+  --   level_id,
+  --   age_band,
+  --   tenure_band,
+  --   event_probability,
+  --   event_category
+  -- FROM {{ ref('int_proactive_voluntary_enrollment') }} pve
+  -- WHERE pve.will_enroll_proactively = true
+  --   AND pve.simulation_year = {{ simulation_year }}
 )
 
 -- Final selection with deduplication and data quality validation

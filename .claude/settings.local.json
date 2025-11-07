@@ -113,7 +113,12 @@
       "Bash(dbt/models/monitoring/dq_enrollment_after_optout_validation.sql )",
       "Bash(dbt/models/marts/data_quality/dq_employee_id_validation.sql)",
       "Bash(for file in dq_compliance_monitoring.sql dq_contribution_audit_trail.sql dq_executive_dashboard.sql)",
-      "Bash(do sed -i '' '1i\\\n{{config(enabled=false)}}\\\n' \"$file\")"
+      "Bash(do sed -i '' '1i\\\n{{config(enabled=false)}}\\\n' \"$file\")",
+      "Bash(.venv/bin/python:*)",
+      "Bash(PYTHONPATH=. .venv/bin/python:*)",
+      "Bash(ps:*)",
+      "Bash(cp:*)",
+      "Bash(gh pr diff:*)"
     ],
     "deny": [],
     "ask": []

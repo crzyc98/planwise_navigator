@@ -234,6 +234,7 @@ class OrchestratorWrapper:
             verbose=verbose,
             threading_enabled=threading_enabled,
             threading_mode=threading_mode,
+            db_manager=self.db,  # Pass db_manager for connection cleanup before dbt subprocess
         )
 
         registries = RegistryManager(self.db)
