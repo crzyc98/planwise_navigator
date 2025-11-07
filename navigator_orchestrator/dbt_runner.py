@@ -108,6 +108,7 @@ class DbtRunner:
         enable_model_parallelization: bool = False,
         model_parallelization_max_workers: int = 4,
         model_parallelization_memory_limit_mb: float = 4000.0,
+        db_manager: Optional[Any] = None,
     ):
         self.working_dir = working_dir
         self.threads = threads
@@ -116,6 +117,7 @@ class DbtRunner:
         self.database_path = database_path
         self.threading_enabled = threading_enabled
         self.threading_mode = threading_mode
+        self.db_manager = db_manager
 
         # Model-level parallelization settings
         self.enable_model_parallelization = enable_model_parallelization
@@ -328,6 +330,15 @@ class DbtRunner:
         )
 
         start = time.perf_counter()
+
+        # Close database connections before spawning dbt subprocess to prevent lock conflicts
+        # DuckDB doesn't support concurrent connections from different processes
+        if self.db_manager:
+            try:
+                self.db_manager.close_all()
+            except Exception:
+                # Non-fatal, continue execution
+                pass
 
         if stream_output:
             return self._execute_with_streaming(cmd, on_line=on_line, start_ts=start)

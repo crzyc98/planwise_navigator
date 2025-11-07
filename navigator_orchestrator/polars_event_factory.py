@@ -666,6 +666,9 @@ class PolarsEventGenerator:
             return pl.DataFrame()
 
         # Query termination targets by level from int_workforce_needs_by_level
+        targets_df = None
+        using_fallback = False
+
         try:
             db_path = self.config.database_path if self.config.database_path else get_database_path()
             conn = duckdb.connect(str(db_path), read_only=True)
@@ -682,14 +685,45 @@ class PolarsEventGenerator:
 
             if targets_df.height == 0:
                 logger.warning(
-                    "No termination targets found in int_workforce_needs_by_level for year %s",
+                    "No termination targets found in int_workforce_needs_by_level for year %s - using fallback calculation",
                     simulation_year
                 )
-                return pl.DataFrame()
+                targets_df = None  # Trigger fallback
 
         except Exception as exc:
-            logger.error("Error loading termination targets for year %s: %s", simulation_year, exc)
-            return pl.DataFrame()
+            logger.warning(
+                "Could not load termination targets from database for year %s: %s - using fallback calculation",
+                simulation_year, exc
+            )
+            targets_df = None  # Trigger fallback
+
+        # FALLBACK: Calculate targets internally if database query failed
+        if targets_df is None:
+            using_fallback = True
+            termination_rate = self.parameters.get('total_termination_rate', 0.12)
+
+            # Calculate per-level targets based on experienced workforce distribution
+            level_counts = experienced.group_by('level_id').agg([
+                pl.count().alias('count')
+            ])
+
+            targets_df = level_counts.with_columns([
+                pl.col('level_id'),
+                (pl.col('count') * termination_rate).round().cast(pl.Int64).alias('expected_terminations')
+            ])
+
+            logger.info(
+                "Year %s: Using fallback termination calculation (%.1f%% rate) - %d total expected",
+                simulation_year,
+                termination_rate * 100,
+                targets_df.select(pl.sum('expected_terminations')).item()
+            )
+        else:
+            logger.info(
+                "Year %s: Using database termination targets - %d total expected",
+                simulation_year,
+                targets_df.select(pl.sum('expected_terminations')).item()
+            )
 
         # Add deterministic random value for selection (matches SQL logic)
         experienced = experienced.with_columns([

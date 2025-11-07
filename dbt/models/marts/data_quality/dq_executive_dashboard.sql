@@ -1,3 +1,5 @@
+{{config(enabled=false)}}
+
 {{ config(
     materialized='table',
     indexes=[

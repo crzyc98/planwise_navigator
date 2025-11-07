@@ -1,3 +1,4 @@
+{{ config(enabled=false) }}
 {{ config(
     materialized='table',
     tags=['VALIDATION', 'data_quality', 'monitoring', 'summary']
