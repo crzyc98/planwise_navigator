@@ -91,6 +91,24 @@ models:
         node_color: "#FFE6CC"
       +enabled: "{{ var('enable_debug_models', false) }}"
 
+    # E079 Performance Fix: Disable validation models converted to dbt tests
+    # These models were converted in E080 Phase 1-5 and now exist as tests in /dbt/tests/
+    # Disabling them saves ~2.7s per year (~13.5s for 5-year simulation)
+    analysis:
+      validate_compensation_bounds: {enabled: false}
+      validate_e058_business_logic: {enabled: false}
+      validate_enrollment_continuity: {enabled: false}
+      validate_escalation_bug_fix: {enabled: false}
+      validate_opt_out_rates: {enabled: false}
+
+    intermediate:
+      validate_s042_01_source_of_truth_fix: {enabled: false}
+      validate_enrollment_deferral_consistency_v2: {enabled: false}
+
+    marts:
+      validate_deferral_rate_orphaned_states: {enabled: false}
+      validate_deferral_rate_state_continuity: {enabled: false}
+
 # E068E: Seeds configuration with performance optimizations
 seeds:
   planwise_navigator:

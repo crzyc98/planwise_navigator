@@ -18,7 +18,7 @@ WITH enrolled_employees_v2 AS (
     simulation_year,
     current_deferral_rate,
     escalation_source,
-    enrollment_source,
+    rate_source,
     is_enrolled_flag,
     employee_enrollment_date,
     data_quality_flag
