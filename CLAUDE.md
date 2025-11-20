@@ -504,13 +504,7 @@ planwise checkpoints status          # Recovery recommendations
 - ✅ **E075**: Testing Infrastructure - 256 tests, fixture library, 90%+ coverage
 - ✅ **E023**: Enrollment Architecture Fix - Temporal state accumulator pattern
 - ✅ **E078**: Cohort Pipeline Integration - Polars event factory, multi-year termination fixes
-- ✅ **E080**: Validation Model to Test Conversion - Converted validation models to dbt tests (95% complete, minor cleanup remaining)
-
-### **In Progress**
-
-- 🟡 **E080 Cleanup**: Fix remaining test failures from validation conversion (95 test errors to resolve)
-  - Schema.yml references to old validation models
-  - Test syntax and dependency issues
+- ✅ **E080**: Validation Model to Test Conversion - Converted 30 validation models to dbt tests, 90 passing tests, removed legacy validation code
 
 ### **Planned / Available**
 
