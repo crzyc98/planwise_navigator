@@ -115,40 +115,43 @@ orphaned_events_violations AS (
 )
 
 -- Return all violations
-SELECT employee_id, simulation_year, violation_type, severity, description,
-       NULL::DATE as effective_date, NULL::DECIMAL as amount
-FROM duplicate_raise_violations
+-- DuckDB FIX: Wrap UNION in subquery before applying ORDER BY
+SELECT *
+FROM (
+    SELECT employee_id, simulation_year, violation_type, severity, description,
+           NULL::DATE as effective_date, NULL::DECIMAL as amount
+    FROM duplicate_raise_violations
 
-UNION ALL
+    UNION ALL
 
-SELECT employee_id, simulation_year, violation_type, severity, description,
-       effective_date, NULL::DECIMAL as amount
-FROM post_termination_violations
+    SELECT employee_id, simulation_year, violation_type, severity, description,
+           effective_date, NULL::DECIMAL as amount
+    FROM post_termination_violations
 
-UNION ALL
+    UNION ALL
 
-SELECT employee_id, simulation_year, violation_type, severity, description,
-       NULL::DATE as effective_date, NULL::DECIMAL as amount
-FROM enrollment_consistency_violations
+    SELECT employee_id, simulation_year, violation_type, severity, description,
+           NULL::DATE as effective_date, NULL::DECIMAL as amount
+    FROM enrollment_consistency_violations
 
-UNION ALL
+    UNION ALL
 
-SELECT employee_id, simulation_year, violation_type, severity, description,
-       NULL::DATE as effective_date, ytd_contributions as amount
-FROM compensation_consistency_violations
+    SELECT employee_id, simulation_year, violation_type, severity, description,
+           NULL::DATE as effective_date, ytd_contributions as amount
+    FROM compensation_consistency_violations
 
-UNION ALL
+    UNION ALL
 
-SELECT employee_id, simulation_year, violation_type, severity, description,
-       effective_date, NULL::DECIMAL as amount
-FROM event_sequence_violations
+    SELECT employee_id, simulation_year, violation_type, severity, description,
+           effective_date, NULL::DECIMAL as amount
+    FROM event_sequence_violations
 
-UNION ALL
+    UNION ALL
 
-SELECT employee_id, simulation_year, violation_type, severity, description,
-       effective_date, NULL::DECIMAL as amount
-FROM orphaned_events_violations
-
+    SELECT employee_id, simulation_year, violation_type, severity, description,
+           effective_date, NULL::DECIMAL as amount
+    FROM orphaned_events_violations
+) violations
 ORDER BY
     CASE severity
         WHEN 'CRITICAL' THEN 1

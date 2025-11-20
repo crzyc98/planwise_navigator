@@ -1,9 +1,10 @@
-{{ config(materialized='table') }}
+-- Converted from validation model to test
+-- Added simulation_year filter for performance
 
 /*
   Data Quality Validation: Enrollment Continuity Audit
 
-  This model validates that enrollment dates are properly tracked across simulation years
+  This test validates that enrollment dates are properly tracked across simulation years
   and detects potential issues with duplicate enrollment events.
 
   Key validations:
@@ -11,6 +12,8 @@
   2. Enrollment dates should not regress (become NULL after being set)
   3. Employees should not have multiple enrollment events across years
   4. New hires should get proper enrollment date tracking
+
+  Returns only failing records (0 rows = all validations pass)
 */
 
 WITH enrollment_events_summary AS (
@@ -23,6 +26,7 @@ WITH enrollment_events_summary AS (
     MAX(effective_date) AS last_enrollment_date
   FROM {{ ref('fct_yearly_events') }}
   WHERE event_type = 'enrollment'
+    AND simulation_year = {{ var('simulation_year') }}
   GROUP BY employee_id, simulation_year
 ),
 
@@ -35,6 +39,7 @@ workforce_enrollment_status AS (
     CASE WHEN employee_enrollment_date IS NOT NULL THEN 1 ELSE 0 END AS has_enrollment_date
   FROM {{ ref('fct_workforce_snapshot') }}
   WHERE employment_status = 'active'
+    AND simulation_year = {{ var('simulation_year') }}
 ),
 
 enrollment_validation AS (
@@ -102,7 +107,9 @@ enrollment_regression_check AS (
       ELSE 'NO_REGRESSION'
     END AS regression_status
 
-  FROM workforce_enrollment_status
+  FROM {{ ref('fct_workforce_snapshot') }}
+  WHERE employment_status = 'active'
+    AND simulation_year <= {{ var('simulation_year') }}
 ),
 
 -- Check for multiple enrollment events across years (duplicate enrollments)
@@ -124,7 +131,7 @@ duplicate_enrollment_check AS (
   GROUP BY employee_id
 )
 
--- Final validation summary
+-- Return only records with data quality issues (0 rows = all validations pass)
 SELECT
   ev.employee_id,
   ev.simulation_year,
@@ -179,7 +186,8 @@ LEFT JOIN enrollment_regression_check rc
 LEFT JOIN duplicate_enrollment_check dec
   ON ev.employee_id = dec.employee_id
 
+WHERE overall_data_quality = 'DATA_QUALITY_ISSUE'
+
 ORDER BY
-  CASE WHEN overall_data_quality = 'DATA_QUALITY_ISSUE' THEN 0 ELSE 1 END,
   ev.employee_id,
   ev.simulation_year

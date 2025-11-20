@@ -1,4 +1,4 @@
-{{ config(materialized='table') }}
+{{ config(materialized='table', enabled=false) }}
 
 -- Year Snapshot Preparation Enhancement
 -- Prepares workforce data for the current simulation year with validation

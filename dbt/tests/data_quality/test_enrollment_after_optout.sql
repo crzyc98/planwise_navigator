@@ -41,7 +41,8 @@ enrollment_events_after_optout AS (
     ee.effective_date as enrollment_date,
     ee.event_category,
     ee.event_details as enrollment_details,
-    EXTRACT(DAY FROM ee.effective_date - oo.opt_out_date) as days_since_optout
+    -- DuckDB FIX: Use DATE_DIFF instead of EXTRACT for day difference
+    DATE_DIFF('day', oo.opt_out_date, ee.effective_date) as days_since_optout
   FROM {{ ref('fct_yearly_events') }} ee
   INNER JOIN opt_out_events oo
     ON ee.employee_id = oo.employee_id

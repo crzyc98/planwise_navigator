@@ -1,10 +1,14 @@
-{{ config(materialized='table') }}
+-- Converted from validation model to test
+-- Added simulation_year filter for performance
 
 /*
 Data quality validation for opt-out rates in enrollment events.
 
 Monitors opt-out rates by demographics to ensure they remain within
 industry-standard ranges (5-15% for well-designed auto-enrollment programs).
+
+Returns only records with WARNING status (rates outside expected bounds).
+0 rows = all opt-out rates are within expected ranges.
 */
 
 WITH opt_out_events AS (
@@ -80,6 +84,7 @@ validation_results AS (
     FROM opt_out_rates_by_demographics
 )
 
+-- Return only records with WARNING status (0 rows = all rates are normal)
 SELECT
     {{ var('simulation_year') }} as simulation_year,
     age_segment,
@@ -89,12 +94,10 @@ SELECT
     opt_out_rate_pct,
     rate_classification,
     validation_message,
-    CASE
-        WHEN rate_classification IN ('HIGH', 'LOW') THEN 'WARNING'
-        ELSE 'PASS'
-    END as validation_status,
+    'WARNING' as validation_status,
     CURRENT_TIMESTAMP as validation_timestamp
 FROM validation_results
+WHERE rate_classification IN ('HIGH', 'LOW')
 ORDER BY
     CASE age_segment
         WHEN 'young' THEN 1

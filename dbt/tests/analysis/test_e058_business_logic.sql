@@ -1,12 +1,10 @@
-{{ config(
-    materialized='table',
-    tags=['validation', 'data_quality', 'e058', 'business_logic']
-) }}
+-- Converted from validation model to test
+-- Added simulation_year filter for performance
 
 /*
   Epic E058 Phase 4: Comprehensive Business Logic Validation
 
-  This model validates the complete Epic E058 employer match eligibility configuration
+  This test validates the complete Epic E058 employer match eligibility configuration
   feature by testing all business logic scenarios and edge cases.
 
   Test Categories:
@@ -17,8 +15,8 @@
   5. Edge Case Tests - Validate boundary conditions and special scenarios
 
   Expected Results:
-  - All validation_result = 'PASS' for production deployment
-  - Any 'FAIL' results indicate business logic violations that must be resolved
+  - 0 rows returned means all tests PASS (production ready)
+  - Any rows returned indicate business logic violations that must be resolved
 */
 
 {% set simulation_year = var('simulation_year', 2025) | int %}
@@ -29,11 +27,9 @@ WITH
 ineligible_with_match AS (
     SELECT
         'ineligible_employees_receive_zero_match' as test_name,
-        COUNT(*) as violation_count,
-        CASE
-            WHEN COUNT(*) = 0 THEN 'PASS'
-            ELSE 'FAIL'
-        END as validation_result,
+        m.employee_id,
+        e.eligible_for_match,
+        m.employer_match_amount,
         'Ineligible employees must receive $0 employer match' as test_description,
         'HIGH' as severity
     FROM {{ ref('int_employee_match_calculations') }} m
@@ -49,11 +45,11 @@ ineligible_with_match AS (
 eligible_without_match AS (
     SELECT
         'eligible_employees_with_deferrals_receive_match' as test_name,
-        COUNT(*) as violation_count,
-        CASE
-            WHEN COUNT(*) = 0 THEN 'PASS'
-            ELSE 'FAIL'
-        END as validation_result,
+        m.employee_id,
+        e.eligible_for_match,
+        m.annual_deferrals,
+        m.employer_match_amount,
+        m.match_status,
         'Eligible employees with deferrals must have match calculation performed' as test_description,
         'HIGH' as severity
     FROM {{ ref('int_employee_match_calculations') }} m
@@ -71,11 +67,9 @@ eligible_without_match AS (
 match_status_consistency AS (
     SELECT
         'match_status_eligibility_consistency' as test_name,
-        COUNT(*) as violation_count,
-        CASE
-            WHEN COUNT(*) = 0 THEN 'PASS'
-            ELSE 'FAIL'
-        END as validation_result,
+        m.employee_id,
+        e.eligible_for_match,
+        m.match_status,
         'Match status must be consistent with eligibility determination' as test_description,
         'HIGH' as severity
     FROM {{ ref('int_employee_match_calculations') }} m
@@ -93,11 +87,12 @@ match_status_consistency AS (
 eligibility_reason_accuracy AS (
     SELECT
         'eligibility_reason_code_accuracy' as test_name,
-        COUNT(*) as violation_count,
-        CASE
-            WHEN COUNT(*) = 0 THEN 'PASS'
-            ELSE 'FAIL'
-        END as validation_result,
+        e.employee_id,
+        e.match_eligibility_reason,
+        e.current_tenure,
+        e.match_tenure_requirement,
+        e.annual_hours_worked,
+        e.match_hours_requirement,
         'Eligibility reason codes must accurately reflect why employees are ineligible' as test_description,
         'MEDIUM' as severity
     FROM {{ ref('int_employer_eligibility') }} e
@@ -117,11 +112,10 @@ eligibility_reason_accuracy AS (
 backward_compatibility_validation AS (
     SELECT
         'backward_compatibility_mode_consistency' as test_name,
-        COUNT(*) as violation_count,
-        CASE
-            WHEN COUNT(*) = 0 THEN 'PASS'
-            ELSE 'FAIL'
-        END as validation_result,
+        e.employee_id,
+        e.match_apply_eligibility,
+        e.match_eligibility_reason,
+        e.eligibility_method,
         'Backward compatibility mode must use simple active+1000 hours rule' as test_description,
         'HIGH' as severity
     FROM {{ ref('int_employer_eligibility') }} e
@@ -150,27 +144,21 @@ configuration_consistency AS (
     )
     SELECT
         'configuration_parameter_consistency' as test_name,
-        CASE
-            WHEN (SELECT COUNT(*) FROM config_variations) > 1 THEN (SELECT COUNT(*) FROM config_variations) - 1
-            ELSE 0
-        END as violation_count,
-        CASE
-            WHEN (SELECT COUNT(*) FROM config_variations) <= 1 THEN 'PASS'
-            ELSE 'FAIL'
-        END as validation_result,
+        NULL as employee_id,
+        (SELECT COUNT(*) FROM config_variations) as config_variation_count,
         'Configuration parameters must be consistent across all records' as test_description,
         'MEDIUM' as severity
+    WHERE (SELECT COUNT(*) FROM config_variations) > 1
 ),
 
 -- Test 7: Capped match amount validation
 capped_match_validation AS (
     SELECT
         'capped_match_amount_validation' as test_name,
-        COUNT(*) as violation_count,
-        CASE
-            WHEN COUNT(*) = 0 THEN 'PASS'
-            ELSE 'FAIL'
-        END as validation_result,
+        m.employee_id,
+        m.capped_match_amount,
+        m.employer_match_amount,
+        m.is_eligible_for_match,
         'Capped match amount must be non-negative and final match should not exceed capped amount' as test_description,
         'MEDIUM' as severity
     FROM {{ ref('int_employee_match_calculations') }} m
@@ -186,11 +174,11 @@ capped_match_validation AS (
 multi_year_transition_validation AS (
     SELECT
         'multi_year_eligibility_transition_consistency' as test_name,
-        COUNT(*) as violation_count,
-        CASE
-            WHEN COUNT(*) = 0 THEN 'PASS'
-            ELSE 'FAIL'
-        END as validation_result,
+        transitions.employee_id,
+        transitions.current_year_tenure,
+        transitions.previous_year_tenure,
+        transitions.current_year_eligible,
+        transitions.previous_year_eligible,
         'Multi-year eligibility transitions must follow logical progression' as test_description,
         'LOW' as severity
     FROM (
@@ -220,11 +208,11 @@ multi_year_transition_validation AS (
 new_hire_edge_cases AS (
     SELECT
         'new_hire_eligibility_edge_cases' as test_name,
-        COUNT(*) as violation_count,
-        CASE
-            WHEN COUNT(*) = 0 THEN 'PASS'
-            ELSE 'FAIL'
-        END as validation_result,
+        e.employee_id,
+        e.current_tenure,
+        e.match_allow_new_hires,
+        e.eligible_for_match,
+        e.match_eligibility_reason,
         'New hire eligibility must respect configuration flags' as test_description,
         'MEDIUM' as severity
     FROM {{ ref('int_employer_eligibility') }} e
@@ -243,50 +231,113 @@ new_hire_edge_cases AS (
              AND e.match_eligibility_reason = 'insufficient_tenure'
              AND e.current_tenure >= e.match_tenure_requirement)
         )
-),
-
--- Combine all test results
-all_tests AS (
-    SELECT * FROM ineligible_with_match
-    UNION ALL
-    SELECT * FROM eligible_without_match
-    UNION ALL
-    SELECT * FROM match_status_consistency
-    UNION ALL
-    SELECT * FROM eligibility_reason_accuracy
-    UNION ALL
-    SELECT * FROM backward_compatibility_validation
-    UNION ALL
-    SELECT * FROM configuration_consistency
-    UNION ALL
-    SELECT * FROM capped_match_validation
-    UNION ALL
-    SELECT * FROM multi_year_transition_validation
-    UNION ALL
-    SELECT * FROM new_hire_edge_cases
 )
 
-SELECT
-    test_name,
-    violation_count,
-    validation_result,
-    test_description,
-    severity,
-    {{ simulation_year }} as simulation_year,
-    CURRENT_TIMESTAMP as validation_timestamp,
-    CASE
-        WHEN validation_result = 'PASS' THEN 'All business logic validations passed'
-        ELSE 'CRITICAL: Business logic violations detected - Epic E058 requires attention'
-    END as validation_summary
-FROM all_tests
+-- Return only failing records (0 rows = all tests pass)
+-- DuckDB FIX: Wrap UNION in subquery before applying ORDER BY
+SELECT *
+FROM (
+    SELECT
+        test_name,
+        employee_id,
+        test_description as issue_description,
+        severity,
+        {{ simulation_year }} as simulation_year,
+        CURRENT_TIMESTAMP as validation_timestamp
+    FROM ineligible_with_match
+
+    UNION ALL
+
+    SELECT
+        test_name,
+        employee_id,
+        test_description,
+        severity,
+        {{ simulation_year }},
+        CURRENT_TIMESTAMP
+    FROM eligible_without_match
+
+    UNION ALL
+
+    SELECT
+        test_name,
+        employee_id,
+        test_description,
+        severity,
+        {{ simulation_year }},
+        CURRENT_TIMESTAMP
+    FROM match_status_consistency
+
+    UNION ALL
+
+    SELECT
+        test_name,
+        employee_id,
+        test_description,
+        severity,
+        {{ simulation_year }},
+        CURRENT_TIMESTAMP
+    FROM eligibility_reason_accuracy
+
+    UNION ALL
+
+    SELECT
+        test_name,
+        employee_id,
+        test_description,
+        severity,
+        {{ simulation_year }},
+        CURRENT_TIMESTAMP
+    FROM backward_compatibility_validation
+
+    UNION ALL
+
+    SELECT
+        test_name,
+        CAST(employee_id AS VARCHAR),
+        test_description,
+        severity,
+        {{ simulation_year }},
+        CURRENT_TIMESTAMP
+    FROM configuration_consistency
+
+    UNION ALL
+
+    SELECT
+        test_name,
+        employee_id,
+        test_description,
+        severity,
+        {{ simulation_year }},
+        CURRENT_TIMESTAMP
+    FROM capped_match_validation
+
+    UNION ALL
+
+    SELECT
+        test_name,
+        employee_id,
+        test_description,
+        severity,
+        {{ simulation_year }},
+        CURRENT_TIMESTAMP
+    FROM multi_year_transition_validation
+
+    UNION ALL
+
+    SELECT
+        test_name,
+        employee_id,
+        test_description,
+        severity,
+        {{ simulation_year }},
+        CURRENT_TIMESTAMP
+    FROM new_hire_edge_cases
+) all_validation_failures
 ORDER BY
     CASE severity
         WHEN 'HIGH' THEN 1
         WHEN 'MEDIUM' THEN 2
         WHEN 'LOW' THEN 3
-    END,
-    CASE validation_result
-        WHEN 'FAIL' THEN 1
-        WHEN 'PASS' THEN 2
     END,
     test_name

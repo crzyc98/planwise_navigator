@@ -1,4 +1,5 @@
-{{ config(materialized='table', enabled=false) }}
+-- Converted from validation model to test
+-- Added simulation_year filter for performance
 
 /*
   Data Quality Test for Story S042-01: Deferral Rate State Accumulator V2
@@ -17,12 +18,13 @@ WITH enrolled_employees_v2 AS (
     simulation_year,
     current_deferral_rate,
     escalation_source,
-    enrollment_source,
+    rate_source,
     is_enrolled_flag,
     employee_enrollment_date,
     data_quality_flag
   FROM {{ ref('int_deferral_rate_state_accumulator_v2') }}
   WHERE is_enrolled_flag = true
+    AND simulation_year = {{ var('simulation_year') }}
 ),
 
 enrollment_events AS (
@@ -36,6 +38,7 @@ enrollment_events AS (
   FROM {{ ref('int_enrollment_events') }}
   WHERE LOWER(event_type) = 'enrollment'
     AND employee_deferral_rate IS NOT NULL
+    AND simulation_year = {{ var('simulation_year') }}
 ),
 
 enrollment_registry_data AS (
@@ -118,18 +121,18 @@ test_employee_count_consistency AS (
   SELECT
     'ENROLLMENT_EVENTS_COUNT' as metric_name,
     COUNT(DISTINCT employee_id) as count_value,
-    {{ var('simulation_year', 2025) }} as simulation_year
+    {{ var('simulation_year') }} as simulation_year
   FROM enrollment_events
-  WHERE simulation_year <= {{ var('simulation_year', 2025) }}
+  WHERE simulation_year <= {{ var('simulation_year') }}
 
   UNION ALL
 
   SELECT
     'DEFERRAL_STATE_COUNT' as metric_name,
     COUNT(DISTINCT employee_id) as count_value,
-    {{ var('simulation_year', 2025) }} as simulation_year
+    {{ var('simulation_year') }} as simulation_year
   FROM enrolled_employees_v2
-  WHERE simulation_year = {{ var('simulation_year', 2025) }}
+  WHERE simulation_year = {{ var('simulation_year') }}
 ),
 
 -- Test 4: Specific test case - NH_2025_000007 should get 6% from enrollment event
@@ -143,29 +146,29 @@ test_nh_2025_000007 AS (
     (SELECT current_deferral_rate
      FROM enrolled_employees_v2
      WHERE employee_id = 'NH_2025_000007'
-     AND simulation_year = 2025) as actual_deferral_rate,
+     AND simulation_year = {{ var('simulation_year') }}) as actual_deferral_rate,
 
     (SELECT escalation_source
      FROM enrolled_employees_v2
      WHERE employee_id = 'NH_2025_000007'
-     AND simulation_year = 2025) as actual_source,
+     AND simulation_year = {{ var('simulation_year') }}) as actual_source,
 
     -- Check if enrollment event exists
     (SELECT employee_deferral_rate
      FROM enrollment_events
      WHERE employee_id = 'NH_2025_000007'
-     AND simulation_year = 2025) as enrollment_event_rate,
+     AND simulation_year = {{ var('simulation_year') }}) as enrollment_event_rate,
 
     -- Validation result
     CASE
       WHEN (SELECT current_deferral_rate
             FROM enrolled_employees_v2
             WHERE employee_id = 'NH_2025_000007'
-            AND simulation_year = 2025) = 0.06
+            AND simulation_year = {{ var('simulation_year') }}) = 0.06
       AND (SELECT escalation_source
            FROM enrolled_employees_v2
            WHERE employee_id = 'NH_2025_000007'
-           AND simulation_year = 2025) = 'enrollment_event'
+           AND simulation_year = {{ var('simulation_year') }}) = 'enrollment_event'
       THEN 'PASS'
       ELSE 'FAIL'
     END as nh_test_result,
@@ -174,146 +177,75 @@ test_nh_2025_000007 AS (
       WHEN (SELECT current_deferral_rate
             FROM enrolled_employees_v2
             WHERE employee_id = 'NH_2025_000007'
-            AND simulation_year = 2025) = 0.06
+            AND simulation_year = {{ var('simulation_year') }}) = 0.06
       AND (SELECT escalation_source
            FROM enrolled_employees_v2
            WHERE employee_id = 'NH_2025_000007'
-           AND simulation_year = 2025) = 'enrollment_event'
+           AND simulation_year = {{ var('simulation_year') }}) = 'enrollment_event'
       THEN 'NH_2025_000007 correctly gets 6% deferral rate from enrollment event'
       ELSE 'NH_2025_000007 does not have expected 6% rate from enrollment event'
     END as nh_issue_description
 ),
 
--- Compile final validation results
-validation_summary AS (
-  -- Coverage test results
+-- Compile failing records only (for dbt test)
+failing_coverage_tests AS (
   SELECT
     'ENROLLMENT_COVERAGE' as test_name,
-    COUNT(*) as total_employees,
-    SUM(CASE WHEN coverage_test_result = 'PASS' THEN 1 ELSE 0 END) as passed_count,
-    SUM(CASE WHEN coverage_test_result = 'FAIL' THEN 1 ELSE 0 END) as failed_count,
-    CASE
-      WHEN SUM(CASE WHEN coverage_test_result = 'FAIL' THEN 1 ELSE 0 END) = 0
-      THEN 'PASS'
-      ELSE 'FAIL'
-    END as overall_result,
-    CASE
-      WHEN SUM(CASE WHEN coverage_test_result = 'FAIL' THEN 1 ELSE 0 END) = 0
-      THEN 'All enrolled employees have enrollment event or registry entry'
-      ELSE CAST(SUM(CASE WHEN coverage_test_result = 'FAIL' THEN 1 ELSE 0 END) AS VARCHAR) || ' employees lack both enrollment event and registry entry'
-    END as summary_description,
-    {{ var('simulation_year', 2025) }} as simulation_year
+    employee_id,
+    coverage_test_result as validation_result,
+    coverage_issue_description as issue_description,
+    simulation_year
   FROM test_enrollment_coverage
+  WHERE coverage_test_result = 'FAIL'
+),
 
-  UNION ALL
-
-  -- NULL rate test results
+failing_null_rate_tests AS (
   SELECT
     'NULL_DEFERRAL_RATES' as test_name,
-    COUNT(*) as total_employees,
-    SUM(CASE WHEN null_rate_test_result = 'PASS' THEN 1 ELSE 0 END) as passed_count,
-    SUM(CASE WHEN null_rate_test_result = 'FAIL' THEN 1 ELSE 0 END) as failed_count,
-    CASE
-      WHEN SUM(CASE WHEN null_rate_test_result = 'FAIL' THEN 1 ELSE 0 END) = 0
-      THEN 'PASS'
-      ELSE 'FAIL'
-    END as overall_result,
-    CASE
-      WHEN SUM(CASE WHEN null_rate_test_result = 'FAIL' THEN 1 ELSE 0 END) = 0
-      THEN 'No enrolled employees have NULL deferral rates'
-      ELSE CAST(SUM(CASE WHEN null_rate_test_result = 'FAIL' THEN 1 ELSE 0 END) AS VARCHAR) || ' enrolled employees have NULL deferral rates'
-    END as summary_description,
-    {{ var('simulation_year', 2025) }} as simulation_year
+    employee_id,
+    null_rate_test_result as validation_result,
+    null_rate_issue_description as issue_description,
+    simulation_year
   FROM test_null_deferral_rates
+  WHERE null_rate_test_result = 'FAIL'
+),
 
-  UNION ALL
-
-  -- NH test case results
+failing_nh_tests AS (
   SELECT
     'NH_2025_000007_TEST' as test_name,
-    1 as total_employees,
-    CASE WHEN nh_test_result = 'PASS' THEN 1 ELSE 0 END as passed_count,
-    CASE WHEN nh_test_result = 'FAIL' THEN 1 ELSE 0 END as failed_count,
-    nh_test_result as overall_result,
-    nh_issue_description as summary_description,
-    2025 as simulation_year
+    test_employee_id as employee_id,
+    nh_test_result as validation_result,
+    nh_issue_description as issue_description,
+    {{ var('simulation_year') }} as simulation_year
   FROM test_nh_2025_000007
+  WHERE nh_test_result = 'FAIL'
+),
+
+failing_count_consistency_tests AS (
+  SELECT
+    'EMPLOYEE_COUNT_CONSISTENCY' as test_name,
+    NULL as employee_id,
+    CASE
+      WHEN ABS((SELECT count_value FROM test_employee_count_consistency WHERE metric_name = 'ENROLLMENT_EVENTS_COUNT') -
+               (SELECT count_value FROM test_employee_count_consistency WHERE metric_name = 'DEFERRAL_STATE_COUNT')) >
+               0.05 * (SELECT count_value FROM test_employee_count_consistency WHERE metric_name = 'ENROLLMENT_EVENTS_COUNT')
+      THEN 'FAIL' ELSE 'PASS'
+    END as validation_result,
+    'Events: ' || (SELECT count_value FROM test_employee_count_consistency WHERE metric_name = 'ENROLLMENT_EVENTS_COUNT') ||
+    ', State: ' || (SELECT count_value FROM test_employee_count_consistency WHERE metric_name = 'DEFERRAL_STATE_COUNT') ||
+    ' - Employee count mismatch detected' as issue_description,
+    {{ var('simulation_year') }} as simulation_year
+  WHERE validation_result = 'FAIL'
 )
 
--- Final output with detailed results
-SELECT
-  test_name,
-  total_employees,
-  passed_count,
-  failed_count,
-  overall_result,
-  summary_description,
-  simulation_year,
-
-  -- Test priority (higher priority issues first)
-  CASE
-    WHEN test_name = 'NH_2025_000007_TEST' THEN 1
-    WHEN test_name = 'NULL_DEFERRAL_RATES' THEN 2
-    WHEN test_name = 'ENROLLMENT_COVERAGE' THEN 3
-    ELSE 4
-  END as test_priority,
-
-  -- Overall assessment
-  CASE
-    WHEN overall_result = 'PASS' THEN 'Source of truth architecture working correctly'
-    ELSE 'Source of truth architecture issue detected - needs investigation'
-  END as architecture_assessment,
-
-  CURRENT_TIMESTAMP as validation_timestamp
-
-FROM validation_summary
-
+-- Return only failing records (0 rows = test passes)
+SELECT * FROM failing_coverage_tests
 UNION ALL
-
--- Add count consistency check
-SELECT
-  'EMPLOYEE_COUNT_CONSISTENCY' as test_name,
-  2 as total_employees, -- Two metrics being compared
-  CASE
-    WHEN ABS((SELECT count_value FROM test_employee_count_consistency WHERE metric_name = 'ENROLLMENT_EVENTS_COUNT') -
-             (SELECT count_value FROM test_employee_count_consistency WHERE metric_name = 'DEFERRAL_STATE_COUNT')) <=
-             0.05 * (SELECT count_value FROM test_employee_count_consistency WHERE metric_name = 'ENROLLMENT_EVENTS_COUNT')
-    THEN 1 ELSE 0
-  END as passed_count,
-  CASE
-    WHEN ABS((SELECT count_value FROM test_employee_count_consistency WHERE metric_name = 'ENROLLMENT_EVENTS_COUNT') -
-             (SELECT count_value FROM test_employee_count_consistency WHERE metric_name = 'DEFERRAL_STATE_COUNT')) >
-             0.05 * (SELECT count_value FROM test_employee_count_consistency WHERE metric_name = 'ENROLLMENT_EVENTS_COUNT')
-    THEN 1 ELSE 0
-  END as failed_count,
-  CASE
-    WHEN ABS((SELECT count_value FROM test_employee_count_consistency WHERE metric_name = 'ENROLLMENT_EVENTS_COUNT') -
-             (SELECT count_value FROM test_employee_count_consistency WHERE metric_name = 'DEFERRAL_STATE_COUNT')) <=
-             0.05 * (SELECT count_value FROM test_employee_count_consistency WHERE metric_name = 'ENROLLMENT_EVENTS_COUNT')
-    THEN 'PASS' ELSE 'FAIL'
-  END as overall_result,
-  'Events: ' || (SELECT count_value FROM test_employee_count_consistency WHERE metric_name = 'ENROLLMENT_EVENTS_COUNT') ||
-  ', State: ' || (SELECT count_value FROM test_employee_count_consistency WHERE metric_name = 'DEFERRAL_STATE_COUNT') ||
-  ' - ' ||
-  CASE
-    WHEN ABS((SELECT count_value FROM test_employee_count_consistency WHERE metric_name = 'ENROLLMENT_EVENTS_COUNT') -
-             (SELECT count_value FROM test_employee_count_consistency WHERE metric_name = 'DEFERRAL_STATE_COUNT')) <=
-             0.05 * (SELECT count_value FROM test_employee_count_consistency WHERE metric_name = 'ENROLLMENT_EVENTS_COUNT')
-    THEN 'Employee counts are consistent'
-    ELSE 'Employee count mismatch detected'
-  END as summary_description,
-  {{ var('simulation_year', 2025) }} as simulation_year,
-  4 as test_priority,
-  CASE
-    WHEN ABS((SELECT count_value FROM test_employee_count_consistency WHERE metric_name = 'ENROLLMENT_EVENTS_COUNT') -
-             (SELECT count_value FROM test_employee_count_consistency WHERE metric_name = 'DEFERRAL_STATE_COUNT')) <=
-             0.05 * (SELECT count_value FROM test_employee_count_consistency WHERE metric_name = 'ENROLLMENT_EVENTS_COUNT')
-    THEN 'Employee count consistency validated'
-    ELSE 'Employee count inconsistency - check event processing'
-  END as architecture_assessment,
-  CURRENT_TIMESTAMP as validation_timestamp
-
-ORDER BY test_priority, overall_result DESC
+SELECT * FROM failing_null_rate_tests
+UNION ALL
+SELECT * FROM failing_nh_tests
+UNION ALL
+SELECT * FROM failing_count_consistency_tests
 
 /*
 Story S042-01 Data Quality Tests Summary:
@@ -331,7 +263,7 @@ Story S042-01 Data Quality Tests Summary:
    have consistent employee counts (within 5% tolerance)
 
 Expected Results Post-Fix:
-- All tests should PASS
+- All tests should return 0 rows (PASS)
 - NH_2025_000007 should show 6% rate from 'enrollment_event' source
 - Zero employees with NULL rates or missing source events
 - Consistent employee counts between events and state

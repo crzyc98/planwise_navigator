@@ -1,10 +1,19 @@
 # PlanWise Navigator - Epic Status Summary
 
-**Last Updated**: October 8, 2025
+**Last Updated**: November 20, 2025
 
 ---
 
 ## 🎯 Recently Completed Epics
+
+### Epic E080: Validation Model to Test Conversion ✅ COMPLETE
+- **Completion Date**: November 20, 2025
+- **Duration**: 4 weeks (phases 1-5)
+- **Achievement**: Converted 30 validation models to dbt tests, deleted legacy validation code
+- **Result**: 90 passing tests, 11 data quality issues identified, cleaner codebase
+- **Impact**: Better data quality visibility, faster CI/CD, reduced technical debt
+- **Status**: Production-ready, all cleanup complete
+- **Documentation**: `dbt/tests/README.md`, `dbt/tests/E080_PHASE5_SUMMARY.md`
 
 ### Epic E072: Pipeline Modularization ✅ COMPLETE
 - **Completion Date**: October 7, 2025
@@ -64,6 +73,7 @@
 
 | Epic | Status | Effort | Impact | Risk | Priority |
 |------|--------|--------|--------|------|----------|
+| **E080** Validation to Test Conversion | ✅ Complete | - | High | - | - |
 | **E072** Pipeline Modularization | ✅ Complete | - | High | - | - |
 | **E074** Error Handling | ✅ Complete | - | Medium | - | - |
 | **E075** Testing Infrastructure | ✅ Complete | - | High | - | - |

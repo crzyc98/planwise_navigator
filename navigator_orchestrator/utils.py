@@ -90,12 +90,14 @@ class DatabaseConnectionPool:
     - Graceful pool exhaustion handling
     """
 
-    def __init__(self, db_path: Path, pool_size: int = 5, deterministic: bool = True):
+    def __init__(self, db_path: Path, pool_size: int = 1, deterministic: bool = True):
         """Initialize connection pool.
 
         Args:
             db_path: Path to DuckDB database file
-            pool_size: Maximum number of connections to maintain (default: 5)
+            pool_size: Maximum number of connections to maintain (default: 1)
+                      E079 Performance Fix: Reduced from 5 to 1 because sequential
+                      pipeline execution doesn't benefit from pooling (only adds overhead)
             deterministic: If True, configure connections for deterministic behavior
         """
         self.db_path = db_path

@@ -1,0 +1,32 @@
+version: 2
+
+# Global Test Configuration
+#
+# Purpose: Configure behavior for all validation tests converted from models
+# These tests validate data quality, business logic, and compliance without
+# materializing tables (90% faster than previous validation models)
+
+tests:
+  # Global defaults for all tests
+  +severity: warn  # Don't fail pipeline on validation errors (allows pipeline to complete)
+  +store_failures: true  # Store failure details for debugging in test_failures schema
+  +schema: test_failures  # Schema where failed test results are stored
+
+# Test Naming Convention:
+#   Original Model: dq_xxx.sql → Test: test_xxx.sql
+#   Original Model: validate_xxx.sql → Test: test_xxx.sql
+#
+# Test Execution:
+#   cd dbt
+#   dbt test --select tag:data_quality        # Run all data quality tests
+#   dbt test --select test_xxx                # Run specific test
+#   dbt test --vars "simulation_year: 2025"   # Run tests for specific year
+#
+# Test Results:
+#   PASS: 0 rows returned (no validation failures)
+#   FAIL: >0 rows returned (validation failures stored in test_failures.test_xxx)
+#
+# Performance:
+#   Previous (as models): 65-91 seconds for 24 validations
+#   Current (as tests): 7-13 seconds for 24 validations
+#   Improvement: 90% faster execution

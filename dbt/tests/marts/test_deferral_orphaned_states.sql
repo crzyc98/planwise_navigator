@@ -1,12 +1,5 @@
-{{ config(
-    materialized='table',
-    indexes=[
-        {'columns': ['orphaned_state_type', 'simulation_year'], 'type': 'btree'},
-        {'columns': ['employee_id'], 'type': 'btree'},
-        {'columns': ['severity_level'], 'type': 'btree'},
-        {'columns': ['data_quality_flag'], 'type': 'btree'}
-    ]
-) }}
+-- Converted from validation model to test
+-- Added simulation_year filter for performance
 
 /*
   Specialized Orphaned State Detection for Deferral Rate System
@@ -14,7 +7,7 @@
   Epic E036: Temporal State Tracking Implementation
   Story S036-03: Orphaned State Detection Patterns
 
-  This model implements enterprise-grade orphaned state detection patterns
+  This test implements enterprise-grade orphaned state detection patterns
   specifically designed for financial data audit compliance. It identifies:
 
   1. Escalations without corresponding enrollment records
@@ -25,10 +18,11 @@
 
   Regulatory compliance: Ensures all deferral rate state changes have
   complete audit trails and data lineage validation.
+
+  Returns only failing records (0 rows = no orphaned states detected)
 */
 
 {% set current_year = var('simulation_year', 2025) | int %}
-{% set start_year = var('start_year', 2025) | int %}
 
 WITH
 
@@ -65,7 +59,7 @@ WITH
             END AS root_cause_analysis,
 
             -- Financial impact estimate
-            acc.escalations_received * 0.01 * COALESCE(ws.employee_gross_compensation, 0) * 0.15 AS estimated_financial_impact,
+            acc.escalations_received * 0.01 * COALESCE(ws.current_compensation, 0) * 0.15 AS estimated_financial_impact,
 
             'Employees with deferral rate escalations but no valid enrollment records' AS issue_description
 
@@ -117,7 +111,7 @@ WITH
             END AS root_cause_analysis,
 
             -- Financial impact of unexplained rate increases
-            (acc.current_deferral_rate - acc.original_deferral_rate) * COALESCE(ws.employee_gross_compensation, 0) * 0.15 AS estimated_financial_impact,
+            (acc.current_deferral_rate - acc.original_deferral_rate) * COALESCE(ws.current_compensation, 0) * 0.15 AS estimated_financial_impact,
 
             'Employees with deferral rate increases not supported by escalation event history' AS issue_description
 
@@ -166,7 +160,7 @@ WITH
             END AS root_cause_analysis,
 
             -- Financial impact - terminated employees shouldn't have active escalations
-            acc.current_deferral_rate * COALESCE(ws.employee_gross_compensation, 0) * 0.15 AS estimated_financial_impact,
+            acc.current_deferral_rate * COALESCE(ws.current_compensation, 0) * 0.15 AS estimated_financial_impact,
 
             'Terminated employees should not have active deferral rate escalations' AS issue_description
 
@@ -211,7 +205,7 @@ WITH
             END AS root_cause_analysis,
 
             -- Financial impact - new hires shouldn't have escalation history
-            acc.escalations_received * 0.01 * COALESCE(ws.employee_gross_compensation, 0) * 0.15 AS estimated_financial_impact,
+            acc.escalations_received * 0.01 * COALESCE(ws.current_compensation, 0) * 0.15 AS estimated_financial_impact,
 
             'New hires should not have pre-existing deferral rate escalation history' AS issue_description
 
@@ -264,7 +258,7 @@ WITH
             ', Events=' || COALESCE(events.total_escalation_amount, 0) AS root_cause_analysis,
 
             -- Financial impact of amount discrepancy
-            ABS(acc.total_escalation_amount - COALESCE(events.total_escalation_amount, 0)) * COALESCE(ws.employee_gross_compensation, 0) * 0.15 AS estimated_financial_impact,
+            ABS(acc.total_escalation_amount - COALESCE(events.total_escalation_amount, 0)) * COALESCE(ws.current_compensation, 0) * 0.15 AS estimated_financial_impact,
 
             'Escalation amounts in accumulator do not match supporting event records' AS issue_description
 
@@ -288,22 +282,44 @@ WITH
             AND acc.total_escalation_amount > 0
             AND ABS(acc.total_escalation_amount - COALESCE(events.total_escalation_amount, 0)) >= 0.01
             AND acc.employee_id IS NOT NULL
-    ),
-
-    orphaned_state_detection AS (
-        -- CONSOLIDATE ALL ORPHANED STATE DETECTIONS
-        SELECT * FROM escalations_without_enrollment
-        UNION ALL
-        SELECT * FROM rate_increases_without_events
-        UNION ALL
-        SELECT * FROM terminated_with_escalations
-        UNION ALL
-        SELECT * FROM new_hires_with_escalations
-        UNION ALL
-        SELECT * FROM escalation_amounts_without_events
     )
 
--- FINAL OUTPUT WITH AUDIT METADATA
+-- RETURN ONLY FAILING RECORDS (0 rows = no orphaned states detected)
+SELECT * FROM (
+    SELECT
+        orphaned_state_type,
+        employee_id,
+        simulation_year,
+        current_deferral_rate,
+        escalations_received,
+        has_escalations,
+        is_enrolled_flag,
+        last_escalation_date,
+        employment_status,
+        employee_hire_date,
+        enrollment_date,
+        severity_level,
+        root_cause_analysis,
+        estimated_financial_impact,
+        issue_description,
+
+        -- Data quality classification
+        CASE
+            WHEN severity_level IN ('CRITICAL', 'HIGH') THEN 'FAIL'
+            WHEN severity_level = 'MEDIUM' THEN 'WARNING'
+            ELSE 'REVIEW'
+        END AS data_quality_flag,
+
+        -- Audit trail metadata
+        CURRENT_TIMESTAMP AS detection_timestamp,
+        {{ dbt_utils.generate_surrogate_key(['employee_id', 'simulation_year', 'orphaned_state_type']) }} AS detection_id,
+        '{{ var("scenario_id", "default") }}' AS scenario_id,
+        'validate_deferral_rate_orphaned_states' AS detection_source
+
+    FROM escalations_without_enrollment
+
+UNION ALL
+
 SELECT
     orphaned_state_type,
     employee_id,
@@ -320,21 +336,104 @@ SELECT
     root_cause_analysis,
     estimated_financial_impact,
     issue_description,
-
-    -- Data quality classification
     CASE
         WHEN severity_level IN ('CRITICAL', 'HIGH') THEN 'FAIL'
         WHEN severity_level = 'MEDIUM' THEN 'WARNING'
         ELSE 'REVIEW'
     END AS data_quality_flag,
-
-    -- Audit trail metadata
     CURRENT_TIMESTAMP AS detection_timestamp,
     {{ dbt_utils.generate_surrogate_key(['employee_id', 'simulation_year', 'orphaned_state_type']) }} AS detection_id,
     '{{ var("scenario_id", "default") }}' AS scenario_id,
     'validate_deferral_rate_orphaned_states' AS detection_source
+FROM rate_increases_without_events
 
-FROM orphaned_state_detection
+UNION ALL
+
+SELECT
+    orphaned_state_type,
+    employee_id,
+    simulation_year,
+    current_deferral_rate,
+    escalations_received,
+    has_escalations,
+    is_enrolled_flag,
+    last_escalation_date,
+    employment_status,
+    employee_hire_date,
+    enrollment_date,
+    severity_level,
+    root_cause_analysis,
+    estimated_financial_impact,
+    issue_description,
+    CASE
+        WHEN severity_level IN ('CRITICAL', 'HIGH') THEN 'FAIL'
+        WHEN severity_level = 'MEDIUM' THEN 'WARNING'
+        ELSE 'REVIEW'
+    END AS data_quality_flag,
+    CURRENT_TIMESTAMP AS detection_timestamp,
+    {{ dbt_utils.generate_surrogate_key(['employee_id', 'simulation_year', 'orphaned_state_type']) }} AS detection_id,
+    '{{ var("scenario_id", "default") }}' AS scenario_id,
+    'validate_deferral_rate_orphaned_states' AS detection_source
+FROM terminated_with_escalations
+
+UNION ALL
+
+SELECT
+    orphaned_state_type,
+    employee_id,
+    simulation_year,
+    current_deferral_rate,
+    escalations_received,
+    has_escalations,
+    is_enrolled_flag,
+    last_escalation_date,
+    employment_status,
+    employee_hire_date,
+    enrollment_date,
+    severity_level,
+    root_cause_analysis,
+    estimated_financial_impact,
+    issue_description,
+    CASE
+        WHEN severity_level IN ('CRITICAL', 'HIGH') THEN 'FAIL'
+        WHEN severity_level = 'MEDIUM' THEN 'WARNING'
+        ELSE 'REVIEW'
+    END AS data_quality_flag,
+    CURRENT_TIMESTAMP AS detection_timestamp,
+    {{ dbt_utils.generate_surrogate_key(['employee_id', 'simulation_year', 'orphaned_state_type']) }} AS detection_id,
+    '{{ var("scenario_id", "default") }}' AS scenario_id,
+    'validate_deferral_rate_orphaned_states' AS detection_source
+FROM new_hires_with_escalations
+
+UNION ALL
+
+SELECT
+    orphaned_state_type,
+    employee_id,
+    simulation_year,
+    current_deferral_rate,
+    escalations_received,
+    has_escalations,
+    is_enrolled_flag,
+    last_escalation_date,
+    employment_status,
+    employee_hire_date,
+    enrollment_date,
+    severity_level,
+    root_cause_analysis,
+    estimated_financial_impact,
+    issue_description,
+    CASE
+        WHEN severity_level IN ('CRITICAL', 'HIGH') THEN 'FAIL'
+        WHEN severity_level = 'MEDIUM' THEN 'WARNING'
+        ELSE 'REVIEW'
+    END AS data_quality_flag,
+    CURRENT_TIMESTAMP AS detection_timestamp,
+    {{ dbt_utils.generate_surrogate_key(['employee_id', 'simulation_year', 'orphaned_state_type']) }} AS detection_id,
+    '{{ var("scenario_id", "default") }}' AS scenario_id,
+    'validate_deferral_rate_orphaned_states' AS detection_source
+    FROM escalation_amounts_without_events
+) AS all_orphaned_states
 WHERE employee_id IS NOT NULL
 ORDER BY
     CASE severity_level
