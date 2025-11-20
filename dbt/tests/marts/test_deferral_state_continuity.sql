@@ -1,11 +1,5 @@
-{{ config(
-    materialized='table',
-    indexes=[
-        {'columns': ['validation_category', 'simulation_year'], 'type': 'btree'},
-        {'columns': ['employee_id', 'simulation_year'], 'type': 'btree'},
-        {'columns': ['data_quality_flag'], 'type': 'btree'}
-    ]
-) }}
+-- Converted from validation model to test
+-- Added simulation_year filter for performance
 
 /*
   Comprehensive Deferral Rate State Continuity Validator
@@ -13,7 +7,7 @@
   Epic E036: Temporal State Tracking Implementation
   Story S036-03: Multi-Year Continuity Validation
 
-  This validation model ensures enterprise-grade data quality for the deferral
+  This test ensures enterprise-grade data quality for the deferral
   rate state accumulator across multi-year simulations. It implements:
 
   1. Cross-year state transition validation
@@ -23,19 +17,14 @@
   5. Data integrity auditing
 
   Financial audit compliance: Tracks all state changes with UUID-based audit trails
+
+  Returns only failing records (0 rows = all continuity validations pass)
 */
 
 {% set current_year = var('simulation_year', 2025) | int %}
 {% set start_year = var('start_year', 2025) | int %}
 
--- Generate comprehensive cross-year validation dataset
-WITH validation_base AS (
-    SELECT
-        {{ current_year }} AS validation_year,
-        {{ start_year }} AS start_year_reference,
-        'deferral_rate_state_continuity' AS validation_scope,
-        CURRENT_TIMESTAMP AS validation_timestamp
-),
+WITH
 
 -- 1. CROSS-YEAR STATE TRANSITION VALIDATION
 state_transition_analysis AS (
@@ -88,8 +77,9 @@ state_transition_analysis AS (
         AND prev.simulation_year = emp_prev.simulation_year
     WHERE curr.simulation_year = {{ current_year }}
         AND curr.employee_id IS NOT NULL
+        AND transition_validation_result NOT LIKE '%VALID%'
     {% else %}
-    -- Base year: No previous state to validate
+    -- Base year: Check for unusual base states
     SELECT
         'STATE_TRANSITION' AS validation_category,
         curr.employee_id,
@@ -117,6 +107,7 @@ state_transition_analysis AS (
         AND curr.simulation_year = emp.simulation_year
     WHERE curr.simulation_year = {{ current_year }}
         AND curr.employee_id IS NOT NULL
+        AND transition_validation_result NOT LIKE '%VALID%'
     {% endif %}
 ),
 
@@ -160,6 +151,7 @@ orphaned_state_analysis AS (
         AND enrollment.enrollment_status = true
     WHERE acc.simulation_year = {{ current_year }}
         AND acc.employee_id IS NOT NULL
+        AND transition_validation_result != 'NO_ORPHANED_STATE'
 ),
 
 -- 3. EMPLOYEE LIFECYCLE INTEGRATION VALIDATION
@@ -205,6 +197,7 @@ lifecycle_integration_analysis AS (
         AND term_events.event_type = 'termination'
     WHERE acc.simulation_year = {{ current_year }}
         AND acc.employee_id IS NOT NULL
+        AND transition_validation_result NOT LIKE '%VALID%'
 ),
 
 -- 4. ESCALATION CONTINUITY VALIDATION
@@ -249,20 +242,10 @@ escalation_continuity_analysis AS (
     ) escalation_events ON acc.employee_id = escalation_events.employee_id
     WHERE acc.simulation_year = {{ current_year }}
         AND acc.employee_id IS NOT NULL
-),
-
--- 5. CONSOLIDATED VALIDATION RESULTS
-validation_summary AS (
-    SELECT * FROM state_transition_analysis
-    UNION ALL
-    SELECT * FROM orphaned_state_analysis
-    UNION ALL
-    SELECT * FROM lifecycle_integration_analysis
-    UNION ALL
-    SELECT * FROM escalation_continuity_analysis
+        AND transition_validation_result NOT LIKE '%VALID%'
 )
 
--- FINAL OUTPUT WITH METADATA
+-- RETURN ONLY FAILING RECORDS (0 rows = all continuity validations pass)
 SELECT
     v.validation_category,
     v.employee_id,
@@ -278,11 +261,7 @@ SELECT
     v.previous_employment_status,
 
     -- Data quality classification
-    CASE
-        WHEN v.transition_validation_result LIKE '%VALID%' THEN 'PASS'
-        WHEN v.transition_validation_result LIKE '%NO_%' THEN 'PASS'
-        ELSE 'FAIL'
-    END AS data_quality_flag,
+    'FAIL' AS data_quality_flag,
 
     -- Severity classification for audit priorities
     CASE
@@ -292,12 +271,19 @@ SELECT
     END AS severity_level,
 
     -- Audit metadata
-    vb.validation_timestamp,
-    vb.validation_scope,
+    CURRENT_TIMESTAMP as validation_timestamp,
+    'deferral_rate_state_continuity' AS validation_scope,
     {{ dbt_utils.generate_surrogate_key(['v.employee_id', 'v.simulation_year', 'v.validation_category']) }} AS validation_id,
     '{{ var("scenario_id", "default") }}' AS scenario_id
 
-FROM validation_summary v
-CROSS JOIN validation_base vb
+FROM (
+    SELECT * FROM state_transition_analysis
+    UNION ALL
+    SELECT * FROM orphaned_state_analysis
+    UNION ALL
+    SELECT * FROM lifecycle_integration_analysis
+    UNION ALL
+    SELECT * FROM escalation_continuity_analysis
+) v
 WHERE v.employee_id IS NOT NULL
 ORDER BY v.validation_category, v.employee_id, v.simulation_year

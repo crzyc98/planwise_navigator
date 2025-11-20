@@ -504,24 +504,30 @@ planwise checkpoints status          # Recovery recommendations
 - ✅ **E075**: Testing Infrastructure - 256 tests, fixture library, 90%+ coverage
 - ✅ **E023**: Enrollment Architecture Fix - Temporal state accumulator pattern
 - ✅ **E078**: Cohort Pipeline Integration - Polars event factory, multi-year termination fixes
+- ✅ **E080**: Validation Model to Test Conversion - Converted 30 validation models to dbt tests, 90 passing tests, removed legacy validation code
 
-### **In Progress**
+### **Planned / Available**
 
-- 🟡 **E021-A**: DC Plan Event Schema Foundation (81% - 5 of 7 stories complete)
-  - ✅ Core Event Model (Pydantic v2)
-  - ✅ Workforce Events
-  - ✅ DC Plan Events
-  - ✅ Plan Administration Events
-  - ❌ Loan & Investment Events (outstanding)
-  - ❌ ERISA Compliance Review (outstanding)
+- 🚀 **E076**: Polars State Accumulation Pipeline (RECOMMENDED NEXT)
+  - **Impact**: 60-75% performance improvement (236s → 60-90s for 2-year simulation)
+  - **Why**: State accumulation is 70% of runtime (23s per year)
+  - **Effort**: 2-3 weeks
+  - **Status**: Ready to start, no blockers
+  - **See**: `/docs/EPIC_STATUS_SUMMARY.md` for detailed analysis
 
 ### **Blocked**
 
+- ⚠️ **E073**: Config Module Refactoring - BLOCKED by inadequate test coverage
+  - **Status**: Not started
+  - **Blocker**: Only 10% test coverage, need 80%+ before refactoring
+  - **Risk**: 1,208-line monolithic file with 977-line untested function
+  - **Action Required**: Build comprehensive test coverage first (5-7 days)
+
 - ⚠️ **E079**: Performance Architectural Simplification - BLOCKED by 60% regression
-  - **Status**: Not Started (epic document only, no implementation)
+  - **Status**: Not started (epic document only, no implementation)
   - **Blocker**: Performance regression detected (261s → 419s for 5-year simulation)
   - **See**: `/docs/E079_PERFORMANCE_RESULTS.md` for detailed analysis
-  - **Action Required**: Investigate and fix regression before proceeding with optimization work
+  - **Action Required**: Investigate and fix regression before proceeding
 
 -----
 

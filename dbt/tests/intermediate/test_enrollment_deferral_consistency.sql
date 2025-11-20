@@ -1,15 +1,18 @@
-{{ config(materialized='table') }}
+-- Converted from validation model to test
+-- Added simulation_year filter for performance
 
 /*
   Validation for Story S042-01: Enrollment-Deferral Rate Consistency
 
-  This validation model ensures the key requirement from Epic S042-01:
+  This test ensures the key requirement from Epic S042-01:
   "Add data quality test: every enrolled employee has enrollment event OR registry entry"
 
   VALIDATION RULES:
   1. Every employee in deferral rate accumulator v2 must have enrollment events
   2. No employees should have deferral rates without corresponding enrollment events
   3. Deferral rates must match between enrollment events and state accumulator
+
+  Returns only failing records (0 rows = all validations pass)
 */
 
 WITH enrolled_employees_from_accumulator AS (
@@ -20,7 +23,7 @@ WITH enrolled_employees_from_accumulator AS (
         is_enrolled_flag,
         employee_enrollment_date
     FROM {{ ref('int_deferral_rate_state_accumulator_v2') }}
-    WHERE simulation_year = {{ var('simulation_year', 2025) }}
+    WHERE simulation_year = {{ var('simulation_year') }}
 ),
 
 enrolled_employees_from_events AS (
@@ -30,7 +33,7 @@ enrolled_employees_from_events AS (
         effective_date as enrollment_date
     FROM {{ ref('int_enrollment_events') }}
     WHERE LOWER(event_type) = 'enrollment'
-      AND simulation_year <= {{ var('simulation_year', 2025) }}
+      AND simulation_year <= {{ var('simulation_year') }}
 ),
 
 validation_results AS (
@@ -69,6 +72,7 @@ validation_results AS (
         ON acc.employee_id = evt.employee_id
 )
 
+-- Return only failing records (0 rows = all validations pass)
 SELECT
     employee_id,
     validation_result,
@@ -80,27 +84,28 @@ SELECT
     enrollment_date,
 
     -- Summary flags
-    CASE WHEN validation_result = 'PASS' THEN 1 ELSE 0 END as is_valid,
-    CASE WHEN validation_result LIKE 'FAIL%' THEN 1 ELSE 0 END as is_failed,
+    0 as is_valid,
+    1 as is_failed,
 
     -- Metadata
-    {{ var('simulation_year', 2025) }} as simulation_year,
+    {{ var('simulation_year') }} as simulation_year,
     CURRENT_TIMESTAMP as validation_timestamp
 
 FROM validation_results
+WHERE validation_result LIKE 'FAIL%'
 ORDER BY
-    validation_result DESC,  -- Failures first
+    validation_result DESC,
     employee_id
 
 /*
   EXPECTED RESULTS for Story S042-01:
-  - validation_result = 'PASS' for all employees
+  - 0 rows returned means all validations pass
   - No 'FAIL_NO_ENROLLMENT_EVENT' records (every enrolled employee has enrollment event)
   - No 'FAIL_DEFERRAL_RATE_MISMATCH' records (rates are consistent)
 
   KEY VALIDATION:
   Employee NH_2025_000007 should show:
-  - validation_result = 'PASS'
+  - validation_result = 'PASS' (not in failing records)
   - current_deferral_rate = 0.06 (6%)
   - employee_deferral_rate = 0.06 (6%)
   - validation_details = 'Consistent enrollment and deferral data'
