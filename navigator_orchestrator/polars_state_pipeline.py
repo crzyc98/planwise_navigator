@@ -684,9 +684,313 @@ class DeferralRateBuilder:
     Replaces: int_deferral_rate_state_accumulator.sql
     Performance Target: <500ms per builder
 
-    To be implemented in S076-02.
+    Architecture:
+        - Tracks deferral rates for enrolled employees
+        - Handles escalation events (automatic and manual)
+        - Maintains historical deferral rate changes
+        - Supports baseline rates by age/income segment
     """
-    pass
+
+    def __init__(self, logger: logging.Logger):
+        """Initialize deferral rate state builder."""
+        self.logger = logger
+        # Default baseline rates by segment
+        self.default_rates = {
+            ('young', 'low_income'): 0.03,
+            ('young', 'moderate'): 0.04,
+            ('young', 'high'): 0.05,
+            ('young', 'executive'): 0.06,
+            ('mid_career', 'low_income'): 0.04,
+            ('mid_career', 'moderate'): 0.05,
+            ('mid_career', 'high'): 0.06,
+            ('mid_career', 'executive'): 0.08,
+            ('senior', 'low_income'): 0.05,
+            ('senior', 'moderate'): 0.06,
+            ('senior', 'high'): 0.08,
+            ('senior', 'executive'): 0.10,
+            ('mature', 'low_income'): 0.06,
+            ('mature', 'moderate'): 0.08,
+            ('mature', 'high'): 0.10,
+            ('mature', 'executive'): 0.12,
+        }
+
+    def build(
+        self,
+        simulation_year: int,
+        events_df: pl.DataFrame,
+        enrollment_state_df: pl.DataFrame,
+        baseline_df: pl.DataFrame,
+        previous_state_df: Optional[pl.DataFrame] = None
+    ) -> pl.DataFrame:
+        """
+        Build deferral rate state for the simulation year.
+
+        Args:
+            simulation_year: Current simulation year
+            events_df: All events for current year
+            enrollment_state_df: Enrollment state (for enrolled employees list)
+            baseline_df: Baseline workforce (for demographics)
+            previous_state_df: Previous year's deferral state (Year 2+)
+
+        Returns:
+            DataFrame with deferral rate state for current year
+        """
+        start_time = time.time()
+
+        # Get enrolled employees
+        enrolled = enrollment_state_df.filter(
+            pl.col('enrollment_status') == True
+        ).select(['employee_id', 'enrollment_date'])
+
+        if enrolled.height == 0:
+            self.logger.warning(f"No enrolled employees for year {simulation_year}")
+            return pl.DataFrame()
+
+        # Get employee demographics for segmentation
+        demographics = self._get_employee_demographics(baseline_df, enrolled)
+
+        # Extract deferral-related events
+        deferral_events = self._extract_deferral_events(events_df, simulation_year)
+
+        # Build deferral state
+        if previous_state_df is None:
+            # Year 1: Use baseline rates + enrollment events
+            deferral_state = self._build_year1_state(
+                enrolled, demographics, deferral_events, simulation_year
+            )
+        else:
+            # Year 2+: Use previous state + events
+            deferral_state = self._build_subsequent_year_state(
+                enrolled, demographics, deferral_events, previous_state_df, simulation_year
+            )
+
+        elapsed = time.time() - start_time
+        self.logger.info(
+            f"Built deferral rate state for {deferral_state.height} employees "
+            f"in {elapsed:.3f}s"
+        )
+
+        return deferral_state
+
+    def _get_employee_demographics(
+        self, baseline_df: pl.DataFrame, enrolled_df: pl.DataFrame
+    ) -> pl.DataFrame:
+        """Get employee demographics for age/income segmentation."""
+        # Join enrolled employees with baseline for demographics
+        demographics = enrolled_df.join(
+            baseline_df.select([
+                'employee_id',
+                'employee_gross_compensation',
+                'employee_birth_date'
+            ]),
+            on='employee_id',
+            how='left'
+        )
+
+        # Add age calculation (approximate)
+        current_date = date.today()
+        demographics = demographics.with_columns([
+            # Calculate age
+            pl.when(pl.col('employee_birth_date').is_not_null())
+            .then(
+                (pl.lit(current_date) - pl.col('employee_birth_date').cast(pl.Date))
+                .dt.total_days() / 365.25
+            )
+            .otherwise(40.0)  # Default age
+            .cast(pl.Int32)
+            .alias('current_age'),
+
+            # Ensure compensation exists
+            pl.col('employee_gross_compensation').fill_null(75000.0).alias('compensation')
+        ])
+
+        # Add segmentation
+        demographics = demographics.with_columns([
+            # Age segment
+            pl.when(pl.col('current_age') < 30).then(pl.lit('young'))
+            .when(pl.col('current_age') < 45).then(pl.lit('mid_career'))
+            .when(pl.col('current_age') < 55).then(pl.lit('senior'))
+            .otherwise(pl.lit('mature'))
+            .alias('age_segment'),
+
+            # Income segment
+            pl.when(pl.col('compensation') >= 250000).then(pl.lit('executive'))
+            .when(pl.col('compensation') >= 150000).then(pl.lit('high'))
+            .when(pl.col('compensation') >= 100000).then(pl.lit('moderate'))
+            .otherwise(pl.lit('low_income'))
+            .alias('income_segment')
+        ])
+
+        return demographics
+
+    def _extract_deferral_events(
+        self, events_df: pl.DataFrame, simulation_year: int
+    ) -> pl.DataFrame:
+        """Extract deferral-related events (enrollments and escalations)."""
+        if events_df.height == 0:
+            return pl.DataFrame()
+
+        # Get enrollment events with deferral rates
+        enrollment_events = events_df.filter(
+            (pl.col('event_type').is_in(['enrollment', 'enrollment_change'])) &
+            pl.col('employee_deferral_rate').is_not_null()
+        ).select([
+            'employee_id',
+            'simulation_year',
+            'effective_date',
+            'employee_deferral_rate',
+            'event_type',
+            'event_details'
+        ])
+
+        # Get deferral escalation events
+        escalation_events = events_df.filter(
+            pl.col('event_type') == 'deferral_escalation'
+        ).select([
+            'employee_id',
+            'simulation_year',
+            'effective_date',
+            'employee_deferral_rate',
+            pl.lit('deferral_escalation').alias('event_type'),
+            'event_details'
+        ])
+
+        # Combine events
+        if enrollment_events.height > 0 and escalation_events.height > 0:
+            all_events = pl.concat([enrollment_events, escalation_events], how='diagonal')
+        elif enrollment_events.height > 0:
+            all_events = enrollment_events
+        elif escalation_events.height > 0:
+            all_events = escalation_events
+        else:
+            return pl.DataFrame()
+
+        return all_events.sort(['employee_id', 'effective_date'])
+
+    def _build_year1_state(
+        self,
+        enrolled_df: pl.DataFrame,
+        demographics_df: pl.DataFrame,
+        deferral_events_df: pl.DataFrame,
+        simulation_year: int
+    ) -> pl.DataFrame:
+        """Build Year 1 deferral state from baseline rates + events."""
+        # Start with demographics and baseline rates
+        base_state = demographics_df.with_columns([
+            pl.struct(['age_segment', 'income_segment'])
+            .map_elements(
+                lambda x: self.default_rates.get((x['age_segment'], x['income_segment']), 0.06),
+                return_dtype=pl.Float64
+            )
+            .alias('baseline_deferral_rate')
+        ])
+
+        # If no events, use baseline rates
+        if deferral_events_df.height == 0:
+            return base_state.select([
+                'employee_id',
+                pl.lit(simulation_year).alias('simulation_year'),
+                pl.col('baseline_deferral_rate').alias('current_deferral_rate'),
+                pl.lit(0).alias('escalation_count'),
+                pl.lit(None, dtype=pl.Date).alias('last_escalation_date'),
+                pl.lit(False).alias('had_escalation_this_year'),
+                pl.col('age_segment'),
+                pl.col('income_segment')
+            ])
+
+        # Get latest deferral rate from events for each employee
+        latest_rates = deferral_events_df.sort('effective_date', descending=True).group_by('employee_id').agg([
+            pl.col('employee_deferral_rate').first().alias('event_deferral_rate'),
+            pl.col('effective_date').first().alias('last_event_date'),
+            pl.col('event_type').filter(pl.col('event_type') == 'deferral_escalation').count().alias('escalation_count'),
+            pl.col('effective_date').filter(pl.col('event_type') == 'deferral_escalation').max().alias('last_escalation_date')
+        ])
+
+        # Join with base state
+        combined = base_state.join(latest_rates, on='employee_id', how='left')
+
+        return combined.select([
+            'employee_id',
+            pl.lit(simulation_year).alias('simulation_year'),
+            # Use event rate if available, otherwise baseline
+            pl.coalesce(['event_deferral_rate', 'baseline_deferral_rate']).alias('current_deferral_rate'),
+            pl.col('escalation_count').fill_null(0).alias('escalation_count'),
+            'last_escalation_date',
+            (pl.col('escalation_count').fill_null(0) > 0).alias('had_escalation_this_year'),
+            'age_segment',
+            'income_segment'
+        ])
+
+    def _build_subsequent_year_state(
+        self,
+        enrolled_df: pl.DataFrame,
+        demographics_df: pl.DataFrame,
+        deferral_events_df: pl.DataFrame,
+        previous_state_df: pl.DataFrame,
+        simulation_year: int
+    ) -> pl.DataFrame:
+        """Build Year 2+ deferral state from previous state + events."""
+        # Get current year events (handle empty DataFrame)
+        if deferral_events_df.height == 0:
+            current_events = pl.DataFrame()
+        else:
+            current_events = deferral_events_df.filter(
+                pl.col('simulation_year') == simulation_year
+            )
+
+        # If no events this year, carry forward previous state
+        if current_events.height == 0:
+            return previous_state_df.join(
+                enrolled_df.select('employee_id'),
+                on='employee_id',
+                how='inner'  # Only keep enrolled employees
+            ).with_columns([
+                pl.lit(simulation_year).alias('simulation_year'),
+                pl.lit(False).alias('had_escalation_this_year')
+            ])
+
+        # Get latest rates from current year events
+        latest_rates = current_events.sort('effective_date', descending=True).group_by('employee_id').agg([
+            pl.col('employee_deferral_rate').first().alias('new_deferral_rate'),
+            pl.col('effective_date').first().alias('last_event_date'),
+            pl.col('event_type').filter(pl.col('event_type') == 'deferral_escalation').count().alias('new_escalations'),
+            pl.col('effective_date').filter(pl.col('event_type') == 'deferral_escalation').max().alias('latest_escalation_date')
+        ])
+
+        # Join previous state with demographics and current events
+        combined = enrolled_df.join(
+            previous_state_df.select([
+                'employee_id',
+                'current_deferral_rate',
+                'escalation_count',
+                'last_escalation_date'
+            ]),
+            on='employee_id',
+            how='left'
+        ).join(
+            demographics_df.select(['employee_id', 'age_segment', 'income_segment']),
+            on='employee_id',
+            how='left'
+        ).join(
+            latest_rates,
+            on='employee_id',
+            how='left'
+        )
+
+        return combined.select([
+            'employee_id',
+            pl.lit(simulation_year).alias('simulation_year'),
+            # Use new rate if available, otherwise carry forward previous
+            pl.coalesce(['new_deferral_rate', 'current_deferral_rate']).alias('current_deferral_rate'),
+            # Accumulate escalation count
+            (pl.col('escalation_count').fill_null(0) + pl.col('new_escalations').fill_null(0)).alias('escalation_count'),
+            # Use latest escalation date
+            pl.coalesce(['latest_escalation_date', 'last_escalation_date']).alias('last_escalation_date'),
+            # Had escalation this year
+            (pl.col('new_escalations').fill_null(0) > 0).alias('had_escalation_this_year'),
+            'age_segment',
+            'income_segment'
+        ])
 
 
 class ContributionsCalculator:
