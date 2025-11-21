@@ -282,9 +282,399 @@ class EnrollmentStateBuilder:
     Replaces: int_enrollment_state_accumulator.sql
     Performance Target: <500ms per builder
 
-    To be implemented in S076-02.
+    Architecture:
+        - Year 1: Baseline workforce + current year events
+        - Year 2+: Previous year state + current year events
+        - Tracks: enrollment_date, enrollment_status, enrollment_method
+        - Handles: enrollments, opt-outs, re-enrollments
     """
-    pass
+
+    def __init__(self, logger: logging.Logger):
+        """Initialize enrollment state builder."""
+        self.logger = logger
+
+    def build(
+        self,
+        simulation_year: int,
+        events_df: pl.DataFrame,
+        baseline_df: pl.DataFrame,
+        previous_state_df: Optional[pl.DataFrame] = None
+    ) -> pl.DataFrame:
+        """
+        Build enrollment state for the simulation year.
+
+        Args:
+            simulation_year: Current simulation year
+            events_df: All events for current year
+            baseline_df: Baseline workforce (Year 1 only)
+            previous_state_df: Previous year's enrollment state (Year 2+)
+
+        Returns:
+            DataFrame with enrollment state for current year
+        """
+        start_time = time.time()
+
+        # Extract enrollment events for current year
+        enrollment_events = events_df.filter(
+            pl.col('event_type').is_in(['enrollment', 'enrollment_change'])
+        )
+
+        if enrollment_events.height == 0:
+            self.logger.debug(f"No enrollment events for year {simulation_year}")
+
+        # Consolidate current year enrollment events
+        current_year_summary = self._consolidate_current_year_events(
+            enrollment_events, simulation_year
+        )
+
+        # Year 1: Use baseline + events
+        if previous_state_df is None:
+            enrollment_state = self._build_year1_state(
+                baseline_df, current_year_summary, simulation_year
+            )
+        else:
+            # Year 2+: Use previous state + events
+            enrollment_state = self._build_subsequent_year_state(
+                previous_state_df, current_year_summary, simulation_year
+            )
+
+        elapsed = time.time() - start_time
+        self.logger.info(
+            f"Built enrollment state for {enrollment_state.height} employees "
+            f"in {elapsed:.3f}s"
+        )
+
+        return enrollment_state
+
+    def _consolidate_current_year_events(
+        self, enrollment_events: pl.DataFrame, simulation_year: int
+    ) -> pl.DataFrame:
+        """
+        Consolidate enrollment events for current year.
+
+        Handles multiple events per employee, prioritizing latest event.
+        """
+        if enrollment_events.height == 0:
+            return pl.DataFrame()
+
+        # Add event priority (latest event = priority 1)
+        events_with_priority = enrollment_events.with_columns([
+            pl.col('effective_date').rank('ordinal', descending=True)
+            .over(['employee_id', 'event_type'])
+            .alias('event_priority')
+        ])
+
+        # Parse enrollment information
+        parsed_events = events_with_priority.with_columns([
+            # Enrollment date
+            pl.when(pl.col('event_type') == 'enrollment')
+            .then(pl.col('effective_date'))
+            .otherwise(None)
+            .alias('new_enrollment_date'),
+
+            # Enrollment status change
+            pl.when(pl.col('event_type') == 'enrollment')
+            .then(pl.lit(True))
+            .when(
+                (pl.col('event_type') == 'enrollment_change') &
+                (pl.col('event_details').str.to_lowercase().str.contains('opt-out') |
+                 pl.col('event_details').str.to_lowercase().str.contains('opted out'))
+            )
+            .then(pl.lit(False))
+            .otherwise(None)
+            .alias('enrollment_status_change'),
+
+            # Enrollment method
+            pl.when(
+                (pl.col('event_type') == 'enrollment') &
+                (pl.col('event_category') == 'auto_enrollment')
+            )
+            .then(pl.lit('auto'))
+            .when(
+                (pl.col('event_type') == 'enrollment') &
+                pl.col('event_category').is_in([
+                    'voluntary_enrollment',
+                    'proactive_enrollment',
+                    'executive_enrollment'
+                ])
+            )
+            .then(pl.lit('voluntary'))
+            .otherwise(None)
+            .alias('enrollment_method'),
+
+            # Opt-out flag
+            pl.when(
+                (pl.col('event_type') == 'enrollment_change') &
+                (pl.col('event_details').str.to_lowercase().str.contains('opt-out') |
+                 pl.col('event_details').str.to_lowercase().str.contains('opted out'))
+            )
+            .then(pl.lit(True))
+            .otherwise(pl.lit(False))
+            .alias('is_opt_out_event')
+        ])
+
+        # Aggregate by employee (use all events for counting, not just priority 1)
+        summary = parsed_events.group_by('employee_id').agg([
+            pl.lit(simulation_year).alias('simulation_year'),
+
+            # Latest enrollment event date (from priority 1 events only)
+            pl.col('new_enrollment_date')
+            .filter((pl.col('event_type') == 'enrollment') & (pl.col('event_priority') == 1))
+            .max()
+            .alias('enrollment_event_date'),
+
+            # Enrollment method (from priority 1 enrollment event)
+            pl.col('enrollment_method')
+            .filter((pl.col('event_type') == 'enrollment') & (pl.col('event_priority') == 1))
+            .max()
+            .alias('enrollment_method_this_year'),
+
+            # Final enrollment status (opt-out overrides enrollment)
+            # Check if ANY opt-out event exists (not just priority 1)
+            pl.when(
+                pl.col('is_opt_out_event').sum() > 0
+            )
+            .then(pl.lit(False))
+            .when(
+                pl.col('event_type')
+                .filter(pl.col('event_type') == 'enrollment')
+                .count() > 0
+            )
+            .then(pl.lit(True))
+            .otherwise(None)
+            .alias('has_enrollment_event_this_year'),
+
+            # Opt-out tracking (any opt-out event)
+            (pl.col('is_opt_out_event').sum() > 0).alias('had_opt_out_this_year'),
+
+            # Event counts (count ALL events, not just priority 1)
+            pl.col('event_type')
+            .filter(pl.col('event_type') == 'enrollment')
+            .count()
+            .alias('enrollment_events_count'),
+
+            pl.col('event_type')
+            .filter(pl.col('event_type') == 'enrollment_change')
+            .count()
+            .alias('enrollment_change_events_count')
+        ])
+
+        return summary
+
+    def _build_year1_state(
+        self,
+        baseline_df: pl.DataFrame,
+        current_year_summary: pl.DataFrame,
+        simulation_year: int
+    ) -> pl.DataFrame:
+        """Build enrollment state for Year 1 from baseline + events."""
+        # Baseline enrollment state
+        baseline_state = baseline_df.select([
+            pl.col('employee_id'),
+            pl.lit(simulation_year).alias('simulation_year'),
+            pl.col('employee_enrollment_date').alias('baseline_enrollment_date'),
+            pl.when(pl.col('employee_enrollment_date').is_not_null())
+            .then(pl.lit(True))
+            .otherwise(pl.lit(False))
+            .alias('baseline_enrollment_status'),
+            pl.lit(0).alias('years_since_first_enrollment'),
+            pl.lit('baseline').alias('enrollment_source')
+        ])
+
+        # Combine baseline with current year events
+        if current_year_summary.height == 0:
+            # No events, just baseline
+            return baseline_state.select([
+                'employee_id',
+                'simulation_year',
+                pl.col('baseline_enrollment_date').alias('enrollment_date'),
+                pl.col('baseline_enrollment_status').alias('enrollment_status'),
+                'years_since_first_enrollment',
+                'enrollment_source',
+                pl.lit(None, dtype=pl.Utf8).alias('enrollment_method'),
+                pl.lit(False).alias('ever_opted_out'),
+                pl.lit(False).alias('ever_unenrolled'),
+                pl.lit(0).alias('enrollment_events_this_year'),
+                pl.lit(0).alias('enrollment_change_events_this_year')
+            ])
+
+        # Join baseline with events
+        combined = baseline_state.join(
+            current_year_summary,
+            on='employee_id',
+            how='left'  # Use left join to keep all baseline employees
+        ).with_columns([
+            # Effective enrollment date (events override baseline)
+            pl.when(pl.col('enrollment_event_date').is_not_null())
+            .then(pl.col('enrollment_event_date'))
+            .when(pl.col('baseline_enrollment_date').is_not_null())
+            .then(pl.col('baseline_enrollment_date'))
+            .otherwise(None)
+            .alias('enrollment_date'),
+
+            # Effective enrollment status
+            pl.when(pl.col('has_enrollment_event_this_year').is_not_null())
+            .then(pl.col('has_enrollment_event_this_year'))
+            .otherwise(pl.col('baseline_enrollment_status'))
+            .alias('enrollment_status'),
+
+            # Years since enrollment (0 for first year)
+            pl.when(
+                pl.col('enrollment_event_date').is_not_null() |
+                pl.col('baseline_enrollment_date').is_not_null()
+            )
+            .then(pl.lit(0))
+            .otherwise(None)
+            .alias('years_since_first_enrollment'),
+
+            # Enrollment source
+            pl.when(pl.col('enrollment_event_date').is_not_null())
+            .then(pl.lit(f'event_{simulation_year}'))
+            .otherwise(pl.col('enrollment_source'))  # Preserve baseline source
+            .alias('enrollment_source'),
+
+            # Enrollment method
+            pl.when(pl.col('enrollment_method_this_year').is_not_null())
+            .then(pl.col('enrollment_method_this_year'))
+            .otherwise(None)
+            .alias('enrollment_method'),
+
+            # Opt-out tracking
+            pl.col('had_opt_out_this_year').fill_null(False).alias('ever_opted_out'),
+            pl.lit(False).alias('ever_unenrolled'),
+
+            # Event counts
+            pl.col('enrollment_events_count').fill_null(0).alias('enrollment_events_this_year'),
+            pl.col('enrollment_change_events_count').fill_null(0).alias('enrollment_change_events_this_year')
+        ])
+
+        return combined.select([
+            'employee_id',
+            pl.col('simulation_year').fill_null(simulation_year),
+            'enrollment_date',
+            'enrollment_status',
+            'years_since_first_enrollment',
+            'enrollment_source',
+            'enrollment_method',
+            'ever_opted_out',
+            'ever_unenrolled',
+            'enrollment_events_this_year',
+            'enrollment_change_events_this_year'
+        ])
+
+    def _build_subsequent_year_state(
+        self,
+        previous_state_df: pl.DataFrame,
+        current_year_summary: pl.DataFrame,
+        simulation_year: int
+    ) -> pl.DataFrame:
+        """Build enrollment state for Year 2+ from previous state + events."""
+        # Prepare previous year state
+        previous = previous_state_df.select([
+            pl.col('employee_id'),
+            pl.col('enrollment_date').alias('previous_enrollment_date'),
+            pl.col('enrollment_status').alias('previous_enrollment_status'),
+            pl.col('years_since_first_enrollment').alias('previous_years_since_first_enrollment'),
+            pl.col('enrollment_source').alias('previous_enrollment_source'),
+            pl.col('enrollment_method').alias('previous_enrollment_method'),
+            pl.col('ever_opted_out').alias('previous_ever_opted_out'),
+            pl.col('ever_unenrolled').alias('previous_ever_unenrolled')
+        ])
+
+        if current_year_summary.height == 0:
+            # No events this year, carry forward previous state
+            return previous.select([
+                'employee_id',
+                pl.lit(simulation_year).alias('simulation_year'),
+                pl.col('previous_enrollment_date').alias('enrollment_date'),
+                pl.col('previous_enrollment_status').alias('enrollment_status'),
+                (pl.col('previous_years_since_first_enrollment') + 1).alias('years_since_first_enrollment'),
+                pl.col('previous_enrollment_source').alias('enrollment_source'),
+                pl.col('previous_enrollment_method').alias('enrollment_method'),
+                pl.col('previous_ever_opted_out').alias('ever_opted_out'),
+                pl.col('previous_ever_unenrolled').alias('ever_unenrolled'),
+                pl.lit(0).alias('enrollment_events_this_year'),
+                pl.lit(0).alias('enrollment_change_events_this_year')
+            ])
+
+        # Join previous state with current year events
+        combined = previous.join(
+            current_year_summary,
+            on='employee_id',
+            how='outer'
+        ).with_columns([
+            # Effective enrollment date (new events override previous)
+            pl.when(pl.col('enrollment_event_date').is_not_null())
+            .then(pl.col('enrollment_event_date'))
+            .when(pl.col('previous_enrollment_date').is_not_null())
+            .then(pl.col('previous_enrollment_date'))
+            .otherwise(None)
+            .alias('enrollment_date'),
+
+            # Effective enrollment status
+            pl.when(pl.col('has_enrollment_event_this_year').is_not_null())
+            .then(pl.col('has_enrollment_event_this_year'))
+            .when(pl.col('previous_enrollment_status').is_not_null())
+            .then(pl.col('previous_enrollment_status'))
+            .otherwise(pl.lit(False))
+            .alias('enrollment_status'),
+
+            # Years since first enrollment
+            pl.when(pl.col('enrollment_event_date').is_not_null())
+            .then(pl.lit(0))  # Reset counter for new enrollments
+            .when(pl.col('previous_years_since_first_enrollment').is_not_null())
+            .then(pl.col('previous_years_since_first_enrollment') + 1)
+            .otherwise(None)
+            .alias('years_since_first_enrollment'),
+
+            # Enrollment source
+            pl.when(pl.col('enrollment_event_date').is_not_null())
+            .then(pl.lit(f'event_{simulation_year}'))
+            .when(pl.col('previous_enrollment_source').is_not_null())
+            .then(pl.col('previous_enrollment_source'))
+            .otherwise(pl.lit('none'))
+            .alias('enrollment_source'),
+
+            # Enrollment method (preserve if no new event)
+            pl.when(pl.col('enrollment_method_this_year').is_not_null())
+            .then(pl.col('enrollment_method_this_year'))
+            .when(pl.col('previous_enrollment_method').is_not_null())
+            .then(pl.col('previous_enrollment_method'))
+            .otherwise(None)
+            .alias('enrollment_method'),
+
+            # Ever opted out (cumulative)
+            (pl.col('previous_ever_opted_out').fill_null(False) |
+             pl.col('had_opt_out_this_year').fill_null(False))
+            .alias('ever_opted_out'),
+
+            # Ever unenrolled (enrolled then opted out)
+            pl.when(
+                pl.col('previous_enrollment_status') &
+                pl.col('had_opt_out_this_year').fill_null(False)
+            )
+            .then(pl.lit(True))
+            .otherwise(pl.col('previous_ever_unenrolled').fill_null(False))
+            .alias('ever_unenrolled'),
+
+            # Event counts
+            pl.col('enrollment_events_count').fill_null(0).alias('enrollment_events_this_year'),
+            pl.col('enrollment_change_events_count').fill_null(0).alias('enrollment_change_events_this_year')
+        ])
+
+        return combined.select([
+            'employee_id',
+            pl.lit(simulation_year).alias('simulation_year'),
+            'enrollment_date',
+            'enrollment_status',
+            'years_since_first_enrollment',
+            'enrollment_source',
+            'enrollment_method',
+            'ever_opted_out',
+            'ever_unenrolled',
+            'enrollment_events_this_year',
+            'enrollment_change_events_this_year'
+        ])
 
 
 class DeferralRateBuilder:
