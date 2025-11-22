@@ -942,8 +942,8 @@ class PolarsEventGenerator:
             (pl.col('is_enrolled') == False) &  # Only enroll if not already enrolled
             (pl.col('u_enrollment') < enrollment_rate)
         ).with_columns([
-            pl.lit('benefit_enrollment').alias('event_type'),
-            pl.lit('benefits').alias('event_category'),
+            pl.lit('enrollment').alias('event_type'),
+            pl.lit('voluntary_enrollment').alias('event_category'),
             pl.date(simulation_year, 4, 1).alias('event_date'),  # Open enrollment
             pl.date(simulation_year, 4, 1).alias('effective_date'),
             pl.concat_str([
