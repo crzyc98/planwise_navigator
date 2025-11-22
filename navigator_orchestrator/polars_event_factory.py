@@ -887,7 +887,7 @@ class PolarsEventGenerator:
             pl.col('employee_hire_date').is_not_null() &
             (pl.col('u_merit') < merit_rate)
         ).with_columns([
-            pl.lit('merit').alias('event_type'),
+            pl.lit('raise').alias('event_type'),
             pl.lit('compensation').alias('event_category'),
             pl.date(simulation_year, 3, 15).alias('event_date'),  # Annual merit cycle
             pl.date(simulation_year, 3, 15).alias('effective_date'),
@@ -978,6 +978,137 @@ class PolarsEventGenerator:
         ])
 
         return enrollments.select([
+            'scenario_id', 'plan_design_id', 'employee_id', 'employee_ssn',
+            'event_type', 'event_category', 'event_date', 'effective_date',
+            'event_details', 'event_payload',
+            'compensation_amount', 'previous_compensation',
+            'employee_deferral_rate', 'prev_employee_deferral_rate',
+            'employee_age', 'employee_tenure', 'employee_birth_date',
+            'level_id', 'age_band', 'tenure_band',
+            'simulation_year', 'event_probability'
+        ])
+
+    def generate_deferral_escalation_events(self, cohort: pl.DataFrame, simulation_year: int) -> pl.DataFrame:
+        """
+        Generate automatic deferral rate escalation events.
+
+        Escalates enrolled employees' deferral rates by 1% annually up to a 10% cap.
+        Matches logic from int_deferral_rate_escalation_events.sql.
+        """
+        # Get escalation parameters
+        esc_enabled = self._get_parameter('DEFERRAL_ESCALATION', 'enabled', default=True)
+        if not esc_enabled:
+            return pl.DataFrame()
+
+        esc_rate = self._get_parameter('DEFERRAL_ESCALATION', 'increment', default=0.01)
+        esc_cap = self._get_parameter('DEFERRAL_ESCALATION', 'cap', default=0.10)
+
+        # Filter to enrolled employees with current deferral rate below cap
+        eligible = cohort.filter(
+            pl.col('is_enrolled') &
+            (pl.col('employee_deferral_rate').is_not_null()) &
+            (pl.col('employee_deferral_rate') < esc_cap)
+        )
+
+        if eligible.height == 0:
+            return pl.DataFrame()
+
+        # Calculate new deferral rate (capped at max)
+        escalations = eligible.with_columns([
+            pl.lit('deferral_escalation').alias('event_type'),
+            pl.lit('deferral_escalation').alias('event_category'),
+            pl.date(simulation_year, 1, 1).alias('event_date'),  # January 1 escalation
+            pl.date(simulation_year, 1, 1).alias('effective_date'),
+            # New deferral rate = current + increment, capped at max
+            pl.when(pl.col('employee_deferral_rate') + esc_rate > esc_cap)
+            .then(pl.lit(esc_cap))
+            .otherwise(pl.col('employee_deferral_rate') + esc_rate)
+            .alias('new_deferral_rate'),
+            pl.concat_str([
+                pl.lit('Auto-escalation from '),
+                (pl.col('employee_deferral_rate') * 100).round(1).cast(pl.Utf8),
+                pl.lit('% to '),
+                pl.when(pl.col('employee_deferral_rate') + esc_rate > esc_cap)
+                .then((pl.lit(esc_cap) * 100).round(1))
+                .otherwise((pl.col('employee_deferral_rate') + esc_rate) * 100).round(1).cast(pl.Utf8),
+                pl.lit('%')
+            ]).alias('event_details'),
+            pl.lit(None).cast(pl.Utf8).alias('event_payload'),
+            pl.lit(simulation_year).cast(pl.Int64).alias('simulation_year'),
+            pl.lit(1.0).alias('event_probability'),  # Automatic, not probabilistic
+            # Compensation fields (null for deferral events)
+            pl.lit(None).cast(pl.Float64).alias('compensation_amount'),
+            pl.lit(None).cast(pl.Float64).alias('previous_compensation'),
+            # Store previous deferral rate
+            pl.col('employee_deferral_rate').alias('prev_employee_deferral_rate'),
+            # Demographic fields
+            pl.col('employee_ssn'),
+            pl.col('employee_birth_date'),
+            pl.lit(None).cast(pl.Int32).alias('employee_age'),
+            pl.col('tenure_years').cast(pl.Int32).alias('employee_tenure'),
+            pl.lit(None).cast(pl.Utf8).alias('age_band'),
+            pl.lit(None).cast(pl.Utf8).alias('tenure_band')
+        ]).with_columns([
+            # Set employee_deferral_rate to new_deferral_rate for consistency
+            pl.col('new_deferral_rate').alias('employee_deferral_rate')
+        ])
+
+        return escalations.select([
+            'scenario_id', 'plan_design_id', 'employee_id', 'employee_ssn',
+            'event_type', 'event_category', 'event_date', 'effective_date',
+            'event_details', 'event_payload',
+            'compensation_amount', 'previous_compensation',
+            'employee_deferral_rate', 'prev_employee_deferral_rate',
+            'employee_age', 'employee_tenure', 'employee_birth_date',
+            'level_id', 'age_band', 'tenure_band',
+            'simulation_year', 'event_probability'
+        ])
+
+    def generate_enrollment_change_events(self, cohort: pl.DataFrame, simulation_year: int) -> pl.DataFrame:
+        """
+        Generate enrollment change events (primarily opt-outs).
+
+        Allows enrolled employees to opt out of the plan.
+        Matches logic for enrollment_change events in SQL mode.
+        """
+        # Get opt-out rate parameter
+        optout_rate = self._get_parameter('ENROLLMENT', 'optout_rate', default=0.02)
+
+        # Filter to enrolled employees
+        enrolled = cohort.filter(
+            pl.col('is_enrolled') &
+            (pl.col('u_enrollment') < optout_rate)  # Use enrollment random value for opt-out
+        )
+
+        if enrolled.height == 0:
+            return pl.DataFrame()
+
+        # Generate opt-out events
+        optouts = enrolled.with_columns([
+            pl.lit('enrollment_change').alias('event_type'),
+            pl.lit('enrollment_change').alias('event_category'),
+            pl.date(simulation_year, 6, 30).alias('event_date'),  # Mid-year opt-outs
+            pl.date(simulation_year, 6, 30).alias('effective_date'),
+            pl.lit('Employee opted out of plan').alias('event_details'),
+            pl.lit('{"action": "opt_out"}').alias('event_payload'),
+            pl.lit(simulation_year).cast(pl.Int64).alias('simulation_year'),
+            pl.lit(optout_rate).alias('event_probability'),
+            # Compensation fields (null)
+            pl.lit(None).cast(pl.Float64).alias('compensation_amount'),
+            pl.lit(None).cast(pl.Float64).alias('previous_compensation'),
+            # Deferral rate becomes null after opt-out
+            pl.lit(None).cast(pl.Float64).alias('employee_deferral_rate'),
+            pl.col('employee_deferral_rate').alias('prev_employee_deferral_rate'),
+            # Demographic fields
+            pl.col('employee_ssn'),
+            pl.col('employee_birth_date'),
+            pl.lit(None).cast(pl.Int32).alias('employee_age'),
+            pl.col('tenure_years').cast(pl.Int32).alias('employee_tenure'),
+            pl.lit(None).cast(pl.Utf8).alias('age_band'),
+            pl.lit(None).cast(pl.Utf8).alias('tenure_band')
+        ])
+
+        return optouts.select([
             'scenario_id', 'plan_design_id', 'employee_id', 'employee_ssn',
             'event_type', 'event_category', 'event_date', 'effective_date',
             'event_details', 'event_payload',
@@ -1197,8 +1328,10 @@ class PolarsEventGenerator:
             ('hire', self.generate_hire_events),
             ('termination', self.generate_termination_events),
             ('promotion', self.generate_promotion_events),
-            ('merit', self.generate_merit_events),
-            ('enrollment', self.generate_enrollment_events)
+            ('raise', self.generate_merit_events),  # Changed from 'merit' to match SQL
+            ('enrollment', self.generate_enrollment_events),
+            ('deferral_escalation', self.generate_deferral_escalation_events),
+            ('enrollment_change', self.generate_enrollment_change_events)
         ]:
             event_start_time = time.time()
             events = generator_method(cohort_with_rng, simulation_year)
