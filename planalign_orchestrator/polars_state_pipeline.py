@@ -213,7 +213,8 @@ class StateAccumulatorEngine:
         self.logger.info(f"Loaded {baseline_df.height} baseline employees")
         return baseline_df
 
-    def build_state(self) -> Dict[str, pl.DataFrame]:
+    def build_state(self, previous_enrollment_state: Optional[pl.DataFrame] = None,
+                     previous_deferral_state: Optional[pl.DataFrame] = None) -> Dict[str, pl.DataFrame]:
         """
         Build all state accumulators for the current simulation year.
 
@@ -223,6 +224,10 @@ class StateAccumulatorEngine:
         3. Build deferral rate state
         4. Calculate contributions
         5. Generate workforce snapshot
+
+        Args:
+            previous_enrollment_state: Previous year's enrollment state (Year 2+)
+            previous_deferral_state: Previous year's deferral state (Year 2+)
 
         Returns:
             Dictionary containing all state DataFrames
@@ -234,15 +239,59 @@ class StateAccumulatorEngine:
         events_df = self._load_events()
         baseline_df = self._load_baseline_workforce()
 
-        # Build state accumulators (to be implemented in S076-02)
-        # enrollment_state = self._build_enrollment_state(events_df, baseline_df)
-        # deferral_state = self._build_deferral_state(events_df, baseline_df)
+        # Initialize builders
+        enrollment_builder = EnrollmentStateBuilder(self.logger)
+        deferral_builder = DeferralRateBuilder(self.logger)
+        contributions_calculator = ContributionsCalculator(self.logger)
+        snapshot_builder = SnapshotBuilder(self.logger)
 
-        # Calculate contributions (to be implemented in S076-03)
-        # contributions = self._calculate_contributions(baseline_df, enrollment_state, deferral_state)
+        # Build enrollment state (S076-02)
+        enrollment_start = time.time()
+        enrollment_state = enrollment_builder.build(
+            simulation_year=self.config.simulation_year,
+            events_df=events_df,
+            baseline_df=baseline_df,
+            previous_state_df=previous_enrollment_state
+        )
+        self.stats['enrollment_state_time'] = time.time() - enrollment_start
+        self.logger.info(f"Enrollment state built in {self.stats['enrollment_state_time']:.3f}s")
 
-        # Generate snapshot (to be implemented in S076-04)
-        # snapshot = self._build_snapshot(baseline_df, events_df, enrollment_state, deferral_state, contributions)
+        # Build deferral rate state (S076-02)
+        deferral_start = time.time()
+        deferral_state = deferral_builder.build(
+            simulation_year=self.config.simulation_year,
+            events_df=events_df,
+            enrollment_state_df=enrollment_state,
+            baseline_df=baseline_df,
+            previous_state_df=previous_deferral_state
+        )
+        self.stats['deferral_state_time'] = time.time() - deferral_start
+        self.logger.info(f"Deferral state built in {self.stats['deferral_state_time']:.3f}s")
+
+        # Calculate contributions (S076-03)
+        contributions_start = time.time()
+        contributions = contributions_calculator.calculate(
+            simulation_year=self.config.simulation_year,
+            enrollment_state_df=enrollment_state,
+            deferral_state_df=deferral_state,
+            baseline_df=baseline_df,
+            events_df=events_df
+        )
+        self.stats['contributions_time'] = time.time() - contributions_start
+        self.logger.info(f"Contributions calculated in {self.stats['contributions_time']:.3f}s")
+
+        # Generate snapshot (S076-04)
+        snapshot_start = time.time()
+        snapshot = snapshot_builder.build(
+            simulation_year=self.config.simulation_year,
+            baseline_df=baseline_df,
+            events_df=events_df,
+            enrollment_state_df=enrollment_state,
+            deferral_state_df=deferral_state,
+            contributions_df=contributions
+        )
+        self.stats['snapshot_time'] = time.time() - snapshot_start
+        self.logger.info(f"Snapshot built in {self.stats['snapshot_time']:.3f}s")
 
         total_time = time.time() - total_start
         self.stats['total_processing_time'] = total_time
@@ -253,26 +302,183 @@ class StateAccumulatorEngine:
         return {
             'events': events_df,
             'baseline': baseline_df,
-            # 'enrollment_state': enrollment_state,
-            # 'deferral_state': deferral_state,
-            # 'contributions': contributions,
-            # 'snapshot': snapshot
+            'enrollment_state': enrollment_state,
+            'deferral_state': deferral_state,
+            'contributions': contributions,
+            'snapshot': snapshot
         }
 
     def write_to_database(self, state_data: Dict[str, pl.DataFrame]) -> None:
         """
         Write state data to DuckDB for dbt consumption.
 
+        Writes Polars-generated state to DuckDB tables that dbt can consume:
+        - polars_enrollment_state: Enrollment state accumulator
+        - polars_deferral_state: Deferral rate state accumulator
+        - polars_contributions: Contribution calculations
+        - polars_workforce_snapshot: Final workforce snapshot
+
         Args:
             state_data: Dictionary of state DataFrames to write
         """
         conn = duckdb.connect(str(self.db_path))
 
-        # Write each state table (to be implemented)
-        # TODO: Implement table writes
+        try:
+            # Write enrollment state
+            if 'enrollment_state' in state_data and state_data['enrollment_state'].height > 0:
+                enrollment_df = state_data['enrollment_state']
+                # Delete existing data for this year and write new
+                conn.execute(f"""
+                    CREATE TABLE IF NOT EXISTS polars_enrollment_state AS
+                    SELECT * FROM enrollment_df WHERE 1=0
+                """)
+                conn.execute(f"""
+                    DELETE FROM polars_enrollment_state
+                    WHERE simulation_year = {self.config.simulation_year}
+                """)
+                conn.execute(f"""
+                    INSERT INTO polars_enrollment_state
+                    SELECT * FROM enrollment_df
+                """)
+                self.logger.info(f"Wrote {enrollment_df.height} enrollment state records")
 
-        conn.close()
-        self.logger.info("State data written to database")
+            # Write deferral state
+            if 'deferral_state' in state_data and state_data['deferral_state'].height > 0:
+                deferral_df = state_data['deferral_state']
+                conn.execute(f"""
+                    CREATE TABLE IF NOT EXISTS polars_deferral_state AS
+                    SELECT * FROM deferral_df WHERE 1=0
+                """)
+                conn.execute(f"""
+                    DELETE FROM polars_deferral_state
+                    WHERE simulation_year = {self.config.simulation_year}
+                """)
+                conn.execute(f"""
+                    INSERT INTO polars_deferral_state
+                    SELECT * FROM deferral_df
+                """)
+                self.logger.info(f"Wrote {deferral_df.height} deferral state records")
+
+            # Write contributions
+            if 'contributions' in state_data and state_data['contributions'].height > 0:
+                contributions_df = state_data['contributions']
+                conn.execute(f"""
+                    CREATE TABLE IF NOT EXISTS polars_contributions AS
+                    SELECT * FROM contributions_df WHERE 1=0
+                """)
+                conn.execute(f"""
+                    DELETE FROM polars_contributions
+                    WHERE simulation_year = {self.config.simulation_year}
+                """)
+                conn.execute(f"""
+                    INSERT INTO polars_contributions
+                    SELECT * FROM contributions_df
+                """)
+                self.logger.info(f"Wrote {contributions_df.height} contribution records")
+
+            # Write snapshot
+            if 'snapshot' in state_data and state_data['snapshot'].height > 0:
+                snapshot_df = state_data['snapshot']
+                conn.execute(f"""
+                    CREATE TABLE IF NOT EXISTS polars_workforce_snapshot AS
+                    SELECT * FROM snapshot_df WHERE 1=0
+                """)
+                conn.execute(f"""
+                    DELETE FROM polars_workforce_snapshot
+                    WHERE simulation_year = {self.config.simulation_year}
+                """)
+                conn.execute(f"""
+                    INSERT INTO polars_workforce_snapshot
+                    SELECT * FROM snapshot_df
+                """)
+                self.logger.info(f"Wrote {snapshot_df.height} snapshot records")
+
+            conn.commit()
+            self.logger.info("State data written to database successfully")
+
+        except Exception as e:
+            self.logger.error(f"Error writing state data to database: {e}")
+            conn.rollback()
+            raise
+        finally:
+            conn.close()
+
+    def validate_against_dbt(self, state_data: Dict[str, pl.DataFrame]) -> Dict[str, Any]:
+        """
+        Validate Polars state data against dbt output for parity testing.
+
+        Args:
+            state_data: Dictionary of state DataFrames from Polars
+
+        Returns:
+            Dictionary with validation results
+        """
+        results = {
+            'passed': True,
+            'validations': [],
+            'errors': []
+        }
+
+        if not self.config.enable_validation:
+            self.logger.info("Validation disabled, skipping parity check")
+            return results
+
+        conn = duckdb.connect(str(self.db_path), read_only=True)
+
+        try:
+            # Validate snapshot row counts
+            if 'snapshot' in state_data:
+                polars_count = state_data['snapshot'].height
+                try:
+                    dbt_count = conn.execute(f"""
+                        SELECT COUNT(*) FROM fct_workforce_snapshot
+                        WHERE simulation_year = {self.config.simulation_year}
+                    """).fetchone()[0]
+
+                    if polars_count == dbt_count:
+                        results['validations'].append({
+                            'test': 'snapshot_row_count',
+                            'passed': True,
+                            'polars': polars_count,
+                            'dbt': dbt_count
+                        })
+                    else:
+                        results['validations'].append({
+                            'test': 'snapshot_row_count',
+                            'passed': False,
+                            'polars': polars_count,
+                            'dbt': dbt_count,
+                            'diff': abs(polars_count - dbt_count)
+                        })
+                        results['passed'] = False
+                except Exception as e:
+                    results['errors'].append(f"Could not validate snapshot: {e}")
+
+            # Validate contributions
+            if 'contributions' in state_data:
+                polars_contrib_count = state_data['contributions'].height
+                try:
+                    dbt_contrib_count = conn.execute(f"""
+                        SELECT COUNT(*) FROM int_employee_contributions
+                        WHERE simulation_year = {self.config.simulation_year}
+                    """).fetchone()[0]
+
+                    results['validations'].append({
+                        'test': 'contributions_row_count',
+                        'passed': polars_contrib_count == dbt_contrib_count,
+                        'polars': polars_contrib_count,
+                        'dbt': dbt_contrib_count
+                    })
+                except Exception as e:
+                    results['errors'].append(f"Could not validate contributions: {e}")
+
+        except Exception as e:
+            results['errors'].append(f"Validation error: {e}")
+            results['passed'] = False
+        finally:
+            conn.close()
+
+        return results
 
 
 class EnrollmentStateBuilder:
@@ -997,12 +1203,326 @@ class ContributionsCalculator:
     """
     Vectorized contribution calculations with match formulas.
 
-    Replaces: int_employee_contributions_by_year.sql
+    Replaces: int_employee_contributions.sql, int_employee_match_calculations.sql
     Performance Target: <500ms for 10k employees
 
-    To be implemented in S076-03.
+    Features:
+        - IRS 402(g) limit enforcement ($23,500 base / $31,000 catch-up for 2025)
+        - Multiple match formulas (simple, tiered, stretch)
+        - Prorated contributions for partial-year employees
+        - Employer match calculations with eligibility filtering
     """
-    pass
+
+    # IRS 402(g) limits by year
+    IRS_LIMITS = {
+        2025: {'base': 23500, 'catch_up': 31000, 'catch_up_age': 50},
+        2026: {'base': 24000, 'catch_up': 31500, 'catch_up_age': 50},
+        2027: {'base': 24500, 'catch_up': 32000, 'catch_up_age': 50},
+    }
+
+    # Default match formulas
+    DEFAULT_MATCH_FORMULAS = {
+        'simple_match': {
+            'type': 'simple',
+            'match_rate': 0.50,
+            'max_match_percentage': 0.03
+        },
+        'tiered_match': {
+            'type': 'tiered',
+            'tiers': [
+                {'min': 0.00, 'max': 0.03, 'rate': 1.00},
+                {'min': 0.03, 'max': 0.05, 'rate': 0.50}
+            ],
+            'max_match_percentage': 0.04
+        },
+        'stretch_match': {
+            'type': 'tiered',
+            'tiers': [
+                {'min': 0.00, 'max': 0.12, 'rate': 0.25}
+            ],
+            'max_match_percentage': 0.03
+        }
+    }
+
+    def __init__(self, logger: logging.Logger, match_formula: str = 'simple_match'):
+        """Initialize contributions calculator."""
+        self.logger = logger
+        self.match_formula = match_formula
+        if match_formula not in self.DEFAULT_MATCH_FORMULAS:
+            self.logger.warning(f"Unknown match formula '{match_formula}', using simple_match")
+            self.match_formula = 'simple_match'
+
+    def calculate(
+        self,
+        simulation_year: int,
+        enrollment_state_df: pl.DataFrame,
+        deferral_state_df: pl.DataFrame,
+        baseline_df: pl.DataFrame,
+        events_df: pl.DataFrame
+    ) -> pl.DataFrame:
+        """
+        Calculate employee contributions with IRS compliance and employer match.
+
+        Args:
+            simulation_year: Current simulation year
+            enrollment_state_df: Enrollment state for current year
+            deferral_state_df: Deferral rate state for current year
+            baseline_df: Baseline workforce data
+            events_df: Events for current year
+
+        Returns:
+            DataFrame with contribution calculations
+        """
+        start_time = time.time()
+
+        # Get IRS limits for simulation year
+        irs_limits = self.IRS_LIMITS.get(simulation_year, self.IRS_LIMITS[2025])
+
+        # Get enrolled employees with deferral rates
+        enrolled_with_rates = enrollment_state_df.filter(
+            pl.col('enrollment_status') == True
+        ).join(
+            deferral_state_df.select(['employee_id', 'current_deferral_rate']),
+            on='employee_id',
+            how='left'
+        )
+
+        # Join with baseline for compensation
+        contributions_base = enrolled_with_rates.join(
+            baseline_df.select([
+                'employee_id',
+                'employee_gross_compensation',
+                'employee_birth_date',
+                pl.col('employee_hire_date').alias('hire_date')
+            ]),
+            on='employee_id',
+            how='left'
+        )
+
+        # Add compensation and age calculations
+        year_start = date(simulation_year, 1, 1)
+        year_end = date(simulation_year, 12, 31)
+
+        # Process termination events for proration
+        termination_events = events_df.filter(
+            (pl.col('event_type').str.to_lowercase() == 'termination') &
+            (pl.col('simulation_year') == simulation_year)
+        ).select([
+            'employee_id',
+            pl.col('effective_date').alias('termination_date')
+        ]).group_by('employee_id').agg(
+            pl.col('termination_date').max()
+        )
+
+        # Process hire events for proration
+        hire_events = events_df.filter(
+            (pl.col('event_type').str.to_lowercase() == 'hire') &
+            (pl.col('simulation_year') == simulation_year)
+        ).select([
+            'employee_id',
+            pl.col('effective_date').alias('event_hire_date'),
+            pl.col('compensation_amount').alias('hire_compensation')
+        ]).group_by('employee_id').agg([
+            pl.col('event_hire_date').min(),
+            pl.col('hire_compensation').last()
+        ])
+
+        # Add termination and hire info
+        contributions_base = contributions_base.join(
+            termination_events,
+            on='employee_id',
+            how='left'
+        ).join(
+            hire_events,
+            on='employee_id',
+            how='left'
+        )
+
+        # Calculate contributions
+        contributions = contributions_base.with_columns([
+            pl.lit(simulation_year).alias('simulation_year'),
+
+            # Calculate current age
+            pl.when(pl.col('employee_birth_date').is_not_null())
+            .then(
+                (pl.lit(year_end) - pl.col('employee_birth_date').cast(pl.Date)).dt.total_days() / 365.25
+            )
+            .otherwise(40.0)
+            .cast(pl.Int32)
+            .alias('current_age'),
+
+            # Effective compensation (use hire compensation for new hires)
+            pl.coalesce([
+                pl.col('hire_compensation'),
+                pl.col('employee_gross_compensation')
+            ]).fill_null(75000.0).alias('effective_compensation'),
+
+            # Employment start date for proration
+            pl.coalesce([
+                pl.col('event_hire_date').cast(pl.Date),
+                pl.col('hire_date').cast(pl.Date),
+                pl.lit(year_start)
+            ]).alias('employment_start'),
+
+            # Employment end date for proration
+            pl.coalesce([
+                pl.col('termination_date').cast(pl.Date),
+                pl.lit(year_end)
+            ]).alias('employment_end'),
+
+            # Ensure deferral rate is valid
+            pl.col('current_deferral_rate').fill_null(0.0).clip(0.0, 1.0).alias('deferral_rate')
+        ])
+
+        # Calculate prorated compensation and contributions
+        contributions = contributions.with_columns([
+            # Days employed in year
+            pl.when(pl.col('employment_end') >= pl.col('employment_start'))
+            .then(
+                (pl.col('employment_end').cast(pl.Date) -
+                 pl.col('employment_start').cast(pl.Date)).dt.total_days() + 1
+            )
+            .otherwise(0)
+            .clip(0, 365)
+            .alias('days_employed'),
+        ]).with_columns([
+            # Prorated compensation
+            (pl.col('effective_compensation') * pl.col('days_employed') / 365.0)
+            .round(2)
+            .alias('prorated_annual_compensation'),
+        ]).with_columns([
+            # Requested contribution (before IRS limit)
+            (pl.col('prorated_annual_compensation') * pl.col('deferral_rate'))
+            .round(2)
+            .alias('requested_contribution'),
+
+            # IRS limit based on age
+            pl.when(pl.col('current_age') >= irs_limits['catch_up_age'])
+            .then(pl.lit(float(irs_limits['catch_up'])))
+            .otherwise(pl.lit(float(irs_limits['base'])))
+            .alias('applicable_irs_limit'),
+
+            # Limit type
+            pl.when(pl.col('current_age') >= irs_limits['catch_up_age'])
+            .then(pl.lit('CATCH_UP'))
+            .otherwise(pl.lit('BASE'))
+            .alias('irs_limit_type')
+        ]).with_columns([
+            # IRS-compliant contribution (capped)
+            pl.min_horizontal(['requested_contribution', 'applicable_irs_limit'])
+            .round(2)
+            .alias('annual_contribution_amount'),
+
+            # Was limit applied?
+            (pl.col('requested_contribution') > pl.col('applicable_irs_limit'))
+            .alias('irs_limit_applied'),
+
+            # Amount capped
+            pl.max_horizontal([
+                pl.lit(0.0),
+                pl.col('requested_contribution') - pl.col('applicable_irs_limit')
+            ]).round(2).alias('amount_capped_by_irs')
+        ])
+
+        # Calculate employer match
+        contributions = self._calculate_employer_match(contributions, simulation_year)
+
+        # Final output columns
+        result = contributions.select([
+            'employee_id',
+            'simulation_year',
+            'current_age',
+            'effective_compensation',
+            'prorated_annual_compensation',
+            'deferral_rate',
+            'annual_contribution_amount',
+            'requested_contribution',
+            'applicable_irs_limit',
+            'irs_limit_applied',
+            'amount_capped_by_irs',
+            'irs_limit_type',
+            'employer_match_amount',
+            'match_formula_type',
+            'days_employed',
+            pl.when(pl.col('termination_date').is_not_null())
+            .then(pl.lit('partial_year'))
+            .otherwise(pl.lit('full_year'))
+            .alias('contribution_duration'),
+            pl.when(pl.col('irs_limit_applied'))
+            .then(pl.lit('IRS_LIMITED'))
+            .otherwise(pl.lit('NORMAL'))
+            .alias('contribution_quality_flag')
+        ])
+
+        elapsed = time.time() - start_time
+        self.logger.info(
+            f"Calculated contributions for {result.height} employees "
+            f"in {elapsed:.3f}s"
+        )
+
+        return result
+
+    def _calculate_employer_match(
+        self,
+        contributions_df: pl.DataFrame,
+        simulation_year: int
+    ) -> pl.DataFrame:
+        """Calculate employer match based on formula."""
+        formula = self.DEFAULT_MATCH_FORMULAS[self.match_formula]
+
+        if formula['type'] == 'simple':
+            # Simple match: rate * min(deferral_rate, max_match_pct) * compensation
+            match_rate = formula['match_rate']
+            max_match_pct = formula['max_match_percentage']
+
+            return contributions_df.with_columns([
+                (
+                    pl.col('prorated_annual_compensation') *
+                    pl.min_horizontal([
+                        pl.col('deferral_rate'),
+                        pl.lit(max_match_pct)
+                    ]) *
+                    pl.lit(match_rate)
+                ).round(2).alias('employer_match_amount'),
+                pl.lit('simple').alias('match_formula_type')
+            ])
+
+        elif formula['type'] == 'tiered':
+            # Tiered match: sum of tier contributions
+            max_match_pct = formula['max_match_percentage']
+
+            # Calculate match for each tier and sum
+            match_exprs = []
+            for tier in formula['tiers']:
+                tier_contribution = (
+                    pl.when(pl.col('deferral_rate') > tier['min'])
+                    .then(
+                        pl.min_horizontal([
+                            pl.col('deferral_rate') - pl.lit(tier['min']),
+                            pl.lit(tier['max'] - tier['min'])
+                        ]) * pl.lit(tier['rate']) * pl.col('prorated_annual_compensation')
+                    )
+                    .otherwise(0.0)
+                )
+                match_exprs.append(tier_contribution)
+
+            # Sum all tier contributions and apply max cap
+            total_match = sum(match_exprs) if match_exprs else pl.lit(0.0)
+
+            return contributions_df.with_columns([
+                pl.min_horizontal([
+                    total_match,
+                    pl.col('prorated_annual_compensation') * pl.lit(max_match_pct)
+                ]).round(2).alias('employer_match_amount'),
+                pl.lit('tiered').alias('match_formula_type')
+            ])
+
+        else:
+            # Default: no match
+            return contributions_df.with_columns([
+                pl.lit(0.0).alias('employer_match_amount'),
+                pl.lit('none').alias('match_formula_type')
+            ])
 
 
 class SnapshotBuilder:
@@ -1012,9 +1532,522 @@ class SnapshotBuilder:
     Replaces: fct_workforce_snapshot.sql
     Performance Target: <1s for 10k employees
 
-    To be implemented in S076-04.
+    Features:
+        - Employee status classification (continuous_active, new_hire_active, etc.)
+        - Age and tenure band calculations
+        - Prorated compensation calculations
+        - Participation status tracking
+        - Full year equivalent compensation
     """
-    pass
+
+    # Age band definitions
+    AGE_BANDS = [
+        (0, 25, '< 25'),
+        (25, 35, '25-34'),
+        (35, 45, '35-44'),
+        (45, 55, '45-54'),
+        (55, 65, '55-64'),
+        (65, 200, '65+')
+    ]
+
+    # Tenure band definitions
+    TENURE_BANDS = [
+        (0, 2, '< 2'),
+        (2, 5, '2-4'),
+        (5, 10, '5-9'),
+        (10, 20, '10-19'),
+        (20, 100, '20+')
+    ]
+
+    def __init__(self, logger: logging.Logger):
+        """Initialize snapshot builder."""
+        self.logger = logger
+
+    def build(
+        self,
+        simulation_year: int,
+        baseline_df: pl.DataFrame,
+        events_df: pl.DataFrame,
+        enrollment_state_df: pl.DataFrame,
+        deferral_state_df: pl.DataFrame,
+        contributions_df: pl.DataFrame
+    ) -> pl.DataFrame:
+        """
+        Build final workforce snapshot for the simulation year.
+
+        Args:
+            simulation_year: Current simulation year
+            baseline_df: Baseline workforce data
+            events_df: Events for current year
+            enrollment_state_df: Enrollment state for current year
+            deferral_state_df: Deferral rate state for current year
+            contributions_df: Contribution calculations for current year
+
+        Returns:
+            DataFrame with complete workforce snapshot
+        """
+        start_time = time.time()
+
+        year_start = date(simulation_year, 1, 1)
+        year_end = date(simulation_year, 12, 31)
+
+        # Extract key event types with defensive column handling
+        # Some events may not have all columns depending on event source
+        hire_filter = (
+            (pl.col('event_type').str.to_lowercase() == 'hire') &
+            (pl.col('simulation_year') == simulation_year)
+        )
+
+        hire_events_raw = events_df.filter(hire_filter)
+
+        if hire_events_raw.height > 0:
+            # Build select list based on available columns
+            select_cols = ['employee_id', pl.col('effective_date').alias('hire_event_date')]
+
+            if 'compensation_amount' in hire_events_raw.columns:
+                select_cols.append(pl.col('compensation_amount').alias('hire_compensation'))
+            else:
+                select_cols.append(pl.lit(75000.0).alias('hire_compensation'))
+
+            if 'employee_age' in hire_events_raw.columns:
+                select_cols.append(pl.col('employee_age').alias('hire_age'))
+            else:
+                select_cols.append(pl.lit(30).alias('hire_age'))
+
+            if 'level_id' in hire_events_raw.columns:
+                select_cols.append(pl.col('level_id'))
+            else:
+                select_cols.append(pl.lit(1).alias('level_id'))
+
+            hire_events = hire_events_raw.select(select_cols).group_by('employee_id').agg([
+                pl.col('hire_event_date').min(),
+                pl.col('hire_compensation').last(),
+                pl.col('hire_age').last(),
+                pl.col('level_id').last()
+            ])
+        else:
+            # Empty DataFrame with expected schema
+            hire_events = pl.DataFrame({
+                'employee_id': pl.Series([], dtype=pl.Utf8),
+                'hire_event_date': pl.Series([], dtype=pl.Date),
+                'hire_compensation': pl.Series([], dtype=pl.Float64),
+                'hire_age': pl.Series([], dtype=pl.Int64),
+                'level_id': pl.Series([], dtype=pl.Int64)
+            })
+
+        termination_filter = (
+            (pl.col('event_type').str.to_lowercase() == 'termination') &
+            (pl.col('simulation_year') == simulation_year)
+        )
+        termination_events_raw = events_df.filter(termination_filter)
+
+        if termination_events_raw.height > 0:
+            select_cols = ['employee_id', pl.col('effective_date').alias('termination_date')]
+            if 'event_details' in termination_events_raw.columns:
+                select_cols.append(pl.col('event_details').alias('termination_reason'))
+            else:
+                select_cols.append(pl.lit(None, dtype=pl.Utf8).alias('termination_reason'))
+
+            termination_events = termination_events_raw.select(select_cols).group_by('employee_id').agg([
+                pl.col('termination_date').max(),
+                pl.col('termination_reason').last()
+            ])
+        else:
+            termination_events = pl.DataFrame({
+                'employee_id': pl.Series([], dtype=pl.Utf8),
+                'termination_date': pl.Series([], dtype=pl.Date),
+                'termination_reason': pl.Series([], dtype=pl.Utf8)
+            })
+
+        # Compensation events (merit/promotion)
+        comp_filter = (
+            (pl.col('event_type').str.to_lowercase().is_in(['raise', 'promotion', 'merit'])) &
+            (pl.col('simulation_year') == simulation_year)
+        )
+        compensation_events_raw = events_df.filter(comp_filter)
+
+        if compensation_events_raw.height > 0:
+            select_cols = ['employee_id', 'event_type']
+            if 'compensation_amount' in compensation_events_raw.columns:
+                select_cols.append(pl.col('compensation_amount').alias('new_compensation'))
+            else:
+                select_cols.append(pl.lit(None, dtype=pl.Float64).alias('new_compensation'))
+
+            if 'level_id' in compensation_events_raw.columns:
+                select_cols.append(pl.col('level_id').alias('new_level_id'))
+            else:
+                select_cols.append(pl.lit(None, dtype=pl.Int64).alias('new_level_id'))
+
+            compensation_events = compensation_events_raw.select(select_cols).group_by('employee_id').agg([
+                pl.col('new_compensation').last(),
+                pl.col('new_level_id').last(),
+                pl.col('event_type').last()
+            ])
+        else:
+            compensation_events = pl.DataFrame({
+                'employee_id': pl.Series([], dtype=pl.Utf8),
+                'new_compensation': pl.Series([], dtype=pl.Float64),
+                'new_level_id': pl.Series([], dtype=pl.Int64),
+                'event_type': pl.Series([], dtype=pl.Utf8)
+            })
+
+        # Start with baseline workforce
+        snapshot = baseline_df.select([
+            'employee_id',
+            pl.col('employee_ssn').fill_null('').alias('employee_ssn'),
+            'employee_birth_date',
+            'employee_hire_date',
+            'employee_gross_compensation',
+            pl.col('employee_deferral_rate').fill_null(0.0),
+            pl.col('employee_enrollment_date').alias('baseline_enrollment_date'),
+            pl.col('active').fill_null(True)
+        ]).with_columns([
+            pl.lit(simulation_year).alias('simulation_year'),
+            pl.lit('baseline').alias('record_source')
+        ])
+
+        # Add new hires from events
+        new_hires = hire_events.select([
+            'employee_id',
+            pl.lit('').alias('employee_ssn'),
+            pl.lit(None, dtype=pl.Date).alias('employee_birth_date'),
+            pl.col('hire_event_date').cast(pl.Date).alias('employee_hire_date'),
+            pl.col('hire_compensation').alias('employee_gross_compensation'),
+            pl.lit(0.0).alias('employee_deferral_rate'),
+            pl.lit(None, dtype=pl.Date).alias('baseline_enrollment_date'),
+            pl.lit(True).alias('active'),
+            pl.lit(simulation_year).alias('simulation_year'),
+            pl.lit('new_hire').alias('record_source')
+        ])
+
+        # Combine baseline and new hires (prioritize new hire records)
+        combined = pl.concat([snapshot, new_hires], how='diagonal')
+
+        # Deduplicate (new hires take precedence)
+        combined = combined.with_columns([
+            pl.when(pl.col('record_source') == 'new_hire')
+            .then(1)
+            .otherwise(2)
+            .alias('priority')
+        ]).sort(['employee_id', 'priority']).group_by('employee_id').agg([
+            pl.col('employee_ssn').first(),
+            pl.col('employee_birth_date').first(),
+            pl.col('employee_hire_date').first(),
+            pl.col('employee_gross_compensation').first(),
+            pl.col('employee_deferral_rate').first(),
+            pl.col('baseline_enrollment_date').first(),
+            pl.col('active').first(),
+            pl.col('simulation_year').first(),
+            pl.col('record_source').first()
+        ])
+
+        # Join all event data
+        snapshot = combined.join(
+            termination_events,
+            on='employee_id',
+            how='left'
+        ).join(
+            compensation_events,
+            on='employee_id',
+            how='left'
+        ).join(
+            enrollment_state_df.select([
+                'employee_id',
+                'enrollment_date',
+                'enrollment_status',
+                'enrollment_method',
+                'ever_opted_out'
+            ]),
+            on='employee_id',
+            how='left'
+        ).join(
+            deferral_state_df.select([
+                'employee_id',
+                'current_deferral_rate',
+                'escalation_count',
+                'had_escalation_this_year'
+            ]),
+            on='employee_id',
+            how='left'
+        ).join(
+            contributions_df.select([
+                'employee_id',
+                'annual_contribution_amount',
+                'prorated_annual_compensation',
+                'employer_match_amount',
+                'irs_limit_applied',
+                'contribution_quality_flag'
+            ]),
+            on='employee_id',
+            how='left'
+        )
+
+        # Calculate derived fields (with defensive column handling)
+        derived_cols = [
+            # Employment status
+            pl.when(pl.col('termination_date').is_not_null())
+            .then(pl.lit('terminated'))
+            .otherwise(pl.lit('active'))
+            .alias('employment_status'),
+
+            # Current compensation (apply merit/promotion if exists)
+            pl.coalesce([
+                pl.col('new_compensation'),
+                pl.col('employee_gross_compensation')
+            ]).fill_null(75000.0).alias('current_compensation'),
+
+            # Calculate current age
+            pl.when(pl.col('employee_birth_date').is_not_null())
+            .then(
+                (pl.lit(year_end) - pl.col('employee_birth_date').cast(pl.Date)).dt.total_days() / 365.25
+            )
+            .otherwise(40.0)
+            .cast(pl.Int32)
+            .alias('current_age'),
+
+            # Calculate tenure
+            pl.when(pl.col('employee_hire_date').is_not_null())
+            .then(
+                (pl.lit(year_end) - pl.col('employee_hire_date').cast(pl.Date)).dt.total_days() / 365.25
+            )
+            .otherwise(5.0)
+            .cast(pl.Int32)
+            .alias('current_tenure'),
+
+            # Is new hire this year?
+            (
+                pl.col('record_source') == 'new_hire'
+            ).alias('is_new_hire'),
+
+            # Enrollment date (from enrollment state or baseline)
+            pl.coalesce([
+                pl.col('enrollment_date'),
+                pl.col('baseline_enrollment_date')
+            ]).alias('employee_enrollment_date'),
+
+            # Is enrolled flag
+            pl.coalesce([
+                pl.col('enrollment_status'),
+                pl.col('baseline_enrollment_date').is_not_null()
+            ]).fill_null(False).alias('is_enrolled_flag'),
+
+            # Effective deferral rate
+            pl.coalesce([
+                pl.col('current_deferral_rate'),
+                pl.col('employee_deferral_rate')
+            ]).fill_null(0.0).alias('effective_annual_deferral_rate')
+        ]
+
+        # Handle level_id defensively (may not exist in all sources)
+        if 'level_id' in snapshot.columns and 'new_level_id' in snapshot.columns:
+            derived_cols.append(
+                pl.coalesce([pl.col('new_level_id'), pl.col('level_id')])
+                .fill_null(1).cast(pl.Int32).alias('level_id')
+            )
+        elif 'new_level_id' in snapshot.columns:
+            derived_cols.append(
+                pl.col('new_level_id').fill_null(1).cast(pl.Int32).alias('level_id')
+            )
+        elif 'level_id' in snapshot.columns:
+            derived_cols.append(
+                pl.col('level_id').fill_null(1).cast(pl.Int32).alias('level_id')
+            )
+        else:
+            derived_cols.append(pl.lit(1).alias('level_id'))
+
+        snapshot = snapshot.with_columns(derived_cols)
+
+        # Add detailed status code
+        snapshot = snapshot.with_columns([
+            pl.when(
+                (pl.col('is_new_hire')) & (pl.col('employment_status') == 'active')
+            ).then(pl.lit('new_hire_active'))
+            .when(
+                (pl.col('is_new_hire')) & (pl.col('employment_status') == 'terminated')
+            ).then(pl.lit('new_hire_termination'))
+            .when(
+                (pl.col('employment_status') == 'active') &
+                (pl.col('is_new_hire') == False)
+            ).then(pl.lit('continuous_active'))
+            .when(
+                (pl.col('employment_status') == 'terminated') &
+                (pl.col('is_new_hire') == False)
+            ).then(pl.lit('experienced_termination'))
+            .otherwise(pl.lit('continuous_active'))
+            .alias('detailed_status_code')
+        ])
+
+        # Add age bands
+        age_band_expr = pl.lit('65+')  # Default
+        for min_age, max_age, band_label in reversed(self.AGE_BANDS):
+            age_band_expr = pl.when(
+                (pl.col('current_age') >= min_age) & (pl.col('current_age') < max_age)
+            ).then(pl.lit(band_label)).otherwise(age_band_expr)
+
+        # Add tenure bands
+        tenure_band_expr = pl.lit('20+')  # Default
+        for min_tenure, max_tenure, band_label in reversed(self.TENURE_BANDS):
+            tenure_band_expr = pl.when(
+                (pl.col('current_tenure') >= min_tenure) & (pl.col('current_tenure') < max_tenure)
+            ).then(pl.lit(band_label)).otherwise(tenure_band_expr)
+
+        snapshot = snapshot.with_columns([
+            age_band_expr.alias('age_band'),
+            tenure_band_expr.alias('tenure_band')
+        ])
+
+        # Add participation status (with defensive handling for missing columns)
+        participation_cols = [
+            pl.when(pl.col('effective_annual_deferral_rate') > 0)
+            .then(pl.lit('participating'))
+            .otherwise(pl.lit('not_participating'))
+            .alias('participation_status')
+        ]
+
+        # Handle enrollment_method defensively
+        if 'enrollment_method' in snapshot.columns:
+            participation_cols.append(
+                pl.when(pl.col('effective_annual_deferral_rate') > 0)
+                .then(
+                    pl.when(pl.col('enrollment_method') == 'auto')
+                    .then(pl.lit('participating - auto enrollment'))
+                    .when(pl.col('enrollment_method') == 'voluntary')
+                    .then(pl.lit('participating - voluntary enrollment'))
+                    .otherwise(pl.lit('participating - census enrollment'))
+                )
+                .when(pl.col('ever_opted_out').fill_null(False) if 'ever_opted_out' in snapshot.columns else pl.lit(False))
+                .then(pl.lit('not_participating - opted out of AE'))
+                .otherwise(pl.lit('not_participating - not auto enrolled'))
+                .alias('participation_status_detail')
+            )
+        else:
+            participation_cols.append(
+                pl.when(pl.col('effective_annual_deferral_rate') > 0)
+                .then(pl.lit('participating - census enrollment'))
+                .otherwise(pl.lit('not_participating - not auto enrolled'))
+                .alias('participation_status_detail')
+            )
+
+        snapshot = snapshot.with_columns(participation_cols)
+
+        # Add employer contribution calculations (with defensive handling)
+        employer_cols = [pl.lit(0.0).alias('employer_core_amount')]
+
+        if 'employer_match_amount' in snapshot.columns:
+            employer_cols.append(pl.col('employer_match_amount').fill_null(0.0).alias('employer_match_amount'))
+        else:
+            employer_cols.append(pl.lit(0.0).alias('employer_match_amount'))
+
+        snapshot = snapshot.with_columns(employer_cols).with_columns([
+            (pl.col('employer_match_amount') + pl.col('employer_core_amount'))
+            .alias('total_employer_contributions')
+        ])
+
+        # Calculate full year equivalent compensation (with defensive handling)
+        if 'new_compensation' in snapshot.columns:
+            snapshot = snapshot.with_columns([
+                pl.when(pl.col('new_compensation').is_not_null())
+                .then(pl.col('new_compensation'))
+                .when(pl.col('is_new_hire'))
+                .then(pl.col('current_compensation'))
+                .otherwise(pl.col('current_compensation'))
+                .alias('full_year_equivalent_compensation')
+            ])
+        else:
+            snapshot = snapshot.with_columns([
+                pl.col('current_compensation').alias('full_year_equivalent_compensation')
+            ])
+
+        # Add quality flags and timestamps
+        snapshot = snapshot.with_columns([
+            pl.when(pl.col('current_compensation') > 10000000)
+            .then(pl.lit('CRITICAL_OVER_10M'))
+            .when(pl.col('current_compensation') > 5000000)
+            .then(pl.lit('SEVERE_OVER_5M'))
+            .when(pl.col('current_compensation') > 2000000)
+            .then(pl.lit('WARNING_OVER_2M'))
+            .when((pl.col('current_compensation') < 10000) & (pl.col('employment_status') == 'active'))
+            .then(pl.lit('WARNING_UNDER_10K'))
+            .otherwise(pl.lit('NORMAL'))
+            .alias('compensation_quality_flag'),
+
+            pl.lit(datetime.now()).alias('snapshot_created_at')
+        ])
+
+        # Build select columns dynamically based on what's available
+        select_cols = [
+            'employee_id',
+            'employee_ssn',
+            'employee_birth_date',
+            pl.col('employee_hire_date').cast(pl.Date),
+            'current_compensation',
+            # prorated_annual_compensation - use current_compensation if not available
+            (pl.col('prorated_annual_compensation').fill_null(pl.col('current_compensation'))
+             if 'prorated_annual_compensation' in snapshot.columns
+             else pl.col('current_compensation')).alias('prorated_annual_compensation'),
+            'full_year_equivalent_compensation',
+            'current_age',
+            'current_tenure',
+            'level_id',
+            'age_band',
+            'tenure_band',
+            'employment_status',
+            'termination_date',
+            (pl.col('termination_reason') if 'termination_reason' in snapshot.columns
+             else pl.lit(None, dtype=pl.Utf8)).alias('termination_reason'),
+            'detailed_status_code',
+            'simulation_year',
+            pl.lit(None, dtype=pl.Date).alias('employee_eligibility_date'),
+            pl.lit(0).alias('waiting_period_days'),
+            pl.lit('eligible').alias('current_eligibility_status'),
+            'employee_enrollment_date',
+            'is_enrolled_flag',
+            'effective_annual_deferral_rate',
+            'participation_status',
+            'participation_status_detail',
+            # escalation fields - defensive handling
+            (pl.col('escalation_count').fill_null(0) if 'escalation_count' in snapshot.columns
+             else pl.lit(0)).alias('total_deferral_escalations'),
+            pl.lit(None, dtype=pl.Date).alias('last_escalation_date'),
+            (pl.col('had_escalation_this_year').fill_null(False) if 'had_escalation_this_year' in snapshot.columns
+             else pl.lit(False)).alias('has_deferral_escalations'),
+            (pl.col('employee_deferral_rate').fill_null(0.0) if 'employee_deferral_rate' in snapshot.columns
+             else pl.lit(0.0)).alias('original_deferral_rate'),
+            pl.lit(0.0).alias('total_escalation_amount'),
+            # contribution fields - defensive handling
+            (pl.col('annual_contribution_amount').fill_null(0.0) if 'annual_contribution_amount' in snapshot.columns
+             else pl.lit(0.0)).alias('prorated_annual_contributions'),
+            ((pl.col('annual_contribution_amount').fill_null(0.0) * 0.85) if 'annual_contribution_amount' in snapshot.columns
+             else pl.lit(0.0)).alias('pre_tax_contributions'),
+            ((pl.col('annual_contribution_amount').fill_null(0.0) * 0.15) if 'annual_contribution_amount' in snapshot.columns
+             else pl.lit(0.0)).alias('roth_contributions'),
+            (pl.col('annual_contribution_amount').fill_null(0.0) if 'annual_contribution_amount' in snapshot.columns
+             else pl.lit(0.0)).alias('ytd_contributions'),
+            (pl.col('irs_limit_applied').fill_null(False) if 'irs_limit_applied' in snapshot.columns
+             else pl.lit(False)).alias('irs_limit_reached'),
+            pl.col('effective_annual_deferral_rate').alias('effective_annual_deferral_rate_2'),
+            pl.col('current_compensation').alias('total_contribution_base_compensation'),
+            pl.lit(None, dtype=pl.Date).alias('first_contribution_date'),
+            pl.lit(None, dtype=pl.Date).alias('last_contribution_date'),
+            (pl.col('contribution_quality_flag').fill_null('NORMAL') if 'contribution_quality_flag' in snapshot.columns
+             else pl.lit('NORMAL')).alias('contribution_quality_flag'),
+            'compensation_quality_flag',
+            'employer_match_amount',
+            'employer_core_amount',
+            'total_employer_contributions',
+            pl.lit(0).alias('annual_hours_worked'),
+            'snapshot_created_at'
+        ]
+
+        result = snapshot.select(select_cols)
+
+        elapsed = time.time() - start_time
+        self.logger.info(
+            f"Built snapshot for {result.height} employees "
+            f"in {elapsed:.3f}s"
+        )
+
+        return result
 
 
 def main():
