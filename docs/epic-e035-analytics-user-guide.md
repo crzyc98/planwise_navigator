@@ -56,7 +56,7 @@ The analytics dashboard directly monitors compliance with all original user requ
 ## Navigation & Usage
 
 ### Accessing the Dashboard
-1. Open PlanWise Navigator Streamlit application
+1. Open Fidelity PlanAlign Engine Streamlit application
 2. Navigate to **"Deferral Escalation Analytics"** in the sidebar
 3. Select desired analysis tab:
    - **Overview KPIs**: High-level system metrics
@@ -169,7 +169,7 @@ The analytics dashboard directly monitors compliance with all original user requ
 - **Epic**: E035 - Automatic Deferral Rate Escalation
 - **Dashboard Version**: 1.0.0
 - **Last Updated**: 2025-01-08
-- **Compatibility**: PlanWise Navigator v3.0+
+- **Compatibility**: Fidelity PlanAlign Engine v3.0+
 
 ---
 

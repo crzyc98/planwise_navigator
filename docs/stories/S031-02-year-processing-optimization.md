@@ -349,7 +349,7 @@ QUALIFY ROW_NUMBER() OVER (
 ### dbt Batch Execution Configuration
 ```yaml
 # profiles.yml optimization
-planwise_navigator:
+planalign_engine:
   target: prod
   outputs:
     prod:
@@ -368,7 +368,7 @@ planwise_navigator:
 
 # dbt_project.yml optimization
 models:
-  planwise_navigator:
+  planalign_engine:
     staging:
       +materialized: view
       +pre-hook: "SET memory_limit='1GB'"

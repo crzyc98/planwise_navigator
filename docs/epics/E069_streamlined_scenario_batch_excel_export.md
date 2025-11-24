@@ -14,7 +14,7 @@
 
 ## Business Context
 
-Currently, PlanWise Navigator requires manual editing of `config/simulation_config.yaml` for each scenario run, creating significant friction for comparative analysis. Analysts need to:
+Currently, Fidelity PlanAlign Engine requires manual editing of `config/simulation_config.yaml` for each scenario run, creating significant friction for comparative analysis. Analysts need to:
 
 1. Manually edit configuration files
 2. Run simulations individually
@@ -48,7 +48,7 @@ This epic streamlines the entire workflow into a single batch command that runs 
 - [x] **Metadata sheet** with scenario configuration (base + overrides), git SHA, pipeline version, random seed, start/end years, row counts, and export options
 
 ### CLI Integration
-- [x] **New `batch` subcommand** in navigator_orchestrator CLI
+- [x] **New `batch` subcommand** in planalign_orchestrator CLI
 - [x] **Scenario directory discovery** automatically finding YAML configs
 - [x] **Output organization** with timestamped batch directories
 - [x] **Export format options** (Excel primary, CSV secondary)
@@ -62,7 +62,7 @@ This epic streamlines the entire workflow into a single batch command that runs 
 
 | Story | Title | Points | Owner | Status | Dependencies |
 |-------|-------|--------|-------|--------|--------------|
-| **S069-01** | Scenario Batch Runner Core | 4 | Platform | ✅ **COMPLETE** | navigator_orchestrator.pipeline |
+| **S069-01** | Scenario Batch Runner Core | 4 | Platform | ✅ **COMPLETE** | planalign_orchestrator.pipeline |
 | **S069-02** | Excel Export Integration | 3 | Platform | ✅ **COMPLETE** | S069-01 |
 | **S069-03** | CLI Batch Subcommand | 3 | Platform | ✅ **COMPLETE** | S069-01 |
 | **S069-04** | Example Scenarios & Documentation | 2 | Platform | ✅ **COMPLETE** | S069-01,02,03 |
@@ -75,9 +75,9 @@ This epic streamlines the entire workflow into a single batch command that runs 
 **Implementation Status**: All acceptance criteria met, fully production-ready
 
 ### Key Deliverables:
-- **ScenarioBatchRunner**: `navigator_orchestrator/scenario_batch_runner.py` - Core batch execution engine
-- **ExcelExporter**: `navigator_orchestrator/excel_exporter.py` - Professional Excel/CSV export with metadata
-- **CLI Integration**: `navigator_orchestrator batch` subcommand with full parameter support
+- **ScenarioBatchRunner**: `planalign_orchestrator/scenario_batch_runner.py` - Core batch execution engine
+- **ExcelExporter**: `planalign_orchestrator/excel_exporter.py` - Professional Excel/CSV export with metadata
+- **CLI Integration**: `planalign_orchestrator batch` subcommand with full parameter support
 - **Example Scenarios**: 5 production scenarios in `scenarios/` directory with comprehensive documentation
 - **Database Isolation**: Unique `.duckdb` per scenario with deterministic seeding
 - **Error Resilience**: Graceful failure handling with detailed batch reporting
@@ -85,16 +85,16 @@ This epic streamlines the entire workflow into a single batch command that runs 
 ### Usage Examples:
 ```bash
 # Run all scenarios with Excel export
-python -m navigator_orchestrator batch
+python -m planalign_orchestrator batch
 
 # Run specific scenarios
-python -m navigator_orchestrator batch --scenarios high_growth baseline cost_control
+python -m planalign_orchestrator batch --scenarios high_growth baseline cost_control
 
 # Clean databases before running for a fresh start
-python -m navigator_orchestrator batch --clean
+python -m planalign_orchestrator batch --clean
 
 # Custom output directory and CSV format
-python -m navigator_orchestrator batch --output-dir analysis_results --export-format csv
+python -m planalign_orchestrator batch --output-dir analysis_results --export-format csv
 ```
 
 ## Technical Implementation
@@ -116,7 +116,7 @@ graph TD
 
 ### Core Components
 
-#### 1. Scenario Batch Runner (`navigator_orchestrator/scenario_batch_runner.py`)
+#### 1. Scenario Batch Runner (`planalign_orchestrator/scenario_batch_runner.py`)
 
 ```python
 from __future__ import annotations
@@ -225,7 +225,7 @@ class ScenarioBatchRunner:
             raise ValueError("end_year must be >= start_year")
 ```
 
-#### 2. Excel Export Module (`navigator_orchestrator/excel_exporter.py`)
+#### 2. Excel Export Module (`planalign_orchestrator/excel_exporter.py`)
 
 ```python
 from __future__ import annotations
@@ -364,7 +364,7 @@ class ExcelExporter:
         )
 ```
 
-#### 3. CLI Integration (extends `navigator_orchestrator/cli.py`)
+#### 3. CLI Integration (extends `planalign_orchestrator/cli.py`)
 
 ```python
 def cmd_batch(args: argparse.Namespace) -> int:
@@ -439,25 +439,25 @@ workforce:
 
 ```bash
 # Run all scenarios in directory
-python -m navigator_orchestrator batch --scenarios-dir scenarios/
+python -m planalign_orchestrator batch --scenarios-dir scenarios/
 
 # Run specific scenarios
-python -m navigator_orchestrator batch --scenarios high_growth low_termination baseline
+python -m planalign_orchestrator batch --scenarios high_growth low_termination baseline
 
 # Clean databases before running for a fresh start
-python -m navigator_orchestrator batch --clean
+python -m planalign_orchestrator batch --clean
 
 # Custom output location
-python -m navigator_orchestrator batch --output-dir /path/to/analysis --scenarios-dir /path/to/scenarios
+python -m planalign_orchestrator batch --output-dir /path/to/analysis --scenarios-dir /path/to/scenarios
 
 # Alternative export format
-python -m navigator_orchestrator batch --export-format csv
+python -m planalign_orchestrator batch --export-format csv
 
 # Force per-year splitting for very large snapshots
-python -m navigator_orchestrator batch --split-by-year
+python -m planalign_orchestrator batch --split-by-year
 
 # Combine options for a clean run with specific scenarios
-python -m navigator_orchestrator batch --scenarios baseline high_growth --clean
+python -m planalign_orchestrator batch --scenarios baseline high_growth --clean
 ```
 
 ### Output Structure
@@ -487,7 +487,7 @@ outputs/batch_20250109_143022/
 
 ## Dependencies
 
-- **navigator_orchestrator.pipeline**: Core simulation execution
+- **planalign_orchestrator.pipeline**: Core simulation execution
 - **pandas + openpyxl**: Excel export capabilities
 - **existing CLI framework**: argparse-based command structure
 - **DatabaseConnectionManager**: DuckDB isolation support
@@ -520,5 +520,5 @@ outputs/batch_20250109_143022/
 
 **Epic Owner**: Platform Team
 **Business Stakeholder**: Workforce Planning Analysts
-**Technical Dependencies**: navigator_orchestrator, pandas, openpyxl
+**Technical Dependencies**: planalign_orchestrator, pandas, openpyxl
 **Delivery Target**: Sprint 2025.02 (January 20-31, 2025)

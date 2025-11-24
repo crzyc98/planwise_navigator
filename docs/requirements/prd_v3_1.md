@@ -1,4 +1,4 @@
-# PlanWise Navigator - Product Requirements Document v3.0
+# Fidelity PlanAlign Engine - Product Requirements Document v3.0
 
 **Date**: 2025-06-25
 **Version**: 3.1 (Post-Epic E013 - Modular Architecture)
@@ -9,7 +9,7 @@
 
 ## 1. Executive Summary
 
-PlanWise Navigator is Fidelity's advanced on-premises workforce simulation platform with **immutable event sourcing** that captures every employee lifecycle event with UUID-stamped precision. This enterprise-grade system transforms workforce modeling from rigid spreadsheets to a dynamic, fully transparent simulation engine—essentially a workforce "time machine" enabling instant scenario replay and audit trail transparency.
+Fidelity PlanAlign Engine is Fidelity's advanced on-premises workforce simulation platform with **immutable event sourcing** that captures every employee lifecycle event with UUID-stamped precision. This enterprise-grade system transforms workforce modeling from rigid spreadsheets to a dynamic, fully transparent simulation engine—essentially a workforce "time machine" enabling instant scenario replay and audit trail transparency.
 
 This document defines the **production-ready system** built on event-sourced architecture with **modular design** achieved through Epic E013.
 
@@ -994,7 +994,7 @@ The following are explicitly **OUT OF SCOPE** for this rebuild:
 
 ```mermaid
 gantt
-    title PlanWise Navigator Delivery Timeline
+    title Fidelity PlanAlign Engine Delivery Timeline
     dateFormat YYYY-MM-DD
     section MVP
     Foundation Setup    :2025-01-06, 5d
@@ -1296,7 +1296,7 @@ streamlit run streamlit_dashboard/main.py --port 8501
 
 #### **Event Sourcing**
 - **Definition**: Architectural pattern where state changes are stored as immutable events
-- **Context**: Core pattern for PlanWise Navigator's audit trail and reproducibility
+- **Context**: Core pattern for Fidelity PlanAlign Engine's audit trail and reproducibility
 - **Benefits**: Complete audit trail, point-in-time reconstruction, reproducible results
 
 #### **UUID (Universally Unique Identifier)**
@@ -1311,7 +1311,7 @@ streamlit run streamlit_dashboard/main.py --port 8501
 
 #### **Asset-based Pipeline**
 - **Definition**: Dagster's approach where data assets define pipeline structure
-- **Context**: Orchestration pattern for PlanWise Navigator's data processing
+- **Context**: Orchestration pattern for Fidelity PlanAlign Engine's data processing
 - **Benefits**: Dependency management, incremental processing, monitoring
 
 ### 12.2 Business Terms
@@ -1444,7 +1444,7 @@ compensation:
 
 ### 11.2 Key File Structure
 ```
-planwise_navigator/
+planalign_engine/
 ├── definitions.py          # Dagster entry point
 ├── orchestrator/           # Pipeline code
 ├── dbt/                    # SQL models
@@ -1459,7 +1459,7 @@ planwise_navigator/
 
 ### 12.1 Transformation Results
 
-**Epic E013** (June 2025) achieved a **complete modular architecture transformation** of the PlanWise Navigator simulation pipeline:
+**Epic E013** (June 2025) achieved a **complete modular architecture transformation** of the Fidelity PlanAlign Engine simulation pipeline:
 
 #### **Code Reduction Achievements**
 | Component | Original Lines | Modular Lines | Reduction |

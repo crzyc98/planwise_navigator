@@ -2,7 +2,7 @@
 
 ## Purpose
 
-The `orchestrator/simulation_pipeline.py` file contains the heart of the PlanWise Navigator system - the unified workforce simulation pipeline that orchestrates multi-year workforce modeling using Dagster and dbt integration.
+The `orchestrator/simulation_pipeline.py` file contains the heart of the Fidelity PlanAlign Engine system - the unified workforce simulation pipeline that orchestrates multi-year workforce modeling using Dagster and dbt integration.
 
 ## Architecture
 

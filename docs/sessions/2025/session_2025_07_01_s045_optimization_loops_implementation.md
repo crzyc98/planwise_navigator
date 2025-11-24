@@ -278,7 +278,7 @@ for asset_name in existing_assets:
 **Consistent Configuration**: Maintains existing patterns
 ```python
 env = os.environ.copy()
-env["DAGSTER_HOME"] = "/Users/nicholasamaral/planwise_navigator/.dagster"
+env["DAGSTER_HOME"] = "/Users/nicholasamaral/planalign_engine/.dagster"
 ```
 
 ### Database Configuration

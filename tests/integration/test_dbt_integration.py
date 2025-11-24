@@ -2,7 +2,7 @@ from pathlib import Path
 
 import pytest
 
-from navigator_orchestrator.dbt_runner import (DbtCompilationError,
+from planalign_orchestrator.dbt_runner import (DbtCompilationError,
                                                DbtDataQualityError,
                                                DbtExecutionError, DbtResult,
                                                DbtRunner, classify_dbt_error,

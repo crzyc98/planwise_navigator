@@ -187,7 +187,7 @@ The eligibility engine creates immutable ELIGIBILITY events with complete audit 
 ## 🔍 Code Review Notes
 
 ### Best Practices Followed
-- **PlanWise Navigator Patterns**: Follows existing architectural conventions
+- **Fidelity PlanAlign Engine Patterns**: Follows existing architectural conventions
 - **Event Sourcing**: Proper immutable event creation
 - **Type Safety**: Pydantic v2 validation throughout
 - **Testing**: Comprehensive unit and integration test coverage

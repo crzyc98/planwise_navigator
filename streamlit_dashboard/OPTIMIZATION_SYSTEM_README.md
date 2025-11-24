@@ -1,6 +1,6 @@
-# PlanWise Navigator Unified Optimization Results Storage System
+# Fidelity PlanAlign Engine Unified Optimization Results Storage System
 
-A comprehensive, production-ready optimization results management system for PlanWise Navigator that unifies storage, retrieval, and analysis of optimization results from both advanced optimization and compensation tuning interfaces.
+A comprehensive, production-ready optimization results management system for Fidelity PlanAlign Engine that unifies storage, retrieval, and analysis of optimization results from both advanced optimization and compensation tuning interfaces.
 
 ## 🎯 Overview
 
@@ -17,7 +17,7 @@ This system provides:
 
 ```
 ┌─────────────────────────────────────────────────────────────────┐
-│                    PlanWise Navigator                           │
+│                    Fidelity PlanAlign Engine                           │
 │  ┌─────────────────┐  ┌─────────────────┐  ┌─────────────────┐  │
 │  │ Advanced        │  │ Compensation    │  │ Optimization    │  │
 │  │ Optimization    │  │ Tuning          │  │ Dashboard       │  │
@@ -51,7 +51,7 @@ This system provides:
 ### 1. Setup the System
 
 ```bash
-cd /Users/nicholasamaral/planwise_navigator/streamlit_dashboard
+cd /Users/nicholasamaral/planalign_engine/streamlit_dashboard
 python setup_optimization_storage.py
 ```
 
@@ -118,7 +118,7 @@ add_results_viewer_widget()
 - **Integration**: Works with both advanced optimization and compensation tuning
 
 ### 3. DuckDB Integration (`optimization_integration.py`)
-- **Purpose**: Integration with existing PlanWise Navigator database
+- **Purpose**: Integration with existing Fidelity PlanAlign Engine database
 - **Features**: Data quality validation, simulation data integration, caching
 - **Compatibility**: Works with existing `simulation.duckdb`
 
@@ -447,7 +447,7 @@ for run_id in run_ids:
    ```python
    # Check system path
    import sys
-   sys.path.insert(0, '/Users/nicholasamaral/planwise_navigator/streamlit_dashboard')
+   sys.path.insert(0, '/Users/nicholasamaral/planalign_engine/streamlit_dashboard')
    ```
 
 4. **Memory Issues**:
@@ -620,5 +620,5 @@ For issues, questions, or contributions:
 
 ---
 
-**PlanWise Navigator Optimization Storage System v1.0.0**
+**Fidelity PlanAlign Engine Optimization Storage System v1.0.0**
 *Built for enterprise-grade optimization result management*

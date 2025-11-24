@@ -8,7 +8,7 @@
 
 ## Overview
 
-This guide provides comprehensive guidance for selecting optimal algorithms in PlanWise Navigator's Auto-Optimize system. The S047 Optimization Engine supports multiple SciPy-based algorithms, each with distinct characteristics and optimal use cases.
+This guide provides comprehensive guidance for selecting optimal algorithms in Fidelity PlanAlign Engine's Auto-Optimize system. The S047 Optimization Engine supports multiple SciPy-based algorithms, each with distinct characteristics and optimal use cases.
 
 ### Quick Reference
 
@@ -1093,4 +1093,4 @@ Algorithm selection is critical for optimization success. Key principles:
 
 ---
 
-*This algorithm selection guide is part of the PlanWise Navigator E012 Compensation Tuning System documentation suite.*
+*This algorithm selection guide is part of the Fidelity PlanAlign Engine E012 Compensation Tuning System documentation suite.*

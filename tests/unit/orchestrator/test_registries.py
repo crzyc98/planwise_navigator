@@ -2,11 +2,11 @@ from pathlib import Path
 
 import duckdb
 
-from navigator_orchestrator.registries import (DeferralEscalationRegistry,
+from planalign_orchestrator.registries import (DeferralEscalationRegistry,
                                                EnrollmentRegistry,
                                                RegistryManager,
                                                SQLTemplateManager)
-from navigator_orchestrator.utils import DatabaseConnectionManager
+from planalign_orchestrator.utils import DatabaseConnectionManager
 
 
 def _setup_db(db_path: Path):

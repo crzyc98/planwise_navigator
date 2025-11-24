@@ -11,7 +11,7 @@
 
 ## Executive Summary
 
-Refactor the monolithic 1,208-line `navigator_orchestrator/config.py` into a modular package structure with focused modules for compensation, enrollment, performance optimization, and configuration loading. This improves developer experience by making settings easy to find, modify, and maintain while preserving complete backward compatibility.
+Refactor the monolithic 1,208-line `planalign_orchestrator/config.py` into a modular package structure with focused modules for compensation, enrollment, performance optimization, and configuration loading. This improves developer experience by making settings easy to find, modify, and maintain while preserving complete backward compatibility.
 
 ---
 
@@ -66,7 +66,7 @@ Refactor the monolithic 1,208-line `navigator_orchestrator/config.py` into a mod
 ### New Package Structure
 
 ```
-navigator_orchestrator/
+planalign_orchestrator/
 ├─ config/                          # New package (replaces config.py)
 │  ├─ __init__.py                  # Public API re-exports (backward compat)
 │  ├─ base.py                      # Core settings models (240 lines)
@@ -219,9 +219,9 @@ __all__ = [
 **Import Compatibility**:
 ```python
 # All existing imports continue to work
-from navigator_orchestrator.config import SimulationConfig  # ✅ Works
-from navigator_orchestrator.config import load_simulation_config  # ✅ Works
-from navigator_orchestrator.config import to_dbt_vars  # ✅ Works
+from planalign_orchestrator.config import SimulationConfig  # ✅ Works
+from planalign_orchestrator.config import load_simulation_config  # ✅ Works
+from planalign_orchestrator.config import to_dbt_vars  # ✅ Works
 ```
 
 ---
@@ -234,7 +234,7 @@ from navigator_orchestrator.config import to_dbt_vars  # ✅ Works
 **Goal**: Set up the new config package with proper Python package structure.
 
 **Tasks**:
-1. Create `navigator_orchestrator/config/` directory
+1. Create `planalign_orchestrator/config/` directory
 2. Create `__init__.py` with backward-compatible re-exports
 3. Create empty module files: `base.py`, `compensation.py`, `enrollment.py`, `performance.py`, `safety.py`, `loader.py`
 4. Add package docstring explaining module organization
@@ -242,7 +242,7 @@ from navigator_orchestrator.config import to_dbt_vars  # ✅ Works
 **Acceptance Criteria**:
 - ✅ `config/` directory exists with all module files
 - ✅ `__init__.py` contains complete public API re-exports
-- ✅ Package can be imported: `from navigator_orchestrator.config import SimulationConfig`
+- ✅ Package can be imported: `from planalign_orchestrator.config import SimulationConfig`
 
 ---
 
@@ -398,10 +398,10 @@ from navigator_orchestrator.config import to_dbt_vars  # ✅ Works
 **Optional Import Optimizations**:
 ```python
 # Before (loads entire 1208-line module)
-from navigator_orchestrator.config import PromotionCompensationSettings
+from planalign_orchestrator.config import PromotionCompensationSettings
 
 # After (loads only compensation module ~180 lines)
-from navigator_orchestrator.config.compensation import PromotionCompensationSettings
+from planalign_orchestrator.config.compensation import PromotionCompensationSettings
 ```
 
 **High-value files to optimize** (optional):
@@ -410,7 +410,7 @@ from navigator_orchestrator.config.compensation import PromotionCompensationSett
 3. `cli.py` - Import only what's needed for CLI
 
 **Tasks**:
-1. Scan codebase for `from navigator_orchestrator.config import` statements
+1. Scan codebase for `from planalign_orchestrator.config import` statements
 2. Optionally update high-traffic modules to use selective imports
 3. Leave backward-compatible imports in place for low-priority modules
 
@@ -433,14 +433,14 @@ from navigator_orchestrator.config.compensation import PromotionCompensationSett
 **Test Cases**:
 ```python
 # Test backward-compatible imports
-from navigator_orchestrator.config import SimulationConfig
-from navigator_orchestrator.config import load_simulation_config
-from navigator_orchestrator.config import to_dbt_vars
+from planalign_orchestrator.config import SimulationConfig
+from planalign_orchestrator.config import load_simulation_config
+from planalign_orchestrator.config import to_dbt_vars
 
 # Test selective imports (new capability)
-from navigator_orchestrator.config.compensation import CompensationSettings
-from navigator_orchestrator.config.enrollment import AutoEnrollmentSettings
-from navigator_orchestrator.config.performance import OptimizationSettings
+from planalign_orchestrator.config.compensation import CompensationSettings
+from planalign_orchestrator.config.enrollment import AutoEnrollmentSettings
+from planalign_orchestrator.config.performance import OptimizationSettings
 
 # Test dbt vars mapping (critical!)
 config = load_simulation_config('config/simulation_config.yaml')
@@ -456,7 +456,7 @@ config.require_identifiers()
 
 **Tasks**:
 1. Run existing test suite: `pytest tests/test_config.py -v`
-2. Run full simulation: `python -m navigator_orchestrator run --years 2025 2026`
+2. Run full simulation: `python -m planalign_orchestrator run --years 2025 2026`
 3. Compare dbt vars output before/after refactoring
 4. Test all public API imports
 5. Verify no performance regression
@@ -577,11 +577,11 @@ pytest tests/test_config.py::test_enrollment_settings -v
 ### Integration Tests
 ```bash
 # Full simulation test
-python -m navigator_orchestrator run --years 2025 2026 --verbose
+python -m planalign_orchestrator run --years 2025 2026 --verbose
 
 # dbt vars mapping test
 python -c "
-from navigator_orchestrator.config import load_simulation_config, to_dbt_vars
+from planalign_orchestrator.config import load_simulation_config, to_dbt_vars
 config = load_simulation_config('config/simulation_config.yaml')
 dbt_vars = to_dbt_vars(config)
 print(f'Generated {len(dbt_vars)} dbt variables')
@@ -595,7 +595,7 @@ print('✅ dbt vars mapping working correctly')
 ```bash
 # Test backward-compatible imports
 python -c "
-from navigator_orchestrator.config import (
+from planalign_orchestrator.config import (
     SimulationConfig,
     CompensationSettings,
     EnrollmentSettings,
@@ -608,11 +608,11 @@ print('✅ All backward-compatible imports working')
 
 # Test selective imports
 python -c "
-from navigator_orchestrator.config.base import SimulationSettings
-from navigator_orchestrator.config.compensation import PromotionCompensationSettings
-from navigator_orchestrator.config.enrollment import AutoEnrollmentSettings
-from navigator_orchestrator.config.performance import E068CThreadingSettings
-from navigator_orchestrator.config.loader import to_dbt_vars
+from planalign_orchestrator.config.base import SimulationSettings
+from planalign_orchestrator.config.compensation import PromotionCompensationSettings
+from planalign_orchestrator.config.enrollment import AutoEnrollmentSettings
+from planalign_orchestrator.config.performance import E068CThreadingSettings
+from planalign_orchestrator.config.loader import to_dbt_vars
 print('✅ All selective imports working')
 "
 ```
@@ -623,7 +623,7 @@ print('✅ All selective imports working')
 python -c "
 import time
 start = time.time()
-from navigator_orchestrator.config import SimulationConfig
+from planalign_orchestrator.config import SimulationConfig
 elapsed = time.time() - start
 print(f'Import time: {elapsed*1000:.2f}ms')
 "
@@ -659,7 +659,7 @@ print(f'Import time: {elapsed*1000:.2f}ms')
 
 ### Phase 2 (Future)
 1. **Selective import optimization**: Update all modules to use domain-specific imports
-2. **Config validation CLI**: `planwise config validate` command
+2. **Config validation CLI**: `planalign config validate` command
 3. **Config migration utilities**: Automated config upgrade scripts
 4. **Type stub generation**: Generate `.pyi` stubs for better IDE support
 
@@ -704,24 +704,24 @@ print(f'Import time: {elapsed*1000:.2f}ms')
 ```markdown
 ### Configuration Management
 
-PlanWise Navigator uses a modular configuration package for type-safe settings management:
+Fidelity PlanAlign Engine uses a modular configuration package for type-safe settings management:
 
-- `navigator_orchestrator/config/base.py` - Core simulation settings
-- `navigator_orchestrator/config/compensation.py` - Compensation and workforce settings
-- `navigator_orchestrator/config/enrollment.py` - Enrollment and eligibility settings
-- `navigator_orchestrator/config/performance.py` - Threading and optimization settings
-- `navigator_orchestrator/config/safety.py` - Production safety and backup settings
-- `navigator_orchestrator/config/loader.py` - YAML loading and dbt variable mapping
+- `planalign_orchestrator/config/base.py` - Core simulation settings
+- `planalign_orchestrator/config/compensation.py` - Compensation and workforce settings
+- `planalign_orchestrator/config/enrollment.py` - Enrollment and eligibility settings
+- `planalign_orchestrator/config/performance.py` - Threading and optimization settings
+- `planalign_orchestrator/config/safety.py` - Production safety and backup settings
+- `planalign_orchestrator/config/loader.py` - YAML loading and dbt variable mapping
 
 **Backward-compatible imports** (all existing code works):
 ```python
-from navigator_orchestrator.config import SimulationConfig, load_simulation_config
+from planalign_orchestrator.config import SimulationConfig, load_simulation_config
 ```
 
 **Selective imports** (performance optimization):
 ```python
-from navigator_orchestrator.config.compensation import PromotionCompensationSettings
-from navigator_orchestrator.config.enrollment import AutoEnrollmentSettings
+from planalign_orchestrator.config.compensation import PromotionCompensationSettings
+from planalign_orchestrator.config.enrollment import AutoEnrollmentSettings
 ```
 ```
 

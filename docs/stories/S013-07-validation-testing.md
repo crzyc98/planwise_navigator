@@ -8,7 +8,7 @@
 
 ## User Story
 
-**As a** PlanWise Navigator developer
+**As a** Fidelity PlanAlign Engine developer
 **I want** comprehensive validation and testing for the refactored pipeline
 **So that** I can be confident the modularization preserves identical behavior while improving maintainability
 

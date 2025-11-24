@@ -1,4 +1,4 @@
-"""Configuration package for PlanWise Navigator.
+"""Configuration package for Fidelity PlanAlign Engine.
 
 This package contains configuration schemas and settings for the application.
 """

@@ -7,7 +7,7 @@
 
 ## User Story
 
-**As a** PlanWise Navigator developer
+**As a** Fidelity PlanAlign Engine developer
 **I want** the run_multi_year_simulation operation transformed into a pure orchestrator
 **So that** it focuses solely on coordination while leveraging refactored single-year simulation logic
 

@@ -199,7 +199,7 @@ FROM (
 
 ### Orchestrator Integration
 ```python
-# navigator_orchestrator/hazard_cache_manager.py
+# planalign_orchestrator/hazard_cache_manager.py
 import hashlib
 import json
 from pathlib import Path
@@ -332,7 +332,7 @@ class HazardCacheError(Exception):
 
 ### Pipeline Integration
 ```python
-# navigator_orchestrator/pipeline.py
+# planalign_orchestrator/pipeline.py
 class PipelineOrchestrator:
     def __init__(self, config: SimulationConfig):
         # ... existing initialization

@@ -16,7 +16,7 @@ import polars as pl
 import duckdb
 from pathlib import Path
 from datetime import date, datetime
-from navigator_orchestrator.polars_state_pipeline import (
+from planalign_orchestrator.polars_state_pipeline import (
     StateAccumulatorEngine,
     StateAccumulatorConfig,
     EnrollmentStateBuilder,

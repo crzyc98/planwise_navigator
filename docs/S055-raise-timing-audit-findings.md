@@ -19,7 +19,7 @@
 
 ### 1.1 RAISE Event Generation Logic
 
-**Location**: `/Users/nicholasamaral/planwise_navigator/dbt/models/intermediate/events/int_merit_events.sql`
+**Location**: `/Users/nicholasamaral/planalign_engine/dbt/models/intermediate/events/int_merit_events.sql`
 
 **Lines 81-84** - Core timing logic:
 ```sql
@@ -37,7 +37,7 @@ END AS effective_date,
 
 ### 1.2 Event Type Processing
 
-**Location**: `/Users/nicholasamaral/planwise_navigator/dbt/models/marts/fct_yearly_events.sql`
+**Location**: `/Users/nicholasamaral/planalign_engine/dbt/models/marts/fct_yearly_events.sql`
 
 **Lines 114-136** - Merit event processing:
 - Event type: 'RAISE' (line 131)

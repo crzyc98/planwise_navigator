@@ -140,7 +140,7 @@ The NEW census includes **5 intentional edge cases** to flush out bugs:
 ### Step 1: Run with NEW Census
 ```bash
 # Use new census (already active)
-python -m navigator_orchestrator run --years 2025 --verbose
+python -m planalign_orchestrator run --years 2025 --verbose
 ```
 
 ### Step 2: Compare Results
@@ -177,7 +177,7 @@ ORDER BY employee_id
 cp data/census_preprocessed_OLD_backup_*.parquet data/census_preprocessed.parquet
 
 # Re-run simulation
-python -m navigator_orchestrator run --years 2025 --verbose --force-restart
+python -m planalign_orchestrator run --years 2025 --verbose --force-restart
 
 # Compare results
 ```

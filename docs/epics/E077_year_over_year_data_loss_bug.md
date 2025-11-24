@@ -132,7 +132,7 @@ WHERE simulation_year = {{ simulation_year }}
 
 ```bash
 # Clean simulation run
-python -m navigator_orchestrator run --years 2025-2027 --threads 1 --verbose
+python -m planalign_orchestrator run --years 2025-2027 --threads 1 --verbose
 ```
 
 | Year | Active Employees | Net Change | Growth Rate | Target | Status |
@@ -255,7 +255,7 @@ workforce:
 ### Test Command
 
 ```bash
-python -m navigator_orchestrator run --years 2025-2027 --threads 1 --verbose
+python -m planalign_orchestrator run --years 2025-2027 --threads 1 --verbose
 ```
 
 ---

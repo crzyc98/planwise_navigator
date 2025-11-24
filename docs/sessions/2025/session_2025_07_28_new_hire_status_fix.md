@@ -41,7 +41,7 @@ Using specialized Claude Code subagents (`cost-modeling-architect`, `data-qualit
 ## Solution Implemented
 
 ### 1. Fixed Deduplication Logic
-**File**: `/Users/nicholasamaral/planwise_navigator/dbt/models/marts/fct_workforce_snapshot.sql`
+**File**: `/Users/nicholasamaral/planalign_engine/dbt/models/marts/fct_workforce_snapshot.sql`
 **Lines**: 223-229
 
 ```sql
@@ -92,7 +92,7 @@ END AS detailed_status_code
 ```
 
 ### 3. Created Validation Test
-**File**: `/Users/nicholasamaral/planwise_navigator/tests/validation/test_new_hire_status_classification.sql`
+**File**: `/Users/nicholasamaral/planalign_engine/tests/validation/test_new_hire_status_classification.sql`
 
 - Comprehensive validation logic for all status code combinations
 - Checks hire year vs simulation year consistency
@@ -137,12 +137,12 @@ END AS detailed_status_code
 
 ## Files Modified
 
-1. **`/Users/nicholasamaral/planwise_navigator/dbt/models/marts/fct_workforce_snapshot.sql`**
+1. **`/Users/nicholasamaral/planalign_engine/dbt/models/marts/fct_workforce_snapshot.sql`**
    - Fixed deduplication prioritization logic
    - Enhanced status code classification
    - Added comprehensive documentation
 
-2. **`/Users/nicholasamaral/planwise_navigator/tests/validation/test_new_hire_status_classification.sql`** *(NEW)*
+2. **`/Users/nicholasamaral/planalign_engine/tests/validation/test_new_hire_status_classification.sql`** *(NEW)*
    - Created comprehensive validation test
    - Automated status code verification
    - Detailed error reporting and statistics

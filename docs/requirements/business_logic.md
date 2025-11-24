@@ -1,12 +1,12 @@
-# PlanWise Navigator - Logic Documentation
+# Fidelity PlanAlign Engine - Logic Documentation
 
 *Updated: 2025-06-21*
 
-This document provides comprehensive documentation of the PlanWise Navigator codebase logic, based on the actual file structure and implementation patterns.
+This document provides comprehensive documentation of the Fidelity PlanAlign Engine codebase logic, based on the actual file structure and implementation patterns.
 
 ## System Architecture Overview
 
-PlanWise Navigator is a workforce simulation platform built on:
+Fidelity PlanAlign Engine is a workforce simulation platform built on:
 - **DuckDB**: Column-store database for analytical queries
 - **dbt**: SQL transformations and data modeling
 - **Dagster**: Pipeline orchestration and asset management
@@ -15,7 +15,7 @@ PlanWise Navigator is a workforce simulation platform built on:
 ## Complete File Tree Structure
 
 ```
-planwise_navigator/
+planalign_engine/
 ├── .gitignore
 ├── CLAUDE.md
 ├── README.md

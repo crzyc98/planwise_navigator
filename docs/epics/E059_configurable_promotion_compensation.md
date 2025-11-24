@@ -2,7 +2,7 @@
 
 ## Executive Summary
 
-Currently, promotion compensation increases in PlanWise Navigator are hard‑coded with a fixed 15–25% range in the `int_promotion_events.sql` model. This makes it impossible for analysts to adjust promotion increase policies without modifying code. This epic adds comprehensive configuration support for promotion compensation increases through `simulation_config.yaml`, providing flexible control over base rates, distribution parameters, safety caps, and level‑specific overrides—while preserving auditability and determinism.
+Currently, promotion compensation increases in Fidelity PlanAlign Engine are hard‑coded with a fixed 15–25% range in the `int_promotion_events.sql` model. This makes it impossible for analysts to adjust promotion increase policies without modifying code. This epic adds comprehensive configuration support for promotion compensation increases through `simulation_config.yaml`, providing flexible control over base rates, distribution parameters, safety caps, and level‑specific overrides—while preserving auditability and determinism.
 
 ## Problem Statement
 
@@ -86,7 +86,7 @@ compensation:
 
 ```mermaid
 graph LR
-    A[simulation_config.yaml] --> B[navigator_orchestrator/config.py]
+    A[simulation_config.yaml] --> B[planalign_orchestrator/config.py]
     B --> C[Pydantic PromotionCompensationSettings]
     C --> D[to_dbt_vars()]
     D --> E[dbt variables]
@@ -96,7 +96,7 @@ graph LR
 
 ### 3. Implementation Changes
 
-#### A. `navigator_orchestrator/config.py` Enhancements
+#### A. `planalign_orchestrator/config.py` Enhancements
 
 ```python
 class PromotionCompensationSettings(BaseModel):
@@ -386,7 +386,7 @@ Additionally, add/adjust dbt schema tests if new columns are surfaced for auditi
   - `level_overrides` map for job-level specific promotion increases
   - `advanced.normal_std_dev` for normal distribution variance control
   - `advanced.market_adjustments` for scenario-based multipliers
-- **Pydantic Configuration Models**: New `PromotionCompensationSettings` class in `navigator_orchestrator/config.py`:
+- **Pydantic Configuration Models**: New `PromotionCompensationSettings` class in `planalign_orchestrator/config.py`:
   - Comprehensive validation with appropriate bounds and defaults
   - Nested `Advanced` class for sophisticated configuration options
   - Full integration with existing `CompensationSettings` model
@@ -412,7 +412,7 @@ Additionally, add/adjust dbt schema tests if new columns are surfaced for auditi
 - **Safety Mechanisms**: Percentage caps (30%) and dollar caps ($500K) properly enforced; no salary reductions possible
 - **Level-Specific Overrides**: Verified different promotion increases by job level (Level 1: 10%, Level 2: 25%, etc.)
 - **Performance**: <1 second execution time with no material performance regression
-- **Integration**: Seamless integration with navigator_orchestrator and existing dbt workflow
+- **Integration**: Seamless integration with planalign_orchestrator and existing dbt workflow
 - **Audit Trail**: All configuration metadata properly captured in audit columns for full traceability
 
 ### Production Ready

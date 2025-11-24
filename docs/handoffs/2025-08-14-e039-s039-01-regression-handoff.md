@@ -43,7 +43,7 @@
    - Added 3 new employer contribution columns
    - Incremental model with `unique_key=['employee_id', 'simulation_year']` now malfunctioning
 
-2. **`navigator_orchestrator/pipeline.py`**
+2. **`planalign_orchestrator/pipeline.py`**
    - Added employer models to FOUNDATION stage
    - Added validation logic for new models
    - May have affected multi-year execution order
@@ -71,7 +71,7 @@
 "int_employer_eligibility"
 "int_employer_core_contributions"
 
-# navigator_orchestrator/pipeline.py - FOUNDATION stage (WORKING)
+# planalign_orchestrator/pipeline.py - FOUNDATION stage (WORKING)
 models=[
     "int_baseline_workforce",
     "int_employee_compensation_by_year",
@@ -174,7 +174,7 @@ dbt run --select +fct_workforce_snapshot --vars "simulation_year: 2029"
 
 ### Primary Files (Regression Source)
 1. **`dbt/models/marts/fct_workforce_snapshot.sql`** - Incremental model issue
-2. **`navigator_orchestrator/pipeline.py`** - Multi-year execution logic
+2. **`planalign_orchestrator/pipeline.py`** - Multi-year execution logic
 
 ### Secondary Files (Working but Review)
 3. **`dbt/models/intermediate/int_employer_eligibility.sql`** - Working

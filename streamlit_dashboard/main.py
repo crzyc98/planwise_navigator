@@ -1,6 +1,6 @@
 # filename: streamlit_dashboard/main.py
 """
-PlanWise Navigator - Main Dashboard Entry Point
+Fidelity PlanAlign Engine - Main Dashboard Entry Point
 Multi-page Streamlit application for workforce simulation and compensation optimization.
 """
 
@@ -14,14 +14,14 @@ sys.path.append(str(Path(__file__).parent))
 
 # Page configuration
 st.set_page_config(
-    page_title="PlanWise Navigator",
+    page_title="Fidelity PlanAlign Engine",
     page_icon="🚀",
     layout="wide",
     initial_sidebar_state="expanded",
     menu_items={
-        "Get Help": "https://github.com/fidelity/planwise_navigator",
-        "Report a bug": "https://github.com/fidelity/planwise_navigator/issues",
-        "About": "PlanWise Navigator - Enterprise Workforce Simulation Platform",
+        "Get Help": "https://github.com/fidelity/planalign_engine",
+        "Report a bug": "https://github.com/fidelity/planalign_engine/issues",
+        "About": "Fidelity PlanAlign Engine - Enterprise Workforce Simulation Platform",
     },
 )
 
@@ -101,7 +101,7 @@ st.markdown(
 st.markdown(
     """
 <div class="main-header">
-    <h1>🚀 PlanWise Navigator</h1>
+    <h1>🚀 Fidelity PlanAlign Engine</h1>
     <p>Enterprise Workforce Simulation & Compensation Optimization Platform</p>
 </div>
 """,
@@ -111,7 +111,7 @@ st.markdown(
 # Welcome message
 st.markdown(
     """
-## Welcome to PlanWise Navigator
+## Welcome to Fidelity PlanAlign Engine
 
 Your comprehensive platform for workforce planning, simulation, and compensation optimization.
 """
@@ -273,7 +273,7 @@ with col4:
 # Quick start guide
 st.markdown("## 🚀 Quick Start")
 
-with st.expander("Getting Started with PlanWise Navigator", expanded=True):
+with st.expander("Getting Started with Fidelity PlanAlign Engine", expanded=True):
     st.markdown(
         """
     ### 1. Compensation Tuning
@@ -338,7 +338,7 @@ st.markdown("---")
 st.markdown(
     """
 <div style='text-align: center; color: #666; padding: 2rem;'>
-    <h4>PlanWise Navigator v3.0</h4>
+    <h4>Fidelity PlanAlign Engine v3.0</h4>
     <p>Enterprise Workforce Simulation Platform</p>
     <p><small>© 2024 Fidelity Investments. All rights reserved.</small></p>
 </div>

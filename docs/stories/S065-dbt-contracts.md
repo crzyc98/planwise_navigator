@@ -23,7 +23,7 @@ dbt contracts provide compile-time enforcement of model schemas, ensuring that:
 - Breaking changes are caught before they reach production
 - API-like stability for critical data models
 
-This is particularly important for PlanWise Navigator's event sourcing architecture, where schema stability is crucial for data integrity.
+This is particularly important for Fidelity PlanAlign Engine's event sourcing architecture, where schema stability is crucial for data integrity.
 
 ## Acceptance Criteria
 

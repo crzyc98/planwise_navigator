@@ -2,7 +2,7 @@
 
 ## Executive Summary
 
-This document details the implementation of critical fixes to resolve workforce variance issues in the PlanWise Navigator multi-year simulation pipeline. The fixes address a core problem where actual workforce growth (6.3% CAGR) significantly exceeded the target rate (3.0% CAGR) due to improper termination event application.
+This document details the implementation of critical fixes to resolve workforce variance issues in the Fidelity PlanAlign Engine multi-year simulation pipeline. The fixes address a core problem where actual workforce growth (6.3% CAGR) significantly exceeded the target rate (3.0% CAGR) due to improper termination event application.
 
 **Status**: ✅ Implemented (2025-07-22)
 
@@ -190,4 +190,4 @@ LEFT JOIN {{ ref('fct_yearly_events') }} term
 
 This implementation successfully addresses the workforce variance issue through a targeted fix to termination logic, comprehensive validation infrastructure, and robust testing. The solution maintains system stability while providing the accuracy required for reliable multi-year workforce simulations.
 
-The fix enables PlanWise Navigator to deliver precise workforce projections that align with business planning requirements and support confident decision-making for compensation and benefits strategies.
+The fix enables Fidelity PlanAlign Engine to deliver precise workforce projections that align with business planning requirements and support confident decision-making for compensation and benefits strategies.

@@ -2,7 +2,7 @@
 
 ## Overview
 
-This guide provides a comprehensive roadmap for implementing the **Layered Defense Strategy** (Epic E014) to address the "fix one thing, break another" challenge in PlanWise Navigator development.
+This guide provides a comprehensive roadmap for implementing the **Layered Defense Strategy** (Epic E014) to address the "fix one thing, break another" challenge in Fidelity PlanAlign Engine development.
 
 ## Problem Statement
 

@@ -7,7 +7,7 @@
 
 ## User Story
 
-**As a** PlanWise Navigator developer
+**As a** Fidelity PlanAlign Engine developer
 **I want** a centralized utility function for executing dbt commands
 **So that** I can eliminate repetitive dbt command patterns and standardize error handling
 

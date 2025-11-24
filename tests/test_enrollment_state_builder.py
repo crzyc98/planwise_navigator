@@ -15,7 +15,7 @@ Tests cover:
 import pytest
 import polars as pl
 from datetime import date
-from navigator_orchestrator.polars_state_pipeline import EnrollmentStateBuilder
+from planalign_orchestrator.polars_state_pipeline import EnrollmentStateBuilder
 import logging
 
 

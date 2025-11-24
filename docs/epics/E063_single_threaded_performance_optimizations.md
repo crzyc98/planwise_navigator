@@ -3,7 +3,7 @@
 ## Epic Overview
 
 ### Summary
-Optimize PlanWise Navigator for single-threaded execution on resource‑constrained work environments with a focus on minimal, high‑leverage changes: configuration guardrails, dbt execution patterns, lean memory management, and checkpoint/resume. Emphasis is on reliability and predictable performance without over‑engineering.
+Optimize Fidelity PlanAlign Engine for single-threaded execution on resource‑constrained work environments with a focus on minimal, high‑leverage changes: configuration guardrails, dbt execution patterns, lean memory management, and checkpoint/resume. Emphasis is on reliability and predictable performance without over‑engineering.
 
 **Status**: 🟢 **100% COMPLETE** (20 of 20 story points completed as of 2025-08-27)
 
@@ -54,7 +54,7 @@ Optimize PlanWise Navigator for single-threaded execution on resource‑constrai
   - Example in `dbt_project.yml`:
     ```yaml
     models:
-      planwise_navigator:
+      planalign_engine:
         +materialized: view
         +tags: []
         heavy_transform:
@@ -96,9 +96,9 @@ Non‑goals: parallelization, caching of large intermediate states, speculative 
 
 ## User Stories
 
-### Story S063-01: Navigator Orchestrator Single-Threaded Architecture (5 points) ✅ **COMPLETED**
+### Story S063-01: PlanAlign Orchestrator Single-Threaded Architecture (5 points) ✅ **COMPLETED**
 **As a** workforce analyst using a corporate laptop
-**I want** the Navigator Orchestrator to execute with single-threaded workflow stages
+**I want** the PlanAlign Orchestrator to execute with single-threaded workflow stages
 **So that** I can run reliable simulations within memory constraints
 
 **Acceptance Criteria:**
@@ -110,7 +110,7 @@ Non‑goals: parallelization, caching of large intermediate states, speculative 
 
 **Technical Implementation:**
 ```python
-# navigator_orchestrator/pipeline.py - Sequential workflow execution
+# planalign_orchestrator/pipeline.py - Sequential workflow execution
 class PipelineOrchestrator:
     def execute_multi_year_simulation(self, start_year, end_year):
         for year in range(start_year, end_year + 1):
@@ -238,14 +238,14 @@ done
 **CLI Usage:**
 ```bash
 # Enable resume capability for long-running simulations
-python navigator_orchestrator run \
+python planalign_orchestrator run \
   --years 2025 2026 2027 \
   --optimization medium \
   --threads 1 \
   --enable-compression
 
 # Resume from last checkpoint on failure
-python navigator_orchestrator run \
+python planalign_orchestrator run \
   --years 2025 2026 2027 \
   --resume-from-checkpoint
 ```
@@ -321,7 +321,7 @@ WHERE simulation_year = {{ var('simulation_year') }}
 **Technical Implementation:**
 ```python
 # Core adaptive memory management system
-navigator_orchestrator/adaptive_memory_manager.py - AdaptiveMemoryManager class
+planalign_orchestrator/adaptive_memory_manager.py - AdaptiveMemoryManager class
 scripts/memory_monitor_cli.py - CLI monitoring tools
 scripts/demo_adaptive_memory.py - Feature demonstration
 tests/test_adaptive_memory_manager.py - Comprehensive test coverage
@@ -488,7 +488,7 @@ Year 2029: 1.9GB → 3.1GB → 2.2GB (final)
 
 ### ✅ Completed Components (20/20 points)
 
-#### Navigator Orchestrator Architecture
+#### PlanAlign Orchestrator Architecture
 - **Sequential Workflow Execution**: INITIALIZATION → FOUNDATION → EVENT_GENERATION → STATE_ACCUMULATION → VALIDATION → REPORTING
 - **Memory Management**: Real-time monitoring with garbage collection triggers
 - **Checkpoint System**: Comprehensive state persistence with resume capability
@@ -561,7 +561,7 @@ Year 2029: 1.9GB → 3.1GB → 2.2GB (final)
 ## Dependencies & Risks
 
 ### Dependencies
-- ✅ **navigator_orchestrator.pipeline**: Sequential workflow execution framework
+- ✅ **planalign_orchestrator.pipeline**: Sequential workflow execution framework
 - ✅ **dbt-core**: Single-threaded execution support (`--threads 1`)
 - ✅ **DuckDB**: Engine PRAGMAs for memory/temp enforcement; incremental `delete+insert`
 - ✅ **psutil**: Memory monitoring and system resource tracking
@@ -632,7 +632,7 @@ Triage (30/60/90):
 ### CLAUDE.md Integration ✅ **COMPLETED**
 - Updated all database interaction examples to use single-threaded patterns
 - Added comprehensive single-threaded performance optimization section
-- Documented Navigator Orchestrator architecture with sequential workflow stages
+- Documented PlanAlign Orchestrator architecture with sequential workflow stages
 - Included CLI usage examples for work laptop scenarios
 
 ### Configuration Documentation ✅ **COMPLETED**
@@ -658,7 +658,7 @@ Triage (30/60/90):
 ## Completed Deliverables
 
 ### All Story Points Delivered (20/20)
-1. ✅ **S063-01**: Navigator Orchestrator Single-Threaded Architecture (5 points)
+1. ✅ **S063-01**: PlanAlign Orchestrator Single-Threaded Architecture (5 points)
 2. ✅ **S063-02**: Configuration-Driven Performance Tuning (3 points)
 3. ✅ **S063-03**: Memory Management and Monitoring (4 points)
 4. ✅ **S063-04**: dbt Single-Threaded Performance Patterns (2 points)

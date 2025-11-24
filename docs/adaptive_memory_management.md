@@ -4,7 +4,7 @@
 
 ## Overview
 
-The Adaptive Memory Management System provides intelligent memory monitoring and optimization for PlanWise Navigator workforce simulations. It automatically adjusts processing parameters based on real-time memory usage, ensuring optimal performance on resource-constrained work laptops while preventing out-of-memory errors.
+The Adaptive Memory Management System provides intelligent memory monitoring and optimization for Fidelity PlanAlign Engine workforce simulations. It automatically adjusts processing parameters based on real-time memory usage, ensuring optimal performance on resource-constrained work laptops while preventing out-of-memory errors.
 
 ## Key Features
 
@@ -114,7 +114,7 @@ optimization:
 ### Python Configuration
 
 ```python
-from navigator_orchestrator.adaptive_memory_manager import (
+from planalign_orchestrator.adaptive_memory_manager import (
     AdaptiveConfig,
     AdaptiveMemoryManager,
     BatchSizeConfig,
@@ -371,7 +371,7 @@ for rec in profile['recommendations']:
 ```bash
 # Check current memory status
 python -c "
-from navigator_orchestrator.adaptive_memory_manager import create_adaptive_memory_manager
+from planalign_orchestrator.adaptive_memory_manager import create_adaptive_memory_manager
 manager = create_adaptive_memory_manager()
 with manager:
     snapshot = manager.force_memory_check('diagnostic')
@@ -398,7 +398,7 @@ print(f'Usage: {mem.percent:.1f}%')
 python -m pytest tests/test_adaptive_memory_manager.py -v
 
 # Run with coverage
-python -m pytest tests/test_adaptive_memory_manager.py --cov=navigator_orchestrator.adaptive_memory_manager
+python -m pytest tests/test_adaptive_memory_manager.py --cov=planalign_orchestrator.adaptive_memory_manager
 ```
 
 ### Demo Script
@@ -537,4 +537,4 @@ For issues, questions, or contributions related to the Adaptive Memory Managemen
 - **Examples**: Demo script at `scripts/demo_adaptive_memory.py`
 - **CLI Tools**: Memory monitor at `scripts/memory_monitor_cli.py`
 
-The Adaptive Memory Management system ensures PlanWise Navigator runs efficiently on resource-constrained environments while maintaining optimal performance and preventing memory-related failures.
+The Adaptive Memory Management system ensures Fidelity PlanAlign Engine runs efficiently on resource-constrained environments while maintaining optimal performance and preventing memory-related failures.

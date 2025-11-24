@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-from navigator_orchestrator.config import get_database_path
+from planalign_orchestrator.config import get_database_path
 Compensation Growth Calibration Script
 
 This script allows you to manually adjust compensation parameters

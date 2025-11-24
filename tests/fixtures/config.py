@@ -2,7 +2,7 @@
 
 import pytest
 from pathlib import Path
-from navigator_orchestrator.config import (
+from planalign_orchestrator.config import (
     SimulationConfig,
     SimulationSettings,
     CompensationSettings,

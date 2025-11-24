@@ -1,4 +1,4 @@
-# **PlanWise Navigator**
+# **Fidelity PlanAlign Engine**
 
 Imagine a system that meticulously captures every key event in your workforce—from the first day someone is hired, through every pay increase, benefit enrollment, and retirement-plan change—and permanently records it in an immutable "event log." Now imagine having the ability to replay this detailed history at any moment, clearly visualizing exactly how your headcount, payroll expenses, and retirement plan participation evolved year by year.
 

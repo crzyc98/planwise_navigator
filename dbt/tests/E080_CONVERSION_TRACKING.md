@@ -209,7 +209,7 @@ Based on E080 epic benchmarks:
    time dbt test --select path:tests/ --vars "simulation_year: 2025"
    ```
 
-4. **Integration with Navigator Orchestrator**:
+4. **Integration with PlanAlign Orchestrator**:
    - Update pipeline to run `dbt test` instead of `dbt run --select tag:data_quality`
    - Configure test severity levels (error vs warn)
    - Set up test failure storage (`store_failures: true`)
@@ -253,7 +253,7 @@ Based on E080 epic benchmarks:
 - **Original Models**: Left in place for now (not deleted) for validation comparison
 - **Test Execution**: Tests can be run with `dbt test --select test_name --vars "simulation_year: YYYY"`
 - **Failure Storage**: When configured with `store_failures: true`, failed test results are stored in `test_failures` schema
-- **Integration**: Tests are ready for integration with Navigator Orchestrator pipeline once Phase 5 is complete
+- **Integration**: Tests are ready for integration with PlanAlign Orchestrator pipeline once Phase 5 is complete
 
 ---
 

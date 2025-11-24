@@ -7,25 +7,25 @@
 
 ## Overview
 
-This runbook provides comprehensive operational procedures for PlanWise Navigator's production data safety and backup system. The system provides enterprise-grade protection against data loss with automated backups, verification, and recovery capabilities.
+This runbook provides comprehensive operational procedures for Fidelity PlanAlign Engine's production data safety and backup system. The system provides enterprise-grade protection against data loss with automated backups, verification, and recovery capabilities.
 
 ## System Architecture
 
 ### Components
 
-1. **BackupManager** (`navigator_orchestrator/backup_manager.py`)
+1. **BackupManager** (`planalign_orchestrator/backup_manager.py`)
    - Automated backup creation with atomic operations
    - Backup verification and integrity checking
    - Automated cleanup and retention management
    - Latest symlink management
 
-2. **RecoveryManager** (`navigator_orchestrator/recovery_manager.py`)
+2. **RecoveryManager** (`planalign_orchestrator/recovery_manager.py`)
    - Comprehensive backup verification
    - Recovery point management
    - Emergency backup creation
    - Automated restore procedures
 
-3. **Configuration Management** (`navigator_orchestrator/config.py`)
+3. **Configuration Management** (`planalign_orchestrator/config.py`)
    - Production safety configuration validation
    - Environment variable override support
    - Secure defaults and validation
@@ -99,8 +99,8 @@ echo "logs/" >> .gitignore
 
 # 4. Test backup system
 python -c "
-from navigator_orchestrator.backup_manager import BackupManager
-from navigator_orchestrator.config import load_orchestration_config, get_backup_configuration
+from planalign_orchestrator.backup_manager import BackupManager
+from planalign_orchestrator.config import load_orchestration_config, get_backup_configuration
 
 config = load_orchestration_config()
 backup_config = get_backup_configuration(config)
@@ -115,8 +115,8 @@ print(f'Backup created: {backup_path}')
 ```bash
 # Verify backup system status
 python -c "
-from navigator_orchestrator.backup_manager import BackupManager
-from navigator_orchestrator.recovery_manager import RecoveryManager
+from planalign_orchestrator.backup_manager import BackupManager
+from planalign_orchestrator.recovery_manager import RecoveryManager
 
 bm = BackupManager()
 rm = RecoveryManager(bm)
@@ -141,8 +141,8 @@ for key, value in recovery_status.items():
 ```bash
 # Check backup system health
 python -c "
-from navigator_orchestrator.backup_manager import BackupManager
-from navigator_orchestrator.recovery_manager import RecoveryManager
+from planalign_orchestrator.backup_manager import BackupManager
+from planalign_orchestrator.recovery_manager import RecoveryManager
 
 bm = BackupManager()
 rm = RecoveryManager(bm)
@@ -169,7 +169,7 @@ if recovery_status['recovery_readiness'] == 'poor':
 ```bash
 # Manual backup before simulation (automatic if configured)
 python -c "
-from navigator_orchestrator.backup_manager import BackupManager
+from planalign_orchestrator.backup_manager import BackupManager
 
 bm = BackupManager()
 backup = bm.create_backup()
@@ -184,7 +184,7 @@ print(f'Verification: {backup.verification_status}')
 #### List Available Backups
 ```bash
 python -c "
-from navigator_orchestrator.backup_manager import BackupManager
+from planalign_orchestrator.backup_manager import BackupManager
 
 bm = BackupManager()
 backups = bm.list_backups()
@@ -201,8 +201,8 @@ for i, backup in enumerate(backups):
 #### Verify Specific Backup
 ```bash
 python -c "
-from navigator_orchestrator.backup_manager import BackupManager
-from navigator_orchestrator.recovery_manager import RecoveryManager
+from planalign_orchestrator.backup_manager import BackupManager
+from planalign_orchestrator.recovery_manager import RecoveryManager
 from pathlib import Path
 
 backup_path = Path('backups/simulation_20250818_143000.duckdb')  # Adjust path
@@ -222,7 +222,7 @@ if validation.errors:
 #### Manual Backup Creation
 ```bash
 python -c "
-from navigator_orchestrator.backup_manager import BackupManager
+from planalign_orchestrator.backup_manager import BackupManager
 
 bm = BackupManager()
 backup = bm.create_backup()
@@ -236,8 +236,8 @@ print(f'Manual backup created: {backup.backup_path}')
 ```bash
 # Emergency restore from latest backup
 python -c "
-from navigator_orchestrator.backup_manager import BackupManager
-from navigator_orchestrator.recovery_manager import RecoveryManager
+from planalign_orchestrator.backup_manager import BackupManager
+from planalign_orchestrator.recovery_manager import RecoveryManager
 
 bm = BackupManager()
 rm = RecoveryManager(bm)
@@ -257,8 +257,8 @@ if not operation.success:
 ```bash
 # Recovery from specific backup
 python -c "
-from navigator_orchestrator.backup_manager import BackupManager
-from navigator_orchestrator.recovery_manager import RecoveryManager
+from planalign_orchestrator.backup_manager import BackupManager
+from planalign_orchestrator.recovery_manager import RecoveryManager
 from pathlib import Path
 
 bm = BackupManager()
@@ -280,8 +280,8 @@ print(f'Duration: {operation.duration:.2f}s')
 ```bash
 # List and assess all recovery points
 python -c "
-from navigator_orchestrator.backup_manager import BackupManager
-from navigator_orchestrator.recovery_manager import RecoveryManager
+from planalign_orchestrator.backup_manager import BackupManager
+from planalign_orchestrator.recovery_manager import RecoveryManager
 
 rm = RecoveryManager(BackupManager())
 recovery_points = rm.get_recovery_points()
@@ -304,7 +304,7 @@ for i, rp in enumerate(recovery_points):
 ```bash
 # Manual cleanup (automatic by default)
 python -c "
-from navigator_orchestrator.backup_manager import BackupManager
+from planalign_orchestrator.backup_manager import BackupManager
 
 bm = BackupManager()
 bm._cleanup_old_backups()
@@ -316,7 +316,7 @@ print('Backup cleanup completed')
 ```bash
 # Change retention policy
 python -c "
-from navigator_orchestrator.backup_manager import BackupManager, BackupConfiguration
+from planalign_orchestrator.backup_manager import BackupManager, BackupConfiguration
 
 config = BackupConfiguration(retention_days=14)  # 14 days instead of 7
 bm = BackupManager(config)
@@ -340,7 +340,7 @@ ls -la simulation.duckdb
 
 # Check configuration
 python -c "
-from navigator_orchestrator.config import load_orchestration_config
+from planalign_orchestrator.config import load_orchestration_config
 config = load_orchestration_config()
 print(f'Configured DB path: {config.production_safety.db_path}')
 "
@@ -382,8 +382,8 @@ ls -la backups/simulation_*.duckdb | head -20  # Show oldest
 ```bash
 # Try comprehensive verification
 python -c "
-from navigator_orchestrator.backup_manager import BackupManager
-from navigator_orchestrator.recovery_manager import RecoveryManager
+from planalign_orchestrator.backup_manager import BackupManager
+from planalign_orchestrator.recovery_manager import RecoveryManager
 from pathlib import Path
 
 backup_path = Path('backups/latest.duckdb')
@@ -399,7 +399,7 @@ print(f'Errors: {validation.errors}')
 
 # If backup is corrupted, use previous backup
 python -c "
-from navigator_orchestrator.backup_manager import BackupManager
+from planalign_orchestrator.backup_manager import BackupManager
 
 bm = BackupManager()
 backups = bm.list_backups()
@@ -425,8 +425,8 @@ with open('logs/recovery/recovery_audit.log', 'r') as f:
 
 # Try with different recovery point
 python -c "
-from navigator_orchestrator.backup_manager import BackupManager
-from navigator_orchestrator.recovery_manager import RecoveryManager
+from planalign_orchestrator.backup_manager import BackupManager
+from planalign_orchestrator.recovery_manager import RecoveryManager
 
 rm = RecoveryManager(BackupManager())
 recovery_points = rm.get_recovery_points()
@@ -446,7 +446,7 @@ For databases > 5GB:
 ```bash
 # Disable verification for speed (not recommended for production)
 python -c "
-from navigator_orchestrator.backup_manager import BackupManager, BackupConfiguration
+from planalign_orchestrator.backup_manager import BackupManager, BackupConfiguration
 
 config = BackupConfiguration(verify_backups=False)
 bm = BackupManager(config)
@@ -459,7 +459,7 @@ print(f'Fast backup created: {backup.backup_path}')
 ```bash
 # Track backup creation time
 python -c "
-from navigator_orchestrator.backup_manager import BackupManager
+from planalign_orchestrator.backup_manager import BackupManager
 import time
 
 bm = BackupManager()
@@ -502,9 +502,9 @@ The backup system integrates with the simulation pipeline through configuration:
 
 ```python
 # Example integration in orchestrator
-from navigator_orchestrator.config import load_orchestration_config
-from navigator_orchestrator.backup_manager import BackupManager
-from navigator_orchestrator.recovery_manager import RecoveryManager
+from planalign_orchestrator.config import load_orchestration_config
+from planalign_orchestrator.backup_manager import BackupManager
+from planalign_orchestrator.recovery_manager import RecoveryManager
 
 # Load configuration
 config = load_orchestration_config()
@@ -538,8 +538,8 @@ Production Data Safety Health Check
 Run this script regularly to monitor backup system health
 """
 
-from navigator_orchestrator.backup_manager import BackupManager
-from navigator_orchestrator.recovery_manager import RecoveryManager
+from planalign_orchestrator.backup_manager import BackupManager
+from planalign_orchestrator.recovery_manager import RecoveryManager
 from datetime import datetime, timedelta
 import sys
 

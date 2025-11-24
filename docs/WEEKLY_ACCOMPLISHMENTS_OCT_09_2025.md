@@ -1,4 +1,4 @@
-# PlanWise Navigator - Weekly Accomplishments
+# Fidelity PlanAlign Engine - Weekly Accomplishments
 **Week Ending**: October 9, 2025
 **Team**: Workforce Simulation Platform
 **Summary**: Epic E077 Implementation & Critical Bug Fixes
@@ -70,8 +70,8 @@ implied_nh_terms = 3,267 - 1,750 - 210 = 1,307
 - **Result**: 30 minutes → <30 seconds (60× improvement for full pipeline)
 
 **Files Delivered**:
-- `navigator_orchestrator/workforce_planning_engine.py` - Core algebraic solver (NEW)
-- `navigator_orchestrator/polars_integration.py` - Polars cohort generation (NEW)
+- `planalign_orchestrator/workforce_planning_engine.py` - Core algebraic solver (NEW)
+- `planalign_orchestrator/polars_integration.py` - Polars cohort generation (NEW)
 - `dbt/models/intermediate/int_polars_cohort_loader.sql` - dbt wrapper (NEW)
 - `docs/decisions/E077-A-growth-equation-rounding-policy.md` - ADR (NEW)
 - `docs/decisions/E077-B-apportionment-and-quotas.md` - ADR (NEW)
@@ -136,7 +136,7 @@ WHERE ABS(snapshot_count - helper_count) > 0
 
 **Files Modified**:
 - `dbt/models/intermediate/int_active_employees_prev_year_snapshot.sql` - Incremental fix
-- `navigator_orchestrator/polars_integration.py` - Column name & year query fix
+- `planalign_orchestrator/polars_integration.py` - Column name & year query fix
 - `dbt/tests/test_helper_model_year_continuity.sql` - Validation test (NEW)
 - `docs/epics/E077_year_over_year_data_loss_bug.md` - Bug investigation doc (NEW)
 
@@ -180,8 +180,8 @@ Year 2027: 4,248 → 4,375 (+3.0%) ✓
 ## 📦 Deliverables
 
 ### **New Files Created (14 files)**
-1. `navigator_orchestrator/workforce_planning_engine.py` - Algebraic solver engine
-2. `navigator_orchestrator/polars_integration.py` - Polars cohort generation
+1. `planalign_orchestrator/workforce_planning_engine.py` - Algebraic solver engine
+2. `planalign_orchestrator/polars_integration.py` - Polars cohort generation
 3. `dbt/models/intermediate/int_polars_cohort_loader.sql` - dbt Parquet loader
 4. `dbt/tests/test_workforce_planning_engine.py` - Unit tests
 5. `dbt/tests/test_e077_integration.py` - Integration tests
@@ -202,11 +202,11 @@ Year 2027: 4,248 → 4,375 (+3.0%) ✓
 4. `dbt/models/intermediate/int_baseline_workforce.sql` - Dynamic start_year
 5. `dbt/models/intermediate/int_prev_year_workforce_summary.sql` - Dynamic start_year
 6. `dbt/models/intermediate/int_prev_year_workforce_by_level.sql` - Dynamic start_year
-7. `navigator_orchestrator/config.py` - Polars engine flag
-8. `navigator_orchestrator/pipeline/workflow.py` - Helper model stage placement
-9. `planwise_cli/commands/simulate.py` - `--use-polars-engine` flag
-10. `planwise_cli/integration/orchestrator_wrapper.py` - Polars config integration
-11. `planwise_cli/main.py` - CLI flag documentation
+7. `planalign_orchestrator/config.py` - Polars engine flag
+8. `planalign_orchestrator/pipeline/workflow.py` - Helper model stage placement
+9. `planalign_cli/commands/simulate.py` - `--use-polars-engine` flag
+10. `planalign_cli/integration/orchestrator_wrapper.py` - Polars config integration
+11. `planalign_cli/main.py` - CLI flag documentation
 12. `pyproject.toml` - Package discovery for Windows compatibility
 13. `requirements.txt` - Polars dependency
 14. `README.md` - Updated installation instructions with `uv` package manager
@@ -248,7 +248,7 @@ Year 2027: 4,248 → 4,375 (+3.0%) ✓
 rm dbt/simulation.duckdb
 
 # Run clean simulation with fixes
-planwise simulate 2025-2027 --use-polars-engine --verbose
+planalign simulate 2025-2027 --use-polars-engine --verbose
 ```
 
 ### **Backward Compatibility**
@@ -292,8 +292,8 @@ planwise simulate 2025-2027 --use-polars-engine --verbose
 ### **Issue 1: Database Locks (DBeaver/IDE)**
 - **Symptom**: `Conflicting lock is held` error during simulation
 - **Cause**: Active database connection in IDE
-- **Workaround**: Close all database connections before running `planwise simulate`
-- **Check**: `planwise health` detects active locks
+- **Workaround**: Close all database connections before running `planalign simulate`
+- **Check**: `planalign health` detects active locks
 
 ### **Issue 2: Virtual Environment Activation**
 - **Symptom**: `ModuleNotFoundError` when running Python/dbt

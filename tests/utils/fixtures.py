@@ -11,7 +11,7 @@ import numpy as np
 import pandas as pd
 import psutil
 
-from navigator_orchestrator.config import get_database_path
+from planalign_orchestrator.config import get_database_path
 
 
 @pytest.fixture(scope="session")

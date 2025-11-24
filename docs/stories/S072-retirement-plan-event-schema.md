@@ -30,7 +30,7 @@
 
 ## Business Context
 
-This story establishes the foundational event schema for Defined Contribution retirement plan modeling within PlanWise Navigator's event-sourced architecture. It creates a unified, enterprise-grade event system that supports comprehensive retirement plan transactions while maintaining backward compatibility with workforce events and meeting ERISA compliance requirements.
+This story establishes the foundational event schema for Defined Contribution retirement plan modeling within Fidelity PlanAlign Engine's event-sourced architecture. It creates a unified, enterprise-grade event system that supports comprehensive retirement plan transactions while maintaining backward compatibility with workforce events and meeting ERISA compliance requirements.
 
 ## Acceptance Criteria
 

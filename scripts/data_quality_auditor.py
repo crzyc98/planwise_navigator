@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
-from navigator_orchestrator.config import get_database_path
-Data Quality Auditor for PlanWise Navigator Simulation Database
+from planalign_orchestrator.config import get_database_path
+Data Quality Auditor for Fidelity PlanAlign Engine Simulation Database
 
 This script performs comprehensive data quality checks on the simulation database,
 focusing on NaN values, type mismatches, and DOUBLE to INT64 casting issues.

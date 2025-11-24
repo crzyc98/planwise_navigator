@@ -2,7 +2,7 @@
 
 ## Purpose
 
-The data management utilities provide sophisticated tools for handling complex data operations in PlanWise Navigator, including data migration, schema management, performance optimization, and advanced data processing workflows.
+The data management utilities provide sophisticated tools for handling complex data operations in Fidelity PlanAlign Engine, including data migration, schema management, performance optimization, and advanced data processing workflows.
 
 ## Architecture
 

@@ -6,7 +6,7 @@ from pathlib import Path
 import polars as pl
 import pytest
 
-from navigator_orchestrator.workforce_planning_engine import (
+from planalign_orchestrator.workforce_planning_engine import (
     WorkforcePlanningEngine,
     WorkforceNeeds
 )

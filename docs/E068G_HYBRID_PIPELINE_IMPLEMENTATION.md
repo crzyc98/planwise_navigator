@@ -72,7 +72,7 @@ See `config/hybrid_simulation_config.yaml` for a complete configuration example 
 
 ### 1. Configuration Layer
 
-**File**: `navigator_orchestrator/config.py`
+**File**: `planalign_orchestrator/config.py`
 
 #### New Configuration Classes
 
@@ -110,7 +110,7 @@ def is_polars_mode_enabled(self) -> bool:
 
 ### 2. Pipeline Orchestrator Integration
 
-**File**: `navigator_orchestrator/pipeline.py`
+**File**: `planalign_orchestrator/pipeline.py`
 
 #### Hybrid Event Generation Method
 
@@ -133,7 +133,7 @@ def _execute_hybrid_event_generation(self, years: List[int]) -> Dict[str, Any]:
 
 ### 3. Performance Monitoring
 
-**File**: `navigator_orchestrator/hybrid_performance_monitor.py`
+**File**: `planalign_orchestrator/hybrid_performance_monitor.py`
 
 #### Performance Metrics
 
@@ -235,8 +235,8 @@ python scripts/run_hybrid_pipeline.py --mode comparison \
 #### Using the Orchestrator
 
 ```python
-from navigator_orchestrator import create_orchestrator
-from navigator_orchestrator.config import load_simulation_config
+from planalign_orchestrator import create_orchestrator
+from planalign_orchestrator.config import load_simulation_config
 
 # Load hybrid configuration
 config = load_simulation_config('config/hybrid_simulation_config.yaml')
@@ -260,7 +260,7 @@ if hasattr(summary, 'threading_config'):
 #### Performance Monitoring
 
 ```python
-from navigator_orchestrator.hybrid_performance_monitor import HybridPerformanceMonitor
+from planalign_orchestrator.hybrid_performance_monitor import HybridPerformanceMonitor
 
 # Create performance monitor
 monitor = HybridPerformanceMonitor()
@@ -441,7 +441,7 @@ The test suite covers:
 pytest tests/test_hybrid_pipeline_integration.py -v
 
 # Run with coverage
-pytest tests/test_hybrid_pipeline_integration.py --cov=navigator_orchestrator
+pytest tests/test_hybrid_pipeline_integration.py --cov=planalign_orchestrator
 
 # Run specific test classes
 pytest tests/test_hybrid_pipeline_integration.py::TestHybridPipelineConfiguration -v
@@ -541,7 +541,7 @@ The hybrid architecture is designed for extensibility:
 
 ## Conclusion
 
-The hybrid pipeline orchestrator integration provides a robust, high-performance solution for event generation with the flexibility to choose the optimal approach for each use case. With comprehensive monitoring, automatic fallback mechanisms, and seamless mode switching, it represents a significant advancement in the PlanWise Navigator architecture.
+The hybrid pipeline orchestrator integration provides a robust, high-performance solution for event generation with the flexibility to choose the optimal approach for each use case. With comprehensive monitoring, automatic fallback mechanisms, and seamless mode switching, it represents a significant advancement in the Fidelity PlanAlign Engine architecture.
 
 Key benefits:
 - **Performance**: Up to 3.5x faster event generation with Polars
@@ -550,4 +550,4 @@ Key benefits:
 - **Observability**: Comprehensive performance monitoring and reporting
 - **Compatibility**: Full backward compatibility with existing SQL workflows
 
-The implementation successfully achieves the Epic E068G goals of providing maximum-speed event generation while maintaining the reliability and auditability requirements of the PlanWise Navigator platform.
+The implementation successfully achieves the Epic E068G goals of providing maximum-speed event generation while maintaining the reliability and auditability requirements of the Fidelity PlanAlign Engine platform.

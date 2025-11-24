@@ -2,7 +2,7 @@
 
 ## Overview
 
-This document describes the enhanced progress tracking and real-time visualization system for compensation optimization in PlanWise Navigator. The system provides comprehensive monitoring, convergence tracking, and parameter evolution displays during optimization runs.
+This document describes the enhanced progress tracking and real-time visualization system for compensation optimization in Fidelity PlanAlign Engine. The system provides comprehensive monitoring, convergence tracking, and parameter evolution displays during optimization runs.
 
 ## Architecture
 

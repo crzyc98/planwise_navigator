@@ -1,4 +1,4 @@
-# PlanWise Navigator - System Architecture
+# Fidelity PlanAlign Engine - System Architecture
 
 **Date**: June 25, 2025
 **Version**: 3.0 (Post-Epic E013 Modularization)
@@ -8,7 +8,7 @@
 
 ## Overview
 
-PlanWise Navigator implements a modular workforce simulation system built on DuckDB, dbt, Dagster, and Streamlit. This document describes the current system architecture following the Epic E013 pipeline modularization effort.
+Fidelity PlanAlign Engine implements a modular workforce simulation system built on DuckDB, dbt, Dagster, and Streamlit. This document describes the current system architecture following the Epic E013 pipeline modularization effort.
 
 ## System Stack
 

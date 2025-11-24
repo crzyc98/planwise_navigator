@@ -121,7 +121,9 @@
       "Bash(gh pr diff:*)",
       "Bash(./scripts/convert_validation_to_test.sh:*)",
       "Bash(/tmp/fct_workforce_snapshot_baseline.sql)",
-      "Bash(PYTHONPATH=. time python:*)"
+      "Bash(PYTHONPATH=. time python:*)",
+      "Bash(uv pip install:*)",
+      "Bash(git mv:*)"
     ],
     "deny": [],
     "ask": []

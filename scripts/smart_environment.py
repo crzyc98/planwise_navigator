@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
-from navigator_orchestrator.config import get_database_path
-Smart Environment Detection and Setup Utility for PlanWise Navigator
+from planalign_orchestrator.config import get_database_path
+Smart Environment Detection and Setup Utility for Fidelity PlanAlign Engine
 
 This utility prevents trial-and-error command execution by:
 1. Detecting the correct project structure and paths upfront
@@ -155,7 +155,7 @@ class SmartEnvironment:
         project_root = self.detect_project_root(self.start_path)
         if not project_root:
             errors.append(
-                f"Could not find PlanWise Navigator project root from {self.start_path}"
+                f"Could not find Fidelity PlanAlign Engine project root from {self.start_path}"
             )
             return EnvironmentConfig(
                 project_root=self.start_path,
@@ -391,7 +391,7 @@ class SmartEnvironment:
 
         if not self.config:
             return [
-                "Environment detection failed - please run from PlanWise Navigator project directory"
+                "Environment detection failed - please run from Fidelity PlanAlign Engine project directory"
             ]
 
         instructions = []
@@ -442,7 +442,7 @@ class SmartEnvironment:
             print("❌ Environment detection failed")
             return
 
-        print("🔍 PlanWise Navigator Environment Summary:")
+        print("🔍 Fidelity PlanAlign Engine Environment Summary:")
         print("=" * 50)
         print(f"📁 Project Root: {self.config.project_root}")
         print(f"🐍 Python: {self.config.python_executable or 'Not found'}")
@@ -471,7 +471,7 @@ def main():
     import argparse
 
     parser = argparse.ArgumentParser(
-        description="Smart environment detection for PlanWise Navigator"
+        description="Smart environment detection for Fidelity PlanAlign Engine"
     )
     parser.add_argument(
         "--validate", action="store_true", help="Validate environment and exit"

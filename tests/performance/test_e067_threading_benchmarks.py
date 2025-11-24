@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-Performance Benchmarking Tests for Epic E067: Multi-Threading Navigator Orchestrator
+Performance Benchmarking Tests for Epic E067: Multi-Threading PlanAlign Orchestrator
 
 This module contains specialized performance tests that validate the threading implementation
 meets the performance targets specified in Epic E067:
@@ -35,15 +35,15 @@ import threading
 from concurrent.futures import ThreadPoolExecutor, as_completed
 
 # Import performance-critical components
-from navigator_orchestrator.config import (
+from planalign_orchestrator.config import (
     ThreadingSettings, ModelParallelizationSettings, ResourceManagerSettings,
     SimulationConfig
 )
-from navigator_orchestrator.dbt_runner import DbtRunner, DbtResult
-from navigator_orchestrator.parallel_execution_engine import (
+from planalign_orchestrator.dbt_runner import DbtRunner, DbtResult
+from planalign_orchestrator.parallel_execution_engine import (
     ParallelExecutionEngine, ExecutionContext, ExecutionResult
 )
-from navigator_orchestrator.resource_manager import ResourceManager
+from planalign_orchestrator.resource_manager import ResourceManager
 
 
 class PerformanceMetrics:

@@ -59,10 +59,10 @@ Currently, developers have no systematic way to validate their changes before co
 ### Script Structure
 ```bash
 #!/bin/bash
-# CI/CD test suite for PlanWise Navigator
+# CI/CD test suite for Fidelity PlanAlign Engine
 set -e  # Exit on error
 
-echo "🔍 Running PlanWise Navigator CI Tests..."
+echo "🔍 Running Fidelity PlanAlign Engine CI Tests..."
 
 # 1. Python validation
 echo "📝 Running Python linting..."

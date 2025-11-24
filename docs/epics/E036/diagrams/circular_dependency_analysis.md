@@ -168,14 +168,14 @@ with error_context("Multi-year simulation", troubleshooting):
 ### Primary Deferral Rate Fields
 
 **`employee_deferral_rate`** (19 references across 9 models):
-- `/Users/nicholasamaral/planwise_navigator/dbt/models/intermediate/events/int_employee_contributions.sql:52,57,58` 📍 **BROKEN SOURCE**
-- `/Users/nicholasamaral/planwise_navigator/dbt/models/marts/fct_yearly_events.sql:28,53,78,103,137,163,189,219,242,266,288,310,332,354,376,398,421,443,465`
-- `/Users/nicholasamaral/planwise_navigator/dbt/models/intermediate/int_enrollment_events.sql:211,214,284,287,341,342,363,364,386,387`
-- `/Users/nicholasamaral/planwise_navigator/dbt/models/staging/stg_census_data.sql:29,97,117`
+- `/Users/nicholasamaral/planalign_engine/dbt/models/intermediate/events/int_employee_contributions.sql:52,57,58` 📍 **BROKEN SOURCE**
+- `/Users/nicholasamaral/planalign_engine/dbt/models/marts/fct_yearly_events.sql:28,53,78,103,137,163,189,219,242,266,288,310,332,354,376,398,421,443,465`
+- `/Users/nicholasamaral/planalign_engine/dbt/models/intermediate/int_enrollment_events.sql:211,214,284,287,341,342,363,364,386,387`
+- `/Users/nicholasamaral/planalign_engine/dbt/models/staging/stg_census_data.sql:29,97,117`
 
 **`current_deferral_rate`** (6 references across 4 models):
-- `/Users/nicholasamaral/planwise_navigator/dbt/models/intermediate/events/int_deferral_rate_escalation_events.sql:92,127,135,152,184,211`
-- `/Users/nicholasamaral/planwise_navigator/dbt/models/marts/fct_workforce_snapshot.sql:609,757`
+- `/Users/nicholasamaral/planalign_engine/dbt/models/intermediate/events/int_deferral_rate_escalation_events.sql:92,127,135,152,184,211`
+- `/Users/nicholasamaral/planalign_engine/dbt/models/marts/fct_workforce_snapshot.sql:609,757`
 
 **Data Flow Broken At**: `int_employee_contributions.sql:52`
 ```sql
@@ -297,7 +297,7 @@ SELECT
 **Current Error**:
 ```bash
 # This will fail at int_employee_contributions step
-cd /Users/nicholasamaral/planwise_navigator
+cd /Users/nicholasamaral/planalign_engine
 source venv/bin/activate
 python run_multi_year.py
 
@@ -310,12 +310,12 @@ python run_multi_year.py
 **Validation After Fix**:
 ```bash
 # After implementing accumulator, this should succeed:
-/Users/nicholasamaral/planwise_navigator/venv/bin/dbt run --select int_deferral_rate_state_accumulator --vars "simulation_year: 2025"
-/Users/nicholasamaral/planwise_navigator/venv/bin/dbt run --select int_employee_contributions --vars "simulation_year: 2025"
-/Users/nicholasamaral/planwise_navigator/venv/bin/dbt run --select fct_yearly_events --vars "simulation_year: 2025"
+/Users/nicholasamaral/planalign_engine/venv/bin/dbt run --select int_deferral_rate_state_accumulator --vars "simulation_year: 2025"
+/Users/nicholasamaral/planalign_engine/venv/bin/dbt run --select int_employee_contributions --vars "simulation_year: 2025"
+/Users/nicholasamaral/planalign_engine/venv/bin/dbt run --select fct_yearly_events --vars "simulation_year: 2025"
 
 # Success validation:
-/Users/nicholasamaral/planwise_navigator/venv/bin/dbt run --select validate_deferral_rate_architecture --vars "simulation_year: 2025"
+/Users/nicholasamaral/planalign_engine/venv/bin/dbt run --select validate_deferral_rate_architecture --vars "simulation_year: 2025"
 ```
 
 ## Definition of Done Checklist

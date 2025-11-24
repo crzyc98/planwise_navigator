@@ -1,6 +1,6 @@
 # Story S038-06: Pipeline Orchestration Engine
 
-**Epic**: E038 - Navigator Orchestrator Refactoring & Modularization
+**Epic**: E038 - PlanAlign Orchestrator Refactoring & Modularization
 **Story Points**: 8
 **Priority**: High
 **Status**: 🟠 In Progress
@@ -91,18 +91,18 @@ def test_progress_reporting_accuracy()
 
 ### 🔧 Implementation Progress
 
-- Added `navigator_orchestrator/pipeline.py` implementing stage-based orchestration with per-year validation and reporting, registry updates, parallel-safe event generation, and checkpoint files under `.navigator_checkpoints/`.
+- Added `planalign_orchestrator/pipeline.py` implementing stage-based orchestration with per-year validation and reporting, registry updates, parallel-safe event generation, and checkpoint files under `.navigator_checkpoints/`.
 - Added `tests/test_pipeline.py` covering multi-year coordination, CSV summary export, and checkpoint creation (with a dummy dbt runner).
 
 ## 📘 **Usage Examples**
 
 ```python
-from navigator_orchestrator.config import load_simulation_config
-from navigator_orchestrator.utils import DatabaseConnectionManager
-from navigator_orchestrator.dbt_runner import DbtRunner
-from navigator_orchestrator.registries import RegistryManager
-from navigator_orchestrator.validation import DataValidator, HireTerminationRatioRule, EventSequenceRule
-from navigator_orchestrator.pipeline import PipelineOrchestrator
+from planalign_orchestrator.config import load_simulation_config
+from planalign_orchestrator.utils import DatabaseConnectionManager
+from planalign_orchestrator.dbt_runner import DbtRunner
+from planalign_orchestrator.registries import RegistryManager
+from planalign_orchestrator.validation import DataValidator, HireTerminationRatioRule, EventSequenceRule
+from planalign_orchestrator.pipeline import PipelineOrchestrator
 
 cfg = load_simulation_config()
 db = DatabaseConnectionManager()

@@ -13,7 +13,7 @@ import duckdb
 def setup_simple_optimization_storage():
     """Set up a simple version of the optimization storage."""
 
-    db_path = "/Users/nicholasamaral/planwise_navigator/simulation.duckdb"
+    db_path = "/Users/nicholasamaral/planalign_engine/simulation.duckdb"
 
     print("🔧 Setting up simple optimization storage...")
 
@@ -132,7 +132,7 @@ def simple_save_optimization_result(
 ) -> str:
     """Save optimization result to simple storage."""
 
-    db_path = "/Users/nicholasamaral/planwise_navigator/simulation.duckdb"
+    db_path = "/Users/nicholasamaral/planalign_engine/simulation.duckdb"
     run_id = f"{optimization_type}_{datetime.now().strftime('%Y%m%d_%H%M%S_%f')}"
 
     try:
@@ -165,7 +165,7 @@ def simple_save_optimization_result(
 def simple_load_optimization_results(limit: int = 10) -> List[Dict[str, Any]]:
     """Load recent optimization results."""
 
-    db_path = "/Users/nicholasamaral/planwise_navigator/simulation.duckdb"
+    db_path = "/Users/nicholasamaral/planalign_engine/simulation.duckdb"
 
     try:
         with duckdb.connect(db_path) as conn:
@@ -210,7 +210,7 @@ def simple_load_optimization_results(limit: int = 10) -> List[Dict[str, Any]]:
 def simple_get_optimization_summary() -> Dict[str, Any]:
     """Get a summary of optimization results."""
 
-    db_path = "/Users/nicholasamaral/planwise_navigator/simulation.duckdb"
+    db_path = "/Users/nicholasamaral/planalign_engine/simulation.duckdb"
 
     try:
         with duckdb.connect(db_path) as conn:

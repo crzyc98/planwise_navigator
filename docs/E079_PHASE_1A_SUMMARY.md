@@ -254,12 +254,12 @@ For failures, query the test results:
 SELECT * FROM dbt_test_failures.test_compensation_bounds;
 ```
 
-### Integration with Navigator Orchestrator
+### Integration with PlanAlign Orchestrator
 
 Tests can be integrated into the pipeline validation stage:
 
 ```python
-# In navigator_orchestrator/pipeline/year_executor.py
+# In planalign_orchestrator/pipeline/year_executor.py
 def run_validation_stage(self, year: int):
     # Run dbt tests
     result = self.dbt_runner.execute_command(

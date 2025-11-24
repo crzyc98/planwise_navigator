@@ -1,4 +1,4 @@
-# Auto-Optimize Technical Integration Guide - PlanWise Navigator
+# Auto-Optimize Technical Integration Guide - Fidelity PlanAlign Engine
 
 **Epic E012 Compensation Tuning System - S047 Optimization Engine**
 **Last Updated:** July 2025
@@ -8,7 +8,7 @@
 
 ## Overview
 
-This guide provides comprehensive technical details for integrating with PlanWise Navigator's enhanced Auto-Optimize capabilities. The S047 Optimization Engine implements advanced SciPy-based multi-objective optimization with constraint handling, evidence generation, and comprehensive monitoring.
+This guide provides comprehensive technical details for integrating with Fidelity PlanAlign Engine's enhanced Auto-Optimize capabilities. The S047 Optimization Engine implements advanced SciPy-based multi-objective optimization with constraint handling, evidence generation, and comprehensive monitoring.
 
 ### Architecture Overview
 
@@ -553,7 +553,7 @@ def benchmark_optimization_performance():
 ```bash
 # Required environment variables
 export DAGSTER_HOME=~/dagster_home_planwise
-export PLANWISE_DB_PATH=/Users/nicholasamaral/planwise_navigator/simulation.duckdb
+export PLANWISE_DB_PATH=/Users/nicholasamaral/planalign_engine/simulation.duckdb
 
 # Python dependencies
 pip install scipy>=1.11.0
@@ -667,4 +667,4 @@ class RealTimeOptimizer:
 
 ---
 
-*This guide is part of the PlanWise Navigator E012 Compensation Tuning System documentation suite.*
+*This guide is part of the Fidelity PlanAlign Engine E012 Compensation Tuning System documentation suite.*

@@ -1,4 +1,4 @@
-# PlanWise Navigator – AGENTS.md (Codex CLI Assistant Playbook)
+# Fidelity PlanAlign Engine – AGENTS.md (Codex CLI Assistant Playbook)
 
 This playbook defines how the Codex CLI assistant operates in this repository to produce precise, production‑ready changes aligned to the project’s architecture and standards described in CLAUDE.md.
 
@@ -6,7 +6,7 @@ This playbook defines how the Codex CLI assistant operates in this repository to
 
 ## 1) Mission & Scope
 
-- Generate or modify code, SQL models, and docs that fit the PlanWise Navigator architecture.
+- Generate or modify code, SQL models, and docs that fit the Fidelity PlanAlign Engine architecture.
 - Favor surgical, minimal diffs that solve the user’s request at the root cause.
 - Preserve event‑sourced design, auditability, and reproducibility at all times.
 

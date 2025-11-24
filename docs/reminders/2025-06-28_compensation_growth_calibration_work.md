@@ -94,7 +94,7 @@ new_hire_active           |   29  |     $112,308     |    $38,087   | ↘️ Dil
 
 ## Technical Context
 
-**Working Database**: `/Users/nicholasamaral/planwise_navigator/simulation.duckdb`
+**Working Database**: `/Users/nicholasamaral/planalign_engine/simulation.duckdb`
 **Schema**: `main`
 **Current State**: Multi-year simulation with realistic raise timing COMPLETED
 **Key Tables**: `fct_workforce_snapshot`, `fct_yearly_events`, `scd_workforce_state`

@@ -10,11 +10,11 @@
 
 **As a** platform engineering team
 **I want** comprehensive automated testing and validation for production readiness
-**So that** we can deploy PlanWise Navigator with confidence and catch regressions before they impact production
+**So that** we can deploy Fidelity PlanAlign Engine with confidence and catch regressions before they impact production
 
 ## Business Context
 
-PlanWise Navigator currently relies on **manual testing and ad-hoc validation**, making it difficult to ensure production readiness and prevent regressions. With complex multi-year simulations processing 42,331 events across 9,016 employees, automated validation is essential for maintaining data quality and operational reliability.
+Fidelity PlanAlign Engine currently relies on **manual testing and ad-hoc validation**, making it difficult to ensure production readiness and prevent regressions. With complex multi-year simulations processing 42,331 events across 9,016 employees, automated validation is essential for maintaining data quality and operational reliability.
 
 This epic establishes a comprehensive testing framework that validates business logic, data quality, performance characteristics, and operational resilience. The framework builds on the previous epics to provide end-to-end production validation.
 
@@ -66,8 +66,8 @@ This epic establishes a comprehensive testing framework that validates business 
 # tests/test_production_smoke.py
 import pytest
 import duckdb
-from navigator_orchestrator.cli import run_simulation
-from navigator_orchestrator.backup_manager import BackupManager
+from planalign_orchestrator.cli import run_simulation
+from planalign_orchestrator.backup_manager import BackupManager
 
 class TestProductionSmoke:
     """Fast smoke tests validating basic functionality"""
@@ -323,7 +323,7 @@ class TestRegulatory:
 # tests/test_performance.py
 import time
 import psutil
-from navigator_orchestrator.performance_monitor import PerformanceMonitor
+from planalign_orchestrator.performance_monitor import PerformanceMonitor
 
 class TestPerformance:
     """Validate performance requirements"""
@@ -375,7 +375,7 @@ class TestPerformance:
 
 set -e
 
-echo "=== PlanWise Navigator Production Validation ==="
+echo "=== Fidelity PlanAlign Engine Production Validation ==="
 echo "Started: $(date)"
 
 # 1. Environment validation
@@ -390,7 +390,7 @@ print('✅ Environment OK')
 # 2. Backup system test
 echo "🔍 Testing backup system..."
 python -c "
-from navigator_orchestrator.backup_manager import BackupManager
+from planalign_orchestrator.backup_manager import BackupManager
 bm = BackupManager()
 backup_path = bm.create_backup()
 print(f'✅ Backup created: {backup_path}')
@@ -414,7 +414,7 @@ pytest tests/test_performance.py -v --tb=short
 
 # 7. End-to-end test
 echo "🔍 Running end-to-end test..."
-time python -m navigator_orchestrator.cli run --years 2025-2025
+time python -m planalign_orchestrator.cli run --years 2025-2025
 
 echo "✅ All validation checks passed!"
 echo "Completed: $(date)"
@@ -589,7 +589,7 @@ Epic E047 has been **successfully completed** with all 14 story points delivered
 ./run_production_tests.sh compliance
 ```
 
-This framework provides the foundation for confident production deployment and ongoing operational validation of PlanWise Navigator.
+This framework provides the foundation for confident production deployment and ongoing operational validation of Fidelity PlanAlign Engine.
 
 ---
 

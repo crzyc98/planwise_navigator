@@ -1,5 +1,5 @@
 """
-Shared Parameter Schema Module for PlanWise Navigator Optimization
+Shared Parameter Schema Module for Fidelity PlanAlign Engine Optimization
 Provides unified parameter definitions, validation, and transformation functions
 for both compensation_tuning.py and advanced_optimization.py.
 """

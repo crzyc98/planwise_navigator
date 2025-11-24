@@ -1,6 +1,6 @@
 # Story S038-05: Audit & Reporting System
 
-**Epic**: E038 - Navigator Orchestrator Refactoring & Modularization
+**Epic**: E038 - PlanAlign Orchestrator Refactoring & Modularization
 **Story Points**: 5
 **Priority**: High
 **Status**: 🟠 In Progress
@@ -15,7 +15,7 @@ Enhance reporting capabilities with modular design, providing clean separation b
 
 ## 📋 **User Story**
 
-As a **business analyst** using PlanWise Navigator simulation results,
+As a **business analyst** using Fidelity PlanAlign Engine simulation results,
 I want **comprehensive, configurable audit reports with export capabilities**
 So that **I can analyze simulation outcomes in multiple formats and share insights with stakeholders**.
 
@@ -91,7 +91,7 @@ def test_configurable_report_templates()
 
 ### 🔧 Implementation Progress
 
-- Added `navigator_orchestrator/reports.py` implementing:
+- Added `planalign_orchestrator/reports.py` implementing:
   - Year reporting: `YearAuditor`, `YearAuditReport`, `WorkforceBreakdown`, `EventSummary`
   - Multi-year: `MultiYearReporter`, `MultiYearSummary`
   - Exports: `YearAuditReport.export_json(...)`, `MultiYearSummary.export_csv(...)`
@@ -212,9 +212,9 @@ class YearAuditor:
 ## 📘 **Usage Examples**
 
 ```python
-from navigator_orchestrator.utils import DatabaseConnectionManager
-from navigator_orchestrator.validation import DataValidator, HireTerminationRatioRule
-from navigator_orchestrator.reports import YearAuditor, MultiYearReporter, ConsoleReporter
+from planalign_orchestrator.utils import DatabaseConnectionManager
+from planalign_orchestrator.validation import DataValidator, HireTerminationRatioRule
+from planalign_orchestrator.reports import YearAuditor, MultiYearReporter, ConsoleReporter
 
 db = DatabaseConnectionManager()
 dv = DataValidator(db)

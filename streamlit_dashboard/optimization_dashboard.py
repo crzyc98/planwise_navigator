@@ -1,5 +1,5 @@
 """
-Unified Optimization Dashboard for PlanWise Navigator
+Unified Optimization Dashboard for Fidelity PlanAlign Engine
 Provides a comprehensive interface for managing optimization results from both
 advanced_optimization.py and compensation_tuning.py interfaces.
 
@@ -31,7 +31,7 @@ from optimization_storage import (ExportFormat, OptimizationEngine,
 
 # Page configuration
 st.set_page_config(
-    page_title="Optimization Dashboard - PlanWise Navigator",
+    page_title="Optimization Dashboard - Fidelity PlanAlign Engine",
     page_icon="📊",
     layout="wide",
     initial_sidebar_state="expanded",
@@ -1001,7 +1001,7 @@ with tab5:
 # Footer
 st.markdown("---")
 st.markdown(
-    "**PlanWise Navigator Optimization Dashboard** | Built with Streamlit | v1.0.0"
+    "**Fidelity PlanAlign Engine Optimization Dashboard** | Built with Streamlit | v1.0.0"
 )
 
 # Auto-refresh option

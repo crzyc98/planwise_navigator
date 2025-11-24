@@ -238,7 +238,7 @@ The benchmark suite is designed for CI/CD integration:
 1. **Import Errors**
    ```bash
    # Ensure you're running from project root
-   cd /path/to/planwise_navigator
+   cd /path/to/planalign_engine
    python scripts/benchmark_multi_year_coordination.py --scenario small
    ```
 
@@ -324,4 +324,4 @@ For issues with the benchmark suite:
 4. Check for recent changes that might affect performance
 5. Compare results with historical baselines
 
-The benchmark suite is designed to be self-contained and should work with the existing PlanWise Navigator codebase without additional dependencies.
+The benchmark suite is designed to be self-contained and should work with the existing Fidelity PlanAlign Engine codebase without additional dependencies.

@@ -14,7 +14,7 @@
 
 ## Business Context
 
-PlanWise Navigator has a comprehensive test suite (19 test files, 8,450 lines of code) covering:
+Fidelity PlanAlign Engine has a comprehensive test suite (19 test files, 8,450 lines of code) covering:
 - Event sourcing validation (S072 DC Plan Events)
 - Multi-year simulation orchestration
 - Performance benchmarks (E068 optimization framework)
@@ -29,7 +29,7 @@ PlanWise Navigator has a comprehensive test suite (19 test files, 8,450 lines of
 ```bash
 $ python -m pytest
 E   _pytest.pathlib.ImportPathMismatchError: ('tests.conftest',
-    '/Users/.../planwise_navigator/tests/conftest.py',
+    '/Users/.../planalign_engine/tests/conftest.py',
     PosixPath('/Users/.../dbt/dbt_packages/dbt_utils/tests/conftest.py'))
 ```
 
@@ -93,7 +93,7 @@ pytest is collecting test files from `dbt/dbt_packages/dbt_utils/tests/`, causin
 
 #### 1. Add pytest configuration to pyproject.toml
 
-**File**: `/Users/nicholasamaral/planwise_navigator/pyproject.toml`
+**File**: `/Users/nicholasamaral/planalign_engine/pyproject.toml`
 
 Add section after `[tool.setuptools.packages.find]`:
 
@@ -149,7 +149,7 @@ timeout_method = "thread"
 
 # Coverage options (when using pytest-cov)
 [tool.coverage.run]
-source = ["navigator_orchestrator", "planwise_cli", "config"]
+source = ["planalign_orchestrator", "planalign_cli", "config"]
 omit = [
     "*/tests/*",
     "*/venv/*",
@@ -188,7 +188,7 @@ python -m pytest
 $ python -m pytest --collect-only
 ============================= test session starts ==============================
 platform darwin -- Python 3.11.12, pytest-7.4.0, pluggy-1.6.0
-rootdir: /Users/nicholasamaral/planwise_navigator
+rootdir: /Users/nicholasamaral/planalign_engine
 configfile: pyproject.toml
 testpaths: tests
 plugins: anyio-4.9.0, cov-4.1.0, mock-3.11.1, Faker-19.3.0, xdist-3.3.1
@@ -287,7 +287,7 @@ tests/
 #### 1. Create new directory structure
 
 ```bash
-cd /Users/nicholasamaral/planwise_navigator/tests
+cd /Users/nicholasamaral/planalign_engine/tests
 
 # Create new directories
 mkdir -p unit/events
@@ -312,7 +312,7 @@ rmdir core 2>/dev/null || true
 
 #### 2. Extract shared utilities to tests/utils/
 
-**File**: `/Users/nicholasamaral/planwise_navigator/tests/utils/__init__.py`
+**File**: `/Users/nicholasamaral/planalign_engine/tests/utils/__init__.py`
 
 ```python
 """Test utilities and shared components."""
@@ -340,7 +340,7 @@ __all__ = [
 ]
 ```
 
-**File**: `/Users/nicholasamaral/planwise_navigator/tests/utils/fixtures.py`
+**File**: `/Users/nicholasamaral/planalign_engine/tests/utils/fixtures.py`
 
 Extract database and data fixtures from conftest.py:
 
@@ -356,7 +356,7 @@ import pytest
 import numpy as np
 import pandas as pd
 
-from navigator_orchestrator.config import get_database_path
+from planalign_orchestrator.config import get_database_path
 
 
 @pytest.fixture(scope="session")
@@ -407,7 +407,7 @@ def sample_workforce_data() -> pd.DataFrame:
     return pd.DataFrame(data)
 ```
 
-**File**: `/Users/nicholasamaral/planwise_navigator/tests/utils/factories.py`
+**File**: `/Users/nicholasamaral/planalign_engine/tests/utils/factories.py`
 
 ```python
 """Test data factories for creating test objects."""
@@ -506,10 +506,10 @@ class ConfigFactory:
         }
 ```
 
-**File**: `/Users/nicholasamaral/planwise_navigator/tests/utils/assertions.py`
+**File**: `/Users/nicholasamaral/planalign_engine/tests/utils/assertions.py`
 
 ```python
-"""Custom test assertions for PlanWise Navigator."""
+"""Custom test assertions for Fidelity PlanAlign Engine."""
 
 import pytest
 from typing import Dict, Any
@@ -565,13 +565,13 @@ def assert_event_valid(event) -> None:
 
 #### 3. Update conftest.py to use utilities
 
-**File**: `/Users/nicholasamaral/planwise_navigator/tests/conftest.py`
+**File**: `/Users/nicholasamaral/planalign_engine/tests/conftest.py`
 
 Simplify to delegate to utils:
 
 ```python
 """
-Pytest Configuration for PlanWise Navigator Testing
+Pytest Configuration for Fidelity PlanAlign Engine Testing
 ====================================================
 
 Root conftest.py - delegates to tests/utils/ for reusable components.
@@ -625,7 +625,7 @@ def pytest_runtest_teardown(item):
 def pytest_sessionstart(session):
     """Called at start of test session."""
     print("\n" + "=" * 80)
-    print("PlanWise Navigator Testing Framework")
+    print("Fidelity PlanAlign Engine Testing Framework")
     print("=" * 80)
     print()
 
@@ -683,7 +683,7 @@ Already added in S070-01:
 
 #### 2. Add performance monitoring fixtures
 
-**File**: `/Users/nicholasamaral/planwise_navigator/tests/utils/fixtures.py`
+**File**: `/Users/nicholasamaral/planalign_engine/tests/utils/fixtures.py`
 
 Add to existing fixtures:
 
@@ -825,10 +825,10 @@ Developers need clear documentation on how to run tests, interpret results, and 
 
 #### 1. Create comprehensive test documentation
 
-**File**: `/Users/nicholasamaral/planwise_navigator/tests/README.md`
+**File**: `/Users/nicholasamaral/planalign_engine/tests/README.md`
 
 ```markdown
-# PlanWise Navigator Testing Guide
+# Fidelity PlanAlign Engine Testing Guide
 
 **Test Suite**: 19 test files | 8,450 lines | 45+ test cases
 **Framework**: pytest 7.4.0 | Coverage: pytest-cov 4.1.0
@@ -849,7 +849,7 @@ python -m pytest -m integration
 python -m pytest tests/unit/events/test_simulation_event.py
 
 # With coverage report
-python -m pytest --cov=navigator_orchestrator --cov-report=html
+python -m pytest --cov=planalign_orchestrator --cov-report=html
 ```
 
 ## Test Organization
@@ -1026,7 +1026,7 @@ repos:
 
 ```bash
 # Generate HTML coverage report
-python -m pytest --cov=navigator_orchestrator --cov=planwise_cli --cov=config \
+python -m pytest --cov=planalign_orchestrator --cov=planalign_cli --cov=config \
   --cov-report=html --cov-report=term
 
 # View report
@@ -1034,8 +1034,8 @@ open htmlcov/index.html
 ```
 
 **Target Coverage**:
-- `navigator_orchestrator/`: 95%
-- `planwise_cli/`: 90%
+- `planalign_orchestrator/`: 95%
+- `planalign_cli/`: 90%
 - `config/`: 90%
 
 ## Troubleshooting
@@ -1155,11 +1155,11 @@ jobs:
 
       - name: Lint with ruff
         run: |
-          ruff check navigator_orchestrator/ planwise_cli/ config/
+          ruff check planalign_orchestrator/ planalign_cli/ config/
 
       - name: Run fast tests
         run: |
-          pytest -m "not slow" --cov=navigator_orchestrator --cov=planwise_cli --cov=config \
+          pytest -m "not slow" --cov=planalign_orchestrator --cov=planalign_cli --cov=config \
             --cov-report=xml --cov-report=term -v
 
       - name: Upload coverage to Codecov
@@ -1178,7 +1178,7 @@ jobs:
 
 #### 3. Makefile targets for convenience
 
-**File**: `/Users/nicholasamaral/planwise_navigator/Makefile`
+**File**: `/Users/nicholasamaral/planalign_engine/Makefile`
 
 Add test targets:
 
@@ -1202,7 +1202,7 @@ test-fast:  ## Run all tests except slow ones
 	python -m pytest -m "not slow" -v
 
 test-coverage:  ## Run tests with coverage report
-	python -m pytest --cov=navigator_orchestrator --cov=planwise_cli --cov=config \
+	python -m pytest --cov=planalign_orchestrator --cov=planalign_cli --cov=config \
 		--cov-report=html --cov-report=term
 	@echo "Coverage report: htmlcov/index.html"
 
@@ -1318,7 +1318,7 @@ python -m pytest --collect-only
 python -m pytest -m unit --maxfail=1
 
 # Phase 2: Reorganization (30 minutes)
-cd /Users/nicholasamaral/planwise_navigator/tests
+cd /Users/nicholasamaral/planalign_engine/tests
 mkdir -p unit/events unit/orchestrator unit/cli utils
 mv core/* unit/orchestrator/
 mv test_cli.py unit/cli/
@@ -1410,7 +1410,7 @@ After initial epic completion, resolved remaining collection errors:
 - Test suite fully operational
 
 **Technical Debt Created**:
-- 20 legacy tests marked as skipped (need refactoring for navigator_orchestrator)
+- 20 legacy tests marked as skipped (need refactoring for planalign_orchestrator)
 - 74 performance/stress tests failing (need updates for ParallelExecutionEngine API)
 - 8 unit tests failing (need updates for refactored orchestrator API)
 - Total: 82 tests need future updates (40% of suite)

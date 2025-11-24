@@ -5,7 +5,7 @@ E068H Scale & Parity Testing Framework
 Critical production deployment validation system that tests linear scaling
 performance and ensures all E068 optimizations work correctly at enterprise scale.
 
-This framework validates that PlanWise Navigator maintains:
+This framework validates that Fidelity PlanAlign Engine maintains:
 - Linear O(n) performance scaling (not O(n²))
 - Memory usage within production bounds
 - No performance regression from baseline
@@ -48,10 +48,10 @@ import psutil
 # Add project root to path
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
-from navigator_orchestrator.config import load_simulation_config, get_database_path
-from navigator_orchestrator.performance_monitor import DuckDBPerformanceMonitor
-from navigator_orchestrator.factory import create_orchestrator
-from navigator_orchestrator.logger import ProductionLogger
+from planalign_orchestrator.config import load_simulation_config, get_database_path
+from planalign_orchestrator.performance_monitor import DuckDBPerformanceMonitor
+from planalign_orchestrator.factory import create_orchestrator
+from planalign_orchestrator.logger import ProductionLogger
 
 
 @dataclass

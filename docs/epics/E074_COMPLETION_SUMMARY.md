@@ -11,7 +11,7 @@
 
 ## Executive Summary
 
-Successfully delivered comprehensive error handling framework infrastructure for PlanWise Navigator, transforming error diagnostics from generic exceptions into actionable, context-rich diagnostic messages. Foundation enables <5 minute bug diagnosis (previously 30-60 minutes) through structured exception hierarchy, resolution hints, and pattern-matched error catalog.
+Successfully delivered comprehensive error handling framework infrastructure for Fidelity PlanAlign Engine, transforming error diagnostics from generic exceptions into actionable, context-rich diagnostic messages. Foundation enables <5 minute bug diagnosis (previously 30-60 minutes) through structured exception hierarchy, resolution hints, and pattern-matched error catalog.
 
 **Business Impact**: 50-80% reduction in debugging time through contextual error messages and automated resolution suggestions.
 
@@ -22,7 +22,7 @@ Successfully delivered comprehensive error handling framework infrastructure for
 ### ✅ Story E074-01: Structured Exception Hierarchy (45 minutes)
 
 **Deliverables**:
-- `navigator_orchestrator/exceptions.py` (548 lines)
+- `planalign_orchestrator/exceptions.py` (548 lines)
   - `NavigatorError` base class with execution context
   - `ExecutionContext` dataclass with correlation IDs
   - `ResolutionHint` dataclass for actionable guidance
@@ -44,7 +44,7 @@ Successfully delivered comprehensive error handling framework infrastructure for
 ### ✅ Story E074-02: Error Catalog & Resolution System (30 minutes)
 
 **Deliverables**:
-- `navigator_orchestrator/error_catalog.py` (224 lines)
+- `planalign_orchestrator/error_catalog.py` (224 lines)
   - `ErrorCatalog` class with pattern matching
   - `ErrorPattern` dataclass for known error signatures
   - 7 pre-configured error patterns covering 90%+ of production errors
@@ -110,7 +110,7 @@ Successfully delivered comprehensive error handling framework infrastructure for
 - Update `ObservabilityManager` to log `NavigatorError.to_dict()`
 - Add error aggregation to batch summary reports
 - Create error frequency dashboard in Streamlit
-- Implement `planwise errors` CLI command
+- Implement `planalign errors` CLI command
 
 ---
 
@@ -196,12 +196,12 @@ Tests collected: 51
 ### Coverage Report
 
 ```bash
-$ pytest tests/test_exceptions.py tests/test_error_catalog.py --cov=navigator_orchestrator/exceptions --cov=navigator_orchestrator/error_catalog
+$ pytest tests/test_exceptions.py tests/test_error_catalog.py --cov=planalign_orchestrator/exceptions --cov=planalign_orchestrator/error_catalog
 
 Name                                       Stmts   Miss  Cover
 --------------------------------------------------------------
-navigator_orchestrator/exceptions.py        165      0   100%
-navigator_orchestrator/error_catalog.py      72      0   100%
+planalign_orchestrator/exceptions.py        165      0   100%
+planalign_orchestrator/error_catalog.py      72      0   100%
 --------------------------------------------------------------
 TOTAL                                        237      0   100%
 ```
@@ -312,7 +312,7 @@ raise DbtExecutionError(
 - ⏸️ Structured JSON logging with `ObservabilityManager`
 - ⏸️ Error aggregation in batch summary reports
 - ⏸️ Streamlit error frequency dashboard
-- ⏸️ `planwise errors` CLI command
+- ⏸️ `planalign errors` CLI command
 
 ---
 
@@ -348,11 +348,11 @@ raise DbtExecutionError(
 Start using enhanced exceptions in new code immediately:
 
 ```python
-from navigator_orchestrator.exceptions import (
+from planalign_orchestrator.exceptions import (
     DbtExecutionError,
     ExecutionContext,
 )
-from navigator_orchestrator.error_catalog import get_error_catalog
+from planalign_orchestrator.error_catalog import get_error_catalog
 
 # Use in new code paths
 try:
@@ -377,7 +377,7 @@ except Exception as e:
 Add patterns as new error types are encountered:
 
 ```python
-from navigator_orchestrator.error_catalog import get_error_catalog, ErrorPattern
+from planalign_orchestrator.error_catalog import get_error_catalog, ErrorPattern
 import re
 
 catalog = get_error_catalog()
@@ -397,7 +397,7 @@ catalog.add_pattern(
 Track error patterns to identify systemic issues:
 
 ```python
-from navigator_orchestrator.error_catalog import get_error_catalog
+from planalign_orchestrator.error_catalog import get_error_catalog
 
 catalog = get_error_catalog()
 stats = catalog.get_pattern_statistics()
@@ -416,8 +416,8 @@ for pattern, freq in sorted(stats.items(), key=lambda x: x[1], reverse=True):
 
 | File | Lines | Purpose |
 |------|-------|---------|
-| `navigator_orchestrator/exceptions.py` | 548 | Structured exception hierarchy |
-| `navigator_orchestrator/error_catalog.py` | 224 | Error pattern catalog |
+| `planalign_orchestrator/exceptions.py` | 548 | Structured exception hierarchy |
+| `planalign_orchestrator/error_catalog.py` | 224 | Error pattern catalog |
 | `tests/test_exceptions.py` | 294 | Exception framework tests |
 | `tests/test_error_catalog.py` | 338 | Error catalog tests |
 | `docs/guides/error_troubleshooting.md` | 523 | Troubleshooting guide |

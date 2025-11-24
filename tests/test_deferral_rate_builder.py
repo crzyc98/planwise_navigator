@@ -14,7 +14,7 @@ Tests cover:
 import pytest
 import polars as pl
 from datetime import date
-from navigator_orchestrator.polars_state_pipeline import DeferralRateBuilder
+from planalign_orchestrator.polars_state_pipeline import DeferralRateBuilder
 import logging
 
 

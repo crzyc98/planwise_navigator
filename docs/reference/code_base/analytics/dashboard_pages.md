@@ -29,7 +29,7 @@ from components.filters import create_year_filter, create_scenario_selector
 
 def main():
     st.set_page_config(
-        page_title="Growth Overview - PlanWise Navigator",
+        page_title="Growth Overview - Fidelity PlanAlign Engine",
         page_icon="📈",
         layout="wide"
     )

@@ -741,7 +741,7 @@ jobs:
                   print(f'Error reading {file}: {e}')
 
           # Generate markdown report
-          report = f'''# PlanWise Navigator Validation Report
+          report = f'''# Fidelity PlanAlign Engine Validation Report
 
           **Generated:** {datetime.now().strftime('%Y-%m-%d %H:%M:%S UTC')}
           **Workflow:** {os.getenv('GITHUB_WORKFLOW', 'Manual')}
@@ -750,7 +750,7 @@ jobs:
 
           ## Executive Summary
 
-          This report provides a comprehensive overview of the validation framework execution for the PlanWise Navigator codebase.
+          This report provides a comprehensive overview of the validation framework execution for the Fidelity PlanAlign Engine codebase.
 
           '''
 

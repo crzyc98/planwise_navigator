@@ -1,4 +1,4 @@
-# PlanWise Navigator - Project Status Dashboard
+# Fidelity PlanAlign Engine - Project Status Dashboard
 
 *Last Updated: 2024-Q4*
 

@@ -90,7 +90,7 @@ def optimization_results_summary(...) -> pd.DataFrame:
 try:
     # Method 1: Dagster CLI with proper environment
     cmd = [dagster_cmd, "job", "execute", "--job", "multi_year_simulation", ...]
-    env["DAGSTER_HOME"] = "/Users/nicholasamaral/planwise_navigator/.dagster"
+    env["DAGSTER_HOME"] = "/Users/nicholasamaral/planalign_engine/.dagster"
     result = subprocess.run(cmd, env=env, ...)
 except:
     # Method 2: Asset-based simulation
@@ -136,7 +136,7 @@ Based on actual S046 benchmarks:
 
 ### **Database Configuration**
 - **Must use**: `full_refresh: False` in job config (prevents data wiping between iterations)
-- **Database path**: `/Users/nicholasamaral/planwise_navigator/simulation.duckdb`
+- **Database path**: `/Users/nicholasamaral/planalign_engine/simulation.duckdb`
 - **Connection pattern**: Always use context managers for DuckDB connections
 
 ### **Parameter Categories**

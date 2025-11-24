@@ -7,7 +7,7 @@
 
 ## User Story
 
-**As a** PlanWise Navigator developer
+**As a** Fidelity PlanAlign Engine developer
 **I want** dbt snapshot operations extracted into a dedicated operation
 **So that** workforce state snapshot management is centralized and reusable across different simulation contexts
 
