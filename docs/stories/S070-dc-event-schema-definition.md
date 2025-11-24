@@ -82,7 +82,7 @@ class RetirementPlanEvent:
     amount: Optional[Decimal] = None
     details: Dict[str, Any] = None
     created_at: datetime = None
-    source_system: str = "planwise_navigator"
+    source_system: str = "planalign_engine"
 
     def __post_init__(self):
         if self.created_at is None:

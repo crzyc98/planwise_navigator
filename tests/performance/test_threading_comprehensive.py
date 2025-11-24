@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-Comprehensive Test Suite for Epic E067: Multi-Threading Navigator Orchestrator
+Comprehensive Test Suite for Epic E067: Multi-Threading PlanAlign Orchestrator
 
 This test suite validates all aspects of the multi-threading implementation:
 1. Unit Tests: Thread-safe operation validation for each component
@@ -32,17 +32,17 @@ import psutil
 import os
 
 # Import components under test
-from navigator_orchestrator.config import (
+from planalign_orchestrator.config import (
     ThreadingSettings, ModelParallelizationSettings, ResourceManagerSettings,
     SimulationConfig, load_simulation_config
 )
-from navigator_orchestrator.dbt_runner import DbtRunner, DbtResult
-from navigator_orchestrator.parallel_execution_engine import (
+from planalign_orchestrator.dbt_runner import DbtRunner, DbtResult
+from planalign_orchestrator.parallel_execution_engine import (
     ParallelExecutionEngine, ExecutionContext, ExecutionResult
 )
-from navigator_orchestrator.resource_manager import ResourceManager, CPUMonitor, MemoryMonitor
-from navigator_orchestrator.model_dependency_analyzer import ModelDependencyAnalyzer
-from navigator_orchestrator.pipeline_orchestrator import PipelineOrchestrator
+from planalign_orchestrator.resource_manager import ResourceManager, CPUMonitor, MemoryMonitor
+from planalign_orchestrator.model_dependency_analyzer import ModelDependencyAnalyzer
+from planalign_orchestrator.pipeline_orchestrator import PipelineOrchestrator
 
 
 class TestThreadingConfiguration:
@@ -884,7 +884,7 @@ dbt:
         # For now, verify configuration integration
 
         # Mock orchestrator creation
-        with patch('navigator_orchestrator.pipeline.PipelineOrchestrator') as mock_orchestrator_class:
+        with patch('planalign_orchestrator.pipeline.PipelineOrchestrator') as mock_orchestrator_class:
             mock_orchestrator = Mock()
             mock_orchestrator_class.return_value = mock_orchestrator
 

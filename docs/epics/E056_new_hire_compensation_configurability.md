@@ -385,7 +385,7 @@ if st.button("Calculate Impact"):
 
 ### External Integration
 - **Streamlit Dashboard**: Real-time parameter adjustment UI
-- **Navigator Orchestrator**: Configuration loading and validation
+- **PlanAlign Orchestrator**: Configuration loading and validation
 - **Reporting System**: Financial impact analysis and audit trails
 
 ## Testing Strategy

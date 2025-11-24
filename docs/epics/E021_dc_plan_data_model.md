@@ -3,7 +3,7 @@
 ## Epic Overview
 
 ### Summary
-Establish the foundational data model and event schema for Defined Contribution retirement plan modeling within PlanWise Navigator's event-sourced architecture.
+Establish the foundational data model and event schema for Defined Contribution retirement plan modeling within Fidelity PlanAlign Engine's event-sourced architecture.
 
 ### Business Value
 - Creates the technical foundation for all retirement plan features

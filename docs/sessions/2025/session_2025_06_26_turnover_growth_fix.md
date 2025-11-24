@@ -7,7 +7,7 @@
 
 ## Problem Statement
 
-The PlanWise Navigator workforce simulation was experiencing exponential growth instead of the configured 3% annual target:
+The Fidelity PlanAlign Engine workforce simulation was experiencing exponential growth instead of the configured 3% annual target:
 
 - **2026**: 3.1% growth ✅
 - **2027**: 6.8% growth ⚠️
@@ -134,10 +134,10 @@ SELECT ROUND(
 ## Technical Implementation Details
 
 ### Database Environment
-- **Database**: `/Users/nicholasamaral/planwise_navigator/simulation.duckdb`
+- **Database**: `/Users/nicholasamaral/planalign_engine/simulation.duckdb`
 - **Schema**: `main`
-- **dbt Commands**: Run from `/Users/nicholasamaral/planwise_navigator/dbt`
-- **Dagster Commands**: Run from `/Users/nicholasamaral/planwise_navigator/`
+- **dbt Commands**: Run from `/Users/nicholasamaral/planalign_engine/dbt`
+- **Dagster Commands**: Run from `/Users/nicholasamaral/planalign_engine/`
 
 ### Debugging Workflow Established
 1. **Environment Setup**: Use correct directories and database paths

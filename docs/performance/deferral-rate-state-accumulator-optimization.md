@@ -171,6 +171,6 @@ This optimization enables sub-second analytical queries for complex workforce si
 
 ---
 
-**File**: `/Users/nicholasamaral/planwise_navigator/dbt/models/intermediate/int_deferral_rate_state_accumulator.sql`
+**File**: `/Users/nicholasamaral/planalign_engine/dbt/models/intermediate/int_deferral_rate_state_accumulator.sql`
 **Optimization Date**: 2025-08-09
 **Performance Verified**: 2025-2029 simulation years

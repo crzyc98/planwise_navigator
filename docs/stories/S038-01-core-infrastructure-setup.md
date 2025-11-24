@@ -1,6 +1,6 @@
 # Story S038-01: Core Infrastructure Setup
 
-**Epic**: E038 - Navigator Orchestrator Refactoring & Modularization
+**Epic**: E038 - PlanAlign Orchestrator Refactoring & Modularization
 **Story Points**: 5
 **Priority**: High
 **Status**: 🟠 In Progress
@@ -11,11 +11,11 @@
 
 ## 🎯 **Goal**
 
-Create foundational modules for configuration and utilities that will serve as the backbone for the new `navigator_orchestrator` package.
+Create foundational modules for configuration and utilities that will serve as the backbone for the new `planalign_orchestrator` package.
 
 ## 📋 **User Story**
 
-As a **developer** working on the PlanWise Navigator system,
+As a **developer** working on the Fidelity PlanAlign Engine system,
 I want **clean, modular foundation components for configuration and utilities**
 So that **I can build other orchestrator modules on a solid, testable foundation**.
 
@@ -96,9 +96,9 @@ def test_timing_utilities_accurate_measurement()
 
 ### 🔧 Implementation Progress
 
-- Core modules added under `navigator_orchestrator/`:
-  - `navigator_orchestrator/utils.py` (ExecutionMutex, DatabaseConnectionManager, `time_block`)
-  - `navigator_orchestrator/config.py` (typed loader, env overrides, `to_dbt_vars`)
+- Core modules added under `planalign_orchestrator/`:
+  - `planalign_orchestrator/utils.py` (ExecutionMutex, DatabaseConnectionManager, `time_block`)
+  - `planalign_orchestrator/config.py` (typed loader, env overrides, `to_dbt_vars`)
 - Targeted unit tests added:
   - `tests/test_navigator_config.py`
   - `tests/test_navigator_utils.py`
@@ -107,15 +107,15 @@ def test_timing_utilities_accurate_measurement()
 ## 📘 **Usage Examples**
 
 ```python
-# navigator_orchestrator.config
-from navigator_orchestrator.config import load_simulation_config, to_dbt_vars
+# planalign_orchestrator.config
+from planalign_orchestrator.config import load_simulation_config, to_dbt_vars
 
 cfg = load_simulation_config()  # reads config/simulation_config.yaml
 cfg.require_identifiers()  # optional enforcement for scenario_id/plan_design_id
 vars_dict = to_dbt_vars(cfg)
 
-# navigator_orchestrator.utils
-from navigator_orchestrator.utils import DatabaseConnectionManager, ExecutionMutex, time_block
+# planalign_orchestrator.utils
+from planalign_orchestrator.utils import DatabaseConnectionManager, ExecutionMutex, time_block
 
 db = DatabaseConnectionManager()  # defaults to simulation.duckdb
 with db.transaction() as conn:

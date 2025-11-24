@@ -1,10 +1,10 @@
-# PlanWise Navigator
+# Fidelity PlanAlign Engine
 
 **An enterprise-grade, on-premises workforce simulation platform with immutable event sourcing, built on DuckDB, dbt, Dagster, and Streamlit.**
 
 ## Overview
 
-PlanWise Navigator represents a paradigm shift from rigid spreadsheets to a dynamic, fully transparent simulation engine—essentially a workforce "time machine" that captures every employee lifecycle event with UUID-stamped precision and enables instant scenario replay.
+Fidelity PlanAlign Engine represents a paradigm shift from rigid spreadsheets to a dynamic, fully transparent simulation engine—essentially a workforce "time machine" that captures every employee lifecycle event with UUID-stamped precision and enables instant scenario replay.
 
 This enterprise-grade platform replaces legacy Pandas-based pipelines with an immutable event-sourced architecture optimized for analytical workloads, audit trails, and regulatory compliance.
 
@@ -23,7 +23,7 @@ This enterprise-grade platform replaces legacy Pandas-based pipelines with an im
 - **Reproducible Results**: Random seed control for identical simulation outcomes
 - **Scalable Performance**: Handle 100K+ employee records with minimal memory footprint
 
-### Navigator Orchestrator
+### PlanAlign Orchestrator
 
 Enterprise-grade orchestration engine with modular architecture:
 
@@ -55,7 +55,7 @@ Enterprise-grade orchestration engine with modular architecture:
 | **Storage** | DuckDB | 1.0.0 | Immutable event store; in-process OLAP engine |
 | **Transformation** | dbt-core | 1.8.8 | SQL-based data modeling and testing |
 | **Adapter** | dbt-duckdb | 1.8.1 | Stable DuckDB integration |
-| **Orchestration** | navigator_orchestrator | Custom | Multi-year pipeline orchestration with checkpoints |
+| **Orchestration** | planalign_orchestrator | Custom | Multi-year pipeline orchestration with checkpoints |
 | **CLI Interface** | planwise (Rich + Typer) | 1.0.0 | Beautiful terminal interface with progress tracking |
 | **Dashboard** | Streamlit | 1.39.0 | Interactive analytics interface |
 | **Configuration** | Pydantic | 2.7.4 | Type-safe parameter management |
@@ -85,8 +85,8 @@ Raw Census Data → Staging Models → Event Generation → Immutable Event Stor
 ## Directory Structure
 
 ```
-planwise_navigator/
-├── navigator_orchestrator/           # Production orchestration engine
+planalign_engine/
+├── planalign_orchestrator/           # Production orchestration engine
 │   ├── pipeline_orchestrator.py      # PipelineOrchestrator coordinator (1,220 lines)
 │   ├── pipeline/                     # Modular pipeline components (E072 ✅)
 │   │   ├── __init__.py              # Public API exports
@@ -103,7 +103,7 @@ planwise_navigator/
 │   ├── reports.py                    # Multi-year reporting
 │   ├── exceptions.py                 # Error handling (E074 ✅ - 548 lines)
 │   └── error_catalog.py              # Error catalog (E074 ✅ - 224 lines)
-├── planwise_cli/                     # CLI interface (Rich + Typer)
+├── planalign_cli/                     # CLI interface (Rich + Typer)
 │   ├── main.py                       # planwise command entry point
 │   ├── commands/                     # CLI commands
 │   └── integration/                  # Orchestrator integration
@@ -185,8 +185,8 @@ pip install uv
 
 2. **Clone and setup environment**:
 ```bash
-git clone <repository-url> planwise_navigator
-cd planwise_navigator
+git clone <repository-url> planalign_engine
+cd planalign_engine
 
 # Create virtual environment with uv
 uv venv .venv --python python3.11
@@ -258,21 +258,21 @@ Create or edit the profiles file:
 - **Windows**: `%USERPROFILE%\.dbt\profiles.yml`
 
 ```yaml
-planwise_navigator:
+planalign_engine:
   target: dev
   outputs:
     dev:
       type: duckdb
-      path: /absolute/path/to/planwise_navigator/dbt/simulation.duckdb  # Use absolute path
+      path: /absolute/path/to/planalign_engine/dbt/simulation.duckdb  # Use absolute path
       threads: 1  # Single-threaded for work laptop stability
 ```
 
 **Note**: On Windows, use forward slashes or escaped backslashes in the path:
 ```yaml
 # Windows example:
-path: C:/Users/YourName/planwise_navigator/dbt/simulation.duckdb
+path: C:/Users/YourName/planalign_engine/dbt/simulation.duckdb
 # Or:
-path: C:\\Users\\YourName\\planwise_navigator\\dbt\\simulation.duckdb
+path: C:\\Users\\YourName\\planalign_engine\\dbt\\simulation.duckdb
 ```
 
 5. **Configure simulation parameters** in `config/simulation_config.yaml`:
@@ -297,8 +297,8 @@ multi_year:
 python -c "import duckdb, dbt, streamlit, pydantic, rich, typer; print('✅ Installation successful!')"
 
 # Verify planwise CLI is available
-planwise --version
-planwise health
+planalign --version
+planalign health
 
 # Check dbt connection
 cd dbt && dbt debug
@@ -312,28 +312,28 @@ The **planwise** CLI provides a beautiful, user-friendly interface with progress
 
 ```bash
 # Quick system health check
-planwise health
+planalign health
 
 # Run multi-year simulation with progress tracking
-planwise simulate 2025-2027 --verbose
+planalign simulate 2025-2027 --verbose
 
 # Resume from checkpoint after interruption
-planwise simulate 2025-2027 --resume
+planalign simulate 2025-2027 --resume
 
 # Preview execution plan (dry run)
-planwise simulate 2025-2026 --dry-run
+planalign simulate 2025-2026 --dry-run
 
 # Run batch scenarios with Excel export
-planwise batch --scenarios baseline high_growth
-planwise batch --export-format excel --clean
+planalign batch --scenarios baseline high_growth
+planalign batch --export-format excel --clean
 
 # Validate configuration
 planwise validate
 
 # Manage checkpoints
-planwise checkpoints list
-planwise checkpoints status
-planwise checkpoints cleanup --keep 3
+planalign checkpoints list
+planalign checkpoints status
+planalign checkpoints cleanup --keep 3
 ```
 
 #### Option 2: Using Python API directly
@@ -342,14 +342,14 @@ For programmatic access or advanced control:
 
 ```bash
 # Single-year simulation
-python -m navigator_orchestrator run --years 2025 --threads 1 --verbose
+python -m planalign_orchestrator run --years 2025 --threads 1 --verbose
 
 # Multi-year simulation (work laptop optimized)
-python -m navigator_orchestrator run --years 2025 2026 2027 --threads 1 --optimization medium
+python -m planalign_orchestrator run --years 2025 2026 2027 --threads 1 --optimization medium
 
 # Batch scenario processing
-python -m navigator_orchestrator batch --scenarios baseline high_growth cost_control
-python -m navigator_orchestrator batch --clean --export-format excel
+python -m planalign_orchestrator batch --scenarios baseline high_growth cost_control
+python -m planalign_orchestrator batch --clean --export-format excel
 ```
 
 #### Option 3: Using dbt directly (Development)
@@ -398,7 +398,7 @@ pytest -m "fast and events"       # Event schema tests (92.91% coverage)
 pytest -m "fast and config"       # Configuration tests
 
 # With coverage
-pytest -m fast --cov=navigator_orchestrator --cov-report=term
+pytest -m fast --cov=planalign_orchestrator --cov-report=term
 ```
 
 **Full Test Suite** (256 tests total):
@@ -413,7 +413,7 @@ pytest -m integration             # ~120 tests
 pytest -m e2e                     # ~49 tests
 
 # With HTML coverage report
-pytest --cov=navigator_orchestrator --cov-report=html
+pytest --cov=planalign_orchestrator --cov-report=html
 open htmlcov/index.html
 
 # Specific module coverage (example: config.events at 92.91%)
@@ -495,20 +495,20 @@ dbt docs serve
 #### Orchestrator Development
 ```bash
 # Test single-year execution
-python -m navigator_orchestrator run --years 2025 --threads 1 --verbose
+python -m planalign_orchestrator run --years 2025 --threads 1 --verbose
 
 # Test multi-year execution with checkpoints
-python -m navigator_orchestrator run --years 2025 2026 --threads 1 --optimization medium
+python -m planalign_orchestrator run --years 2025 2026 --threads 1 --optimization medium
 
 # Validate configuration
 python -c "
-from navigator_orchestrator.config import load_simulation_config
+from planalign_orchestrator.config import load_simulation_config
 config = load_simulation_config('config/simulation_config.yaml')
 print('✅ Configuration valid!')
 "
 
 # Test batch processing
-python -m navigator_orchestrator batch --scenarios baseline --verbose
+python -m planalign_orchestrator batch --scenarios baseline --verbose
 ```
 
 ## Key Components
@@ -560,7 +560,7 @@ Key configuration options in `config/simulation_config.yaml`:
 - **Relationship Tests**: Referential integrity checks
 - **Data Quality Tags**: Models tagged with `tag:data_quality`
 
-### Navigator Orchestrator Validation
+### PlanAlign Orchestrator Validation
 - **Built-in Validation**: Automatic data quality checks during pipeline execution
 - **Rule-based Validation**: Configurable validation rules with thresholds
 - **Row Count Validation**: Detect unexpected data loss or duplication
@@ -638,7 +638,7 @@ Key configuration options in `config/simulation_config.yaml`:
 #### DuckDB Connection Management
 ```python
 # ✅ CORRECT: Use get_database_path helper
-from navigator_orchestrator.config import get_database_path
+from planalign_orchestrator.config import get_database_path
 import duckdb
 
 conn = duckdb.connect(str(get_database_path()))
@@ -705,14 +705,14 @@ pip install -r requirements.txt
 ```
 
 ### Getting Help
-- Run `planwise health` for system diagnostics
-- Run `planwise status --detailed` for full system status
+- Run `planalign health` for system diagnostics
+- Run `planalign status --detailed` for full system status
 - Check `dbt debug` for database connection issues
-- Validate configuration: `planwise validate`
+- Validate configuration: `planalign validate`
 - Review orchestrator logs in terminal output with `--verbose` flag
-- Check checkpoint status: `planwise checkpoints status`
+- Check checkpoint status: `planalign checkpoints status`
 - **CI Issues**: Run `./scripts/run_ci_tests.sh` for detailed error messages
-- **Database Issues**: Verify database path with `python -c "from navigator_orchestrator.config import get_database_path; print(get_database_path())"`
+- **Database Issues**: Verify database path with `python -c "from planalign_orchestrator.config import get_database_path; print(get_database_path())"`
 
 ## Recent Improvements
 
@@ -778,4 +778,4 @@ Transformed test suite into enterprise-grade infrastructure:
 
 ---
 
-**PlanWise Navigator** - Modern workforce simulation for strategic planning.
+**Fidelity PlanAlign Engine** - Modern workforce simulation for strategic planning.

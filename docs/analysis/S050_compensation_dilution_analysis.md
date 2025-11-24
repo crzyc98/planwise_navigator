@@ -7,7 +7,7 @@
 
 ## Executive Summary
 
-**CRITICAL FINDING:** The PlanWise Navigator simulation shows severe compensation dilution with **-3.7% annual growth** vs the target **+2.0%**, representing a **-5.7 percentage point gap**. This is caused by high-volume, lower-paid new hires diluting the overall average compensation despite existing employees receiving substantial 6.0-8.0% combined raises.
+**CRITICAL FINDING:** The Fidelity PlanAlign Engine simulation shows severe compensation dilution with **-3.7% annual growth** vs the target **+2.0%**, representing a **-5.7 percentage point gap**. This is caused by high-volume, lower-paid new hires diluting the overall average compensation despite existing employees receiving substantial 6.0-8.0% combined raises.
 
 ## Key Findings
 

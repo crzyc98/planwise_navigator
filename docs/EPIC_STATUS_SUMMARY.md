@@ -1,4 +1,4 @@
-# PlanWise Navigator - Epic Status Summary
+# Fidelity PlanAlign Engine - Epic Status Summary
 
 **Last Updated**: November 20, 2025
 

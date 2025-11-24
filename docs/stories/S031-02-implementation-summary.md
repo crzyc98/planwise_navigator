@@ -2,7 +2,7 @@
 
 ## Overview
 
-This document summarizes the implementation of Story S031-02: Year Processing Optimization, which focuses on maintaining workforce calculation accuracy and business logic preservation while enabling performance optimizations for PlanWise Navigator's workforce simulation system.
+This document summarizes the implementation of Story S031-02: Year Processing Optimization, which focuses on maintaining workforce calculation accuracy and business logic preservation while enabling performance optimizations for Fidelity PlanAlign Engine's workforce simulation system.
 
 ## Implementation Status: ✅ COMPLETE
 

@@ -1,13 +1,13 @@
-# Navigator Orchestrator Reporting Enhancement
+# PlanAlign Orchestrator Reporting Enhancement
 
 **Issue Date**: 2025-01-13
 **Status**: ✅ **IMPLEMENTED**
-**Epic**: E038 - Navigator Orchestrator Refactoring
+**Epic**: E038 - PlanAlign Orchestrator Refactoring
 **Priority**: High
 
 ## Problem Statement
 
-The navigator_orchestrator lacked the comprehensive reporting and audit capabilities that exist in the proven `run_multi_year.py` monolithic script. Users need detailed insights into simulation results including:
+The planalign_orchestrator lacked the comprehensive reporting and audit capabilities that exist in the proven `run_multi_year.py` monolithic script. Users need detailed insights into simulation results including:
 
 - Per-year workforce composition and event summaries
 - Multi-year progression analysis with growth metrics
@@ -17,7 +17,7 @@ The navigator_orchestrator lacked the comprehensive reporting and audit capabili
 
 ## Solution Overview
 
-Enhanced the `navigator_orchestrator/reports.py` module with equivalent reporting functionality from the working monolithic script, providing rich simulation insights and audit capabilities.
+Enhanced the `planalign_orchestrator/reports.py` module with equivalent reporting functionality from the working monolithic script, providing rich simulation insights and audit capabilities.
 
 ## Implementation Details
 
@@ -207,17 +207,17 @@ pipeline_orchestrator.execute_multi_year_simulation(
 
 ### Basic Multi-Year Simulation with Reporting
 ```bash
-python -m navigator_orchestrator run --years 2025-2029
+python -m planalign_orchestrator run --years 2025-2029
 ```
 
 ### Verbose Reporting Mode
 ```bash
-python -m navigator_orchestrator run --years 2025-2029 --verbose
+python -m planalign_orchestrator run --years 2025-2029 --verbose
 ```
 
 ### Export Reports Only
 ```bash
-python -m navigator_orchestrator run --years 2025-2029 --export-only
+python -m planalign_orchestrator run --years 2025-2029 --export-only
 ```
 
 ## Migration Notes
@@ -233,7 +233,7 @@ The enhanced reporting provides **100% feature parity** with the original `run_m
 - ✅ Identical multi-year summary format
 
 ### Backward Compatibility
-- All existing navigator_orchestrator functionality preserved
+- All existing planalign_orchestrator functionality preserved
 - Reports are additive - no breaking changes
 - Configuration remains the same
 - Export formats maintain consistency
@@ -285,7 +285,7 @@ The enhanced reporting provides **100% feature parity** with the original `run_m
 - **Feature Parity**: 100% with monolithic script
 
 ### 🎯 Outcome
-The navigator_orchestrator now provides the same rich, detailed reporting capabilities as the proven monolithic script, making it production-ready with comprehensive visibility into simulation results and audit trails.
+The planalign_orchestrator now provides the same rich, detailed reporting capabilities as the proven monolithic script, making it production-ready with comprehensive visibility into simulation results and audit trails.
 
 ---
 

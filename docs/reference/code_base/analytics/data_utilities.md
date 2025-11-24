@@ -2,7 +2,7 @@
 
 ## Purpose
 
-The data utilities in `streamlit_app/utils/` provide the foundational data access layer for the PlanWise Navigator dashboard, handling database connections, query execution, data transformation, and caching for optimal performance and user experience.
+The data utilities in `streamlit_app/utils/` provide the foundational data access layer for the Fidelity PlanAlign Engine dashboard, handling database connections, query execution, data transformation, and caching for optimal performance and user experience.
 
 ## Architecture
 
@@ -28,7 +28,7 @@ import logging
 from functools import wraps
 
 class DataLoader:
-    """Central data loading utility for PlanWise Navigator dashboard"""
+    """Central data loading utility for Fidelity PlanAlign Engine dashboard"""
 
     def __init__(self, db_path: str = "simulation.duckdb"):
         self.db_path = db_path

@@ -14,7 +14,7 @@
 
 ## Business Context
 
-Analysis of the current PlanWise Navigator database revealed **3 critical data integrity issues** that make the system unsuitable for production use. These issues affect 606+ employees and represent potential compliance violations and incorrect financial calculations totaling millions of dollars.
+Analysis of the current Fidelity PlanAlign Engine database revealed **3 critical data integrity issues** that make the system unsuitable for production use. These issues affect 606+ employees and represent potential compliance violations and incorrect financial calculations totaling millions of dollars.
 
 This epic addresses the specific, identified production-blocking issues rather than theoretical problems. Each issue has been analyzed with concrete evidence and requires surgical fixes to maintain data consistency.
 

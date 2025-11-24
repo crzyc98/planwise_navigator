@@ -239,8 +239,8 @@ run_multi_year_simulation (~50 lines)
 
 ### 🏆 **EPIC IMPACT**
 
-This epic has successfully transformed the PlanWise Navigator simulation pipeline from a monolithic system into a modular, maintainable architecture that will significantly improve development velocity and code quality for future enhancements.
+This epic has successfully transformed the Fidelity PlanAlign Engine simulation pipeline from a monolithic system into a modular, maintainable architecture that will significantly improve development velocity and code quality for future enhancements.
 
 ---
 
-*This epic aligns with PlanWise Navigator's technical excellence initiatives and supports the long-term maintainability of the workforce simulation platform.*
+*This epic aligns with Fidelity PlanAlign Engine's technical excellence initiatives and supports the long-term maintainability of the workforce simulation platform.*

@@ -38,11 +38,11 @@ jobs:
 
       - name: Lint with ruff
         run: |
-          ruff check navigator_orchestrator/ planwise_cli/ config/
+          ruff check planalign_orchestrator/ planalign_cli/ config/
 
       - name: Run fast tests
         run: |
-          pytest -m "not slow" --cov=navigator_orchestrator --cov=planwise_cli --cov=config \
+          pytest -m "not slow" --cov=planalign_orchestrator --cov=planalign_cli --cov=config \
             --cov-report=xml --cov-report=term -v
 
       - name: Upload coverage to Codecov

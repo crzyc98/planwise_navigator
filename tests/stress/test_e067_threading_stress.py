@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-Stress Tests for Epic E067: Multi-Threading Navigator Orchestrator
+Stress Tests for Epic E067: Multi-Threading PlanAlign Orchestrator
 
 This module contains stress tests designed to validate the threading implementation
 under extreme conditions and edge cases:
@@ -31,15 +31,15 @@ from concurrent.futures import ThreadPoolExecutor, as_completed, TimeoutError
 import psutil
 
 # Import components for stress testing
-from navigator_orchestrator.config import (
+from planalign_orchestrator.config import (
     ThreadingSettings, ModelParallelizationSettings, ResourceManagerSettings
 )
-from navigator_orchestrator.dbt_runner import DbtRunner, DbtResult
-from navigator_orchestrator.parallel_execution_engine import (
+from planalign_orchestrator.dbt_runner import DbtRunner, DbtResult
+from planalign_orchestrator.parallel_execution_engine import (
     ParallelExecutionEngine, ExecutionContext, ExecutionResult
 )
-from navigator_orchestrator.resource_manager import ResourceManager
-from navigator_orchestrator.model_dependency_analyzer import ModelDependencyAnalyzer
+from planalign_orchestrator.resource_manager import ResourceManager
+from planalign_orchestrator.model_dependency_analyzer import ModelDependencyAnalyzer
 
 
 class StressTestHarness:

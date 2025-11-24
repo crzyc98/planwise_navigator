@@ -86,7 +86,7 @@ PlanAlign Studio delivers a "workforce time machine" that:
 | **Storage** | DuckDB | 1.0.0 | In-process OLAP database | Zero administration, column-store performance, ACID compliance |
 | **Transformation** | dbt-core | 1.8.8 | SQL modeling framework | Declarative SQL, version control, automatic lineage |
 | **Adapter** | dbt-duckdb | 1.8.1 | DuckDB integration | Stable dbt-to-DuckDB bridge |
-| **Orchestration** | navigator_orchestrator | Custom | Pipeline execution engine | Multi-year workflows, checkpointing, state management |
+| **Orchestration** | planalign_orchestrator | Custom | Pipeline execution engine | Multi-year workflows, checkpointing, state management |
 | **CLI** | Rich + Typer | 13.x / 0.9.x | Command-line interface | Beautiful terminal UI, progress tracking |
 | **Dashboard** | Streamlit | 1.39.0 | Interactive analytics | Rapid prototyping, Python-native, self-service |
 | **Configuration** | Pydantic | 2.7.4 | Type-safe config | Runtime validation, IDE autocomplete |
@@ -147,7 +147,7 @@ fct_workforce_snapshot (
 
 ### Pipeline Orchestration
 
-The **navigator_orchestrator** package executes multi-year simulations through staged workflows:
+The **planalign_orchestrator** package executes multi-year simulations through staged workflows:
 
 **Workflow Stages** (sequential execution per year):
 1. **INITIALIZATION**: Load seed data and configuration
@@ -178,7 +178,7 @@ The **navigator_orchestrator** package executes multi-year simulations through s
 ### Batch Scenario Processing
 ```bash
 # Run multiple scenarios with Excel export
-planwise batch --scenarios baseline high_growth cost_control --export-format excel
+planalign batch --scenarios baseline high_growth cost_control --export-format excel
 ```
 
 **Output Structure**:
@@ -221,13 +221,13 @@ source .venv/bin/activate
 uv pip install -e ".[dev]"
 
 # Quick validation
-planwise health                   # System readiness check
+planalign health                   # System readiness check
 
 # Multi-year simulation
-planwise simulate 2025-2027       # 3-year forecast
+planalign simulate 2025-2027       # 3-year forecast
 
 # Batch scenarios
-planwise batch --scenarios baseline high_growth
+planalign batch --scenarios baseline high_growth
 ```
 
 ### Production Deployment (On-Premises)
@@ -249,8 +249,8 @@ After=network.target
 [Service]
 Type=simple
 User=planwise
-WorkingDirectory=/opt/planwise_navigator
-ExecStart=/opt/planwise_navigator/.venv/bin/planwise simulate 2025-2030
+WorkingDirectory=/opt/planalign_engine
+ExecStart=/opt/planalign_engine/.venv/bin/planalign simulate 2025-2030
 Restart=on-failure
 
 [Install]
@@ -260,10 +260,10 @@ WantedBy=multi-user.target
 **Automation**:
 ```cron
 # Daily baseline simulation (5am)
-0 5 * * * /opt/planwise_navigator/.venv/bin/planwise simulate 2025-2030 --verbose >> /var/log/planwise/daily.log 2>&1
+0 5 * * * /opt/planalign_engine/.venv/bin/planalign simulate 2025-2030 --verbose >> /var/log/planwise/daily.log 2>&1
 
 # Weekly batch scenarios (Sunday 2am)
-0 2 * * 0 /opt/planwise_navigator/.venv/bin/planwise batch --clean --export-format excel >> /var/log/planwise/batch.log 2>&1
+0 2 * * 0 /opt/planalign_engine/.venv/bin/planalign batch --clean --export-format excel >> /var/log/planwise/batch.log 2>&1
 ```
 
 ### Security & Compliance
@@ -313,7 +313,7 @@ pytest -m fast                    # 87 tests in 4.7s
 pytest                            # 256 tests in ~2 minutes
 
 # With coverage
-pytest --cov=navigator_orchestrator --cov-report=html
+pytest --cov=planalign_orchestrator --cov-report=html
 ```
 
 **Fixture Library** (`tests/fixtures/`):
@@ -325,7 +325,7 @@ pytest --cov=navigator_orchestrator --cov-report=html
 
 ### Error Handling (E074)
 ```python
-from navigator_orchestrator.exceptions import (
+from planalign_orchestrator.exceptions import (
     NavigatorError,      # Base with execution context
     DbtError,            # dbt command failures
     DatabaseError,       # Database operations
@@ -403,17 +403,17 @@ except DbtError as e:
 curl -LsSf https://astral.sh/uv/install.sh | sh
 
 # 2. Clone and setup
-git clone <repository-url> planwise_navigator
-cd planwise_navigator
+git clone <repository-url> planalign_engine
+cd planalign_engine
 uv venv .venv --python python3.11
 source .venv/bin/activate
 uv pip install -e ".[dev]"
 
 # 3. Verify installation
-planwise health
+planalign health
 
 # 4. Run first simulation
-planwise simulate 2025 --verbose
+planalign simulate 2025 --verbose
 ```
 
 ### Resources
@@ -426,10 +426,10 @@ planwise simulate 2025 --verbose
 
 ### Common Commands
 ```bash
-planwise health                   # Quick diagnostic
-planwise status --detailed        # Full system status
+planalign health                   # Quick diagnostic
+planalign status --detailed        # Full system status
 planwise validate                 # Configuration validation
-planwise checkpoints list         # View recovery points
+planalign checkpoints list         # View recovery points
 dbt debug                         # Database connection test
 ```
 
@@ -437,7 +437,7 @@ dbt debug                         # Database connection test
 1. **Database locks**: Close IDE database connections before simulation
 2. **Virtual environment**: Always activate `.venv` before running commands
 3. **Path issues**: Use `get_database_path()` helper for database access
-4. **Configuration errors**: Run `planwise validate` to check YAML syntax
+4. **Configuration errors**: Run `planalign validate` to check YAML syntax
 
 ## Summary
 

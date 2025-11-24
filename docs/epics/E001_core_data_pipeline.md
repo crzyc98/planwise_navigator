@@ -245,7 +245,7 @@ END as data_quality_flag
 - ✅ **Scalable architecture** with incremental processing
 - ✅ **Proper documentation** and schema definitions
 
-The dbt models form a solid foundation for the PlanWise Navigator simulation engine and are ready for integration with the Dagster orchestration layer.
+The dbt models form a solid foundation for the Fidelity PlanAlign Engine simulation engine and are ready for integration with the Dagster orchestration layer.
 
 ---
 

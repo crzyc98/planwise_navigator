@@ -58,7 +58,7 @@ class CLIConfig:
 def parse_cli_arguments() -> CLIConfig:
     """Parse and validate CLI arguments with comprehensive error handling"""
     parser = argparse.ArgumentParser(
-        description="PlanWise Navigator Multi-Year Simulation CLI",
+        description="Fidelity PlanAlign Engine Multi-Year Simulation CLI",
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog="""
 Examples:
@@ -242,7 +242,7 @@ class PerformanceDashboard:
                     metrics = self.performance_monitor.metrics
 
                     # Update dashboard components
-                    self.layout["header"].update(f"PlanWise Navigator - Multi-Year Simulation")
+                    self.layout["header"].update(f"Fidelity PlanAlign Engine - Multi-Year Simulation")
                     self.layout["left"].update(self.update_performance_table(metrics))
                     self.layout["right"].update(simulation_progress)
 

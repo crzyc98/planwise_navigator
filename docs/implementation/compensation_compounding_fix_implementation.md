@@ -6,7 +6,7 @@
 
 ## Executive Summary
 
-This document details the implementation of a comprehensive fix to ensure compensation raises compound correctly across simulation years in the PlanWise Navigator workforce simulation system. The solution includes a new time-weighted compensation calculation system that provides more accurate year-over-year compensation carryforward by accounting for the actual timing of raises throughout the year, replacing the simple full-year equivalent approach.
+This document details the implementation of a comprehensive fix to ensure compensation raises compound correctly across simulation years in the Fidelity PlanAlign Engine workforce simulation system. The solution includes a new time-weighted compensation calculation system that provides more accurate year-over-year compensation carryforward by accounting for the actual timing of raises throughout the year, replacing the simple full-year equivalent approach.
 
 ## Problem Description
 

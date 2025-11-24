@@ -1,10 +1,10 @@
-# PlanWise Navigator - Environment Setup Guide
+# Fidelity PlanAlign Engine - Environment Setup Guide
 
-A step-by-step guide for analysts to set up the PlanWise Navigator workforce simulation platform on their local development environment.
+A step-by-step guide for analysts to set up the Fidelity PlanAlign Engine workforce simulation platform on their local development environment.
 
 ## Overview
 
-PlanWise Navigator is Fidelity's on-premises workforce simulation platform that uses event sourcing to model organizational dynamics. This guide will help you get a fully functional development environment running locally.
+Fidelity PlanAlign Engine is Fidelity's on-premises workforce simulation platform that uses event sourcing to model organizational dynamics. This guide will help you get a fully functional development environment running locally.
 
 ## Prerequisites
 
@@ -18,7 +18,7 @@ Before you begin, ensure you have:
 
 ## Step 1: Install Python 3.11
 
-PlanWise Navigator requires Python 3.11 for long-term support compatibility.
+Fidelity PlanAlign Engine requires Python 3.11 for long-term support compatibility.
 
 ### macOS (using Homebrew)
 ```bash
@@ -48,8 +48,8 @@ python3.11 --version
 
 ```bash
 # Clone the repository
-git clone <repository-url> planwise_navigator
-cd planwise_navigator
+git clone <repository-url> planalign_engine
+cd planalign_engine
 
 # Verify you're on the main branch
 git branch
@@ -149,7 +149,7 @@ This will:
 
 ```bash
 # In a new terminal (keep Dagster running)
-cd planwise_navigator
+cd planalign_engine
 source venv/bin/activate
 
 # Start the Streamlit dashboard
@@ -201,7 +201,7 @@ EOF
 
 ```bash
 # Activate environment (run this in each new terminal)
-cd planwise_navigator
+cd planalign_engine
 source venv/bin/activate
 
 # Run specific dbt models
@@ -403,6 +403,6 @@ Once your environment is running:
 
 ---
 
-**🎉 Congratulations!** You now have a fully functional PlanWise Navigator development environment. The platform is ready for workforce simulation modeling and analysis.
+**🎉 Congratulations!** You now have a fully functional Fidelity PlanAlign Engine development environment. The platform is ready for workforce simulation modeling and analysis.
 
 For questions or issues, refer to the troubleshooting section above or contact the development team.

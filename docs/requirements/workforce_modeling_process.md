@@ -1,8 +1,8 @@
-# PlanWise Navigator: Workforce Dynamics Modeling Process
+# Fidelity PlanAlign Engine: Workforce Dynamics Modeling Process
 
 ## Overview
 
-PlanWise Navigator implements a sophisticated **event-sourced workforce simulation** that models organizational dynamics through immutable audit trails. The system orchestrates complex workforce transitions (hiring, terminations, promotions) using enterprise-grade algorithms that ensure reproducibility, transparency, and regulatory compliance.
+Fidelity PlanAlign Engine implements a sophisticated **event-sourced workforce simulation** that models organizational dynamics through immutable audit trails. The system orchestrates complex workforce transitions (hiring, terminations, promotions) using enterprise-grade algorithms that ensure reproducibility, transparency, and regulatory compliance.
 
 ## Core Architecture
 
@@ -407,7 +407,7 @@ This would create a **unified hazard-based architecture** across all workforce t
 
 ## Summary
 
-PlanWise Navigator's workforce modeling process provides **enterprise-grade simulation capabilities** through:
+Fidelity PlanAlign Engine's workforce modeling process provides **enterprise-grade simulation capabilities** through:
 
 1. **Mathematical Rigor**: Sophisticated algorithms for workforce transitions
 2. **Individual-Level Precision**: Deterministic selection of specific employees for events

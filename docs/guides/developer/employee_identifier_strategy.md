@@ -2,7 +2,7 @@
 
 ## Overview
 
-PlanWise Navigator uses a dual-identifier approach for workforce management:
+Fidelity PlanAlign Engine uses a dual-identifier approach for workforce management:
 - **employee_id**: Primary unique identifier for all operations
 - **employee_ssn**: Secondary identifier retained for compliance/reporting
 

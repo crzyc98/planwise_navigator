@@ -720,7 +720,7 @@ class AuditTrailManager:
 
 ## Overview
 
-This document outlines the procedures for using the PlanWise Navigator event audit trail
+This document outlines the procedures for using the Fidelity PlanAlign Engine event audit trail
 to respond to Department of Labor (DOL) inquiries and regulatory audits.
 
 ## Event Audit Trail Components

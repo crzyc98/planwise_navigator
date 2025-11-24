@@ -11,7 +11,7 @@
 
 ## Executive Summary
 
-Transform PlanWise Navigator error handling from cryptic exceptions into actionable diagnostic messages with full execution context. Current state: 231 exception handlers producing generic errors lacking year/stage/model context. Target state: Structured exception hierarchy with correlation IDs, execution context, and resolution guidance enabling <5 minute bug diagnosis.
+Transform Fidelity PlanAlign Engine error handling from cryptic exceptions into actionable diagnostic messages with full execution context. Current state: 231 exception handlers producing generic errors lacking year/stage/model context. Target state: Structured exception hierarchy with correlation IDs, execution context, and resolution guidance enabling <5 minute bug diagnosis.
 
 **Business Impact**: 50-80% reduction in debugging time for production issues through contextual error messages and automated resolution suggestions.
 
@@ -55,9 +55,9 @@ Transform PlanWise Navigator error handling from cryptic exceptions into actiona
 ### Exception Hierarchy Design
 
 ```python
-# navigator_orchestrator/exceptions.py
+# planalign_orchestrator/exceptions.py
 """
-Structured exception hierarchy with execution context for PlanWise Navigator.
+Structured exception hierarchy with execution context for Fidelity PlanAlign Engine.
 
 All exceptions include:
 - correlation_id: Trace errors across multi-year simulations
@@ -158,7 +158,7 @@ class ResolutionHint:
 
 class NavigatorError(Exception):
     """
-    Base exception for PlanWise Navigator with structured context.
+    Base exception for Fidelity PlanAlign Engine with structured context.
 
     All Navigator exceptions should inherit from this class to ensure
     consistent error handling and diagnostic information.
@@ -530,10 +530,10 @@ class CheckpointCorruptionError(StateError):
                     title="Reset Checkpoint State",
                     description="Checkpoint file is corrupted or incompatible",
                     steps=[
-                        "List checkpoints: planwise checkpoints list",
-                        "Clean corrupted checkpoints: planwise checkpoints cleanup",
+                        "List checkpoints: planalign checkpoints list",
+                        "Clean corrupted checkpoints: planalign checkpoints cleanup",
                         "Restart simulation from scratch (no --resume flag)",
-                        "If persistent, delete .navigator_checkpoints/ directory"
+                        "If persistent, delete .planalign_checkpoints/ directory"
                     ],
                     documentation_url="docs/recovery.md#checkpoint-corruption",
                     estimated_resolution_time="5 minutes"
@@ -551,7 +551,7 @@ class StateInconsistencyError(StateError):
 ### Error Catalog System
 
 ```python
-# navigator_orchestrator/error_catalog.py
+# planalign_orchestrator/error_catalog.py
 """
 Error catalog with resolution patterns for common production issues.
 
@@ -741,9 +741,9 @@ class ErrorCatalog:
                     title="Reset Checkpoint State",
                     description="Clean corrupted checkpoints and restart",
                     steps=[
-                        "List checkpoints: planwise checkpoints list",
-                        "Clean checkpoints: planwise checkpoints cleanup",
-                        "Delete checkpoint dir: rm -rf .navigator_checkpoints/",
+                        "List checkpoints: planalign checkpoints list",
+                        "Clean checkpoints: planalign checkpoints cleanup",
+                        "Delete checkpoint dir: rm -rf .planalign_checkpoints/",
                         "Restart simulation without --resume flag"
                     ],
                     estimated_resolution_time="5 minutes"
@@ -798,7 +798,7 @@ def get_error_catalog() -> ErrorCatalog:
 **Objective**: Create comprehensive exception class hierarchy with execution context
 
 **Tasks**:
-1. Create `navigator_orchestrator/exceptions.py` with base classes
+1. Create `planalign_orchestrator/exceptions.py` with base classes
 2. Implement `NavigatorError` with context, severity, resolution hints
 3. Define specialized exception classes (Database, Configuration, DataQuality, etc.)
 4. Add `ExecutionContext` dataclass with correlation IDs
@@ -820,7 +820,7 @@ def get_error_catalog() -> ErrorCatalog:
 **Objective**: Build error catalog with pattern matching and resolution guidance
 
 **Tasks**:
-1. Create `navigator_orchestrator/error_catalog.py`
+1. Create `planalign_orchestrator/error_catalog.py`
 2. Define `ErrorPattern` dataclass with regex patterns
 3. Implement `ErrorCatalog` with pattern matching
 4. Add resolution hints for 10+ common error patterns
@@ -867,7 +867,7 @@ def get_error_catalog() -> ErrorCatalog:
 1. Update `ObservabilityManager` to log structured exceptions
 2. Add error aggregation to batch summary reports
 3. Create error frequency dashboard in Streamlit
-4. Implement `planwise errors` CLI command for error analysis
+4. Implement `planalign errors` CLI command for error analysis
 5. Add JSON error log export for external analysis
 
 **Acceptance Criteria**:

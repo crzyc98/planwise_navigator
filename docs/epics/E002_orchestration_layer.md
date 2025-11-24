@@ -209,7 +209,7 @@ def monitoring_dashboard_data(context, duckdb_resource) -> pd.DataFrame:
 
 ### Current Dagster Structure
 ```
-PlanWise Navigator Dagster Workspace
+Fidelity PlanAlign Engine Dagster Workspace
 ├── definitions.py                    # ✅ Main entry point
 ├── orchestrator/
 │   ├── assets.py                    # ✅ Core simulation assets

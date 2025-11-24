@@ -1,6 +1,6 @@
 # Story S038-03: Registry Management System
 
-**Epic**: E038 - Navigator Orchestrator Refactoring & Modularization
+**Epic**: E038 - PlanAlign Orchestrator Refactoring & Modularization
 **Story Points**: 8
 **Priority**: High
 **Status**: 🟠 In Progress
@@ -283,7 +283,7 @@ class RegistryManager:
 
 ### 🔧 Implementation Progress
 
-- Added `navigator_orchestrator/registries.py` implementing:
+- Added `planalign_orchestrator/registries.py` implementing:
   - `Registry`, `EnrollmentRegistry`, `DeferralEscalationRegistry`, `RegistryManager`
   - `SQLTemplateManager` with create/insert templates and event-based updates
   - `RegistryValidationResult` and validation methods
@@ -296,8 +296,8 @@ class RegistryManager:
 ## 📘 **Usage Examples**
 
 ```python
-from navigator_orchestrator.utils import DatabaseConnectionManager
-from navigator_orchestrator.registries import RegistryManager
+from planalign_orchestrator.utils import DatabaseConnectionManager
+from planalign_orchestrator.registries import RegistryManager
 
 db = DatabaseConnectionManager()  # simulation.duckdb
 registries = RegistryManager(db)

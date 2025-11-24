@@ -268,7 +268,7 @@ rm dbt/simulation.duckdb
 
 3. **Run single-year test**:
 ```bash
-planwise simulate 2025
+planalign simulate 2025
 ```
 
 **Expected Output**:
@@ -282,7 +282,7 @@ planwise simulate 2025
 
 4. **Run multi-year test**:
 ```bash
-planwise simulate 2025-2027
+planalign simulate 2025-2027
 ```
 
 **Parity Check** (compare Polars vs SQL mode):
@@ -290,7 +290,7 @@ planwise simulate 2025-2027
 # 1. Run SQL mode baseline
 # Update config to mode: "sql", enabled: false
 rm dbt/simulation.duckdb
-time planwise simulate 2025-2027
+time planalign simulate 2025-2027
 
 # Capture SQL mode metrics
 duckdb dbt/simulation.duckdb "
@@ -309,7 +309,7 @@ WHERE simulation_year IN (2025, 2026, 2027)
 # 2. Run Polars mode
 # Update config to mode: "polars", enabled: true
 rm dbt/simulation.duckdb
-time planwise simulate 2025-2027
+time planalign simulate 2025-2027
 
 # Capture Polars mode metrics
 duckdb dbt/simulation.duckdb "
@@ -368,7 +368,7 @@ event_generation:
 
 **Run Simulation**:
 ```bash
-planwise simulate 2025-2027
+planalign simulate 2025-2027
 ```
 
 **Disable Polars Mode** (revert to SQL):
@@ -401,7 +401,7 @@ event_generation:
 
 | Metric | Baseline (SQL Mode) | Target (Polars Mode) | Measurement Method | Actual |
 |--------|--------------------|--------------------|-------------------|--------|
-| **3-Year Runtime** | ~2 minutes | <1 minute | `time planwise simulate 2025-2027` | TBD |
+| **3-Year Runtime** | ~2 minutes | <1 minute | `time planalign simulate 2025-2027` | TBD |
 | **Performance Improvement** | 1× | 2-5× | Compare wall-time (SQL vs Polars) | TBD |
 | **Model Updates Required** | N/A | ~10 models | Count files modified in E078-02 | TBD |
 | **Backward Compatibility** | N/A | 100% (SQL mode still works) | Run SQL mode after Polars validation | TBD |
@@ -469,7 +469,7 @@ The Polars integration is **almost complete**. We just need to update ~10 models
 - ❌ `int_employer_core_contributions.sql` line 172 needs update
 
 ### **Related Files**:
-- `navigator_orchestrator/pipeline/event_generation_executor.py` (Polars event generation)
+- `planalign_orchestrator/pipeline/event_generation_executor.py` (Polars event generation)
 - `dbt/models/marts/fct_yearly_events.sql` (event aggregation for both modes)
 - `config/simulation_config.yaml` (mode configuration)
 

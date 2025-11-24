@@ -1,4 +1,4 @@
-"""Custom test assertions for PlanWise Navigator."""
+"""Custom test assertions for Fidelity PlanAlign Engine."""
 
 import pytest
 from typing import Dict, Any

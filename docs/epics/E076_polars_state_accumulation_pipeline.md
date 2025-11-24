@@ -82,7 +82,7 @@ fct_workforce_snapshot.sql (DuckDB)
 ### Architecture
 
 ```
-navigator_orchestrator/
+planalign_orchestrator/
 ├── polars_event_factory.py        # Event generation (EXISTING - E068G)
 ├── polars_state_pipeline.py       # State accumulation (NEW)
 │   ├── StateAccumulatorEngine
@@ -173,7 +173,7 @@ snapshot = baseline_workforce
 - Performance: <2s for 10k employees
 
 **Deliverables**:
-- `navigator_orchestrator/polars_state_pipeline.py`
+- `planalign_orchestrator/polars_state_pipeline.py`
 - Unit tests with 95%+ coverage
 - Schema validation against dbt baseline
 
@@ -242,7 +242,7 @@ assert polars_snapshot.equals(dbt_snapshot)  # Exact match required
 
 ### Story S076-05: Pipeline Integration & Fallback (5 points)
 
-**Goal**: Integrate Polars state pipeline into Navigator Orchestrator with SQL fallback.
+**Goal**: Integrate Polars state pipeline into PlanAlign Orchestrator with SQL fallback.
 
 **Acceptance Criteria**:
 - Configuration flag: `event_generation.polars.state_accumulation_enabled`

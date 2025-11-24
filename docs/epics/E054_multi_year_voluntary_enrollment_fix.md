@@ -198,7 +198,7 @@ Update all instances of:
 
 1. **Run Test Simulation**
    ```bash
-   python navigator_orchestrator run --years 2025 2026 2027 --threads 1
+   python planalign_orchestrator run --years 2025 2026 2027 --threads 1
    ```
 
 2. **Validate Deferral Rate Distribution**

@@ -15,7 +15,7 @@ bash: venv/bin/activate: No such file or directory
 $ ./venv/bin/dbt run
 bash: ./venv/bin/dbt: No such file or directory
 
-$ /Users/nicholasamaral/planwise_navigator/venv/bin/python -m dbt run
+$ /Users/nicholasamaral/planalign_engine/venv/bin/python -m dbt run
 # Finally works, but took 4 attempts
 ```
 
@@ -77,7 +77,7 @@ Complete setup guide and example configurations:
    {
      "hooks": {
        "before-tool-call-hook": [
-         "/Users/nicholasamaral/planwise_navigator/scripts/claude_code_hook.sh \"$TOOL_CALL_PARAMETERS\""
+         "/Users/nicholasamaral/planalign_engine/scripts/claude_code_hook.sh \"$TOOL_CALL_PARAMETERS\""
        ]
      }
    }

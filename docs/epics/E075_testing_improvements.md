@@ -9,7 +9,7 @@
 
 ## Executive Summary
 
-Transform PlanWise Navigator's test suite from **slow, disorganized technical debt** into a **fast, maintainable, enterprise-grade testing infrastructure**. Current 8,450 lines of test code across 185 tests suffer from:
+Transform Fidelity PlanAlign Engine's test suite from **slow, disorganized technical debt** into a **fast, maintainable, enterprise-grade testing infrastructure**. Current 8,450 lines of test code across 185 tests suffer from:
 
 - **Slow execution** (no fast test mode, database-heavy tests)
 - **Poor organization** (tests mixed with fixtures, 992-line monoliths)
@@ -72,7 +72,7 @@ result = conn.execute("SELECT * FROM fct_yearly_events").fetchall()
 #### 4. **No Coverage Reporting**
 ```bash
 # Unknown: What is our actual test coverage?
-pytest tests/ --cov=navigator_orchestrator  # Not configured
+pytest tests/ --cov=planalign_orchestrator  # Not configured
 pytest tests/ --cov=config  # Not configured
 ```
 
@@ -203,7 +203,7 @@ pytest -m "slow and not e2e"                      # Stage 2: Integration (30s)
 pytest -m e2e                                     # Stage 3: E2E tests (60s)
 
 # Coverage workflow: Full suite with coverage
-pytest --cov=navigator_orchestrator --cov=config --cov-report=html --cov-report=term
+pytest --cov=planalign_orchestrator --cov=config --cov-report=html --cov-report=term
 ```
 
 ---
@@ -301,7 +301,7 @@ def isolated_test_db(tmp_path) -> Generator[Path, None, None]:
 
 import pytest
 from pathlib import Path
-from navigator_orchestrator.config import SimulationConfig, ThreadingSettings
+from planalign_orchestrator.config import SimulationConfig, ThreadingSettings
 
 @pytest.fixture
 def minimal_config() -> SimulationConfig:
@@ -343,7 +343,7 @@ def config_yaml(tmp_path, minimal_config) -> Path:
 
 import pytest
 from unittest.mock import Mock, MagicMock
-from navigator_orchestrator.dbt_runner import DbtRunner, DbtResult
+from planalign_orchestrator.dbt_runner import DbtRunner, DbtResult
 
 @pytest.fixture
 def mock_dbt_runner() -> Mock:
@@ -785,7 +785,7 @@ coverage[toml]==7.3.2
 ```toml
 # Add to pyproject.toml
 [tool.coverage.run]
-source = ["navigator_orchestrator", "config"]
+source = ["planalign_orchestrator", "config"]
 omit = [
     "*/tests/*",
     "*/test_*.py",
@@ -821,12 +821,12 @@ import subprocess
 import json
 
 COVERAGE_TARGETS = {
-    "navigator_orchestrator.pipeline": 95,
-    "navigator_orchestrator.config": 90,
-    "navigator_orchestrator.dbt_runner": 90,
-    "navigator_orchestrator.registries": 85,
-    "navigator_orchestrator.reports": 85,
-    "navigator_orchestrator.validation": 90,
+    "planalign_orchestrator.pipeline": 95,
+    "planalign_orchestrator.config": 90,
+    "planalign_orchestrator.dbt_runner": 90,
+    "planalign_orchestrator.registries": 85,
+    "planalign_orchestrator.reports": 85,
+    "planalign_orchestrator.validation": 90,
     "config.events": 95,  # Event schemas must be thoroughly tested
     "config.schema": 90,
 }
@@ -836,7 +836,7 @@ def test_coverage_requirements():
     """Validate test coverage meets minimum thresholds."""
     # Run coverage analysis
     result = subprocess.run(
-        ["pytest", "--cov=navigator_orchestrator", "--cov=config", "--cov-report=json"],
+        ["pytest", "--cov=planalign_orchestrator", "--cov=config", "--cov-report=json"],
         capture_output=True,
         text=True
     )
@@ -953,7 +953,7 @@ def test_event_discriminated_union_validation():
 # .github/workflows/test.yml
 - name: Run Tests with Coverage
   run: |
-    pytest --cov=navigator_orchestrator --cov=config \
+    pytest --cov=planalign_orchestrator --cov=config \
            --cov-report=html --cov-report=term --cov-report=xml
 
 - name: Upload Coverage to Codecov
@@ -969,7 +969,7 @@ def test_event_discriminated_union_validation():
 ```
 
 **Success Criteria**:
-- Overall coverage: 90%+ on navigator_orchestrator, config modules
+- Overall coverage: 90%+ on planalign_orchestrator, config modules
 - Coverage reports generated: HTML (htmlcov/), terminal, XML (CI)
 - CI fails if coverage drops below thresholds
 - Coverage badge in README showing current percentage
@@ -985,7 +985,7 @@ def test_event_discriminated_union_validation():
 
 #### **Create `tests/README.md`**
 ```markdown
-# PlanWise Navigator Testing Infrastructure
+# Fidelity PlanAlign Engine Testing Infrastructure
 
 Enterprise-grade testing framework with **90%+ coverage** and **<10 second fast test suite**.
 
@@ -1015,7 +1015,7 @@ pytest -m "slow and not e2e"      # Stage 2: Integration (30s)
 pytest -m e2e                     # Stage 3: E2E tests (60s)
 
 # Full suite with coverage
-pytest --cov=navigator_orchestrator --cov=config --cov-report=html
+pytest --cov=planalign_orchestrator --cov=config --cov-report=html
 ```
 
 ---
@@ -1137,19 +1137,19 @@ def test_integration_scenario(populated_test_db, single_threaded_config):
 
 | Module | Target | Current |
 |--------|--------|---------|
-| navigator_orchestrator.pipeline | 95% | TBD |
-| navigator_orchestrator.config | 90% | TBD |
-| navigator_orchestrator.dbt_runner | 90% | TBD |
+| planalign_orchestrator.pipeline | 95% | TBD |
+| planalign_orchestrator.config | 90% | TBD |
+| planalign_orchestrator.dbt_runner | 90% | TBD |
 | config.events | 95% | 98% ✅ |
 
 ### Check Coverage
 ```bash
 # Generate HTML report
-pytest --cov=navigator_orchestrator --cov-report=html
+pytest --cov=planalign_orchestrator --cov-report=html
 open htmlcov/index.html
 
 # Terminal report
-pytest --cov=navigator_orchestrator --cov-report=term-missing
+pytest --cov=planalign_orchestrator --cov-report=term-missing
 ```
 
 ---
@@ -1211,10 +1211,10 @@ jobs:
 
 ### Coverage Targets
 - ✅ **Overall coverage**: 90%+ on core modules
-- ✅ **navigator_orchestrator.pipeline**: 95%
-- ✅ **navigator_orchestrator.config**: 90%
+- ✅ **planalign_orchestrator.pipeline**: 95%
+- ✅ **planalign_orchestrator.config**: 90%
 - ✅ **config.events**: 95% (already achieved)
-- ✅ **navigator_orchestrator.dbt_runner**: 90%
+- ✅ **planalign_orchestrator.dbt_runner**: 90%
 
 ### Organization Targets
 - ✅ **Test file size**: No file exceeds 300 lines

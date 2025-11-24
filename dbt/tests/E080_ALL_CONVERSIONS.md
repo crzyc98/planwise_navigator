@@ -156,13 +156,13 @@ dbt test --select test_s042_source_of_truth test_deferral_rate_source_of_truth -
 
 ---
 
-## Integration with Navigator Orchestrator
+## Integration with PlanAlign Orchestrator
 
 ### Current Pipeline Stage: VALIDATION
-Tests will be integrated into the Navigator Orchestrator pipeline:
+Tests will be integrated into the PlanAlign Orchestrator pipeline:
 
 ```python
-# navigator_orchestrator/pipeline/workflow.py
+# planalign_orchestrator/pipeline/workflow.py
 VALIDATION_STAGE = Stage(
     name="VALIDATION",
     models=[],  # No models to build
@@ -252,7 +252,7 @@ Once tests are validated and integrated:
 4. Performance benchmark actual execution time
 
 ### Short-Term (Integration)
-1. Integrate tests into Navigator Orchestrator VALIDATION stage
+1. Integrate tests into PlanAlign Orchestrator VALIDATION stage
 2. Configure test severity levels (error vs warn)
 3. Set up test failure storage and reporting
 4. Update pipeline documentation

@@ -17,9 +17,9 @@ from unittest.mock import Mock, patch
 import sys
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
-from navigator_orchestrator.config import SimulationConfig, EventGenerationSettings, PolarsEventSettings
-from navigator_orchestrator.hybrid_performance_monitor import HybridPerformanceMonitor, EventGenerationMetrics
-from navigator_orchestrator.pipeline_orchestrator import PipelineOrchestrator
+from planalign_orchestrator.config import SimulationConfig, EventGenerationSettings, PolarsEventSettings
+from planalign_orchestrator.hybrid_performance_monitor import HybridPerformanceMonitor, EventGenerationMetrics
+from planalign_orchestrator.pipeline_orchestrator import PipelineOrchestrator
 
 
 class TestHybridPipelineConfiguration:
@@ -315,7 +315,7 @@ class TestHybridPipelineIntegration:
 
     def test_orchestrator_hybrid_configuration_extraction(self, mock_config, mock_orchestrator_components):
         """Test that orchestrator correctly extracts hybrid configuration."""
-        with patch('navigator_orchestrator.pipeline.HybridPerformanceMonitor'):
+        with patch('planalign_orchestrator.pipeline.HybridPerformanceMonitor'):
             orchestrator = PipelineOrchestrator(
                 config=mock_config,
                 verbose=True,
@@ -326,8 +326,8 @@ class TestHybridPipelineIntegration:
             assert orchestrator.is_polars_enabled is True
             assert orchestrator.polars_settings.enabled is True
 
-    @patch('navigator_orchestrator.pipeline.PolarsEventGenerator')
-    @patch('navigator_orchestrator.pipeline.EventFactoryConfig')
+    @patch('planalign_orchestrator.pipeline.PolarsEventGenerator')
+    @patch('planalign_orchestrator.pipeline.EventFactoryConfig')
     def test_polars_event_generation_execution(self, mock_factory_config, mock_generator,
                                              mock_config, mock_orchestrator_components):
         """Test Polars event generation execution."""
@@ -336,7 +336,7 @@ class TestHybridPipelineIntegration:
         mock_generator_instance.stats = {'total_events_generated': 15000}
         mock_generator.return_value = mock_generator_instance
 
-        with patch('navigator_orchestrator.pipeline.HybridPerformanceMonitor'):
+        with patch('planalign_orchestrator.pipeline.HybridPerformanceMonitor'):
             orchestrator = PipelineOrchestrator(
                 config=mock_config,
                 verbose=True,
@@ -364,7 +364,7 @@ class TestHybridPipelineIntegration:
         mock_orchestrator_components['dbt_runner'].execute_command.return_value = mock_dbt_result
         mock_orchestrator_components['db_manager'].execute_with_retry.return_value = 5000
 
-        with patch('navigator_orchestrator.pipeline.HybridPerformanceMonitor'):
+        with patch('planalign_orchestrator.pipeline.HybridPerformanceMonitor'):
             orchestrator = PipelineOrchestrator(
                 config=mock_config,
                 verbose=True,
@@ -381,7 +381,7 @@ class TestHybridPipelineIntegration:
 
     def test_hybrid_event_generation_mode_switching(self, mock_config, mock_orchestrator_components):
         """Test hybrid event generation with mode switching."""
-        with patch('navigator_orchestrator.pipeline.HybridPerformanceMonitor') as mock_monitor_class:
+        with patch('planalign_orchestrator.pipeline.HybridPerformanceMonitor') as mock_monitor_class:
             mock_monitor = Mock()
             mock_monitor_class.return_value = mock_monitor
 
@@ -409,7 +409,7 @@ class TestHybridPipelineIntegration:
 
     def test_error_handling_and_fallback(self, mock_config, mock_orchestrator_components):
         """Test error handling and automatic fallback from Polars to SQL."""
-        with patch('navigator_orchestrator.pipeline.HybridPerformanceMonitor'):
+        with patch('planalign_orchestrator.pipeline.HybridPerformanceMonitor'):
             orchestrator = PipelineOrchestrator(
                 config=mock_config,
                 verbose=True,
@@ -465,7 +465,7 @@ optimization:
         config_path = tmp_path / "test_config.yaml"
         config_path.write_text(config_content)
 
-        from navigator_orchestrator.config import load_simulation_config
+        from planalign_orchestrator.config import load_simulation_config
 
         config = load_simulation_config(config_path)
 

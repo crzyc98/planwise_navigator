@@ -1,6 +1,6 @@
 # Epic Documentation
 
-This folder contains comprehensive documentation for all PlanWise Navigator epics, including planning, specifications, and validation frameworks.
+This folder contains comprehensive documentation for all Fidelity PlanAlign Engine epics, including planning, specifications, and validation frameworks.
 
 ## 📊 Epic Overview
 

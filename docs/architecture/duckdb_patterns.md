@@ -698,4 +698,4 @@ def check_workforce_data_quality(context: AssetExecutionContext) -> AssetCheckRe
 
 ---
 
-This comprehensive guide provides battle-tested patterns for integrating DuckDB with Dagster assets while avoiding common serialization and connection management pitfalls. Use these patterns as templates for your PlanWise Navigator rebuild.
+This comprehensive guide provides battle-tested patterns for integrating DuckDB with Dagster assets while avoiding common serialization and connection management pitfalls. Use these patterns as templates for your Fidelity PlanAlign Engine rebuild.

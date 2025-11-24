@@ -2,7 +2,7 @@
 
 ## Overview
 
-The `optimization_schemas.py` module provides a unified parameter schema system for PlanWise Navigator's compensation optimization interfaces. It standardizes parameter definitions, validation, and format transformations between `advanced_optimization.py` and `compensation_tuning.py`.
+The `optimization_schemas.py` module provides a unified parameter schema system for Fidelity PlanAlign Engine's compensation optimization interfaces. It standardizes parameter definitions, validation, and format transformations between `advanced_optimization.py` and `compensation_tuning.py`.
 
 ## Key Features
 
@@ -375,4 +375,4 @@ for group_name, params in groups.items():
 
 ---
 
-*This guide covers the optimization_schemas.py module as of PlanWise Navigator v1.0.0. For updates and additional examples, see the `examples/` directory.*
+*This guide covers the optimization_schemas.py module as of Fidelity PlanAlign Engine v1.0.0. For updates and additional examples, see the `examples/` directory.*

@@ -551,7 +551,7 @@ UNION ALL SELECT * FROM new_hires_terminated
 #### **Orchestrator Integration**:
 
 ```python
-# navigator_orchestrator/pipeline/year_executor.py
+# planalign_orchestrator/pipeline/year_executor.py
 from workforce_planning_engine import WorkforcePlanningEngine
 
 class YearExecutor:
@@ -787,7 +787,7 @@ WHERE gv.growth_accuracy_status NOT IN ('CRITICAL_VARIANCE', 'SEVERE_VARIANCE') 
 #### **Orchestrator Integration**:
 
 ```python
-# navigator_orchestrator/pipeline/year_executor.py
+# planalign_orchestrator/pipeline/year_executor.py
 
 class YearExecutor:
     def execute_year_with_validation(self, year: int) -> ExecutionResult:
@@ -1316,7 +1316,7 @@ SELECT * FROM read_parquet('{{ var("polars_cohorts_path") }}/new_hires_terminate
 
 ```bash
 # Run with validation gates
-python -m navigator_orchestrator run --years 2025 --validate-growth
+python -m planalign_orchestrator run --years 2025 --validate-growth
 
 # Check all three gates pass
 duckdb dbt/simulation.duckdb "
@@ -1331,7 +1331,7 @@ duckdb dbt/simulation.duckdb "
 "
 
 # Performance benchmark
-time python -m navigator_orchestrator run --years 2025-2029 --mode polars
+time python -m planalign_orchestrator run --years 2025-2029 --mode polars
 # Target: <30 seconds
 ```
 
@@ -1411,7 +1411,7 @@ time python -m navigator_orchestrator run --years 2025-2029 --mode polars
 ### **Prerequisites**:
 - ✅ E068G Polars Bulk Event Factory (completed)
 - ✅ E068H Scale & Parity Testing Framework (completed)
-- ✅ navigator_orchestrator pipeline functional
+- ✅ planalign_orchestrator pipeline functional
 - ✅ DuckDB 1.0.0+ installed
 - ✅ Polars ≥1.0.0 installed
 
@@ -1462,7 +1462,7 @@ Phase 3 (Production Hardening)
 
 #### **S077-05: Polars Cohort Engine (Hours 5-6)**
 - **Description**: Create `workforce_planning_engine.py` with algebraic solver + cohort generation
-- **Files**: `navigator_orchestrator/workforce_planning_engine.py`
+- **Files**: `planalign_orchestrator/workforce_planning_engine.py`
 - **Acceptance**: Generates 4 exact cohorts, ending workforce = target exactly
 - **Deliverable**: Polars engine with built-in validation assertions
 
@@ -1530,7 +1530,7 @@ dbt run --select fct_workforce_snapshot_validated --vars "simulation_year: 2025"
 ### **After Hour 8 (Polars Integration)**:
 ```bash
 # Full 5-year simulation with all gates passing + performance improvement
-time python -m navigator_orchestrator run --years 2025-2029 --mode polars --validate-growth
+time python -m planalign_orchestrator run --years 2025-2029 --mode polars --validate-growth
 # Expected: SUCCESS - all gates pass, runtime <30 seconds
 ```
 
@@ -1607,15 +1607,15 @@ dbt run --select fct_workforce_snapshot_validated  # Should PASS - Gate C fixed
 ### **Afternoon (Hours 5-8): Polars Integration**
 ```bash
 # Hour 5-6: Polars engine
-vim navigator_orchestrator/workforce_planning_engine.py
-python -c "from navigator_orchestrator.workforce_planning_engine import WorkforcePlanningEngine; print('Engine loaded')"
+vim planalign_orchestrator/workforce_planning_engine.py
+python -c "from planalign_orchestrator.workforce_planning_engine import WorkforcePlanningEngine; print('Engine loaded')"
 
 # Hour 7: Integration
 vim dbt/models/intermediate/int_workforce_cohorts_loader.sql
-python -m navigator_orchestrator run --years 2025 --mode polars
+python -m planalign_orchestrator run --years 2025 --mode polars
 
 # Hour 8: Validation
-time python -m navigator_orchestrator run --years 2025-2029 --mode polars --validate-growth
+time python -m planalign_orchestrator run --years 2025-2029 --mode polars --validate-growth
 # Target: <30 seconds, all gates pass
 ```
 
@@ -1645,4 +1645,4 @@ time python -m navigator_orchestrator run --years 2025-2029 --mode polars --vali
 5. **State Integrity**: No DAG bypasses (validated Year N-1 → Year N pipeline)
 6. **Validation Gates**: Three checkpoints enforce mass balance at every step
 
-**Proof of Success**: Run `time python -m navigator_orchestrator run --years 2025-2029 --mode polars --validate-growth` → completes in <30 seconds with `growth_accuracy_status='EXACT_MATCH'` for all years.
+**Proof of Success**: Run `time python -m planalign_orchestrator run --years 2025-2029 --mode polars --validate-growth` → completes in <30 seconds with `growth_accuracy_status='EXACT_MATCH'` for all years.

@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-Corporate Network Configuration and Proxy Support for PlanWise Navigator.
+Corporate Network Configuration and Proxy Support for Fidelity PlanAlign Engine.
 
 This module provides enterprise-grade network configuration and proxy support
 for corporate VPN/proxy environments, including:

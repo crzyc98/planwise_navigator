@@ -1,4 +1,4 @@
-# PlanWise Navigator - Product Requirements Document v4.1
+# Fidelity PlanAlign Engine - Product Requirements Document v4.1
 
 **Date**: 2025-08-19
 **Version**: 4.1 (Production Architecture Consolidation)
@@ -9,12 +9,12 @@
 
 ## 1. Executive Summary
 
-PlanWise Navigator has successfully evolved into a **production-grade enterprise workforce simulation platform** with **consolidated architecture**, **comprehensive DC plan administration**, and **advanced orchestration capabilities**. This document reflects the actual production state as of August 2025, documenting the successful consolidation from dual orchestration systems to a unified **Navigator Orchestrator** architecture.
+Fidelity PlanAlign Engine has successfully evolved into a **production-grade enterprise workforce simulation platform** with **consolidated architecture**, **comprehensive DC plan administration**, and **advanced orchestration capabilities**. This document reflects the actual production state as of August 2025, documenting the successful consolidation from dual orchestration systems to a unified **PlanAlign Orchestrator** architecture.
 
 This version represents a significant architectural milestone: the **complete elimination of dual orchestration complexity** and the establishment of a **single, production-ready orchestration system** with advanced features including checkpoint recovery, production data safety, and comprehensive observability.
 
 ### Current Achievement Status
-- **Orchestration Architecture**: ✅ **CONSOLIDATED** - Single `navigator_orchestrator` system operational
+- **Orchestration Architecture**: ✅ **CONSOLIDATED** - Single `planalign_orchestrator` system operational
 - **Event Sourcing Architecture**: ✅ **PRODUCTION-READY** - Immutable UUID-stamped events with complete audit trails
 - **Multi-Year Orchestration**: ✅ **PRODUCTION-READY** - Advanced orchestration with checkpoint recovery
 - **DC Plan Administration**: ✅ **PRODUCTION-READY** - Complete event schema with regulatory compliance
@@ -39,7 +39,7 @@ This version represents a significant architectural milestone: the **complete el
 | **Storage** | DuckDB | 1.0.0 | ✅ Production Ready | ✅ Validated to 500K employees |
 | **Transformation** | dbt-core | 1.8.8 | ✅ Production Ready | ✅ Enterprise Ready |
 | **Adapter** | dbt-duckdb | 1.8.1 | ✅ Production Ready | ✅ Enterprise Ready |
-| **Orchestration** | Navigator Orchestrator | Production | ✅ **CONSOLIDATED** | ✅ Production Hardened |
+| **Orchestration** | PlanAlign Orchestrator | Production | ✅ **CONSOLIDATED** | ✅ Production Hardened |
 | **Dashboard** | Streamlit | 1.39.0 | ✅ Production Ready | ✅ Multi-user capable |
 | **Configuration** | Pydantic | 2.7.4 | ✅ Production Ready | ✅ Enterprise Ready |
 | **Event Schema** | Pydantic v2 | Latest | ✅ Production Ready | ✅ Enterprise Ready |
@@ -49,7 +49,7 @@ This version represents a significant architectural milestone: the **complete el
 
 ```mermaid
 graph TB
-    subgraph "Production Navigator Orchestrator Architecture"
+    subgraph "Production PlanAlign Orchestrator Architecture"
         subgraph "Configuration Layer - PRODUCTION READY"
             A1[simulation_config.yaml<br/>290+ Parameters]
             A2[Pydantic v2 Config Models<br/>Type-Safe Validation]
@@ -57,7 +57,7 @@ graph TB
         end
 
         subgraph "Orchestration Engine - CONSOLIDATED"
-            B1[Navigator Orchestrator<br/>Single Production System]
+            B1[PlanAlign Orchestrator<br/>Single Production System]
             B2[Pipeline Orchestrator<br/>7-Stage Workflow]
             B3[DbtRunner<br/>Enhanced Command Execution]
             B4[Registry Manager<br/>State Coordination]
@@ -100,7 +100,7 @@ graph TB
 | **E047**: Production Testing Framework | ✅ **COMPLETE** | 100% | High - Comprehensive test coverage | Production validation system |
 | **E046**: Recovery & Checkpoint System | ✅ **COMPLETE** | 100% | High - System resilience | Checkpoint/recovery architecture |
 | **E045**: Data Integrity Resolution | ✅ **COMPLETE** | 100% | High - Data quality assurance | 24+ validation rules |
-| **E038**: Navigator Orchestrator | ✅ **COMPLETE** | 100% | **CRITICAL** - Architecture consolidation | Single orchestration system |
+| **E038**: PlanAlign Orchestrator | ✅ **COMPLETE** | 100% | **CRITICAL** - Architecture consolidation | Single orchestration system |
 | **E034**: Employee Contributions | ✅ **COMPLETE** | 100% | High - Full contribution modeling | IRS compliance automation |
 | **E033**: Compensation Parameter Config | ✅ **COMPLETE** | 100% | High - Real-time tuning | 290+ configuration parameters |
 | **E025**: Employer Match Engine | ✅ **COMPLETE** | 100% | High - Complete match calculation | Multi-formula support |
@@ -111,7 +111,7 @@ graph TB
 
 ## 3. Production Features & Capabilities
 
-### 3.1 Navigator Orchestrator System (Consolidated Architecture)
+### 3.1 PlanAlign Orchestrator System (Consolidated Architecture)
 
 #### **Core Orchestration Engine**
 - **7-Stage Workflow**: Initialization → Foundation → Event Generation → State Accumulation → Validation → Reporting → Cleanup
@@ -229,7 +229,7 @@ production_safety:
 ### 4.2 Deployment Patterns
 
 #### **Single-Node Deployment (Current)**
-- **Architecture**: DuckDB single-file database with Navigator Orchestrator
+- **Architecture**: DuckDB single-file database with PlanAlign Orchestrator
 - **Capacity**: Validated for 500K employees, 10-year simulations
 - **Performance**: 5-year simulation in <10 minutes on standard hardware
 - **Scalability**: Sufficient for most enterprise deployments
@@ -404,7 +404,7 @@ production_safety:
 
 ### 10.1 Strategic Achievements
 
-PlanWise Navigator v4.1 represents a **significant architectural milestone** with the successful consolidation from dual orchestration systems to a unified, production-ready platform. The **Navigator Orchestrator** system provides:
+Fidelity PlanAlign Engine v4.1 represents a **significant architectural milestone** with the successful consolidation from dual orchestration systems to a unified, production-ready platform. The **PlanAlign Orchestrator** system provides:
 
 - **Architectural Simplicity**: Single orchestration system eliminating dual-system complexity
 - **Production Hardening**: Comprehensive backup, recovery, and monitoring capabilities
@@ -422,7 +422,7 @@ The consolidated architecture delivers measurable business value:
 
 ### 10.3 Executive Recommendation
 
-**DEPLOY** the consolidated Navigator Orchestrator system for production use:
+**DEPLOY** the consolidated PlanAlign Orchestrator system for production use:
 
 1. **Immediate**: Deploy current production architecture for workforce planning
 2. **Q4 2025**: Implement performance optimizations and advanced analytics features
@@ -437,7 +437,7 @@ The consolidated architecture delivers measurable business value:
 
 ### A. Production Architecture Specifications
 
-#### A.1 Navigator Orchestrator Components
+#### A.1 PlanAlign Orchestrator Components
 - **Pipeline Orchestrator**: 7-stage workflow with dependency management
 - **DbtRunner**: Enhanced command execution with streaming output and error handling
 - **Registry Manager**: State coordination for enrollment and deferral tracking

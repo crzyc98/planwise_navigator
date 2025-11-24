@@ -1,4 +1,4 @@
-# dbt Performance Optimizations for PlanWise Navigator
+# dbt Performance Optimizations for Fidelity PlanAlign Engine
 
 ## Overview
 

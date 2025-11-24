@@ -1,5 +1,5 @@
 # filename: streamlit_dashboard/prototype.py
-"""Streamlit dashboard prototype for PlanWise Navigator."""
+"""Streamlit dashboard prototype for Fidelity PlanAlign Engine."""
 
 from datetime import datetime
 
@@ -11,7 +11,7 @@ import streamlit as st
 
 # Page config
 st.set_page_config(
-    page_title="PlanWise Navigator",
+    page_title="Fidelity PlanAlign Engine",
     page_icon="📊",
     layout="wide",
     initial_sidebar_state="expanded",
@@ -46,7 +46,7 @@ st.markdown(
 )
 
 # Header
-st.markdown('<h1 class="main-header">📊 PlanWise Navigator</h1>', unsafe_allow_html=True)
+st.markdown('<h1 class="main-header">📊 Fidelity PlanAlign Engine</h1>', unsafe_allow_html=True)
 
 # Sidebar
 with st.sidebar:
@@ -423,7 +423,7 @@ with tab5:
             st.download_button(
                 "📥 Download",
                 csv,
-                "planwise_export.csv",
+                "planalign_export.csv",
                 "text/csv",
                 use_container_width=True,
             )
@@ -433,7 +433,7 @@ st.markdown("---")
 st.markdown(
     """
     <div style='text-align: center; color: #666;'>
-    PlanWise Navigator v3.0 | Last simulation: {timestamp} |
+    Fidelity PlanAlign Engine v3.0 | Last simulation: {timestamp} |
     <a href='#'>Documentation</a> | <a href='#'>Support</a>
     </div>
     """.format(

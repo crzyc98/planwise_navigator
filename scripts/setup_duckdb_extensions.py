@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-from navigator_orchestrator.config import get_database_path
+from planalign_orchestrator.config import get_database_path
 Setup script to install DuckDB extensions locally.
 Run this once to avoid network download issues during pipeline execution.
 """

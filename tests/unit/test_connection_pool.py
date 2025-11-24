@@ -13,7 +13,7 @@ from pathlib import Path
 
 import pytest
 
-from navigator_orchestrator.utils import DatabaseConnectionPool, DatabaseConnectionManager
+from planalign_orchestrator.utils import DatabaseConnectionPool, DatabaseConnectionManager
 
 
 class TestDatabaseConnectionPool:

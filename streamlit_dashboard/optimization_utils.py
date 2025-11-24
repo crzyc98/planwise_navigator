@@ -1,5 +1,5 @@
 """
-Optimization Utilities for PlanWise Navigator
+Optimization Utilities for Fidelity PlanAlign Engine
 
 This module provides utility functions for parameter conversion, result formatting,
 and integration between different optimization interfaces.

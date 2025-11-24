@@ -45,7 +45,7 @@ pytest -m "slow and not very_slow"
 pytest -m very_slow
 
 # Full suite with coverage
-pytest --cov=navigator_orchestrator --cov-report=html
+pytest --cov=planalign_orchestrator --cov-report=html
 ```
 
 ---
@@ -98,7 +98,7 @@ def test_my_feature(in_memory_db, sample_employees):
 
 ```bash
 # HTML report (open in browser)
-pytest --cov=navigator_orchestrator --cov-report=html
+pytest --cov=planalign_orchestrator --cov-report=html
 open htmlcov/index.html
 
 # Terminal report with missing lines
@@ -123,10 +123,10 @@ lsof | grep simulation.duckdb
 
 ```python
 # CORRECT import
-from navigator_orchestrator.pipeline_orchestrator import PipelineOrchestrator
+from planalign_orchestrator.pipeline_orchestrator import PipelineOrchestrator
 
 # WRONG import (old path)
-from navigator_orchestrator.pipeline import PipelineOrchestrator
+from planalign_orchestrator.pipeline import PipelineOrchestrator
 ```
 
 ### Slow Tests

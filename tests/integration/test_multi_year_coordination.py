@@ -11,7 +11,7 @@ This test suite validates:
 - Error handling and recovery in multi-component scenarios
 
 NOTE: This test file uses legacy orchestrator_mvp module which has been refactored
-into navigator_orchestrator. Tests are skipped pending refactoring for new architecture.
+into planalign_orchestrator. Tests are skipped pending refactoring for new architecture.
 See Epic E070 for testing infrastructure modernization.
 """
 
@@ -27,8 +27,8 @@ from uuid import UUID, uuid4
 
 import pytest
 
-# Legacy imports - module refactored to navigator_orchestrator
-pytestmark = pytest.mark.skip(reason="Legacy orchestrator_mvp module refactored to navigator_orchestrator - needs test update")
+# Legacy imports - module refactored to planalign_orchestrator
+pytestmark = pytest.mark.skip(reason="Legacy orchestrator_mvp module refactored to planalign_orchestrator - needs test update")
 
 try:
     from orchestrator_mvp.core.coordination_optimizer import (

@@ -1,4 +1,4 @@
-# PlanWise Navigator - Production Hardening Plan v2
+# Fidelity PlanAlign Engine - Production Hardening Plan v2
 
 ## Core Philosophy (unchanged)
 - Fix what's broken, don't add fancy features
@@ -14,7 +14,7 @@
 
 ```bash
 # 1. Capture baseline (know what "working" looks like)
-python -m navigator_orchestrator.cli run --years 2025-2025
+python -m planalign_orchestrator.cli run --years 2025-2025
 cp dbt/simulation.duckdb dbt/baseline.duckdb
 cp runs.log baseline_runs.log
 
@@ -321,7 +321,7 @@ def can_skip_year(year):
 |---|---|---|
 | `dbt model int_hiring_events failed` | Hiring logic broke | `dbt run --select int_workforce_needs_by_level int_hiring_events` |
 | `NOT NULL constraint failed: total_compensation` | Missing comp data | `dbt run --select int_employee_compensation_by_year+` |
-| `Run failed at year 2026` | Mid-run failure | `python -m navigator_orchestrator.cli run --resume` |
+| `Run failed at year 2026` | Mid-run failure | `python -m planalign_orchestrator.cli run --resume` |
 | `DuckDB Error: database is locked` | Concurrent access | Kill other processes: `fuser -k dbt/simulation.duckdb` |
 | `No space left on device` | Disk full | Clean old backups: `rm dbt/backups/backup_2024*` |
 
@@ -337,13 +337,13 @@ def can_skip_year(year):
    ```
 4. Start fresh run:
    ```bash
-   python -m navigator_orchestrator.cli run --years 2025-2030
+   python -m planalign_orchestrator.cli run --years 2025-2030
    ```
 
 ## Targeted Fixes
 - Single model rebuild: `dbt run --select MODEL_NAME`
 - Skip to specific year: `dbt run --vars "{'start_year': 2027}"`
-- Test single year: `python -m navigator_orchestrator.cli run --years 2025-2025`
+- Test single year: `python -m planalign_orchestrator.cli run --years 2025-2025`
 ```
 
 **Verify:**
@@ -426,7 +426,7 @@ dbt test --select tag:critical
 
 # 4. Performance check
 echo "✓ Testing performance..."
-time python -m navigator_orchestrator.cli run --years 2025-2025
+time python -m planalign_orchestrator.cli run --years 2025-2025
 
 echo "=== All checks passed! ==="
 EOF
@@ -479,7 +479,7 @@ CREATE INDEX IF NOT EXISTS idx_critical ON table(column);
 
 ```bash
 # 1. Day 0 - Capture baseline (5 minutes)
-python -m navigator_orchestrator.cli run --years 2025-2025
+python -m planalign_orchestrator.cli run --years 2025-2025
 cp dbt/simulation.duckdb dbt/baseline.duckdb
 
 # 2. Create structure (2 minutes)

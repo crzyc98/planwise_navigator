@@ -1,6 +1,6 @@
 # Scenario Configuration Examples
 
-This directory contains example scenario configurations for PlanWise Navigator batch processing (Epic E069).
+This directory contains example scenario configurations for Fidelity PlanAlign Engine batch processing (Epic E069).
 
 ## Usage
 
@@ -8,22 +8,22 @@ Run batch scenarios using the navigator CLI:
 
 ```bash
 # Run all scenarios
-python -m navigator_orchestrator batch
+python -m planalign_orchestrator batch
 
 # Run specific scenarios
-python -m navigator_orchestrator batch --scenarios baseline high_growth
+python -m planalign_orchestrator batch --scenarios baseline high_growth
 
 # Clean databases before running for a fresh start
-python -m navigator_orchestrator batch --clean
+python -m planalign_orchestrator batch --clean
 
 # Specify custom directories
-python -m navigator_orchestrator batch --scenarios-dir scenarios/ --output-dir my_analysis/
+python -m planalign_orchestrator batch --scenarios-dir scenarios/ --output-dir my_analysis/
 
 # Export to CSV instead of Excel
-python -m navigator_orchestrator batch --export-format csv
+python -m planalign_orchestrator batch --export-format csv
 
 # Combine options for a clean run with specific scenarios
-python -m navigator_orchestrator batch --scenarios baseline high_growth --clean --export-format excel
+python -m planalign_orchestrator batch --scenarios baseline high_growth --clean --export-format excel
 ```
 
 ## Available Scenarios

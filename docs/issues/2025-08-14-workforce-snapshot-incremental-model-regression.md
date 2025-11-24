@@ -44,7 +44,7 @@ During implementation of Epic E039 Story S039-01 (Basic Employer Contributions),
 1. **Schema Change Impact**: Adding new columns to incremental model may require full refresh
 2. **JOIN Dependencies**: New LEFT JOINs may affect incremental strategy
 3. **Unique Key Conflicts**: Changes may interfere with `unique_key=['employee_id', 'simulation_year']`
-4. **Navigator Orchestrator Logic**: Multi-year execution may be overwriting previous years
+4. **PlanAlign Orchestrator Logic**: Multi-year execution may be overwriting previous years
 
 ## Impact Assessment
 
@@ -88,7 +88,7 @@ dbt run --select fct_workforce_snapshot --full-refresh --vars "simulation_year: 
 - Consider using `delete+insert` strategy explicitly
 - Add proper incremental filters for new JOINs
 
-### Option 3: Navigator Orchestrator Fix
+### Option 3: PlanAlign Orchestrator Fix
 - Review multi-year execution logic
 - Ensure proper year-by-year incremental building
 - Check for any concurrency or ordering issues

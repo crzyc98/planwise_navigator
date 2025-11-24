@@ -13,7 +13,7 @@
 ## Epic Overview
 
 ### Summary
-**Transform the existing `navigator_orchestrator` CLI into a beautiful, Claude Code-inspired interface** called **`planwise`** that provides analysts with an intuitive, powerful command-line experience. Inspired by Claude Code's modern CLI design principles (built in Rust for performance), we'll create the "Claude Code of workforce simulation" using Python's Rich + Typer framework. Building on the completed E068 performance optimizations (2× performance improvement) and E069 batch processing capabilities, this epic focuses on **UI/UX enhancement** rather than rebuilding core functionality. The goal is to create a Rich-powered, AI-assisted CLI wrapper around the existing robust simulation infrastructure.
+**Transform the existing `planalign_orchestrator` CLI into a beautiful, Claude Code-inspired interface** called **`planwise`** that provides analysts with an intuitive, powerful command-line experience. Inspired by Claude Code's modern CLI design principles (built in Rust for performance), we'll create the "Claude Code of workforce simulation" using Python's Rich + Typer framework. Building on the completed E068 performance optimizations (2× performance improvement) and E069 batch processing capabilities, this epic focuses on **UI/UX enhancement** rather than rebuilding core functionality. The goal is to create a Rich-powered, AI-assisted CLI wrapper around the existing robust simulation infrastructure.
 
 ### Business Value
 - 🎯 **Enhanced User Experience**: Transform functional but plain CLI into beautiful, intuitive interface
@@ -21,15 +21,15 @@
 - 💰 **Leverage Existing Investment**: Build on completed E068/E069 optimizations rather than duplicating effort
 - 📊 **Better Visual Feedback**: Rich progress bars, live metrics, and terminal-based dashboards
 - 🏗️ **AI-Powered Assistance**: Context7 MCP integration for intelligent troubleshooting and guidance
-- 🔧 **Maintain Compatibility**: 100% backward compatibility with existing `navigator_orchestrator` workflows
+- 🔧 **Maintain Compatibility**: 100% backward compatibility with existing `planalign_orchestrator` workflows
 
 ### Success Criteria
 - **Beautiful CLI Experience**: Rich terminal output with progress bars, colors, and professional formatting
-- **Simplified Commands**: `planwise simulate 2025-2029` vs current `python -m navigator_orchestrator run --years 2025-2027`
+- **Simplified Commands**: `planalign simulate 2025-2029` vs current `python -m planalign_orchestrator run --years 2025-2027`
 - **Interactive Features**: Terminal-based parameter tuning with immediate visual feedback
 - **AI-Powered Assistance**: Natural language command parsing and intelligent error recovery
 - **Performance Transparency**: Live metrics during simulation execution with E068-optimized backends
-- **100% Backward Compatibility**: All existing `navigator_orchestrator` functionality preserved
+- **100% Backward Compatibility**: All existing `planalign_orchestrator` functionality preserved
 - **Enhanced Discoverability**: Auto-completion, context-sensitive help, and usage examples
 
 ---
@@ -41,20 +41,20 @@
 **S032-01: Rich CLI Wrapper (5 points)** - ✅ **COMPLETE**
 - ✅ `planwise` CLI installed and operational with Typer + Rich
 - ✅ Beautiful terminal output with colors, progress bars, formatted tables
-- ✅ Simplified commands: `planwise simulate 2025-2027` vs complex argparse
+- ✅ Simplified commands: `planalign simulate 2025-2027` vs complex argparse
 - ✅ Auto-completion support and beautiful help system with Rich formatting
 - ✅ 100% backward compatibility - all existing functionality preserved
-- ✅ Zero duplication architecture - wraps existing navigator_orchestrator components
+- ✅ Zero duplication architecture - wraps existing planalign_orchestrator components
 
 **S032-02: Enhanced Status & Setup Commands (3 points)** - ✅ **COMPLETE**
-- ✅ `planwise status show` with formatted dashboard and health information
-- ✅ `planwise status health` provides quick system readiness check
+- ✅ `planalign status show` with formatted dashboard and health information
+- ✅ `planalign status health` provides quick system readiness check
 - ✅ Rich tables and panels for system health display with color-coded indicators
 - ✅ Auto-detection of database location and configuration files
 - ✅ Intelligent system health diagnostics with actionable recommendations
 
 **S032-03: Enhanced Simulation Commands (4 points)** - ✅ **COMPLETE** (2025-09-26)
-- ✅ `planwise simulate 2025-2027` with Rich progress bars and live execution feedback
+- ✅ `planalign simulate 2025-2027` with Rich progress bars and live execution feedback
 - ✅ Parameter shortcuts: `--growth 3.5%` instead of complex technical parameters
 - ✅ Enhanced results summary with formatted tables, insights, and recommendations
 - ✅ Streaming support infrastructure with `ProgressAwareOrchestrator` and pattern matching
@@ -66,7 +66,7 @@
 
 **📦 Complete Package Implementation**
 ```bash
-planwise_cli/
+planalign_cli/
 ├── commands/           # All command modules implemented (status, simulate, batch, validate, checkpoint)
 ├── ui/                # Rich progress bars, tables, spinners, and formatters
 ├── integration/       # OrchestratorWrapper and component integration
@@ -82,7 +82,7 @@ planwise_cli/
 **⚡ Performance & Integration**
 - Lazy loading for <100ms startup time on quick commands
 - Direct integration with existing optimized components (E068/E069)
-- Wrapper pattern preserves all business logic in navigator_orchestrator
+- Wrapper pattern preserves all business logic in planalign_orchestrator
 - Full compatibility with existing workflows and configurations
 
 ### 🧪 **Validation Results**
@@ -91,16 +91,16 @@ planwise_cli/
 ```bash
 pip install -e .                    # Successful development installation
 planwise --help                     # Beautiful Rich-formatted help
-planwise status health               # System health check working
-planwise status show                 # Detailed status dashboard operational
+planalign status health               # System health check working
+planalign status show                 # Detailed status dashboard operational
 ```
 
 **Command Coverage** ✅
-- `planwise status` - System health and diagnostics
-- `planwise simulate` - Multi-year simulation with progress tracking
-- `planwise batch` - Scenario batch processing with Excel export
-- `planwise validate` - Configuration validation with detailed reporting
-- `planwise checkpoint` - Checkpoint management and recovery operations
+- `planalign status` - System health and diagnostics
+- `planalign simulate` - Multi-year simulation with progress tracking
+- `planalign batch` - Scenario batch processing with Excel export
+- `planalign validate` - Configuration validation with detailed reporting
+- `planalign checkpoint` - Checkpoint management and recovery operations
 
 **Rich UI Components** ✅
 - Progress bars and spinners for long-running operations
@@ -113,7 +113,7 @@ planwise status show                 # Detailed status dashboard operational
 **CLAUDE.md Enhanced**
 - Added CLI layer to system overview table as preferred method
 - Comprehensive command examples with Rich formatting
-- Legacy navigator_orchestrator preserved as fallback option
+- Legacy planalign_orchestrator preserved as fallback option
 - Performance optimization guidance integrated
 
 **Entry Point Configuration**
@@ -125,9 +125,9 @@ planwise status show                 # Detailed status dashboard operational
 
 | Criterion | Status | Evidence |
 |-----------|--------|----------|
-| Working `planwise status` with formatted health | ✅ | Rich tables showing system overview, database status, checkpoints |
-| Working `planwise simulate` with Rich progress | ✅ | Progress bars, dry-run preview, year-by-year execution tracking |
-| Working `planwise batch` with formatted output | ✅ | Scenario processing with progress display and result formatting |
+| Working `planalign status` with formatted health | ✅ | Rich tables showing system overview, database status, checkpoints |
+| Working `planalign simulate` with Rich progress | ✅ | Progress bars, dry-run preview, year-by-year execution tracking |
+| Working `planalign batch` with formatted output | ✅ | Scenario processing with progress display and result formatting |
 | Beautiful help system with examples | ✅ | Rich-formatted help text with examples and auto-completion |
 | All existing functionality preserved | ✅ | Zero-duplication wrapper pattern maintains 100% compatibility |
 | Enhanced simulation with parameter shortcuts | ✅ | `--growth 3.5%` user-friendly parameter parsing |
@@ -143,7 +143,7 @@ planwise status show                 # Detailed status dashboard operational
 - ✅ Enhanced results summary with formatted tables and intelligent recommendations
 - ✅ Enhanced batch command progress bars restored with Rich formatting
 - ✅ **S032-04: Enhanced Analysis Commands (4 points) - COMPLETE (2025-09-26)**
-  - ✅ `planwise analyze workforce` with Rich tables and terminal-based charts
+  - ✅ `planalign analyze workforce` with Rich tables and terminal-based charts
   - ✅ Integration with existing ExcelExporter for professional Excel/CSV reports
   - ✅ Terminal-based visualization using Rich panels and progress bars as charts
   - ✅ Executive summary dashboards with trend analysis and demographics
@@ -163,7 +163,7 @@ planwise status show                 # Detailed status dashboard operational
 ### Current CLI Reality (Post-E068/E069)
 **We have powerful, optimized simulation capabilities but poor user experience:**
 
-1. **Functional but Ugly**: Plain text output, no visual feedback, `python -m navigator_orchestrator` commands
+1. **Functional but Ugly**: Plain text output, no visual feedback, `python -m planalign_orchestrator` commands
 2. **Technical Commands**: `--years 2025-2027 --threads 1 --optimization medium` requires memorization
 3. **No Visual Feedback**: Long-running simulations show minimal progress indicators
 4. **Limited Discoverability**: Help text exists but no intelligent suggestions or examples
@@ -171,7 +171,7 @@ planwise status show                 # Detailed status dashboard operational
 
 ### UX/Interface Limitations
 - **Argparse CLI**: Functional but not beautiful, no Rich formatting or colors
-- **Command Verbosity**: `python -m navigator_orchestrator run --config config.yaml --years 2025-2027`
+- **Command Verbosity**: `python -m planalign_orchestrator run --config config.yaml --years 2025-2027`
 - **Limited Interactivity**: Batch operations without live progress visualization
 - **Technical Error Messages**: Stack traces instead of user-friendly guidance
 - **No AI Assistance**: No natural language processing or intelligent suggestions
@@ -189,35 +189,35 @@ planwise status show                 # Detailed status dashboard operational
 
 ### Story S032-01: Rich CLI Wrapper (5 points) - ✅ **COMPLETE**
 **As a** workforce simulation analyst
-**I want** a beautiful `planwise` command that wraps the existing `navigator_orchestrator`
+**I want** a beautiful `planwise` command that wraps the existing `planalign_orchestrator`
 **So that** I can use the same functionality with better visual feedback and simpler commands
 
 **Acceptance Criteria:**
-- Install `planwise` CLI that maps to existing navigator_orchestrator functions
+- Install `planwise` CLI that maps to existing planalign_orchestrator functions
 - Rich terminal output with colors, progress bars, and formatted tables
-- Simplified commands: `planwise simulate 2025-2029` vs `python -m navigator_orchestrator run --years 2025-2029`
+- Simplified commands: `planalign simulate 2025-2029` vs `python -m planalign_orchestrator run --years 2025-2029`
 - Auto-completion support for commands and common parameters
 - Beautiful help system with examples using Rich formatting
 - 100% backward compatibility - all existing functionality preserved
 
 **Technical Requirements:**
 - Install Rich and Typer dependencies (already available in environment)
-- Create `planwise_cli/` package with Typer app as entrypoint
+- Create `planalign_cli/` package with Typer app as entrypoint
 - Wrap existing PipelineOrchestrator, ScenarioBatchRunner, CheckpointManager
 - Add Rich formatting for progress bars, tables, and status displays
 - Implement command mapping from simple names to complex argparse equivalents
-- Ensure zero duplication - delegate all logic to existing navigator_orchestrator components
+- Ensure zero duplication - delegate all logic to existing planalign_orchestrator components
 
 ### Story S032-02: Enhanced Status & Setup Commands (3 points) - ✅ **COMPLETE**
 **As a** simulation analyst
-**I want** beautiful `planwise status` and `planwise setup` commands
+**I want** beautiful `planalign status` and `planalign setup` commands
 **So that** I can quickly understand system health and prepare my environment
 
 **Acceptance Criteria:**
-- `planwise status` shows formatted dashboard with database state, recent runs, suggestions
-- `planwise setup` provides guided setup experience with progress visualization
+- `planalign status` shows formatted dashboard with database state, recent runs, suggestions
+- `planalign setup` provides guided setup experience with progress visualization
 - Rich tables and panels for displaying system health information
-- Intelligent suggestions based on current state (e.g., "Run planwise simulate 2025 --quick")
+- Intelligent suggestions based on current state (e.g., "Run planalign simulate 2025 --quick")
 - Auto-detection of database location and configuration files
 - Color-coded status indicators (green/yellow/red) for different system components
 
@@ -231,15 +231,15 @@ planwise status show                 # Detailed status dashboard operational
 
 ### Story S032-03: Enhanced Simulation Commands (4 points) - ✅ **COMPLETE** (2025-09-26)
 **As a** financial analyst
-**I want** beautiful `planwise simulate` commands with live progress and formatted results
+**I want** beautiful `planalign simulate` commands with live progress and formatted results
 **So that** I can run scenarios with better visibility into execution progress
 
 **Acceptance Criteria:**
-- `planwise simulate 2025-2029` with Rich progress bars showing year-by-year progress
+- `planalign simulate 2025-2029` with Rich progress bars showing year-by-year progress
 - Live metrics during execution: current year, events processed, workforce size
 - Formatted results table with key insights and recommendations
 - Parameter shortcuts: `--growth 0.04` instead of `--target-growth-rate 0.04`
-- Integration with existing batch command: `planwise batch --scenarios baseline high_growth`
+- Integration with existing batch command: `planalign batch --scenarios baseline high_growth`
 - Results summary with sparklines, tables, and executive dashboard
 
 **Technical Requirements:**
@@ -252,13 +252,13 @@ planwise status show                 # Detailed status dashboard operational
 
 ### Story S032-04: Enhanced Analysis Commands (4 points) - ✅ **COMPLETE** (2025-09-26)
 **As a** workforce planner
-**I want** beautiful `planwise analyze` commands with terminal-based visualizations
+**I want** beautiful `planalign analyze` commands with terminal-based visualizations
 **So that** I can understand simulation results without external tools
 
 **Acceptance Criteria:**
-- `planwise analyze workforce` shows formatted tables with trend analysis
+- `planalign analyze workforce` shows formatted tables with trend analysis
 - Terminal-based charts showing workforce growth, compensation trends
-- `planwise analyze scenario baseline` provides executive summary dashboard
+- `planalign analyze scenario baseline` provides executive summary dashboard
 - Rich tables with color-coding for positive/negative trends
 - Leverage existing ExcelExporter: `--export excel` creates formatted reports
 - Quick insights with sparklines and summary statistics
@@ -277,7 +277,7 @@ planwise status show                 # Detailed status dashboard operational
 **So that** I can adjust parameters with immediate visual feedback
 
 **Acceptance Criteria:**
-- `planwise tune` launches Rich-based parameter selection interface
+- `planalign tune` launches Rich-based parameter selection interface
 - Arrow key navigation through parameter list with current values displayed
 - Parameter validation with immediate feedback on valid ranges
 - Preview simulation impact without full execution (estimates based on formulas)
@@ -298,11 +298,11 @@ planwise status show                 # Detailed status dashboard operational
 **So that** I can use the CLI more intuitively and maintain session continuity
 
 **Acceptance Criteria:**
-- Natural language parsing: `planwise "run 2025 simulation with 4% growth"`
+- Natural language parsing: `planalign "run 2025 simulation with 4% growth"`
 - AI-powered error messages with suggested fixes and recovery steps
-- Command history and replay: `planwise history`, `planwise replay --session yesterday`
-- Workspace context management: `planwise init`, `planwise context --set production`
-- `planwise ask "How do I run a high growth scenario?"` command for help
+- Command history and replay: `planalign history`, `planalign replay --session yesterday`
+- Workspace context management: `planalign init`, `planalign context --set production`
+- `planalign ask "How do I run a high growth scenario?"` command for help
 - Smart auto-completion that learns from usage patterns and context
 
 **Technical Requirements:**
@@ -317,7 +317,7 @@ planwise status show                 # Detailed status dashboard operational
 - **Session Management**: Persistent command history across sessions
 - **Project Context**: Auto-detection of simulation projects and configurations
 - **Command Replay**: Ability to replay previous successful workflows
-- **Diff Preview**: `planwise simulate 2025 --dry-run --diff` to preview changes
+- **Diff Preview**: `planalign simulate 2025 --dry-run --diff` to preview changes
 
 ---
 
@@ -327,7 +327,7 @@ planwise status show                 # Detailed status dashboard operational
 **Philosophy: Zero duplication, maximum leverage of existing E068/E069 infrastructure**
 
 ```
-planwise_cli/
+planalign_cli/
 ├── __init__.py                    # Package initialization and entry point
 ├── main.py                        # Typer app with command routing
 ├── commands/                      # Beautiful command implementations
@@ -371,9 +371,9 @@ graph TD
     end
 
     subgraph "PlanWise Commands"
-        Simulate[planwise simulate]
-        Status[planwise status]
-        BatchCmd[planwise batch]
+        Simulate[planalign simulate]
+        Status[planalign status]
+        BatchCmd[planalign batch]
         Analyze[planwise analyze]
         Tune[planwise tune]
         Ask[planwise ask]
@@ -424,12 +424,12 @@ graph TD
 **Stories:** S032-01, S032-02 (8 points total) - ✅ **DELIVERED**
 **Deliverables:** ✅ **ALL ACHIEVED**
 - ✅ `planwise` CLI installation with Typer framework and Rich formatting
-- ✅ Core command structure wrapping existing navigator_orchestrator functionality
+- ✅ Core command structure wrapping existing planalign_orchestrator functionality
 - ✅ Beautiful status dashboard and health check system
 - ✅ Auto-completion and help system with Rich formatting
 
 **Week 1 Achievements:**
-- ✅ Installed Rich/Typer dependencies and created planwise_cli package
+- ✅ Installed Rich/Typer dependencies and created planalign_cli package
 - ✅ Implemented core command wrappers (simulate, batch, status, validate, checkpoint)
 - ✅ Added Rich formatting for progress bars, tables, and panels
 - ✅ Created beautiful help system with examples and auto-completion
@@ -488,7 +488,7 @@ graph TD
 - Integrate Claude Code MCP (mcp__gemini-cli) for natural language processing
 - Implement command history persistence and replay functionality
 - Add workspace context management (`.planwise/` project directories)
-- Create `planwise ask`, `planwise history`, `planwise replay` commands
+- Create `planalign ask`, `planalign history`, `planalign replay` commands
 - Add diff/preview capabilities for dry-run operations
 - Final testing, performance validation, and user documentation
 
@@ -506,32 +506,32 @@ graph TD
 | Results Understanding | Plain text dumps | Formatted tables, color coding, trends | **Immediate insights** |
 | Error Recovery | Stack traces, Google searches | AI-powered suggestions, guided fixes | **Self-service support** |
 | Parameter Adjustment | Manual file editing | Interactive terminal interface | **Visual feedback loop** |
-| Multi-scenario Runs | Remember complex commands | Simple `planwise batch --scenarios` | **Simplified workflows** |
+| Multi-scenario Runs | Remember complex commands | Simple `planalign batch --scenarios` | **Simplified workflows** |
 
 ## User Experience Examples
 
 ### Before & After: Quick Start Experience
 
-**Current CLI (navigator_orchestrator):**
+**Current CLI (planalign_orchestrator):**
 ```bash
 # Current complex setup process
 $ cd dbt && dbt build --threads 1
-$ python -m navigator_orchestrator validate --config config/simulation_config.yaml
-$ python -m navigator_orchestrator checkpoint status --database dbt/simulation.duckdb
+$ python -m planalign_orchestrator validate --config config/simulation_config.yaml
+$ python -m planalign_orchestrator checkpoint status --database dbt/simulation.duckdb
 ```
 
 **Enhanced CLI (planwise):**
 ```bash
 # Simplified, beautiful setup
 $ planwise setup
-🚀 Setting up PlanWise Navigator...
+🚀 Setting up Fidelity PlanAlign Engine...
 ✅ Database ready: 10,547 employees loaded (5.2s)
 ✅ Configuration valid: config/simulation_config.yaml
 ✅ Last checkpoint: 2025 simulation complete
-💡 Suggestion: Run `planwise simulate 2026` to continue
+💡 Suggestion: Run `planalign simulate 2026` to continue
 
-$ planwise status
-📊 PlanWise Navigator Health Dashboard
+$ planalign status
+📊 Fidelity PlanAlign Engine Health Dashboard
 ┌──────────────┬─────────────────────┬──────────────────┐
 │ Component    │ Status              │ Details          │
 ├──────────────┼─────────────────────┼──────────────────┤
@@ -542,17 +542,17 @@ $ planwise status
 └──────────────┴─────────────────────┴──────────────────┘
 
 💡 Next Steps:
-  • planwise simulate 2026-2029  # Continue simulation
-  • planwise batch --scenarios   # Run scenario comparison
+  • planalign simulate 2026-2029  # Continue simulation
+  • planalign batch --scenarios   # Run scenario comparison
   • planwise analyze workforce   # Review results
 ```
 
 ### Before & After: Simulation Execution
 
-**Current CLI (navigator_orchestrator):**
+**Current CLI (planalign_orchestrator):**
 ```bash
 # Current verbose, minimal feedback
-$ python -m navigator_orchestrator run --years 2025-2027 --threads 1 --config config/simulation_config.yaml
+$ python -m planalign_orchestrator run --years 2025-2027 --threads 1 --config config/simulation_config.yaml
 
 # ... silent execution for minutes ...
 # ... plain text output at end ...
@@ -561,7 +561,7 @@ $ python -m navigator_orchestrator run --years 2025-2027 --threads 1 --config co
 **Enhanced CLI (planwise):**
 ```bash
 # Beautiful, interactive simulation
-$ planwise simulate 2025-2027 --growth 3.5%
+$ planalign simulate 2025-2027 --growth 3.5%
 🎯 Multi-Year Simulation: 2025-2027
    📈 Growth Rate: 3.5% (override from 3.0%)
    ⚡ E068 Performance: Enabled (2× faster)
@@ -591,13 +591,13 @@ $ planwise simulate 2025-2027 --growth 3.5%
 
 💡 Next Steps:
   • planwise analyze workforce --trend    # View detailed trends
-  • planwise batch --compare baseline     # Compare scenarios
+  • planalign batch --compare baseline     # Compare scenarios
   • planwise export --format excel        # Generate report
 ```
 
 ### Before & After: Analysis & Insights
 
-**Current CLI (navigator_orchestrator):**
+**Current CLI (planalign_orchestrator):**
 ```bash
 # Manual database queries required
 $ duckdb dbt/simulation.duckdb "SELECT COUNT(*) FROM fct_workforce_snapshot WHERE simulation_year = 2025"
@@ -636,7 +636,7 @@ $ planwise analyze workforce --trend
 • Strong retention (avg 88.2%) indicates good employee satisfaction
 
 🚀 Quick Actions:
-  • planwise batch --scenarios high_growth  # Test higher growth rates
+  • planalign batch --scenarios high_growth  # Test higher growth rates
   • planwise export --format excel          # Generate executive report
   • planwise ask "How to improve 2026 growth?" # Get AI suggestions
 ```
@@ -649,7 +649,7 @@ $ planwise analyze workforce --trend
 $ vim config/simulation_config.yaml
 $ vim comp_levers.csv
 # ... edit files manually, hope for no syntax errors ...
-$ python -m navigator_orchestrator run --years 2025 --threads 1
+$ python -m planalign_orchestrator run --years 2025 --threads 1
 # ... wait 2 minutes to see if parameters worked ...
 ```
 
@@ -691,8 +691,8 @@ $ planwise tune
 ✅ Saved as scenario "high_growth_test"
 
 💡 Ready to test:
-  • planwise simulate 2025 --scenario high_growth_test
-  • planwise batch --scenarios baseline high_growth_test --compare
+  • planalign simulate 2025 --scenario high_growth_test
+  • planalign batch --scenarios baseline high_growth_test --compare
 ```
 
 ---
@@ -704,10 +704,10 @@ $ planwise tune
 #### 1. **Start with Core Commands** (Week 1 Priority):
 ```python
 # Focus on these essential commands first
-planwise status      # Quick health check - most used command
-planwise simulate    # Core functionality - primary use case
+planalign status      # Quick health check - most used command
+planalign simulate    # Core functionality - primary use case
 planwise analyze     # Results review - immediate value
-planwise batch       # Existing strength - wrap ScenarioBatchRunner
+planalign batch       # Existing strength - wrap ScenarioBatchRunner
 ```
 
 #### 2. **Command Organization Pattern**:
@@ -762,7 +762,7 @@ async def stream_simulation_progress(orchestrator: PipelineOrchestrator):
 def enhance_error_message(error: Exception) -> str:
     """Convert technical errors to actionable guidance"""
     if "database locked" in str(error):
-        return "🔒 Database in use. Try: planwise status --check-locks"
+        return "🔒 Database in use. Try: planalign status --check-locks"
     elif "config not found" in str(error):
         return "⚙️  Missing config. Try: planwise init"
     elif "dbt" in str(error):
@@ -930,11 +930,11 @@ with Progress() as progress:
 
 **Related Epics:**
 - E068 (Foundation Performance) - Performance baseline achieved
-- E069 (Batch Processing) - Integration point for `planwise batch`
+- E069 (Batch Processing) - Integration point for `planalign batch`
 - Future CLI extension epics for specialized analyst workflows
 
 **Technology Validation:**
 - ✅ Rich + Typer available in current Python environment
 - ✅ Claude Code MCP integration tested and functional
-- ✅ Existing navigator_orchestrator components ready for wrapping
+- ✅ Existing planalign_orchestrator components ready for wrapping
 - ✅ DuckDB query access patterns established

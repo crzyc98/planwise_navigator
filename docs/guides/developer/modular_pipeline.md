@@ -2,7 +2,7 @@
 
 **Date**: June 25, 2025
 **Version**: 1.0 (Post-Epic E013)
-**Audience**: PlanWise Navigator developers
+**Audience**: Fidelity PlanAlign Engine developers
 
 ---
 

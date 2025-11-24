@@ -4,11 +4,11 @@
 **Epic Owner**: Infrastructure/DevOps Team
 **Business Impact**: High - Prevents data corruption, improves developer experience
 **Technical Debt**: High - Fixes critical infrastructure inconsistency
-**Related Issues**: [GitHub Issue #11](https://github.com/crzyc98/planwise_navigator/issues/11)
+**Related Issues**: [GitHub Issue #11](https://github.com/crzyc98/planalign_engine/issues/11)
 
 ## Problem Statement
 
-The PlanWise Navigator codebase currently has inconsistent references to the simulation database location, creating a critical infrastructure issue that threatens data integrity and developer productivity:
+The Fidelity PlanAlign Engine codebase currently has inconsistent references to the simulation database location, creating a critical infrastructure issue that threatens data integrity and developer productivity:
 
 ### Critical Issues
 1. **Dual Database Locations**: ~80 files reference `simulation.duckdb` (project root) vs ~20 files reference `dbt/simulation.duckdb` (dbt subfolder)
@@ -34,7 +34,7 @@ conn = duckdb.connect("simulation.duckdb")  # ~80+ files
 conn = duckdb.connect("dbt/simulation.duckdb")  # ~20+ files
 
 # Pattern 3: Mixed absolute paths
-db_path = "/Users/.../planwise_navigator/simulation.duckdb"  # Hardcoded paths
+db_path = "/Users/.../planalign_engine/simulation.duckdb"  # Hardcoded paths
 ```
 
 **Configuration Reality**:
@@ -120,7 +120,7 @@ duckdb:  # example target/profile
       path: "{{ env_var('DATABASE_PATH', 'dbt/simulation.duckdb') }}"
 ```
 
-This aligns with `navigator_orchestrator.config.get_database_path()` and prevents dbt from silently creating/using a different file.
+This aligns with `planalign_orchestrator.config.get_database_path()` and prevents dbt from silently creating/using a different file.
 
 ## Stories Breakdown
 
@@ -133,7 +133,7 @@ This aligns with `navigator_orchestrator.config.get_database_path()` and prevent
 
 **Acceptance Criteria**:
 - [ ] Create `DATABASE_PATH` environment variable with default `dbt/simulation.duckdb`
-- [ ] Update `navigator_orchestrator/config.py` to use centralized path configuration
+- [ ] Update `planalign_orchestrator/config.py` to use centralized path configuration
 - [ ] Add database path validation on startup (directory exists, permissions correct)
 - [ ] Create `get_database_path()` utility function for consistent path resolution
 - [ ] Document configuration options for different deployment environments
@@ -141,7 +141,7 @@ This aligns with `navigator_orchestrator.config.get_database_path()` and prevent
 
 **Technical Implementation**:
 ```python
-# navigator_orchestrator/config.py
+# planalign_orchestrator/config.py
 import os
 from pathlib import Path
 
@@ -283,7 +283,7 @@ check_*.py                              # Quick check scripts
 conn = duckdb.connect("simulation.duckdb")
 
 # After (standardized)
-from navigator_orchestrator.config import get_database_path
+from planalign_orchestrator.config import get_database_path
 conn = duckdb.connect(str(get_database_path()))
 ```
 
@@ -328,7 +328,7 @@ duckdb dbt/simulation.duckdb "SELECT COUNT(*) FROM fct_yearly_events"
 
 # Python database access (standardized)
 python -c "
-from navigator_orchestrator.config import get_database_path
+from planalign_orchestrator.config import get_database_path
 import duckdb
 conn = duckdb.connect(str(get_database_path()))
 result = conn.execute('SHOW TABLES').fetchall()
@@ -359,7 +359,7 @@ result = conn.execute('SHOW TABLES').fetchall()
   run: |
     # Use standardized path
     python -c "
-    from navigator_orchestrator.config import get_database_path
+    from planalign_orchestrator.config import get_database_path
     print(f'Database path: {get_database_path()}')
     "
 ```
@@ -400,7 +400,7 @@ def test_all_scripts_use_standard_path():
 
 def test_database_functionality():
     """Test that database operations work with new path."""
-    from navigator_orchestrator.config import get_database_path
+    from planalign_orchestrator.config import get_database_path
     import duckdb
 
     conn = duckdb.connect(str(get_database_path()))

@@ -1,9 +1,9 @@
-# PlanWise Navigator Testing Guide
+# Fidelity PlanAlign Engine Testing Guide
 
 **Test Suite**: 19 test files | 8,450 lines | 45+ test cases
 **Framework**: pytest 7.4.0 | Coverage: pytest-cov 4.1.0
 
-This comprehensive testing framework validates all aspects of the PlanWise Navigator platform, from event sourcing to optimization and multi-year simulation.
+This comprehensive testing framework validates all aspects of the Fidelity PlanAlign Engine platform, from event sourcing to optimization and multi-year simulation.
 
 ## Quick Start
 
@@ -21,7 +21,7 @@ python -m pytest -m integration
 python -m pytest tests/unit/events/test_simulation_event.py
 
 # With coverage report
-python -m pytest --cov=navigator_orchestrator --cov-report=html
+python -m pytest --cov=planalign_orchestrator --cov-report=html
 
 # Using Make targets (recommended)
 make test-unit          # Unit tests only
@@ -307,7 +307,7 @@ repos:
 
 ```bash
 # Generate HTML coverage report
-python -m pytest --cov=navigator_orchestrator --cov=planwise_cli --cov=config \
+python -m pytest --cov=planalign_orchestrator --cov=planalign_cli --cov=config \
   --cov-report=html --cov-report=term
 
 # View report
@@ -318,8 +318,8 @@ make test-coverage
 ```
 
 **Target Coverage**:
-- `navigator_orchestrator/`: 95%
-- `planwise_cli/`: 90%
+- `planalign_orchestrator/`: 95%
+- `planalign_cli/`: 90%
 - `config/`: 90%
 
 ## Troubleshooting

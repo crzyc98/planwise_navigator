@@ -2,7 +2,7 @@
 
 ## Executive Summary
 
-This document describes the implementation of a critical mathematical fix to the PlanWise Navigator workforce simulation system. The previously implemented separated formula incorrectly treated replacement hires as immune to new hire termination rates, which was mathematically unsound. The correct approach is the unified net-hire formula that treats ALL new hires consistently.
+This document describes the implementation of a critical mathematical fix to the Fidelity PlanAlign Engine workforce simulation system. The previously implemented separated formula incorrectly treated replacement hires as immune to new hire termination rates, which was mathematically unsound. The correct approach is the unified net-hire formula that treats ALL new hires consistently.
 
 ### Impact
 - **Before (Separated)**: ~806 hires for 3% growth (mathematically incorrect approach)

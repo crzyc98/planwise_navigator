@@ -8,7 +8,7 @@
 
 ## Problem Statement
 
-The navigator_orchestrator was showing extremely low auto-enrollment numbers despite being configured for broad eligibility:
+The planalign_orchestrator was showing extremely low auto-enrollment numbers despite being configured for broad eligibility:
 
 ### Symptoms Observed
 - **Year 2025**: Only 71 auto-enrolled (1.6%) out of 4,499 active employees

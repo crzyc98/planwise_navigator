@@ -1,5 +1,5 @@
 """
-Shared Test Fixtures for PlanWise Navigator
+Shared Test Fixtures for Fidelity PlanAlign Engine
 
 This package contains reusable test fixtures organized by category:
 - database.py: In-memory database fixtures for fast unit tests

@@ -1,5 +1,5 @@
 """
-Streamlit Debug Dashboard for PlanWise Navigator
+Streamlit Debug Dashboard for Fidelity PlanAlign Engine
 Story S071-06: Interactive web UI for all debugging utilities
 """
 
@@ -11,12 +11,12 @@ import json
 # Add parent directory to path for imports
 sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 
-from navigator_orchestrator.debug_utils import (
+from planalign_orchestrator.debug_utils import (
     DatabaseInspector,
     StateVisualizer,
     DependencyAnalyzer,
 )
-from navigator_orchestrator.config import get_database_path
+from planalign_orchestrator.config import get_database_path
 import pandas as pd
 
 st.set_page_config(page_title="Debug Dashboard", page_icon="🐛", layout="wide")

@@ -1,6 +1,6 @@
 # Multi-Year Simulation with Enhanced Data Persistence
 
-This document provides comprehensive documentation for the PlanWise Navigator multi-year simulation system with enhanced data persistence capabilities, designed to prevent data loss and enable true multi-year workforce transitions.
+This document provides comprehensive documentation for the Fidelity PlanAlign Engine multi-year simulation system with enhanced data persistence capabilities, designed to prevent data loss and enable true multi-year workforce transitions.
 
 ## Overview
 
@@ -70,7 +70,7 @@ The circular dependency has been completely eliminated using two new helper mode
 
 #### 2. Secondary Helper Model: `int_active_employees_by_year`
 - **Purpose**: Unified interface for active employees across all years
-- **Logic**: 
+- **Logic**:
   - For year 1 (start_year): Select from `int_baseline_workforce`
   - For subsequent years: Select from `int_active_employees_prev_year_snapshot`
 - **Benefits**: Provides consistent schema and serves as abstraction layer for tests
@@ -107,7 +107,7 @@ The circular dependency has been completely eliminated using two new helper mode
 
 1. **Verify Helper Model Data Exists**
    ```sql
-   SELECT COUNT(*), MIN(current_age), MAX(current_age), 
+   SELECT COUNT(*), MIN(current_age), MAX(current_age),
           COUNT(DISTINCT age_band), COUNT(DISTINCT tenure_band)
    FROM int_active_employees_prev_year_snapshot
    WHERE simulation_year = <target_year>;
@@ -115,7 +115,7 @@ The circular dependency has been completely eliminated using two new helper mode
 
 2. **Check Data Quality Flags**
    ```sql
-   SELECT data_quality_valid, COUNT(*) 
+   SELECT data_quality_valid, COUNT(*)
    FROM int_active_employees_prev_year_snapshot
    WHERE simulation_year = <target_year>
    GROUP BY data_quality_valid;
@@ -125,7 +125,7 @@ The circular dependency has been completely eliminated using two new helper mode
    ```sql
    SELECT COUNT(*) as active_employees
    FROM fct_workforce_snapshot
-   WHERE simulation_year = <target_year - 1> 
+   WHERE simulation_year = <target_year - 1>
      AND employment_status = 'active';
    ```
 

@@ -29,7 +29,7 @@ dbt/tests/
 └── README.md             # Comprehensive documentation
 ```
 
-**Location**: `/Users/nicholasamaral/planwise_navigator/dbt/tests/`
+**Location**: `/Users/nicholasamaral/planalign_engine/dbt/tests/`
 
 **Status**: All directories created and ready for test files
 
@@ -52,7 +52,7 @@ tests:
   +schema: test_failures   # Schema for failure tables
 ```
 
-**Location**: `/Users/nicholasamaral/planwise_navigator/dbt/tests/schema.yml`
+**Location**: `/Users/nicholasamaral/planalign_engine/dbt/tests/schema.yml`
 
 **Lines**: 35 lines of configuration and documentation
 
@@ -77,7 +77,7 @@ Created automated conversion script with:
 - ✅ Includes validation instructions
 - ✅ Executable permissions set
 
-**Location**: `/Users/nicholasamaral/planwise_navigator/scripts/convert_validation_to_test.sh`
+**Location**: `/Users/nicholasamaral/planalign_engine/scripts/convert_validation_to_test.sh`
 
 **Lines**: 119 lines (fully documented)
 
@@ -104,7 +104,7 @@ Created comprehensive README with:
 - **Troubleshooting**: Common issues and solutions
 - **FAQ**: 5 frequently asked questions
 
-**Location**: `/Users/nicholasamaral/planwise_navigator/dbt/tests/README.md`
+**Location**: `/Users/nicholasamaral/planalign_engine/dbt/tests/README.md`
 
 **Lines**: 650+ lines of comprehensive documentation
 

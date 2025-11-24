@@ -61,7 +61,7 @@ dbt run --select tag:EVENT_GENERATION --vars '{"simulation_year": 2028}' --threa
 
 ### Enhanced dbt_runner with Threading
 ```python
-# navigator_orchestrator/dbt_runner.py
+# planalign_orchestrator/dbt_runner.py
 class DbtRunner:
     def __init__(self, dbt_project_dir: Path, threads: int = 1):
         self.dbt_project_dir = dbt_project_dir
@@ -149,7 +149,7 @@ class DbtRunner:
 
 ### Updated Pipeline Orchestrator
 ```python
-# navigator_orchestrator/pipeline.py
+# planalign_orchestrator/pipeline.py
 class PipelineOrchestrator:
     def __init__(self, config: SimulationConfig):
         self.config = config
@@ -464,7 +464,7 @@ optimization:
 
 ```bash
 # New parallel execution capability
-python -m navigator_orchestrator run --years 2025-2026 --threads 6
+python -m planalign_orchestrator run --years 2025-2026 --threads 6
 
 # Tag-based dbt execution
 dbt run --select tag:EVENT_GENERATION --threads 6 --vars '{"simulation_year": 2025}'

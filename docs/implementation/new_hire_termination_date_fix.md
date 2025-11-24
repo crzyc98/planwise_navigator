@@ -2,7 +2,7 @@
 
 ## Problem Description
 
-The PlanWise Navigator workforce simulation system exhibited an artificial clustering of new hire termination dates at December 31st, which significantly impacted the realism and statistical accuracy of workforce projections.
+The Fidelity PlanAlign Engine workforce simulation system exhibited an artificial clustering of new hire termination dates at December 31st, which significantly impacted the realism and statistical accuracy of workforce projections.
 
 ### Root Cause
 
@@ -210,7 +210,7 @@ The implementation demonstrates enterprise-grade software development practices:
 - **Statistical Accuracy**: Maintained termination rate consistency
 - **Business Realism**: Significantly improved workforce pattern authenticity
 
-This fix enhances the overall quality and trustworthiness of PlanWise Navigator's workforce simulation capabilities, providing analysts with more reliable data for strategic decision-making.
+This fix enhances the overall quality and trustworthiness of Fidelity PlanAlign Engine's workforce simulation capabilities, providing analysts with more reliable data for strategic decision-making.
 
 ---
 

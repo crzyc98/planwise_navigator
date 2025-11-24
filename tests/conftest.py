@@ -1,5 +1,5 @@
 """
-Pytest Configuration for PlanWise Navigator Testing
+Pytest Configuration for Fidelity PlanAlign Engine Testing
 ====================================================
 
 Root conftest.py - delegates to tests/utils/ for reusable components.
@@ -71,7 +71,7 @@ def pytest_runtest_teardown(item):
 def pytest_sessionstart(session):
     """Called at start of test session."""
     print("\n" + "=" * 80)
-    print("PlanWise Navigator Testing Framework")
+    print("Fidelity PlanAlign Engine Testing Framework")
     print("=" * 80)
     print()
 

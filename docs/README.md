@@ -1,6 +1,6 @@
-# PlanWise Navigator Documentation
+# Fidelity PlanAlign Engine Documentation
 
-Welcome to the PlanWise Navigator documentation! This guide will help you find the information you need quickly and efficiently.
+Welcome to the Fidelity PlanAlign Engine documentation! This guide will help you find the information you need quickly and efficiently.
 
 ## 📁 Documentation Structure
 

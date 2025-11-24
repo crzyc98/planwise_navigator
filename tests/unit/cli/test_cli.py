@@ -2,7 +2,7 @@ from pathlib import Path
 
 import duckdb
 
-from navigator_orchestrator.cli import main
+from planalign_orchestrator.cli import main
 
 
 def _write_config(tmp_path: Path):

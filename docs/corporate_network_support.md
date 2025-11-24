@@ -1,8 +1,8 @@
-# Corporate Network and Proxy Support for PlanWise Navigator
+# Corporate Network and Proxy Support for Fidelity PlanAlign Engine
 
 ## Overview
 
-PlanWise Navigator includes comprehensive corporate network support designed for enterprise environments with proxies, corporate certificates, and restricted network access. This document provides complete configuration and troubleshooting guidance for IT administrators and developers.
+Fidelity PlanAlign Engine includes comprehensive corporate network support designed for enterprise environments with proxies, corporate certificates, and restricted network access. This document provides complete configuration and troubleshooting guidance for IT administrators and developers.
 
 **Epic E063 - Story S063-07: Corporate Network and Proxy Support**
 
@@ -22,7 +22,7 @@ PlanWise Navigator includes comprehensive corporate network support designed for
 
 ### Automatic Configuration (Recommended)
 
-PlanWise Navigator automatically detects corporate network settings from environment variables:
+Fidelity PlanAlign Engine automatically detects corporate network settings from environment variables:
 
 ```bash
 # Set proxy environment variables (if not already configured by IT)
@@ -152,7 +152,7 @@ corporate_network:
 
 ## Corporate Environment Detection
 
-PlanWise Navigator automatically detects corporate network environments based on:
+Fidelity PlanAlign Engine automatically detects corporate network environments based on:
 
 1. **Hostname patterns**: `.corp`, `.company`, `.local`, `.internal`
 2. **Proxy configuration**: Environment variables or manual configuration
@@ -270,7 +270,7 @@ Common corporate CA bundle locations:
 
 ### Running Diagnostics
 
-PlanWise Navigator includes a comprehensive network diagnostics tool:
+Fidelity PlanAlign Engine includes a comprehensive network diagnostics tool:
 
 ```bash
 # Basic connectivity check
@@ -470,12 +470,12 @@ else:
     st.warning(message)
 ```
 
-### Navigator Orchestrator
+### PlanAlign Orchestrator
 
 The orchestrator automatically uses corporate network settings:
 
 ```python
-from navigator_orchestrator.dbt_runner import DbtRunner
+from planalign_orchestrator.dbt_runner import DbtRunner
 
 # DbtRunner automatically includes corporate network support
 runner = DbtRunner(
@@ -493,7 +493,7 @@ result = runner.execute_command(["run", "--select", "model_name"])
 For custom network operations, use the corporate network client:
 
 ```python
-from navigator_orchestrator.network_utils import create_network_client
+from planalign_orchestrator.network_utils import create_network_client
 
 # Create corporate network-aware client
 client = create_network_client()
@@ -559,4 +559,4 @@ export PROXY_PASSWORD="password"
 4. **Contact IT**: Work with corporate IT for proxy and certificate issues
 5. **Documentation**: Refer to this guide and inline code documentation
 
-For additional support, contact your system administrator or refer to the PlanWise Navigator documentation.
+For additional support, contact your system administrator or refer to the Fidelity PlanAlign Engine documentation.

@@ -44,8 +44,8 @@ from scipy import stats
 
 # Add project root to path for imports
 sys.path.insert(0, str(Path(__file__).parent.parent))
-from navigator_orchestrator.config import load_simulation_config, get_database_path
-from navigator_orchestrator.polars_event_factory import PolarsEventGenerator, EventFactoryConfig
+from planalign_orchestrator.config import load_simulation_config, get_database_path
+from planalign_orchestrator.polars_event_factory import PolarsEventGenerator, EventFactoryConfig
 
 
 @dataclass

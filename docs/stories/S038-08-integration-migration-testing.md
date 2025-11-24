@@ -1,6 +1,6 @@
 # Story S038-08: Integration & Migration Testing
 
-**Epic**: E038 - Navigator Orchestrator Refactoring & Modularization
+**Epic**: E038 - PlanAlign Orchestrator Refactoring & Modularization
 **Story Points**: 5
 **Priority**: High
 **Status**: 🟠 In Progress
@@ -15,7 +15,7 @@ Complete the refactoring by ensuring seamless integration between all modules, c
 
 ## 📋 **User Story**
 
-As a **product owner** of the PlanWise Navigator system,
+As a **product owner** of the Fidelity PlanAlign Engine system,
 I want **confidence that the refactored orchestrator works correctly and provides all existing functionality**
 So that **we can deploy the new modular system without disrupting current workflows**.
 
@@ -105,10 +105,10 @@ def test_side_by_side_result_validation()
 
 ### 🔧 Implementation Progress
 
-- Added `navigator_orchestrator/factory.py` with:
+- Added `planalign_orchestrator/factory.py` with:
   - `OrchestratorBuilder` (config, db path, dbt threads/executable, rules)
   - `create_orchestrator(config_path, threads, db_path, dbt_executable)` convenience
-- Added `navigator_orchestrator/migration.py` with:
+- Added `planalign_orchestrator/migration.py` with:
   - `MigrationManager` (config compatibility probe, checkpoint directory migration, listing)
   - `MigrationResult` dataclass
 - Added tests in `tests/test_factory_migration.py` for builder creation and migration ops.
@@ -222,7 +222,7 @@ def create_custom_orchestrator(
 ## 📘 **Usage Examples**
 
 ```python
-from navigator_orchestrator.factory import create_orchestrator
+from planalign_orchestrator.factory import create_orchestrator
 
 orchestrator = create_orchestrator(
     "config/simulation_config.yaml",
@@ -231,7 +231,7 @@ orchestrator = create_orchestrator(
 )
 summary = orchestrator.execute_multi_year_simulation()
 
-from navigator_orchestrator.migration import MigrationManager
+from planalign_orchestrator.migration import MigrationManager
 mm = MigrationManager()
 compat = mm.validate_config_compatibility("config/simulation_config.yaml")
 print("Identifiers present:", compat["has_identifiers"])

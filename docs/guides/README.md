@@ -1,11 +1,11 @@
 # Implementation Guides
 
-This folder contains practical guides for developers, operators, and contributors working with PlanWise Navigator.
+This folder contains practical guides for developers, operators, and contributors working with Fidelity PlanAlign Engine.
 
 ## 📚 Guide Categories
 
 ### 👨‍💻 [developer/](developer/) - Developer Guides
-Essential guides for developers working on PlanWise Navigator:
+Essential guides for developers working on Fidelity PlanAlign Engine:
 
 - **[environment_setup.md](developer/environment_setup.md)** - Development Environment Setup
   - Local development prerequisites
@@ -32,7 +32,7 @@ Essential guides for developers working on PlanWise Navigator:
   - Regression testing strategies
 
 ### 🚀 [deployment/](deployment/) - Deployment & Operations
-Guides for deploying and operating PlanWise Navigator:
+Guides for deploying and operating Fidelity PlanAlign Engine:
 
 - **[troubleshooting.md](deployment/troubleshooting.md)** - Troubleshooting Guide
   - Common issues and solutions

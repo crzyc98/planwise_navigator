@@ -1,4 +1,4 @@
-# PlanWise Navigator: Termination Variance Fix - Technical Handoff
+# Fidelity PlanAlign Engine: Termination Variance Fix - Technical Handoff
 
 ## Executive Summary
 

@@ -3,7 +3,7 @@
 ## Executive Summary
 
 ### Overview
-This report documents the validation process and results for the workforce snapshot architecture refactoring in PlanWise Navigator. The refactoring transforms a monolithic `fct_workforce_snapshot` model into a modular chain of intermediate snapshot models, improving maintainability and separation of concerns.
+This report documents the validation process and results for the workforce snapshot architecture refactoring in Fidelity PlanAlign Engine. The refactoring transforms a monolithic `fct_workforce_snapshot` model into a modular chain of intermediate snapshot models, improving maintainability and separation of concerns.
 
 ### Summary of Changes
 - **Original Architecture**: Single monolithic `fct_workforce_snapshot` model handling all event applications and calculations

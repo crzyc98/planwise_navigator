@@ -1,8 +1,8 @@
 # Troubleshooting Guide for Work Machine Setup
 
-This guide helps resolve common issues when setting up PlanWise Navigator on your work machine after pulling the E072/E074/E075 changes.
+This guide helps resolve common issues when setting up Fidelity PlanAlign Engine on your work machine after pulling the E072/E074/E075 changes.
 
-## Issue 1: "No module named navigator_orchestrator.checkpoint_manager"
+## Issue 1: "No module named planalign_orchestrator.checkpoint_manager"
 
 ### Cause
 This error occurs due to:
@@ -31,7 +31,7 @@ source venv/bin/activate  # macOS/Linux
 pip install -e .
 
 # 4. Verify installation
-python -c "from navigator_orchestrator.checkpoint_manager import CheckpointManager; print('✅ Import successful')"
+python -c "from planalign_orchestrator.checkpoint_manager import CheckpointManager; print('✅ Import successful')"
 
 # 5. Test the CLI
 planwise --help
@@ -41,12 +41,12 @@ planwise --help
 
 ### Old Import (WRONG)
 ```python
-from navigator_orchestrator.pipeline import PipelineOrchestrator
+from planalign_orchestrator.pipeline import PipelineOrchestrator
 ```
 
 ### New Import (CORRECT)
 ```python
-from navigator_orchestrator.pipeline_orchestrator import PipelineOrchestrator
+from planalign_orchestrator.pipeline_orchestrator import PipelineOrchestrator
 ```
 
 ### Fix
@@ -77,7 +77,7 @@ The simulation creates database files that are git-ignored:
 These files will be created when you run your first simulation:
 
 ```bash
-planwise simulate 2025-2026
+planalign simulate 2025-2026
 ```
 
 ## Issue 5: Work machine-specific performance
@@ -113,21 +113,21 @@ pip install -e .
 
 # 5. Verify imports
 python -c "
-from navigator_orchestrator.checkpoint_manager import CheckpointManager
-from navigator_orchestrator.pipeline_orchestrator import PipelineOrchestrator
-from navigator_orchestrator.exceptions import NavigatorError
-from navigator_orchestrator.error_catalog import get_error_catalog
+from planalign_orchestrator.checkpoint_manager import CheckpointManager
+from planalign_orchestrator.pipeline_orchestrator import PipelineOrchestrator
+from planalign_orchestrator.exceptions import NavigatorError
+from planalign_orchestrator.error_catalog import get_error_catalog
 print('✅ All critical imports successful')
 "
 
 # 6. Test CLI
-planwise health
+planalign health
 
 # 7. Run a quick simulation test
-planwise simulate 2025 --dry-run
+planalign simulate 2025 --dry-run
 
 # 8. Run full 2-year simulation
-planwise simulate 2025-2026
+planalign simulate 2025-2026
 ```
 
 ## Testing the Workforce Growth Bug Fix
@@ -136,7 +136,7 @@ After setup is complete, test the growth calculation:
 
 ```bash
 # Run 2-year simulation
-planwise simulate 2025-2026
+planalign simulate 2025-2026
 
 # Check the output for:
 # - Total employees should grow year-over-year
@@ -160,18 +160,18 @@ python --version  # Should be 3.11.x
 ### Check if package is installed
 ```bash
 pip show planwise-navigator
-# Should show: Location: /path/to/planwise_navigator
+# Should show: Location: /path/to/planalign_engine
 ```
 
 ### Check module accessibility
 ```bash
-python -c "import navigator_orchestrator; print(navigator_orchestrator.__file__)"
-# Should show: /path/to/planwise_navigator/navigator_orchestrator/__init__.py
+python -c "import planalign_orchestrator; print(planalign_orchestrator.__file__)"
+# Should show: /path/to/planalign_engine/planalign_orchestrator/__init__.py
 ```
 
 ### Verify all new modules exist
 ```bash
-ls -la navigator_orchestrator/pipeline/
+ls -la planalign_orchestrator/pipeline/
 # Should show:
 # - __init__.py
 # - workflow.py
@@ -203,36 +203,36 @@ If the above steps don't work:
 
 3. **Verify file permissions**:
    ```bash
-   ls -la navigator_orchestrator/*.py
+   ls -la planalign_orchestrator/*.py
    # All files should be readable (r--)
    ```
 
 4. **Check for syntax errors**:
    ```bash
-   python -m py_compile navigator_orchestrator/checkpoint_manager.py
+   python -m py_compile planalign_orchestrator/checkpoint_manager.py
    ```
 
 ## Reference: What Changed in E072
 
 The major structural change was splitting the monolithic `pipeline.py` into:
 
-- **Old structure**: `navigator_orchestrator/pipeline.py` (2,478 lines)
+- **Old structure**: `planalign_orchestrator/pipeline.py` (2,478 lines)
 - **New structure**:
-  - `navigator_orchestrator/pipeline_orchestrator.py` (1,220 lines) - Main coordinator
-  - `navigator_orchestrator/pipeline/` (package with 6 modules)
+  - `planalign_orchestrator/pipeline_orchestrator.py` (1,220 lines) - Main coordinator
+  - `planalign_orchestrator/pipeline/` (package with 6 modules)
 
 This is why clearing the Python cache is critical - old .pyc files may reference the old structure.
 
 ## Expected First Run Output
 
-After successful setup, `planwise simulate 2025-2026` should show:
+After successful setup, `planalign simulate 2025-2026` should show:
 
 ```
 🚀 Running 2-year simulation
 💰 Compensation Parameters:
 ⏳ Executing simulation with progress monitoring...
 
-🚀 PlanWise Navigator Multi-Year Simulation
+🚀 Fidelity PlanAlign Engine Multi-Year Simulation
    Period: 2025 → 2026 (2 years)
    Random Seed: 42
    Target Growth: 3.0%

@@ -3,7 +3,7 @@ OptimizationResultsManager - Unified Interface for Optimization Results
 Bridges advanced_optimization.py and compensation_tuning.py with the storage system.
 
 This module provides a high-level interface for saving, loading, and managing
-optimization results across different optimization types in PlanWise Navigator.
+optimization results across different optimization types in Fidelity PlanAlign Engine.
 """
 
 from __future__ import annotations

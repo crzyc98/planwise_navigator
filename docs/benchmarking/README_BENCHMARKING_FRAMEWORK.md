@@ -1,6 +1,6 @@
 # Event Generation Benchmarking Framework
 
-A comprehensive performance testing and analysis framework for comparing SQL-based vs Polars-based event generation in the PlanWise Navigator workforce simulation platform.
+A comprehensive performance testing and analysis framework for comparing SQL-based vs Polars-based event generation in the Fidelity PlanAlign Engine workforce simulation platform.
 
 ## Overview
 
@@ -355,7 +355,7 @@ make benchmark-release
 name: Performance Benchmarking
 on:
   pull_request:
-    paths: ['dbt/**', 'navigator_orchestrator/**']
+    paths: ['dbt/**', 'planalign_orchestrator/**']
 jobs:
   benchmark:
     runs-on: ubuntu-latest
@@ -477,4 +477,4 @@ def analyze_performance_trends(baseline_dir):
 
 ## License
 
-This benchmarking framework is part of the PlanWise Navigator project and follows the same licensing terms.
+This benchmarking framework is part of the Fidelity PlanAlign Engine project and follows the same licensing terms.

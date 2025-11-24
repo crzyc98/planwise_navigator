@@ -104,10 +104,10 @@ WHERE simulation_year = 2025
 
 ## Files Modified
 
-- `/Users/nicholasamaral/planwise_navigator/dbt/models/marts/fct_workforce_snapshot.sql`
-- `/Users/nicholasamaral/planwise_navigator/dbt/models/marts/schema.yml`
+- `/Users/nicholasamaral/planalign_engine/dbt/models/marts/fct_workforce_snapshot.sql`
+- `/Users/nicholasamaral/planalign_engine/dbt/models/marts/schema.yml`
 
 ## Files Created
 
-- `/Users/nicholasamaral/planwise_navigator/test_employer_match_integration.py` (testing script)
-- `/Users/nicholasamaral/planwise_navigator/employer_match_integration_summary.md` (this summary)
+- `/Users/nicholasamaral/planalign_engine/test_employer_match_integration.py` (testing script)
+- `/Users/nicholasamaral/planalign_engine/employer_match_integration_summary.md` (this summary)

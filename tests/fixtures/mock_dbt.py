@@ -2,7 +2,7 @@
 
 import pytest
 from unittest.mock import Mock, MagicMock
-from navigator_orchestrator.dbt_runner import DbtRunner, DbtResult
+from planalign_orchestrator.dbt_runner import DbtRunner, DbtResult
 
 
 @pytest.fixture

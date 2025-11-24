@@ -726,12 +726,12 @@ The S047 Optimization Engine is **fully operational** and ready for production d
 **Root Cause Analysis:**
 1. **Dagster Storage Location**: Assets were being saved to iCloud storage path:
    ```
-   /Users/nicholasamaral/Library/Mobile Documents/com~apple~CloudDocs/Development/planwise_navigator/.dagster/storage/advanced_optimization_engine
+   /Users/nicholasamaral/Library/Mobile Documents/com~apple~CloudDocs/Development/planalign_engine/.dagster/storage/advanced_optimization_engine
    ```
 
 2. **UI Search Pattern**: Streamlit interface was only searching local storage:
    ```
-   /Users/nicholasamaral/planwise_navigator/.dagster/storage/*/advanced_optimization_engine
+   /Users/nicholasamaral/planalign_engine/.dagster/storage/*/advanced_optimization_engine
    ```
 
 3. **Asset Execution Mode**: Single asset execution (`dagster asset materialize`) doesn't create run-specific directories like full pipeline runs
@@ -761,8 +761,8 @@ Updated `load_optimization_results()` function to search multiple locations:
 ```python
 # Multiple storage locations
 storage_bases = [
-    "/Users/nicholasamaral/planwise_navigator/.dagster/storage",
-    "/Users/nicholasamaral/Library/Mobile Documents/com~apple~CloudDocs/Development/planwise_navigator/.dagster/storage"
+    "/Users/nicholasamaral/planalign_engine/.dagster/storage",
+    "/Users/nicholasamaral/Library/Mobile Documents/com~apple~CloudDocs/Development/planalign_engine/.dagster/storage"
 ]
 
 # Temporary result paths

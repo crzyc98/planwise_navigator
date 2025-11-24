@@ -35,7 +35,7 @@ on-run-start:
 ### DuckDB Performance Configuration
 ```yaml
 # dbt_project.yml - Performance optimization
-name: 'planwise_navigator'
+name: 'planalign_engine'
 version: '1.0.0'
 config-version: 2
 
@@ -68,7 +68,7 @@ on-run-end:
 
 # Model-specific optimizations
 models:
-  planwise_navigator:
+  planalign_engine:
     +materialized: view  # Default to views for memory efficiency
 
     staging:
@@ -93,7 +93,7 @@ models:
 
 # Seed optimizations
 seeds:
-  planwise_navigator:
+  planalign_engine:
     +column_types:
       employee_id: varchar
       scenario_id: varchar
@@ -227,7 +227,7 @@ WHERE 1=1
 
 ### Memory and I/O Monitoring
 ```python
-# navigator_orchestrator/performance_monitor.py
+# planalign_orchestrator/performance_monitor.py
 import psutil
 import time
 from pathlib import Path
@@ -485,7 +485,7 @@ Successfully implemented all E068E Engine & I/O Tuning optimizations on 2025-09-
    - Achieved 3.2× compression ratio on key files (e.g., comp_levers.csv: 21KB → 6.7KB)
 
 3. **Performance Monitoring System** ✅
-   - Implemented `navigator_orchestrator/performance_monitor.py`
+   - Implemented `planalign_orchestrator/performance_monitor.py`
    - Created query analysis tool `scripts/analyze_query_performance.py`
    - Added I/O optimization configuration `config/storage_config.yaml`
    - Integrated monitoring hooks into existing pipeline architecture

@@ -109,11 +109,11 @@ Successfully converted **8 validation models** to dbt tests across Phases 3 and 
 ## Integration Readiness
 
 ### Ready for Production ✅
-The converted tests are ready to integrate with the Navigator Orchestrator pipeline:
+The converted tests are ready to integrate with the PlanAlign Orchestrator pipeline:
 
 ```python
-# Navigator Orchestrator Integration (VALIDATION stage)
-from navigator_orchestrator.dbt_runner import DbtRunner
+# PlanAlign Orchestrator Integration (VALIDATION stage)
+from planalign_orchestrator.dbt_runner import DbtRunner
 
 dbt_runner = DbtRunner(project_dir="dbt", profiles_dir="dbt")
 
@@ -210,7 +210,7 @@ All original validation models remain in place for:
 
 ### Post-Completion Actions
 
-4. **Update Navigator Orchestrator Pipeline**:
+4. **Update PlanAlign Orchestrator Pipeline**:
    - Modify VALIDATION stage to use `dbt test` instead of `dbt run`
    - Configure test severity levels
    - Enable test failure storage
@@ -234,7 +234,7 @@ All original validation models remain in place for:
 - [ ] **Phase 5 Complete**: 10 analysis validations converted (1/10 done)
 - [ ] **Performance Target**: 55-77s savings achieved (35-49s so far)
 - [ ] **Zero Regression**: All tests pass/fail identically to original models
-- [ ] **Pipeline Integration**: Tests integrated with Navigator Orchestrator
+- [ ] **Pipeline Integration**: Tests integrated with PlanAlign Orchestrator
 - [ ] **Documentation Complete**: All tests documented
 
 ---
@@ -261,7 +261,7 @@ All original validation models remain in place for:
 1. **Complete Phase 5**: Convert remaining 9 analysis validations
 2. **Validate Results**: Run side-by-side comparison with original models
 3. **Benchmark Performance**: Confirm 55-77s improvement achieved
-4. **Update Pipeline**: Integrate tests into Navigator Orchestrator
+4. **Update Pipeline**: Integrate tests into PlanAlign Orchestrator
 5. **Monitor Initially**: Watch test execution in first few simulation runs
 6. **Document Patterns**: Create runbook for test maintenance
 

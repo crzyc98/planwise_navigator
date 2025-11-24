@@ -1,4 +1,4 @@
-# Auto-Optimize User Guide - PlanWise Navigator
+# Auto-Optimize User Guide - Fidelity PlanAlign Engine
 
 **Epic E012 Compensation Tuning System**
 **Last Updated:** July 2025
@@ -8,7 +8,7 @@
 
 ## Overview
 
-The Auto-Optimize feature in PlanWise Navigator's Compensation Tuning Interface enables analysts to automatically adjust compensation parameters to hit specific budget targets. This eliminates manual trial-and-error processes and reduces optimization time from hours to minutes.
+The Auto-Optimize feature in Fidelity PlanAlign Engine's Compensation Tuning Interface enables analysts to automatically adjust compensation parameters to hit specific budget targets. This eliminates manual trial-and-error processes and reduces optimization time from hours to minutes.
 
 ### Key Benefits
 
@@ -346,4 +346,4 @@ For additional assistance:
 - **Business Questions**: Consult with compensation team leads
 - **Feature Requests**: Submit through standard enhancement process
 
-*This guide is part of the PlanWise Navigator E012 Compensation Tuning System documentation suite.*
+*This guide is part of the Fidelity PlanAlign Engine E012 Compensation Tuning System documentation suite.*

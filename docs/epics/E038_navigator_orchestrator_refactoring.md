@@ -1,4 +1,4 @@
-# Epic E038: Navigator Orchestrator Refactoring & Modularization
+# Epic E038: PlanAlign Orchestrator Refactoring & Modularization
 
 **Status**: 🟡 Planned
 **Priority**: High
@@ -20,7 +20,7 @@ The current `run_multi_year.py` orchestrator has grown to 1,012 lines of monolit
 - **Developer Experience**: New team members struggle with the large codebase
 
 ### **Solution Approach**
-Refactor `run_multi_year.py` into a clean, modular `navigator_orchestrator` package with focused modules following single-responsibility principles. Transform the monolithic architecture into a well-structured, testable, and maintainable orchestration system.
+Refactor `run_multi_year.py` into a clean, modular `planalign_orchestrator` package with focused modules following single-responsibility principles. Transform the monolithic architecture into a well-structured, testable, and maintainable orchestration system.
 
 ### **Business Value**
 - **50% reduction in maintenance effort** through modular design
@@ -52,7 +52,7 @@ Refactor `run_multi_year.py` into a clean, modular `navigator_orchestrator` pack
 
 ### **Proposed Package Structure**
 ```
-navigator_orchestrator/
+planalign_orchestrator/
 ├── __init__.py          # Public API exports (run_multi_year, run_year)
 ├── config.py           # YAML loading, validation, dbt variable mapping
 ├── dbt_runner.py       # dbt command orchestration with error handling
@@ -86,7 +86,7 @@ navigator_orchestrator/
 
 ### **Public API Surface**
 ```python
-# navigator_orchestrator/__init__.py
+# planalign_orchestrator/__init__.py
 from pathlib import Path
 from typing import Optional, Sequence
 
@@ -414,7 +414,7 @@ tests/integration/
 - Add feature flags to switch between old and new implementations
 
 #### **Phase 3: Interface Transition** *(Week 4)*
-- Introduce new `navigator_orchestrator` CLI interface
+- Introduce new `planalign_orchestrator` CLI interface
 - Add deprecation warnings to old patterns
 - Provide migration guide for users
 
@@ -477,4 +477,4 @@ tests/integration/
 
 ---
 
-**Epic E038 represents a critical investment in the long-term maintainability and scalability of the PlanWise Navigator orchestration system. By transforming the monolithic `run_multi_year.py` into a well-architected, modular package, we establish a foundation for sustainable development and operational excellence.**
+**Epic E038 represents a critical investment in the long-term maintainability and scalability of the Fidelity PlanAlign Engine orchestration system. By transforming the monolithic `run_multi_year.py` into a well-architected, modular package, we establish a foundation for sustainable development and operational excellence.**

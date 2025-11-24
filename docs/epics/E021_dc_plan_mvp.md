@@ -3,7 +3,7 @@
 ## Epic Overview
 
 ### Summary
-Establish the foundational data model and event schema for basic Defined Contribution retirement plan modeling within PlanWise Navigator's event-sourced architecture. This MVP focuses on core functionality needed to integrate DC plan events with the existing orchestrator_mvp workflow.
+Establish the foundational data model and event schema for basic Defined Contribution retirement plan modeling within Fidelity PlanAlign Engine's event-sourced architecture. This MVP focuses on core functionality needed to integrate DC plan events with the existing orchestrator_mvp workflow.
 
 ### Business Value
 - Creates the technical foundation for retirement plan features

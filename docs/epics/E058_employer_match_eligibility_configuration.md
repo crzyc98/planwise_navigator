@@ -2,7 +2,7 @@
 
 ## Executive Summary
 
-Currently, the employer match calculations in PlanWise Navigator calculate match amounts for ALL employees without considering eligibility requirements. While the system has sophisticated eligibility logic for employer core contributions, the match calculations lack this capability. This epic adds configurable eligibility requirements to the employer match feature, bringing it to parity with the core contribution eligibility framework, while preserving backward compatibility by default.
+Currently, the employer match calculations in Fidelity PlanAlign Engine calculate match amounts for ALL employees without considering eligibility requirements. While the system has sophisticated eligibility logic for employer core contributions, the match calculations lack this capability. This epic adds configurable eligibility requirements to the employer match feature, bringing it to parity with the core contribution eligibility framework, while preserving backward compatibility by default.
 
 ## Problem Statement
 

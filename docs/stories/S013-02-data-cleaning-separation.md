@@ -7,7 +7,7 @@
 
 ## User Story
 
-**As a** PlanWise Navigator developer
+**As a** Fidelity PlanAlign Engine developer
 **I want** data cleaning logic extracted into a dedicated operation
 **So that** the multi-year simulation orchestrator focuses solely on coordination rather than data management
 

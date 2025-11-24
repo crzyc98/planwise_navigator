@@ -321,7 +321,7 @@ This section documents the concrete code updates made while delivering E057 and 
 
 ### Verification Steps
 - Orchestrator end‑to‑end:
-  - `python -m navigator_orchestrator run`
+  - `python -m planalign_orchestrator run`
 - Targeted dbt run:
   - `cd dbt && dbt run --select int_employee_compensation_by_year int_workforce_needs int_workforce_needs_by_level int_hiring_events int_new_hire_termination_events int_termination_events fct_yearly_events fct_workforce_snapshot`
 - Quick queries (DuckDB):

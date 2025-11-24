@@ -1,4 +1,4 @@
-# Auto-Optimize API Documentation - PlanWise Navigator
+# Auto-Optimize API Documentation - Fidelity PlanAlign Engine
 
 **Epic E012 Compensation Tuning System - S047 Optimization Engine**
 **Last Updated:** July 2025
@@ -8,7 +8,7 @@
 
 ## Overview
 
-This document provides comprehensive API documentation for PlanWise Navigator's Auto-Optimize system. The S047 Optimization Engine exposes both programmatic APIs and Dagster asset interfaces for advanced compensation parameter optimization.
+This document provides comprehensive API documentation for Fidelity PlanAlign Engine's Auto-Optimize system. The S047 Optimization Engine exposes both programmatic APIs and Dagster asset interfaces for advanced compensation parameter optimization.
 
 ### API Architecture
 
@@ -1029,4 +1029,4 @@ def run_batch_optimization():
 
 ---
 
-*This API documentation is part of the PlanWise Navigator E012 Compensation Tuning System documentation suite.*
+*This API documentation is part of the Fidelity PlanAlign Engine E012 Compensation Tuning System documentation suite.*

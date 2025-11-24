@@ -2,7 +2,7 @@
 
 ## Purpose
 
-The optimization tools provide advanced capabilities for fine-tuning PlanWise Navigator simulation parameters, analyzing workforce dynamics patterns, and automatically optimizing model performance to achieve target outcomes with maximum efficiency.
+The optimization tools provide advanced capabilities for fine-tuning Fidelity PlanAlign Engine simulation parameters, analyzing workforce dynamics patterns, and automatically optimizing model performance to achieve target outcomes with maximum efficiency.
 
 ## Architecture
 
@@ -21,7 +21,7 @@ The optimization framework implements sophisticated algorithms for:
 ```python
 #!/usr/bin/env python3
 """
-Automated Hazard Table Optimization for PlanWise Navigator
+Automated Hazard Table Optimization for Fidelity PlanAlign Engine
 
 This tool uses statistical optimization algorithms to automatically tune
 hazard table parameters based on historical data and target outcomes.
@@ -550,7 +550,7 @@ class HazardTableOptimizer:
 
 def main():
     """Main entry point for hazard table optimization"""
-    parser = argparse.ArgumentParser(description='Optimize PlanWise Navigator hazard table parameters')
+    parser = argparse.ArgumentParser(description='Optimize Fidelity PlanAlign Engine hazard table parameters')
 
     parser.add_argument(
         '--historical-data',

@@ -1,4 +1,4 @@
-# PlanWise Navigator Testing Infrastructure
+# Fidelity PlanAlign Engine Testing Infrastructure
 
 Enterprise-grade testing framework with **90%+ coverage target** and **fast test suite** for optimal developer productivity.
 
@@ -33,7 +33,7 @@ pytest -m very_slow                     # Stage 3: E2E tests (~60s)
 pytest tests/                           # All 256 tests (~2 minutes)
 
 # With coverage reporting
-pytest --cov=navigator_orchestrator --cov=planwise_cli --cov=config \
+pytest --cov=planalign_orchestrator --cov=planalign_cli --cov=config \
        --cov-report=html --cov-report=term
 ```
 
@@ -270,19 +270,19 @@ def test_integration_scenario(populated_test_db, single_threaded_config):
 
 | Module | Target | Command |
 |--------|--------|---------|
-| navigator_orchestrator.* | 90% | `pytest --cov=navigator_orchestrator` |
-| planwise_cli.* | 85% | `pytest --cov=planwise_cli` |
+| planalign_orchestrator.* | 90% | `pytest --cov=planalign_orchestrator` |
+| planalign_cli.* | 85% | `pytest --cov=planalign_cli` |
 | config.events | 95% | `pytest --cov=config.events` |
 
 ### Check Coverage
 
 ```bash
 # Generate HTML report
-pytest --cov=navigator_orchestrator --cov-report=html
+pytest --cov=planalign_orchestrator --cov-report=html
 open htmlcov/index.html
 
 # Terminal report with missing lines
-pytest --cov=navigator_orchestrator --cov-report=term-missing
+pytest --cov=planalign_orchestrator --cov-report=term-missing
 
 # Coverage for specific module
 pytest tests/unit/events/ --cov=config.events --cov-report=term
@@ -294,7 +294,7 @@ Coverage is configured in `pyproject.toml`:
 
 ```toml
 [tool.coverage.run]
-source = ["navigator_orchestrator", "planwise_cli", "config"]
+source = ["planalign_orchestrator", "planalign_cli", "config"]
 omit = ["*/tests/*", "*/venv/*", "*/dbt/*", "*/streamlit_dashboard/*"]
 
 [tool.coverage.report]
@@ -343,7 +343,7 @@ jobs:
   test:
     steps:
       - name: Fast Tests
-        run: pytest -m fast --cov=navigator_orchestrator
+        run: pytest -m fast --cov=planalign_orchestrator
 
       - name: Integration Tests
         run: pytest -m "slow and not very_slow" --cov-append
@@ -409,10 +409,10 @@ def test_query(in_memory_db):
 
 ```python
 # CORRECT
-from navigator_orchestrator.pipeline_orchestrator import PipelineOrchestrator
+from planalign_orchestrator.pipeline_orchestrator import PipelineOrchestrator
 
 # INCORRECT (old path)
-from navigator_orchestrator.pipeline import PipelineOrchestrator
+from planalign_orchestrator.pipeline import PipelineOrchestrator
 ```
 
 ### Test Collection Errors

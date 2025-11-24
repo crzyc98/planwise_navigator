@@ -1,6 +1,6 @@
 # Story S038-07: Enhanced CLI Interface
 
-**Epic**: E038 - Navigator Orchestrator Refactoring & Modularization
+**Epic**: E038 - PlanAlign Orchestrator Refactoring & Modularization
 **Story Points**: 2
 **Priority**: Medium
 **Status**: 🟠 In Progress
@@ -15,7 +15,7 @@ Create a modern, user-friendly CLI interface that provides intuitive access to a
 
 ## 📋 **User Story**
 
-As a **business analyst** using the PlanWise Navigator system,
+As a **business analyst** using the Fidelity PlanAlign Engine system,
 I want **an intuitive command-line interface with clear options and helpful feedback**
 So that **I can easily run simulations, check status, and get help without needing to understand implementation details**.
 
@@ -90,11 +90,11 @@ def test_cli_error_handling_user_friendly()
 
 ### 🔧 Implementation Progress
 
-- Added `navigator_orchestrator/cli.py` with subcommands:
+- Added `planalign_orchestrator/cli.py` with subcommands:
   - `run`: start multi-year simulation; supports `--years`, `--resume`, `--dry-run`, `--threads`, `--fail-on-validation-error`
   - `validate`: check configuration parsing and provide tips
   - `checkpoint`: display last checkpoint info
-- Added executable entry `navigator_orchestrator/__main__.py` to allow `python -m navigator_orchestrator ...`.
+- Added executable entry `planalign_orchestrator/__main__.py` to allow `python -m planalign_orchestrator ...`.
 - Added tests in `tests/test_cli.py` covering config validation, dry-run execution, and checkpoint listing.
 
 ## 🔗 **Dependencies**
@@ -123,7 +123,7 @@ from pathlib import Path
 @click.option('--quiet', '-q', is_flag=True, help='Suppress non-essential output')
 @click.pass_context
 def navigator_cli(ctx, config, verbose, quiet):
-    """PlanWise Navigator Orchestrator CLI
+    """Fidelity PlanAlign Engine Orchestrator CLI
 
     A comprehensive toolkit for workforce simulation and analysis.
 
@@ -252,16 +252,16 @@ def checkpoint(ctx, list_checkpoints, year, cleanup):
 
 ```bash
 # Validate configuration
-python -m navigator_orchestrator validate -c config/simulation_config.yaml
+python -m planalign_orchestrator validate -c config/simulation_config.yaml
 
 # Run a dry-run (echo dbt commands), verbose
-python -m navigator_orchestrator run -c config/simulation_config.yaml --dry-run -v
+python -m planalign_orchestrator run -c config/simulation_config.yaml --dry-run -v
 
 # Run for a specific range and resume if checkpoints exist
-python -m navigator_orchestrator run --years 2025-2027 --resume
+python -m planalign_orchestrator run --years 2025-2027 --resume
 
 # Show last checkpoint
-python -m navigator_orchestrator checkpoint -c config/simulation_config.yaml
+python -m planalign_orchestrator checkpoint -c config/simulation_config.yaml
 ```
 
 ### **Validation and Configuration Commands**
@@ -361,10 +361,10 @@ def init(interactive, template, output_path):
 ### Examples
 
 ```bash
-python -m navigator_orchestrator validate -c config/simulation_config.yaml
-python -m navigator_orchestrator run --years 2025-2027 --resume -v
-python -m navigator_orchestrator run -c config/simulation_config.yaml --dry-run --threads 8
-python -m navigator_orchestrator checkpoint -c config/simulation_config.yaml
+python -m planalign_orchestrator validate -c config/simulation_config.yaml
+python -m planalign_orchestrator run --years 2025-2027 --resume -v
+python -m planalign_orchestrator run -c config/simulation_config.yaml --dry-run --threads 8
+python -m planalign_orchestrator checkpoint -c config/simulation_config.yaml
 ```
 
 ### **Interactive Mode Implementation**
@@ -372,7 +372,7 @@ python -m navigator_orchestrator checkpoint -c config/simulation_config.yaml
 def interactive_config_setup() -> Dict[str, Any]:
     """Guide user through interactive configuration setup."""
 
-    click.echo("🚀 PlanWise Navigator Configuration Setup")
+    click.echo("🚀 Fidelity PlanAlign Engine Configuration Setup")
     click.echo("=" * 50)
 
     # Basic simulation settings

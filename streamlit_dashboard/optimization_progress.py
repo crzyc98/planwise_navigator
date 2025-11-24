@@ -571,7 +571,7 @@ def create_optimization_progress_interface():
         st.session_state.log_filter = OptimizationLogFilter()
 
     # Check for optimization results from temporary file (Dagster integration)
-    temp_result_path = "/tmp/planwise_optimization_result.pkl"
+    temp_result_path = "/tmp/planalign_optimization_result.pkl"
     optimization_running = Path(temp_result_path).exists()
 
     # Progress indicators

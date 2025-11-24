@@ -1,6 +1,6 @@
 # Requirements Documentation
 
-This folder contains business requirements, specifications, and process documentation for PlanWise Navigator.
+This folder contains business requirements, specifications, and process documentation for Fidelity PlanAlign Engine.
 
 ## 📋 Contents
 
@@ -10,7 +10,7 @@ This folder contains business requirements, specifications, and process document
   - Business objectives and success metrics
   - User stories and acceptance criteria
 
-- **[overview.md](overview.md)** - PlanWise Navigator Overview
+- **[overview.md](overview.md)** - Fidelity PlanAlign Engine Overview
   - High-level project description
   - Key capabilities and features
   - Business value proposition

@@ -25,7 +25,7 @@ Two related issues around auto-enrollment cause mislabeled events and inconsiste
   - Correctly sets the rate for auto-enrollment rows via `CASE WHEN efo.is_auto_enrollment_row THEN {{ default_deferral_rate() }} ...`.
   - Correctly assigns `event_category` = `auto_enrollment` when `is_auto_enrollment_row` is true.
 - `dbt/dbt_project.yml` hard-codes `auto_enrollment_default_deferral_rate: 0.06` (6%).
-- `navigator_orchestrator/config.py` maps `config/simulation_config.yaml` → dbt vars, including `auto_enrollment_default_deferral_rate` (so orchestrated runs pick up 2%).
+- `planalign_orchestrator/config.py` maps `config/simulation_config.yaml` → dbt vars, including `auto_enrollment_default_deferral_rate` (so orchestrated runs pick up 2%).
 
 Net effect: auto-enrollment rows may display demographic labels in `event_details` and default to 6% in direct dbt runs that bypass the orchestrator.
 
@@ -33,7 +33,7 @@ Net effect: auto-enrollment rows may display demographic labels in `event_detail
 
 1) Single source of truth for default rate
 - Keep `config/simulation_config.yaml` as the owner for plan settings.
-- Continue to pass dbt vars from the orchestrator (`navigator_orchestrator/config.py` → `dbt_vars["auto_enrollment_default_deferral_rate"]`).
+- Continue to pass dbt vars from the orchestrator (`planalign_orchestrator/config.py` → `dbt_vars["auto_enrollment_default_deferral_rate"]`).
 - Update `dbt/dbt_project.yml` fallback to 2% so ad-hoc dbt runs align with the orchestrated setting.
 
 2) Enrollment-type-driven event details
@@ -122,7 +122,7 @@ END as event_details
 - Default rate macro: `dbt/macros/deferral_rate_macros.sql`
 - Enrollment event model: `dbt/models/intermediate/int_enrollment_events.sql`
 - DBT var defaults: `dbt/dbt_project.yml`
-- Orchestrator var mapping: `navigator_orchestrator/config.py` (dbt_vars for auto-enrollment)
+- Orchestrator var mapping: `planalign_orchestrator/config.py` (dbt_vars for auto-enrollment)
 - Example config: `config/simulation_config.yaml` (auto_enrollment.default_deferral_rate: 0.02)
 
 ---

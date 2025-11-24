@@ -15,7 +15,7 @@
 
 ## Business Context
 
-This epic establishes the foundational event schema for Defined Contribution retirement plan modeling within PlanWise Navigator's event-sourced architecture. It creates a unified, enterprise-grade event system that supports comprehensive retirement plan transactions while maintaining backward compatibility with workforce events and meeting ERISA compliance requirements.
+This epic establishes the foundational event schema for Defined Contribution retirement plan modeling within Fidelity PlanAlign Engine's event-sourced architecture. It creates a unified, enterprise-grade event system that supports comprehensive retirement plan transactions while maintaining backward compatibility with workforce events and meeting ERISA compliance requirements.
 
 The epic transforms workforce simulation from a simple employee lifecycle system into a comprehensive retirement plan administration platform capable of handling complex regulatory scenarios, compliance testing, and participant lifecycle management.
 

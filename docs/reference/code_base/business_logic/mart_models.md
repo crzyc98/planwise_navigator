@@ -2,7 +2,7 @@
 
 ## Purpose
 
-The mart models in `dbt/models/marts/` represent the final analytical layer of PlanWise Navigator, providing clean, aggregated, and business-ready datasets for reporting, dashboards, and decision-making. These models transform raw events and workforce data into meaningful insights and metrics.
+The mart models in `dbt/models/marts/` represent the final analytical layer of Fidelity PlanAlign Engine, providing clean, aggregated, and business-ready datasets for reporting, dashboards, and decision-making. These models transform raw events and workforce data into meaningful insights and metrics.
 
 ## Architecture
 

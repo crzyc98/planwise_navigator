@@ -14,7 +14,7 @@
 
 ## Business Context
 
-PlanWise Navigator currently provides **console-only logging** with no persistent audit trail, making production troubleshooting extremely difficult. With complex multi-year simulations processing 42,331 events, operators need comprehensive observability to diagnose failures, track performance, and maintain regulatory compliance.
+Fidelity PlanAlign Engine currently provides **console-only logging** with no persistent audit trail, making production troubleshooting extremely difficult. With complex multi-year simulations processing 42,331 events, operators need comprehensive observability to diagnose failures, track performance, and maintain regulatory compliance.
 
 This epic establishes enterprise-grade logging infrastructure with structured JSON logs, run correlation, performance metrics, and automated summaries. The implementation enables rapid diagnosis of production issues and provides the foundation for operational excellence.
 
@@ -67,7 +67,7 @@ This epic establishes enterprise-grade logging infrastructure with structured JS
 
 ### Structured Logger Architecture
 ```python
-# navigator_orchestrator/logger.py
+# planalign_orchestrator/logger.py
 import logging
 import json
 import uuid
@@ -139,7 +139,7 @@ class ProductionLogger:
 
 ### Performance Monitor
 ```python
-# navigator_orchestrator/performance_monitor.py
+# planalign_orchestrator/performance_monitor.py
 import time
 import psutil
 from contextlib import contextmanager
@@ -191,7 +191,7 @@ class PerformanceMonitor:
 
 ### Run Summary Generator
 ```python
-# navigator_orchestrator/run_summary.py
+# planalign_orchestrator/run_summary.py
 import json
 from pathlib import Path
 from datetime import datetime
@@ -322,14 +322,14 @@ def log_data_quality_check(self, year: int, check_name: str, result: any, thresh
 
 ### 🎯 **Epic Successfully Completed**
 
-The Production Observability & Logging Framework has been fully implemented and tested. All 15 story points have been completed, delivering enterprise-grade observability capabilities to PlanWise Navigator.
+The Production Observability & Logging Framework has been fully implemented and tested. All 15 story points have been completed, delivering enterprise-grade observability capabilities to Fidelity PlanAlign Engine.
 
 ### 📦 **Delivered Components**
 
-1. **`navigator_orchestrator/logger.py`** - Structured JSON logging with rotation
-2. **`navigator_orchestrator/performance_monitor.py`** - Performance and resource monitoring
-3. **`navigator_orchestrator/run_summary.py`** - Comprehensive run summaries
-4. **`navigator_orchestrator/observability.py`** - Integrated observability manager
+1. **`planalign_orchestrator/logger.py`** - Structured JSON logging with rotation
+2. **`planalign_orchestrator/performance_monitor.py`** - Performance and resource monitoring
+3. **`planalign_orchestrator/run_summary.py`** - Comprehensive run summaries
+4. **`planalign_orchestrator/observability.py`** - Integrated observability manager
 5. **`run_multi_year_observability.py`** - Enhanced simulation runner with observability
 6. **`demo_observability.py`** - Comprehensive demonstration script
 7. **`tests/test_observability.py`** - Complete test suite
@@ -372,7 +372,7 @@ mkdir -p logs artifacts/runs
 
 # 2. Test structured logging
 python -c "
-from navigator_orchestrator.logger import ProductionLogger
+from planalign_orchestrator.logger import ProductionLogger
 logger = ProductionLogger()
 logger.log_event('INFO', 'Test message', year=2025, operation='test')
 print('Structured logging active')

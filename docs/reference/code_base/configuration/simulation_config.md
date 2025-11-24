@@ -2,7 +2,7 @@
 
 ## Purpose
 
-The `config/simulation_config.yaml` file serves as the central configuration hub for PlanWise Navigator, defining all parameters that control workforce simulation behavior, including growth targets, termination rates, promotion probabilities, and data quality thresholds.
+The `config/simulation_config.yaml` file serves as the central configuration hub for Fidelity PlanAlign Engine, defining all parameters that control workforce simulation behavior, including growth targets, termination rates, promotion probabilities, and data quality thresholds.
 
 ## Architecture
 

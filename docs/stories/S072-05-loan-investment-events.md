@@ -14,7 +14,7 @@
 **This story has been REMOVED from the implementation scope.**
 
 **Decision Date**: 2025-07-11
-**Reason**: Loan and investment event modeling is not required for the current MVP scope of PlanWise Navigator.
+**Reason**: Loan and investment event modeling is not required for the current MVP scope of Fidelity PlanAlign Engine.
 
 **Impact on Other Stories**:
 - S072-06 Performance Framework updated to reflect 11 payload types (not 15)
@@ -220,7 +220,7 @@ class LoanInvestmentEventFactory(EventFactory):
 
 **Implementation Decision**: This story has been **REMOVED from scope** as of 2025-07-11.
 
-**Reason**: Loan and investment event modeling is not required for the current MVP scope of PlanWise Navigator. The focus is on core plan administration and compliance events only.
+**Reason**: Loan and investment event modeling is not required for the current MVP scope of Fidelity PlanAlign Engine. The focus is on core plan administration and compliance events only.
 
 **Action Required**: **DO NOT IMPLEMENT** any code from this story. Refer to the implemented stories S072-01 through S072-04 for the actual event schema architecture.
 

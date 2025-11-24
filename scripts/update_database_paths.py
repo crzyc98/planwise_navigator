@@ -115,14 +115,14 @@ class DatabasePathUpdater:
         updated_content = content
 
         # Check if file already has the import
-        has_import = 'from navigator_orchestrator.config import get_database_path' in content
+        has_import = 'from planalign_orchestrator.config import get_database_path' in content
 
         # Transformation 1: Direct duckdb.connect calls
         pattern1 = r'duckdb\.connect\(\s*[\'"]simulation\.duckdb[\'\"]\s*\)'
         if re.search(pattern1, content):
             if not has_import:
                 # Add import at the top after other imports
-                import_line = "from navigator_orchestrator.config import get_database_path"
+                import_line = "from planalign_orchestrator.config import get_database_path"
                 updated_content = self._add_import(updated_content, import_line)
                 has_import = True
 
@@ -137,7 +137,7 @@ class DatabasePathUpdater:
         pattern2 = r'Path\(\s*[\'"]simulation\.duckdb[\'\"]\s*\)'
         if re.search(pattern2, content):
             if not has_import:
-                import_line = "from navigator_orchestrator.config import get_database_path"
+                import_line = "from planalign_orchestrator.config import get_database_path"
                 updated_content = self._add_import(updated_content, import_line)
                 has_import = True
 
@@ -147,7 +147,7 @@ class DatabasePathUpdater:
         pattern3 = r'([\'"])simulation\.duckdb\1(?!\s*#)'
         if re.search(pattern3, content):
             if not has_import:
-                import_line = "from navigator_orchestrator.config import get_database_path"
+                import_line = "from planalign_orchestrator.config import get_database_path"
                 updated_content = self._add_import(updated_content, import_line)
                 has_import = True
 

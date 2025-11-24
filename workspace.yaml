@@ -2,7 +2,7 @@ load_from:
   - python_file:
       relative_path: definitions.py
       working_directory: .
-      location_name: "planwise_navigator"
+      location_name: "planalign_engine"
   - grpc_server:
       host: "127.0.0.1"
       port: 4000
@@ -14,7 +14,7 @@ load_from:
 # python_logs:
 #   managed_python_loggers:
 #     - dagster
-#     - planwise_navigator
+#     - planalign_engine
 #   python_log_level: INFO
 
 # Optional: Configure telemetry

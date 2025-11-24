@@ -140,4 +140,4 @@ Existing monitoring model `data_quality_promotion_compensation.sql` will now det
 - Zero entries in validation test query results
 - Workforce simulation variance within acceptable bounds (<0.5%)
 
-This fix ensures that PlanWise Navigator maintains enterprise-grade workforce simulation integrity with accurate compensation state management across all temporal transitions.
+This fix ensures that Fidelity PlanAlign Engine maintains enterprise-grade workforce simulation integrity with accurate compensation state management across all temporal transitions.

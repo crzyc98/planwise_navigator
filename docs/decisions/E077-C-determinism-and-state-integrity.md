@@ -168,7 +168,7 @@ WITH prior_year_state AS (
 For Polars-generated event cohorts, we ensure atomic directory writes to prevent partial state:
 
 ```python
-# navigator_orchestrator/pipeline/polars_event_generation.py
+# planalign_orchestrator/pipeline/polars_event_generation.py
 
 def write_events_atomically(df: pl.DataFrame, output_dir: Path, year: int, event_type: str) -> Path:
     """Write event cohort with atomic directory swap."""
@@ -218,7 +218,7 @@ def write_events_atomically(df: pl.DataFrame, output_dir: Path, year: int, event
 Every simulation run generates a unique run ID and checksums for validation:
 
 ```python
-# navigator_orchestrator/pipeline/state_manager.py
+# planalign_orchestrator/pipeline/state_manager.py
 
 class StateManager:
     def create_run_metadata(self, config: SimulationConfig, year: int) -> dict:
@@ -299,7 +299,7 @@ ORDER BY created_at DESC;
 ### **Clean State Transfer Pattern**
 
 ```python
-# navigator_orchestrator/pipeline/year_executor.py
+# planalign_orchestrator/pipeline/year_executor.py
 
 class YearExecutor:
     def transfer_state_to_next_year(self, year: int) -> dict:
@@ -483,7 +483,7 @@ WHERE state_transfer_error != 0;
 ### **Checksum Validation**
 
 ```python
-# navigator_orchestrator/validation.py
+# planalign_orchestrator/validation.py
 
 def compute_checksum(df: pl.DataFrame) -> str:
     """Compute SHA256 checksum of DataFrame."""

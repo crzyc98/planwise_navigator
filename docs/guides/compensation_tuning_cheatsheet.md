@@ -18,7 +18,7 @@ code dbt/seeds/comp_levers.csv
 
 ### 2️⃣ Load Changes
 ```bash
-cd /Users/nicholasamaral/planwise_navigator
+cd /Users/nicholasamaral/planalign_engine
 source venv/bin/activate
 cd dbt
 dbt seed --select comp_levers

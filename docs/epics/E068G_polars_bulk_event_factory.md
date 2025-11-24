@@ -19,7 +19,7 @@ Generate all 5 years of events in Polars, write partitioned Parquet once; keep d
 ## Runbook
 
 ```bash
-POLARS_MAX_THREADS=16 python navigator_orchestrator/polars_event_factory.py --start 2025 --end 2029 --out /mnt/fast/sim_events
+POLARS_MAX_THREADS=16 python planalign_orchestrator/polars_event_factory.py --start 2025 --end 2029 --out /mnt/fast/sim_events
 dbt run --select state:*,metrics:* --threads 6
 ```
 
@@ -27,7 +27,7 @@ dbt run --select state:*,metrics:* --threads 6
 
 ### Polars Event Factory
 ```python
-# navigator_orchestrator/polars_event_factory.py
+# planalign_orchestrator/polars_event_factory.py
 import polars as pl
 import hashlib
 import json
@@ -510,7 +510,7 @@ sources:
 
 ### Hybrid Pipeline Integration
 ```python
-# navigator_orchestrator/hybrid_pipeline.py
+# planalign_orchestrator/hybrid_pipeline.py
 from .polars_event_factory import PolarsEventGenerator, EventFactoryConfig
 
 class HybridPipelineOrchestrator:
@@ -604,7 +604,7 @@ def benchmark_polars_mode():
     start_time = time.time()
 
     cmd = [
-        "python", "navigator_orchestrator/polars_event_factory.py",
+        "python", "planalign_orchestrator/polars_event_factory.py",
         "--start", "2025", "--end", "2029",
         "--out", "/tmp/polars_benchmark"
     ]
@@ -653,9 +653,9 @@ if __name__ == "__main__":
 ### 🎯 **Delivered Results**
 
 **✅ All Deliverables Implemented**:
-- Complete Polars event factory (`navigator_orchestrator/polars_event_factory.py`)
+- Complete Polars event factory (`planalign_orchestrator/polars_event_factory.py`)
 - dbt source integration with Parquet support (`dbt/models/sources.yml`)
-- Hybrid pipeline orchestrator (`navigator_orchestrator/pipeline.py`)
+- Hybrid pipeline orchestrator (`planalign_orchestrator/pipeline.py`)
 - Comprehensive benchmarking framework (`scripts/benchmark_event_generation.py`)
 - Configuration integration (`config/simulation_config.yaml`)
 
@@ -679,9 +679,9 @@ if __name__ == "__main__":
 ### 📁 **Implementation Files**
 
 **Core Implementation**:
-- `/navigator_orchestrator/polars_event_factory.py` - Complete Polars event generator
-- `/navigator_orchestrator/pipeline.py` - Hybrid orchestrator integration
-- `/navigator_orchestrator/hybrid_performance_monitor.py` - Performance monitoring
+- `/planalign_orchestrator/polars_event_factory.py` - Complete Polars event generator
+- `/planalign_orchestrator/pipeline.py` - Hybrid orchestrator integration
+- `/planalign_orchestrator/hybrid_performance_monitor.py` - Performance monitoring
 
 **dbt Integration**:
 - `/dbt/models/sources.yml` - Polars Parquet source definitions
@@ -704,11 +704,11 @@ if __name__ == "__main__":
 
 ```bash
 # Standalone Polars generation
-POLARS_MAX_THREADS=16 python navigator_orchestrator/polars_event_factory.py \
+POLARS_MAX_THREADS=16 python planalign_orchestrator/polars_event_factory.py \
   --start 2025 --end 2029 --out /mnt/fast/sim_events --verbose
 
 # Hybrid pipeline with Polars mode
-python -m navigator_orchestrator run --years 2025 2026 2027 \
+python -m planalign_orchestrator run --years 2025 2026 2027 \
   --config config/hybrid_simulation_config.yaml
 
 # Performance benchmarking

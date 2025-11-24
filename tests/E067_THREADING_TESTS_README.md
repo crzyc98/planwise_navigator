@@ -1,6 +1,6 @@
 # Epic E067 Multi-Threading Test Suite
 
-This comprehensive test suite validates the multi-threading functionality implemented for Epic E067: Multi-Threading Navigator Orchestrator. The tests ensure the implementation meets all performance targets and maintains data integrity across different thread configurations.
+This comprehensive test suite validates the multi-threading functionality implemented for Epic E067: Multi-Threading PlanAlign Orchestrator. The tests ensure the implementation meets all performance targets and maintains data integrity across different thread configurations.
 
 ## Test Categories
 
@@ -300,9 +300,9 @@ When adding new threading-related functionality:
 
 ## Related Documentation
 
-- [Epic E067: Multi-Threading Navigator Orchestrator](../docs/epics/E067_multi_threading_navigator_orchestrator.md)
+- [Epic E067: Multi-Threading PlanAlign Orchestrator](../docs/epics/E067_multi_threading_planalign_orchestrator.md)
 - [Story S067-02: Model-Level Parallelization](../docs/S067-02-Model-Level-Parallelization.md)
-- [Threading Configuration Guide](../navigator_orchestrator/README.md#threading-configuration)
+- [Threading Configuration Guide](../planalign_orchestrator/README.md#threading-configuration)
 - [Performance Benchmarking Guide](../docs/performance/README.md)
 
 ---

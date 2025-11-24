@@ -10,7 +10,7 @@
 
 ## Business Problem
 
-PlanWise Navigator currently has a **significant architectural inconsistency** in its workforce modeling system. While promotions and merit increases use sophisticated hazard-based probability models that account for individual employee characteristics (age, tenure, level), termination events use simple quota-based randomization that ignores these risk factors.
+Fidelity PlanAlign Engine currently has a **significant architectural inconsistency** in its workforce modeling system. While promotions and merit increases use sophisticated hazard-based probability models that account for individual employee characteristics (age, tenure, level), termination events use simple quota-based randomization that ignores these risk factors.
 
 This inconsistency creates several business problems:
 
@@ -546,4 +546,4 @@ termination_selection:
 
 ---
 
-*This epic represents a significant architectural improvement that will enhance PlanWise Navigator's workforce modeling capabilities while maintaining enterprise-grade reliability and compliance standards.*
+*This epic represents a significant architectural improvement that will enhance Fidelity PlanAlign Engine's workforce modeling capabilities while maintaining enterprise-grade reliability and compliance standards.*

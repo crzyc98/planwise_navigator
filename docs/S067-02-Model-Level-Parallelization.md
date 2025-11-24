@@ -2,7 +2,7 @@
 
 ## Overview
 
-This document describes the implementation of sophisticated model-level parallelization for the Navigator Orchestrator, enabling selective parallel execution of independent dbt models while preserving sequential execution for state-dependent operations.
+This document describes the implementation of sophisticated model-level parallelization for the PlanAlign Orchestrator, enabling selective parallel execution of independent dbt models while preserving sequential execution for state-dependent operations.
 
 ## Architecture
 
@@ -112,8 +112,8 @@ orchestrator:
 ### Programmatic Usage
 
 ```python
-from navigator_orchestrator import create_orchestrator
-from navigator_orchestrator.config import load_simulation_config
+from planalign_orchestrator import create_orchestrator
+from planalign_orchestrator.config import load_simulation_config
 
 # Load configuration with parallelization enabled
 config = load_simulation_config('config/simulation_config.yaml')
@@ -133,7 +133,7 @@ print(f"Simulation completed: {len(summary.completed_years)} years")
 ### DbtRunner Direct Usage
 
 ```python
-from navigator_orchestrator.dbt_runner import DbtRunner
+from planalign_orchestrator.dbt_runner import DbtRunner
 
 # Create DbtRunner with parallelization enabled
 runner = DbtRunner(
@@ -289,7 +289,7 @@ python -m pytest tests/test_model_parallelization.py::TestModelClassifier -v
 python -m pytest tests/test_model_parallelization.py::TestParallelExecutionEngine -v
 
 # Run with coverage
-python -m pytest tests/test_model_parallelization.py --cov=navigator_orchestrator.model_execution_types --cov=navigator_orchestrator.parallel_execution_engine
+python -m pytest tests/test_model_parallelization.py --cov=planalign_orchestrator.model_execution_types --cov=planalign_orchestrator.parallel_execution_engine
 ```
 
 ### Development Workflow
@@ -366,7 +366,7 @@ The system is designed for extensibility:
 
 ## Conclusion
 
-The Model-Level Parallelization system provides sophisticated, safe, and efficient parallel execution of dbt models while maintaining data integrity and deterministic results. It represents a significant advancement in the Navigator Orchestrator's performance capabilities while preserving the reliability and accuracy required for enterprise workforce simulation.
+The Model-Level Parallelization system provides sophisticated, safe, and efficient parallel execution of dbt models while maintaining data integrity and deterministic results. It represents a significant advancement in the PlanAlign Orchestrator's performance capabilities while preserving the reliability and accuracy required for enterprise workforce simulation.
 
 Key benefits:
 - ✅ 20-40% faster simulation execution

@@ -793,4 +793,4 @@ def my_resource_asset(context: AssetExecutionContext, duckdb_resource: DuckDBRes
         return df
 ```
 
-Use these patterns as your foundation for all PlanWise Navigator assets to ensure consistent, serializable, and maintainable code.
+Use these patterns as your foundation for all Fidelity PlanAlign Engine assets to ensure consistent, serializable, and maintainable code.

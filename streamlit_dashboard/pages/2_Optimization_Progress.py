@@ -18,7 +18,7 @@ sys.path.append(str(parent_dir))
 
 # Page configuration
 st.set_page_config(
-    page_title="Optimization Progress - PlanWise Navigator",
+    page_title="Optimization Progress - Fidelity PlanAlign Engine",
     page_icon="🔄",
     layout="wide",
     initial_sidebar_state="expanded",
@@ -335,8 +335,8 @@ except ImportError as e:
 
 if progress_available:
     # Check for active optimization
-    temp_result_path = Path("/tmp/planwise_optimization_result.pkl")
-    temp_config_path = Path("/tmp/planwise_optimization_config.yaml")
+    temp_result_path = Path("/tmp/planalign_optimization_result.pkl")
+    temp_config_path = Path("/tmp/planalign_optimization_config.yaml")
 
     optimization_status = "Unknown"
     if temp_result_path.exists():
@@ -468,8 +468,8 @@ else:
 
     # Basic file-based progress checking
     temp_files = [
-        "/tmp/planwise_optimization_result.pkl",
-        "/tmp/planwise_optimization_config.yaml",
+        "/tmp/planalign_optimization_result.pkl",
+        "/tmp/planalign_optimization_config.yaml",
         "/tmp/dagster_optimization_logs.txt",
     ]
 
@@ -493,7 +493,7 @@ st.markdown(
     """
 <div style='text-align: center; color: #666; padding: 2rem;'>
     <h4>🔄 Optimization Progress Monitor</h4>
-    <p>Real-time tracking for PlanWise Navigator compensation optimization</p>
+    <p>Real-time tracking for Fidelity PlanAlign Engine compensation optimization</p>
     <p><small>Last updated: {}</small></p>
 </div>
 """.format(

@@ -193,4 +193,4 @@ GROUP BY simulation_year, active_count;
 
 **Session Status**: Ready for S037 implementation
 **Prerequisites**: Database contains working S035/S036 fixes
-**Key Files**: Located in `/Users/nicholasamaral/planwise_navigator/dbt/models/intermediate/events/`
+**Key Files**: Located in `/Users/nicholasamaral/planalign_engine/dbt/models/intermediate/events/`

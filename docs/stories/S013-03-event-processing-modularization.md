@@ -7,7 +7,7 @@
 
 ## User Story
 
-**As a** PlanWise Navigator developer
+**As a** Fidelity PlanAlign Engine developer
 **I want** event processing logic extracted into dedicated operations
 **So that** complex event model execution and debugging is isolated and reusable
 

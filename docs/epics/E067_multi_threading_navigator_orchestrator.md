@@ -1,9 +1,9 @@
-# Epic E067: Multi-Threading Support in Navigator Orchestrator
+# Epic E067: Multi-Threading Support in PlanAlign Orchestrator
 
 ## Epic Overview
 
 ### Summary
-Enable configurable multi-threading support in the Navigator Orchestrator to improve simulation performance while maintaining deterministic results and data integrity. Implement selective parallelization for independent operations while preserving sequential execution for state-dependent models.
+Enable configurable multi-threading support in the PlanAlign Orchestrator to improve simulation performance while maintaining deterministic results and data integrity. Implement selective parallelization for independent operations while preserving sequential execution for state-dependent models.
 
 **Status**: 🟢 **Complete** (13 of 13 story points completed)
 
@@ -28,7 +28,7 @@ Enable configurable multi-threading support in the Navigator Orchestrator to imp
 ## Problem Statement
 
 ### Current Issues
-1. **Performance Bottleneck**: Navigator Orchestrator runs all 250+ model executions sequentially
+1. **Performance Bottleneck**: PlanAlign Orchestrator runs all 250+ model executions sequentially
 2. **Underutilized Hardware**: Modern workstations with 4-16 cores running single-threaded
 3. **Long Simulation Times**: 10-minute runtime for 5-year simulations limits analyst productivity
 4. **Scalability Limitations**: No ability to leverage additional compute resources
@@ -36,7 +36,7 @@ Enable configurable multi-threading support in the Navigator Orchestrator to imp
 
 ### Root Causes
 - Current implementation forces sequential execution even for independent operations
-- No thread configuration framework in Navigator Orchestrator
+- No thread configuration framework in PlanAlign Orchestrator
 - Missing model dependency analysis for safe parallelization
 - Lack of thread-safe execution patterns in the orchestration layer
 - No performance benchmarking infrastructure for multi-threaded scenarios
@@ -85,11 +85,11 @@ class ThreadSafeOrchestrator:
 
 ### Story S067-01: dbt Threading Support (3 points)
 **As a** workforce analyst
-**I want** the Navigator Orchestrator to support configurable dbt threading
+**I want** the PlanAlign Orchestrator to support configurable dbt threading
 **So that** I can leverage multiple CPU cores for faster model execution
 
 #### Acceptance Criteria
-- [x] Navigator Orchestrator accepts `thread_count` parameter in configuration
+- [x] PlanAlign Orchestrator accepts `thread_count` parameter in configuration
 - [x] dbt commands execute with specified `--threads` parameter
 - [x] Thread count validation (1-16) with appropriate error messages
 - [x] Single-threaded fallback for compatibility with existing workflows
@@ -387,16 +387,16 @@ class ExecutionMonitor:
 - **Resource utilization**: Intelligent scaling based on system capacity
 
 ### 🔧 **Implementation Components:**
-- **Configuration**: `navigator_orchestrator/config.py` with `ThreadingSettings`
-- **Execution**: `navigator_orchestrator/parallel_execution_engine.py` with dependency-aware scheduling
-- **Resource management**: `navigator_orchestrator/resource_manager.py` with adaptive monitoring
-- **Integration**: `navigator_orchestrator/pipeline.py` with multi-threading support
+- **Configuration**: `planalign_orchestrator/config.py` with `ThreadingSettings`
+- **Execution**: `planalign_orchestrator/parallel_execution_engine.py` with dependency-aware scheduling
+- **Resource management**: `planalign_orchestrator/resource_manager.py` with adaptive monitoring
+- **Integration**: `planalign_orchestrator/pipeline.py` with multi-threading support
 - **Testing**: Comprehensive test suite with determinism validation
 
 ### 📊 **Usage:**
 ```bash
 # Multi-threaded simulation execution
-python -m navigator_orchestrator run --years 2025-2029 --verbose
+python -m planalign_orchestrator run --years 2025-2029 --verbose
 
 # Configuration example
 orchestrator:

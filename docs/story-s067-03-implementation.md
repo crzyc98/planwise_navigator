@@ -2,7 +2,7 @@
 
 ## Overview
 
-Successfully implemented comprehensive resource management and optimization system for the Navigator Orchestrator, providing intelligent memory management during multi-threaded execution to ensure system stability under varying load conditions.
+Successfully implemented comprehensive resource management and optimization system for the PlanAlign Orchestrator, providing intelligent memory management during multi-threaded execution to ensure system stability under varying load conditions.
 
 ## Key Features Implemented
 
@@ -43,7 +43,7 @@ Successfully implemented comprehensive resource management and optimization syst
 ### Core Classes
 
 #### ResourceManager
-- **Location**: `navigator_orchestrator/resource_manager.py`
+- **Location**: `planalign_orchestrator/resource_manager.py`
 - **Purpose**: Central coordination of memory, CPU monitoring, and adaptive scaling
 - **Key Methods**:
   - `start_monitoring()`: Initialize all monitoring components
@@ -146,7 +146,7 @@ Added comprehensive monitoring hooks to the pipeline orchestrator:
 
 ### Basic Resource Management
 ```python
-from navigator_orchestrator.resource_manager import ResourceManager
+from planalign_orchestrator.resource_manager import ResourceManager
 
 # Create resource manager with configuration
 resource_manager = ResourceManager(config=resource_config)
@@ -238,15 +238,15 @@ python scripts/test_resource_management.py --config custom_config.yaml
 ## Files Modified/Created
 
 ### New Files
-- `navigator_orchestrator/resource_manager.py` - Core resource management implementation
+- `planalign_orchestrator/resource_manager.py` - Core resource management implementation
 - `config/simulation_config_with_resource_management.yaml` - Example configuration
 - `scripts/test_resource_management.py` - Comprehensive test suite
 - `docs/story-s067-03-implementation.md` - This implementation summary
 
 ### Modified Files
-- `navigator_orchestrator/config.py` - Extended with resource management configuration
-- `navigator_orchestrator/parallel_execution_engine.py` - Integrated ResourceManager
-- `navigator_orchestrator/pipeline.py` - Added resource monitoring hooks
+- `planalign_orchestrator/config.py` - Extended with resource management configuration
+- `planalign_orchestrator/parallel_execution_engine.py` - Integrated ResourceManager
+- `planalign_orchestrator/pipeline.py` - Added resource monitoring hooks
 
 ## Testing Strategy
 
@@ -265,6 +265,6 @@ python scripts/test_resource_management.py --config custom_config.yaml
 
 ## Conclusion
 
-The Advanced Memory Management & Optimization system (Story S067-03) successfully delivers comprehensive resource management capabilities for the Navigator Orchestrator. The implementation provides intelligent monitoring, adaptive scaling, and graceful degradation under load while maintaining backward compatibility with existing systems.
+The Advanced Memory Management & Optimization system (Story S067-03) successfully delivers comprehensive resource management capabilities for the PlanAlign Orchestrator. The implementation provides intelligent monitoring, adaptive scaling, and graceful degradation under load while maintaining backward compatibility with existing systems.
 
 The system is production-ready with comprehensive configuration options, thorough testing, and detailed monitoring capabilities. It addresses all success criteria and provides a solid foundation for future resource management enhancements.

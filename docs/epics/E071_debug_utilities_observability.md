@@ -50,7 +50,7 @@ Build a comprehensive debugging and observability toolkit to reduce bug investig
 ### Architecture
 
 ```
-navigator_orchestrator/
+planalign_orchestrator/
 ├── debug_utils.py              # Core debugging utilities (NEW)
 │   ├── DatabaseInspector
 │   ├── StateVisualizer
@@ -93,7 +93,7 @@ dbt/
 **Implementation**:
 
 ```python
-# navigator_orchestrator/debug_utils.py
+# planalign_orchestrator/debug_utils.py
 
 from __future__ import annotations
 import duckdb
@@ -104,7 +104,7 @@ from datetime import datetime
 import pandas as pd
 from rich.console import Console
 from rich.table import Table
-from navigator_orchestrator.config import get_database_path
+from planalign_orchestrator.config import get_database_path
 
 console = Console()
 
@@ -325,7 +325,7 @@ class DatabaseInspector:
 
 ```python
 # CLI usage
-from navigator_orchestrator.debug_utils import DatabaseInspector
+from planalign_orchestrator.debug_utils import DatabaseInspector
 
 # Quick health check
 with DatabaseInspector() as inspector:
@@ -345,7 +345,7 @@ with DatabaseInspector() as inspector:
 ```bash
 # Test inspector utilities
 python -c "
-from navigator_orchestrator.debug_utils import DatabaseInspector
+from planalign_orchestrator.debug_utils import DatabaseInspector
 with DatabaseInspector() as inspector:
     inspector.print_year_report(2025)
 "
@@ -366,7 +366,7 @@ with DatabaseInspector() as inspector:
 **Implementation**:
 
 ```python
-# navigator_orchestrator/debug_utils.py (continued)
+# planalign_orchestrator/debug_utils.py (continued)
 
 import json
 from typing import Any
@@ -476,7 +476,7 @@ class StateVisualizer:
 **Usage**:
 
 ```python
-from navigator_orchestrator.debug_utils import StateVisualizer
+from planalign_orchestrator.debug_utils import StateVisualizer
 from pathlib import Path
 
 visualizer = StateVisualizer(Path("checkpoints"))
@@ -503,7 +503,7 @@ print(f"Enrollment changes: {len(diff['enrollment_registry']['added'])} added")
 **Implementation**:
 
 ```python
-# navigator_orchestrator/debug_utils.py (continued)
+# planalign_orchestrator/debug_utils.py (continued)
 
 import re
 import networkx as nx
@@ -692,7 +692,7 @@ class DependencyAnalyzer:
 ```bash
 # Generate dependency graph
 python -c "
-from navigator_orchestrator.debug_utils import DependencyAnalyzer
+from planalign_orchestrator.debug_utils import DependencyAnalyzer
 from pathlib import Path
 
 analyzer = DependencyAnalyzer(Path('dbt'))
@@ -717,7 +717,7 @@ analyzer.visualize_graph(Path('dependency_graph.png'))
 **Implementation**:
 
 ```python
-# navigator_orchestrator/monitoring.py (NEW FILE)
+# planalign_orchestrator/monitoring.py (NEW FILE)
 
 from __future__ import annotations
 import time
@@ -903,9 +903,9 @@ class ExecutionTracer:
 **Integration with PipelineOrchestrator**:
 
 ```python
-# navigator_orchestrator/pipeline.py (ADD THIS)
+# planalign_orchestrator/pipeline.py (ADD THIS)
 
-from navigator_orchestrator.monitoring import ExecutionTracer
+from planalign_orchestrator.monitoring import ExecutionTracer
 
 class PipelineOrchestrator:
     def __init__(self, config: SimulationConfig):
@@ -1060,9 +1060,9 @@ import sys
 # Add parent directory to path for imports
 sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 
-from navigator_orchestrator.debug_utils import DatabaseInspector, StateVisualizer, DependencyAnalyzer
-from navigator_orchestrator.monitoring import ExecutionTracer
-from navigator_orchestrator.config import get_database_path
+from planalign_orchestrator.debug_utils import DatabaseInspector, StateVisualizer, DependencyAnalyzer
+from planalign_orchestrator.monitoring import ExecutionTracer
+from planalign_orchestrator.config import get_database_path
 import pandas as pd
 
 st.set_page_config(page_title="Debug Dashboard", page_icon="🐛", layout="wide")
@@ -1308,13 +1308,13 @@ elif debug_mode == "Performance Traces":
 ## Implementation Plan
 
 ### Phase 1: Core Utilities (Today, 2 hours)
-1. ✅ Create `navigator_orchestrator/debug_utils.py` with DatabaseInspector
+1. ✅ Create `planalign_orchestrator/debug_utils.py` with DatabaseInspector
 2. ✅ Implement StateVisualizer for checkpoints
 3. ✅ Add DependencyAnalyzer with cycle detection
 4. ✅ Test all utilities with current database
 
 ### Phase 2: Performance Monitoring (Today, 1 hour)
-1. ✅ Create `navigator_orchestrator/monitoring.py` with ExecutionTracer
+1. ✅ Create `planalign_orchestrator/monitoring.py` with ExecutionTracer
 2. ✅ Integrate tracer into PipelineOrchestrator
 3. ✅ Test trace generation with single-year simulation
 
@@ -1327,7 +1327,7 @@ elif debug_mode == "Performance Traces":
 
 ## Dependencies
 
-- **navigator_orchestrator/pipeline.py**: Add tracer integration
+- **planalign_orchestrator/pipeline.py**: Add tracer integration
 - **dbt/macros/**: New debug_helpers.sql file
 - **streamlit_dashboard/**: New debug dashboard page
 - **requirements.txt**: Add networkx, matplotlib for dependency graphs
@@ -1339,7 +1339,7 @@ elif debug_mode == "Performance Traces":
 ```bash
 # Test DatabaseInspector
 python -c "
-from navigator_orchestrator.debug_utils import DatabaseInspector
+from planalign_orchestrator.debug_utils import DatabaseInspector
 with DatabaseInspector() as inspector:
     inspector.print_year_report(2025)
     stats = inspector.quick_stats()
@@ -1348,7 +1348,7 @@ with DatabaseInspector() as inspector:
 
 # Test DependencyAnalyzer
 python -c "
-from navigator_orchestrator.debug_utils import DependencyAnalyzer
+from planalign_orchestrator.debug_utils import DependencyAnalyzer
 from pathlib import Path
 analyzer = DependencyAnalyzer(Path('dbt'))
 analyzer.build_dependency_graph()
@@ -1359,14 +1359,14 @@ assert len(cycles) == 0, 'Found circular dependencies!'
 
 # Test StateVisualizer
 python -c "
-from navigator_orchestrator.debug_utils import StateVisualizer
+from planalign_orchestrator.debug_utils import StateVisualizer
 from pathlib import Path
 visualizer = StateVisualizer(Path('checkpoints'))
 visualizer.print_checkpoint_summary()
 "
 
 # Test ExecutionTracer
-python -m navigator_orchestrator run --years 2025 --verbose
+python -m planalign_orchestrator run --years 2025 --verbose
 # Should generate performance_trace_2025_2025.json
 
 # Test Streamlit dashboard
@@ -1425,7 +1425,7 @@ streamlit run streamlit_dashboard/pages/06_debug_dashboard.py
 
 ## Conclusion
 
-This epic delivers a comprehensive debugging toolkit that transforms PlanWise Navigator development from reactive bug-hunting to proactive observability. With instant state inspection, dependency visualization, and performance profiling, developers can identify and fix issues 10× faster. The investment of 3-4 hours today will save hundreds of hours in future debugging sessions.
+This epic delivers a comprehensive debugging toolkit that transforms Fidelity PlanAlign Engine development from reactive bug-hunting to proactive observability. With instant state inspection, dependency visualization, and performance profiling, developers can identify and fix issues 10× faster. The investment of 3-4 hours today will save hundreds of hours in future debugging sessions.
 
 ---
 
@@ -1448,9 +1448,9 @@ This epic delivers a comprehensive debugging toolkit that transforms PlanWise Na
 ### 📁 Files Created/Modified
 
 **New Files**:
-- `navigator_orchestrator/debug_utils.py` (523 lines)
+- `planalign_orchestrator/debug_utils.py` (523 lines)
   - DatabaseInspector, StateVisualizer, DependencyAnalyzer, CheckpointMetadata
-- `navigator_orchestrator/monitoring.py` (188 lines)
+- `planalign_orchestrator/monitoring.py` (188 lines)
   - ExecutionTracer, ExecutionTrace
 - `dbt/macros/debug_helpers.sql` (234 lines)
   - 12 SQL debugging macros (row_count, column_stats, duplicates, etc.)
@@ -1503,10 +1503,10 @@ All utilities tested and verified:
 **CLI Usage**:
 ```bash
 # Database inspection
-python -c "from navigator_orchestrator.debug_utils import DatabaseInspector; inspector = DatabaseInspector(); inspector.print_year_report(2025)"
+python -c "from planalign_orchestrator.debug_utils import DatabaseInspector; inspector = DatabaseInspector(); inspector.print_year_report(2025)"
 
 # Dependency analysis
-python -c "from navigator_orchestrator.debug_utils import DependencyAnalyzer; from pathlib import Path; analyzer = DependencyAnalyzer(Path('dbt')); analyzer.build_dependency_graph(); analyzer.print_dependency_report()"
+python -c "from planalign_orchestrator.debug_utils import DependencyAnalyzer; from pathlib import Path; analyzer = DependencyAnalyzer(Path('dbt')); analyzer.build_dependency_graph(); analyzer.print_dependency_report()"
 
 # Streamlit dashboard
 streamlit run streamlit_dashboard/pages/06_debug_dashboard.py

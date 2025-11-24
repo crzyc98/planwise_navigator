@@ -2,7 +2,7 @@
 
 ## Purpose
 
-The core operational scripts in `scripts/` provide essential utilities for managing PlanWise Navigator simulations, data operations, and system maintenance. These scripts serve as the primary interface for running simulations, validating data, and performing administrative tasks.
+The core operational scripts in `scripts/` provide essential utilities for managing Fidelity PlanAlign Engine simulations, data operations, and system maintenance. These scripts serve as the primary interface for running simulations, validating data, and performing administrative tasks.
 
 ## Architecture
 
@@ -21,7 +21,7 @@ The scripts implement a modular design with:
 ```python
 #!/usr/bin/env python3
 """
-PlanWise Navigator - Simulation Execution Script
+Fidelity PlanAlign Engine - Simulation Execution Script
 
 Usage:
     python scripts/run_simulation.py --config config/simulation_config.yaml
@@ -307,7 +307,7 @@ class SimulationRunner:
 
 def main():
     """Main entry point for simulation script"""
-    parser = argparse.ArgumentParser(description='Run PlanWise Navigator workforce simulation')
+    parser = argparse.ArgumentParser(description='Run Fidelity PlanAlign Engine workforce simulation')
 
     parser.add_argument(
         '--config', '-c',
@@ -415,7 +415,7 @@ if __name__ == "__main__":
 ```python
 #!/usr/bin/env python3
 """
-Data cleanup utility for PlanWise Navigator
+Data cleanup utility for Fidelity PlanAlign Engine
 
 Usage:
     python scripts/clean_simulation_data.py --all
@@ -513,7 +513,7 @@ class DataCleaner:
                 self.logger.warning(f"Could not clean {table}: {str(e)}")
 
 def main():
-    parser = argparse.ArgumentParser(description='Clean PlanWise Navigator simulation data')
+    parser = argparse.ArgumentParser(description='Clean Fidelity PlanAlign Engine simulation data')
 
     group = parser.add_mutually_exclusive_group(required=True)
     group.add_argument('--all', action='store_true', help='Clean all simulation data')

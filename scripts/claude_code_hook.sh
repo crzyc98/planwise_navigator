@@ -12,7 +12,7 @@
 set -e  # Exit on error
 
 # Configuration
-PROJECT_ROOT="/Users/nicholasamaral/planwise_navigator"
+PROJECT_ROOT="/Users/nicholasamaral/planalign_engine"
 SMART_WRAPPER="$PROJECT_ROOT/scripts/smart_command_wrapper.py"
 LOG_FILE="$PROJECT_ROOT/claude_code_hook.log"
 VERBOSE="${CLAUDE_HOOK_VERBOSE:-false}"

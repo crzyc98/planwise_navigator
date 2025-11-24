@@ -457,7 +457,7 @@ mv dbt/models/intermediate/int_enrollment_events_v2.sql \
 
 ```bash
 # Run full multi-year simulation
-planwise simulate 2025-2027 --verbose
+planalign simulate 2025-2027 --verbose
 
 # Validate enrollment architecture
 cd dbt && dbt run --select validate_enrollment_architecture --vars "simulation_year: 2025"

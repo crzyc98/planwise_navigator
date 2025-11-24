@@ -14,9 +14,9 @@
 - **Reason**: Dependencies broken upstream
 
 ### ❌ ATTEMPT 2: Pipeline Logic Fix
-- **Goal**: Fixed `navigator_orchestrator/pipeline.py` to not rebuild `int_baseline_workforce` for year 2+
+- **Goal**: Fixed `planalign_orchestrator/pipeline.py` to not rebuild `int_baseline_workforce` for year 2+
 - **Result**: FAILED - Didn't solve contribution issue
-- **Files Modified**: `navigator_orchestrator/pipeline.py`
+- **Files Modified**: `planalign_orchestrator/pipeline.py`
 
 ### ❌ ATTEMPT 3: Deferral Rate Query Fix (Gemini)
 - **Goal**: Fixed deferral rate lookup to find rates across years using ROW_NUMBER()
@@ -80,7 +80,7 @@ SELECT COUNT(*) FROM {{ ref('int_employee_compensation_by_year') }} WHERE simula
 ```
 
 ### FILES CURRENTLY MODIFIED (MAY NEED REVERTING)
-1. `navigator_orchestrator/pipeline.py` - conditional foundation models
+1. `planalign_orchestrator/pipeline.py` - conditional foundation models
 2. `int_employee_contributions.sql` - incremental config + deferral rate query + workforce source
 3. `int_deferral_rate_state_accumulator_v2.sql` - JOIN changes
 4. `config/simulation_config.yaml` - clear_mode settings
@@ -102,7 +102,7 @@ SELECT COUNT(*) FROM {{ ref('int_employee_compensation_by_year') }} WHERE simula
 3. **Consider bypassing the complex deferral rate architecture** - use a simple calculation temporarily
 
 **Key Files to Potentially Revert**:
-- `navigator_orchestrator/pipeline.py` (pipeline logic changes)
+- `planalign_orchestrator/pipeline.py` (pipeline logic changes)
 - `dbt/models/intermediate/events/int_employee_contributions.sql` (multiple attempts)
 - `dbt/models/intermediate/int_deferral_rate_state_accumulator_v2.sql` (JOIN changes)
 

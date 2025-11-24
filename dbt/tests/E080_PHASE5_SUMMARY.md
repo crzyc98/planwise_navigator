@@ -212,7 +212,7 @@ Maintained complex validation logic including:
 3. **Integration Testing**:
    ```bash
    # Run full simulation with tests
-   planwise simulate 2025 --verbose
+   planalign simulate 2025 --verbose
 
    # Verify test results in pipeline logs
    grep "Running test" artifacts/runs/*/run.log
@@ -229,7 +229,7 @@ Maintained complex validation logic including:
      +schema: test_failures  # Schema for failure tables
    ```
 
-2. **Navigator Orchestrator Integration**:
+2. **PlanAlign Orchestrator Integration**:
    - Update `DbtRunner` to execute tests in VALIDATION stage
    - Configure test severity levels (error vs warn) by test criticality
    - Set up test failure storage and reporting
@@ -366,7 +366,7 @@ Phase 5 successfully completed the E080 epic by converting all remaining validat
 The test-based validation framework is now ready for:
 1. Execution validation testing
 2. Performance benchmarking
-3. Navigator Orchestrator integration
+3. PlanAlign Orchestrator integration
 4. Production deployment
 
 **Status**: ✅ Phase 5 Complete - Ready for Testing & Integration

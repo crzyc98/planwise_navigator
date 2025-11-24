@@ -26,12 +26,12 @@
 
 1. **UI Search Pattern** (original):
    ```
-   /Users/nicholasamaral/planwise_navigator/.dagster/storage/*/advanced_optimization_engine
+   /Users/nicholasamaral/planalign_engine/.dagster/storage/*/advanced_optimization_engine
    ```
 
 2. **Actual Dagster Storage Location**:
    ```
-   /Users/nicholasamaral/Library/Mobile Documents/com~apple~CloudDocs/Development/planwise_navigator/.dagster/storage/advanced_optimization_engine
+   /Users/nicholasamaral/Library/Mobile Documents/com~apple~CloudDocs/Development/planalign_engine/.dagster/storage/advanced_optimization_engine
    ```
 
 **Key Insight:** Single asset materialization (`dagster asset materialize --select advanced_optimization_engine`) creates direct asset storage rather than run-specific directories, and Dagster was using the iCloud storage path.
@@ -84,8 +84,8 @@ Updated `load_optimization_results()` in `streamlit_dashboard/advanced_optimizat
 **Multiple Storage Locations:**
 ```python
 storage_bases = [
-    "/Users/nicholasamaral/planwise_navigator/.dagster/storage",
-    "/Users/nicholasamaral/Library/Mobile Documents/com~apple~CloudDocs/Development/planwise_navigator/.dagster/storage"
+    "/Users/nicholasamaral/planalign_engine/.dagster/storage",
+    "/Users/nicholasamaral/Library/Mobile Documents/com~apple~CloudDocs/Development/planalign_engine/.dagster/storage"
 ]
 
 # Temporary result paths

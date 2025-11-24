@@ -135,7 +135,7 @@ The framework needs maintenance (import path fixes) rather than new development.
 
 ## Next Steps
 
-With Epic E013 complete, the PlanWise Navigator simulation pipeline now has:
+With Epic E013 complete, the Fidelity PlanAlign Engine simulation pipeline now has:
 - **Modular architecture** ready for future enhancements
 - **Comprehensive validation framework** for ongoing development
 - **Complete documentation** for team onboarding and maintenance

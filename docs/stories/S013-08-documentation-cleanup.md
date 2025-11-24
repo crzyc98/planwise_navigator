@@ -7,7 +7,7 @@
 
 ## User Story
 
-**As a** PlanWise Navigator developer
+**As a** Fidelity PlanAlign Engine developer
 **I want** comprehensive documentation for the refactored pipeline architecture
 **So that** future developers can understand, maintain, and extend the modular simulation system
 

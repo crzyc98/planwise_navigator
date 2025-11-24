@@ -1,6 +1,6 @@
 # Story S038-04: Data Quality & Validation Framework
 
-**Epic**: E038 - Navigator Orchestrator Refactoring & Modularization
+**Epic**: E038 - PlanAlign Orchestrator Refactoring & Modularization
 **Story Points**: 3
 **Priority**: High
 **Status**: 🟠 In Progress
@@ -15,7 +15,7 @@ Create a comprehensive validation and data quality module that provides configur
 
 ## 📋 **User Story**
 
-As a **data analyst** using the PlanWise Navigator system,
+As a **data analyst** using the Fidelity PlanAlign Engine system,
 I want **automated data quality validation with configurable rules and clear error reporting**
 So that **I can trust simulation results and quickly identify data issues before they impact analysis**.
 
@@ -90,7 +90,7 @@ def test_validation_report_generation()
 
 ### 🔧 Implementation Progress
 
-- Added `navigator_orchestrator/validation.py` implementing:
+- Added `planalign_orchestrator/validation.py` implementing:
   - Core: `DataValidator`, `ValidationRule` protocol, `ValidationResult`, `ValidationSeverity`
   - Built-ins: `RowCountDriftRule`, `HireTerminationRatioRule`, `EventSequenceRule`, `EventSpikeRule`
   - Reporting helper: `DataValidator.to_report_dict(results)`
@@ -175,8 +175,8 @@ class DataValidator:
 ## 📘 **Usage Examples**
 
 ```python
-from navigator_orchestrator.utils import DatabaseConnectionManager
-from navigator_orchestrator.validation import (
+from planalign_orchestrator.utils import DatabaseConnectionManager
+from planalign_orchestrator.validation import (
     DataValidator,
     RowCountDriftRule,
     HireTerminationRatioRule,

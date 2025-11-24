@@ -12,7 +12,7 @@ from pathlib import Path
 
 def main():
     """Launch the compensation tuning Streamlit interface"""
-    print("🚀 Launching PlanWise Navigator Compensation Tuning Interface...")
+    print("🚀 Launching Fidelity PlanAlign Engine Compensation Tuning Interface...")
 
     # Change to the correct directory
     script_dir = Path(__file__).parent

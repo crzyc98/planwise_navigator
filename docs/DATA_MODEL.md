@@ -954,7 +954,7 @@ payload: Union[
 **Impact**: 375× performance improvement (60s → 0.16s)
 
 **Implementation**:
-- `navigator_orchestrator.polars_event_factory` for vectorized operations
+- `planalign_orchestrator.polars_event_factory` for vectorized operations
 - Parquet file output with ZSTD compression
 - dbt reads Parquet files instead of generating events in SQL
 
@@ -1060,8 +1060,8 @@ models:
 
 **Integration**:
 ```python
-from navigator_orchestrator import create_orchestrator
-from navigator_orchestrator.config import load_simulation_config
+from planalign_orchestrator import create_orchestrator
+from planalign_orchestrator.config import load_simulation_config
 
 config = load_simulation_config('config/simulation_config.yaml')
 orchestrator = create_orchestrator(config)
@@ -1079,10 +1079,10 @@ summary = orchestrator.execute_multi_year_simulation(
 
 **Commands**:
 ```bash
-planwise simulate 2025-2027              # Multi-year simulation
-planwise batch --scenarios baseline      # Batch processing
-planwise status --detailed               # System diagnostics
-planwise checkpoints list                # Recovery points
+planalign simulate 2025-2027              # Multi-year simulation
+planalign batch --scenarios baseline      # Batch processing
+planalign status --detailed               # System diagnostics
+planalign checkpoints list                # Recovery points
 ```
 
 ---

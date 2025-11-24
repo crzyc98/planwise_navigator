@@ -33,7 +33,7 @@ default,2025,5,hire,new_hire_salary_adjustment,1.20,1,2025-06-28,analyst
 
 ### Step 3: Apply Changes and Run Simulation
 ```bash
-cd /Users/nicholasamaral/planwise_navigator
+cd /Users/nicholasamaral/planalign_engine
 source venv/bin/activate
 cd dbt
 dbt seed --select comp_levers

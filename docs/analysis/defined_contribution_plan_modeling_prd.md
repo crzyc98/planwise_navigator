@@ -10,7 +10,7 @@
 ## 1. Executive Summary
 
 ### Product Vision
-Transform PlanWise Navigator into a comprehensive Total Rewards planning platform by adding sophisticated Defined Contribution (DC) retirement plan modeling capabilities. This extension will enable plan sponsors to instantly model the financial and participation impact of plan design changes through configuration-driven scenario analysis.
+Transform Fidelity PlanAlign Engine into a comprehensive Total Rewards planning platform by adding sophisticated Defined Contribution (DC) retirement plan modeling capabilities. This extension will enable plan sponsors to instantly model the financial and participation impact of plan design changes through configuration-driven scenario analysis.
 
 ### Strategic Value
 - **Unified Platform**: Single source of truth for workforce costs AND retirement benefits
@@ -139,7 +139,7 @@ plan_design:
 
 ## 4. Technical Architecture
 
-### 4.1 Integration with PlanWise Navigator
+### 4.1 Integration with Fidelity PlanAlign Engine
 
 #### Event Schema Extension
 ```python

@@ -313,7 +313,7 @@ def optimization_loop(scenario_id: str, targets: Dict[str, float]) -> Dict[str, 
 **Environment Variable Handling:**
 - **Lesson**: `DAGSTER_HOME` environment setup is critical for CLI execution
 - **Solution**: Explicit environment variable configuration in subprocess calls
-- **Pattern**: `env["DAGSTER_HOME"] = "/Users/nicholasamaral/planwise_navigator/.dagster"`
+- **Pattern**: `env["DAGSTER_HOME"] = "/Users/nicholasamaral/planalign_engine/.dagster"`
 
 **Error Handling Hierarchy:**
 - **Lesson**: Graceful degradation is essential for production reliability
