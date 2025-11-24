@@ -66,7 +66,7 @@ Do you need containerization?
    - Requires persistent filesystem
 
 2. **Checkpoint System**
-   - `.navigator_checkpoints/` directory for failure recovery
+   - `.planalign_checkpoints/` directory for failure recovery
    - Multi-year simulation resume capability
    - Requires persistent state across runs
 
@@ -84,7 +84,7 @@ Do you need containerization?
    ```
    planalign_engine/
    ├── dbt/simulation.duckdb        # PERSISTENT (67MB+)
-   ├── .navigator_checkpoints/      # PERSISTENT (recovery state)
+   ├── .planalign_checkpoints/      # PERSISTENT (recovery state)
    ├── data/parquet/events/         # PERSISTENT (Parquet outputs)
    ├── logs/                        # PERSISTENT (execution logs)
    └── outputs/                     # PERSISTENT (reports, Excel)
@@ -131,7 +131,7 @@ def get_database_path() -> Path:
 **Application Feature:**
 ```python
 # From planalign_orchestrator/pipeline_orchestrator.py
-self.checkpoints_dir = Path('.navigator_checkpoints')
+self.checkpoints_dir = Path('.planalign_checkpoints')
 self.checkpoints_dir.mkdir(exist_ok=True)
 ```
 
@@ -216,7 +216,7 @@ dbt/
 │  │  │   │ EBS Volume: 100GB gp3 SSD           │      │    │ │
 │  │  │   │ /home/ubuntu/planalign_engine/    │      │    │ │
 │  │  │   │  ├── dbt/simulation.duckdb          │      │    │ │
-│  │  │   │  ├── .navigator_checkpoints/        │      │    │ │
+│  │  │   │  ├── .planalign_checkpoints/        │      │    │ │
 │  │  │   │  ├── data/parquet/events/           │      │    │ │
 │  │  │   │  ├── logs/                          │      │    │ │
 │  │  │   │  └── outputs/                       │      │    │ │
@@ -692,7 +692,7 @@ planalign checkpoints status
 │  │   EFS: Persistent Storage                             │    │
 │  │   /mnt/data/                                          │    │
 │  │   ├── simulation.duckdb                               │    │
-│  │   ├── .navigator_checkpoints/                         │    │
+│  │   ├── .planalign_checkpoints/                         │    │
 │  │   └── outputs/                                        │    │
 │  └────────────────┬──────────────────────────────────────┘    │
 │                   │                                            │
@@ -825,7 +825,7 @@ aws efs create-mount-target \
       ],
       "environment": [
         {"name": "DATABASE_PATH", "value": "/mnt/data/simulation.duckdb"},
-        {"name": "CHECKPOINTS_DIR", "value": "/mnt/data/.navigator_checkpoints"}
+        {"name": "CHECKPOINTS_DIR", "value": "/mnt/data/.planalign_checkpoints"}
       ],
       "logConfiguration": {
         "logDriver": "awslogs",

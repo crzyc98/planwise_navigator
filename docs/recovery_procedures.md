@@ -95,10 +95,10 @@ python -m planalign_orchestrator.cli checkpoint cleanup --keep 3
 
 ### Checkpoint Storage
 
-Checkpoints are stored in `.navigator_checkpoints/` directory:
+Checkpoints are stored in `.planalign_checkpoints/` directory:
 
 ```
-.navigator_checkpoints/
+.planalign_checkpoints/
 ├── year_2025.checkpoint.gz    # Compressed checkpoint (preferred)
 ├── year_2025.json            # Legacy format (compatibility)
 ├── year_2026.checkpoint.gz
@@ -178,8 +178,8 @@ python -m planalign_orchestrator.cli run --years 2025-2029 --resume
 **Solution**:
 ```bash
 # Method 1: Delete specific checkpoints and resume
-rm .navigator_checkpoints/year_2027.*
-rm .navigator_checkpoints/year_2028.*
+rm .planalign_checkpoints/year_2027.*
+rm .planalign_checkpoints/year_2028.*
 python -m planalign_orchestrator.cli run --years 2025-2029 --resume
 
 # Method 2: Force restart from specific year
@@ -313,7 +313,7 @@ Recovery operations are logged to the standard Python logging system. Key log me
 ### Backup Strategy
 
 1. **Database backups**: Regular backups of `simulation.duckdb`
-2. **Checkpoint backups**: Include `.navigator_checkpoints/` in backup rotation
+2. **Checkpoint backups**: Include `.planalign_checkpoints/` in backup rotation
 3. **Configuration backups**: Backup `config/simulation_config.yaml`
 
 ### Development Workflow

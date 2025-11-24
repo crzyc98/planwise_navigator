@@ -24,7 +24,7 @@ class MigrationResult:
 
 
 class MigrationManager:
-    def __init__(self, *, checkpoints_dir: Path | str = Path(".navigator_checkpoints")):
+    def __init__(self, *, checkpoints_dir: Path | str = Path(".planalign_checkpoints")):
         self.checkpoints_dir = Path(checkpoints_dir)
 
     def validate_config_compatibility(self, config_path: Path | str) -> Dict[str, Any]:

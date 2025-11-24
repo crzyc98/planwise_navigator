@@ -475,7 +475,7 @@ class CheckpointCorruptionError(StateError):
                         "List checkpoints: planwise checkpoints list",
                         "Clean corrupted checkpoints: planwise checkpoints cleanup",
                         "Restart simulation from scratch (no --resume flag)",
-                        "If persistent, delete .navigator_checkpoints/ directory"
+                        "If persistent, delete .planalign_checkpoints/ directory"
                     ],
                     documentation_url="docs/recovery.md#checkpoint-corruption",
                     estimated_resolution_time="5 minutes"

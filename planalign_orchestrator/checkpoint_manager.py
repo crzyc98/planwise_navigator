@@ -34,7 +34,7 @@ class CheckpointManager:
 
     def __init__(
         self,
-        checkpoint_dir: str = ".navigator_checkpoints",
+        checkpoint_dir: str = ".planalign_checkpoints",
         db_path: Optional[str] = None,
     ):
         self.checkpoint_dir = Path(checkpoint_dir)

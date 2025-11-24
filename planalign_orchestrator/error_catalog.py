@@ -189,7 +189,7 @@ class ErrorCatalog:
                     steps=[
                         "List checkpoints: planwise checkpoints list",
                         "Clean checkpoints: planwise checkpoints cleanup",
-                        "Delete checkpoint dir: rm -rf .navigator_checkpoints/",
+                        "Delete checkpoint dir: rm -rf .planalign_checkpoints/",
                         "Restart simulation without --resume flag"
                     ],
                     estimated_resolution_time="5 minutes"

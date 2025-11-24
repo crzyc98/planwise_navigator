@@ -29,7 +29,7 @@ storage:
   reports_dir: "reports/performance"
 
   # Checkpoint storage for orchestrator
-  checkpoints_dir: ".navigator_checkpoints"
+  checkpoints_dir: ".planalign_checkpoints"
 
 # DuckDB Performance Configuration
 # E068E-aligned settings for 16 vCPU / 64GB target system

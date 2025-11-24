@@ -91,7 +91,7 @@ def test_progress_reporting_accuracy()
 
 ### 🔧 Implementation Progress
 
-- Added `planalign_orchestrator/pipeline.py` implementing stage-based orchestration with per-year validation and reporting, registry updates, parallel-safe event generation, and checkpoint files under `.navigator_checkpoints/`.
+- Added `planalign_orchestrator/pipeline.py` implementing stage-based orchestration with per-year validation and reporting, registry updates, parallel-safe event generation, and checkpoint files under `.planalign_checkpoints/`.
 - Added `tests/test_pipeline.py` covering multi-year coordination, CSV summary export, and checkpoint creation (with a dummy dbt runner).
 
 ## 📘 **Usage Examples**

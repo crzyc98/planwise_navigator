@@ -533,7 +533,7 @@ class CheckpointCorruptionError(StateError):
                         "List checkpoints: planalign checkpoints list",
                         "Clean corrupted checkpoints: planalign checkpoints cleanup",
                         "Restart simulation from scratch (no --resume flag)",
-                        "If persistent, delete .navigator_checkpoints/ directory"
+                        "If persistent, delete .planalign_checkpoints/ directory"
                     ],
                     documentation_url="docs/recovery.md#checkpoint-corruption",
                     estimated_resolution_time="5 minutes"
@@ -743,7 +743,7 @@ class ErrorCatalog:
                     steps=[
                         "List checkpoints: planalign checkpoints list",
                         "Clean checkpoints: planalign checkpoints cleanup",
-                        "Delete checkpoint dir: rm -rf .navigator_checkpoints/",
+                        "Delete checkpoint dir: rm -rf .planalign_checkpoints/",
                         "Restart simulation without --resume flag"
                     ],
                     estimated_resolution_time="5 minutes"

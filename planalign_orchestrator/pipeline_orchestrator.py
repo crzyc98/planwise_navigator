@@ -67,7 +67,7 @@ class PipelineOrchestrator:
         validator: DataValidator,
         *,
         reports_dir: Path | str = Path("reports"),
-        checkpoints_dir: Path | str = Path(".navigator_checkpoints"),
+        checkpoints_dir: Path | str = Path(".planalign_checkpoints"),
         verbose: bool = False,
         enhanced_checkpoints: bool = True,
     ):

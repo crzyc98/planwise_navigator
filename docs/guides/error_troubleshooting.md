@@ -186,7 +186,7 @@ Severity: ERROR | Category: state
 1. List checkpoints: `planalign checkpoints list`
 2. Clean corrupted checkpoints: `planalign checkpoints cleanup`
 3. Restart simulation from scratch (no --resume flag)
-4. If persistent, delete `.navigator_checkpoints/` directory
+4. If persistent, delete `.planalign_checkpoints/` directory
 
 **Estimated Time**: 5 minutes
 

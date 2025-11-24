@@ -71,7 +71,7 @@ from datetime import datetime
 from typing import Dict, Any, Optional
 
 class CheckpointManager:
-    def __init__(self, checkpoint_dir: str = ".navigator_checkpoints"):
+    def __init__(self, checkpoint_dir: str = ".planalign_checkpoints"):
         self.checkpoint_dir = Path(checkpoint_dir)
         self.checkpoint_dir.mkdir(exist_ok=True)
 

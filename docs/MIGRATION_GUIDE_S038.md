@@ -56,7 +56,7 @@ You can enforce these via `SimulationConfig.require_identifiers()` when needed.
 - Query counts from `fct_yearly_events` and `fct_workforce_snapshot` for key years and compare to legacy runner outputs.
 
 ## Checkpoints & Resume
-- Location: `.navigator_checkpoints/`
+- Location: `.planalign_checkpoints/`
 - Last checkpoint
   - `python -m planalign_orchestrator checkpoint -c config/simulation_config.yaml`
 - Clean/sanitize (basic)
@@ -65,7 +65,7 @@ You can enforce these via `SimulationConfig.require_identifiers()` when needed.
 ## Rollback Plan
 - The legacy `run_multi_year.py` remains unchanged; you can continue using it.
 - Keep `simulation_backup.duckdb` for safe fallback.
-- Clear `.navigator_checkpoints/` if resuming causes confusion (files are small JSONs).
+- Clear `.planalign_checkpoints/` if resuming causes confusion (files are small JSONs).
 
 ## Programmatic Usage (Factory)
 ```python
@@ -88,7 +88,7 @@ print(summary.growth_analysis)
 ## Troubleshooting
 - dbt not found: use `--dry-run` to validate orchestration without dbt, then ensure `dbt` is on PATH.
 - Stale checkpoints: run `MigrationManager().migrate_checkpoints()` to sanitize.
-- Permissions: ensure you can write to `reports/` and `.navigator_checkpoints/`.
+- Permissions: ensure you can write to `reports/` and `.planalign_checkpoints/`.
 
 ---
 For broader context and API details, see `planalign_orchestrator/README.md` and the S038 stories in `docs/stories/`.
