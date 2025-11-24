@@ -7,7 +7,7 @@
 
 ## User Story
 
-**As a** PlanWise Navigator developer
+**As a** Fidelity PlanAlign Engine developer
 **I want** the run_year_simulation operation refactored to use new modular components
 **So that** single-year and multi-year simulations share common logic and eliminate code duplication
 

@@ -1,9 +1,9 @@
-name: 'planwise_navigator'
-version: '1.0.0'
+name: 'fidelity_planalign_engine'
+version: '2.0.0'
 config-version: 2
 
 # Profile configuration
-profile: 'planwise_navigator'
+profile: 'fidelity_planalign_engine'
 
 # Directory configuration
 model-paths: ["models"]
@@ -20,7 +20,7 @@ clean-targets:
 
 # E068E: Model configuration with performance optimizations
 models:
-  planwise_navigator:
+  fidelity_planalign_engine:
     # Global model settings - default to view for memory efficiency
     +materialized: view
 
@@ -97,7 +97,7 @@ models:
 
 # E068E: Seeds configuration with performance optimizations
 seeds:
-  planwise_navigator:
+  fidelity_planalign_engine:
     # Global seed column types for performance
     +column_types:
       employee_id: varchar
@@ -151,14 +151,14 @@ seeds:
 
 # Snapshot configuration
 snapshots:
-  planwise_navigator:
+  fidelity_planalign_engine:
     +target_schema: main
     +strategy: timestamp
     +updated_at: updated_at
 
 # Data test configuration
 data_tests:
-  planwise_navigator:
+  fidelity_planalign_engine:
     +store_failures: true
     +schema: main
 
@@ -305,7 +305,7 @@ vars:
   min_headcount_threshold: 100
 
   # Database configuration
-  database_name: 'planwise_navigator'
+  database_name: 'fidelity_planalign_engine'
   schema_prefix: 'dbt_'
 
   # E068E: Performance optimization variables
@@ -358,15 +358,15 @@ on-run-start:
   - "SET memory_limit TO '48GB'"
 
   # Startup logging
-  - "{{ log('Starting dbt run for PlanWise Navigator with performance optimizations', info=True) }}"
+  - "{{ log('Starting dbt run for Fidelity PlanAlign Engine with performance optimizations', info=True) }}"
 
 on-run-end:
   # Cleanup and performance reporting
-  - "{{ log('Completed dbt run for PlanWise Navigator', info=True) }}"
+  - "{{ log('Completed dbt run for Fidelity PlanAlign Engine', info=True) }}"
 
 # Freshness configuration
 sources:
-  planwise_navigator:
+  fidelity_planalign_engine:
     +freshness:
       warn_after: {count: 24, period: hour}
       error_after: {count: 48, period: hour}

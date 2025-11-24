@@ -287,6 +287,6 @@ E079 has NOT been implemented as specified in the epic document. Recent changes 
 **Generated**: 2025-11-03
 **Author**: Claude Code (Performance Analysis Agent)
 **Data Sources**:
-- `/Users/nicholasamaral/planwise_navigator/artifacts/runs/20251002_094532-36dbaf17/`
-- `/Users/nicholasamaral/planwise_navigator/artifacts/runs/20251103_150929-e517a754/`
+- `/Users/nicholasamaral/planalign_engine/artifacts/runs/20251002_094532-36dbaf17/`
+- `/Users/nicholasamaral/planalign_engine/artifacts/runs/20251103_150929-e517a754/`
 - Git commit history (Oct 2 - Nov 3, 2025)

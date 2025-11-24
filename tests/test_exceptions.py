@@ -7,7 +7,7 @@ Tests exception serialization, context formatting, and resolution hints.
 from __future__ import annotations
 
 import pytest
-from navigator_orchestrator.exceptions import (
+from planalign_orchestrator.exceptions import (
     NavigatorError,
     ExecutionContext,
     ResolutionHint,

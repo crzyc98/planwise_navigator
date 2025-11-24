@@ -6,7 +6,7 @@ on:
     branches: [ main, master ]
     paths:
       - 'dbt/models/**'
-      - 'navigator_orchestrator/**'
+      - 'planalign_orchestrator/**'
       - 'scripts/**'
       - '.github/workflows/performance-benchmark.yml'
 
@@ -15,7 +15,7 @@ on:
     branches: [ main, master ]
     paths:
       - 'dbt/models/**'
-      - 'navigator_orchestrator/**'
+      - 'planalign_orchestrator/**'
       - 'scripts/**'
 
   # Schedule daily performance monitoring
@@ -114,7 +114,7 @@ jobs:
       run: |
         # Initialize database for benchmarking
         python -c "
-        from navigator_orchestrator.config import get_database_path
+        from planalign_orchestrator.config import get_database_path
         from pathlib import Path
         db_path = get_database_path()
         db_path.parent.mkdir(parents=True, exist_ok=True)

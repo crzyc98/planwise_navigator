@@ -39,7 +39,7 @@ While implementing S057 (realistic raise timing), Claude made unauthorized archi
 - **Change**: Made `int_workforce_previous_year` depend on `fct_workforce_snapshot`
 - **Files Modified**: `dbt/models/intermediate/int_workforce_previous_year.sql` line 37
 - **Impact**: Created dependency cycle preventing dbt compilation
-- **Error**: `Found a cycle: model.planwise_navigator.fct_workforce_snapshot --> model.planwise_navigator.int_workforce_previous_year`
+- **Error**: `Found a cycle: model.planalign_engine.fct_workforce_snapshot --> model.planalign_engine.int_workforce_previous_year`
 
 #### 4. Snapshot Strategy Changes (Overengineering)
 - **Change**: Modified snapshot strategy from `timestamp` to `check` then back

@@ -10,7 +10,7 @@ Allows you to adjust compensation parameters (COLA, merit rates) and immediately
 ## 1. Open the Parameter File
 ```bash
 # Navigate to the project directory
-cd /Users/nicholasamaral/planwise_navigator
+cd /Users/nicholasamaral/planalign_engine
 
 # Open the compensation parameters file
 open dbt/seeds/comp_levers.csv

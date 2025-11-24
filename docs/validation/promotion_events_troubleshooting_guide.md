@@ -1,6 +1,6 @@
 # Promotion Events Troubleshooting Guide
 
-This guide helps diagnose and resolve common issues with promotion event generation in the PlanWise Navigator MVP orchestrator.
+This guide helps diagnose and resolve common issues with promotion event generation in the Fidelity PlanAlign Engine MVP orchestrator.
 
 ## Table of Contents
 1. [Overview](#overview)

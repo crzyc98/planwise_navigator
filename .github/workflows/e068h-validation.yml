@@ -5,7 +5,7 @@ on:
     branches: [ main, develop ]
     paths:
       - 'dbt/**'
-      - 'navigator_orchestrator/**'
+      - 'planalign_orchestrator/**'
       - 'config/**'
       - 'scripts/**'
       - '.github/workflows/e068h-validation.yml'
@@ -96,7 +96,7 @@ jobs:
           required_paths = [
               'config/simulation_config.yaml',
               'dbt/dbt_project.yml',
-              'navigator_orchestrator/__init__.py',
+              'planalign_orchestrator/__init__.py',
               'scripts/scale_testing_framework.py',
               'scripts/parity_testing_framework.py',
               'scripts/e068h_ci_integration.py'

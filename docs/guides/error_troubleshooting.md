@@ -1,12 +1,12 @@
 # Error Troubleshooting Guide
 
-**PlanWise Navigator Enhanced Error Handling Framework (Epic E074)**
+**Fidelity PlanAlign Engine Enhanced Error Handling Framework (Epic E074)**
 
 ---
 
 ## Overview
 
-PlanWise Navigator implements a comprehensive structured error handling framework that provides:
+Fidelity PlanAlign Engine implements a comprehensive structured error handling framework that provides:
 
 - **Execution Context**: Every error includes year, stage, model, and configuration details
 - **Resolution Hints**: Actionable steps to resolve common issues
@@ -183,10 +183,10 @@ Severity: ERROR | Category: state
 ```
 
 **Resolution**:
-1. List checkpoints: `planwise checkpoints list`
-2. Clean corrupted checkpoints: `planwise checkpoints cleanup`
+1. List checkpoints: `planalign checkpoints list`
+2. Clean corrupted checkpoints: `planalign checkpoints cleanup`
 3. Restart simulation from scratch (no --resume flag)
-4. If persistent, delete `.navigator_checkpoints/` directory
+4. If persistent, delete `.planalign_checkpoints/` directory
 
 **Estimated Time**: 5 minutes
 
@@ -199,8 +199,8 @@ Severity: ERROR | Category: state
 ### Python API
 
 ```python
-from navigator_orchestrator.error_catalog import get_error_catalog
-from navigator_orchestrator.exceptions import (
+from planalign_orchestrator.error_catalog import get_error_catalog
+from planalign_orchestrator.exceptions import (
     NavigatorError,
     ExecutionContext,
     ErrorCategory,
@@ -225,7 +225,7 @@ for hint in hints:
 ### Creating Structured Exceptions
 
 ```python
-from navigator_orchestrator.exceptions import (
+from planalign_orchestrator.exceptions import (
     DbtExecutionError,
     ExecutionContext
 )
@@ -312,7 +312,7 @@ Follow the provided resolution steps in order. Most common errors have automated
 If the same error pattern occurs repeatedly:
 
 ```python
-from navigator_orchestrator.error_catalog import get_error_catalog
+from planalign_orchestrator.error_catalog import get_error_catalog
 
 catalog = get_error_catalog()
 stats = catalog.get_pattern_statistics()
@@ -341,7 +341,7 @@ pytest tests/test_exceptions.py -v
 pytest tests/test_error_catalog.py -v
 
 # Full test suite
-pytest tests/test_exceptions.py tests/test_error_catalog.py -v --cov=navigator_orchestrator/exceptions --cov=navigator_orchestrator/error_catalog
+pytest tests/test_exceptions.py tests/test_error_catalog.py -v --cov=planalign_orchestrator/exceptions --cov=planalign_orchestrator/error_catalog
 ```
 
 ### Expected Coverage
@@ -357,8 +357,8 @@ pytest tests/test_exceptions.py tests/test_error_catalog.py -v --cov=navigator_o
 ### Define Custom Pattern
 
 ```python
-from navigator_orchestrator.error_catalog import get_error_catalog, ErrorPattern
-from navigator_orchestrator.exceptions import ResolutionHint, ErrorCategory
+from planalign_orchestrator.error_catalog import get_error_catalog, ErrorPattern
+from planalign_orchestrator.exceptions import ResolutionHint, ErrorCategory
 import re
 
 # Get global catalog
@@ -395,7 +395,7 @@ catalog.add_pattern(custom_pattern)
 The error handling framework integrates with ObservabilityManager for structured logging:
 
 ```python
-from navigator_orchestrator.exceptions import NavigatorError, ExecutionContext
+from planalign_orchestrator.exceptions import NavigatorError, ExecutionContext
 
 # Errors are automatically logged with structured context
 try:

@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-Smart Command Wrapper for PlanWise Navigator
+Smart Command Wrapper for Fidelity PlanAlign Engine
 
 This wrapper eliminates trial-and-error command execution by:
 1. Validating the environment before executing any command
@@ -378,7 +378,7 @@ class SmartCommandWrapper:
         if not self._validated:
             self.validate_environment()
 
-        help_text = ["🔧 PlanWise Navigator Environment Setup Help", "=" * 50]
+        help_text = ["🔧 Fidelity PlanAlign Engine Environment Setup Help", "=" * 50]
 
         if self._validation_result:
             help_text.extend(
@@ -421,7 +421,7 @@ def main():
     import argparse
 
     parser = argparse.ArgumentParser(
-        description="Smart command wrapper for PlanWise Navigator",
+        description="Smart command wrapper for Fidelity PlanAlign Engine",
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog="""
 Examples:

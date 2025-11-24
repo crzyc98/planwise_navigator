@@ -57,7 +57,7 @@ LEFT JOIN baseline_scd baseline
 
 ```bash
 # Remove the problematic model
-rm /Users/nicholasamaral/planwise_navigator/dbt/models/intermediate/int_deferral_baseline_scd.sql
+rm /Users/nicholasamaral/planalign_engine/dbt/models/intermediate/int_deferral_baseline_scd.sql
 
 # Revert the state accumulator to working version
 git checkout HEAD -- dbt/models/intermediate/int_deferral_rate_state_accumulator.sql

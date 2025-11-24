@@ -2,7 +2,7 @@
 """
 Unified event model with Pydantic v2 discriminated unions for DC plan and workforce events.
 
-This module implements the enterprise-grade event sourcing architecture for PlanWise Navigator,
+This module implements the enterprise-grade event sourcing architecture for Fidelity PlanAlign Engine,
 providing type-safe event creation, validation, and processing for all workforce simulation
 and DC plan administration scenarios.
 

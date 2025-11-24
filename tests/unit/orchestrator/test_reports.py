@@ -2,11 +2,11 @@ from pathlib import Path
 
 import duckdb
 
-from navigator_orchestrator.reports import (EXECUTIVE_SUMMARY_TEMPLATE,
+from planalign_orchestrator.reports import (EXECUTIVE_SUMMARY_TEMPLATE,
                                             ConsoleReporter, MultiYearReporter,
                                             ReportTemplate, YearAuditor)
-from navigator_orchestrator.utils import DatabaseConnectionManager
-from navigator_orchestrator.validation import (DataValidator,
+from planalign_orchestrator.utils import DatabaseConnectionManager
+from planalign_orchestrator.validation import (DataValidator,
                                                HireTerminationRatioRule)
 
 

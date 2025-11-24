@@ -73,7 +73,7 @@ Options to close the gap:
 
 ### 1. Quick Test of Current State
 ```bash
-cd /Users/nicholasamaral/planwise_navigator
+cd /Users/nicholasamaral/planalign_engine
 source venv/bin/activate
 python scripts/analyze_compensation_growth.py
 ```

@@ -248,12 +248,12 @@ Events must be within simulation year boundaries.
 
 ---
 
-## Integration with Navigator Orchestrator
+## Integration with PlanAlign Orchestrator
 
 ### Option 1: Add to Validation Stage
 
 ```python
-# In navigator_orchestrator/pipeline/year_executor.py
+# In planalign_orchestrator/pipeline/year_executor.py
 def run_validation_stage(self, year: int):
     # Run critical tests only
     result = self.dbt_runner.execute_command(

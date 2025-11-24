@@ -1,6 +1,6 @@
 """
 Optimization Integration Utilities
-Provides integration between optimization interfaces and the PlanWise Navigator DuckDB system.
+Provides integration between optimization interfaces and the Fidelity PlanAlign Engine DuckDB system.
 
 This module handles:
 - DuckDB integration with existing simulation data
@@ -37,7 +37,7 @@ class DuckDBIntegration:
 
     def __init__(
         self,
-        db_path: str = "/Users/nicholasamaral/planwise_navigator/simulation.duckdb",
+        db_path: str = "/Users/nicholasamaral/planalign_engine/simulation.duckdb",
     ):
         """Initialize DuckDB integration."""
         self.db_path = Path(db_path)
@@ -310,7 +310,7 @@ class DuckDBIntegration:
 class OptimizationCache:
     """Caching system for optimization results and simulation data."""
 
-    def __init__(self, cache_dir: str = "/tmp/planwise_optimization_cache"):
+    def __init__(self, cache_dir: str = "/tmp/planalign_optimization_cache"):
         """Initialize the cache system."""
         self.cache_dir = Path(cache_dir)
         self.cache_dir.mkdir(exist_ok=True)

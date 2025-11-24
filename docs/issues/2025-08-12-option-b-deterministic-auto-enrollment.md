@@ -2,7 +2,7 @@
 
 - Status: implemented
 - Date: 2025-08-12
-- Owner: PlanWise Navigator (dbt + orchestrator)
+- Owner: Fidelity PlanAlign Engine (dbt + orchestrator)
 
 ## Summary
 

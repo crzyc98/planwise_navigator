@@ -1,4 +1,4 @@
-# PlanWise Navigator AWS Deployment Guide
+# Fidelity PlanAlign Engine AWS Deployment Guide
 
 **Version:** 1.0
 **Last Updated:** 2025-10-31
@@ -8,7 +8,7 @@
 
 ## Executive Summary
 
-This guide evaluates AWS deployment options for PlanWise Navigator, a workforce simulation platform with event sourcing architecture, DuckDB analytics engine, and Streamlit dashboard.
+This guide evaluates AWS deployment options for Fidelity PlanAlign Engine, a workforce simulation platform with event sourcing architecture, DuckDB analytics engine, and Streamlit dashboard.
 
 ### Key Findings
 
@@ -52,8 +52,8 @@ Do you need containerization?
 |-----------|-----------|---------|---------|
 | **Storage** | DuckDB | 1.0.0 | File-based OLAP database |
 | **Transformation** | dbt-core | 1.8.8 | SQL transformation pipeline |
-| **Orchestration** | navigator_orchestrator | Custom | Multi-year pipeline execution |
-| **CLI** | planwise_cli (Rich + Typer) | 1.0.0 | Command-line interface |
+| **Orchestration** | planalign_orchestrator | Custom | Multi-year pipeline execution |
+| **CLI** | planalign_cli (Rich + Typer) | 1.0.0 | Command-line interface |
 | **Dashboard** | Streamlit | 1.39.0 | Interactive analytics UI |
 | **Performance** | Polars | ≥0.20.0 | High-speed data processing |
 | **Python** | CPython | 3.11.x | Runtime environment |
@@ -66,7 +66,7 @@ Do you need containerization?
    - Requires persistent filesystem
 
 2. **Checkpoint System**
-   - `.navigator_checkpoints/` directory for failure recovery
+   - `.planalign_checkpoints/` directory for failure recovery
    - Multi-year simulation resume capability
    - Requires persistent state across runs
 
@@ -76,15 +76,15 @@ Do you need containerization?
    - Batch scenario processing (multiple sequential runs)
 
 4. **Multiple Interfaces**
-   - **CLI**: `planwise simulate 2025-2027`
+   - **CLI**: `planalign simulate 2025-2027`
    - **Dashboard**: Streamlit web UI on port 8501
-   - **Batch Processing**: `planwise batch --scenarios baseline high_growth`
+   - **Batch Processing**: `planalign batch --scenarios baseline high_growth`
 
 5. **File I/O Patterns**
    ```
-   planwise_navigator/
+   planalign_engine/
    ├── dbt/simulation.duckdb        # PERSISTENT (67MB+)
-   ├── .navigator_checkpoints/      # PERSISTENT (recovery state)
+   ├── .planalign_checkpoints/      # PERSISTENT (recovery state)
    ├── data/parquet/events/         # PERSISTENT (Parquet outputs)
    ├── logs/                        # PERSISTENT (execution logs)
    └── outputs/                     # PERSISTENT (reports, Excel)
@@ -100,7 +100,7 @@ Do you need containerization?
 
 **Application Requirement:**
 ```python
-# From navigator_orchestrator/config.py
+# From planalign_orchestrator/config.py
 def get_database_path() -> Path:
     """Get standardized database path..."""
     db_path = os.getenv('DATABASE_PATH', 'dbt/simulation.duckdb')
@@ -130,8 +130,8 @@ def get_database_path() -> Path:
 
 **Application Feature:**
 ```python
-# From navigator_orchestrator/pipeline_orchestrator.py
-self.checkpoints_dir = Path('.navigator_checkpoints')
+# From planalign_orchestrator/pipeline_orchestrator.py
+self.checkpoints_dir = Path('.planalign_checkpoints')
 self.checkpoints_dir.mkdir(exist_ok=True)
 ```
 
@@ -156,7 +156,7 @@ self.checkpoints_dir.mkdir(exist_ok=True)
 
 **Application Feature:** Beautiful terminal UI with progress bars, tables, colors
 ```bash
-planwise simulate 2025-2027
+planalign simulate 2025-2027
 # Shows: Rich progress bars, live updates, formatted tables
 ```
 
@@ -195,7 +195,7 @@ dbt/
 
 ### Bottom Line on SageMaker
 
-**Don't force-fit PlanWise Navigator into SageMaker.** It's designed for ML training workloads, not production data pipelines with persistent state requirements.
+**Don't force-fit Fidelity PlanAlign Engine into SageMaker.** It's designed for ML training workloads, not production data pipelines with persistent state requirements.
 
 ---
 
@@ -211,12 +211,12 @@ dbt/
 │  │              Private Subnet (10.0.1.0/24)                 │ │
 │  │                                                           │ │
 │  │  ┌─────────────────────────────────────────────────┐    │ │
-│  │  │   EC2: c6i.2xlarge (PlanWise Navigator)        │    │ │
+│  │  │   EC2: c6i.2xlarge (Fidelity PlanAlign Engine)        │    │ │
 │  │  │   ┌─────────────────────────────────────┐      │    │ │
 │  │  │   │ EBS Volume: 100GB gp3 SSD           │      │    │ │
-│  │  │   │ /home/ubuntu/planwise_navigator/    │      │    │ │
+│  │  │   │ /home/ubuntu/planalign_engine/    │      │    │ │
 │  │  │   │  ├── dbt/simulation.duckdb          │      │    │ │
-│  │  │   │  ├── .navigator_checkpoints/        │      │    │ │
+│  │  │   │  ├── .planalign_checkpoints/        │      │    │ │
 │  │  │   │  ├── data/parquet/events/           │      │    │ │
 │  │  │   │  ├── logs/                          │      │    │ │
 │  │  │   │  └── outputs/                       │      │    │ │
@@ -316,11 +316,11 @@ ssh -i your-key.pem ec2-user@<instance-private-ip>
 **Run setup script:**
 ```bash
 #!/bin/bash
-# setup_planwise_navigator.sh
+# setup_planalign_engine.sh
 
 set -e  # Exit on error
 
-echo "=== PlanWise Navigator Setup ==="
+echo "=== Fidelity PlanAlign Engine Setup ==="
 
 # Update system
 sudo yum update -y  # For Amazon Linux
@@ -337,8 +337,8 @@ echo 'export PATH="$HOME/.local/bin:$PATH"' >> ~/.bashrc
 
 # Clone repository
 cd /home/ec2-user  # Or /home/ubuntu for Ubuntu
-git clone https://github.com/crzyc98/planwise_navigator.git
-cd planwise_navigator
+git clone https://github.com/crzyc98/planalign_engine.git
+cd planalign_engine
 
 # Setup virtual environment
 uv venv .venv --python python3.11
@@ -348,7 +348,7 @@ source .venv/bin/activate
 uv pip install -e ".[dev]"
 
 # Verify installation
-planwise health
+planalign health
 
 echo "=== Setup Complete ==="
 echo "Next steps:"
@@ -363,15 +363,15 @@ echo "3. Configure CloudWatch monitoring"
 ```bash
 sudo tee /etc/systemd/system/streamlit-dashboard.service << 'EOF'
 [Unit]
-Description=PlanWise Navigator Streamlit Dashboard
+Description=Fidelity PlanAlign Engine Streamlit Dashboard
 After=network.target
 
 [Service]
 Type=simple
 User=ec2-user
-WorkingDirectory=/home/ec2-user/planwise_navigator
-Environment="PATH=/home/ec2-user/planwise_navigator/.venv/bin"
-ExecStart=/home/ec2-user/planwise_navigator/.venv/bin/streamlit run streamlit_dashboard/main.py --server.port=8501 --server.address=0.0.0.0
+WorkingDirectory=/home/ec2-user/planalign_engine
+Environment="PATH=/home/ec2-user/planalign_engine/.venv/bin"
+ExecStart=/home/ec2-user/planalign_engine/.venv/bin/streamlit run streamlit_dashboard/main.py --server.port=8501 --server.address=0.0.0.0
 Restart=always
 RestartSec=10
 
@@ -446,10 +446,10 @@ aws elbv2 create-listener \
 crontab -e
 
 # Add scheduled simulation (runs nightly at 2 AM)
-0 2 * * * cd /home/ec2-user/planwise_navigator && source .venv/bin/activate && planwise batch --scenarios baseline >> /var/log/planwise-batch.log 2>&1
+0 2 * * * cd /home/ec2-user/planalign_engine && source .venv/bin/activate && planalign batch --scenarios baseline >> /var/log/planwise-batch.log 2>&1
 
 # Add weekly comprehensive run (Sundays at midnight)
-0 0 * * 0 cd /home/ec2-user/planwise_navigator && source .venv/bin/activate && planwise simulate 2025-2030 --export-format excel >> /var/log/planwise-weekly.log 2>&1
+0 0 * * 0 cd /home/ec2-user/planalign_engine && source .venv/bin/activate && planalign simulate 2025-2030 --export-format excel >> /var/log/planwise-weekly.log 2>&1
 ```
 
 **Option B: EventBridge + Systems Manager (Production)**
@@ -461,9 +461,9 @@ Target: AWS Systems Manager Run Command
 Document: AWS-RunShellScript
 Parameters:
   commands:
-    - cd /home/ec2-user/planwise_navigator
+    - cd /home/ec2-user/planalign_engine
     - source .venv/bin/activate
-    - planwise batch --scenarios baseline high_growth
+    - planalign batch --scenarios baseline high_growth
   instanceIds:
     - i-xxxxx  # Your EC2 instance ID
 ```
@@ -495,7 +495,7 @@ sudo tee /opt/aws/amazon-cloudwatch-agent/etc/config.json << 'EOF'
       "files": {
         "collect_list": [
           {
-            "file_path": "/home/ec2-user/planwise_navigator/logs/*.log",
+            "file_path": "/home/ec2-user/planalign_engine/logs/*.log",
             "log_group_name": "/planwise/application",
             "log_stream_name": "{instance_id}"
           },
@@ -596,17 +596,17 @@ aws backup create-backup-selection --cli-input-json '{
 ssh -i your-key.pem ec2-user@<instance-ip>
 
 # Activate environment
-cd planwise_navigator
+cd planalign_engine
 source .venv/bin/activate
 
 # Run single simulation
-planwise simulate 2025-2027 --verbose
+planalign simulate 2025-2027 --verbose
 
 # Run batch scenarios
-planwise batch --scenarios baseline high_growth --export-format excel
+planalign batch --scenarios baseline high_growth --export-format excel
 
 # Check status
-planwise status --detailed
+planalign status --detailed
 ```
 
 **Scheduled Execution (Production):**
@@ -630,7 +630,7 @@ planwise status --detailed
 ssh -i your-key.pem ec2-user@<instance-ip>
 
 # Check application logs
-cd planwise_navigator
+cd planalign_engine
 tail -f logs/*.log
 
 # Check scheduled job logs
@@ -644,8 +644,8 @@ sudo journalctl -u streamlit-dashboard -f
 duckdb dbt/simulation.duckdb "SELECT COUNT(*) FROM fct_yearly_events"
 
 # Check checkpoints for recovery
-planwise checkpoints list
-planwise checkpoints status
+planalign checkpoints list
+planalign checkpoints status
 ```
 
 ### Cost Breakdown
@@ -692,7 +692,7 @@ planwise checkpoints status
 │  │   EFS: Persistent Storage                             │    │
 │  │   /mnt/data/                                          │    │
 │  │   ├── simulation.duckdb                               │    │
-│  │   ├── .navigator_checkpoints/                         │    │
+│  │   ├── .planalign_checkpoints/                         │    │
 │  │   └── outputs/                                        │    │
 │  └────────────────┬──────────────────────────────────────┘    │
 │                   │                                            │
@@ -825,7 +825,7 @@ aws efs create-mount-target \
       ],
       "environment": [
         {"name": "DATABASE_PATH", "value": "/mnt/data/simulation.duckdb"},
-        {"name": "CHECKPOINTS_DIR", "value": "/mnt/data/.navigator_checkpoints"}
+        {"name": "CHECKPOINTS_DIR", "value": "/mnt/data/.planalign_checkpoints"}
       ],
       "logConfiguration": {
         "logDriver": "awslogs",
@@ -1031,7 +1031,7 @@ aws ecs create-service \
 ### Phase 1: POC Deployment (1-2 weeks)
 
 **Objectives:**
-- Validate PlanWise Navigator functionality on AWS
+- Validate Fidelity PlanAlign Engine functionality on AWS
 - Test simulation performance on EC2
 - Verify dashboard accessibility
 
@@ -1110,7 +1110,7 @@ aws ecs create-service \
 **Application-Level Health:**
 ```bash
 # Run on EC2 instance
-planwise health
+planalign health
 
 # Expected output:
 # ✓ Python 3.11 installed
@@ -1126,7 +1126,7 @@ planwise health
 top
 
 # Disk space
-df -h /home/ec2-user/planwise_navigator
+df -h /home/ec2-user/planalign_engine
 
 # Database size
 du -sh dbt/simulation.duckdb
@@ -1162,7 +1162,7 @@ sudo systemctl status streamlit-dashboard
 ### Log Management
 
 **Log Locations:**
-- Application logs: `/home/ec2-user/planwise_navigator/logs/*.log`
+- Application logs: `/home/ec2-user/planalign_engine/logs/*.log`
 - Scheduled job logs: `/var/log/planwise-*.log`
 - Streamlit logs: `sudo journalctl -u streamlit-dashboard`
 - System logs: `/var/log/messages` or `/var/log/syslog`
@@ -1175,7 +1175,7 @@ sudo systemctl status streamlit-dashboard
       "files": {
         "collect_list": [
           {
-            "file_path": "/home/ec2-user/planwise_navigator/logs/*.log",
+            "file_path": "/home/ec2-user/planalign_engine/logs/*.log",
             "log_group_name": "/planwise/application",
             "log_stream_name": "{instance_id}"
           }
@@ -1245,7 +1245,7 @@ aws ec2 attach-volume \
 
 # 4. Mount volume and verify
 sudo mount /dev/sdf /mnt/recovery
-ls -la /mnt/recovery/planwise_navigator
+ls -la /mnt/recovery/planalign_engine
 
 # 5. Register with ALB
 aws elbv2 register-targets \
@@ -1277,7 +1277,7 @@ sudo yum update -y
 sudo systemctl restart streamlit-dashboard
 
 # 4. Verify functionality
-planwise health
+planalign health
 curl http://localhost:8501
 
 # 5. Re-register with ALB
@@ -1420,7 +1420,7 @@ dbt_threads: 2  # Down from 4
 
 **Executive Recommendation: Deploy on EC2 + EBS**
 
-PlanWise Navigator is a production data pipeline with persistent state requirements, not an ML training workload. AWS EC2 with EBS storage provides:
+Fidelity PlanAlign Engine is a production data pipeline with persistent state requirements, not an ML training workload. AWS EC2 with EBS storage provides:
 
 ✅ **Zero code changes** - works exactly as designed
 ✅ **Optimal performance** - local SSD for DuckDB

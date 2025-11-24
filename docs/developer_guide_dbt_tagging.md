@@ -2,7 +2,7 @@
 
 ## Overview
 
-This document establishes the tagging convention for dbt models in PlanWise Navigator to enable selective testing, deployment, and enhanced protection of critical data infrastructure.
+This document establishes the tagging convention for dbt models in Fidelity PlanAlign Engine to enable selective testing, deployment, and enhanced protection of critical data infrastructure.
 
 ## Tag Taxonomy
 

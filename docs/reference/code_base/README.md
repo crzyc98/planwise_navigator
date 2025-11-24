@@ -1,6 +1,6 @@
-# PlanWise Navigator - Code Base Documentation
+# Fidelity PlanAlign Engine - Code Base Documentation
 
-This directory contains comprehensive documentation for the most critical components of the PlanWise Navigator workforce simulation platform.
+This directory contains comprehensive documentation for the most critical components of the Fidelity PlanAlign Engine workforce simulation platform.
 
 ## Organization
 

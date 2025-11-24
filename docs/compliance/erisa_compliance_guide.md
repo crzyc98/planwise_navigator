@@ -8,7 +8,7 @@
 
 ## Executive Summary
 
-This guide provides comprehensive documentation of ERISA compliance for the PlanWise Navigator DC Plan Event Schema. It serves as the primary reference for benefits counsel review, regulatory audits, and ongoing compliance monitoring.
+This guide provides comprehensive documentation of ERISA compliance for the Fidelity PlanAlign Engine DC Plan Event Schema. It serves as the primary reference for benefits counsel review, regulatory audits, and ongoing compliance monitoring.
 
 ### Compliance Status Overview
 

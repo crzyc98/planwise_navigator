@@ -2,7 +2,7 @@
 
 ## Overview
 
-This guide documents the tagging conventions implemented for PlanWise Navigator's dbt models (Story S064). Tags enable selective testing, deployment, and enhanced protection of critical data infrastructure.
+This guide documents the tagging conventions implemented for Fidelity PlanAlign Engine's dbt models (Story S064). Tags enable selective testing, deployment, and enhanced protection of critical data infrastructure.
 
 ## Tag Categories
 

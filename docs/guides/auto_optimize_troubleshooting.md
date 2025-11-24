@@ -1,4 +1,4 @@
-# Auto-Optimize Troubleshooting Guide - PlanWise Navigator
+# Auto-Optimize Troubleshooting Guide - Fidelity PlanAlign Engine
 
 **Epic E012 Compensation Tuning System - S047 Optimization Engine**
 **Last Updated:** July 2025
@@ -8,7 +8,7 @@
 
 ## Overview
 
-This guide provides comprehensive troubleshooting information for PlanWise Navigator's Auto-Optimize system. It covers common issues, error patterns, diagnostic tools, and step-by-step resolution procedures.
+This guide provides comprehensive troubleshooting information for Fidelity PlanAlign Engine's Auto-Optimize system. It covers common issues, error patterns, diagnostic tools, and step-by-step resolution procedures.
 
 ### Quick Reference
 
@@ -31,7 +31,7 @@ Create a diagnostic script to check system health:
 ```python
 #!/usr/bin/env python3
 """
-PlanWise Navigator Auto-Optimize Health Check Script
+Fidelity PlanAlign Engine Auto-Optimize Health Check Script
 """
 
 import os
@@ -59,7 +59,7 @@ def check_environment():
         return False
 
     # Check database path
-    db_path = "/Users/nicholasamaral/planwise_navigator/simulation.duckdb"
+    db_path = "/Users/nicholasamaral/planalign_engine/simulation.duckdb"
     print(f"  Database: {db_path}")
     if not os.path.exists(db_path):
         print(f"  ⚠️  Database file not found: {db_path}")
@@ -104,7 +104,7 @@ def check_database_connection():
     try:
         import duckdb
 
-        db_path = "/Users/nicholasamaral/planwise_navigator/simulation.duckdb"
+        db_path = "/Users/nicholasamaral/planalign_engine/simulation.duckdb"
         conn = duckdb.connect(db_path)
 
         # Test basic query
@@ -214,7 +214,7 @@ def test_synthetic_optimization():
 
 def run_health_check():
     """Run complete health check."""
-    print("🏥 PlanWise Navigator Auto-Optimize Health Check")
+    print("🏥 Fidelity PlanAlign Engine Auto-Optimize Health Check")
     print("=" * 50)
 
     checks = [
@@ -387,7 +387,7 @@ print(f"Performance Summary: {performance_summary}")
    import duckdb
    import os
 
-   db_path = "/Users/nicholasamaral/planwise_navigator/simulation.duckdb"
+   db_path = "/Users/nicholasamaral/planalign_engine/simulation.duckdb"
 
    # Close any existing connections
    try:
@@ -411,7 +411,7 @@ print(f"Performance Summary: {performance_summary}")
 1. **Check Database Path:**
    ```python
    import os
-   db_path = "/Users/nicholasamaral/planwise_navigator/simulation.duckdb"
+   db_path = "/Users/nicholasamaral/planalign_engine/simulation.duckdb"
    if not os.path.exists(db_path):
        print(f"Database not found at: {db_path}")
        # Run initial simulation to create database
@@ -419,7 +419,7 @@ print(f"Performance Summary: {performance_summary}")
 
 2. **Initialize Database:**
    ```bash
-   cd /Users/nicholasamaral/planwise_navigator
+   cd /Users/nicholasamaral/planalign_engine
    dagster asset materialize --select simulation_year_state -f definitions.py
    ```
 
@@ -1202,7 +1202,7 @@ except Exception as e:
     fi
 
     # Check disk space
-    disk_usage=$(df /Users/nicholasamaral/planwise_navigator | tail -1 | awk '{print $5}' | sed 's/%//')
+    disk_usage=$(df /Users/nicholasamaral/planalign_engine | tail -1 | awk '{print $5}' | sed 's/%//')
     if [ "$disk_usage" -gt 85 ]; then
         echo "⚠️  High disk usage: ${disk_usage}%"
     fi
@@ -1488,4 +1488,4 @@ print("📦 Support package created: support_package.json")
 
 ---
 
-*This troubleshooting guide is part of the PlanWise Navigator E012 Compensation Tuning System documentation suite.*
+*This troubleshooting guide is part of the Fidelity PlanAlign Engine E012 Compensation Tuning System documentation suite.*

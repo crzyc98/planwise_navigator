@@ -6,7 +6,7 @@
 
 ## Executive Summary
 
-This design implements automatic annual deferral rate escalation for 401(k) plan participants using PlanWise Navigator's existing event sourcing architecture. The solution leverages established patterns from merit increase events and enrollment state management to provide robust, auditable deferral rate increases while maintaining multi-year simulation consistency.
+This design implements automatic annual deferral rate escalation for 401(k) plan participants using Fidelity PlanAlign Engine's existing event sourcing architecture. The solution leverages established patterns from merit increase events and enrollment state management to provide robust, auditable deferral rate increases while maintaining multi-year simulation consistency.
 
 ## Architecture Overview
 
@@ -191,4 +191,4 @@ Added to `comp_levers.csv` with validation:
 - **Integration**: Perfect rate consistency between escalation and contribution models
 - **Usability**: Analysts can modify escalation parameters without code changes
 
-This design provides a production-ready, enterprise-grade solution for automatic deferral rate escalation that seamlessly integrates with PlanWise Navigator's existing architecture while maintaining the highest standards for performance, data quality, and audit compliance.
+This design provides a production-ready, enterprise-grade solution for automatic deferral rate escalation that seamlessly integrates with Fidelity PlanAlign Engine's existing architecture while maintaining the highest standards for performance, data quality, and audit compliance.

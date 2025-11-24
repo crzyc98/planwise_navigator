@@ -58,7 +58,7 @@ The fix also resolved related issues:
 ## Solution Implemented
 
 ### **1. Fixed Overlapping Period Logic**
-**File**: `/Users/nicholasamaral/planwise_navigator/dbt/models/marts/fct_workforce_snapshot.sql`
+**File**: `/Users/nicholasamaral/planalign_engine/dbt/models/marts/fct_workforce_snapshot.sql`
 
 **Key Changes**:
 ```sql

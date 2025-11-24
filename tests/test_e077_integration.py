@@ -15,9 +15,9 @@ from pathlib import Path
 import polars as pl
 import pytest
 
-from navigator_orchestrator.workforce_planning_engine import WorkforcePlanningEngine
-from navigator_orchestrator.polars_integration import PolarsIntegrationManager
-from navigator_orchestrator.config import SimulationConfig, load_simulation_config
+from planalign_orchestrator.workforce_planning_engine import WorkforcePlanningEngine
+from planalign_orchestrator.polars_integration import PolarsIntegrationManager
+from planalign_orchestrator.config import SimulationConfig, load_simulation_config
 
 
 @pytest.fixture

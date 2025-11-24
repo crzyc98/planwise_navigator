@@ -42,7 +42,7 @@ jobs:
         run: |
           black --check .
           ruff check .
-          mypy planwise_navigator/ --ignore-missing-imports
+          mypy planalign_engine/ --ignore-missing-imports
 
   test:
     runs-on: ubuntu-latest
@@ -72,7 +72,7 @@ jobs:
 
       - name: Run Python tests
         run: |
-          pytest tests/ -v --cov=planwise_navigator --cov-report=xml
+          pytest tests/ -v --cov=planalign_engine --cov-report=xml
 
       - name: Run dbt tests
         run: |

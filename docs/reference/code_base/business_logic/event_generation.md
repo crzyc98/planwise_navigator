@@ -2,7 +2,7 @@
 
 ## Purpose
 
-The event generation models in `dbt/models/intermediate/events/` represent the core business logic of PlanWise Navigator, implementing sophisticated algorithms to generate realistic workforce events (hiring, promotions, terminations, merit raises) based on probabilistic models and business constraints.
+The event generation models in `dbt/models/intermediate/events/` represent the core business logic of Fidelity PlanAlign Engine, implementing sophisticated algorithms to generate realistic workforce events (hiring, promotions, terminations, merit raises) based on probabilistic models and business constraints.
 
 ## Architecture
 

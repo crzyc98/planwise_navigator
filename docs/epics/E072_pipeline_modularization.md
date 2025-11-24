@@ -44,7 +44,7 @@ Successfully transformed the 2,478-line monolithic `pipeline.py` into a **modula
 # 6. Give up and ask another developer
 
 # Target state: Finding stage execution logic
-# 1. Open navigator_orchestrator/pipeline/execution.py (300 lines)
+# 1. Open planalign_orchestrator/pipeline/execution.py (300 lines)
 # 2. Find execute_year_workflow() in focused module
 # 3. Clear dependencies on workflow.py and state_manager.py
 # 4. Understand logic in minutes, not hours
@@ -70,7 +70,7 @@ Successfully transformed the 2,478-line monolithic `pipeline.py` into a **modula
 ### Before: Monolithic State (2,478 lines)
 
 ```
-navigator_orchestrator/
+planalign_orchestrator/
 ├── pipeline.py (2,478 lines) 💀
 │   ├── WorkflowStage (Enum)
 │   ├── StageDefinition (Dataclass)
@@ -95,7 +95,7 @@ navigator_orchestrator/
 ### ✅ After: Modular Package (Achieved)
 
 ```
-navigator_orchestrator/
+planalign_orchestrator/
 ├── pipeline/                           # NEW: Pipeline package
 │   ├── __init__.py                    # Public API exports (50 lines)
 │   │   └── Exports: PipelineOrchestrator, WorkflowStage, StageDefinition
@@ -212,7 +212,7 @@ Extract workflow stage definitions and workflow building logic into dedicated mo
 
 ### Technical Approach
 
-**Create**: `navigator_orchestrator/pipeline/workflow.py`
+**Create**: `planalign_orchestrator/pipeline/workflow.py`
 
 ```python
 """
@@ -371,7 +371,7 @@ Extract year and stage execution logic into dedicated module, separating "how to
 
 ### Technical Approach
 
-**Create**: `navigator_orchestrator/pipeline/execution.py`
+**Create**: `planalign_orchestrator/pipeline/execution.py`
 
 ```python
 """
@@ -683,7 +683,7 @@ Extract checkpoint and state management logic into dedicated module, separating 
 
 ### Technical Approach
 
-**Create**: `navigator_orchestrator/pipeline/state_manager.py`
+**Create**: `planalign_orchestrator/pipeline/state_manager.py`
 
 ```python
 """
@@ -880,7 +880,7 @@ Extract implicit hook system into explicit, testable hook manager, enabling exte
 
 ### Technical Approach
 
-**Create**: `navigator_orchestrator/pipeline/hooks.py`
+**Create**: `planalign_orchestrator/pipeline/hooks.py`
 
 ```python
 """
@@ -1040,7 +1040,7 @@ Extract data cleanup operations into dedicated module, providing clear interface
 
 ### Technical Approach
 
-**Create**: `navigator_orchestrator/pipeline/data_cleanup.py`
+**Create**: `planalign_orchestrator/pipeline/data_cleanup.py`
 
 ```python
 """
@@ -1170,7 +1170,7 @@ Create thin orchestrator coordinator that composes modular components, replacing
 
 ### Technical Approach
 
-**Create**: `navigator_orchestrator/pipeline/orchestrator.py`
+**Create**: `planalign_orchestrator/pipeline/orchestrator.py`
 
 ```python
 """
@@ -1225,7 +1225,7 @@ class PipelineOrchestrator:
         validator: DataValidator,
         *,
         reports_dir: Path | str = Path("reports"),
-        checkpoints_dir: Path | str = Path(".navigator_checkpoints"),
+        checkpoints_dir: Path | str = Path(".planalign_checkpoints"),
         verbose: bool = False,
         enhanced_checkpoints: bool = True,
     ):
@@ -1382,7 +1382,7 @@ Create package `__init__.py`, backward compatibility shim, and comprehensive int
 
 ### Technical Approach
 
-**Create**: `navigator_orchestrator/pipeline/__init__.py`
+**Create**: `planalign_orchestrator/pipeline/__init__.py`
 
 ```python
 """
@@ -1405,8 +1405,8 @@ Public API:
     - WorkflowCheckpoint: Checkpoint dataclass
 
 Example:
-    >>> from navigator_orchestrator.pipeline import PipelineOrchestrator
-    >>> from navigator_orchestrator import create_orchestrator
+    >>> from planalign_orchestrator.pipeline import PipelineOrchestrator
+    >>> from planalign_orchestrator import create_orchestrator
     >>> orchestrator = create_orchestrator(config)
     >>> summary = orchestrator.execute_multi_year_simulation(2025, 2027)
 """
@@ -1450,17 +1450,17 @@ __all__ = [
 ]
 ```
 
-**Update**: `navigator_orchestrator/pipeline.py` (backward compatibility shim)
+**Update**: `planalign_orchestrator/pipeline.py` (backward compatibility shim)
 
 ```python
 """
-DEPRECATED: pipeline.py - Use navigator_orchestrator.pipeline package instead
+DEPRECATED: pipeline.py - Use planalign_orchestrator.pipeline package instead
 
 This module provides backward compatibility for existing imports:
-    from navigator_orchestrator.pipeline import PipelineOrchestrator
+    from planalign_orchestrator.pipeline import PipelineOrchestrator
 
 New code should use:
-    from navigator_orchestrator.pipeline import PipelineOrchestrator
+    from planalign_orchestrator.pipeline import PipelineOrchestrator
 
 This shim will be removed in version 2.0.0.
 """
@@ -1468,15 +1468,15 @@ This shim will be removed in version 2.0.0.
 import warnings
 
 warnings.warn(
-    "Direct import from navigator_orchestrator.pipeline is deprecated. "
-    "Use 'from navigator_orchestrator.pipeline import PipelineOrchestrator' instead. "
+    "Direct import from planalign_orchestrator.pipeline is deprecated. "
+    "Use 'from planalign_orchestrator.pipeline import PipelineOrchestrator' instead. "
     "This compatibility shim will be removed in version 2.0.0.",
     DeprecationWarning,
     stacklevel=2
 )
 
 # Re-export all public API for backward compatibility
-from navigator_orchestrator.pipeline import (
+from planalign_orchestrator.pipeline import (
     PipelineOrchestrator,
     WorkflowStage,
     StageDefinition,
@@ -1499,26 +1499,26 @@ __all__ = [
 """Integration tests for modular pipeline package."""
 
 import pytest
-from navigator_orchestrator.pipeline import (
+from planalign_orchestrator.pipeline import (
     PipelineOrchestrator,
     WorkflowStage,
     StageDefinition,
     WorkflowBuilder,
 )
-from navigator_orchestrator import create_orchestrator
-from navigator_orchestrator.config import load_simulation_config
+from planalign_orchestrator import create_orchestrator
+from planalign_orchestrator.config import load_simulation_config
 
 
 def test_backward_compatibility():
     """Verify old imports still work with deprecation warning."""
     with pytest.warns(DeprecationWarning):
         # Old import path should still work
-        from navigator_orchestrator.pipeline import PipelineOrchestrator
+        from planalign_orchestrator.pipeline import PipelineOrchestrator
 
 
 def test_pipeline_package_imports():
     """Verify all package exports are accessible."""
-    from navigator_orchestrator.pipeline import (
+    from planalign_orchestrator.pipeline import (
         PipelineOrchestrator,
         WorkflowStage,
         StageDefinition,
@@ -1587,50 +1587,50 @@ Execute stories sequentially to minimize risk and enable incremental testing:
 ```bash
 # Day 1: Foundation (2 hours)
 # Story S072-01: Extract Workflow Definitions (45 min)
-- Create navigator_orchestrator/pipeline/workflow.py
+- Create planalign_orchestrator/pipeline/workflow.py
 - Extract WorkflowStage, StageDefinition, WorkflowCheckpoint
 - Extract _define_year_workflow() → WorkflowBuilder
 - Test: pytest tests/test_pipeline_workflow.py
 
 # Story S072-02: Extract Execution Logic (60 min)
-- Create navigator_orchestrator/pipeline/execution.py
+- Create planalign_orchestrator/pipeline/execution.py
 - Extract YearExecutor and EventGenerationExecutor
 - Move all stage and event execution methods
 - Test: pytest tests/test_pipeline_execution.py
 
 # Day 1: State & Hooks (1.5 hours)
 # Story S072-03: Extract State Management (45 min)
-- Create navigator_orchestrator/pipeline/state_manager.py
+- Create planalign_orchestrator/pipeline/state_manager.py
 - Extract StateManager and RegistryCoordinator
 - Move checkpoint and cleanup methods
 - Test: pytest tests/test_pipeline_state.py
 
 # Story S072-04: Extract Hooks System (30 min)
-- Create navigator_orchestrator/pipeline/hooks.py
+- Create planalign_orchestrator/pipeline/hooks.py
 - Create HookManager with explicit hook registration
 - Test: pytest tests/test_pipeline_hooks.py
 
 # Story S072-05: Extract Data Cleanup (30 min)
-- Create navigator_orchestrator/pipeline/data_cleanup.py
+- Create planalign_orchestrator/pipeline/data_cleanup.py
 - Extract DataCleanupManager
 - Test: pytest tests/test_pipeline_cleanup.py
 
 # Day 1: Integration (1.5 hours)
 # Story S072-06: Create Orchestrator Coordinator (60 min)
-- Create navigator_orchestrator/pipeline/orchestrator.py
+- Create planalign_orchestrator/pipeline/orchestrator.py
 - Refactor PipelineOrchestrator to use modular components
 - Update execute_multi_year_simulation() to delegate
 - Test: pytest tests/test_pipeline_orchestrator.py
 
 # Story S072-07: Package Integration & Testing (30 min)
-- Create navigator_orchestrator/pipeline/__init__.py
+- Create planalign_orchestrator/pipeline/__init__.py
 - Create backward compatibility shim in pipeline.py
 - Run full integration test suite
 - Verify no regressions
 
 # Final Validation
-pytest tests/test_pipeline_*.py -v --cov=navigator_orchestrator.pipeline
-python -m navigator_orchestrator run --years 2025 --verbose  # Smoke test
+pytest tests/test_pipeline_*.py -v --cov=planalign_orchestrator.pipeline
+python -m planalign_orchestrator run --years 2025 --verbose  # Smoke test
 ```
 
 ---
@@ -1696,16 +1696,16 @@ def test_hook_extensibility():
 
 ```bash
 # Run full test suite to verify no regressions
-pytest tests/ -v --cov=navigator_orchestrator.pipeline --cov-report=term-missing
+pytest tests/ -v --cov=planalign_orchestrator.pipeline --cov-report=term-missing
 
 # Run existing multi-year simulation tests
 pytest tests/test_multi_year_simulation.py -v
 
 # Smoke test with actual simulation
-python -m navigator_orchestrator run --years 2025 2026 --verbose
+python -m planalign_orchestrator run --years 2025 2026 --verbose
 
 # Verify batch scenarios still work
-python -m navigator_orchestrator batch --scenarios baseline --verbose
+python -m planalign_orchestrator batch --scenarios baseline --verbose
 ```
 
 ---
@@ -1789,7 +1789,7 @@ The pipeline orchestration system is organized as a modular package with clear s
 #### **Package Structure**
 
 ```
-navigator_orchestrator/pipeline/
+planalign_orchestrator/pipeline/
 ├── __init__.py          # Public API exports
 ├── workflow.py          # Stage definitions and workflow building
 ├── execution.py         # Year and stage execution logic
@@ -1803,14 +1803,14 @@ navigator_orchestrator/pipeline/
 
 ```python
 # Main orchestrator (most common usage)
-from navigator_orchestrator.pipeline import PipelineOrchestrator
-from navigator_orchestrator import create_orchestrator
+from planalign_orchestrator.pipeline import PipelineOrchestrator
+from planalign_orchestrator import create_orchestrator
 
 # Workflow components
-from navigator_orchestrator.pipeline import WorkflowStage, StageDefinition
+from planalign_orchestrator.pipeline import WorkflowStage, StageDefinition
 
 # Advanced usage: Custom hooks
-from navigator_orchestrator.pipeline import HookManager, Hook, HookType
+from planalign_orchestrator.pipeline import HookManager, Hook, HookType
 ```
 
 #### **Module Responsibilities**
@@ -1919,4 +1919,4 @@ The refactored codebase is:
 
 ---
 
-*This epic successfully transformed PlanWise Navigator's pipeline architecture from a 2,478-line monolith into a maintainable, modular system that accelerates development velocity and improves code quality. All 7 stories completed in 4 hours with 100% backward compatibility and zero performance regression.*
+*This epic successfully transformed Fidelity PlanAlign Engine's pipeline architecture from a 2,478-line monolith into a maintainable, modular system that accelerates development velocity and improves code quality. All 7 stories completed in 4 hours with 100% backward compatibility and zero performance regression.*

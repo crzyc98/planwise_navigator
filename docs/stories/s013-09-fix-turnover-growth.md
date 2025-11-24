@@ -7,7 +7,7 @@
 
 ## User Story
 
-**As a** PlanWise Navigator developer
+**As a** Fidelity PlanAlign Engine developer
 **I want** to resolve the exponential growth issue in workforce simulation
 **So that** the simulation produces consistent 3% annual growth as intended
 

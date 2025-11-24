@@ -358,4 +358,4 @@ class RiskLevel(Enum):
 
 ---
 
-*This session successfully transforms the PlanWise Navigator compensation optimization from a simple iterative adjustment tool into an enterprise-grade multi-objective optimization platform with sophisticated risk management and evidence generation capabilities.*
+*This session successfully transforms the Fidelity PlanAlign Engine compensation optimization from a simple iterative adjustment tool into an enterprise-grade multi-objective optimization platform with sophisticated risk management and evidence generation capabilities.*

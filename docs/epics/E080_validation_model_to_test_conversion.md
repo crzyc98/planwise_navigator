@@ -12,7 +12,7 @@
 
 ## Executive Summary
 
-PlanWise Navigator currently runs **24 validation models as regular dbt models**, materializing tables on every simulation run. This creates significant overhead:
+Fidelity PlanAlign Engine currently runs **24 validation models as regular dbt models**, materializing tables on every simulation run. This creates significant overhead:
 - **Current overhead**: 195-273 seconds total (65-91s with threading)
 - **After conversion**: 20-39 seconds total (7-13s with threading)
 - **Net savings**: **55-77 seconds per simulation** (1 minute faster!)
@@ -151,7 +151,7 @@ Total: 188s (23% faster!)
 ### Success Criteria
 - [ ] **Performance**: Validation overhead reduced from 65-91s → 7-13s (90% improvement)
 - [ ] **Correctness**: All tests pass/fail identically to previous models
-- [ ] **Integration**: Tests integrate with Navigator Orchestrator pipeline
+- [ ] **Integration**: Tests integrate with PlanAlign Orchestrator pipeline
 - [ ] **Documentation**: All tests documented with clear failure messages
 - [ ] **Zero Regression**: No impact on simulation accuracy or determinism
 
@@ -449,12 +449,12 @@ SELECT 'test', COUNT(*) FROM test_failures.test_new_hire_match_validation
 
 ### Phase 6: Integration Testing (30 minutes)
 
-**Goal**: Ensure tests integrate with Navigator Orchestrator pipeline
+**Goal**: Ensure tests integrate with PlanAlign Orchestrator pipeline
 
 **Tasks**:
 1. [ ] Run full simulation with tests:
    ```bash
-   planwise simulate 2025-2027 --verbose
+   planalign simulate 2025-2027 --verbose
    ```
 
 2. [ ] Verify test execution in pipeline logs:
@@ -483,7 +483,7 @@ SELECT 'test', COUNT(*) FROM test_failures.test_new_hire_match_validation
 - [ ] Test failures don't block pipeline (severity: warn)
 - [ ] Test results logged to artifacts
 - [ ] Failed test details stored in `test_failures` schema
-- [ ] Navigator Orchestrator reports test summary
+- [ ] PlanAlign Orchestrator reports test summary
 
 ---
 
@@ -494,10 +494,10 @@ SELECT 'test', COUNT(*) FROM test_failures.test_new_hire_match_validation
 **Benchmark Plan**:
 ```bash
 # 1. Baseline with validation models (before)
-time planwise simulate 2025-2027
+time planalign simulate 2025-2027
 
 # 2. After conversion to tests
-time planwise simulate 2025-2027
+time planalign simulate 2025-2027
 
 # 3. Extract validation timing
 grep "stage:validation" artifacts/runs/*/performance.json
@@ -542,7 +542,7 @@ grep "stage:validation" artifacts/runs/*/performance.json
    ```yaml
    # Remove data_quality model configs
    models:
-     planwise_navigator:
+     planalign_engine:
        marts:
          data_quality:  # DELETE THIS SECTION
    ```
@@ -619,7 +619,7 @@ Verify tests integrate with pipeline execution.
 **Test Cases**:
 1. **Happy Path**: All tests pass
    ```bash
-   planwise simulate 2025 --verbose
+   planalign simulate 2025 --verbose
    # Expected: All tests PASS, no pipeline errors
    ```
 
@@ -649,13 +649,13 @@ Ensure no impact on simulation results.
 **Test Procedure**:
 ```bash
 # 1. Run full simulation with old models
-planwise simulate 2025-2027 > baseline_results.txt
+planalign simulate 2025-2027 > baseline_results.txt
 
 # 2. Convert to tests
 # (implementation)
 
 # 3. Run full simulation with tests
-planwise simulate 2025-2027 > new_results.txt
+planalign simulate 2025-2027 > new_results.txt
 
 # 4. Compare simulation outputs
 diff baseline_results.txt new_results.txt
@@ -690,14 +690,14 @@ rm -rf dbt/tests/analysis/
 cd dbt && dbt run --select tag:data_quality
 
 # 4. Resume normal operations
-planwise simulate 2025-2027
+planalign simulate 2025-2027
 ```
 
 **Rollback Triggers**:
 - ❌ Tests produce different results than models
 - ❌ Tests cause pipeline failures
 - ❌ Performance degrades instead of improves
-- ❌ Tests don't integrate with Navigator Orchestrator
+- ❌ Tests don't integrate with PlanAlign Orchestrator
 
 ---
 
@@ -748,7 +748,7 @@ cd dbt && dbt run --select dq_xxx
 
 ### Risk 3: Pipeline Integration Failure
 
-**Risk**: Tests might not integrate with Navigator Orchestrator
+**Risk**: Tests might not integrate with PlanAlign Orchestrator
 **Probability**: Low
 **Impact**: Medium
 
@@ -1113,7 +1113,7 @@ Track implementation progress and performance impact:
 - [ ] All 24 validation models converted to tests
 - [ ] All tests passing in development environment
 - [ ] Performance improvement measured: 55-77s savings confirmed
-- [ ] Integration with Navigator Orchestrator validated
+- [ ] Integration with PlanAlign Orchestrator validated
 - [ ] Regression testing shows zero impact on simulation results
 - [ ] Documentation updated (CLAUDE.md, README.md)
 - [ ] Old validation models deleted

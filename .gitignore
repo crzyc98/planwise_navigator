@@ -247,7 +247,7 @@ dbt/target_perf_test/
 simulation.duckdb.zip
 
 # Generated simulation reports and checkpoints
-.navigator_checkpoints/
+.planalign_checkpoints/
 reports/
 *.backup.py
 rebuild_everything.sh

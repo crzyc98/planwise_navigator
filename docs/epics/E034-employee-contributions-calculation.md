@@ -354,4 +354,4 @@ SELECT * FROM validation_checks WHERE
 
 ---
 
-*This epic follows the established pattern of the prorated compensation calculation, ensuring consistency and reliability in the PlanWise Navigator platform.*
+*This epic follows the established pattern of the prorated compensation calculation, ensuring consistency and reliability in the Fidelity PlanAlign Engine platform.*

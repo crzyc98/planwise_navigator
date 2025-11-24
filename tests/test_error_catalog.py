@@ -8,12 +8,12 @@ from __future__ import annotations
 
 import re
 import pytest
-from navigator_orchestrator.error_catalog import (
+from planalign_orchestrator.error_catalog import (
     ErrorCatalog,
     ErrorPattern,
     get_error_catalog,
 )
-from navigator_orchestrator.exceptions import ResolutionHint, ErrorCategory
+from planalign_orchestrator.exceptions import ResolutionHint, ErrorCategory
 
 
 class TestErrorPattern:

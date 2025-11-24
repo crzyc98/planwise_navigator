@@ -1,6 +1,6 @@
 # Story S038-02: dbt Command Orchestration
 
-**Epic**: E038 - Navigator Orchestrator Refactoring & Modularization
+**Epic**: E038 - PlanAlign Orchestrator Refactoring & Modularization
 **Story Points**: 3
 **Priority**: High
 **Status**: 🟠 In Progress
@@ -89,7 +89,7 @@ def test_parallel_model_execution()
 
 ### 🔧 Implementation Progress
 
-- Added `navigator_orchestrator/dbt_runner.py` implementing:
+- Added `planalign_orchestrator/dbt_runner.py` implementing:
   - `DbtRunner` with streaming output, retry/backoff, and parallel model execution
   - Error classes and `classify_dbt_error`
   - `retry_with_backoff` helper
@@ -104,7 +104,7 @@ def test_parallel_model_execution()
 ## 📘 **Usage Examples**
 
 ```python
-from navigator_orchestrator.dbt_runner import DbtRunner
+from planalign_orchestrator.dbt_runner import DbtRunner
 
 runner = DbtRunner()  # working_dir='dbt', threads=4
 

@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-Resource Validation Tests for Epic E067: Multi-Threading Navigator Orchestrator
+Resource Validation Tests for Epic E067: Multi-Threading PlanAlign Orchestrator
 
 This module contains specialized tests for validating resource management
 and monitoring across different thread configurations. These tests ensure
@@ -28,14 +28,14 @@ import psutil
 import gc
 
 # Import resource management components
-from navigator_orchestrator.config import (
+from planalign_orchestrator.config import (
     ThreadingSettings, ResourceManagerSettings, ModelParallelizationSettings
 )
-from navigator_orchestrator.resource_manager import (
+from planalign_orchestrator.resource_manager import (
     ResourceManager, MemoryMonitor, CPUMonitor
 )
-from navigator_orchestrator.parallel_execution_engine import ParallelExecutionEngine
-from navigator_orchestrator.dbt_runner import DbtRunner, DbtResult
+from planalign_orchestrator.parallel_execution_engine import ParallelExecutionEngine
+from planalign_orchestrator.dbt_runner import DbtRunner, DbtResult
 
 
 class ResourceUsageTracker:

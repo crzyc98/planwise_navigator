@@ -7,7 +7,7 @@
 **Created**: 2025-01-15
 **Assignee**: Claude Code
 **Estimated Effort**: 5 story points
-**GitHub Issue**: [#45](https://github.com/crzyc98/planwise_navigator/issues/45)
+**GitHub Issue**: [#45](https://github.com/crzyc98/planalign_engine/issues/45)
 
 ## Problem Statement
 
@@ -314,7 +314,7 @@ WHERE simulation_year = 2025
 ---
 
 **Related Issues**:
-- GitHub Issue #45: https://github.com/crzyc98/planwise_navigator/issues/45
+- GitHub Issue #45: https://github.com/crzyc98/planalign_engine/issues/45
 - Related: E061 (New Hire Termination Match Fix) - Similar eligibility enforcement patterns
 
 **Epic Status**: 🔧 **Ready for Implementation** - Root cause identified, solution designed, comprehensive testing plan prepared.

@@ -2,7 +2,7 @@
 
 ## Overview
 
-The workforce needs architecture provides a centralized, single source of truth for all workforce planning calculations in the PlanWise Navigator system. This eliminates redundancy and ensures consistency across all event generation models.
+The workforce needs architecture provides a centralized, single source of truth for all workforce planning calculations in the Fidelity PlanAlign Engine system. This eliminates redundancy and ensures consistency across all event generation models.
 
 ## Key Components
 

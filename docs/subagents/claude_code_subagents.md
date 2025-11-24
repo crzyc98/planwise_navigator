@@ -1,4 +1,4 @@
-# Claude Code Sub-Agents for PlanWise Navigator Cost Modeling
+# Claude Code Sub-Agents for Fidelity PlanAlign Engine Cost Modeling
 
 ## 1. Cost Modeling Architect Agent
 

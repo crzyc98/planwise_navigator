@@ -1,5 +1,5 @@
 """
-Integration Hooks for PlanWise Navigator Optimization System
+Integration Hooks for Fidelity PlanAlign Engine Optimization System
 Provides integration points for existing advanced_optimization.py and compensation_tuning.py
 
 This module provides:
@@ -584,7 +584,7 @@ def create_optimization_report(run_ids: List[str]) -> str:
         results_manager = get_optimization_results_manager()
 
         report_lines = [
-            "# PlanWise Navigator Optimization Report",
+            "# Fidelity PlanAlign Engine Optimization Report",
             f"Generated: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}",
             f"Runs Analyzed: {len(run_ids)}",
             "",

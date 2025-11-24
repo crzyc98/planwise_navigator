@@ -2,7 +2,7 @@
 
 ## Purpose
 
-The monitoring models (`dbt/models/monitoring/mon_data_quality.sql` and `dbt/models/monitoring/mon_pipeline_performance.sql`) provide continuous oversight of the PlanWise Navigator simulation pipeline, tracking data quality metrics, pipeline performance, and business rule compliance in real-time.
+The monitoring models (`dbt/models/monitoring/mon_data_quality.sql` and `dbt/models/monitoring/mon_pipeline_performance.sql`) provide continuous oversight of the Fidelity PlanAlign Engine simulation pipeline, tracking data quality metrics, pipeline performance, and business rule compliance in real-time.
 
 ## Architecture
 

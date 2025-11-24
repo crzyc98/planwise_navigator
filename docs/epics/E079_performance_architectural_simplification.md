@@ -13,7 +13,7 @@
 
 ⚠️ **CRITICAL UPDATE (2025-11-03)**: Performance benchmarking reveals a **60% regression** since October 2, 2025. E079 optimizations have NOT been implemented. Current baseline: **261 seconds** (Oct 2) → **419 seconds** (Nov 3) for 5-year simulation.
 
-**Original Hypothesis**: PlanWise Navigator takes **7+ minutes** (420 seconds) to simulate 5 years of workforce data on development laptops, and **5-10× longer** on work laptops and offshore HVDs. This performance issue is **NOT due to data volume** (only 44K rows in largest table) but rather **architectural over-engineering** with 155 SQL models containing extreme complexity.
+**Original Hypothesis**: Fidelity PlanAlign Engine takes **7+ minutes** (420 seconds) to simulate 5 years of workforce data on development laptops, and **5-10× longer** on work laptops and offshore HVDs. This performance issue is **NOT due to data volume** (only 44K rows in largest table) but rather **architectural over-engineering** with 155 SQL models containing extreme complexity.
 
 **Root Cause**: The dbt transformation layer was designed for enterprise-scale data (100M+ rows) but processes a tiny dataset (44K rows). This creates massive computational overhead:
 - 27-CTE monoliths scanning the same small dataset repeatedly
@@ -794,7 +794,7 @@ SELECT * FROM final_events
 **Implementation**:
 
 ```python
-# navigator_orchestrator/utils.py
+# planalign_orchestrator/utils.py
 
 import duckdb
 from typing import Optional, Dict
@@ -912,7 +912,7 @@ class DatabaseConnectionManager:
 
 **Update PipelineOrchestrator**:
 ```python
-# navigator_orchestrator/pipeline_orchestrator.py
+# planalign_orchestrator/pipeline_orchestrator.py
 
 class PipelineOrchestrator:
     def __init__(self, config: SimulationConfig):
@@ -978,8 +978,8 @@ pytest tests/test_determinism.py -m integration
 
 import pytest
 import time
-from navigator_orchestrator.pipeline_orchestrator import PipelineOrchestrator
-from navigator_orchestrator.config import load_simulation_config
+from planalign_orchestrator.pipeline_orchestrator import PipelineOrchestrator
+from planalign_orchestrator.config import load_simulation_config
 
 @pytest.mark.benchmark
 def test_5year_simulation_performance():
@@ -1218,7 +1218,7 @@ Other:                             7s  (11.1%)
 ## Appendix D: Related Epics
 
 - **E063**: Single-threaded Performance Optimizations (partial, focused on determinism)
-- **E067**: Multi-threading Navigator Orchestrator (deferred, breaks determinism)
+- **E067**: Multi-threading PlanAlign Orchestrator (deferred, breaks determinism)
 - **E068**: Master Performance Implementation (Polars integration, partial)
 - **E072**: Pipeline Modularization (complete, foundation for E079)
 - **E074**: Enhanced Error Handling (complete, supports E079 debugging)
@@ -1231,7 +1231,7 @@ Other:                             7s  (11.1%)
 
 ### Performance Benchmarking Summary
 
-**Benchmark Document**: `/Users/nicholasamaral/planwise_navigator/docs/E079_PERFORMANCE_RESULTS.md`
+**Benchmark Document**: `/Users/nicholasamaral/planalign_engine/docs/E079_PERFORMANCE_RESULTS.md`
 
 | Metric | Baseline (Oct 2) | Current (Nov 3) | Target | Status |
 |--------|------------------|-----------------|--------|--------|

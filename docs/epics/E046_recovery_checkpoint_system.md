@@ -14,7 +14,7 @@
 
 ## Business Context
 
-PlanWise Navigator currently has a **checkpoint illusion** - checkpoint files exist but provide no actual recovery capability. Multi-year simulations (2025-2029) take significant time and computational resources, making complete re-runs after mid-simulation failures extremely costly and operationally disruptive.
+Fidelity PlanAlign Engine currently has a **checkpoint illusion** - checkpoint files exist but provide no actual recovery capability. Multi-year simulations (2025-2029) take significant time and computational resources, making complete re-runs after mid-simulation failures extremely costly and operationally disruptive.
 
 This epic transforms the existing checkpoint system from simple logging into a robust recovery framework capable of resuming simulations from the last successful year, maintaining state consistency, and enabling partial recovery workflows.
 
@@ -61,7 +61,7 @@ This epic transforms the existing checkpoint system from simple logging into a r
 
 ### Enhanced Checkpoint Manager
 ```python
-# navigator_orchestrator/checkpoint_manager.py
+# planalign_orchestrator/checkpoint_manager.py
 import json
 import hashlib
 import gzip
@@ -71,7 +71,7 @@ from datetime import datetime
 from typing import Dict, Any, Optional
 
 class CheckpointManager:
-    def __init__(self, checkpoint_dir: str = ".navigator_checkpoints"):
+    def __init__(self, checkpoint_dir: str = ".planalign_checkpoints"):
         self.checkpoint_dir = Path(checkpoint_dir)
         self.checkpoint_dir.mkdir(exist_ok=True)
 
@@ -271,7 +271,7 @@ class CheckpointManager:
 
 ### Recovery Orchestration
 ```python
-# navigator_orchestrator/recovery_orchestrator.py
+# planalign_orchestrator/recovery_orchestrator.py
 from typing import Optional, List
 import logging
 
@@ -338,7 +338,7 @@ class RecoveryOrchestrator:
 ## Integration with Navigator CLI
 
 ```python
-# navigator_orchestrator/cli.py - Enhanced run command
+# planalign_orchestrator/cli.py - Enhanced run command
 @click.command()
 @click.option('--years', help='Year range (e.g., 2025-2029)')
 @click.option('--resume', is_flag=True, help='Resume from latest checkpoint')
@@ -418,23 +418,23 @@ Epic E046 has been successfully completed with the following deliverables:
 
 ### Core Components Implemented
 
-1. **CheckpointManager** (`navigator_orchestrator/checkpoint_manager.py`)
+1. **CheckpointManager** (`planalign_orchestrator/checkpoint_manager.py`)
    - Comprehensive state capture including database state, validation data, and performance metrics
    - SHA-256 integrity validation with atomic save operations
    - Gzip compression for efficient storage
    - Backward compatibility with legacy checkpoint format
 
-2. **RecoveryOrchestrator** (`navigator_orchestrator/recovery_orchestrator.py`)
+2. **RecoveryOrchestrator** (`planalign_orchestrator/recovery_orchestrator.py`)
    - Intelligent resume logic with configuration drift detection
    - Recovery validation and environment checking
    - Comprehensive recovery status reporting and planning
 
-3. **Enhanced CLI Integration** (`navigator_orchestrator/cli.py`)
+3. **Enhanced CLI Integration** (`planalign_orchestrator/cli.py`)
    - `--resume` and `--force-restart` options for simulation runs
    - `checkpoint` subcommand with list, status, cleanup, and validate actions
    - Verbose recovery information and recommendations
 
-4. **Pipeline Integration** (`navigator_orchestrator/pipeline.py`)
+4. **Pipeline Integration** (`planalign_orchestrator/pipeline.py`)
    - Enhanced checkpoint creation at year boundaries
    - Automatic fallback to legacy system when needed
    - Configuration hash calculation and tracking
@@ -459,7 +459,7 @@ Epic E046 has been successfully completed with the following deliverables:
 - **Operationally Resilient**: Automatic cleanup and environment validation
 - **Well Documented**: Complete procedures for all failure scenarios
 
-The enhanced checkpoint and recovery system transforms PlanWise Navigator from a checkpoint illusion into a robust recovery framework, meeting all Epic E046 objectives.
+The enhanced checkpoint and recovery system transforms Fidelity PlanAlign Engine from a checkpoint illusion into a robust recovery framework, meeting all Epic E046 objectives.
 
 ## Recovery Procedures Documentation
 
@@ -468,14 +468,14 @@ The enhanced checkpoint and recovery system transforms PlanWise Navigator from a
 #### Scenario 1: Mid-Simulation Failure
 ```bash
 # Simulation failed at year 2027
-python -m navigator_orchestrator.cli run --years 2025-2029 --resume
+python -m planalign_orchestrator.cli run --years 2025-2029 --resume
 # Automatically resumes from year 2026 (last successful checkpoint)
 ```
 
 #### Scenario 2: Configuration Change
 ```bash
 # Configuration changed, checkpoints incompatible
-python -m navigator_orchestrator.cli run --years 2025-2029 --force-restart
+python -m planalign_orchestrator.cli run --years 2025-2029 --force-restart
 # Ignores existing checkpoints and starts fresh
 ```
 
@@ -483,7 +483,7 @@ python -m navigator_orchestrator.cli run --years 2025-2029 --force-restart
 ```bash
 # Restore from backup and resume
 cp backups/latest.duckdb simulation.duckdb
-python -m navigator_orchestrator.cli run --years 2025-2029 --resume
+python -m planalign_orchestrator.cli run --years 2025-2029 --resume
 ```
 
 ## Related Epics

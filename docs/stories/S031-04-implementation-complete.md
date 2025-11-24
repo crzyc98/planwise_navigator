@@ -12,7 +12,7 @@ All three major components for Story S031-04 Multi-Year Coordination have been s
 
 ### 1. CrossYearCostAttributor
 
-**File**: `/Users/nicholasamaral/planwise_navigator/orchestrator_mvp/core/cost_attribution.py`
+**File**: `/Users/nicholasamaral/planalign_engine/orchestrator_mvp/core/cost_attribution.py`
 
 **Key Features**:
 - UUID-stamped cost attribution across year boundaries with sub-millisecond precision
@@ -32,7 +32,7 @@ All three major components for Story S031-04 Multi-Year Coordination have been s
 
 ### 2. IntelligentCacheManager
 
-**File**: `/Users/nicholasamaral/planwise_navigator/orchestrator_mvp/core/intelligent_cache.py`
+**File**: `/Users/nicholasamaral/planalign_engine/orchestrator_mvp/core/intelligent_cache.py`
 
 **Key Features**:
 - Multi-tier caching strategy (L1/L2/L3) with intelligent promotion/demotion
@@ -52,7 +52,7 @@ All three major components for Story S031-04 Multi-Year Coordination have been s
 
 ### 3. CoordinationOptimizer
 
-**File**: `/Users/nicholasamaral/planwise_navigator/orchestrator_mvp/core/coordination_optimizer.py`
+**File**: `/Users/nicholasamaral/planalign_engine/orchestrator_mvp/core/coordination_optimizer.py`
 
 **Key Features**:
 - Performance optimization targeting 65% overhead reduction
@@ -72,7 +72,7 @@ All three major components for Story S031-04 Multi-Year Coordination have been s
 
 ## Architecture Integration
 
-All components follow PlanWise Navigator's architectural principles:
+All components follow Fidelity PlanAlign Engine's architectural principles:
 
 - **Event Sourcing**: Integration with existing `SimulationEvent` model in `config/events.py`
 - **State Management**: Integration with `SimulationState` and `WorkforceMetrics`
@@ -209,7 +209,7 @@ The implementation is complete and ready for integration testing. The components
 4. **Complete audit trails** for regulatory compliance
 5. **Event sourcing integrity** preserved through all operations
 
-All components are production-ready and follow PlanWise Navigator's architectural standards.
+All components are production-ready and follow Fidelity PlanAlign Engine's architectural standards.
 
 ---
 

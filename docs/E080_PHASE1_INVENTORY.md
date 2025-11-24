@@ -297,7 +297,7 @@ Convert Priority 1 models (5 critical validations):
 Convert Priority 2-3 models (14 validations)
 
 ### Phase 6: Integration Testing (30 minutes)
-Test with Navigator Orchestrator pipeline
+Test with PlanAlign Orchestrator pipeline
 
 ### Phase 7: Performance Benchmarking (30 minutes)
 Measure actual performance improvement

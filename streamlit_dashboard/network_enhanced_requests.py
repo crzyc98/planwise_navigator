@@ -17,10 +17,10 @@ import streamlit as st
 # Add the parent directories to path for imports
 sys.path.append(str(Path(__file__).parent.parent))
 sys.path.append(str(Path(__file__).parent.parent / "config"))
-sys.path.append(str(Path(__file__).parent.parent / "navigator_orchestrator"))
+sys.path.append(str(Path(__file__).parent.parent / "planalign_orchestrator"))
 
 try:
-    from navigator_orchestrator.network_utils import CorporateNetworkClient, NetworkResponse, create_network_client
+    from planalign_orchestrator.network_utils import CorporateNetworkClient, NetworkResponse, create_network_client
     from config.network_config import CorporateNetworkConfig, load_network_config
     CORPORATE_NETWORK_AVAILABLE = True
 except ImportError as e:

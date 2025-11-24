@@ -2,7 +2,7 @@
 
 ## Purpose
 
-The main Streamlit dashboard entry point provides an interactive web interface for PlanWise Navigator, enabling users to configure simulations, monitor execution, visualize results, and perform scenario analysis.
+The main Streamlit dashboard entry point provides an interactive web interface for Fidelity PlanAlign Engine, enabling users to configure simulations, monitor execution, visualize results, and perform scenario analysis.
 
 ## Architecture
 
@@ -38,7 +38,7 @@ The dashboard implements a multi-page Streamlit application with:
 ### Dashboard Settings
 ```yaml
 dashboard:
-  title: "PlanWise Navigator - Workforce Analytics"
+  title: "Fidelity PlanAlign Engine - Workforce Analytics"
   theme: "light"
   sidebar_state: "expanded"
 
@@ -88,7 +88,7 @@ streamlit run Dashboard.py --server.port 8501 --server.address 0.0.0.0
 ```python
 # Override default settings
 st.set_page_config(
-    page_title="PlanWise Navigator",
+    page_title="Fidelity PlanAlign Engine",
     page_icon="📊",
     layout="wide",
     initial_sidebar_state="expanded"

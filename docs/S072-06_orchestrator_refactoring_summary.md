@@ -184,13 +184,13 @@ self.year_executor = YearExecutor(
 
 ## Files Modified
 
-- `/navigator_orchestrator/pipeline_orchestrator.py` - Refactored coordinator (2,478 → 1,220 lines)
+- `/planalign_orchestrator/pipeline_orchestrator.py` - Refactored coordinator (2,478 → 1,220 lines)
 
 ## Files Created (Previously in S072-02 Part 1)
 
-- `/navigator_orchestrator/pipeline/workflow.py` - Workflow builder
-- `/navigator_orchestrator/pipeline/state_manager.py` - State management
-- `/navigator_orchestrator/pipeline/data_cleanup.py` - Data cleanup
-- `/navigator_orchestrator/pipeline/hooks.py` - Hook management
-- `/navigator_orchestrator/pipeline/year_executor.py` - Year execution
-- `/navigator_orchestrator/pipeline/event_generation_executor.py` - Event generation
+- `/planalign_orchestrator/pipeline/workflow.py` - Workflow builder
+- `/planalign_orchestrator/pipeline/state_manager.py` - State management
+- `/planalign_orchestrator/pipeline/data_cleanup.py` - Data cleanup
+- `/planalign_orchestrator/pipeline/hooks.py` - Hook management
+- `/planalign_orchestrator/pipeline/year_executor.py` - Year execution
+- `/planalign_orchestrator/pipeline/event_generation_executor.py` - Event generation

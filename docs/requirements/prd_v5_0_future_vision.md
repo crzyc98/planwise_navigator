@@ -1,4 +1,4 @@
-# PlanWise Navigator - Product Requirements Document v5.0
+# Fidelity PlanAlign Engine - Product Requirements Document v5.0
 ## Future Vision: Intelligent Workforce Simulation Platform
 
 **Date**: 2025-08-19
@@ -11,7 +11,7 @@
 
 ## 1. Executive Summary
 
-PlanWise Navigator v5.0 represents a **paradigm shift** from traditional workforce simulation to an **intelligent, patent-worthy hybrid simulation platform** that combines the proven production architecture of v4.1 with breakthrough innovations in workforce event modeling, participant behavior prediction, and plan design optimization.
+Fidelity PlanAlign Engine v5.0 represents a **paradigm shift** from traditional workforce simulation to an **intelligent, patent-worthy hybrid simulation platform** that combines the proven production architecture of v4.1 with breakthrough innovations in workforce event modeling, participant behavior prediction, and plan design optimization.
 
 This vision document outlines the development of a **novel hybrid deterministic-stochastic simulation engine** that addresses critical limitations in existing workforce and retirement plan forecasting solutions, positioning Fidelity as the market leader in intelligent workforce analytics.
 
@@ -476,7 +476,7 @@ total_recurring_revenue: "$72.5M annually by 2028"
 
 ### 11.1 Strategic Innovation Summary
 
-PlanWise Navigator v5.0 represents a **paradigm shift** in workforce simulation and retirement plan analytics, combining:
+Fidelity PlanAlign Engine v5.0 represents a **paradigm shift** in workforce simulation and retirement plan analytics, combining:
 
 - **Patent-Worthy Technology**: Hybrid simulation engine with defensible intellectual property
 - **Market Leadership**: First-mover advantage in intelligent workforce analytics

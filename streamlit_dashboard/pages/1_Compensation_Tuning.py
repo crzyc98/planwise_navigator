@@ -1,4 +1,4 @@
-from navigator_orchestrator.config import get_database_path
+from planalign_orchestrator.config import get_database_path
 # filename: streamlit_dashboard/pages/1_Compensation_Tuning.py
 """
 Streamlit Compensation Tuning Interface for E012 - Analyst-Driven Parameter Adjustment
@@ -25,7 +25,7 @@ from risk_assessment import (ComprehensiveRiskAssessment, RiskAssessmentEngine,
 
 # Page config
 st.set_page_config(
-    page_title="Compensation Tuning - PlanWise Navigator",
+    page_title="Compensation Tuning - Fidelity PlanAlign Engine",
     page_icon="💰",
     layout="wide",
     initial_sidebar_state="expanded",
@@ -3961,7 +3961,7 @@ with tab5:
         3. Click "📊 Generate Synthetic Results" for instant preview
 
         **Need Help?**
-        - Check that the DuckDB database exists at `/Users/nicholasamaral/planwise_navigator/simulation.duckdb`
+        - Check that the DuckDB database exists at `/Users/nicholasamaral/planalign_engine/simulation.duckdb`
         - Ensure the dbt models have been run at least once
         - Try running: `dagster asset materialize --select simulation_year_state`
         """

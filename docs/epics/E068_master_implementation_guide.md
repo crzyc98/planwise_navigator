@@ -2,7 +2,7 @@
 
 ## 🎯 Master Epic Overview
 
-This guide provides the **definitive implementation order** for achieving a **2× performance improvement** in PlanWise Navigator's multi-year workforce simulation execution. Follow this sequence to maximize incremental value while minimizing risk.
+This guide provides the **definitive implementation order** for achieving a **2× performance improvement** in Fidelity PlanAlign Engine's multi-year workforce simulation execution. Follow this sequence to maximize incremental value while minimizing risk.
 
 **Current Runtime**: 285s (4m 45s) → **Target Runtime**: 150s (2m 30s)
 
@@ -61,7 +61,7 @@ dbt run --select fct_yearly_events --vars '{"simulation_year": 2025}' --threads 
   - ✅ `models/intermediate/int_employee_state_by_year.sql` (O(n) temporal accumulation)
   - ✅ Eliminated recursive patterns reading all prior years
   - ✅ Conservation tests for data integrity implemented
-  - ✅ Production-ready and integrated into Navigator Orchestrator pipeline
+  - ✅ Production-ready and integrated into PlanAlign Orchestrator pipeline
 
 ```bash
 # Validation after E068B ✅ COMPLETED
@@ -82,7 +82,7 @@ dbt run --select int_employee_state_by_year --vars '{"simulation_year": 2026}' -
 
 ```bash
 # Validation after E068D ✅ COMPLETED
-python -c "from navigator_orchestrator.hazard_cache_manager import HazardCacheManager; print('Cache system ready')"
+python -c "from planalign_orchestrator.hazard_cache_manager import HazardCacheManager; print('Cache system ready')"
 # ✅ CONFIRMED: All 5 cache models implemented and tested
 # ✅ CONFIRMED: Automatic parameter change detection working
 ```
@@ -101,7 +101,7 @@ python -c "from navigator_orchestrator.hazard_cache_manager import HazardCacheMa
 - **Key Deliverables**: ✅ ALL COMPLETED
   - ✅ DuckDB PRAGMA optimization in `dbt_project.yml`
   - ✅ Parquet storage conversion scripts (`scripts/optimize_storage.sh`)
-  - ✅ Performance monitoring integration (`navigator_orchestrator/performance_monitor.py`)
+  - ✅ Performance monitoring integration (`planalign_orchestrator/performance_monitor.py`)
   - ✅ Storage configuration (`config/storage_config.yaml`)
   - ✅ Query performance analysis tools (`scripts/analyze_query_performance.py`)
 
@@ -120,7 +120,7 @@ python scripts/verify_performance_config.py
 - **Duration**: 3-4 days ✅
 - **Expected Improvement**: 40-60% reduction through parallelization ✅
 - **Key Deliverables**: ✅ ALL COMPLETED
-  - ✅ Enhanced `navigator_orchestrator/dbt_runner.py` with threading
+  - ✅ Enhanced `planalign_orchestrator/dbt_runner.py` with threading
   - ✅ Single dbt call per stage with configurable thread count (currently 4)
   - ✅ Optional event sharding for large datasets
   - ✅ ParallelExecutionEngine with resource monitoring
@@ -129,7 +129,7 @@ python scripts/verify_performance_config.py
 ```bash
 # Validation after E068C ✅ COMPLETED AND WORKING
 # Threading active with 4 workers and 100% efficiency
-python -m navigator_orchestrator run --years 2025-2026 --threads 4 --verbose
+python -m planalign_orchestrator run --years 2025-2026 --threads 4 --verbose
 # ✅ CONFIRMED: dbt threads: 4 (enabled, mode: selective)
 # ✅ CONFIRMED: Performance: 4.4s with 4 threads (est. efficiency: 100%)
 # ✅ CONFIRMED: ParallelExecutionEngine initialized: Max workers: 4
@@ -170,15 +170,15 @@ python scripts/e068h_ci_integration.py --mode quick
 - **Alternative Approach**: Maximum speed mode for extreme performance needs ✅
 - **Target**: ≤60s total runtime for 5k×5 years → **0.16s achieved (375× faster)** ✅
 - **Key Deliverables**: ✅ ALL COMPLETED
-  - ✅ `navigator_orchestrator/polars_event_factory.py` (complete vectorized event generator)
-  - ✅ Hybrid pipeline orchestrator integration (`navigator_orchestrator/pipeline.py`)
+  - ✅ `planalign_orchestrator/polars_event_factory.py` (complete vectorized event generator)
+  - ✅ Hybrid pipeline orchestrator integration (`planalign_orchestrator/pipeline.py`)
   - ✅ dbt Parquet source integration (`dbt/models/sources.yml`)
   - ✅ Comprehensive benchmarking framework (`scripts/benchmark_event_generation.py`)
   - ✅ Configuration integration (`config/simulation_config.yaml`)
 
 ```bash
 # Validation after E068G ✅ COMPLETED AND WORKING
-POLARS_MAX_THREADS=16 python navigator_orchestrator/polars_event_factory.py --start 2025 --end 2029 --out /tmp/test_polars --verbose
+POLARS_MAX_THREADS=16 python planalign_orchestrator/polars_event_factory.py --start 2025 --end 2029 --out /tmp/test_polars --verbose
 # ✅ CONFIRMED: Completes entire 5-year simulation in 0.16s (375× faster than 60s target)
 # ✅ CONFIRMED: 52,134 events/second throughput (52× faster than 1000 events/second target)
 # ✅ CONFIRMED: 100% deterministic match with SQL mode using same seed
@@ -231,7 +231,7 @@ POLARS_MAX_THREADS=16 python navigator_orchestrator/polars_event_factory.py --st
 ## 🚨 Critical Dependencies & Blockers
 
 ### Must Complete Before Starting:
-- [ ] Ensure `navigator_orchestrator` pipeline is functional
+- [ ] Ensure `planalign_orchestrator` pipeline is functional
 - [ ] Verify DuckDB 1.0.0+ installation
 - [ ] Confirm dbt-duckdb 1.8.1+ compatibility
 - [ ] Backup current database before optimization
@@ -312,7 +312,7 @@ Track these metrics as you progress:
 git checkout main && git pull origin main
 
 # Run full validation after each step group
-python -m navigator_orchestrator run --years 2025 2026 --optimization high --profile-performance
+python -m planalign_orchestrator run --years 2025 2026 --optimization high --profile-performance
 
 # Emergency rollback (if needed)
 ./scripts/rollback_plan.sh validate  # Check rollback readiness

@@ -1,4 +1,4 @@
-# PlanWise Navigator Performance Optimization Guide
+# Fidelity PlanAlign Engine Performance Optimization Guide
 
 This guide explains how to use the comprehensive performance optimization system that targets **82% performance improvement** for multi-year workforce simulations.
 

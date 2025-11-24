@@ -1,9 +1,9 @@
-# PlanWise Navigator Stress Testing Suite
+# Fidelity PlanAlign Engine Stress Testing Suite
 
 **Story S063-09: Large Dataset Stress Testing**
 **Epic E063: Single-Threaded Performance Optimizations**
 
-Comprehensive stress testing framework for validating PlanWise Navigator's single-threaded performance optimizations with enterprise-scale datasets (100K+ employees).
+Comprehensive stress testing framework for validating Fidelity PlanAlign Engine's single-threaded performance optimizations with enterprise-scale datasets (100K+ employees).
 
 ## Quick Start
 
@@ -198,7 +198,7 @@ memory_safety_margin: "Moderate (60-80% utilization)"
 name: Stress Test PR Validation
 on:
   pull_request:
-    paths: ['dbt/**', 'navigator_orchestrator/**', 'tests/**']
+    paths: ['dbt/**', 'planalign_orchestrator/**', 'tests/**']
 
 jobs:
   stress-test:
@@ -559,7 +559,7 @@ python scripts/run_stress_tests.py ci \
 
 ## Conclusion
 
-The PlanWise Navigator Stress Testing Suite provides comprehensive validation of single-threaded performance optimizations with enterprise-scale datasets. The framework enables:
+The Fidelity PlanAlign Engine Stress Testing Suite provides comprehensive validation of single-threaded performance optimizations with enterprise-scale datasets. The framework enables:
 
 - **Scalability Validation**: Confirmed reliable operation up to 250K employees
 - **Performance Characterization**: Detailed metrics across optimization levels

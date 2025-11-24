@@ -151,4 +151,4 @@ This epic is complete when:
 
 ---
 
-*This epic represents a strategic investment in platform stability and developer productivity, directly addressing the "fix one thing, break another" challenge identified in the PlanWise Navigator development process.*
+*This epic represents a strategic investment in platform stability and developer productivity, directly addressing the "fix one thing, break another" challenge identified in the Fidelity PlanAlign Engine development process.*

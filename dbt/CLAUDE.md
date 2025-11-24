@@ -1,6 +1,6 @@
 # dbt Project – Claude Development Guide
 
-A dbt project for workforce simulation and event sourcing with DuckDB as the analytical engine for PlanWise Navigator.
+A dbt project for workforce simulation and event sourcing with DuckDB as the analytical engine for Fidelity PlanAlign Engine.
 
 ## Overview
 
@@ -29,7 +29,7 @@ dbt/
 ├── macros/                    # Reusable SQL functions
 └── snapshots/                 # Slowly changing dimensions (SCD)
 
-Note: `simulation.duckdb` lives at the project root (e.g., `/planwise_navigator/simulation.duckdb`), not under `dbt/`.
+Note: `simulation.duckdb` lives at the project root (e.g., `/planalign_engine/simulation.duckdb`), not under `dbt/`.
 ```
 
 ## Naming Conventions
@@ -270,7 +270,7 @@ for year in 2025 2026 2027; do
 done
 ```
 
-### Navigator Orchestrator Workflow Stages
+### PlanAlign Orchestrator Workflow Stages
 
 The PipelineOrchestrator executes models in optimized sequence:
 
@@ -297,7 +297,7 @@ vars:
   enable_caching: true   # Can enable with sufficient memory
 
 models:
-  planwise_navigator:
+  planalign_engine:
     # Incremental models for large tables
     intermediate:
       events:
@@ -342,11 +342,11 @@ WHERE simulation_year = {{ var('simulation_year') }}
 
 ## Integration Points
 
-### Navigator Orchestrator Integration
+### PlanAlign Orchestrator Integration
 ```python
-# Integration with navigator_orchestrator.pipeline.PipelineOrchestrator
-from navigator_orchestrator import create_orchestrator
-from navigator_orchestrator.config import load_simulation_config
+# Integration with planalign_orchestrator.pipeline.PipelineOrchestrator
+from planalign_orchestrator import create_orchestrator
+from planalign_orchestrator.config import load_simulation_config
 
 # Load configuration and create orchestrator
 config = load_simulation_config('config/simulation_config.yaml')
@@ -358,7 +358,7 @@ summary = orchestrator.execute_multi_year_simulation(
 )
 
 # Individual model execution via DbtRunner
-from navigator_orchestrator.dbt_runner import DbtRunner
+from planalign_orchestrator.dbt_runner import DbtRunner
 dbt_runner = DbtRunner(project_dir="dbt", profiles_dir="dbt")
 result = dbt_runner.execute_command(
     ["run", "--select", "int_baseline_workforce", "--threads", "1"],
@@ -413,13 +413,13 @@ dbt run --full-refresh --select fct_yearly_events
 # Run full simulation for single year (work laptop optimized)
 dbt run --threads 1 --vars "simulation_year: 2025"
 
-# Multi-year via Navigator Orchestrator (with threading!)
-python -m navigator_orchestrator run --years 2025 2026 2027 --threads 4 --verbose
+# Multi-year via PlanAlign Orchestrator (with threading!)
+python -m planalign_orchestrator run --years 2025 2026 2027 --threads 4 --verbose
 
 # Direct orchestrator execution
 python -c "
-from navigator_orchestrator import create_orchestrator
-from navigator_orchestrator.config import load_simulation_config
+from planalign_orchestrator import create_orchestrator
+from planalign_orchestrator.config import load_simulation_config
 config = load_simulation_config('config/simulation_config.yaml')
 orchestrator = create_orchestrator(config)
 summary = orchestrator.execute_multi_year_simulation(start_year=2025, end_year=2027)
@@ -444,9 +444,9 @@ duckdb simulation.duckdb "SELECT COUNT(*) FROM fct_yearly_events"
 
 #### **Python Database Access**
 ```bash
-# Python scripts for data validation using Navigator Orchestrator
+# Python scripts for data validation using PlanAlign Orchestrator
 python -c "
-from navigator_orchestrator.config import get_database_path
+from planalign_orchestrator.config import get_database_path
 import duckdb
 conn = duckdb.connect(str(get_database_path()))
 tables = conn.execute('SHOW TABLES').fetchall()
@@ -655,8 +655,8 @@ Epic E067 Multi-Threading Support and Epic E068 Phase 1 Performance Optimization
 # E068 optimized threading for production workloads
 cd dbt && dbt build --threads 4 --vars "optimization_level: high"
 
-# Navigator Orchestrator with E068 foundation and threading
-python -m navigator_orchestrator run --years 2025-2026 --threads 4 --optimization high --verbose
+# PlanAlign Orchestrator with E068 foundation and threading
+python -m planalign_orchestrator run --years 2025-2026 --threads 4 --optimization high --verbose
 
 # E068 Polars mode for extreme performance scenarios
 python scripts/run_hybrid_pipeline.py --mode polars --years 2025-2026 --verbose
@@ -688,7 +688,7 @@ python scripts/parity_testing_framework.py --validate-production
 - Test data quality assumptions
 - Document complex business logic
 - Optimize for DuckDB's columnar engine
-- Use Navigator Orchestrator for production multi-year simulations
+- Use PlanAlign Orchestrator for production multi-year simulations
 - **E067**: Use `--threads 4` for optimal performance (reduce to 2 or 1 for constrained systems)
 - **E068**: Use debug models with `dev_employee_limit` for 50-1000× faster development
 - **E068**: Enable Polars mode for extreme performance scenarios (375× faster)

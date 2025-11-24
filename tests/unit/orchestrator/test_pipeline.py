@@ -2,15 +2,15 @@ from pathlib import Path
 
 import duckdb
 
-from navigator_orchestrator.config import (CompensationSettings,
+from planalign_orchestrator.config import (CompensationSettings,
                                            EnrollmentSettings,
                                            SimulationConfig,
                                            SimulationSettings)
-from navigator_orchestrator.dbt_runner import DbtResult, DbtRunner
-from navigator_orchestrator.pipeline_orchestrator import PipelineOrchestrator
-from navigator_orchestrator.registries import RegistryManager
-from navigator_orchestrator.utils import DatabaseConnectionManager
-from navigator_orchestrator.validation import (DataValidator,
+from planalign_orchestrator.dbt_runner import DbtResult, DbtRunner
+from planalign_orchestrator.pipeline_orchestrator import PipelineOrchestrator
+from planalign_orchestrator.registries import RegistryManager
+from planalign_orchestrator.utils import DatabaseConnectionManager
+from planalign_orchestrator.validation import (DataValidator,
                                                HireTerminationRatioRule)
 
 

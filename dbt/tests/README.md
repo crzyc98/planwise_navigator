@@ -126,10 +126,10 @@ dbt test --select test_new_hire_match_validation --verbose
 
 ### Run Tests in Pipeline
 
-Tests are automatically executed by Navigator Orchestrator during the VALIDATION stage:
+Tests are automatically executed by PlanAlign Orchestrator during the VALIDATION stage:
 
 ```bash
-planwise simulate 2025-2027  # Tests run automatically
+planalign simulate 2025-2027  # Tests run automatically
 ```
 
 ### Debug Test Failures
@@ -607,7 +607,7 @@ Tests run per year by default. To run for multiple years:
 
 ```bash
 # Run simulation for multiple years (tests run each year)
-planwise simulate 2025-2027
+planalign simulate 2025-2027
 
 # Or run tests manually for each year
 for year in 2025 2026 2027; do

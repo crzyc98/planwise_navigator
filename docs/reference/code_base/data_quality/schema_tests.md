@@ -2,7 +2,7 @@
 
 ## Purpose
 
-The schema test files (`dbt/models/intermediate/schema.yml` and `dbt/models/marts/schema.yml`) define comprehensive data quality tests for all dbt models, ensuring data integrity, business rule compliance, and analytical accuracy throughout the PlanWise Navigator simulation pipeline.
+The schema test files (`dbt/models/intermediate/schema.yml` and `dbt/models/marts/schema.yml`) define comprehensive data quality tests for all dbt models, ensuring data integrity, business rule compliance, and analytical accuracy throughout the Fidelity PlanAlign Engine simulation pipeline.
 
 ## Architecture
 
@@ -219,7 +219,7 @@ dbt test --fail-fast
 ```yaml
 # dbt_project.yml test configuration
 tests:
-  planwise_navigator:
+  planalign_engine:
     +store_failures: true
     +severity: error
     data_quality:

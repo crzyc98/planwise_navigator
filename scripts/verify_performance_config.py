@@ -4,7 +4,7 @@ E068E: Verify DuckDB Performance Configuration
 ==============================================
 
 This script verifies that the DuckDB performance optimizations from E068E
-are properly configured and functioning in the PlanWise Navigator system.
+are properly configured and functioning in the Fidelity PlanAlign Engine system.
 """
 
 import os
@@ -16,7 +16,7 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
 try:
-    from navigator_orchestrator.config import get_database_path
+    from planalign_orchestrator.config import get_database_path
     database_path = get_database_path()
 except ImportError:
     # Fallback to standard location

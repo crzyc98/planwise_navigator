@@ -2,7 +2,7 @@
 
 ## Purpose
 
-The `definitions.py` file serves as the main entry point for the Dagster workspace in PlanWise Navigator. It discovers, configures, and exposes all assets, jobs, resources, and schedules that comprise the workforce simulation platform.
+The `definitions.py` file serves as the main entry point for the Dagster workspace in Fidelity PlanAlign Engine. It discovers, configures, and exposes all assets, jobs, resources, and schedules that comprise the workforce simulation platform.
 
 ## Architecture
 

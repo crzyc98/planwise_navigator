@@ -1,4 +1,4 @@
-# PlanWise Navigator Recovery Procedures
+# Fidelity PlanAlign Engine Recovery Procedures
 
 Comprehensive guide for checkpoint management and simulation recovery operations.
 
@@ -16,7 +16,7 @@ Comprehensive guide for checkpoint management and simulation recovery operations
 
 ## Overview
 
-The PlanWise Navigator Recovery & Checkpoint System provides robust recovery capabilities for multi-year simulations. The system automatically creates comprehensive checkpoints at year boundaries and enables resuming simulations from the last successful state.
+The Fidelity PlanAlign Engine Recovery & Checkpoint System provides robust recovery capabilities for multi-year simulations. The system automatically creates comprehensive checkpoints at year boundaries and enables resuming simulations from the last successful state.
 
 ### Key Features
 
@@ -37,7 +37,7 @@ If your simulation fails mid-run:
 
 ```bash
 # Resume from the latest valid checkpoint
-python -m navigator_orchestrator.cli run --years 2025-2029 --resume
+python -m planalign_orchestrator.cli run --years 2025-2029 --resume
 ```
 
 ### Force Fresh Start
@@ -46,7 +46,7 @@ If you need to ignore all checkpoints and start fresh:
 
 ```bash
 # Start fresh, ignoring any existing checkpoints
-python -m navigator_orchestrator.cli run --years 2025-2029 --force-restart
+python -m planalign_orchestrator.cli run --years 2025-2029 --force-restart
 ```
 
 ### Check Recovery Status
@@ -55,7 +55,7 @@ Before starting a simulation, check what recovery options are available:
 
 ```bash
 # View recovery status and recommendations
-python -m navigator_orchestrator.cli checkpoint status
+python -m planalign_orchestrator.cli checkpoint status
 ```
 
 ---
@@ -66,13 +66,13 @@ python -m navigator_orchestrator.cli checkpoint status
 
 ```bash
 # List all available checkpoints
-python -m navigator_orchestrator.cli checkpoint list
+python -m planalign_orchestrator.cli checkpoint list
 
 # Show recovery status and recommendations
-python -m navigator_orchestrator.cli checkpoint status
+python -m planalign_orchestrator.cli checkpoint status
 
 # Validate recovery environment
-python -m navigator_orchestrator.cli checkpoint validate
+python -m planalign_orchestrator.cli checkpoint validate
 ```
 
 Example output:
@@ -87,18 +87,18 @@ Found 3 checkpoint(s):
 
 ```bash
 # Keep only the latest 5 checkpoints (default)
-python -m navigator_orchestrator.cli checkpoint cleanup
+python -m planalign_orchestrator.cli checkpoint cleanup
 
 # Keep only the latest 3 checkpoints
-python -m navigator_orchestrator.cli checkpoint cleanup --keep 3
+python -m planalign_orchestrator.cli checkpoint cleanup --keep 3
 ```
 
 ### Checkpoint Storage
 
-Checkpoints are stored in `.navigator_checkpoints/` directory:
+Checkpoints are stored in `.planalign_checkpoints/` directory:
 
 ```
-.navigator_checkpoints/
+.planalign_checkpoints/
 ├── year_2025.checkpoint.gz    # Compressed checkpoint (preferred)
 ├── year_2025.json            # Legacy format (compatibility)
 ├── year_2026.checkpoint.gz
@@ -116,7 +116,7 @@ Checkpoints are stored in `.navigator_checkpoints/` directory:
 
 **Solution**:
 ```bash
-python -m navigator_orchestrator.cli run --years 2025-2029 --resume
+python -m planalign_orchestrator.cli run --years 2025-2029 --resume
 ```
 
 **What happens**:
@@ -132,10 +132,10 @@ python -m navigator_orchestrator.cli run --years 2025-2029 --resume
 **Solution**: Check compatibility first, then decide:
 ```bash
 # Check if existing checkpoints are compatible
-python -m navigator_orchestrator.cli checkpoint status
+python -m planalign_orchestrator.cli checkpoint status
 
 # If incompatible, start fresh
-python -m navigator_orchestrator.cli run --years 2025-2029 --force-restart
+python -m planalign_orchestrator.cli run --years 2025-2029 --force-restart
 ```
 
 **Configuration drift detection**: The system calculates a hash of your configuration file. If it changes between checkpoint creation and resume, the checkpoint is considered invalid.
@@ -150,10 +150,10 @@ python -m navigator_orchestrator.cli run --years 2025-2029 --force-restart
 cp backups/simulation_backup_2025-08-19.duckdb simulation.duckdb
 
 # 2. Validate recovery environment
-python -m navigator_orchestrator.cli checkpoint validate
+python -m planalign_orchestrator.cli checkpoint validate
 
 # 3. Resume if validation passes
-python -m navigator_orchestrator.cli run --years 2025-2029 --resume
+python -m planalign_orchestrator.cli run --years 2025-2029 --resume
 ```
 
 ### Scenario 4: Checkpoint Corruption
@@ -162,7 +162,7 @@ python -m navigator_orchestrator.cli run --years 2025-2029 --resume
 
 **Solution**: The system automatically falls back to the previous valid checkpoint:
 ```bash
-python -m navigator_orchestrator.cli run --years 2025-2029 --resume
+python -m planalign_orchestrator.cli run --years 2025-2029 --resume
 ```
 
 **What happens**:
@@ -178,12 +178,12 @@ python -m navigator_orchestrator.cli run --years 2025-2029 --resume
 **Solution**:
 ```bash
 # Method 1: Delete specific checkpoints and resume
-rm .navigator_checkpoints/year_2027.*
-rm .navigator_checkpoints/year_2028.*
-python -m navigator_orchestrator.cli run --years 2025-2029 --resume
+rm .planalign_checkpoints/year_2027.*
+rm .planalign_checkpoints/year_2028.*
+python -m planalign_orchestrator.cli run --years 2025-2029 --resume
 
 # Method 2: Force restart from specific year
-python -m navigator_orchestrator.cli run --start-year 2027 --end-year 2029 --force-restart
+python -m planalign_orchestrator.cli run --start-year 2027 --end-year 2029 --force-restart
 ```
 
 ### Scenario 6: Extending Completed Simulation
@@ -192,7 +192,7 @@ python -m navigator_orchestrator.cli run --start-year 2027 --end-year 2029 --for
 
 **Solution**:
 ```bash
-python -m navigator_orchestrator.cli run --years 2025-2029 --resume
+python -m planalign_orchestrator.cli run --years 2025-2029 --resume
 ```
 
 **What happens**:
@@ -216,13 +216,13 @@ python -m navigator_orchestrator.cli run --years 2025-2029 --resume
 **Solutions**:
 ```bash
 # Check what checkpoints exist
-python -m navigator_orchestrator.cli checkpoint list
+python -m planalign_orchestrator.cli checkpoint list
 
 # Check recovery status for recommendations
-python -m navigator_orchestrator.cli checkpoint status
+python -m planalign_orchestrator.cli checkpoint status
 
 # If configuration changed, start fresh
-python -m navigator_orchestrator.cli run --years 2025-2029 --force-restart
+python -m planalign_orchestrator.cli run --years 2025-2029 --force-restart
 ```
 
 #### Issue: "Database inconsistency detected"
@@ -235,7 +235,7 @@ python -m navigator_orchestrator.cli run --years 2025-2029 --force-restart
 **Solutions**:
 ```bash
 # Validate the recovery environment
-python -m navigator_orchestrator.cli checkpoint validate
+python -m planalign_orchestrator.cli checkpoint validate
 
 # Check specific inconsistency details in logs
 # Restore from backup if necessary
@@ -252,13 +252,13 @@ python -m navigator_orchestrator.cli checkpoint validate
 **Solutions**:
 ```bash
 # System will automatically try previous checkpoints
-python -m navigator_orchestrator.cli run --years 2025-2029 --resume
+python -m planalign_orchestrator.cli run --years 2025-2029 --resume
 
 # If all checkpoints are corrupt, start fresh
-python -m navigator_orchestrator.cli run --years 2025-2029 --force-restart
+python -m planalign_orchestrator.cli run --years 2025-2029 --force-restart
 
 # Clean up corrupt checkpoints
-python -m navigator_orchestrator.cli checkpoint cleanup
+python -m planalign_orchestrator.cli checkpoint cleanup
 ```
 
 ### Debug Information
@@ -266,7 +266,7 @@ python -m navigator_orchestrator.cli checkpoint cleanup
 Enable verbose mode for detailed recovery information:
 
 ```bash
-python -m navigator_orchestrator.cli run --years 2025-2029 --resume --verbose
+python -m planalign_orchestrator.cli run --years 2025-2029 --resume --verbose
 ```
 
 Verbose output includes:
@@ -291,17 +291,17 @@ Recovery operations are logged to the standard Python logging system. Key log me
 
 1. **Monitor checkpoint storage**: Run cleanup regularly to manage disk space
    ```bash
-   python -m navigator_orchestrator.cli checkpoint cleanup --keep 10
+   python -m planalign_orchestrator.cli checkpoint cleanup --keep 10
    ```
 
 2. **Validate environment before long runs**:
    ```bash
-   python -m navigator_orchestrator.cli checkpoint validate
+   python -m planalign_orchestrator.cli checkpoint validate
    ```
 
 3. **Check recovery status when resuming**:
    ```bash
-   python -m navigator_orchestrator.cli checkpoint status
+   python -m planalign_orchestrator.cli checkpoint status
    ```
 
 ### Configuration Management
@@ -313,7 +313,7 @@ Recovery operations are logged to the standard Python logging system. Key log me
 ### Backup Strategy
 
 1. **Database backups**: Regular backups of `simulation.duckdb`
-2. **Checkpoint backups**: Include `.navigator_checkpoints/` in backup rotation
+2. **Checkpoint backups**: Include `.planalign_checkpoints/` in backup rotation
 3. **Configuration backups**: Backup `config/simulation_config.yaml`
 
 ### Development Workflow
@@ -419,8 +419,8 @@ The system maintains backward compatibility:
 
 ### Getting Help
 
-1. **Check status first**: `python -m navigator_orchestrator.cli checkpoint status`
-2. **Validate environment**: `python -m navigator_orchestrator.cli checkpoint validate`
+1. **Check status first**: `python -m planalign_orchestrator.cli checkpoint status`
+2. **Validate environment**: `python -m planalign_orchestrator.cli checkpoint validate`
 3. **Use verbose mode**: Add `--verbose` to see detailed information
 4. **Check logs**: Review Python logging output for error details
 

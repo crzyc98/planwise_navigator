@@ -27,7 +27,7 @@ cmd = [dagster_cmd, "job", "execute", "--job", "multi_year_simulation", "-f", "d
 
 # Added proper environment setup
 env = os.environ.copy()
-env["DAGSTER_HOME"] = "/Users/nicholasamaral/planwise_navigator/.dagster"
+env["DAGSTER_HOME"] = "/Users/nicholasamaral/planalign_engine/.dagster"
 ```
 
 ### 2. **Multi-Year Simulation Data Persistence Issue**

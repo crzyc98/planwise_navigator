@@ -1,6 +1,6 @@
 # Architecture Documentation
 
-This folder contains technical design documentation, architectural patterns, and implementation guidelines for PlanWise Navigator.
+This folder contains technical design documentation, architectural patterns, and implementation guidelines for Fidelity PlanAlign Engine.
 
 ## 🏗️ Contents
 

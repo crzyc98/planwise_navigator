@@ -1,4 +1,4 @@
-# PlanWise Navigator – Claude Code-Generation Playbook
+# Fidelity PlanAlign Engine – Claude Code-Generation Playbook
 
 A comprehensive, opinionated reference for generating enterprise-grade, production-ready code for workforce simulation and event sourcing.
 
@@ -6,7 +6,7 @@ A comprehensive, opinionated reference for generating enterprise-grade, producti
 
 ## **1. Purpose**
 
-This playbook tells Claude exactly how to turn high-level feature requests into ready-to-ship artifacts for PlanWise Navigator, Fidelity's on-premises workforce-simulation platform. Follow it verbatim to guarantee:
+This playbook tells Claude exactly how to turn high-level feature requests into ready-to-ship artifacts for Fidelity PlanAlign Engine, Fidelity's on-premises workforce-simulation platform. Follow it verbatim to guarantee:
 
   * Event-sourced architecture with immutable audit trails
   * Modular, maintainable components with single-responsibility design
@@ -22,8 +22,8 @@ This playbook tells Claude exactly how to turn high-level feature requests into 
 | **Storage** | DuckDB | 1.0.0 | Immutable event store; column-store OLAP engine |
 | **Transformation** | dbt-core | 1.8.8 | Declarative SQL models, tests, documentation |
 | **Adapter** | dbt-duckdb | 1.8.1 | Stable DuckDB integration |
-| **Orchestration** | navigator_orchestrator | Modular | PipelineOrchestrator with staged workflow execution |
-| **CLI Interface** | planwise_cli (Rich + Typer) | 1.0.0 | Beautiful terminal interface with progress tracking |
+| **Orchestration** | planalign_orchestrator | Modular | PipelineOrchestrator with staged workflow execution |
+| **CLI Interface** | planalign_cli (Rich + Typer) | 1.0.0 | Beautiful terminal interface with progress tracking |
 | **Dashboard** | Streamlit | 1.39.0 | Interactive analytics and compensation tuning |
 | **Configuration** | Pydantic | 2.7.4 | Type-safe config management with validation |
 | **Python** | CPython | 3.11.x | Long-term support version |
@@ -40,15 +40,15 @@ source .venv/bin/activate
 uv pip install -e ".[dev]"
 
 # Primary workflow - PlanWise CLI (Rich interface)
-planwise health                                 # System readiness check
-planwise simulate 2025-2027                     # Multi-year simulation
-planwise batch --scenarios baseline high_growth # Batch processing
-planwise status --detailed                      # Full system diagnostic
+planalign health                                 # System readiness check
+planalign simulate 2025-2027                     # Multi-year simulation
+planalign batch --scenarios baseline high_growth # Batch processing
+planalign status --detailed                      # Full system diagnostic
 
 # Development workflow
-planwise simulate 2025 --dry-run               # Preview execution plan
-planwise simulate 2025 --verbose               # Detailed logging
-planwise checkpoints list                      # View recovery points
+planalign simulate 2025 --dry-run               # Preview execution plan
+planalign simulate 2025 --verbose               # Detailed logging
+planalign checkpoints list                      # View recovery points
 
 # dbt development (always from /dbt directory)
 cd dbt
@@ -65,7 +65,7 @@ duckdb dbt/simulation.duckdb "SHOW TABLES"
 
 ## **4. Event Sourcing Architecture**
 
-PlanWise Navigator implements enterprise-grade event sourcing with immutable audit trails.
+Fidelity PlanAlign Engine implements enterprise-grade event sourcing with immutable audit trails.
 
 **Core Principles**:
 
@@ -132,8 +132,8 @@ enrollment_event = DCPlanEventFactory.create_enrollment_event(
 ## **5. Directory Structure**
 
 ```
-planwise_navigator/
-├─ navigator_orchestrator/           # Production orchestration engine
+planalign_engine/
+├─ planalign_orchestrator/           # Production orchestration engine
 │  ├─ pipeline/                      # Modular pipeline components (E072)
 │  │  ├─ workflow.py                # Stage definitions and workflow building
 │  │  ├─ state_manager.py           # Checkpoint and state management
@@ -147,7 +147,7 @@ planwise_navigator/
 │  ├─ exceptions.py                 # Enhanced error handling (E074)
 │  ├─ error_catalog.py              # Pattern-based error recognition
 │  └─ validation.py                 # Data quality validation
-├─ planwise_cli/                     # Rich-based CLI (primary interface)
+├─ planalign_cli/                     # Rich-based CLI (primary interface)
 │  ├─ commands/                      # Command implementations
 │  │  ├─ simulate.py                # Multi-year simulation
 │  │  ├─ batch.py                   # Batch scenario processing
@@ -188,7 +188,7 @@ The pipeline was refactored from a 2,478-line monolith into 6 focused modules:
 **Core Components**:
 
 ```python
-from navigator_orchestrator.pipeline import (
+from planalign_orchestrator.pipeline import (
     WorkflowBuilder,      # Stage definitions and workflow building
     StateManager,         # Checkpoint and state management
     YearExecutor,         # Stage-by-stage execution orchestration
@@ -197,7 +197,7 @@ from navigator_orchestrator.pipeline import (
     DataCleanupManager    # Database cleanup operations
 )
 
-from navigator_orchestrator.pipeline_orchestrator import PipelineOrchestrator
+from planalign_orchestrator.pipeline_orchestrator import PipelineOrchestrator
 
 # Create orchestrator
 config = load_simulation_config('config/simulation_config.yaml')
@@ -225,7 +225,7 @@ summary = orchestrator.execute_multi_year_simulation(
 ## **7. Error Handling (E074 - Enhanced Diagnostics)**
 
 ```python
-from navigator_orchestrator.exceptions import (
+from planalign_orchestrator.exceptions import (
     NavigatorError,       # Base exception with execution context
     DatabaseError,        # Database operations
     ConfigurationError,   # Config validation
@@ -235,7 +235,7 @@ from navigator_orchestrator.exceptions import (
     StateError            # State management
 )
 
-from navigator_orchestrator.error_catalog import ErrorCatalog
+from planalign_orchestrator.error_catalog import ErrorCatalog
 
 # Structured error handling with context
 try:
@@ -267,8 +267,8 @@ pytest -m "fast and config"             # Configuration tests
 pytest -m integration                   # Full integration suite
 
 # Full suite with coverage
-pytest --cov=navigator_orchestrator \
-       --cov=planwise_cli \
+pytest --cov=planalign_orchestrator \
+       --cov=planalign_cli \
        --cov-report=html
 ```
 
@@ -291,7 +291,7 @@ def test_hire_event_generation(populated_db, minimal_config):
 
 ```python
 # CORRECT: Use get_database_path() for all database access
-from navigator_orchestrator.config import get_database_path
+from planalign_orchestrator.config import get_database_path
 import duckdb
 
 def query_events(year: int):
@@ -422,13 +422,13 @@ FULL OUTER JOIN prior_year_state p
 
 ```bash
 # Run all scenarios in scenarios/ directory
-planwise batch
+planalign batch
 
 # Run specific scenarios with clean start
-planwise batch --scenarios baseline high_growth --clean
+planalign batch --scenarios baseline high_growth --clean
 
 # Export to Excel with metadata
-planwise batch --export-format excel
+planalign batch --export-format excel
 
 # Batch creates timestamped directories with:
 # - Individual scenario databases (scenario_name.duckdb)
@@ -445,11 +445,11 @@ planwise batch --export-format excel
 
   * **Database Location**: `dbt/simulation.duckdb` (standardized location)
   * **dbt Commands**: Always run from `/dbt` directory
-  * **Database Access**: Always use `get_database_path()` from `navigator_orchestrator.config`
+  * **Database Access**: Always use `get_database_path()` from `planalign_orchestrator.config`
 
 ```python
 # CORRECT pattern
-from navigator_orchestrator.config import get_database_path
+from planalign_orchestrator.config import get_database_path
 import duckdb
 
 conn = duckdb.connect(str(get_database_path()))
@@ -468,7 +468,7 @@ conn.close()
   * **Problem**: Simulations fail due to `Conflicting lock is held` error
   * **Cause**: Active database connection held by IDE (VS Code, Windsurf, DBeaver)
   * **Solution**: Close all database connections in other tools before running simulation
-  * **Check**: `planwise health` will detect active locks
+  * **Check**: `planalign health` will detect active locks
 
 ### **Enrollment Architecture**
 
@@ -481,14 +481,14 @@ conn.close()
 
 ```bash
 # Check system health
-planwise health                      # Quick diagnostic
+planalign health                      # Quick diagnostic
 
 # Detailed system status
-planwise status --detailed           # Full system information
+planalign status --detailed           # Full system information
 
 # View checkpoints for recovery
-planwise checkpoints list            # Available recovery points
-planwise checkpoints status          # Recovery recommendations
+planalign checkpoints list            # Available recovery points
+planalign checkpoints status          # Recovery recommendations
 ```
 
 -----
@@ -531,12 +531,40 @@ planwise checkpoints status          # Recovery recommendations
 
 -----
 
-## **13. Further Reading**
+## **13. Versioning**
 
+Fidelity PlanAlign Engine follows **Semantic Versioning 2.0.0** (MAJOR.MINOR.PATCH):
+
+- **Current Version**: 1.0.0 ("Foundation")
+- **View Version**: `planalign --version` or `planalign health`
+- **Version Module**: `_version.py` (centralized version management)
+
+**When to Increment:**
+- **MAJOR**: Breaking changes (config schema, database schema, API changes)
+- **MINOR**: New features/epics (E076, E077, etc.)
+- **PATCH**: Bug fixes, docs, tests
+
+**Version Update Process:**
+1. Update `_version.py` (version, release_date, release_name)
+2. Update `pyproject.toml` (line 3)
+3. Update `CHANGELOG.md` with changes
+4. Commit: `git commit -m "chore: Bump version to X.Y.Z"`
+5. Tag: `git tag -a vX.Y.Z -m "Release vX.Y.Z"`
+6. Reinstall: `uv pip install -e .`
+
+See `/docs/VERSIONING_GUIDE.md` for detailed versioning workflow.
+
+-----
+
+## **14. Further Reading**
+
+  * `/docs/VERSIONING_GUIDE.md` – Complete versioning workflow and best practices
+  * `/CHANGELOG.md` – Version history and release notes
   * `/docs/architecture.md` – Deep-dive diagrams
   * `/docs/events.md` – Workforce event taxonomy
   * `/docs/guides/error_troubleshooting.md` – Comprehensive troubleshooting guide
   * `/tests/TEST_INFRASTRUCTURE.md` – Testing guide and fixture documentation
   * `/tests/QUICK_START.md` – Developer quick reference
+  * [Semantic Versioning](https://semver.org/)
   * [dbt Style Guide](https://docs.getdbt.com/docs/collaborate/style-guide)
   * [DuckDB Documentation](https://duckdb.org/docs/)

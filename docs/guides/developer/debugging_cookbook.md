@@ -1,4 +1,4 @@
-# PlanWise Navigator Debugging Cookbook
+# Fidelity PlanAlign Engine Debugging Cookbook
 
 A comprehensive guide for debugging common issues in the workforce simulation system.
 
@@ -7,11 +7,11 @@ A comprehensive guide for debugging common issues in the workforce simulation sy
 ### Environment Setup
 ```bash
 # Always run from correct directories
-cd /Users/nicholasamaral/planwise_navigator/dbt    # For dbt commands
-cd /Users/nicholasamaral/planwise_navigator/       # For dagster commands
+cd /Users/nicholasamaral/planalign_engine/dbt    # For dbt commands
+cd /Users/nicholasamaral/planalign_engine/       # For dagster commands
 
 # Database location
-Database: /Users/nicholasamaral/planwise_navigator/simulation.duckdb
+Database: /Users/nicholasamaral/planalign_engine/simulation.duckdb
 Schema: main
 ```
 
@@ -38,7 +38,7 @@ dbt run --select int_baseline_workforce  # Verify baseline workforce
 -- Connect to database
 python3 -c "
 import duckdb
-conn = duckdb.connect('/Users/nicholasamaral/planwise_navigator/simulation.duckdb')
+conn = duckdb.connect('/Users/nicholasamaral/planalign_engine/simulation.duckdb')
 conn.execute('USE main')
 
 # Check available tables
@@ -221,4 +221,4 @@ dbt run --select staging             # Rebuild staging
 # Then run multi-year simulation via Dagster
 ```
 
-This cookbook provides the essential debugging patterns for maintaining the PlanWise Navigator simulation system.
+This cookbook provides the essential debugging patterns for maintaining the Fidelity PlanAlign Engine simulation system.

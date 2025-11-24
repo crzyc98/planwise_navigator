@@ -265,7 +265,7 @@ When running `python run_multi_year.py`, should see:
 
 ## Contact & Handoff Notes
 
-- **Database Path**: `/Users/nicholasamaral/planwise_navigator/dbt/simulation.duckdb`
+- **Database Path**: `/Users/nicholasamaral/planalign_engine/dbt/simulation.duckdb`
 - **Run Command**: `python run_multi_year.py` (includes database clearing)
 - **Key CTE**: `employee_events_consolidated` and `new_hires` in `fct_workforce_snapshot.sql`
 

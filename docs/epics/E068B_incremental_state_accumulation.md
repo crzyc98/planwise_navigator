@@ -352,7 +352,7 @@ HAVING conservation_error > 10  -- Allow small tolerance for rounding/timing
    - Checks net change = hires - terminations (within tolerance)
    - Ensures data integrity across multi-year simulations
 
-4. **Pipeline Integration**: Added to `navigator_orchestrator/pipeline.py`
+4. **Pipeline Integration**: Added to `planalign_orchestrator/pipeline.py`
    - Integrated into STATE_ACCUMULATION stage
    - Positioned early for O(1) state access by downstream models
    - Production deployment ready
@@ -384,4 +384,4 @@ HAVING conservation_error > 10  -- Allow small tolerance for rounding/timing
 **Estimated Effort**: 5 story points
 **Target Performance**: 60-70% improvement in State Accumulation stage
 **Completion Date**: 2025-09-03
-**Implementation**: Production-ready and integrated into Navigator Orchestrator pipeline
+**Implementation**: Production-ready and integrated into PlanAlign Orchestrator pipeline

@@ -143,7 +143,7 @@ graph LR
 
 ## Convention Established
 
-**PlanWise Navigator Event Type Standard**: All runtime event types use lowercase with underscores (e.g., `enrollment_change`, `deferral_escalation`). Parameter seeds may differ temporarily; normalization occurs at read time.
+**Fidelity PlanAlign Engine Event Type Standard**: All runtime event types use lowercase with underscores (e.g., `enrollment_change`, `deferral_escalation`). Parameter seeds may differ temporarily; normalization occurs at read time.
 
 Enforcement:
 - Dbt model contracts and DQ assertions in marts/intermediate.

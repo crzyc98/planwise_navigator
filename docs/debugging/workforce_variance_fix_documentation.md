@@ -2,7 +2,7 @@
 
 ## Executive Summary
 
-This document provides comprehensive documentation of the debugging process and fixes applied to resolve three critical issues in the PlanWise Navigator workforce simulation system:
+This document provides comprehensive documentation of the debugging process and fixes applied to resolve three critical issues in the Fidelity PlanAlign Engine workforce simulation system:
 
 1. **Growth Variance Issue**: Termination logic in `fct_workforce_snapshot.sql` failing to properly update employee status
 2. **$25M Compensation Anomaly**: Extreme salary values appearing due to uncapped promotion/merit calculations

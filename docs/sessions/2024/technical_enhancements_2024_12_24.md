@@ -2,7 +2,7 @@
 
 ## Overview
 
-This document details two critical technical enhancements implemented to improve PlanWise Navigator's data architecture and compensation accuracy:
+This document details two critical technical enhancements implemented to improve Fidelity PlanAlign Engine's data architecture and compensation accuracy:
 
 1. **Circular Dependency Resolution**: Eliminated circular reference between `fct_workforce_snapshot` and `int_previous_year_workforce`
 2. **Plan Year Compensation Annualization**: Enhanced baseline workforce accuracy by annualizing partial year compensation
@@ -229,4 +229,4 @@ These enhancements establish a solid foundation for accurate workforce simulatio
 2. **Improving Data Accuracy**: Annualized compensation provides unbiased baseline metrics
 3. **Supporting Business Requirements**: Enables accurate compensation growth tracking for Epic E012
 
-The combined improvements ensure PlanWise Navigator can reliably measure and project compensation growth against strategic targets.
+The combined improvements ensure Fidelity PlanAlign Engine can reliably measure and project compensation growth against strategic targets.

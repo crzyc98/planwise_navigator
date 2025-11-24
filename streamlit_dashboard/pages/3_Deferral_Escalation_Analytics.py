@@ -1,4 +1,4 @@
-from navigator_orchestrator.config import get_database_path
+from planalign_orchestrator.config import get_database_path
 # filename: streamlit_dashboard/pages/3_Deferral_Escalation_Analytics.py
 """
 Epic E035: Deferral Rate Escalation Analytics Dashboard
@@ -39,7 +39,7 @@ sys.path.append(str(Path(__file__).parent.parent))
 
 # Page configuration
 st.set_page_config(
-    page_title="Deferral Escalation Analytics - PlanWise Navigator",
+    page_title="Deferral Escalation Analytics - Fidelity PlanAlign Engine",
     page_icon="📈",
     layout="wide",
 )

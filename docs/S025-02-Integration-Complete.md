@@ -1,7 +1,7 @@
 # Story S025-02: Match Event Generation - Integration Complete
 
 ## Summary
-Successfully implemented employer match event generation for the PlanWise Navigator DC plan system. The implementation includes core match calculation models, event generation with full payload context, integration with the existing event sourcing architecture, and orchestrator support for multi-year simulations.
+Successfully implemented employer match event generation for the Fidelity PlanAlign Engine DC plan system. The implementation includes core match calculation models, event generation with full payload context, integration with the existing event sourcing architecture, and orchestrator support for multi-year simulations.
 
 ## Implementation Date
 - **Date**: 2025-08-07

@@ -3,7 +3,7 @@ from pathlib import Path
 
 import pytest
 
-from navigator_orchestrator.config import (SimulationConfig,
+from planalign_orchestrator.config import (SimulationConfig,
                                            load_simulation_config, to_dbt_vars)
 
 

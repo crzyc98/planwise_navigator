@@ -1,5 +1,5 @@
 """
-Setup Script for PlanWise Navigator Optimization Storage System
+Setup Script for Fidelity PlanAlign Engine Optimization Storage System
 Initializes the database tables and validates the system setup.
 
 Run this script to set up the optimization storage system:
@@ -241,8 +241,8 @@ def print_usage_instructions():
     print("   - Use: enhanced_load_optimization_results()")
 
     print("\n📁 Key Components:")
-    print("   - Database: /Users/nicholasamaral/planwise_navigator/simulation.duckdb")
-    print("   - Cache: /tmp/planwise_optimization_cache/")
+    print("   - Database: /Users/nicholasamaral/planalign_engine/simulation.duckdb")
+    print("   - Cache: /tmp/planalign_optimization_cache/")
     print("   - Storage Tables: optimization_runs, optimization_results, etc.")
 
     print("\n🔍 System Monitoring:")
@@ -264,7 +264,7 @@ def print_usage_instructions():
 
 def main():
     """Main setup function."""
-    print("🎯 PlanWise Navigator Optimization Storage Setup")
+    print("🎯 Fidelity PlanAlign Engine Optimization Storage Setup")
     print("=" * 50)
 
     success_steps = 0

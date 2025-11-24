@@ -1,6 +1,6 @@
 """
-from navigator_orchestrator.config import get_database_path
-Unified Optimization Results Storage and Retrieval System for PlanWise Navigator
+from planalign_orchestrator.config import get_database_path
+Unified Optimization Results Storage and Retrieval System for Fidelity PlanAlign Engine
 
 This module provides a comprehensive storage system for optimization results from both
 advanced_optimization.py and compensation_tuning.py interfaces, with integration to

@@ -11,7 +11,7 @@ Successfully implemented Story S070-03 with performance monitoring fixtures and 
 
 ### 1. Performance Monitoring Fixtures ✅
 
-Created `/Users/nicholasamaral/planwise_navigator/tests/utils/fixtures.py` with:
+Created `/Users/nicholasamaral/planalign_engine/tests/utils/fixtures.py` with:
 
 - **performance_tracker**: Real-time performance monitoring with:
   - Execution time tracking
@@ -26,7 +26,7 @@ Created `/Users/nicholasamaral/planwise_navigator/tests/utils/fixtures.py` with:
 
 ### 2. Test Utilities Infrastructure ✅
 
-Created complete test utilities package at `/Users/nicholasamaral/planwise_navigator/tests/utils/`:
+Created complete test utilities package at `/Users/nicholasamaral/planalign_engine/tests/utils/`:
 
 - **fixtures.py**: Performance tracking and test data fixtures
 - **factories.py**: Event, workforce, and config factories for test data generation
@@ -35,7 +35,7 @@ Created complete test utilities package at `/Users/nicholasamaral/planwise_navig
 
 ### 3. Automatic Test Markers ✅
 
-Enhanced `/Users/nicholasamaral/planwise_navigator/tests/conftest.py` with:
+Enhanced `/Users/nicholasamaral/planalign_engine/tests/conftest.py` with:
 
 - Auto-marker logic based on test directory location:
   - `/unit/` → `@pytest.mark.unit`
@@ -182,13 +182,13 @@ pytest -m database  # Only tests requiring database
 ## Files Created/Modified
 
 ### New Files Created ✅
-- `/Users/nicholasamaral/planwise_navigator/tests/utils/__init__.py`
-- `/Users/nicholasamaral/planwise_navigator/tests/utils/fixtures.py`
-- `/Users/nicholasamaral/planwise_navigator/tests/utils/factories.py`
-- `/Users/nicholasamaral/planwise_navigator/tests/utils/assertions.py`
+- `/Users/nicholasamaral/planalign_engine/tests/utils/__init__.py`
+- `/Users/nicholasamaral/planalign_engine/tests/utils/fixtures.py`
+- `/Users/nicholasamaral/planalign_engine/tests/utils/factories.py`
+- `/Users/nicholasamaral/planalign_engine/tests/utils/assertions.py`
 
 ### Files Modified ✅
-- `/Users/nicholasamaral/planwise_navigator/tests/conftest.py` (simplified to use utils)
+- `/Users/nicholasamaral/planalign_engine/tests/conftest.py` (simplified to use utils)
 
 ## Developer Experience Improvements
 

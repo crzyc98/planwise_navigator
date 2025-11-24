@@ -1,4 +1,4 @@
-# PlanWise Navigator - Product Requirements Document v4.0
+# Fidelity PlanAlign Engine - Product Requirements Document v4.0
 
 **Date**: 2025-08-07
 **Version**: 4.0 (Strategic Architecture Evolution)
@@ -9,7 +9,7 @@
 
 ## 1. Executive Summary
 
-PlanWise Navigator has evolved from a sophisticated workforce simulation platform to a **world-class enterprise-grade system** that demonstrates advanced event-sourced architecture with **immutable audit trails**, **multi-year orchestration**, and **comprehensive employee lifecycle modeling** including DC plan administration, compensation optimization, and regulatory compliance.
+Fidelity PlanAlign Engine has evolved from a sophisticated workforce simulation platform to a **world-class enterprise-grade system** that demonstrates advanced event-sourced architecture with **immutable audit trails**, **multi-year orchestration**, and **comprehensive employee lifecycle modeling** including DC plan administration, compensation optimization, and regulatory compliance.
 
 This document defines the **strategic evolution roadmap** for transitioning from the current advanced implementation to a **production-scale enterprise platform** that addresses the critical architectural gaps identified through comprehensive analysis.
 
@@ -604,7 +604,7 @@ competitive_advantages:
 
 ### 8.1 Transformation Summary
 
-PlanWise Navigator represents a **sophisticated foundation** with **85% completion** of advanced workforce simulation capabilities. The strategic evolution roadmap addresses **critical architectural gaps** while building on **world-class event sourcing** and **regulatory compliance** foundations.
+Fidelity PlanAlign Engine represents a **sophisticated foundation** with **85% completion** of advanced workforce simulation capabilities. The strategic evolution roadmap addresses **critical architectural gaps** while building on **world-class event sourcing** and **regulatory compliance** foundations.
 
 ### 8.2 Key Success Factors
 

@@ -7,7 +7,7 @@
 
 ## Executive Summary
 
-The circular dependency between `int_employee_contributions` and `fct_yearly_events` completely blocks multi-year simulation execution. This represents a **CRITICAL** infrastructure failure that prevents users from running the core PlanWise Navigator workflow.
+The circular dependency between `int_employee_contributions` and `fct_yearly_events` completely blocks multi-year simulation execution. This represents a **CRITICAL** infrastructure failure that prevents users from running the core Fidelity PlanAlign Engine workflow.
 
 **Business Impact**: **100% pipeline failure** - No multi-year simulations can complete
 **Technical Impact**: **Blocks 147 downstream models** that depend on contribution calculations

@@ -1,8 +1,8 @@
 # ~/.dbt/profiles.yml
-# Optimized for Epic E067: Multi-Threading Navigator Orchestrator
-# Configuration enhanced for multi-threaded execution with Navigator Orchestrator
+# Optimized for Epic E067: Multi-Threading PlanAlign Orchestrator
+# Configuration enhanced for multi-threaded execution with PlanAlign Orchestrator
 
-planwise_navigator:
+fidelity_planalign_engine:
   target: dev # E067-ready target for multi-threading support
   outputs:
     dev:
@@ -10,7 +10,7 @@ planwise_navigator:
       path: "{{ env_var('DATABASE_PATH', 'simulation.duckdb') }}"
       schema: main
 
-      # E067 Dynamic Threading: Navigator Orchestrator overrides this via --threads parameter
+      # E067 Dynamic Threading: PlanAlign Orchestrator overrides this via --threads parameter
       # This serves as fallback for direct dbt execution (E067 supports 1-16 threads)
       threads: 4 # Baseline thread count - dynamically overridden by E067
 

@@ -14,7 +14,7 @@
 
 ## Business Context
 
-Currently, PlanWise Navigator requires manual execution of individual scenarios, copying databases, and manual comparison of results. This creates significant friction for scenario analysis, plan design optimization, and policy impact assessment.
+Currently, Fidelity PlanAlign Engine requires manual execution of individual scenarios, copying databases, and manual comparison of results. This creates significant friction for scenario analysis, plan design optimization, and policy impact assessment.
 
 This epic enables analysts to define multiple scenario configurations and execute them automatically, with isolated databases and structured comparison outputs for decision-making.
 
@@ -47,7 +47,7 @@ This epic enables analysts to define multiple scenario configurations and execut
 - [x] **Summary dashboards** with scenario performance metrics
 
 ### CLI Integration
-- [x] **Batch subcommand** extending existing navigator_orchestrator CLI
+- [x] **Batch subcommand** extending existing planalign_orchestrator CLI
 - [x] **Scenario discovery** automatically finding scenario configurations
 - [x] **Output management** organizing results by timestamp and scenario
 - [x] **Resume capability** restarting failed batch runs
@@ -67,7 +67,7 @@ This epic enables analysts to define multiple scenario configurations and execut
 
 ### Database Isolation Strategy
 ```python
-# navigator_orchestrator/batch_runner.py
+# planalign_orchestrator/batch_runner.py
 from pathlib import Path
 from typing import Dict, List, Optional
 import shutil
@@ -171,7 +171,7 @@ def load_scenario_config(self, scenario_path: Path) -> SimulationConfig:
 
 ### Excel Export Integration
 ```python
-# navigator_orchestrator/excel_exporter.py
+# planalign_orchestrator/excel_exporter.py
 import pandas as pd
 from openpyxl.styles import Font, PatternFill
 from openpyxl.utils.dataframe import dataframe_to_rows
@@ -238,7 +238,7 @@ class ExcelExporter:
 
 ### CLI Integration
 ```python
-# navigator_orchestrator/cli.py - Add batch subcommand
+# planalign_orchestrator/cli.py - Add batch subcommand
 def cmd_batch(args: argparse.Namespace) -> int:
     """Execute batch scenario processing"""
 
@@ -393,16 +393,16 @@ enrollment:
 
 ```bash
 # Run all scenarios in batch_scenarios/
-python -m navigator_orchestrator.cli batch
+python -m planalign_orchestrator.cli batch
 
 # Run specific scenarios
-python -m navigator_orchestrator.cli batch --scenarios baseline,s1_aip_new_hires,s2_aip_all
+python -m planalign_orchestrator.cli batch --scenarios baseline,s1_aip_new_hires,s2_aip_all
 
 # Custom directories
-python -m navigator_orchestrator.cli batch --scenarios-dir my_scenarios --output-dir my_results
+python -m planalign_orchestrator.cli batch --scenarios-dir my_scenarios --output-dir my_results
 
 # With comparison report
-python -m navigator_orchestrator.cli batch --with-comparison
+python -m planalign_orchestrator.cli batch --with-comparison
 ```
 
 ## Integration with Production Hardening
@@ -417,7 +417,7 @@ This epic builds on the production hardening epics:
 ## Definition of Done
 
 - [x] **Batch runner implementation** executing multiple scenarios with database isolation
-- [x] **CLI integration** with batch subcommand in navigator_orchestrator
+- [x] **CLI integration** with batch subcommand in planalign_orchestrator
 - [x] **Excel export capability** producing analyst-friendly formatted outputs
 - [x] **Comparison reporting** highlighting key differences between scenarios
 - [x] **Error handling** continuing batch execution despite individual scenario failures
@@ -432,4 +432,4 @@ This epic builds on the production hardening epics:
 
 ---
 
-**Implementation Note**: This epic focuses on practical scenario analysis capabilities that work with the existing navigator_orchestrator architecture, enabling efficient plan design comparison and policy impact analysis.
+**Implementation Note**: This epic focuses on practical scenario analysis capabilities that work with the existing planalign_orchestrator architecture, enabling efficient plan design comparison and policy impact analysis.

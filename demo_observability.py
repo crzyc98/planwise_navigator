@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-from navigator_orchestrator.config import get_database_path
+from planalign_orchestrator.config import get_database_path
 Observability Framework Demonstration
 
 Shows the production observability framework in action with realistic
@@ -11,7 +11,7 @@ import random
 import time
 from pathlib import Path
 
-from navigator_orchestrator import observability_session
+from planalign_orchestrator import observability_session
 
 
 def simulate_data_processing(
