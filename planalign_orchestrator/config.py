@@ -324,6 +324,11 @@ class PolarsEventSettings(BaseModel):
     use_cohort_engine: bool = Field(default=False, description="Use E077 cohort generation engine (375× faster)")
     cohort_output_dir: str = Field(default="outputs/polars_cohorts", description="Directory for cohort Parquet files")
 
+    # E076: Polars State Accumulation Pipeline configuration
+    state_accumulation_enabled: bool = Field(default=False, description="Enable Polars-based state accumulation (E076)")
+    state_accumulation_fallback_on_error: bool = Field(default=True, description="Fall back to dbt if Polars state pipeline fails")
+    state_accumulation_validate_results: bool = Field(default=False, description="Validate Polars output against dbt baseline")
+
 
 class EventGenerationSettings(BaseModel):
     """Event generation mode configuration supporting SQL and Polars"""
@@ -541,6 +546,35 @@ class SimulationConfig(BaseModel):
         """Get configured cohort output directory"""
         polars_settings = self.get_polars_settings()
         return get_project_root() / polars_settings.cohort_output_dir
+
+    def is_polars_state_accumulation_enabled(self) -> bool:
+        """Check if E076 Polars state accumulation pipeline is enabled.
+
+        Returns True only when:
+        1. Polars mode is enabled for event generation
+        2. state_accumulation_enabled is explicitly set to True
+
+        This allows fine-grained control over whether to use Polars for
+        the state accumulation bottleneck (70% of runtime).
+        """
+        polars_settings = self.get_polars_settings()
+        return self.is_polars_mode_enabled() and polars_settings.state_accumulation_enabled
+
+    def get_polars_state_accumulation_settings(self) -> dict:
+        """Get E076 Polars state accumulation configuration.
+
+        Returns:
+            Dictionary with state accumulation settings:
+            - enabled: Whether state accumulation is enabled
+            - fallback_on_error: Whether to fall back to dbt on errors
+            - validate_results: Whether to validate against dbt baseline
+        """
+        polars_settings = self.get_polars_settings()
+        return {
+            "enabled": polars_settings.state_accumulation_enabled,
+            "fallback_on_error": polars_settings.state_accumulation_fallback_on_error,
+            "validate_results": polars_settings.state_accumulation_validate_results,
+        }
 
     def validate_threading_configuration(self) -> None:
         """Validate threading configuration and log warnings"""
