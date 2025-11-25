@@ -123,7 +123,8 @@
       "Bash(/tmp/fct_workforce_snapshot_baseline.sql)",
       "Bash(PYTHONPATH=. time python:*)",
       "Bash(uv pip install:*)",
-      "Bash(git mv:*)"
+      "Bash(git mv:*)",
+      "Bash(git rebase:*)"
     ],
     "deny": [],
     "ask": []
