@@ -432,6 +432,11 @@ optimization:
       use_cohort_engine: true  # Enable E077 algebraic solver + deterministic cohort generation
       cohort_output_dir: "outputs/polars_cohorts"  # Directory for cohort Parquet files
 
+      # E076: Polars State Accumulation Pipeline (60-75% performance improvement)
+      state_accumulation_enabled: true  # Enable Polars-based state accumulation
+      state_accumulation_fallback_on_error: true  # Fallback to dbt if Polars state pipeline fails
+      state_accumulation_validate_results: true  # Validate Polars output against dbt baseline
+
     # SQL mode configuration (existing)
     sql:
       dbt_threads: 1  # Number of threads for dbt SQL execution - REVERTED: threading added 34s overhead

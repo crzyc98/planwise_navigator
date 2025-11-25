@@ -721,3 +721,171 @@ class TestSchemaValidation:
         """Test that snapshot schema matches fct_workforce_snapshot."""
         # TODO: Implement schema validation in S076-05
         pass
+
+
+@pytest.mark.integration
+class TestYearExecutorPolarsIntegration:
+    """Test E076 Polars state accumulation integration with YearExecutor."""
+
+    @pytest.fixture
+    def mock_config_with_polars(self):
+        """Create a mock SimulationConfig with Polars state accumulation enabled."""
+        from unittest.mock import MagicMock
+
+        config = MagicMock()
+        config.simulation.start_year = 2025
+        config.simulation.end_year = 2025
+
+        # Enable Polars state accumulation
+        polars_settings = MagicMock()
+        polars_settings.state_accumulation_enabled = True
+        polars_settings.state_accumulation_fallback_on_error = True
+        polars_settings.state_accumulation_validate_results = False
+        polars_settings.output_path = "data/parquet/events"
+
+        config.get_polars_settings.return_value = polars_settings
+        config.is_polars_mode_enabled.return_value = True
+        config.is_polars_state_accumulation_enabled.return_value = True
+        config.get_polars_state_accumulation_settings.return_value = {
+            "enabled": True,
+            "fallback_on_error": True,
+            "validate_results": False
+        }
+
+        return config
+
+    @pytest.fixture
+    def mock_config_without_polars(self):
+        """Create a mock SimulationConfig with Polars state accumulation disabled."""
+        from unittest.mock import MagicMock
+
+        config = MagicMock()
+        config.simulation.start_year = 2025
+        config.simulation.end_year = 2025
+
+        # Disable Polars state accumulation
+        polars_settings = MagicMock()
+        polars_settings.state_accumulation_enabled = False
+        polars_settings.state_accumulation_fallback_on_error = True
+
+        config.get_polars_settings.return_value = polars_settings
+        config.is_polars_mode_enabled.return_value = False
+        config.is_polars_state_accumulation_enabled.return_value = False
+        config.get_polars_state_accumulation_settings.return_value = {
+            "enabled": False,
+            "fallback_on_error": True,
+            "validate_results": False
+        }
+
+        return config
+
+    def test_should_use_polars_when_enabled(self, mock_config_with_polars):
+        """Test that Polars state accumulation is used when enabled."""
+        from unittest.mock import MagicMock
+        from planalign_orchestrator.pipeline.year_executor import (
+            YearExecutor,
+            POLARS_STATE_PIPELINE_AVAILABLE
+        )
+
+        if not POLARS_STATE_PIPELINE_AVAILABLE:
+            pytest.skip("Polars state pipeline not available")
+
+        # Create mock dependencies
+        dbt_runner = MagicMock()
+        db_manager = MagicMock()
+
+        executor = YearExecutor(
+            config=mock_config_with_polars,
+            dbt_runner=dbt_runner,
+            db_manager=db_manager,
+            dbt_vars={"scenario_id": "baseline", "plan_design_id": "standard_401k"},
+            dbt_threads=1,
+            verbose=True
+        )
+
+        # Test the check method
+        assert executor._should_use_polars_state_accumulation() is True
+
+    def test_should_not_use_polars_when_disabled(self, mock_config_without_polars):
+        """Test that dbt is used when Polars state accumulation is disabled."""
+        from unittest.mock import MagicMock
+        from planalign_orchestrator.pipeline.year_executor import YearExecutor
+
+        # Create mock dependencies
+        dbt_runner = MagicMock()
+        db_manager = MagicMock()
+
+        executor = YearExecutor(
+            config=mock_config_without_polars,
+            dbt_runner=dbt_runner,
+            db_manager=db_manager,
+            dbt_vars={"scenario_id": "baseline"},
+            dbt_threads=1,
+            verbose=False
+        )
+
+        # Test the check method
+        assert executor._should_use_polars_state_accumulation() is False
+
+    def test_fallback_to_dbt_on_polars_error(self, mock_config_with_polars, tmp_path):
+        """Test that execution falls back to dbt when Polars fails."""
+        from unittest.mock import MagicMock, patch
+        from planalign_orchestrator.pipeline.year_executor import (
+            YearExecutor,
+            POLARS_STATE_PIPELINE_AVAILABLE
+        )
+        from planalign_orchestrator.pipeline.workflow import StageDefinition, WorkflowStage
+
+        if not POLARS_STATE_PIPELINE_AVAILABLE:
+            pytest.skip("Polars state pipeline not available")
+
+        # Create mock dependencies
+        dbt_runner = MagicMock()
+        dbt_result = MagicMock()
+        dbt_result.success = True
+        dbt_result.return_code = 0
+        dbt_runner.execute_command.return_value = dbt_result
+
+        db_manager = MagicMock()
+
+        executor = YearExecutor(
+            config=mock_config_with_polars,
+            dbt_runner=dbt_runner,
+            db_manager=db_manager,
+            dbt_vars={"scenario_id": "baseline", "plan_design_id": "standard_401k"},
+            dbt_threads=1,
+            verbose=True
+        )
+
+        # Create STATE_ACCUMULATION stage definition
+        stage = StageDefinition(
+            name=WorkflowStage.STATE_ACCUMULATION,
+            dependencies=[WorkflowStage.EVENT_GENERATION],
+            models=["int_enrollment_state_accumulator", "fct_workforce_snapshot"],
+            validation_rules=[]
+        )
+
+        # Mock StateAccumulatorEngine to raise an error
+        with patch('planalign_orchestrator.pipeline.year_executor.StateAccumulatorEngine') as mock_engine_class:
+            mock_engine_class.side_effect = Exception("Simulated Polars failure")
+
+            # Execute should fall back to dbt
+            result = executor.execute_workflow_stage(stage, year=2025)
+
+            # Verify fallback occurred - dbt_runner should have been called
+            assert result["success"] is True
+            assert dbt_runner.execute_command.called
+
+    def test_config_settings_propagation(self):
+        """Test that config settings properly enable/disable state accumulation."""
+        from planalign_orchestrator.config import PolarsEventSettings
+
+        # Test default (disabled)
+        settings = PolarsEventSettings()
+        assert settings.state_accumulation_enabled is False
+        assert settings.state_accumulation_fallback_on_error is True
+        assert settings.state_accumulation_validate_results is False
+
+        # Test enabled
+        settings_enabled = PolarsEventSettings(state_accumulation_enabled=True)
+        assert settings_enabled.state_accumulation_enabled is True

@@ -187,6 +187,7 @@ class StateAccumulatorEngine:
             """
         else:
             # Year 2+: Load from previous year's snapshot
+            # Note: fct_workforce_snapshot does not have scenario_id column
             prev_year = self.config.simulation_year - 1
             self.logger.info(f"Year {self.config.simulation_year}: Loading from Year {prev_year} snapshot")
             query = f"""
@@ -202,7 +203,6 @@ class StateAccumulatorEngine:
                     CASE WHEN employment_status = 'active' THEN true ELSE false END as active
                 FROM fct_workforce_snapshot
                 WHERE simulation_year = {prev_year}
-                  AND scenario_id = '{self.config.scenario_id}'
                   AND employment_status = 'active'
             """
 
