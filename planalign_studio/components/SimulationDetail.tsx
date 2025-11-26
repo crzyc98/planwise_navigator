@@ -19,8 +19,10 @@ import {
   ChevronRight,
   Copy,
   ExternalLink,
+  History,
+  Play,
 } from 'lucide-react';
-import { getRunDetails, getArtifactDownloadUrl, getResultsExportUrl, RunDetails, Artifact } from '../services/api';
+import { getRunDetails, getArtifactDownloadUrl, getResultsExportUrl, listRuns, getRunById, RunDetails, Artifact, RunSummary } from '../services/api';
 
 const formatBytes = (bytes: number): string => {
   if (bytes === 0) return '0 B';
@@ -92,6 +94,10 @@ export default function SimulationDetail() {
   const navigate = useNavigate();
 
   const [details, setDetails] = useState<RunDetails | null>(null);
+  const [runs, setRuns] = useState<RunSummary[]>([]);
+  const [selectedRunId, setSelectedRunId] = useState<string | null>(null);
+  const [expandedRuns, setExpandedRuns] = useState<Set<string>>(new Set());
+  const [runArtifacts, setRunArtifacts] = useState<Record<string, Artifact[]>>({});
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [configExpanded, setConfigExpanded] = useState(false);
@@ -104,8 +110,28 @@ export default function SimulationDetail() {
       try {
         setIsLoading(true);
         setError(null);
-        const data = await getRunDetails(scenarioId);
-        setDetails(data);
+
+        // Load both scenario details and run history in parallel
+        const [detailsData, runsData] = await Promise.all([
+          getRunDetails(scenarioId),
+          listRuns(scenarioId),
+        ]);
+
+        setDetails(detailsData);
+        setRuns(runsData);
+
+        // If we have runs, auto-expand the most recent one
+        if (runsData.length > 0) {
+          setExpandedRuns(new Set([runsData[0].id]));
+          setSelectedRunId(runsData[0].id);
+          // Load artifacts for the first run
+          try {
+            const runDetails = await getRunById(scenarioId, runsData[0].id);
+            setRunArtifacts({ [runsData[0].id]: runDetails.artifacts });
+          } catch {
+            // Ignore error loading first run artifacts
+          }
+        }
       } catch (err) {
         setError(err instanceof Error ? err.message : 'Failed to load simulation details');
       } finally {
@@ -115,6 +141,25 @@ export default function SimulationDetail() {
 
     loadDetails();
   }, [scenarioId]);
+
+  const toggleRunExpanded = async (runId: string) => {
+    const newExpanded = new Set(expandedRuns);
+    if (newExpanded.has(runId)) {
+      newExpanded.delete(runId);
+    } else {
+      newExpanded.add(runId);
+      // Load artifacts for this run if not already loaded
+      if (!runArtifacts[runId] && scenarioId) {
+        try {
+          const runDetails = await getRunById(scenarioId, runId);
+          setRunArtifacts(prev => ({ ...prev, [runId]: runDetails.artifacts }));
+        } catch {
+          // Ignore error
+        }
+      }
+    }
+    setExpandedRuns(newExpanded);
+  };
 
   const handleCopyConfig = () => {
     if (details?.config) {
@@ -251,141 +296,215 @@ export default function SimulationDetail() {
         </div>
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        {/* Artifacts Panel */}
-        <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
-          <div className="flex items-center justify-between mb-4">
-            <h2 className="text-lg font-semibold text-gray-800 flex items-center">
-              <Download size={20} className="mr-2 text-gray-500" />
-              Output Artifacts
-            </h2>
-            {details.status === 'completed' && (
-              <a
-                href={getResultsExportUrl(details.scenario_id, 'excel')}
-                className="flex items-center px-3 py-1.5 bg-fidelity-green text-white rounded-lg hover:bg-fidelity-dark text-sm font-medium"
-              >
-                <FileSpreadsheet size={16} className="mr-1.5" />
-                Export Excel
-              </a>
-            )}
-          </div>
+      {/* Run History Section - Full Width */}
+      <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
+        <div className="flex items-center justify-between mb-4">
+          <h2 className="text-lg font-semibold text-gray-800 flex items-center">
+            <History size={20} className="mr-2 text-gray-500" />
+            Run History
+          </h2>
+          <span className="text-sm text-gray-500">
+            {runs.length} run{runs.length !== 1 ? 's' : ''}
+          </span>
+        </div>
 
-          {details.artifacts.length === 0 ? (
-            <div className="text-center py-8 text-gray-500">
-              <Download size={40} className="mx-auto mb-3 opacity-30" />
-              <p>No artifacts available yet.</p>
-              <p className="text-sm mt-1">Run the simulation to generate output files.</p>
-            </div>
-          ) : (
-            <div className="space-y-2">
-              {details.artifacts.map((artifact) => (
-                <a
-                  key={artifact.path}
-                  href={getArtifactDownloadUrl(details.scenario_id, artifact.path)}
-                  className="flex items-center justify-between p-3 bg-gray-50 hover:bg-gray-100 rounded-lg border border-gray-200 transition-colors group"
+        {runs.length === 0 ? (
+          <div className="text-center py-8 text-gray-500">
+            <Play size={40} className="mx-auto mb-3 opacity-30" />
+            <p>No runs yet.</p>
+            <p className="text-sm mt-1">Start a simulation to see run history.</p>
+          </div>
+        ) : (
+          <div className="space-y-3">
+            {runs.map((run, index) => (
+              <div
+                key={run.id}
+                className={`border rounded-lg overflow-hidden ${
+                  index === 0 ? 'border-fidelity-green' : 'border-gray-200'
+                }`}
+              >
+                {/* Run Header */}
+                <button
+                  onClick={() => toggleRunExpanded(run.id)}
+                  className={`w-full flex items-center justify-between p-4 hover:bg-gray-50 transition-colors ${
+                    expandedRuns.has(run.id) ? 'bg-gray-50' : 'bg-white'
+                  }`}
                 >
-                  <div className="flex items-center">
-                    {getArtifactIcon(artifact.type)}
-                    <div className="ml-3">
-                      <p className="font-medium text-gray-900 group-hover:text-fidelity-green">
-                        {artifact.name}
-                      </p>
-                      <p className="text-xs text-gray-500">
-                        {formatBytes(artifact.size_bytes)}
-                        {artifact.created_at && (
-                          <> &bull; {new Date(artifact.created_at).toLocaleDateString()}</>
+                  <div className="flex items-center space-x-4">
+                    {expandedRuns.has(run.id) ? (
+                      <ChevronDown size={18} className="text-gray-400" />
+                    ) : (
+                      <ChevronRight size={18} className="text-gray-400" />
+                    )}
+                    <div className="text-left">
+                      <div className="flex items-center space-x-2">
+                        <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium ${getStatusColor(run.status)}`}>
+                          {getStatusIcon(run.status)}
+                          {run.status.toUpperCase()}
+                        </span>
+                        {index === 0 && (
+                          <span className="px-2 py-0.5 rounded-full text-xs font-medium bg-fidelity-green/10 text-fidelity-green">
+                            Latest
+                          </span>
+                        )}
+                      </div>
+                      <p className="text-sm text-gray-500 mt-1">
+                        {new Date(run.started_at).toLocaleString()}
+                        {run.duration_seconds && (
+                          <span className="ml-2 text-gray-400">({formatDuration(run.duration_seconds)})</span>
                         )}
                       </p>
                     </div>
                   </div>
-                  <ExternalLink size={16} className="text-gray-400 group-hover:text-fidelity-green" />
-                </a>
-              ))}
-            </div>
-          )}
-        </div>
-
-        {/* Configuration Panel */}
-        <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
-          <div className="flex items-center justify-between mb-4">
-            <h2 className="text-lg font-semibold text-gray-800 flex items-center">
-              <Settings size={20} className="mr-2 text-gray-500" />
-              Configuration
-            </h2>
-            <div className="flex items-center space-x-2">
-              <button
-                onClick={handleCopyConfig}
-                className="flex items-center px-3 py-1.5 text-gray-600 hover:text-gray-900 hover:bg-gray-100 rounded-lg text-sm"
-                title="Copy configuration"
-              >
-                <Copy size={14} className="mr-1.5" />
-                {copiedConfig ? 'Copied!' : 'Copy'}
-              </button>
-              <button
-                onClick={() => setConfigExpanded(!configExpanded)}
-                className="flex items-center px-3 py-1.5 text-gray-600 hover:text-gray-900 hover:bg-gray-100 rounded-lg text-sm"
-              >
-                {configExpanded ? (
-                  <>
-                    <ChevronDown size={14} className="mr-1" />
-                    Collapse
-                  </>
-                ) : (
-                  <>
-                    <ChevronRight size={14} className="mr-1" />
-                    Expand
-                  </>
-                )}
-              </button>
-            </div>
-          </div>
-
-          {details.config ? (
-            <div className={`bg-gray-900 rounded-lg overflow-hidden ${configExpanded ? 'max-h-[600px]' : 'max-h-64'} overflow-y-auto transition-all`}>
-              <pre className="p-4 text-sm text-gray-300 font-mono whitespace-pre-wrap">
-                {JSON.stringify(details.config, null, 2)}
-              </pre>
-            </div>
-          ) : (
-            <div className="text-center py-8 text-gray-500">
-              <Settings size={40} className="mx-auto mb-3 opacity-30" />
-              <p>No configuration available.</p>
-            </div>
-          )}
-
-          {/* Quick Config Summary */}
-          {details.config && (
-            <div className="mt-4 pt-4 border-t border-gray-200">
-              <h3 className="text-sm font-medium text-gray-700 mb-3">Quick Summary</h3>
-              <div className="grid grid-cols-2 gap-3 text-sm">
-                {details.config.simulation?.seed && (
-                  <div className="flex justify-between">
-                    <span className="text-gray-500">Seed:</span>
-                    <span className="font-mono text-gray-900">{details.config.simulation.seed}</span>
+                  <div className="flex items-center space-x-4 text-sm text-gray-500">
+                    {run.start_year && run.end_year && (
+                      <span className="flex items-center">
+                        <Calendar size={14} className="mr-1" />
+                        {run.start_year}-{run.end_year}
+                      </span>
+                    )}
+                    {run.final_headcount && (
+                      <span className="flex items-center">
+                        <Users size={14} className="mr-1" />
+                        {run.final_headcount.toLocaleString()}
+                      </span>
+                    )}
+                    <span className="flex items-center">
+                      <Download size={14} className="mr-1" />
+                      {run.artifact_count} files
+                    </span>
                   </div>
-                )}
-                {details.config.simulation?.growth_target && (
-                  <div className="flex justify-between">
-                    <span className="text-gray-500">Growth Target:</span>
-                    <span className="text-gray-900">{(details.config.simulation.growth_target * 100).toFixed(1)}%</span>
-                  </div>
-                )}
-                {details.config.compensation?.merit_budget && (
-                  <div className="flex justify-between">
-                    <span className="text-gray-500">Merit Budget:</span>
-                    <span className="text-gray-900">{(details.config.compensation.merit_budget * 100).toFixed(1)}%</span>
-                  </div>
-                )}
-                {details.config.turnover?.base_rate && (
-                  <div className="flex justify-between">
-                    <span className="text-gray-500">Turnover Rate:</span>
-                    <span className="text-gray-900">{(details.config.turnover.base_rate * 100).toFixed(1)}%</span>
+                </button>
+
+                {/* Expanded Artifacts */}
+                {expandedRuns.has(run.id) && (
+                  <div className="border-t border-gray-200 bg-gray-50 p-4">
+                    {runArtifacts[run.id] ? (
+                      runArtifacts[run.id].length > 0 ? (
+                        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-2">
+                          {runArtifacts[run.id].map((artifact) => (
+                            <a
+                              key={artifact.path}
+                              href={getArtifactDownloadUrl(details.scenario_id, artifact.path)}
+                              className="flex items-center p-3 bg-white hover:bg-gray-100 rounded-lg border border-gray-200 transition-colors group"
+                            >
+                              {getArtifactIcon(artifact.type)}
+                              <div className="ml-3 flex-1 min-w-0">
+                                <p className="font-medium text-sm text-gray-900 group-hover:text-fidelity-green truncate">
+                                  {artifact.name}
+                                </p>
+                                <p className="text-xs text-gray-500">
+                                  {formatBytes(artifact.size_bytes)}
+                                </p>
+                              </div>
+                              <ExternalLink size={14} className="text-gray-400 group-hover:text-fidelity-green ml-2" />
+                            </a>
+                          ))}
+                        </div>
+                      ) : (
+                        <p className="text-sm text-gray-500 text-center py-2">No artifacts found for this run.</p>
+                      )
+                    ) : (
+                      <div className="flex items-center justify-center py-2">
+                        <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-fidelity-green"></div>
+                        <span className="ml-2 text-sm text-gray-500">Loading artifacts...</span>
+                      </div>
+                    )}
+
+                    {/* Run ID */}
+                    <div className="mt-3 pt-3 border-t border-gray-200">
+                      <code className="text-xs text-gray-400 font-mono">
+                        Run ID: {run.id}
+                      </code>
+                    </div>
                   </div>
                 )}
               </div>
-            </div>
-          )}
+            ))}
+          </div>
+        )}
+      </div>
+
+      {/* Configuration Panel - Collapsible */}
+      <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
+        <div className="flex items-center justify-between mb-4">
+          <h2 className="text-lg font-semibold text-gray-800 flex items-center">
+            <Settings size={20} className="mr-2 text-gray-500" />
+            Configuration
+          </h2>
+          <div className="flex items-center space-x-2">
+            <button
+              onClick={handleCopyConfig}
+              className="flex items-center px-3 py-1.5 text-gray-600 hover:text-gray-900 hover:bg-gray-100 rounded-lg text-sm"
+              title="Copy configuration"
+            >
+              <Copy size={14} className="mr-1.5" />
+              {copiedConfig ? 'Copied!' : 'Copy'}
+            </button>
+            <button
+              onClick={() => setConfigExpanded(!configExpanded)}
+              className="flex items-center px-3 py-1.5 text-gray-600 hover:text-gray-900 hover:bg-gray-100 rounded-lg text-sm"
+            >
+              {configExpanded ? (
+                <>
+                  <ChevronDown size={14} className="mr-1" />
+                  Collapse
+                </>
+              ) : (
+                <>
+                  <ChevronRight size={14} className="mr-1" />
+                  Expand
+                </>
+              )}
+            </button>
+          </div>
         </div>
+
+        {/* Quick Config Summary - Always visible */}
+        {details.config && (
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
+            {details.config.simulation?.seed !== undefined && (
+              <div className="bg-gray-50 rounded-lg p-3 border border-gray-100">
+                <span className="text-gray-500 block text-xs">Seed</span>
+                <span className="font-mono text-gray-900">{details.config.simulation.seed}</span>
+              </div>
+            )}
+            {details.config.simulation?.growth_target !== undefined && (
+              <div className="bg-gray-50 rounded-lg p-3 border border-gray-100">
+                <span className="text-gray-500 block text-xs">Growth Target</span>
+                <span className="text-gray-900">{(details.config.simulation.growth_target * 100).toFixed(1)}%</span>
+              </div>
+            )}
+            {details.config.compensation?.merit_budget !== undefined && (
+              <div className="bg-gray-50 rounded-lg p-3 border border-gray-100">
+                <span className="text-gray-500 block text-xs">Merit Budget</span>
+                <span className="text-gray-900">{(details.config.compensation.merit_budget * 100).toFixed(1)}%</span>
+              </div>
+            )}
+            {details.config.turnover?.base_rate !== undefined && (
+              <div className="bg-gray-50 rounded-lg p-3 border border-gray-100">
+                <span className="text-gray-500 block text-xs">Turnover Rate</span>
+                <span className="text-gray-900">{(details.config.turnover.base_rate * 100).toFixed(1)}%</span>
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* Full config JSON - Expandable */}
+        {configExpanded && details.config && (
+          <div className="mt-4 bg-gray-900 rounded-lg overflow-hidden max-h-[400px] overflow-y-auto">
+            <pre className="p-4 text-sm text-gray-300 font-mono whitespace-pre-wrap">
+              {JSON.stringify(details.config, null, 2)}
+            </pre>
+          </div>
+        )}
+
+        {!details.config && (
+          <div className="text-center py-8 text-gray-500">
+            <Settings size={40} className="mx-auto mb-3 opacity-30" />
+            <p>No configuration available.</p>
+          </div>
+        )}
       </div>
 
       {/* Error Message if Failed */}

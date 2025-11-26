@@ -32,6 +32,7 @@ def _export_results_to_excel(
     scenario_name: str,
     config: Dict[str, Any],
     seed: int,
+    run_dir: Optional[Path] = None,
 ) -> Optional[Path]:
     """Export simulation results to Excel after successful completion.
 
@@ -40,6 +41,7 @@ def _export_results_to_excel(
         scenario_name: Name of the scenario
         config: Simulation configuration dictionary
         seed: Random seed used for the simulation
+        run_dir: Optional path to run-specific directory for output
 
     Returns:
         Path to the Excel file if successful, None otherwise
@@ -49,14 +51,21 @@ def _export_results_to_excel(
         from planalign_orchestrator.excel_exporter import ExcelExporter
         from planalign_orchestrator.config import SimulationConfig
 
-        # Find the database
-        db_path = scenario_path / "simulation.duckdb"
+        # Find the database - prefer run-specific database if run_dir provided
+        if run_dir and (run_dir / "simulation.duckdb").exists():
+            db_path = run_dir / "simulation.duckdb"
+        else:
+            db_path = scenario_path / "simulation.duckdb"
+
         if not db_path.exists():
             logger.warning(f"Database not found at {db_path}, skipping Excel export")
             return None
 
-        # Create results directory
-        results_dir = scenario_path / "results"
+        # Use run directory if provided, otherwise create results directory
+        if run_dir:
+            results_dir = run_dir
+        else:
+            results_dir = scenario_path / "results"
         results_dir.mkdir(parents=True, exist_ok=True)
 
         # Initialize database connection manager
@@ -375,10 +384,12 @@ cli_main()
             scenario_name = scenario.name if scenario else scenario_id
             seed = config.get("simulation", {}).get("seed", 42)
 
-            # Create results directory and save config YAML
-            results_dir = scenario_path / "results"
-            results_dir.mkdir(parents=True, exist_ok=True)
-            config_yaml_path = results_dir / f"{scenario_name}_config.yaml"
+            # Create run-specific directory: runs/{run_id}/
+            run_dir = scenario_path / "runs" / run_id
+            run_dir.mkdir(parents=True, exist_ok=True)
+
+            # Save config YAML to run directory
+            config_yaml_path = run_dir / "config.yaml"
             try:
                 with open(config_yaml_path, "w") as f:
                     yaml.dump(config, f, default_flow_style=False, sort_keys=False)
@@ -403,19 +414,31 @@ cli_main()
             }
             try:
                 import json
-                metadata_path = results_dir / "run_metadata.json"
+                metadata_path = run_dir / "run_metadata.json"
                 with open(metadata_path, "w") as f:
                     json.dump(run_metadata, f, indent=2)
                 print(f"[SimulationService] Run metadata saved to: {metadata_path}", flush=True)
             except Exception as e:
                 logger.warning(f"Failed to save run metadata: {e}")
 
-            # Export to Excel
+            # Copy database to run directory for archival
+            db_src = scenario_path / "simulation.duckdb"
+            if db_src.exists():
+                import shutil
+                db_dest = run_dir / "simulation.duckdb"
+                try:
+                    shutil.copy2(db_src, db_dest)
+                    print(f"[SimulationService] Database copied to: {db_dest}", flush=True)
+                except Exception as e:
+                    logger.warning(f"Failed to copy database to run directory: {e}")
+
+            # Export to Excel in run directory
             excel_path = _export_results_to_excel(
                 scenario_path=scenario_path,
                 scenario_name=scenario_name,
                 config=config,
                 seed=seed,
+                run_dir=run_dir,  # Pass run directory for output
             )
             if excel_path:
                 print(f"[SimulationService] Excel export created: {excel_path}", flush=True)

@@ -115,6 +115,33 @@ class Artifact(BaseModel):
     created_at: Optional[datetime] = Field(None, description="File creation time")
 
 
+class RunSummary(BaseModel):
+    """Summary of a simulation run for listing."""
+
+    id: str = Field(..., description="Run ID")
+    scenario_id: str = Field(..., description="Parent scenario ID")
+    status: Literal["pending", "running", "completed", "failed", "cancelled"] = Field(
+        description="Run status"
+    )
+    started_at: datetime = Field(..., description="Run start timestamp")
+    completed_at: Optional[datetime] = Field(None, description="Run completion timestamp")
+    duration_seconds: Optional[float] = Field(None, description="Total duration in seconds")
+
+    # Summary metrics
+    start_year: Optional[int] = Field(None, description="Simulation start year")
+    end_year: Optional[int] = Field(None, description="Simulation end year")
+    total_events: Optional[int] = Field(None, description="Total events generated")
+    final_headcount: Optional[int] = Field(None, description="Final headcount")
+
+    # Artifact count
+    artifact_count: int = Field(default=0, description="Number of artifacts")
+
+    class Config:
+        json_encoders = {
+            datetime: lambda v: v.isoformat() if v else None,
+        }
+
+
 class RunDetails(BaseModel):
     """Detailed information about a simulation run."""
 

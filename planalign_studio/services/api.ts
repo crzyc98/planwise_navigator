@@ -454,3 +454,31 @@ export async function getRunDetails(scenarioId: string): Promise<RunDetails> {
 export function getArtifactDownloadUrl(scenarioId: string, artifactPath: string): string {
   return `${API_BASE}/api/scenarios/${scenarioId}/artifacts/${artifactPath}`;
 }
+
+// ============================================================================
+// Run History Endpoints
+// ============================================================================
+
+export interface RunSummary {
+  id: string;
+  scenario_id: string;
+  status: 'pending' | 'running' | 'completed' | 'failed' | 'cancelled';
+  started_at: string;
+  completed_at: string | null;
+  duration_seconds: number | null;
+  start_year: number | null;
+  end_year: number | null;
+  total_events: number | null;
+  final_headcount: number | null;
+  artifact_count: number;
+}
+
+export async function listRuns(scenarioId: string): Promise<RunSummary[]> {
+  const response = await fetch(`${API_BASE}/api/scenarios/${scenarioId}/runs`);
+  return handleResponse<RunSummary[]>(response);
+}
+
+export async function getRunById(scenarioId: string, runId: string): Promise<RunDetails> {
+  const response = await fetch(`${API_BASE}/api/scenarios/${scenarioId}/runs/${runId}`);
+  return handleResponse<RunDetails>(response);
+}
