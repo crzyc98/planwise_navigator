@@ -5,6 +5,7 @@ import Dashboard from './components/Dashboard';
 import SimulationControl from './components/SimulationControl';
 import SimulationDetail from './components/SimulationDetail';
 import ConfigStudio from './components/ConfigStudio';
+import ScenariosPage from './components/ScenariosPage';
 import AnalyticsDashboard from './components/AnalyticsDashboard';
 import BatchProcessing from './components/BatchProcessing';
 import WorkspaceManager from './components/WorkspaceManager';
@@ -24,7 +25,9 @@ export default function App() {
           <Route index element={<Dashboard />} />
           <Route path="simulate" element={<SimulationControl />} />
           <Route path="simulate/:scenarioId" element={<SimulationDetail />} />
+          <Route path="scenarios" element={<ScenariosPage />} />
           <Route path="config" element={<ConfigStudio />} />
+          <Route path="config/:scenarioId" element={<ConfigStudio />} />
           <Route path="analytics" element={<AnalyticsDashboard />} />
           <Route path="batch" element={<BatchProcessing />} />
           <Route path="workspaces" element={<WorkspaceManager />} />

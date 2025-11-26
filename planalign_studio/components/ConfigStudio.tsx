@@ -1,13 +1,66 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { Save, AlertTriangle, FileText, Settings, HelpCircle, TrendingUp, Users, DollarSign, Briefcase, Zap, Server, Shield, PieChart, Database, Upload, Check, X, Plus, Play, Trash2, Layers } from 'lucide-react';
-import { useNavigate, useOutletContext } from 'react-router-dom';
+import { Save, AlertTriangle, FileText, Settings, HelpCircle, TrendingUp, Users, DollarSign, Briefcase, Zap, Server, Shield, PieChart, Database, Upload, Check, X, ArrowLeft } from 'lucide-react';
+import { useNavigate, useOutletContext, useParams } from 'react-router-dom';
 import { LayoutContextType } from './Layout';
-import { updateWorkspace as apiUpdateWorkspace, createScenario, listScenarios, deleteScenario, Scenario } from '../services/api';
+import { updateWorkspace as apiUpdateWorkspace, getScenario, updateScenario, Scenario } from '../services/api';
+
+// InputField component defined OUTSIDE ConfigStudio to prevent re-creation on every render
+interface InputFieldProps {
+  label: string;
+  name: string;
+  value: any;
+  onChange: (e: React.ChangeEvent<HTMLInputElement>) => void;
+  type?: string;
+  width?: string;
+  suffix?: string;
+  helper?: string;
+  step?: string;
+  min?: number;
+}
+
+const InputField: React.FC<InputFieldProps> = ({
+  label,
+  name,
+  value,
+  onChange,
+  type = "text",
+  width = "col-span-3",
+  suffix = "",
+  helper = "",
+  step = "1",
+  min
+}) => (
+  <div className={`sm:${width}`}>
+    <label className="block text-sm font-medium text-gray-700">{label}</label>
+    <div className="mt-1 relative rounded-md shadow-sm">
+      <input
+        type={type}
+        name={name}
+        value={value}
+        onChange={onChange}
+        step={step}
+        min={min}
+        className="shadow-sm focus:ring-fidelity-green focus:border-fidelity-green block w-full sm:text-sm border-gray-300 rounded-md p-2 border"
+      />
+      {suffix && (
+        <div className="absolute inset-y-0 right-0 pr-3 flex items-center pointer-events-none">
+          <span className="text-gray-500 sm:text-sm">{suffix}</span>
+        </div>
+      )}
+    </div>
+    {helper && <p className="mt-1 text-xs text-gray-500">{helper}</p>}
+  </div>
+);
 
 export default function ConfigStudio() {
   const navigate = useNavigate();
+  const { scenarioId } = useParams<{ scenarioId?: string }>();
   const { activeWorkspace } = useOutletContext<LayoutContextType>();
-  const [activeSection, setActiveSection] = useState('scenarios');
+  const [activeSection, setActiveSection] = useState('simulation');
+
+  // Current scenario being edited (null = editing base config)
+  const [currentScenario, setCurrentScenario] = useState<Scenario | null>(null);
+  const [scenarioLoading, setScenarioLoading] = useState(false);
 
   // File upload state
   const [uploadStatus, setUploadStatus] = useState<'idle' | 'uploading' | 'success' | 'error'>('idle');
@@ -116,12 +169,97 @@ export default function ConfigStudio() {
   const [saveStatus, setSaveStatus] = useState<'idle' | 'saving' | 'success' | 'error'>('idle');
   const [saveMessage, setSaveMessage] = useState('');
 
-  // Scenario state
-  const [scenarios, setScenarios] = useState<Scenario[]>([]);
-  const [scenariosLoading, setScenariosLoading] = useState(false);
-  const [newScenarioName, setNewScenarioName] = useState('');
-  const [newScenarioDesc, setNewScenarioDesc] = useState('');
-  const [isCreatingScenario, setIsCreatingScenario] = useState(false);
+
+  // Load scenario if scenarioId is provided
+  useEffect(() => {
+    const loadScenario = async () => {
+      if (!scenarioId || !activeWorkspace?.id) {
+        setCurrentScenario(null);
+        return;
+      }
+
+      setScenarioLoading(true);
+      try {
+        const scenario = await getScenario(activeWorkspace.id, scenarioId);
+        setCurrentScenario(scenario);
+
+        // Load scenario-specific config overrides into form
+        if (scenario.config_overrides) {
+          const cfg = scenario.config_overrides;
+          setFormData(prev => ({
+            ...prev,
+            // Simulation
+            name: cfg.simulation?.name || prev.name,
+            startYear: cfg.simulation?.start_year || prev.startYear,
+            endYear: cfg.simulation?.end_year || prev.endYear,
+            seed: cfg.simulation?.random_seed || prev.seed,
+            targetGrowthRate: cfg.simulation?.target_growth_rate != null
+              ? cfg.simulation.target_growth_rate * 100
+              : prev.targetGrowthRate,
+
+            // Workforce
+            totalTerminationRate: cfg.workforce?.total_termination_rate != null
+              ? cfg.workforce.total_termination_rate * 100
+              : prev.totalTerminationRate,
+            newHireTerminationRate: cfg.workforce?.new_hire_termination_rate != null
+              ? cfg.workforce.new_hire_termination_rate * 100
+              : prev.newHireTerminationRate,
+
+            // Data Sources
+            censusDataPath: cfg.data_sources?.census_parquet_path || prev.censusDataPath,
+
+            // Compensation
+            meritBudget: cfg.compensation?.merit_budget_percent ?? prev.meritBudget,
+            colaRate: cfg.compensation?.cola_rate_percent ?? prev.colaRate,
+            promoIncrease: cfg.compensation?.promotion_increase_percent ?? prev.promoIncrease,
+            promoBudget: cfg.compensation?.promotion_budget_percent ?? prev.promoBudget,
+
+            // New Hire
+            newHireStrategy: cfg.new_hire?.strategy || prev.newHireStrategy,
+            targetPercentile: cfg.new_hire?.target_percentile ?? prev.targetPercentile,
+            newHireCompVariance: cfg.new_hire?.compensation_variance_percent ?? prev.newHireCompVariance,
+            signOnBonusAllowed: cfg.new_hire?.sign_on_bonus_allowed ?? prev.signOnBonusAllowed,
+            signOnBonusBudget: cfg.new_hire?.sign_on_bonus_budget ?? prev.signOnBonusBudget,
+
+            // Turnover
+            baseTurnoverRate: cfg.turnover?.base_rate_percent ?? prev.baseTurnoverRate,
+            regrettableFactor: cfg.turnover?.regrettable_factor ?? prev.regrettableFactor,
+            involuntaryRate: cfg.turnover?.involuntary_rate_percent ?? prev.involuntaryRate,
+            turnoverBands: cfg.turnover?.tenure_bands || prev.turnoverBands,
+
+            // Hiring
+            hiringTargets: cfg.hiring?.targets || prev.hiringTargets,
+
+            // DC Plan
+            dcEligibilityMonths: cfg.dc_plan?.eligibility_months ?? prev.dcEligibilityMonths,
+            dcAutoEnroll: cfg.dc_plan?.auto_enroll ?? prev.dcAutoEnroll,
+            dcDefaultDeferral: cfg.dc_plan?.default_deferral_percent ?? prev.dcDefaultDeferral,
+            dcMatchFormula: cfg.dc_plan?.match_formula || prev.dcMatchFormula,
+            dcMatchPercent: cfg.dc_plan?.match_percent ?? prev.dcMatchPercent,
+            dcMatchLimit: cfg.dc_plan?.match_limit_percent ?? prev.dcMatchLimit,
+            dcVestingSchedule: cfg.dc_plan?.vesting_schedule || prev.dcVestingSchedule,
+            dcAutoEscalation: cfg.dc_plan?.auto_escalation ?? prev.dcAutoEscalation,
+            dcEscalationRate: cfg.dc_plan?.escalation_rate_percent ?? prev.dcEscalationRate,
+            dcEscalationCap: cfg.dc_plan?.escalation_cap_percent ?? prev.dcEscalationCap,
+
+            // Advanced
+            engine: cfg.advanced?.engine || prev.engine,
+            enableMultithreading: cfg.advanced?.enable_multithreading ?? prev.enableMultithreading,
+            checkpointFrequency: cfg.advanced?.checkpoint_frequency || prev.checkpointFrequency,
+            memoryLimitGB: cfg.advanced?.memory_limit_gb ?? prev.memoryLimitGB,
+            logLevel: cfg.advanced?.log_level || prev.logLevel,
+            strictValidation: cfg.advanced?.strict_validation ?? prev.strictValidation,
+          }));
+        }
+      } catch (err) {
+        console.error('Failed to load scenario:', err);
+        setCurrentScenario(null);
+      } finally {
+        setScenarioLoading(false);
+      }
+    };
+    loadScenario();
+  }, [scenarioId, activeWorkspace?.id]);
 
   // Load config from workspace when it changes
   useEffect(() => {
@@ -188,54 +326,6 @@ export default function ConfigStudio() {
     }));
   }, [activeWorkspace?.base_config]);
 
-  // Load scenarios on mount
-  useEffect(() => {
-    const loadScenarios = async () => {
-      if (!activeWorkspace?.id) return;
-      setScenariosLoading(true);
-      try {
-        const data = await listScenarios(activeWorkspace.id);
-        setScenarios(data);
-      } catch (err) {
-        console.error('Failed to load scenarios:', err);
-      } finally {
-        setScenariosLoading(false);
-      }
-    };
-    loadScenarios();
-  }, [activeWorkspace?.id]);
-
-  // Create a new scenario
-  const handleCreateScenario = async () => {
-    if (!newScenarioName.trim() || !activeWorkspace?.id) return;
-    setIsCreatingScenario(true);
-    try {
-      const created = await createScenario(activeWorkspace.id, {
-        name: newScenarioName,
-        description: newScenarioDesc || undefined,
-      });
-      setScenarios(prev => [...prev, created]);
-      setNewScenarioName('');
-      setNewScenarioDesc('');
-    } catch (err) {
-      console.error('Failed to create scenario:', err);
-    } finally {
-      setIsCreatingScenario(false);
-    }
-  };
-
-  // Delete a scenario
-  const handleDeleteScenario = async (scenarioId: string) => {
-    if (!activeWorkspace?.id) return;
-    if (!confirm('Are you sure you want to delete this scenario?')) return;
-    try {
-      await deleteScenario(activeWorkspace.id, scenarioId);
-      setScenarios(prev => prev.filter(s => s.id !== scenarioId));
-    } catch (err) {
-      console.error('Failed to delete scenario:', err);
-    }
-  };
-
   // Handle save configuration
   const handleSaveConfig = async () => {
     setSaveStatus('saving');
@@ -243,70 +333,80 @@ export default function ConfigStudio() {
 
     try {
       // Convert formData to the API config format
+      // Ensure numeric values are actual numbers, not strings
       const configPayload = {
         simulation: {
           name: formData.name,
-          start_year: formData.startYear,
-          end_year: formData.endYear,
-          random_seed: formData.seed,
-          target_growth_rate: formData.targetGrowthRate / 100, // Convert % to decimal
+          start_year: Number(formData.startYear),
+          end_year: Number(formData.endYear),
+          random_seed: Number(formData.seed),
+          target_growth_rate: Number(formData.targetGrowthRate) / 100, // Convert % to decimal
         },
         workforce: {
-          total_termination_rate: formData.totalTerminationRate / 100, // Convert % to decimal
-          new_hire_termination_rate: formData.newHireTerminationRate / 100,
+          total_termination_rate: Number(formData.totalTerminationRate) / 100,
+          new_hire_termination_rate: Number(formData.newHireTerminationRate) / 100,
         },
         data_sources: {
           census_parquet_path: formData.censusDataPath,
         },
         compensation: {
-          merit_budget_percent: formData.meritBudget,
-          cola_rate_percent: formData.colaRate,
-          promotion_increase_percent: formData.promoIncrease,
-          promotion_budget_percent: formData.promoBudget,
+          merit_budget_percent: Number(formData.meritBudget),
+          cola_rate_percent: Number(formData.colaRate),
+          promotion_increase_percent: Number(formData.promoIncrease),
+          promotion_budget_percent: Number(formData.promoBudget),
         },
         new_hire: {
           strategy: formData.newHireStrategy,
-          target_percentile: formData.targetPercentile,
-          compensation_variance_percent: formData.newHireCompVariance,
-          sign_on_bonus_allowed: formData.signOnBonusAllowed,
-          sign_on_bonus_budget: formData.signOnBonusBudget,
+          target_percentile: Number(formData.targetPercentile),
+          compensation_variance_percent: Number(formData.newHireCompVariance),
+          sign_on_bonus_allowed: Boolean(formData.signOnBonusAllowed),
+          sign_on_bonus_budget: Number(formData.signOnBonusBudget),
         },
         turnover: {
-          base_rate_percent: formData.baseTurnoverRate,
-          regrettable_factor: formData.regrettableFactor,
-          involuntary_rate_percent: formData.involuntaryRate,
+          base_rate_percent: Number(formData.baseTurnoverRate),
+          regrettable_factor: Number(formData.regrettableFactor),
+          involuntary_rate_percent: Number(formData.involuntaryRate),
           tenure_bands: formData.turnoverBands,
         },
         hiring: {
           targets: formData.hiringTargets,
         },
         dc_plan: {
-          eligibility_months: formData.dcEligibilityMonths,
-          auto_enroll: formData.dcAutoEnroll,
-          default_deferral_percent: formData.dcDefaultDeferral,
+          eligibility_months: Number(formData.dcEligibilityMonths),
+          auto_enroll: Boolean(formData.dcAutoEnroll),
+          default_deferral_percent: Number(formData.dcDefaultDeferral),
           match_formula: formData.dcMatchFormula,
-          match_percent: formData.dcMatchPercent,
-          match_limit_percent: formData.dcMatchLimit,
+          match_percent: Number(formData.dcMatchPercent),
+          match_limit_percent: Number(formData.dcMatchLimit),
           vesting_schedule: formData.dcVestingSchedule,
-          auto_escalation: formData.dcAutoEscalation,
-          escalation_rate_percent: formData.dcEscalationRate,
-          escalation_cap_percent: formData.dcEscalationCap,
+          auto_escalation: Boolean(formData.dcAutoEscalation),
+          escalation_rate_percent: Number(formData.dcEscalationRate),
+          escalation_cap_percent: Number(formData.dcEscalationCap),
         },
         advanced: {
           engine: formData.engine,
-          enable_multithreading: formData.enableMultithreading,
+          enable_multithreading: Boolean(formData.enableMultithreading),
           checkpoint_frequency: formData.checkpointFrequency,
-          memory_limit_gb: formData.memoryLimitGB,
+          memory_limit_gb: Number(formData.memoryLimitGB),
           log_level: formData.logLevel,
-          strict_validation: formData.strictValidation,
+          strict_validation: Boolean(formData.strictValidation),
         },
       };
 
-      // Save to workspace via API
-      await apiUpdateWorkspace(activeWorkspace.id, {
-        base_config: configPayload,
-      });
-      console.log('Config saved to workspace:', activeWorkspace.id, configPayload);
+      // Save to scenario or workspace depending on context
+      if (currentScenario && scenarioId) {
+        // Save to scenario's config_overrides
+        await updateScenario(activeWorkspace.id, scenarioId, {
+          config_overrides: configPayload,
+        });
+        console.log('Config saved to scenario:', scenarioId, configPayload);
+      } else {
+        // Save to workspace base_config
+        await apiUpdateWorkspace(activeWorkspace.id, {
+          base_config: configPayload,
+        });
+        console.log('Config saved to workspace:', activeWorkspace.id, configPayload);
+      }
 
       setSaveStatus('success');
       setSaveMessage('Configuration saved successfully!');
@@ -322,41 +422,55 @@ export default function ConfigStudio() {
     }
   };
 
-  // Helper for input fields
-  const InputField = ({ label, name, type = "text", width = "col-span-3", suffix = "", helper = "", step = "1", min }: any) => (
-    <div className={`sm:${width}`}>
-      <label className="block text-sm font-medium text-gray-700">{label}</label>
-      <div className="mt-1 relative rounded-md shadow-sm">
-        <input
-          type={type}
-          name={name}
-          value={(formData as any)[name]}
-          onChange={handleChange}
-          step={step}
-          min={min}
-          className="shadow-sm focus:ring-fidelity-green focus:border-fidelity-green block w-full sm:text-sm border-gray-300 rounded-md p-2 border"
-        />
-        {suffix && (
-          <div className="absolute inset-y-0 right-0 pr-3 flex items-center pointer-events-none">
-            <span className="text-gray-500 sm:text-sm">{suffix}</span>
-          </div>
-        )}
-      </div>
-      {helper && <p className="mt-1 text-xs text-gray-500">{helper}</p>}
-    </div>
-  );
+  // Helper function to create InputField props from formData
+  const inputProps = (name: string) => ({
+    name,
+    value: (formData as any)[name],
+    onChange: handleChange,
+  });
 
   const calculateTotalHiringGrowth = () => {
     const totalPct = (Object.values(formData.hiringTargets) as number[]).reduce((acc, val) => acc + val, 0);
     return totalPct;
   };
 
+  // Show loading state while fetching scenario
+  if (scenarioLoading) {
+    return (
+      <div className="h-full flex items-center justify-center">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-fidelity-green mx-auto mb-3"></div>
+          <p className="text-sm text-gray-500">Loading scenario...</p>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="h-full flex flex-col">
       <div className="flex justify-between items-center mb-6">
         <div>
-           <h1 className="text-2xl font-bold text-gray-900">Configuration Studio</h1>
-           <p className="text-gray-500 text-sm">Create and edit simulation parameters.</p>
+          <div className="flex items-center space-x-3">
+            {currentScenario && (
+              <button
+                onClick={() => navigate('/scenarios')}
+                className="p-1.5 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded-lg transition-colors"
+                title="Back to Scenarios"
+              >
+                <ArrowLeft size={20} />
+              </button>
+            )}
+            <div>
+              <h1 className="text-2xl font-bold text-gray-900">
+                {currentScenario ? `Configure: ${currentScenario.name}` : 'Base Configuration'}
+              </h1>
+              <p className="text-gray-500 text-sm">
+                {currentScenario
+                  ? 'Edit scenario-specific configuration overrides.'
+                  : 'Edit workspace default simulation parameters.'}
+              </p>
+            </div>
+          </div>
         </div>
         <div className="flex space-x-3">
            <button className="px-4 py-2 bg-white border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-50 flex items-center font-medium shadow-sm transition-colors">
@@ -399,9 +513,8 @@ export default function ConfigStudio() {
         <div className="w-64 bg-gray-50 border-r border-gray-200 p-4 flex-shrink-0 overflow-y-auto">
           <nav className="space-y-1">
              {[
-               { id: 'scenarios', label: 'Scenarios', icon: Layers },
-               { id: 'datasources', label: 'Data Sources', icon: Database },
                { id: 'simulation', label: 'Simulation Settings', icon: TrendingUp },
+               { id: 'datasources', label: 'Data Sources', icon: Database },
                { id: 'compensation', label: 'Compensation', icon: DollarSign },
                { id: 'newhire', label: 'New Hire Strategy', icon: Users },
                { id: 'turnover', label: 'Workforce & Turnover', icon: AlertTriangle },
@@ -452,146 +565,6 @@ export default function ConfigStudio() {
         {/* Form Area */}
         <div className="flex-1 p-8 overflow-y-auto">
           <div className="max-w-3xl">
-
-            {/* --- SCENARIOS --- */}
-            {activeSection === 'scenarios' && (
-              <div className="space-y-8 animate-fadeIn">
-                <div className="border-b border-gray-100 pb-4">
-                  <h2 className="text-lg font-bold text-gray-900">Scenarios</h2>
-                  <p className="text-sm text-gray-500">Create and manage simulation scenarios. Each scenario can have different configuration overrides.</p>
-                </div>
-
-                {/* Create New Scenario */}
-                <div className="bg-gray-50 rounded-xl p-6 border border-gray-200">
-                  <div className="flex items-center mb-4">
-                    <Plus className="w-5 h-5 text-fidelity-green mr-3" />
-                    <h3 className="font-semibold text-gray-900">Create New Scenario</h3>
-                  </div>
-
-                  <div className="space-y-4">
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-1">Scenario Name</label>
-                      <input
-                        type="text"
-                        value={newScenarioName}
-                        onChange={(e) => setNewScenarioName(e.target.value)}
-                        placeholder="e.g., Baseline 2025, High Growth, Conservative"
-                        className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-fidelity-green focus:border-fidelity-green"
-                      />
-                    </div>
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-1">Description (Optional)</label>
-                      <input
-                        type="text"
-                        value={newScenarioDesc}
-                        onChange={(e) => setNewScenarioDesc(e.target.value)}
-                        placeholder="Brief description of this scenario..."
-                        className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-fidelity-green focus:border-fidelity-green"
-                      />
-                    </div>
-                    <button
-                      onClick={handleCreateScenario}
-                      disabled={!newScenarioName.trim() || isCreatingScenario}
-                      className={`px-4 py-2 rounded-lg text-sm font-medium flex items-center ${
-                        !newScenarioName.trim() || isCreatingScenario
-                          ? 'bg-gray-300 text-gray-500 cursor-not-allowed'
-                          : 'bg-fidelity-green text-white hover:bg-fidelity-dark'
-                      }`}
-                    >
-                      {isCreatingScenario ? (
-                        <>
-                          <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
-                          Creating...
-                        </>
-                      ) : (
-                        <>
-                          <Plus size={16} className="mr-2" />
-                          Create Scenario
-                        </>
-                      )}
-                    </button>
-                  </div>
-                </div>
-
-                {/* Existing Scenarios */}
-                <div>
-                  <h3 className="font-semibold text-gray-900 mb-4">Existing Scenarios ({scenarios.length})</h3>
-
-                  {scenariosLoading ? (
-                    <div className="text-center py-8">
-                      <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-fidelity-green mx-auto mb-3"></div>
-                      <p className="text-sm text-gray-500">Loading scenarios...</p>
-                    </div>
-                  ) : scenarios.length === 0 ? (
-                    <div className="text-center py-8 bg-gray-50 rounded-lg border border-dashed border-gray-300">
-                      <Layers className="w-10 h-10 text-gray-400 mx-auto mb-3" />
-                      <p className="text-sm text-gray-600">No scenarios yet</p>
-                      <p className="text-xs text-gray-400">Create your first scenario above to get started</p>
-                    </div>
-                  ) : (
-                    <div className="space-y-3">
-                      {scenarios.map((scenario) => (
-                        <div
-                          key={scenario.id}
-                          className="bg-white rounded-lg p-4 border border-gray-200 flex items-center justify-between hover:shadow-sm transition-shadow"
-                        >
-                          <div className="flex-1">
-                            <div className="flex items-center">
-                              <h4 className="font-medium text-gray-900">{scenario.name}</h4>
-                              <span className={`ml-3 px-2 py-0.5 text-xs rounded-full ${
-                                scenario.status === 'completed' ? 'bg-green-100 text-green-700' :
-                                scenario.status === 'running' ? 'bg-blue-100 text-blue-700' :
-                                scenario.status === 'failed' ? 'bg-red-100 text-red-700' :
-                                'bg-gray-100 text-gray-600'
-                              }`}>
-                                {scenario.status === 'not_run' ? 'Not Run' : scenario.status}
-                              </span>
-                            </div>
-                            {scenario.description && (
-                              <p className="text-sm text-gray-500 mt-1">{scenario.description}</p>
-                            )}
-                            <p className="text-xs text-gray-400 mt-1">
-                              Created: {new Date(scenario.created_at).toLocaleDateString()}
-                            </p>
-                          </div>
-                          <div className="flex items-center space-x-2">
-                            <button
-                              onClick={() => navigate('/simulate')}
-                              className="px-3 py-1.5 bg-fidelity-green text-white rounded-lg text-sm hover:bg-fidelity-dark flex items-center"
-                            >
-                              <Play size={14} className="mr-1" />
-                              Run
-                            </button>
-                            <button
-                              onClick={() => handleDeleteScenario(scenario.id)}
-                              className="p-1.5 text-gray-400 hover:text-red-500 rounded"
-                            >
-                              <Trash2 size={16} />
-                            </button>
-                          </div>
-                        </div>
-                      ))}
-                    </div>
-                  )}
-                </div>
-
-                {/* Info Box */}
-                <div className="bg-blue-50 rounded-xl p-6 border border-blue-100">
-                  <div className="flex items-start">
-                    <HelpCircle className="w-5 h-5 text-blue-500 mr-3 mt-0.5" />
-                    <div>
-                      <h4 className="font-semibold text-blue-900 mb-2">How Scenarios Work</h4>
-                      <ul className="text-sm text-blue-700 space-y-1">
-                        <li>• Each scenario inherits the workspace's base configuration</li>
-                        <li>• You can override specific settings per scenario</li>
-                        <li>• Run simulations independently for each scenario</li>
-                        <li>• Compare results across multiple scenarios</li>
-                      </ul>
-                    </div>
-                  </div>
-                </div>
-              </div>
-            )}
 
             {/* --- DATA SOURCES --- */}
             {activeSection === 'datasources' && (
@@ -752,23 +725,21 @@ export default function ConfigStudio() {
                 </div>
 
                 <div className="grid grid-cols-1 gap-y-6 gap-x-4 sm:grid-cols-6">
-                  <InputField label="Scenario Name" name="name" width="col-span-4" />
-
                   <div className="col-span-6 grid grid-cols-2 gap-4">
-                    <InputField label="Start Year" name="startYear" type="number" width="col-span-1" />
-                    <InputField label="End Year" name="endYear" type="number" width="col-span-1" />
+                    <InputField label="Start Year" {...inputProps('startYear')} type="number" width="col-span-1" />
+                    <InputField label="End Year" {...inputProps('endYear')} type="number" width="col-span-1" />
                   </div>
 
                   <InputField
                     label="Random Seed"
-                    name="seed"
+                    {...inputProps('seed')}
                     type="number"
                     helper="Fixed seed (e.g., 42) ensures identical runs."
                   />
 
                   <InputField
                     label="Target Growth Rate"
-                    name="targetGrowthRate"
+                    {...inputProps('targetGrowthRate')}
                     type="number"
                     step="0.1"
                     suffix="%"
@@ -803,13 +774,13 @@ export default function ConfigStudio() {
                  <div className="space-y-6">
                     <h3 className="text-sm font-semibold text-gray-900 uppercase tracking-wider">Annual Review</h3>
                     <div className="grid grid-cols-1 gap-y-6 gap-x-4 sm:grid-cols-6 bg-gray-50 p-4 rounded-lg border border-gray-200">
-                      <InputField label="Merit Budget" name="meritBudget" type="number" step="0.1" suffix="%" helper="Avg. annual performance increase" />
-                      <InputField label="COLA / Inflation" name="colaRate" type="number" step="0.1" suffix="%" helper="Cost of living adjustment" />
+                      <InputField label="Merit Budget" {...inputProps('meritBudget')} type="number" step="0.1" suffix="%" helper="Avg. annual performance increase" />
+                      <InputField label="COLA / Inflation" {...inputProps('colaRate')} type="number" step="0.1" suffix="%" helper="Cost of living adjustment" />
                     </div>
 
                     <h3 className="text-sm font-semibold text-gray-900 uppercase tracking-wider pt-4">Promotions</h3>
                     <div className="grid grid-cols-1 gap-y-6 gap-x-4 sm:grid-cols-6 bg-gray-50 p-4 rounded-lg border border-gray-200">
-                      <InputField label="Avg. Promotion Increase" name="promoIncrease" type="number" step="0.5" suffix="%" helper="Base pay bump on promotion" />
+                      <InputField label="Avg. Promotion Increase" {...inputProps('promoIncrease')} type="number" step="0.5" suffix="%" helper="Base pay bump on promotion" />
 
                       <div className="sm:col-span-3">
                         <label className="block text-sm font-medium text-gray-700">Distribution Range</label>
@@ -833,7 +804,7 @@ export default function ConfigStudio() {
 
                       <div className="col-span-6 h-px bg-gray-200 my-1"></div>
 
-                      <InputField label="Promotion Budget" name="promoBudget" type="number" step="0.1" suffix="% of payroll" helper="Budget allocated for level-ups" />
+                      <InputField label="Promotion Budget" {...inputProps('promoBudget')} type="number" step="0.1" suffix="% of payroll" helper="Budget allocated for level-ups" />
                     </div>
                  </div>
                </div>
@@ -918,7 +889,7 @@ export default function ConfigStudio() {
                     )}
 
                     <div className="pt-4 grid grid-cols-2 gap-6">
-                       <InputField label="Sign-on Bonus Budget" name="signOnBonusBudget" type="number" suffix="$" />
+                       <InputField label="Sign-on Bonus Budget" {...inputProps('signOnBonusBudget')} type="number" suffix="$" />
                        <div className="flex items-center pt-6">
                           <input
                             type="checkbox"
@@ -948,7 +919,7 @@ export default function ConfigStudio() {
                    <div className="grid grid-cols-1 gap-y-6 gap-x-4 sm:grid-cols-6">
                      <InputField
                        label="Total Termination Rate"
-                       name="totalTerminationRate"
+                       {...inputProps('totalTerminationRate')}
                        type="number"
                        step="0.1"
                        suffix="%"
@@ -956,7 +927,7 @@ export default function ConfigStudio() {
                      />
                      <InputField
                        label="New Hire Termination Rate"
-                       name="newHireTerminationRate"
+                       {...inputProps('newHireTerminationRate')}
                        type="number"
                        step="0.1"
                        suffix="%"
@@ -966,9 +937,9 @@ export default function ConfigStudio() {
                  </div>
 
                  <div className="grid grid-cols-1 gap-y-6 gap-x-4 sm:grid-cols-6">
-                    <InputField label="Base Annual Turnover" name="baseTurnoverRate" type="number" suffix="%" helper="Expected overall exit rate" />
-                    <InputField label="Regrettable Factor" name="regrettableFactor" type="number" step="0.1" suffix="x" helper="Portion of exits that are regrettable (0.0-1.0)" />
-                    <InputField label="Involuntary Rate" name="involuntaryRate" type="number" suffix="%" helper="Performance-based exits / layoffs" />
+                    <InputField label="Base Annual Turnover" {...inputProps('baseTurnoverRate')} type="number" suffix="%" helper="Expected overall exit rate" />
+                    <InputField label="Regrettable Factor" {...inputProps('regrettableFactor')} type="number" step="0.1" suffix="x" helper="Portion of exits that are regrettable (0.0-1.0)" />
+                    <InputField label="Involuntary Rate" {...inputProps('involuntaryRate')} type="number" suffix="%" helper="Performance-based exits / layoffs" />
                  </div>
 
                  <div className="bg-gray-50 rounded-lg p-4 border border-gray-200 mt-6">
@@ -1116,8 +1087,8 @@ export default function ConfigStudio() {
                        </div>
                     </div>
 
-                    <InputField label="Eligibility Period" name="dcEligibilityMonths" type="number" suffix="Months" helper="Wait period before joining" />
-                    <InputField label="Default Deferral Rate" name="dcDefaultDeferral" type="number" step="0.5" suffix="%" helper="Initial contribution for auto-enrolled" />
+                    <InputField label="Eligibility Period" {...inputProps('dcEligibilityMonths')} type="number" suffix="Months" helper="Wait period before joining" />
+                    <InputField label="Default Deferral Rate" {...inputProps('dcDefaultDeferral')} type="number" step="0.5" suffix="%" helper="Initial contribution for auto-enrolled" />
 
                     <div className="sm:col-span-3">
                        <label className="block text-sm font-medium text-gray-700">Vesting Schedule</label>
@@ -1148,8 +1119,8 @@ export default function ConfigStudio() {
                        </div>
                     </div>
 
-                    <InputField label="Match Percentage" name="dcMatchPercent" type="number" suffix="%" helper="% of employee contribution matched" />
-                    <InputField label="Match Limit" name="dcMatchLimit" type="number" suffix="%" helper="Up to % of annual salary" />
+                    <InputField label="Match Percentage" {...inputProps('dcMatchPercent')} type="number" suffix="%" helper="% of employee contribution matched" />
+                    <InputField label="Match Limit" {...inputProps('dcMatchLimit')} type="number" suffix="%" helper="Up to % of annual salary" />
 
                     <div className="col-span-6 h-px bg-gray-200 my-2"></div>
                     <div className="sm:col-span-6 flex items-center justify-between mb-2">
@@ -1161,8 +1132,8 @@ export default function ConfigStudio() {
                     </div>
                     {formData.dcAutoEscalation && (
                       <>
-                        <InputField label="Annual Increase" name="dcEscalationRate" type="number" step="0.5" suffix="%" helper="Yearly step-up" />
-                        <InputField label="Escalation Cap" name="dcEscalationCap" type="number" suffix="%" helper="Max deferral rate" />
+                        <InputField label="Annual Increase" {...inputProps('dcEscalationRate')} type="number" step="0.5" suffix="%" helper="Yearly step-up" />
+                        <InputField label="Escalation Cap" {...inputProps('dcEscalationCap')} type="number" suffix="%" helper="Max deferral rate" />
                       </>
                     )}
                  </div>

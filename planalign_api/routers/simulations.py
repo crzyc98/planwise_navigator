@@ -15,6 +15,7 @@ from ..models.simulation import (
     Artifact,
     RunDetails,
     RunRequest,
+    RunSummary,
     SimulationResults,
     SimulationRun,
 )
@@ -181,6 +182,210 @@ async def cancel_simulation(
     raise HTTPException(
         status_code=status.HTTP_404_NOT_FOUND,
         detail=f"No running simulation found for scenario {scenario_id}",
+    )
+
+
+@router.get("/{scenario_id}/runs", response_model=List[RunSummary])
+async def list_runs(
+    scenario_id: str,
+    storage: WorkspaceStorage = Depends(get_storage),
+) -> List[RunSummary]:
+    """
+    List all runs for a scenario.
+    """
+    import json
+
+    # Find scenario and workspace
+    workspace = None
+    scenario = None
+
+    for ws in storage.list_workspaces():
+        scenario = storage.get_scenario(ws.id, scenario_id)
+        if scenario:
+            workspace = ws
+            break
+
+    if not scenario or not workspace:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Scenario {scenario_id} not found",
+        )
+
+    # Get scenario path and look for runs
+    scenario_path = storage._scenario_path(workspace.id, scenario_id)
+    runs_path = scenario_path / "runs"
+
+    runs: List[RunSummary] = []
+
+    if runs_path.exists():
+        for run_dir in sorted(runs_path.iterdir(), reverse=True):
+            if run_dir.is_dir():
+                metadata_file = run_dir / "run_metadata.json"
+                if metadata_file.exists():
+                    try:
+                        with open(metadata_file) as f:
+                            metadata = json.load(f)
+
+                        # Count artifacts
+                        artifact_count = sum(1 for f in run_dir.iterdir() if f.is_file())
+
+                        runs.append(RunSummary(
+                            id=run_dir.name,
+                            scenario_id=scenario_id,
+                            status=metadata.get("status", "completed"),
+                            started_at=datetime.fromisoformat(metadata["started_at"]),
+                            completed_at=datetime.fromisoformat(metadata["completed_at"]) if metadata.get("completed_at") else None,
+                            duration_seconds=metadata.get("duration_seconds"),
+                            start_year=metadata.get("start_year"),
+                            end_year=metadata.get("end_year"),
+                            total_events=metadata.get("events_generated"),
+                            final_headcount=metadata.get("final_headcount"),
+                            artifact_count=artifact_count,
+                        ))
+                    except Exception as e:
+                        print(f"Error loading run metadata from {run_dir}: {e}")
+                        continue
+
+    # Also check for legacy runs in results/ folder (migration path)
+    # Include these alongside new runs for complete history
+    results_path = scenario_path / "results"
+    if results_path.exists():
+        legacy_metadata = results_path / "run_metadata.json"
+        if legacy_metadata.exists():
+            try:
+                with open(legacy_metadata) as f:
+                    metadata = json.load(f)
+
+                # Get run_id from metadata (preferred) or use scenario's last_run_id
+                run_id = metadata.get("run_id") or scenario.last_run_id or "legacy"
+
+                # Check if this run_id is already in the runs list (avoid duplicates)
+                existing_ids = {r.id for r in runs}
+                if run_id not in existing_ids:
+                    # Count artifacts in results folder
+                    artifact_count = sum(1 for f in results_path.iterdir() if f.is_file())
+
+                    runs.append(RunSummary(
+                        id=run_id,
+                        scenario_id=scenario_id,
+                        status=metadata.get("status", "completed"),
+                        started_at=datetime.fromisoformat(metadata["started_at"]),
+                        completed_at=datetime.fromisoformat(metadata["completed_at"]) if metadata.get("completed_at") else None,
+                        duration_seconds=metadata.get("duration_seconds"),
+                        start_year=metadata.get("start_year"),
+                        end_year=metadata.get("end_year"),
+                        total_events=metadata.get("events_generated"),
+                        final_headcount=metadata.get("final_headcount"),
+                        artifact_count=artifact_count,
+                    ))
+            except Exception as e:
+                print(f"Error loading legacy run metadata: {e}")
+
+    # Sort all runs by started_at descending (most recent first)
+    runs.sort(key=lambda r: r.started_at, reverse=True)
+
+    return runs
+
+
+@router.get("/{scenario_id}/runs/{run_id}", response_model=RunDetails)
+async def get_run(
+    scenario_id: str,
+    run_id: str,
+    storage: WorkspaceStorage = Depends(get_storage),
+) -> RunDetails:
+    """
+    Get details for a specific run.
+    """
+    import json
+
+    # Find scenario and workspace
+    workspace = None
+    scenario = None
+
+    for ws in storage.list_workspaces():
+        scenario = storage.get_scenario(ws.id, scenario_id)
+        if scenario:
+            workspace = ws
+            break
+
+    if not scenario or not workspace:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Scenario {scenario_id} not found",
+        )
+
+    scenario_path = storage._scenario_path(workspace.id, scenario_id)
+
+    # Try new runs folder structure first
+    run_path = scenario_path / "runs" / run_id
+    if not run_path.exists():
+        # Fall back to legacy results folder
+        run_path = scenario_path / "results"
+        if not run_path.exists():
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail=f"Run {run_id} not found",
+            )
+
+    # Load run metadata
+    metadata_file = run_path / "run_metadata.json"
+    metadata = {}
+    if metadata_file.exists():
+        try:
+            with open(metadata_file) as f:
+                metadata = json.load(f)
+        except Exception:
+            pass
+
+    # Load config used for this run
+    config = None
+    config_file = run_path / "config.yaml"
+    if not config_file.exists():
+        # Try scenario name pattern
+        for f in run_path.glob("*_config.yaml"):
+            config_file = f
+            break
+
+    if config_file.exists():
+        try:
+            import yaml
+            with open(config_file) as f:
+                config = yaml.safe_load(f)
+        except Exception:
+            pass
+
+    # List artifacts
+    artifacts = []
+    for file_path in run_path.iterdir():
+        if file_path.is_file():
+            stat = file_path.stat()
+            artifacts.append(Artifact(
+                name=file_path.name,
+                type=_get_artifact_type(file_path.name),
+                size_bytes=stat.st_size,
+                path=f"runs/{run_id}/{file_path.name}" if "runs" in str(run_path) else f"results/{file_path.name}",
+                created_at=datetime.fromtimestamp(stat.st_ctime),
+            ))
+
+    return RunDetails(
+        id=run_id,
+        scenario_id=scenario_id,
+        scenario_name=scenario.name,
+        workspace_id=workspace.id,
+        workspace_name=workspace.name,
+        status=metadata.get("status", "completed"),
+        started_at=datetime.fromisoformat(metadata["started_at"]) if metadata.get("started_at") else None,
+        completed_at=datetime.fromisoformat(metadata["completed_at"]) if metadata.get("completed_at") else None,
+        duration_seconds=metadata.get("duration_seconds"),
+        start_year=metadata.get("start_year"),
+        end_year=metadata.get("end_year"),
+        total_years=metadata.get("total_years"),
+        total_events=metadata.get("events_generated"),
+        final_headcount=metadata.get("final_headcount"),
+        participation_rate=metadata.get("participation_rate"),
+        config=config,
+        artifacts=sorted(artifacts, key=lambda a: a.name),
+        error_message=metadata.get("error_message"),
     )
 
 
@@ -358,98 +563,114 @@ async def get_run_details(
     Includes timing, configuration, artifacts, and results summary.
     """
     import json
+    import traceback
 
-    # Find scenario and workspace
-    workspace = None
-    scenario = None
+    try:
+        # Find scenario and workspace
+        workspace = None
+        scenario = None
 
-    for ws in storage.list_workspaces():
-        scenario = storage.get_scenario(ws.id, scenario_id)
-        if scenario:
-            workspace = ws
-            break
+        for ws in storage.list_workspaces():
+            scenario = storage.get_scenario(ws.id, scenario_id)
+            if scenario:
+                workspace = ws
+                break
 
-    if not scenario or not workspace:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail=f"Scenario {scenario_id} not found",
+        if not scenario or not workspace:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail=f"Scenario {scenario_id} not found",
+            )
+
+        # Get merged config
+        config = storage.get_merged_config(workspace.id, scenario_id)
+
+        # Get scenario path
+        scenario_path = storage._scenario_path(workspace.id, scenario_id)
+
+        # Try to load run metadata from file
+        run_metadata = None
+        metadata_path = scenario_path / "results" / "run_metadata.json"
+        if metadata_path.exists():
+            try:
+                with open(metadata_path) as f:
+                    run_metadata = json.load(f)
+            except Exception:
+                pass
+
+        # Calculate duration - prefer metadata file, then active run
+        duration_seconds = None
+        started_at = scenario.last_run_at
+        completed_at = None
+        total_events = None
+
+        if run_metadata:
+            duration_seconds = run_metadata.get("duration_seconds")
+            total_events = run_metadata.get("events_generated")
+            if run_metadata.get("started_at"):
+                started_at = datetime.fromisoformat(run_metadata["started_at"])
+            if run_metadata.get("completed_at"):
+                completed_at = datetime.fromisoformat(run_metadata["completed_at"])
+        elif scenario.last_run_at:
+            # Check if still running
+            if scenario.last_run_id and scenario.last_run_id in _active_runs:
+                active_run = _active_runs[scenario.last_run_id]
+                if active_run.started_at:
+                    duration_seconds = (datetime.now() - active_run.started_at).total_seconds()
+
+        # Get simulation years from config
+        sim_config = config.get("simulation", {}) if config else {}
+        start_year = sim_config.get("start_year")
+        end_year = sim_config.get("end_year")
+        # Convert to int if they're strings
+        if start_year is not None:
+            start_year = int(start_year)
+        if end_year is not None:
+            end_year = int(end_year)
+        total_years = (end_year - start_year + 1) if start_year and end_year else None
+
+        # Get artifacts
+        artifacts = _list_artifacts(scenario_path) if scenario_path.exists() else []
+
+        # Get results summary if completed
+        final_headcount = None
+        participation_rate = None
+
+        if scenario.status == "completed" and scenario.results_summary:
+            final_headcount = scenario.results_summary.get("final_headcount")
+            if not total_events:
+                total_events = scenario.results_summary.get("total_events")
+            participation_rate = scenario.results_summary.get("participation_rate")
+
+        return RunDetails(
+            id=scenario.last_run_id or "none",
+            scenario_id=scenario_id,
+            scenario_name=scenario.name,
+            workspace_id=workspace.id,
+            workspace_name=workspace.name,
+            status=scenario.status if scenario.status != "not_run" else "not_run",
+            started_at=started_at,
+            completed_at=completed_at if scenario.status == "completed" else None,
+            duration_seconds=duration_seconds,
+            start_year=start_year,
+            end_year=end_year,
+            total_years=total_years,
+            final_headcount=final_headcount,
+            total_events=total_events,
+            participation_rate=participation_rate,
+            config=config,
+            artifacts=artifacts,
+            error_message=None,  # TODO: Store error messages
         )
-
-    # Get merged config
-    config = storage.get_merged_config(workspace.id, scenario_id)
-
-    # Get scenario path
-    scenario_path = storage._scenario_path(workspace.id, scenario_id)
-
-    # Try to load run metadata from file
-    run_metadata = None
-    metadata_path = scenario_path / "results" / "run_metadata.json"
-    if metadata_path.exists():
-        try:
-            with open(metadata_path) as f:
-                run_metadata = json.load(f)
-        except Exception:
-            pass
-
-    # Calculate duration - prefer metadata file, then active run
-    duration_seconds = None
-    started_at = scenario.last_run_at
-    completed_at = None
-    total_events = None
-
-    if run_metadata:
-        duration_seconds = run_metadata.get("duration_seconds")
-        total_events = run_metadata.get("events_generated")
-        if run_metadata.get("started_at"):
-            started_at = datetime.fromisoformat(run_metadata["started_at"])
-        if run_metadata.get("completed_at"):
-            completed_at = datetime.fromisoformat(run_metadata["completed_at"])
-    elif scenario.last_run_at:
-        # Check if still running
-        if scenario.last_run_id and scenario.last_run_id in _active_runs:
-            active_run = _active_runs[scenario.last_run_id]
-            if active_run.started_at:
-                duration_seconds = (datetime.now() - active_run.started_at).total_seconds()
-
-    # Get simulation years from config
-    sim_config = config.get("simulation", {}) if config else {}
-    start_year = sim_config.get("start_year")
-    end_year = sim_config.get("end_year")
-    total_years = (end_year - start_year + 1) if start_year and end_year else None
-
-    # Get artifacts
-    artifacts = _list_artifacts(scenario_path) if scenario_path.exists() else []
-
-    # Get results summary if completed
-    final_headcount = None
-    participation_rate = None
-
-    if scenario.status == "completed" and scenario.results_summary:
-        final_headcount = scenario.results_summary.get("final_headcount")
-        if not total_events:
-            total_events = scenario.results_summary.get("total_events")
-        participation_rate = scenario.results_summary.get("participation_rate")
-
-    return RunDetails(
-        id=scenario.last_run_id or "none",
-        scenario_id=scenario_id,
-        scenario_name=scenario.name,
-        workspace_id=workspace.id,
-        workspace_name=workspace.name,
-        status=scenario.status if scenario.status != "not_run" else "not_run",
-        started_at=started_at,
-        completed_at=completed_at if scenario.status == "completed" else None,
-        duration_seconds=duration_seconds,
-        start_year=start_year,
-        end_year=end_year,
-        total_years=total_years,
-        final_headcount=final_headcount,
-        total_events=total_events,
-        participation_rate=participation_rate,
-        config=config,
-        artifacts=artifacts,
-        error_message=None,  # TODO: Store error messages
-    )
+    except HTTPException:
+        raise
+    except Exception as e:
+        print(f"ERROR in get_run_details: {e}")
+        traceback.print_exc()
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Internal error: {str(e)}",
+        )
 
 
 @router.get("/{scenario_id}/artifacts/{artifact_path:path}")

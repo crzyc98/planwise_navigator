@@ -4,7 +4,7 @@ import {
   LayoutDashboard, PlayCircle, BarChart3, Settings, Database,
   Activity, Bell, ChevronDown, Check, Search, Briefcase,
   X, Info, AlertTriangle, AlertCircle, CheckCircle, Moon, Sun, HelpCircle,
-  Plus, Loader2
+  Plus, Loader2, Layers
 } from 'lucide-react';
 import { APP_NAME, MOCK_NOTIFICATIONS, APP_VERSION } from '../constants';
 import { Workspace, Notification } from '../types';
@@ -430,7 +430,7 @@ export default function Layout() {
             Main
           </div>
           <NavItem to="/" icon={<LayoutDashboard size={20} />} label="Dashboard" />
-          <NavItem to="/config" icon={<Settings size={20} />} label="Configuration" />
+          <NavItem to="/scenarios" icon={<Layers size={20} />} label="Scenarios" />
           <NavItem to="/simulate" icon={<PlayCircle size={20} />} label="Simulate" />
           <NavItem to="/analytics" icon={<BarChart3 size={20} />} label="Analytics" />
           <NavItem to="/batch" icon={<Database size={20} />} label="Batch Processing" />
