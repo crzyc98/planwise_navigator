@@ -270,3 +270,16 @@ performance.json
 # Data files (census data, input files)
 data/
 /data/
+
+# Node.js / npm
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+.npm
+.yarn
+.pnp.*
+.yarn-integrity
+package-lock.json
+yarn.lock
+pnpm-lock.yaml
