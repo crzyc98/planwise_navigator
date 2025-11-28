@@ -9,7 +9,6 @@ from __future__ import annotations
 from pathlib import Path
 from typing import Optional, Dict, Any, Callable
 import re
-import threading
 from datetime import datetime
 from contextlib import contextmanager
 

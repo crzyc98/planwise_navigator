@@ -20,9 +20,16 @@ from ..models.simulation import (
     SimulationRun,
 )
 from ..storage.workspace_storage import WorkspaceStorage
+from ..models.scenario import Scenario
+from ..models.workspace import Workspace
 from ..services.simulation_service import SimulationService
+from ..constants import ARTIFACT_TYPE_MAP, MEDIA_TYPE_MAP
 
 router = APIRouter()
+
+# Import for logging
+import logging
+logger = logging.getLogger(__name__)
 
 
 def get_storage(settings: APISettings = Depends(get_settings)) -> WorkspaceStorage:
@@ -41,6 +48,25 @@ def get_simulation_service(
 _active_runs: Dict[str, SimulationRun] = {}
 
 
+def _find_scenario_and_workspace(
+    storage: WorkspaceStorage, scenario_id: str
+) -> tuple[Optional[Workspace], Optional[Scenario]]:
+    """Find a scenario and its workspace by scenario_id.
+
+    Args:
+        storage: The workspace storage instance
+        scenario_id: The scenario identifier to find
+
+    Returns:
+        Tuple of (workspace, scenario) or (None, None) if not found
+    """
+    for ws in storage.list_workspaces():
+        scenario = storage.get_scenario(ws.id, scenario_id)
+        if scenario:
+            return ws, scenario
+    return None, None
+
+
 @router.post("/{scenario_id}/run", response_model=SimulationRun)
 async def start_simulation(
     scenario_id: str,
@@ -55,22 +81,13 @@ async def start_simulation(
     The simulation runs in the background. Use the status endpoint or
     WebSocket to monitor progress.
     """
-    # Find the scenario (need to search all workspaces for now)
-    # In production, scenario_id should be globally unique or include workspace_id
-    scenario = None
-    workspace_id = None
-
-    for ws in storage.list_workspaces():
-        scenario = storage.get_scenario(ws.id, scenario_id)
-        if scenario:
-            workspace_id = ws.id
-            break
-
-    if not scenario:
+    workspace, scenario = _find_scenario_and_workspace(storage, scenario_id)
+    if not scenario or not workspace:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail=f"Scenario {scenario_id} not found",
         )
+    workspace_id = workspace.id
 
     # Check if already running
     if scenario.status == "running":
@@ -129,26 +146,24 @@ async def get_run_status(
     """
     Get the status of the current or last simulation run.
     """
-    # Find scenario and its last run
-    for ws in storage.list_workspaces():
-        scenario = storage.get_scenario(ws.id, scenario_id)
-        if scenario:
-            if scenario.last_run_id and scenario.last_run_id in _active_runs:
-                return _active_runs[scenario.last_run_id]
+    _, scenario = _find_scenario_and_workspace(storage, scenario_id)
+    if not scenario:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Scenario {scenario_id} not found",
+        )
 
-            # Return a completed/failed status based on scenario status
-            return SimulationRun(
-                id=scenario.last_run_id or "unknown",
-                scenario_id=scenario_id,
-                status="completed" if scenario.status == "completed" else "not_run",
-                progress=100 if scenario.status == "completed" else 0,
-                started_at=scenario.last_run_at or datetime.utcnow(),
-                completed_at=scenario.last_run_at,
-            )
+    if scenario.last_run_id and scenario.last_run_id in _active_runs:
+        return _active_runs[scenario.last_run_id]
 
-    raise HTTPException(
-        status_code=status.HTTP_404_NOT_FOUND,
-        detail=f"Scenario {scenario_id} not found",
+    # Return a completed/failed status based on scenario status
+    return SimulationRun(
+        id=scenario.last_run_id or "unknown",
+        scenario_id=scenario_id,
+        status="completed" if scenario.status == "completed" else "not_run",
+        progress=100 if scenario.status == "completed" else 0,
+        started_at=scenario.last_run_at or datetime.utcnow(),
+        completed_at=scenario.last_run_at,
     )
 
 
@@ -171,11 +186,9 @@ async def cancel_simulation(
             run.completed_at = datetime.utcnow()
 
             # Update scenario status
-            for ws in storage.list_workspaces():
-                scenario = storage.get_scenario(ws.id, scenario_id)
-                if scenario:
-                    storage.update_scenario_status(ws.id, scenario_id, "cancelled")
-                    break
+            workspace, scenario = _find_scenario_and_workspace(storage, scenario_id)
+            if workspace and scenario:
+                storage.update_scenario_status(workspace.id, scenario_id, "cancelled")
 
             return {"success": True}
 
@@ -195,16 +208,7 @@ async def list_runs(
     """
     import json
 
-    # Find scenario and workspace
-    workspace = None
-    scenario = None
-
-    for ws in storage.list_workspaces():
-        scenario = storage.get_scenario(ws.id, scenario_id)
-        if scenario:
-            workspace = ws
-            break
-
+    workspace, scenario = _find_scenario_and_workspace(storage, scenario_id)
     if not scenario or not workspace:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
@@ -243,7 +247,7 @@ async def list_runs(
                             artifact_count=artifact_count,
                         ))
                     except Exception as e:
-                        print(f"Error loading run metadata from {run_dir}: {e}")
+                        logger.warning(f"Error loading run metadata from {run_dir}: {e}")
                         continue
 
     # Also check for legacy runs in results/ folder (migration path)
@@ -279,7 +283,7 @@ async def list_runs(
                         artifact_count=artifact_count,
                     ))
             except Exception as e:
-                print(f"Error loading legacy run metadata: {e}")
+                logger.warning(f"Error loading legacy run metadata: {e}")
 
     # Sort all runs by started_at descending (most recent first)
     runs.sort(key=lambda r: r.started_at, reverse=True)
@@ -298,16 +302,7 @@ async def get_run(
     """
     import json
 
-    # Find scenario and workspace
-    workspace = None
-    scenario = None
-
-    for ws in storage.list_workspaces():
-        scenario = storage.get_scenario(ws.id, scenario_id)
-        if scenario:
-            workspace = ws
-            break
-
+    workspace, scenario = _find_scenario_and_workspace(storage, scenario_id)
     if not scenario or not workspace:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
@@ -397,29 +392,36 @@ async def get_results(
 ) -> SimulationResults:
     """
     Get simulation results for a completed scenario.
+
+    Will return results if either:
+    - The scenario status is "completed", OR
+    - There is a completed run in the run history
     """
-    # Find scenario
-    for ws in storage.list_workspaces():
-        scenario = storage.get_scenario(ws.id, scenario_id)
-        if scenario:
-            if scenario.status != "completed":
-                raise HTTPException(
-                    status_code=status.HTTP_400_BAD_REQUEST,
-                    detail=f"Scenario {scenario_id} has not completed successfully",
-                )
+    workspace, scenario = _find_scenario_and_workspace(storage, scenario_id)
+    if not scenario or not workspace:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Scenario {scenario_id} not found",
+        )
 
-            results = simulation_service.get_results(ws.id, scenario_id)
-            if results:
-                return results
+    # First check if results exist (this also validates scenario has completed runs)
+    results = simulation_service.get_results(workspace.id, scenario_id)
+    if results:
+        # Update scenario status if it's stale (has results but status isn't completed)
+        if scenario.status != "completed":
+            storage.update_scenario_status(workspace.id, scenario_id, "completed")
+        return results
 
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail=f"Results not found for scenario {scenario_id}",
-            )
+    # If no results and scenario status is not completed, return appropriate error
+    if scenario.status != "completed":
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"Scenario {scenario_id} has not completed successfully (status: {scenario.status})",
+        )
 
     raise HTTPException(
         status_code=status.HTTP_404_NOT_FOUND,
-        detail=f"Scenario {scenario_id} not found",
+        detail=f"Results not found for scenario {scenario_id}",
     )
 
 
@@ -431,61 +433,55 @@ async def export_results(
 ) -> FileResponse:
     """
     Export simulation results as Excel or CSV.
+
+    Will attempt export if results files exist, regardless of scenario status.
     """
-    # Find scenario
-    for ws in storage.list_workspaces():
-        scenario = storage.get_scenario(ws.id, scenario_id)
-        if scenario:
-            if scenario.status != "completed":
-                raise HTTPException(
-                    status_code=status.HTTP_400_BAD_REQUEST,
-                    detail=f"Scenario {scenario_id} has not completed successfully",
-                )
+    workspace, scenario = _find_scenario_and_workspace(storage, scenario_id)
+    if not scenario or not workspace:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Scenario {scenario_id} not found",
+        )
 
-            # Check for results file - look for {scenario_name}_results.xlsx pattern
-            scenario_path = storage._scenario_path(ws.id, scenario_id)
-            results_dir = scenario_path / "results"
+    # Check for results file - look for {scenario_name}_results.xlsx pattern
+    scenario_path = storage._scenario_path(workspace.id, scenario_id)
+    results_dir = scenario_path / "results"
 
-            if format == "excel":
-                media_type = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
-                ext = "xlsx"
+    if format == "excel":
+        media_type = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+        ext = "xlsx"
+    else:
+        media_type = "text/csv"
+        ext = "csv"
+
+    # Try to find the results file (check multiple naming patterns)
+    results_file = None
+    if results_dir.exists():
+        # First try: {scenario_name}_results.xlsx
+        candidate = results_dir / f"{scenario.name}_results.{ext}"
+        if candidate.exists():
+            results_file = candidate
+        else:
+            # Second try: results.xlsx
+            candidate = results_dir / f"results.{ext}"
+            if candidate.exists():
+                results_file = candidate
             else:
-                media_type = "text/csv"
-                ext = "csv"
+                # Third try: any *_results.xlsx file
+                for f in results_dir.glob(f"*_results.{ext}"):
+                    results_file = f
+                    break
 
-            # Try to find the results file (check multiple naming patterns)
-            results_file = None
-            if results_dir.exists():
-                # First try: {scenario_name}_results.xlsx
-                candidate = results_dir / f"{scenario.name}_results.{ext}"
-                if candidate.exists():
-                    results_file = candidate
-                else:
-                    # Second try: results.xlsx
-                    candidate = results_dir / f"results.{ext}"
-                    if candidate.exists():
-                        results_file = candidate
-                    else:
-                        # Third try: any *_results.xlsx file
-                        for f in results_dir.glob(f"*_results.{ext}"):
-                            results_file = f
-                            break
-
-            if results_file and results_file.exists():
-                return FileResponse(
-                    path=results_file,
-                    media_type=media_type,
-                    filename=f"{scenario.name}_results.{ext}",
-                )
-
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail=f"Export file not found for scenario {scenario_id}. Run the simulation first to generate results.",
-            )
+    if results_file and results_file.exists():
+        return FileResponse(
+            path=results_file,
+            media_type=media_type,
+            filename=f"{scenario.name}_results.{ext}",
+        )
 
     raise HTTPException(
         status_code=status.HTTP_404_NOT_FOUND,
-        detail=f"Scenario {scenario_id} not found",
+        detail=f"Export file not found for scenario {scenario_id}. Run the simulation first to generate results.",
     )
 
 
@@ -501,18 +497,7 @@ def update_run_status(run_id: str, **updates):
 def _get_artifact_type(filename: str) -> str:
     """Determine artifact type from filename."""
     ext = Path(filename).suffix.lower()
-    type_map = {
-        ".xlsx": "excel",
-        ".xls": "excel",
-        ".yaml": "yaml",
-        ".yml": "yaml",
-        ".duckdb": "duckdb",
-        ".json": "json",
-        ".txt": "text",
-        ".csv": "text",
-        ".log": "text",
-    }
-    return type_map.get(ext, "other")
+    return ARTIFACT_TYPE_MAP.get(ext, "other")
 
 
 def _list_artifacts(scenario_path: Path) -> List[Artifact]:
@@ -563,19 +548,9 @@ async def get_run_details(
     Includes timing, configuration, artifacts, and results summary.
     """
     import json
-    import traceback
 
     try:
-        # Find scenario and workspace
-        workspace = None
-        scenario = None
-
-        for ws in storage.list_workspaces():
-            scenario = storage.get_scenario(ws.id, scenario_id)
-            if scenario:
-                workspace = ws
-                break
-
+        workspace, scenario = _find_scenario_and_workspace(storage, scenario_id)
         if not scenario or not workspace:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
@@ -604,9 +579,11 @@ async def get_run_details(
         completed_at = None
         total_events = None
 
+        error_message = None
         if run_metadata:
             duration_seconds = run_metadata.get("duration_seconds")
             total_events = run_metadata.get("events_generated")
+            error_message = run_metadata.get("error_message")
             if run_metadata.get("started_at"):
                 started_at = datetime.fromisoformat(run_metadata["started_at"])
             if run_metadata.get("completed_at"):
@@ -660,13 +637,12 @@ async def get_run_details(
             participation_rate=participation_rate,
             config=config,
             artifacts=artifacts,
-            error_message=None,  # TODO: Store error messages
+            error_message=error_message,
         )
     except HTTPException:
         raise
     except Exception as e:
-        print(f"ERROR in get_run_details: {e}")
-        traceback.print_exc()
+        logger.exception(f"Error in get_run_details for scenario {scenario_id}")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Internal error: {str(e)}",
@@ -682,40 +658,28 @@ async def download_artifact(
     """
     Download a specific artifact file.
     """
-    # Find scenario
-    for ws in storage.list_workspaces():
-        scenario = storage.get_scenario(ws.id, scenario_id)
-        if scenario:
-            scenario_path = storage._scenario_path(ws.id, scenario_id)
-            file_path = scenario_path / artifact_path
+    workspace, scenario = _find_scenario_and_workspace(storage, scenario_id)
+    if not scenario or not workspace:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Scenario {scenario_id} not found",
+        )
 
-            if file_path.exists() and file_path.is_file():
-                # Determine media type
-                ext = file_path.suffix.lower()
-                media_types = {
-                    ".xlsx": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-                    ".yaml": "application/x-yaml",
-                    ".yml": "application/x-yaml",
-                    ".json": "application/json",
-                    ".csv": "text/csv",
-                    ".txt": "text/plain",
-                    ".log": "text/plain",
-                    ".duckdb": "application/octet-stream",
-                }
-                media_type = media_types.get(ext, "application/octet-stream")
+    scenario_path = storage._scenario_path(workspace.id, scenario_id)
+    file_path = scenario_path / artifact_path
 
-                return FileResponse(
-                    path=file_path,
-                    media_type=media_type,
-                    filename=file_path.name,
-                )
+    if file_path.exists() and file_path.is_file():
+        # Determine media type
+        ext = file_path.suffix.lower()
+        media_type = MEDIA_TYPE_MAP.get(ext, "application/octet-stream")
 
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail=f"Artifact {artifact_path} not found",
-            )
+        return FileResponse(
+            path=file_path,
+            media_type=media_type,
+            filename=file_path.name,
+        )
 
     raise HTTPException(
         status_code=status.HTTP_404_NOT_FOUND,
-        detail=f"Scenario {scenario_id} not found",
+        detail=f"Artifact {artifact_path} not found",
     )
