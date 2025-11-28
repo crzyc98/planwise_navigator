@@ -235,6 +235,7 @@ class OrchestratorWrapper:
             threading_enabled=threading_enabled,
             threading_mode=threading_mode,
             db_manager=self.db,  # Pass db_manager for connection cleanup before dbt subprocess
+            database_path=str(self.db_path),  # Use scenario-specific database path
         )
 
         registries = RegistryManager(self.db)

@@ -7,6 +7,7 @@ import SimulationDetail from './components/SimulationDetail';
 import ConfigStudio from './components/ConfigStudio';
 import ScenariosPage from './components/ScenariosPage';
 import AnalyticsDashboard from './components/AnalyticsDashboard';
+import ScenarioComparison from './components/ScenarioComparison';
 import BatchProcessing from './components/BatchProcessing';
 import WorkspaceManager from './components/WorkspaceManager';
 
@@ -29,6 +30,7 @@ export default function App() {
           <Route path="config" element={<ConfigStudio />} />
           <Route path="config/:scenarioId" element={<ConfigStudio />} />
           <Route path="analytics" element={<AnalyticsDashboard />} />
+          <Route path="analytics/compare" element={<ScenarioComparison />} />
           <Route path="batch" element={<BatchProcessing />} />
           <Route path="workspaces" element={<WorkspaceManager />} />
           <Route path="*" element={<Navigate to="/" replace />} />
