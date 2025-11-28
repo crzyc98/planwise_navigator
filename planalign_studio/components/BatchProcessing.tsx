@@ -464,7 +464,7 @@ export default function BatchProcessing() {
                 </div>
               </div>
               <button
-                onClick={() => navigate(`/analytics?compare=${selectedBatch.scenarios.map(s => s.scenario_id).join(',')}`)}
+                onClick={() => navigate(`/analytics/compare?scenarios=${selectedBatch.scenarios.map(s => s.scenario_id).join(',')}`)}
                 className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 font-medium"
               >
                 View Comparison

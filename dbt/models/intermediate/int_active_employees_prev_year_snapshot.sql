@@ -1,14 +1,12 @@
 {{ config(
-    materialized='incremental',
-    incremental_strategy='delete+insert',
-    unique_key=['employee_id', 'simulation_year'],
-    on_schema_change='sync_all_columns',
-    indexes=[
-        {'columns': ['employee_id']},
-        {'columns': ['simulation_year']}
-    ],
+    materialized='ephemeral',
     tags=["foundation", "critical", "circular_dependency_resolution"]
 ) }}
+
+-- **E082 FIX**: Changed from incremental to ephemeral to prevent stale data causing employee resurrection
+-- The incremental model was retaining data from previous runs where employees hadn't been terminated yet,
+-- causing terminated employees to "resurrect" in subsequent years.
+-- Ephemeral ensures we always read fresh data from fct_workforce_snapshot.
 
 /*
   Primary helper model for circular dependency resolution.
@@ -119,9 +117,6 @@ enriched_snapshot as (
 select *
 from enriched_snapshot
 where data_quality_valid = true
-{% if is_incremental() %}
-  and simulation_year = {{ simulation_year }}
-{% endif %}
 
 {% else %}
 
