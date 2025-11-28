@@ -1,0 +1,417 @@
+"""Comparison service for scenario analysis."""
+
+import logging
+from pathlib import Path
+from typing import Any, Dict, List, Optional
+
+from ..models.comparison import (
+    ComparisonResponse,
+    DeltaValue,
+    EventComparisonMetric,
+    WorkforceComparisonYear,
+    WorkforceMetrics,
+)
+from ..storage.workspace_storage import WorkspaceStorage
+
+logger = logging.getLogger(__name__)
+
+
+class ComparisonService:
+    """Service for comparing scenarios."""
+
+    def __init__(self, storage: WorkspaceStorage):
+        self.storage = storage
+
+    def compare_scenarios(
+        self,
+        workspace_id: str,
+        scenario_ids: List[str],
+        baseline_id: str,
+    ) -> Optional[ComparisonResponse]:
+        """
+        Compare multiple scenarios against a baseline.
+
+        Returns pre-calculated deltas for workforce metrics and events.
+        """
+        if len(scenario_ids) < 2:
+            logger.error("Need at least 2 scenarios to compare")
+            return None
+
+        if baseline_id not in scenario_ids:
+            logger.error(f"Baseline {baseline_id} not in scenario list")
+            return None
+
+        # Load data from each scenario
+        scenario_data: Dict[str, Dict[str, Any]] = {}
+
+        for scenario_id in scenario_ids:
+            data = self._load_scenario_data(workspace_id, scenario_id)
+            if data:
+                scenario_data[scenario_id] = data
+            else:
+                logger.warning(f"Could not load data for scenario {scenario_id}")
+
+        if baseline_id not in scenario_data:
+            logger.error(f"Could not load baseline scenario {baseline_id}")
+            return None
+
+        baseline_data = scenario_data[baseline_id]
+
+        # Build workforce comparison by year
+        workforce_comparison = self._build_workforce_comparison(
+            scenario_data, baseline_data, baseline_id
+        )
+
+        # Build event comparison
+        event_comparison = self._build_event_comparison(
+            scenario_data, baseline_data, baseline_id
+        )
+
+        # Build summary deltas
+        summary_deltas = self._build_summary_deltas(
+            scenario_data, baseline_data, baseline_id
+        )
+
+        return ComparisonResponse(
+            scenarios=scenario_ids,
+            scenario_names={},  # Will be filled by router
+            baseline_scenario=baseline_id,
+            workforce_comparison=workforce_comparison,
+            event_comparison=event_comparison,
+            summary_deltas=summary_deltas,
+        )
+
+    def _load_scenario_data(
+        self, workspace_id: str, scenario_id: str
+    ) -> Optional[Dict[str, Any]]:
+        """Load simulation data for a scenario from its DuckDB database."""
+        try:
+            import duckdb
+
+            scenario_path = self.storage._scenario_path(workspace_id, scenario_id)
+            db_path = scenario_path / "simulation.duckdb"
+
+            if not db_path.exists():
+                # Check workspace-level database
+                workspace_path = self.storage._workspace_path(workspace_id)
+                db_path = workspace_path / "simulation.duckdb"
+
+            if not db_path.exists():
+                return None
+
+            conn = duckdb.connect(str(db_path), read_only=True)
+
+            # Load workforce snapshots
+            try:
+                workforce_df = conn.execute("""
+                    SELECT
+                        simulation_year,
+                        COUNT(DISTINCT employee_id) as headcount,
+                        COUNT(DISTINCT CASE WHEN employment_status = 'ACTIVE' THEN employee_id END) as active,
+                        COUNT(DISTINCT CASE WHEN employment_status = 'TERMINATED' THEN employee_id END) as terminated
+                    FROM fct_workforce_snapshot
+                    GROUP BY simulation_year
+                    ORDER BY simulation_year
+                """).fetchdf()
+                workforce = workforce_df.to_dict("records")
+            except Exception:
+                workforce = []
+
+            # Load event counts
+            try:
+                events_df = conn.execute("""
+                    SELECT
+                        simulation_year,
+                        event_type,
+                        COUNT(*) as count
+                    FROM fct_yearly_events
+                    GROUP BY simulation_year, event_type
+                    ORDER BY simulation_year, event_type
+                """).fetchdf()
+                events = events_df.to_dict("records")
+            except Exception:
+                events = []
+
+            # Load hires by year
+            try:
+                hires_df = conn.execute("""
+                    SELECT
+                        simulation_year,
+                        COUNT(*) as hires
+                    FROM fct_yearly_events
+                    WHERE event_type = 'HIRE'
+                    GROUP BY simulation_year
+                    ORDER BY simulation_year
+                """).fetchdf()
+                hires_by_year = {
+                    row["simulation_year"]: row["hires"]
+                    for row in hires_df.to_dict("records")
+                }
+            except Exception:
+                hires_by_year = {}
+
+            conn.close()
+
+            return {
+                "workforce": workforce,
+                "events": events,
+                "hires_by_year": hires_by_year,
+            }
+
+        except Exception as e:
+            logger.error(f"Failed to load scenario data: {e}")
+            return None
+
+    def _build_workforce_comparison(
+        self,
+        scenario_data: Dict[str, Dict[str, Any]],
+        baseline_data: Dict[str, Any],
+        baseline_id: str,
+    ) -> List[WorkforceComparisonYear]:
+        """Build year-by-year workforce comparison."""
+        # Get all years across all scenarios
+        all_years = set()
+        for data in scenario_data.values():
+            for row in data.get("workforce", []):
+                all_years.add(row["simulation_year"])
+
+        comparison = []
+        prev_headcounts: Dict[str, int] = {}
+
+        for year in sorted(all_years):
+            values = {}
+            deltas = {}
+
+            # Get baseline values for this year
+            baseline_workforce = next(
+                (w for w in baseline_data.get("workforce", []) if w["simulation_year"] == year),
+                None,
+            )
+            baseline_hires = baseline_data.get("hires_by_year", {}).get(year, 0)
+
+            if not baseline_workforce:
+                continue
+
+            baseline_headcount = baseline_workforce.get("headcount", 0)
+            baseline_active = baseline_workforce.get("active", 0)
+            baseline_terminated = baseline_workforce.get("terminated", 0)
+            baseline_prev = prev_headcounts.get(baseline_id, baseline_headcount)
+            baseline_growth = (
+                ((baseline_headcount - baseline_prev) / baseline_prev * 100)
+                if baseline_prev > 0
+                else 0
+            )
+
+            baseline_metrics = WorkforceMetrics(
+                headcount=baseline_headcount,
+                active=baseline_active,
+                terminated=baseline_terminated,
+                new_hires=baseline_hires,
+                growth_pct=baseline_growth,
+            )
+            values[baseline_id] = baseline_metrics
+            deltas[baseline_id] = WorkforceMetrics(
+                headcount=0,
+                active=0,
+                terminated=0,
+                new_hires=0,
+                growth_pct=0.0,
+            )
+
+            # Calculate for each non-baseline scenario
+            for scenario_id, data in scenario_data.items():
+                if scenario_id == baseline_id:
+                    continue
+
+                workforce = next(
+                    (w for w in data.get("workforce", []) if w["simulation_year"] == year),
+                    None,
+                )
+                hires = data.get("hires_by_year", {}).get(year, 0)
+
+                if not workforce:
+                    continue
+
+                headcount = workforce.get("headcount", 0)
+                active = workforce.get("active", 0)
+                terminated = workforce.get("terminated", 0)
+                prev = prev_headcounts.get(scenario_id, headcount)
+                growth = (
+                    ((headcount - prev) / prev * 100)
+                    if prev > 0
+                    else 0
+                )
+
+                values[scenario_id] = WorkforceMetrics(
+                    headcount=headcount,
+                    active=active,
+                    terminated=terminated,
+                    new_hires=hires,
+                    growth_pct=growth,
+                )
+
+                deltas[scenario_id] = WorkforceMetrics(
+                    headcount=headcount - baseline_headcount,
+                    active=active - baseline_active,
+                    terminated=terminated - baseline_terminated,
+                    new_hires=hires - baseline_hires,
+                    growth_pct=growth - baseline_growth,
+                )
+
+                prev_headcounts[scenario_id] = headcount
+
+            prev_headcounts[baseline_id] = baseline_headcount
+
+            comparison.append(
+                WorkforceComparisonYear(
+                    year=year,
+                    values=values,
+                    deltas=deltas,
+                )
+            )
+
+        return comparison
+
+    def _build_event_comparison(
+        self,
+        scenario_data: Dict[str, Dict[str, Any]],
+        baseline_data: Dict[str, Any],
+        baseline_id: str,
+    ) -> List[EventComparisonMetric]:
+        """Build event comparison across scenarios."""
+        event_types = ["HIRE", "TERMINATION", "PROMOTION", "RAISE"]
+        comparison = []
+
+        # Get all years
+        all_years = set()
+        for data in scenario_data.values():
+            for event in data.get("events", []):
+                all_years.add(event["simulation_year"])
+
+        for year in sorted(all_years):
+            for event_type in event_types:
+                # Get baseline value
+                baseline_events = baseline_data.get("events", [])
+                baseline_value = next(
+                    (e["count"] for e in baseline_events
+                     if e["simulation_year"] == year and e["event_type"] == event_type),
+                    0,
+                )
+
+                scenarios = {}
+                deltas = {}
+                delta_pcts = {}
+
+                for scenario_id, data in scenario_data.items():
+                    if scenario_id == baseline_id:
+                        scenarios[scenario_id] = baseline_value
+                        deltas[scenario_id] = 0
+                        delta_pcts[scenario_id] = 0.0
+                        continue
+
+                    events = data.get("events", [])
+                    value = next(
+                        (e["count"] for e in events
+                         if e["simulation_year"] == year and e["event_type"] == event_type),
+                        0,
+                    )
+
+                    scenarios[scenario_id] = value
+                    deltas[scenario_id] = value - baseline_value
+                    delta_pcts[scenario_id] = (
+                        ((value - baseline_value) / baseline_value * 100)
+                        if baseline_value > 0
+                        else 0.0
+                    )
+
+                comparison.append(
+                    EventComparisonMetric(
+                        metric=event_type.lower() + "s",
+                        year=year,
+                        baseline=baseline_value,
+                        scenarios=scenarios,
+                        deltas=deltas,
+                        delta_pcts=delta_pcts,
+                    )
+                )
+
+        return comparison
+
+    def _build_summary_deltas(
+        self,
+        scenario_data: Dict[str, Dict[str, Any]],
+        baseline_data: Dict[str, Any],
+        baseline_id: str,
+    ) -> Dict[str, DeltaValue]:
+        """Build summary delta calculations."""
+        summary = {}
+
+        # Final headcount
+        baseline_workforce = baseline_data.get("workforce", [])
+        baseline_final = (
+            baseline_workforce[-1].get("headcount", 0)
+            if baseline_workforce
+            else 0
+        )
+        baseline_initial = (
+            baseline_workforce[0].get("headcount", 0)
+            if baseline_workforce
+            else 0
+        )
+
+        headcount_scenarios = {}
+        headcount_deltas = {}
+        headcount_delta_pcts = {}
+
+        for scenario_id, data in scenario_data.items():
+            workforce = data.get("workforce", [])
+            final = workforce[-1].get("headcount", 0) if workforce else 0
+            headcount_scenarios[scenario_id] = float(final)
+            delta = final - baseline_final
+            headcount_deltas[scenario_id] = float(delta)
+            headcount_delta_pcts[scenario_id] = (
+                (delta / baseline_final * 100) if baseline_final > 0 else 0.0
+            )
+
+        summary["final_headcount"] = DeltaValue(
+            baseline=float(baseline_final),
+            scenarios=headcount_scenarios,
+            deltas=headcount_deltas,
+            delta_pcts=headcount_delta_pcts,
+        )
+
+        # Total growth percentage
+        baseline_growth = (
+            ((baseline_final - baseline_initial) / baseline_initial * 100)
+            if baseline_initial > 0
+            else 0.0
+        )
+
+        growth_scenarios = {}
+        growth_deltas = {}
+        growth_delta_pcts = {}
+
+        for scenario_id, data in scenario_data.items():
+            workforce = data.get("workforce", [])
+            initial = workforce[0].get("headcount", 0) if workforce else 0
+            final = workforce[-1].get("headcount", 0) if workforce else 0
+            growth = (
+                ((final - initial) / initial * 100)
+                if initial > 0
+                else 0.0
+            )
+            growth_scenarios[scenario_id] = growth
+            delta = growth - baseline_growth
+            growth_deltas[scenario_id] = delta
+            growth_delta_pcts[scenario_id] = (
+                (delta / abs(baseline_growth) * 100) if baseline_growth != 0 else 0.0
+            )
+
+        summary["total_growth_pct"] = DeltaValue(
+            baseline=baseline_growth,
+            scenarios=growth_scenarios,
+            deltas=growth_deltas,
+            delta_pcts=growth_delta_pcts,
+        )
+
+        return summary
