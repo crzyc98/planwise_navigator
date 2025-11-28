@@ -7,7 +7,6 @@ import psutil
 import re
 import subprocess
 import sys
-import tempfile
 from datetime import datetime
 from pathlib import Path
 from typing import Any, Dict, List, Optional
@@ -22,6 +21,7 @@ from ..models.simulation import (
     SimulationTelemetry,
 )
 from ..storage.workspace_storage import WorkspaceStorage
+from ..constants import MAX_RECENT_EVENTS, DEFAULT_PARTICIPATION_RATE
 from .telemetry_service import get_telemetry_service
 
 logger = logging.getLogger(__name__)
@@ -144,7 +144,6 @@ class SimulationService:
         """
         from ..routers.simulations import update_run_status
 
-        print(f"[SimulationService] execute_simulation called for run_id={run_id}", flush=True)
         logger.info(f"execute_simulation called: workspace={workspace_id}, scenario={scenario_id}, run={run_id}")
 
         try:
@@ -184,8 +183,6 @@ cli_main()
 '''
             cmd = [sys.executable, "-c", cli_code]
 
-            print(f"[SimulationService] Starting subprocess with config: {config_path_str}", flush=True)
-            print(f"[SimulationService] Database path: {db_path_str}", flush=True)
             logger.info(f"Starting simulation with config: {config_path_str}")
             logger.info(f"Scenario database: {db_path_str}")
             logger.info(f"Command: planalign simulate {year_range} --config {config_path_str} --verbose")
@@ -243,9 +240,8 @@ cli_main()
                 if not line_text:
                     continue
 
-                # Log at info level so we can see what's happening
-                print(f"[Simulation] {line_text}", flush=True)
-                logger.info(f"Simulation output: {line_text}")
+                # Log simulation output
+                logger.debug(f"Simulation output: {line_text}")
 
                 # Parse year progress from output (e.g., "Processing year 2025")
                 prev_year = current_year
@@ -260,7 +256,7 @@ cli_main()
                             "details": f"Processing simulation year {current_year}",
                         }
                         recent_events.insert(0, year_event)
-                        recent_events = recent_events[:20]
+                        recent_events = recent_events[:MAX_RECENT_EVENTS]
 
                 # Parse stage from output
                 stage_patterns = {
@@ -287,7 +283,7 @@ cli_main()
                         "details": f"Entering {current_stage.replace('_', ' ').title()}",
                     }
                     recent_events.insert(0, stage_event)
-                    recent_events = recent_events[:20]
+                    recent_events = recent_events[:MAX_RECENT_EVENTS]
 
                 # Parse events count if available
                 events_match = re.search(r"(\d+)\s*events?", line_text, re.IGNORECASE)
@@ -304,7 +300,7 @@ cli_main()
                         "details": line_text[:100],  # First 100 chars as details
                     }
                     recent_events.insert(0, event_entry)
-                    recent_events = recent_events[:20]  # Keep last 20 events
+                    recent_events = recent_events[:MAX_RECENT_EVENTS]  # Keep last 20 events
 
                 # Calculate progress
                 year_idx = current_year - start_year
@@ -375,11 +371,10 @@ cli_main()
                 recent_events=recent_events,
             )
 
-            print(f"[SimulationService] Simulation {run_id} completed successfully in {final_elapsed:.1f}s", flush=True)
-            logger.info(f"Simulation {run_id} completed successfully")
+            logger.info(f"Simulation {run_id} completed successfully in {final_elapsed:.1f}s")
 
             # Export results to Excel
-            print(f"[SimulationService] Exporting results to Excel...", flush=True)
+            logger.info("Exporting results to Excel...")
             scenario = self.storage.get_scenario(workspace_id, scenario_id)
             scenario_name = scenario.name if scenario else scenario_id
             seed = config.get("simulation", {}).get("seed", 42)
@@ -393,7 +388,7 @@ cli_main()
             try:
                 with open(config_yaml_path, "w") as f:
                     yaml.dump(config, f, default_flow_style=False, sort_keys=False)
-                print(f"[SimulationService] Config YAML saved to: {config_yaml_path}", flush=True)
+                logger.debug(f"Config YAML saved to: {config_yaml_path}")
             except Exception as e:
                 logger.warning(f"Failed to save config YAML: {e}")
 
@@ -417,7 +412,7 @@ cli_main()
                 metadata_path = run_dir / "run_metadata.json"
                 with open(metadata_path, "w") as f:
                     json.dump(run_metadata, f, indent=2)
-                print(f"[SimulationService] Run metadata saved to: {metadata_path}", flush=True)
+                logger.debug(f"Run metadata saved to: {metadata_path}")
             except Exception as e:
                 logger.warning(f"Failed to save run metadata: {e}")
 
@@ -428,7 +423,7 @@ cli_main()
                 db_dest = run_dir / "simulation.duckdb"
                 try:
                     shutil.copy2(db_src, db_dest)
-                    print(f"[SimulationService] Database copied to: {db_dest}", flush=True)
+                    logger.debug(f"Database copied to: {db_dest}")
                 except Exception as e:
                     logger.warning(f"Failed to copy database to run directory: {e}")
 
@@ -441,13 +436,12 @@ cli_main()
                 run_dir=run_dir,  # Pass run directory for output
             )
             if excel_path:
-                print(f"[SimulationService] Excel export created: {excel_path}", flush=True)
+                logger.info(f"Excel export created: {excel_path}")
             else:
-                print(f"[SimulationService] Excel export skipped or failed", flush=True)
+                logger.warning("Excel export skipped or failed")
 
         except Exception as e:
-            logger.error(f"Simulation {run_id} failed: {e}")
-            print(f"[SimulationService] Simulation {run_id} failed: {e}", flush=True)
+            logger.exception(f"Simulation {run_id} failed")
             update_run_status(
                 run_id,
                 status="failed",
@@ -660,7 +654,7 @@ cli_main()
                 final_headcount=final_headcount,
                 total_growth_pct=total_growth_pct,
                 cagr=cagr,
-                participation_rate=0.85,  # Would come from actual data
+                participation_rate=DEFAULT_PARTICIPATION_RATE,  # Would come from actual data
                 workforce_progression=workforce_progression,
                 event_trends=event_trends,
                 growth_analysis={

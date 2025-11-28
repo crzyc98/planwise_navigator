@@ -14,6 +14,13 @@ from ..models.system import HealthResponse, SystemStatus
 router = APIRouter()
 
 
+def get_active_simulation_count() -> int:
+    """Get count of currently running simulations."""
+    # Import here to avoid circular imports
+    from .simulations import _active_runs
+    return sum(1 for run in _active_runs.values() if run.status == "running")
+
+
 def get_storage_usage(workspaces_root: Path) -> tuple[float, int, int]:
     """Calculate storage usage and counts."""
     total_size = 0
@@ -103,7 +110,7 @@ async def system_status(settings: APISettings = Depends(get_settings)) -> System
         system_ready=True,
         system_message="System is ready for simulations",
         timestamp=datetime.utcnow(),
-        active_simulations=0,  # TODO: Track active simulations
+        active_simulations=get_active_simulation_count(),
         queued_simulations=0,
         total_storage_mb=storage_mb,
         storage_limit_mb=storage_limit_mb,

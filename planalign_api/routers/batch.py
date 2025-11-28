@@ -1,5 +1,6 @@
 """Batch processing endpoints."""
 
+import asyncio
 import uuid
 from datetime import datetime
 from typing import Any, Dict, List, Optional
@@ -8,6 +9,8 @@ from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, status
 
 from ..config import APISettings, get_settings
 from ..models.batch import BatchCreate, BatchJob, BatchScenario
+from ..models.scenario import Scenario
+from ..services.simulation_service import SimulationService
 from ..storage.workspace_storage import WorkspaceStorage
 
 router = APIRouter()
@@ -140,37 +143,67 @@ async def _execute_batch(
     storage: WorkspaceStorage,
     workspace_id: str,
     batch_id: str,
-    scenarios: List,
+    scenarios: List[Scenario],
     parallel: bool,
     export_format: Optional[str],
-):
+) -> None:
     """Execute batch scenarios (background task)."""
     batch_job = _batch_jobs[batch_id]
     batch_job.status = "running"
 
-    try:
-        # For now, run sequentially (parallel would use asyncio.gather)
-        for i, scenario in enumerate(scenarios):
-            # Update batch scenario status
-            batch_job.scenarios[i].status = "running"
+    # Create simulation service
+    simulation_service = SimulationService(storage)
 
-            # TODO: Actually run the simulation
-            # For now, just simulate progress
-            import asyncio
+    async def run_scenario(index: int, scenario: Scenario) -> None:
+        """Run a single scenario and update batch status."""
+        run_id = str(uuid.uuid4())
+        batch_job.scenarios[index].status = "running"
 
-            for progress in range(0, 101, 10):
-                batch_job.scenarios[i].progress = progress
-                await asyncio.sleep(0.1)  # Simulate work
+        # Update scenario status in storage to "running"
+        storage.update_scenario_status(workspace_id, scenario.id, "running", run_id)
 
-            batch_job.scenarios[i].status = "completed"
-            batch_job.scenarios[i].progress = 100
+        try:
+            # Get merged config for this scenario
+            merged_config = storage.get_merged_config(workspace_id, scenario.id)
 
-            # Update scenario in storage
-            storage.update_scenario_status(
-                workspace_id, scenario.id, "completed", run_id=f"batch_{batch_id}"
+            # Execute the simulation
+            await simulation_service.execute_simulation(
+                workspace_id=workspace_id,
+                scenario_id=scenario.id,
+                run_id=run_id,
+                config=merged_config,
+                resume_from_checkpoint=False,
             )
 
-        batch_job.status = "completed"
+            batch_job.scenarios[index].status = "completed"
+            batch_job.scenarios[index].progress = 100
+
+            # Update scenario status in storage to "completed"
+            storage.update_scenario_status(workspace_id, scenario.id, "completed", run_id)
+
+        except Exception as e:
+            batch_job.scenarios[index].status = "failed"
+            batch_job.scenarios[index].error_message = str(e)
+            # Update scenario status in storage to "failed"
+            storage.update_scenario_status(workspace_id, scenario.id, "failed", run_id)
+            raise
+
+    try:
+        if parallel:
+            # Run all scenarios in parallel
+            tasks = [
+                run_scenario(i, scenario)
+                for i, scenario in enumerate(scenarios)
+            ]
+            await asyncio.gather(*tasks, return_exceptions=True)
+        else:
+            # Run sequentially
+            for i, scenario in enumerate(scenarios):
+                await run_scenario(i, scenario)
+
+        # Check if all completed successfully
+        all_completed = all(s.status == "completed" for s in batch_job.scenarios)
+        batch_job.status = "completed" if all_completed else "failed"
         batch_job.completed_at = datetime.utcnow()
         batch_job.duration_seconds = (
             batch_job.completed_at - batch_job.submitted_at
@@ -179,6 +212,9 @@ async def _execute_batch(
     except Exception as e:
         batch_job.status = "failed"
         batch_job.completed_at = datetime.utcnow()
+        batch_job.duration_seconds = (
+            batch_job.completed_at - batch_job.submitted_at
+        ).total_seconds()
         # Mark any pending scenarios as failed
         for batch_scenario in batch_job.scenarios:
             if batch_scenario.status in ("pending", "running"):
