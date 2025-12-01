@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { Save, AlertTriangle, FileText, Settings, HelpCircle, TrendingUp, Users, DollarSign, Zap, Server, Shield, PieChart, Database, Upload, Check, X, ArrowLeft } from 'lucide-react';
 import { useNavigate, useOutletContext, useParams } from 'react-router-dom';
 import { LayoutContextType } from './Layout';
-import { updateWorkspace as apiUpdateWorkspace, getScenario, updateScenario, Scenario, uploadCensusFile, validateFilePath, listTemplates, Template } from '../services/api';
+import { updateWorkspace as apiUpdateWorkspace, getScenario, updateScenario, Scenario, uploadCensusFile, validateFilePath, listTemplates, Template, analyzeAgeDistribution } from '../services/api';
 
 // InputField component defined OUTSIDE ConfigStudio to prevent re-creation on every render
 interface InputFieldProps {
@@ -188,6 +188,45 @@ export default function ConfigStudio() {
         i === index ? { ...row, percentage: parseFloat(value) || 0 } : row
       )
     }));
+  };
+
+  // E082: State for "Match Census" loading
+  const [matchCensusLoading, setMatchCensusLoading] = useState(false);
+  const [matchCensusError, setMatchCensusError] = useState<string | null>(null);
+  const [matchCensusSuccess, setMatchCensusSuccess] = useState(false);
+
+  // E082: Handler for "Match Census" button
+  const handleMatchCensus = async () => {
+    if (!workspaceId || !formData.censusFile) {
+      setMatchCensusError('Please upload a census file first');
+      return;
+    }
+
+    setMatchCensusLoading(true);
+    setMatchCensusError(null);
+    setMatchCensusSuccess(false);
+
+    try {
+      const result = await analyzeAgeDistribution(workspaceId, formData.censusFile);
+
+      // Update form data with the analyzed distribution
+      setFormData(prev => ({
+        ...prev,
+        newHireAgeDistribution: result.distribution.map(d => ({
+          age: d.age,
+          weight: d.weight,
+          description: d.description,
+        }))
+      }));
+
+      setMatchCensusSuccess(true);
+      setTimeout(() => setMatchCensusSuccess(false), 3000);
+    } catch (error) {
+      console.error('Failed to analyze census:', error);
+      setMatchCensusError(error instanceof Error ? error.message : 'Failed to analyze census');
+    } finally {
+      setMatchCensusLoading(false);
+    }
   };
 
   // Save status state
@@ -962,10 +1001,55 @@ export default function ConfigStudio() {
 
                     {/* E082: Age Distribution Section */}
                     <div className="bg-gray-50 p-6 rounded-lg border border-gray-200 mt-6">
-                      <h3 className="text-sm font-semibold text-gray-900 mb-2">New Hire Age Profile</h3>
+                      <div className="flex items-center justify-between mb-2">
+                        <h3 className="text-sm font-semibold text-gray-900">New Hire Age Profile</h3>
+                        <button
+                          type="button"
+                          onClick={handleMatchCensus}
+                          disabled={matchCensusLoading || !formData.censusFile}
+                          className={`inline-flex items-center px-3 py-1.5 border rounded-md text-xs font-medium transition-colors ${
+                            matchCensusSuccess
+                              ? 'bg-green-100 border-green-300 text-green-800'
+                              : formData.censusFile
+                                ? 'bg-blue-50 border-blue-200 text-blue-700 hover:bg-blue-100'
+                                : 'bg-gray-100 border-gray-200 text-gray-400 cursor-not-allowed'
+                          }`}
+                          title={!formData.censusFile ? 'Upload a census file first' : 'Analyze census to match current workforce age distribution'}
+                        >
+                          {matchCensusLoading ? (
+                            <>
+                              <svg className="animate-spin -ml-0.5 mr-1.5 h-3 w-3" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                                <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                                <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                              </svg>
+                              Analyzing...
+                            </>
+                          ) : matchCensusSuccess ? (
+                            <>
+                              <Check className="h-3 w-3 mr-1" />
+                              Matched!
+                            </>
+                          ) : (
+                            <>
+                              <PieChart className="h-3 w-3 mr-1" />
+                              Match Census
+                            </>
+                          )}
+                        </button>
+                      </div>
                       <p className="text-xs text-gray-500 mb-4">
                         Define the age distribution for new hires. Weights should sum to 100%.
+                        {formData.censusFile && (
+                          <span className="text-blue-600 ml-1">
+                            Click "Match Census" to auto-fill based on your workforce.
+                          </span>
+                        )}
                       </p>
+                      {matchCensusError && (
+                        <div className="mb-4 p-2 bg-red-50 border border-red-200 rounded text-xs text-red-700">
+                          {matchCensusError}
+                        </div>
+                      )}
                       <div className="overflow-x-auto">
                         <table className="min-w-full divide-y divide-gray-200">
                           <thead className="bg-gray-100">

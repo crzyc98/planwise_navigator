@@ -273,3 +273,117 @@ class FileService:
                     logger.warning(f"Failed to stat file {file_path}: {e}")
 
         return sorted(files, key=lambda f: f["name"])
+
+    def analyze_age_distribution(
+        self, workspace_id: str, file_path: str
+    ) -> Dict:
+        """
+        Analyze age distribution from census data.
+
+        Args:
+            workspace_id: The workspace ID
+            file_path: File path (relative to workspace or absolute)
+
+        Returns:
+            Dict with age distribution buckets and weights
+        """
+        # Resolve path
+        if file_path.startswith("/"):
+            resolved = Path(file_path)
+        else:
+            resolved = self.workspaces_root / workspace_id / file_path
+
+        if not resolved.exists():
+            raise ValueError(f"File not found: {file_path}")
+
+        # Read the file
+        suffix = resolved.suffix.lower()
+        if suffix == ".parquet":
+            df = pl.read_parquet(resolved)
+        elif suffix == ".csv":
+            df = pl.read_csv(resolved, infer_schema_length=10000)
+        else:
+            raise ValueError(f"Unsupported file type: {suffix}")
+
+        # Find birth date column
+        birth_date_col = None
+        for col_name in ["employee_birth_date", "birth_date", "birthdate", "dob"]:
+            if col_name in df.columns:
+                birth_date_col = col_name
+                break
+
+        if not birth_date_col:
+            raise ValueError(
+                "Census file must contain a birth date column "
+                "(employee_birth_date, birth_date, birthdate, or dob)"
+            )
+
+        # Calculate ages (as of today)
+        today = datetime.now().date()
+
+        # Parse birth dates and calculate age
+        try:
+            df = df.with_columns([
+                pl.col(birth_date_col).cast(pl.Date).alias("_birth_date")
+            ])
+        except Exception:
+            # Try string parsing if direct cast fails
+            df = df.with_columns([
+                pl.col(birth_date_col).str.to_date().alias("_birth_date")
+            ])
+
+        # Calculate age in years
+        df = df.with_columns([
+            ((pl.lit(today) - pl.col("_birth_date")).dt.total_days() / 365.25)
+            .floor()
+            .cast(pl.Int32)
+            .alias("_age")
+        ])
+
+        # Filter to active employees if status column exists
+        if "active" in df.columns:
+            df = df.filter(pl.col("active") == True)  # noqa: E712
+        elif "status" in df.columns:
+            df = df.filter(pl.col("status").str.to_lowercase() == "active")
+
+        # Define age buckets matching our seed structure
+        age_buckets = [
+            (22, 0, 24, "Recent college graduates"),
+            (25, 24, 27, "Early career"),
+            (28, 27, 30, "Established early career"),
+            (32, 30, 34, "Mid-career switchers"),
+            (35, 34, 38, "Experienced hires"),
+            (40, 38, 43, "Senior experienced"),
+            (45, 43, 48, "Mature professionals"),
+            (50, 48, 100, "Late career changes"),
+        ]
+
+        total_count = len(df)
+        if total_count == 0:
+            raise ValueError("No active employees found in census data")
+
+        distribution = []
+        for target_age, min_age, max_age, description in age_buckets:
+            count = df.filter(
+                (pl.col("_age") >= min_age) & (pl.col("_age") < max_age)
+            ).height
+            weight = round(count / total_count, 4) if total_count > 0 else 0
+
+            distribution.append({
+                "age": target_age,
+                "weight": weight,
+                "description": description,
+                "count": count,
+            })
+
+        # Normalize weights to sum to 1.0
+        total_weight = sum(d["weight"] for d in distribution)
+        if total_weight > 0:
+            for d in distribution:
+                d["weight"] = round(d["weight"] / total_weight, 4)
+
+        return {
+            "total_employees": total_count,
+            "distribution": distribution,
+            "source_file": str(file_path),
+        }

@@ -542,6 +542,33 @@ export async function validateFilePath(
   return handleResponse<FileValidationResponse>(response);
 }
 
+// E082: Analyze age distribution from census data
+export interface AgeDistributionAnalysis {
+  total_employees: number;
+  distribution: Array<{
+    age: number;
+    weight: number;
+    description: string;
+    count: number;
+  }>;
+  source_file: string;
+}
+
+export async function analyzeAgeDistribution(
+  workspaceId: string,
+  filePath: string
+): Promise<AgeDistributionAnalysis> {
+  const response = await fetch(
+    `${API_BASE}/api/workspaces/${workspaceId}/analyze-age-distribution`,
+    {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ file_path: filePath }),
+    }
+  );
+  return handleResponse<AgeDistributionAnalysis>(response);
+}
+
 // ============================================================================
 // Template Endpoints
 // ============================================================================

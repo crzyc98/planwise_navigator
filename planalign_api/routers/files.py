@@ -122,3 +122,34 @@ async def validate_file_path(
         file_path=request.file_path,
         **result,
     )
+
+
+@router.post(
+    "/{workspace_id}/analyze-age-distribution",
+    summary="Analyze age distribution from census",
+    description="Analyze the age distribution of employees in a census file to match hiring patterns",
+)
+async def analyze_age_distribution(
+    workspace_id: str,
+    request: FileValidationRequest,
+) -> dict:
+    """Analyze age distribution from census data."""
+    service = get_file_service()
+
+    try:
+        result = service.analyze_age_distribution(
+            workspace_id=workspace_id,
+            file_path=request.file_path,
+        )
+        return result
+    except ValueError as e:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail=str(e),
+        )
+    except Exception as e:
+        logger.error(f"Failed to analyze age distribution: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to analyze census: {e}",
+        )
