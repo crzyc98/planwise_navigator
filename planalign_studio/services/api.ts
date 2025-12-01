@@ -482,3 +482,88 @@ export async function getRunById(scenarioId: string, runId: string): Promise<Run
   const response = await fetch(`${API_BASE}/api/scenarios/${scenarioId}/runs/${runId}`);
   return handleResponse<RunDetails>(response);
 }
+
+// ============================================================================
+// File Upload Endpoints
+// ============================================================================
+
+export interface FileUploadResponse {
+  success: boolean;
+  file_path: string;
+  file_name: string;
+  file_size_bytes: number;
+  row_count: number;
+  columns: string[];
+  upload_timestamp: string;
+  validation_warnings: string[];
+}
+
+export interface FileValidationResponse {
+  valid: boolean;
+  file_path: string;
+  exists: boolean;
+  readable: boolean;
+  file_size_bytes?: number;
+  row_count?: number;
+  columns?: string[];
+  last_modified?: string;
+  error_message?: string;
+}
+
+export async function uploadCensusFile(
+  workspaceId: string,
+  file: File
+): Promise<FileUploadResponse> {
+  const formData = new FormData();
+  formData.append('file', file);
+
+  const response = await fetch(
+    `${API_BASE}/api/workspaces/${workspaceId}/upload`,
+    {
+      method: 'POST',
+      body: formData,
+    }
+  );
+  return handleResponse<FileUploadResponse>(response);
+}
+
+export async function validateFilePath(
+  workspaceId: string,
+  filePath: string
+): Promise<FileValidationResponse> {
+  const response = await fetch(
+    `${API_BASE}/api/workspaces/${workspaceId}/validate-path`,
+    {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ file_path: filePath }),
+    }
+  );
+  return handleResponse<FileValidationResponse>(response);
+}
+
+// ============================================================================
+// Template Endpoints
+// ============================================================================
+
+export interface Template {
+  id: string;
+  name: string;
+  description: string;
+  category: string;
+  config: Record<string, any>;
+}
+
+export interface TemplateListResponse {
+  templates: Template[];
+}
+
+export async function listTemplates(): Promise<TemplateListResponse> {
+  const response = await fetch(`${API_BASE}/api/templates`);
+  return handleResponse<TemplateListResponse>(response);
+}
+
+export async function getTemplate(templateId: string): Promise<Template> {
+  const response = await fetch(`${API_BASE}/api/templates/${templateId}`);
+  return handleResponse<Template>(response);
+}

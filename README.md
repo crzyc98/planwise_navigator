@@ -57,6 +57,7 @@ Enterprise-grade orchestration engine with modular architecture:
 | **Adapter** | dbt-duckdb | 1.8.1 | Stable DuckDB integration |
 | **Orchestration** | planalign_orchestrator | Custom | Multi-year pipeline orchestration with checkpoints |
 | **CLI Interface** | planwise (Rich + Typer) | 1.0.0 | Beautiful terminal interface with progress tracking |
+| **Web Studio** | FastAPI + React/Vite | 0.1.0 | Modern web-based scenario management |
 | **Dashboard** | Streamlit | 1.39.0 | Interactive analytics interface |
 | **Configuration** | Pydantic | 2.7.4 | Type-safe parameter management |
 | **Python** | CPython | 3.11.x | Long-term support version |
@@ -106,7 +107,17 @@ planalign_engine/
 ├── planalign_cli/                     # CLI interface (Rich + Typer)
 │   ├── main.py                       # planwise command entry point
 │   ├── commands/                     # CLI commands
+│   │   └── studio.py                # Launch API + frontend servers
 │   └── integration/                  # Orchestrator integration
+├── planalign_api/                     # FastAPI backend for PlanAlign Studio
+│   ├── main.py                       # FastAPI application entry point
+│   ├── routers/                      # API route handlers
+│   ├── services/                     # Business logic services
+│   └── websocket/                    # Real-time telemetry handlers
+├── planalign_studio/                  # React/Vite frontend
+│   ├── components/                   # React components
+│   ├── services/                     # API client services
+│   └── package.json                  # Frontend dependencies
 ├── dbt/                              # dbt project
 │   ├── models/                       # SQL transformation models
 │   │   ├── staging/                  # Raw data cleaning (stg_*)
@@ -334,9 +345,47 @@ planwise validate
 planalign checkpoints list
 planalign checkpoints status
 planalign checkpoints cleanup --keep 3
+
+# Launch PlanAlign Studio (web interface)
+planalign studio                      # Start API + frontend, opens browser
+planalign studio --no-browser         # Start without opening browser
+planalign studio --api-only           # Start only the API backend
+planalign studio --frontend-only      # Start only the frontend
+planalign studio -v                   # Verbose output from servers
 ```
 
-#### Option 2: Using Python API directly
+#### Option 2: Launch PlanAlign Studio (Web Interface)
+
+**PlanAlign Studio** provides a modern web-based interface for scenario management, simulation execution, and results visualization.
+
+```bash
+# Launch both API and frontend (opens browser automatically)
+planalign studio
+
+# Custom ports
+planalign studio --api-port 8001 --frontend-port 3000
+
+# Development mode with verbose output
+planalign studio --verbose
+
+# Start components separately
+planalign studio --api-only           # API at http://localhost:8000
+planalign studio --frontend-only      # Frontend at http://localhost:5173
+```
+
+**Features:**
+- **API Backend** (FastAPI): http://localhost:8000
+  - REST API for workspaces, scenarios, and simulations
+  - WebSocket support for real-time telemetry
+  - Interactive API docs at http://localhost:8000/api/docs
+- **Frontend** (React/Vite): http://localhost:5173
+  - Modern scenario management interface
+  - Real-time simulation progress tracking
+  - Scenario comparison tools
+
+**Note**: Press `Ctrl+C` to stop all services gracefully.
+
+#### Option 3: Using Python API directly
 
 For programmatic access or advanced control:
 
@@ -352,7 +401,7 @@ python -m planalign_orchestrator batch --scenarios baseline high_growth cost_con
 python -m planalign_orchestrator batch --clean --export-format excel
 ```
 
-#### Option 3: Using dbt directly (Development)
+#### Option 4: Using dbt directly (Development)
 
 For testing specific models or debugging:
 

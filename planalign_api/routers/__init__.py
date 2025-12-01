@@ -6,6 +6,8 @@ from .scenarios import router as scenarios_router
 from .simulations import router as simulations_router
 from .batch import router as batch_router
 from .comparison import router as comparison_router
+from .files import router as files_router
+from .templates import router as templates_router
 
 __all__ = [
     "system_router",
@@ -14,4 +16,6 @@ __all__ = [
     "simulations_router",
     "batch_router",
     "comparison_router",
+    "files_router",
+    "templates_router",
 ]
