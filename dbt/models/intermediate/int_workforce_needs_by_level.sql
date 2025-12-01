@@ -120,16 +120,50 @@ termination_by_level AS (
   JOIN workforce_by_level wbl ON ra.level_id = wbl.level_id
 ),
 
+-- E082: Check if fixed level distribution is enabled for this scenario
+fixed_level_config AS (
+  SELECT
+    level_id,
+    distribution_pct,
+    use_fixed_distribution
+  FROM {{ ref('config_new_hire_level_distribution') }}
+  WHERE scenario_id = COALESCE(
+    NULLIF('{{ scenario_id }}', 'default'),
+    'default'
+  )
+  -- Fall back to default if no scenario-specific config exists
+  OR (scenario_id = 'default' AND NOT EXISTS (
+    SELECT 1 FROM {{ ref('config_new_hire_level_distribution') }}
+    WHERE scenario_id = '{{ scenario_id }}'
+      AND scenario_id != 'default'
+  ))
+),
+
+-- Determine if we should use fixed distribution (any row has use_fixed_distribution = true)
+use_fixed_distribution_flag AS (
+  SELECT COALESCE(BOOL_OR(use_fixed_distribution), false) AS use_fixed
+  FROM fixed_level_config
+),
+
 -- E077: Hiring Quotas by Level (ADR E077-B with adaptive distribution)
+-- E082: Optionally override with fixed percentages
 hiring_by_level AS (
-  -- Allocate hires using adaptive distribution (matches actual workforce composition)
+  -- Allocate hires using adaptive OR fixed distribution based on config
   WITH level_weights AS (
     SELECT
-      level_id,
-      current_headcount,
-      current_headcount * 1.0 / SUM(current_headcount) OVER () AS raw_weight
-    FROM workforce_by_level
-    WHERE current_headcount > 0  -- Exclude empty levels for weight calculation
+      wbl.level_id,
+      wbl.current_headcount,
+      -- E082: Use fixed distribution from seed if enabled, otherwise use adaptive
+      CASE
+        WHEN (SELECT use_fixed FROM use_fixed_distribution_flag) THEN
+          COALESCE(flc.distribution_pct, 0.0)
+        ELSE
+          wbl.current_headcount * 1.0 / NULLIF(SUM(wbl.current_headcount) OVER (), 0)
+      END AS raw_weight
+    FROM workforce_by_level wbl
+    LEFT JOIN fixed_level_config flc ON wbl.level_id = flc.level_id
+    WHERE wbl.current_headcount > 0  -- Exclude empty levels for weight calculation
+      OR (SELECT use_fixed FROM use_fixed_distribution_flag)  -- Include all levels if fixed distribution
   ),
   level_stats AS (
     SELECT

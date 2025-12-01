@@ -1,0 +1,9 @@
+scenario_id,hire_age,age_weight,description
+default,22,0.05,Recent college graduates
+default,25,0.15,Early career
+default,28,0.20,Established early career
+default,32,0.25,Mid-career switchers
+default,35,0.15,Experienced hires
+default,40,0.10,Senior experienced
+default,45,0.08,Mature professionals
+default,50,0.02,Late career changes

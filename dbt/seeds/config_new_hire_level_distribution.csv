@@ -1,0 +1,11 @@
+scenario_id,level_id,level_name,distribution_pct,use_fixed_distribution
+default,1,Staff,0.00,false
+default,2,Manager,0.00,false
+default,3,SrMgr,0.00,false
+default,4,Director,0.00,false
+default,5,VP,0.00,false
+tech_startup,1,Staff,0.60,true
+tech_startup,2,Manager,0.25,true
+tech_startup,3,SrMgr,0.10,true
+tech_startup,4,Director,0.04,true
+tech_startup,5,VP,0.01,true

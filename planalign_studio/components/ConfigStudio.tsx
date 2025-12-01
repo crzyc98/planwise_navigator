@@ -99,6 +99,26 @@ export default function ConfigStudio() {
     targetPercentile: 50,
     newHireCompVariance: 5.0, // +/- 5%
 
+    // E082: New Hire Demographics
+    newHireAgeDistribution: [
+      { age: 22, weight: 0.05, description: 'Recent college graduates' },
+      { age: 25, weight: 0.15, description: 'Early career' },
+      { age: 28, weight: 0.20, description: 'Established early career' },
+      { age: 32, weight: 0.25, description: 'Mid-career switchers' },
+      { age: 35, weight: 0.15, description: 'Experienced hires' },
+      { age: 40, weight: 0.10, description: 'Senior experienced' },
+      { age: 45, weight: 0.08, description: 'Mature professionals' },
+      { age: 50, weight: 0.02, description: 'Late career changes' },
+    ],
+    levelDistributionMode: 'adaptive' as 'adaptive' | 'fixed',
+    newHireLevelDistribution: [
+      { level: 1, name: 'Staff', percentage: 50 },
+      { level: 2, name: 'Manager', percentage: 25 },
+      { level: 3, name: 'Sr Manager', percentage: 15 },
+      { level: 4, name: 'Director', percentage: 8 },
+      { level: 5, name: 'VP', percentage: 2 },
+    ],
+
     // Workforce & Turnover
     totalTerminationRate: 12.0, // Overall termination rate (%)
     newHireTerminationRate: 25.0, // New hire termination rate (%)
@@ -147,6 +167,26 @@ export default function ConfigStudio() {
         ...prev[parent],
         [key]: parseFloat(value) || 0
       }
+    }));
+  };
+
+  // E082: Handler for age distribution weight changes
+  const handleAgeWeightChange = (index: number, value: string) => {
+    setFormData(prev => ({
+      ...prev,
+      newHireAgeDistribution: prev.newHireAgeDistribution.map((row, i) =>
+        i === index ? { ...row, weight: parseFloat(value) / 100 || 0 } : row
+      )
+    }));
+  };
+
+  // E082: Handler for level distribution percentage changes
+  const handleLevelPercentageChange = (index: number, value: string) => {
+    setFormData(prev => ({
+      ...prev,
+      newHireLevelDistribution: prev.newHireLevelDistribution.map((row, i) =>
+        i === index ? { ...row, percentage: parseFloat(value) || 0 } : row
+      )
     }));
   };
 
@@ -334,6 +374,16 @@ export default function ConfigStudio() {
           strategy: formData.newHireStrategy,
           target_percentile: Number(formData.targetPercentile),
           compensation_variance_percent: Number(formData.newHireCompVariance),
+          // E082: New Hire Demographics
+          age_distribution: formData.newHireAgeDistribution.map(row => ({
+            age: row.age,
+            weight: row.weight,
+          })),
+          level_distribution_mode: formData.levelDistributionMode,
+          level_distribution: formData.newHireLevelDistribution.map(row => ({
+            level: row.level,
+            percentage: row.percentage / 100, // Convert to decimal
+          })),
         },
         turnover: {
           base_rate_percent: Number(formData.baseTurnoverRate),
@@ -909,6 +959,152 @@ export default function ConfigStudio() {
                         </div>
                       </div>
                     )}
+
+                    {/* E082: Age Distribution Section */}
+                    <div className="bg-gray-50 p-6 rounded-lg border border-gray-200 mt-6">
+                      <h3 className="text-sm font-semibold text-gray-900 mb-2">New Hire Age Profile</h3>
+                      <p className="text-xs text-gray-500 mb-4">
+                        Define the age distribution for new hires. Weights should sum to 100%.
+                      </p>
+                      <div className="overflow-x-auto">
+                        <table className="min-w-full divide-y divide-gray-200">
+                          <thead className="bg-gray-100">
+                            <tr>
+                              <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">Age</th>
+                              <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">Weight (%)</th>
+                              <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">Description</th>
+                            </tr>
+                          </thead>
+                          <tbody className="bg-white divide-y divide-gray-200">
+                            {formData.newHireAgeDistribution.map((row, idx) => (
+                              <tr key={row.age}>
+                                <td className="px-4 py-2 text-sm text-gray-900 font-medium">{row.age}</td>
+                                <td className="px-4 py-2">
+                                  <input
+                                    type="number"
+                                    step="1"
+                                    min="0"
+                                    max="100"
+                                    value={Math.round(row.weight * 100)}
+                                    onChange={(e) => handleAgeWeightChange(idx, e.target.value)}
+                                    className="w-20 shadow-sm focus:ring-fidelity-green focus:border-fidelity-green sm:text-sm border-gray-300 rounded-md p-1 border text-right"
+                                  />
+                                </td>
+                                <td className="px-4 py-2 text-sm text-gray-500">{row.description}</td>
+                              </tr>
+                            ))}
+                          </tbody>
+                          <tfoot className="bg-gray-50">
+                            <tr>
+                              <td className="px-4 py-2 text-sm font-semibold text-gray-900">Total</td>
+                              <td className="px-4 py-2 text-sm font-semibold">
+                                <span className={`${Math.abs(formData.newHireAgeDistribution.reduce((sum, r) => sum + r.weight, 0) - 1) > 0.01 ? 'text-red-600' : 'text-green-600'}`}>
+                                  {Math.round(formData.newHireAgeDistribution.reduce((sum, r) => sum + r.weight, 0) * 100)}%
+                                </span>
+                              </td>
+                              <td className="px-4 py-2 text-xs text-gray-500">
+                                {Math.abs(formData.newHireAgeDistribution.reduce((sum, r) => sum + r.weight, 0) - 1) > 0.01 && (
+                                  <span className="text-red-600">Weights should sum to 100%</span>
+                                )}
+                              </td>
+                            </tr>
+                          </tfoot>
+                        </table>
+                      </div>
+                    </div>
+
+                    {/* E082: Level Distribution Section */}
+                    <div className="bg-gray-50 p-6 rounded-lg border border-gray-200 mt-6">
+                      <h3 className="text-sm font-semibold text-gray-900 mb-2">New Hire Level Distribution</h3>
+                      <p className="text-xs text-gray-500 mb-4">
+                        Choose how new hires are distributed across job levels.
+                      </p>
+
+                      <div className="flex items-center space-x-4 mb-4">
+                        <label className={`flex items-center p-3 border rounded-lg cursor-pointer transition-colors ${formData.levelDistributionMode === 'adaptive' ? 'bg-green-50 border-fidelity-green ring-1 ring-fidelity-green' : 'bg-white border-gray-200 hover:bg-gray-50'}`}>
+                          <input
+                            type="radio"
+                            name="levelDistributionMode"
+                            value="adaptive"
+                            checked={formData.levelDistributionMode === 'adaptive'}
+                            onChange={(e) => setFormData({...formData, levelDistributionMode: e.target.value as 'adaptive' | 'fixed'})}
+                            className="h-4 w-4 text-fidelity-green focus:ring-fidelity-green border-gray-300"
+                          />
+                          <div className="ml-2">
+                            <span className="block text-sm font-medium text-gray-900">Adaptive</span>
+                            <span className="block text-xs text-gray-500">Maintain current workforce composition</span>
+                          </div>
+                        </label>
+                        <label className={`flex items-center p-3 border rounded-lg cursor-pointer transition-colors ${formData.levelDistributionMode === 'fixed' ? 'bg-green-50 border-fidelity-green ring-1 ring-fidelity-green' : 'bg-white border-gray-200 hover:bg-gray-50'}`}>
+                          <input
+                            type="radio"
+                            name="levelDistributionMode"
+                            value="fixed"
+                            checked={formData.levelDistributionMode === 'fixed'}
+                            onChange={(e) => setFormData({...formData, levelDistributionMode: e.target.value as 'adaptive' | 'fixed'})}
+                            className="h-4 w-4 text-fidelity-green focus:ring-fidelity-green border-gray-300"
+                          />
+                          <div className="ml-2">
+                            <span className="block text-sm font-medium text-gray-900">Fixed Percentages</span>
+                            <span className="block text-xs text-gray-500">Specify exact distribution below</span>
+                          </div>
+                        </label>
+                      </div>
+
+                      {formData.levelDistributionMode === 'fixed' && (
+                        <div className="overflow-x-auto">
+                          <table className="min-w-full divide-y divide-gray-200">
+                            <thead className="bg-gray-100">
+                              <tr>
+                                <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">Level</th>
+                                <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">Name</th>
+                                <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">Percentage (%)</th>
+                              </tr>
+                            </thead>
+                            <tbody className="bg-white divide-y divide-gray-200">
+                              {formData.newHireLevelDistribution.map((row, idx) => (
+                                <tr key={row.level}>
+                                  <td className="px-4 py-2 text-sm text-gray-900 font-medium">{row.level}</td>
+                                  <td className="px-4 py-2 text-sm text-gray-700">{row.name}</td>
+                                  <td className="px-4 py-2">
+                                    <input
+                                      type="number"
+                                      step="1"
+                                      min="0"
+                                      max="100"
+                                      value={row.percentage}
+                                      onChange={(e) => handleLevelPercentageChange(idx, e.target.value)}
+                                      className="w-20 shadow-sm focus:ring-fidelity-green focus:border-fidelity-green sm:text-sm border-gray-300 rounded-md p-1 border text-right"
+                                    />
+                                  </td>
+                                </tr>
+                              ))}
+                            </tbody>
+                            <tfoot className="bg-gray-50">
+                              <tr>
+                                <td className="px-4 py-2 text-sm font-semibold text-gray-900" colSpan={2}>Total</td>
+                                <td className="px-4 py-2 text-sm font-semibold">
+                                  <span className={`${Math.abs(formData.newHireLevelDistribution.reduce((sum, r) => sum + r.percentage, 0) - 100) > 1 ? 'text-red-600' : 'text-green-600'}`}>
+                                    {formData.newHireLevelDistribution.reduce((sum, r) => sum + r.percentage, 0)}%
+                                  </span>
+                                  {Math.abs(formData.newHireLevelDistribution.reduce((sum, r) => sum + r.percentage, 0) - 100) > 1 && (
+                                    <span className="text-red-600 text-xs ml-2">Should sum to 100%</span>
+                                  )}
+                                </td>
+                              </tr>
+                            </tfoot>
+                          </table>
+                        </div>
+                      )}
+
+                      {formData.levelDistributionMode === 'adaptive' && (
+                        <div className="bg-blue-50 p-4 rounded-lg border border-blue-100">
+                          <p className="text-sm text-blue-800">
+                            <strong>Adaptive mode:</strong> New hires will be distributed across levels proportionally to match your current workforce composition. This maintains your existing organizational structure.
+                          </p>
+                        </div>
+                      )}
+                    </div>
                  </div>
                </div>
             )}
