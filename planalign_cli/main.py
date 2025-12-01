@@ -23,6 +23,7 @@ from .commands.batch import batch_command
 from .commands.validate import validate_command
 from .commands.checkpoint import checkpoint_command
 from .commands.analyze import analyze_command
+from .commands.studio import launch_studio
 
 # Initialize Rich console
 console = Console()
@@ -233,6 +234,28 @@ def checkpoints(
         console.print(f"❌ Unknown action: {action}")
         console.print("Valid actions: list, status, cleanup, validate")
         raise typer.Exit(1)
+
+
+# Studio command - launch API + Frontend
+@app.command("studio")
+def studio(
+    api_port: int = typer.Option(8000, "--api-port", help="Port for the API backend"),
+    frontend_port: int = typer.Option(5173, "--frontend-port", help="Port for the frontend dev server"),
+    api_only: bool = typer.Option(False, "--api-only", help="Only start the API backend"),
+    frontend_only: bool = typer.Option(False, "--frontend-only", help="Only start the frontend"),
+    no_browser: bool = typer.Option(False, "--no-browser", help="Don't open browser automatically"),
+    verbose: bool = typer.Option(False, "--verbose", "-v", help="Show detailed output from servers"),
+):
+    """🚀 Launch PlanAlign Studio (API + Frontend)."""
+    launch_studio(
+        api_port=api_port,
+        frontend_port=frontend_port,
+        api_only=api_only,
+        frontend_only=frontend_only,
+        no_browser=no_browser,
+        verbose=verbose,
+    )
+
 
 def cli_main():
     """Entry point for the CLI."""

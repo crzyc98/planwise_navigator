@@ -24,6 +24,7 @@ This playbook tells Claude exactly how to turn high-level feature requests into 
 | **Adapter** | dbt-duckdb | 1.8.1 | Stable DuckDB integration |
 | **Orchestration** | planalign_orchestrator | Modular | PipelineOrchestrator with staged workflow execution |
 | **CLI Interface** | planalign_cli (Rich + Typer) | 1.0.0 | Beautiful terminal interface with progress tracking |
+| **Web Studio** | FastAPI + React/Vite | 0.1.0 | Modern web-based scenario management |
 | **Dashboard** | Streamlit | 1.39.0 | Interactive analytics and compensation tuning |
 | **Configuration** | Pydantic | 2.7.4 | Type-safe config management with validation |
 | **Python** | CPython | 3.11.x | Long-term support version |
@@ -49,6 +50,11 @@ planalign status --detailed                      # Full system diagnostic
 planalign simulate 2025 --dry-run               # Preview execution plan
 planalign simulate 2025 --verbose               # Detailed logging
 planalign checkpoints list                      # View recovery points
+
+# Launch PlanAlign Studio (web interface)
+planalign studio                                 # Start API + frontend, opens browser
+planalign studio --api-only                      # Start only the API backend
+planalign studio --verbose                       # Show server output
 
 # dbt development (always from /dbt directory)
 cd dbt
@@ -152,8 +158,18 @@ planalign_engine/
 │  │  ├─ simulate.py                # Multi-year simulation
 │  │  ├─ batch.py                   # Batch scenario processing
 │  │  ├─ status.py                  # System health and status
-│  │  └─ checkpoint.py              # Checkpoint management
+│  │  ├─ checkpoint.py              # Checkpoint management
+│  │  └─ studio.py                  # Launch API + frontend servers
 │  └─ main.py                       # CLI entry point
+├─ planalign_api/                     # FastAPI backend for PlanAlign Studio
+│  ├─ main.py                        # FastAPI application entry point
+│  ├─ routers/                       # API route handlers
+│  ├─ services/                      # Business logic services
+│  └─ websocket/                     # Real-time telemetry handlers
+├─ planalign_studio/                  # React/Vite frontend
+│  ├─ components/                    # React components
+│  ├─ services/                      # API client services
+│  └─ package.json                   # Frontend dependencies
 ├─ dbt/                              # dbt project
 │  ├─ models/                        # SQL transformation models
 │  │  ├─ staging/                   # Raw data cleaning (stg_*) - 17 models
@@ -436,6 +452,35 @@ planalign batch --export-format excel
 # - Metadata sheets with git SHA, seed, configuration
 # - Comparison reports across scenarios
 ```
+
+### **PlanAlign Studio (Web Interface)**
+
+Launch the modern web-based scenario management interface:
+
+```bash
+# Launch both API backend and React frontend
+planalign studio
+
+# Options
+planalign studio --api-port 8001        # Custom API port (default: 8000)
+planalign studio --frontend-port 3000   # Custom frontend port (default: 5173)
+planalign studio --api-only             # Start only the API backend
+planalign studio --frontend-only        # Start only the frontend
+planalign studio --no-browser           # Don't auto-open browser
+planalign studio --verbose              # Show detailed server output
+```
+
+**Components:**
+- **API Backend** (FastAPI): `http://localhost:8000`
+  - REST API for workspaces, scenarios, and simulations
+  - WebSocket support for real-time telemetry
+  - API docs at `http://localhost:8000/api/docs`
+- **Frontend** (React/Vite): `http://localhost:5173`
+  - Modern scenario management interface
+  - Real-time simulation progress tracking
+  - Scenario comparison tools
+
+**Stopping**: Press `Ctrl+C` to gracefully stop all services.
 
 -----
 
