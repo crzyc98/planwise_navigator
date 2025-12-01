@@ -559,7 +559,13 @@ class PipelineOrchestrator:
             _run_ctx = nullcontext()
 
         with _run_ctx:
-            with ExecutionMutex("planalign_orchestrator"):
+            # Use database-specific lock to allow parallel execution of different scenarios
+            # Each scenario has its own database, so they can run concurrently
+            db_path = getattr(self.db_manager, "db_path", "default")
+            lock_name = f"planalign_{hash(str(db_path)) % 10**8}"
+            if self.verbose:
+                print(f"🔒 Acquiring execution lock: {lock_name} (db: {db_path})")
+            with ExecutionMutex(lock_name):
                 # Optional one-time full reset before the yearly loop
                 self.state_manager.maybe_full_reset()
                 # Ensure orchestrator-managed registries start clean for a new run

@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { Save, AlertTriangle, FileText, Settings, HelpCircle, TrendingUp, Users, DollarSign, Briefcase, Zap, Server, Shield, PieChart, Database, Upload, Check, X, ArrowLeft } from 'lucide-react';
 import { useNavigate, useOutletContext, useParams } from 'react-router-dom';
 import { LayoutContextType } from './Layout';
-import { updateWorkspace as apiUpdateWorkspace, getScenario, updateScenario, Scenario } from '../services/api';
+import { updateWorkspace as apiUpdateWorkspace, getScenario, updateScenario, Scenario, uploadCensusFile, validateFilePath, listTemplates, Template } from '../services/api';
 
 // InputField component defined OUTSIDE ConfigStudio to prevent re-creation on every render
 interface InputFieldProps {
@@ -66,6 +66,11 @@ export default function ConfigStudio() {
   const [uploadStatus, setUploadStatus] = useState<'idle' | 'uploading' | 'success' | 'error'>('idle');
   const [uploadMessage, setUploadMessage] = useState('');
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  // Template modal state
+  const [showTemplateModal, setShowTemplateModal] = useState(false);
+  const [templates, setTemplates] = useState<Template[]>([]);
+  const [templatesLoading, setTemplatesLoading] = useState(false);
 
   // Expanded State for all tabs
   const [formData, setFormData] = useState({
@@ -473,8 +478,27 @@ export default function ConfigStudio() {
           </div>
         </div>
         <div className="flex space-x-3">
-           <button className="px-4 py-2 bg-white border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-50 flex items-center font-medium shadow-sm transition-colors">
-             <FileText size={18} className="mr-2" />
+           <button
+             onClick={async () => {
+               setTemplatesLoading(true);
+               try {
+                 const response = await listTemplates();
+                 setTemplates(response.templates);
+                 setShowTemplateModal(true);
+               } catch (error) {
+                 console.error('Failed to load templates:', error);
+               } finally {
+                 setTemplatesLoading(false);
+               }
+             }}
+             disabled={templatesLoading}
+             className="px-4 py-2 bg-white border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-50 flex items-center font-medium shadow-sm transition-colors"
+           >
+             {templatesLoading ? (
+               <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-gray-700 mr-2" />
+             ) : (
+               <FileText size={18} className="mr-2" />
+             )}
              Load Template
            </button>
            <button
@@ -616,23 +640,34 @@ export default function ConfigStudio() {
                       ref={fileInputRef}
                       accept=".parquet,.csv"
                       className="hidden"
-                      onChange={(e) => {
+                      onChange={async (e) => {
                         const file = e.target.files?.[0];
-                        if (file) {
-                          setUploadStatus('uploading');
-                          setUploadMessage(`Uploading ${file.name}...`);
-                          // TODO: Implement actual file upload to API
-                          setTimeout(() => {
-                            setFormData(prev => ({
-                              ...prev,
-                              censusDataPath: `data/${file.name}`,
-                              censusDataStatus: 'loaded',
-                              censusRowCount: 1000,
-                              censusLastModified: new Date().toISOString().split('T')[0]
-                            }));
+                        if (!file || !activeWorkspace?.id) return;
+
+                        setUploadStatus('uploading');
+                        setUploadMessage(`Uploading ${file.name}...`);
+
+                        try {
+                          const result = await uploadCensusFile(activeWorkspace.id, file);
+
+                          setFormData(prev => ({
+                            ...prev,
+                            censusDataPath: result.file_path,
+                            censusDataStatus: 'loaded',
+                            censusRowCount: result.row_count,
+                            censusLastModified: result.upload_timestamp.split('T')[0]
+                          }));
+
+                          if (result.validation_warnings.length > 0) {
                             setUploadStatus('success');
-                            setUploadMessage('File uploaded successfully!');
-                          }, 1500);
+                            setUploadMessage(`Uploaded with warnings: ${result.validation_warnings.join(', ')}`);
+                          } else {
+                            setUploadStatus('success');
+                            setUploadMessage(`File uploaded successfully! ${result.row_count.toLocaleString()} rows, ${result.columns.length} columns`);
+                          }
+                        } catch (error) {
+                          setUploadStatus('error');
+                          setUploadMessage(error instanceof Error ? error.message : 'Upload failed');
                         }
                       }}
                     />
@@ -680,12 +715,40 @@ export default function ConfigStudio() {
                       <button
                         type="button"
                         className="px-4 py-2 bg-gray-100 text-gray-700 rounded-lg text-sm hover:bg-gray-200 transition-colors"
-                        onClick={() => {
-                          // TODO: Validate path and load file info
-                          setFormData(prev => ({
-                            ...prev,
-                            censusDataStatus: 'loaded'
-                          }));
+                        onClick={async () => {
+                          if (!formData.censusDataPath.trim() || !activeWorkspace?.id) {
+                            setUploadStatus('error');
+                            setUploadMessage('Please enter a file path');
+                            return;
+                          }
+
+                          setUploadStatus('uploading');
+                          setUploadMessage('Validating path...');
+
+                          try {
+                            const result = await validateFilePath(
+                              activeWorkspace.id,
+                              formData.censusDataPath
+                            );
+
+                            if (result.valid) {
+                              setFormData(prev => ({
+                                ...prev,
+                                censusDataStatus: 'loaded',
+                                censusRowCount: result.row_count || 0,
+                                censusLastModified: result.last_modified?.split('T')[0] || 'Unknown'
+                              }));
+                              setUploadStatus('success');
+                              setUploadMessage(`Valid: ${result.row_count?.toLocaleString()} rows, ${result.columns?.length} columns`);
+                            } else {
+                              setUploadStatus('error');
+                              setUploadMessage(result.error_message || 'Invalid path');
+                              setFormData(prev => ({ ...prev, censusDataStatus: 'error' }));
+                            }
+                          } catch (error) {
+                            setUploadStatus('error');
+                            setUploadMessage(error instanceof Error ? error.message : 'Validation failed');
+                          }
                         }}
                       >
                         Validate
@@ -1264,6 +1327,71 @@ export default function ConfigStudio() {
           </div>
         </div>
       </div>
+
+      {/* Template Selection Modal */}
+      {showTemplateModal && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-white rounded-xl shadow-xl max-w-2xl w-full mx-4 max-h-[80vh] flex flex-col">
+            <div className="p-6 border-b border-gray-200 flex-shrink-0">
+              <h2 className="text-xl font-bold text-gray-900">Load Configuration Template</h2>
+              <p className="text-sm text-gray-500 mt-1">Select a template to pre-fill configuration values</p>
+            </div>
+            <div className="p-6 overflow-y-auto flex-1 space-y-3">
+              {templates.map(template => (
+                <button
+                  key={template.id}
+                  onClick={() => {
+                    // Apply template config to form
+                    const cfg = template.config;
+                    setFormData(prev => ({
+                      ...prev,
+                      // Simulation
+                      targetGrowthRate: cfg.simulation?.target_growth_rate != null
+                        ? cfg.simulation.target_growth_rate * 100
+                        : prev.targetGrowthRate,
+                      // Workforce
+                      totalTerminationRate: cfg.workforce?.total_termination_rate != null
+                        ? cfg.workforce.total_termination_rate * 100
+                        : prev.totalTerminationRate,
+                      newHireTerminationRate: cfg.workforce?.new_hire_termination_rate != null
+                        ? cfg.workforce.new_hire_termination_rate * 100
+                        : prev.newHireTerminationRate,
+                      // Compensation
+                      meritBudget: cfg.compensation?.merit_budget_percent ?? prev.meritBudget,
+                      colaRate: cfg.compensation?.cola_rate_percent ?? prev.colaRate,
+                      // DC Plan
+                      dcAutoEnroll: cfg.dc_plan?.auto_enroll ?? prev.dcAutoEnroll,
+                      dcMatchPercent: cfg.dc_plan?.match_percent ?? prev.dcMatchPercent,
+                      dcMatchLimit: cfg.dc_plan?.match_limit_percent ?? prev.dcMatchLimit,
+                      dcAutoEscalation: cfg.dc_plan?.auto_escalation ?? prev.dcAutoEscalation,
+                    }));
+                    setShowTemplateModal(false);
+                  }}
+                  className="w-full text-left p-4 border border-gray-200 rounded-lg hover:border-fidelity-green hover:bg-green-50 transition-colors"
+                >
+                  <div className="flex justify-between items-start">
+                    <div>
+                      <h3 className="font-semibold text-gray-900">{template.name}</h3>
+                      <p className="text-sm text-gray-500 mt-1">{template.description}</p>
+                    </div>
+                    <span className="px-2 py-1 text-xs font-medium bg-gray-100 text-gray-600 rounded capitalize">
+                      {template.category}
+                    </span>
+                  </div>
+                </button>
+              ))}
+            </div>
+            <div className="p-4 border-t border-gray-200 bg-gray-50 flex-shrink-0 rounded-b-xl">
+              <button
+                onClick={() => setShowTemplateModal(false)}
+                className="px-4 py-2 text-gray-700 hover:bg-gray-200 rounded-lg transition-colors"
+              >
+                Cancel
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
