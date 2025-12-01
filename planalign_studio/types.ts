@@ -71,17 +71,12 @@ export interface SimulationConfig {
   // New Hire
   newHireStrategy?: 'percentile' | 'fixed';
   targetPercentile?: number;
-  signOnBonusAllowed?: boolean;
-  signOnBonusBudget?: number;
 
   // Turnover
   baseTurnoverRate?: number;
   regrettableFactor?: number;
   involuntaryRate?: number;
   earlyTenureHazard?: number;
-
-  // Hiring Plan
-  hiringTargets?: Record<string, number>;
 
   // DC Plan
   dcEligibilityMonths?: number;

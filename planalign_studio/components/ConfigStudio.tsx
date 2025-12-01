@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { Save, AlertTriangle, FileText, Settings, HelpCircle, TrendingUp, Users, DollarSign, Briefcase, Zap, Server, Shield, PieChart, Database, Upload, Check, X, ArrowLeft } from 'lucide-react';
+import { Save, AlertTriangle, FileText, Settings, HelpCircle, TrendingUp, Users, DollarSign, Zap, Server, Shield, PieChart, Database, Upload, Check, X, ArrowLeft } from 'lucide-react';
 import { useNavigate, useOutletContext, useParams } from 'react-router-dom';
 import { LayoutContextType } from './Layout';
 import { updateWorkspace as apiUpdateWorkspace, getScenario, updateScenario, Scenario, uploadCensusFile, validateFilePath, listTemplates, Template } from '../services/api';
@@ -98,8 +98,6 @@ export default function ConfigStudio() {
     newHireStrategy: 'percentile', // 'percentile' | 'fixed'
     targetPercentile: 50,
     newHireCompVariance: 5.0, // +/- 5%
-    signOnBonusAllowed: true,
-    signOnBonusBudget: 50000,
 
     // Workforce & Turnover
     totalTerminationRate: 12.0, // Overall termination rate (%)
@@ -111,14 +109,6 @@ export default function ConfigStudio() {
       year1: 25.0,    // High risk
       year2_3: 15.0,  // Medium risk
       year4_plus: 8.0 // Low risk (stable)
-    },
-
-    // Hiring Plan
-    hiringTargets: {
-      Engineering: 15,
-      Sales: 20,
-      Marketing: 5,
-      Operations: 8
     },
 
     // DC Plan
@@ -156,16 +146,6 @@ export default function ConfigStudio() {
       [parent]: {
         ...prev[parent],
         [key]: parseFloat(value) || 0
-      }
-    }));
-  };
-
-  const handleHiringTargetChange = (dept: string, val: string) => {
-    setFormData(prev => ({
-      ...prev,
-      hiringTargets: {
-        ...prev.hiringTargets,
-        [dept]: parseInt(val) || 0
       }
     }));
   };
@@ -223,17 +203,12 @@ export default function ConfigStudio() {
             newHireStrategy: cfg.new_hire?.strategy || prev.newHireStrategy,
             targetPercentile: cfg.new_hire?.target_percentile ?? prev.targetPercentile,
             newHireCompVariance: cfg.new_hire?.compensation_variance_percent ?? prev.newHireCompVariance,
-            signOnBonusAllowed: cfg.new_hire?.sign_on_bonus_allowed ?? prev.signOnBonusAllowed,
-            signOnBonusBudget: cfg.new_hire?.sign_on_bonus_budget ?? prev.signOnBonusBudget,
 
             // Turnover
             baseTurnoverRate: cfg.turnover?.base_rate_percent ?? prev.baseTurnoverRate,
             regrettableFactor: cfg.turnover?.regrettable_factor ?? prev.regrettableFactor,
             involuntaryRate: cfg.turnover?.involuntary_rate_percent ?? prev.involuntaryRate,
             turnoverBands: cfg.turnover?.tenure_bands || prev.turnoverBands,
-
-            // Hiring
-            hiringTargets: cfg.hiring?.targets || prev.hiringTargets,
 
             // DC Plan
             dcEligibilityMonths: cfg.dc_plan?.eligibility_months ?? prev.dcEligibilityMonths,
@@ -297,17 +272,12 @@ export default function ConfigStudio() {
       newHireStrategy: cfg.new_hire?.strategy || prev.newHireStrategy,
       targetPercentile: cfg.new_hire?.target_percentile || prev.targetPercentile,
       newHireCompVariance: cfg.new_hire?.compensation_variance_percent || prev.newHireCompVariance,
-      signOnBonusAllowed: cfg.new_hire?.sign_on_bonus_allowed ?? prev.signOnBonusAllowed,
-      signOnBonusBudget: cfg.new_hire?.sign_on_bonus_budget || prev.signOnBonusBudget,
 
       // Turnover
       baseTurnoverRate: cfg.turnover?.base_rate_percent || prev.baseTurnoverRate,
       regrettableFactor: cfg.turnover?.regrettable_factor || prev.regrettableFactor,
       involuntaryRate: cfg.turnover?.involuntary_rate_percent || prev.involuntaryRate,
       turnoverBands: cfg.turnover?.tenure_bands || prev.turnoverBands,
-
-      // Hiring
-      hiringTargets: cfg.hiring?.targets || prev.hiringTargets,
 
       // DC Plan
       dcEligibilityMonths: cfg.dc_plan?.eligibility_months || prev.dcEligibilityMonths,
@@ -364,17 +334,12 @@ export default function ConfigStudio() {
           strategy: formData.newHireStrategy,
           target_percentile: Number(formData.targetPercentile),
           compensation_variance_percent: Number(formData.newHireCompVariance),
-          sign_on_bonus_allowed: Boolean(formData.signOnBonusAllowed),
-          sign_on_bonus_budget: Number(formData.signOnBonusBudget),
         },
         turnover: {
           base_rate_percent: Number(formData.baseTurnoverRate),
           regrettable_factor: Number(formData.regrettableFactor),
           involuntary_rate_percent: Number(formData.involuntaryRate),
           tenure_bands: formData.turnoverBands,
-        },
-        hiring: {
-          targets: formData.hiringTargets,
         },
         dc_plan: {
           eligibility_months: Number(formData.dcEligibilityMonths),
@@ -433,11 +398,6 @@ export default function ConfigStudio() {
     value: (formData as any)[name],
     onChange: handleChange,
   });
-
-  const calculateTotalHiringGrowth = () => {
-    const totalPct = (Object.values(formData.hiringTargets) as number[]).reduce((acc, val) => acc + val, 0);
-    return totalPct;
-  };
 
   // Show loading state while fetching scenario
   if (scenarioLoading) {
@@ -542,7 +502,6 @@ export default function ConfigStudio() {
                { id: 'compensation', label: 'Compensation', icon: DollarSign },
                { id: 'newhire', label: 'New Hire Strategy', icon: Users },
                { id: 'turnover', label: 'Workforce & Turnover', icon: AlertTriangle },
-               { id: 'hiring', label: 'Hiring Plan', icon: Briefcase },
                { id: 'dcplan', label: 'DC Plan', icon: PieChart },
                { id: 'advanced', label: 'Advanced Settings', icon: Settings }
              ].map((item) => (
@@ -950,20 +909,6 @@ export default function ConfigStudio() {
                         </div>
                       </div>
                     )}
-
-                    <div className="pt-4 grid grid-cols-2 gap-6">
-                       <InputField label="Sign-on Bonus Budget" {...inputProps('signOnBonusBudget')} type="number" suffix="$" />
-                       <div className="flex items-center pt-6">
-                          <input
-                            type="checkbox"
-                            name="signOnBonusAllowed"
-                            checked={formData.signOnBonusAllowed}
-                            onChange={handleChange}
-                            className="h-4 w-4 text-fidelity-green focus:ring-fidelity-green border-gray-300 rounded"
-                          />
-                          <label className="ml-2 block text-sm text-gray-900">Allow Sign-on Bonuses</label>
-                       </div>
-                    </div>
                  </div>
                </div>
             )}
@@ -1063,66 +1008,6 @@ export default function ConfigStudio() {
                    <p className="text-sm text-blue-800">
                      Based on these inputs, an organization of 1,000 employees will see approximately <span className="font-bold">{Math.round(1000 * (formData.baseTurnoverRate / 100))}</span> exits per year, of which <span className="font-bold">{Math.round(1000 * (formData.baseTurnoverRate / 100) * formData.regrettableFactor)}</span> would be regrettable losses.
                    </p>
-                 </div>
-               </div>
-            )}
-
-            {/* --- HIRING PLAN --- */}
-            {activeSection === 'hiring' && (
-               <div className="space-y-8 animate-fadeIn">
-                 <div className="border-b border-gray-100 pb-4">
-                   <h2 className="text-lg font-bold text-gray-900">Departmental Hiring Plan</h2>
-                   <p className="text-sm text-gray-500">Set net growth targets by department for the simulation period.</p>
-                 </div>
-
-                 <div className="bg-white border border-gray-200 rounded-lg overflow-hidden shadow-sm">
-                   <table className="min-w-full divide-y divide-gray-200">
-                     <thead className="bg-gray-50">
-                       <tr>
-                         <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Department</th>
-                         <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Annual Growth Target (%)</th>
-                         <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Priority Level</th>
-                       </tr>
-                     </thead>
-                     <tbody className="bg-white divide-y divide-gray-200">
-                       {Object.entries(formData.hiringTargets).map(([dept, target]) => (
-                         <tr key={dept}>
-                           <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">{dept}</td>
-                           <td className="px-6 py-4 whitespace-nowrap">
-                             <div className="flex items-center">
-                               <input
-                                 type="number"
-                                 value={target}
-                                 onChange={(e) => handleHiringTargetChange(dept, e.target.value)}
-                                 className="w-20 shadow-sm focus:ring-fidelity-green focus:border-fidelity-green sm:text-sm border-gray-300 rounded-md p-1 border text-right"
-                               />
-                               <span className="ml-2 text-gray-500">%</span>
-                             </div>
-                           </td>
-                           <td className="px-6 py-4 whitespace-nowrap">
-                              <select className="block w-full pl-3 pr-10 py-1 text-base border-gray-300 focus:outline-none focus:ring-fidelity-green focus:border-fidelity-green sm:text-sm rounded-md border">
-                                <option>High</option>
-                                <option>Medium</option>
-                                <option>Low</option>
-                              </select>
-                           </td>
-                         </tr>
-                       ))}
-                       {/* Summary Row */}
-                       <tr className="bg-gray-50 font-semibold text-gray-900">
-                          <td className="px-6 py-3 text-sm">Total / Weighted Avg</td>
-                          <td className="px-6 py-3 text-sm flex items-center">
-                             {calculateTotalHiringGrowth()}% <span className="text-xs font-normal text-gray-500 ml-2">(Aggregate Growth)</span>
-                          </td>
-                          <td className="px-6 py-3"></td>
-                       </tr>
-                     </tbody>
-                   </table>
-                   <div className="bg-gray-50 px-6 py-3 border-t border-gray-200">
-                     <button className="text-sm text-fidelity-green font-medium hover:text-fidelity-dark flex items-center">
-                       + Add Department
-                     </button>
-                   </div>
                  </div>
                </div>
             )}
