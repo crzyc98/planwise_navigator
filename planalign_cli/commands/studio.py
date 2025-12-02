@@ -7,6 +7,7 @@ Starts both the FastAPI backend and the React/Vite frontend.
 from __future__ import annotations
 
 import os
+import shutil
 import signal
 import subprocess
 import sys
@@ -19,6 +20,30 @@ from rich.panel import Panel
 from rich.table import Table
 
 console = Console()
+
+
+def _get_npm_command() -> str:
+    """
+    Get the correct npm command for the current platform.
+
+    On Windows, npm is typically npm.cmd. On macOS/Linux, it's just npm.
+    Uses shutil.which() to find the correct executable.
+    """
+    # Try to find npm in PATH
+    npm_path = shutil.which("npm")
+    if npm_path:
+        return npm_path
+
+    # Fallback for Windows where shutil.which might not find .cmd
+    if sys.platform == "win32":
+        # Try common Windows npm locations
+        for cmd in ["npm.cmd", "npm.exe"]:
+            path = shutil.which(cmd)
+            if path:
+                return path
+
+    # Default fallback
+    return "npm"
 
 # Track child processes for cleanup
 _processes: list[subprocess.Popen] = []
@@ -136,10 +161,12 @@ def launch_studio(
             # Check if node_modules exists
             if not (frontend_dir / "node_modules").exists():
                 console.print("[yellow]  Installing frontend dependencies...[/yellow]")
+                npm_cmd = _get_npm_command()
                 install_result = subprocess.run(
-                    ["npm", "install"],
+                    [npm_cmd, "install"],
                     cwd=str(frontend_dir),
                     capture_output=not verbose,
+                    shell=(sys.platform == "win32"),  # Use shell on Windows for .cmd files
                 )
                 if install_result.returncode != 0:
                     console.print("[red]  Failed to install frontend dependencies[/red]")
@@ -152,12 +179,14 @@ def launch_studio(
             frontend_env = os.environ.copy()
             frontend_env["VITE_API_URL"] = f"http://localhost:{api_port}"
 
+            npm_cmd = _get_npm_command()
             frontend_process = subprocess.Popen(
-                ["npm", "run", "dev", "--", "--port", str(frontend_port)],
+                [npm_cmd, "run", "dev", "--", "--port", str(frontend_port)],
                 cwd=str(frontend_dir),
                 env=frontend_env,
                 stdout=stdout,
                 stderr=stderr,
+                shell=(sys.platform == "win32"),  # Use shell on Windows for .cmd files
             )
             _processes.append(frontend_process)
             started_services.append(("Frontend", f"http://localhost:{frontend_port}"))
