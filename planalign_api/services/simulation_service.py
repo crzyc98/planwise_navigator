@@ -246,27 +246,25 @@ class SimulationService:
 
             logger.info(f"Wrote merged config to: {config_path}")
 
-            # Build the planalign simulate command using Python -c to call the CLI
+            # Build the planalign simulate command as a list (safe for Windows paths)
             year_range = f"{start_year}-{end_year}" if start_year != end_year else str(start_year)
 
             # Use scenario-specific database for isolation
             scenario_db_path = scenario_path / "simulation.duckdb"
-            db_path_str = str(scenario_db_path)
 
-            # Use Python to invoke the CLI module directly (more reliable than script)
-            # Pass --config and --database for scenario-specific execution
-            config_path_str = str(config_path)
-            cli_code = f'''
-import sys
-sys.argv = ["planalign", "simulate", "{year_range}", "--config", "{config_path_str}", "--database", "{db_path_str}", "--verbose"]
-from planalign_cli.main import cli_main
-cli_main()
-'''
-            cmd = [sys.executable, "-c", cli_code]
+            # Build command as list - use os.fspath() for safe path handling on all platforms
+            cmd = [
+                sys.executable,
+                "-m", "planalign_cli.main",
+                "simulate", year_range,
+                "--config", os.fspath(config_path),
+                "--database", os.fspath(scenario_db_path),
+                "--verbose",
+            ]
 
-            logger.info(f"Starting simulation with config: {config_path_str}")
-            logger.info(f"Scenario database: {db_path_str}")
-            logger.info(f"Command: planalign simulate {year_range} --config {config_path_str} --verbose")
+            logger.info(f"Starting simulation with config: {config_path}")
+            logger.info(f"Scenario database: {scenario_db_path}")
+            logger.info(f"Command: {' '.join(cmd)}")
 
             # Get project root directory
             project_root = Path(__file__).parent.parent.parent
