@@ -210,11 +210,8 @@ source .venv/bin/activate
 # On Windows (CMD):
 # .venv\Scripts\activate.bat
 
-# Install all dependencies (~40 seconds for 263 packages)
-uv pip install -r requirements.txt -r requirements-dev.txt
-
-# Install planwise CLI in editable mode
-uv pip install -e .
+# Install all dependencies in editable mode (~40 seconds)
+uv pip install -e ".[dev]"
 ```
 
 3. **Install dbt dependencies**:
@@ -252,12 +249,9 @@ source .venv/bin/activate
 # On Windows (CMD):
 # .venv\Scripts\activate.bat
 
-# Install dependencies
+# Install all dependencies in editable mode
 pip install --upgrade pip
-pip install -r requirements.txt -r requirements-dev.txt
-
-# Install planwise CLI in editable mode
-pip install -e .
+pip install -e ".[dev]"
 ```
 
 #### Post-Installation Configuration
@@ -305,7 +299,7 @@ multi_year:
 6. **Verify installation**:
 ```bash
 # Test Python imports
-python -c "import duckdb, dbt, streamlit, pydantic, rich, typer; print('✅ Installation successful!')"
+python -c "import duckdb, dbt, streamlit, pydantic, rich, typer, fastapi, uvicorn; print('✅ Installation successful!')"
 
 # Verify planwise CLI is available
 planalign --version
