@@ -3,6 +3,7 @@
 import asyncio
 import logging
 import os
+import platform
 import psutil
 import re
 import subprocess
@@ -12,6 +13,10 @@ from pathlib import Path
 from typing import Any, Dict, List, Optional
 
 import yaml
+
+# Windows requires ProactorEventLoop for subprocess support
+if platform.system() == "Windows":
+    asyncio.set_event_loop_policy(asyncio.WindowsProactorEventLoopPolicy())
 
 from ..models.simulation import (
     PerformanceMetrics,
