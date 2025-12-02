@@ -165,6 +165,7 @@ planalign_engine/
 ### Prerequisites
 
 - **Python 3.11+** (CPython 3.11.x recommended)
+- **Node.js 18+** (required for PlanAlign Studio frontend)
 - **uv** package manager (optional but recommended for 10× faster installs)
 - Access to raw employee census data
 - On-premises deployment environment
@@ -221,6 +222,13 @@ dbt deps
 cd ..
 ```
 
+4. **Install frontend dependencies** (required for PlanAlign Studio):
+```bash
+cd planalign_studio
+npm install
+cd ..
+```
+
 #### Alternative: Using Make (recommended for development)
 
 ```bash
@@ -256,7 +264,7 @@ pip install -e ".[dev]"
 
 #### Post-Installation Configuration
 
-4. **Configure dbt profile**:
+5. **Configure dbt profile**:
 
 Create or edit the profiles file:
 - **macOS/Linux**: `~/.dbt/profiles.yml`
@@ -280,7 +288,7 @@ path: C:/Users/YourName/planalign_engine/dbt/simulation.duckdb
 path: C:\\Users\\YourName\\planalign_engine\\dbt\\simulation.duckdb
 ```
 
-5. **Configure simulation parameters** in `config/simulation_config.yaml`:
+6. **Configure simulation parameters** in `config/simulation_config.yaml`:
 ```yaml
 start_year: 2025
 end_year: 2029
@@ -296,7 +304,7 @@ multi_year:
     batch_size: 500
 ```
 
-6. **Verify installation**:
+7. **Verify installation**:
 ```bash
 # Test Python imports
 python -c "import duckdb, dbt, streamlit, pydantic, rich, typer, fastapi, uvicorn; print('✅ Installation successful!')"
