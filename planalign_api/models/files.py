@@ -27,6 +27,18 @@ class FileValidationRequest(BaseModel):
     file_path: str = Field(..., description="File path to validate (relative or absolute)")
 
 
+class CompensationAnalysisRequest(BaseModel):
+    """Request for compensation analysis with lookback option."""
+
+    file_path: str = Field(..., description="File path to census file (relative or absolute)")
+    lookback_years: int = Field(
+        default=4,
+        ge=0,
+        le=20,
+        description="Number of years to look back for recent hires (0 = all employees). Default: 4 years"
+    )
+
+
 class FileValidationResponse(BaseModel):
     """Response from file path validation."""
 
@@ -39,3 +51,114 @@ class FileValidationResponse(BaseModel):
     columns: Optional[List[str]] = Field(None, description="List of column names")
     last_modified: Optional[datetime] = Field(None, description="Last modification timestamp")
     error_message: Optional[str] = Field(None, description="Error message if validation failed")
+
+
+class CompensationSolverRequest(BaseModel):
+    """Request to solve for compensation parameters."""
+
+    file_path: Optional[str] = Field(
+        None,
+        description="Path to census file for workforce analysis. If not provided, uses defaults.",
+    )
+    target_growth_rate: float = Field(
+        ...,
+        ge=-0.10,  # Allow negative targets (declining avg comp)
+        le=0.20,
+        description="Target average compensation growth rate as decimal (e.g., 0.02 for 2%)",
+    )
+    promotion_increase: Optional[float] = Field(
+        None,
+        ge=0.0,
+        le=0.50,
+        description="Lock promotion increase at this value (as decimal). If not provided, uses 12.5%.",
+    )
+    cola_to_merit_ratio: Optional[float] = Field(
+        None,
+        ge=0.1,
+        le=2.0,
+        description="Ratio of COLA to merit (e.g., 0.6 means COLA is 60% of merit). Default: 0.6",
+    )
+    # Workforce dynamics parameters
+    turnover_rate: Optional[float] = Field(
+        None,
+        ge=0.0,
+        le=0.50,
+        description="Annual turnover rate as decimal (e.g., 0.15 for 15%). Default: 15%",
+    )
+    workforce_growth_rate: Optional[float] = Field(
+        None,
+        ge=-0.20,
+        le=0.50,
+        description="Annual workforce growth rate as decimal (e.g., 0.03 for 3%). Default: 3%",
+    )
+    new_hire_comp_ratio: Optional[float] = Field(
+        None,
+        ge=0.50,
+        le=1.50,
+        description="New hire avg compensation as ratio of current avg (e.g., 0.85 = 85%). Default: 85%",
+    )
+
+
+class LevelDistributionResponse(BaseModel):
+    """Distribution info for a job level."""
+
+    level: int = Field(..., description="Job level ID")
+    name: str = Field(..., description="Level name")
+    headcount: int = Field(..., description="Number of employees at this level")
+    percentage: float = Field(..., description="Percentage of workforce")
+    avg_compensation: float = Field(..., description="Average compensation at this level")
+    promotion_rate: float = Field(..., description="Expected annual promotion rate")
+
+
+class CompensationSolverResponse(BaseModel):
+    """Response from compensation solver."""
+
+    # Target
+    target_growth_rate: float = Field(..., description="Target growth rate as percentage (e.g., 2.0)")
+
+    # Solved parameters (as percentages)
+    cola_rate: float = Field(..., description="COLA rate as percentage (e.g., 2.0 for 2%)")
+    merit_budget: float = Field(..., description="Merit budget as percentage")
+    promotion_increase: float = Field(..., description="Promotion increase as percentage")
+    promotion_budget: float = Field(..., description="Promotion budget as percentage")
+
+    # Validation
+    achieved_growth_rate: float = Field(..., description="Actual achieved growth rate as percentage")
+    growth_gap: float = Field(..., description="Difference from target as percentage")
+
+    # Breakdown - how each factor contributes to average comp growth
+    cola_contribution: float = Field(..., description="Growth contribution from COLA (stayer raises)")
+    merit_contribution: float = Field(..., description="Growth contribution from merit (stayer raises)")
+    promo_contribution: float = Field(..., description="Growth contribution from promotions (stayer raises)")
+    turnover_contribution: float = Field(
+        default=0.0,
+        description="Growth contribution from turnover/new hires (usually negative if new hires paid less)"
+    )
+
+    # Context
+    total_headcount: int = Field(..., description="Total workforce size")
+    avg_compensation: float = Field(..., description="Average compensation")
+    weighted_promotion_rate: float = Field(..., description="Weighted promotion rate as percentage")
+
+    # Workforce dynamics used in calculation
+    turnover_rate: float = Field(default=0.0, description="Annual turnover rate as percentage")
+    workforce_growth_rate: float = Field(default=0.0, description="Annual workforce growth rate as percentage")
+    new_hire_comp_ratio: float = Field(default=0.0, description="New hire comp as percentage of avg")
+
+    # Recommendation for new hire compensation
+    recommended_new_hire_ratio: float = Field(
+        default=0.0,
+        description="Recommended new hire comp as % of avg to achieve target with standard raises"
+    )
+    recommended_scale_factor: float = Field(
+        default=0.0,
+        description="Scale factor to apply to census-derived ranges (e.g., 1.5 = 1.5x)"
+    )
+
+    # Level distribution (optional, if census was analyzed)
+    level_distribution: Optional[List[LevelDistributionResponse]] = Field(
+        None, description="Distribution across job levels"
+    )
+
+    # Warnings
+    warnings: List[str] = Field(default_factory=list, description="Warnings or notes")

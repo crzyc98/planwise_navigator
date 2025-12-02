@@ -480,8 +480,148 @@ ORDER BY job_level;
 
 ---
 
+---
+
+## ✅ Implemented Features (2025-12-01)
+
+### Feature 1: Promotion Rate Multiplier
+
+**Problem**: Users couldn't configure the rate at which employees get promoted. Promotion rates were fixed in seed files (`config_job_levels.csv`) with no way to scale them up or down for different scenarios.
+
+**Solution**: Added a configurable promotion rate multiplier that scales the base promotion probability.
+
+**UI Changes** (`planalign_studio/components/ConfigStudio.tsx`):
+- Added "Promotion Rate Multiplier" input field in Compensation section
+- Default: 1.0× (use seed defaults)
+- Range: 0× to 5×
+- Helper text explains: "1.0 = use defaults, 1.5 = 50% more promotions"
+
+**Backend Changes**:
+
+1. **`planalign_orchestrator/config.py`**:
+   - Added `promotion_rate_multiplier` field to `CompensationSettings` class
+   - Added to `dbt_vars` in `build_dbt_vars()` function
+
+2. **`planalign_orchestrator/polars_event_factory.py`**:
+   - Added `promotion_rate_multiplier` to `EventFactoryConfig` dataclass
+   - Applied multiplier in `generate_promotion_events()`:
+     ```python
+     effective_promotion_rate = base_promotion_rate * self.config.promotion_rate_multiplier
+     ```
+
+3. **`planalign_orchestrator/pipeline/event_generation_executor.py`**:
+   - Passes `promotion_rate_multiplier` from config to `EventFactoryConfig`
+
+4. **`dbt/models/intermediate/events/int_promotion_events.sql`**:
+   - Added variable: `{% set promotion_rate_multiplier = var('promotion_rate_multiplier', 1.0) %}`
+   - Applied multiplier to hazard rate lookup:
+     ```sql
+     LEAST(h.promotion_rate * {{ promotion_rate_multiplier }}, 1.0) AS promotion_rate
+     ```
+   - Capped at 1.0 to prevent impossible probabilities
+
+**Formula**: `effective_rate = MIN(base_hazard_rate × multiplier, 1.0)`
+
+---
+
+### Feature 2: Promotion + Merit Compensation Compounding Fix
+
+**Problem**: When an employee received both a promotion (Feb 1) and a merit raise (Jul 15) in the same year, the merit raise was incorrectly calculated from the pre-promotion baseline salary instead of the post-promotion salary. This caused:
+- Promoted employees to have lower-than-expected year-end compensation
+- Average workforce compensation to remain flat despite promotions
+- Compensation not carrying forward correctly to subsequent years
+
+**Root Cause Analysis**:
+1. Event generation models (`int_promotion_events`, `int_merit_events`) both read from `int_employee_compensation_by_year` which contains start-of-year baseline compensation
+2. Events are generated in parallel from the same baseline, not sequentially
+3. `fct_workforce_snapshot` applied merit salary directly without checking if employee was also promoted
+
+**Example of Bug**:
+- Employee baseline: $66,000
+- Promotion (Feb 1): $66k → $81,424 (+23%)
+- Merit raise (Jul 15): Incorrectly used $66k → $69,300 (+5%)
+- Snapshot showed: $69,300 (WRONG - should be ~$85,495)
+
+**Solution** (`dbt/models/marts/fct_workforce_snapshot.sql`):
+
+1. **Capture merit raise rate from events**:
+   ```sql
+   -- In employee_events_consolidated CTE
+   MAX(CASE WHEN event_type = 'raise' AND previous_compensation > 0
+       THEN (compensation_amount / previous_compensation) - 1.0
+       ELSE NULL END) AS merit_raise_rate,
+   ```
+
+2. **Apply merit rate to promoted salary when both events occur**:
+   ```sql
+   -- In workforce_after_merit CTE
+   CASE
+       -- E082 FIX: Employee promoted AND got merit - apply raise rate to promoted salary
+       WHEN ec.has_promotion AND ec.has_merit AND ec.merit_raise_rate IS NOT NULL THEN
+           ROUND(w.employee_gross_compensation * (1 + COALESCE(ec.merit_raise_rate, 0)), 2)
+       -- Only merit (no promotion) - use pre-calculated merit salary
+       WHEN ec.has_merit THEN ec.merit_salary
+       -- No merit - keep current compensation
+       ELSE w.employee_gross_compensation
+   END AS employee_gross_compensation,
+   ```
+
+3. **Fix full_year_equivalent_compensation to use corrected current_compensation**:
+   ```sql
+   -- Simplified to use the already-corrected current_compensation
+   current_compensation AS full_year_equivalent_compensation,
+   ```
+
+**Result After Fix**:
+- Employee baseline: $66,000
+- Promotion (Feb 1): $66k → $81,424 (+23%)
+- Merit raise (Jul 15): Applied to $81,424 → $85,495 (+5%)
+- Year 2 starts with: $85,495 (CORRECT)
+- Year 2 ends with: $90,198 (+5.5%)
+- Year 3 ends with: $95,159 (+5.5%)
+
+**Impact on Average Compensation**:
+- Before fix: Flat ~$95k across all years
+- After fix: Growing $96k → $97k → $98k (proper compounding)
+
+---
+
+## 📋 Files Modified (2025-12-01 Session)
+
+### UI Layer
+- `planalign_studio/components/ConfigStudio.tsx`
+  - Added `promoRateMultiplier` to form state
+  - Added input field in Compensation section
+  - Added to config save/load functions
+
+### Backend Configuration
+- `planalign_orchestrator/config.py`
+  - Added `promotion_rate_multiplier` to `CompensationSettings`
+  - Added to `dbt_vars` in `build_dbt_vars()`
+
+### Polars Event Factory
+- `planalign_orchestrator/polars_event_factory.py`
+  - Added `promotion_rate_multiplier` to `EventFactoryConfig`
+  - Applied multiplier in `generate_promotion_events()`
+
+- `planalign_orchestrator/pipeline/event_generation_executor.py`
+  - Passes multiplier from config to event factory
+
+### dbt Models
+- `dbt/models/intermediate/events/int_promotion_events.sql`
+  - Added `promotion_rate_multiplier` variable
+  - Applied multiplier to hazard rate with cap at 1.0
+
+- `dbt/models/marts/fct_workforce_snapshot.sql`
+  - Added `merit_raise_rate` calculation in consolidated events
+  - Fixed `workforce_after_merit` to compound promotion + merit
+  - Simplified `full_year_equivalent_compensation` to use corrected value
+
+---
+
 **Epic Owner**: Workforce Simulation Team
 **Created**: 2025-12-01
+**Updated**: 2025-12-01
 **Target Completion**: 1 day
 **Priority**: Medium - Enables demographic customization
-**Status**: Ready to Execute
+**Status**: Partially Implemented (Promotion Rate Multiplier + Compounding Fix Complete)

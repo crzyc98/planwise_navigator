@@ -542,6 +542,172 @@ export async function validateFilePath(
   return handleResponse<FileValidationResponse>(response);
 }
 
+// E082: Analyze age distribution from census data
+export interface AgeDistributionAnalysis {
+  total_employees: number;
+  recent_hires_only?: boolean;
+  analysis_type?: string;
+  distribution: Array<{
+    age: number;
+    weight: number;
+    description: string;
+    count: number;
+  }>;
+  source_file: string;
+}
+
+export async function analyzeAgeDistribution(
+  workspaceId: string,
+  filePath: string
+): Promise<AgeDistributionAnalysis> {
+  const response = await fetch(
+    `${API_BASE}/api/workspaces/${workspaceId}/analyze-age-distribution`,
+    {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ file_path: filePath }),
+    }
+  );
+  return handleResponse<AgeDistributionAnalysis>(response);
+}
+
+// E082: Analyze compensation distribution from census data
+export interface CompensationAnalysis {
+  total_employees: number;
+  recent_hires_only: boolean;
+  lookback_years?: number;
+  has_level_data: boolean;
+  analysis_type: string;
+  message?: string;
+  // When has_level_data is true
+  levels?: Array<{
+    level: number;
+    name: string;
+    employee_count: number;
+    min_compensation: number;
+    max_compensation: number;
+    median_compensation: number;
+    p25_compensation: number;
+    p75_compensation: number;
+    avg_compensation: number;
+  }>;
+  // When has_level_data is false
+  overall_stats?: {
+    min_compensation: number;
+    max_compensation: number;
+    median_compensation: number;
+    p10_compensation: number;
+    p25_compensation: number;
+    p75_compensation: number;
+    p90_compensation: number;
+    avg_compensation: number;
+  };
+  suggested_levels?: Array<{
+    level: number;
+    name: string;
+    suggested_min: number;
+    suggested_max: number;
+    percentile_range: string;
+  }>;
+  source_file: string;
+}
+
+/**
+ * Analyze compensation ranges from census data.
+ * @param workspaceId - The workspace ID
+ * @param filePath - Path to the census file
+ * @param lookbackYears - Number of years to look back for recent hires (default 4, 0 = all employees)
+ */
+export async function analyzeCompensation(
+  workspaceId: string,
+  filePath: string,
+  lookbackYears: number = 4
+): Promise<CompensationAnalysis> {
+  const response = await fetch(
+    `${API_BASE}/api/workspaces/${workspaceId}/analyze-compensation-by-level`,
+    {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ file_path: filePath, lookback_years: lookbackYears }),
+    }
+  );
+  return handleResponse<CompensationAnalysis>(response);
+}
+
+// ============================================================================
+// Compensation Growth Solver
+// ============================================================================
+
+export interface CompensationSolverRequest {
+  file_path?: string;
+  target_growth_rate: number; // As decimal, e.g., 0.02 for 2%
+  promotion_increase?: number; // Lock promotion increase (as decimal)
+  cola_to_merit_ratio?: number; // Ratio of COLA to merit
+  // Workforce dynamics (critical for accurate growth modeling)
+  turnover_rate?: number; // Annual turnover rate as decimal (e.g., 0.15 = 15%)
+  workforce_growth_rate?: number; // Annual workforce growth as decimal (e.g., 0.03 = 3%)
+  new_hire_comp_ratio?: number; // New hire avg comp as ratio of current avg (e.g., 0.85 = 85%)
+}
+
+export interface LevelDistribution {
+  level: number;
+  name: string;
+  headcount: number;
+  percentage: number;
+  avg_compensation: number;
+  promotion_rate: number;
+}
+
+export interface CompensationSolverResponse {
+  target_growth_rate: number; // As percentage (2.0 for 2%)
+  cola_rate: number; // As percentage
+  merit_budget: number; // As percentage
+  promotion_increase: number; // As percentage
+  promotion_budget: number; // As percentage
+  achieved_growth_rate: number;
+  growth_gap: number;
+  // Growth breakdown (how each factor contributes)
+  cola_contribution: number;
+  merit_contribution: number;
+  promo_contribution: number;
+  turnover_contribution: number; // Impact of turnover/new hires (usually negative)
+  // Workforce context
+  total_headcount: number;
+  avg_compensation: number;
+  weighted_promotion_rate: number;
+  // Workforce dynamics used in calculation
+  turnover_rate: number;
+  workforce_growth_rate: number;
+  new_hire_comp_ratio: number;
+  // Recommendations for new hire compensation
+  recommended_new_hire_ratio: number; // % of avg comp to hire at
+  recommended_scale_factor: number; // Multiplier for census-derived ranges
+  level_distribution?: LevelDistribution[];
+  warnings: string[];
+}
+
+/**
+ * Solve for compensation parameters given a target growth rate.
+ *
+ * This is the "magic button" - tell us your target average compensation growth
+ * (e.g., 2% per year) and we'll calculate the COLA, merit, promotion increase,
+ * and promotion budget needed to achieve that target.
+ */
+export async function solveCompensationGrowth(
+  workspaceId: string,
+  request: CompensationSolverRequest
+): Promise<CompensationSolverResponse> {
+  const response = await fetch(
+    `${API_BASE}/api/workspaces/${workspaceId}/solve-compensation-growth`,
+    {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(request),
+    }
+  );
+  return handleResponse<CompensationSolverResponse>(response);
+}
+
 // ============================================================================
 // Template Endpoints
 // ============================================================================

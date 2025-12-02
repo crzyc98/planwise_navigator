@@ -114,7 +114,7 @@ class TemplateService:
             id="tech_startup",
             name="Tech Startup",
             description="High growth with equity-like benefits structure. "
-            "Matches typical Silicon Valley compensation patterns.",
+            "Matches typical Silicon Valley compensation patterns with younger workforce.",
             category="growth",
             config={
                 "simulation": {
@@ -133,13 +133,32 @@ class TemplateService:
                     "match_percent": 50,
                     "match_limit_percent": 6,
                 },
+                # E082: Younger workforce profile for tech startups
+                "new_hire": {
+                    "age_distribution": [
+                        {"age": 22, "weight": 0.15},
+                        {"age": 25, "weight": 0.25},
+                        {"age": 28, "weight": 0.25},
+                        {"age": 32, "weight": 0.20},
+                        {"age": 35, "weight": 0.10},
+                        {"age": 40, "weight": 0.05},
+                    ],
+                    "level_distribution_mode": "fixed",
+                    "level_distribution": [
+                        {"level": 1, "percentage": 0.60},
+                        {"level": 2, "percentage": 0.25},
+                        {"level": 3, "percentage": 0.10},
+                        {"level": 4, "percentage": 0.04},
+                        {"level": 5, "percentage": 0.01},
+                    ],
+                },
             },
         ),
         Template(
             id="mature_enterprise",
             name="Mature Enterprise",
             description="Stable workforce with generous benefits. "
-            "Typical of established Fortune 500 companies.",
+            "Typical of established Fortune 500 companies with experienced hires.",
             category="general",
             config={
                 "simulation": {
@@ -159,6 +178,19 @@ class TemplateService:
                     "match_percent": 100,
                     "match_limit_percent": 6,
                     "vesting_schedule": "immediate",
+                },
+                # E082: Older, more experienced workforce profile
+                "new_hire": {
+                    "age_distribution": [
+                        {"age": 25, "weight": 0.08},
+                        {"age": 28, "weight": 0.12},
+                        {"age": 32, "weight": 0.20},
+                        {"age": 35, "weight": 0.25},
+                        {"age": 40, "weight": 0.20},
+                        {"age": 45, "weight": 0.10},
+                        {"age": 50, "weight": 0.05},
+                    ],
+                    "level_distribution_mode": "adaptive",
                 },
             },
         ),
