@@ -1,6 +1,6 @@
-import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react';
+import React, { useState, useEffect, useRef, useMemo, useCallback, useContext } from 'react';
 import { Save, AlertTriangle, FileText, Settings, HelpCircle, TrendingUp, Users, DollarSign, Zap, Server, Shield, PieChart, Database, Upload, Check, X, ArrowLeft, Target, Sparkles, Play } from 'lucide-react';
-import { useNavigate, useOutletContext, useParams, useBlocker } from 'react-router-dom';
+import { useNavigate, useOutletContext, useParams, useBlocker, UNSAFE_DataRouterContext } from 'react-router-dom';
 import { LayoutContextType } from './Layout';
 import { updateWorkspace as apiUpdateWorkspace, getScenario, updateScenario, Scenario, uploadCensusFile, validateFilePath, listTemplates, Template, analyzeAgeDistribution, analyzeCompensation, CompensationAnalysis, solveCompensationGrowth, CompensationSolverResponse } from '../services/api';
 
@@ -724,7 +724,9 @@ export default function ConfigStudio() {
   }, [isDirty]);
 
   // Block React Router navigation when there are unsaved changes
-  const blocker = useBlocker(isDirty);
+  // Only works with data routers (createBrowserRouter) - falls back to beforeunload only
+  const dataRouterContext = useContext(UNSAFE_DataRouterContext);
+  const blocker = useBlocker(dataRouterContext ? isDirty : false);
 
   // Handle save configuration
   const handleSaveConfig = async () => {
