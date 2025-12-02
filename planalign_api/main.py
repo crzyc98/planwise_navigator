@@ -5,9 +5,16 @@ Run with:
     uvicorn planalign_api.main:app --reload --port 8000
 """
 
+import asyncio
 import logging
+import platform
 import sys
 from contextlib import asynccontextmanager
+
+# Windows requires ProactorEventLoop for asyncio subprocess support
+# Must be set before any asyncio operations
+if platform.system() == "Windows":
+    asyncio.set_event_loop_policy(asyncio.WindowsProactorEventLoopPolicy())
 
 from fastapi import FastAPI, WebSocket
 from fastapi.middleware.cors import CORSMiddleware
