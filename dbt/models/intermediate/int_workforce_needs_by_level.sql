@@ -234,19 +234,68 @@ hiring_by_level AS (
   LEFT JOIN allocated a ON sb.level_id = a.level_id
 ),
 
+-- E082: Get job level compensation ranges from config variables (if provided)
+-- Falls back to seed file values if variables not set
+job_level_comp_config AS (
+  SELECT
+    level_id,
+    min_compensation AS seed_min,
+    max_compensation AS seed_max
+  FROM {{ ref('stg_config_job_levels') }}
+),
+
+-- E082: Parse job level compensation from dbt variable (JSON array format)
+-- Variable format: [{"level":1,"min":50000,"max":80000}, ...]
+{% set job_level_comp_var = var('job_level_compensation', none) %}
+
+job_level_comp_overrides AS (
+  {% if job_level_comp_var is not none and job_level_comp_var | length > 0 %}
+  -- Use config overrides from scenario
+  SELECT
+    jlc.level AS level_id,
+    CAST(jlc.min AS DOUBLE) AS min_compensation,
+    CAST(jlc.max AS DOUBLE) AS max_compensation
+  FROM (
+    VALUES
+    {% for item in job_level_comp_var %}
+      ({{ item.level }}, {{ item.min_compensation }}, {{ item.max_compensation }}){% if not loop.last %},{% endif %}
+    {% endfor %}
+  ) AS jlc(level, min, max)
+  {% else %}
+  -- No overrides, return empty to use seed values
+  SELECT
+    NULL::INTEGER AS level_id,
+    NULL::DOUBLE AS min_compensation,
+    NULL::DOUBLE AS max_compensation
+  WHERE 1 = 0
+  {% endif %}
+),
+
+-- Merge overrides with seed defaults
+job_level_comp_merged AS (
+  SELECT
+    jc.level_id,
+    COALESCE(jo.min_compensation, jc.seed_min) AS min_compensation,
+    COALESCE(jo.max_compensation, jc.seed_max) AS max_compensation
+  FROM job_level_comp_config jc
+  LEFT JOIN job_level_comp_overrides jo ON jc.level_id = jo.level_id
+),
+
 -- Compensation ranges and new hire costs
 compensation_planning AS (
   SELECT
-    cr.level_id,
-    CAST(cr.min_compensation AS DOUBLE) AS min_compensation,
-    CAST(cr.max_compensation AS DOUBLE) AS max_compensation,
+    jlm.level_id,
+    CAST(jlm.min_compensation AS DOUBLE) AS min_compensation,
+    CAST(jlm.max_compensation AS DOUBLE) AS max_compensation,
     wbl.avg_compensation AS current_avg_compensation,
     -- New hire compensation using configurable percentiles (Epic E056)
     -- Calculate percentile-based compensation with market adjustments
-    CAST((cr.min_compensation +
-     (cr.max_compensation - cr.min_compensation) *
-     COALESCE({{ resolve_parameter('cr.level_id', 'HIRE', 'compensation_percentile', simulation_year) }}, 0.50) *
-     COALESCE({{ resolve_parameter('cr.level_id', 'HIRE', 'market_adjustment_multiplier', simulation_year) }}, 1.0)
+    -- E082: Apply market scenario adjustment
+    CAST((jlm.min_compensation +
+     (jlm.max_compensation - jlm.min_compensation) *
+     COALESCE({{ resolve_parameter('jlm.level_id', 'HIRE', 'compensation_percentile', simulation_year) }}, 0.50) *
+     COALESCE({{ resolve_parameter('jlm.level_id', 'HIRE', 'market_adjustment_multiplier', simulation_year) }}, 1.0) *
+     (1 + {{ var('market_scenario_adjustment', 0) }} / 100.0)
     ) AS DOUBLE) AS new_hire_avg_compensation,
     -- Merit increase planning - use variable-based parameters for consistency
     CAST(wbl.total_compensation * {{ var('merit_budget', 0.03) }} AS DOUBLE) AS merit_increase_cost,
@@ -255,8 +304,8 @@ compensation_planning AS (
     -- Promotion cost estimate - use safe defaults temporarily
     CAST(wbl.current_headcount * 0.05 AS DOUBLE) AS expected_promotions,
     CAST(wbl.avg_compensation * 0.12 * (wbl.current_headcount * 0.05) AS DOUBLE) AS promotion_cost
-  FROM {{ ref('stg_config_job_levels') }} cr
-  LEFT JOIN workforce_by_level wbl ON cr.level_id = wbl.level_id
+  FROM job_level_comp_merged jlm
+  LEFT JOIN workforce_by_level wbl ON jlm.level_id = wbl.level_id
 ),
 
 -- Additional costs (hiring, training, severance)

@@ -206,6 +206,11 @@ class EventGenerationExecutor:
         # E078 FIX: Use original simulation start_year, not min(years)
         # When processing years individually (e.g., [2026]), min(years) would be 2026
         # But we need to know the ORIGINAL start year (2025) to determine when to use baseline vs previous year
+        # Get promotion rate multiplier from compensation settings
+        promotion_rate_multiplier = getattr(
+            self.config.compensation, 'promotion_rate_multiplier', 1.0
+        ) if hasattr(self.config, 'compensation') else 1.0
+
         factory_config = EventFactoryConfig(
             start_year=self.config.simulation.start_year,  # E078: Use original simulation start year
             end_year=max(years),
@@ -221,7 +226,8 @@ class EventGenerationExecutor:
             lazy_evaluation=polars_settings.lazy_evaluation,
             streaming=polars_settings.streaming,
             parallel_io=polars_settings.parallel_io,
-            database_path=self.db_manager.db_path  # Pass batch-specific database path
+            database_path=self.db_manager.db_path,  # Pass batch-specific database path
+            promotion_rate_multiplier=promotion_rate_multiplier  # E082: Promotion rate multiplier
         )
 
         if self.verbose:
