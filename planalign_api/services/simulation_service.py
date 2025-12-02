@@ -274,6 +274,7 @@ class SimulationService:
             env = {
                 **os.environ,
                 "PYTHONPATH": str(project_root),
+                "PYTHONIOENCODING": "utf-8",  # Force UTF-8 on Windows
                 "TERM": "dumb",
                 "NO_COLOR": "1",
                 "FORCE_COLOR": "0",
