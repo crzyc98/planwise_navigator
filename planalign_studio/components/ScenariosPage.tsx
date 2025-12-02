@@ -426,7 +426,7 @@ export default function ScenariosPage() {
                         Configure
                       </button>
                       <button
-                        onClick={() => navigate('/simulate')}
+                        onClick={() => navigate(`/simulate?scenario=${scenario.id}`)}
                         className="px-3 py-1.5 bg-fidelity-green text-white rounded-lg text-sm hover:bg-fidelity-dark flex items-center"
                         title="Run simulation"
                       >

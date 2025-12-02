@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import {
   LineChart, Line, BarChart, Bar, PieChart, Pie, Cell,
   XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer
@@ -12,6 +13,7 @@ import {
   listScenarios,
   getSimulationResults,
   getResultsExportUrl,
+  getRunDetails,
   Workspace,
   Scenario,
   SimulationResults
@@ -77,11 +79,15 @@ const ErrorState = ({ message, onRetry }: { message: string; onRetry: () => void
 );
 
 export default function AnalyticsDashboard() {
+  const [searchParams] = useSearchParams();
+  const scenarioIdFromUrl = searchParams.get('scenario');
+
   // State for workspace/scenario selection
   const [workspaces, setWorkspaces] = useState<Workspace[]>([]);
   const [scenarios, setScenarios] = useState<Scenario[]>([]);
   const [selectedWorkspaceId, setSelectedWorkspaceId] = useState<string>('');
   const [selectedScenarioId, setSelectedScenarioId] = useState<string>('');
+  const [initializedFromUrl, setInitializedFromUrl] = useState(false);
 
   // State for results
   const [results, setResults] = useState<SimulationResults | null>(null);
@@ -89,20 +95,41 @@ export default function AnalyticsDashboard() {
   const [loadingScenarios, setLoadingScenarios] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  // Fetch workspaces on mount
+  // Initialize from URL parameter if present
   useEffect(() => {
-    fetchWorkspaces();
-  }, []);
+    const initFromUrl = async () => {
+      if (scenarioIdFromUrl && !initializedFromUrl) {
+        try {
+          // Get scenario details to find its workspace
+          const details = await getRunDetails(scenarioIdFromUrl);
+          if (details.workspace_id) {
+            setSelectedWorkspaceId(details.workspace_id);
+            setSelectedScenarioId(scenarioIdFromUrl);
+            setInitializedFromUrl(true);
+            // Fetch workspaces for the dropdown
+            fetchWorkspaces();
+            return;
+          }
+        } catch (err) {
+          console.error('Failed to load scenario from URL:', err);
+        }
+      }
+      // Fall back to normal initialization
+      fetchWorkspaces();
+    };
+    initFromUrl();
+  }, [scenarioIdFromUrl]);
 
   // Fetch scenarios when workspace changes
   useEffect(() => {
     if (selectedWorkspaceId) {
-      fetchScenarios(selectedWorkspaceId);
+      // Preserve selection if we came from URL
+      fetchScenarios(selectedWorkspaceId, initializedFromUrl);
     } else {
       setScenarios([]);
       setSelectedScenarioId('');
     }
-  }, [selectedWorkspaceId]);
+  }, [selectedWorkspaceId, initializedFromUrl]);
 
   // Fetch results when scenario changes
   useEffect(() => {
@@ -126,17 +153,20 @@ export default function AnalyticsDashboard() {
     }
   };
 
-  const fetchScenarios = async (workspaceId: string) => {
+  const fetchScenarios = async (workspaceId: string, preserveSelection = false) => {
     setLoadingScenarios(true);
     try {
       const data = await listScenarios(workspaceId);
       setScenarios(data);
-      // Auto-select first completed scenario if available
-      const completedScenarios = data.filter(s => s.status === 'completed');
-      if (completedScenarios.length > 0) {
-        setSelectedScenarioId(completedScenarios[0].id);
-      } else {
-        setSelectedScenarioId('');
+      // Don't override selection if we're preserving (e.g., from URL parameter)
+      if (!preserveSelection || !selectedScenarioId) {
+        // Auto-select first completed scenario if available
+        const completedScenarios = data.filter(s => s.status === 'completed');
+        if (completedScenarios.length > 0) {
+          setSelectedScenarioId(completedScenarios[0].id);
+        } else {
+          setSelectedScenarioId('');
+        }
       }
     } catch (err) {
       console.error('Failed to fetch scenarios:', err);

@@ -218,10 +218,21 @@ export default function SimulationDetail() {
               </p>
             </div>
           </div>
-          <span className={`inline-flex items-center px-3 py-1.5 rounded-full text-sm font-medium border ${getStatusColor(details.status)}`}>
-            {getStatusIcon(details.status)}
-            {details.status.toUpperCase().replace('_', ' ')}
-          </span>
+          <div className="flex items-center space-x-3">
+            <span className={`inline-flex items-center px-3 py-1.5 rounded-full text-sm font-medium border ${getStatusColor(details.status)}`}>
+              {getStatusIcon(details.status)}
+              {details.status.toUpperCase().replace('_', ' ')}
+            </span>
+            {details.status === 'completed' && (
+              <Link
+                to={`/analytics?scenario=${details.scenario_id}`}
+                className="flex items-center px-4 py-2 bg-fidelity-green text-white hover:bg-fidelity-dark rounded-lg font-medium shadow-sm"
+              >
+                <Activity size={18} className="mr-2" />
+                View Analytics
+              </Link>
+            )}
+          </div>
         </div>
 
         {/* Quick Stats */}

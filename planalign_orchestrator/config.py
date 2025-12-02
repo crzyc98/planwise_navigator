@@ -15,7 +15,7 @@ from pathlib import Path
 from typing import Any, Dict, List, Optional
 
 import yaml
-from pydantic import BaseModel, ConfigDict, Field, ValidationError
+from pydantic import BaseModel, ConfigDict, Field, ValidationError, model_validator
 
 
 def get_project_root() -> Path:
@@ -75,9 +75,43 @@ class PromotionCompensationSettings(BaseModel):
 
 
 class CompensationSettings(BaseModel):
-    cola_rate: float = Field(default=0.005, ge=0, le=1)
-    merit_budget: float = Field(default=0.025, ge=0, le=1)
+    """Compensation settings with support for both decimal and percent formats.
+
+    The UI saves values with _percent suffix (e.g., cola_rate_percent: 2 means 2%).
+    The model normalizes these to decimal format internally (e.g., cola_rate: 0.02).
+    """
+    model_config = ConfigDict(extra="allow")
+
+    cola_rate: float = Field(default=0.02, ge=0, le=1)
+    merit_budget: float = Field(default=0.035, ge=0, le=1)
+    promotion_increase: float = Field(default=0.125, ge=0, le=1)  # promotion_increase_percent
+    promotion_budget: float = Field(default=0.015, ge=0, le=1)  # promotion_budget_percent
+    promotion_distribution_range: float = Field(default=0.05, ge=0, le=1)  # promotion_distribution_range_percent
+    promotion_rate_multiplier: float = Field(default=1.0, ge=0, le=5)  # Multiplier for base promotion rates (1.0 = seed defaults)
     promotion_compensation: PromotionCompensationSettings = Field(default_factory=PromotionCompensationSettings)
+
+    @model_validator(mode="before")
+    @classmethod
+    def normalize_percent_fields(cls, data: Any) -> Any:
+        """Convert _percent suffix fields to decimal format."""
+        if not isinstance(data, dict):
+            return data
+
+        # Map of _percent field names to their decimal field names
+        percent_fields = {
+            "cola_rate_percent": "cola_rate",
+            "merit_budget_percent": "merit_budget",
+            "promotion_increase_percent": "promotion_increase",
+            "promotion_budget_percent": "promotion_budget",
+            "promotion_distribution_range_percent": "promotion_distribution_range",
+        }
+
+        for percent_key, decimal_key in percent_fields.items():
+            if percent_key in data and decimal_key not in data:
+                # Convert from percent (e.g., 2.0) to decimal (e.g., 0.02)
+                data[decimal_key] = data[percent_key] / 100.0
+
+        return data
 
 
 class WorkforceSettings(BaseModel):
@@ -949,17 +983,67 @@ def to_dbt_vars(cfg: SimulationConfig) -> Dict[str, Any]:
 
     # Epic E059: Promotion compensation configuration
     promotion = cfg.compensation.promotion_compensation
-    dbt_vars["promotion_base_increase_pct"] = promotion.base_increase_pct
-    dbt_vars["promotion_distribution_range"] = promotion.distribution_range
+    # Use flat config values from UI if set (promotion_increase), else fall back to nested config
+    # UI sets promotion_increase_percent which becomes promotion_increase (decimal)
+    if cfg.compensation.promotion_increase != 0.125:  # Not default - user set it
+        dbt_vars["promotion_base_increase_pct"] = cfg.compensation.promotion_increase
+    else:
+        dbt_vars["promotion_base_increase_pct"] = promotion.base_increase_pct
+
+    if cfg.compensation.promotion_distribution_range != 0.05:  # Not default - user set it
+        dbt_vars["promotion_distribution_range"] = cfg.compensation.promotion_distribution_range
+    else:
+        dbt_vars["promotion_distribution_range"] = promotion.distribution_range
+
     dbt_vars["promotion_max_cap_pct"] = promotion.max_cap_pct
     dbt_vars["promotion_max_cap_amount"] = promotion.max_cap_amount
     dbt_vars["promotion_distribution_type"] = promotion.distribution_type
     dbt_vars["promotion_level_overrides"] = promotion.level_overrides or {}
     dbt_vars["promotion_normal_std_dev"] = promotion.advanced.normal_std_dev
 
+    # E082: Promotion rate multiplier (applies to hazard-based promotion probability)
+    dbt_vars["promotion_rate_multiplier"] = cfg.compensation.promotion_rate_multiplier
+
     # Market adjustments (if configured)
     if promotion.advanced.market_adjustments:
         dbt_vars["promotion_market_adjustments"] = promotion.advanced.market_adjustments
+
+    # E082: Job level compensation configuration from new_hire config
+    # Pass job level compensation ranges to dbt if configured
+    try:
+        new_hire_config = getattr(cfg, "new_hire", None)
+        if new_hire_config is None and hasattr(cfg, "__dict__"):
+            # Try to get from raw config dict
+            raw_config = cfg.__dict__.get("_raw_config", {})
+            new_hire_config = raw_config.get("new_hire", {})
+
+        if new_hire_config:
+            # Get job level compensation (list of dicts with level, min_compensation, max_compensation)
+            job_level_comp = new_hire_config.get("job_level_compensation") if isinstance(new_hire_config, dict) else getattr(new_hire_config, "job_level_compensation", None)
+            if job_level_comp and len(job_level_comp) > 0:
+                dbt_vars["job_level_compensation"] = job_level_comp
+
+            # Get market scenario adjustment
+            market_scenario = new_hire_config.get("market_scenario") if isinstance(new_hire_config, dict) else getattr(new_hire_config, "market_scenario", None)
+            if market_scenario:
+                # Convert scenario to adjustment percentage
+                market_adjustments = {
+                    "conservative": -5,
+                    "baseline": 0,
+                    "competitive": 5,
+                    "aggressive": 10,
+                }
+                dbt_vars["market_scenario_adjustment"] = market_adjustments.get(market_scenario, 0)
+
+            # Get level-specific market adjustments
+            level_adjustments = new_hire_config.get("level_market_adjustments") if isinstance(new_hire_config, dict) else getattr(new_hire_config, "level_market_adjustments", None)
+            if level_adjustments:
+                dbt_vars["level_market_adjustments"] = level_adjustments
+    except Exception as e:
+        # Non-fatal: fall back to model defaults
+        import traceback
+        print(f"Warning: Error processing new_hire configuration: {e}")
+        print(f"Traceback: {traceback.format_exc()}")
 
     # E068C Threading configuration for dbt
     e068c_config = cfg.get_e068c_threading_config()

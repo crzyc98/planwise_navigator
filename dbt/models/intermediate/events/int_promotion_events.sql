@@ -15,6 +15,9 @@
 {% set level_overrides = var('promotion_level_overrides', {}) %}
 {% set normal_std_dev = var('promotion_normal_std_dev', 0.02) %}
 
+-- **EPIC E082: Promotion rate multiplier (scales hazard-based probability)**
+{% set promotion_rate_multiplier = var('promotion_rate_multiplier', 1.0) %}
+
 -- **OPTIMIZED PROMOTION EVENTS WITH FULL-YEAR EQUIVALENT COMPENSATION**
 --
 -- **CRITICAL FIX**: Uses full_year_equivalent_compensation from previous year-end
@@ -91,17 +94,20 @@ eligible_workforce AS (
 ),
 
 -- **OPTIMIZATION 3**: Efficient hazard rate lookup with indexed join
+-- **E082**: Apply promotion_rate_multiplier to scale promotion probability
 promotion_candidates AS (
     SELECT
         ew.*,
-        h.promotion_rate
+        -- E082: Scale promotion rate by configurable multiplier (default 1.0 = no change)
+        LEAST(h.promotion_rate * {{ promotion_rate_multiplier }}, 1.0) AS promotion_rate
     FROM eligible_workforce ew
     INNER JOIN {{ ref('int_hazard_promotion') }} h
         ON ew.level_id = h.level_id
         AND ew.age_band = h.age_band
         AND ew.tenure_band = h.tenure_band
         AND h.year = {{ simulation_year }}
-    WHERE ew.random_value < h.promotion_rate  -- Apply probability threshold
+    -- E082: Compare against scaled promotion rate (capped at 1.0)
+    WHERE ew.random_value < LEAST(h.promotion_rate * {{ promotion_rate_multiplier }}, 1.0)
 ),
 
 -- **OPTIMIZATION 4**: Vectorized salary calculation with business rules

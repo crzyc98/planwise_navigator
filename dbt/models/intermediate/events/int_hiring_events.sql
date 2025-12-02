@@ -50,63 +50,89 @@ hire_sequence AS (
   WHERE wnbl.hires_needed > 0
 ),
 
--- Generate age distribution for new hires (realistic hiring age profile)
+-- E082: Load age distribution from configurable seed file
+-- Falls back to 'default' scenario if no scenario-specific config exists
 age_distribution AS (
-  SELECT * FROM (VALUES
-    (22, 0.05), -- Recent college graduates
-    (25, 0.15), -- Early career
-    (28, 0.20), -- Established early career
-    (32, 0.25), -- Mid-career switchers
-    (35, 0.15), -- Experienced hires
-    (40, 0.10), -- Senior experienced
-    (45, 0.08), -- Mature professionals
-    (50, 0.02)  -- Late career changes
-  ) AS t(hire_age, age_weight)
+  SELECT
+    hire_age,
+    age_weight,
+    SUM(age_weight) OVER (ORDER BY hire_age ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW) AS cumulative_weight
+  FROM {{ ref('config_new_hire_age_distribution') }}
+  WHERE scenario_id = COALESCE(
+    NULLIF('{{ var('scenario_id', 'default') }}', 'default'),
+    'default'
+  )
+  -- If scenario-specific config doesn't exist, fall back to default
+  OR (scenario_id = 'default' AND NOT EXISTS (
+    SELECT 1 FROM {{ ref('config_new_hire_age_distribution') }}
+    WHERE scenario_id = '{{ var('scenario_id', 'default') }}'
+      AND scenario_id != 'default'
+  ))
 ),
 
+-- Get total weight for normalization (should be 1.0 but normalize just in case)
+age_distribution_normalized AS (
+  SELECT
+    hire_age,
+    age_weight,
+    cumulative_weight / MAX(cumulative_weight) OVER () AS normalized_cumulative_weight
+  FROM age_distribution
+),
+
+
+-- E082: Assign ages using weighted selection from configurable seed
+-- Uses deterministic pseudo-random value based on sequence number for reproducibility
+hire_sequence_with_random AS (
+  SELECT
+    hs.*,
+    -- Generate deterministic pseudo-random value between 0 and 1
+    -- Uses modulo of hash to create reproducible distribution
+    -- Cast to DOUBLE first to avoid integer overflow issues
+    ABS(MOD(HASH(CONCAT(CAST(hs.hire_sequence_num AS VARCHAR), '_age_', CAST({{ simulation_year }} AS VARCHAR)))::DOUBLE, 1000000.0)) / 1000000.0 AS age_random_value
+  FROM hire_sequence hs
+),
+
+-- Match each hire to an age bucket based on cumulative weight
+hire_with_age AS (
+  SELECT
+    hsr.*,
+    (SELECT ad.hire_age
+     FROM age_distribution_normalized ad
+     WHERE ad.normalized_cumulative_weight >= hsr.age_random_value
+     ORDER BY ad.normalized_cumulative_weight
+     LIMIT 1
+    ) AS assigned_age
+  FROM hire_sequence_with_random hsr
+),
 
 -- Assign attributes to each new hire
 new_hire_assignments AS (
   SELECT
-    hs.hire_sequence_num,
-    hs.level_id,
+    hwa.hire_sequence_num,
+    hwa.level_id,
 
     -- Generate deterministic employee ID (no random UUID to ensure consistency)
     'NH_' || CAST({{ simulation_year }} AS VARCHAR) || '_' ||
-    LPAD(CAST(hs.hire_sequence_num AS VARCHAR), 6, '0') AS employee_id,
+    LPAD(CAST(hwa.hire_sequence_num AS VARCHAR), 6, '0') AS employee_id,
 
     -- Generate SSN using 900M range with year offsets to prevent census collisions
     -- Census uses 100M range (SSN-100000001+), new hires use 900M+ range
     -- Format: 900 + (year_offset * 100000) + sequence_num
-    'SSN-' || LPAD(CAST(900000000 + ({{ simulation_year }} - {{ start_year }}) * 100000 + hs.hire_sequence_num AS VARCHAR), 9, '0') AS employee_ssn,
+    'SSN-' || LPAD(CAST(900000000 + ({{ simulation_year }} - {{ start_year }}) * 100000 + hwa.hire_sequence_num AS VARCHAR), 9, '0') AS employee_ssn,
 
-    -- Simple age assignment (deterministic based on sequence)
-    CASE
-      WHEN hs.hire_sequence_num % 5 = 0 THEN 25
-      WHEN hs.hire_sequence_num % 5 = 1 THEN 28
-      WHEN hs.hire_sequence_num % 5 = 2 THEN 32
-      WHEN hs.hire_sequence_num % 5 = 3 THEN 35
-      ELSE 40
-    END AS employee_age,
+    -- E082: Age from weighted distribution
+    COALESCE(hwa.assigned_age, 32) AS employee_age,
 
-    -- Simple birth date calculation
-    CAST('{{ simulation_year }}-01-01' AS DATE) - INTERVAL (
-      CASE
-        WHEN hs.hire_sequence_num % 5 = 0 THEN 25
-        WHEN hs.hire_sequence_num % 5 = 1 THEN 28
-        WHEN hs.hire_sequence_num % 5 = 2 THEN 32
-        WHEN hs.hire_sequence_num % 5 = 3 THEN 35
-        ELSE 40
-      END * 365
-    ) DAY AS birth_date,
+    -- Birth date calculation based on assigned age
+    CAST('{{ simulation_year }}-01-01' AS DATE) - INTERVAL (COALESCE(hwa.assigned_age, 32) * 365) DAY AS birth_date,
 
     -- Hire date evenly distributed throughout year using modulo for cycling
-    CAST('{{ simulation_year }}-01-01' AS DATE) + INTERVAL (hs.hire_sequence_num % 365) DAY AS hire_date,
+    CAST('{{ simulation_year }}-01-01' AS DATE) + INTERVAL (hwa.hire_sequence_num % 365) DAY AS hire_date,
 
     -- Use compensation from workforce needs with small variance for realism
-    ROUND(hs.new_hire_avg_compensation * (0.9 + (hs.hire_sequence_num % 10) * 0.02), 2) AS compensation_amount
+    ROUND(hwa.new_hire_avg_compensation * (0.9 + (hwa.hire_sequence_num % 10) * 0.02), 2) AS compensation_amount
 
-  FROM hire_sequence hs
+  FROM hire_with_age hwa
 )
 
 SELECT

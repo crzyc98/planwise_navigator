@@ -132,6 +132,22 @@ seeds:
         department: varchar
         age: integer
 
+    # E082: New hire demographics configuration
+    config_new_hire_age_distribution:
+      +column_types:
+        scenario_id: varchar
+        hire_age: integer
+        age_weight: decimal(5,4)
+        description: varchar
+
+    config_new_hire_level_distribution:
+      +column_types:
+        scenario_id: varchar
+        level_id: integer
+        level_name: varchar
+        distribution_pct: decimal(5,4)
+        use_fixed_distribution: boolean
+
     baseline_workforce:
       +column_types:
         employee_id: varchar

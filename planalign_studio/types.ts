@@ -72,6 +72,19 @@ export interface SimulationConfig {
   newHireStrategy?: 'percentile' | 'fixed';
   targetPercentile?: number;
 
+  // E082: New Hire Demographics
+  newHireAgeDistribution?: Array<{
+    age: number;
+    weight: number;
+    description: string;
+  }>;
+  levelDistributionMode?: 'adaptive' | 'fixed';
+  newHireLevelDistribution?: Array<{
+    level: number;
+    name: string;
+    percentage: number;
+  }>;
+
   // Turnover
   baseTurnoverRate?: number;
   regrettableFactor?: number;

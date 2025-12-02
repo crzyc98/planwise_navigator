@@ -87,6 +87,11 @@ employee_events_consolidated AS (
 
         -- Merit/raise events processing
         MAX(CASE WHEN event_type = 'raise' THEN compensation_amount END) AS merit_salary,
+        MAX(CASE WHEN event_type = 'raise' THEN previous_compensation END) AS merit_previous_salary,
+        -- E082 FIX: Calculate actual raise rate (includes merit + COLA) from event amounts
+        MAX(CASE WHEN event_type = 'raise' AND previous_compensation > 0
+            THEN (compensation_amount / previous_compensation) - 1.0
+            ELSE NULL END) AS merit_raise_rate,
         COUNT(CASE WHEN event_type = 'raise' THEN 1 END) > 0 AS has_merit,
 
         -- Enrollment events processing
@@ -152,6 +157,8 @@ workforce_after_promotions AS (
 ),
 
 -- Apply merit increases (using consolidated event data)
+-- E082 FIX: If employee was promoted AND got a merit raise, apply the raise rate to the promoted salary
+-- This fixes the compounding issue where merit was calculated on pre-promotion salary
 workforce_after_merit AS (
     SELECT
         w.employee_id,
@@ -159,7 +166,12 @@ workforce_after_merit AS (
         w.employee_birth_date,
         w.employee_hire_date,
         CASE
+            -- E082 FIX: Employee promoted AND got merit - apply raise rate to promoted salary
+            WHEN ec.has_promotion AND ec.has_merit AND ec.merit_raise_rate IS NOT NULL THEN
+                ROUND(w.employee_gross_compensation * (1 + COALESCE(ec.merit_raise_rate, 0)), 2)
+            -- Only merit (no promotion) - use pre-calculated merit salary
             WHEN ec.has_merit THEN ec.merit_salary
+            -- No merit - keep current compensation
             ELSE w.employee_gross_compensation
         END AS employee_gross_compensation,
         w.current_age,
@@ -846,29 +858,10 @@ final_output AS (
             ELSE prorated_annual_compensation  -- No upper cap - rely on compensation_quality_flag monitoring
         END AS prorated_annual_compensation,
         -- **E066 ANNUALIZATION FIX**: Full-year equivalent compensation without artificial caps
+        -- **E082 FIX**: Use current_compensation which now correctly compounds promotion + merit
         -- This eliminates proration-based dilution by calculating what each employee
         -- would earn if they worked the full year at their effective rates
-        CASE
-            -- For employees with merit increases: use the post-merit salary as full-year equivalent
-            WHEN merit_new_salary IS NOT NULL THEN
-                CASE
-                    WHEN merit_new_salary <= 0 THEN current_compensation
-                    ELSE merit_new_salary  -- No upper cap - preserve actual post-merit salary
-                END
-
-            -- For promoted employees: use post-promotion salary as full-year equivalent
-            WHEN promo_new_salary IS NOT NULL THEN
-                CASE
-                    WHEN promo_new_salary <= 0 THEN current_compensation
-                    ELSE promo_new_salary  -- No upper cap - preserve actual post-promotion salary
-                END
-
-            -- For new hires: use their hired salary as full-year equivalent
-            WHEN EXTRACT(YEAR FROM employee_hire_date) = simulation_year THEN current_compensation
-
-            -- For continuous employees: use current salary as full-year equivalent
-            ELSE current_compensation
-        END AS full_year_equivalent_compensation,
+        current_compensation AS full_year_equivalent_compensation,
         current_age,
         current_tenure,
         level_id,

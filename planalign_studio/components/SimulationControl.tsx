@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { useOutletContext, useNavigate } from 'react-router-dom';
+import { useOutletContext, useNavigate, useSearchParams } from 'react-router-dom';
 import { Play, Pause, Square, Activity, Cpu, Server, Clock, Database, AlertCircle, History, CheckCircle, XCircle, CircleDot, ExternalLink } from 'lucide-react';
 import { useSimulationSocket } from '../services/websocket';
 import { listScenarios, startSimulation, cancelSimulation, Scenario } from '../services/api';
@@ -12,11 +12,14 @@ interface LayoutContext {
 export default function SimulationControl() {
   const { activeWorkspace } = useOutletContext<LayoutContext>();
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
+  const scenarioIdFromUrl = searchParams.get('scenario');
 
   // Fetch scenarios from API
   const [scenarios, setScenarios] = useState<Scenario[]>([]);
   const [selectedScenarioId, setSelectedScenarioId] = useState<string>('');
   const [activeRunId, setActiveRunId] = useState<string | null>(null);
+  const [runningScenarioId, setRunningScenarioId] = useState<string | null>(null); // Track which scenario is actually running
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -31,7 +34,10 @@ export default function SimulationControl() {
         setError(null);
         const data = await listScenarios(activeWorkspace.id);
         setScenarios(data);
-        if (data.length > 0) {
+        // If scenario ID was passed in URL, use that; otherwise use first
+        if (scenarioIdFromUrl && data.some(s => s.id === scenarioIdFromUrl)) {
+          setSelectedScenarioId(scenarioIdFromUrl);
+        } else if (data.length > 0) {
           setSelectedScenarioId(data[0].id);
         } else {
           setSelectedScenarioId('');
@@ -45,13 +51,14 @@ export default function SimulationControl() {
     };
 
     loadScenarios();
-  }, [activeWorkspace.id]);
+  }, [activeWorkspace.id, scenarioIdFromUrl]);
 
   const handleStart = async () => {
     if (!selectedScenarioId) return;
     try {
       setError(null);
       const run = await startSimulation(selectedScenarioId);
+      setRunningScenarioId(selectedScenarioId); // Remember which scenario we started
       setActiveRunId(run.id);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to start simulation');
@@ -73,8 +80,9 @@ export default function SimulationControl() {
     if (telemetry?.current_stage === 'COMPLETED' || telemetry?.progress === 100) {
       // Give a moment to show 100% completion, then navigate to detail page
       const timer = setTimeout(() => {
-        const completedScenarioId = selectedScenarioId;
+        const completedScenarioId = runningScenarioId; // Use the scenario that was actually started
         setActiveRunId(null);
+        setRunningScenarioId(null);
         // Navigate to the simulation detail page to see results
         if (completedScenarioId) {
           navigate(`/simulate/${completedScenarioId}`);
@@ -82,7 +90,7 @@ export default function SimulationControl() {
       }, 2000);
       return () => clearTimeout(timer);
     }
-  }, [telemetry?.current_stage, telemetry?.progress, selectedScenarioId, navigate]);
+  }, [telemetry?.current_stage, telemetry?.progress, runningScenarioId, navigate]);
 
   // Map telemetry to legacy status format for compatibility
   const isCompleted = telemetry?.current_stage === 'COMPLETED' || telemetry?.progress === 100;
@@ -406,6 +414,7 @@ export default function SimulationControl() {
                             setError(null);
                             const run = await startSimulation(scenario.id);
                             setSelectedScenarioId(scenario.id);
+                            setRunningScenarioId(scenario.id); // Remember which scenario we started
                             setActiveRunId(run.id);
                             window.scrollTo({ top: 0, behavior: 'smooth' });
                           } catch (err) {

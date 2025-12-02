@@ -65,6 +65,9 @@ class EventFactoryConfig:
     # Database path (for batch mode scenario isolation)
     database_path: Optional[Path] = None  # If None, uses get_database_path()
 
+    # Compensation settings
+    promotion_rate_multiplier: float = 1.0  # Multiplier for base promotion rates (1.0 = seed defaults)
+
     def __post_init__(self):
         """Validate configuration after initialization."""
         if self.start_year > self.end_year:
@@ -816,6 +819,8 @@ class PolarsEventGenerator:
     def generate_promotion_events(self, cohort: pl.DataFrame, simulation_year: int) -> pl.DataFrame:
         """Generate promotion events for eligible employees."""
         base_promotion_rate = self._get_parameter('PROMOTION', 'promotion_probability', default=0.08)
+        # Apply promotion rate multiplier from config (E082)
+        effective_promotion_rate = base_promotion_rate * self.config.promotion_rate_multiplier
         salary_increase = self._get_parameter('PROMOTION', 'promotion_raise', default=0.15)
 
         promotions = cohort.filter(
@@ -823,8 +828,8 @@ class PolarsEventGenerator:
             pl.col('employee_hire_date').is_not_null() &
             (pl.col('tenure_months') >= 12) &  # Minimum 1 year tenure
             (pl.col('level_id') < 5) &  # Can't promote beyond level 5
-            # Apply promotion probability
-            (pl.col('u_promotion') < base_promotion_rate)
+            # Apply promotion probability (with E082 multiplier applied)
+            (pl.col('u_promotion') < effective_promotion_rate)
         ).with_columns([
             pl.lit('promotion').alias('event_type'),
             pl.lit('compensation').alias('event_category'),
@@ -851,7 +856,7 @@ class PolarsEventGenerator:
                 pl.lit('}')
             ]).alias('event_payload'),
             pl.lit(simulation_year).cast(pl.Int64).alias('simulation_year'),
-            pl.lit(base_promotion_rate).alias('event_probability'),
+            pl.lit(effective_promotion_rate).alias('event_probability'),
             # Add compensation fields
             (pl.col('salary') * (1 + salary_increase)).round(2).alias('compensation_amount'),
             pl.col('salary').alias('previous_compensation'),
