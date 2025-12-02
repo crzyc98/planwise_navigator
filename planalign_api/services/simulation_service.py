@@ -8,15 +8,91 @@ import psutil
 import re
 import subprocess
 import sys
+from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime
 from pathlib import Path
-from typing import Any, Dict, List, Optional
+from typing import Any, AsyncIterator, Dict, List, Optional, Tuple
 
 import yaml
 
-# Windows requires ProactorEventLoop for subprocess support
-if platform.system() == "Windows":
-    asyncio.set_event_loop_policy(asyncio.WindowsProactorEventLoopPolicy())
+# Thread pool for Windows subprocess I/O
+_subprocess_executor = ThreadPoolExecutor(max_workers=4, thread_name_prefix="subprocess_io")
+
+IS_WINDOWS = platform.system() == "Windows"
+
+
+async def _create_subprocess(
+    cmd: List[str],
+    cwd: str,
+    env: Dict[str, str],
+) -> Tuple[Any, AsyncIterator[bytes]]:
+    """
+    Create a subprocess in a cross-platform way.
+
+    On Windows, uses subprocess.Popen with threaded I/O to avoid
+    asyncio event loop issues. On Unix, uses asyncio.create_subprocess_exec.
+
+    Returns:
+        Tuple of (process, async_line_iterator)
+    """
+    if IS_WINDOWS:
+        # On Windows, use Popen + thread-based async reading
+        # This is more reliable than asyncio subprocess on Windows
+        process = subprocess.Popen(
+            cmd,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.STDOUT,
+            cwd=cwd,
+            env=env,
+            bufsize=1,  # Line buffered
+        )
+
+        async def read_lines() -> AsyncIterator[bytes]:
+            """Read lines from process stdout using thread pool."""
+            loop = asyncio.get_event_loop()
+            while True:
+                line = await loop.run_in_executor(
+                    _subprocess_executor,
+                    process.stdout.readline
+                )
+                if not line:
+                    break
+                yield line
+
+        return process, read_lines()
+    else:
+        # On Unix, asyncio subprocess works fine
+        process = await asyncio.create_subprocess_exec(
+            *cmd,
+            stdout=asyncio.subprocess.PIPE,
+            stderr=asyncio.subprocess.STDOUT,
+            cwd=cwd,
+            env=env,
+        )
+
+        async def read_lines() -> AsyncIterator[bytes]:
+            """Read lines from asyncio subprocess."""
+            async for line in process.stdout:
+                yield line
+
+        return process, read_lines()
+
+
+async def _wait_subprocess(process: Any) -> int:
+    """
+    Wait for subprocess to complete in a cross-platform way.
+
+    Returns:
+        Exit code of the process
+    """
+    if IS_WINDOWS:
+        # For Popen, use thread pool to avoid blocking
+        loop = asyncio.get_event_loop()
+        return await loop.run_in_executor(_subprocess_executor, process.wait)
+    else:
+        # For asyncio subprocess, use await
+        return await process.wait()
+
 
 from ..models.simulation import (
     PerformanceMetrics,
@@ -206,11 +282,9 @@ cli_main()
                 "COLUMNS": "200",
             }
 
-            # Run the simulation as a subprocess
-            process = await asyncio.create_subprocess_exec(
-                *cmd,
-                stdout=asyncio.subprocess.PIPE,
-                stderr=asyncio.subprocess.STDOUT,
+            # Run the simulation as a subprocess (cross-platform)
+            process, line_iterator = await _create_subprocess(
+                cmd=cmd,
                 cwd=str(project_root),
                 env=env,
             )
@@ -235,7 +309,7 @@ cli_main()
                     return 0.0
 
             # Parse output for progress updates
-            async for line in process.stdout:
+            async for line in line_iterator:
                 if run_id in self._cancelled_runs:
                     process.terminate()
                     logger.info(f"Simulation {run_id} cancelled")
@@ -338,8 +412,8 @@ cli_main()
                     recent_events=recent_events,
                 )
 
-            # Wait for process to complete
-            return_code = await process.wait()
+            # Wait for process to complete (cross-platform)
+            return_code = await _wait_subprocess(process)
 
             if run_id in self._active_processes:
                 del self._active_processes[run_id]
