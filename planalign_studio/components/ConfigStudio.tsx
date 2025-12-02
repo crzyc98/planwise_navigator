@@ -1,6 +1,6 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react';
 import { Save, AlertTriangle, FileText, Settings, HelpCircle, TrendingUp, Users, DollarSign, Zap, Server, Shield, PieChart, Database, Upload, Check, X, ArrowLeft, Target, Sparkles, Play } from 'lucide-react';
-import { useNavigate, useOutletContext, useParams } from 'react-router-dom';
+import { useNavigate, useOutletContext, useParams, useBlocker } from 'react-router-dom';
 import { LayoutContextType } from './Layout';
 import { updateWorkspace as apiUpdateWorkspace, getScenario, updateScenario, Scenario, uploadCensusFile, validateFilePath, listTemplates, Template, analyzeAgeDistribution, analyzeCompensation, CompensationAnalysis, solveCompensationGrowth, CompensationSolverResponse } from '../services/api';
 
@@ -393,6 +393,9 @@ export default function ConfigStudio() {
   const [saveStatus, setSaveStatus] = useState<'idle' | 'saving' | 'success' | 'error'>('idle');
   const [saveMessage, setSaveMessage] = useState('');
 
+  // Track saved state for dirty detection (Option 3: Persist Draft + Warn on Page Leave)
+  const [savedFormData, setSavedFormData] = useState<typeof formData | null>(null);
+
 
   // Load scenario if scenarioId is provided
   useEffect(() => {
@@ -612,6 +615,117 @@ export default function ConfigStudio() {
     }));
   }, [activeWorkspace?.base_config]);
 
+  // Initialize savedFormData when form is loaded (marks current state as "saved")
+  useEffect(() => {
+    // Only set savedFormData once we have loaded data and it hasn't been set yet
+    if (savedFormData === null && (activeWorkspace?.base_config || currentScenario?.config_overrides)) {
+      setSavedFormData({ ...formData });
+    }
+  }, [formData, activeWorkspace?.base_config, currentScenario?.config_overrides, savedFormData]);
+
+  // Compute isDirty by comparing current formData with savedFormData
+  const isDirty = useMemo(() => {
+    if (!savedFormData) return false;
+    return JSON.stringify(formData) !== JSON.stringify(savedFormData);
+  }, [formData, savedFormData]);
+
+  // Compute which sections have unsaved changes (for dirty indicators on tabs)
+  const dirtySections = useMemo(() => {
+    if (!savedFormData) return new Set<string>();
+
+    const dirty = new Set<string>();
+
+    // Simulation section fields
+    if (formData.name !== savedFormData.name ||
+        formData.startYear !== savedFormData.startYear ||
+        formData.endYear !== savedFormData.endYear ||
+        formData.seed !== savedFormData.seed ||
+        formData.targetGrowthRate !== savedFormData.targetGrowthRate) {
+      dirty.add('simulation');
+    }
+
+    // Data sources section
+    if (formData.censusDataPath !== savedFormData.censusDataPath) {
+      dirty.add('datasources');
+    }
+
+    // Compensation section
+    if (formData.meritBudget !== savedFormData.meritBudget ||
+        formData.colaRate !== savedFormData.colaRate ||
+        formData.promoIncrease !== savedFormData.promoIncrease ||
+        formData.promoDistributionRange !== savedFormData.promoDistributionRange ||
+        formData.promoBudget !== savedFormData.promoBudget ||
+        formData.promoRateMultiplier !== savedFormData.promoRateMultiplier) {
+      dirty.add('compensation');
+    }
+
+    // New hire section
+    if (formData.newHireStrategy !== savedFormData.newHireStrategy ||
+        formData.targetPercentile !== savedFormData.targetPercentile ||
+        formData.newHireCompVariance !== savedFormData.newHireCompVariance ||
+        formData.levelDistributionMode !== savedFormData.levelDistributionMode ||
+        formData.marketScenario !== savedFormData.marketScenario ||
+        JSON.stringify(formData.newHireAgeDistribution) !== JSON.stringify(savedFormData.newHireAgeDistribution) ||
+        JSON.stringify(formData.newHireLevelDistribution) !== JSON.stringify(savedFormData.newHireLevelDistribution) ||
+        JSON.stringify(formData.jobLevelCompensation) !== JSON.stringify(savedFormData.jobLevelCompensation) ||
+        JSON.stringify(formData.levelMarketAdjustments) !== JSON.stringify(savedFormData.levelMarketAdjustments)) {
+      dirty.add('newhire');
+    }
+
+    // Turnover section
+    if (formData.totalTerminationRate !== savedFormData.totalTerminationRate ||
+        formData.newHireTerminationRate !== savedFormData.newHireTerminationRate ||
+        formData.baseTurnoverRate !== savedFormData.baseTurnoverRate ||
+        formData.regrettableFactor !== savedFormData.regrettableFactor ||
+        formData.involuntaryRate !== savedFormData.involuntaryRate ||
+        JSON.stringify(formData.turnoverBands) !== JSON.stringify(savedFormData.turnoverBands)) {
+      dirty.add('turnover');
+    }
+
+    // DC Plan section
+    if (formData.dcEligibilityMonths !== savedFormData.dcEligibilityMonths ||
+        formData.dcAutoEnroll !== savedFormData.dcAutoEnroll ||
+        formData.dcDefaultDeferral !== savedFormData.dcDefaultDeferral ||
+        formData.dcMatchFormula !== savedFormData.dcMatchFormula ||
+        formData.dcMatchPercent !== savedFormData.dcMatchPercent ||
+        formData.dcMatchLimit !== savedFormData.dcMatchLimit ||
+        formData.dcVestingSchedule !== savedFormData.dcVestingSchedule ||
+        formData.dcAutoEscalation !== savedFormData.dcAutoEscalation ||
+        formData.dcEscalationRate !== savedFormData.dcEscalationRate ||
+        formData.dcEscalationCap !== savedFormData.dcEscalationCap) {
+      dirty.add('dcplan');
+    }
+
+    // Advanced section
+    if (formData.engine !== savedFormData.engine ||
+        formData.enableMultithreading !== savedFormData.enableMultithreading ||
+        formData.checkpointFrequency !== savedFormData.checkpointFrequency ||
+        formData.memoryLimitGB !== savedFormData.memoryLimitGB ||
+        formData.logLevel !== savedFormData.logLevel ||
+        formData.strictValidation !== savedFormData.strictValidation) {
+      dirty.add('advanced');
+    }
+
+    return dirty;
+  }, [formData, savedFormData]);
+
+  // Warn user when leaving page with unsaved changes (browser refresh/close)
+  useEffect(() => {
+    const handleBeforeUnload = (e: BeforeUnloadEvent) => {
+      if (isDirty) {
+        e.preventDefault();
+        e.returnValue = ''; // Chrome requires returnValue to be set
+        return '';
+      }
+    };
+
+    window.addEventListener('beforeunload', handleBeforeUnload);
+    return () => window.removeEventListener('beforeunload', handleBeforeUnload);
+  }, [isDirty]);
+
+  // Block React Router navigation when there are unsaved changes
+  const blocker = useBlocker(isDirty);
+
   // Handle save configuration
   const handleSaveConfig = async () => {
     setSaveStatus('saving');
@@ -716,6 +830,9 @@ export default function ConfigStudio() {
       setSaveStatus('success');
       setSaveMessage('Configuration saved successfully!');
 
+      // Update savedFormData to reflect the new saved state (clears dirty indicators)
+      setSavedFormData({ ...formData });
+
       // Reset status after 3 seconds
       setTimeout(() => {
         setSaveStatus('idle');
@@ -804,6 +921,8 @@ export default function ConfigStudio() {
                  ? 'bg-gray-400 cursor-not-allowed'
                  : saveStatus === 'success'
                  ? 'bg-green-600 hover:bg-green-700'
+                 : isDirty
+                 ? 'bg-amber-600 hover:bg-amber-700 ring-2 ring-amber-300'
                  : 'bg-fidelity-green hover:bg-fidelity-dark'
              }`}
            >
@@ -816,6 +935,11 @@ export default function ConfigStudio() {
                <>
                  <Check size={18} className="mr-2" />
                  Saved!
+               </>
+             ) : isDirty ? (
+               <>
+                 <Save size={18} className="mr-2" />
+                 Save Changes
                </>
              ) : (
                <>
@@ -854,14 +978,19 @@ export default function ConfigStudio() {
                 <button
                   key={item.id}
                   onClick={() => setActiveSection(item.id)}
-                  className={`w-full text-left px-3 py-3 rounded-md text-sm font-medium transition-colors flex items-center ${
+                  className={`w-full text-left px-3 py-3 rounded-md text-sm font-medium transition-colors flex items-center justify-between ${
                     activeSection === item.id
                       ? 'bg-white text-fidelity-green shadow-sm border border-gray-200'
                       : 'text-gray-600 hover:bg-gray-100 hover:text-gray-900'
                   }`}
                 >
-                  <item.icon size={16} className={`mr-3 ${activeSection === item.id ? 'text-fidelity-green' : 'text-gray-400'}`} />
-                  {item.label}
+                  <span className="flex items-center">
+                    <item.icon size={16} className={`mr-3 ${activeSection === item.id ? 'text-fidelity-green' : 'text-gray-400'}`} />
+                    {item.label}
+                  </span>
+                  {dirtySections.has(item.id) && (
+                    <span className="w-2 h-2 bg-amber-500 rounded-full" title="Unsaved changes" />
+                  )}
                 </button>
              ))}
           </nav>
@@ -2106,6 +2235,52 @@ export default function ConfigStudio() {
           </div>
         </div>
       </div>
+
+      {/* Unsaved Changes Confirmation Modal */}
+      {blocker.state === 'blocked' && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-white rounded-xl shadow-2xl max-w-md w-full mx-4 overflow-hidden">
+            <div className="p-6">
+              <div className="flex items-center mb-4">
+                <div className="w-10 h-10 bg-amber-100 rounded-full flex items-center justify-center mr-3">
+                  <AlertTriangle className="w-5 h-5 text-amber-600" />
+                </div>
+                <h3 className="text-lg font-semibold text-gray-900">Unsaved Changes</h3>
+              </div>
+              <p className="text-gray-600 mb-2">
+                You have unsaved changes in {dirtySections.size} section{dirtySections.size !== 1 ? 's' : ''}:
+              </p>
+              <ul className="text-sm text-gray-500 mb-4 ml-4 list-disc">
+                {Array.from(dirtySections).map(section => (
+                  <li key={section} className="capitalize">
+                    {section === 'newhire' ? 'New Hire Strategy' :
+                     section === 'dcplan' ? 'DC Plan' :
+                     section === 'datasources' ? 'Data Sources' :
+                     section.charAt(0).toUpperCase() + section.slice(1)}
+                  </li>
+                ))}
+              </ul>
+              <p className="text-gray-600">
+                Are you sure you want to leave? Your changes will be lost.
+              </p>
+            </div>
+            <div className="px-6 py-4 bg-gray-50 flex justify-end space-x-3">
+              <button
+                onClick={() => blocker.reset?.()}
+                className="px-4 py-2 text-gray-700 hover:bg-gray-200 rounded-lg transition-colors font-medium"
+              >
+                Stay on Page
+              </button>
+              <button
+                onClick={() => blocker.proceed?.()}
+                className="px-4 py-2 bg-red-600 hover:bg-red-700 text-white rounded-lg transition-colors font-medium"
+              >
+                Leave Without Saving
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Template Selection Modal */}
       {showTemplateModal && (
