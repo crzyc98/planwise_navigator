@@ -1,66 +1,8 @@
-import React, { useState, useEffect, useRef, useMemo, useCallback, useContext } from 'react';
+import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react';
 import { Save, AlertTriangle, FileText, Settings, HelpCircle, TrendingUp, Users, DollarSign, Zap, Server, Shield, PieChart, Database, Upload, Check, X, ArrowLeft, Target, Sparkles, Play } from 'lucide-react';
-import { useNavigate, useOutletContext, useParams, useBlocker, UNSAFE_DataRouterContext } from 'react-router-dom';
+import { useNavigate, useOutletContext, useParams } from 'react-router-dom';
 import { LayoutContextType } from './Layout';
 import { updateWorkspace as apiUpdateWorkspace, getScenario, updateScenario, Scenario, uploadCensusFile, validateFilePath, listTemplates, Template, analyzeAgeDistribution, analyzeCompensation, CompensationAnalysis, solveCompensationGrowth, CompensationSolverResponse } from '../services/api';
-
-// Navigation blocker component - only rendered when in a data router context
-// This prevents useBlocker from throwing when using <BrowserRouter>
-interface NavigationBlockerProps {
-  isDirty: boolean;
-  dirtySections: Set<string>;
-}
-
-function NavigationBlocker({ isDirty, dirtySections }: NavigationBlockerProps) {
-  const blocker = useBlocker(isDirty);
-
-  if (blocker.state !== 'blocked') return null;
-
-  return (
-    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-      <div className="bg-white rounded-xl shadow-2xl max-w-md w-full mx-4 overflow-hidden">
-        <div className="p-6">
-          <div className="flex items-center mb-4">
-            <div className="w-10 h-10 bg-amber-100 rounded-full flex items-center justify-center mr-3">
-              <AlertTriangle className="w-5 h-5 text-amber-600" />
-            </div>
-            <h3 className="text-lg font-semibold text-gray-900">Unsaved Changes</h3>
-          </div>
-          <p className="text-gray-600 mb-2">
-            You have unsaved changes in {dirtySections.size} section{dirtySections.size !== 1 ? 's' : ''}:
-          </p>
-          <ul className="text-sm text-gray-500 mb-4 ml-4 list-disc">
-            {Array.from(dirtySections).map(section => (
-              <li key={section} className="capitalize">
-                {section === 'newhire' ? 'New Hire Strategy' :
-                 section === 'dcplan' ? 'DC Plan' :
-                 section === 'datasources' ? 'Data Sources' :
-                 section.charAt(0).toUpperCase() + section.slice(1)}
-              </li>
-            ))}
-          </ul>
-          <p className="text-gray-600">
-            Are you sure you want to leave? Your changes will be lost.
-          </p>
-        </div>
-        <div className="px-6 py-4 bg-gray-50 flex justify-end space-x-3">
-          <button
-            onClick={() => blocker.reset?.()}
-            className="px-4 py-2 text-gray-700 hover:bg-gray-200 rounded-lg transition-colors font-medium"
-          >
-            Stay on Page
-          </button>
-          <button
-            onClick={() => blocker.proceed?.()}
-            className="px-4 py-2 bg-red-600 hover:bg-red-700 text-white rounded-lg transition-colors font-medium"
-          >
-            Leave Without Saving
-          </button>
-        </div>
-      </div>
-    </div>
-  );
-}
 
 // InputField component defined OUTSIDE ConfigStudio to prevent re-creation on every render
 interface InputFieldProps {
@@ -780,9 +722,6 @@ export default function ConfigStudio() {
     window.addEventListener('beforeunload', handleBeforeUnload);
     return () => window.removeEventListener('beforeunload', handleBeforeUnload);
   }, [isDirty]);
-
-  // Check if we're in a data router context (for conditional NavigationBlocker rendering)
-  const dataRouterContext = useContext(UNSAFE_DataRouterContext);
 
   // Handle save configuration
   const handleSaveConfig = async () => {
@@ -2293,11 +2232,6 @@ export default function ConfigStudio() {
           </div>
         </div>
       </div>
-
-      {/* Navigation Blocker - only rendered in data router context */}
-      {dataRouterContext && (
-        <NavigationBlocker isDirty={isDirty} dirtySections={dirtySections} />
-      )}
 
       {/* Template Selection Modal */}
       {showTemplateModal && (
