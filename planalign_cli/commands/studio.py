@@ -125,14 +125,16 @@ def launch_studio(
             api_env = os.environ.copy()
             api_env["PLANALIGN_API_PORT"] = str(api_port)
 
-            # On Windows, use our wrapper module that sets ProactorEventLoop
+            # On Windows, use planalign_api.run which sets ProactorEventLoop
             # before uvicorn creates its event loop (required for subprocess support)
             if sys.platform == "win32":
                 api_cmd = [
                     sys.executable,
-                    "-c",
-                    f"import asyncio; asyncio.set_event_loop_policy(asyncio.WindowsProactorEventLoopPolicy()); "
-                    f"import uvicorn; uvicorn.run('planalign_api.main:app', host='0.0.0.0', port={api_port}, reload=True)",
+                    "-m",
+                    "planalign_api.run",
+                    "--host", "0.0.0.0",
+                    "--port", str(api_port),
+                    "--reload",
                 ]
             else:
                 api_cmd = [
@@ -140,10 +142,8 @@ def launch_studio(
                     "-m",
                     "uvicorn",
                     "planalign_api.main:app",
-                    "--host",
-                    "0.0.0.0",
-                    "--port",
-                    str(api_port),
+                    "--host", "0.0.0.0",
+                    "--port", str(api_port),
                     "--reload",
                 ]
 
