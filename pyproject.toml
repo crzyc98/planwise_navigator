@@ -41,6 +41,13 @@ dependencies = [
     "rich>=13.0.0",
     "typer>=0.9.0",
     "inquirer>=3.1.0",
+
+    # API dependencies for PlanAlign Studio backend
+    "fastapi>=0.109.0",
+    "uvicorn[standard]>=0.27.0",
+    "pydantic-settings>=2.1.0",
+    "python-multipart>=0.0.6",
+    "websockets>=12.0",
 ]
 
 [project.optional-dependencies]
@@ -87,6 +94,12 @@ packages = [
     "planalign_cli.integration",
     "planalign_cli.ui",
     "planalign_cli.utils",
+    "planalign_api",
+    "planalign_api.models",
+    "planalign_api.routers",
+    "planalign_api.services",
+    "planalign_api.storage",
+    "planalign_api.websocket",
     "config",
 ]
 py-modules = ["_version"]
