@@ -13,6 +13,14 @@ import psutil
 
 from planalign_orchestrator.config import get_database_path
 
+# Re-export config fixtures for pytest discovery
+from tests.fixtures.config import (
+    minimal_config,
+    single_threaded_config,
+    multi_threaded_config,
+    golden_config,
+)
+
 
 @pytest.fixture(scope="session")
 def test_database() -> Generator[Path, None, None]:
