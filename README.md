@@ -22,6 +22,7 @@ This enterprise-grade platform replaces legacy Pandas-based pipelines with an im
 - **Enterprise Security**: Zero cloud dependencies, comprehensive audit logging
 - **Reproducible Results**: Random seed control for identical simulation outcomes
 - **Scalable Performance**: Handle 100K+ employee records with minimal memory footprint
+- **Workspace Cloud Sync**: Git-based synchronization for cross-device access and team collaboration
 
 ### PlanAlign Orchestrator
 
@@ -60,6 +61,7 @@ Enterprise-grade orchestration engine with modular architecture:
 | **Web Studio** | FastAPI + React/Vite | 0.1.0 | Modern web-based scenario management |
 | **Dashboard** | Streamlit | 1.39.0 | Interactive analytics interface |
 | **Configuration** | Pydantic | 2.7.4 | Type-safe parameter management |
+| **Git Sync** | GitPython | 3.1.0+ | Workspace cloud synchronization |
 | **Python** | CPython | 3.11.x | Long-term support version |
 
 ## Architecture
@@ -107,12 +109,15 @@ planalign_engine/
 ├── planalign_cli/                     # CLI interface (Rich + Typer)
 │   ├── main.py                       # planwise command entry point
 │   ├── commands/                     # CLI commands
-│   │   └── studio.py                # Launch API + frontend servers
+│   │   ├── studio.py                # Launch API + frontend servers
+│   │   └── sync.py                  # Workspace cloud sync commands (E083)
 │   └── integration/                  # Orchestrator integration
 ├── planalign_api/                     # FastAPI backend for PlanAlign Studio
 │   ├── main.py                       # FastAPI application entry point
 │   ├── routers/                      # API route handlers
+│   │   └── sync.py                  # Sync API endpoints (E083)
 │   ├── services/                     # Business logic services
+│   │   └── sync_service.py          # Git-based sync service (E083)
 │   └── websocket/                    # Real-time telemetry handlers
 ├── planalign_studio/                  # React/Vite frontend
 │   ├── components/                   # React components
@@ -354,6 +359,13 @@ planalign studio --no-browser         # Start without opening browser
 planalign studio --api-only           # Start only the API backend
 planalign studio --frontend-only      # Start only the frontend
 planalign studio -v                   # Verbose output from servers
+
+# Workspace cloud sync (E083) - sync workspaces across devices via Git
+planalign sync init git@github.com:user/planalign-workspaces.git
+planalign sync push -m "Added Q4 projections"
+planalign sync pull
+planalign sync status
+planalign sync log
 ```
 
 #### Option 2: Launch PlanAlign Studio (Web Interface)
@@ -806,6 +818,30 @@ Transformed test suite into enterprise-grade infrastructure:
 **Developer Experience**: In-memory databases (<0.01s setup), automatic marker application, clear test organization
 
 **Documentation**: `docs/epics/E075_COMPLETION_SUMMARY.md`, `tests/TEST_INFRASTRUCTURE.md`
+
+### Epic E083: Workspace Cloud Synchronization ✅ Complete (Dec 3, 2025)
+**Impact**: Cross-device workspace access via Git
+
+Enables Git-based synchronization for PlanAlign workspaces:
+- **Cross-device access**: Access workspace configurations from any machine
+- **Version control**: Track scenario evolution with meaningful commit history
+- **Selective sync**: Syncs metadata only (~50-200KB), excludes large DuckDB/Excel files
+- **Team collaboration**: Share workspaces via Git repositories (GitHub, GitLab, etc.)
+- **Offline-first**: Work locally without network; sync when convenient
+
+**CLI Commands**:
+```bash
+planalign sync init git@github.com:user/planalign-workspaces.git
+planalign sync push -m "Added Q4 projections"
+planalign sync pull
+planalign sync status
+planalign sync log
+planalign sync disconnect
+```
+
+**API Endpoints**: `/api/sync/status`, `/api/sync/push`, `/api/sync/pull`, `/api/sync/init`
+
+**Documentation**: `docs/epics/E083_workspace_cloud_sync.md`
 
 ---
 
