@@ -32,6 +32,15 @@ from .batch import (
     BatchScenario,
     BatchCreate,
 )
+from .sync import (
+    SyncConfig,
+    SyncStatus,
+    SyncLogEntry,
+    SyncPushResult,
+    SyncPullResult,
+    SyncInitRequest,
+    WorkspaceSyncInfo,
+)
 
 __all__ = [
     # Workspace
@@ -60,4 +69,12 @@ __all__ = [
     "BatchJob",
     "BatchScenario",
     "BatchCreate",
+    # Sync
+    "SyncConfig",
+    "SyncStatus",
+    "SyncLogEntry",
+    "SyncPushResult",
+    "SyncPullResult",
+    "SyncInitRequest",
+    "WorkspaceSyncInfo",
 ]

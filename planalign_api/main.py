@@ -30,6 +30,7 @@ from .routers import (
     files_router,
     templates_router,
 )
+from .routers.sync import router as sync_router
 from .websocket.handlers import simulation_websocket, batch_websocket
 
 # Configure logging to show in console
@@ -89,6 +90,7 @@ def create_app() -> FastAPI:
     app.include_router(comparison_router, prefix="/api/workspaces", tags=["Comparison"])
     app.include_router(files_router, prefix="/api/workspaces", tags=["Files"])
     app.include_router(templates_router, prefix="/api/templates", tags=["Templates"])
+    app.include_router(sync_router, prefix="/api", tags=["Sync"])
 
     # WebSocket endpoints
     @app.websocket("/ws/simulation/{run_id}")
