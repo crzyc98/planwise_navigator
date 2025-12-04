@@ -24,6 +24,14 @@ from .commands.validate import validate_command
 from .commands.checkpoint import checkpoint_command
 from .commands.analyze import analyze_command
 from .commands.studio import launch_studio
+from .commands.sync import (
+    sync_init,
+    sync_push,
+    sync_pull,
+    sync_status as sync_status_cmd,
+    sync_log,
+    sync_disconnect,
+)
 
 # Initialize Rich console
 console = Console()
@@ -255,6 +263,74 @@ def studio(
         no_browser=no_browser,
         verbose=verbose,
     )
+
+
+# Sync commands - workspace cloud synchronization (E083)
+sync_app = typer.Typer(
+    name="sync",
+    help="Workspace cloud synchronization (Git-based)",
+    no_args_is_help=True,
+)
+
+@sync_app.command("init")
+def sync_init_cmd(
+    remote_url: str = typer.Argument(
+        ...,
+        help="Git remote URL (e.g., git@github.com:user/planalign-workspaces.git)"
+    ),
+    branch: str = typer.Option(
+        "main",
+        "--branch", "-b",
+        help="Branch to use for sync"
+    ),
+    auto_sync: bool = typer.Option(
+        False,
+        "--auto-sync",
+        help="Enable automatic sync on changes"
+    ),
+):
+    """Initialize workspace sync with a Git remote."""
+    sync_init(remote_url=remote_url, branch=branch, auto_sync=auto_sync)
+
+@sync_app.command("push")
+def sync_push_cmd(
+    message: Optional[str] = typer.Option(
+        None,
+        "--message", "-m",
+        help="Custom commit message"
+    ),
+):
+    """Push local workspace changes to remote."""
+    sync_push(message=message)
+
+@sync_app.command("pull")
+def sync_pull_cmd():
+    """Pull remote changes to local workspaces."""
+    sync_pull()
+
+@sync_app.command("status")
+def sync_status_command():
+    """Show current sync status."""
+    sync_status_cmd()
+
+@sync_app.command("log")
+def sync_log_cmd(
+    limit: int = typer.Option(
+        20,
+        "--limit", "-n",
+        help="Number of log entries to show"
+    ),
+):
+    """Show sync operation history."""
+    sync_log(limit=limit)
+
+@sync_app.command("disconnect")
+def sync_disconnect_cmd():
+    """Disconnect sync from remote."""
+    sync_disconnect()
+
+# Add sync subcommand to main app
+app.add_typer(sync_app, name="sync")
 
 
 def cli_main():
