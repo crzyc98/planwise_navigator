@@ -552,11 +552,11 @@ planalign checkpoints status          # Recovery recommendations
 - ✅ **E080**: Validation Model to Test Conversion - Converted 30 validation models to dbt tests, 90 passing tests, removed legacy validation code
 - ✅ **E073**: Config Module Refactoring - Split 1,471-line config.py into 7 focused modules
 - ✅ **E076**: Polars State Accumulation Pipeline - 60-75% performance improvement achieved
+- ✅ **E082**: Configurable New Hire Demographics - Age/level distribution via seeds + UI
 
 ### **Planned / Available**
 
-- 🔧 **Fix 8 failing tests on main** - Pre-existing test failures need attention
-- 📋 **E082**: Configurable New Hire Demographics - Ready for implementation
+- 🔧 **Fix 8 failing tests on main** - ✅ Fixed (114 tests now passing)
 
 ### **Blocked**
 
