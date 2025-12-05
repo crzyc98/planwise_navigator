@@ -1,35 +1,35 @@
-#!/usr/bin/env python3
-"""
-Backward compatibility wrapper for configuration module.
+"""Configuration module for PlanAlign Engine.
 
 E073: Config Module Refactoring
 
-This file maintains backward compatibility with existing imports.
-All configuration models and functions have been moved to the config/ submodule.
+This module provides a clean, modular configuration system. All models and
+functions are re-exported here for backward compatibility with existing imports.
 
-New code should import from planalign_orchestrator.config instead:
-
-    from planalign_orchestrator.config import (
-        SimulationConfig,
-        load_simulation_config,
-        to_dbt_vars,
-    )
-
-This wrapper will be removed in a future version.
+Submodules:
+    - paths: Project root and database path utilities
+    - simulation: Simulation and compensation settings
+    - workforce: Workforce, enrollment, eligibility settings
+    - performance: Threading, optimization, Polars settings
+    - safety: Production safety and OrchestrationConfig
+    - loader: SimulationConfig and config loading functions
+    - export: to_dbt_vars and helper functions
 """
 
-from __future__ import annotations
-
-# Re-export everything from the new config module for backward compatibility
-from planalign_orchestrator.config import (
-    # Paths
+# Path utilities
+from .paths import (
     get_project_root,
     get_database_path,
-    # Simulation
+)
+
+# Simulation settings
+from .simulation import (
     SimulationSettings,
     CompensationSettings,
     PromotionCompensationSettings,
-    # Workforce
+)
+
+# Workforce settings
+from .workforce import (
     WorkforceSettings,
     OptOutRatesByAge,
     OptOutRatesByIncome,
@@ -42,7 +42,10 @@ from planalign_orchestrator.config import (
     PlanEligibilitySettings,
     EmployerMatchEligibilitySettings,
     EmployerMatchSettings,
-    # Performance
+)
+
+# Performance settings
+from .performance import (
     AdaptiveMemoryThresholds,
     AdaptiveBatchSizes,
     AdaptiveMemorySettings,
@@ -56,16 +59,25 @@ from planalign_orchestrator.config import (
     EventGenerationSettings,
     E068CThreadingSettings,
     OptimizationSettings,
-    # Safety
+)
+
+# Safety settings
+from .safety import (
     ProductionSafetySettings,
     OrchestrationConfig,
     validate_production_configuration,
     get_backup_configuration,
-    # Loader
+)
+
+# Loader functions
+from .loader import (
     SimulationConfig,
     load_simulation_config,
     load_orchestration_config,
-    # Export
+)
+
+# Export functions
+from .export import (
     to_dbt_vars,
     _export_simulation_vars,
     _export_enrollment_vars,

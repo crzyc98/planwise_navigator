@@ -13,6 +13,14 @@ import pytest
 # Import shared utilities
 from tests.utils import *
 
+# Import config fixtures for pytest discovery
+from tests.fixtures.config import (
+    minimal_config,
+    single_threaded_config,
+    multi_threaded_config,
+    golden_config,
+)
+
 
 def pytest_configure(config):
     """Configure pytest with custom markers."""
