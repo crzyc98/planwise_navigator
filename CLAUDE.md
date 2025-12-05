@@ -551,15 +551,12 @@ planalign checkpoints status          # Recovery recommendations
 - ✅ **E078**: Cohort Pipeline Integration - Polars event factory, multi-year termination fixes
 - ✅ **E080**: Validation Model to Test Conversion - Converted 30 validation models to dbt tests, 90 passing tests, removed legacy validation code
 - ✅ **E073**: Config Module Refactoring - Split 1,471-line config.py into 7 focused modules
+- ✅ **E076**: Polars State Accumulation Pipeline - 60-75% performance improvement achieved
 
 ### **Planned / Available**
 
-- 🚀 **E076**: Polars State Accumulation Pipeline (RECOMMENDED NEXT)
-  - **Impact**: 60-75% performance improvement (236s → 60-90s for 2-year simulation)
-  - **Why**: State accumulation is 70% of runtime (23s per year)
-  - **Effort**: 2-3 weeks
-  - **Status**: Ready to start, no blockers
-  - **See**: `/docs/EPIC_STATUS_SUMMARY.md` for detailed analysis
+- 🔧 **Fix 8 failing tests on main** - Pre-existing test failures need attention
+- 📋 **E082**: Configurable New Hire Demographics - Ready for implementation
 
 ### **Blocked**
 
