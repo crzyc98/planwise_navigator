@@ -24,8 +24,20 @@ def _seed_year(
         )
         """
     )
-    rows = [(year, "active", "active", "participating")] * participating
-    rows += [(year, "active", "active", "non_participating")] * (active - participating)
+    rows = []
+    # New hires (detailed_status_code='new_hire_active') - some participating, some not
+    hire_participating = min(hires, participating)
+    hire_non_participating = hires - hire_participating
+    rows += [(year, "active", "new_hire_active", "participating")] * hire_participating
+    rows += [(year, "active", "new_hire_active", "non_participating")] * hire_non_participating
+    # Terminations (employment_status='terminated')
+    rows += [(year, "terminated", "terminated", "non_participating")] * terms
+    # Remaining active employees
+    remaining_active = active - hires
+    remaining_participating = max(0, participating - hire_participating)
+    remaining_non_participating = remaining_active - remaining_participating
+    rows += [(year, "active", "active", "participating")] * remaining_participating
+    rows += [(year, "active", "active", "non_participating")] * remaining_non_participating
     conn.executemany("INSERT INTO fct_workforce_snapshot VALUES (?,?,?,?)", rows)
 
     # events
