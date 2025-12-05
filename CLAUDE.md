@@ -550,6 +550,7 @@ planalign checkpoints status          # Recovery recommendations
 - ✅ **E023**: Enrollment Architecture Fix - Temporal state accumulator pattern
 - ✅ **E078**: Cohort Pipeline Integration - Polars event factory, multi-year termination fixes
 - ✅ **E080**: Validation Model to Test Conversion - Converted 30 validation models to dbt tests, 90 passing tests, removed legacy validation code
+- ✅ **E073**: Config Module Refactoring - Split 1,471-line config.py into 7 focused modules
 
 ### **Planned / Available**
 
@@ -561,12 +562,6 @@ planalign checkpoints status          # Recovery recommendations
   - **See**: `/docs/EPIC_STATUS_SUMMARY.md` for detailed analysis
 
 ### **Blocked**
-
-- ⚠️ **E073**: Config Module Refactoring - BLOCKED by inadequate test coverage
-  - **Status**: Not started
-  - **Blocker**: Only 10% test coverage, need 80%+ before refactoring
-  - **Risk**: 1,208-line monolithic file with 977-line untested function
-  - **Action Required**: Build comprehensive test coverage first (5-7 days)
 
 - ⚠️ **E079**: Performance Architectural Simplification - BLOCKED by 60% regression
   - **Status**: Not started (epic document only, no implementation)
