@@ -474,7 +474,9 @@ export default function ConfigStudio() {
                   maxComp: d.max_compensation,
                 }))
               : prev.jobLevelCompensation,
-            marketScenario: cfg.new_hire?.market_scenario || prev.marketScenario,
+            marketScenario: (['conservative', 'baseline', 'competitive', 'aggressive'].includes(cfg.new_hire?.market_scenario)
+              ? cfg.new_hire.market_scenario
+              : prev.marketScenario) as 'conservative' | 'baseline' | 'competitive' | 'aggressive',
             levelMarketAdjustments: cfg.new_hire?.level_market_adjustments
               ? cfg.new_hire.level_market_adjustments.map((d: any) => ({
                   level: d.level,
@@ -579,7 +581,9 @@ export default function ConfigStudio() {
             maxComp: d.max_compensation,
           }))
         : prev.jobLevelCompensation,
-      marketScenario: cfg.new_hire?.market_scenario || prev.marketScenario,
+      marketScenario: (['conservative', 'baseline', 'competitive', 'aggressive'].includes(cfg.new_hire?.market_scenario)
+        ? cfg.new_hire.market_scenario
+        : prev.marketScenario) as 'conservative' | 'baseline' | 'competitive' | 'aggressive',
       levelMarketAdjustments: cfg.new_hire?.level_market_adjustments
         ? cfg.new_hire.level_market_adjustments.map((d: any) => ({
             level: d.level,
@@ -1868,40 +1872,42 @@ export default function ConfigStudio() {
                       <p className="text-xs text-gray-500 mb-4">
                         Choose your overall compensation strategy relative to market rates.
                       </p>
-
-                      <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-6">
-                        {(Object.keys(marketMultipliers) as Array<keyof typeof marketMultipliers>).map((scenario) => (
-                          <label
-                            key={scenario}
-                            className={`flex flex-col p-3 border rounded-lg cursor-pointer transition-colors text-center ${
-                              formData.marketScenario === scenario
-                                ? 'bg-green-50 border-fidelity-green ring-1 ring-fidelity-green'
-                                : 'bg-white border-gray-200 hover:bg-gray-50'
-                            }`}
-                          >
-                            <input
-                              type="radio"
-                              name="marketScenario"
-                              value={scenario}
-                              checked={formData.marketScenario === scenario}
-                              onChange={(e) => setFormData({...formData, marketScenario: e.target.value as any})}
-                              className="sr-only"
-                            />
-                            <span className="font-medium text-sm text-gray-900">{marketMultipliers[scenario].label}</span>
-                            <span className={`text-xs mt-1 ${marketMultipliers[scenario].adjustment >= 0 ? 'text-green-600' : 'text-red-600'}`}>
-                              {marketMultipliers[scenario].adjustment >= 0 ? '+' : ''}{marketMultipliers[scenario].adjustment}%
-                            </span>
-                          </label>
-                        ))}
+                      <div className="flex gap-2 mb-4">
+                        <button
+                          type="button"
+                          onClick={() => setFormData(prev => ({...prev, marketScenario: 'conservative'}))}
+                          className={`px-3 py-2 rounded ${formData.marketScenario === 'conservative' ? 'bg-green-500 text-white' : 'bg-gray-200'}`}
+                        >
+                          Conservative (-5%)
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setFormData(prev => ({...prev, marketScenario: 'baseline'}))}
+                          className={`px-3 py-2 rounded ${formData.marketScenario === 'baseline' ? 'bg-green-500 text-white' : 'bg-gray-200'}`}
+                        >
+                          Baseline (+0%)
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setFormData(prev => ({...prev, marketScenario: 'competitive'}))}
+                          className={`px-3 py-2 rounded ${formData.marketScenario === 'competitive' ? 'bg-green-500 text-white' : 'bg-gray-200'}`}
+                        >
+                          Competitive (+5%)
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setFormData(prev => ({...prev, marketScenario: 'aggressive'}))}
+                          className={`px-3 py-2 rounded ${formData.marketScenario === 'aggressive' ? 'bg-green-500 text-white' : 'bg-gray-200'}`}
+                        >
+                          Aggressive (+10%)
+                        </button>
                       </div>
-
                       <div className="bg-blue-50 p-3 rounded-lg border border-blue-100 mb-4">
                         <p className="text-xs text-blue-800">
-                          <strong>{marketMultipliers[formData.marketScenario].label}:</strong>{' '}
-                          {marketMultipliers[formData.marketScenario].description}
+                          <strong>{marketMultipliers[formData.marketScenario]?.label || 'Baseline'}:</strong>{' '}
+                          {marketMultipliers[formData.marketScenario]?.description || 'At market (competitive positioning)'}
                         </p>
                       </div>
-
                       {/* Level-specific adjustments */}
                       <div className="mt-4">
                         <h4 className="text-xs font-semibold text-gray-700 uppercase tracking-wider mb-3">Level-Specific Adjustments</h4>
@@ -1909,7 +1915,7 @@ export default function ConfigStudio() {
                           Fine-tune market positioning by job level (in addition to overall scenario).
                         </p>
                         <div className="grid grid-cols-5 gap-2">
-                          {formData.levelMarketAdjustments.map((row, idx) => (
+                          {(formData.levelMarketAdjustments || []).map((row, idx) => (
                             <div key={row.level} className="bg-white p-2 rounded border border-gray-200">
                               <label className="block text-xs text-gray-500 mb-1 text-center">
                                 Level {row.level}
