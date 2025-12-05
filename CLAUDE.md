@@ -558,13 +558,12 @@ planalign checkpoints status          # Recovery recommendations
 
 - 🔧 **Fix 8 failing tests on main** - ✅ Fixed (114 tests now passing)
 
-### **Blocked**
+### **Superseded**
 
-- ⚠️ **E079**: Performance Architectural Simplification - BLOCKED by 60% regression
-  - **Status**: Not started (epic document only, no implementation)
-  - **Blocker**: Performance regression detected (261s → 419s for 5-year simulation)
-  - **See**: `/docs/E079_PERFORMANCE_RESULTS.md` for detailed analysis
-  - **Action Required**: Investigate and fix regression before proceeding
+- ✅ **E079**: Performance Architectural Simplification - SUPERSEDED by E076
+  - **Original Problem**: 60% performance regression (261s → 419s)
+  - **Resolution**: E076 Polars pipeline achieved 1000x+ improvement (0.22s for 2-year simulation)
+  - **Status**: No longer needed - Polars bypasses dbt bottlenecks
 
 -----
 
