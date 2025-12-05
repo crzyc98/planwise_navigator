@@ -5,6 +5,7 @@ import pytest
 
 from planalign_orchestrator.config import (SimulationConfig,
                                            load_simulation_config, to_dbt_vars)
+from tests.fixtures.config import GOLDEN_DBT_VARS_KEYS
 
 
 def test_load_simulation_config_valid_yaml(tmp_path: Path):
@@ -94,3 +95,87 @@ enrollment:
     assert vars_dict["eligibility_waiting_days"] == 30
     assert vars_dict["random_seed"] == 99
     assert vars_dict["proactive_enrollment_rate_senior"] == 0.75
+
+
+def test_to_dbt_vars_golden_output(golden_config):
+    """
+    Golden output test for to_dbt_vars() regression detection.
+
+    This test captures the expected output for critical dbt variables.
+    If to_dbt_vars() changes in a way that alters these outputs, this test
+    will fail, alerting us to potential regressions.
+    """
+    result = to_dbt_vars(golden_config)
+
+    # Verify all critical keys exist
+    for key in GOLDEN_DBT_VARS_KEYS:
+        assert key in result, f"Missing critical dbt_var key: {key}"
+
+    # Verify golden config values are correctly exported
+    assert result["random_seed"] == 42
+    assert result["target_growth_rate"] == 0.03
+    assert result["cola_rate"] == 0.02
+    assert result["merit_budget"] == 0.03
+
+    # Enrollment settings from production config
+    assert result["auto_enrollment_enabled"] is True
+    # Note: Production config uses 0 waiting days (immediate eligibility)
+    assert result["eligibility_waiting_days"] == 0
+
+    # Verify proactive enrollment rates exist and are reasonable (0-1 range)
+    for rate_key in [
+        "proactive_enrollment_rate_young",
+        "proactive_enrollment_rate_mid_career",
+        "proactive_enrollment_rate_mature",
+        "proactive_enrollment_rate_senior",
+    ]:
+        assert 0 <= result[rate_key] <= 1, f"{rate_key} out of range: {result[rate_key]}"
+
+
+def test_to_dbt_vars_contains_all_required_keys(minimal_config):
+    """Verify to_dbt_vars() exports all keys required by dbt models."""
+    result = to_dbt_vars(minimal_config)
+
+    # Required keys for core dbt models
+    required_keys = [
+        # Core simulation
+        "random_seed",
+        "target_growth_rate",
+        # Compensation
+        "cola_rate",
+        "merit_budget",
+        # Eligibility
+        "eligibility_waiting_days",
+        "minimum_age",
+        # Enrollment
+        "auto_enrollment_enabled",
+        "auto_enrollment_window_days",
+        "auto_enrollment_default_deferral_rate",
+        "auto_enrollment_opt_out_grace_period",
+        # Proactive enrollment
+        "proactive_enrollment_enabled",
+        "proactive_enrollment_min_days",
+        "proactive_enrollment_max_days",
+    ]
+
+    for key in required_keys:
+        assert key in result, f"Missing required dbt_var: {key}"
+
+
+def test_to_dbt_vars_output_types(minimal_config):
+    """Verify to_dbt_vars() exports correct types for dbt."""
+    result = to_dbt_vars(minimal_config)
+
+    # Integer types
+    assert isinstance(result["random_seed"], int)
+    assert isinstance(result["eligibility_waiting_days"], int)
+    assert isinstance(result["minimum_age"], int)
+
+    # Float types (rates, percentages)
+    assert isinstance(result["cola_rate"], (int, float))
+    assert isinstance(result["merit_budget"], (int, float))
+    assert isinstance(result["target_growth_rate"], (int, float))
+
+    # Boolean types
+    assert isinstance(result["auto_enrollment_enabled"], bool)
+    assert isinstance(result["proactive_enrollment_enabled"], bool)
