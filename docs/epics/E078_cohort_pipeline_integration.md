@@ -529,7 +529,24 @@ The actual simulation bug causing -46% workforce decline and 0 enrollments was N
 
 ## ✅ Completion Summary
 
-**Status**: REVERTED (needs re-implementation with mode-aware logic)
+**Status**: ⚠️ SUPERSEDED by E076 (Polars State Accumulation Pipeline)
+
+**What Happened**:
+- E078 was partially implemented in commit `4007eb0` (October 2025)
+- Changes were reverted because they broke SQL mode compatibility
+- E076 subsequently achieved **1000x+ performance improvement** using full Polars mode
+- E078's goals (2-5× performance improvement) are now obsolete
+
+**E076 Performance Results** (supersedes E078):
+- Polars mode: 0.22 seconds for 2-year simulation
+- Previous SQL mode: 236+ seconds
+- Improvement: **1,072×** (not 2-5× as E078 targeted)
+
+**Recommendation**: E078 should NOT be re-implemented. E076's Polars state accumulation provides far superior performance. SQL mode is still available as fallback but Polars mode is the recommended default.
+
+---
+
+**Original Status**: REVERTED (needs re-implementation with mode-aware logic)
 
 **Timeline**:
 - 2025-10-10: Commit 4007eb0 implemented E078 changes

@@ -34,48 +34,29 @@
 
 {% set simulation_year = var('simulation_year', 2025) | int %}
 
--- Get match formula configuration from variables
--- These variables should be passed from the orchestrator which reads from simulation_config.yaml
--- Fallback values match the default configuration in simulation_config.yaml
-{% set active_formula = var('active_match_formula', 'simple_match') %}
-{% set match_formulas = var('match_formulas', {
-    'simple_match': {
-        'name': 'Simple Match',
-        'type': 'simple',
-        'match_rate': 0.50,
-        'max_match_percentage': 0.03
-    },
-    'tiered_match': {
-        'name': 'Tiered Match',
-        'type': 'tiered',
-        'tiers': [
-            {'tier': 1, 'employee_min': 0.00, 'employee_max': 0.03, 'match_rate': 1.00},
-            {'tier': 2, 'employee_min': 0.03, 'employee_max': 0.05, 'match_rate': 0.50}
-        ],
-        'max_match_percentage': 0.04
-    },
-    'stretch_match': {
-        'name': 'Stretch Match (Encourages Higher Deferrals)',
-        'type': 'tiered',
-        'tiers': [
-            {'tier': 1, 'employee_min': 0.00, 'employee_max': 0.12, 'match_rate': 0.25}
-        ],
-        'max_match_percentage': 0.03
-    },
-    'enhanced_tiered': {
-        'name': 'Enhanced Tiered Match',
-        'type': 'tiered',
-        'tiers': [
-            {'tier': 1, 'employee_min': 0.00, 'employee_max': 0.03, 'match_rate': 1.00},
-            {'tier': 2, 'employee_min': 0.03, 'employee_max': 0.05, 'match_rate': 0.50}
-        ],
-        'max_match_percentage': 0.04
-    }
-}) %}
+/*
+  E084 Phase B: Match configuration now accepts custom tiers directly
+  Variables:
+  - match_tiers: Array of tier definitions [{ employee_min, employee_max, match_rate }, ...]
+  - match_cap_percent: Maximum employer match as percentage of compensation (decimal)
+  - match_template: Template name for audit trail (simple, tiered, stretch, safe_harbor, qaca)
 
--- Debug: Current match formula configuration
--- Active formula: {{ active_formula }}
--- Formula type: {{ match_formulas[active_formula]['type'] }}
+  Backward Compatibility:
+  - Falls back to tiered match (100% on 0-3%, 50% on 3-5%) if no custom tiers provided
+*/
+
+-- E084 Phase B: Direct tier configuration (replaces formula name lookup)
+{% set match_tiers = var('match_tiers', [
+    {'employee_min': 0.00, 'employee_max': 0.03, 'match_rate': 1.00},
+    {'employee_min': 0.03, 'employee_max': 0.05, 'match_rate': 0.50}
+]) %}
+{% set match_cap_percent = var('match_cap_percent', 0.04) %}
+{% set match_template = var('match_template', 'tiered') %}
+
+-- Debug: Current match configuration
+-- Template: {{ match_template }}
+-- Match cap: {{ match_cap_percent * 100 }}% of compensation
+-- Tiers: {{ match_tiers | length }} defined
 
 WITH employee_contributions AS (
     -- Get ALL employee contribution data with eligibility determination (Epic E058 Phase 2)
@@ -101,29 +82,8 @@ WITH employee_contributions AS (
         AND ec.employee_id IS NOT NULL
 ),
 
-{% if match_formulas[active_formula]['type'] == 'simple' %}
--- Simple match calculation
-simple_match AS (
-    SELECT
-        employee_id,
-        simulation_year,
-        eligible_compensation,
-        deferral_rate,
-        annual_deferrals,
-        -- Simple percentage match with correct cap semantics:
-        -- Employer match = match_rate * min(deferral_rate, max_match_percentage) * eligible_compensation,
-        -- but never more than match_rate * (max_match_percentage * eligible_compensation)
-        -- Using annual_deferrals ensures match is based on actual deferrals made (IRS-limited when applicable)
-        LEAST(
-            annual_deferrals * {{ match_formulas[active_formula]['match_rate'] }},
-            (eligible_compensation * {{ match_formulas[active_formula]['max_match_percentage'] }}) * {{ match_formulas[active_formula]['match_rate'] }}
-        ) AS match_amount,
-        'simple' AS formula_type
-    FROM employee_contributions
-),
-
-{% elif match_formulas[active_formula]['type'] == 'tiered' %}
--- Tiered match calculation using DuckDB's powerful window functions
+-- E084 Phase B: Unified tiered match calculation using custom tiers
+-- All formulas (simple, tiered, stretch, safe_harbor, qaca) can be expressed as tiers
 tiered_match AS (
     SELECT
         ec.employee_id,
@@ -131,7 +91,7 @@ tiered_match AS (
         ec.eligible_compensation,
         ec.deferral_rate,
         ec.annual_deferrals,
-        -- Calculate match for each tier
+        -- Calculate match for each tier from match_tiers variable
         SUM(
             CASE
                 WHEN ec.deferral_rate > tier.employee_min
@@ -142,12 +102,12 @@ tiered_match AS (
                 ELSE 0
             END
         ) AS match_amount,
-        'tiered' AS formula_type
+        '{{ match_template }}' AS formula_type
     FROM employee_contributions ec
     CROSS JOIN (
-        {% for tier in match_formulas[active_formula]['tiers'] %}
+        {% for tier in match_tiers %}
         SELECT
-            {{ tier['tier'] }} AS tier_number,
+            {{ loop.index }} AS tier_number,
             {{ tier['employee_min'] }} AS employee_min,
             {{ tier['employee_max'] }} AS employee_max,
             {{ tier['match_rate'] }} AS match_rate
@@ -158,28 +118,12 @@ tiered_match AS (
              ec.deferral_rate, ec.annual_deferrals
 ),
 
-{% endif %}
-
--- Unified all_matches CTE - selects from the appropriate match calculation above
+-- Unified all_matches CTE
 all_matches AS (
-    {% if match_formulas[active_formula]['type'] == 'simple' %}
-    SELECT * FROM simple_match
-    {% elif match_formulas[active_formula]['type'] == 'tiered' %}
     SELECT * FROM tiered_match
-    {% else %}
-    SELECT
-        employee_id,
-        simulation_year,
-        eligible_compensation,
-        deferral_rate,
-        annual_deferrals,
-        0 AS match_amount,
-        'none' AS formula_type
-    FROM employee_contributions
-    {% endif %}
 ),
 
--- Apply match caps and eligibility filtering (Epic E058 Phase 2)
+-- Apply match caps and eligibility filtering (Epic E058 Phase 2, E084 Phase B)
 final_match AS (
     SELECT
         am.employee_id,
@@ -192,27 +136,17 @@ final_match AS (
         ec.is_eligible_for_match,
         ec.match_eligibility_reason,
         ec.eligibility_config_applied,
-        -- Apply maximum match cap first
+        -- E084 Phase B: Apply maximum match cap using match_cap_percent variable
         LEAST(
             am.match_amount,
-            CASE
-                WHEN am.formula_type = 'simple' THEN
-                    (am.eligible_compensation * {{ match_formulas[active_formula]['max_match_percentage'] }}) * {{ match_formulas[active_formula]['match_rate'] }}
-                ELSE
-                    am.eligible_compensation * {{ match_formulas[active_formula]['max_match_percentage'] }}
-            END
+            am.eligible_compensation * {{ match_cap_percent }}
         ) AS capped_match_amount,
         -- Epic E058 Phase 2: Apply eligibility filtering - ineligible employees get $0 match
         CASE
             WHEN ec.is_eligible_for_match THEN
                 LEAST(
                     am.match_amount,
-                    CASE
-                        WHEN am.formula_type = 'simple' THEN
-                            (am.eligible_compensation * {{ match_formulas[active_formula]['max_match_percentage'] }}) * {{ match_formulas[active_formula]['match_rate'] }}
-                        ELSE
-                            am.eligible_compensation * {{ match_formulas[active_formula]['max_match_percentage'] }}
-                    END
+                    am.eligible_compensation * {{ match_cap_percent }}
                 )
             ELSE 0
         END AS employer_match_amount,
@@ -224,12 +158,7 @@ final_match AS (
             ELSE 'calculated'  -- Default fallback
         END AS match_status,
         -- Track if cap was applied (before eligibility filtering)
-        CASE
-            WHEN am.formula_type = 'simple' THEN
-                am.match_amount > (am.eligible_compensation * {{ match_formulas[active_formula]['max_match_percentage'] }}) * {{ match_formulas[active_formula]['match_rate'] }}
-            ELSE
-                am.match_amount > am.eligible_compensation * {{ match_formulas[active_formula]['max_match_percentage'] }}
-        END AS match_cap_applied,
+        am.match_amount > am.eligible_compensation * {{ match_cap_percent }} AS match_cap_applied,
         -- Calculate uncapped match for analysis
         am.match_amount AS uncapped_match_amount
     FROM all_matches am
@@ -253,8 +182,8 @@ SELECT
     match_eligibility_reason,
     match_status,
     eligibility_config_applied,
-    '{{ active_formula }}' AS formula_id,
-    '{{ match_formulas[active_formula]["name"] }}' AS formula_name,
+    '{{ match_template }}' AS formula_id,
+    '{{ match_template }}' AS formula_name,  -- E084 Phase B: Using template name
     -- Calculate effective match rate
     CASE
         WHEN annual_deferrals > 0

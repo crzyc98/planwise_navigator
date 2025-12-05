@@ -548,7 +548,7 @@ planalign checkpoints status          # Recovery recommendations
 - ✅ **E074**: Enhanced Error Handling - Context-rich diagnostics, <5min bug diagnosis
 - ✅ **E075**: Testing Infrastructure - 256 tests, fixture library, 90%+ coverage
 - ✅ **E023**: Enrollment Architecture Fix - Temporal state accumulator pattern
-- ✅ **E078**: Cohort Pipeline Integration - Polars event factory, multi-year termination fixes
+- ✅ **E083**: Workspace Cloud Synchronization - Git-based sync with audit trails
 - ✅ **E080**: Validation Model to Test Conversion - Converted 30 validation models to dbt tests, 90 passing tests, removed legacy validation code
 - ✅ **E073**: Config Module Refactoring - Split 1,471-line config.py into 7 focused modules
 - ✅ **E076**: Polars State Accumulation Pipeline - 60-75% performance improvement achieved
@@ -560,7 +560,12 @@ planalign checkpoints status          # Recovery recommendations
 
 ### **Superseded**
 
-- ✅ **E079**: Performance Architectural Simplification - SUPERSEDED by E076
+- ⚠️ **E078**: Cohort Pipeline Integration - SUPERSEDED by E076
+  - **Original Goal**: Mode-aware model references for Polars compatibility (2-5× improvement)
+  - **Resolution**: E076 achieves 1000x+ improvement, making E078 unnecessary
+  - **Status**: Partial implementation reverted; SQL mode default
+
+- ⚠️ **E079**: Performance Architectural Simplification - SUPERSEDED by E076
   - **Original Problem**: 60% performance regression (261s → 419s)
   - **Resolution**: E076 Polars pipeline achieved 1000x+ improvement (0.22s for 2-year simulation)
   - **Status**: No longer needed - Polars bypasses dbt bottlenecks
