@@ -157,7 +157,7 @@ export default function ConfigStudio() {
       year4_plus: 8.0 // Low risk (stable)
     },
 
-    // DC Plan
+    // DC Plan - Basic
     dcEligibilityMonths: 3,
     dcAutoEnroll: true,
     dcDefaultDeferral: 3.0,
@@ -168,6 +168,33 @@ export default function ConfigStudio() {
     dcAutoEscalation: true,
     dcEscalationRate: 1.0,
     dcEscalationCap: 10.0,
+
+    // DC Plan - Auto-Enrollment Advanced (E084)
+    dcAutoEnrollWindowDays: 45,
+    dcAutoEnrollOptOutGracePeriod: 30,
+    dcAutoEnrollScope: 'new_hires_only' as 'new_hires_only' | 'all_eligible',
+    dcAutoEnrollHireDateCutoff: '2020-01-01',
+
+    // DC Plan - Match Eligibility (E084)
+    dcMatchMinTenureYears: 0,
+    dcMatchRequireYearEndActive: true,
+    dcMatchMinHoursAnnual: 1000,
+    dcMatchAllowTerminatedNewHires: false,
+    dcMatchAllowExperiencedTerminations: false,
+
+    // DC Plan - Core Contribution (E084)
+    dcCoreEnabled: true,
+    dcCoreContributionRate: 1.0,
+    dcCoreMinTenureYears: 0,
+    dcCoreRequireYearEndActive: true,
+    dcCoreMinHoursAnnual: 1000,
+    dcCoreAllowTerminatedNewHires: false,
+    dcCoreAllowExperiencedTerminations: false,
+
+    // DC Plan - Auto-Escalation Advanced (E084)
+    dcEscalationEffectiveDay: '01-01',
+    dcEscalationDelayYears: 1,
+    dcEscalationHireDateCutoff: '2020-01-01',
 
     // Advanced Settings
     engine: 'polars',
@@ -490,17 +517,48 @@ export default function ConfigStudio() {
             involuntaryRate: cfg.turnover?.involuntary_rate_percent ?? prev.involuntaryRate,
             turnoverBands: cfg.turnover?.tenure_bands || prev.turnoverBands,
 
-            // DC Plan
+            // DC Plan - Basic
             dcEligibilityMonths: cfg.dc_plan?.eligibility_months ?? prev.dcEligibilityMonths,
             dcAutoEnroll: cfg.dc_plan?.auto_enroll ?? prev.dcAutoEnroll,
             dcDefaultDeferral: cfg.dc_plan?.default_deferral_percent ?? prev.dcDefaultDeferral,
+            dcVestingSchedule: cfg.dc_plan?.vesting_schedule || prev.dcVestingSchedule,
+
+            // DC Plan - Auto-Enrollment Advanced (E084)
+            dcAutoEnrollWindowDays: cfg.dc_plan?.auto_enroll_window_days ?? prev.dcAutoEnrollWindowDays,
+            dcAutoEnrollOptOutGracePeriod: cfg.dc_plan?.auto_enroll_opt_out_grace_period ?? prev.dcAutoEnrollOptOutGracePeriod,
+            dcAutoEnrollScope: cfg.dc_plan?.auto_enroll_scope || prev.dcAutoEnrollScope,
+            dcAutoEnrollHireDateCutoff: cfg.dc_plan?.auto_enroll_hire_date_cutoff || prev.dcAutoEnrollHireDateCutoff,
+
+            // DC Plan - Match
             dcMatchFormula: cfg.dc_plan?.match_formula || prev.dcMatchFormula,
             dcMatchPercent: cfg.dc_plan?.match_percent ?? prev.dcMatchPercent,
             dcMatchLimit: cfg.dc_plan?.match_limit_percent ?? prev.dcMatchLimit,
-            dcVestingSchedule: cfg.dc_plan?.vesting_schedule || prev.dcVestingSchedule,
+
+            // DC Plan - Match Eligibility (E084)
+            dcMatchMinTenureYears: cfg.dc_plan?.match_min_tenure_years ?? prev.dcMatchMinTenureYears,
+            dcMatchRequireYearEndActive: cfg.dc_plan?.match_require_year_end_active ?? prev.dcMatchRequireYearEndActive,
+            dcMatchMinHoursAnnual: cfg.dc_plan?.match_min_hours_annual ?? prev.dcMatchMinHoursAnnual,
+            dcMatchAllowTerminatedNewHires: cfg.dc_plan?.match_allow_terminated_new_hires ?? prev.dcMatchAllowTerminatedNewHires,
+            dcMatchAllowExperiencedTerminations: cfg.dc_plan?.match_allow_experienced_terminations ?? prev.dcMatchAllowExperiencedTerminations,
+
+            // DC Plan - Core Contribution (E084)
+            dcCoreEnabled: cfg.dc_plan?.core_enabled ?? prev.dcCoreEnabled,
+            dcCoreContributionRate: cfg.dc_plan?.core_contribution_rate_percent ?? prev.dcCoreContributionRate,
+            dcCoreMinTenureYears: cfg.dc_plan?.core_min_tenure_years ?? prev.dcCoreMinTenureYears,
+            dcCoreRequireYearEndActive: cfg.dc_plan?.core_require_year_end_active ?? prev.dcCoreRequireYearEndActive,
+            dcCoreMinHoursAnnual: cfg.dc_plan?.core_min_hours_annual ?? prev.dcCoreMinHoursAnnual,
+            dcCoreAllowTerminatedNewHires: cfg.dc_plan?.core_allow_terminated_new_hires ?? prev.dcCoreAllowTerminatedNewHires,
+            dcCoreAllowExperiencedTerminations: cfg.dc_plan?.core_allow_experienced_terminations ?? prev.dcCoreAllowExperiencedTerminations,
+
+            // DC Plan - Auto-Escalation
             dcAutoEscalation: cfg.dc_plan?.auto_escalation ?? prev.dcAutoEscalation,
             dcEscalationRate: cfg.dc_plan?.escalation_rate_percent ?? prev.dcEscalationRate,
             dcEscalationCap: cfg.dc_plan?.escalation_cap_percent ?? prev.dcEscalationCap,
+
+            // DC Plan - Auto-Escalation Advanced (E084)
+            dcEscalationEffectiveDay: cfg.dc_plan?.escalation_effective_day || prev.dcEscalationEffectiveDay,
+            dcEscalationDelayYears: cfg.dc_plan?.escalation_delay_years ?? prev.dcEscalationDelayYears,
+            dcEscalationHireDateCutoff: cfg.dc_plan?.escalation_hire_date_cutoff || prev.dcEscalationHireDateCutoff,
 
             // Advanced
             engine: cfg.advanced?.engine || prev.engine,
@@ -792,16 +850,48 @@ export default function ConfigStudio() {
           tenure_bands: formData.turnoverBands,
         },
         dc_plan: {
+          // Basic settings
           eligibility_months: Number(formData.dcEligibilityMonths),
           auto_enroll: Boolean(formData.dcAutoEnroll),
           default_deferral_percent: Number(formData.dcDefaultDeferral),
+          vesting_schedule: formData.dcVestingSchedule,
+
+          // E084: Auto-Enrollment Advanced
+          auto_enroll_window_days: Number(formData.dcAutoEnrollWindowDays),
+          auto_enroll_opt_out_grace_period: Number(formData.dcAutoEnrollOptOutGracePeriod),
+          auto_enroll_scope: formData.dcAutoEnrollScope,
+          auto_enroll_hire_date_cutoff: formData.dcAutoEnrollHireDateCutoff,
+
+          // Match formula
           match_formula: formData.dcMatchFormula,
           match_percent: Number(formData.dcMatchPercent),
           match_limit_percent: Number(formData.dcMatchLimit),
-          vesting_schedule: formData.dcVestingSchedule,
+
+          // E084: Match Eligibility
+          match_min_tenure_years: Number(formData.dcMatchMinTenureYears),
+          match_require_year_end_active: Boolean(formData.dcMatchRequireYearEndActive),
+          match_min_hours_annual: Number(formData.dcMatchMinHoursAnnual),
+          match_allow_terminated_new_hires: Boolean(formData.dcMatchAllowTerminatedNewHires),
+          match_allow_experienced_terminations: Boolean(formData.dcMatchAllowExperiencedTerminations),
+
+          // E084: Core Contribution
+          core_enabled: Boolean(formData.dcCoreEnabled),
+          core_contribution_rate_percent: Number(formData.dcCoreContributionRate),
+          core_min_tenure_years: Number(formData.dcCoreMinTenureYears),
+          core_require_year_end_active: Boolean(formData.dcCoreRequireYearEndActive),
+          core_min_hours_annual: Number(formData.dcCoreMinHoursAnnual),
+          core_allow_terminated_new_hires: Boolean(formData.dcCoreAllowTerminatedNewHires),
+          core_allow_experienced_terminations: Boolean(formData.dcCoreAllowExperiencedTerminations),
+
+          // Auto-Escalation
           auto_escalation: Boolean(formData.dcAutoEscalation),
           escalation_rate_percent: Number(formData.dcEscalationRate),
           escalation_cap_percent: Number(formData.dcEscalationCap),
+
+          // E084: Auto-Escalation Advanced
+          escalation_effective_day: formData.dcEscalationEffectiveDay,
+          escalation_delay_years: Number(formData.dcEscalationDelayYears),
+          escalation_hire_date_cutoff: formData.dcEscalationHireDateCutoff,
         },
         advanced: {
           engine: formData.engine,
@@ -2064,6 +2154,38 @@ export default function ConfigStudio() {
                     <InputField label="Eligibility Period" {...inputProps('dcEligibilityMonths')} type="number" suffix="Months" helper="Wait period before joining" />
                     <InputField label="Default Deferral Rate" {...inputProps('dcDefaultDeferral')} type="number" step="0.5" suffix="%" helper="Initial contribution for auto-enrolled" />
 
+                    {/* E084: Auto-Enrollment Advanced Settings */}
+                    {formData.dcAutoEnroll && (
+                      <>
+                        <InputField label="Enrollment Window" {...inputProps('dcAutoEnrollWindowDays')} type="number" suffix="Days" helper="Days after hire for auto-enrollment" min={30} />
+                        <InputField label="Opt-Out Grace Period" {...inputProps('dcAutoEnrollOptOutGracePeriod')} type="number" suffix="Days" helper="Days to opt out without penalty" min={0} />
+                        <div className="sm:col-span-3">
+                          <label className="block text-sm font-medium text-gray-700">Enrollment Scope</label>
+                          <select
+                            name="dcAutoEnrollScope"
+                            value={formData.dcAutoEnrollScope}
+                            onChange={handleChange}
+                            className="mt-1 block w-full pl-3 pr-10 py-2 text-base border-gray-300 focus:outline-none focus:ring-fidelity-green focus:border-fidelity-green sm:text-sm rounded-md border shadow-sm"
+                          >
+                            <option value="new_hires_only">New Hires Only</option>
+                            <option value="all_eligible">All Eligible Employees</option>
+                          </select>
+                          <p className="mt-1 text-xs text-gray-500">Who gets auto-enrolled</p>
+                        </div>
+                        <div className="sm:col-span-3">
+                          <label className="block text-sm font-medium text-gray-700">Hire Date Cutoff</label>
+                          <input
+                            type="date"
+                            name="dcAutoEnrollHireDateCutoff"
+                            value={formData.dcAutoEnrollHireDateCutoff}
+                            onChange={handleChange}
+                            className="mt-1 block w-full pl-3 pr-3 py-2 text-base border-gray-300 focus:outline-none focus:ring-fidelity-green focus:border-fidelity-green sm:text-sm rounded-md border shadow-sm"
+                          />
+                          <p className="mt-1 text-xs text-gray-500">Auto-enroll employees hired on/after this date</p>
+                        </div>
+                      </>
+                    )}
+
                     <div className="sm:col-span-3">
                        <label className="block text-sm font-medium text-gray-700">Vesting Schedule</label>
                        <select
@@ -2096,6 +2218,105 @@ export default function ConfigStudio() {
                     <InputField label="Match Percentage" {...inputProps('dcMatchPercent')} type="number" suffix="%" helper="% of employee contribution matched" />
                     <InputField label="Match Limit" {...inputProps('dcMatchLimit')} type="number" suffix="%" helper="Up to % of annual salary" />
 
+                    {/* E084: Match Eligibility Section */}
+                    <div className="col-span-6 h-px bg-gray-200 my-2"></div>
+                    <h4 className="col-span-6 text-sm font-semibold text-gray-900">Match Eligibility Requirements</h4>
+                    <p className="col-span-6 text-xs text-gray-500 -mt-4 mb-2">Configure who qualifies for employer match contributions</p>
+
+                    <InputField label="Min. Tenure" {...inputProps('dcMatchMinTenureYears')} type="number" suffix="Years" helper="Years of service required" min={0} />
+                    <InputField label="Min. Annual Hours" {...inputProps('dcMatchMinHoursAnnual')} type="number" suffix="Hours" helper="Hours worked per year" min={0} />
+
+                    <div className="sm:col-span-3 flex items-center">
+                      <input
+                        type="checkbox"
+                        name="dcMatchRequireYearEndActive"
+                        checked={formData.dcMatchRequireYearEndActive}
+                        onChange={handleChange}
+                        className="h-4 w-4 text-fidelity-green focus:ring-fidelity-green border-gray-300 rounded"
+                      />
+                      <label className="ml-2 block text-sm text-gray-700">Require Active at Year-End</label>
+                    </div>
+
+                    <div className="sm:col-span-3 flex items-center">
+                      <input
+                        type="checkbox"
+                        name="dcMatchAllowTerminatedNewHires"
+                        checked={formData.dcMatchAllowTerminatedNewHires}
+                        onChange={handleChange}
+                        className="h-4 w-4 text-fidelity-green focus:ring-fidelity-green border-gray-300 rounded"
+                      />
+                      <label className="ml-2 block text-sm text-gray-700">Allow Terminated New Hires</label>
+                    </div>
+
+                    <div className="sm:col-span-3 flex items-center">
+                      <input
+                        type="checkbox"
+                        name="dcMatchAllowExperiencedTerminations"
+                        checked={formData.dcMatchAllowExperiencedTerminations}
+                        onChange={handleChange}
+                        className="h-4 w-4 text-fidelity-green focus:ring-fidelity-green border-gray-300 rounded"
+                      />
+                      <label className="ml-2 block text-sm text-gray-700">Allow Experienced Terminations</label>
+                    </div>
+
+                    {/* E084: Core Contribution Section */}
+                    <div className="col-span-6 h-px bg-gray-200 my-2"></div>
+                    <div className="sm:col-span-6 flex items-center justify-between mb-2">
+                      <h4 className="text-sm font-semibold text-gray-900">Employer Core (Non-Elective) Contribution</h4>
+                      <div className="flex items-center">
+                        <input
+                          type="checkbox"
+                          name="dcCoreEnabled"
+                          checked={formData.dcCoreEnabled}
+                          onChange={handleChange}
+                          className="h-4 w-4 text-fidelity-green rounded"
+                        />
+                        <span className="ml-2 text-sm text-gray-600">Enabled</span>
+                      </div>
+                    </div>
+                    <p className="col-span-6 text-xs text-gray-500 -mt-4 mb-2">Automatic employer contribution regardless of employee deferral</p>
+
+                    {formData.dcCoreEnabled && (
+                      <>
+                        <InputField label="Core Rate" {...inputProps('dcCoreContributionRate')} type="number" step="0.5" suffix="%" helper="% of compensation" min={0} />
+                        <InputField label="Min. Tenure" {...inputProps('dcCoreMinTenureYears')} type="number" suffix="Years" helper="Years of service required" min={0} />
+                        <InputField label="Min. Annual Hours" {...inputProps('dcCoreMinHoursAnnual')} type="number" suffix="Hours" helper="Hours worked per year" min={0} />
+
+                        <div className="sm:col-span-3 flex items-center">
+                          <input
+                            type="checkbox"
+                            name="dcCoreRequireYearEndActive"
+                            checked={formData.dcCoreRequireYearEndActive}
+                            onChange={handleChange}
+                            className="h-4 w-4 text-fidelity-green focus:ring-fidelity-green border-gray-300 rounded"
+                          />
+                          <label className="ml-2 block text-sm text-gray-700">Require Active at Year-End</label>
+                        </div>
+
+                        <div className="sm:col-span-3 flex items-center">
+                          <input
+                            type="checkbox"
+                            name="dcCoreAllowTerminatedNewHires"
+                            checked={formData.dcCoreAllowTerminatedNewHires}
+                            onChange={handleChange}
+                            className="h-4 w-4 text-fidelity-green focus:ring-fidelity-green border-gray-300 rounded"
+                          />
+                          <label className="ml-2 block text-sm text-gray-700">Allow Terminated New Hires</label>
+                        </div>
+
+                        <div className="sm:col-span-3 flex items-center">
+                          <input
+                            type="checkbox"
+                            name="dcCoreAllowExperiencedTerminations"
+                            checked={formData.dcCoreAllowExperiencedTerminations}
+                            onChange={handleChange}
+                            className="h-4 w-4 text-fidelity-green focus:ring-fidelity-green border-gray-300 rounded"
+                          />
+                          <label className="ml-2 block text-sm text-gray-700">Allow Experienced Terminations</label>
+                        </div>
+                      </>
+                    )}
+
                     <div className="col-span-6 h-px bg-gray-200 my-2"></div>
                     <div className="sm:col-span-6 flex items-center justify-between mb-2">
                         <h4 className="text-sm font-semibold text-gray-900">Auto-Escalation</h4>
@@ -2108,6 +2329,31 @@ export default function ConfigStudio() {
                       <>
                         <InputField label="Annual Increase" {...inputProps('dcEscalationRate')} type="number" step="0.5" suffix="%" helper="Yearly step-up" />
                         <InputField label="Escalation Cap" {...inputProps('dcEscalationCap')} type="number" suffix="%" helper="Max deferral rate" />
+                        <div className="sm:col-span-3">
+                          <label className="block text-sm font-medium text-gray-700">Effective Date (MM-DD)</label>
+                          <input
+                            type="text"
+                            name="dcEscalationEffectiveDay"
+                            value={formData.dcEscalationEffectiveDay}
+                            onChange={handleChange}
+                            placeholder="01-01"
+                            pattern="\d{2}-\d{2}"
+                            className="mt-1 block w-full pl-3 pr-3 py-2 text-base border-gray-300 focus:outline-none focus:ring-fidelity-green focus:border-fidelity-green sm:text-sm rounded-md border shadow-sm"
+                          />
+                          <p className="mt-1 text-xs text-gray-500">Annual escalation date (e.g., 01-01 for Jan 1)</p>
+                        </div>
+                        <InputField label="First Escalation Delay" {...inputProps('dcEscalationDelayYears')} type="number" suffix="Years" helper="Wait after enrollment" min={0} />
+                        <div className="sm:col-span-3">
+                          <label className="block text-sm font-medium text-gray-700">Hire Date Cutoff</label>
+                          <input
+                            type="date"
+                            name="dcEscalationHireDateCutoff"
+                            value={formData.dcEscalationHireDateCutoff}
+                            onChange={handleChange}
+                            className="mt-1 block w-full pl-3 pr-3 py-2 text-base border-gray-300 focus:outline-none focus:ring-fidelity-green focus:border-fidelity-green sm:text-sm rounded-md border shadow-sm"
+                          />
+                          <p className="mt-1 text-xs text-gray-500">Only escalate employees hired on/after this date</p>
+                        </div>
                       </>
                     )}
                  </div>
