@@ -1,8 +1,67 @@
 import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react';
-import { Save, AlertTriangle, FileText, Settings, HelpCircle, TrendingUp, Users, DollarSign, Zap, Server, Shield, PieChart, Database, Upload, Check, X, ArrowLeft, Target, Sparkles, Play } from 'lucide-react';
+import { Save, AlertTriangle, FileText, Settings, HelpCircle, TrendingUp, Users, DollarSign, Zap, Server, Shield, PieChart, Database, Upload, Check, X, ArrowLeft, Target, Sparkles, Play, Copy, Info } from 'lucide-react';
 import { useNavigate, useOutletContext, useParams } from 'react-router-dom';
 import { LayoutContextType } from './Layout';
-import { updateWorkspace as apiUpdateWorkspace, getScenario, updateScenario, Scenario, uploadCensusFile, validateFilePath, listTemplates, Template, analyzeAgeDistribution, analyzeCompensation, CompensationAnalysis, solveCompensationGrowth, CompensationSolverResponse } from '../services/api';
+import { updateWorkspace as apiUpdateWorkspace, getScenario, updateScenario, Scenario, uploadCensusFile, validateFilePath, listTemplates, Template, analyzeAgeDistribution, analyzeCompensation, CompensationAnalysis, solveCompensationGrowth, CompensationSolverResponse, listScenarios } from '../services/api';
+
+// E084 Phase B: Match template presets with editable tiers
+interface MatchTier {
+  deferralMin: number;
+  deferralMax: number;
+  matchRate: number;
+}
+
+interface MatchTemplate {
+  name: string;
+  tiers: MatchTier[];
+  isSafeHarbor: boolean;
+}
+
+// Helper to calculate match cap from tiers: sum of (tier_width × match_rate)
+const calculateMatchCap = (tiers: MatchTier[]): number => {
+  return tiers.reduce((sum, tier) => {
+    const tierWidth = (tier.deferralMax - tier.deferralMin) / 100; // Convert to decimal
+    const matchRate = tier.matchRate / 100; // Convert to decimal
+    return sum + (tierWidth * matchRate);
+  }, 0);
+};
+
+const MATCH_TEMPLATES: Record<string, MatchTemplate> = {
+  simple: {
+    name: 'Simple Match',
+    tiers: [{ deferralMin: 0, deferralMax: 6, matchRate: 50 }], // 50% up to 6% = 3% max
+    isSafeHarbor: false,
+  },
+  tiered: {
+    name: 'Tiered Match',
+    tiers: [
+      { deferralMin: 0, deferralMax: 3, matchRate: 100 },
+      { deferralMin: 3, deferralMax: 5, matchRate: 50 },
+    ], // 3% + 1% = 4% max
+    isSafeHarbor: false,
+  },
+  stretch: {
+    name: 'Stretch Match',
+    tiers: [{ deferralMin: 0, deferralMax: 12, matchRate: 25 }], // 25% of 12% = 3% max
+    isSafeHarbor: false,
+  },
+  safe_harbor: {
+    name: 'Safe Harbor Basic',
+    tiers: [
+      { deferralMin: 0, deferralMax: 3, matchRate: 100 },
+      { deferralMin: 3, deferralMax: 5, matchRate: 50 },
+    ], // 3% + 1% = 4% max
+    isSafeHarbor: true,
+  },
+  qaca: {
+    name: 'QACA Safe Harbor',
+    tiers: [
+      { deferralMin: 0, deferralMax: 1, matchRate: 100 },
+      { deferralMin: 1, deferralMax: 6, matchRate: 50 },
+    ], // 1% + 2.5% = 3.5% max
+    isSafeHarbor: true,
+  },
+};
 
 // InputField component defined OUTSIDE ConfigStudio to prevent re-creation on every render
 interface InputFieldProps {
@@ -77,6 +136,11 @@ export default function ConfigStudio() {
   const [solverStatus, setSolverStatus] = useState<'idle' | 'solving' | 'success' | 'error'>('idle');
   const [solverResult, setSolverResult] = useState<CompensationSolverResponse | null>(null);
   const [solverError, setSolverError] = useState<string>('');
+
+  // Copy from scenario modal state
+  const [showCopyScenarioModal, setShowCopyScenarioModal] = useState(false);
+  const [availableScenarios, setAvailableScenarios] = useState<Scenario[]>([]);
+  const [copyingScenariosLoading, setCopyingScenariosLoading] = useState(false);
 
   // Expanded State for all tabs
   const [formData, setFormData] = useState({
@@ -157,17 +221,53 @@ export default function ConfigStudio() {
       year4_plus: 8.0 // Low risk (stable)
     },
 
-    // DC Plan
+    // DC Plan - Basic
     dcEligibilityMonths: 3,
     dcAutoEnroll: true,
     dcDefaultDeferral: 3.0,
-    dcMatchFormula: 'simple', // 'simple', 'tiered', 'stretch'
-    dcMatchPercent: 50,
-    dcMatchLimit: 6,
-    dcVestingSchedule: 'cliff_3',
+    // E084 Phase B: Configurable match tiers (replaces dcMatchFormula/Percent/Limit)
+    // Note: Match cap is auto-calculated from tiers (sum of tier_width × match_rate)
+    dcMatchTemplate: 'tiered' as 'simple' | 'tiered' | 'stretch' | 'safe_harbor' | 'qaca',
+    dcMatchTiers: [
+      { deferralMin: 0, deferralMax: 3, matchRate: 100 },
+      { deferralMin: 3, deferralMax: 5, matchRate: 50 },
+    ],
     dcAutoEscalation: true,
     dcEscalationRate: 1.0,
     dcEscalationCap: 10.0,
+
+    // DC Plan - Auto-Enrollment Advanced (E084)
+    dcAutoEnrollWindowDays: 45,
+    dcAutoEnrollOptOutGracePeriod: 30,
+    dcAutoEnrollScope: 'new_hires_only' as 'new_hires_only' | 'all_eligible',
+    dcAutoEnrollHireDateCutoff: '2020-01-01',
+
+    // DC Plan - Match Eligibility (E084)
+    dcMatchMinTenureYears: 0,
+    dcMatchRequireYearEndActive: true,
+    dcMatchMinHoursAnnual: 1000,
+    dcMatchAllowTerminatedNewHires: false,
+    dcMatchAllowExperiencedTerminations: false,
+
+    // DC Plan - Core Contribution (E084)
+    dcCoreEnabled: true,
+    dcCoreContributionRate: 1.0,
+    dcCoreStatus: 'flat' as 'none' | 'flat' | 'graded_by_service',
+    dcCoreGradedSchedule: [
+      { serviceYearsMin: 0, serviceYearsMax: 2, rate: 1.0 },
+      { serviceYearsMin: 3, serviceYearsMax: 5, rate: 2.0 },
+      { serviceYearsMin: 6, serviceYearsMax: null, rate: 3.0 },
+    ],
+    dcCoreMinTenureYears: 0,
+    dcCoreRequireYearEndActive: true,
+    dcCoreMinHoursAnnual: 1000,
+    dcCoreAllowTerminatedNewHires: false,
+    dcCoreAllowExperiencedTerminations: false,
+
+    // DC Plan - Auto-Escalation Advanced (E084)
+    dcEscalationEffectiveDay: '01-01',
+    dcEscalationDelayYears: 1,
+    dcEscalationHireDateCutoff: '2020-01-01',
 
     // Advanced Settings
     engine: 'polars',
@@ -474,7 +574,9 @@ export default function ConfigStudio() {
                   maxComp: d.max_compensation,
                 }))
               : prev.jobLevelCompensation,
-            marketScenario: cfg.new_hire?.market_scenario || prev.marketScenario,
+            marketScenario: (['conservative', 'baseline', 'competitive', 'aggressive'].includes(cfg.new_hire?.market_scenario)
+              ? cfg.new_hire.market_scenario
+              : prev.marketScenario) as 'conservative' | 'baseline' | 'competitive' | 'aggressive',
             levelMarketAdjustments: cfg.new_hire?.level_market_adjustments
               ? cfg.new_hire.level_market_adjustments.map((d: any) => ({
                   level: d.level,
@@ -488,17 +590,60 @@ export default function ConfigStudio() {
             involuntaryRate: cfg.turnover?.involuntary_rate_percent ?? prev.involuntaryRate,
             turnoverBands: cfg.turnover?.tenure_bands || prev.turnoverBands,
 
-            // DC Plan
+            // DC Plan - Basic
             dcEligibilityMonths: cfg.dc_plan?.eligibility_months ?? prev.dcEligibilityMonths,
             dcAutoEnroll: cfg.dc_plan?.auto_enroll ?? prev.dcAutoEnroll,
             dcDefaultDeferral: cfg.dc_plan?.default_deferral_percent ?? prev.dcDefaultDeferral,
-            dcMatchFormula: cfg.dc_plan?.match_formula || prev.dcMatchFormula,
-            dcMatchPercent: cfg.dc_plan?.match_percent ?? prev.dcMatchPercent,
-            dcMatchLimit: cfg.dc_plan?.match_limit_percent ?? prev.dcMatchLimit,
-            dcVestingSchedule: cfg.dc_plan?.vesting_schedule || prev.dcVestingSchedule,
+
+            // DC Plan - Auto-Enrollment Advanced (E084)
+            dcAutoEnrollWindowDays: cfg.dc_plan?.auto_enroll_window_days ?? prev.dcAutoEnrollWindowDays,
+            dcAutoEnrollOptOutGracePeriod: cfg.dc_plan?.auto_enroll_opt_out_grace_period ?? prev.dcAutoEnrollOptOutGracePeriod,
+            dcAutoEnrollScope: cfg.dc_plan?.auto_enroll_scope || prev.dcAutoEnrollScope,
+            dcAutoEnrollHireDateCutoff: cfg.dc_plan?.auto_enroll_hire_date_cutoff || prev.dcAutoEnrollHireDateCutoff,
+
+            // DC Plan - Match (E084 Phase B: custom tiers)
+            dcMatchTemplate: cfg.dc_plan?.match_template || prev.dcMatchTemplate,
+            dcMatchTiers: cfg.dc_plan?.match_tiers
+              ? cfg.dc_plan.match_tiers.map((t: any) => ({
+                  deferralMin: (t.employee_min ?? 0) * 100,
+                  deferralMax: (t.employee_max ?? 0) * 100,
+                  matchRate: (t.match_rate ?? 0) * 100,
+                }))
+              : prev.dcMatchTiers,
+
+            // DC Plan - Match Eligibility (E084)
+            dcMatchMinTenureYears: cfg.dc_plan?.match_min_tenure_years ?? prev.dcMatchMinTenureYears,
+            dcMatchRequireYearEndActive: cfg.dc_plan?.match_require_year_end_active ?? prev.dcMatchRequireYearEndActive,
+            dcMatchMinHoursAnnual: cfg.dc_plan?.match_min_hours_annual ?? prev.dcMatchMinHoursAnnual,
+            dcMatchAllowTerminatedNewHires: cfg.dc_plan?.match_allow_terminated_new_hires ?? prev.dcMatchAllowTerminatedNewHires,
+            dcMatchAllowExperiencedTerminations: cfg.dc_plan?.match_allow_experienced_terminations ?? prev.dcMatchAllowExperiencedTerminations,
+
+            // DC Plan - Core Contribution (E084)
+            dcCoreEnabled: cfg.dc_plan?.core_enabled ?? prev.dcCoreEnabled,
+            dcCoreStatus: cfg.dc_plan?.core_status || prev.dcCoreStatus,
+            dcCoreContributionRate: cfg.dc_plan?.core_contribution_rate_percent ?? prev.dcCoreContributionRate,
+            dcCoreGradedSchedule: cfg.dc_plan?.core_graded_schedule
+              ? cfg.dc_plan.core_graded_schedule.map((tier: any) => ({
+                  serviceYearsMin: tier.service_years_min,
+                  serviceYearsMax: tier.service_years_max,
+                  rate: tier.contribution_rate * 100, // Convert decimal to %
+                }))
+              : prev.dcCoreGradedSchedule,
+            dcCoreMinTenureYears: cfg.dc_plan?.core_min_tenure_years ?? prev.dcCoreMinTenureYears,
+            dcCoreRequireYearEndActive: cfg.dc_plan?.core_require_year_end_active ?? prev.dcCoreRequireYearEndActive,
+            dcCoreMinHoursAnnual: cfg.dc_plan?.core_min_hours_annual ?? prev.dcCoreMinHoursAnnual,
+            dcCoreAllowTerminatedNewHires: cfg.dc_plan?.core_allow_terminated_new_hires ?? prev.dcCoreAllowTerminatedNewHires,
+            dcCoreAllowExperiencedTerminations: cfg.dc_plan?.core_allow_experienced_terminations ?? prev.dcCoreAllowExperiencedTerminations,
+
+            // DC Plan - Auto-Escalation
             dcAutoEscalation: cfg.dc_plan?.auto_escalation ?? prev.dcAutoEscalation,
             dcEscalationRate: cfg.dc_plan?.escalation_rate_percent ?? prev.dcEscalationRate,
             dcEscalationCap: cfg.dc_plan?.escalation_cap_percent ?? prev.dcEscalationCap,
+
+            // DC Plan - Auto-Escalation Advanced (E084)
+            dcEscalationEffectiveDay: cfg.dc_plan?.escalation_effective_day || prev.dcEscalationEffectiveDay,
+            dcEscalationDelayYears: cfg.dc_plan?.escalation_delay_years ?? prev.dcEscalationDelayYears,
+            dcEscalationHireDateCutoff: cfg.dc_plan?.escalation_hire_date_cutoff || prev.dcEscalationHireDateCutoff,
 
             // Advanced
             engine: cfg.advanced?.engine || prev.engine,
@@ -579,7 +724,9 @@ export default function ConfigStudio() {
             maxComp: d.max_compensation,
           }))
         : prev.jobLevelCompensation,
-      marketScenario: cfg.new_hire?.market_scenario || prev.marketScenario,
+      marketScenario: (['conservative', 'baseline', 'competitive', 'aggressive'].includes(cfg.new_hire?.market_scenario)
+        ? cfg.new_hire.market_scenario
+        : prev.marketScenario) as 'conservative' | 'baseline' | 'competitive' | 'aggressive',
       levelMarketAdjustments: cfg.new_hire?.level_market_adjustments
         ? cfg.new_hire.level_market_adjustments.map((d: any) => ({
             level: d.level,
@@ -597,10 +744,15 @@ export default function ConfigStudio() {
       dcEligibilityMonths: cfg.dc_plan?.eligibility_months || prev.dcEligibilityMonths,
       dcAutoEnroll: cfg.dc_plan?.auto_enroll ?? prev.dcAutoEnroll,
       dcDefaultDeferral: cfg.dc_plan?.default_deferral_percent || prev.dcDefaultDeferral,
-      dcMatchFormula: cfg.dc_plan?.match_formula || prev.dcMatchFormula,
-      dcMatchPercent: cfg.dc_plan?.match_percent || prev.dcMatchPercent,
-      dcMatchLimit: cfg.dc_plan?.match_limit_percent || prev.dcMatchLimit,
-      dcVestingSchedule: cfg.dc_plan?.vesting_schedule || prev.dcVestingSchedule,
+      // E084 Phase B: Match with custom tiers
+      dcMatchTemplate: cfg.dc_plan?.match_template || prev.dcMatchTemplate,
+      dcMatchTiers: cfg.dc_plan?.match_tiers
+        ? cfg.dc_plan.match_tiers.map((t: any) => ({
+            deferralMin: (t.employee_min ?? 0) * 100,
+            deferralMax: (t.employee_max ?? 0) * 100,
+            matchRate: (t.match_rate ?? 0) * 100,
+          }))
+        : prev.dcMatchTiers,
       dcAutoEscalation: cfg.dc_plan?.auto_escalation ?? prev.dcAutoEscalation,
       dcEscalationRate: cfg.dc_plan?.escalation_rate_percent || prev.dcEscalationRate,
       dcEscalationCap: cfg.dc_plan?.escalation_cap_percent || prev.dcEscalationCap,
@@ -686,10 +838,8 @@ export default function ConfigStudio() {
     if (formData.dcEligibilityMonths !== savedFormData.dcEligibilityMonths ||
         formData.dcAutoEnroll !== savedFormData.dcAutoEnroll ||
         formData.dcDefaultDeferral !== savedFormData.dcDefaultDeferral ||
-        formData.dcMatchFormula !== savedFormData.dcMatchFormula ||
-        formData.dcMatchPercent !== savedFormData.dcMatchPercent ||
-        formData.dcMatchLimit !== savedFormData.dcMatchLimit ||
-        formData.dcVestingSchedule !== savedFormData.dcVestingSchedule ||
+        formData.dcMatchTemplate !== savedFormData.dcMatchTemplate ||
+        JSON.stringify(formData.dcMatchTiers) !== JSON.stringify(savedFormData.dcMatchTiers) ||
         formData.dcAutoEscalation !== savedFormData.dcAutoEscalation ||
         formData.dcEscalationRate !== savedFormData.dcEscalationRate ||
         formData.dcEscalationCap !== savedFormData.dcEscalationCap) {
@@ -788,16 +938,57 @@ export default function ConfigStudio() {
           tenure_bands: formData.turnoverBands,
         },
         dc_plan: {
+          // Basic settings
           eligibility_months: Number(formData.dcEligibilityMonths),
           auto_enroll: Boolean(formData.dcAutoEnroll),
           default_deferral_percent: Number(formData.dcDefaultDeferral),
-          match_formula: formData.dcMatchFormula,
-          match_percent: Number(formData.dcMatchPercent),
-          match_limit_percent: Number(formData.dcMatchLimit),
-          vesting_schedule: formData.dcVestingSchedule,
+
+          // E084: Auto-Enrollment Advanced
+          auto_enroll_window_days: Number(formData.dcAutoEnrollWindowDays),
+          auto_enroll_opt_out_grace_period: Number(formData.dcAutoEnrollOptOutGracePeriod),
+          auto_enroll_scope: formData.dcAutoEnrollScope,
+          auto_enroll_hire_date_cutoff: formData.dcAutoEnrollHireDateCutoff,
+
+          // E084 Phase B: Match formula with custom tiers
+          match_template: formData.dcMatchTemplate,
+          match_tiers: formData.dcMatchTiers.map(t => ({
+            employee_min: t.deferralMin / 100,
+            employee_max: t.deferralMax / 100,
+            match_rate: t.matchRate / 100,
+          })),
+          match_cap_percent: calculateMatchCap(formData.dcMatchTiers), // Auto-calculated from tiers
+
+          // E084: Match Eligibility
+          match_min_tenure_years: Number(formData.dcMatchMinTenureYears),
+          match_require_year_end_active: Boolean(formData.dcMatchRequireYearEndActive),
+          match_min_hours_annual: Number(formData.dcMatchMinHoursAnnual),
+          match_allow_terminated_new_hires: Boolean(formData.dcMatchAllowTerminatedNewHires),
+          match_allow_experienced_terminations: Boolean(formData.dcMatchAllowExperiencedTerminations),
+
+          // E084: Core Contribution
+          core_enabled: Boolean(formData.dcCoreEnabled),
+          core_status: formData.dcCoreStatus,
+          core_contribution_rate_percent: Number(formData.dcCoreContributionRate),
+          core_graded_schedule: formData.dcCoreGradedSchedule.map((tier: any) => ({
+            service_years_min: tier.serviceYearsMin,
+            service_years_max: tier.serviceYearsMax,
+            contribution_rate: tier.rate / 100, // Convert % to decimal
+          })),
+          core_min_tenure_years: Number(formData.dcCoreMinTenureYears),
+          core_require_year_end_active: Boolean(formData.dcCoreRequireYearEndActive),
+          core_min_hours_annual: Number(formData.dcCoreMinHoursAnnual),
+          core_allow_terminated_new_hires: Boolean(formData.dcCoreAllowTerminatedNewHires),
+          core_allow_experienced_terminations: Boolean(formData.dcCoreAllowExperiencedTerminations),
+
+          // Auto-Escalation
           auto_escalation: Boolean(formData.dcAutoEscalation),
           escalation_rate_percent: Number(formData.dcEscalationRate),
           escalation_cap_percent: Number(formData.dcEscalationCap),
+
+          // E084: Auto-Escalation Advanced
+          escalation_effective_day: formData.dcEscalationEffectiveDay,
+          escalation_delay_years: Number(formData.dcEscalationDelayYears),
+          escalation_hire_date_cutoff: formData.dcEscalationHireDateCutoff,
         },
         advanced: {
           engine: formData.engine,
@@ -887,6 +1078,33 @@ export default function ConfigStudio() {
           </div>
         </div>
         <div className="flex space-x-3">
+           {/* Copy from Scenario button - only show when editing a scenario */}
+           {scenarioId && (
+             <button
+               onClick={async () => {
+                 setCopyingScenariosLoading(true);
+                 try {
+                   const scenarios = await listScenarios(activeWorkspace.id);
+                   // Filter out the current scenario
+                   setAvailableScenarios(scenarios.filter(s => s.id !== scenarioId));
+                   setShowCopyScenarioModal(true);
+                 } catch (error) {
+                   console.error('Failed to load scenarios:', error);
+                 } finally {
+                   setCopyingScenariosLoading(false);
+                 }
+               }}
+               disabled={copyingScenariosLoading}
+               className="px-4 py-2 bg-white border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-50 flex items-center font-medium shadow-sm transition-colors"
+             >
+               {copyingScenariosLoading ? (
+                 <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-gray-700 mr-2" />
+               ) : (
+                 <Copy size={18} className="mr-2" />
+               )}
+               Copy from Scenario
+             </button>
+           )}
            <button
              onClick={async () => {
                setTemplatesLoading(true);
@@ -1868,40 +2086,42 @@ export default function ConfigStudio() {
                       <p className="text-xs text-gray-500 mb-4">
                         Choose your overall compensation strategy relative to market rates.
                       </p>
-
-                      <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-6">
-                        {(Object.keys(marketMultipliers) as Array<keyof typeof marketMultipliers>).map((scenario) => (
-                          <label
-                            key={scenario}
-                            className={`flex flex-col p-3 border rounded-lg cursor-pointer transition-colors text-center ${
-                              formData.marketScenario === scenario
-                                ? 'bg-green-50 border-fidelity-green ring-1 ring-fidelity-green'
-                                : 'bg-white border-gray-200 hover:bg-gray-50'
-                            }`}
-                          >
-                            <input
-                              type="radio"
-                              name="marketScenario"
-                              value={scenario}
-                              checked={formData.marketScenario === scenario}
-                              onChange={(e) => setFormData({...formData, marketScenario: e.target.value as any})}
-                              className="sr-only"
-                            />
-                            <span className="font-medium text-sm text-gray-900">{marketMultipliers[scenario].label}</span>
-                            <span className={`text-xs mt-1 ${marketMultipliers[scenario].adjustment >= 0 ? 'text-green-600' : 'text-red-600'}`}>
-                              {marketMultipliers[scenario].adjustment >= 0 ? '+' : ''}{marketMultipliers[scenario].adjustment}%
-                            </span>
-                          </label>
-                        ))}
+                      <div className="flex gap-2 mb-4">
+                        <button
+                          type="button"
+                          onClick={() => setFormData(prev => ({...prev, marketScenario: 'conservative'}))}
+                          className={`px-3 py-2 rounded ${formData.marketScenario === 'conservative' ? 'bg-green-500 text-white' : 'bg-gray-200'}`}
+                        >
+                          Conservative (-5%)
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setFormData(prev => ({...prev, marketScenario: 'baseline'}))}
+                          className={`px-3 py-2 rounded ${formData.marketScenario === 'baseline' ? 'bg-green-500 text-white' : 'bg-gray-200'}`}
+                        >
+                          Baseline (+0%)
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setFormData(prev => ({...prev, marketScenario: 'competitive'}))}
+                          className={`px-3 py-2 rounded ${formData.marketScenario === 'competitive' ? 'bg-green-500 text-white' : 'bg-gray-200'}`}
+                        >
+                          Competitive (+5%)
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setFormData(prev => ({...prev, marketScenario: 'aggressive'}))}
+                          className={`px-3 py-2 rounded ${formData.marketScenario === 'aggressive' ? 'bg-green-500 text-white' : 'bg-gray-200'}`}
+                        >
+                          Aggressive (+10%)
+                        </button>
                       </div>
-
                       <div className="bg-blue-50 p-3 rounded-lg border border-blue-100 mb-4">
                         <p className="text-xs text-blue-800">
-                          <strong>{marketMultipliers[formData.marketScenario].label}:</strong>{' '}
-                          {marketMultipliers[formData.marketScenario].description}
+                          <strong>{marketMultipliers[formData.marketScenario]?.label || 'Baseline'}:</strong>{' '}
+                          {marketMultipliers[formData.marketScenario]?.description || 'At market (competitive positioning)'}
                         </p>
                       </div>
-
                       {/* Level-specific adjustments */}
                       <div className="mt-4">
                         <h4 className="text-xs font-semibold text-gray-700 uppercase tracking-wider mb-3">Level-Specific Adjustments</h4>
@@ -1909,7 +2129,7 @@ export default function ConfigStudio() {
                           Fine-tune market positioning by job level (in addition to overall scenario).
                         </p>
                         <div className="grid grid-cols-5 gap-2">
-                          {formData.levelMarketAdjustments.map((row, idx) => (
+                          {(formData.levelMarketAdjustments || []).map((row, idx) => (
                             <div key={row.level} className="bg-white p-2 rounded border border-gray-200">
                               <label className="block text-xs text-gray-500 mb-1 text-center">
                                 Level {row.level}
@@ -2058,37 +2278,364 @@ export default function ConfigStudio() {
                     <InputField label="Eligibility Period" {...inputProps('dcEligibilityMonths')} type="number" suffix="Months" helper="Wait period before joining" />
                     <InputField label="Default Deferral Rate" {...inputProps('dcDefaultDeferral')} type="number" step="0.5" suffix="%" helper="Initial contribution for auto-enrolled" />
 
-                    <div className="sm:col-span-3">
-                       <label className="block text-sm font-medium text-gray-700">Vesting Schedule</label>
-                       <select
-                         name="dcVestingSchedule"
-                         value={formData.dcVestingSchedule}
-                         onChange={handleChange}
-                         className="mt-1 block w-full pl-3 pr-10 py-2 text-base border-gray-300 focus:outline-none focus:ring-fidelity-green focus:border-fidelity-green sm:text-sm rounded-md border shadow-sm"
-                       >
-                         <option value="immediate">Immediate</option>
-                         <option value="cliff_3">3-Year Cliff</option>
-                         <option value="graded_5">5-Year Graded</option>
-                       </select>
-                    </div>
+                    {/* E084: Auto-Enrollment Advanced Settings */}
+                    {formData.dcAutoEnroll && (
+                      <>
+                        <InputField label="Enrollment Window" {...inputProps('dcAutoEnrollWindowDays')} type="number" suffix="Days" helper="Days after hire for auto-enrollment" min={30} />
+                        <InputField label="Opt-Out Grace Period" {...inputProps('dcAutoEnrollOptOutGracePeriod')} type="number" suffix="Days" helper="Days to opt out without penalty" min={0} />
+                        <div className="sm:col-span-3">
+                          <label className="block text-sm font-medium text-gray-700">Enrollment Scope</label>
+                          <select
+                            name="dcAutoEnrollScope"
+                            value={formData.dcAutoEnrollScope}
+                            onChange={handleChange}
+                            className="mt-1 block w-full pl-3 pr-10 py-2 text-base border-gray-300 focus:outline-none focus:ring-fidelity-green focus:border-fidelity-green sm:text-sm rounded-md border shadow-sm"
+                          >
+                            <option value="new_hires_only">New Hires Only</option>
+                            <option value="all_eligible">All Eligible Employees</option>
+                          </select>
+                          <p className="mt-1 text-xs text-gray-500">Who gets auto-enrolled</p>
+                        </div>
+                        <div className="sm:col-span-3">
+                          <label className="block text-sm font-medium text-gray-700">Hire Date Cutoff</label>
+                          <input
+                            type="date"
+                            name="dcAutoEnrollHireDateCutoff"
+                            value={formData.dcAutoEnrollHireDateCutoff}
+                            onChange={handleChange}
+                            className="mt-1 block w-full pl-3 pr-3 py-2 text-base border-gray-300 focus:outline-none focus:ring-fidelity-green focus:border-fidelity-green sm:text-sm rounded-md border shadow-sm"
+                          />
+                          <p className="mt-1 text-xs text-gray-500">Auto-enroll employees hired on/after this date</p>
+                        </div>
+                      </>
+                    )}
 
                     <div className="col-span-6 h-px bg-gray-200 my-2"></div>
                     <h4 className="col-span-6 text-sm font-semibold text-gray-900">Employer Match Formula</h4>
 
-                    <div className="sm:col-span-6 mb-2">
-                       <label className="block text-sm font-medium text-gray-700 mb-2">Formula Structure</label>
-                       <div className="grid grid-cols-3 gap-4">
-                         {['simple', 'tiered', 'stretch'].map((type) => (
-                           <label key={type} className={`flex items-center justify-center px-4 py-2 border rounded-md cursor-pointer text-sm font-medium uppercase ${formData.dcMatchFormula === type ? 'bg-fidelity-green text-white border-fidelity-green' : 'bg-white text-gray-700 border-gray-300 hover:bg-gray-50'}`}>
-                             <input type="radio" name="dcMatchFormula" value={type} checked={formData.dcMatchFormula === type} onChange={handleChange} className="sr-only" />
-                             {type}
-                           </label>
-                         ))}
-                       </div>
+                    {/* E084 Phase B: Template selector + editable tiers */}
+                    <div className="sm:col-span-3">
+                      <label className="block text-sm font-medium text-gray-700">Start from Template</label>
+                      <select
+                        value={formData.dcMatchTemplate}
+                        onChange={(e) => {
+                          const templateKey = e.target.value as keyof typeof MATCH_TEMPLATES;
+                          const template = MATCH_TEMPLATES[templateKey];
+                          if (template) {
+                            setFormData(prev => ({
+                              ...prev,
+                              dcMatchTemplate: templateKey,
+                              dcMatchTiers: template.tiers.map(t => ({ ...t })),
+                            }));
+                          }
+                        }}
+                        className="mt-1 block w-full pl-3 pr-10 py-2 text-base border-gray-300 focus:outline-none focus:ring-fidelity-green focus:border-fidelity-green sm:text-sm rounded-md border shadow-sm"
+                      >
+                        {Object.entries(MATCH_TEMPLATES).map(([key, t]) => (
+                          <option key={key} value={key}>{t.name}</option>
+                        ))}
+                      </select>
+                      <p className="mt-1 text-xs text-gray-500">Select a template, then customize tiers below</p>
                     </div>
 
-                    <InputField label="Match Percentage" {...inputProps('dcMatchPercent')} type="number" suffix="%" helper="% of employee contribution matched" />
-                    <InputField label="Match Limit" {...inputProps('dcMatchLimit')} type="number" suffix="%" helper="Up to % of annual salary" />
+                    <div className="sm:col-span-3">
+                      <label className="block text-sm font-medium text-gray-700">Max Employer Match</label>
+                      <div className="mt-1 bg-gray-100 rounded-md p-2 border border-gray-200">
+                        <span className="text-lg font-semibold text-gray-900">
+                          {(calculateMatchCap(formData.dcMatchTiers) * 100).toFixed(1)}%
+                        </span>
+                        <span className="text-sm text-gray-500 ml-1">of compensation</span>
+                      </div>
+                      <p className="mt-1 text-xs text-gray-500">Auto-calculated from tiers below</p>
+                    </div>
+
+                    {/* Editable Match Tiers */}
+                    <div className="sm:col-span-6 bg-gray-50 p-4 rounded-lg border border-gray-200">
+                      <label className="block text-sm font-medium text-gray-700 mb-3">Match Tiers (editable)</label>
+                      <div className="space-y-2">
+                        {formData.dcMatchTiers.map((tier, idx) => (
+                          <div key={idx} className="flex items-center gap-2 bg-white p-2 rounded border border-gray-200">
+                            <span className="text-xs text-gray-500 w-4">{idx + 1}.</span>
+                            <input
+                              type="number"
+                              step="0.5"
+                              min={0}
+                              max={100}
+                              value={tier.deferralMin}
+                              onChange={(e) => {
+                                const newTiers = [...formData.dcMatchTiers];
+                                newTiers[idx] = { ...newTiers[idx], deferralMin: parseFloat(e.target.value) || 0 };
+                                setFormData(prev => ({ ...prev, dcMatchTiers: newTiers }));
+                              }}
+                              className="w-16 shadow-sm focus:ring-fidelity-green focus:border-fidelity-green sm:text-sm border-gray-300 rounded-md p-1 border text-center"
+                            />
+                            <span className="text-sm text-gray-600">% to</span>
+                            <input
+                              type="number"
+                              step="0.5"
+                              min={0}
+                              max={100}
+                              value={tier.deferralMax}
+                              onChange={(e) => {
+                                const newTiers = [...formData.dcMatchTiers];
+                                newTiers[idx] = { ...newTiers[idx], deferralMax: parseFloat(e.target.value) || 0 };
+                                setFormData(prev => ({ ...prev, dcMatchTiers: newTiers }));
+                              }}
+                              className="w-16 shadow-sm focus:ring-fidelity-green focus:border-fidelity-green sm:text-sm border-gray-300 rounded-md p-1 border text-center"
+                            />
+                            <span className="text-sm text-gray-600">% deferrals →</span>
+                            <input
+                              type="number"
+                              step="5"
+                              min={0}
+                              max={200}
+                              value={tier.matchRate}
+                              onChange={(e) => {
+                                const newTiers = [...formData.dcMatchTiers];
+                                newTiers[idx] = { ...newTiers[idx], matchRate: parseFloat(e.target.value) || 0 };
+                                setFormData(prev => ({ ...prev, dcMatchTiers: newTiers }));
+                              }}
+                              className="w-16 shadow-sm focus:ring-fidelity-green focus:border-fidelity-green sm:text-sm border-gray-300 rounded-md p-1 border text-center"
+                            />
+                            <span className="text-sm text-gray-600">% match</span>
+                            {formData.dcMatchTiers.length > 1 && (
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  const newTiers = formData.dcMatchTiers.filter((_, i) => i !== idx);
+                                  setFormData(prev => ({ ...prev, dcMatchTiers: newTiers }));
+                                }}
+                                className="ml-auto text-red-500 hover:text-red-700 p-1"
+                              >
+                                <X size={16} />
+                              </button>
+                            )}
+                          </div>
+                        ))}
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          const lastTier = formData.dcMatchTiers[formData.dcMatchTiers.length - 1];
+                          const newTier = { deferralMin: lastTier?.deferralMax || 0, deferralMax: (lastTier?.deferralMax || 0) + 2, matchRate: 50 };
+                          setFormData(prev => ({ ...prev, dcMatchTiers: [...prev.dcMatchTiers, newTier] }));
+                        }}
+                        className="mt-3 text-sm text-fidelity-green hover:text-green-700 flex items-center gap-1"
+                      >
+                        + Add Tier
+                      </button>
+                    </div>
+
+                    {/* Safe Harbor Notice */}
+                    {(formData.dcMatchTemplate === 'safe_harbor' || formData.dcMatchTemplate === 'qaca') && (
+                      <div className="col-span-6 bg-blue-50 border border-blue-200 p-3 rounded-lg flex items-start gap-2">
+                        <Info size={16} className="text-blue-600 mt-0.5 flex-shrink-0" />
+                        <div>
+                          <p className="text-sm text-blue-800 font-medium">Safe Harbor Plan Selected</p>
+                          <p className="text-xs text-blue-700 mt-1">
+                            {formData.dcMatchTemplate === 'safe_harbor'
+                              ? 'Safe Harbor Basic: 100% match on first 3% + 50% match on next 2%. Satisfies ADP/ACP nondiscrimination tests.'
+                              : 'QACA Safe Harbor: 100% match on first 1% + 50% match on next 5%. Includes automatic enrollment requirements.'}
+                          </p>
+                        </div>
+                      </div>
+                    )}
+
+                    {/* E084: Match Eligibility Section */}
+                    <div className="col-span-6 h-px bg-gray-200 my-2"></div>
+                    <h4 className="col-span-6 text-sm font-semibold text-gray-900">Match Eligibility Requirements</h4>
+                    <p className="col-span-6 text-xs text-gray-500 -mt-4 mb-2">Configure who qualifies for employer match contributions</p>
+
+                    <InputField label="Min. Tenure" {...inputProps('dcMatchMinTenureYears')} type="number" suffix="Years" helper="Years of service required" min={0} />
+                    <InputField label="Min. Annual Hours" {...inputProps('dcMatchMinHoursAnnual')} type="number" suffix="Hours" helper="Hours worked per year" min={0} />
+
+                    <div className="sm:col-span-3 flex items-center">
+                      <input
+                        type="checkbox"
+                        name="dcMatchRequireYearEndActive"
+                        checked={formData.dcMatchRequireYearEndActive}
+                        onChange={handleChange}
+                        className="h-4 w-4 text-fidelity-green focus:ring-fidelity-green border-gray-300 rounded"
+                      />
+                      <label className="ml-2 block text-sm text-gray-700">Require Active at Year-End</label>
+                    </div>
+
+                    <div className="sm:col-span-3 flex items-center">
+                      <input
+                        type="checkbox"
+                        name="dcMatchAllowTerminatedNewHires"
+                        checked={formData.dcMatchAllowTerminatedNewHires}
+                        onChange={handleChange}
+                        className="h-4 w-4 text-fidelity-green focus:ring-fidelity-green border-gray-300 rounded"
+                      />
+                      <label className="ml-2 block text-sm text-gray-700">Allow Terminated New Hires</label>
+                    </div>
+
+                    <div className="sm:col-span-3 flex items-center">
+                      <input
+                        type="checkbox"
+                        name="dcMatchAllowExperiencedTerminations"
+                        checked={formData.dcMatchAllowExperiencedTerminations}
+                        onChange={handleChange}
+                        className="h-4 w-4 text-fidelity-green focus:ring-fidelity-green border-gray-300 rounded"
+                      />
+                      <label className="ml-2 block text-sm text-gray-700">Allow Experienced Terminations</label>
+                    </div>
+
+                    {/* E084: Core Contribution Section */}
+                    <div className="col-span-6 h-px bg-gray-200 my-2"></div>
+                    <div className="sm:col-span-6 flex items-center justify-between mb-2">
+                      <h4 className="text-sm font-semibold text-gray-900">Employer Core (Non-Elective) Contribution</h4>
+                      <div className="flex items-center">
+                        <input
+                          type="checkbox"
+                          name="dcCoreEnabled"
+                          checked={formData.dcCoreEnabled}
+                          onChange={handleChange}
+                          className="h-4 w-4 text-fidelity-green rounded"
+                        />
+                        <span className="ml-2 text-sm text-gray-600">Enabled</span>
+                      </div>
+                    </div>
+                    <p className="col-span-6 text-xs text-gray-500 -mt-4 mb-2">Automatic employer contribution regardless of employee deferral</p>
+
+                    {formData.dcCoreEnabled && (
+                      <>
+                        {/* E084: Core Contribution Type */}
+                        <div className="sm:col-span-3">
+                          <label className="block text-sm font-medium text-gray-700">Contribution Type</label>
+                          <select
+                            name="dcCoreStatus"
+                            value={formData.dcCoreStatus}
+                            onChange={handleChange}
+                            className="mt-1 block w-full pl-3 pr-10 py-2 text-base border-gray-300 focus:outline-none focus:ring-fidelity-green focus:border-fidelity-green sm:text-sm rounded-md border shadow-sm"
+                          >
+                            <option value="flat">Flat Rate (same for all)</option>
+                            <option value="graded_by_service">Graded by Service (increases with tenure)</option>
+                          </select>
+                        </div>
+
+                        {/* Flat rate input */}
+                        {formData.dcCoreStatus === 'flat' && (
+                          <InputField label="Core Rate" {...inputProps('dcCoreContributionRate')} type="number" step="0.5" suffix="%" helper="% of compensation" min={0} />
+                        )}
+
+                        {/* E084: Graded Schedule Editor */}
+                        {formData.dcCoreStatus === 'graded_by_service' && (
+                          <div className="sm:col-span-6 bg-gray-50 p-4 rounded-lg border border-gray-200">
+                            <label className="block text-sm font-medium text-gray-700 mb-3">Graded Core Schedule</label>
+                            <div className="space-y-2">
+                              {formData.dcCoreGradedSchedule.map((tier: any, idx: number) => (
+                                <div key={idx} className="flex items-center gap-3 text-sm">
+                                  <span className="text-gray-500 w-8">{idx + 1}.</span>
+                                  <input
+                                    type="number"
+                                    value={tier.serviceYearsMin}
+                                    onChange={(e) => {
+                                      const newSchedule = [...formData.dcCoreGradedSchedule];
+                                      newSchedule[idx] = { ...tier, serviceYearsMin: Number(e.target.value) };
+                                      setFormData((prev: any) => ({ ...prev, dcCoreGradedSchedule: newSchedule }));
+                                    }}
+                                    className="w-16 px-2 py-1 border border-gray-300 rounded text-center"
+                                    min={0}
+                                  />
+                                  <span className="text-gray-500">to</span>
+                                  <input
+                                    type="number"
+                                    value={tier.serviceYearsMax ?? ''}
+                                    placeholder="∞"
+                                    onChange={(e) => {
+                                      const newSchedule = [...formData.dcCoreGradedSchedule];
+                                      newSchedule[idx] = { ...tier, serviceYearsMax: e.target.value ? Number(e.target.value) : null };
+                                      setFormData((prev: any) => ({ ...prev, dcCoreGradedSchedule: newSchedule }));
+                                    }}
+                                    className="w-16 px-2 py-1 border border-gray-300 rounded text-center"
+                                    min={0}
+                                  />
+                                  <span className="text-gray-500">years →</span>
+                                  <input
+                                    type="number"
+                                    value={tier.rate}
+                                    onChange={(e) => {
+                                      const newSchedule = [...formData.dcCoreGradedSchedule];
+                                      newSchedule[idx] = { ...tier, rate: Number(e.target.value) };
+                                      setFormData((prev: any) => ({ ...prev, dcCoreGradedSchedule: newSchedule }));
+                                    }}
+                                    step="0.5"
+                                    className="w-20 px-2 py-1 border border-gray-300 rounded text-center"
+                                    min={0}
+                                  />
+                                  <span className="text-gray-500">%</span>
+                                  {formData.dcCoreGradedSchedule.length > 1 && (
+                                    <button
+                                      type="button"
+                                      onClick={() => {
+                                        const newSchedule = formData.dcCoreGradedSchedule.filter((_: any, i: number) => i !== idx);
+                                        setFormData((prev: any) => ({ ...prev, dcCoreGradedSchedule: newSchedule }));
+                                      }}
+                                      className="text-red-500 hover:text-red-700 px-2"
+                                    >
+                                      ✕
+                                    </button>
+                                  )}
+                                </div>
+                              ))}
+                            </div>
+                            <button
+                              type="button"
+                              onClick={() => {
+                                const lastTier = formData.dcCoreGradedSchedule[formData.dcCoreGradedSchedule.length - 1];
+                                const newMin = (lastTier?.serviceYearsMax ?? lastTier?.serviceYearsMin ?? 0) + 1;
+                                const newSchedule = [
+                                  ...formData.dcCoreGradedSchedule,
+                                  { serviceYearsMin: newMin, serviceYearsMax: null, rate: (lastTier?.rate ?? 1) + 1 }
+                                ];
+                                setFormData((prev: any) => ({ ...prev, dcCoreGradedSchedule: newSchedule }));
+                              }}
+                              className="mt-3 text-sm text-fidelity-green hover:text-green-700 font-medium"
+                            >
+                              + Add Tier
+                            </button>
+                          </div>
+                        )}
+
+                        <InputField label="Min. Tenure" {...inputProps('dcCoreMinTenureYears')} type="number" suffix="Years" helper="Years of service required" min={0} />
+                        <InputField label="Min. Annual Hours" {...inputProps('dcCoreMinHoursAnnual')} type="number" suffix="Hours" helper="Hours worked per year" min={0} />
+
+                        <div className="sm:col-span-3 flex items-center">
+                          <input
+                            type="checkbox"
+                            name="dcCoreRequireYearEndActive"
+                            checked={formData.dcCoreRequireYearEndActive}
+                            onChange={handleChange}
+                            className="h-4 w-4 text-fidelity-green focus:ring-fidelity-green border-gray-300 rounded"
+                          />
+                          <label className="ml-2 block text-sm text-gray-700">Require Active at Year-End</label>
+                        </div>
+
+                        <div className="sm:col-span-3 flex items-center">
+                          <input
+                            type="checkbox"
+                            name="dcCoreAllowTerminatedNewHires"
+                            checked={formData.dcCoreAllowTerminatedNewHires}
+                            onChange={handleChange}
+                            className="h-4 w-4 text-fidelity-green focus:ring-fidelity-green border-gray-300 rounded"
+                          />
+                          <label className="ml-2 block text-sm text-gray-700">Allow Terminated New Hires</label>
+                        </div>
+
+                        <div className="sm:col-span-3 flex items-center">
+                          <input
+                            type="checkbox"
+                            name="dcCoreAllowExperiencedTerminations"
+                            checked={formData.dcCoreAllowExperiencedTerminations}
+                            onChange={handleChange}
+                            className="h-4 w-4 text-fidelity-green focus:ring-fidelity-green border-gray-300 rounded"
+                          />
+                          <label className="ml-2 block text-sm text-gray-700">Allow Experienced Terminations</label>
+                        </div>
+                      </>
+                    )}
 
                     <div className="col-span-6 h-px bg-gray-200 my-2"></div>
                     <div className="sm:col-span-6 flex items-center justify-between mb-2">
@@ -2102,6 +2649,31 @@ export default function ConfigStudio() {
                       <>
                         <InputField label="Annual Increase" {...inputProps('dcEscalationRate')} type="number" step="0.5" suffix="%" helper="Yearly step-up" />
                         <InputField label="Escalation Cap" {...inputProps('dcEscalationCap')} type="number" suffix="%" helper="Max deferral rate" />
+                        <div className="sm:col-span-3">
+                          <label className="block text-sm font-medium text-gray-700">Effective Date (MM-DD)</label>
+                          <input
+                            type="text"
+                            name="dcEscalationEffectiveDay"
+                            value={formData.dcEscalationEffectiveDay}
+                            onChange={handleChange}
+                            placeholder="01-01"
+                            pattern="\d{2}-\d{2}"
+                            className="mt-1 block w-full pl-3 pr-3 py-2 text-base border-gray-300 focus:outline-none focus:ring-fidelity-green focus:border-fidelity-green sm:text-sm rounded-md border shadow-sm"
+                          />
+                          <p className="mt-1 text-xs text-gray-500">Annual escalation date (e.g., 01-01 for Jan 1)</p>
+                        </div>
+                        <InputField label="First Escalation Delay" {...inputProps('dcEscalationDelayYears')} type="number" suffix="Years" helper="Wait after enrollment" min={0} />
+                        <div className="sm:col-span-3">
+                          <label className="block text-sm font-medium text-gray-700">Hire Date Cutoff</label>
+                          <input
+                            type="date"
+                            name="dcEscalationHireDateCutoff"
+                            value={formData.dcEscalationHireDateCutoff}
+                            onChange={handleChange}
+                            className="mt-1 block w-full pl-3 pr-3 py-2 text-base border-gray-300 focus:outline-none focus:ring-fidelity-green focus:border-fidelity-green sm:text-sm rounded-md border shadow-sm"
+                          />
+                          <p className="mt-1 text-xs text-gray-500">Only escalate employees hired on/after this date</p>
+                        </div>
                       </>
                     )}
                  </div>
@@ -2264,10 +2836,16 @@ export default function ConfigStudio() {
                       // Compensation
                       meritBudget: cfg.compensation?.merit_budget_percent ?? prev.meritBudget,
                       colaRate: cfg.compensation?.cola_rate_percent ?? prev.colaRate,
-                      // DC Plan
+                      // DC Plan (E084 Phase B: custom tiers)
                       dcAutoEnroll: cfg.dc_plan?.auto_enroll ?? prev.dcAutoEnroll,
-                      dcMatchPercent: cfg.dc_plan?.match_percent ?? prev.dcMatchPercent,
-                      dcMatchLimit: cfg.dc_plan?.match_limit_percent ?? prev.dcMatchLimit,
+                      dcMatchTemplate: cfg.dc_plan?.match_template || prev.dcMatchTemplate,
+                      dcMatchTiers: cfg.dc_plan?.match_tiers
+                        ? cfg.dc_plan.match_tiers.map((t: any) => ({
+                            deferralMin: (t.employee_min ?? 0) * 100,
+                            deferralMax: (t.employee_max ?? 0) * 100,
+                            matchRate: (t.match_rate ?? 0) * 100,
+                          }))
+                        : prev.dcMatchTiers,
                       dcAutoEscalation: cfg.dc_plan?.auto_escalation ?? prev.dcAutoEscalation,
                     }));
                     setShowTemplateModal(false);
@@ -2289,6 +2867,140 @@ export default function ConfigStudio() {
             <div className="p-4 border-t border-gray-200 bg-gray-50 flex-shrink-0 rounded-b-xl">
               <button
                 onClick={() => setShowTemplateModal(false)}
+                className="px-4 py-2 text-gray-700 hover:bg-gray-200 rounded-lg transition-colors"
+              >
+                Cancel
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Copy from Scenario Modal */}
+      {showCopyScenarioModal && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-white rounded-xl shadow-xl max-w-2xl w-full mx-4 max-h-[80vh] flex flex-col">
+            <div className="p-6 border-b border-gray-200 flex-shrink-0">
+              <h2 className="text-xl font-bold text-gray-900">Copy Configuration from Scenario</h2>
+              <p className="text-sm text-gray-500 mt-1">Select a scenario to copy its settings into this one</p>
+            </div>
+            <div className="p-6 overflow-y-auto flex-1 space-y-3">
+              {availableScenarios.length === 0 ? (
+                <p className="text-gray-500 text-center py-8">No other scenarios available to copy from</p>
+              ) : (
+                availableScenarios.map(scenario => (
+                  <button
+                    key={scenario.id}
+                    onClick={async () => {
+                      try {
+                        // Fetch full scenario config
+                        const fullScenario = await getScenario(activeWorkspace.id, scenario.id);
+                        const cfg = fullScenario.config_overrides || {};
+
+                        // Apply all config to form (comprehensive copy)
+                        setFormData(prev => ({
+                          ...prev,
+                          // Simulation
+                          name: cfg.simulation?.name || prev.name,
+                          startYear: cfg.simulation?.start_year ?? prev.startYear,
+                          endYear: cfg.simulation?.end_year ?? prev.endYear,
+                          seed: cfg.simulation?.random_seed ?? prev.seed,
+                          targetGrowthRate: cfg.simulation?.target_growth_rate != null
+                            ? cfg.simulation.target_growth_rate * 100
+                            : prev.targetGrowthRate,
+                          // Workforce
+                          totalTerminationRate: cfg.workforce?.total_termination_rate != null
+                            ? cfg.workforce.total_termination_rate * 100
+                            : prev.totalTerminationRate,
+                          newHireTerminationRate: cfg.workforce?.new_hire_termination_rate != null
+                            ? cfg.workforce.new_hire_termination_rate * 100
+                            : prev.newHireTerminationRate,
+                          // Compensation
+                          meritBudget: cfg.compensation?.merit_budget_percent ?? prev.meritBudget,
+                          colaRate: cfg.compensation?.cola_rate_percent ?? prev.colaRate,
+                          promoIncrease: cfg.compensation?.promotion_increase_percent ?? prev.promoIncrease,
+                          promoDistributionRange: cfg.compensation?.promotion_distribution_range_percent ?? prev.promoDistributionRange,
+                          promoBudget: cfg.compensation?.promotion_budget_percent ?? prev.promoBudget,
+                          promoRateMultiplier: cfg.compensation?.promotion_rate_multiplier ?? prev.promoRateMultiplier,
+                          // New Hire
+                          newHireStrategy: cfg.new_hire?.strategy || prev.newHireStrategy,
+                          targetPercentile: cfg.new_hire?.target_percentile ?? prev.targetPercentile,
+                          newHireCompVariance: cfg.new_hire?.compensation_variance_percent ?? prev.newHireCompVariance,
+                          marketScenario: cfg.new_hire?.market_scenario || prev.marketScenario,
+                          // Turnover
+                          baseTurnoverRate: cfg.turnover?.base_rate_percent ?? prev.baseTurnoverRate,
+                          regrettableFactor: cfg.turnover?.regrettable_factor ?? prev.regrettableFactor,
+                          involuntaryRate: cfg.turnover?.involuntary_rate_percent ?? prev.involuntaryRate,
+                          turnoverBands: cfg.turnover?.tenure_bands || prev.turnoverBands,
+                          // DC Plan
+                          dcEligibilityMonths: cfg.dc_plan?.eligibility_months ?? prev.dcEligibilityMonths,
+                          dcAutoEnroll: cfg.dc_plan?.auto_enroll ?? prev.dcAutoEnroll,
+                          dcDefaultDeferral: cfg.dc_plan?.default_deferral_percent ?? prev.dcDefaultDeferral,
+                          // DC Plan - Match (E084 Phase B)
+                          dcMatchTemplate: cfg.dc_plan?.match_template || prev.dcMatchTemplate,
+                          dcMatchTiers: cfg.dc_plan?.match_tiers
+                            ? cfg.dc_plan.match_tiers.map((t: any) => ({
+                                deferralMin: (t.employee_min ?? 0) * 100,
+                                deferralMax: (t.employee_max ?? 0) * 100,
+                                matchRate: (t.match_rate ?? 0) * 100,
+                              }))
+                            : prev.dcMatchTiers,
+                          // DC Plan - Match Eligibility
+                          dcMatchMinTenureYears: cfg.dc_plan?.match_min_tenure_years ?? prev.dcMatchMinTenureYears,
+                          dcMatchRequireYearEndActive: cfg.dc_plan?.match_require_year_end_active ?? prev.dcMatchRequireYearEndActive,
+                          dcMatchMinHoursAnnual: cfg.dc_plan?.match_min_hours_annual ?? prev.dcMatchMinHoursAnnual,
+                          dcMatchAllowTerminatedNewHires: cfg.dc_plan?.match_allow_terminated_new_hires ?? prev.dcMatchAllowTerminatedNewHires,
+                          dcMatchAllowExperiencedTerminations: cfg.dc_plan?.match_allow_experienced_terminations ?? prev.dcMatchAllowExperiencedTerminations,
+                          // DC Plan - Core Contribution
+                          dcCoreEnabled: cfg.dc_plan?.core_enabled ?? prev.dcCoreEnabled,
+                          dcCoreStatus: cfg.dc_plan?.core_status || prev.dcCoreStatus,
+                          dcCoreContributionRate: cfg.dc_plan?.core_contribution_rate_percent ?? prev.dcCoreContributionRate,
+                          dcCoreGradedSchedule: cfg.dc_plan?.core_graded_schedule
+                            ? cfg.dc_plan.core_graded_schedule.map((tier: any) => ({
+                                serviceYearsMin: tier.service_years_min,
+                                serviceYearsMax: tier.service_years_max,
+                                rate: (tier.contribution_rate ?? 0) * 100,
+                              }))
+                            : prev.dcCoreGradedSchedule,
+                          // DC Plan - Auto-Escalation
+                          dcAutoEscalation: cfg.dc_plan?.auto_escalation ?? prev.dcAutoEscalation,
+                          dcEscalationRate: cfg.dc_plan?.escalation_rate_percent ?? prev.dcEscalationRate,
+                          dcEscalationCap: cfg.dc_plan?.escalation_cap_percent ?? prev.dcEscalationCap,
+                          // Advanced
+                          engine: cfg.advanced?.engine || prev.engine,
+                          enableMultithreading: cfg.advanced?.enable_multithreading ?? prev.enableMultithreading,
+                          checkpointFrequency: cfg.advanced?.checkpoint_frequency || prev.checkpointFrequency,
+                          memoryLimitGB: cfg.advanced?.memory_limit_gb ?? prev.memoryLimitGB,
+                          logLevel: cfg.advanced?.log_level || prev.logLevel,
+                          strictValidation: cfg.advanced?.strict_validation ?? prev.strictValidation,
+                        }));
+                        setShowCopyScenarioModal(false);
+                      } catch (error) {
+                        console.error('Failed to copy scenario config:', error);
+                      }
+                    }}
+                    className="w-full text-left p-4 border border-gray-200 rounded-lg hover:border-fidelity-green hover:bg-green-50 transition-colors"
+                  >
+                    <div className="flex justify-between items-start">
+                      <div>
+                        <h3 className="font-semibold text-gray-900">{scenario.name}</h3>
+                        <p className="text-sm text-gray-500 mt-1">{scenario.description || 'No description'}</p>
+                      </div>
+                      <span className={`px-2 py-1 text-xs font-medium rounded ${
+                        scenario.status === 'completed' ? 'bg-green-100 text-green-700' :
+                        scenario.status === 'running' ? 'bg-blue-100 text-blue-700' :
+                        'bg-gray-100 text-gray-600'
+                      }`}>
+                        {scenario.status || 'draft'}
+                      </span>
+                    </div>
+                  </button>
+                ))
+              )}
+            </div>
+            <div className="p-4 border-t border-gray-200 bg-gray-50 flex-shrink-0 rounded-b-xl">
+              <button
+                onClick={() => setShowCopyScenarioModal(false)}
                 className="px-4 py-2 text-gray-700 hover:bg-gray-200 rounded-lg transition-colors"
               >
                 Cancel

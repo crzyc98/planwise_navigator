@@ -198,6 +198,7 @@ def _export_employer_match_vars(cfg: "SimulationConfig") -> Dict[str, Any]:
     """Export employer match configuration to dbt vars.
 
     Epic E058: Enhanced employer match configuration with eligibility.
+    Epic E084 Phase B: Custom match tiers configuration.
     """
     dbt_vars: Dict[str, Any] = {}
 
@@ -272,6 +273,42 @@ def _export_employer_match_vars(cfg: "SimulationConfig") -> Dict[str, Any]:
         print(f"Warning: Error processing employer_match configuration: {e}")
         print(f"Traceback: {traceback.format_exc()}")
         dbt_vars["employer_match"] = employer_match_defaults
+
+    # E084 Phase B: Export custom match tiers from dc_plan config
+    # These are set via PlanAlign Studio UI and saved in scenario's config_overrides
+    try:
+        dc_plan = getattr(cfg, "dc_plan", None)
+        if dc_plan is None and hasattr(cfg, "__dict__"):
+            raw_config = cfg.__dict__.get("_raw_config", {})
+            dc_plan = raw_config.get("dc_plan", {})
+
+        if dc_plan:
+            if isinstance(dc_plan, dict):
+                dc_plan_dict = dc_plan
+            elif hasattr(dc_plan, 'model_dump'):
+                dc_plan_dict = dc_plan.model_dump()
+            else:
+                dc_plan_dict = {}
+
+            # Export match_template (e.g., 'simple', 'tiered', 'safe_harbor', 'qaca')
+            match_template = dc_plan_dict.get("match_template")
+            if match_template:
+                dbt_vars["match_template"] = str(match_template)
+
+            # Export match_tiers (array of {employee_min, employee_max, match_rate})
+            match_tiers = dc_plan_dict.get("match_tiers")
+            if match_tiers and len(match_tiers) > 0:
+                dbt_vars["match_tiers"] = match_tiers
+
+            # Export match_cap_percent (decimal, e.g., 0.04 for 4%)
+            match_cap_percent = dc_plan_dict.get("match_cap_percent")
+            if match_cap_percent is not None:
+                dbt_vars["match_cap_percent"] = float(match_cap_percent)
+
+    except Exception as e:
+        import traceback
+        print(f"Warning: Error processing dc_plan match configuration: {e}")
+        print(f"Traceback: {traceback.format_exc()}")
 
     return dbt_vars
 

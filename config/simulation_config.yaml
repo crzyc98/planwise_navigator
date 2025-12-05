@@ -315,7 +315,7 @@ employee_id_generation:
 # Employer match configuration
 employer_match:
   # Active match formula selection
-  active_formula: 'simple_match'  # Options: 'simple_match', 'tiered_match', 'stretch_match'
+  active_formula: 'simple_match'  # Options: 'simple_match', 'tiered_match', 'stretch_match', 'safe_harbor_basic', 'qaca_safe_harbor'
 
   # Epic E058: Employer match eligibility configuration
   # Epic E061: Enable eligibility enforcement to fix new hire termination match issue
@@ -378,10 +378,58 @@ employer_match:
           match_rate: 0.50    # 50% on next 2%
       max_match_percentage: 0.04  # Cap at 4% of compensation
 
+    # Epic E084: Safe Harbor Basic Match (IRS compliant - 100% on 3% + 50% on next 2%)
+    safe_harbor_basic:
+      name: 'Safe Harbor Basic Match'
+      type: 'safe_harbor'
+      tiers:
+        - tier: 1
+          employee_min: 0.00
+          employee_max: 0.03
+          match_rate: 1.00    # 100% match on first 3%
+        - tier: 2
+          employee_min: 0.03
+          employee_max: 0.05
+          match_rate: 0.50    # 50% match on next 2%
+      max_match_percentage: 0.04  # 4% of compensation (3% + 1%)
+      immediate_vesting: true  # Safe Harbor requires immediate vesting
+
+    # Epic E084: QACA Safe Harbor Match (Qualified Automatic Contribution Arrangement)
+    qaca_safe_harbor:
+      name: 'QACA Safe Harbor Match'
+      type: 'qaca'
+      tiers:
+        - tier: 1
+          employee_min: 0.00
+          employee_max: 0.01
+          match_rate: 1.00    # 100% match on first 1%
+        - tier: 2
+          employee_min: 0.01
+          employee_max: 0.06
+          match_rate: 0.50    # 50% match on next 5%
+      max_match_percentage: 0.035  # 3.5% of compensation (1% + 2.5%)
+      vesting_schedule: 'qaca_2_year'  # QACA allows 2-year cliff vesting
+
 # Employer core (non-elective) contribution configuration
 employer_core_contribution:
   enabled: true                    # Master on/off switch
-  contribution_rate: 0.01         # core contribution rate
+  contribution_rate: 0.01         # Flat core contribution rate (used when status is 'flat')
+
+  # Epic E084: Core contribution status/type
+  status: 'flat'  # Options: 'none', 'flat', 'graded_by_service'
+
+  # Epic E084: Graded core contribution schedule (used when status is 'graded_by_service')
+  # Rate increases with years of service
+  graded_schedule:
+    - service_years_min: 0
+      service_years_max: 2
+      contribution_rate: 0.01    # 1% for 0-2 years
+    - service_years_min: 3
+      service_years_max: 5
+      contribution_rate: 0.02    # 2% for 3-5 years
+    - service_years_min: 6
+      service_years_max: null    # null = unlimited
+      contribution_rate: 0.03    # 3% for 6+ years
 
   # Eligibility requirements (dbt variables for int_employer_eligibility.sql)
   eligibility:
