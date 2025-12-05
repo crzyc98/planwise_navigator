@@ -115,6 +115,7 @@ def cmd_run(args: argparse.Namespace) -> int:
         end_year=end_year,
         resume_from_checkpoint=False,  # We handle resume logic above
         fail_on_validation_error=args.fail_on_validation_error,
+        dry_run=args.dry_run,
     )
     if args.verbose:
         print("Summary:", summary.growth_analysis)

@@ -87,7 +87,8 @@ def test_multi_year_workflow_coordination(tmp_path: Path):
         reports_dir=tmp_path / "reports",
         checkpoints_dir=tmp_path / "ckpt",
     )
-    summary = orchestrator.execute_multi_year_simulation()
+    # Use dry_run=True since DummyRunner echoes commands instead of running dbt
+    summary = orchestrator.execute_multi_year_simulation(dry_run=True)
 
     # Summary spans both years and writes CSV
     assert summary.start_year == 2025 and summary.end_year == 2026

@@ -21,14 +21,15 @@ def _setup_db(db_path: Path):
         )
         """
     )
-    # yearly events table
+    # yearly events table (matches actual schema with effective_date)
     conn.execute(
         """
         CREATE TABLE fct_yearly_events (
             employee_id VARCHAR,
             event_type VARCHAR,
             simulation_year INTEGER,
-            event_date DATE
+            effective_date DATE,
+            event_details VARCHAR
         )
         """
     )
@@ -60,7 +61,7 @@ def test_enrollment_registry_update_post_year(tmp_path: Path):
     _setup_db(db_path)
     conn = duckdb.connect(str(db_path))
     conn.execute(
-        "INSERT INTO fct_yearly_events VALUES ('E3','enrollment',2026,'2026-03-01')"
+        "INSERT INTO fct_yearly_events (employee_id, event_type, simulation_year, effective_date) VALUES ('E3','enrollment',2026,'2026-03-01')"
     )
     conn.close()
 
@@ -76,10 +77,10 @@ def test_deferral_registry_escalation_tracking(tmp_path: Path):
     _setup_db(db_path)
     conn = duckdb.connect(str(db_path))
     conn.execute(
-        "INSERT INTO fct_yearly_events VALUES ('E5','DEFERRAL_ESCALATION',2025,'2025-04-01')"
+        "INSERT INTO fct_yearly_events (employee_id, event_type, simulation_year, effective_date) VALUES ('E5','DEFERRAL_ESCALATION',2025,'2025-04-01')"
     )
     conn.execute(
-        "INSERT INTO fct_yearly_events VALUES ('E5','DEFERRAL_ESCALATION',2026,'2026-04-01')"
+        "INSERT INTO fct_yearly_events (employee_id, event_type, simulation_year, effective_date) VALUES ('E5','DEFERRAL_ESCALATION',2026,'2026-04-01')"
     )
     conn.close()
 
@@ -94,10 +95,16 @@ def test_deferral_registry_escalation_tracking(tmp_path: Path):
 def test_registry_integrity_validation(tmp_path: Path):
     db_path = tmp_path / "test.duckdb"
     _setup_db(db_path)
+    conn = duckdb.connect(str(db_path))
+    # Add baseline employee with enrollment date (will be added to registry)
+    conn.execute(
+        "INSERT INTO int_baseline_workforce VALUES ('E4','active','2024-02-01')"
+    )
+    conn.close()
     mgr = DatabaseConnectionManager(db_path=db_path)
     enr = EnrollmentRegistry(mgr)
     assert enr.create_for_year(2025)
-    # No enrollment events => likely orphaned warnings
+    # Baseline enrollment without matching event => orphan
     result = enr.validate_integrity()
     assert result.is_valid is False
     assert any("orphaned" in e for e in result.errors)
@@ -108,10 +115,10 @@ def test_cross_year_state_consistency(tmp_path: Path):
     _setup_db(db_path)
     conn = duckdb.connect(str(db_path))
     conn.execute(
-        "INSERT INTO fct_yearly_events VALUES ('E6','enrollment',2025,'2025-01-15')"
+        "INSERT INTO fct_yearly_events (employee_id, event_type, simulation_year, effective_date) VALUES ('E6','enrollment',2025,'2025-01-15')"
     )
     conn.execute(
-        "INSERT INTO fct_yearly_events VALUES ('E7','enrollment',2027,'2027-05-01')"
+        "INSERT INTO fct_yearly_events (employee_id, event_type, simulation_year, effective_date) VALUES ('E7','enrollment',2027,'2027-05-01')"
     )
     conn.close()
 

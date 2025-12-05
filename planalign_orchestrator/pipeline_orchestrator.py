@@ -523,6 +523,7 @@ class PipelineOrchestrator:
         end_year: Optional[int] = None,
         resume_from_checkpoint: bool = False,
         fail_on_validation_error: bool = False,
+        dry_run: bool = False,
     ) -> MultiYearSummary:
         start = start_year or self.config.simulation.start_year
         end = end_year or self.config.simulation.end_year
@@ -605,11 +606,11 @@ class PipelineOrchestrator:
                                 f"year_simulation_{year}", year=year
                             ):
                                 self._execute_year_workflow(
-                                    year, fail_on_validation_error=fail_on_validation_error
+                                    year, fail_on_validation_error=fail_on_validation_error, dry_run=dry_run
                                 )
                         else:
                             self._execute_year_workflow(
-                                year, fail_on_validation_error=fail_on_validation_error
+                                year, fail_on_validation_error=fail_on_validation_error, dry_run=dry_run
                             )
 
                         # Memory check after year processing
@@ -801,7 +802,7 @@ class PipelineOrchestrator:
         return summary
 
     def _execute_year_workflow(
-        self, year: int, *, fail_on_validation_error: bool
+        self, year: int, *, fail_on_validation_error: bool, dry_run: bool = False
     ) -> None:
         """Execute workflow for a single simulation year using modular components."""
         # Build year workflow using WorkflowBuilder
@@ -975,8 +976,9 @@ class PipelineOrchestrator:
                 checkpoint_name = f"{stage.name.value}_{year}_complete"
                 self.duckdb_performance_monitor.record_checkpoint(checkpoint_name)
 
-            # Run stage validation using existing logic
-            self._run_stage_validation(stage, year, fail_on_validation_error)
+            # Run stage validation using existing logic (skip in dry-run mode)
+            if not dry_run:
+                self._run_stage_validation(stage, year, fail_on_validation_error)
 
             # E077: Generate Polars cohorts AFTER FOUNDATION stage completes and validates
             if stage.name == WorkflowStage.FOUNDATION and self.config.is_cohort_engine_enabled():
