@@ -5,6 +5,7 @@ from .scenario_service import ScenarioService
 from .simulation_service import SimulationService
 from .comparison_service import ComparisonService
 from .telemetry_service import TelemetryService, get_telemetry_service
+from .analytics_service import AnalyticsService
 
 __all__ = [
     "WorkspaceService",
@@ -13,4 +14,5 @@ __all__ = [
     "ComparisonService",
     "TelemetryService",
     "get_telemetry_service",
+    "AnalyticsService",
 ]

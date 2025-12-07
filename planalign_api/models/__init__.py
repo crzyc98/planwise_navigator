@@ -41,6 +41,15 @@ from .sync import (
     SyncInitRequest,
     WorkspaceSyncInfo,
 )
+from .analytics import (
+    DCPlanAnalytics,
+    DCPlanComparisonResponse,
+    ContributionYearSummary,
+    DeferralRateBucket,
+    ParticipationByMethod,
+    EscalationMetrics,
+    IRSLimitMetrics,
+)
 
 __all__ = [
     # Workspace
@@ -77,4 +86,12 @@ __all__ = [
     "SyncPullResult",
     "SyncInitRequest",
     "WorkspaceSyncInfo",
+    # Analytics
+    "DCPlanAnalytics",
+    "DCPlanComparisonResponse",
+    "ContributionYearSummary",
+    "DeferralRateBucket",
+    "ParticipationByMethod",
+    "EscalationMetrics",
+    "IRSLimitMetrics",
 ]

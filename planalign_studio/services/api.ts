@@ -733,3 +733,85 @@ export async function getTemplate(templateId: string): Promise<Template> {
   const response = await fetch(`${API_BASE}/api/templates/${templateId}`);
   return handleResponse<Template>(response);
 }
+
+// ============================================================================
+// DC Plan Analytics Endpoints (E085)
+// ============================================================================
+
+export interface ContributionYearSummary {
+  year: number;
+  total_employee_contributions: number;
+  total_employer_match: number;
+  total_employer_core: number;
+  total_all_contributions: number;
+  participant_count: number;
+}
+
+export interface DeferralRateBucket {
+  bucket: string;
+  count: number;
+  percentage: number;
+}
+
+export interface ParticipationByMethod {
+  auto_enrolled: number;
+  voluntary_enrolled: number;
+  census_enrolled: number;
+}
+
+export interface EscalationMetrics {
+  employees_with_escalations: number;
+  avg_escalation_count: number;
+  total_escalation_amount: number;
+}
+
+export interface IRSLimitMetrics {
+  employees_at_irs_limit: number;
+  irs_limit_rate: number;
+}
+
+export interface DCPlanAnalytics {
+  scenario_id: string;
+  scenario_name: string;
+  total_eligible: number;
+  total_enrolled: number;
+  participation_rate: number;
+  participation_by_method: ParticipationByMethod;
+  contribution_by_year: ContributionYearSummary[];
+  total_employee_contributions: number;
+  total_employer_match: number;
+  total_employer_core: number;
+  total_all_contributions: number;
+  deferral_rate_distribution: DeferralRateBucket[];
+  escalation_metrics: EscalationMetrics;
+  irs_limit_metrics: IRSLimitMetrics;
+}
+
+export interface DCPlanComparisonResponse {
+  scenarios: string[];
+  scenario_names: Record<string, string>;
+  analytics: DCPlanAnalytics[];
+}
+
+export async function getDCPlanAnalytics(
+  workspaceId: string,
+  scenarioId: string
+): Promise<DCPlanAnalytics> {
+  const response = await fetch(
+    `${API_BASE}/api/workspaces/${workspaceId}/scenarios/${scenarioId}/analytics/dc-plan`
+  );
+  return handleResponse<DCPlanAnalytics>(response);
+}
+
+export async function compareDCPlanAnalytics(
+  workspaceId: string,
+  scenarioIds: string[]
+): Promise<DCPlanComparisonResponse> {
+  const params = new URLSearchParams({
+    scenarios: scenarioIds.join(','),
+  });
+  const response = await fetch(
+    `${API_BASE}/api/workspaces/${workspaceId}/analytics/dc-plan/compare?${params}`
+  );
+  return handleResponse<DCPlanComparisonResponse>(response);
+}

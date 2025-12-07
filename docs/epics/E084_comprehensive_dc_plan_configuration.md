@@ -1,9 +1,43 @@
 # E084: Comprehensive DC Plan Configuration
 
-**Status**: Planning
+**Status**: ✅ COMPLETE
 **Priority**: High
 **Approach**: Incremental - Fix existing, then expand
 **Dependencies**: E023 (Enrollment Engine), E058 (Match Eligibility), E035 (Auto-Escalation)
+
+## Completion Summary (2025-12-07)
+
+### Phase A: Expose Existing Config in UI ✅ COMPLETE
+All 16 YAML config fields now exposed in ConfigStudio UI:
+- Auto-enrollment: window_days, opt_out_grace_period, scope, hire_date_cutoff
+- Match eligibility: min_tenure_years, require_year_end_active, min_hours_annual, allow_terminated toggles
+- Core contribution: enabled, contribution_rate, eligibility rules
+- Auto-escalation: effective_day, first_escalation_delay_years, hire_date_cutoff
+
+### Phase B: Configurable Match Tiers ✅ COMPLETE (B3)
+- Replaced hardcoded formula selection with editable tier system
+- 5 template presets: Simple, Tiered, Stretch, Safe Harbor, QACA
+- Users can customize individual tiers after selecting template
+- Auto-calculate max employer match from tier definitions
+- Add/remove tiers dynamically in UI
+- dbt model updated (`int_employee_match_calculations.sql`)
+- Copy from Scenario feature added
+
+### Phase B: Graded Core by Service ✅ COMPLETE (B7)
+- Core contribution status: none / flat / graded_by_service
+- Editable graded schedule with tiers (min_years, max_years, rate)
+- Add/remove tiers dynamically
+- Full eligibility settings (tenure, hours, year-end active, termination toggles)
+
+### Deferred Items (Not Required for MVP)
+- B1: Vesting Events - Schema exists, dbt model deferred
+- B2: Forfeiture Events - Schema exists, dbt model deferred
+- B4: Entry Date Rules - Not implemented
+- B5: True-Up Calculations - Not implemented
+- B6: Tenure-Based Match - Deferred
+- B8: HCE Status Events - Schema exists, dbt model deferred
+
+---
 
 ---
 
