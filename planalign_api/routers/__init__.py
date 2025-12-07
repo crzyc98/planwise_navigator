@@ -8,6 +8,7 @@ from .batch import router as batch_router
 from .comparison import router as comparison_router
 from .files import router as files_router
 from .templates import router as templates_router
+from .analytics import router as analytics_router
 
 __all__ = [
     "system_router",
@@ -18,4 +19,5 @@ __all__ = [
     "comparison_router",
     "files_router",
     "templates_router",
+    "analytics_router",
 ]
