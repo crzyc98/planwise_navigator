@@ -29,6 +29,7 @@ from .routers import (
     comparison_router,
     files_router,
     templates_router,
+    analytics_router,
 )
 from .routers.sync import router as sync_router
 from .websocket.handlers import simulation_websocket, batch_websocket
@@ -91,6 +92,7 @@ def create_app() -> FastAPI:
     app.include_router(files_router, prefix="/api/workspaces", tags=["Files"])
     app.include_router(templates_router, prefix="/api/templates", tags=["Templates"])
     app.include_router(sync_router, prefix="/api", tags=["Sync"])
+    app.include_router(analytics_router, prefix="/api/workspaces", tags=["Analytics"])
 
     # WebSocket endpoints
     @app.websocket("/ws/simulation/{run_id}")
