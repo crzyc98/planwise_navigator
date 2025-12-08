@@ -241,6 +241,16 @@ class SimulationService:
             scenario_path = self.storage._scenario_path(workspace_id, scenario_id)
             config_path = scenario_path / "config.yaml"
 
+            # E090: Validate and log census file path
+            census_path = config.get("setup", {}).get("census_parquet_path")
+            if census_path:
+                census_file = Path(census_path)
+                if not census_file.exists():
+                    raise ValueError(f"Census file not found: {census_path}")
+                logger.info(f"Using census file: {census_path}")
+            else:
+                logger.warning("No census_parquet_path in config - using default")
+
             with open(config_path, "w") as f:
                 yaml.dump(config, f, default_flow_style=False)
 
@@ -298,6 +308,42 @@ class SimulationService:
 
             # Get telemetry service for broadcasting updates
             telemetry_service = get_telemetry_service()
+
+            # Wait briefly for WebSocket client to connect before sending telemetry
+            # This avoids the race condition where telemetry is sent before the
+            # frontend has established its WebSocket connection
+            logger.info(f"Waiting for WebSocket listener for run {run_id}")
+            max_wait = 5.0  # Maximum wait time in seconds
+            wait_interval = 0.1
+            waited = 0.0
+            while waited < max_wait:
+                if run_id in telemetry_service._listeners and telemetry_service._listeners[run_id]:
+                    logger.info(f"WebSocket listener connected for run {run_id} after {waited:.1f}s")
+                    break
+                await asyncio.sleep(wait_interval)
+                waited += wait_interval
+            else:
+                logger.warning(f"No WebSocket listener connected for run {run_id} after {max_wait}s, proceeding anyway")
+
+            # Send initial telemetry immediately so UI knows simulation started
+            logger.info(f"Sending initial telemetry for run {run_id}")
+            telemetry_service.update_telemetry(
+                run_id=run_id,
+                progress=1,
+                current_stage="INITIALIZATION",
+                current_year=start_year,
+                total_years=total_years,
+                memory_mb=0.0,
+                events_generated=0,
+                elapsed_seconds=0.0,
+                events_per_second=0.0,
+                recent_events=[{
+                    "event_type": "INFO",
+                    "employee_id": "System",
+                    "timestamp": datetime.now().isoformat(),
+                    "details": f"Simulation started for years {start_year}-{end_year}",
+                }],
+            )
 
             def get_memory_mb() -> float:
                 """Get current process memory usage in MB."""

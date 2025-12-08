@@ -17,8 +17,15 @@ from ..models.files import (
 )
 from ..services.compensation_solver import CompensationSolver, WorkforceDynamics
 from ..services.file_service import FileService
+from ..storage.workspace_storage import WorkspaceStorage
 
 logger = logging.getLogger(__name__)
+
+
+def get_workspace_storage() -> WorkspaceStorage:
+    """Get workspace storage instance."""
+    settings = get_settings()
+    return WorkspaceStorage(settings.workspaces_root)
 
 router = APIRouter()
 
@@ -82,7 +89,7 @@ async def upload_census_file(
 
     # Save and validate file
     try:
-        relative_path, metadata = service.save_uploaded_file(
+        relative_path, metadata, absolute_path = service.save_uploaded_file(
             workspace_id=workspace_id,
             file_content=content,
             filename=file.filename,
@@ -98,6 +105,22 @@ async def upload_census_file(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Failed to save file: {e}",
         )
+
+    # E090: Update workspace config to use this census file for all scenarios
+    try:
+        storage = get_workspace_storage()
+        config_updated = storage.update_base_config_key(
+            workspace_id=workspace_id,
+            key_path="setup.census_parquet_path",
+            value=absolute_path,
+        )
+        if config_updated:
+            logger.info(f"Updated workspace {workspace_id} census path to: {absolute_path}")
+        else:
+            logger.warning(f"Failed to update workspace config - workspace may not exist: {workspace_id}")
+    except Exception as e:
+        # Don't fail the upload if config update fails - log warning and continue
+        logger.warning(f"Failed to update workspace config with census path: {e}")
 
     return FileUploadResponse(
         success=True,
