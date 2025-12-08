@@ -233,10 +233,17 @@ async def export_scenario_results(
                     break
 
     if results_file and results_file.exists():
+        # Build descriptive filename: {workspace}_{scenario}_results_{date}.xlsx
+        from datetime import datetime
+        date_str = datetime.now().strftime("%Y%m%d")
+        # Sanitize names for filename (replace spaces with underscores)
+        ws_name = workspace.name.replace(" ", "_")
+        sc_name = scenario.name.replace(" ", "_")
+        download_filename = f"{ws_name}_{sc_name}_results_{date_str}.{ext}"
         return FileResponse(
             path=results_file,
             media_type=media_type,
-            filename=f"{scenario.name}_results.{ext}",
+            filename=download_filename,
         )
 
     raise HTTPException(
