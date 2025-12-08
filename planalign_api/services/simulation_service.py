@@ -232,10 +232,13 @@ class SimulationService:
             update_run_status(run_id, status="running")
             self.storage.update_scenario_status(workspace_id, scenario_id, "running", run_id)
 
-            # Get simulation years from config
-            start_year = int(config.get("simulation", {}).get("start_year", 2025))
-            end_year = int(config.get("simulation", {}).get("end_year", 2027))
+            # E091: Get simulation years from config with debug logging
+            sim_config = config.get("simulation", {})
+            start_year = int(sim_config.get("start_year", 2025))
+            end_year = int(sim_config.get("end_year", 2027))
             total_years = end_year - start_year + 1
+            logger.info(f"E091: SimulationService received config simulation section: {sim_config}")
+            logger.info(f"E091: SimulationService year range: {start_year}-{end_year} ({total_years} years)")
 
             # Write merged config to scenario directory for CLI to use
             scenario_path = self.storage._scenario_path(workspace_id, scenario_id)
@@ -699,12 +702,13 @@ class SimulationService:
             conn = duckdb.connect(str(db_path), read_only=True)
 
             # Get workforce progression (filtered by scenario's year range)
+            # E091: Use prorated_annual_compensation for accuracy with partial-year employees
             try:
                 workforce_df = conn.execute("""
                     SELECT
                         simulation_year,
                         COUNT(DISTINCT employee_id) as headcount,
-                        AVG(current_compensation) as avg_compensation
+                        AVG(prorated_annual_compensation) as avg_compensation
                     FROM fct_workforce_snapshot
                     WHERE LOWER(employment_status) = 'active'
                       AND simulation_year >= ?
