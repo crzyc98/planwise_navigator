@@ -527,8 +527,10 @@ export default function ConfigStudio() {
               ? cfg.workforce.new_hire_termination_rate * 100
               : prev.newHireTerminationRate,
 
-            // Data Sources
+            // Data Sources - E089: load path from config, metadata will be fetched separately
             censusDataPath: cfg.data_sources?.census_parquet_path || prev.censusDataPath,
+            // Reset metadata - will be populated by validation call below
+            censusDataStatus: cfg.data_sources?.census_parquet_path ? 'validating' : prev.censusDataStatus,
 
             // Compensation
             meritBudget: cfg.compensation?.merit_budget_percent ?? prev.meritBudget,
@@ -645,6 +647,33 @@ export default function ConfigStudio() {
             logLevel: cfg.advanced?.log_level || prev.logLevel,
             strictValidation: cfg.advanced?.strict_validation ?? prev.strictValidation,
           }));
+
+          // E089: Validate census file to get actual row count and metadata
+          const censusPath = cfg.data_sources?.census_parquet_path;
+          if (censusPath && activeWorkspace?.id) {
+            try {
+              const validation = await validateFilePath(activeWorkspace.id, censusPath);
+              if (validation.valid && validation.row_count) {
+                setFormData(prev => ({
+                  ...prev,
+                  censusDataStatus: 'loaded',
+                  censusRowCount: validation.row_count || prev.censusRowCount,
+                  censusLastModified: validation.last_modified?.split('T')[0] || prev.censusLastModified,
+                }));
+              } else {
+                setFormData(prev => ({
+                  ...prev,
+                  censusDataStatus: 'error',
+                }));
+              }
+            } catch (validationError) {
+              console.error('E089: Census file validation failed:', validationError);
+              setFormData(prev => ({
+                ...prev,
+                censusDataStatus: 'error',
+              }));
+            }
+          }
         }
       } catch (err) {
         console.error('Failed to load scenario:', err);
@@ -663,8 +692,8 @@ export default function ConfigStudio() {
     const cfg = activeWorkspace.base_config;
     setFormData(prev => ({
       ...prev,
-      // Data Sources
-      censusDataPath: cfg.data_sources?.census_parquet_path || prev.censusDataPath,
+      // E089: Census path is scenario-specific, loaded only from scenario config_overrides
+      // Do NOT load from workspace base_config to avoid overwriting scenario census path
 
       // Simulation
       name: cfg.simulation?.name || prev.name,
@@ -1263,12 +1292,39 @@ export default function ConfigStudio() {
                             censusLastModified: result.upload_timestamp.split('T')[0]
                           }));
 
+                          // E089: Auto-save census path to prevent data loss
+                          let autoSaved = false;
+                          if (activeScenario && activeWorkspace) {
+                            try {
+                              await updateScenario(activeWorkspace.id, activeScenario.id, {
+                                config_overrides: {
+                                  data_sources: {
+                                    census_parquet_path: result.file_path,
+                                  },
+                                },
+                              });
+                              // Update savedFormData to prevent false dirty state
+                              setSavedFormData(prev => prev ? {
+                                ...prev,
+                                censusDataPath: result.file_path,
+                                censusDataStatus: 'loaded',
+                                censusRowCount: result.row_count,
+                                censusLastModified: result.upload_timestamp.split('T')[0]
+                              } : null);
+                              autoSaved = true;
+                            } catch (saveError) {
+                              console.error('E089: Auto-save census path failed:', saveError);
+                              // Don't fail the upload - file is on disk, user can manually save
+                            }
+                          }
+
                           if (result.validation_warnings.length > 0) {
                             setUploadStatus('success');
                             setUploadMessage(`Uploaded with warnings: ${result.validation_warnings.join(', ')}`);
                           } else {
                             setUploadStatus('success');
-                            setUploadMessage(`File uploaded successfully! ${result.row_count.toLocaleString()} rows, ${result.columns.length} columns`);
+                            const savedMsg = autoSaved ? ' and saved' : '';
+                            setUploadMessage(`File uploaded${savedMsg}! ${result.row_count.toLocaleString()} rows, ${result.columns.length} columns`);
                           }
                         } catch (error) {
                           setUploadStatus('error');
