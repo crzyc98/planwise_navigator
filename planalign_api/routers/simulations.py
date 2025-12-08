@@ -638,6 +638,7 @@ async def get_run_details(
             config=config,
             artifacts=artifacts,
             error_message=error_message,
+            storage_path=str(scenario_path) if scenario_path.exists() else None,
         )
     except HTTPException:
         raise

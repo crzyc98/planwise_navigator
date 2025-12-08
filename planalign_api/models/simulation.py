@@ -178,6 +178,9 @@ class RunDetails(BaseModel):
     # Error info
     error_message: Optional[str] = Field(None, description="Error message if failed")
 
+    # E087: Storage location info
+    storage_path: Optional[str] = Field(None, description="Scenario storage directory path")
+
     class Config:
         json_encoders = {
             datetime: lambda v: v.isoformat() if v else None,

@@ -21,6 +21,7 @@ import {
   ExternalLink,
   History,
   Play,
+  FolderOpen,
 } from 'lucide-react';
 import { getRunDetails, getArtifactDownloadUrl, getResultsExportUrl, listRuns, getRunById, RunDetails, Artifact, RunSummary } from '../services/api';
 
@@ -305,6 +306,19 @@ export default function SimulationDetail() {
             </div>
           </div>
         </div>
+
+        {/* E087: Storage Location Section */}
+        {details.storage_path && (
+          <div className="mt-6 pt-4 border-t border-gray-200">
+            <div className="flex items-center text-sm">
+              <FolderOpen size={16} className="text-gray-500 mr-2" />
+              <span className="text-gray-500">Storage Location:</span>
+              <code className="ml-2 bg-gray-100 px-3 py-1 rounded text-xs font-mono text-gray-700 break-all">
+                {details.storage_path}
+              </code>
+            </div>
+          </div>
+        )}
       </div>
 
       {/* Run History Section - Full Width */}

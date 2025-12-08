@@ -1,8 +1,10 @@
 """Scenario management endpoints."""
 
+from pathlib import Path
 from typing import Any, Dict, List
 
 from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi.responses import FileResponse
 
 from ..config import APISettings, get_settings
 from ..models.scenario import (
@@ -152,3 +154,74 @@ async def delete_scenario(
             detail=f"Scenario {scenario_id} not found in workspace {workspace_id}",
         )
     return {"success": True}
+
+
+@router.get("/{workspace_id}/scenarios/{scenario_id}/results/export")
+async def export_scenario_results(
+    workspace_id: str,
+    scenario_id: str,
+    format: str = "excel",
+    storage: WorkspaceStorage = Depends(get_storage),
+) -> FileResponse:
+    """
+    Export simulation results as Excel or CSV (workspace-scoped endpoint).
+
+    E087: This endpoint eliminates ambiguity in multi-workspace environments
+    by requiring the workspace_id, avoiding the need to search all workspaces.
+    """
+    # Verify workspace and scenario exist
+    workspace = storage.get_workspace(workspace_id)
+    if not workspace:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Workspace {workspace_id} not found",
+        )
+
+    scenario = storage.get_scenario(workspace_id, scenario_id)
+    if not scenario:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Scenario {scenario_id} not found in workspace {workspace_id}",
+        )
+
+    # Determine file format
+    if format == "excel":
+        media_type = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+        ext = "xlsx"
+    else:
+        media_type = "text/csv"
+        ext = "csv"
+
+    # Get scenario path and look for results
+    scenario_path = storage._scenario_path(workspace_id, scenario_id)
+    results_dir = scenario_path / "results"
+
+    # Try to find the results file (check multiple naming patterns)
+    results_file = None
+    if results_dir.exists():
+        # First try: {scenario_name}_results.xlsx
+        candidate = results_dir / f"{scenario.name}_results.{ext}"
+        if candidate.exists():
+            results_file = candidate
+        else:
+            # Second try: results.xlsx
+            candidate = results_dir / f"results.{ext}"
+            if candidate.exists():
+                results_file = candidate
+            else:
+                # Third try: any *_results.xlsx file
+                for f in results_dir.glob(f"*_results.{ext}"):
+                    results_file = f
+                    break
+
+    if results_file and results_file.exists():
+        return FileResponse(
+            path=results_file,
+            media_type=media_type,
+            filename=f"{scenario.name}_results.{ext}",
+        )
+
+    raise HTTPException(
+        status_code=status.HTTP_404_NOT_FOUND,
+        detail=f"Export file not found for scenario {scenario_id}. Run the simulation first to generate results.",
+    )
