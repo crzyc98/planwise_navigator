@@ -199,10 +199,16 @@ models:
               max_value: 0.1
 
   - name: stg_config_termination_hazard_base
-    description: Base termination hazard rate configuration
+    description: >
+      Base termination hazard rate configuration for analytics and reporting.
+
+      NOTE (E086): This hazard model is used for analytics/reporting only. Actual termination
+      event generation uses deterministic selection based on totalTerminationRate and
+      newHireTerminationRate configuration (see E077 - Bulletproof Workforce Growth Accuracy).
+      The hazard infrastructure remains available for future probability-based modeling.
     columns:
       - name: base_rate_for_new_hire
-        description: Base termination rate for new hires
+        description: Base termination rate for new hires (used in analytics, not event selection)
         data_tests:
           - not_null
           - dbt_utils.accepted_range:
@@ -210,7 +216,12 @@ models:
               max_value: 1
 
   - name: stg_config_termination_hazard_age_multipliers
-    description: Age-based multipliers for termination hazard rates
+    description: >
+      Age-based multipliers for termination hazard rates (analytics layer).
+
+      NOTE (E086): These multipliers are used for hazard-based analytics and reporting in
+      dim_termination_hazards. Actual termination event generation uses deterministic
+      selection (E077), not these probability multipliers.
     columns:
       - name: age_band
         description: Age band category
@@ -218,7 +229,7 @@ models:
           - unique
           - not_null
       - name: multiplier
-        description: Multiplier for the age band
+        description: Multiplier for the age band (applied to base rate in analytics)
         data_tests:
           - not_null
           - dbt_utils.accepted_range:
@@ -226,7 +237,12 @@ models:
               max_value: 5
 
   - name: stg_config_termination_hazard_tenure_multipliers
-    description: Tenure-based multipliers for termination hazard rates
+    description: >
+      Tenure-based multipliers for termination hazard rates (analytics layer).
+
+      NOTE (E086): These multipliers are used for hazard-based analytics and reporting in
+      dim_termination_hazards. Actual termination event generation uses deterministic
+      selection (E077), not these probability multipliers.
     columns:
       - name: tenure_band
         description: Tenure band category
@@ -234,7 +250,7 @@ models:
           - unique
           - not_null
       - name: multiplier
-        description: Multiplier for the tenure band
+        description: Multiplier for the tenure band (applied to base rate in analytics)
         data_tests:
           - not_null
           - dbt_utils.accepted_range:
