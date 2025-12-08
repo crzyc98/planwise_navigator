@@ -106,8 +106,13 @@ async def start_simulation(
 
     # Create run record
     run_id = str(uuid.uuid4())
-    start_year = int(config.get("simulation", {}).get("start_year", 2025))
-    end_year = int(config.get("simulation", {}).get("end_year", 2027))
+
+    # E091: Extract year range from merged config with debug logging
+    sim_config = config.get("simulation", {})
+    start_year = int(sim_config.get("start_year", 2025))
+    end_year = int(sim_config.get("end_year", 2027))
+    logger.info(f"E091: Merged config simulation section: {sim_config}")
+    logger.info(f"E091: Year range from config: {start_year}-{end_year}")
 
     run = SimulationRun(
         id=run_id,
