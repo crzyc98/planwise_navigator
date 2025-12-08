@@ -59,7 +59,7 @@ class FileService:
         workspace_id: str,
         file_content: bytes,
         filename: str,
-    ) -> Tuple[str, Dict]:
+    ) -> Tuple[str, Dict, str]:
         """
         Save an uploaded file and return its path and metadata.
 
@@ -69,7 +69,7 @@ class FileService:
             filename: Original filename
 
         Returns:
-            Tuple of (relative_path, metadata_dict)
+            Tuple of (relative_path, metadata_dict, absolute_path)
 
         Raises:
             ValueError: If file is invalid or missing required columns
@@ -106,8 +106,9 @@ class FileService:
 
         # Return relative path for storage in config
         relative_path = f"data/{filename}"
+        absolute_path = str(file_path.resolve())
 
-        return relative_path, metadata
+        return relative_path, metadata, absolute_path
 
     def _parse_and_validate_file(self, file_path: Path) -> Dict:
         """
