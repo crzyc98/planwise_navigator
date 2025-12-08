@@ -1,39 +1,67 @@
 {
-  "name": "PlanWise Navigator Dev",
-  "dockerComposeFile": "docker-compose.yml",
-  "service": "app",
-  "workspaceFolder": "/workspace",
-  "features": {
-    "ghcr.io/devcontainers/features/python:1": {
-      "version": "3.11"
-    },
-    "ghcr.io/devcontainers/features/git:1": {},
-    "ghcr.io/devcontainers/features/docker-in-docker:2": {}
+  "name": "PlanAlign Engine (Claude Code)",
+  "build": {
+    "dockerfile": "Dockerfile",
+    "context": "..",
+    "args": {
+      "TZ": "${localEnv:TZ:America/New_York}",
+      "CLAUDE_CODE_VERSION": "latest",
+      "GIT_DELTA_VERSION": "0.18.2",
+      "ZSH_IN_DOCKER_VERSION": "1.2.0"
+    }
   },
+  "runArgs": [
+    "--cap-add=NET_ADMIN",
+    "--cap-add=NET_RAW"
+  ],
   "customizations": {
     "vscode": {
       "extensions": [
+        "anthropic.claude-code",
         "ms-python.python",
         "ms-python.vscode-pylance",
-        "ms-python.black-formatter",
         "charliermarsh.ruff",
         "tamasfe.even-better-toml",
         "redhat.vscode-yaml",
-        "ms-azuretools.vscode-docker",
         "innoverio.vscode-dbt-power-user",
-        "bastienboutonnet.vscode-dbt"
+        "eamodio.gitlens",
+        "esbenp.prettier-vscode",
+        "dbaeumer.vscode-eslint"
       ],
       "settings": {
-        "python.defaultInterpreterPath": "/usr/local/bin/python",
-        "python.linting.enabled": true,
-        "python.linting.pylintEnabled": false,
-        "python.formatting.provider": "black",
-        "python.formatting.blackPath": "/usr/local/bin/black",
+        "python.defaultInterpreterPath": "/workspace/.venv/bin/python",
         "editor.formatOnSave": true,
-        "files.trimTrailingWhitespace": true
+        "editor.defaultFormatter": "esbenp.prettier-vscode",
+        "[python]": {
+          "editor.defaultFormatter": "charliermarsh.ruff"
+        },
+        "terminal.integrated.defaultProfile.linux": "zsh",
+        "terminal.integrated.profiles.linux": {
+          "bash": {
+            "path": "bash",
+            "icon": "terminal-bash"
+          },
+          "zsh": {
+            "path": "zsh"
+          }
+        }
       }
     }
   },
-  "postCreateCommand": "make dev-setup",
-  "remoteUser": "vscode"
+  "remoteUser": "node",
+  "mounts": [
+    "source=planalign-bashhistory-${devcontainerId},target=/commandhistory,type=volume",
+    "source=planalign-claude-config-${devcontainerId},target=/home/node/.claude,type=volume"
+  ],
+  "containerEnv": {
+    "NODE_OPTIONS": "--max-old-space-size=4096",
+    "CLAUDE_CONFIG_DIR": "/home/node/.claude",
+    "POWERLEVEL9K_DISABLE_GITSTATUS": "true",
+    "DBT_PROFILES_DIR": "/workspace/dbt",
+    "DEVCONTAINER": "true"
+  },
+  "workspaceMount": "source=${localWorkspaceFolder},target=/workspace,type=bind,consistency=delegated",
+  "workspaceFolder": "/workspace",
+  "postCreateCommand": "uv venv .venv && .venv/bin/pip install -e '.[dev]' || echo 'Python setup failed - run manually'",
+  "postStartCommand": "echo 'Container started - run: sudo /usr/local/bin/init-firewall.sh to enable firewall'"
 }
