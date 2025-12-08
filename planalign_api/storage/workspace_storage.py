@@ -427,3 +427,40 @@ class WorkspaceStorage:
                 result[key] = value
 
         return result
+
+    def update_base_config_key(
+        self, workspace_id: str, key_path: str, value: Any
+    ) -> bool:
+        """
+        Update a specific key in the workspace's base_config.yaml.
+
+        Args:
+            workspace_id: The workspace ID
+            key_path: Dot-separated path to the key (e.g., "setup.census_parquet_path")
+            value: The value to set
+
+        Returns:
+            True if successful, False if workspace doesn't exist
+        """
+        base_config_path = self._base_config_path(workspace_id)
+        if not base_config_path.exists():
+            return False
+
+        # Load existing config
+        with open(base_config_path) as f:
+            config = yaml.safe_load(f) or {}
+
+        # Navigate to the key and set value
+        keys = key_path.split(".")
+        current = config
+        for key in keys[:-1]:
+            if key not in current:
+                current[key] = {}
+            current = current[key]
+        current[keys[-1]] = value
+
+        # Save back to file
+        with open(base_config_path, "w") as f:
+            yaml.dump(config, f, default_flow_style=False)
+
+        return True
