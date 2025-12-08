@@ -210,16 +210,11 @@ export default function ConfigStudio() {
     ],
 
     // Workforce & Turnover
+    // Note: Only totalTerminationRate and newHireTerminationRate are used by the simulation.
+    // The hazard model infrastructure (seeds, dbt models) exists for analytics but event
+    // generation uses deterministic selection based on workforce growth targets (E077).
     totalTerminationRate: 12.0, // Overall termination rate (%)
     newHireTerminationRate: 25.0, // New hire termination rate (%)
-    baseTurnoverRate: 12.0,
-    regrettableFactor: 0.6,
-    involuntaryRate: 2.0,
-    turnoverBands: {
-      year1: 25.0,    // High risk
-      year2_3: 15.0,  // Medium risk
-      year4_plus: 8.0 // Low risk (stable)
-    },
 
     // DC Plan - Basic
     dcEligibilityMonths: 3,
@@ -584,11 +579,8 @@ export default function ConfigStudio() {
                 }))
               : prev.levelMarketAdjustments,
 
-            // Turnover
-            baseTurnoverRate: cfg.turnover?.base_rate_percent ?? prev.baseTurnoverRate,
-            regrettableFactor: cfg.turnover?.regrettable_factor ?? prev.regrettableFactor,
-            involuntaryRate: cfg.turnover?.involuntary_rate_percent ?? prev.involuntaryRate,
-            turnoverBands: cfg.turnover?.tenure_bands || prev.turnoverBands,
+            // Turnover - removed unused fields (E086: baseTurnoverRate, regrettableFactor, involuntaryRate, turnoverBands)
+            // Only totalTerminationRate and newHireTerminationRate are used by the simulation
 
             // DC Plan - Basic
             dcEligibilityMonths: cfg.dc_plan?.eligibility_months ?? prev.dcEligibilityMonths,
@@ -734,11 +726,7 @@ export default function ConfigStudio() {
           }))
         : prev.levelMarketAdjustments,
 
-      // Turnover
-      baseTurnoverRate: cfg.turnover?.base_rate_percent || prev.baseTurnoverRate,
-      regrettableFactor: cfg.turnover?.regrettable_factor || prev.regrettableFactor,
-      involuntaryRate: cfg.turnover?.involuntary_rate_percent || prev.involuntaryRate,
-      turnoverBands: cfg.turnover?.tenure_bands || prev.turnoverBands,
+      // Turnover - removed unused fields (E086)
 
       // DC Plan
       dcEligibilityMonths: cfg.dc_plan?.eligibility_months || prev.dcEligibilityMonths,
@@ -824,13 +812,9 @@ export default function ConfigStudio() {
       dirty.add('newhire');
     }
 
-    // Turnover section
+    // Turnover section (E086: removed unused baseTurnoverRate, regrettableFactor, involuntaryRate, turnoverBands)
     if (formData.totalTerminationRate !== savedFormData.totalTerminationRate ||
-        formData.newHireTerminationRate !== savedFormData.newHireTerminationRate ||
-        formData.baseTurnoverRate !== savedFormData.baseTurnoverRate ||
-        formData.regrettableFactor !== savedFormData.regrettableFactor ||
-        formData.involuntaryRate !== savedFormData.involuntaryRate ||
-        JSON.stringify(formData.turnoverBands) !== JSON.stringify(savedFormData.turnoverBands)) {
+        formData.newHireTerminationRate !== savedFormData.newHireTerminationRate) {
       dirty.add('turnover');
     }
 
@@ -931,12 +915,8 @@ export default function ConfigStudio() {
             adjustment_percent: row.adjustment,
           })),
         },
-        turnover: {
-          base_rate_percent: Number(formData.baseTurnoverRate),
-          regrettable_factor: Number(formData.regrettableFactor),
-          involuntary_rate_percent: Number(formData.involuntaryRate),
-          tenure_bands: formData.turnoverBands,
-        },
+        // E086: turnover section removed - unused fields (baseTurnoverRate, regrettableFactor, involuntaryRate, turnoverBands)
+        // Only totalTerminationRate and newHireTerminationRate in workforce section are used by simulation
         dc_plan: {
           // Basic settings
           eligibility_months: Number(formData.dcEligibilityMonths),
@@ -2184,69 +2164,26 @@ export default function ConfigStudio() {
                    </div>
                  </div>
 
-                 <div className="grid grid-cols-1 gap-y-6 gap-x-4 sm:grid-cols-6">
-                    <InputField label="Base Annual Turnover" {...inputProps('baseTurnoverRate')} type="number" suffix="%" helper="Expected overall exit rate" />
-                    <InputField label="Regrettable Factor" {...inputProps('regrettableFactor')} type="number" step="0.1" suffix="x" helper="Portion of exits that are regrettable (0.0-1.0)" />
-                    <InputField label="Involuntary Rate" {...inputProps('involuntaryRate')} type="number" suffix="%" helper="Performance-based exits / layoffs" />
-                 </div>
-
-                 <div className="bg-gray-50 rounded-lg p-4 border border-gray-200 mt-6">
-                   <h4 className="text-sm font-semibold text-gray-900 mb-3 uppercase tracking-wider">Tenure-Based Attrition Risks</h4>
-                   <div className="grid grid-cols-3 gap-4">
-                      <div>
-                        <label className="block text-xs font-medium text-gray-500 mb-1">Year 1 (High Risk)</label>
-                        <div className="relative rounded-md shadow-sm">
-                          <input
-                            type="number"
-                            value={formData.turnoverBands.year1}
-                            onChange={(e) => handleNestedChange('turnoverBands', 'year1', e.target.value)}
-                            className="shadow-sm focus:ring-fidelity-green focus:border-fidelity-green block w-full sm:text-sm border-gray-300 rounded-md p-2"
-                          />
-                          <div className="absolute inset-y-0 right-0 pr-3 flex items-center pointer-events-none">
-                             <span className="text-gray-400 text-xs">%</span>
-                          </div>
-                        </div>
-                      </div>
-                      <div>
-                        <label className="block text-xs font-medium text-gray-500 mb-1">Year 2-3 (Medium)</label>
-                        <div className="relative rounded-md shadow-sm">
-                          <input
-                            type="number"
-                            value={formData.turnoverBands.year2_3}
-                            onChange={(e) => handleNestedChange('turnoverBands', 'year2_3', e.target.value)}
-                            className="shadow-sm focus:ring-fidelity-green focus:border-fidelity-green block w-full sm:text-sm border-gray-300 rounded-md p-2"
-                          />
-                          <div className="absolute inset-y-0 right-0 pr-3 flex items-center pointer-events-none">
-                             <span className="text-gray-400 text-xs">%</span>
-                          </div>
-                        </div>
-                      </div>
-                      <div>
-                        <label className="block text-xs font-medium text-gray-500 mb-1">Year 4+ (Stable)</label>
-                        <div className="relative rounded-md shadow-sm">
-                          <input
-                            type="number"
-                            value={formData.turnoverBands.year4_plus}
-                            onChange={(e) => handleNestedChange('turnoverBands', 'year4_plus', e.target.value)}
-                            className="shadow-sm focus:ring-fidelity-green focus:border-fidelity-green block w-full sm:text-sm border-gray-300 rounded-md p-2"
-                          />
-                          <div className="absolute inset-y-0 right-0 pr-3 flex items-center pointer-events-none">
-                             <span className="text-gray-400 text-xs">%</span>
-                          </div>
-                        </div>
-                      </div>
-                   </div>
-                   <p className="text-xs text-gray-500 mt-3">
-                     Configures specific hazard rates for employees at different tenure stages.
-                   </p>
-                 </div>
+                 {/* E086: Removed unused UI fields (baseTurnoverRate, regrettableFactor, involuntaryRate, turnoverBands)
+                     These were not connected to the backend hazard model. The simulation uses deterministic
+                     termination selection based on totalTerminationRate and newHireTerminationRate (E077). */}
 
                  <div className="bg-blue-50 rounded-lg p-4 border border-blue-100">
                    <h4 className="text-sm font-medium text-blue-900 mb-2 flex items-center">
                      <HelpCircle size={16} className="mr-2 text-blue-500"/> Calculated Projection
                    </h4>
                    <p className="text-sm text-blue-800">
-                     Based on these inputs, an organization of 1,000 employees will see approximately <span className="font-bold">{Math.round(1000 * (formData.baseTurnoverRate / 100))}</span> exits per year, of which <span className="font-bold">{Math.round(1000 * (formData.baseTurnoverRate / 100) * formData.regrettableFactor)}</span> would be regrettable losses.
+                     Based on these inputs, an organization of 1,000 employees will see approximately <span className="font-bold">{Math.round(1000 * (formData.totalTerminationRate / 100))}</span> experienced employee exits per year, plus <span className="font-bold">{Math.round(100 * (formData.newHireTerminationRate / 100))}</span> first-year exits per 100 new hires.
+                   </p>
+                 </div>
+
+                 <div className="bg-gray-50 rounded-lg p-4 border border-gray-200">
+                   <h4 className="text-sm font-medium text-gray-700 mb-2">How Termination Works</h4>
+                   <p className="text-xs text-gray-600">
+                     The simulation uses deterministic termination selection based on workforce growth targets.
+                     Employees are selected for termination to achieve the configured termination rates while
+                     maintaining workforce growth objectives. Hazard-based modeling (age/tenure multipliers)
+                     is available in the analytics layer for reporting purposes.
                    </p>
                  </div>
                </div>
@@ -2927,11 +2864,7 @@ export default function ConfigStudio() {
                           targetPercentile: cfg.new_hire?.target_percentile ?? prev.targetPercentile,
                           newHireCompVariance: cfg.new_hire?.compensation_variance_percent ?? prev.newHireCompVariance,
                           marketScenario: cfg.new_hire?.market_scenario || prev.marketScenario,
-                          // Turnover
-                          baseTurnoverRate: cfg.turnover?.base_rate_percent ?? prev.baseTurnoverRate,
-                          regrettableFactor: cfg.turnover?.regrettable_factor ?? prev.regrettableFactor,
-                          involuntaryRate: cfg.turnover?.involuntary_rate_percent ?? prev.involuntaryRate,
-                          turnoverBands: cfg.turnover?.tenure_bands || prev.turnoverBands,
+                          // Turnover - E086: removed unused fields
                           // DC Plan
                           dcEligibilityMonths: cfg.dc_plan?.eligibility_months ?? prev.dcEligibilityMonths,
                           dcAutoEnroll: cfg.dc_plan?.auto_enroll ?? prev.dcAutoEnroll,
