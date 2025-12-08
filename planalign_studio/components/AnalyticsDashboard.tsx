@@ -192,10 +192,11 @@ export default function AnalyticsDashboard() {
   };
 
   const handleExport = useCallback((format: 'excel' | 'csv' = 'excel') => {
-    if (!selectedScenarioId) return;
-    const url = getResultsExportUrl(selectedScenarioId, format);
+    // E087: Require both workspaceId and scenarioId for reliable export
+    if (!selectedWorkspaceId || !selectedScenarioId) return;
+    const url = getResultsExportUrl(selectedWorkspaceId, selectedScenarioId, format);
     window.open(url, '_blank');
-  }, [selectedScenarioId]);
+  }, [selectedWorkspaceId, selectedScenarioId]);
 
   const handleRefresh = () => {
     fetchWorkspaces();

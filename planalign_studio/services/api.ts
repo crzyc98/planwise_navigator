@@ -347,8 +347,9 @@ export async function getSimulationResults(scenarioId: string): Promise<Simulati
   return handleResponse<SimulationResults>(response);
 }
 
-export function getResultsExportUrl(scenarioId: string, format: 'excel' | 'csv' = 'excel'): string {
-  return `${API_BASE}/api/scenarios/${scenarioId}/results/export?format=${format}`;
+export function getResultsExportUrl(workspaceId: string, scenarioId: string, format: 'excel' | 'csv' = 'excel'): string {
+  // E087: Use workspace-scoped endpoint for reliable export
+  return `${API_BASE}/api/workspaces/${workspaceId}/scenarios/${scenarioId}/results/export?format=${format}`;
 }
 
 // ============================================================================
@@ -444,6 +445,9 @@ export interface RunDetails {
 
   // Error info
   error_message: string | null;
+
+  // E087: Storage location info
+  storage_path: string | null;
 }
 
 export async function getRunDetails(scenarioId: string): Promise<RunDetails> {

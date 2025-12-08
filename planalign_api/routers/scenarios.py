@@ -1,8 +1,10 @@
 """Scenario management endpoints."""
 
+from pathlib import Path
 from typing import Any, Dict, List
 
 from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi.responses import FileResponse
 
 from ..config import APISettings, get_settings
 from ..models.scenario import (
@@ -152,3 +154,99 @@ async def delete_scenario(
             detail=f"Scenario {scenario_id} not found in workspace {workspace_id}",
         )
     return {"success": True}
+
+
+@router.get("/{workspace_id}/scenarios/{scenario_id}/results/export")
+async def export_scenario_results(
+    workspace_id: str,
+    scenario_id: str,
+    format: str = "excel",
+    storage: WorkspaceStorage = Depends(get_storage),
+) -> FileResponse:
+    """
+    Export simulation results as Excel or CSV (workspace-scoped endpoint).
+
+    E087: This endpoint eliminates ambiguity in multi-workspace environments
+    by requiring the workspace_id, avoiding the need to search all workspaces.
+    """
+    # Verify workspace and scenario exist
+    workspace = storage.get_workspace(workspace_id)
+    if not workspace:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Workspace {workspace_id} not found",
+        )
+
+    scenario = storage.get_scenario(workspace_id, scenario_id)
+    if not scenario:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Scenario {scenario_id} not found in workspace {workspace_id}",
+        )
+
+    # Determine file format
+    if format == "excel":
+        media_type = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+        ext = "xlsx"
+    else:
+        media_type = "text/csv"
+        ext = "csv"
+
+    # Get scenario path and look for results
+    scenario_path = storage._scenario_path(workspace_id, scenario_id)
+
+    # Helper function to find results file in a directory
+    def find_results_file(search_dir: Path) -> Path | None:
+        if not search_dir.exists():
+            return None
+        # First try: {scenario_name}_results.xlsx
+        candidate = search_dir / f"{scenario.name}_results.{ext}"
+        if candidate.exists():
+            return candidate
+        # Second try: results.xlsx
+        candidate = search_dir / f"results.{ext}"
+        if candidate.exists():
+            return candidate
+        # Third try: any *_results.xlsx file
+        for f in search_dir.glob(f"*_results.{ext}"):
+            return f
+        return None
+
+    results_file = None
+
+    # Check 1: Look in legacy results/ directory
+    results_file = find_results_file(scenario_path / "results")
+
+    # Check 2: Look in most recent run directory (runs/{run_id}/)
+    if not results_file:
+        runs_dir = scenario_path / "runs"
+        if runs_dir.exists():
+            # Get most recent run directory by modification time
+            run_dirs = sorted(
+                [d for d in runs_dir.iterdir() if d.is_dir()],
+                key=lambda d: d.stat().st_mtime,
+                reverse=True,
+            )
+            for run_dir in run_dirs:
+                results_file = find_results_file(run_dir)
+                if results_file:
+                    break
+
+    if results_file and results_file.exists():
+        # Build descriptive filename: {workspace}_{scenario}_results_{date}.xlsx
+        from datetime import datetime
+        date_str = datetime.now().strftime("%Y%m%d")
+        # Sanitize names for filename (replace spaces with underscores)
+        ws_name = workspace.name.replace(" ", "_")
+        sc_name = scenario.name.replace(" ", "_")
+        download_filename = f"{ws_name}_{sc_name}_results_{date_str}.{ext}"
+        return FileResponse(
+            path=results_file,
+            media_type=media_type,
+            filename=download_filename,
+        )
+
+    raise HTTPException(
+        status_code=status.HTTP_404_NOT_FOUND,
+        detail=f"Export file not found for scenario {scenario_id}. Run the simulation first to generate results.",
+    )
