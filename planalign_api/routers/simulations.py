@@ -565,13 +565,45 @@ async def get_run_details(
 
         # Try to load run metadata from file
         run_metadata = None
-        metadata_path = scenario_path / "results" / "run_metadata.json"
-        if metadata_path.exists():
-            try:
-                with open(metadata_path) as f:
-                    run_metadata = json.load(f)
-            except Exception:
-                pass
+
+        # First try: Look in runs/{run_id}/ directory (new structure)
+        if scenario.last_run_id:
+            metadata_path = scenario_path / "runs" / scenario.last_run_id / "run_metadata.json"
+            if metadata_path.exists():
+                try:
+                    with open(metadata_path) as f:
+                        run_metadata = json.load(f)
+                except Exception:
+                    pass
+
+        # Second try: Look in most recent run directory
+        if not run_metadata:
+            runs_dir = scenario_path / "runs"
+            if runs_dir.exists():
+                run_dirs = sorted(
+                    [d for d in runs_dir.iterdir() if d.is_dir()],
+                    key=lambda d: d.stat().st_mtime,
+                    reverse=True,
+                )
+                for run_dir in run_dirs:
+                    metadata_path = run_dir / "run_metadata.json"
+                    if metadata_path.exists():
+                        try:
+                            with open(metadata_path) as f:
+                                run_metadata = json.load(f)
+                            break
+                        except Exception:
+                            continue
+
+        # Third try: Legacy results/ directory
+        if not run_metadata:
+            metadata_path = scenario_path / "results" / "run_metadata.json"
+            if metadata_path.exists():
+                try:
+                    with open(metadata_path) as f:
+                        run_metadata = json.load(f)
+                except Exception:
+                    pass
 
         # Calculate duration - prefer metadata file, then active run
         duration_seconds = None
@@ -580,9 +612,11 @@ async def get_run_details(
         total_events = None
 
         error_message = None
+        final_headcount_from_metadata = None
         if run_metadata:
             duration_seconds = run_metadata.get("duration_seconds")
             total_events = run_metadata.get("events_generated")
+            final_headcount_from_metadata = run_metadata.get("final_headcount")
             error_message = run_metadata.get("error_message")
             if run_metadata.get("started_at"):
                 started_at = datetime.fromisoformat(run_metadata["started_at"])
@@ -610,11 +644,13 @@ async def get_run_details(
         artifacts = _list_artifacts(scenario_path) if scenario_path.exists() else []
 
         # Get results summary if completed
-        final_headcount = None
+        final_headcount = final_headcount_from_metadata  # Start with run_metadata value
         participation_rate = None
 
         if scenario.status == "completed" and scenario.results_summary:
-            final_headcount = scenario.results_summary.get("final_headcount")
+            # Prefer results_summary values if available
+            if scenario.results_summary.get("final_headcount"):
+                final_headcount = scenario.results_summary.get("final_headcount")
             if not total_events:
                 total_events = scenario.results_summary.get("total_events")
             participation_rate = scenario.results_summary.get("participation_rate")
@@ -627,7 +663,7 @@ async def get_run_details(
             workspace_name=workspace.name,
             status=scenario.status if scenario.status != "not_run" else "not_run",
             started_at=started_at,
-            completed_at=completed_at if scenario.status == "completed" else None,
+            completed_at=completed_at,  # Already set from run_metadata if available
             duration_seconds=duration_seconds,
             start_year=start_year,
             end_year=end_year,

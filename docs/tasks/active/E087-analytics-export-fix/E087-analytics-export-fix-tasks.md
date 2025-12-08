@@ -30,7 +30,8 @@
 
 ## Part 3: Finalize
 
-- [ ] 3.1 Create PR
+- [x] 3.1 Create PR
+  - PR #78 created: https://github.com/crzyc98/planwise_navigator/pull/78
 - [ ] 3.2 Manual testing in UI
 - [ ] 3.3 Merge PR
 
@@ -45,3 +46,18 @@
 - Completed 1.3: Added new workspace-scoped export endpoint to `scenarios.py`
 - Completed 2.1-2.3: Added storage_path to backend and frontend
 - All code changes complete, verified with API schema check and frontend build
+
+### 2025-12-08 (Session 2)
+- Fixed export endpoint to search `runs/{run_id}/` directory (not just legacy `results/`)
+- Improved export filename: `{workspace}_{scenario}_results_{YYYYMMDD}.xlsx`
+- Fixed blank UI values (Total Events, Completed timestamp) by updating `get_run_details()` to search:
+  1. `runs/{last_run_id}/run_metadata.json` (by run ID)
+  2. Most recent `runs/*/run_metadata.json` (fallback)
+  3. Legacy `results/run_metadata.json` (migration path)
+- API verification:
+  - Completed timestamp: ✅ Now shows from run_metadata
+  - Total Events: ✅ Now shows `events_generated` from run_metadata
+  - Storage Path: ✅ Displays correctly
+  - Export: ✅ Works with descriptive filename
+- Note: Final Headcount still shows `--` because `run_metadata.json` doesn't include this field
+  (would require simulation service update to write `final_headcount` - separate issue)
