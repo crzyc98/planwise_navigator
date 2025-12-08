@@ -64,6 +64,10 @@ class ExcelExporter:
         """
         output_dir.mkdir(parents=True, exist_ok=True)
 
+        # E092: Extract year range from config for filtering
+        start_year = config.simulation.start_year
+        end_year = config.simulation.end_year
+
         with self.db_manager.get_connection() as conn:
             # Check if workforce snapshot table exists
             table_exists = self._check_table_exists(conn, "fct_workforce_snapshot")
@@ -72,16 +76,18 @@ class ExcelExporter:
                 return self._create_minimal_export(scenario_name, output_dir, export_format)
 
             # Determine total rows and whether to split by year
+            # E092: Filter row count by configured year range
             total_rows = self._query_to_df(
                 conn,
-                "SELECT COUNT(*) AS cnt FROM fct_workforce_snapshot",
+                "SELECT COUNT(*) AS cnt FROM fct_workforce_snapshot WHERE simulation_year BETWEEN ? AND ?",
+                params=[start_year, end_year],
             )["cnt"].iloc[0]
             split = split_by_year if split_by_year is not None else total_rows > self.split_threshold
 
             if export_format.lower() == "csv":
-                return self._export_csv(scenario_name, output_dir, conn, config, seed, split)
+                return self._export_csv(scenario_name, output_dir, conn, config, seed, split, start_year, end_year)
             else:
-                return self._export_excel(scenario_name, output_dir, conn, config, seed, split, total_rows)
+                return self._export_excel(scenario_name, output_dir, conn, config, seed, split, total_rows, start_year, end_year)
 
     def _check_table_exists(self, conn, table_name: str) -> bool:
         """Check if a table exists in the database.
@@ -149,7 +155,7 @@ class ExcelExporter:
                 )
             return minimal_path
 
-    def _export_csv(self, scenario_name: str, output_dir: Path, conn, config: Any, seed: int, split: bool) -> Path:
+    def _export_csv(self, scenario_name: str, output_dir: Path, conn, config: Any, seed: int, split: bool, start_year: int, end_year: int) -> Path:
         """Export scenario results to CSV files.
 
         Args:
@@ -159,6 +165,8 @@ class ExcelExporter:
             config: SimulationConfig object
             seed: Random seed
             split: Whether to split workforce snapshot by year
+            start_year: E092 - Start year for filtering
+            end_year: E092 - End year for filtering
 
         Returns:
             Path to the output directory containing CSV files
@@ -166,9 +174,11 @@ class ExcelExporter:
         # Export workforce snapshot
         if split:
             # Export per-year CSV files
+            # E092: Filter years by config range
             years = self._query_to_df(
                 conn,
-                "SELECT DISTINCT simulation_year FROM fct_workforce_snapshot ORDER BY simulation_year",
+                "SELECT DISTINCT simulation_year FROM fct_workforce_snapshot WHERE simulation_year BETWEEN ? AND ? ORDER BY simulation_year",
+                params=[start_year, end_year],
             )["simulation_year"].tolist()
 
             for year in years:
@@ -180,19 +190,23 @@ class ExcelExporter:
                 df_year.to_csv(output_dir / f"{scenario_name}_workforce_{year}.csv", index=False)
         else:
             # Single workforce snapshot CSV
+            # E092: Filter by year range
             df_workforce = self._query_to_df(
                 conn,
-                "SELECT * FROM fct_workforce_snapshot ORDER BY simulation_year, employee_id",
+                "SELECT * FROM fct_workforce_snapshot WHERE simulation_year BETWEEN ? AND ? ORDER BY simulation_year, employee_id",
+                params=[start_year, end_year],
             )
             df_workforce.to_csv(output_dir / f"{scenario_name}_workforce_snapshot.csv", index=False)
 
         # Export summary metrics
-        df_summary = self._calculate_summary_metrics(conn)
+        # E092: Pass year range to summary metrics
+        df_summary = self._calculate_summary_metrics(conn, start_year, end_year)
         df_summary.to_csv(output_dir / f"{scenario_name}_summary_metrics.csv", index=False)
 
         # Export events summary if table exists
         if self._check_table_exists(conn, "fct_yearly_events"):
-            df_events = self._calculate_events_summary(conn)
+            # E092: Pass year range to events summary
+            df_events = self._calculate_events_summary(conn, start_year, end_year)
             df_events.to_csv(output_dir / f"{scenario_name}_events_summary.csv", index=False)
 
         # Export metadata
@@ -201,7 +215,7 @@ class ExcelExporter:
 
         return output_dir
 
-    def _export_excel(self, scenario_name: str, output_dir: Path, conn, config: Any, seed: int, split: bool, total_rows: int) -> Path:
+    def _export_excel(self, scenario_name: str, output_dir: Path, conn, config: Any, seed: int, split: bool, total_rows: int, start_year: int, end_year: int) -> Path:
         """Export scenario results to Excel workbook.
 
         Args:
@@ -212,6 +226,8 @@ class ExcelExporter:
             seed: Random seed
             split: Whether to split workforce snapshot by year
             total_rows: Total number of rows in workforce snapshot
+            start_year: E092 - Start year for filtering
+            end_year: E092 - End year for filtering
 
         Returns:
             Path to the Excel workbook
@@ -220,17 +236,20 @@ class ExcelExporter:
 
         with pd.ExcelWriter(excel_path, engine="openpyxl") as writer:
             # Workforce Snapshot (single sheet or per-year)
-            self._write_workforce_sheets(writer, conn, split)
+            # E092: Pass year range for filtering
+            self._write_workforce_sheets(writer, conn, split, start_year, end_year)
 
             # Summary Metrics by Year
-            df_summary = self._calculate_summary_metrics(conn)
+            # E092: Pass year range for filtering
+            df_summary = self._calculate_summary_metrics(conn, start_year, end_year)
             df_summary = self._sanitize_for_excel(df_summary)
             df_summary.to_excel(writer, sheet_name="Summary_Metrics", index=False)
             self._format_worksheet(writer.book["Summary_Metrics"])
 
             # Events Summary (if events table exists)
             if self._check_table_exists(conn, "fct_yearly_events"):
-                df_events = self._calculate_events_summary(conn)
+                # E092: Pass year range for filtering
+                df_events = self._calculate_events_summary(conn, start_year, end_year)
                 df_events = self._sanitize_for_excel(df_events)
                 df_events.to_excel(writer, sheet_name="Events_Summary", index=False)
                 self._format_worksheet(writer.book["Events_Summary"])
@@ -243,19 +262,23 @@ class ExcelExporter:
 
         return excel_path
 
-    def _write_workforce_sheets(self, writer, conn, split: bool) -> None:
+    def _write_workforce_sheets(self, writer, conn, split: bool, start_year: int, end_year: int) -> None:
         """Write workforce snapshot data to Excel sheets.
 
         Args:
             writer: Excel writer object
             conn: Database connection
             split: Whether to split by year
+            start_year: E092 - Start year for filtering
+            end_year: E092 - End year for filtering
         """
         if split:
             # Create per-year sheets
+            # E092: Filter years by config range
             years = self._query_to_df(
                 conn,
-                "SELECT DISTINCT simulation_year FROM fct_workforce_snapshot ORDER BY simulation_year",
+                "SELECT DISTINCT simulation_year FROM fct_workforce_snapshot WHERE simulation_year BETWEEN ? AND ? ORDER BY simulation_year",
+                params=[start_year, end_year],
             )["simulation_year"].tolist()
 
             for year in years:
@@ -270,9 +293,11 @@ class ExcelExporter:
                 self._format_worksheet(writer.book[sheet_name])
         else:
             # Single workforce snapshot sheet
+            # E092: Filter by year range
             df_workforce = self._query_to_df(
                 conn,
-                "SELECT * FROM fct_workforce_snapshot ORDER BY simulation_year, employee_id",
+                "SELECT * FROM fct_workforce_snapshot WHERE simulation_year BETWEEN ? AND ? ORDER BY simulation_year, employee_id",
+                params=[start_year, end_year],
             )
             df_workforce = self._sanitize_for_excel(df_workforce)
             df_workforce.to_excel(writer, sheet_name="Workforce_Snapshot", index=False)
@@ -315,11 +340,13 @@ class ExcelExporter:
                     pass
         return out
 
-    def _calculate_summary_metrics(self, conn) -> pd.DataFrame:
+    def _calculate_summary_metrics(self, conn, start_year: int, end_year: int) -> pd.DataFrame:
         """Calculate summary metrics by simulation year.
 
         Args:
             conn: Database connection
+            start_year: E092 - Start year for filtering
+            end_year: E092 - End year for filtering
 
         Returns:
             DataFrame with summary metrics by year
@@ -369,6 +396,7 @@ class ExcelExporter:
             else "CAST(NULL AS DOUBLE) AS avg_deferral_rate"
         )
 
+        # E092: Filter by year range
         query = f"""
             SELECT
                 simulation_year,
@@ -380,21 +408,25 @@ class ExcelExporter:
                 {er_match_expr},
                 {avg_deferral_expr}
             FROM fct_workforce_snapshot
+            WHERE simulation_year BETWEEN ? AND ?
             GROUP BY simulation_year
             ORDER BY simulation_year
         """
 
-        return self._query_to_df(conn, query)
+        return self._query_to_df(conn, query, params=[start_year, end_year])
 
-    def _calculate_events_summary(self, conn) -> pd.DataFrame:
+    def _calculate_events_summary(self, conn, start_year: int, end_year: int) -> pd.DataFrame:
         """Calculate events summary by simulation year and event type.
 
         Args:
             conn: Database connection
+            start_year: E092 - Start year for filtering
+            end_year: E092 - End year for filtering
 
         Returns:
             DataFrame with event counts and metrics
         """
+        # E092: Filter by year range
         return self._query_to_df(
             conn,
             """
@@ -407,9 +439,11 @@ class ExcelExporter:
                     THEN compensation_amount
                     END), 2) AS avg_new_salary_on_raise
             FROM fct_yearly_events
+            WHERE simulation_year BETWEEN ? AND ?
             GROUP BY simulation_year, event_type
             ORDER BY simulation_year, event_type
             """,
+            params=[start_year, end_year],
         )
 
     def _build_metadata_dataframe(self, config: Any, seed: int, conn, total_rows: Optional[int] = None, split: bool = False) -> pd.DataFrame:
