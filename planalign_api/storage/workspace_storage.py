@@ -1,6 +1,7 @@
 """Filesystem storage operations for workspaces and scenarios."""
 
 import json
+import logging
 import shutil
 import uuid
 from datetime import datetime
@@ -8,6 +9,8 @@ from pathlib import Path
 from typing import Any, Dict, List, Optional
 
 import yaml
+
+logger = logging.getLogger(__name__)
 
 from ..config import get_settings
 from ..models.workspace import Workspace, WorkspaceCreate, WorkspaceSummary
@@ -411,8 +414,16 @@ class WorkspaceStorage:
         if not workspace or not scenario:
             return None
 
+        # E091: Debug logging for year range tracking
+        base_sim = workspace.base_config.get("simulation", {})
+        override_sim = scenario.config_overrides.get("simulation", {})
+        logger.info(f"E091: Base config simulation: {base_sim}")
+        logger.info(f"E091: Override config simulation: {override_sim}")
+
         # Deep merge base config with overrides
-        return self._deep_merge(workspace.base_config, scenario.config_overrides)
+        merged = self._deep_merge(workspace.base_config, scenario.config_overrides)
+        logger.info(f"E091: Merged config simulation: {merged.get('simulation', {})}")
+        return merged
 
     def _deep_merge(
         self, base: Dict[str, Any], overrides: Dict[str, Any]
