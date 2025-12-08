@@ -1189,30 +1189,6 @@ export default function ConfigStudio() {
                 </button>
              ))}
           </nav>
-
-          <div className="mt-8 p-4 bg-blue-50 rounded-lg border border-blue-100">
-            <h4 className="text-xs font-semibold text-blue-800 uppercase tracking-wider mb-2">Impact Preview</h4>
-            <div className="space-y-3">
-              <div>
-                <div className="flex justify-between text-xs text-blue-600 mb-1">
-                   <span>Projected Headcount</span>
-                   <span className="font-bold">1,061</span>
-                </div>
-                <div className="w-full bg-blue-200 rounded-full h-1.5">
-                  <div className="bg-blue-600 h-1.5 rounded-full" style={{ width: '70%' }}></div>
-                </div>
-              </div>
-              <div>
-                <div className="flex justify-between text-xs text-blue-600 mb-1">
-                   <span>Turnover Cost</span>
-                   <span className="font-bold">$2.4M</span>
-                </div>
-                <div className="w-full bg-blue-200 rounded-full h-1.5">
-                   <div className="bg-red-400 h-1.5 rounded-full" style={{ width: '40%' }}></div>
-                </div>
-              </div>
-            </div>
-          </div>
         </div>
 
         {/* Form Area */}
