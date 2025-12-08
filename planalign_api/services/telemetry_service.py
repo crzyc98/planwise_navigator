@@ -58,8 +58,10 @@ class TelemetryService:
 
         self._telemetry_data[run_id] = telemetry
 
-        # Broadcast to listeners
-        asyncio.create_task(self._broadcast(run_id, telemetry))
+        # Broadcast to listeners synchronously
+        # Note: We use put_nowait directly since we're often called from a background thread
+        # where asyncio.create_task() won't work (no running event loop)
+        self._broadcast_sync(run_id, telemetry)
 
     def _calculate_memory_pressure(self, memory_mb: float) -> str:
         """Calculate memory pressure level."""
@@ -71,13 +73,21 @@ class TelemetryService:
             return "high"
         return "critical"
 
-    async def _broadcast(self, run_id: str, telemetry: SimulationTelemetry) -> None:
-        """Broadcast telemetry to all listeners for this run."""
+    def _broadcast_sync(self, run_id: str, telemetry: SimulationTelemetry) -> None:
+        """Broadcast telemetry to all listeners synchronously.
+
+        This method is thread-safe and can be called from background threads.
+        Uses put_nowait which is safe to call from any thread.
+        """
         if run_id not in self._listeners:
+            logger.debug(f"No listeners for run {run_id}")
             return
 
         message = telemetry.model_dump_json()
         dead_queues = []
+        listener_count = len(self._listeners[run_id])
+
+        logger.debug(f"Broadcasting to {listener_count} listener(s) for run {run_id}")
 
         for queue in self._listeners[run_id]:
             try:
@@ -91,6 +101,10 @@ class TelemetryService:
         # Clean up dead queues
         for queue in dead_queues:
             self._listeners[run_id].discard(queue)
+
+    async def _broadcast(self, run_id: str, telemetry: SimulationTelemetry) -> None:
+        """Broadcast telemetry to all listeners (async version, kept for compatibility)."""
+        self._broadcast_sync(run_id, telemetry)
 
     def subscribe(self, run_id: str) -> asyncio.Queue:
         """Subscribe to telemetry updates for a run."""
