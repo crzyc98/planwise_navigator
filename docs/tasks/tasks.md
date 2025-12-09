@@ -1,7 +1,7 @@
 # Task Management
 
 ## Active Tasks
-None
+- **E094** - Analytics Page Workspace Selection (branch: `feature/E094-analytics-page-workspace-selection`)
 
 ## Completed Tasks
 - **E092** - DC Plan Analytics Fix (PR #86)
