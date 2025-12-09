@@ -703,15 +703,15 @@ class SimulationService:
 
             # Get workforce progression (filtered by scenario's year range)
             # E091: Use prorated_annual_compensation for accuracy with partial-year employees
+            # E093: Include all employees (not just actives) for compensation metrics
             try:
                 workforce_df = conn.execute("""
                     SELECT
                         simulation_year,
-                        COUNT(DISTINCT employee_id) as headcount,
+                        COUNT(DISTINCT CASE WHEN LOWER(employment_status) = 'active' THEN employee_id END) as headcount,
                         AVG(prorated_annual_compensation) as avg_compensation
                     FROM fct_workforce_snapshot
-                    WHERE LOWER(employment_status) = 'active'
-                      AND simulation_year >= ?
+                    WHERE simulation_year >= ?
                       AND simulation_year <= ?
                     GROUP BY simulation_year
                     ORDER BY simulation_year
@@ -721,6 +721,26 @@ class SimulationService:
             except Exception as e:
                 logger.error(f"Error fetching workforce progression: {e}")
                 workforce_progression = []
+
+            # E093: Get compensation breakdown by detailed status code
+            try:
+                comp_by_status_df = conn.execute("""
+                    SELECT
+                        simulation_year,
+                        detailed_status_code as employment_status,
+                        COUNT(DISTINCT employee_id) as employee_count,
+                        AVG(prorated_annual_compensation) as avg_compensation
+                    FROM fct_workforce_snapshot
+                    WHERE simulation_year >= ?
+                      AND simulation_year <= ?
+                    GROUP BY simulation_year, detailed_status_code
+                    ORDER BY simulation_year, detailed_status_code
+                """, [config_start_year, config_end_year]).fetchdf()
+
+                compensation_by_status = comp_by_status_df.to_dict("records")
+            except Exception as e:
+                logger.error(f"Error fetching compensation by status: {e}")
+                compensation_by_status = []
 
             # Get event trends (filtered by scenario's year range)
             try:
@@ -789,6 +809,7 @@ class SimulationService:
                     "total_growth_pct": total_growth_pct,
                     "cagr": cagr,
                 },
+                compensation_by_status=compensation_by_status,  # E093
             )
 
         except Exception as e:

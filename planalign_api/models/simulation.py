@@ -94,6 +94,12 @@ class SimulationResults(BaseModel):
     # Detailed metrics
     growth_analysis: Dict[str, float] = Field(description="Growth analysis metrics")
 
+    # E093: Compensation breakdown by employment status
+    compensation_by_status: List[Dict[str, Any]] = Field(
+        default_factory=list,
+        description="Compensation breakdown by year and employment status"
+    )
+
 
 class RunRequest(BaseModel):
     """Request to start a simulation run."""

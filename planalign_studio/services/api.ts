@@ -92,6 +92,13 @@ export interface SimulationResults {
   workforce_progression: Array<Record<string, any>>;
   event_trends: Record<string, number[]>;
   growth_analysis: Record<string, number>;
+  // E093: Compensation breakdown by employment status
+  compensation_by_status: Array<{
+    simulation_year: number;
+    employment_status: string;
+    employee_count: number;
+    avg_compensation: number;
+  }>;
 }
 
 export interface BatchJob {
