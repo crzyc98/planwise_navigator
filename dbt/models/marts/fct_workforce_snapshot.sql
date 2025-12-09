@@ -375,8 +375,10 @@ employee_eligibility AS (
     UNION ALL
 
     -- NEW HIRES eligibility (E037 fix: include NH_* employees in year 1)
+    -- E096 BUG FIX: Reverse join order - start from hire events (source of truth)
+    -- so ALL new hires appear even if they don't yet have enrollment data
     SELECT DISTINCT
-        accumulator.employee_id,
+        he.employee_id,
         -- New hires don't have eligibility date in baseline, use hire date or enrollment date
         COALESCE(he.effective_date::DATE, accumulator.enrollment_date::DATE) AS employee_eligibility_date,
         0 AS waiting_period_days,  -- New hires typically have immediate eligibility in auto-enrollment
@@ -389,24 +391,24 @@ employee_eligibility AS (
             ELSE false
         END AS is_enrolled_flag
     FROM (
-        -- Get enrollment status from enrollment state accumulator for new hires
+        -- E096 FIX: Start from hire events (source of truth for new hires)
+        SELECT employee_id, effective_date
+        FROM {{ ref('fct_yearly_events') }}
+        WHERE simulation_year = {{ simulation_year }}
+          AND event_type = 'hire'
+          AND employee_id LIKE 'NH_{{ simulation_year }}_%'
+    ) he
+    LEFT JOIN (
+        -- Join enrollment state if it exists (may not exist yet for some new hires)
         SELECT
             employee_id,
             enrollment_date,
             enrollment_status AS is_enrolled
         FROM {{ ref('int_enrollment_state_accumulator') }}
         WHERE simulation_year = {{ simulation_year }}
-          AND employee_id LIKE 'NH_{{ simulation_year }}_%'
-    ) accumulator
-    LEFT JOIN (
-        -- Get hire information for new hires
-        SELECT employee_id, effective_date
-        FROM {{ ref('fct_yearly_events') }}
-        WHERE simulation_year = {{ simulation_year }}
-          AND event_type = 'hire'
-    ) he ON accumulator.employee_id = he.employee_id
+    ) accumulator ON he.employee_id = accumulator.employee_id
     -- Only include if they're not already in baseline (avoid duplicates)
-    WHERE accumulator.employee_id NOT IN (
+    WHERE he.employee_id NOT IN (
         SELECT employee_id FROM {{ ref('int_baseline_workforce') }} WHERE employment_status = 'active'
     )
     {% else %}
