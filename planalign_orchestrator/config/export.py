@@ -305,6 +305,31 @@ def _export_employer_match_vars(cfg: "SimulationConfig") -> Dict[str, Any]:
             if match_cap_percent is not None:
                 dbt_vars["match_cap_percent"] = float(match_cap_percent)
 
+            # E095: Export match eligibility from dc_plan (UI format) to employer_match structure
+            # The UI sends flat fields like match_min_hours_annual, we need to merge into employer_match
+            match_eligibility_overrides = {}
+            if dc_plan_dict.get("match_min_tenure_years") is not None:
+                match_eligibility_overrides["minimum_tenure_years"] = int(dc_plan_dict["match_min_tenure_years"])
+            if dc_plan_dict.get("match_require_year_end_active") is not None:
+                match_eligibility_overrides["require_active_at_year_end"] = bool(dc_plan_dict["match_require_year_end_active"])
+            if dc_plan_dict.get("match_min_hours_annual") is not None:
+                match_eligibility_overrides["minimum_hours_annual"] = int(dc_plan_dict["match_min_hours_annual"])
+            if dc_plan_dict.get("match_allow_terminated_new_hires") is not None:
+                match_eligibility_overrides["allow_terminated_new_hires"] = bool(dc_plan_dict["match_allow_terminated_new_hires"])
+            if dc_plan_dict.get("match_allow_experienced_terminations") is not None:
+                match_eligibility_overrides["allow_experienced_terminations"] = bool(dc_plan_dict["match_allow_experienced_terminations"])
+
+            # Merge dc_plan eligibility overrides into employer_match
+            if match_eligibility_overrides:
+                if "employer_match" not in dbt_vars:
+                    dbt_vars["employer_match"] = employer_match_defaults.copy()
+                # Deep merge eligibility
+                current_eligibility = dbt_vars["employer_match"].get("eligibility", {}).copy()
+                current_eligibility.update(match_eligibility_overrides)
+                dbt_vars["employer_match"]["eligibility"] = current_eligibility
+                # Enable eligibility when UI sets values
+                dbt_vars["employer_match"]["apply_eligibility"] = True
+
     except Exception as e:
         import traceback
         print(f"Warning: Error processing dc_plan match configuration: {e}")
@@ -475,6 +500,66 @@ def _export_core_contribution_vars(cfg: "SimulationConfig") -> Dict[str, Any]:
                 dbt_vars["employer_core_contribution"] = dbt_core_nested
     except Exception:
         pass
+
+    # E095: Export core eligibility from dc_plan (UI format) to employer_core_contribution structure
+    # The UI sends flat fields like core_min_hours_annual, we need to merge into employer_core_contribution
+    try:
+        dc_plan = getattr(cfg, "dc_plan", None)
+        if dc_plan is None and hasattr(cfg, "__dict__"):
+            raw_config = cfg.__dict__.get("_raw_config", {})
+            dc_plan = raw_config.get("dc_plan", {})
+
+        if dc_plan:
+            if isinstance(dc_plan, dict):
+                dc_plan_dict = dc_plan
+            elif hasattr(dc_plan, 'model_dump'):
+                dc_plan_dict = dc_plan.model_dump()
+            else:
+                dc_plan_dict = {}
+
+            core_eligibility_overrides = {}
+            if dc_plan_dict.get("core_min_tenure_years") is not None:
+                core_eligibility_overrides["minimum_tenure_years"] = int(dc_plan_dict["core_min_tenure_years"])
+            if dc_plan_dict.get("core_require_year_end_active") is not None:
+                core_eligibility_overrides["require_active_at_year_end"] = bool(dc_plan_dict["core_require_year_end_active"])
+            if dc_plan_dict.get("core_min_hours_annual") is not None:
+                core_eligibility_overrides["minimum_hours_annual"] = int(dc_plan_dict["core_min_hours_annual"])
+            if dc_plan_dict.get("core_allow_terminated_new_hires") is not None:
+                core_eligibility_overrides["allow_terminated_new_hires"] = bool(dc_plan_dict["core_allow_terminated_new_hires"])
+            if dc_plan_dict.get("core_allow_experienced_terminations") is not None:
+                core_eligibility_overrides["allow_experienced_terminations"] = bool(dc_plan_dict["core_allow_experienced_terminations"])
+
+            # Also handle core enabled and contribution rate from dc_plan
+            core_top_level = {}
+            if dc_plan_dict.get("core_enabled") is not None:
+                core_top_level["enabled"] = bool(dc_plan_dict["core_enabled"])
+                dbt_vars["employer_core_enabled"] = bool(dc_plan_dict["core_enabled"])
+            if dc_plan_dict.get("core_contribution_rate_percent") is not None:
+                # UI sends as percentage (e.g., 1.0 for 1%), convert to decimal (0.01)
+                rate_decimal = float(dc_plan_dict["core_contribution_rate_percent"]) / 100.0
+                core_top_level["contribution_rate"] = rate_decimal
+                dbt_vars["employer_core_contribution_rate"] = rate_decimal
+
+            # Merge dc_plan eligibility overrides into employer_core_contribution
+            if core_eligibility_overrides or core_top_level:
+                if "employer_core_contribution" not in dbt_vars:
+                    dbt_vars["employer_core_contribution"] = {}
+                # Merge top-level fields
+                dbt_vars["employer_core_contribution"].update(core_top_level)
+                # Deep merge eligibility
+                if core_eligibility_overrides:
+                    current_eligibility = dbt_vars["employer_core_contribution"].get("eligibility", {})
+                    if isinstance(current_eligibility, dict):
+                        current_eligibility = current_eligibility.copy()
+                    else:
+                        current_eligibility = {}
+                    current_eligibility.update(core_eligibility_overrides)
+                    dbt_vars["employer_core_contribution"]["eligibility"] = current_eligibility
+
+    except Exception as e:
+        import traceback
+        print(f"Warning: Error processing dc_plan core configuration: {e}")
+        print(f"Traceback: {traceback.format_exc()}")
 
     return dbt_vars
 
