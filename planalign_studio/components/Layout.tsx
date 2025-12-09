@@ -23,6 +23,8 @@ export interface LayoutContextType {
   addWorkspace: (ws: Workspace) => void;
   updateWorkspace: (id: string, updates: Partial<Workspace>) => void;
   deleteWorkspace: (id: string) => void;
+  lastRunScenarioId: string | null;
+  setLastRunScenarioId: (id: string | null) => void;
 }
 
 const NavItem = ({ to, icon, label }: { to: string; icon: React.ReactNode; label: string }) => (
@@ -59,6 +61,7 @@ export default function Layout() {
   const [isWorkspaceMenuOpen, setIsWorkspaceMenuOpen] = useState(false);
   const [isWorkspaceLoading, setIsWorkspaceLoading] = useState(true);
   const [workspaceError, setWorkspaceError] = useState<string | null>(null);
+  const [lastRunScenarioId, setLastRunScenarioId] = useState<string | null>(null);
 
   // Create Workspace State
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
@@ -347,7 +350,9 @@ export default function Layout() {
     workspaces,
     addWorkspace,
     updateWorkspace,
-    deleteWorkspace
+    deleteWorkspace,
+    lastRunScenarioId,
+    setLastRunScenarioId,
   };
 
   return (

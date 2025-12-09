@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { useSearchParams } from 'react-router-dom';
+import { useSearchParams, useOutletContext } from 'react-router-dom';
 import {
   LineChart, Line, BarChart, Bar, PieChart, Pie, Cell,
   XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer
@@ -19,6 +19,11 @@ import {
   SimulationResults
 } from '../services/api';
 import { COLORS } from '../constants';
+
+interface LayoutContext {
+  activeWorkspace: { id: string; name: string };
+  lastRunScenarioId: string | null;
+}
 
 const KPICard = ({ title, value, subtext, trend, icon: Icon, color, loading }: any) => (
   <div className="bg-white p-5 rounded-xl shadow-sm border border-gray-200 flex items-start justify-between">
@@ -80,7 +85,10 @@ const ErrorState = ({ message, onRetry }: { message: string; onRetry: () => void
 
 export default function AnalyticsDashboard() {
   const [searchParams] = useSearchParams();
-  const scenarioIdFromUrl = searchParams.get('scenario');
+  const { activeWorkspace: contextWorkspace, lastRunScenarioId } = useOutletContext<LayoutContext>();
+
+  // Priority: URL param > context lastRun > default
+  const scenarioIdFromUrl = searchParams.get('scenario') || lastRunScenarioId;
 
   // State for workspace/scenario selection
   const [workspaces, setWorkspaces] = useState<Workspace[]>([]);
@@ -144,9 +152,10 @@ export default function AnalyticsDashboard() {
     try {
       const data = await listWorkspaces();
       setWorkspaces(data);
-      // Auto-select first workspace if available
+      // Auto-select: prefer context workspace if available, else first
       if (data.length > 0 && !selectedWorkspaceId) {
-        setSelectedWorkspaceId(data[0].id);
+        const preferredWorkspace = data.find(ws => ws.id === contextWorkspace?.id);
+        setSelectedWorkspaceId(preferredWorkspace?.id || data[0].id);
       }
     } catch (err) {
       console.error('Failed to fetch workspaces:', err);
