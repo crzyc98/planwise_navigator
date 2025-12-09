@@ -171,6 +171,14 @@ def _export_enrollment_vars(cfg: "SimulationConfig") -> Dict[str, Any]:
             if dc_plan_dict.get("escalation_hire_date_cutoff") is not None:
                 dbt_vars["deferral_escalation_hire_date_cutoff"] = str(dc_plan_dict["escalation_hire_date_cutoff"])
 
+            # Plan eligibility waiting period (UI sends months, dbt expects days)
+            if dc_plan_dict.get("eligibility_months") is not None:
+                months = int(dc_plan_dict["eligibility_months"])
+                # Convert months to days (approximate: 30 days per month)
+                days = months * 30
+                dbt_vars["eligibility_waiting_period_days"] = days
+                dbt_vars["plan_eligibility_waiting_period_days"] = days
+
     except Exception as e:
         import traceback
         print(f"Warning: Error processing dc_plan enrollment/escalation configuration: {e}")
