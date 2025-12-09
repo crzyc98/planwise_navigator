@@ -431,9 +431,9 @@ export default function AnalyticsDashboard() {
               </div>
             </div>
 
-            {/* Average Compensation Trend */}
+            {/* Average Compensation Trend - All Employees */}
             <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-200">
-              <h3 className="text-lg font-semibold text-gray-800 mb-6">Average Compensation ($K)</h3>
+              <h3 className="text-lg font-semibold text-gray-800 mb-6">Average Compensation - All Employees ($K)</h3>
               <div className="h-80">
                 {workforceChartData.length > 0 ? (
                   <ResponsiveContainer width="100%" height="100%">
@@ -493,6 +493,114 @@ export default function AnalyticsDashboard() {
             </div>
 
           </div>
+
+          {/* Compensation by Detailed Status Code */}
+          {results.compensation_by_status && results.compensation_by_status.length > 0 && (() => {
+            // Helper to format status codes nicely
+            const formatStatus = (status: string) => status
+              ?.split('_')
+              .map(word => word.charAt(0).toUpperCase() + word.slice(1))
+              .join(' ') || status;
+
+            // Status color mapping
+            const statusColors: Record<string, string> = {
+              'continuous_active': '#00C49F',    // Green
+              'new_hire_active': '#0088FE',      // Blue
+              'experienced_termination': '#FF8042', // Orange
+              'new_hire_termination': '#FF6B6B'  // Red
+            };
+
+            const statusBadgeColors: Record<string, string> = {
+              'continuous_active': 'bg-green-100 text-green-800',
+              'new_hire_active': 'bg-blue-100 text-blue-800',
+              'experienced_termination': 'bg-orange-100 text-orange-800',
+              'new_hire_termination': 'bg-red-100 text-red-800'
+            };
+
+            return (
+              <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-200">
+                <h3 className="text-lg font-semibold text-gray-800 mb-6">Average Compensation by Detailed Status ($K)</h3>
+                <div className="h-96">
+                  <ResponsiveContainer width="100%" height="100%">
+                    <BarChart
+                      data={(() => {
+                        // Transform data: group by year with status as keys
+                        const years = [...new Set(results.compensation_by_status.map(r => r.simulation_year))].sort();
+                        const statuses = [...new Set(results.compensation_by_status.map(r => r.employment_status))];
+                        return years.map(year => {
+                          const entry: Record<string, any> = { year };
+                          statuses.forEach(status => {
+                            const match = results.compensation_by_status.find(
+                              r => r.simulation_year === year && r.employment_status === status
+                            );
+                            entry[status] = match ? Math.round(match.avg_compensation / 1000) : 0;
+                            entry[`${status}_count`] = match ? match.employee_count : 0;
+                          });
+                          return entry;
+                        });
+                      })()}
+                      barSize={24}
+                    >
+                      <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#E5E7EB" />
+                      <XAxis dataKey="year" stroke="#9CA3AF" />
+                      <YAxis stroke="#9CA3AF" tickFormatter={(value) => `$${value}K`} />
+                      <Tooltip
+                        cursor={{ fill: '#F3F4F6' }}
+                        contentStyle={{ backgroundColor: '#fff', borderRadius: '8px', border: '1px solid #e5e7eb' }}
+                        formatter={(value: number, name: string, props: any) => {
+                          const count = props.payload[`${name}_count`];
+                          return [`$${value}K (n=${count})`, formatStatus(name)];
+                        }}
+                      />
+                      <Legend
+                        verticalAlign="top"
+                        height={36}
+                        formatter={(value) => formatStatus(value)}
+                      />
+                      {[...new Set(results.compensation_by_status.map(r => r.employment_status))].map((status) => (
+                        <Bar
+                          key={status}
+                          dataKey={status}
+                          name={status}
+                          fill={statusColors[status] || COLORS.charts[0]}
+                          radius={[4, 4, 0, 0]}
+                        />
+                      ))}
+                    </BarChart>
+                  </ResponsiveContainer>
+                </div>
+                {/* Summary table */}
+                <div className="mt-6 overflow-x-auto">
+                  <table className="min-w-full divide-y divide-gray-200">
+                    <thead className="bg-gray-50">
+                      <tr>
+                        <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Year</th>
+                        <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
+                        <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Count</th>
+                        <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Avg Comp</th>
+                      </tr>
+                    </thead>
+                    <tbody className="bg-white divide-y divide-gray-200">
+                      {results.compensation_by_status.map((row, idx) => (
+                        <tr key={idx} className={idx % 2 === 0 ? 'bg-white' : 'bg-gray-50'}>
+                          <td className="px-4 py-2 whitespace-nowrap text-sm text-gray-900">{row.simulation_year}</td>
+                          <td className="px-4 py-2 whitespace-nowrap text-sm text-gray-900">
+                            <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
+                              statusBadgeColors[row.employment_status] || 'bg-gray-100 text-gray-800'
+                            }`}>
+                              {formatStatus(row.employment_status)}
+                            </span>
+                          </td>
+                          <td className="px-4 py-2 whitespace-nowrap text-sm text-gray-900 text-right">{row.employee_count?.toLocaleString()}</td>
+                          <td className="px-4 py-2 whitespace-nowrap text-sm text-gray-900 text-right">${Math.round(row.avg_compensation / 1000)}K</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            );
+          })()}
 
           {/* Growth Analysis Summary */}
           {results.growth_analysis && Object.keys(results.growth_analysis).length > 0 && (
