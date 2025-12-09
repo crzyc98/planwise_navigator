@@ -97,6 +97,18 @@ class ComparisonService:
                 db_path = workspace_path / "simulation.duckdb"
 
             if not db_path.exists():
+                # Fall back to main project database (dbt/simulation.duckdb)
+                # WARNING: This is shared across all scenarios!
+                project_root = Path(__file__).parent.parent.parent
+                db_path = project_root / "dbt" / "simulation.duckdb"
+
+                if db_path.exists():
+                    logger.warning(
+                        f"Using global database for scenario {scenario_id}. "
+                        "This shows shared data from CLI simulations."
+                    )
+
+            if not db_path.exists():
                 return None
 
             conn = duckdb.connect(str(db_path), read_only=True)
@@ -107,8 +119,8 @@ class ComparisonService:
                     SELECT
                         simulation_year,
                         COUNT(DISTINCT employee_id) as headcount,
-                        COUNT(DISTINCT CASE WHEN employment_status = 'ACTIVE' THEN employee_id END) as active,
-                        COUNT(DISTINCT CASE WHEN employment_status = 'TERMINATED' THEN employee_id END) as terminated
+                        COUNT(DISTINCT CASE WHEN UPPER(employment_status) = 'ACTIVE' THEN employee_id END) as active,
+                        COUNT(DISTINCT CASE WHEN UPPER(employment_status) = 'TERMINATED' THEN employee_id END) as terminated
                     FROM fct_workforce_snapshot
                     GROUP BY simulation_year
                     ORDER BY simulation_year
