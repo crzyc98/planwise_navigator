@@ -27,9 +27,10 @@ export interface LayoutContextType {
   setLastRunScenarioId: (id: string | null) => void;
 }
 
-const NavItem = ({ to, icon, label }: { to: string; icon: React.ReactNode; label: string }) => (
+const NavItem = ({ to, icon, label, end }: { to: string; icon: React.ReactNode; label: string; end?: boolean }) => (
   <NavLink
     to={to}
+    end={end}
     className={({ isActive }) =>
       `flex items-center px-4 py-3 text-sm font-medium transition-colors rounded-lg mb-1 ${
         isActive
@@ -437,7 +438,7 @@ export default function Layout() {
           <NavItem to="/" icon={<LayoutDashboard size={20} />} label="Dashboard" />
           <NavItem to="/scenarios" icon={<Layers size={20} />} label="Scenarios" />
           <NavItem to="/simulate" icon={<PlayCircle size={20} />} label="Simulate" />
-          <NavItem to="/analytics" icon={<BarChart3 size={20} />} label="Analytics" />
+          <NavItem to="/analytics" icon={<BarChart3 size={20} />} label="Analytics" end />
           <NavItem to="/analytics/dc-plan" icon={<PieChart size={20} />} label="DC Plan" />
           <NavItem to="/batch" icon={<Database size={20} />} label="Batch Processing" />
         </nav>
