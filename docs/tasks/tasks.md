@@ -1,6 +1,7 @@
 # Task Management
 
 ## Active Tasks
+- **E096** - Participation Debugging & Critical Bug Fix (branch: `feature/E096-participation-debugging-dashboard`)
 - **E094** - Analytics Page Workspace Selection (branch: `feature/E094-analytics-page-workspace-selection`)
 
 ## Completed Tasks
