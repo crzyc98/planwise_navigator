@@ -118,6 +118,64 @@ def _export_enrollment_vars(cfg: "SimulationConfig") -> Dict[str, Any]:
             cfg.enrollment.timing.business_day_adjustment
         )
 
+    # E095: Export enrollment settings from dc_plan (UI format)
+    # The UI sends enrollment settings under dc_plan, we need to merge them
+    try:
+        dc_plan = getattr(cfg, "dc_plan", None)
+        if dc_plan is None and hasattr(cfg, "__dict__"):
+            raw_config = cfg.__dict__.get("_raw_config", {})
+            dc_plan = raw_config.get("dc_plan", {})
+
+        if dc_plan:
+            if isinstance(dc_plan, dict):
+                dc_plan_dict = dc_plan
+            elif hasattr(dc_plan, 'model_dump'):
+                dc_plan_dict = dc_plan.model_dump()
+            else:
+                dc_plan_dict = {}
+
+            # Auto-enrollment settings from dc_plan
+            if dc_plan_dict.get("auto_enroll") is not None:
+                dbt_vars["auto_enrollment_enabled"] = bool(dc_plan_dict["auto_enroll"])
+            if dc_plan_dict.get("default_deferral_percent") is not None:
+                # UI sends as percentage (e.g., 3.0 for 3%), convert to decimal
+                dbt_vars["auto_enrollment_default_deferral_rate"] = float(dc_plan_dict["default_deferral_percent"]) / 100.0
+            if dc_plan_dict.get("auto_enroll_scope") is not None:
+                # Map UI values to dbt var values
+                scope_map = {
+                    'new_hires_only': 'new_hires_only',
+                    'all_eligible': 'all_eligible_employees',
+                }
+                scope = dc_plan_dict["auto_enroll_scope"]
+                dbt_vars["auto_enrollment_scope"] = scope_map.get(scope, scope)
+            if dc_plan_dict.get("auto_enroll_hire_date_cutoff") is not None:
+                dbt_vars["auto_enrollment_hire_date_cutoff"] = str(dc_plan_dict["auto_enroll_hire_date_cutoff"])
+            if dc_plan_dict.get("auto_enroll_window_days") is not None:
+                dbt_vars["auto_enrollment_window_days"] = int(dc_plan_dict["auto_enroll_window_days"])
+            if dc_plan_dict.get("auto_enroll_opt_out_grace_period") is not None:
+                dbt_vars["auto_enrollment_opt_out_grace_period"] = int(dc_plan_dict["auto_enroll_opt_out_grace_period"])
+
+            # Auto-escalation settings from dc_plan
+            if dc_plan_dict.get("auto_escalation") is not None:
+                dbt_vars["deferral_escalation_enabled"] = bool(dc_plan_dict["auto_escalation"])
+            if dc_plan_dict.get("escalation_rate_percent") is not None:
+                # UI sends as percentage (e.g., 1.0 for 1%), convert to decimal
+                dbt_vars["deferral_escalation_increment"] = float(dc_plan_dict["escalation_rate_percent"]) / 100.0
+            if dc_plan_dict.get("escalation_cap_percent") is not None:
+                # UI sends as percentage (e.g., 10.0 for 10%), convert to decimal
+                dbt_vars["deferral_escalation_cap"] = float(dc_plan_dict["escalation_cap_percent"]) / 100.0
+            if dc_plan_dict.get("escalation_effective_day") is not None:
+                dbt_vars["deferral_escalation_effective_mmdd"] = str(dc_plan_dict["escalation_effective_day"])
+            if dc_plan_dict.get("escalation_delay_years") is not None:
+                dbt_vars["deferral_escalation_delay_years"] = int(dc_plan_dict["escalation_delay_years"])
+            if dc_plan_dict.get("escalation_hire_date_cutoff") is not None:
+                dbt_vars["deferral_escalation_hire_date_cutoff"] = str(dc_plan_dict["escalation_hire_date_cutoff"])
+
+    except Exception as e:
+        import traceback
+        print(f"Warning: Error processing dc_plan enrollment/escalation configuration: {e}")
+        print(f"Traceback: {traceback.format_exc()}")
+
     return dbt_vars
 
 
@@ -529,7 +587,7 @@ def _export_core_contribution_vars(cfg: "SimulationConfig") -> Dict[str, Any]:
             if dc_plan_dict.get("core_allow_experienced_terminations") is not None:
                 core_eligibility_overrides["allow_experienced_terminations"] = bool(dc_plan_dict["core_allow_experienced_terminations"])
 
-            # Also handle core enabled and contribution rate from dc_plan
+            # Also handle core enabled, contribution rate, status and graded schedule from dc_plan
             core_top_level = {}
             if dc_plan_dict.get("core_enabled") is not None:
                 core_top_level["enabled"] = bool(dc_plan_dict["core_enabled"])
@@ -539,6 +597,18 @@ def _export_core_contribution_vars(cfg: "SimulationConfig") -> Dict[str, Any]:
                 rate_decimal = float(dc_plan_dict["core_contribution_rate_percent"]) / 100.0
                 core_top_level["contribution_rate"] = rate_decimal
                 dbt_vars["employer_core_contribution_rate"] = rate_decimal
+
+            # Core status: 'none', 'flat', or 'graded_by_service'
+            if dc_plan_dict.get("core_status") is not None:
+                core_top_level["status"] = str(dc_plan_dict["core_status"])
+                dbt_vars["employer_core_status"] = str(dc_plan_dict["core_status"])
+
+            # Core graded schedule (for graded_by_service mode)
+            if dc_plan_dict.get("core_graded_schedule") is not None:
+                graded_schedule = dc_plan_dict["core_graded_schedule"]
+                if isinstance(graded_schedule, list) and len(graded_schedule) > 0:
+                    core_top_level["graded_schedule"] = graded_schedule
+                    dbt_vars["employer_core_graded_schedule"] = graded_schedule
 
             # Merge dc_plan eligibility overrides into employer_core_contribution
             if core_eligibility_overrides or core_top_level:
