@@ -7,10 +7,11 @@ import { LogEvent, Workspace } from '../types';
 
 interface LayoutContext {
   activeWorkspace: Workspace;
+  setLastRunScenarioId: (id: string | null) => void;
 }
 
 export default function SimulationControl() {
-  const { activeWorkspace } = useOutletContext<LayoutContext>();
+  const { activeWorkspace, setLastRunScenarioId } = useOutletContext<LayoutContext>();
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const scenarioIdFromUrl = searchParams.get('scenario');
@@ -85,12 +86,14 @@ export default function SimulationControl() {
         setRunningScenarioId(null);
         // Navigate to the simulation detail page to see results
         if (completedScenarioId) {
+          // Store completed scenario for Analytics page context
+          setLastRunScenarioId(completedScenarioId);
           navigate(`/simulate/${completedScenarioId}`);
         }
       }, 2000);
       return () => clearTimeout(timer);
     }
-  }, [telemetry?.current_stage, telemetry?.progress, runningScenarioId, navigate]);
+  }, [telemetry?.current_stage, telemetry?.progress, runningScenarioId, navigate, setLastRunScenarioId]);
 
   // Map telemetry to legacy status format for compatibility
   const isCompleted = telemetry?.current_stage === 'COMPLETED' || telemetry?.progress === 100;
