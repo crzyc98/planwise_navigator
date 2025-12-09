@@ -267,14 +267,16 @@ first_year_state AS (
         COALESCE(w.employee_id, he.employee_id, ce.employee_id, oo.employee_id) as employee_id,
         {{ simulation_year }} as simulation_year,
 
-        -- Calculate current deferral rate with opt-out override
+        -- E096 FIX: Calculate current deferral rate with proper non-enrolled handling
+        -- Non-enrolled employees (he.employee_id IS NULL) should get 0, not fallback rate
         CASE
-            WHEN oo.employee_id IS NOT NULL THEN 0.00::DECIMAL(5,4)
+            WHEN oo.employee_id IS NOT NULL THEN 0.00::DECIMAL(5,4)  -- Opted out
+            WHEN he.employee_id IS NULL THEN 0.00::DECIMAL(5,4)      -- Not enrolled (no enrollment event)
             ELSE COALESCE(
                 ce.new_deferral_rate,      -- Latest escalation this year
                 he.initial_deferral_rate,  -- Initial enrollment rate
-                br.fallback_rate,          -- Demographic fallback
-                0.03::DECIMAL(5,4)         -- Hard fallback
+                br.fallback_rate,          -- Demographic fallback (only for enrolled)
+                0.03::DECIMAL(5,4)         -- Hard fallback (only for enrolled)
             )
         END as current_deferral_rate,
 
@@ -290,7 +292,11 @@ first_year_state AS (
         NULL::VARCHAR as latest_escalation_details,
 
         -- Original enrollment rate (before any escalations)
-        COALESCE(he.initial_deferral_rate, br.fallback_rate, 0.03::DECIMAL(5,4)) as original_deferral_rate,
+        -- E096 FIX: Non-enrolled employees should have original_deferral_rate = 0
+        CASE
+            WHEN he.employee_id IS NULL THEN 0.00::DECIMAL(5,4)  -- Not enrolled
+            ELSE COALESCE(he.initial_deferral_rate, br.fallback_rate, 0.03::DECIMAL(5,4))
+        END as original_deferral_rate,
 
         -- Rate change calculation
         CASE
@@ -327,8 +333,10 @@ first_year_state AS (
         END as data_quality_flag,
 
         -- Epic E049: Rate source tracking for lineage
+        -- E096 FIX: Add 'not_enrolled' source for employees without enrollment events
         CASE
             WHEN oo.employee_id IS NOT NULL THEN 'opt_out'
+            WHEN he.employee_id IS NULL THEN 'not_enrolled'  -- E096: Track non-enrolled employees
             WHEN ce.employee_id IS NOT NULL THEN 'escalation_event'
             WHEN he.source = 'synthetic_baseline' THEN 'census_rate'
             WHEN he.source = 'fct_yearly_events' THEN 'enrollment_event'
@@ -341,8 +349,10 @@ first_year_state AS (
     LEFT JOIN current_year_escalations ce ON COALESCE(w.employee_id, he.employee_id) = ce.employee_id AND ce.rn = 1
     LEFT JOIN current_year_opt_outs oo ON COALESCE(w.employee_id, he.employee_id) = oo.employee_id
     LEFT JOIN baseline_deferral_rates br ON COALESCE(w.employee_id, he.employee_id) = br.employee_id
-    -- Only include employees who are enrolled (have enrollment events)
-    WHERE he.employee_id IS NOT NULL
+    -- E096 FIX: Include ALL workforce employees, not just those with enrollment events
+    -- Non-enrolled employees get deferral_rate = 0 and is_enrolled_flag = false
+    -- This ensures census employees without explicit enrollment data still appear
+    WHERE COALESCE(w.employee_id, he.employee_id) IS NOT NULL
 )
 
 {% else %}

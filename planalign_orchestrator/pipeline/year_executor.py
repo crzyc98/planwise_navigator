@@ -642,12 +642,16 @@ class YearExecutor:
             polars_settings = self.config.get_polars_settings()
             events_path = Path(polars_settings.output_path) if polars_settings.output_path else None
 
+            # E096 FIX: Use db_manager.db_path for scenario-specific database
+            # instead of get_database_path() which returns the default dbt path
+            db_path = getattr(self.db_manager, 'db_path', None) or get_database_path()
+
             # Create Polars state accumulator config
             polars_config = StateAccumulatorConfig(
                 simulation_year=year,
                 scenario_id=scenario_id,
                 plan_design_id=plan_design_id,
-                database_path=get_database_path(),
+                database_path=db_path,
                 events_path=events_path,
                 enable_validation=state_config.get('validate_results', False),
             )
@@ -715,8 +719,18 @@ class YearExecutor:
     ) -> None:
         """Run dbt models that must run after Polars state accumulation.
 
-        When using Polars state accumulation, some dbt models still need to run:
+        E096 FIX: When using Polars state accumulation, Polars replaces:
+        - int_enrollment_state_accumulator
+        - int_deferral_rate_state_accumulator_v2
+        - int_employee_contributions
+
+        All other STATE_ACCUMULATION models must still run via dbt:
         - fct_yearly_events: Event consolidation and validation
+        - int_employee_state_by_year: Employee state tracking
+        - int_workforce_snapshot_optimized: Optimized proration snapshot
+        - int_deferral_escalation_state_accumulator: Escalation state
+        - int_employer_core_contributions: Employer core contributions
+        - int_employee_match_calculations: Match calculations
         - fct_employer_match_events: Match event generation
         - fct_workforce_snapshot: Final snapshot (reads from Polars output)
 
@@ -724,14 +738,18 @@ class YearExecutor:
             stage: Stage definition with all models
             year: Simulation year
         """
-        # Models that should run after Polars state accumulation
-        post_processing_models = [
-            "fct_yearly_events",  # Event consolidation
-            "fct_employer_match_events",  # Match events
-            "fct_workforce_snapshot",  # Final snapshot
-        ]
+        # Models that Polars replaces (should NOT run via dbt)
+        polars_replaced_models = {
+            "int_enrollment_state_accumulator",
+            "int_deferral_rate_state_accumulator_v2",
+            "int_employee_contributions",
+        }
 
-        models_to_run = [m for m in post_processing_models if m in stage.models]
+        # All models in the stage that weren't replaced by Polars
+        models_to_run = [
+            model for model in stage.models
+            if model not in polars_replaced_models
+        ]
 
         if not models_to_run:
             return

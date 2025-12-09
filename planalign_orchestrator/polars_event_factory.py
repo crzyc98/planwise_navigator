@@ -339,6 +339,10 @@ class PolarsEventGenerator:
             'promotion_salary_increase': 0.15,
             'merit_salary_increase': 0.04,
             'cola_increase': 0.015,
+            # E096: Auto-enrollment defaults
+            'auto_enrollment_enabled': True,
+            'auto_enrollment_default_deferral_rate': 0.02,  # 2%
+            'auto_enrollment_window_days': 45,
         }
 
         # Add defaults for any missing parameters
@@ -993,6 +997,139 @@ class PolarsEventGenerator:
             'simulation_year', 'event_probability'
         ])
 
+    def generate_auto_enrollment_events(self, hire_events: pl.DataFrame, simulation_year: int) -> pl.DataFrame:
+        """
+        E096 FIX: Generate automatic enrollment events for new hires.
+
+        Business Rules:
+        - New hires hired in current year get auto-enrolled
+        - Default deferral rate from config (typically 2%)
+        - Enrollment happens within 45-day window after hire
+        - Only if auto_enrollment is enabled
+        - Some employees opt out based on age-based probability
+
+        Opt-out rates by age (matches SQL int_auto_enrollment_window_determination.sql):
+        - Young (<30): ~10%
+        - Mid-career (30-44): ~7%
+        - Mature (45-54): ~5%
+        - Senior (55+): ~3%
+
+        Args:
+            hire_events: DataFrame of hire events from generate_hire_events()
+            simulation_year: The simulation year
+
+        Returns DataFrame with standard 20-column event schema.
+        """
+        # Get auto-enrollment config from parameters
+        auto_enroll_enabled = self.parameters.get('auto_enrollment_enabled', True)
+        default_deferral_rate = self.parameters.get('auto_enrollment_default_deferral_rate', 0.02)
+        window_days = self.parameters.get('auto_enrollment_window_days', 45)
+
+        # Opt-out rates by age segment (from SQL model)
+        opt_out_rate_young = self.parameters.get('opt_out_rate_young', 0.10)
+        opt_out_rate_mid = self.parameters.get('opt_out_rate_mid', 0.07)
+        opt_out_rate_mature = self.parameters.get('opt_out_rate_mature', 0.05)
+        opt_out_rate_senior = self.parameters.get('opt_out_rate_senior', 0.03)
+
+        if not auto_enroll_enabled:
+            self.logger.debug("Auto-enrollment is disabled")
+            return pl.DataFrame()
+
+        if hire_events.height == 0:
+            self.logger.debug("No hire events to generate auto-enrollment for")
+            return pl.DataFrame()
+
+        self.logger.info(f"Processing auto-enrollment for {hire_events.height} new hires")
+
+        # Add opt-out probability based on age and deterministic random
+        hire_events_with_optout = hire_events.with_columns([
+            # Opt-out probability based on age segment
+            pl.when(pl.col('employee_age') < 30)
+              .then(pl.lit(opt_out_rate_young))
+              .when(pl.col('employee_age') < 45)
+              .then(pl.lit(opt_out_rate_mid))
+              .when(pl.col('employee_age') < 55)
+              .then(pl.lit(opt_out_rate_mature))
+              .otherwise(pl.lit(opt_out_rate_senior))
+              .alias('opt_out_probability'),
+            # Deterministic random for opt-out decision (matches SQL hash-based approach)
+            ((pl.col('employee_id').hash() % 1000000) / 1000000.0).alias('opt_out_random')
+        ])
+
+        # Filter to employees who do NOT opt out (random >= probability means they stay enrolled)
+        enrolled = hire_events_with_optout.filter(
+            pl.col('opt_out_random') >= pl.col('opt_out_probability')
+        )
+
+        opted_out_count = hire_events.height - enrolled.height
+        self.logger.info(f"Auto-enrollment: {enrolled.height} enrolled, {opted_out_count} opted out")
+
+        if enrolled.height == 0:
+            return pl.DataFrame()
+
+        # Generate auto-enrollment events from hire events
+        # Use 'effective_date' from hire event as the hire date
+        auto_enrollments = enrolled.with_columns([
+            pl.lit('enrollment').alias('event_type'),
+            pl.lit('auto_enrollment').alias('event_category'),
+            # Enrollment date = hire date + window days (capped at year end)
+            pl.when(
+                (pl.col('effective_date') + pl.duration(days=window_days)) <= pl.date(simulation_year, 12, 31)
+            ).then(
+                pl.col('effective_date') + pl.duration(days=window_days)
+            ).otherwise(
+                pl.date(simulation_year, 12, 31)
+            ).alias('event_date'),
+            # effective_date for enrollment = event_date
+            pl.when(
+                (pl.col('effective_date') + pl.duration(days=window_days)) <= pl.date(simulation_year, 12, 31)
+            ).then(
+                pl.col('effective_date') + pl.duration(days=window_days)
+            ).otherwise(
+                pl.date(simulation_year, 12, 31)
+            ).alias('enrollment_effective_date'),
+            # Event details
+            pl.concat_str([
+                pl.lit('Auto-enrollment with '),
+                pl.lit(str(default_deferral_rate * 100)),
+                pl.lit('% deferral rate')
+            ]).alias('event_details'),
+            # Event payload JSON
+            pl.concat_str([
+                pl.lit('{"plan_design_id": "'),
+                pl.col('plan_design_id'),
+                pl.lit('", "initial_deferral_rate": '),
+                pl.lit(str(default_deferral_rate)),
+                pl.lit(', "enrollment_type": "auto_enrollment"}')
+            ]).alias('event_payload'),
+            pl.lit(simulation_year).cast(pl.Int64).alias('simulation_year'),
+            pl.lit(1.0).alias('event_probability'),  # 100% for those who don't opt out
+            # Compensation fields (NULL for enrollment events)
+            pl.lit(None).cast(pl.Float64).alias('compensation_amount'),
+            pl.lit(None).cast(pl.Float64).alias('previous_compensation'),
+            # Deferral rate
+            pl.lit(default_deferral_rate).cast(pl.Float64).alias('employee_deferral_rate'),
+            pl.lit(None).cast(pl.Float64).alias('prev_employee_deferral_rate'),
+            # Demographics - keep from hire event
+            pl.lit(None).cast(pl.Utf8).alias('age_band'),
+            pl.lit(None).cast(pl.Utf8).alias('tenure_band'),
+            pl.lit(0).cast(pl.Int32).alias('employee_tenure')  # New hires have 0 tenure
+        ])
+
+        # Rename enrollment_effective_date to effective_date for the enrollment event
+        auto_enrollments = auto_enrollments.drop('effective_date').rename({'enrollment_effective_date': 'effective_date'})
+
+        return auto_enrollments.select([
+            'scenario_id', 'plan_design_id', 'employee_id', 'employee_ssn',
+            'event_type', 'event_category', 'event_date', 'effective_date',
+            'event_details', 'event_payload',
+            'compensation_amount', 'previous_compensation',
+            'employee_deferral_rate', 'prev_employee_deferral_rate',
+            'employee_age', 'employee_tenure', 'employee_birth_date',
+            'level_id', 'age_band', 'tenure_band',
+            'simulation_year', 'event_probability'
+        ])
+
     def generate_deferral_escalation_events(self, cohort: pl.DataFrame, simulation_year: int) -> pl.DataFrame:
         """
         Generate automatic deferral rate escalation events.
@@ -1329,12 +1466,13 @@ class PolarsEventGenerator:
         hire_events_df = None  # Store hire events for new hire termination generation
 
         # Generate each event type with timing
+        # NOTE: auto_enrollment is NOT in this loop - it runs AFTER hire events with hire_events_df
         for event_type, generator_method in [
             ('hire', self.generate_hire_events),
             ('termination', self.generate_termination_events),
             ('promotion', self.generate_promotion_events),
             ('raise', self.generate_merit_events),  # Changed from 'merit' to match SQL
-            ('enrollment', self.generate_enrollment_events),
+            ('enrollment', self.generate_enrollment_events),  # Voluntary enrollment
             ('deferral_escalation', self.generate_deferral_escalation_events),
             ('enrollment_change', self.generate_enrollment_change_events)
         ]:
@@ -1354,8 +1492,22 @@ class PolarsEventGenerator:
                 event_counts[event_type] = 0
                 self.logger.debug(f"No {event_type} events generated")
 
-        # Generate new hire terminations (must run after hire events)
+        # Generate events that depend on hire_events_df (must run after hire events)
         if hire_events_df is not None and hire_events_df.height > 0:
+            # E096 FIX: Generate auto-enrollment events for new hires
+            event_start_time = time.time()
+            auto_enroll_events = self.generate_auto_enrollment_events(hire_events_df, simulation_year)
+            event_duration = time.time() - event_start_time
+
+            if auto_enroll_events.height > 0:
+                event_dfs.append(auto_enroll_events)
+                event_counts['auto_enrollment'] = auto_enroll_events.height
+                self.logger.info(f"Generated {auto_enroll_events.height} auto_enrollment events in {event_duration:.2f}s")
+            else:
+                event_counts['auto_enrollment'] = 0
+                self.logger.debug("No auto_enrollment events generated")
+
+            # Generate new hire terminations
             event_start_time = time.time()
             nh_term_events = self.generate_new_hire_termination_events(hire_events_df, simulation_year)
             event_duration = time.time() - event_start_time
@@ -1366,7 +1518,7 @@ class PolarsEventGenerator:
                 self.logger.info(f"Generated {nh_term_events.height} new_hire_termination events in {event_duration:.2f}s")
             else:
                 event_counts['new_hire_termination'] = 0
-                self.logger.debug(f"No new_hire_termination events generated")
+                self.logger.debug("No new_hire_termination events generated")
 
         # Combine all events if any were generated
         # Use diagonal_relaxed to handle schema mismatches (NULL vs Float64, Int32 vs Int64, etc.)

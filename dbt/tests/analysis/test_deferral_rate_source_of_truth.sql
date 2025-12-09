@@ -53,7 +53,16 @@ enrollment_registry_data AS (
   WHERE is_enrolled = true
 ),
 
--- Test 1: Every enrolled employee has enrollment event OR registry entry
+-- E096 FIX: Get census enrolled employees (those with deferral rate in baseline)
+census_enrolled AS (
+  SELECT employee_id
+  FROM {{ ref('int_baseline_workforce') }}
+  WHERE employee_deferral_rate > 0
+    AND employee_enrollment_date IS NOT NULL
+),
+
+-- Test 1: Every enrolled employee has enrollment event OR registry entry OR census enrollment
+-- E096 FIX: Updated to include census-sourced enrollments
 test_enrollment_coverage AS (
   SELECT
     ee.employee_id,
@@ -68,9 +77,12 @@ test_enrollment_coverage AS (
     -- Check for registry entry
     CASE WHEN er.employee_id IS NOT NULL THEN true ELSE false END as has_registry_entry,
 
-    -- Validation result
+    -- E096 FIX: Check for census enrollment
+    CASE WHEN ce.employee_id IS NOT NULL THEN true ELSE false END as has_census_enrollment,
+
+    -- Validation result - now includes census enrollment
     CASE
-      WHEN en.employee_id IS NOT NULL OR er.employee_id IS NOT NULL THEN 'PASS'
+      WHEN en.employee_id IS NOT NULL OR er.employee_id IS NOT NULL OR ce.employee_id IS NOT NULL THEN 'PASS'
       ELSE 'FAIL'
     END as coverage_test_result,
 
@@ -82,7 +94,9 @@ test_enrollment_coverage AS (
         THEN 'Employee has enrollment event (primary source)'
       WHEN er.employee_id IS NOT NULL
         THEN 'Employee has registry entry (fallback source)'
-      ELSE 'ERROR: Enrolled employee has neither enrollment event nor registry entry'
+      WHEN ce.employee_id IS NOT NULL
+        THEN 'Employee has census enrollment (baseline source)'
+      ELSE 'ERROR: Enrolled employee has neither enrollment event, registry entry, nor census enrollment'
     END as coverage_issue_description
 
   FROM enrolled_employees_v2 ee
@@ -92,6 +106,8 @@ test_enrollment_coverage AS (
   LEFT JOIN enrollment_registry_data er
     ON ee.employee_id = er.employee_id
     AND er.first_enrollment_year <= ee.simulation_year
+  LEFT JOIN census_enrolled ce
+    ON ee.employee_id = ce.employee_id
 ),
 
 -- Test 2: No NULL deferral rates for enrolled employees
@@ -116,7 +132,8 @@ test_null_deferral_rates AS (
   FROM enrolled_employees_v2
 ),
 
--- Test 3: Enrollment events and deferral state employee count consistency
+-- Test 3: Enrollment events + census enrollments and deferral state employee count consistency
+-- E096 FIX: Include census enrollments in the count comparison
 test_employee_count_consistency AS (
   SELECT
     'ENROLLMENT_EVENTS_COUNT' as metric_name,
@@ -124,6 +141,15 @@ test_employee_count_consistency AS (
     {{ var('simulation_year') }} as simulation_year
   FROM enrollment_events
   WHERE simulation_year <= {{ var('simulation_year') }}
+
+  UNION ALL
+
+  -- E096 FIX: Add census enrolled count
+  SELECT
+    'CENSUS_ENROLLED_COUNT' as metric_name,
+    COUNT(DISTINCT employee_id) as count_value,
+    {{ var('simulation_year') }} as simulation_year
+  FROM census_enrolled
 
   UNION ALL
 
@@ -136,6 +162,7 @@ test_employee_count_consistency AS (
 ),
 
 -- Test 4: Specific test case - NH_2025_000007 should get 6% from enrollment event
+-- E096 FIX: Use rate_source instead of escalation_source for enrollment source check
 test_nh_2025_000007 AS (
   SELECT
     'NH_2025_000007' as test_employee_id,
@@ -148,7 +175,8 @@ test_nh_2025_000007 AS (
      WHERE employee_id = 'NH_2025_000007'
      AND simulation_year = {{ var('simulation_year') }}) as actual_deferral_rate,
 
-    (SELECT escalation_source
+    -- E096 FIX: Use rate_source instead of escalation_source
+    (SELECT rate_source
      FROM enrolled_employees_v2
      WHERE employee_id = 'NH_2025_000007'
      AND simulation_year = {{ var('simulation_year') }}) as actual_source,
@@ -159,13 +187,13 @@ test_nh_2025_000007 AS (
      WHERE employee_id = 'NH_2025_000007'
      AND simulation_year = {{ var('simulation_year') }}) as enrollment_event_rate,
 
-    -- Validation result
+    -- Validation result - E096 FIX: Use rate_source instead of escalation_source
     CASE
       WHEN (SELECT current_deferral_rate
             FROM enrolled_employees_v2
             WHERE employee_id = 'NH_2025_000007'
             AND simulation_year = {{ var('simulation_year') }}) = 0.06
-      AND (SELECT escalation_source
+      AND (SELECT rate_source
            FROM enrolled_employees_v2
            WHERE employee_id = 'NH_2025_000007'
            AND simulation_year = {{ var('simulation_year') }}) = 'enrollment_event'
@@ -178,7 +206,7 @@ test_nh_2025_000007 AS (
             FROM enrolled_employees_v2
             WHERE employee_id = 'NH_2025_000007'
             AND simulation_year = {{ var('simulation_year') }}) = 0.06
-      AND (SELECT escalation_source
+      AND (SELECT rate_source
            FROM enrolled_employees_v2
            WHERE employee_id = 'NH_2025_000007'
            AND simulation_year = {{ var('simulation_year') }}) = 'enrollment_event'
@@ -221,17 +249,25 @@ failing_nh_tests AS (
   WHERE nh_test_result = 'FAIL'
 ),
 
+-- E096 FIX: Updated count consistency to compare (events + census) vs state
 failing_count_consistency_tests AS (
   SELECT
     'EMPLOYEE_COUNT_CONSISTENCY' as test_name,
     NULL as employee_id,
     CASE
-      WHEN ABS((SELECT count_value FROM test_employee_count_consistency WHERE metric_name = 'ENROLLMENT_EVENTS_COUNT') -
-               (SELECT count_value FROM test_employee_count_consistency WHERE metric_name = 'DEFERRAL_STATE_COUNT')) >
-               0.05 * (SELECT count_value FROM test_employee_count_consistency WHERE metric_name = 'ENROLLMENT_EVENTS_COUNT')
+      WHEN ABS(
+        (SELECT count_value FROM test_employee_count_consistency WHERE metric_name = 'ENROLLMENT_EVENTS_COUNT') +
+        (SELECT count_value FROM test_employee_count_consistency WHERE metric_name = 'CENSUS_ENROLLED_COUNT') -
+        (SELECT count_value FROM test_employee_count_consistency WHERE metric_name = 'DEFERRAL_STATE_COUNT')
+      ) >
+      0.05 * (
+        (SELECT count_value FROM test_employee_count_consistency WHERE metric_name = 'ENROLLMENT_EVENTS_COUNT') +
+        (SELECT count_value FROM test_employee_count_consistency WHERE metric_name = 'CENSUS_ENROLLED_COUNT')
+      )
       THEN 'FAIL' ELSE 'PASS'
     END as validation_result,
     'Events: ' || (SELECT count_value FROM test_employee_count_consistency WHERE metric_name = 'ENROLLMENT_EVENTS_COUNT') ||
+    ', Census: ' || (SELECT count_value FROM test_employee_count_consistency WHERE metric_name = 'CENSUS_ENROLLED_COUNT') ||
     ', State: ' || (SELECT count_value FROM test_employee_count_consistency WHERE metric_name = 'DEFERRAL_STATE_COUNT') ||
     ' - Employee count mismatch detected' as issue_description,
     {{ var('simulation_year') }} as simulation_year
