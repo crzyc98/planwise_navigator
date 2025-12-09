@@ -57,7 +57,8 @@ current_year_new_enrollments AS (
             ORDER BY effective_date
         ) as rn
     FROM {{ ref('fct_yearly_events') }}
-    WHERE LOWER(event_type) = 'benefit_enrollment'
+    -- E096 FIX: Match both 'enrollment' (from int_enrollment_events) and 'benefit_enrollment' (legacy)
+    WHERE LOWER(event_type) IN ('enrollment', 'benefit_enrollment')
       AND employee_id IS NOT NULL
       AND simulation_year = {{ simulation_year }}
 ),
@@ -136,7 +137,8 @@ historical_enrollments AS (
             ORDER BY simulation_year, effective_date
         ) as rn
     FROM {{ ref('fct_yearly_events') }}
-    WHERE LOWER(event_type) = 'benefit_enrollment'
+    -- E096 FIX: Match both 'enrollment' (from int_enrollment_events) and 'benefit_enrollment' (legacy)
+    WHERE LOWER(event_type) IN ('enrollment', 'benefit_enrollment')
       AND employee_id IS NOT NULL
       AND simulation_year <= {{ simulation_year }}
 ),
