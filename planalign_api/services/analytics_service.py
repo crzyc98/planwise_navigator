@@ -100,6 +100,18 @@ class AnalyticsService:
         if db_path.exists():
             return db_path
 
+        # Fall back to main project database (dbt/simulation.duckdb)
+        # WARNING: This is shared across all scenarios!
+        project_root = Path(__file__).parent.parent.parent
+        db_path = project_root / "dbt" / "simulation.duckdb"
+
+        if db_path.exists():
+            logger.warning(
+                f"Using global database for scenario {scenario_id}. "
+                "This shows shared data from CLI simulations."
+            )
+            return db_path
+
         return None
 
     def _get_participation_summary(self, conn) -> dict:
@@ -119,7 +131,7 @@ class AnalyticsService:
                               OR participation_status_detail ILIKE '%baseline%' THEN 1 ELSE 0 END) as census_enrolled
                 FROM fct_workforce_snapshot, final_year
                 WHERE simulation_year = final_year.max_year
-                  AND employment_status = 'ACTIVE'
+                  AND UPPER(employment_status) = 'ACTIVE'
             """).fetchone()
 
             total_eligible = result[0] or 0
@@ -167,7 +179,7 @@ class AnalyticsService:
                     COALESCE(SUM(prorated_annual_contributions) + SUM(employer_match_amount) + SUM(employer_core_amount), 0) as total_all,
                     COUNT(CASE WHEN is_enrolled_flag THEN 1 END) as participant_count
                 FROM fct_workforce_snapshot
-                WHERE employment_status = 'ACTIVE'
+                WHERE UPPER(employment_status) = 'ACTIVE'
                 GROUP BY simulation_year
                 ORDER BY simulation_year
             """).fetchdf()
@@ -213,7 +225,7 @@ class AnalyticsService:
                         END as bucket
                     FROM fct_workforce_snapshot, final_year
                     WHERE simulation_year = final_year.max_year
-                      AND employment_status = 'ACTIVE'
+                      AND UPPER(employment_status) = 'ACTIVE'
                       AND is_enrolled_flag = true
                 )
                 SELECT
@@ -262,7 +274,7 @@ class AnalyticsService:
                     SUM(COALESCE(total_escalation_amount, 0)) as total_escalation_amount
                 FROM fct_workforce_snapshot, final_year
                 WHERE simulation_year = final_year.max_year
-                  AND employment_status = 'ACTIVE'
+                  AND UPPER(employment_status) = 'ACTIVE'
                   AND is_enrolled_flag = true
             """).fetchone()
 
@@ -293,7 +305,7 @@ class AnalyticsService:
                         SUM(CASE WHEN irs_limit_reached THEN 1 ELSE 0 END) as at_limit
                     FROM fct_workforce_snapshot, final_year
                     WHERE simulation_year = final_year.max_year
-                      AND employment_status = 'ACTIVE'
+                      AND UPPER(employment_status) = 'ACTIVE'
                       AND is_enrolled_flag = true
                 )
                 SELECT
