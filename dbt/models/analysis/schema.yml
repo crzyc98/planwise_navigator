@@ -130,3 +130,124 @@ models:
       more comprehensive architecture validation after the Phase 1-5 enrollment fixes.
     config:
       tags: ["validation", "enrollment", "data_quality", "legacy"]
+
+  - name: debug_hours_eligibility
+    description: |
+      **Hours Worked DC Plan Eligibility Troubleshooting**
+
+      Diagnostic model to troubleshoot hours worked requirements for DC plan
+      match and core contribution eligibility. Provides step-by-step breakdown
+      of hours calculation and eligibility determination.
+
+      **Record Types:**
+      - `SUMMARY`: Aggregate statistics on hours eligibility across all employees
+      - `CONFIG`: Configuration validation (thresholds should be 0-2080)
+      - `HOURS_BUCKET`: Distribution of employees by hours worked buckets
+      - `DETAIL`: Per-employee breakdown with reason codes for edge cases
+
+      **Key Diagnostics:**
+      - Hours calculation breakdown (days employed × 2080/365)
+      - Match vs Core eligibility thresholds comparison
+      - Distribution analysis by hours worked buckets
+      - Failure reason codes for ineligible employees
+
+      **Usage:**
+      ```bash
+      dbt run --select debug_hours_eligibility --vars "simulation_year: 2025"
+      duckdb simulation.duckdb "SELECT * FROM debug_hours_eligibility WHERE record_type = 'SUMMARY'"
+      duckdb simulation.duckdb "SELECT * FROM debug_hours_eligibility WHERE record_type = 'HOURS_BUCKET'"
+      ```
+
+      **Hours Buckets:**
+      - 0 (No Hours): Employees with zero hours worked
+      - 1-499: Below typical thresholds
+      - 500-999: Partial year, below 1000 hour threshold
+      - 1000-1499: Meets typical threshold, partial year
+      - 1500-1999: Above threshold, partial year
+      - 2000-2080 (Full Year): Full-time employees
+      - 2080+ (Anomaly): Data quality issue
+
+    config:
+      tags: ["analysis", "debug", "hours_eligibility", "dc_plan", "troubleshooting"]
+
+    columns:
+      - name: record_type
+        description: |
+          Type of record:
+          - SUMMARY: Aggregate statistics
+          - CONFIG: Configuration validation
+          - HOURS_BUCKET: Distribution by hours bucket
+          - DETAIL: Per-employee breakdown
+        tests:
+          - not_null
+          - accepted_values:
+              values: ['SUMMARY', 'CONFIG', 'HOURS_BUCKET', 'DETAIL']
+
+      - name: employee_id
+        description: |
+          Employee identifier for DETAIL records, or descriptive label for other record types.
+          SUMMARY: 'Hours Eligibility Summary'
+          CONFIG: 'Configuration Validation'
+          HOURS_BUCKET: The bucket name (e.g., '1000-1499')
+          DETAIL: Actual employee_id
+        tests:
+          - not_null
+
+      - name: simulation_year
+        description: "Simulation year for the analysis"
+        tests:
+          - not_null
+
+      - name: employment_status
+        description: "Employment status at end of year (active/terminated) for DETAIL records"
+
+      - name: current_tenure
+        description: "Employee tenure in years for DETAIL records"
+
+      - name: annual_hours_worked
+        description: |
+          Calculated annual hours worked. Formula:
+          - Full year employee: 2080 hours
+          - New hire: days_from_hire_to_dec31 × (2080 / 365)
+          - Terminated: days_from_jan1_to_termination × (2080 / 365)
+          For SUMMARY: average hours; for HOURS_BUCKET: employee count
+
+      - name: hours_bucket
+        description: "Hours worked bucket assignment for distribution analysis"
+
+      - name: step1_match_hours_met
+        description: "1 if employee meets match hours threshold, 0 otherwise"
+
+      - name: step2_core_hours_met
+        description: "1 if employee meets core hours threshold, 0 otherwise"
+
+      - name: step3_active_eoy
+        description: "1 if employee is active at end of year, 0 otherwise"
+
+      - name: eligible_for_match
+        description: "Final match eligibility determination (1=eligible, 0=ineligible)"
+
+      - name: eligible_for_core
+        description: "Final core contribution eligibility determination (1=eligible, 0=ineligible)"
+
+      - name: hours_eligibility_status
+        description: |
+          Detailed eligibility status:
+          - ELIGIBLE_BOTH: Eligible for both match and core
+          - ELIGIBLE_MATCH_ONLY: Eligible for match only
+          - ELIGIBLE_CORE_ONLY: Eligible for core only
+          - INSUFFICIENT_HOURS_BOTH: Below threshold for both
+          - INSUFFICIENT_HOURS_MATCH: Below match threshold
+          - INSUFFICIENT_HOURS_CORE: Below core threshold
+          - INACTIVE_EOY: Not active at year end
+        tests:
+          - not_null
+
+      - name: match_eligibility_reason
+        description: "Detailed reason code from int_employer_eligibility for match eligibility"
+
+      - name: match_hours_requirement
+        description: "Configured minimum hours threshold for match eligibility"
+
+      - name: core_hours_requirement
+        description: "Configured minimum hours threshold for core contribution eligibility"
