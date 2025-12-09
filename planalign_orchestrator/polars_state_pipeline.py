@@ -312,11 +312,14 @@ class StateAccumulatorEngine:
         """
         Write state data to DuckDB for dbt consumption.
 
-        Writes Polars-generated state to DuckDB tables that dbt can consume:
-        - polars_enrollment_state: Enrollment state accumulator
-        - polars_deferral_state: Deferral rate state accumulator
-        - polars_contributions: Contribution calculations
-        - polars_workforce_snapshot: Final workforce snapshot
+        E096 FIX: Write to the same table names that dbt models use, so downstream
+        models (like fct_workforce_snapshot) can seamlessly consume Polars output.
+
+        Table mapping:
+        - enrollment_state → int_enrollment_state_accumulator
+        - deferral_state → int_deferral_rate_state_accumulator_v2
+        - contributions → int_employee_contributions
+        - snapshot → (written by dbt post-processing)
 
         Args:
             state_data: Dictionary of state DataFrames to write
@@ -324,74 +327,62 @@ class StateAccumulatorEngine:
         conn = duckdb.connect(str(self.db_path))
 
         try:
-            # Write enrollment state
+            # Write enrollment state to int_enrollment_state_accumulator
             if 'enrollment_state' in state_data and state_data['enrollment_state'].height > 0:
                 enrollment_df = state_data['enrollment_state']
                 # Delete existing data for this year and write new
                 conn.execute(f"""
-                    CREATE TABLE IF NOT EXISTS polars_enrollment_state AS
+                    CREATE TABLE IF NOT EXISTS int_enrollment_state_accumulator AS
                     SELECT * FROM enrollment_df WHERE 1=0
                 """)
                 conn.execute(f"""
-                    DELETE FROM polars_enrollment_state
+                    DELETE FROM int_enrollment_state_accumulator
                     WHERE simulation_year = {self.config.simulation_year}
                 """)
                 conn.execute(f"""
-                    INSERT INTO polars_enrollment_state
+                    INSERT INTO int_enrollment_state_accumulator
                     SELECT * FROM enrollment_df
                 """)
-                self.logger.info(f"Wrote {enrollment_df.height} enrollment state records")
+                self.logger.info(f"Wrote {enrollment_df.height} enrollment state records to int_enrollment_state_accumulator")
 
-            # Write deferral state
+            # Write deferral state to int_deferral_rate_state_accumulator_v2
             if 'deferral_state' in state_data and state_data['deferral_state'].height > 0:
                 deferral_df = state_data['deferral_state']
                 conn.execute(f"""
-                    CREATE TABLE IF NOT EXISTS polars_deferral_state AS
+                    CREATE TABLE IF NOT EXISTS int_deferral_rate_state_accumulator_v2 AS
                     SELECT * FROM deferral_df WHERE 1=0
                 """)
                 conn.execute(f"""
-                    DELETE FROM polars_deferral_state
+                    DELETE FROM int_deferral_rate_state_accumulator_v2
                     WHERE simulation_year = {self.config.simulation_year}
                 """)
                 conn.execute(f"""
-                    INSERT INTO polars_deferral_state
+                    INSERT INTO int_deferral_rate_state_accumulator_v2
                     SELECT * FROM deferral_df
                 """)
-                self.logger.info(f"Wrote {deferral_df.height} deferral state records")
+                self.logger.info(f"Wrote {deferral_df.height} deferral state records to int_deferral_rate_state_accumulator_v2")
 
-            # Write contributions
+            # Write contributions to int_employee_contributions
             if 'contributions' in state_data and state_data['contributions'].height > 0:
                 contributions_df = state_data['contributions']
                 conn.execute(f"""
-                    CREATE TABLE IF NOT EXISTS polars_contributions AS
+                    CREATE TABLE IF NOT EXISTS int_employee_contributions AS
                     SELECT * FROM contributions_df WHERE 1=0
                 """)
                 conn.execute(f"""
-                    DELETE FROM polars_contributions
+                    DELETE FROM int_employee_contributions
                     WHERE simulation_year = {self.config.simulation_year}
                 """)
                 conn.execute(f"""
-                    INSERT INTO polars_contributions
+                    INSERT INTO int_employee_contributions
                     SELECT * FROM contributions_df
                 """)
-                self.logger.info(f"Wrote {contributions_df.height} contribution records")
+                self.logger.info(f"Wrote {contributions_df.height} contribution records to int_employee_contributions")
 
-            # Write snapshot
+            # Note: snapshot is written by fct_workforce_snapshot dbt model in post-processing
+            # We only log if snapshot data was generated but will be used by dbt
             if 'snapshot' in state_data and state_data['snapshot'].height > 0:
-                snapshot_df = state_data['snapshot']
-                conn.execute(f"""
-                    CREATE TABLE IF NOT EXISTS polars_workforce_snapshot AS
-                    SELECT * FROM snapshot_df WHERE 1=0
-                """)
-                conn.execute(f"""
-                    DELETE FROM polars_workforce_snapshot
-                    WHERE simulation_year = {self.config.simulation_year}
-                """)
-                conn.execute(f"""
-                    INSERT INTO polars_workforce_snapshot
-                    SELECT * FROM snapshot_df
-                """)
-                self.logger.info(f"Wrote {snapshot_df.height} snapshot records")
+                self.logger.info(f"Generated {state_data['snapshot'].height} snapshot records (will be written by dbt post-processing)")
 
             conn.commit()
             self.logger.info("State data written to database successfully")

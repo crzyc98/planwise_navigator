@@ -48,7 +48,17 @@ enrollment_events AS (
       AND employee_deferral_rate IS NOT NULL
 ),
 
--- Validation: Every enrolled employee should have enrollment event
+-- E096 FIX: Validation updated to account for census-sourced enrollments
+-- Enrolled employees can have either:
+-- 1. An enrollment event in int_enrollment_events, OR
+-- 2. Census data with deferral rate > 0 (synthetic_baseline_enrollments)
+census_enrolled AS (
+    SELECT employee_id
+    FROM {{ ref('int_baseline_workforce') }}
+    WHERE employee_deferral_rate > 0
+      AND employee_enrollment_date IS NOT NULL
+),
+
 enrolled_without_events AS (
     SELECT
         e.employee_id,
@@ -56,10 +66,12 @@ enrolled_without_events AS (
         e.employee_enrollment_date,
         'ENROLLED_WITHOUT_EVENT' as validation_issue,
         'FAIL' as validation_status,
-        'Employee enrolled without supporting enrollment event' as issue_description
+        'Employee enrolled without supporting enrollment event or census data' as issue_description
     FROM enrolled_employees_v2 e
     LEFT JOIN enrollment_events ev ON e.employee_id = ev.employee_id
-    WHERE ev.employee_id IS NULL
+    LEFT JOIN census_enrolled ce ON e.employee_id = ce.employee_id
+    -- Only flag as failure if neither enrollment event nor census enrollment exists
+    WHERE ev.employee_id IS NULL AND ce.employee_id IS NULL
 ),
 
 -- Test case: Check NH_2025_000007 specifically
@@ -82,30 +94,34 @@ nh_test_case AS (
 ),
 
 -- Summary statistics for count-based validation
+-- E096 FIX: Updated to account for both event-based and census-based enrollments
 validation_summary AS (
     SELECT
         {{ simulation_year }} as simulation_year,
         COUNT(*) as total_enrolled_employees,
         COUNT(CASE WHEN ev.employee_id IS NOT NULL THEN 1 END) as enrolled_with_events,
-        COUNT(CASE WHEN ev.employee_id IS NULL THEN 1 END) as enrolled_without_events,
+        COUNT(CASE WHEN ce.employee_id IS NOT NULL THEN 1 END) as enrolled_with_census,
+        COUNT(CASE WHEN ev.employee_id IS NULL AND ce.employee_id IS NULL THEN 1 END) as enrolled_without_source,
         COUNT(CASE WHEN e.employee_id = 'NH_2025_000007' THEN 1 END) as nh_test_case_count,
         ROUND(AVG(e.current_deferral_rate), 4) as avg_deferral_rate,
         MIN(e.current_deferral_rate) as min_deferral_rate,
         MAX(e.current_deferral_rate) as max_deferral_rate
     FROM enrolled_employees_v2 e
     LEFT JOIN enrollment_events ev ON e.employee_id = ev.employee_id
+    LEFT JOIN census_enrolled ce ON e.employee_id = ce.employee_id
 ),
 
 -- Final validation results (only failures)
+-- E096 FIX: Updated to check for both event-based and census-based enrollments
 validation_failures AS (
     SELECT
         'DATA_QUALITY_CHECK' as validation_type,
-        'Every enrolled employee has enrollment event' as validation_rule,
-        vs.enrolled_without_events as failed_count,
+        'Every enrolled employee has enrollment event or census data' as validation_rule,
+        vs.enrolled_without_source as failed_count,
         'FAIL' as validation_status,
-        'Enrolled employees without enrollment events detected' as issue_description
+        'Enrolled employees without enrollment events or census data detected' as issue_description
     FROM validation_summary vs
-    WHERE vs.enrolled_without_events > 0
+    WHERE vs.enrolled_without_source > 0
 )
 
 -- Return only failing records (0 rows = all validations pass)

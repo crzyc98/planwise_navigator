@@ -766,6 +766,27 @@ class SimulationService:
                 logger.error(f"Error fetching event trends: {e}")
                 event_trends = {}
 
+            # E096: Calculate actual participation rate from workforce snapshot
+            participation_rate = DEFAULT_PARTICIPATION_RATE
+            try:
+                participation_df = conn.execute("""
+                    SELECT
+                        COUNT(DISTINCT CASE WHEN participation_status = 'participating' THEN employee_id END) as participating,
+                        COUNT(DISTINCT employee_id) as total_active
+                    FROM fct_workforce_snapshot
+                    WHERE simulation_year = ?
+                      AND LOWER(employment_status) = 'active'
+                """, [config_end_year]).fetchdf()
+
+                if not participation_df.empty:
+                    participating = participation_df["participating"].iloc[0] or 0
+                    total_active = participation_df["total_active"].iloc[0] or 0
+                    if total_active > 0:
+                        participation_rate = participating / total_active
+                        logger.info(f"Calculated participation rate: {participation_rate:.2%} ({participating}/{total_active})")
+            except Exception as e:
+                logger.warning(f"Error calculating participation rate, using default: {e}")
+
             conn.close()
 
             # Calculate summary metrics
@@ -802,7 +823,7 @@ class SimulationService:
                 final_headcount=final_headcount,
                 total_growth_pct=total_growth_pct,
                 cagr=cagr,
-                participation_rate=DEFAULT_PARTICIPATION_RATE,  # Would come from actual data
+                participation_rate=participation_rate,  # E096: Now calculated from actual data
                 workforce_progression=workforce_progression,
                 event_trends=event_trends,
                 growth_analysis={
