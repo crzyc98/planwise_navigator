@@ -429,6 +429,10 @@ class SimulationService:
                     return 0.0
 
             # Parse output for progress updates
+            # Keep last N lines for error reporting
+            output_buffer: List[str] = []
+            MAX_OUTPUT_BUFFER = 50
+
             async for line in line_iterator:
                 if run_id in self._cancelled_runs:
                     process.terminate()
@@ -439,8 +443,18 @@ class SimulationService:
                 if not line_text:
                     continue
 
-                # Log simulation output
-                logger.debug(f"Simulation output: {line_text}")
+                # Store in buffer for error reporting
+                output_buffer.append(line_text)
+                if len(output_buffer) > MAX_OUTPUT_BUFFER:
+                    output_buffer.pop(0)
+
+                # Log simulation output - use INFO for errors/warnings, DEBUG otherwise
+                if any(kw in line_text.lower() for kw in ["error", "exception", "failed", "traceback"]):
+                    logger.error(f"Simulation: {line_text}")
+                elif "warning" in line_text.lower():
+                    logger.warning(f"Simulation: {line_text}")
+                else:
+                    logger.debug(f"Simulation output: {line_text}")
 
                 # Parse year progress from output (e.g., "Processing year 2025")
                 prev_year = current_year
@@ -544,7 +558,11 @@ class SimulationService:
             if return_code != 0:
                 # Log the last few lines for debugging
                 logger.error(f"Simulation failed with exit code {return_code}")
-                raise RuntimeError(f"planalign simulate exited with code {return_code}")
+                logger.error("Last output lines:")
+                for line in output_buffer[-20:]:
+                    logger.error(f"  {line}")
+                error_context = "\n".join(output_buffer[-10:])
+                raise RuntimeError(f"planalign simulate exited with code {return_code}. Last output:\n{error_context}")
 
             # Mark as completed
             update_run_status(
