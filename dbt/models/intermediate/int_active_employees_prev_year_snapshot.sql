@@ -131,7 +131,7 @@ select
     null::numeric(18, 2) as employee_gross_compensation,
     null::integer as current_age,
     null::integer as current_tenure,
-    null::varchar as level_id,
+    null::bigint as level_id,  -- Fixed: match fct_workforce_snapshot type
     null::varchar as employment_status,
     null::date as termination_date,
     null::varchar as age_band,

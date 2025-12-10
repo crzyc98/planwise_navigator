@@ -692,7 +692,19 @@ class EnrollmentStateBuilder:
                 pl.lit(False).alias('ever_opted_out'),
                 pl.lit(False).alias('ever_unenrolled'),
                 pl.lit(0).alias('enrollment_events_this_year'),
-                pl.lit(0).alias('enrollment_change_events_this_year')
+                pl.lit(0).alias('enrollment_change_events_this_year'),
+                # Additional columns to match dbt schema (E097 fix)
+                pl.when(pl.col('baseline_enrollment_status') == True)
+                .then(pl.col('baseline_enrollment_date'))
+                .otherwise(None)
+                .alias('effective_enrollment_date'),
+                pl.when(pl.col('baseline_enrollment_status') == True)
+                .then(pl.lit(True))
+                .otherwise(pl.lit(False))
+                .alias('is_enrolled'),
+                pl.lit(datetime.now()).alias('created_at'),
+                pl.lit('default').alias('scenario_id'),
+                pl.lit('VALID').alias('data_quality_flag')
             ])
 
         # Join baseline with events
@@ -756,7 +768,26 @@ class EnrollmentStateBuilder:
             'ever_opted_out',
             'ever_unenrolled',
             'enrollment_events_this_year',
-            'enrollment_change_events_this_year'
+            'enrollment_change_events_this_year',
+            # Additional columns to match dbt schema (E097 fix)
+            pl.when(pl.col('enrollment_status') == True)
+            .then(pl.col('enrollment_date'))
+            .otherwise(None)
+            .alias('effective_enrollment_date'),
+            pl.when(pl.col('enrollment_status') == True)
+            .then(pl.lit(True))
+            .otherwise(pl.lit(False))
+            .alias('is_enrolled'),
+            pl.lit(datetime.now()).alias('created_at'),
+            pl.lit('default').alias('scenario_id'),
+            pl.when(pl.col('employee_id').is_null())
+            .then(pl.lit('INVALID_EMPLOYEE_ID'))
+            .when(pl.col('simulation_year').is_null())
+            .then(pl.lit('INVALID_SIMULATION_YEAR'))
+            .when(pl.col('enrollment_status').is_null())
+            .then(pl.lit('INVALID_ENROLLMENT_STATUS'))
+            .otherwise(pl.lit('VALID'))
+            .alias('data_quality_flag')
         ])
 
     def _build_subsequent_year_state(
@@ -791,7 +822,19 @@ class EnrollmentStateBuilder:
                 pl.col('previous_ever_opted_out').alias('ever_opted_out'),
                 pl.col('previous_ever_unenrolled').alias('ever_unenrolled'),
                 pl.lit(0).alias('enrollment_events_this_year'),
-                pl.lit(0).alias('enrollment_change_events_this_year')
+                pl.lit(0).alias('enrollment_change_events_this_year'),
+                # Additional columns to match dbt schema (E097 fix)
+                pl.when(pl.col('previous_enrollment_status') == True)
+                .then(pl.col('previous_enrollment_date'))
+                .otherwise(None)
+                .alias('effective_enrollment_date'),
+                pl.when(pl.col('previous_enrollment_status') == True)
+                .then(pl.lit(True))
+                .otherwise(pl.lit(False))
+                .alias('is_enrolled'),
+                pl.lit(datetime.now()).alias('created_at'),
+                pl.lit('default').alias('scenario_id'),
+                pl.lit('VALID').alias('data_quality_flag')
             ])
 
         # Join previous state with current year events
@@ -870,7 +913,24 @@ class EnrollmentStateBuilder:
             'ever_opted_out',
             'ever_unenrolled',
             'enrollment_events_this_year',
-            'enrollment_change_events_this_year'
+            'enrollment_change_events_this_year',
+            # Additional columns to match dbt schema (E097 fix)
+            pl.when(pl.col('enrollment_status') == True)
+            .then(pl.col('enrollment_date'))
+            .otherwise(None)
+            .alias('effective_enrollment_date'),
+            pl.when(pl.col('enrollment_status') == True)
+            .then(pl.lit(True))
+            .otherwise(pl.lit(False))
+            .alias('is_enrolled'),
+            pl.lit(datetime.now()).alias('created_at'),
+            pl.lit('default').alias('scenario_id'),
+            pl.when(pl.col('employee_id').is_null())
+            .then(pl.lit('INVALID_EMPLOYEE_ID'))
+            .when(pl.col('enrollment_status').is_null())
+            .then(pl.lit('INVALID_ENROLLMENT_STATUS'))
+            .otherwise(pl.lit('VALID'))
+            .alias('data_quality_flag')
         ])
 
 

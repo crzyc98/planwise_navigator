@@ -14,6 +14,7 @@ from pathlib import Path
 from typing import Any, AsyncIterator, Dict, List, Optional, Tuple
 
 import yaml
+import duckdb
 
 # Thread pool for Windows subprocess I/O
 _subprocess_executor = ThreadPoolExecutor(max_workers=4, thread_name_prefix="subprocess_io")
@@ -209,6 +210,73 @@ class SimulationService:
         self._active_runs: Dict[str, SimulationRun] = {}
         self._active_processes: Dict[str, asyncio.subprocess.Process] = {}
 
+    def _cleanup_years_outside_range(
+        self, db_path: Path, start_year: int, end_year: int
+    ) -> None:
+        """
+        Delete simulation data from years outside the configured range.
+
+        This ensures that when a user reconfigures a scenario to a different
+        year range, stale data from previous runs is removed.
+        """
+        tables_with_year = [
+            "fct_workforce_snapshot",
+            "fct_yearly_events",
+            "int_enrollment_state_accumulator",
+            "int_deferral_rate_state_accumulator_v2",
+            "int_deferral_escalation_state_accumulator",
+            "int_baseline_workforce",
+            "int_employee_compensation_by_year",
+            "int_employee_state_by_year",
+            "int_workforce_snapshot_optimized",
+        ]
+
+        try:
+            conn = duckdb.connect(str(db_path))
+
+            # Get list of existing tables
+            existing_tables = {
+                row[0] for row in conn.execute("SHOW TABLES").fetchall()
+            }
+
+            deleted_counts = {}
+            for table in tables_with_year:
+                if table not in existing_tables:
+                    continue
+
+                # Check if table has simulation_year column
+                try:
+                    cols = conn.execute(f"DESCRIBE {table}").fetchall()
+                    col_names = {col[0] for col in cols}
+                    if "simulation_year" not in col_names:
+                        continue
+                except Exception:
+                    continue
+
+                # Delete rows outside the configured year range
+                result = conn.execute(f"""
+                    DELETE FROM {table}
+                    WHERE simulation_year < ? OR simulation_year > ?
+                """, [start_year, end_year])
+
+                deleted = result.fetchone()
+                if deleted and deleted[0] > 0:
+                    deleted_counts[table] = deleted[0]
+
+            conn.close()
+
+            if deleted_counts:
+                logger.info(
+                    f"Cleaned up data outside year range {start_year}-{end_year}: "
+                    f"{deleted_counts}"
+                )
+            else:
+                logger.debug(f"No stale data found outside year range {start_year}-{end_year}")
+
+        except Exception as e:
+            logger.warning(f"Failed to cleanup years outside range: {e}")
+            # Don't fail the simulation if cleanup fails
+
     async def execute_simulation(
         self,
         workspace_id: str,
@@ -264,6 +332,10 @@ class SimulationService:
 
             # Use scenario-specific database for isolation
             scenario_db_path = scenario_path / "simulation.duckdb"
+
+            # Clean up data from years outside the configured range
+            if scenario_db_path.exists():
+                self._cleanup_years_outside_range(scenario_db_path, start_year, end_year)
 
             # Build command as list - use os.fspath() for safe path handling on all platforms
             cmd = [
