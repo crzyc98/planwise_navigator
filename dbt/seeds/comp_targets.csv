@@ -49,3 +49,63 @@ default,2029,level_2_median_salary,114769,0.03,medium,Median salary for Level 2 
 default,2029,level_3_median_salary,171528,0.03,medium,Median salary for Level 3 (SrMgr) employees
 default,2029,level_4_median_salary,300587,0.03,medium,Median salary for Level 4 (Director) employees
 default,2029,level_5_median_salary,437218,0.03,medium,Median salary for Level 5 (VP) employees
+default,2030,total_compensation_cost,55745000,0.02,high,Total annual compensation cost across all employees
+default,2030,median_merit_increase,0.04,0.05,medium,Median merit increase percentage across all levels
+default,2030,total_employees,11593,0.01,high,Total employee count target
+default,2030,promotion_rate,0.08,0.10,medium,Overall promotion rate across all levels
+default,2030,compensation_growth_rate,0.02,0.05,high,Year-over-year compensation growth rate
+default,2030,level_1_median_salary,78043,0.03,medium,Median salary for Level 1 (Staff) employees
+default,2030,level_2_median_salary,117064,0.03,medium,Median salary for Level 2 (Manager) employees
+default,2030,level_3_median_salary,174959,0.03,medium,Median salary for Level 3 (SrMgr) employees
+default,2030,level_4_median_salary,306599,0.03,medium,Median salary for Level 4 (Director) employees
+default,2030,level_5_median_salary,445942,0.03,medium,Median salary for Level 5 (VP) employees
+default,2031,total_compensation_cost,56860000,0.02,high,Total annual compensation cost across all employees
+default,2031,median_merit_increase,0.04,0.05,medium,Median merit increase percentage across all levels
+default,2031,total_employees,11941,0.01,high,Total employee count target
+default,2031,promotion_rate,0.08,0.10,medium,Overall promotion rate across all levels
+default,2031,compensation_growth_rate,0.02,0.05,high,Year-over-year compensation growth rate
+default,2031,level_1_median_salary,79604,0.03,medium,Median salary for Level 1 (Staff) employees
+default,2031,level_2_median_salary,119406,0.03,medium,Median salary for Level 2 (Manager) employees
+default,2031,level_3_median_salary,178458,0.03,medium,Median salary for Level 3 (SrMgr) employees
+default,2031,level_4_median_salary,312731,0.03,medium,Median salary for Level 4 (Director) employees
+default,2031,level_5_median_salary,454861,0.03,medium,Median salary for Level 5 (VP) employees
+default,2032,total_compensation_cost,57997000,0.02,high,Total annual compensation cost across all employees
+default,2032,median_merit_increase,0.04,0.05,medium,Median merit increase percentage across all levels
+default,2032,total_employees,12299,0.01,high,Total employee count target
+default,2032,promotion_rate,0.08,0.10,medium,Overall promotion rate across all levels
+default,2032,compensation_growth_rate,0.02,0.05,high,Year-over-year compensation growth rate
+default,2032,level_1_median_salary,81196,0.03,medium,Median salary for Level 1 (Staff) employees
+default,2032,level_2_median_salary,121794,0.03,medium,Median salary for Level 2 (Manager) employees
+default,2032,level_3_median_salary,182027,0.03,medium,Median salary for Level 3 (SrMgr) employees
+default,2032,level_4_median_salary,318986,0.03,medium,Median salary for Level 4 (Director) employees
+default,2032,level_5_median_salary,463958,0.03,medium,Median salary for Level 5 (VP) employees
+default,2033,total_compensation_cost,59157000,0.02,high,Total annual compensation cost across all employees
+default,2033,median_merit_increase,0.04,0.05,medium,Median merit increase percentage across all levels
+default,2033,total_employees,12668,0.01,high,Total employee count target
+default,2033,promotion_rate,0.08,0.10,medium,Overall promotion rate across all levels
+default,2033,compensation_growth_rate,0.02,0.05,high,Year-over-year compensation growth rate
+default,2033,level_1_median_salary,82820,0.03,medium,Median salary for Level 1 (Staff) employees
+default,2033,level_2_median_salary,124230,0.03,medium,Median salary for Level 2 (Manager) employees
+default,2033,level_3_median_salary,185668,0.03,medium,Median salary for Level 3 (SrMgr) employees
+default,2033,level_4_median_salary,325366,0.03,medium,Median salary for Level 4 (Director) employees
+default,2033,level_5_median_salary,473237,0.03,medium,Median salary for Level 5 (VP) employees
+default,2034,total_compensation_cost,60340000,0.02,high,Total annual compensation cost across all employees
+default,2034,median_merit_increase,0.04,0.05,medium,Median merit increase percentage across all levels
+default,2034,total_employees,13048,0.01,high,Total employee count target
+default,2034,promotion_rate,0.08,0.10,medium,Overall promotion rate across all levels
+default,2034,compensation_growth_rate,0.02,0.05,high,Year-over-year compensation growth rate
+default,2034,level_1_median_salary,84476,0.03,medium,Median salary for Level 1 (Staff) employees
+default,2034,level_2_median_salary,126715,0.03,medium,Median salary for Level 2 (Manager) employees
+default,2034,level_3_median_salary,189381,0.03,medium,Median salary for Level 3 (SrMgr) employees
+default,2034,level_4_median_salary,331873,0.03,medium,Median salary for Level 4 (Director) employees
+default,2034,level_5_median_salary,482702,0.03,medium,Median salary for Level 5 (VP) employees
+default,2035,total_compensation_cost,61547000,0.02,high,Total annual compensation cost across all employees
+default,2035,median_merit_increase,0.04,0.05,medium,Median merit increase percentage across all levels
+default,2035,total_employees,13439,0.01,high,Total employee count target
+default,2035,promotion_rate,0.08,0.10,medium,Overall promotion rate across all levels
+default,2035,compensation_growth_rate,0.02,0.05,high,Year-over-year compensation growth rate
+default,2035,level_1_median_salary,86166,0.03,medium,Median salary for Level 1 (Staff) employees
+default,2035,level_2_median_salary,129249,0.03,medium,Median salary for Level 2 (Manager) employees
+default,2035,level_3_median_salary,193169,0.03,medium,Median salary for Level 3 (SrMgr) employees
+default,2035,level_4_median_salary,338510,0.03,medium,Median salary for Level 4 (Director) employees
+default,2035,level_5_median_salary,492356,0.03,medium,Median salary for Level 5 (VP) employees
