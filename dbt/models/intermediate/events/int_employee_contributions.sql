@@ -35,7 +35,7 @@ WITH simulation_parameters AS (
 ),
 
 -- Get IRS contribution limits for the simulation year (with fallback to nearest available year)
-irs_limits AS (
+irs_limits_exact AS (
     SELECT
         limit_year,
         base_limit,
@@ -43,20 +43,25 @@ irs_limits AS (
         catch_up_age_threshold
     FROM {{ ref('irs_contribution_limits') }}
     WHERE limit_year = (SELECT current_year FROM simulation_parameters)
-    UNION ALL
-    -- Fallback: If no exact match, use the closest year (latest available if simulation year is beyond seed data)
+),
+
+-- Fallback: If no exact match, use the closest year (latest available if simulation year is beyond seed data)
+irs_limits_fallback AS (
     SELECT
         limit_year,
         base_limit,
         catch_up_limit,
         catch_up_age_threshold
     FROM {{ ref('irs_contribution_limits') }}
-    WHERE NOT EXISTS (
-        SELECT 1 FROM {{ ref('irs_contribution_limits') }}
-        WHERE limit_year = (SELECT current_year FROM simulation_parameters)
-    )
+    WHERE NOT EXISTS (SELECT 1 FROM irs_limits_exact)
     ORDER BY ABS(limit_year - (SELECT current_year FROM simulation_parameters))
     LIMIT 1
+),
+
+irs_limits AS (
+    SELECT * FROM irs_limits_exact
+    UNION ALL
+    SELECT * FROM irs_limits_fallback
 ),
 
 -- FIX: Get the most recent deferral rate for each employee up to the current simulation year
