@@ -1,9 +1,10 @@
 # Task Management
 
 ## Active Tasks
-- **E100** - Copy Scenario Data Sources Fix (branch: `feature/E100-copy-scenario-data-sources-fix`)
+- None currently
 
 ## Completed Tasks
+- **E100** - Copy Scenario Data Sources Fix (PR #92)
 - **E099** - Copy Scenario New Hire Strategy Fix (PR #91)
 - **E098** - Extend Seed Data Through 2035
 - **E097** - Fix Polars Schema Mismatch
