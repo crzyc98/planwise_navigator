@@ -1,9 +1,10 @@
 # Task Management
 
 ## Active Tasks
-- **E099** - Copy Scenario New Hire Strategy Fix (branch: `feature/E099-copy-scenario-new-hire-strategy-fix`)
+- None currently
 
 ## Completed Tasks
+- **E099** - Copy Scenario New Hire Strategy Fix (PR #91)
 - **E098** - Extend Seed Data Through 2035
 - **E097** - Fix Polars Schema Mismatch
 - **E096** - Participation Debugging & Critical Bug Fix (PR #90)
