@@ -1,20 +1,24 @@
 # Task Management
 
 ## Active Tasks
-- **E096** - Participation Debugging & Critical Bug Fix (branch: `feature/E096-participation-debugging-dashboard`)
-- **E094** - Analytics Page Workspace Selection (branch: `feature/E094-analytics-page-workspace-selection`)
+- **E099** - Copy Scenario New Hire Strategy Fix (branch: `feature/E099-copy-scenario-new-hire-strategy-fix`)
 
 ## Completed Tasks
+- **E098** - Extend Seed Data Through 2035
+- **E097** - Fix Polars Schema Mismatch
+- **E096** - Participation Debugging & Critical Bug Fix (PR #90)
+- **E095** - Hours Eligibility Troubleshooting (PR #89)
+- **E094** - Analytics Page Workspace Selection (PR #88)
+- **E093** - Compensation Analytics by Status Code (PR #85)
 - **E092** - DC Plan Analytics Fix (PR #86)
-- **E093** - Compensation Analytics by Status Code
-- **E091** - UI Fixes
-- **E090** - Census Upload Fix
-- **E089** - Census File Persistence
-- **E088** - Remove Impact Preview
+- **E091** - UI Fixes (PR #82)
+- **E090** - Census Upload Fix (PR #81)
+- **E089** - Census File Persistence (PR #80)
+- **E088** - Remove Impact Preview (PR #79)
 - **E087** - Analytics Export Fix
 
 ## Open Issues
-- **#87** - Employee deferrals and employer match show $0 in DC Plan analytics
+- None currently tracked
 
 ---
 
