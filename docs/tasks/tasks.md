@@ -1,7 +1,7 @@
 # Task Management
 
 ## Active Tasks
-- None currently
+- **E101** - Auto-Escalation UI Config Not Being Applied
 
 ## Completed Tasks
 - **E100** - Copy Scenario Data Sources Fix (PR #92)
