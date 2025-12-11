@@ -652,10 +652,13 @@ def to_dbt_vars(cfg: "SimulationConfig") -> Dict[str, Any]:
     domain of configuration export.
     """
     # Compose dbt_vars from focused helper functions
+    # E101: Order matters! Later exports override earlier ones.
+    # Legacy YAML (deferral_auto_escalation) runs first, then UI (dc_plan) settings
+    # override via _export_enrollment_vars, ensuring UI takes precedence.
     dbt_vars: Dict[str, Any] = {}
     dbt_vars.update(_export_simulation_vars(cfg))
-    dbt_vars.update(_export_enrollment_vars(cfg))
-    dbt_vars.update(_export_legacy_vars(cfg))
+    dbt_vars.update(_export_legacy_vars(cfg))        # Legacy YAML settings (lowest priority)
+    dbt_vars.update(_export_enrollment_vars(cfg))    # UI dc_plan settings (override legacy)
     dbt_vars.update(_export_employer_match_vars(cfg))
     dbt_vars.update(_export_compensation_vars(cfg))
     dbt_vars.update(_export_threading_vars(cfg))
