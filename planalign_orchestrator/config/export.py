@@ -11,6 +11,10 @@ from typing import TYPE_CHECKING, Any, Dict
 if TYPE_CHECKING:
     from .loader import SimulationConfig
 
+# Sentinel value to indicate a key should be removed from dbt_vars
+# Used when UI explicitly clears a value to override a legacy default
+_REMOVE_KEY = object()
+
 
 def _export_simulation_vars(cfg: "SimulationConfig") -> Dict[str, Any]:
     """Export simulation, compensation, and eligibility settings to dbt vars.
@@ -168,8 +172,16 @@ def _export_enrollment_vars(cfg: "SimulationConfig") -> Dict[str, Any]:
                 dbt_vars["deferral_escalation_effective_mmdd"] = str(dc_plan_dict["escalation_effective_day"])
             if dc_plan_dict.get("escalation_delay_years") is not None:
                 dbt_vars["deferral_escalation_first_delay_years"] = int(dc_plan_dict["escalation_delay_years"])
-            if dc_plan_dict.get("escalation_hire_date_cutoff") is not None:
-                dbt_vars["deferral_escalation_hire_date_cutoff"] = str(dc_plan_dict["escalation_hire_date_cutoff"])
+            # Handle escalation_hire_date_cutoff: if present in dc_plan, always apply (even if empty/None)
+            # Empty/None means "no cutoff" - apply to all employees regardless of hire date
+            if "escalation_hire_date_cutoff" in dc_plan_dict:
+                cutoff_value = dc_plan_dict["escalation_hire_date_cutoff"]
+                if cutoff_value and str(cutoff_value).strip():
+                    dbt_vars["deferral_escalation_hire_date_cutoff"] = str(cutoff_value)
+                else:
+                    # Use sentinel to indicate this key should be removed from final dbt_vars
+                    # This overrides any legacy YAML value when user clears the cutoff
+                    dbt_vars["deferral_escalation_hire_date_cutoff"] = _REMOVE_KEY
 
             # Plan eligibility waiting period (UI sends months, dbt expects days)
             if dc_plan_dict.get("eligibility_months") is not None:
@@ -663,4 +675,11 @@ def to_dbt_vars(cfg: "SimulationConfig") -> Dict[str, Any]:
     dbt_vars.update(_export_compensation_vars(cfg))
     dbt_vars.update(_export_threading_vars(cfg))
     dbt_vars.update(_export_core_contribution_vars(cfg))
+
+    # Remove any keys marked with the _REMOVE_KEY sentinel
+    # This allows UI to explicitly clear values set by legacy YAML
+    keys_to_remove = [k for k, v in dbt_vars.items() if v is _REMOVE_KEY]
+    for key in keys_to_remove:
+        del dbt_vars[key]
+
     return dbt_vars
