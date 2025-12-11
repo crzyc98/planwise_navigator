@@ -167,7 +167,7 @@ def _export_enrollment_vars(cfg: "SimulationConfig") -> Dict[str, Any]:
             if dc_plan_dict.get("escalation_effective_day") is not None:
                 dbt_vars["deferral_escalation_effective_mmdd"] = str(dc_plan_dict["escalation_effective_day"])
             if dc_plan_dict.get("escalation_delay_years") is not None:
-                dbt_vars["deferral_escalation_delay_years"] = int(dc_plan_dict["escalation_delay_years"])
+                dbt_vars["deferral_escalation_first_delay_years"] = int(dc_plan_dict["escalation_delay_years"])
             if dc_plan_dict.get("escalation_hire_date_cutoff") is not None:
                 dbt_vars["deferral_escalation_hire_date_cutoff"] = str(dc_plan_dict["escalation_hire_date_cutoff"])
 
