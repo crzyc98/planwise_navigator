@@ -1,9 +1,10 @@
 # Task Management
 
 ## Active Tasks
-- **E101** - Auto-Escalation UI Config Not Being Applied
+- None currently
 
 ## Completed Tasks
+- **E101** - Auto-Escalation UI Config Not Being Applied (PR #93)
 - **E100** - Copy Scenario Data Sources Fix (PR #92)
 - **E099** - Copy Scenario New Hire Strategy Fix (PR #91)
 - **E098** - Extend Seed Data Through 2035
