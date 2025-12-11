@@ -2884,6 +2884,9 @@ export default function ConfigStudio() {
                           newHireTerminationRate: cfg.workforce?.new_hire_termination_rate != null
                             ? cfg.workforce.new_hire_termination_rate * 100
                             : prev.newHireTerminationRate,
+                          // Data Sources - E100: copy census path from source scenario
+                          censusDataPath: cfg.data_sources?.census_parquet_path || prev.censusDataPath,
+                          censusDataStatus: cfg.data_sources?.census_parquet_path ? 'validating' : prev.censusDataStatus,
                           // Compensation
                           meritBudget: cfg.compensation?.merit_budget_percent ?? prev.meritBudget,
                           colaRate: cfg.compensation?.cola_rate_percent ?? prev.colaRate,
@@ -2985,6 +2988,34 @@ export default function ConfigStudio() {
                           logLevel: cfg.advanced?.log_level || prev.logLevel,
                           strictValidation: cfg.advanced?.strict_validation ?? prev.strictValidation,
                         }));
+
+                        // E100: Validate census file to get actual row count and metadata
+                        const censusPath = cfg.data_sources?.census_parquet_path;
+                        if (censusPath && activeWorkspace?.id) {
+                          try {
+                            const validation = await validateFilePath(activeWorkspace.id, censusPath);
+                            if (validation.valid && validation.row_count) {
+                              setFormData(prev => ({
+                                ...prev,
+                                censusDataStatus: 'loaded',
+                                censusRowCount: validation.row_count || prev.censusRowCount,
+                                censusLastModified: validation.last_modified?.split('T')[0] || prev.censusLastModified,
+                              }));
+                            } else {
+                              setFormData(prev => ({
+                                ...prev,
+                                censusDataStatus: 'error',
+                              }));
+                            }
+                          } catch (validationError) {
+                            console.error('E100: Census file validation failed:', validationError);
+                            setFormData(prev => ({
+                              ...prev,
+                              censusDataStatus: 'error',
+                            }));
+                          }
+                        }
+
                         setShowCopyScenarioModal(false);
                       } catch (error) {
                         console.error('Failed to copy scenario config:', error);

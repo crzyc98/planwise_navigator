@@ -1,7 +1,7 @@
 # Task Management
 
 ## Active Tasks
-- None currently
+- **E100** - Copy Scenario Data Sources Fix (branch: `feature/E100-copy-scenario-data-sources-fix`)
 
 ## Completed Tasks
 - **E099** - Copy Scenario New Hire Strategy Fix (PR #91)
