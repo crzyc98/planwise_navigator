@@ -2896,11 +2896,47 @@ export default function ConfigStudio() {
                           targetPercentile: cfg.new_hire?.target_percentile ?? prev.targetPercentile,
                           newHireCompVariance: cfg.new_hire?.compensation_variance_percent ?? prev.newHireCompVariance,
                           marketScenario: cfg.new_hire?.market_scenario || prev.marketScenario,
+                          // E082: New Hire Demographics
+                          newHireAgeDistribution: cfg.new_hire?.age_distribution
+                            ? cfg.new_hire.age_distribution.map((d: any, idx: number) => ({
+                                age: d.age,
+                                weight: d.weight,
+                                description: prev.newHireAgeDistribution[idx]?.description || '',
+                              }))
+                            : prev.newHireAgeDistribution,
+                          levelDistributionMode: cfg.new_hire?.level_distribution_mode || prev.levelDistributionMode,
+                          newHireLevelDistribution: cfg.new_hire?.level_distribution
+                            ? cfg.new_hire.level_distribution.map((d: any, idx: number) => ({
+                                level: d.level,
+                                name: prev.newHireLevelDistribution[idx]?.name || `Level ${d.level}`,
+                                percentage: d.percentage * 100, // Convert from decimal
+                              }))
+                            : prev.newHireLevelDistribution,
+                          // E082: Job Level Compensation
+                          jobLevelCompensation: cfg.new_hire?.job_level_compensation
+                            ? cfg.new_hire.job_level_compensation.map((d: any) => ({
+                                level: d.level,
+                                name: d.name,
+                                minComp: d.min_compensation,
+                                maxComp: d.max_compensation,
+                              }))
+                            : prev.jobLevelCompensation,
+                          levelMarketAdjustments: cfg.new_hire?.level_market_adjustments
+                            ? cfg.new_hire.level_market_adjustments.map((d: any) => ({
+                                level: d.level,
+                                adjustment: d.adjustment_percent,
+                              }))
+                            : prev.levelMarketAdjustments,
                           // Turnover - E086: removed unused fields
-                          // DC Plan
+                          // DC Plan - Basic
                           dcEligibilityMonths: cfg.dc_plan?.eligibility_months ?? prev.dcEligibilityMonths,
                           dcAutoEnroll: cfg.dc_plan?.auto_enroll ?? prev.dcAutoEnroll,
                           dcDefaultDeferral: cfg.dc_plan?.default_deferral_percent ?? prev.dcDefaultDeferral,
+                          // DC Plan - Auto-Enrollment Advanced (E084)
+                          dcAutoEnrollWindowDays: cfg.dc_plan?.auto_enroll_window_days ?? prev.dcAutoEnrollWindowDays,
+                          dcAutoEnrollOptOutGracePeriod: cfg.dc_plan?.auto_enroll_opt_out_grace_period ?? prev.dcAutoEnrollOptOutGracePeriod,
+                          dcAutoEnrollScope: cfg.dc_plan?.auto_enroll_scope || prev.dcAutoEnrollScope,
+                          dcAutoEnrollHireDateCutoff: cfg.dc_plan?.auto_enroll_hire_date_cutoff || prev.dcAutoEnrollHireDateCutoff,
                           // DC Plan - Match (E084 Phase B)
                           dcMatchTemplate: cfg.dc_plan?.match_template || prev.dcMatchTemplate,
                           dcMatchTiers: cfg.dc_plan?.match_tiers
@@ -2927,10 +2963,20 @@ export default function ConfigStudio() {
                                 rate: (tier.contribution_rate ?? 0) * 100,
                               }))
                             : prev.dcCoreGradedSchedule,
+                          // DC Plan - Core Eligibility (E084)
+                          dcCoreMinTenureYears: cfg.dc_plan?.core_min_tenure_years ?? prev.dcCoreMinTenureYears,
+                          dcCoreRequireYearEndActive: cfg.dc_plan?.core_require_year_end_active ?? prev.dcCoreRequireYearEndActive,
+                          dcCoreMinHoursAnnual: cfg.dc_plan?.core_min_hours_annual ?? prev.dcCoreMinHoursAnnual,
+                          dcCoreAllowTerminatedNewHires: cfg.dc_plan?.core_allow_terminated_new_hires ?? prev.dcCoreAllowTerminatedNewHires,
+                          dcCoreAllowExperiencedTerminations: cfg.dc_plan?.core_allow_experienced_terminations ?? prev.dcCoreAllowExperiencedTerminations,
                           // DC Plan - Auto-Escalation
                           dcAutoEscalation: cfg.dc_plan?.auto_escalation ?? prev.dcAutoEscalation,
                           dcEscalationRate: cfg.dc_plan?.escalation_rate_percent ?? prev.dcEscalationRate,
                           dcEscalationCap: cfg.dc_plan?.escalation_cap_percent ?? prev.dcEscalationCap,
+                          // DC Plan - Auto-Escalation Advanced (E084)
+                          dcEscalationEffectiveDay: cfg.dc_plan?.escalation_effective_day || prev.dcEscalationEffectiveDay,
+                          dcEscalationDelayYears: cfg.dc_plan?.escalation_delay_years ?? prev.dcEscalationDelayYears,
+                          dcEscalationHireDateCutoff: cfg.dc_plan?.escalation_hire_date_cutoff || prev.dcEscalationHireDateCutoff,
                           // Advanced
                           engine: cfg.advanced?.engine || prev.engine,
                           enableMultithreading: cfg.advanced?.enable_multithreading ?? prev.enableMultithreading,
