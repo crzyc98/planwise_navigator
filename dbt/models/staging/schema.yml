@@ -418,3 +418,83 @@ models:
         description: User who created the scenario
         data_tests:
           - not_null
+
+  - name: stg_config_age_bands
+    description: >
+      Single source of truth for age band definitions used across all hazard calculations.
+      Bands use [min_value, max_value) interval convention (lower bound inclusive, upper bound exclusive).
+      An employee aged exactly 35 falls into the "35-44" band, not "25-34".
+    config:
+      tags: ["configuration", "bands"]
+    columns:
+      - name: band_id
+        description: Unique identifier for the age band
+        data_tests:
+          - unique
+          - not_null
+      - name: band_label
+        description: Display label for the band (e.g., "25-34", "65+")
+        data_tests:
+          - unique
+          - not_null
+          - accepted_values:
+              values: ['< 25', '25-34', '35-44', '45-54', '55-64', '65+']
+      - name: min_value
+        description: Lower bound of the band (inclusive)
+        data_tests:
+          - not_null
+          - dbt_utils.accepted_range:
+              min_value: 0
+              max_value: 999
+      - name: max_value
+        description: Upper bound of the band (exclusive)
+        data_tests:
+          - not_null
+          - dbt_utils.accepted_range:
+              min_value: 1
+              max_value: 999
+      - name: display_order
+        description: Sort order for reporting
+        data_tests:
+          - unique
+          - not_null
+
+  - name: stg_config_tenure_bands
+    description: >
+      Single source of truth for tenure band definitions used across all hazard calculations.
+      Bands use [min_value, max_value) interval convention (lower bound inclusive, upper bound exclusive).
+      An employee with exactly 2 years tenure falls into the "2-4" band, not "< 2".
+    config:
+      tags: ["configuration", "bands"]
+    columns:
+      - name: band_id
+        description: Unique identifier for the tenure band
+        data_tests:
+          - unique
+          - not_null
+      - name: band_label
+        description: Display label for the band (e.g., "2-4", "20+")
+        data_tests:
+          - unique
+          - not_null
+          - accepted_values:
+              values: ['< 2', '2-4', '5-9', '10-19', '20+']
+      - name: min_value
+        description: Lower bound of the band in years (inclusive)
+        data_tests:
+          - not_null
+          - dbt_utils.accepted_range:
+              min_value: 0
+              max_value: 999
+      - name: max_value
+        description: Upper bound of the band in years (exclusive)
+        data_tests:
+          - not_null
+          - dbt_utils.accepted_range:
+              min_value: 1
+              max_value: 999
+      - name: display_order
+        description: Sort order for reporting
+        data_tests:
+          - unique
+          - not_null
