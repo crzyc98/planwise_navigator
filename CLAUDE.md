@@ -132,6 +132,52 @@ enrollment_event = DCPlanEventFactory.create_enrollment_event(
   * **DC Plan Engine**: Retirement plan contribution, vesting, and distribution modeling.
   * **Plan Administration Engine**: Forfeiture processing, HCE determination, IRS compliance.
 
+**Event Type Abstraction Layer (E004)**:
+
+The event type abstraction layer enables adding new workforce event types by implementing a single interface and registering in one location.
+
+```python
+from planalign_orchestrator.generators import (
+    EventGenerator,
+    EventRegistry,
+    EventContext,
+    ValidationResult,
+)
+
+# Register a new event type with decorator
+@EventRegistry.register("sabbatical")
+class SabbaticalEventGenerator(EventGenerator):
+    event_type = "sabbatical"
+    execution_order = 35  # Determines execution sequence
+    requires_hazard = False
+    supports_sql = True
+    supports_polars = False
+
+    def generate_events(self, context: EventContext):
+        # Implementation (SQL mode delegates to dbt models)
+        return []
+
+    def validate_event(self, event):
+        # Validation logic
+        return ValidationResult(is_valid=True)
+
+# List all registered event types
+EventRegistry.list_all()  # ['enrollment', 'hire', 'merit', 'promotion', 'sabbatical', 'termination']
+
+# Get generators by execution order
+EventRegistry.list_ordered("baseline")  # Returns generators sorted by execution_order
+
+# Disable event type for specific scenario
+EventRegistry.disable("sabbatical", scenario_id="baseline")
+```
+
+**Key Components**:
+- `EventGenerator`: Abstract base class with `generate_events()` and `validate_event()` methods
+- `EventRegistry`: Centralized registration and lookup with scenario-specific enable/disable
+- `HazardBasedEventGeneratorMixin`: Mixin for hazard probability-based event selection
+- `EventContext`: Runtime context with simulation year, config, and database access
+- `GeneratorMetrics`: Structured logging output for observability
+
 -----
 
 ## **5. Directory Structure**
@@ -146,6 +192,15 @@ planalign_engine/
 │  │  ├─ event_generation_executor.py # Hybrid SQL/Polars event generation
 │  │  ├─ hooks.py                   # Extensible callback system
 │  │  └─ data_cleanup.py            # Database cleanup operations
+│  ├─ generators/                    # Event type abstraction layer (E004)
+│  │  ├─ base.py                    # EventGenerator ABC, mixins, dataclasses
+│  │  ├─ registry.py                # EventRegistry singleton
+│  │  ├─ termination.py             # Termination event wrapper
+│  │  ├─ hire.py                    # Hire event wrapper
+│  │  ├─ promotion.py               # Promotion event wrapper
+│  │  ├─ merit.py                   # Merit event wrapper
+│  │  ├─ enrollment.py              # Enrollment event wrapper
+│  │  └─ sabbatical.py              # Example new event type
 │  ├─ pipeline_orchestrator.py      # Main orchestrator (1,220 lines)
 │  ├─ config.py                     # SimulationConfig management
 │  ├─ dbt_runner.py                 # DbtRunner with streaming output
@@ -693,6 +748,8 @@ See `/docs/VERSIONING_GUIDE.md` for detailed versioning workflow.
 - Python 3.11, SQL (DuckDB 1.0.0) + dbt-core 1.8.8, dbt-duckdb 1.8.1, Polars (002-fix-auto-escalation-hire-filter)
 - Python 3.11 (backend), TypeScript 5.x (frontend) + FastAPI (backend), React 18 + Vite (frontend), Pydantic v2 (validation) (003-studio-band-config)
 - CSV files (dbt seeds: `config_age_bands.csv`, `config_tenure_bands.csv`), Parquet (census data) (003-studio-band-config)
+- Python 3.11 + Pydantic v2 (validation), dbt-core 1.8.8 (SQL transforms), Polars 1.0+ (high-performance mode) (004-event-type-abstraction)
+- DuckDB 1.0.0 (immutable event store at `dbt/simulation.duckdb`) (004-event-type-abstraction)
 
 ## Recent Changes
 - 001-centralize-band-definitions: Added SQL (DuckDB 1.0.0), dbt-core 1.8.8 + dbt-duckdb 1.8.1, DuckDB
