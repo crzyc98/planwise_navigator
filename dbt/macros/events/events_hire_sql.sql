@@ -113,14 +113,7 @@
     0 AS employee_tenure, -- New hires have 0 tenure
     nha.level_id,
     -- Calculate age/tenure bands for new hires
-    CASE
-      WHEN nha.employee_age < 25 THEN '< 25'
-      WHEN nha.employee_age < 35 THEN '25-34'
-      WHEN nha.employee_age < 45 THEN '35-44'
-      WHEN nha.employee_age < 55 THEN '45-54'
-      WHEN nha.employee_age < 65 THEN '55-64'
-      ELSE '65+'
-    END AS age_band,
+    {{ assign_age_band('nha.employee_age') }} AS age_band,
     '< 2' AS tenure_band, -- All new hires start in lowest tenure band
     NULL AS event_probability, -- Hiring is deterministic based on departures
     'hiring' AS event_category

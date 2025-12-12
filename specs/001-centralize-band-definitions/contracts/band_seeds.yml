@@ -1,0 +1,155 @@
+# dbt Schema Contract: Band Configuration Seeds
+# Feature: 001-centralize-band-definitions
+# Date: 2025-12-12
+
+version: 2
+
+seeds:
+  - name: config_age_bands
+    description: >
+      Single source of truth for age band definitions used in hazard calculations.
+      Bands use [min, max) interval convention (lower bound inclusive, upper bound exclusive).
+    config:
+      column_types:
+        band_id: INTEGER
+        band_label: VARCHAR
+        min_value: INTEGER
+        max_value: INTEGER
+        display_order: INTEGER
+    columns:
+      - name: band_id
+        description: Unique identifier for the age band
+        data_tests:
+          - unique
+          - not_null
+      - name: band_label
+        description: Display label for the band (e.g., "25-34")
+        data_tests:
+          - unique
+          - not_null
+          - accepted_values:
+              values: ['< 25', '25-34', '35-44', '45-54', '55-64', '65+']
+      - name: min_value
+        description: Lower bound of the band (inclusive)
+        data_tests:
+          - not_null
+      - name: max_value
+        description: Upper bound of the band (exclusive)
+        data_tests:
+          - not_null
+      - name: display_order
+        description: Sort order for reporting
+        data_tests:
+          - not_null
+          - unique
+
+  - name: config_tenure_bands
+    description: >
+      Single source of truth for tenure band definitions used in hazard calculations.
+      Bands use [min, max) interval convention (lower bound inclusive, upper bound exclusive).
+    config:
+      column_types:
+        band_id: INTEGER
+        band_label: VARCHAR
+        min_value: INTEGER
+        max_value: INTEGER
+        display_order: INTEGER
+    columns:
+      - name: band_id
+        description: Unique identifier for the tenure band
+        data_tests:
+          - unique
+          - not_null
+      - name: band_label
+        description: Display label for the band (e.g., "2-4")
+        data_tests:
+          - unique
+          - not_null
+          - accepted_values:
+              values: ['< 2', '2-4', '5-9', '10-19', '20+']
+      - name: min_value
+        description: Lower bound of the band in years (inclusive)
+        data_tests:
+          - not_null
+      - name: max_value
+        description: Upper bound of the band in years (exclusive)
+        data_tests:
+          - not_null
+      - name: display_order
+        description: Sort order for reporting
+        data_tests:
+          - not_null
+          - unique
+
+models:
+  - name: stg_config_age_bands
+    description: Staging model for age band configuration
+    columns:
+      - name: band_id
+        data_tests:
+          - unique
+          - not_null
+      - name: band_label
+        data_tests:
+          - unique
+          - not_null
+      - name: min_value
+        data_tests:
+          - not_null
+      - name: max_value
+        data_tests:
+          - not_null
+      - name: display_order
+        data_tests:
+          - not_null
+
+  - name: stg_config_tenure_bands
+    description: Staging model for tenure band configuration
+    columns:
+      - name: band_id
+        data_tests:
+          - unique
+          - not_null
+      - name: band_label
+        data_tests:
+          - unique
+          - not_null
+      - name: min_value
+        data_tests:
+          - not_null
+      - name: max_value
+        data_tests:
+          - not_null
+      - name: display_order
+        data_tests:
+          - not_null
+
+# Custom data quality tests (to be implemented)
+# These tests validate band configuration integrity:
+#
+# test_band_no_gaps:
+#   description: Validates that bands are contiguous (no gaps between bands)
+#   sql: |
+#     WITH ordered_bands AS (
+#       SELECT band_label, min_value, max_value,
+#              LEAD(min_value) OVER (ORDER BY display_order) AS next_min
+#       FROM {{ ref('config_age_bands') }}
+#     )
+#     SELECT * FROM ordered_bands
+#     WHERE max_value != next_min AND next_min IS NOT NULL
+#
+# test_band_no_overlaps:
+#   description: Validates that bands do not overlap
+#   sql: |
+#     SELECT a.band_label AS band_a, b.band_label AS band_b
+#     FROM {{ ref('config_age_bands') }} a
+#     CROSS JOIN {{ ref('config_age_bands') }} b
+#     WHERE a.band_id < b.band_id
+#       AND a.max_value > b.min_value
+#       AND a.min_value < b.max_value
+#
+# test_band_starts_at_zero:
+#   description: Validates first band starts at 0
+#   sql: |
+#     SELECT * FROM {{ ref('config_age_bands') }}
+#     WHERE display_order = 1 AND min_value != 0
