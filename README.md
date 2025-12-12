@@ -133,10 +133,6 @@ planalign_engine/
 │   ├── seeds/                        # Configuration data (CSV)
 │   ├── macros/                       # Reusable SQL functions
 │   └── simulation.duckdb             # DuckDB database (standardized location)
-├── streamlit_dashboard/              # Interactive dashboard
-│   ├── main.py                       # Main dashboard
-│   └── pages/                        # Dashboard pages
-│       └── 1_Compensation_Tuning.py  # Compensation tuning interface
 ├── config/                           # Configuration management
 │   ├── simulation_config.yaml        # Simulation parameters
 │   ├── schema.py                     # Legacy event schema (Pydantic v1)
@@ -312,7 +308,7 @@ multi_year:
 7. **Verify installation**:
 ```bash
 # Test Python imports
-python -c "import duckdb, dbt, streamlit, pydantic, rich, typer, fastapi, uvicorn; print('✅ Installation successful!')"
+python -c "import duckdb, dbt, pydantic, rich, typer, fastapi, uvicorn; print('✅ Installation successful!')"
 
 # Verify planwise CLI is available
 planalign --version
@@ -430,20 +426,6 @@ dbt run --select tag:EVENT_GENERATION --vars '{simulation_year: 2025}' --threads
 
 # Build complete pipeline for a year
 dbt build --vars '{simulation_year: 2025}' --threads 1
-```
-
-#### Launch Interactive Dashboards
-
-```bash
-# Main dashboard (port 8501)
-streamlit run streamlit_dashboard/main.py
-
-# Compensation tuning interface (port 8502)
-streamlit run streamlit_dashboard/pages/1_Compensation_Tuning.py --server.port 8502
-
-# Or use Make shortcuts
-make run-dashboard
-make run-compensation-tuning
 ```
 
 ### Development Workflow
@@ -750,7 +732,7 @@ class SimulationConfig(BaseModel):
 pip install -r requirements-dev.txt
 
 # 2. Fix Python linting errors
-ruff check orchestrator/ streamlit_dashboard/
+ruff check planalign_orchestrator/
 # Fix imports and syntax issues
 
 # 3. Fix dbt compilation errors
@@ -858,7 +840,6 @@ planalign sync disconnect
 ### External Resources
 - [dbt Documentation](https://docs.getdbt.com/)
 - [DuckDB Documentation](https://duckdb.org/docs/)
-- [Streamlit Documentation](https://docs.streamlit.io/)
 - [Rich Documentation](https://rich.readthedocs.io/)
 - [Typer Documentation](https://typer.tiangolo.com/)
 - [Pydantic Documentation](https://docs.pydantic.dev/)
