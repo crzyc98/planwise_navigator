@@ -1,7 +1,7 @@
 # Task Management
 
 ## Active Tasks
-- None currently
+- **E104** - Scenario Cost Comparison Page (feature/E104-scenario-cost-comparison-page)
 
 ## Completed Tasks
 - **E103** - Analytics Page Dropdown Selection Fix (PR #97)

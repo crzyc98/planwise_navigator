@@ -14,6 +14,16 @@ class ContributionYearSummary(BaseModel):
     total_employer_core: float = Field(description="Total employer core contributions")
     total_all_contributions: float = Field(description="Total of all contributions")
     participant_count: int = Field(description="Number of enrolled participants")
+    # E104: New fields for cost comparison
+    average_deferral_rate: float = Field(
+        default=0.0, description="Average deferral rate for enrolled participants"
+    )
+    participation_rate: float = Field(
+        default=0.0, description="Participation rate for this year (0-100%)"
+    )
+    total_employer_cost: float = Field(
+        default=0.0, description="Sum of match and core contributions"
+    )
 
 
 class DeferralRateBucket(BaseModel):
@@ -84,6 +94,14 @@ class DCPlanAnalytics(BaseModel):
 
     # IRS limit stats
     irs_limit_metrics: IRSLimitMetrics = Field(description="IRS limit statistics")
+
+    # E104: New fields for cost comparison
+    average_deferral_rate: float = Field(
+        default=0.0, description="Average deferral rate across all enrolled participants"
+    )
+    total_employer_cost: float = Field(
+        default=0.0, description="Grand total employer cost (match + core)"
+    )
 
 
 class DCPlanComparisonResponse(BaseModel):

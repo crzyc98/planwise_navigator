@@ -756,6 +756,10 @@ export interface ContributionYearSummary {
   total_employer_core: number;
   total_all_contributions: number;
   participant_count: number;
+  // E104: New fields for cost comparison
+  average_deferral_rate: number;
+  participation_rate: number;
+  total_employer_cost: number;
 }
 
 export interface DeferralRateBucket {
@@ -796,6 +800,9 @@ export interface DCPlanAnalytics {
   deferral_rate_distribution: DeferralRateBucket[];
   escalation_metrics: EscalationMetrics;
   irs_limit_metrics: IRSLimitMetrics;
+  // E104: New fields for cost comparison
+  average_deferral_rate: number;
+  total_employer_cost: number;
 }
 
 export interface DCPlanComparisonResponse {
