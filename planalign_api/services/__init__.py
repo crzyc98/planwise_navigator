@@ -6,6 +6,12 @@ from .simulation_service import SimulationService
 from .comparison_service import ComparisonService
 from .telemetry_service import TelemetryService, get_telemetry_service
 from .analytics_service import AnalyticsService
+from .database_path_resolver import (
+    DatabasePathResolver,
+    ResolvedDatabasePath,
+    IsolationMode,
+    WorkspaceStorageProtocol,
+)
 
 __all__ = [
     "WorkspaceService",
@@ -15,4 +21,8 @@ __all__ = [
     "TelemetryService",
     "get_telemetry_service",
     "AnalyticsService",
+    "DatabasePathResolver",
+    "ResolvedDatabasePath",
+    "IsolationMode",
+    "WorkspaceStorageProtocol",
 ]
