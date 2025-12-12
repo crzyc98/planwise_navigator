@@ -1015,53 +1015,42 @@ class PipelineOrchestrator:
             start_year = self.config.simulation.start_year
 
             def _chk(conn):
-                baseline = conn.execute(
-                    "SELECT COUNT(*) FROM int_baseline_workforce WHERE simulation_year = ?",
-                    [year],
-                ).fetchone()[0]
+                # Helper to safely query table row counts (handles missing tables)
+                def _safe_count(table: str, year_val: int) -> int:
+                    try:
+                        return conn.execute(
+                            f"SELECT COUNT(*) FROM {table} WHERE simulation_year = ?",
+                            [year_val],
+                        ).fetchone()[0]
+                    except Exception:
+                        # Table doesn't exist yet (expected on first run in new workspace)
+                        return 0
+
+                baseline = _safe_count("int_baseline_workforce", year)
                 # For years > start_year, baseline lives in start_year; fetch preserved baseline rows
-                preserved_baseline = conn.execute(
-                    "SELECT COUNT(*) FROM int_baseline_workforce WHERE simulation_year = ?",
-                    [start_year],
-                ).fetchone()[0]
-                compensation = conn.execute(
-                    "SELECT COUNT(*) FROM int_employee_compensation_by_year WHERE simulation_year = ?",
-                    [year],
-                ).fetchone()[0]
-                wn = conn.execute(
-                    "SELECT COUNT(*) FROM int_workforce_needs WHERE simulation_year = ?",
-                    [year],
-                ).fetchone()[0]
-                wnbl = conn.execute(
-                    "SELECT COUNT(*) FROM int_workforce_needs_by_level WHERE simulation_year = ?",
-                    [year],
-                ).fetchone()[0]
+                preserved_baseline = _safe_count("int_baseline_workforce", start_year)
+                compensation = _safe_count("int_employee_compensation_by_year", year)
+                wn = _safe_count("int_workforce_needs", year)
+                wnbl = _safe_count("int_workforce_needs_by_level", year)
                 # Epic E039: Employer contribution model validation (eligibility may not be built in FOUNDATION)
-                try:
-                    employer_elig = conn.execute(
-                        "SELECT COUNT(*) FROM int_employer_eligibility WHERE simulation_year = ?",
-                        [year],
-                    ).fetchone()[0]
-                except Exception:
-                    employer_elig = 0
+                employer_elig = _safe_count("int_employer_eligibility", year)
                 # int_employer_core_contributions is built in STATE_ACCUMULATION, not FOUNDATION
+                employer_core = _safe_count("int_employer_core_contributions", year)
+                # Diagnostics: hiring demand (safe query with COALESCE for missing tables)
                 try:
-                    employer_core = conn.execute(
-                        "SELECT COUNT(*) FROM int_employer_core_contributions WHERE simulation_year = ?",
+                    total_hires_needed = conn.execute(
+                        "SELECT COALESCE(MAX(total_hires_needed), 0) FROM int_workforce_needs WHERE simulation_year = ?",
                         [year],
                     ).fetchone()[0]
                 except Exception:
-                    # Table doesn't exist yet (expected in foundation stage)
-                    employer_core = 0
-                # Diagnostics: hiring demand
-                total_hires_needed = conn.execute(
-                    "SELECT COALESCE(MAX(total_hires_needed), 0) FROM int_workforce_needs WHERE simulation_year = ?",
-                    [year],
-                ).fetchone()[0]
-                level_hires_needed = conn.execute(
-                    "SELECT COALESCE(SUM(hires_needed), 0) FROM int_workforce_needs_by_level WHERE simulation_year = ?",
-                    [year],
-                ).fetchone()[0]
+                    total_hires_needed = 0
+                try:
+                    level_hires_needed = conn.execute(
+                        "SELECT COALESCE(SUM(hires_needed), 0) FROM int_workforce_needs_by_level WHERE simulation_year = ?",
+                        [year],
+                    ).fetchone()[0]
+                except Exception:
+                    level_hires_needed = 0
                 return (
                     int(baseline),
                     int(preserved_baseline),
