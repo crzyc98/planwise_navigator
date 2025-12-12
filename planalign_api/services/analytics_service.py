@@ -52,6 +52,16 @@ class AnalyticsService:
             total_match = sum(c.total_employer_match for c in contribution_by_year)
             total_core = sum(c.total_employer_core for c in contribution_by_year)
             total_all = sum(c.total_all_contributions for c in contribution_by_year)
+            # E104: Calculate total employer cost and weighted average deferral rate
+            total_employer_cost = total_match + total_core
+            # Weighted average deferral rate across all years (weighted by participant count)
+            total_participants = sum(c.participant_count for c in contribution_by_year)
+            avg_deferral_rate = (
+                sum(c.average_deferral_rate * c.participant_count for c in contribution_by_year)
+                / total_participants
+                if total_participants > 0
+                else 0.0
+            )
 
             # Get deferral rate distribution
             deferral_distribution = self._get_deferral_distribution(conn)
@@ -79,6 +89,9 @@ class AnalyticsService:
                 deferral_rate_distribution=deferral_distribution,
                 escalation_metrics=escalation,
                 irs_limit_metrics=irs_limits,
+                # E104: New fields for cost comparison
+                average_deferral_rate=round(avg_deferral_rate, 4),
+                total_employer_cost=total_employer_cost,
             )
 
         except Exception as e:
@@ -170,13 +183,17 @@ class AnalyticsService:
     def _get_contribution_by_year(self, conn) -> List[ContributionYearSummary]:
         """Get contribution totals by simulation year."""
         try:
+            # E104: Enhanced query with average deferral rate, participation rate, and total employer cost
             df = conn.execute("""
                 SELECT
                     simulation_year as year,
                     COALESCE(SUM(prorated_annual_contributions), 0) as total_employee,
                     COALESCE(SUM(employer_match_amount), 0) as total_match,
                     COALESCE(SUM(employer_core_amount), 0) as total_core,
+                    COALESCE(SUM(employer_match_amount) + SUM(employer_core_amount), 0) as total_employer_cost,
                     COALESCE(SUM(prorated_annual_contributions) + SUM(employer_match_amount) + SUM(employer_core_amount), 0) as total_all,
+                    AVG(CASE WHEN is_enrolled_flag THEN current_deferral_rate ELSE NULL END) as avg_deferral_rate,
+                    COUNT(CASE WHEN is_enrolled_flag THEN 1 END) * 100.0 / NULLIF(COUNT(*), 0) as participation_rate,
                     COUNT(CASE WHEN is_enrolled_flag THEN 1 END) as participant_count
                 FROM fct_workforce_snapshot
                 WHERE UPPER(employment_status) = 'ACTIVE'
@@ -192,6 +209,10 @@ class AnalyticsService:
                     total_employer_core=float(row["total_core"]),
                     total_all_contributions=float(row["total_all"]),
                     participant_count=int(row["participant_count"]),
+                    # E104: New fields
+                    average_deferral_rate=float(row["avg_deferral_rate"] or 0.0),
+                    participation_rate=round(float(row["participation_rate"] or 0.0), 2),
+                    total_employer_cost=float(row["total_employer_cost"]),
                 )
                 for _, row in df.iterrows()
             ]
