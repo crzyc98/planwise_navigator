@@ -350,6 +350,41 @@ class ComplianceEventPayload(BaseModel):
         return v.quantize(Decimal("0.000001"))
 
 
+# Sabbatical Event Payload (E004 - Event Type Abstraction Layer)
+class SabbaticalPayload(BaseModel):
+    """Employee sabbatical leave event for extended time off.
+
+    Sabbaticals are typically offered to long-tenured employees for
+    personal development, academic pursuits, or rest. This event
+    tracks the leave period and compensation continuation.
+    """
+
+    event_type: Literal["sabbatical"] = "sabbatical"
+    plan_id: Optional[str] = None
+    start_date: date
+    end_date: date
+    reason: Literal["academic", "personal", "medical", "community_service"]
+    compensation_percentage: Decimal = Field(
+        ..., ge=0, le=1, decimal_places=4,
+        description="Percentage of salary continued during sabbatical (0.0 to 1.0)"
+    )
+
+    @field_validator("compensation_percentage")
+    @classmethod
+    def validate_percentage(cls, v: Decimal) -> Decimal:
+        """Ensure percentage has proper precision"""
+        return v.quantize(Decimal("0.0001"))
+
+    @field_validator("end_date")
+    @classmethod
+    def validate_end_after_start(cls, v: date, info) -> date:
+        """Ensure end_date is after start_date"""
+        start = info.data.get("start_date")
+        if start and v <= start:
+            raise ValueError("end_date must be after start_date")
+        return v
+
+
 class SimulationEvent(BaseModel):
     """Unified event model for all workforce and DC plan events"""
 
@@ -387,6 +422,8 @@ class SimulationEvent(BaseModel):
         Annotated[ForfeiturePayload, Field(discriminator="event_type")],
         Annotated[HCEStatusPayload, Field(discriminator="event_type")],
         Annotated[ComplianceEventPayload, Field(discriminator="event_type")],
+        # Extended Workforce Events (E004 - Event Type Abstraction Layer)
+        Annotated[SabbaticalPayload, Field(discriminator="event_type")],
         # Additional event types can be added here as needed
     ] = Field(..., discriminator="event_type")
 
@@ -969,3 +1006,51 @@ class PlanAdministrationEventFactory(EventFactory):
 
 # Backward compatibility: Alias for migration from legacy SimulationEvent
 LegacySimulationEvent = SimulationEvent
+
+
+# =============================================================================
+# Event Type Abstraction Layer (E004)
+# =============================================================================
+# Re-export EventRegistry for single-location access to all event types.
+# This allows developers to see all event types and their registration
+# from the unified config/events.py module.
+
+from planalign_orchestrator.generators import (
+    EventRegistry,
+    EventGenerator,
+    EventContext,
+    ValidationResult,
+    GeneratorMetrics,
+)
+
+__all__ = [
+    # Core event models
+    "SimulationEvent",
+    "LegacySimulationEvent",
+    # Payload types
+    "HirePayload",
+    "PromotionPayload",
+    "TerminationPayload",
+    "MeritPayload",
+    "EligibilityPayload",
+    "EnrollmentPayload",
+    "ContributionPayload",
+    "VestingPayload",
+    "AutoEnrollmentWindowPayload",
+    "EnrollmentChangePayload",
+    "ForfeiturePayload",
+    "HCEStatusPayload",
+    "ComplianceEventPayload",
+    "SabbaticalPayload",
+    # Factories
+    "EventFactory",
+    "WorkforceEventFactory",
+    "DCPlanEventFactory",
+    "PlanAdministrationEventFactory",
+    # Event Generator Abstraction Layer (E004)
+    "EventRegistry",
+    "EventGenerator",
+    "EventContext",
+    "ValidationResult",
+    "GeneratorMetrics",
+]
