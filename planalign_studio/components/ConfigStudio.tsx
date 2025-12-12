@@ -1,8 +1,8 @@
 import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react';
-import { Save, AlertTriangle, FileText, Settings, HelpCircle, TrendingUp, Users, DollarSign, Zap, Server, Shield, PieChart, Database, Upload, Check, X, ArrowLeft, Target, Sparkles, Play, Copy, Info } from 'lucide-react';
+import { Save, AlertTriangle, FileText, Settings, HelpCircle, TrendingUp, Users, DollarSign, Zap, Server, Shield, PieChart, Database, Upload, Check, X, ArrowLeft, Target, Sparkles, Play, Copy, Info, Layers } from 'lucide-react';
 import { useNavigate, useOutletContext, useParams } from 'react-router-dom';
 import { LayoutContextType } from './Layout';
-import { updateWorkspace as apiUpdateWorkspace, getScenario, updateScenario, Scenario, uploadCensusFile, validateFilePath, listTemplates, Template, analyzeAgeDistribution, analyzeCompensation, CompensationAnalysis, solveCompensationGrowth, CompensationSolverResponse, listScenarios } from '../services/api';
+import { updateWorkspace as apiUpdateWorkspace, getScenario, updateScenario, Scenario, uploadCensusFile, validateFilePath, listTemplates, Template, analyzeAgeDistribution, analyzeCompensation, CompensationAnalysis, solveCompensationGrowth, CompensationSolverResponse, listScenarios, getBandConfigs, saveBandConfigs, analyzeAgeBands, analyzeTenureBands, Band, BandConfig, BandValidationError, BandAnalysisResult } from '../services/api';
 
 // E084 Phase B: Match template presets with editable tiers
 interface MatchTier {
@@ -141,6 +141,19 @@ export default function ConfigStudio() {
   const [showCopyScenarioModal, setShowCopyScenarioModal] = useState(false);
   const [availableScenarios, setAvailableScenarios] = useState<Scenario[]>([]);
   const [copyingScenariosLoading, setCopyingScenariosLoading] = useState(false);
+
+  // E003: Band configuration state
+  const [bandConfig, setBandConfig] = useState<BandConfig | null>(null);
+  const [bandConfigLoading, setBandConfigLoading] = useState(false);
+  const [bandConfigError, setBandConfigError] = useState<string | null>(null);
+  const [bandSaveStatus, setBandSaveStatus] = useState<'idle' | 'saving' | 'success' | 'error'>('idle');
+  const [bandValidationErrors, setBandValidationErrors] = useState<BandValidationError[]>([]);
+
+  // E003: Band analysis state for "Match Census" buttons
+  const [ageBandAnalysis, setAgeBandAnalysis] = useState<BandAnalysisResult | null>(null);
+  const [ageBandAnalyzing, setAgeBandAnalyzing] = useState(false);
+  const [tenureBandAnalysis, setTenureBandAnalysis] = useState<BandAnalysisResult | null>(null);
+  const [tenureBandAnalyzing, setTenureBandAnalyzing] = useState(false);
 
   // Expanded State for all tabs
   const [formData, setFormData] = useState({
@@ -886,6 +899,224 @@ export default function ConfigStudio() {
     return () => window.removeEventListener('beforeunload', handleBeforeUnload);
   }, [isDirty]);
 
+  // E003: Load band configurations on component mount
+  useEffect(() => {
+    const loadBandConfigs = async () => {
+      if (!activeWorkspace?.id) return;
+
+      setBandConfigLoading(true);
+      setBandConfigError(null);
+
+      try {
+        const config = await getBandConfigs(activeWorkspace.id);
+        setBandConfig(config);
+      } catch (error) {
+        console.error('Failed to load band configurations:', error);
+        setBandConfigError(error instanceof Error ? error.message : 'Failed to load band configurations');
+      } finally {
+        setBandConfigLoading(false);
+      }
+    };
+
+    loadBandConfigs();
+  }, [activeWorkspace?.id]);
+
+  // E003: Handler for editing a band field
+  const handleBandChange = (
+    bandType: 'age' | 'tenure',
+    bandId: number,
+    field: keyof Band,
+    value: string | number
+  ) => {
+    if (!bandConfig) return;
+
+    const bandsKey = bandType === 'age' ? 'age_bands' : 'tenure_bands';
+    const updatedBands = bandConfig[bandsKey].map(band =>
+      band.band_id === bandId
+        ? { ...band, [field]: typeof value === 'string' && field !== 'band_label' ? parseInt(value) || 0 : value }
+        : band
+    );
+
+    setBandConfig({
+      ...bandConfig,
+      [bandsKey]: updatedBands,
+    });
+
+    // Clear previous validation errors and save status when editing
+    setBandValidationErrors([]);
+    setBandSaveStatus('idle');
+  };
+
+  // E003: Client-side band validation
+  const validateBandsClient = (bands: Band[], bandType: 'age' | 'tenure'): BandValidationError[] => {
+    const errors: BandValidationError[] = [];
+
+    if (bands.length === 0) {
+      errors.push({
+        band_type: bandType,
+        error_type: 'coverage',
+        message: 'At least one band is required',
+        band_ids: [],
+      });
+      return errors;
+    }
+
+    const sortedBands = [...bands].sort((a, b) => a.min_value - b.min_value);
+
+    // Check first band starts at 0
+    if (sortedBands[0].min_value !== 0) {
+      errors.push({
+        band_type: bandType,
+        error_type: 'coverage',
+        message: `First band must start at 0, but starts at ${sortedBands[0].min_value}`,
+        band_ids: [sortedBands[0].band_id],
+      });
+    }
+
+    // Check each band's range is valid and check for gaps/overlaps
+    for (let i = 0; i < sortedBands.length; i++) {
+      const band = sortedBands[i];
+
+      if (band.max_value <= band.min_value) {
+        errors.push({
+          band_type: bandType,
+          error_type: 'invalid_range',
+          message: `Band '${band.band_label}' has invalid range: max (${band.max_value}) must be > min (${band.min_value})`,
+          band_ids: [band.band_id],
+        });
+      }
+
+      if (i < sortedBands.length - 1) {
+        const nextBand = sortedBands[i + 1];
+
+        if (band.max_value < nextBand.min_value) {
+          errors.push({
+            band_type: bandType,
+            error_type: 'gap',
+            message: `Gap detected between bands: ${band.max_value} to ${nextBand.min_value}`,
+            band_ids: [band.band_id, nextBand.band_id],
+          });
+        }
+
+        if (band.max_value > nextBand.min_value) {
+          errors.push({
+            band_type: bandType,
+            error_type: 'overlap',
+            message: `Overlap detected between bands at value ${nextBand.min_value}`,
+            band_ids: [band.band_id, nextBand.band_id],
+          });
+        }
+      }
+    }
+
+    return errors;
+  };
+
+  // E003: Handler for saving band configurations
+  const handleSaveBands = async () => {
+    if (!activeWorkspace?.id || !bandConfig) return;
+
+    // Client-side validation first
+    const ageErrors = validateBandsClient(bandConfig.age_bands, 'age');
+    const tenureErrors = validateBandsClient(bandConfig.tenure_bands, 'tenure');
+    const allErrors = [...ageErrors, ...tenureErrors];
+
+    if (allErrors.length > 0) {
+      setBandValidationErrors(allErrors);
+      setBandSaveStatus('error');
+      return;
+    }
+
+    setBandSaveStatus('saving');
+    setBandValidationErrors([]);
+
+    try {
+      const result = await saveBandConfigs(activeWorkspace.id, {
+        age_bands: bandConfig.age_bands,
+        tenure_bands: bandConfig.tenure_bands,
+      });
+
+      if (result.success) {
+        setBandSaveStatus('success');
+        setTimeout(() => setBandSaveStatus('idle'), 3000);
+      } else {
+        setBandValidationErrors(result.validation_errors);
+        setBandSaveStatus('error');
+      }
+    } catch (error) {
+      console.error('Failed to save band configurations:', error);
+      setBandSaveStatus('error');
+    }
+  };
+
+  // E003: Handler for "Match Census" age bands
+  const handleMatchCensusAgeBands = async () => {
+    if (!activeWorkspace?.id || !formData.censusDataPath) {
+      setBandConfigError('Please upload a census file first');
+      return;
+    }
+
+    setAgeBandAnalyzing(true);
+    setAgeBandAnalysis(null);
+
+    try {
+      const result = await analyzeAgeBands(activeWorkspace.id, formData.censusDataPath);
+      setAgeBandAnalysis(result);
+    } catch (error) {
+      console.error('Failed to analyze age bands:', error);
+      setBandConfigError(error instanceof Error ? error.message : 'Failed to analyze census for age bands');
+    } finally {
+      setAgeBandAnalyzing(false);
+    }
+  };
+
+  // E003: Handler for applying suggested age bands
+  const handleApplyAgeBandSuggestions = () => {
+    if (!ageBandAnalysis || !bandConfig) return;
+
+    setBandConfig({
+      ...bandConfig,
+      age_bands: ageBandAnalysis.suggested_bands,
+    });
+    setAgeBandAnalysis(null);
+    setBandSaveStatus('idle');
+    setBandValidationErrors([]);
+  };
+
+  // E003: Handler for "Match Census" tenure bands
+  const handleMatchCensusTenureBands = async () => {
+    if (!activeWorkspace?.id || !formData.censusDataPath) {
+      setBandConfigError('Please upload a census file first');
+      return;
+    }
+
+    setTenureBandAnalyzing(true);
+    setTenureBandAnalysis(null);
+
+    try {
+      const result = await analyzeTenureBands(activeWorkspace.id, formData.censusDataPath);
+      setTenureBandAnalysis(result);
+    } catch (error) {
+      console.error('Failed to analyze tenure bands:', error);
+      setBandConfigError(error instanceof Error ? error.message : 'Failed to analyze census for tenure bands');
+    } finally {
+      setTenureBandAnalyzing(false);
+    }
+  };
+
+  // E003: Handler for applying suggested tenure bands
+  const handleApplyTenureBandSuggestions = () => {
+    if (!tenureBandAnalysis || !bandConfig) return;
+
+    setBandConfig({
+      ...bandConfig,
+      tenure_bands: tenureBandAnalysis.suggested_bands,
+    });
+    setTenureBandAnalysis(null);
+    setBandSaveStatus('idle');
+    setBandValidationErrors([]);
+  };
+
   // Handle save configuration
   const handleSaveConfig = async () => {
     setSaveStatus('saving');
@@ -1195,6 +1426,7 @@ export default function ConfigStudio() {
                { id: 'datasources', label: 'Data Sources', icon: Database },
                { id: 'compensation', label: 'Compensation', icon: DollarSign },
                { id: 'newhire', label: 'New Hire Strategy', icon: Users },
+               { id: 'segmentation', label: 'Workforce Segmentation', icon: Layers },
                { id: 'turnover', label: 'Workforce & Turnover', icon: AlertTriangle },
                { id: 'dcplan', label: 'DC Plan', icon: PieChart },
                { id: 'advanced', label: 'Advanced Settings', icon: Settings }
@@ -2163,6 +2395,331 @@ export default function ConfigStudio() {
                     </div>
                  </div>
                </div>
+            )}
+
+            {/* --- WORKFORCE SEGMENTATION (E003) --- */}
+            {activeSection === 'segmentation' && (
+              <div className="space-y-8 animate-fadeIn">
+                <div className="border-b border-gray-100 pb-4">
+                  <h2 className="text-lg font-bold text-gray-900">Workforce Segmentation</h2>
+                  <p className="text-sm text-gray-500">Configure age and tenure band definitions used for workforce analytics and simulations.</p>
+                </div>
+
+                {/* Loading State */}
+                {bandConfigLoading && (
+                  <div className="flex items-center justify-center py-12">
+                    <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-fidelity-green"></div>
+                    <span className="ml-3 text-gray-600">Loading band configurations...</span>
+                  </div>
+                )}
+
+                {/* Error State */}
+                {bandConfigError && !bandConfigLoading && (
+                  <div className="bg-red-50 border border-red-200 rounded-lg p-4">
+                    <div className="flex items-center">
+                      <AlertTriangle className="w-5 h-5 text-red-600 mr-2" />
+                      <span className="text-red-800">{bandConfigError}</span>
+                    </div>
+                  </div>
+                )}
+
+                {/* Band Configuration Content */}
+                {bandConfig && !bandConfigLoading && (
+                  <>
+                    {/* Validation Errors */}
+                    {bandValidationErrors.length > 0 && (
+                      <div className="bg-red-50 border border-red-200 rounded-lg p-4">
+                        <div className="flex items-start">
+                          <AlertTriangle className="w-5 h-5 text-red-600 mr-2 mt-0.5" />
+                          <div>
+                            <h4 className="text-red-800 font-medium">Validation Errors</h4>
+                            <ul className="mt-2 space-y-1">
+                              {bandValidationErrors.map((error, idx) => (
+                                <li key={idx} className="text-sm text-red-700">
+                                  <span className="font-medium capitalize">{error.band_type} bands:</span> {error.message}
+                                </li>
+                              ))}
+                            </ul>
+                          </div>
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Save Status */}
+                    {bandSaveStatus === 'success' && (
+                      <div className="bg-green-50 border border-green-200 rounded-lg p-4">
+                        <div className="flex items-center">
+                          <Check className="w-5 h-5 text-green-600 mr-2" />
+                          <span className="text-green-800">Band configurations saved successfully. Seeds will be reloaded at simulation start.</span>
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Age Bands Section */}
+                    <div className="bg-gray-50 rounded-xl p-6 border border-gray-200">
+                      <div className="flex items-center justify-between mb-4">
+                        <div className="flex items-center">
+                          <Users className="w-5 h-5 text-fidelity-green mr-3" />
+                          <h3 className="font-semibold text-gray-900">Age Bands</h3>
+                        </div>
+                        <button
+                          onClick={handleMatchCensusAgeBands}
+                          disabled={ageBandAnalyzing || !formData.censusDataPath}
+                          className="flex items-center px-3 py-1.5 text-sm bg-fidelity-green text-white rounded-lg hover:bg-fidelity-green-dark disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                        >
+                          {ageBandAnalyzing ? (
+                            <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2" />
+                          ) : (
+                            <Sparkles size={16} className="mr-2" />
+                          )}
+                          Match Census
+                        </button>
+                      </div>
+
+                      {/* Age Band Analysis Preview */}
+                      {ageBandAnalysis && (
+                        <div className="mb-4 bg-blue-50 border border-blue-200 rounded-lg p-4">
+                          <div className="flex items-start justify-between">
+                            <div>
+                              <h4 className="text-blue-800 font-medium">Suggested Age Bands</h4>
+                              <p className="text-sm text-blue-600 mt-1">
+                                Based on {ageBandAnalysis.distribution_stats.total_employees} employees ({ageBandAnalysis.analysis_type})
+                              </p>
+                              <div className="mt-2 text-xs text-blue-700">
+                                <span>Age range: {ageBandAnalysis.distribution_stats.min_value} - {ageBandAnalysis.distribution_stats.max_value}</span>
+                                <span className="mx-2">|</span>
+                                <span>Median: {ageBandAnalysis.distribution_stats.median_value.toFixed(1)}</span>
+                              </div>
+                            </div>
+                            <div className="flex gap-2">
+                              <button
+                                onClick={() => setAgeBandAnalysis(null)}
+                                className="px-3 py-1.5 text-sm text-gray-600 bg-white border border-gray-300 rounded-lg hover:bg-gray-50"
+                              >
+                                Cancel
+                              </button>
+                              <button
+                                onClick={handleApplyAgeBandSuggestions}
+                                className="px-3 py-1.5 text-sm bg-blue-600 text-white rounded-lg hover:bg-blue-700"
+                              >
+                                Apply
+                              </button>
+                            </div>
+                          </div>
+                        </div>
+                      )}
+
+                      {/* Age Bands Table */}
+                      <div className="overflow-x-auto">
+                        <table className="w-full text-sm">
+                          <thead>
+                            <tr className="border-b border-gray-200">
+                              <th className="text-left py-2 px-3 font-medium text-gray-700">ID</th>
+                              <th className="text-left py-2 px-3 font-medium text-gray-700">Label</th>
+                              <th className="text-left py-2 px-3 font-medium text-gray-700">Min (inclusive)</th>
+                              <th className="text-left py-2 px-3 font-medium text-gray-700">Max (exclusive)</th>
+                              <th className="text-left py-2 px-3 font-medium text-gray-700">Order</th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {[...bandConfig.age_bands].sort((a, b) => a.display_order - b.display_order).map((band) => {
+                              const hasError = bandValidationErrors.some(e => e.band_type === 'age' && e.band_ids.includes(band.band_id));
+                              return (
+                                <tr key={band.band_id} className={`border-b border-gray-100 ${hasError ? 'bg-red-50' : ''}`}>
+                                  <td className="py-2 px-3 text-gray-600">{band.band_id}</td>
+                                  <td className="py-2 px-3">
+                                    <input
+                                      type="text"
+                                      value={band.band_label}
+                                      onChange={(e) => handleBandChange('age', band.band_id, 'band_label', e.target.value)}
+                                      className={`w-full px-2 py-1 border rounded text-sm ${hasError ? 'border-red-300' : 'border-gray-300'}`}
+                                    />
+                                  </td>
+                                  <td className="py-2 px-3">
+                                    <input
+                                      type="number"
+                                      value={band.min_value}
+                                      onChange={(e) => handleBandChange('age', band.band_id, 'min_value', e.target.value)}
+                                      className={`w-20 px-2 py-1 border rounded text-sm ${hasError ? 'border-red-300' : 'border-gray-300'}`}
+                                      min="0"
+                                    />
+                                  </td>
+                                  <td className="py-2 px-3">
+                                    <input
+                                      type="number"
+                                      value={band.max_value}
+                                      onChange={(e) => handleBandChange('age', band.band_id, 'max_value', e.target.value)}
+                                      className={`w-20 px-2 py-1 border rounded text-sm ${hasError ? 'border-red-300' : 'border-gray-300'}`}
+                                      min="1"
+                                    />
+                                  </td>
+                                  <td className="py-2 px-3">
+                                    <input
+                                      type="number"
+                                      value={band.display_order}
+                                      onChange={(e) => handleBandChange('age', band.band_id, 'display_order', e.target.value)}
+                                      className={`w-16 px-2 py-1 border rounded text-sm ${hasError ? 'border-red-300' : 'border-gray-300'}`}
+                                      min="1"
+                                    />
+                                  </td>
+                                </tr>
+                              );
+                            })}
+                          </tbody>
+                        </table>
+                      </div>
+                      <p className="mt-2 text-xs text-gray-500">
+                        Bands use [min, max) interval convention: min_value is inclusive, max_value is exclusive.
+                      </p>
+                    </div>
+
+                    {/* Tenure Bands Section */}
+                    <div className="bg-gray-50 rounded-xl p-6 border border-gray-200">
+                      <div className="flex items-center justify-between mb-4">
+                        <div className="flex items-center">
+                          <TrendingUp className="w-5 h-5 text-fidelity-green mr-3" />
+                          <h3 className="font-semibold text-gray-900">Tenure Bands</h3>
+                        </div>
+                        <button
+                          onClick={handleMatchCensusTenureBands}
+                          disabled={tenureBandAnalyzing || !formData.censusDataPath}
+                          className="flex items-center px-3 py-1.5 text-sm bg-fidelity-green text-white rounded-lg hover:bg-fidelity-green-dark disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                        >
+                          {tenureBandAnalyzing ? (
+                            <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2" />
+                          ) : (
+                            <Sparkles size={16} className="mr-2" />
+                          )}
+                          Match Census
+                        </button>
+                      </div>
+
+                      {/* Tenure Band Analysis Preview */}
+                      {tenureBandAnalysis && (
+                        <div className="mb-4 bg-blue-50 border border-blue-200 rounded-lg p-4">
+                          <div className="flex items-start justify-between">
+                            <div>
+                              <h4 className="text-blue-800 font-medium">Suggested Tenure Bands</h4>
+                              <p className="text-sm text-blue-600 mt-1">
+                                Based on {tenureBandAnalysis.distribution_stats.total_employees} employees ({tenureBandAnalysis.analysis_type})
+                              </p>
+                              <div className="mt-2 text-xs text-blue-700">
+                                <span>Tenure range: {tenureBandAnalysis.distribution_stats.min_value} - {tenureBandAnalysis.distribution_stats.max_value} years</span>
+                                <span className="mx-2">|</span>
+                                <span>Median: {tenureBandAnalysis.distribution_stats.median_value.toFixed(1)} years</span>
+                              </div>
+                            </div>
+                            <div className="flex gap-2">
+                              <button
+                                onClick={() => setTenureBandAnalysis(null)}
+                                className="px-3 py-1.5 text-sm text-gray-600 bg-white border border-gray-300 rounded-lg hover:bg-gray-50"
+                              >
+                                Cancel
+                              </button>
+                              <button
+                                onClick={handleApplyTenureBandSuggestions}
+                                className="px-3 py-1.5 text-sm bg-blue-600 text-white rounded-lg hover:bg-blue-700"
+                              >
+                                Apply
+                              </button>
+                            </div>
+                          </div>
+                        </div>
+                      )}
+
+                      {/* Tenure Bands Table */}
+                      <div className="overflow-x-auto">
+                        <table className="w-full text-sm">
+                          <thead>
+                            <tr className="border-b border-gray-200">
+                              <th className="text-left py-2 px-3 font-medium text-gray-700">ID</th>
+                              <th className="text-left py-2 px-3 font-medium text-gray-700">Label</th>
+                              <th className="text-left py-2 px-3 font-medium text-gray-700">Min Years (inclusive)</th>
+                              <th className="text-left py-2 px-3 font-medium text-gray-700">Max Years (exclusive)</th>
+                              <th className="text-left py-2 px-3 font-medium text-gray-700">Order</th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {[...bandConfig.tenure_bands].sort((a, b) => a.display_order - b.display_order).map((band) => {
+                              const hasError = bandValidationErrors.some(e => e.band_type === 'tenure' && e.band_ids.includes(band.band_id));
+                              return (
+                                <tr key={band.band_id} className={`border-b border-gray-100 ${hasError ? 'bg-red-50' : ''}`}>
+                                  <td className="py-2 px-3 text-gray-600">{band.band_id}</td>
+                                  <td className="py-2 px-3">
+                                    <input
+                                      type="text"
+                                      value={band.band_label}
+                                      onChange={(e) => handleBandChange('tenure', band.band_id, 'band_label', e.target.value)}
+                                      className={`w-full px-2 py-1 border rounded text-sm ${hasError ? 'border-red-300' : 'border-gray-300'}`}
+                                    />
+                                  </td>
+                                  <td className="py-2 px-3">
+                                    <input
+                                      type="number"
+                                      value={band.min_value}
+                                      onChange={(e) => handleBandChange('tenure', band.band_id, 'min_value', e.target.value)}
+                                      className={`w-20 px-2 py-1 border rounded text-sm ${hasError ? 'border-red-300' : 'border-gray-300'}`}
+                                      min="0"
+                                    />
+                                  </td>
+                                  <td className="py-2 px-3">
+                                    <input
+                                      type="number"
+                                      value={band.max_value}
+                                      onChange={(e) => handleBandChange('tenure', band.band_id, 'max_value', e.target.value)}
+                                      className={`w-20 px-2 py-1 border rounded text-sm ${hasError ? 'border-red-300' : 'border-gray-300'}`}
+                                      min="1"
+                                    />
+                                  </td>
+                                  <td className="py-2 px-3">
+                                    <input
+                                      type="number"
+                                      value={band.display_order}
+                                      onChange={(e) => handleBandChange('tenure', band.band_id, 'display_order', e.target.value)}
+                                      className={`w-16 px-2 py-1 border rounded text-sm ${hasError ? 'border-red-300' : 'border-gray-300'}`}
+                                      min="1"
+                                    />
+                                  </td>
+                                </tr>
+                              );
+                            })}
+                          </tbody>
+                        </table>
+                      </div>
+                      <p className="mt-2 text-xs text-gray-500">
+                        Bands use [min, max) interval convention: min_value is inclusive, max_value is exclusive.
+                      </p>
+                    </div>
+
+                    {/* Save Button */}
+                    <div className="flex justify-end">
+                      <button
+                        onClick={handleSaveBands}
+                        disabled={bandSaveStatus === 'saving' || bandValidationErrors.length > 0}
+                        className={`flex items-center px-4 py-2 rounded-lg font-medium transition-colors ${
+                          bandValidationErrors.length > 0
+                            ? 'bg-gray-300 text-gray-500 cursor-not-allowed'
+                            : bandSaveStatus === 'saving'
+                            ? 'bg-gray-400 text-white cursor-wait'
+                            : 'bg-fidelity-green text-white hover:bg-fidelity-green-dark'
+                        }`}
+                      >
+                        {bandSaveStatus === 'saving' ? (
+                          <>
+                            <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2" />
+                            Saving...
+                          </>
+                        ) : (
+                          <>
+                            <Save size={18} className="mr-2" />
+                            Save Band Configurations
+                          </>
+                        )}
+                      </button>
+                    </div>
+                  </>
+                )}
+              </div>
             )}
 
             {/* --- TURNOVER --- */}
