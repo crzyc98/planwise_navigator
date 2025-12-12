@@ -1,12 +1,12 @@
 # Task Management
 
 ## Active Tasks
-- **E102** - Escalation Variables Not Being Passed to Polars (PR #96 pending)
-  - Previous PRs #93, #94, #95 fixed export.py issues
-  - Root cause: Polars event factory bypasses dbt vars entirely
-  - Fix: Pass dbt_vars through EventFactoryConfig to PolarsEventGenerator
+- **E103** - Analytics Page Dropdown Selection Fix (PR pending)
+  - Root cause: React state race condition in `fetchWorkspaces()`
+  - Fix: Skip auto-selection when initialized from URL parameter
 
 ## Completed Tasks
+- **E102** - Escalation Variables Not Being Passed to Polars (PR #96)
 - **E101** - Auto-Escalation UI Config Not Being Applied (PR #93)
 - **E100** - Copy Scenario Data Sources Fix (PR #92)
 - **E099** - Copy Scenario New Hire Strategy Fix (PR #91)
