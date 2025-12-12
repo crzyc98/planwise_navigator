@@ -1,7 +1,10 @@
 # Task Management
 
 ## Active Tasks
-- None currently
+- **E102** - Escalation Variables Not Being Passed to Polars (PR #96 pending)
+  - Previous PRs #93, #94, #95 fixed export.py issues
+  - Root cause: Polars event factory bypasses dbt vars entirely
+  - Fix: Pass dbt_vars through EventFactoryConfig to PolarsEventGenerator
 
 ## Completed Tasks
 - **E101** - Auto-Escalation UI Config Not Being Applied (PR #93)
