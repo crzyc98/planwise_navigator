@@ -24,7 +24,7 @@
   - Default January 1st effective date
   - 1% increment amount (configurable by job level)
   - 10% maximum rate cap (configurable by job level)
-  - Toggle inclusion based on hire date
+  - Toggle inclusion based on hire date (employees hired ON OR AFTER cutoff are eligible)
 
   Simplified configuration:
   - Controlled by vars set from simulation_config.yaml (no demographic-based rates for escalation)
@@ -79,7 +79,7 @@ WITH active_workforce AS (
         AND w.employment_status = 'active'
         AND w.employee_id IS NOT NULL
     {%- if esc_hire_cutoff is not none %}
-        AND w.employee_hire_date > '{{ esc_hire_cutoff }}'::DATE
+        AND w.employee_hire_date >= '{{ esc_hire_cutoff }}'::DATE
     {%- endif %}
 ),
 
