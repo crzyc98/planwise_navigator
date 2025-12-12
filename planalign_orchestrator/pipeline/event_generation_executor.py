@@ -227,7 +227,8 @@ class EventGenerationExecutor:
             streaming=polars_settings.streaming,
             parallel_io=polars_settings.parallel_io,
             database_path=self.db_manager.db_path,  # Pass batch-specific database path
-            promotion_rate_multiplier=promotion_rate_multiplier  # E082: Promotion rate multiplier
+            promotion_rate_multiplier=promotion_rate_multiplier,  # E082: Promotion rate multiplier
+            dbt_vars=self.dbt_vars  # E102: Pass UI config for escalation settings
         )
 
         if self.verbose:

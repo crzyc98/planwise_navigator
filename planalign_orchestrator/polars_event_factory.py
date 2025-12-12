@@ -68,6 +68,9 @@ class EventFactoryConfig:
     # Compensation settings
     promotion_rate_multiplier: float = 1.0  # Multiplier for base promotion rates (1.0 = seed defaults)
 
+    # E102: dbt vars for passing UI configuration (escalation, enrollment, etc.)
+    dbt_vars: Dict[str, Any] = field(default_factory=dict)
+
     def __post_init__(self):
         """Validate configuration after initialization."""
         if self.start_year > self.end_year:
@@ -1136,14 +1139,21 @@ class PolarsEventGenerator:
 
         Escalates enrolled employees' deferral rates by 1% annually up to a 10% cap.
         Matches logic from int_deferral_rate_escalation_events.sql.
+
+        E102 FIX: Uses dbt_vars from UI config instead of hardcoded parameters.
         """
-        # Get escalation parameters
-        esc_enabled = self._get_parameter('DEFERRAL_ESCALATION', 'enabled', default=True)
+        # E102 FIX: Get escalation parameters from dbt_vars (UI config) with fallbacks
+        dbt_vars = getattr(self.config, 'dbt_vars', {}) or {}
+
+        # Check if escalation is enabled (UI setting)
+        esc_enabled = dbt_vars.get('deferral_escalation_enabled', True)
         if not esc_enabled:
+            self.logger.info("Deferral escalation disabled via configuration")
             return pl.DataFrame()
 
-        esc_rate = self._get_parameter('DEFERRAL_ESCALATION', 'increment', default=0.01)
-        esc_cap = self._get_parameter('DEFERRAL_ESCALATION', 'cap', default=0.10)
+        # Get escalation rate and cap from dbt_vars
+        esc_rate = dbt_vars.get('deferral_escalation_increment', 0.01)
+        esc_cap = dbt_vars.get('deferral_escalation_cap', 0.10)
 
         # Filter to enrolled employees with current deferral rate below cap
         eligible = cohort.filter(
