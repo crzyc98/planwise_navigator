@@ -1155,12 +1155,32 @@ class PolarsEventGenerator:
         esc_rate = dbt_vars.get('deferral_escalation_increment', 0.01)
         esc_cap = dbt_vars.get('deferral_escalation_cap', 0.10)
 
+        # E102 FIX: Get hire date cutoff for filtering employees
+        # Only employees hired AFTER this date are eligible for escalation
+        esc_hire_cutoff = dbt_vars.get('deferral_escalation_hire_date_cutoff', None)
+
         # Filter to enrolled employees with current deferral rate below cap
         eligible = cohort.filter(
             pl.col('is_enrolled') &
             (pl.col('employee_deferral_rate').is_not_null()) &
             (pl.col('employee_deferral_rate') < esc_cap)
         )
+
+        # E102 FIX: Apply hire date cutoff filter if configured
+        if esc_hire_cutoff:
+            try:
+                from datetime import datetime
+                # Parse the cutoff date string (format: YYYY-MM-DD)
+                cutoff_date = datetime.strptime(str(esc_hire_cutoff), '%Y-%m-%d').date()
+                original_count = eligible.height
+                eligible = eligible.filter(
+                    pl.col('employee_hire_date') > pl.lit(cutoff_date)
+                )
+                filtered_count = original_count - eligible.height
+                if filtered_count > 0:
+                    self.logger.info(f"Hire date cutoff {esc_hire_cutoff}: filtered out {filtered_count} employees hired before cutoff")
+            except (ValueError, TypeError) as e:
+                self.logger.warning(f"Invalid hire date cutoff '{esc_hire_cutoff}': {e}")
 
         if eligible.height == 0:
             return pl.DataFrame()
