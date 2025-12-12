@@ -833,3 +833,125 @@ export async function compareDCPlanAnalytics(
   );
   return handleResponse<DCPlanComparisonResponse>(response);
 }
+
+// ============================================================================
+// Band Configuration Endpoints (E003: Studio Band Configuration Management)
+// ============================================================================
+
+export interface Band {
+  band_id: number;
+  band_label: string;
+  min_value: number;
+  max_value: number;
+  display_order: number;
+}
+
+export interface BandConfig {
+  age_bands: Band[];
+  tenure_bands: Band[];
+}
+
+export interface BandValidationError {
+  band_type: 'age' | 'tenure';
+  error_type: 'gap' | 'overlap' | 'invalid_range' | 'coverage';
+  message: string;
+  band_ids: number[];
+}
+
+export interface BandSaveRequest {
+  age_bands: Band[];
+  tenure_bands: Band[];
+}
+
+export interface BandSaveResponse {
+  success: boolean;
+  validation_errors: BandValidationError[];
+  message: string;
+}
+
+export interface BandAnalysisRequest {
+  file_path: string;
+}
+
+export interface DistributionStats {
+  total_employees: number;
+  min_value: number;
+  max_value: number;
+  median_value: number;
+  mean_value: number;
+  percentiles: Record<number, number>;
+}
+
+export interface BandAnalysisResult {
+  suggested_bands: Band[];
+  distribution_stats: DistributionStats;
+  analysis_type: string;
+  source_file: string;
+}
+
+/**
+ * Get band configurations (age and tenure bands) from dbt seed files.
+ */
+export async function getBandConfigs(workspaceId: string): Promise<BandConfig> {
+  const response = await fetch(
+    `${API_BASE}/api/workspaces/${workspaceId}/config/bands`
+  );
+  return handleResponse<BandConfig>(response);
+}
+
+/**
+ * Save band configurations to dbt seed files.
+ * Validates for [min, max) convention, no gaps, no overlaps.
+ */
+export async function saveBandConfigs(
+  workspaceId: string,
+  request: BandSaveRequest
+): Promise<BandSaveResponse> {
+  const response = await fetch(
+    `${API_BASE}/api/workspaces/${workspaceId}/config/bands`,
+    {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(request),
+    }
+  );
+  return handleResponse<BandSaveResponse>(response);
+}
+
+/**
+ * Analyze census data for age band suggestions.
+ * Uses percentile-based boundary detection focusing on recent hires.
+ */
+export async function analyzeAgeBands(
+  workspaceId: string,
+  filePath: string
+): Promise<BandAnalysisResult> {
+  const response = await fetch(
+    `${API_BASE}/api/workspaces/${workspaceId}/analyze-age-bands`,
+    {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ file_path: filePath }),
+    }
+  );
+  return handleResponse<BandAnalysisResult>(response);
+}
+
+/**
+ * Analyze census data for tenure band suggestions.
+ * Uses percentile-based boundary detection.
+ */
+export async function analyzeTenureBands(
+  workspaceId: string,
+  filePath: string
+): Promise<BandAnalysisResult> {
+  const response = await fetch(
+    `${API_BASE}/api/workspaces/${workspaceId}/analyze-tenure-bands`,
+    {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ file_path: filePath }),
+    }
+  );
+  return handleResponse<BandAnalysisResult>(response);
+}

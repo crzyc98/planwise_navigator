@@ -1,0 +1,375 @@
+openapi: 3.0.3
+info:
+  title: Band Configuration API
+  description: API endpoints for managing age and tenure band configurations in PlanAlign Studio
+  version: 1.0.0
+
+servers:
+  - url: http://localhost:8000
+    description: Local development server
+
+paths:
+  /api/workspaces/{workspace_id}/config/bands:
+    get:
+      summary: Get band configurations
+      description: Retrieve current age and tenure band definitions from dbt seed files
+      operationId: getBandConfigs
+      tags:
+        - Bands
+      parameters:
+        - name: workspace_id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+          description: Workspace ID (for API consistency; bands are global)
+      responses:
+        '200':
+          description: Band configurations retrieved successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/BandConfig'
+        '500':
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+    put:
+      summary: Save band configurations
+      description: |
+        Save updated band configurations to dbt seed files.
+        Validates for:
+        - [min, max) interval convention
+        - No gaps between consecutive bands
+        - No overlapping ranges
+        - Coverage from 0 to upper bound
+      operationId: saveBandConfigs
+      tags:
+        - Bands
+      parameters:
+        - name: workspace_id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+          description: Workspace ID
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/BandSaveRequest'
+      responses:
+        '200':
+          description: Band configurations saved successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/BandSaveResponse'
+        '400':
+          description: Validation failed
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/BandSaveResponse'
+        '500':
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /api/workspaces/{workspace_id}/analyze-age-bands:
+    post:
+      summary: Analyze census for age band suggestions
+      description: |
+        Analyzes census data to suggest optimal age band boundaries based on
+        employee age distribution. Focuses on recent hires when possible.
+        Uses percentile-based boundary detection.
+      operationId: analyzeAgeBands
+      tags:
+        - Bands
+      parameters:
+        - name: workspace_id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+          description: Workspace ID
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/BandAnalysisRequest'
+      responses:
+        '200':
+          description: Analysis completed successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/BandAnalysisResult'
+        '400':
+          description: Invalid request (file not found, missing columns)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '500':
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /api/workspaces/{workspace_id}/analyze-tenure-bands:
+    post:
+      summary: Analyze census for tenure band suggestions
+      description: |
+        Analyzes census data to suggest optimal tenure band boundaries based on
+        employee tenure distribution. Uses percentile-based boundary detection.
+      operationId: analyzeTenureBands
+      tags:
+        - Bands
+      parameters:
+        - name: workspace_id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+          description: Workspace ID
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/BandAnalysisRequest'
+      responses:
+        '200':
+          description: Analysis completed successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/BandAnalysisResult'
+        '400':
+          description: Invalid request (file not found, missing columns)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '500':
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+components:
+  schemas:
+    Band:
+      type: object
+      required:
+        - band_id
+        - band_label
+        - min_value
+        - max_value
+        - display_order
+      properties:
+        band_id:
+          type: integer
+          minimum: 1
+          description: Unique identifier for the band
+          example: 1
+        band_label:
+          type: string
+          maxLength: 50
+          description: Human-readable label
+          example: "25-34"
+        min_value:
+          type: integer
+          minimum: 0
+          description: Lower bound (inclusive)
+          example: 25
+        max_value:
+          type: integer
+          minimum: 1
+          description: Upper bound (exclusive)
+          example: 35
+        display_order:
+          type: integer
+          minimum: 1
+          description: Sort order for UI display
+          example: 2
+
+    BandConfig:
+      type: object
+      required:
+        - age_bands
+        - tenure_bands
+      properties:
+        age_bands:
+          type: array
+          items:
+            $ref: '#/components/schemas/Band'
+          description: Age band definitions
+        tenure_bands:
+          type: array
+          items:
+            $ref: '#/components/schemas/Band'
+          description: Tenure band definitions
+
+    BandValidationError:
+      type: object
+      required:
+        - band_type
+        - error_type
+        - message
+      properties:
+        band_type:
+          type: string
+          enum: [age, tenure]
+          description: Type of bands with the error
+        error_type:
+          type: string
+          enum: [gap, overlap, invalid_range, coverage]
+          description: Type of validation error
+        message:
+          type: string
+          description: Human-readable error message
+          example: "Gap detected between bands 1 and 2: 25 to 26"
+        band_ids:
+          type: array
+          items:
+            type: integer
+          description: IDs of bands involved in the error
+          example: [1, 2]
+
+    BandSaveRequest:
+      type: object
+      required:
+        - age_bands
+        - tenure_bands
+      properties:
+        age_bands:
+          type: array
+          items:
+            $ref: '#/components/schemas/Band'
+        tenure_bands:
+          type: array
+          items:
+            $ref: '#/components/schemas/Band'
+
+    BandSaveResponse:
+      type: object
+      required:
+        - success
+        - message
+      properties:
+        success:
+          type: boolean
+          description: Whether save was successful
+        validation_errors:
+          type: array
+          items:
+            $ref: '#/components/schemas/BandValidationError'
+          description: Validation errors (if save failed)
+        message:
+          type: string
+          description: Status message
+          example: "Band configurations saved successfully"
+
+    BandAnalysisRequest:
+      type: object
+      required:
+        - file_path
+      properties:
+        file_path:
+          type: string
+          description: Path to census file (relative to workspace or absolute)
+          example: "data/census_preprocessed.parquet"
+
+    DistributionStats:
+      type: object
+      required:
+        - total_employees
+        - min_value
+        - max_value
+        - median_value
+        - mean_value
+      properties:
+        total_employees:
+          type: integer
+          description: Number of employees analyzed
+          example: 1000
+        min_value:
+          type: integer
+          description: Minimum value in distribution
+          example: 22
+        max_value:
+          type: integer
+          description: Maximum value in distribution
+          example: 67
+        median_value:
+          type: number
+          description: Median value
+          example: 38.5
+        mean_value:
+          type: number
+          description: Mean value
+          example: 39.2
+        percentiles:
+          type: object
+          additionalProperties:
+            type: number
+          description: Percentile values keyed by percentile (10, 25, 50, 75, 90)
+          example:
+            10: 26
+            25: 31
+            50: 38
+            75: 47
+            90: 55
+
+    BandAnalysisResult:
+      type: object
+      required:
+        - suggested_bands
+        - distribution_stats
+        - analysis_type
+        - source_file
+      properties:
+        suggested_bands:
+          type: array
+          items:
+            $ref: '#/components/schemas/Band'
+          description: Suggested band definitions based on analysis
+        distribution_stats:
+          $ref: '#/components/schemas/DistributionStats'
+        analysis_type:
+          type: string
+          description: Description of analysis performed
+          example: "Recent hires from 2024"
+        source_file:
+          type: string
+          description: Path to source census file
+          example: "data/census_preprocessed.parquet"
+
+    ErrorResponse:
+      type: object
+      required:
+        - detail
+      properties:
+        detail:
+          type: string
+          description: Error message
+          example: "File not found: data/census.parquet"
+
+tags:
+  - name: Bands
+    description: Band configuration management endpoints
