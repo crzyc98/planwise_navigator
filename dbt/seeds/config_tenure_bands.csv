@@ -1,0 +1,6 @@
+band_id,band_label,min_value,max_value,display_order
+1,< 2,0,2,1
+2,2-4,2,5,2
+3,5-9,5,10,3
+4,10-19,10,20,4
+5,20+,20,999,5

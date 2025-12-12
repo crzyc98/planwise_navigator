@@ -73,21 +73,8 @@ eligible_workforce AS (
         current_tenure,
         level_id,
         -- **DuckDB OPTIMIZATION**: Vectorized CASE expressions for band calculation
-        CASE
-            WHEN current_age < 25 THEN '< 25'
-            WHEN current_age < 35 THEN '25-34'
-            WHEN current_age < 45 THEN '35-44'
-            WHEN current_age < 55 THEN '45-54'
-            WHEN current_age < 65 THEN '55-64'
-            ELSE '65+'
-        END AS age_band,
-        CASE
-            WHEN current_tenure < 2 THEN '< 2'
-            WHEN current_tenure < 5 THEN '2-4'
-            WHEN current_tenure < 10 THEN '5-9'
-            WHEN current_tenure < 20 THEN '10-19'
-            ELSE '20+'
-        END AS tenure_band,
+        {{ assign_age_band('current_age') }} AS age_band,
+        {{ assign_tenure_band('current_tenure') }} AS tenure_band,
         -- **DETERMINISTIC RANDOM**: Consistent hash-based probability
         (ABS(HASH(employee_id || '{{ simulation_year }}' || 'promotion')) % 1000) / 1000.0 AS random_value
     FROM current_workforce

@@ -16,48 +16,68 @@
 {% set simulation_year = var('simulation_year', 2025) %}
 {% set simulation_effective_date_str = var('simulation_effective_date', '2024-12-31') %}
 
+WITH base_employees AS (
+    SELECT
+        stg.employee_id,
+        stg.employee_ssn,
+        stg.employee_birth_date,
+        stg.employee_hire_date,
+        -- **HOTFIX**: Use gross compensation to avoid annualization calculation bug
+        -- TODO: Fix the annualization logic in stg_census_data.sql later
+        stg.employee_gross_compensation AS current_compensation,
+        -- Calculate age and tenure based on the simulation_effective_date
+        EXTRACT(YEAR FROM '{{ simulation_effective_date_str }}'::DATE) - EXTRACT(YEAR FROM stg.employee_birth_date) AS current_age,
+        -- **E077 FIX**: Floor tenure at 0 to prevent negative values for employees hired after effective date
+        GREATEST(0, EXTRACT(YEAR FROM '{{ simulation_effective_date_str }}'::DATE) - EXTRACT(YEAR FROM stg.employee_hire_date)) AS current_tenure,
+        -- Dynamically assign level_id with fallback for unmatched compensation ranges
+        COALESCE(level_match.level_id, 1) AS level_id,
+        -- Add eligibility and enrollment fields from census
+        stg.employee_eligibility_date,
+        stg.waiting_period_days,
+        stg.current_eligibility_status,
+        stg.employee_enrollment_date,
+        -- Epic E049: Census deferral rate integration - preserve exact census rates
+        stg.employee_deferral_rate
+    FROM {{ ref('stg_census_data') }} stg
+    -- Use a subquery to find the best matching level_id for each employee
+    LEFT JOIN (
+        SELECT
+            stg_inner.employee_id,
+            -- Select the level with the smallest min_compensation that still matches
+            MIN(levels.level_id) as level_id
+        FROM {{ ref('stg_census_data') }} stg_inner
+        LEFT JOIN {{ ref('stg_config_job_levels') }} levels
+            ON stg_inner.employee_gross_compensation >= levels.min_compensation
+           AND (stg_inner.employee_gross_compensation < levels.max_compensation OR levels.max_compensation IS NULL)
+        GROUP BY stg_inner.employee_id
+    ) level_match ON stg.employee_id = level_match.employee_id
+    WHERE stg.employee_termination_date IS NULL
+)
+
 SELECT
-    stg.employee_id,
-    stg.employee_ssn,
-    stg.employee_birth_date,
-    stg.employee_hire_date,
-    -- **HOTFIX**: Use gross compensation to avoid annualization calculation bug
-    -- TODO: Fix the annualization logic in stg_census_data.sql later
-    stg.employee_gross_compensation AS current_compensation,
-    -- Calculate age and tenure based on the simulation_effective_date
-    EXTRACT(YEAR FROM '{{ simulation_effective_date_str }}'::DATE) - EXTRACT(YEAR FROM stg.employee_birth_date) AS current_age,
-    -- **E077 FIX**: Floor tenure at 0 to prevent negative values for employees hired after effective date
-    GREATEST(0, EXTRACT(YEAR FROM '{{ simulation_effective_date_str }}'::DATE) - EXTRACT(YEAR FROM stg.employee_hire_date)) AS current_tenure,
-    -- Dynamically assign level_id with fallback for unmatched compensation ranges
-    COALESCE(level_match.level_id, 1) AS level_id,
-    -- Calculate age and tenure bands
-    CASE
-        WHEN (EXTRACT(YEAR FROM '{{ simulation_effective_date_str }}'::DATE) - EXTRACT(YEAR FROM stg.employee_birth_date)) < 25 THEN '< 25'
-        WHEN (EXTRACT(YEAR FROM '{{ simulation_effective_date_str }}'::DATE) - EXTRACT(YEAR FROM stg.employee_birth_date)) < 35 THEN '25-34'
-        WHEN (EXTRACT(YEAR FROM '{{ simulation_effective_date_str }}'::DATE) - EXTRACT(YEAR FROM stg.employee_birth_date)) < 45 THEN '35-44'
-        WHEN (EXTRACT(YEAR FROM '{{ simulation_effective_date_str }}'::DATE) - EXTRACT(YEAR FROM stg.employee_birth_date)) < 55 THEN '45-54'
-        WHEN (EXTRACT(YEAR FROM '{{ simulation_effective_date_str }}'::DATE) - EXTRACT(YEAR FROM stg.employee_birth_date)) < 65 THEN '55-64'
-        ELSE '65+'
-    END AS age_band,
-    CASE
-        WHEN GREATEST(0, EXTRACT(YEAR FROM '{{ simulation_effective_date_str }}'::DATE) - EXTRACT(YEAR FROM stg.employee_hire_date)) < 2 THEN '< 2'
-        WHEN GREATEST(0, EXTRACT(YEAR FROM '{{ simulation_effective_date_str }}'::DATE) - EXTRACT(YEAR FROM stg.employee_hire_date)) < 5 THEN '2-4'
-        WHEN GREATEST(0, EXTRACT(YEAR FROM '{{ simulation_effective_date_str }}'::DATE) - EXTRACT(YEAR FROM stg.employee_hire_date)) < 10 THEN '5-9'
-        WHEN GREATEST(0, EXTRACT(YEAR FROM '{{ simulation_effective_date_str }}'::DATE) - EXTRACT(YEAR FROM stg.employee_hire_date)) < 20 THEN '10-19'
-        ELSE '20+'
-    END AS tenure_band,
+    employee_id,
+    employee_ssn,
+    employee_birth_date,
+    employee_hire_date,
+    current_compensation,
+    current_age,
+    current_tenure,
+    level_id,
+    -- Calculate age and tenure bands using centralized macros
+    {{ assign_age_band('current_age') }} AS age_band,
+    {{ assign_tenure_band('current_tenure') }} AS tenure_band,
     'active' AS employment_status,
     NULL AS termination_date,
     NULL AS termination_reason,
     -- Add eligibility and enrollment fields from census
-    stg.employee_eligibility_date,
-    stg.waiting_period_days,
-    stg.current_eligibility_status,
-    stg.employee_enrollment_date,
+    employee_eligibility_date,
+    waiting_period_days,
+    current_eligibility_status,
+    employee_enrollment_date,
     -- Epic E049: Census deferral rate integration - preserve exact census rates
-    stg.employee_deferral_rate,
+    employee_deferral_rate,
     CASE
-        WHEN stg.employee_deferral_rate > 0 THEN true
+        WHEN employee_deferral_rate > 0 THEN true
         ELSE false
     END as is_enrolled_at_census,
     {{ simulation_year }} AS simulation_year,
@@ -66,24 +86,11 @@ SELECT
     -- Simplified: assume this is always a cold start from census data
     true as is_cold_start,
     ({{ simulation_year }} - 1) as last_completed_year
-FROM {{ ref('stg_census_data') }} stg
--- Use a subquery to find the best matching level_id for each employee
-LEFT JOIN (
-    SELECT
-        stg_inner.employee_id,
-        -- Select the level with the smallest min_compensation that still matches
-        MIN(levels.level_id) as level_id
-    FROM {{ ref('stg_census_data') }} stg_inner
-    LEFT JOIN {{ ref('stg_config_job_levels') }} levels
-        ON stg_inner.employee_gross_compensation >= levels.min_compensation
-       AND (stg_inner.employee_gross_compensation < levels.max_compensation OR levels.max_compensation IS NULL)
-    GROUP BY stg_inner.employee_id
-) level_match ON stg.employee_id = level_match.employee_id
-WHERE stg.employee_termination_date IS NULL
+FROM base_employees
 
 {% if is_incremental() %}
     -- Note: This model generates baseline data for the current simulation_year only
     -- No additional filtering needed as baseline is created fresh for each year
 {% endif %}
 
-ORDER BY stg.employee_id
+ORDER BY employee_id
