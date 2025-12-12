@@ -402,6 +402,82 @@ class EmployeeEvent(BaseModel):
 
 -----
 
+## **9.1 Age/Tenure Band Configuration**
+
+Age and tenure bands are centralized in dbt seeds with reusable macros for consistent band assignment across all models.
+
+### **Band Assignment Macros**
+
+```sql
+-- Assign age band to any age column
+{{ assign_age_band('current_age') }} AS age_band
+
+-- Assign tenure band to any tenure column
+{{ assign_tenure_band('current_tenure') }} AS tenure_band
+```
+
+### **Configuration Seeds**
+
+| Seed File | Purpose |
+|-----------|---------|
+| `dbt/seeds/config_age_bands.csv` | Age band boundaries (0-25, 25-35, 35-45, 45-55, 55-65, 65+) |
+| `dbt/seeds/config_tenure_bands.csv` | Tenure band boundaries (0-2, 2-5, 5-10, 10-20, 20+) |
+
+### **[min, max) Interval Convention**
+
+Bands use **lower bound inclusive, upper bound exclusive**:
+- Age 35 → `35-44` band (not `25-34`)
+- Tenure 2.0 years → `2-4` band (not `< 2`)
+
+### **PlanAlign Studio Band Configuration UI (E003)**
+
+The web interface provides a visual editor for managing band configurations:
+
+**Features:**
+- **View Bands**: Display age and tenure band definitions in editable tables
+- **Edit Bands**: Modify band boundaries and labels with inline editing
+- **Real-time Validation**: Instant feedback for gaps, overlaps, and invalid ranges
+- **Match Census**: Analyze census data to suggest optimal band boundaries
+
+**Access:**
+1. Launch PlanAlign Studio: `planalign studio`
+2. Open a workspace
+3. Navigate to "Configuration" → "Workforce Segmentation"
+
+**API Endpoints:**
+- `GET /api/workspaces/{workspace_id}/config/bands` - Get current band configurations
+- `PUT /api/workspaces/{workspace_id}/config/bands` - Save band configurations
+- `POST /api/workspaces/{workspace_id}/analyze-age-bands` - Suggest age bands from census
+- `POST /api/workspaces/{workspace_id}/analyze-tenure-bands` - Suggest tenure bands from census
+
+**Match Census Algorithm:**
+Uses percentile-based boundary detection to suggest bands that follow data distribution:
+- Age bands (6 bands): 0%, 10%, 25%, 50%, 75%, 90%, 100% percentiles
+- Tenure bands (5 bands): 0%, 20%, 40%, 60%, 80%, 100% percentiles
+
+**Validation Rules:**
+- First band must start at 0
+- Each band's max_value must be greater than min_value
+- No gaps allowed between consecutive bands
+- No overlapping ranges
+- Saved bands are automatically loaded at simulation start
+
+### **Modifying Bands (CLI Method)**
+
+1. Edit the CSV seed file (`config_age_bands.csv` or `config_tenure_bands.csv`)
+2. Run `dbt seed --threads 1` to load changes
+3. Run `dbt test --select stg_config_age_bands stg_config_tenure_bands --threads 1` to validate
+4. Run `dbt build --threads 1` to rebuild all models
+
+### **Validation Tests**
+
+- `test_age_band_no_gaps.sql` - Ensures no gaps between age bands
+- `test_age_band_no_overlaps.sql` - Ensures age bands don't overlap
+- `test_tenure_band_no_gaps.sql` - Ensures no gaps between tenure bands
+- `test_tenure_band_no_overlaps.sql` - Ensures tenure bands don't overlap
+
+-----
+
 ## **10. Critical Patterns**
 
 ### **Temporal State Accumulators**
@@ -610,3 +686,13 @@ See `/docs/VERSIONING_GUIDE.md` for detailed versioning workflow.
   * [Semantic Versioning](https://semver.org/)
   * [dbt Style Guide](https://docs.getdbt.com/docs/collaborate/style-guide)
   * [DuckDB Documentation](https://duckdb.org/docs/)
+
+## Active Technologies
+- SQL (DuckDB 1.0.0), dbt-core 1.8.8 + dbt-duckdb 1.8.1, DuckDB (001-centralize-band-definitions)
+- DuckDB (dbt/simulation.duckdb) (001-centralize-band-definitions)
+- Python 3.11, SQL (DuckDB 1.0.0) + dbt-core 1.8.8, dbt-duckdb 1.8.1, Polars (002-fix-auto-escalation-hire-filter)
+- Python 3.11 (backend), TypeScript 5.x (frontend) + FastAPI (backend), React 18 + Vite (frontend), Pydantic v2 (validation) (003-studio-band-config)
+- CSV files (dbt seeds: `config_age_bands.csv`, `config_tenure_bands.csv`), Parquet (census data) (003-studio-band-config)
+
+## Recent Changes
+- 001-centralize-band-definitions: Added SQL (DuckDB 1.0.0), dbt-core 1.8.8 + dbt-duckdb 1.8.1, DuckDB
