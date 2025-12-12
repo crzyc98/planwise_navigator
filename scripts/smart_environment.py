@@ -36,7 +36,6 @@ class CommandType(Enum):
 
     DAGSTER = "dagster"  # Run from project root with venv
     DBT = "dbt"  # Run from dbt/ directory with venv
-    STREAMLIT = "streamlit"  # Run from project root with venv
     PYTHON = "python"  # Run from project root with venv
     SYSTEM = "system"  # System commands (git, etc.)
 
@@ -83,12 +82,6 @@ class SmartEnvironment:
             CommandType.DBT: {
                 "commands": ["dbt"],
                 "working_dir": "dbt_path",
-                "requires_venv": True,
-                "environment_vars": {},
-            },
-            CommandType.STREAMLIT: {
-                "commands": ["streamlit"],
-                "working_dir": "project_root",
                 "requires_venv": True,
                 "environment_vars": {},
             },
@@ -202,10 +195,6 @@ class SmartEnvironment:
         db_candidates = [
             ("simulation", project_root / str(get_database_path())),
             ("dbt_simulation", project_root / "dbt" / str(get_database_path())),
-            (
-                "streamlit_simulation",
-                project_root / "streamlit_dashboard" / str(get_database_path()),
-            ),
         ]
 
         for name, path in db_candidates:
@@ -216,7 +205,7 @@ class SmartEnvironment:
         if venv_path.exists() and python_executable:
             try:
                 # Test if key packages are available
-                cmd = [str(python_executable), "-c", "import dagster, dbt, streamlit"]
+                cmd = [str(python_executable), "-c", "import dagster, dbt"]
                 result = subprocess.run(cmd, capture_output=True, text=True, timeout=10)
                 if result.returncode != 0:
                     errors.append(
@@ -352,7 +341,7 @@ class SmartEnvironment:
 
         # For venv-required commands, prefix with venv python if needed
         if context["requires_venv"] and context["executable"]:
-            if cmd_parts[0] in ["python", "dbt", "dagster", "streamlit", "pytest"]:
+            if cmd_parts[0] in ["python", "dbt", "dagster", "pytest"]:
                 # Replace the executable with venv version
                 if cmd_parts[0] == "python":
                     cmd_parts[0] = str(context["executable"])

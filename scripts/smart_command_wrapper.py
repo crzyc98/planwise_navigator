@@ -12,7 +12,6 @@ This wrapper eliminates trial-and-error command execution by:
 Usage as a standalone tool:
     ./scripts/smart_command_wrapper.py "dbt run"
     ./scripts/smart_command_wrapper.py "dagster dev"
-    ./scripts/smart_command_wrapper.py "streamlit run main.py"
 
 Usage as a Python module:
     from scripts.smart_command_wrapper import SmartCommandWrapper
@@ -166,7 +165,7 @@ class SmartCommandWrapper:
         cmd_parts = shlex.split(command_line)
 
         if context["requires_venv"] and context["executable"]:
-            if cmd_parts[0] in ["python", "dbt", "dagster", "streamlit", "pytest"]:
+            if cmd_parts[0] in ["python", "dbt", "dagster", "pytest"]:
                 if cmd_parts[0] == "python":
                     cmd_parts[0] = str(context["executable"])
                 else:
@@ -233,7 +232,6 @@ class SmartCommandWrapper:
                 "python",
                 "dbt",
                 "dagster",
-                "streamlit",
                 "pytest",
                 "pip",
             ]:
@@ -388,7 +386,6 @@ class SmartCommandWrapper:
                     "Available commands:",
                     "  • dbt run                    # Run dbt models",
                     "  • dagster dev               # Start Dagster development server",
-                    "  • streamlit run main.py     # Launch Streamlit dashboard",
                     "  • python script.py         # Run Python scripts",
                     "  • pytest tests/            # Run tests",
                     "",
@@ -427,7 +424,7 @@ def main():
 Examples:
   %(prog)s "dbt run"                    # Run dbt with proper environment
   %(prog)s "dagster dev"                # Start Dagster development server
-  %(prog)s --dry-run "streamlit run main.py"  # Show what would be executed
+  %(prog)s --dry-run "python main.py"   # Show what would be executed
   %(prog)s --validate                   # Check environment setup
   %(prog)s --help-setup                 # Show setup instructions
         """,

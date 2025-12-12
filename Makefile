@@ -1,5 +1,5 @@
 # filename: Makefile
-.PHONY: help dev-setup install test lint format clean run-simulation run-dashboard run-compensation-tuning run-optimization-dashboard docker-build
+.PHONY: help dev-setup install test lint format clean run-simulation docker-build
 
 PYTHON := python3.11
 VENV := .venv
@@ -77,15 +77,6 @@ run-simulation: ## Run workforce simulation
 	PYTHONPATH=$(shell pwd)/$(VENV)/lib/$(PYTHON)/site-packages:$(PYTHONPATH) \
 	DAGSTER_HOME="$(DAGSTER_HOME)" \
 	$(VENV)/bin/dagster dev -f definitions.py
-
-run-dashboard: ## Launch main Streamlit dashboard
-	$(VENV)/bin/streamlit run streamlit_dashboard/main.py --server.port 8501
-
-run-compensation-tuning: ## Launch compensation tuning interface
-	$(VENV)/bin/streamlit run streamlit_dashboard/pages/1_Compensation_Tuning.py --server.port 8502
-
-run-optimization-dashboard: ## Launch optimization dashboard
-	$(VENV)/bin/streamlit run streamlit_dashboard/optimization_dashboard.py --server.port 8503
 
 docker-build: ## Build Docker image
 	docker build -t planwise-navigator:latest .

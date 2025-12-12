@@ -37,7 +37,6 @@ should_intercept() {
     local intercept_patterns=(
         "^dbt "
         "^dagster "
-        "^streamlit "
         "^python.*\.py"
         "^pytest"
         "^pip install"

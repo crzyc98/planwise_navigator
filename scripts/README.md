@@ -32,7 +32,7 @@ $ dbt run
 Intelligent project structure detection and validation:
 - **Project Root Detection**: Finds project root by looking for indicator files (CLAUDE.md, definitions.py, dbt/)
 - **Virtual Environment Validation**: Checks venv setup and Python executable paths
-- **Tool Availability**: Validates that required tools (dbt, dagster, streamlit) are installed
+- **Tool Availability**: Validates that required tools (dbt, dagster) are installed
 - **Command Classification**: Categorizes commands by type to determine execution requirements
 
 ### 2. Smart Command Wrapper (`smart_command_wrapper.py`)
@@ -113,11 +113,6 @@ The system automatically handles these command categories:
 - **Environment Variables**: Sets `DAGSTER_HOME`
 - **Virtual Environment**: Uses `venv/bin/dagster` executable
 - **Examples**: `dagster dev`, `dagster asset materialize`
-
-### Streamlit Commands
-- **Working Directory**: Project root directory
-- **Virtual Environment**: Uses `venv/bin/streamlit` executable
-- **Examples**: `streamlit run main.py`
 
 ### Python Scripts
 - **Working Directory**: Project root directory
