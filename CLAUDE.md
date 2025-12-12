@@ -25,7 +25,6 @@ This playbook tells Claude exactly how to turn high-level feature requests into 
 | **Orchestration** | planalign_orchestrator | Modular | PipelineOrchestrator with staged workflow execution |
 | **CLI Interface** | planalign_cli (Rich + Typer) | 1.0.0 | Beautiful terminal interface with progress tracking |
 | **Web Studio** | FastAPI + React/Vite | 0.1.0 | Modern web-based scenario management |
-| **Dashboard** | Streamlit | 1.39.0 | Interactive analytics and compensation tuning |
 | **Configuration** | Pydantic | 2.7.4 | Type-safe config management with validation |
 | **Python** | CPython | 3.11.x | Long-term support version |
 | **Package Manager** | uv | Latest | 10-100× faster than pip |
@@ -180,7 +179,6 @@ planalign_engine/
 │  │  └─ marts/                     # Final outputs (fct_*, dim_*) - 27 models
 │  ├─ seeds/                        # Configuration data (CSV)
 │  └─ macros/                       # Reusable SQL functions
-├─ streamlit_dashboard/              # Interactive dashboard
 ├─ config/                           # Configuration management
 │  ├─ simulation_config.yaml        # Simulation parameters
 │  └─ events.py                     # Unified event model (Pydantic v2, 971 lines)
