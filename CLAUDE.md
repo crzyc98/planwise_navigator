@@ -750,6 +750,8 @@ See `/docs/VERSIONING_GUIDE.md` for detailed versioning workflow.
 - CSV files (dbt seeds: `config_age_bands.csv`, `config_tenure_bands.csv`), Parquet (census data) (003-studio-band-config)
 - Python 3.11 + Pydantic v2 (validation), dbt-core 1.8.8 (SQL transforms), Polars 1.0+ (high-performance mode) (004-event-type-abstraction)
 - DuckDB 1.0.0 (immutable event store at `dbt/simulation.duckdb`) (004-event-type-abstraction)
+- Python 3.11 + Pydantic v2 (validation), FastAPI (dependency injection context), pathlib (path handling) (005-database-path-resolver)
+- DuckDB databases at multiple levels (scenario, workspace, project) (005-database-path-resolver)
 
 ## Recent Changes
 - 001-centralize-band-definitions: Added SQL (DuckDB 1.0.0), dbt-core 1.8.8 + dbt-duckdb 1.8.1, DuckDB
