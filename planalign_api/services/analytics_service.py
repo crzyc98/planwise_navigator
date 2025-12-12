@@ -13,6 +13,7 @@ from ..models.analytics import (
     ParticipationByMethod,
 )
 from ..storage.workspace_storage import WorkspaceStorage
+from .database_path_resolver import DatabasePathResolver
 
 logger = logging.getLogger(__name__)
 
@@ -20,8 +21,13 @@ logger = logging.getLogger(__name__)
 class AnalyticsService:
     """Service for DC Plan contribution analytics."""
 
-    def __init__(self, storage: WorkspaceStorage):
+    def __init__(
+        self,
+        storage: WorkspaceStorage,
+        db_resolver: Optional[DatabasePathResolver] = None,
+    ):
         self.storage = storage
+        self.db_resolver = db_resolver or DatabasePathResolver(storage)
 
     def get_dc_plan_analytics(
         self, workspace_id: str, scenario_id: str, scenario_name: str
@@ -34,12 +40,12 @@ class AnalyticsService:
         try:
             import duckdb
 
-            db_path = self._get_database_path(workspace_id, scenario_id)
-            if not db_path or not db_path.exists():
+            resolved = self.db_resolver.resolve(workspace_id, scenario_id)
+            if not resolved.exists:
                 logger.error(f"Database not found for scenario {scenario_id}")
                 return None
 
-            conn = duckdb.connect(str(db_path), read_only=True)
+            conn = duckdb.connect(str(resolved.path), read_only=True)
 
             # Get participation summary (from final year)
             participation = self._get_participation_summary(conn)
@@ -97,35 +103,6 @@ class AnalyticsService:
         except Exception as e:
             logger.error(f"Failed to get DC plan analytics: {e}")
             return None
-
-    def _get_database_path(self, workspace_id: str, scenario_id: str) -> Optional[Path]:
-        """Get the database path for a scenario."""
-        scenario_path = self.storage._scenario_path(workspace_id, scenario_id)
-        db_path = scenario_path / "simulation.duckdb"
-
-        if db_path.exists():
-            return db_path
-
-        # Check workspace-level database
-        workspace_path = self.storage._workspace_path(workspace_id)
-        db_path = workspace_path / "simulation.duckdb"
-
-        if db_path.exists():
-            return db_path
-
-        # Fall back to main project database (dbt/simulation.duckdb)
-        # WARNING: This is shared across all scenarios!
-        project_root = Path(__file__).parent.parent.parent
-        db_path = project_root / "dbt" / "simulation.duckdb"
-
-        if db_path.exists():
-            logger.warning(
-                f"Using global database for scenario {scenario_id}. "
-                "This shows shared data from CLI simulations."
-            )
-            return db_path
-
-        return None
 
     def _get_participation_summary(self, conn) -> dict:
         """Get participation summary from final simulation year."""

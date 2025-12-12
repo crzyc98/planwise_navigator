@@ -105,6 +105,7 @@ from ..models.simulation import (
 from ..storage.workspace_storage import WorkspaceStorage
 from ..constants import MAX_RECENT_EVENTS, DEFAULT_PARTICIPATION_RATE
 from .telemetry_service import get_telemetry_service
+from .database_path_resolver import DatabasePathResolver
 
 logger = logging.getLogger(__name__)
 
@@ -204,8 +205,13 @@ def _export_results_to_excel(
 class SimulationService:
     """Service for executing and managing simulations."""
 
-    def __init__(self, storage: WorkspaceStorage):
+    def __init__(
+        self,
+        storage: WorkspaceStorage,
+        db_resolver: Optional[DatabasePathResolver] = None,
+    ):
         self.storage = storage
+        self.db_resolver = db_resolver or DatabasePathResolver(storage)
         self._cancelled_runs: set = set()
         self._active_runs: Dict[str, SimulationRun] = {}
         self._active_processes: Dict[str, asyncio.subprocess.Process] = {}
@@ -762,34 +768,19 @@ class SimulationService:
         try:
             import duckdb
 
-            # Check for scenario-specific database first (preferred)
-            db_path = scenario_path / "simulation.duckdb"
-            db_source = "scenario"
-
-            if not db_path.exists():
-                # Check for parent workspace database
-                workspace_path = self.storage._workspace_path(workspace_id)
-                db_path = workspace_path / "simulation.duckdb"
-                db_source = "workspace"
-
-            if not db_path.exists():
-                # Fall back to main project database (dbt/simulation.duckdb)
-                # WARNING: This is shared across all scenarios!
-                project_root = Path(__file__).parent.parent.parent
-                db_path = project_root / "dbt" / "simulation.duckdb"
-                db_source = "global (shared - may show data from other scenarios)"
-                logger.warning(
-                    f"Using global database for scenario {scenario_id}. "
-                    "Re-run the simulation to create a scenario-specific database."
-                )
-
-            if not db_path.exists():
+            # Use the unified database path resolver
+            resolved = self.db_resolver.resolve(workspace_id, scenario_id)
+            if not resolved.exists:
                 logger.warning(f"No database found for scenario {scenario_id}")
                 return None
 
-            logger.info(f"Loading results from {db_source} database: {db_path}")
+            db_source = resolved.source
+            if resolved.source == "project":
+                db_source = "global (shared - may show data from other scenarios)"
 
-            conn = duckdb.connect(str(db_path), read_only=True)
+            logger.info(f"Loading results from {db_source} database: {resolved.path}")
+
+            conn = duckdb.connect(str(resolved.path), read_only=True)
 
             # Get workforce progression (filtered by scenario's year range)
             # E091: Use prorated_annual_compensation for accuracy with partial-year employees

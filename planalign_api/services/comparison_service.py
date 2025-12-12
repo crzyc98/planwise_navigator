@@ -12,6 +12,7 @@ from ..models.comparison import (
     WorkforceMetrics,
 )
 from ..storage.workspace_storage import WorkspaceStorage
+from .database_path_resolver import DatabasePathResolver
 
 logger = logging.getLogger(__name__)
 
@@ -19,8 +20,13 @@ logger = logging.getLogger(__name__)
 class ComparisonService:
     """Service for comparing scenarios."""
 
-    def __init__(self, storage: WorkspaceStorage):
+    def __init__(
+        self,
+        storage: WorkspaceStorage,
+        db_resolver: Optional[DatabasePathResolver] = None,
+    ):
         self.storage = storage
+        self.db_resolver = db_resolver or DatabasePathResolver(storage)
 
     def compare_scenarios(
         self,
@@ -88,30 +94,11 @@ class ComparisonService:
         try:
             import duckdb
 
-            scenario_path = self.storage._scenario_path(workspace_id, scenario_id)
-            db_path = scenario_path / "simulation.duckdb"
-
-            if not db_path.exists():
-                # Check workspace-level database
-                workspace_path = self.storage._workspace_path(workspace_id)
-                db_path = workspace_path / "simulation.duckdb"
-
-            if not db_path.exists():
-                # Fall back to main project database (dbt/simulation.duckdb)
-                # WARNING: This is shared across all scenarios!
-                project_root = Path(__file__).parent.parent.parent
-                db_path = project_root / "dbt" / "simulation.duckdb"
-
-                if db_path.exists():
-                    logger.warning(
-                        f"Using global database for scenario {scenario_id}. "
-                        "This shows shared data from CLI simulations."
-                    )
-
-            if not db_path.exists():
+            resolved = self.db_resolver.resolve(workspace_id, scenario_id)
+            if not resolved.exists:
                 return None
 
-            conn = duckdb.connect(str(db_path), read_only=True)
+            conn = duckdb.connect(str(resolved.path), read_only=True)
 
             # Load workforce snapshots
             try:
