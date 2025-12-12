@@ -1,11 +1,10 @@
 # Task Management
 
 ## Active Tasks
-- **E103** - Analytics Page Dropdown Selection Fix (PR pending)
-  - Root cause: React state race condition in `fetchWorkspaces()`
-  - Fix: Skip auto-selection when initialized from URL parameter
+- None currently
 
 ## Completed Tasks
+- **E103** - Analytics Page Dropdown Selection Fix (PR #97)
 - **E102** - Escalation Variables Not Being Passed to Polars (PR #96)
 - **E101** - Auto-Escalation UI Config Not Being Applied (PR #93)
 - **E100** - Copy Scenario Data Sources Fix (PR #92)
