@@ -286,3 +286,4 @@ pnpm-lock.yaml
 
 # Vite
 .vite/
+.specify/
