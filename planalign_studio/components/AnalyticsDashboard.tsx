@@ -114,8 +114,8 @@ export default function AnalyticsDashboard() {
             setSelectedWorkspaceId(details.workspace_id);
             setSelectedScenarioId(scenarioIdFromUrl);
             setInitializedFromUrl(true);
-            // Fetch workspaces for the dropdown
-            fetchWorkspaces();
+            // E103 FIX: Pass true to skip auto-selection since we already set workspace from URL
+            fetchWorkspaces(true);
             return;
           }
         } catch (err) {
@@ -148,12 +148,14 @@ export default function AnalyticsDashboard() {
     }
   }, [selectedScenarioId]);
 
-  const fetchWorkspaces = async () => {
+  // E103 FIX: Accept optional parameter to skip auto-selection when initialized from URL
+  const fetchWorkspaces = async (skipAutoSelect = false) => {
     try {
       const data = await listWorkspaces();
       setWorkspaces(data);
       // Auto-select: prefer context workspace if available, else first
-      if (data.length > 0 && !selectedWorkspaceId) {
+      // Skip auto-select if we already have a workspace from URL initialization
+      if (data.length > 0 && !selectedWorkspaceId && !skipAutoSelect) {
         const preferredWorkspace = data.find(ws => ws.id === contextWorkspace?.id);
         setSelectedWorkspaceId(preferredWorkspace?.id || data[0].id);
       }
