@@ -33,7 +33,7 @@ from .validation import DataValidator
 from .pipeline.workflow import WorkflowBuilder, WorkflowStage, StageDefinition, WorkflowCheckpoint
 from .pipeline.state_manager import StateManager
 from .pipeline.data_cleanup import DataCleanupManager
-from .pipeline.hooks import HookManager
+from .pipeline.hooks import HookManager, HookType
 from .pipeline.year_executor import YearExecutor
 from .pipeline.event_generation_executor import EventGenerationExecutor
 
@@ -527,6 +527,12 @@ class PipelineOrchestrator:
     ) -> MultiYearSummary:
         start = start_year or self.config.simulation.start_year
         end = end_year or self.config.simulation.end_year
+
+        # Execute PRE_SIMULATION hooks (e.g., self-healing database initialization)
+        self.hook_manager.execute_hooks(
+            HookType.PRE_SIMULATION,
+            {"start_year": start, "end_year": end, "dry_run": dry_run}
+        )
 
         # Enhanced multi-year simulation startup logging
         self._log_simulation_startup_summary(start, end)

@@ -488,3 +488,126 @@ class StateInconsistencyError(StateError):
     """Inconsistent state between database and checkpoints"""
     def __init__(self, message: str, **kwargs):
         super().__init__(message, severity=ErrorSeverity.CRITICAL, **kwargs)
+
+
+# Initialization Errors (E006 - Self-Healing dbt Initialization)
+class InitializationError(NavigatorError):
+    """Base exception for database initialization failures.
+
+    Raised when automatic database initialization fails during first-time
+    simulation in a new workspace.
+    """
+    def __init__(
+        self,
+        message: str,
+        *,
+        step: str | None = None,
+        missing_tables: list[str] | None = None,
+        **kwargs
+    ):
+        if step:
+            kwargs["metadata"] = kwargs.get("metadata", {})
+            kwargs["metadata"]["failed_step"] = step
+        if missing_tables:
+            kwargs["metadata"] = kwargs.get("metadata", {})
+            kwargs["metadata"]["missing_tables"] = missing_tables
+        super().__init__(message, category=ErrorCategory.STATE, **kwargs)
+
+
+class InitializationTimeoutError(InitializationError):
+    """Raised when initialization exceeds the configured timeout.
+
+    Per SC-003, initialization must complete within 60 seconds for standard
+    workspace configurations.
+    """
+    def __init__(
+        self,
+        timeout_seconds: float,
+        elapsed_seconds: float,
+        **kwargs
+    ):
+        message = (
+            f"Initialization exceeded {timeout_seconds}s timeout "
+            f"(elapsed: {elapsed_seconds:.1f}s)"
+        )
+        if "resolution_hints" not in kwargs:
+            kwargs["resolution_hints"] = [
+                ResolutionHint(
+                    title="Initialization Timeout",
+                    description="Database initialization took longer than expected",
+                    steps=[
+                        "Check disk I/O performance",
+                        "Verify dbt-duckdb is working: dbt debug",
+                        "Run manual initialization: dbt seed && dbt run --select tag:foundation",
+                        "Check for large seed files that may slow loading"
+                    ],
+                    documentation_url="docs/troubleshooting.md#initialization-timeout",
+                    estimated_resolution_time="5-10 minutes"
+                )
+            ]
+        kwargs["metadata"] = kwargs.get("metadata", {})
+        kwargs["metadata"]["timeout_seconds"] = timeout_seconds
+        kwargs["metadata"]["elapsed_seconds"] = elapsed_seconds
+        super().__init__(message, severity=ErrorSeverity.RECOVERABLE, **kwargs)
+
+
+class ConcurrentInitializationError(InitializationError):
+    """Raised when another initialization is already in progress.
+
+    Uses file-based mutex to prevent concurrent database modifications.
+    """
+    def __init__(self, lock_file: str, **kwargs):
+        message = f"Another initialization is already in progress (lock: {lock_file})"
+        if "resolution_hints" not in kwargs:
+            kwargs["resolution_hints"] = [
+                ResolutionHint(
+                    title="Concurrent Initialization",
+                    description="Another process is initializing the database",
+                    steps=[
+                        "Wait for the other initialization to complete",
+                        "Check if another simulation is running: ps aux | grep planalign",
+                        "If no other process, remove stale lock: rm <lock_file>",
+                        "Retry the simulation"
+                    ],
+                    documentation_url="docs/troubleshooting.md#concurrent-initialization",
+                    estimated_resolution_time="1-2 minutes"
+                )
+            ]
+        kwargs["metadata"] = kwargs.get("metadata", {})
+        kwargs["metadata"]["lock_file"] = lock_file
+        super().__init__(message, severity=ErrorSeverity.RECOVERABLE, **kwargs)
+
+
+class DatabaseCorruptionError(InitializationError):
+    """Raised when the database file is corrupted.
+
+    Detected when DuckDB cannot open or query the database file.
+    """
+    def __init__(
+        self,
+        db_path: str,
+        *,
+        original_exception: Exception | None = None,
+        **kwargs
+    ):
+        message = f"Database file is corrupted: {db_path}"
+        if "resolution_hints" not in kwargs:
+            kwargs["resolution_hints"] = [
+                ResolutionHint(
+                    title="Database Corruption",
+                    description="The database file is corrupted and cannot be read",
+                    steps=[
+                        "Back up the corrupted database file if needed",
+                        "Delete or rename the corrupted database",
+                        "Retry simulation - a new database will be created",
+                        "If issue persists, check disk health"
+                    ],
+                    documentation_url="docs/troubleshooting.md#database-corruption",
+                    estimated_resolution_time="2-5 minutes"
+                )
+            ]
+        kwargs["metadata"] = kwargs.get("metadata", {})
+        kwargs["metadata"]["db_path"] = db_path
+        if original_exception:
+            kwargs["original_exception"] = original_exception
+        super().__init__(message, severity=ErrorSeverity.ERROR, **kwargs)
