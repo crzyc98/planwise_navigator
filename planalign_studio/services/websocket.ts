@@ -5,7 +5,27 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { SimulationTelemetry } from './api';
 
-const WS_BASE = import.meta.env.VITE_WS_URL || 'ws://localhost:8000';
+// Dynamically determine WebSocket URL based on current page location
+// This handles Codespaces, remote servers, and local development
+function getWebSocketBase(): string {
+  // Check for explicit environment variable first
+  if (import.meta.env.VITE_WS_URL) {
+    return import.meta.env.VITE_WS_URL;
+  }
+
+  // Auto-detect based on window location
+  const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+  const host = window.location.hostname;
+
+  // In development, API is on port 8000
+  // In production or same-origin deployment, use same port
+  const port = window.location.port === '5173' || window.location.port === '3000' ? '8000' : window.location.port || '';
+  const portSuffix = port ? `:${port}` : '';
+
+  return `${protocol}//${host}${portSuffix}`;
+}
+
+const WS_BASE = getWebSocketBase();
 
 // ============================================================================
 // Types
@@ -77,10 +97,13 @@ export function useSimulationSocket(runId: string | null): UseSimulationSocketRe
 
     setStatus(prev => ({ ...prev, isConnecting: true, error: null }));
 
-    const ws = new WebSocket(`${WS_BASE}/ws/simulation/${runId}`);
+    const wsUrl = `${WS_BASE}/ws/simulation/${runId}`;
+    console.log('[WebSocket] Connecting to:', wsUrl);
+    const ws = new WebSocket(wsUrl);
     wsRef.current = ws;
 
     ws.onopen = () => {
+      console.log('[WebSocket] Connected successfully');
       setStatus({
         isConnected: true,
         isConnecting: false,
@@ -95,9 +118,11 @@ export function useSimulationSocket(runId: string | null): UseSimulationSocketRe
 
         // Handle heartbeat
         if (data.type === 'heartbeat') {
+          console.log('[WebSocket] Heartbeat received');
           return;
         }
 
+        console.log('[WebSocket] Telemetry received:', data.progress, data.current_stage);
         // Update telemetry
         setTelemetry(data as SimulationTelemetry);
 
@@ -114,7 +139,8 @@ export function useSimulationSocket(runId: string | null): UseSimulationSocketRe
     };
 
     ws.onerror = (event) => {
-      console.error('WebSocket error:', event);
+      console.error('[WebSocket] Error:', event);
+      console.error('[WebSocket] URL was:', wsUrl);
       setStatus(prev => ({
         ...prev,
         error: 'Connection error',
