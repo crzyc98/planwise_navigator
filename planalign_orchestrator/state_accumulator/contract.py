@@ -73,6 +73,13 @@ class StateAccumulatorContract(BaseModel):
         default="",
         description="Human-readable description of the accumulator"
     )
+    required_for_year_validation: bool = Field(
+        default=True,
+        description="If True, this accumulator MUST have rows for year N-1 "
+                    "before year N can execute. Set to False for accumulators "
+                    "that may legitimately have 0 rows (e.g., only tracking "
+                    "enrolled employees when no one has enrolled yet)."
+    )
 
     @field_validator("model_name")
     @classmethod

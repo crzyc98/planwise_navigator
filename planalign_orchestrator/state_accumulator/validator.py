@@ -96,17 +96,18 @@ class YearDependencyValidator:
         logger.debug(f"Year dependency validation passed for year {year}")
 
     def get_missing_years(self, year: int) -> Dict[str, int]:
-        """Check which accumulators are missing prior year data.
+        """Check which required accumulators are missing prior year data.
 
         Queries each registered state accumulator table to check if data
-        exists for the prior year (year - 1).
+        exists for the prior year (year - 1). Only checks accumulators where
+        required_for_year_validation=True.
 
         Args:
             year: The simulation year to check dependencies for.
 
         Returns:
             Dict mapping table_name to row count (0 indicates missing data).
-            Empty dict if all dependencies are satisfied.
+            Empty dict if all required dependencies are satisfied.
 
         Example:
             >>> missing = validator.get_missing_years(2026)
@@ -130,11 +131,17 @@ class YearDependencyValidator:
             )
 
             if count == 0:
-                missing[contract.table_name] = 0
-                logger.debug(
-                    f"Missing data: {contract.table_name} has 0 rows "
-                    f"for {contract.prior_year_column}={prior_year}"
-                )
+                if contract.required_for_year_validation:
+                    missing[contract.table_name] = 0
+                    logger.debug(
+                        f"Missing data (REQUIRED): {contract.table_name} has 0 rows "
+                        f"for {contract.prior_year_column}={prior_year}"
+                    )
+                else:
+                    logger.debug(
+                        f"Empty accumulator (optional): {contract.table_name} has 0 rows "
+                        f"for {contract.prior_year_column}={prior_year} - allowed"
+                    )
             else:
                 logger.debug(
                     f"Found data: {contract.table_name} has {count} rows "

@@ -68,12 +68,13 @@ def _register_default_accumulators() -> None:
             )
         )
 
-    # Register deferral rate state accumulator
-    if not StateAccumulatorRegistry.is_registered("int_deferral_rate_state_accumulator"):
+    # Register deferral rate state accumulator (v2)
+    # Note: The pipeline uses int_deferral_rate_state_accumulator_v2, not the original
+    if not StateAccumulatorRegistry.is_registered("int_deferral_rate_state_accumulator_v2"):
         StateAccumulatorRegistry.register(
             StateAccumulatorContract(
-                model_name="int_deferral_rate_state_accumulator",
-                table_name="int_deferral_rate_state_accumulator",
+                model_name="int_deferral_rate_state_accumulator_v2",
+                table_name="int_deferral_rate_state_accumulator_v2",
                 prior_year_column="simulation_year",
                 start_year_source="int_employee_compensation_by_year",
                 description="Tracks employee deferral rate state across simulation years. "
