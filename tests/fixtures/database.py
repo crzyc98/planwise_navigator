@@ -122,3 +122,34 @@ def isolated_test_db(tmp_path) -> Generator[Path, None, None]:
     # Cleanup
     if db_path.exists():
         db_path.unlink()
+
+
+@pytest.fixture
+def empty_database(tmp_path) -> Generator[Path, None, None]:
+    """
+    Empty database file for testing self-healing initialization.
+
+    Creates a DuckDB database file with no tables, simulating
+    a new workspace that needs initialization.
+
+    Usage:
+        @pytest.mark.fast
+        @pytest.mark.unit
+        def test_initialization_needed(empty_database):
+            from planalign_orchestrator.self_healing import TableExistenceChecker
+            # Checker should detect no required tables exist
+            checker = TableExistenceChecker(db_manager)
+            assert not checker.is_initialized()
+    """
+    db_path = tmp_path / "empty_simulation.duckdb"
+
+    # Create empty database with just the main schema
+    conn = duckdb.connect(str(db_path))
+    conn.execute("CREATE SCHEMA IF NOT EXISTS main")
+    conn.close()
+
+    yield db_path
+
+    # Cleanup
+    if db_path.exists():
+        db_path.unlink()
