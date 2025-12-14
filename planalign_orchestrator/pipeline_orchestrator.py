@@ -199,6 +199,7 @@ class PipelineOrchestrator:
             db_manager=db_manager,
             dbt_vars=self._dbt_vars,
             dbt_threads=self.dbt_threads,
+            start_year=config.simulation.start_year,
             event_shards=self.event_shards,
             verbose=verbose,
             parallel_execution_engine=parallel_execution_engine,
