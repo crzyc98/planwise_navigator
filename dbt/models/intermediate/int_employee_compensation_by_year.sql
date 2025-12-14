@@ -2,7 +2,7 @@
     materialized='incremental',
     unique_key="employee_id || '_' || simulation_year",
     incremental_strategy='delete+insert',
-    on_schema_change='ignore',
+    on_schema_change='sync_all_columns',
     tags=['FOUNDATION', 'critical', 'compensation']
 ) }}
 

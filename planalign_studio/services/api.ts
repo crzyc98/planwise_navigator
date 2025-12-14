@@ -4,7 +4,27 @@
  * Connects to the FastAPI backend at planalign_api/
  */
 
-const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:8000';
+// Dynamically determine API URL based on current page location
+// This handles Codespaces, remote servers, and local development
+function getApiBase(): string {
+  // Check for explicit environment variable first
+  if (import.meta.env.VITE_API_URL) {
+    return import.meta.env.VITE_API_URL;
+  }
+
+  // Auto-detect based on window location
+  const protocol = window.location.protocol;
+  const host = window.location.hostname;
+
+  // In development, API is on port 8000
+  // In production or same-origin deployment, use same port
+  const port = window.location.port === '5173' || window.location.port === '3000' ? '8000' : window.location.port || '';
+  const portSuffix = port ? `:${port}` : '';
+
+  return `${protocol}//${host}${portSuffix}`;
+}
+
+const API_BASE = getApiBase();
 
 // ============================================================================
 // Types (aligned with backend Pydantic models)
