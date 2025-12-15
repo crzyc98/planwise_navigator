@@ -752,6 +752,8 @@ See `/docs/VERSIONING_GUIDE.md` for detailed versioning workflow.
 - DuckDB 1.0.0 (immutable event store at `dbt/simulation.duckdb`) (004-event-type-abstraction)
 - Python 3.11 + Pydantic v2 (validation), FastAPI (dependency injection context), pathlib (path handling) (005-database-path-resolver)
 - DuckDB databases at multiple levels (scenario, workspace, project) (005-database-path-resolver)
+- Python 3.11 + Pydantic v2 (type-safe contracts), existing `planalign_orchestrator` modules (007-state-accumulator-contract)
+- DuckDB 1.0.0 (existing `dbt/simulation.duckdb`) (007-state-accumulator-contract)
 
 ## Recent Changes
 - 001-centralize-band-definitions: Added SQL (DuckDB 1.0.0), dbt-core 1.8.8 + dbt-duckdb 1.8.1, DuckDB
