@@ -843,6 +843,21 @@ class PipelineOrchestrator:
                 )
             self._seeded = True
 
+        # FIX: For start_year, explicitly run staging models before foundation
+        # This ensures stg_census_data is built with correct census_parquet_path
+        if year == self.config.simulation.start_year:
+            print("   📦 Building staging models for start year...")
+            staging_res = self.dbt_runner.execute_command(
+                ["run", "--select", "staging.*"],
+                simulation_year=year,
+                dbt_vars=self._dbt_vars,
+                stream_output=True
+            )
+            if not staging_res.success:
+                raise PipelineStageError(
+                    f"Staging models failed with code {staging_res.return_code}"
+                )
+
         # Year 1 registry seeding
         if year == self.config.simulation.start_year:
             self.registry_manager.get_enrollment_registry().create_for_year(year)
