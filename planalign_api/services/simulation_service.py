@@ -353,6 +353,16 @@ class SimulationService:
                 "--verbose",
             ]
 
+            # Check engine setting from config (advanced settings)
+            # The frontend sends 'polars' or 'sql' in the advanced.engine field
+            advanced_config = config.get("advanced", {})
+            engine = advanced_config.get("engine", "sql")
+            if engine == "polars":
+                cmd.append("--use-polars-engine")
+                logger.info("Using Polars engine (375× faster)")
+            else:
+                logger.info("Using SQL/dbt engine")
+
             logger.info(f"Starting simulation with config: {config_path}")
             logger.info(f"Scenario database: {scenario_db_path}")
             logger.info(f"Command: {' '.join(cmd)}")

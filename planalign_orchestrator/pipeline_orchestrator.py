@@ -1011,11 +1011,15 @@ class PipelineOrchestrator:
                     scenario_id = getattr(self.config, 'scenario_id', 'default') or 'default'
                     cohort_output_dir = self.config.get_cohort_output_dir()
 
+                    # Pass database path to ensure Polars uses correct scenario database
+                    db_path = getattr(self.db_manager, 'db_path', None)
+
                     cohorts = execute_polars_cohort_generation(
                         config=self.config,
                         simulation_year=year,
                         scenario_id=scenario_id,
-                        output_dir=cohort_output_dir
+                        output_dir=cohort_output_dir,
+                        database_path=db_path
                     )
 
                     if self.verbose:
