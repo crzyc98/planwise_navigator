@@ -38,18 +38,22 @@ class PolarsIntegrationManager:
     def __init__(
         self,
         config: SimulationConfig,
-        output_dir: Optional[Path] = None
+        output_dir: Optional[Path] = None,
+        database_path: Optional[Path] = None
     ):
         self.config = config
         self.output_dir = output_dir or get_project_root() / "outputs" / "polars_cohorts"
         self.output_dir.mkdir(parents=True, exist_ok=True)
+
+        # Use provided database path or fall back to default
+        self.database_path = database_path
 
         self.engine = WorkforcePlanningEngine(
             random_seed=config.simulation.random_seed
         )
 
         logger.info(
-            f"Initialized Polars integration (random_seed={config.simulation.random_seed})"
+            f"Initialized Polars integration (random_seed={config.simulation.random_seed}, db={database_path})"
         )
 
     def execute_year(
@@ -116,7 +120,9 @@ class PolarsIntegrationManager:
         import duckdb
         from planalign_orchestrator.config import get_database_path
 
-        conn = duckdb.connect(str(get_database_path()))
+        # Use instance database path if provided, otherwise fall back to default
+        db_path = self.database_path or get_database_path()
+        conn = duckdb.connect(str(db_path))
 
         try:
             # Determine source table based on year
@@ -200,7 +206,8 @@ def execute_polars_cohort_generation(
     config: SimulationConfig,
     simulation_year: int,
     scenario_id: str = "default",
-    output_dir: Optional[Path] = None
+    output_dir: Optional[Path] = None,
+    database_path: Optional[Path] = None
 ) -> Dict[str, pl.DataFrame]:
     """
     Convenience function to execute Polars cohort generation.
@@ -211,8 +218,9 @@ def execute_polars_cohort_generation(
         cohorts = execute_polars_cohort_generation(
             config=config,
             simulation_year=2025,
-            scenario_id="baseline"
+            scenario_id="baseline",
+            database_path=Path("/path/to/simulation.duckdb")
         )
     """
-    manager = PolarsIntegrationManager(config, output_dir)
+    manager = PolarsIntegrationManager(config, output_dir, database_path)
     return manager.execute_year(simulation_year, scenario_id)

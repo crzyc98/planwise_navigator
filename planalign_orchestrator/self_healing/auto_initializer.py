@@ -80,6 +80,7 @@ class AutoInitializer:
         verbose: bool = False,
         timeout_seconds: float = DEFAULT_TIMEOUT_SECONDS,
         use_lock: bool = True,
+        start_year: int = 2025,
     ) -> None:
         """Initialize auto-initializer with dependencies.
 
@@ -89,12 +90,14 @@ class AutoInitializer:
             verbose: Enable verbose progress output
             timeout_seconds: Maximum time for initialization (default: 60s per SC-003)
             use_lock: Use file-based mutex to prevent concurrent initialization
+            start_year: Simulation start year for foundation model initialization
         """
         self.db_manager = db_manager
         self.dbt_runner = dbt_runner
         self.verbose = verbose
         self.timeout_seconds = timeout_seconds
         self.use_lock = use_lock
+        self.start_year = start_year
         self._checker = TableExistenceChecker(db_manager)
         self._start_time: Optional[float] = None
         self._lock: Optional[ExecutionMutex] = None
@@ -401,6 +404,7 @@ class AutoInitializer:
         result = self.dbt_runner.execute_command(
             ["run", "--select", "tag:FOUNDATION", "--threads", "1"],
             stream_output=self.verbose,
+            simulation_year=self.start_year,  # FIX: Pass start_year to avoid default 2025
         )
         if not result.success:
             raise InitializationError(

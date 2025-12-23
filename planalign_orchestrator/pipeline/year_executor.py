@@ -24,6 +24,7 @@ from typing import Any, Dict, List, Optional
 
 from planalign_orchestrator.config import SimulationConfig, get_database_path
 from planalign_orchestrator.dbt_runner import DbtResult, DbtRunner
+from planalign_orchestrator.state_accumulator import YearDependencyValidator
 from planalign_orchestrator.utils import DatabaseConnectionManager
 
 from .workflow import StageDefinition, WorkflowStage
@@ -90,6 +91,7 @@ class YearExecutor:
         db_manager: DatabaseConnectionManager,
         dbt_vars: Dict[str, Any],
         dbt_threads: int,
+        start_year: int,
         event_shards: int = 1,
         verbose: bool = False,
         parallel_execution_engine: Optional[Any] = None,
@@ -104,6 +106,7 @@ class YearExecutor:
             db_manager: Database connection manager
             dbt_vars: dbt variables for template rendering
             dbt_threads: Number of threads for dbt execution
+            start_year: The configured simulation start year for dependency validation
             event_shards: Number of shards for event generation (default: 1)
             verbose: Enable verbose logging (default: False)
             parallel_execution_engine: Optional ParallelExecutionEngine for advanced parallelization
@@ -115,11 +118,15 @@ class YearExecutor:
         self.db_manager = db_manager
         self._dbt_vars = dbt_vars
         self.dbt_threads = dbt_threads
+        self.start_year = start_year
         self.event_shards = event_shards
         self.verbose = verbose
         self.parallel_execution_engine = parallel_execution_engine
         self.model_parallelization_enabled = model_parallelization_enabled
         self.parallelization_config = parallelization_config
+
+        # Initialize year dependency validator for temporal state accumulator validation
+        self._year_validator = YearDependencyValidator(db_manager, start_year=start_year)
 
     def execute_workflow_stage(
         self,
@@ -164,6 +171,10 @@ class YearExecutor:
                 # EVENT_GENERATION can be parallelized safely
                 results = self._execute_parallel_stage(stage, year)
             elif stage.name == WorkflowStage.STATE_ACCUMULATION:
+                # Validate year dependencies before state accumulation
+                # This prevents silent data corruption from out-of-order year execution
+                self._year_validator.validate_year_dependencies(year)
+
                 # E076: Try Polars state accumulation if enabled
                 polars_success = False
                 if self._should_use_polars_state_accumulation():

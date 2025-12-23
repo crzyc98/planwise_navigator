@@ -45,17 +45,24 @@ class OrchestratorWrapper:
                 raise FileNotFoundError(f"Configuration file not found: {self.config_path}")
             self._config = load_simulation_config(self.config_path)
 
-            # Enable Polars cohort engine if requested via CLI flag
-            if self.use_polars_engine:
-                # Ensure optimization settings exist
-                if not self._config.optimization:
-                    from planalign_orchestrator.config import OptimizationSettings
-                    self._config.optimization = OptimizationSettings()
+            # Ensure optimization settings exist
+            if not self._config.optimization:
+                from planalign_orchestrator.config import OptimizationSettings
+                self._config.optimization = OptimizationSettings()
 
+            # Set event generation mode based on CLI flag
+            # This explicitly overrides any config file settings to ensure
+            # the UI selection (polars vs sql/pandas) is respected
+            if self.use_polars_engine:
                 # Enable Polars event generation and cohort engine
                 self._config.optimization.event_generation.mode = "polars"
                 self._config.optimization.event_generation.polars.enabled = True
                 self._config.optimization.event_generation.polars.use_cohort_engine = True
+            else:
+                # Explicitly set SQL mode to override any config file polars settings
+                self._config.optimization.event_generation.mode = "sql"
+                self._config.optimization.event_generation.polars.enabled = False
+                self._config.optimization.event_generation.polars.use_cohort_engine = False
 
         return self._config
 

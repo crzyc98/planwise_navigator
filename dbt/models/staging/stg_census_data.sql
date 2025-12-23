@@ -11,7 +11,39 @@
 -- **DEDUPLICATION**: Removes duplicate employee_ids, keeping most recent hire date.
 -- See stg_census_duplicates_audit for full duplicate tracking and data quality monitoring.
 
-WITH raw_data AS (
+-- Schema scaffold: ensures all optional DC plan columns exist with proper types
+-- The WHERE false clause adds columns to schema without adding rows
+WITH schema_scaffold AS (
+  SELECT
+      NULL::VARCHAR AS employee_id,
+      NULL::VARCHAR AS employee_ssn,
+      NULL::DATE AS employee_birth_date,
+      NULL::DATE AS employee_hire_date,
+      NULL::DATE AS employee_termination_date,
+      NULL::DECIMAL(12,2) AS employee_gross_compensation,
+      NULL::BOOLEAN AS active,
+      -- DC plan columns (optional in source parquet)
+      NULL::DECIMAL(12,2) AS employee_capped_compensation,
+      NULL::DECIMAL(7,5) AS employee_deferral_rate,
+      NULL::DECIMAL(12,2) AS employee_contribution,
+      NULL::DECIMAL(12,2) AS pre_tax_contribution,
+      NULL::DECIMAL(12,2) AS roth_contribution,
+      NULL::DECIMAL(12,2) AS after_tax_contribution,
+      NULL::DECIMAL(12,2) AS employer_core_contribution,
+      NULL::DECIMAL(12,2) AS employer_match_contribution,
+      NULL::DATE AS eligibility_entry_date
+  WHERE false
+),
+
+-- Combine actual parquet data with schema scaffold using UNION ALL BY NAME
+-- This ensures missing columns get NULL values instead of binding errors
+parquet_with_schema AS (
+  SELECT * FROM read_parquet('{{ var("census_parquet_path") }}')
+  UNION ALL BY NAME
+  SELECT * FROM schema_scaffold
+),
+
+raw_data AS (
   SELECT
       employee_id,
       employee_ssn,
@@ -24,8 +56,7 @@ WITH raw_data AS (
       -- Use gross compensation as plan year compensation when specific column missing
       employee_gross_compensation AS raw_plan_year_compensation,
 
-      -- Read DC plan fields from parquet file (now available in updated data feed)
-      -- Cast to match dbt contract data types
+      -- DC plan fields (now safely available via schema scaffold)
       CAST(employee_capped_compensation AS DECIMAL(12,2)) AS employee_capped_compensation,
       CAST(employee_deferral_rate AS DECIMAL(7,5)) AS employee_deferral_rate,
       CAST(employee_contribution AS DECIMAL(12,2)) AS employee_contribution,
@@ -42,7 +73,7 @@ WITH raw_data AS (
           ORDER BY TRY_CAST(employee_hire_date AS DATE) DESC, employee_gross_compensation DESC
       ) AS rn
 
-  FROM read_parquet('{{ var("census_parquet_path") }}')
+  FROM parquet_with_schema
 ),
 
 -- Annualized compensation calculation

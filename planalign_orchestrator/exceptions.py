@@ -490,6 +490,67 @@ class StateInconsistencyError(StateError):
         super().__init__(message, severity=ErrorSeverity.CRITICAL, **kwargs)
 
 
+class YearDependencyError(StateError):
+    """Raised when temporal year dependencies are not satisfied.
+
+    This error occurs when attempting to execute a simulation year before
+    its prerequisite years have been executed. For example, trying to run
+    year 2027 when year 2026 data does not exist in the state accumulators.
+
+    Attributes:
+        year: The year that failed validation
+        missing_tables: Dict mapping table names to row counts (0 = missing)
+        start_year: The configured simulation start year
+        resolution_hint: Suggested fix for the error
+    """
+
+    def __init__(
+        self,
+        year: int,
+        missing_tables: Dict[str, int],
+        start_year: int,
+        **kwargs
+    ):
+        self.year = year
+        self.missing_tables = missing_tables
+        self.start_year = start_year
+
+        # Build error message
+        tables_list = "\n".join(
+            f"  - {table} (0 rows for year {year - 1})"
+            for table in sorted(missing_tables.keys())
+        )
+
+        # Build year sequence hint
+        sequence = " -> ".join(str(y) for y in range(start_year, year + 1))
+
+        message = (
+            f"Year {year} depends on year {year - 1} data which has not been executed.\n\n"
+            f"Missing data for accumulators:\n{tables_list}\n\n"
+            f"Resolution: Run years in sequence: {sequence}\n"
+            f"            Or use --start-year {year - 1} if resuming from checkpoint."
+        )
+
+        resolution_hint = ResolutionHint(
+            title="Execute Prior Years First",
+            description=f"Year {year} requires year {year - 1} data to exist in state accumulators",
+            steps=[
+                f"Run simulation from start year: planalign simulate {start_year}-{year}",
+                f"Or resume from checkpoint: planalign simulate --resume-from-checkpoint",
+                f"Verify prior year data exists in state accumulator tables"
+            ],
+            documentation_url="docs/guides/year-dependency-validation.md",
+            estimated_resolution_time="2-5 minutes"
+        )
+
+        super().__init__(
+            message,
+            severity=ErrorSeverity.ERROR,
+            resolution_hints=[resolution_hint],
+            **kwargs
+        )
+
+
 # Initialization Errors (E006 - Self-Healing dbt Initialization)
 class InitializationError(NavigatorError):
     """Base exception for database initialization failures.

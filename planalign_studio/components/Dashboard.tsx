@@ -197,18 +197,6 @@ export default function Dashboard() {
                 <span className="font-medium">Compare Results</span>
              </button>
           </div>
-
-          <div className="mt-8 p-4 bg-yellow-50 rounded-lg border border-yellow-100">
-            <div className="flex items-start">
-              <AlertCircle size={20} className="text-yellow-600 mt-0.5" />
-              <div className="ml-3">
-                <h3 className="text-sm font-medium text-yellow-800">System Maintenance</h3>
-                <p className="text-xs text-yellow-700 mt-1">
-                  Scheduled for tonight at 02:00 AM EST. Simulations may be paused.
-                </p>
-              </div>
-            </div>
-          </div>
         </div>
       </div>
     </div>
