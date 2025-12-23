@@ -112,7 +112,7 @@ irs_limits AS (
         base_limit,
         catch_up_limit,
         catch_up_limit AS total_limit
-    FROM {{ ref('irs_contribution_limits') }}
+    FROM {{ ref('config_irs_limits') }}
     WHERE limit_year = {{ simulation_year }}
     LIMIT 1
 )
@@ -204,7 +204,7 @@ SELECT
         END AS processing_complexity,
         '{{ var("dbt_version", "unknown") }}' AS dbt_version,
         'int_employee_contributions' AS source_model,
-        ARRAY['fct_yearly_events', 'int_enrollment_state_accumulator', 'irs_contribution_limits'] AS dependency_models
+        ARRAY['fct_yearly_events', 'int_enrollment_state_accumulator', 'config_irs_limits'] AS dependency_models
     ) AS system_audit_data,
 
     -- Cross-year consistency audit

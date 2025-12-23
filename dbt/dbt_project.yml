@@ -109,7 +109,7 @@ seeds:
       effective_date: date
 
     # Specific seed configurations
-    irs_contribution_limits:
+    config_irs_limits:
       +column_types:
         limit_year: integer
         base_limit: integer

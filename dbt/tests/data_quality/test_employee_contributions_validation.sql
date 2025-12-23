@@ -99,7 +99,7 @@ irs_limits_for_validation AS (
         base_limit,
         catch_up_limit,
         catch_up_age_threshold
-    FROM {{ ref('irs_contribution_limits') }}
+    FROM {{ ref('config_irs_limits') }}
     WHERE limit_year = (SELECT current_year FROM simulation_parameters)
 ),
 
@@ -191,24 +191,25 @@ excessive_contribution_rates AS (
       AND prorated_annual_compensation > 0
 ),
 
--- Validation 8: IRS limit flag accuracy
+-- Validation 8: IRS limit flag accuracy (using dynamic limits from config_irs_limits seed)
 irs_limit_flag_inaccuracy AS (
     SELECT
-        employee_id,
-        simulation_year,
+        w.employee_id,
+        w.simulation_year,
         'irs_limit_flag_inaccurate' AS validation_rule,
         'ERROR' AS severity,
         CONCAT(
-            'Employee ', employee_id, ' IRS limit flag mismatch. ',
-            'Flag: ', irs_limit_reached, ', ',
-            'Amount: $', ROUND(prorated_annual_contributions, 2)
+            'Employee ', w.employee_id, ' IRS limit flag mismatch. ',
+            'Flag: ', w.irs_limit_reached, ', ',
+            'Amount: $', ROUND(w.prorated_annual_contributions, 2)
         ) AS validation_message
-    FROM workforce_with_contributions
-    WHERE irs_limit_reached != (
-        prorated_annual_contributions >=
-            CASE WHEN current_age >= 50 THEN 31000 ELSE 23500 END
+    FROM workforce_with_contributions w
+    CROSS JOIN irs_limits_for_validation il
+    WHERE w.irs_limit_reached != (
+        w.prorated_annual_contributions >=
+            CASE WHEN w.current_age >= il.catch_up_age_threshold THEN il.catch_up_limit ELSE il.base_limit END
     )
-      AND prorated_annual_contributions > 0
+      AND w.prorated_annual_contributions > 0
 ),
 
 -- Validation 9: Contribution model integration
