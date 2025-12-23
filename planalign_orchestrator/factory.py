@@ -160,10 +160,13 @@ def create_orchestrator(
 
     # Register self-healing initialization hook if enabled
     if auto_initialize:
+        # Get start_year from config for proper foundation model initialization
+        start_year = builder._config.simulation.start_year if builder._config else 2025
         auto_initializer = AutoInitializer(
             db_manager=orchestrator.db_manager,
             dbt_runner=orchestrator.dbt_runner,
             verbose=verbose,
+            start_year=start_year,
         )
 
         def init_hook(context: dict) -> None:

@@ -800,6 +800,7 @@ class TestYearExecutorPolarsIntegration:
             db_manager=db_manager,
             dbt_vars={"scenario_id": "baseline", "plan_design_id": "standard_401k"},
             dbt_threads=1,
+            start_year=2025,
             verbose=True
         )
 
@@ -821,6 +822,7 @@ class TestYearExecutorPolarsIntegration:
             db_manager=db_manager,
             dbt_vars={"scenario_id": "baseline"},
             dbt_threads=1,
+            start_year=2025,
             verbose=False
         )
 
@@ -854,6 +856,7 @@ class TestYearExecutorPolarsIntegration:
             db_manager=db_manager,
             dbt_vars={"scenario_id": "baseline", "plan_design_id": "standard_401k"},
             dbt_threads=1,
+            start_year=2025,
             verbose=True
         )
 

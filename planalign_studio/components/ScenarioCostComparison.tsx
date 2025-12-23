@@ -10,7 +10,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import {
   Scale, RefreshCw, AlertCircle, ChevronDown, Database, Loader2,
-  TrendingUp, TrendingDown, Minus, DollarSign, Users, Percent
+  TrendingUp, TrendingDown, Minus, DollarSign, Users, Percent, ArrowLeftRight
 } from 'lucide-react';
 import {
   listWorkspaces,
@@ -250,14 +250,29 @@ export default function ScenarioCostComparison() {
     try {
       const data = await listScenarios(workspaceId);
       setScenarios(data);
-      // Auto-select first two completed scenarios if available
+      // Auto-select completed scenarios with smart baseline detection
       const completedScenarios = data.filter(s => s.status === 'completed');
-      if (completedScenarios.length >= 2) {
-        setBaselineScenarioId(completedScenarios[0].id);
-        setComparisonScenarioId(completedScenarios[1].id);
-      } else if (completedScenarios.length === 1) {
-        setBaselineScenarioId(completedScenarios[0].id);
-        setComparisonScenarioId('');
+
+      if (completedScenarios.length >= 1) {
+        // Look for a scenario named "baseline" (case-insensitive) to use as baseline
+        const baselineScenario = completedScenarios.find(
+          s => s.name.toLowerCase() === 'baseline'
+        );
+
+        if (baselineScenario) {
+          setBaselineScenarioId(baselineScenario.id);
+          // Set the first non-baseline scenario as comparison
+          const otherScenarios = completedScenarios.filter(s => s.id !== baselineScenario.id);
+          setComparisonScenarioId(otherScenarios.length > 0 ? otherScenarios[0].id : '');
+        } else if (completedScenarios.length >= 2) {
+          // No "baseline" found, use first two scenarios
+          setBaselineScenarioId(completedScenarios[0].id);
+          setComparisonScenarioId(completedScenarios[1].id);
+        } else {
+          // Only one scenario and it's not named "baseline"
+          setBaselineScenarioId(completedScenarios[0].id);
+          setComparisonScenarioId('');
+        }
       } else {
         setBaselineScenarioId('');
         setComparisonScenarioId('');
@@ -289,6 +304,14 @@ export default function ScenarioCostComparison() {
       setLoading(false);
     }
   };
+
+  const handleSwapScenarios = useCallback(() => {
+    if (baselineScenarioId && comparisonScenarioId) {
+      const tempBaseline = baselineScenarioId;
+      setBaselineScenarioId(comparisonScenarioId);
+      setComparisonScenarioId(tempBaseline);
+    }
+  }, [baselineScenarioId, comparisonScenarioId]);
 
   const completedScenarios = scenarios.filter(s => s.status === 'completed');
 
@@ -365,27 +388,28 @@ export default function ScenarioCostComparison() {
 
       {/* Workspace & Scenario Selection */}
       <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-200">
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-          {/* Workspace Selector */}
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">Workspace</label>
-            <div className="relative">
-              <select
-                value={selectedWorkspaceId}
-                onChange={(e) => setSelectedWorkspaceId(e.target.value)}
-                className="w-full pl-4 pr-10 py-2.5 border border-gray-300 rounded-lg bg-white text-gray-900 text-sm focus:ring-2 focus:ring-fidelity-green focus:border-fidelity-green appearance-none"
-              >
-                <option value="">Select workspace...</option>
-                {workspaces.map((ws) => (
-                  <option key={ws.id} value={ws.id}>{ws.name}</option>
-                ))}
-              </select>
-              <ChevronDown size={16} className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none" />
-            </div>
+        {/* Workspace Selector */}
+        <div className="mb-6">
+          <label className="block text-sm font-medium text-gray-700 mb-2">Workspace</label>
+          <div className="relative max-w-md">
+            <select
+              value={selectedWorkspaceId}
+              onChange={(e) => setSelectedWorkspaceId(e.target.value)}
+              className="w-full pl-4 pr-10 py-2.5 border border-gray-300 rounded-lg bg-white text-gray-900 text-sm focus:ring-2 focus:ring-fidelity-green focus:border-fidelity-green appearance-none"
+            >
+              <option value="">Select workspace...</option>
+              {workspaces.map((ws) => (
+                <option key={ws.id} value={ws.id}>{ws.name}</option>
+              ))}
+            </select>
+            <ChevronDown size={16} className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none" />
           </div>
+        </div>
 
+        {/* Scenario Selection Row with Swap Button */}
+        <div className="flex items-end gap-4">
           {/* Baseline Scenario Selector */}
-          <div>
+          <div className="flex-1">
             <label className="block text-sm font-medium text-gray-700 mb-2">
               <span className="inline-flex items-center">
                 <span className="w-3 h-3 bg-blue-500 rounded-full mr-2"></span>
@@ -410,8 +434,18 @@ export default function ScenarioCostComparison() {
             </div>
           </div>
 
+          {/* Swap Button */}
+          <button
+            onClick={handleSwapScenarios}
+            disabled={!baselineScenarioId || !comparisonScenarioId || loading}
+            className="flex items-center justify-center w-10 h-10 bg-gray-100 text-gray-600 rounded-lg hover:bg-gray-200 hover:text-gray-800 transition-colors disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:bg-gray-100 disabled:hover:text-gray-600"
+            title="Swap baseline and comparison scenarios"
+          >
+            <ArrowLeftRight size={18} />
+          </button>
+
           {/* Comparison Scenario Selector */}
-          <div>
+          <div className="flex-1">
             <label className="block text-sm font-medium text-gray-700 mb-2">
               <span className="inline-flex items-center">
                 <span className="w-3 h-3 bg-orange-500 rounded-full mr-2"></span>

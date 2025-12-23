@@ -199,6 +199,7 @@ class PipelineOrchestrator:
             db_manager=db_manager,
             dbt_vars=self._dbt_vars,
             dbt_threads=self.dbt_threads,
+            start_year=config.simulation.start_year,
             event_shards=self.event_shards,
             verbose=verbose,
             parallel_execution_engine=parallel_execution_engine,
@@ -842,6 +843,21 @@ class PipelineOrchestrator:
                 )
             self._seeded = True
 
+        # FIX: For start_year, explicitly run staging models before foundation
+        # This ensures stg_census_data is built with correct census_parquet_path
+        if year == self.config.simulation.start_year:
+            print("   📦 Building staging models for start year...")
+            staging_res = self.dbt_runner.execute_command(
+                ["run", "--select", "staging.*"],
+                simulation_year=year,
+                dbt_vars=self._dbt_vars,
+                stream_output=True
+            )
+            if not staging_res.success:
+                raise PipelineStageError(
+                    f"Staging models failed with code {staging_res.return_code}"
+                )
+
         # Year 1 registry seeding
         if year == self.config.simulation.start_year:
             self.registry_manager.get_enrollment_registry().create_for_year(year)
@@ -995,11 +1011,15 @@ class PipelineOrchestrator:
                     scenario_id = getattr(self.config, 'scenario_id', 'default') or 'default'
                     cohort_output_dir = self.config.get_cohort_output_dir()
 
+                    # Pass database path to ensure Polars uses correct scenario database
+                    db_path = getattr(self.db_manager, 'db_path', None)
+
                     cohorts = execute_polars_cohort_generation(
                         config=self.config,
                         simulation_year=year,
                         scenario_id=scenario_id,
-                        output_dir=cohort_output_dir
+                        output_dir=cohort_output_dir,
+                        database_path=db_path
                     )
 
                     if self.verbose:
