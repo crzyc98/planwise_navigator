@@ -22,12 +22,12 @@
   - Age-based limit determination (catch-up at age 50+)
   - Full transparency with requested vs. capped amounts
   - Audit trail for all limit applications
-  - Configurable limits via irs_contribution_limits seed
+  - Configurable limits via config_irs_limits seed
 
   Dependencies:
   - int_employee_compensation_by_year for compensation and age data
   - int_deferral_rate_state_accumulator_v2 for deferral rates (S042-01: Source of Truth Architecture Fix)
-  - irs_contribution_limits for IRS limit configuration
+  - config_irs_limits for IRS limit configuration
 */
 
 WITH simulation_parameters AS (
@@ -41,7 +41,7 @@ irs_limits_exact AS (
         base_limit,
         catch_up_limit,
         catch_up_age_threshold
-    FROM {{ ref('irs_contribution_limits') }}
+    FROM {{ ref('config_irs_limits') }}
     WHERE limit_year = (SELECT current_year FROM simulation_parameters)
 ),
 
@@ -52,7 +52,7 @@ irs_limits_fallback AS (
         base_limit,
         catch_up_limit,
         catch_up_age_threshold
-    FROM {{ ref('irs_contribution_limits') }}
+    FROM {{ ref('config_irs_limits') }}
     WHERE NOT EXISTS (SELECT 1 FROM irs_limits_exact)
     ORDER BY ABS(limit_year - (SELECT current_year FROM simulation_parameters))
     LIMIT 1
@@ -345,7 +345,7 @@ WHERE rn = 1
   - All contributions are capped at IRS 402(g) limits
   - Age-based catch-up contributions supported (age 50+)
   - Full transparency with requested vs. capped amounts
-  - Configurable limits via irs_contribution_limits seed
+  - Configurable limits via config_irs_limits seed
   - Zero tolerance for IRS limit violations
   - Complete audit trail for compliance reporting
 */

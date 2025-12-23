@@ -18,6 +18,17 @@ WITH simulation_parameters AS (
     SELECT {{ simulation_year }} AS current_year
 ),
 
+-- Get IRS contribution limits for the simulation year (with fallback to nearest available year)
+irs_limits_for_year AS (
+    SELECT
+        base_limit,
+        catch_up_limit,
+        catch_up_age_threshold
+    FROM {{ ref('config_irs_limits') }}
+    WHERE limit_year = {{ simulation_year }}
+    LIMIT 1
+),
+
 -- Base workforce: use baseline for year 1, previous year's active workforce for subsequent years
 base_workforce AS (
     {% if simulation_year == start_year %}
@@ -898,12 +909,12 @@ final_output AS (
         COALESCE(annual_contribution_amount * 0.85, 0.0) AS pre_tax_contributions,
         COALESCE(annual_contribution_amount * 0.15, 0.0) AS roth_contributions,
         COALESCE(annual_contribution_amount, 0.0) AS ytd_contributions,
-        -- IRS 402(g) limit check for 2025: $23,500 under 50, $31,000 for 50+
+        -- IRS 402(g) limit check using configurable limits from config_irs_limits seed
         CASE
             WHEN COALESCE(annual_contribution_amount, 0.0) >=
                 CASE
-                    WHEN current_age >= 50 THEN 31000  -- Catch-up contribution limit
-                    ELSE 23500  -- Standard limit for under 50
+                    WHEN current_age >= irs_limits.catch_up_age_threshold THEN irs_limits.catch_up_limit
+                    ELSE irs_limits.base_limit
                 END
             THEN true
             ELSE false
@@ -1006,6 +1017,7 @@ final_output AS (
 
         CURRENT_TIMESTAMP AS snapshot_created_at
     FROM final_workforce_with_contributions
+    CROSS JOIN irs_limits_for_year irs_limits
     {% if is_incremental() %}
     WHERE simulation_year = {{ simulation_year }}
     {% endif %}

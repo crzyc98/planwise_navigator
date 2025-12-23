@@ -48,7 +48,7 @@ WITH irs_contribution_limits AS (
         catch_up_limit,
         -- For reporting, treat total_limit as catch_up_limit for eligible employees
         catch_up_limit AS total_limit
-    FROM {{ ref('irs_contribution_limits') }}
+    FROM {{ ref('config_irs_limits') }}
     WHERE limit_year = {{ simulation_year }}
     LIMIT 1
 ),

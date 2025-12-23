@@ -5,6 +5,16 @@ Provides foundational configuration models and utilities used by the
 orchestration layer. Designed to be minimal, testable, and reusable.
 """
 
+# Configure sqlparse limits for large SQL models
+# sqlparse 0.5.5+ has DoS protection that limits token processing to 10,000
+# Our dbt models can exceed this limit, so we increase it to 50,000
+# See: https://discourse.getdbt.com/t/dbt-run-error-maximum-number-of-tokens-exceeded/20495
+try:
+    import sqlparse.engine.grouping
+    sqlparse.engine.grouping.MAX_GROUPING_TOKENS = 50000
+except (ImportError, AttributeError):
+    pass  # Older sqlparse versions don't have this setting
+
 from _version import __version__, get_full_version, get_version_dict
 
 from .config import (CompensationSettings, EnrollmentSettings,

@@ -50,7 +50,7 @@ irs_limits AS (
         base_limit,
         catch_up_limit,
         catch_up_age_threshold
-    FROM {{ ref('irs_contribution_limits') }}
+    FROM {{ ref('config_irs_limits') }}
     WHERE limit_year = {{ simulation_year }}
     LIMIT 1
 ),
