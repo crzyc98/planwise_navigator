@@ -24,9 +24,20 @@
 
 {% macro get_tiered_core_rate(years_of_service_col, graded_schedule, flat_rate) %}
 {%- if graded_schedule and graded_schedule | length > 0 -%}
+{#- Extract min_years values and sort them descending for correct CASE evaluation -#}
+{%- set min_years_list = [] -%}
+{%- for tier in graded_schedule -%}
+  {%- set _ = min_years_list.append(tier['min_years'] | int) -%}
+{%- endfor -%}
+{%- set sorted_min_years = min_years_list | sort(reverse=true) -%}
+{#- Build a lookup dict for rate by min_years -#}
+{%- set rate_lookup = {} -%}
+{%- for tier in graded_schedule -%}
+  {%- set _ = rate_lookup.update({tier['min_years'] | int: tier['rate']}) -%}
+{%- endfor -%}
 CASE
-  {%- for tier in graded_schedule | sort(attribute='min_years', reverse=true) %}
-  WHEN {{ years_of_service_col }} >= {{ tier['min_years'] }} THEN {{ tier['rate'] / 100.0 }}
+  {%- for min_yr in sorted_min_years %}
+  WHEN {{ years_of_service_col }} >= {{ min_yr }} THEN {{ rate_lookup[min_yr] / 100.0 }}
   {%- endfor %}
   ELSE {{ flat_rate }}
 END
