@@ -9,22 +9,34 @@
 /*
   Employer Core Contributions Model - Enhanced with Configuration
 
-  FIXED: Decoupled from deferral rate calculations to prevent auto-escalation from affecting core contributions
+  FIXED (Issue #009): Added support for service-based (graded by service) core contribution tiers.
+  FIXED: Decoupled from deferral rate calculations to prevent auto-escalation from affecting core contributions.
 
   Calculates employer core (non-elective) contribution amounts
   based on configurable business rules:
   - Configurable contribution rate (default 2%) via simulation_config.yaml
+  - Support for graded-by-service tiered rates (e.g., 0-9 years: 6%, 10+ years: 8%)
   - Enhanced eligibility criteria including minimum tenure requirements
   - Can be enabled/disabled via configuration
   - 0% for ineligible employees
   - Independent compensation proration logic (not affected by deferral rates)
+  - Audit trail field (applied_years_of_service) for compliance tracking
 
   Configuration driven via dbt variables:
   - employer_core_enabled: Master on/off switch
-  - employer_core_contribution_rate: Contribution rate (e.g., 0.02 for 2%)
+  - employer_core_status: 'none', 'flat', or 'graded_by_service'
+  - employer_core_contribution_rate: Flat contribution rate (e.g., 0.02 for 2%)
+  - employer_core_graded_schedule: List of service tiers with min_years, max_years, rate
   - core_minimum_tenure_years: Minimum years of service required
   - core_require_active_eoy: Must be active at year-end
   - core_minimum_hours: Minimum annual hours requirement
+
+  Service Tier Logic:
+  - When employer_core_status = 'graded_by_service', the model uses get_tiered_core_rate macro
+  - Tiers are sorted descending by min_years for correct CASE evaluation
+  - Uses [min, max) interval convention (min_years inclusive, max_years exclusive)
+  - Rate is divided by 100 to convert from percentage (6.0) to decimal (0.06)
+  - applied_years_of_service field provides audit trail for tier selection
 
   Bug Fix: Previously used int_employee_contributions for proration, which created
   unwanted dependency on deferral rate calculations. New hire terminations were
@@ -38,6 +50,8 @@
 {% set simulation_year = var('simulation_year', 2025) | int %}
 {% set employer_core_enabled = var('employer_core_enabled', true) %}
 {% set employer_core_contribution_rate = var('employer_core_contribution_rate', 0.02) %}
+{% set employer_core_status = var('employer_core_status', 'flat') %}
+{% set employer_core_graded_schedule = var('employer_core_graded_schedule', []) %}
 
 -- Read nested core config for termination exceptions, with flat var fallbacks
 {% set employer_core_config = var('employer_core_contribution', {}) %}
@@ -190,10 +204,12 @@ termination_flags AS (
 ),
 
 -- Snapshot-derived status flags to align with final classification
+-- Extended to include years_of_service for service-based core contribution tiers
 snapshot_flags AS (
     SELECT
         employee_id,
-        detailed_status_code
+        detailed_status_code,
+        FLOOR(COALESCE(current_tenure, 0))::INT AS years_of_service
     FROM {{ ref('int_workforce_snapshot_optimized') }}
     WHERE simulation_year = {{ simulation_year }}
 ),
@@ -243,7 +259,14 @@ SELECT
                     OR (snap.detailed_status_code = 'experienced_termination' AND ({{ 'true' if core_allow_experienced_terminations else 'false' }}))
                 )
             )
-        THEN ROUND(COALESCE(wf.prorated_annual_compensation, pop.prorated_annual_compensation, pop.employee_compensation) * {{ employer_core_contribution_rate }}, 2)
+        THEN ROUND(
+            COALESCE(wf.prorated_annual_compensation, pop.prorated_annual_compensation, pop.employee_compensation) *
+            {% if employer_core_status == 'graded_by_service' and employer_core_graded_schedule | length > 0 %}
+            {{ get_tiered_core_rate('COALESCE(snap.years_of_service, 0)', employer_core_graded_schedule, employer_core_contribution_rate) }}
+            {% else %}
+            {{ employer_core_contribution_rate }}
+            {% endif %}
+        , 2)
         ELSE 0.00
     END AS employer_core_amount,
 
@@ -271,7 +294,12 @@ SELECT
                     OR (snap.detailed_status_code = 'experienced_termination' AND ({{ 'true' if core_allow_experienced_terminations else 'false' }}))
                 )
              )
-        THEN {{ employer_core_contribution_rate }}
+        THEN
+            {% if employer_core_status == 'graded_by_service' and employer_core_graded_schedule | length > 0 %}
+            {{ get_tiered_core_rate('COALESCE(snap.years_of_service, 0)', employer_core_graded_schedule, employer_core_contribution_rate) }}
+            {% else %}
+            {{ employer_core_contribution_rate }}
+            {% endif %}
         ELSE 0.00
     END AS core_contribution_rate,
 
@@ -281,6 +309,8 @@ SELECT
         ELSE 'disabled'
     END AS contribution_method,
     {{ employer_core_contribution_rate }} AS standard_core_rate,
+    -- Audit trail: years of service used for tier lookup
+    COALESCE(snap.years_of_service, 0) AS applied_years_of_service,
     CURRENT_TIMESTAMP AS created_at,
     '{{ var("scenario_id", "default") }}' AS scenario_id,
     '{{ var("parameter_scenario_id", "default") }}' AS parameter_scenario_id,
@@ -313,6 +343,7 @@ SELECT
     core_contribution_rate,
     contribution_method,
     standard_core_rate,
+    applied_years_of_service,
     created_at,
     scenario_id,
     parameter_scenario_id
