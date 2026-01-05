@@ -628,7 +628,21 @@ def _export_core_contribution_vars(cfg: "SimulationConfig") -> Dict[str, Any]:
                 graded_schedule = dc_plan_dict["core_graded_schedule"]
                 if isinstance(graded_schedule, list) and len(graded_schedule) > 0:
                     core_top_level["graded_schedule"] = graded_schedule
-                    dbt_vars["employer_core_graded_schedule"] = graded_schedule
+                    # Transform field names for dbt macro compatibility:
+                    # UI uses: service_years_min, service_years_max, contribution_rate
+                    # Macro expects: min_years, max_years, rate (as percentage)
+                    transformed_schedule = []
+                    for tier in graded_schedule:
+                        transformed_tier = {
+                            "min_years": tier.get("service_years_min", tier.get("min_years", 0)),
+                            "max_years": tier.get("service_years_max", tier.get("max_years")),
+                            # Convert decimal rate (0.06) to percentage (6.0) for macro
+                            "rate": (tier.get("contribution_rate", tier.get("rate", 0)) * 100)
+                            if tier.get("contribution_rate") is not None
+                            else tier.get("rate", 0),
+                        }
+                        transformed_schedule.append(transformed_tier)
+                    dbt_vars["employer_core_graded_schedule"] = transformed_schedule
 
             # Merge dc_plan eligibility overrides into employer_core_contribution
             if core_eligibility_overrides or core_top_level:
