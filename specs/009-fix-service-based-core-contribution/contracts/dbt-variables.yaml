@@ -1,0 +1,82 @@
+# dbt Variable Contract: Service-Based Core Contributions
+# Feature: 009-fix-service-based-core-contribution
+# Date: 2026-01-05
+
+# This contract defines the dbt variables used by int_employer_core_contributions.sql
+
+variables:
+  # Core contribution mode selector
+  employer_core_status:
+    type: string
+    enum: ['none', 'flat', 'graded_by_service']
+    default: 'flat'
+    description: |
+      Controls how employer core contributions are calculated:
+      - 'none': Core contributions disabled (0% for all employees)
+      - 'flat': Single flat rate applied to all eligible employees
+      - 'graded_by_service': Service-based tiered rates based on years of tenure
+
+  # Flat rate (used when status is 'flat' or as fallback)
+  employer_core_contribution_rate:
+    type: number
+    format: decimal
+    minimum: 0
+    maximum: 1
+    default: 0.02
+    description: |
+      Flat employer core contribution rate as decimal (e.g., 0.08 for 8%).
+      Used when employer_core_status is 'flat'.
+      Also serves as fallback when graded schedule is empty or invalid.
+
+  # Service-based tier schedule (used when status is 'graded_by_service')
+  employer_core_graded_schedule:
+    type: array
+    default: []
+    items:
+      type: object
+      required: [min_years, rate]
+      properties:
+        min_years:
+          type: integer
+          minimum: 0
+          description: Minimum years of service (inclusive) for this tier
+        max_years:
+          type: integer
+          nullable: true
+          description: |
+            Maximum years of service (exclusive) for this tier.
+            Use null for the highest tier (10+ years, infinity).
+        rate:
+          type: number
+          minimum: 0
+          maximum: 100
+          description: |
+            Contribution rate as percentage (e.g., 6.0 for 6%).
+            Will be divided by 100 to convert to decimal in SQL.
+    description: |
+      List of service tiers for graded core contributions.
+      Each tier specifies a tenure range and the corresponding contribution rate.
+      Tiers should be non-overlapping and cover all possible tenure values.
+    example:
+      - min_years: 0
+        max_years: 10
+        rate: 6.0
+      - min_years: 10
+        max_years: null
+        rate: 8.0
+
+  # Existing variables (unchanged)
+  employer_core_enabled:
+    type: boolean
+    default: true
+    description: Master on/off switch for employer core contributions
+
+# Usage example in dbt model:
+# {% set employer_core_status = var('employer_core_status', 'flat') %}
+# {% set employer_core_graded_schedule = var('employer_core_graded_schedule', []) %}
+#
+# CASE
+#   WHEN '{{ employer_core_status }}' = 'graded_by_service' THEN
+#     {{ get_tiered_core_rate('years_of_service', employer_core_graded_schedule, employer_core_contribution_rate) }}
+#   ELSE {{ employer_core_contribution_rate }}
+# END

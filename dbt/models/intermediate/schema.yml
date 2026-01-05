@@ -242,9 +242,11 @@ models:
 
   - name: int_employer_core_contributions
     description: >
-      MVP employer core (non-elective) contribution calculation model.
-      Implements simple 2% flat rate for eligible employees based on
-      compensation and eligibility determination.
+      Employer core (non-elective) contribution calculation model.
+      Supports both flat rate and graded-by-service configurations.
+      When employer_core_status is 'graded_by_service', applies tiered
+      rates based on employee years of service. Includes audit trail
+      field (applied_years_of_service) for compliance tracking.
     config:
       tags: ["employer_contributions", "core_contributions", "mvp"]
     columns:
@@ -276,11 +278,23 @@ models:
               min_value: 0
               max_value: 400000
       - name: core_contribution_rate
-        description: Applied contribution rate (0.02 for eligible, 0 for ineligible)
+        description: >
+          Applied contribution rate. For flat mode, uses configured rate.
+          For graded_by_service mode, rate varies by years_of_service tier.
         data_tests:
           - not_null
-          - accepted_values:
-              values: [0.00, 0.02]
+          - dbt_utils.accepted_range:
+              min_value: 0.00
+              max_value: 1.00
+      - name: applied_years_of_service
+        description: >
+          Audit trail field: integer years of service used for tier lookup
+          when graded_by_service is configured. Calculated as FLOOR(current_tenure).
+        data_tests:
+          - not_null
+          - dbt_utils.accepted_range:
+              min_value: 0
+              max_value: 100
       - name: eligible_for_core
         description: Core contribution eligibility flag
         data_tests:
