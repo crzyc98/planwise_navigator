@@ -383,6 +383,37 @@ def _export_employer_match_vars(cfg: "SimulationConfig") -> Dict[str, Any]:
             if match_cap_percent is not None:
                 dbt_vars["match_cap_percent"] = float(match_cap_percent)
 
+            # E010: Service-based match configuration
+            # Match status: 'deferral_based' (default) or 'graded_by_service'
+            match_status = dc_plan_dict.get("match_status")
+            if match_status is not None:
+                dbt_vars["employer_match_status"] = str(match_status)
+
+            # E010: Service-based match graded schedule (for graded_by_service mode)
+            # Each tier: {min_years, max_years (null for infinity), rate (percentage), max_deferral_pct (percentage)}
+            match_graded_schedule = dc_plan_dict.get("match_graded_schedule")
+            if match_graded_schedule is not None:
+                if isinstance(match_graded_schedule, list) and len(match_graded_schedule) > 0:
+                    # Transform field names for dbt macro compatibility:
+                    # UI uses: service_years_min, service_years_max, match_rate, max_deferral_pct
+                    # Macro expects: min_years, max_years, rate (as percentage), max_deferral_pct (as percentage)
+                    transformed_schedule = []
+                    for tier in match_graded_schedule:
+                        transformed_tier = {
+                            "min_years": tier.get("service_years_min", tier.get("min_years", 0)),
+                            "max_years": tier.get("service_years_max", tier.get("max_years")),
+                            # Convert decimal rate (0.50) to percentage (50.0) for macro if needed
+                            "rate": (tier.get("match_rate", tier.get("rate", 0)) * 100)
+                            if tier.get("match_rate") is not None and tier.get("match_rate") <= 1
+                            else tier.get("rate", tier.get("match_rate", 0)),
+                            # Convert decimal max_deferral_pct (0.06) to percentage (6.0) for macro if needed
+                            "max_deferral_pct": (tier.get("max_deferral_pct", 0) * 100)
+                            if tier.get("max_deferral_pct") is not None and tier.get("max_deferral_pct") <= 1
+                            else tier.get("max_deferral_pct", 6),
+                        }
+                        transformed_schedule.append(transformed_tier)
+                    dbt_vars["employer_match_graded_schedule"] = transformed_schedule
+
             # E095: Export match eligibility from dc_plan (UI format) to employer_match structure
             # The UI sends flat fields like match_min_hours_annual, we need to merge into employer_match
             match_eligibility_overrides = {}
