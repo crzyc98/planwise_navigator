@@ -10,7 +10,10 @@ from __future__ import annotations
 import os
 from datetime import datetime
 from pathlib import Path
-from typing import Any, Dict, Optional
+from typing import Any, Dict, Optional, TYPE_CHECKING
+
+if TYPE_CHECKING:
+    pass
 
 from planalign_orchestrator.checkpoint_manager import CheckpointManager
 from planalign_orchestrator.config import load_simulation_config
@@ -25,11 +28,19 @@ from planalign_orchestrator.validation import DataValidator, EventSequenceRule, 
 class OrchestratorWrapper:
     """Wrapper for planalign_orchestrator components with CLI enhancements."""
 
-    def __init__(self, config_path: Path, db_path: Path, verbose: bool = False, use_polars_engine: bool = False):
+    def __init__(
+        self,
+        config_path: Path,
+        db_path: Path,
+        verbose: bool = False,
+        use_polars_engine: bool = False,
+        polars_output: Optional[Path] = None,
+    ):
         self.config_path = config_path
         self.db_path = db_path
         self.verbose = verbose
         self.use_polars_engine = use_polars_engine
+        self.polars_output = polars_output
 
         # Lazy initialization
         self._config = None
@@ -58,6 +69,12 @@ class OrchestratorWrapper:
                 self._config.optimization.event_generation.mode = "polars"
                 self._config.optimization.event_generation.polars.enabled = True
                 self._config.optimization.event_generation.polars.use_cohort_engine = True
+
+                # T012: Override Polars output path if specified via CLI
+                if self.polars_output:
+                    # Ensure directory exists (T014)
+                    self.polars_output.mkdir(parents=True, exist_ok=True)
+                    self._config.optimization.event_generation.polars.output_path = str(self.polars_output)
             else:
                 # Explicitly set SQL mode to override any config file polars settings
                 self._config.optimization.event_generation.mode = "sql"
