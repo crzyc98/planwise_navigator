@@ -41,6 +41,17 @@ _PTH_FILE_CONTENT = '''# Configure sqlparse token limits for large dbt models
 import _sqlparse_config
 '''
 
+# Content for sitecustomize.py (more reliable on Windows than .pth files)
+_SITECUSTOMIZE_CONTENT = '''
+# sqlparse token limit fix (auto-installed by planalign_orchestrator)
+# See: https://discourse.getdbt.com/t/dbt-run-error-maximum-number-of-tokens-exceeded/20495
+try:
+    import sqlparse.engine.grouping
+    sqlparse.engine.grouping.MAX_GROUPING_TOKENS = 50000
+except (ImportError, AttributeError):
+    pass
+'''
+
 
 def configure_sqlparse(max_tokens: int = DEFAULT_MAX_GROUPING_TOKENS) -> bool:
     """Configure sqlparse MAX_GROUPING_TOKENS limit.
@@ -103,6 +114,68 @@ def is_pth_installed() -> bool:
     return False
 
 
+def is_sitecustomize_configured() -> bool:
+    """Check if sitecustomize.py has our sqlparse fix.
+
+    Returns:
+        True if sitecustomize.py exists and contains our MAX_GROUPING_TOKENS fix.
+    """
+    for sp in site.getsitepackages():
+        sc_path = Path(sp) / "sitecustomize.py"
+        if sc_path.exists():
+            try:
+                content = sc_path.read_text()
+                if "MAX_GROUPING_TOKENS = 50000" in content:
+                    return True
+            except (OSError, PermissionError):
+                continue
+    return False
+
+
+def ensure_sitecustomize_installed(silent: bool = False) -> bool:
+    """Install sqlparse fix via sitecustomize.py (more reliable on Windows).
+
+    sitecustomize.py is automatically imported by Python on startup, making it
+    more reliable than .pth files on Windows where .pth import statements
+    may not be executed.
+
+    Args:
+        silent: If True, don't print any messages.
+
+    Returns:
+        True if fix is installed (or was just installed), False if installation failed.
+    """
+    if is_sitecustomize_configured():
+        return True
+
+    for sp in site.getsitepackages():
+        sp_path = Path(sp)
+        if sp_path.exists() and sp_path.is_dir():
+            try:
+                sc_path = sp_path / "sitecustomize.py"
+                if sc_path.exists():
+                    # Append to existing sitecustomize.py
+                    existing = sc_path.read_text()
+                    # Don't add if already present (double-check)
+                    if "MAX_GROUPING_TOKENS = 50000" not in existing:
+                        sc_path.write_text(existing + "\n" + _SITECUSTOMIZE_CONTENT)
+                else:
+                    # Create new sitecustomize.py
+                    sc_path.write_text(_SITECUSTOMIZE_CONTENT.lstrip())
+
+                if not silent:
+                    print(
+                        f"✓ Auto-installed sqlparse fix to {sc_path}\n"
+                        f"  Restart your Python interpreter for subprocess dbt to use the fix.",
+                        file=sys.stderr,
+                    )
+                return True
+            except (PermissionError, OSError):
+                continue
+
+    return False
+
+
 def ensure_pth_installed(silent: bool = False) -> bool:
     """Ensure the .pth file is installed for subprocess sqlparse configuration.
 
@@ -147,6 +220,12 @@ def ensure_pth_installed(silent: bool = False) -> bool:
 # Apply configuration at import time (for in-process dbt)
 _configured = configure_sqlparse()
 
-# Auto-install .pth file on first import (for subprocess dbt)
-# This runs silently after the first successful install
-_pth_installed = ensure_pth_installed(silent=is_pth_installed())
+# Auto-install for subprocess dbt
+# On Windows, use sitecustomize.py (more reliable than .pth files)
+# On other platforms, use .pth file (standard approach)
+if sys.platform == "win32":
+    _subprocess_configured = ensure_sitecustomize_installed(
+        silent=is_sitecustomize_configured()
+    )
+else:
+    _pth_installed = ensure_pth_installed(silent=is_pth_installed())
