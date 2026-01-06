@@ -651,6 +651,28 @@ conn.close()
   * **Solution**: Use `int_enrollment_state_accumulator` model with proper temporal state tracking
   * **Validation**: `dbt run --select validate_enrollment_architecture --vars "simulation_year: 2025"`
 
+### **SQLParse Token Limit Error**
+
+  * **Problem**: Multi-year simulations fail on Year 2+ with `Maximum number of tokens exceeded (10000)`
+  * **Cause**: sqlparse 0.5.4+ has DoS protection that limits SQL parsing to 10,000 tokens
+  * **Affected Models**: `fct_workforce_snapshot.sql` compiles to ~13,668 tokens in Year 2+
+  * **Solution**: Run the install script to configure sqlparse limits
+
+```bash
+# Install the sqlparse fix
+python scripts/install_sqlparse_fix.py
+
+# Verify the fix
+python -c "import sqlparse.engine.grouping; print(f'MAX_GROUPING_TOKENS={sqlparse.engine.grouping.MAX_GROUPING_TOKENS}')"
+# Expected output: MAX_GROUPING_TOKENS=50000
+
+# Test Year 2 simulation
+cd dbt && dbt run --select fct_workforce_snapshot --vars '{"simulation_year": 2026}' --threads 1
+```
+
+  * **How It Works**: The install script creates a `.pth` file and config module in site-packages that automatically sets `MAX_GROUPING_TOKENS = 50000` when Python starts. This applies to all Python processes in the venv, including dbt subprocesses.
+  * **Re-installation Required**: After recreating the virtual environment (`uv venv`), run `python scripts/install_sqlparse_fix.py` again.
+
 ### **CLI Errors**
 
 ```bash
@@ -756,6 +778,10 @@ See `/docs/VERSIONING_GUIDE.md` for detailed versioning workflow.
 - DuckDB 1.0.0 (existing `dbt/simulation.duckdb`) (007-state-accumulator-contract)
 - Python 3.11, SQL (DuckDB 1.0.0) + dbt-core 1.8.8, dbt-duckdb 1.8.1, Hypothesis (property-based testing), pytest (008-irs-402g-limits-hardening)
 - DuckDB (`dbt/simulation.duckdb`) (008-irs-402g-limits-hardening)
+- SQL (DuckDB 1.0.0), dbt-core 1.8.8 + dbt-duckdb 1.8.1 + dbt, DuckDB, existing `int_employer_core_contributions.sql` model (009-fix-service-based-core-contribution)
+- Python 3.11 (orchestrator), SQL/Jinja (dbt models), TypeScript 5.x (frontend) + dbt-core 1.8.8, dbt-duckdb 1.8.1, Pydantic v2, React 18 (010-fix-match-service-tiers)
+- Python 3.11 + sqlparse 0.5.4+, dbt-core 1.8.8, dbt-duckdb 1.8.1 (011-sqlparse-token-limit-fix)
+- DuckDB 1.0.0 (dbt/simulation.duckdb) (011-sqlparse-token-limit-fix)
 
 ## Recent Changes
 - 001-centralize-band-definitions: Added SQL (DuckDB 1.0.0), dbt-core 1.8.8 + dbt-duckdb 1.8.1, DuckDB
