@@ -71,6 +71,9 @@ def run_simulation(
     use_polars_engine: bool = typer.Option(
         False, "--use-polars-engine", help="Use E077 Polars cohort engine (375× faster)"
     ),
+    polars_output: Optional[Path] = typer.Option(
+        None, "--polars-output", help="Directory for Polars parquet output (default: data/parquet/events)"
+    ),
 ):
     """
     Run multi-year workforce simulation with Rich progress tracking.
@@ -88,6 +91,10 @@ def run_simulation(
         if verbose:
             console.print(f"🎯 [bold blue]Starting simulation: {start_year}-{end_year}[/bold blue]")
 
+        # T013: Warn if --polars-output is specified without --use-polars-engine
+        if polars_output and not use_polars_engine:
+            show_warning_message("--polars-output has no effect without --use-polars-engine")
+
         # Initialize wrapper
         config_path = Path(config) if config else find_default_config()
         db_path = Path(database) if database else Path("dbt/simulation.duckdb")
@@ -95,12 +102,15 @@ def run_simulation(
         if verbose:
             console.print(f"📁 Config: {config_path}")
             console.print(f"🗄️ Database: {db_path}")
+            if polars_output:
+                console.print(f"📂 Polars output: {polars_output}")
 
         wrapper = OrchestratorWrapper(
             config_path,
             db_path,
             verbose=verbose,
-            use_polars_engine=use_polars_engine
+            use_polars_engine=use_polars_engine,
+            polars_output=polars_output
         )
 
         # Check system health before starting
@@ -323,6 +333,7 @@ def default(
     verbose: bool = typer.Option(False, "--verbose", "-v"),
     growth: Optional[str] = typer.Option(None, "--growth", help="Target growth rate (e.g., '3.5%' or '0.035')"),
     use_polars_engine: bool = typer.Option(False, "--use-polars-engine", help="Use E077 Polars cohort engine (375× faster)"),
+    polars_output: Optional[Path] = typer.Option(None, "--polars-output", help="Directory for Polars parquet output"),
 ):
     """Default simulate command."""
     run_simulation(
@@ -337,6 +348,7 @@ def default(
         verbose=verbose,
         growth=growth,
         use_polars_engine=use_polars_engine,
+        polars_output=polars_output,
     )
 
 
