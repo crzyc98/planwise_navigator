@@ -311,6 +311,15 @@ vars:
 
   # Match configuration has been moved to config/simulation_config.yaml
   # See the employer_match section in that file
+
+  # E010: Service-based match configuration
+  # employer_match_status: Match calculation mode
+  # Values: 'deferral_based' (default, existing behavior) | 'graded_by_service' (new service-based)
+  employer_match_status: 'deferral_based'
+  # employer_match_graded_schedule: Service tier definitions for graded_by_service mode
+  # Each tier: {min_years, max_years (null for infinity), rate (percentage), max_deferral_pct (percentage)}
+  employer_match_graded_schedule: []
+
   executive_plan_auto_enrollment_enabled: true   # Enable auto-enrollment for executive plans
   executive_plan_window_days: 60                 # Longer window for executive plans
   executive_plan_default_deferral_rate: 0.10     # Higher default rate for executives
