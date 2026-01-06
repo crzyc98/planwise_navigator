@@ -1,0 +1,239 @@
+# Service-Based Match Tier API Contract
+# Feature: 010-fix-match-service-tiers
+# Date: 2026-01-05
+
+openapi: 3.0.3
+info:
+  title: Service-Based Match Configuration API
+  version: 1.0.0
+  description: |
+    API contract for configuring service-based employer match tiers.
+    This extends the existing match configuration to support years-of-service-based matching.
+
+components:
+  schemas:
+    # Core tier definition for service-based matching
+    ServiceMatchTier:
+      type: object
+      required:
+        - serviceYearsMin
+        - matchRate
+        - maxDeferralPct
+      properties:
+        serviceYearsMin:
+          type: integer
+          minimum: 0
+          description: Inclusive lower bound of service years
+          example: 0
+        serviceYearsMax:
+          type: integer
+          minimum: 1
+          nullable: true
+          description: Exclusive upper bound (null = no upper limit)
+          example: 5
+        matchRate:
+          type: number
+          minimum: 0
+          maximum: 100
+          description: Match rate as percentage (e.g., 50 for 50%)
+          example: 50
+        maxDeferralPct:
+          type: number
+          minimum: 0
+          maximum: 100
+          description: Maximum deferral percentage to match (e.g., 6 for 6%)
+          example: 6
+
+    # Match status enum
+    MatchStatus:
+      type: string
+      enum:
+        - none
+        - flat
+        - deferral_based
+        - graded_by_service
+      description: |
+        Match calculation mode:
+        - none: No employer match
+        - flat: Flat percentage match (not commonly used)
+        - deferral_based: Match varies by employee deferral rate (existing behavior)
+        - graded_by_service: Match varies by years of service (new feature)
+      default: deferral_based
+
+    # Extended match configuration
+    MatchConfiguration:
+      type: object
+      properties:
+        status:
+          $ref: '#/components/schemas/MatchStatus'
+        gradedSchedule:
+          type: array
+          items:
+            $ref: '#/components/schemas/ServiceMatchTier'
+          description: Service tier definitions (required when status='graded_by_service')
+          example:
+            - serviceYearsMin: 0
+              serviceYearsMax: 5
+              matchRate: 50
+              maxDeferralPct: 6
+            - serviceYearsMin: 5
+              serviceYearsMax: null
+              matchRate: 100
+              maxDeferralPct: 6
+        # Existing fields for deferral-based mode
+        template:
+          type: string
+          enum: [simple, tiered, stretch, safe_harbor, qaca]
+          description: Template name (for deferral_based mode)
+        tiers:
+          type: array
+          description: Deferral tier definitions (for deferral_based mode)
+          items:
+            type: object
+            properties:
+              deferralMin:
+                type: number
+              deferralMax:
+                type: number
+              matchRate:
+                type: number
+
+    # Validation error for tier configuration
+    TierValidationError:
+      type: object
+      properties:
+        code:
+          type: string
+          enum:
+            - TIER_GAP
+            - TIER_OVERLAP
+            - INVALID_RANGE
+            - MISSING_REQUIRED_FIELD
+          description: Error code indicating the type of validation failure
+        message:
+          type: string
+          description: Human-readable error description
+        tierIndex:
+          type: integer
+          description: Index of the tier with the error (0-based)
+        field:
+          type: string
+          description: Field name that caused the error
+
+    # Match calculation output (audit record)
+    MatchCalculationResult:
+      type: object
+      properties:
+        employeeId:
+          type: string
+        simulationYear:
+          type: integer
+        employerMatchAmount:
+          type: number
+          description: Calculated match amount in dollars
+        appliedYearsOfService:
+          type: integer
+          nullable: true
+          description: Years of service used for tier lookup (null if deferral-based mode)
+        formulaType:
+          type: string
+          description: "'graded_by_service' or template name like 'tiered'"
+        isEligibleForMatch:
+          type: boolean
+        eligibleCompensation:
+          type: number
+        deferralRate:
+          type: number
+        annualDeferrals:
+          type: number
+
+# Request/Response examples for API endpoints
+paths:
+  /api/workspaces/{workspaceId}/scenarios/{scenarioId}/match-config:
+    get:
+      summary: Get match configuration for scenario
+      responses:
+        '200':
+          description: Match configuration
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MatchConfiguration'
+
+    put:
+      summary: Update match configuration for scenario
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/MatchConfiguration'
+            examples:
+              deferralBased:
+                summary: Deferral-based match (existing behavior)
+                value:
+                  status: deferral_based
+                  template: tiered
+                  tiers:
+                    - deferralMin: 0
+                      deferralMax: 3
+                      matchRate: 100
+                    - deferralMin: 3
+                      deferralMax: 5
+                      matchRate: 50
+              serviceBased:
+                summary: Service-based match (new feature)
+                value:
+                  status: graded_by_service
+                  gradedSchedule:
+                    - serviceYearsMin: 0
+                      serviceYearsMax: 5
+                      matchRate: 50
+                      maxDeferralPct: 6
+                    - serviceYearsMin: 5
+                      serviceYearsMax: null
+                      matchRate: 100
+                      maxDeferralPct: 6
+      responses:
+        '200':
+          description: Configuration saved successfully
+        '400':
+          description: Validation error
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  errors:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/TierValidationError'
+
+  /api/workspaces/{workspaceId}/scenarios/{scenarioId}/validate-match-tiers:
+    post:
+      summary: Validate service tier configuration
+      description: |
+        Validates that service tiers have no gaps, overlaps, and all required fields.
+        Returns validation errors if configuration is invalid.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: array
+              items:
+                $ref: '#/components/schemas/ServiceMatchTier'
+      responses:
+        '200':
+          description: Validation result
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  valid:
+                    type: boolean
+                  errors:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/TierValidationError'

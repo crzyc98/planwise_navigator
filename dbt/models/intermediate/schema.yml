@@ -438,11 +438,13 @@ models:
         data_tests:
           - not_null
       - name: formula_type
-        description: Type of match formula applied
+        description: >
+          Type of match formula applied.
+          E010: Added graded_by_service for service-based matching.
         data_tests:
           - not_null
           - accepted_values:
-              values: ["simple", "tiered", "none"]
+              values: ["simple", "tiered", "none", "graded_by_service"]
       - name: effective_match_rate
         description: Actual match rate after caps and eligibility
         data_tests:
@@ -480,6 +482,10 @@ models:
           - not_null
           - accepted_values:
               values: [true, false]
+      - name: applied_years_of_service
+        description: >
+          E010: Years of service used for service tier lookup when employer_match_status='graded_by_service'.
+          NULL when using deferral-based matching. Enables audit trail for compliance verification.
     data_tests:
       - unique:
           column_name: "employee_id || '_' || simulation_year"

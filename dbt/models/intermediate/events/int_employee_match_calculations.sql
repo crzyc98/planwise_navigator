@@ -41,8 +41,19 @@
   - match_cap_percent: Maximum employer match as percentage of compensation (decimal)
   - match_template: Template name for audit trail (simple, tiered, stretch, safe_harbor, qaca)
 
+  E010: Service-Based Match Contribution Tiers (NEW)
+  Variables:
+  - employer_match_status: 'deferral_based' (default) or 'graded_by_service'
+  - employer_match_graded_schedule: Array of service tier definitions when graded_by_service
+    Each tier: {min_years, max_years (null for infinity), rate (percentage), max_deferral_pct (percentage)}
+
+  Match Calculation Modes:
+  - deferral_based: Match rate varies by employee deferral percentage (existing behavior)
+  - graded_by_service: Match rate varies by employee years of service (new feature)
+
   Backward Compatibility:
   - Falls back to tiered match (100% on 0-3%, 50% on 3-5%) if no custom tiers provided
+  - Default employer_match_status='deferral_based' preserves existing behavior
 */
 
 -- E084 Phase B: Direct tier configuration (replaces formula name lookup)
@@ -53,13 +64,20 @@
 {% set match_cap_percent = var('match_cap_percent', 0.04) %}
 {% set match_template = var('match_template', 'tiered') %}
 
+-- E010: Service-based match configuration
+{% set employer_match_status = var('employer_match_status', 'deferral_based') %}
+{% set employer_match_graded_schedule = var('employer_match_graded_schedule', []) %}
+
 -- Debug: Current match configuration
+-- Match Status: {{ employer_match_status }}
 -- Template: {{ match_template }}
 -- Match cap: {{ match_cap_percent * 100 }}% of compensation
--- Tiers: {{ match_tiers | length }} defined
+-- Deferral-based Tiers: {{ match_tiers | length }} defined
+-- Service-based Tiers: {{ employer_match_graded_schedule | length }} defined
 
 WITH employee_contributions AS (
     -- Get ALL employee contribution data with eligibility determination (Epic E058 Phase 2)
+    -- E010: Also join years of service from workforce snapshot for service-based matching
     SELECT
         ec.employee_id,
         ec.simulation_year,
@@ -73,16 +91,60 @@ WITH employee_contributions AS (
         -- Epic E058 Phase 2: Join with employer eligibility determination
         COALESCE(elig.eligible_for_match, FALSE) AS is_eligible_for_match,
         elig.match_eligibility_reason,
-        elig.match_apply_eligibility AS eligibility_config_applied
+        elig.match_apply_eligibility AS eligibility_config_applied,
+        -- E010: Years of service from workforce snapshot (integer years)
+        FLOOR(COALESCE(snap.current_tenure, 0))::INT AS years_of_service
     FROM {{ ref('int_employee_contributions') }}  ec
     LEFT JOIN {{ ref('int_employer_eligibility') }} elig
         ON ec.employee_id = elig.employee_id
        AND ec.simulation_year = elig.simulation_year
+    -- E010: Join workforce snapshot for years of service
+    LEFT JOIN {{ ref('int_workforce_snapshot_optimized') }} snap
+        ON ec.employee_id = snap.employee_id
+       AND ec.simulation_year = snap.simulation_year
     WHERE ec.simulation_year = {{ simulation_year }}
         AND ec.employee_id IS NOT NULL
 ),
 
--- E084 Phase B: Unified tiered match calculation using custom tiers
+{% if employer_match_status == 'graded_by_service' %}
+-- E010: Service-based match calculation
+-- Match rate varies by employee years of service
+-- Formula: match = tier_rate × min(deferral%, tier_max_deferral_pct) × compensation
+service_based_match AS (
+    SELECT
+        ec.employee_id,
+        ec.simulation_year,
+        ec.eligible_compensation,
+        ec.deferral_rate,
+        ec.annual_deferrals,
+        ec.years_of_service,
+        -- Get the match rate for this employee's service tier
+        {{ get_tiered_match_rate('ec.years_of_service', employer_match_graded_schedule, 0.50) }} AS tier_rate,
+        -- Get the max deferral cap for this employee's service tier
+        {{ get_tiered_match_max_deferral('ec.years_of_service', employer_match_graded_schedule, 0.06) }} AS tier_max_deferral_pct,
+        -- Calculate match: rate × min(deferral%, max_deferral_pct) × compensation
+        {{ get_tiered_match_rate('ec.years_of_service', employer_match_graded_schedule, 0.50) }}
+            * LEAST(ec.deferral_rate, {{ get_tiered_match_max_deferral('ec.years_of_service', employer_match_graded_schedule, 0.06) }})
+            * ec.eligible_compensation AS match_amount,
+        'graded_by_service' AS formula_type
+    FROM employee_contributions ec
+),
+
+-- Unified all_matches CTE for service-based mode
+all_matches AS (
+    SELECT
+        employee_id,
+        simulation_year,
+        eligible_compensation,
+        deferral_rate,
+        annual_deferrals,
+        match_amount,
+        formula_type,
+        years_of_service  -- E010: Include for audit trail
+    FROM service_based_match
+),
+{% else %}
+-- E084 Phase B: Deferral-based tiered match calculation (default mode)
 -- All formulas (simple, tiered, stretch, safe_harbor, qaca) can be expressed as tiers
 tiered_match AS (
     SELECT
@@ -91,6 +153,7 @@ tiered_match AS (
         ec.eligible_compensation,
         ec.deferral_rate,
         ec.annual_deferrals,
+        ec.years_of_service,
         -- Calculate match for each tier from match_tiers variable
         SUM(
             CASE
@@ -115,15 +178,25 @@ tiered_match AS (
         {% endfor %}
     ) AS tier
     GROUP BY ec.employee_id, ec.simulation_year, ec.eligible_compensation,
-             ec.deferral_rate, ec.annual_deferrals
+             ec.deferral_rate, ec.annual_deferrals, ec.years_of_service
 ),
 
--- Unified all_matches CTE
+-- Unified all_matches CTE for deferral-based mode
 all_matches AS (
-    SELECT * FROM tiered_match
+    SELECT
+        employee_id,
+        simulation_year,
+        eligible_compensation,
+        deferral_rate,
+        annual_deferrals,
+        match_amount,
+        formula_type,
+        years_of_service  -- E010: Include for completeness (NULL-like behavior in deferral mode)
+    FROM tiered_match
 ),
+{% endif %}
 
--- Apply match caps and eligibility filtering (Epic E058 Phase 2, E084 Phase B)
+-- Apply match caps and eligibility filtering (Epic E058 Phase 2, E084 Phase B, E010)
 final_match AS (
     SELECT
         am.employee_id,
@@ -132,10 +205,23 @@ final_match AS (
         am.deferral_rate,
         am.annual_deferrals,
         am.formula_type,
+        -- E010: Years of service for service-based matching audit trail
+        am.years_of_service,
         -- Join eligibility data back from employee_contributions CTE
         ec.is_eligible_for_match,
         ec.match_eligibility_reason,
         ec.eligibility_config_applied,
+        {% if employer_match_status == 'graded_by_service' %}
+        -- E010: Service-based mode - no match cap, tier already includes max_deferral_pct
+        am.match_amount AS capped_match_amount,
+        -- E010: Apply eligibility filtering
+        CASE
+            WHEN ec.is_eligible_for_match THEN am.match_amount
+            ELSE 0
+        END AS employer_match_amount,
+        -- E010: Track if cap was applied (no cap in service-based mode)
+        FALSE AS match_cap_applied,
+        {% else %}
         -- E084 Phase B: Apply maximum match cap using match_cap_percent variable
         LEAST(
             am.match_amount,
@@ -150,6 +236,9 @@ final_match AS (
                 )
             ELSE 0
         END AS employer_match_amount,
+        -- Track if cap was applied (before eligibility filtering)
+        am.match_amount > am.eligible_compensation * {{ match_cap_percent }} AS match_cap_applied,
+        {% endif %}
         -- Epic E058 Phase 2: Match status tracking field
         CASE
             WHEN NOT ec.is_eligible_for_match THEN 'ineligible'
@@ -157,8 +246,6 @@ final_match AS (
             WHEN ec.is_eligible_for_match AND am.annual_deferrals > 0 THEN 'calculated'
             ELSE 'calculated'  -- Default fallback
         END AS match_status,
-        -- Track if cap was applied (before eligibility filtering)
-        am.match_amount > am.eligible_compensation * {{ match_cap_percent }} AS match_cap_applied,
         -- Calculate uncapped match for analysis
         am.match_amount AS uncapped_match_amount
     FROM all_matches am
@@ -182,8 +269,19 @@ SELECT
     match_eligibility_reason,
     match_status,
     eligibility_config_applied,
+    {% if employer_match_status == 'graded_by_service' %}
+    -- E010: Service-based mode identifiers
+    'graded_by_service' AS formula_id,
+    'graded_by_service' AS formula_name,
+    -- E010: Years of service audit field (populated in service-based mode)
+    years_of_service AS applied_years_of_service,
+    {% else %}
+    -- E084 Phase B: Deferral-based mode identifiers
     '{{ match_template }}' AS formula_id,
-    '{{ match_template }}' AS formula_name,  -- E084 Phase B: Using template name
+    '{{ match_template }}' AS formula_name,
+    -- E010: Years of service audit field (NULL in deferral-based mode)
+    NULL::INT AS applied_years_of_service,
+    {% endif %}
     -- Calculate effective match rate
     CASE
         WHEN annual_deferrals > 0
