@@ -656,22 +656,22 @@ conn.close()
   * **Problem**: Multi-year simulations fail on Year 2+ with `Maximum number of tokens exceeded (10000)`
   * **Cause**: sqlparse 0.5.4+ has DoS protection that limits SQL parsing to 10,000 tokens
   * **Affected Models**: `fct_workforce_snapshot.sql` compiles to ~13,668 tokens in Year 2+
-  * **Solution**: Run the install script to configure sqlparse limits
+  * **Solution**: **Automatic** - the fix is auto-installed on first import of `planalign_orchestrator`
 
 ```bash
-# Install the sqlparse fix
-python scripts/install_sqlparse_fix.py
+# The fix auto-installs on first import. Just run any planalign command:
+planalign health
 
-# Verify the fix
+# Or import the package in Python:
+python -c "import planalign_orchestrator"
+
+# Verify the fix (in a new terminal/Python process):
 python -c "import sqlparse.engine.grouping; print(f'MAX_GROUPING_TOKENS={sqlparse.engine.grouping.MAX_GROUPING_TOKENS}')"
 # Expected output: MAX_GROUPING_TOKENS=50000
-
-# Test Year 2 simulation
-cd dbt && dbt run --select fct_workforce_snapshot --vars '{"simulation_year": 2026}' --threads 1
 ```
 
-  * **How It Works**: The install script creates a `.pth` file and config module in site-packages that automatically sets `MAX_GROUPING_TOKENS = 50000` when Python starts. This applies to all Python processes in the venv, including dbt subprocesses.
-  * **Re-installation Required**: After recreating the virtual environment (`uv venv`), run `python scripts/install_sqlparse_fix.py` again.
+  * **How It Works**: On first import, `planalign_orchestrator.sqlparse_config` auto-installs a `.pth` file to site-packages that sets `MAX_GROUPING_TOKENS = 50000` when Python starts. This applies to all Python processes in the venv, including dbt subprocesses.
+  * **Re-installation**: After recreating the virtual environment (`uv venv && pip install -e .`), just import the package once to trigger auto-install.
 
 ### **CLI Errors**
 

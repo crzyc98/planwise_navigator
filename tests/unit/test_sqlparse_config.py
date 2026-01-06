@@ -12,8 +12,10 @@ import pytest
 from planalign_orchestrator.sqlparse_config import (
     DEFAULT_MAX_GROUPING_TOKENS,
     configure_sqlparse,
+    ensure_pth_installed,
     get_current_limit,
     is_configured,
+    is_pth_installed,
 )
 
 
@@ -172,3 +174,32 @@ class TestIntegrationWithSqlparse:
         # Assert
         assert "SELECT" in formatted
         assert "FROM" in formatted
+
+
+class TestPthInstallation:
+    """Tests for .pth file auto-installation functions."""
+
+    def test_is_pth_installed_returns_bool(self):
+        """Test that is_pth_installed returns a boolean."""
+        result = is_pth_installed()
+        assert isinstance(result, bool)
+
+    def test_ensure_pth_installed_returns_true_when_already_installed(self):
+        """Test ensure_pth_installed returns True when .pth exists."""
+        # The .pth file should already be installed by module import
+        result = ensure_pth_installed(silent=True)
+        assert result is True
+
+    def test_ensure_pth_installed_silent_mode(self):
+        """Test that silent mode doesn't raise errors."""
+        # Should not raise, should return True (already installed)
+        result = ensure_pth_installed(silent=True)
+        assert result is True
+
+    def test_pth_installed_after_module_import(self):
+        """Test that .pth is installed after importing the module."""
+        from planalign_orchestrator import sqlparse_config
+
+        # The module auto-installs .pth on import
+        assert hasattr(sqlparse_config, "_pth_installed")
+        assert sqlparse_config._pth_installed is True

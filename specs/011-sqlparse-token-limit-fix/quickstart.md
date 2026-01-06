@@ -9,15 +9,25 @@ Maximum number of tokens exceeded (10000)
 
 This is caused by sqlparse 0.5.4+ DoS protection limiting SQL parsing to 10,000 tokens, while `fct_workforce_snapshot.sql` compiles to ~13,668 tokens in Year 2+.
 
-## Quick Fix (1 minute)
+## Quick Fix (Automatic!)
 
-Run the install script to configure sqlparse limits:
+The fix is **automatic** - it installs on first import of `planalign_orchestrator`:
 
 ```bash
-# From project root
-python scripts/install_sqlparse_fix.py
+# Just run any planalign command or import the package:
+planalign health
 
-# Verify the fix
+# Or:
+python -c "import planalign_orchestrator"
+
+# You'll see this message on first run:
+# ✓ Auto-installed sqlparse fix to /path/to/site-packages
+#   Restart your Python interpreter for subprocess dbt to use the fix.
+```
+
+Then restart your terminal/Python and verify:
+
+```bash
 python -c "import sqlparse.engine.grouping; print(f'MAX_GROUPING_TOKENS={sqlparse.engine.grouping.MAX_GROUPING_TOKENS}')"
 # Expected output: MAX_GROUPING_TOKENS=50000
 ```
@@ -34,29 +44,35 @@ cd dbt && dbt run --select fct_workforce_snapshot --vars '{"simulation_year": 20
 
 ## What the Fix Does
 
-1. **Creates _sqlparse_config.py** in `.venv/lib/pythonX.Y/site-packages/`
-2. **Creates sqlparse_config.pth** which imports the config module at Python startup
-3. **Configures sqlparse** before dbt loads:
+1. **Auto-installs on first import** of `planalign_orchestrator`
+2. **Creates _sqlparse_config.py** in `.venv/lib/pythonX.Y/site-packages/`
+3. **Creates sqlparse_config.pth** which imports the config module at Python startup
+4. **Configures sqlparse** before dbt loads:
    ```python
    import sqlparse.engine.grouping
    sqlparse.engine.grouping.MAX_GROUPING_TOKENS = 50000
    ```
-4. **Applies to all Python processes** in the virtual environment
+5. **Applies to all Python processes** in the virtual environment
 
 ## Troubleshooting
 
 ### Fix Not Applied?
 
 ```bash
-# Check if .pth file exists (replace X.Y with your Python version, e.g., 3.11 or 3.12)
+# Check if .pth file exists
 ls -la .venv/lib/python*/site-packages/sqlparse_config.pth
 ls -la .venv/lib/python*/site-packages/_sqlparse_config.py
 
-# If missing, reinstall
+# If missing, just import the package:
+python -c "import planalign_orchestrator"
+
+# Or run the manual install script:
 python scripts/install_sqlparse_fix.py
 ```
 
 ### Wrong Python Version?
+
+The fix is Python version-agnostic. It automatically detects your Python version:
 
 ```bash
 # Find correct site-packages path
@@ -69,28 +85,14 @@ python -c "import site; print(site.getsitepackages())"
 2. Verify you're using the project venv: `which python`
 3. Check sqlparse version: `pip show sqlparse`
 
-## Manual Fix (if script fails)
+## After Recreating Virtual Environment
 
-Create `.venv/lib/pythonX.Y/site-packages/_sqlparse_config.py` (where X.Y is your Python version):
+After running `uv venv` or recreating the venv, just import the package once:
 
-```python
-"""Configure sqlparse token limits for large dbt models.
-
-This module is automatically imported via sqlparse_config.pth when Python starts.
-It configures sqlparse to handle models with >10,000 SQL tokens.
-"""
-try:
-    import sqlparse.engine.grouping
-    sqlparse.engine.grouping.MAX_GROUPING_TOKENS = 50000
-except (ImportError, AttributeError):
-    pass  # Older sqlparse versions
-```
-
-Then create `.venv/lib/pythonX.Y/site-packages/sqlparse_config.pth`:
-
-```
-# Configure sqlparse token limits for large dbt models
-import _sqlparse_config
+```bash
+pip install -e .
+python -c "import planalign_orchestrator"
+# Restart terminal, done!
 ```
 
 ## Background
@@ -98,4 +100,4 @@ import _sqlparse_config
 - sqlparse 0.5.4 added DoS protection with 10,000 token limit
 - `fct_workforce_snapshot.sql` has 1,085 lines with complex Jinja
 - Year 2+ compiles to more tokens due to temporal logic branches
-- Python's sitecustomize.py runs before any imports, including dbt
+- The .pth file runs before any imports, including dbt subprocesses
