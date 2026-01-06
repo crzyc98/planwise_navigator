@@ -17,10 +17,77 @@ import time
 from pathlib import Path
 from typing import Any, Dict, List
 
+import logging
+
 from ..config import SimulationConfig
 from ..dbt_runner import DbtResult, DbtRunner
 from ..utils import DatabaseConnectionManager
 from .workflow import StageDefinition, WorkflowStage
+
+logger = logging.getLogger(__name__)
+
+
+def normalize_path_for_duckdb(path: Path, base_dir: Path = None) -> str:
+    """
+    Normalize a path for DuckDB compatibility across all platforms.
+
+    DuckDB requires forward slashes in paths on all platforms, including Windows.
+    This function ensures paths are converted to POSIX format and made relative
+    to the dbt/ directory where dbt commands execute.
+
+    Args:
+        path: The path to normalize (can be absolute or relative)
+        base_dir: Optional base directory for relative path calculation.
+                  Defaults to current working directory.
+
+    Returns:
+        A POSIX-formatted path string relative to the dbt/ directory,
+        suitable for use in DuckDB's read_parquet() function.
+
+    Examples:
+        >>> normalize_path_for_duckdb(Path("data/parquet/events"))
+        '../data/parquet/events'
+
+        >>> normalize_path_for_duckdb(Path("C:\\Users\\data\\parquet"))  # Windows
+        '../data/parquet'  # Converted to forward slashes
+
+    Note:
+        This function is critical for Windows compatibility in Polars mode.
+        DuckDB's read_parquet() fails with mixed or backslash paths on Windows.
+    """
+    if base_dir is None:
+        base_dir = Path.cwd()
+
+    # Convert to Path object if string
+    if isinstance(path, str):
+        path = Path(path)
+
+    # Handle absolute paths - convert to relative from base_dir
+    if path.is_absolute():
+        try:
+            # Try to make it relative to base_dir
+            relative_path = path.relative_to(base_dir)
+            # Prefix with ../ since dbt runs from dbt/ directory
+            result = f"../{relative_path.as_posix()}"
+            logger.debug(f"Path normalization: absolute {path} -> {result}")
+            return result
+        except ValueError:
+            # Path is not relative to base_dir, use as_posix() directly
+            result = path.as_posix()
+            logger.debug(f"Path normalization: absolute (external) {path} -> {result}")
+            return result
+
+    # Handle paths already relative from dbt/ directory (start with ../)
+    path_str = str(path)
+    if path_str.startswith("../") or path_str.startswith("..\\"):
+        result = path.as_posix()
+        logger.debug(f"Path normalization: already relative {path} -> {result}")
+        return result
+
+    # Handle relative paths from project root - prefix with ../
+    result = f"../{path.as_posix()}"
+    logger.debug(f"Path normalization: relative {path} -> {result}")
+    return result
 
 
 class PipelineStageError(RuntimeError):
@@ -289,16 +356,12 @@ class EventGenerationExecutor:
 
         # Update dbt variables to point to Polars output
         # Note: Path must be relative to dbt/ directory where dbt runs
+        # IMPORTANT: Use normalize_path_for_duckdb() for Windows compatibility (E012)
         polars_path = Path(factory_config.output_path)
-        if polars_path.is_absolute():
-            # Convert absolute to relative from dbt/ directory
-            dbt_relative_path = polars_path.relative_to(Path.cwd())
-            polars_events_path = f"../{dbt_relative_path}"
-        elif not str(polars_path).startswith('../'):
-            # If relative from project root, make it relative from dbt/
-            polars_events_path = f"../{polars_path}"
-        else:
-            polars_events_path = str(polars_path)
+        polars_events_path = normalize_path_for_duckdb(polars_path)
+
+        if self.verbose:
+            logger.info(f"Path normalization: {factory_config.output_path} -> {polars_events_path}")
 
         self.dbt_vars.update({
             'polars_events_path': polars_events_path,
