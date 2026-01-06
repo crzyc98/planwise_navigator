@@ -1,13 +1,10 @@
 #!/usr/bin/env python3
 """Install sqlparse token limit fix for dbt subprocess execution.
 
-This script creates a .pth file in the virtual environment's site-packages
-directory with an import statement. Python processes .pth files when loading
-site-packages, and any line starting with "import " is executed as code.
+This script installs the sqlparse token limit fix to handle large dbt models.
 
-This approach works better than sitecustomize.py in virtual environments
-because sitecustomize.py is typically loaded from the base Python installation,
-not from the venv.
+On Windows: Uses sitecustomize.py (more reliable than .pth files on Windows)
+On Linux/macOS: Uses .pth file with an import statement
 
 Usage:
     python scripts/install_sqlparse_fix.py
@@ -39,6 +36,17 @@ except (ImportError, AttributeError):
 PTH_CONTENT = '''# Configure sqlparse token limits for large dbt models
 # See: scripts/install_sqlparse_fix.py
 import _sqlparse_config
+'''
+
+# Content for sitecustomize.py (used on Windows)
+SITECUSTOMIZE_CONTENT = '''
+# sqlparse token limit fix (installed by scripts/install_sqlparse_fix.py)
+# See: https://discourse.getdbt.com/t/dbt-run-error-maximum-number-of-tokens-exceeded/20495
+try:
+    import sqlparse.engine.grouping
+    sqlparse.engine.grouping.MAX_GROUPING_TOKENS = 50000
+except (ImportError, AttributeError):
+    pass
 '''
 
 
@@ -96,6 +104,43 @@ def install_pth_fix() -> bool:
     return True
 
 
+def install_sitecustomize_fix() -> bool:
+    """Install fix via sitecustomize.py (more reliable on Windows).
+
+    Returns:
+        True if installation was successful, False otherwise.
+    """
+    site_packages = get_site_packages_path()
+
+    if site_packages is None:
+        print("ERROR: Could not find site-packages directory")
+        print("Available paths:", site.getsitepackages())
+        return False
+
+    sc_path = site_packages / "sitecustomize.py"
+    try:
+        if sc_path.exists():
+            # Check if already installed
+            existing = sc_path.read_text()
+            if "MAX_GROUPING_TOKENS = 50000" in existing:
+                print(f"✓ Fix already present in {sc_path}")
+                return True
+            # Append to existing
+            sc_path.write_text(existing + "\n" + SITECUSTOMIZE_CONTENT)
+            print(f"✓ Appended fix to {sc_path}")
+        else:
+            # Create new
+            sc_path.write_text(SITECUSTOMIZE_CONTENT.lstrip())
+            print(f"✓ Created {sc_path}")
+        return True
+    except PermissionError:
+        print(f"ERROR: Permission denied writing to {sc_path}")
+        return False
+    except Exception as e:
+        print(f"ERROR: Failed to write {sc_path}: {e}")
+        return False
+
+
 def verify_installation() -> bool:
     """Verify that sqlparse is configured correctly.
 
@@ -126,9 +171,18 @@ def main() -> int:
     print("Installing sqlparse token limit fix...")
     print(f"Python: {sys.executable}")
     print(f"Version: {sys.version}")
+    print(f"Platform: {sys.platform}")
     print()
 
-    if not install_pth_fix():
+    # Use sitecustomize.py on Windows, .pth file on other platforms
+    if sys.platform == "win32":
+        print("Using sitecustomize.py method (Windows)")
+        success = install_sitecustomize_fix()
+    else:
+        print("Using .pth file method (Linux/macOS)")
+        success = install_pth_fix()
+
+    if not success:
         return 1
 
     print()
