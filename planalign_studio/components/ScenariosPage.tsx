@@ -283,7 +283,7 @@ export default function ScenariosPage() {
       )}
 
       {/* Content */}
-      <div className="flex-1 bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
+      <div className="flex-1 min-h-0 bg-white rounded-xl shadow-sm border border-gray-200 flex flex-col overflow-hidden">
         {loading ? (
           <div className="flex items-center justify-center h-64">
             <div className="text-center">
@@ -314,7 +314,7 @@ export default function ScenariosPage() {
             </div>
           </div>
         ) : (
-          <div className="divide-y divide-gray-200">
+          <div className="flex-1 overflow-y-auto divide-y divide-gray-200">
             {/* Select All header when in select mode */}
             {selectMode && scenarios.length > 0 && (
               <div className="px-4 py-2 bg-gray-50 border-b border-gray-200 flex items-center">
