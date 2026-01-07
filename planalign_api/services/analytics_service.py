@@ -172,6 +172,7 @@ class AnalyticsService:
         try:
             # E104: Enhanced query with average deferral rate, participation rate, and total employer cost
             # E013: Added total_compensation for employer cost rate calculation
+            # Note: Includes all employees (active + terminated) to capture full contribution costs
             df = conn.execute("""
                 SELECT
                     simulation_year as year,
@@ -185,7 +186,6 @@ class AnalyticsService:
                     COUNT(CASE WHEN is_enrolled_flag THEN 1 END) as participant_count,
                     COALESCE(SUM(prorated_annual_compensation), 0) as total_compensation
                 FROM fct_workforce_snapshot
-                WHERE UPPER(employment_status) = 'ACTIVE'
                 GROUP BY simulation_year
                 ORDER BY simulation_year
             """).fetchdf()
