@@ -127,6 +127,156 @@ const VarianceDisplay = ({ delta, deltaPct, isCost = false, formatValue }: Varia
   );
 };
 
+// ============================================================================
+// E014: Metric Table Component for Year-by-Year Breakdown
+// ============================================================================
+
+// Metric definitions for the 6 metrics displayed in separate tables
+const METRICS = [
+  { key: 'participationRate', title: 'Participation Rate', format: formatPercent, isCost: false },
+  { key: 'avgDeferralRate', title: 'Avg Deferral Rate', format: formatDeferralRate, isCost: false, rawMultiplier: 100 },
+  { key: 'employerMatch', title: 'Employer Match', format: formatCurrency, isCost: true },
+  { key: 'employerCore', title: 'Employer Core', format: formatCurrency, isCost: true },
+  { key: 'totalEmployerCost', title: 'Total Employer Cost', format: formatCurrency, isCost: true },
+  { key: 'employerCostRate', title: 'Employer Cost Rate', format: formatPercent, isCost: true },
+] as const;
+
+interface MetricTableProps {
+  title: string;
+  years: number[];
+  baselineData: Map<number, number>;
+  comparisonData: Map<number, number>;
+  formatValue: (val: number) => string;
+  isCost: boolean;
+  comparisonLabel: string;
+  rawMultiplier?: number;
+  loading?: boolean;
+}
+
+const MetricTable = ({
+  title,
+  years,
+  baselineData,
+  comparisonData,
+  formatValue,
+  isCost,
+  comparisonLabel,
+  rawMultiplier = 1,
+  loading = false,
+}: MetricTableProps) => {
+  if (loading) {
+    return (
+      <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
+        <div className="px-6 py-4 border-b border-gray-200">
+          <div className="h-5 w-32 bg-gray-200 rounded animate-pulse" />
+        </div>
+        <div className="p-6">
+          <div className="h-24 bg-gray-100 rounded animate-pulse" />
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
+      {/* Metric Title Header */}
+      <div className="px-6 py-4 border-b border-gray-200 bg-gray-50">
+        <h3 className="text-md font-semibold text-gray-900">{title}</h3>
+      </div>
+
+      <div className="overflow-x-auto">
+        <table className="w-full">
+          {/* Year Columns Header */}
+          <thead className="bg-gray-50">
+            <tr>
+              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider w-36">
+                Scenario
+              </th>
+              {years.map(year => (
+                <th key={year} className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  {year}
+                </th>
+              ))}
+            </tr>
+          </thead>
+          <tbody className="divide-y divide-gray-200">
+            {/* Row 1: Baseline */}
+            <tr className="bg-white">
+              <td className="px-6 py-3 text-sm font-medium text-gray-900">
+                <span className="inline-flex items-center">
+                  <span className="w-2 h-2 bg-blue-500 rounded-full mr-2"></span>
+                  Baseline
+                </span>
+              </td>
+              {years.map(year => {
+                const value = baselineData.get(year);
+                return (
+                  <td key={year} className="px-6 py-3 text-sm text-gray-900 text-right font-medium">
+                    {value !== undefined ? formatValue(value) : '-'}
+                  </td>
+                );
+              })}
+            </tr>
+
+            {/* Row 2: Comparison */}
+            <tr className="bg-white">
+              <td className="px-6 py-3 text-sm font-medium text-gray-900">
+                <span className="inline-flex items-center">
+                  <span className="w-2 h-2 bg-orange-500 rounded-full mr-2"></span>
+                  {comparisonLabel || 'Comparison'}
+                </span>
+              </td>
+              {years.map(year => {
+                const value = comparisonData.get(year);
+                return (
+                  <td key={year} className="px-6 py-3 text-sm text-gray-900 text-right font-medium">
+                    {value !== undefined ? formatValue(value) : '-'}
+                  </td>
+                );
+              })}
+            </tr>
+
+            {/* Row 3: Variance */}
+            <tr className="bg-gray-50">
+              <td className="px-6 py-3 text-sm font-medium text-gray-700">
+                Variance
+              </td>
+              {years.map(year => {
+                const baselineValue = baselineData.get(year);
+                const comparisonValue = comparisonData.get(year);
+
+                if (baselineValue === undefined || comparisonValue === undefined) {
+                  return (
+                    <td key={year} className="px-6 py-3 text-sm text-gray-500 text-right">
+                      -
+                    </td>
+                  );
+                }
+
+                const variance = calculateVariance(
+                  baselineValue * rawMultiplier,
+                  comparisonValue * rawMultiplier
+                );
+
+                return (
+                  <td key={year} className="px-6 py-3 text-right">
+                    <VarianceDisplay
+                      delta={variance.delta}
+                      deltaPct={variance.deltaPct}
+                      isCost={isCost}
+                      formatValue={isCost ? formatCurrency : (v) => `${v.toFixed(2)}%`}
+                    />
+                  </td>
+                );
+              })}
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  );
+};
+
 interface MetricCardProps {
   title: string;
   icon: React.ReactNode;
@@ -367,6 +517,49 @@ export default function ScenarioCostComparison() {
     });
   }, [baselineAnalytics, comparisonAnalytics]);
 
+  // E014: Build metric-specific data for new table layout
+  const metricData = React.useMemo(() => {
+    if (!baselineAnalytics || !comparisonAnalytics) return null;
+
+    const baselineByYear = new Map<number, ContributionYearSummary>();
+    const comparisonByYear = new Map<number, ContributionYearSummary>();
+
+    baselineAnalytics.contribution_by_year.forEach(y => baselineByYear.set(y.year, y));
+    comparisonAnalytics.contribution_by_year.forEach(y => comparisonByYear.set(y.year, y));
+
+    const allYears = new Set([...baselineByYear.keys(), ...comparisonByYear.keys()]);
+    const sortedYears = Array.from(allYears).sort((a, b) => a - b);
+
+    // Build metric-specific Maps (year -> value)
+    const buildMetricMaps = (
+      getBaseline: (y: ContributionYearSummary) => number,
+      getComparison: (y: ContributionYearSummary) => number
+    ) => {
+      const baselineMap = new Map<number, number>();
+      const comparisonMap = new Map<number, number>();
+
+      sortedYears.forEach(year => {
+        const b = baselineByYear.get(year);
+        const c = comparisonByYear.get(year);
+        if (b) baselineMap.set(year, getBaseline(b));
+        if (c) comparisonMap.set(year, getComparison(c));
+      });
+
+      return { baselineMap, comparisonMap };
+    };
+
+    return {
+      years: sortedYears,
+      comparisonScenarioName: comparisonAnalytics.scenario_name || 'Comparison',
+      participationRate: buildMetricMaps(y => y.participation_rate, y => y.participation_rate),
+      avgDeferralRate: buildMetricMaps(y => y.average_deferral_rate, y => y.average_deferral_rate),
+      employerMatch: buildMetricMaps(y => y.total_employer_match, y => y.total_employer_match),
+      employerCore: buildMetricMaps(y => y.total_employer_core, y => y.total_employer_core),
+      totalEmployerCost: buildMetricMaps(y => y.total_employer_cost, y => y.total_employer_cost),
+      employerCostRate: buildMetricMaps(y => y.employer_cost_rate, y => y.employer_cost_rate),
+    };
+  }, [baselineAnalytics, comparisonAnalytics]);
+
   return (
     <div className="space-y-6">
       {/* Header */}
@@ -585,130 +778,50 @@ export default function ScenarioCostComparison() {
             />
           </div>
 
-          {/* Year-by-Year Breakdown Table */}
-          <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
-            <div className="px-6 py-4 border-b border-gray-200">
+          {/* E014: Year-by-Year Breakdown - Separate Tables per Metric */}
+          <div className="space-y-6">
+            <div>
               <h2 className="text-lg font-semibold text-gray-900">Year-by-Year Breakdown</h2>
               <p className="text-sm text-gray-500 mt-1">
                 Detailed comparison of metrics for each simulation year
               </p>
             </div>
 
-            {loading ? (
-              <div className="p-8 flex items-center justify-center">
-                <Loader2 size={24} className="animate-spin text-gray-400" />
-              </div>
-            ) : (
-              <div className="overflow-x-auto">
-                <table className="w-full">
-                  <thead className="bg-gray-50">
-                    <tr>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Year</th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Metric</th>
-                      <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
-                        <span className="inline-flex items-center">
-                          <span className="w-2 h-2 bg-blue-500 rounded-full mr-2"></span>
-                          Baseline
-                        </span>
-                      </th>
-                      <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
-                        <span className="inline-flex items-center">
-                          <span className="w-2 h-2 bg-orange-500 rounded-full mr-2"></span>
-                          Comparison
-                        </span>
-                      </th>
-                      <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Variance</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-gray-200">
-                    {yearByYearData.map((yearData, yearIdx) => {
-                      const metrics = [
-                        {
-                          name: 'Participation Rate',
-                          baseline: yearData.metrics.participationRate.baseline,
-                          comparison: yearData.metrics.participationRate.comparison,
-                          format: formatPercent,
-                          isCost: false,
-                        },
-                        {
-                          name: 'Avg Deferral Rate',
-                          baseline: yearData.metrics.avgDeferralRate.baseline,
-                          comparison: yearData.metrics.avgDeferralRate.comparison,
-                          format: formatDeferralRate,
-                          isCost: false,
-                          rawMultiplier: 100, // For variance calc
-                        },
-                        {
-                          name: 'Employer Match',
-                          baseline: yearData.metrics.employerMatch.baseline,
-                          comparison: yearData.metrics.employerMatch.comparison,
-                          format: formatCurrency,
-                          isCost: true,
-                        },
-                        {
-                          name: 'Employer Core',
-                          baseline: yearData.metrics.employerCore.baseline,
-                          comparison: yearData.metrics.employerCore.comparison,
-                          format: formatCurrency,
-                          isCost: true,
-                        },
-                        {
-                          name: 'Total Employer Cost',
-                          baseline: yearData.metrics.totalEmployerCost.baseline,
-                          comparison: yearData.metrics.totalEmployerCost.comparison,
-                          format: formatCurrency,
-                          isCost: true,
-                        },
-                        // E013: Employer Cost Rate row
-                        {
-                          name: 'Employer Cost Rate',
-                          baseline: yearData.metrics.employerCostRate.baseline,
-                          comparison: yearData.metrics.employerCostRate.comparison,
-                          format: formatPercent,
-                          isCost: true,
-                        },
-                      ];
+            {metricData && METRICS.map((metric) => {
+              const data = metricData[metric.key as keyof typeof metricData];
+              if (!data || typeof data !== 'object' || !('baselineMap' in data)) return null;
 
-                      return metrics.map((metric, metricIdx) => {
-                        const variance = calculateVariance(
-                          metric.rawMultiplier ? metric.baseline * metric.rawMultiplier : metric.baseline,
-                          metric.rawMultiplier ? metric.comparison * metric.rawMultiplier : metric.comparison
-                        );
+              return (
+                <MetricTable
+                  key={metric.key}
+                  title={metric.title}
+                  years={metricData.years}
+                  baselineData={data.baselineMap}
+                  comparisonData={data.comparisonMap}
+                  formatValue={metric.format}
+                  isCost={metric.isCost}
+                  comparisonLabel={metricData.comparisonScenarioName}
+                  rawMultiplier={metric.rawMultiplier}
+                  loading={loading}
+                />
+              );
+            })}
 
-                        return (
-                          <tr
-                            key={`${yearData.year}-${metric.name}`}
-                            className={yearIdx % 2 === 0 ? 'bg-white' : 'bg-gray-50'}
-                          >
-                            {metricIdx === 0 && (
-                              <td
-                                rowSpan={metrics.length}
-                                className="px-6 py-3 text-sm font-semibold text-gray-900 border-r border-gray-200"
-                              >
-                                {yearData.year}
-                              </td>
-                            )}
-                            <td className="px-6 py-3 text-sm text-gray-700">{metric.name}</td>
-                            <td className="px-6 py-3 text-sm text-gray-900 text-right font-medium">
-                              {metric.format(metric.baseline)}
-                            </td>
-                            <td className="px-6 py-3 text-sm text-gray-900 text-right font-medium">
-                              {metric.format(metric.comparison)}
-                            </td>
-                            <td className="px-6 py-3 text-right">
-                              <VarianceDisplay
-                                delta={variance.delta}
-                                deltaPct={variance.deltaPct}
-                                isCost={metric.isCost}
-                                formatValue={metric.isCost ? formatCurrency : (v) => `${v.toFixed(2)}%`}
-                              />
-                            </td>
-                          </tr>
-                        );
-                      });
-                    })}
-                  </tbody>
-                </table>
+            {loading && !metricData && (
+              <div className="space-y-6">
+                {METRICS.map((metric) => (
+                  <MetricTable
+                    key={metric.key}
+                    title={metric.title}
+                    years={[]}
+                    baselineData={new Map()}
+                    comparisonData={new Map()}
+                    formatValue={metric.format}
+                    isCost={metric.isCost}
+                    comparisonLabel="Comparison"
+                    loading={true}
+                  />
+                ))}
               </div>
             )}
           </div>
