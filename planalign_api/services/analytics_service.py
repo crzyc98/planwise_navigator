@@ -68,6 +68,13 @@ class AnalyticsService:
                 if total_participants > 0
                 else 0.0
             )
+            # E013: Calculate aggregate total_compensation and employer_cost_rate
+            total_compensation = sum(c.total_compensation for c in contribution_by_year)
+            employer_cost_rate = (
+                (total_employer_cost / total_compensation * 100)
+                if total_compensation > 0
+                else 0.0
+            )
 
             # Get deferral rate distribution
             deferral_distribution = self._get_deferral_distribution(conn)
@@ -98,6 +105,9 @@ class AnalyticsService:
                 # E104: New fields for cost comparison
                 average_deferral_rate=round(avg_deferral_rate, 4),
                 total_employer_cost=total_employer_cost,
+                # E013: Employer cost ratio metrics
+                total_compensation=total_compensation,
+                employer_cost_rate=round(employer_cost_rate, 2),
             )
 
         except Exception as e:
@@ -161,6 +171,8 @@ class AnalyticsService:
         """Get contribution totals by simulation year."""
         try:
             # E104: Enhanced query with average deferral rate, participation rate, and total employer cost
+            # E013: Added total_compensation for employer cost rate calculation
+            # Note: Includes all employees (active + terminated) to capture full contribution costs
             df = conn.execute("""
                 SELECT
                     simulation_year as year,
@@ -171,28 +183,41 @@ class AnalyticsService:
                     COALESCE(SUM(prorated_annual_contributions) + SUM(employer_match_amount) + SUM(employer_core_amount), 0) as total_all,
                     AVG(CASE WHEN is_enrolled_flag THEN current_deferral_rate ELSE NULL END) as avg_deferral_rate,
                     COUNT(CASE WHEN is_enrolled_flag THEN 1 END) * 100.0 / NULLIF(COUNT(*), 0) as participation_rate,
-                    COUNT(CASE WHEN is_enrolled_flag THEN 1 END) as participant_count
+                    COUNT(CASE WHEN is_enrolled_flag THEN 1 END) as participant_count,
+                    COALESCE(SUM(prorated_annual_compensation), 0) as total_compensation
                 FROM fct_workforce_snapshot
-                WHERE UPPER(employment_status) = 'ACTIVE'
                 GROUP BY simulation_year
                 ORDER BY simulation_year
             """).fetchdf()
 
-            return [
-                ContributionYearSummary(
-                    year=int(row["year"]),
-                    total_employee_contributions=float(row["total_employee"]),
-                    total_employer_match=float(row["total_match"]),
-                    total_employer_core=float(row["total_core"]),
-                    total_all_contributions=float(row["total_all"]),
-                    participant_count=int(row["participant_count"]),
-                    # E104: New fields
-                    average_deferral_rate=float(row["avg_deferral_rate"] or 0.0),
-                    participation_rate=round(float(row["participation_rate"] or 0.0), 2),
-                    total_employer_cost=float(row["total_employer_cost"]),
+            results = []
+            for _, row in df.iterrows():
+                total_employer_cost = float(row["total_employer_cost"])
+                total_compensation = float(row["total_compensation"])
+                # E013: Calculate employer cost rate (as percentage)
+                employer_cost_rate = (
+                    (total_employer_cost / total_compensation * 100)
+                    if total_compensation > 0
+                    else 0.0
                 )
-                for _, row in df.iterrows()
-            ]
+                results.append(
+                    ContributionYearSummary(
+                        year=int(row["year"]),
+                        total_employee_contributions=float(row["total_employee"]),
+                        total_employer_match=float(row["total_match"]),
+                        total_employer_core=float(row["total_core"]),
+                        total_all_contributions=float(row["total_all"]),
+                        participant_count=int(row["participant_count"]),
+                        # E104: New fields
+                        average_deferral_rate=float(row["avg_deferral_rate"] or 0.0),
+                        participation_rate=round(float(row["participation_rate"] or 0.0), 2),
+                        total_employer_cost=total_employer_cost,
+                        # E013: Employer cost ratio metrics
+                        total_compensation=total_compensation,
+                        employer_cost_rate=round(employer_cost_rate, 2),
+                    )
+                )
+            return results
         except Exception as e:
             logger.warning(f"Failed to get contribution by year: {e}")
             return []
