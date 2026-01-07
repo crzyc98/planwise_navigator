@@ -782,6 +782,8 @@ See `/docs/VERSIONING_GUIDE.md` for detailed versioning workflow.
 - Python 3.11 (orchestrator), SQL/Jinja (dbt models), TypeScript 5.x (frontend) + dbt-core 1.8.8, dbt-duckdb 1.8.1, Pydantic v2, React 18 (010-fix-match-service-tiers)
 - Python 3.11 + sqlparse 0.5.4+, dbt-core 1.8.8, dbt-duckdb 1.8.1 (011-sqlparse-token-limit-fix)
 - DuckDB 1.0.0 (dbt/simulation.duckdb) (011-sqlparse-token-limit-fix)
+- Python 3.11 + pathlib (stdlib), Typer (CLI), Pydantic v2 (config), DuckDB (storage) (012-polars-path-fixes)
+- DuckDB databases (scenario-specific), Parquet files (Polars output) (012-polars-path-fixes)
 
 ## Recent Changes
 - 001-centralize-band-definitions: Added SQL (DuckDB 1.0.0), dbt-core 1.8.8 + dbt-duckdb 1.8.1, DuckDB
