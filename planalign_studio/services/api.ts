@@ -780,6 +780,9 @@ export interface ContributionYearSummary {
   average_deferral_rate: number;
   participation_rate: number;
   total_employer_cost: number;
+  // E013: Employer cost ratio metrics
+  total_compensation: number;
+  employer_cost_rate: number;
 }
 
 export interface DeferralRateBucket {
@@ -823,6 +826,9 @@ export interface DCPlanAnalytics {
   // E104: New fields for cost comparison
   average_deferral_rate: number;
   total_employer_cost: number;
+  // E013: Employer cost ratio metrics
+  total_compensation: number;
+  employer_cost_rate: number;
 }
 
 export interface DCPlanComparisonResponse {

@@ -24,6 +24,13 @@ class ContributionYearSummary(BaseModel):
     total_employer_cost: float = Field(
         default=0.0, description="Sum of match and core contributions"
     )
+    # E013: Employer cost ratio metrics
+    total_compensation: float = Field(
+        default=0.0, description="Sum of prorated_annual_compensation for all active employees"
+    )
+    employer_cost_rate: float = Field(
+        default=0.0, description="Employer cost as percentage of total compensation"
+    )
 
 
 class DeferralRateBucket(BaseModel):
@@ -101,6 +108,13 @@ class DCPlanAnalytics(BaseModel):
     )
     total_employer_cost: float = Field(
         default=0.0, description="Grand total employer cost (match + core)"
+    )
+    # E013: Employer cost ratio metrics
+    total_compensation: float = Field(
+        default=0.0, description="Sum of prorated_annual_compensation across all years"
+    )
+    employer_cost_rate: float = Field(
+        default=0.0, description="Aggregate employer cost as percentage of total compensation"
     )
 
 

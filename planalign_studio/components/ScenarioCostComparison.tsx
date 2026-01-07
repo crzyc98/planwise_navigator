@@ -357,6 +357,11 @@ export default function ScenarioCostComparison() {
             baseline: baseline?.total_employer_cost ?? 0,
             comparison: comparison?.total_employer_cost ?? 0,
           },
+          // E013: Employer cost rate metric
+          employerCostRate: {
+            baseline: baseline?.employer_cost_rate ?? 0,
+            comparison: comparison?.employer_cost_rate ?? 0,
+          },
         },
       };
     });
@@ -563,6 +568,21 @@ export default function ScenarioCostComparison() {
               formatVariance={formatCurrency}
               loading={loading}
             />
+
+            {/* E013: Employer Cost Rate MetricCard */}
+            <MetricCard
+              title="Employer Cost Rate"
+              icon={<Percent size={20} />}
+              baselineValue={formatPercent(baselineAnalytics?.employer_cost_rate ?? 0)}
+              comparisonValue={formatPercent(comparisonAnalytics?.employer_cost_rate ?? 0)}
+              variance={calculateVariance(
+                baselineAnalytics?.employer_cost_rate ?? 0,
+                comparisonAnalytics?.employer_cost_rate ?? 0
+              )}
+              isCost={true}
+              formatVariance={(v) => formatPercent(v)}
+              loading={loading}
+            />
           </div>
 
           {/* Year-by-Year Breakdown Table */}
@@ -639,6 +659,14 @@ export default function ScenarioCostComparison() {
                           format: formatCurrency,
                           isCost: true,
                         },
+                        // E013: Employer Cost Rate row
+                        {
+                          name: 'Employer Cost Rate',
+                          baseline: yearData.metrics.employerCostRate.baseline,
+                          comparison: yearData.metrics.employerCostRate.comparison,
+                          format: formatPercent,
+                          isCost: true,
+                        },
                       ];
 
                       return metrics.map((metric, metricIdx) => {
@@ -689,7 +717,7 @@ export default function ScenarioCostComparison() {
           {!loading && baselineAnalytics && comparisonAnalytics && (
             <div className="bg-gradient-to-r from-fidelity-green to-fidelity-dark rounded-xl shadow-sm p-6 text-white">
               <h2 className="text-lg font-semibold mb-4">Grand Totals Summary</h2>
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
                 <div className="bg-white/10 rounded-lg p-4">
                   <p className="text-sm text-white/80 mb-1">Total Employer Match</p>
                   <div className="flex items-baseline justify-between">
@@ -720,6 +748,18 @@ export default function ScenarioCostComparison() {
                     </span>
                     <span className="text-sm text-white/70">
                       vs {formatCurrency(baselineAnalytics.total_employer_cost)}
+                    </span>
+                  </div>
+                </div>
+                {/* E013: Employer Cost Rate card */}
+                <div className="bg-white/10 rounded-lg p-4">
+                  <p className="text-sm text-white/80 mb-1">Employer Cost Rate</p>
+                  <div className="flex items-baseline justify-between">
+                    <span className="text-2xl font-bold">
+                      {formatPercent(comparisonAnalytics.employer_cost_rate)}
+                    </span>
+                    <span className="text-sm text-white/70">
+                      vs {formatPercent(baselineAnalytics.employer_cost_rate)}
                     </span>
                   </div>
                 </div>
