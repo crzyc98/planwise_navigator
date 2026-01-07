@@ -118,7 +118,7 @@ const VarianceDisplay = ({ delta, deltaPct, isCost = false, formatValue }: Varia
   const sign = isPositive ? '+' : isNegative ? '-' : '';
 
   return (
-    <div className={`flex items-center ${colorClass}`}>
+    <div className={`inline-flex items-center ${colorClass}`}>
       <Icon size={16} className="mr-1" />
       <span className="font-medium">
         {sign}{formattedDelta} ({sign}{Math.abs(deltaPct).toFixed(1)}%)
