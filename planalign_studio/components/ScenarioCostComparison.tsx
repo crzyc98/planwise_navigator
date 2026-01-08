@@ -93,7 +93,7 @@ const tableToTSV = (data: TableDataForTSV): string => {
   });
   lines.push([comparisonLabel || 'Comparison', ...comparisonValues].join('\t'));
 
-  // Variance row (absolute delta)
+  // Variance row (absolute delta) - use the same formatValue function as the data rows
   const varianceValues = years.map(year => {
     const baselineValue = baselineData.get(year);
     const comparisonValue = comparisonData.get(year);
@@ -107,9 +107,8 @@ const tableToTSV = (data: TableDataForTSV): string => {
       comparisonValue * rawMultiplier
     );
 
-    const formattedDelta = isCost
-      ? formatCurrency(Math.abs(variance.delta))
-      : `${Math.abs(variance.delta).toFixed(2)}%`;
+    // Use formatValue to maintain consistent formatting (handles both currency and percentage metrics)
+    const formattedDelta = formatValue(Math.abs(variance.delta / rawMultiplier));
     const sign = variance.delta > 0 ? '+' : variance.delta < 0 ? '-' : '';
 
     return `${sign}${formattedDelta}`;
@@ -394,9 +393,8 @@ const MetricTable = ({
                   comparisonValue * rawMultiplier
                 );
 
-                const formattedDelta = isCost
-                  ? formatCurrency(Math.abs(variance.delta))
-                  : `${Math.abs(variance.delta).toFixed(2)}%`;
+                // Use formatValue to maintain consistent formatting (handles both currency and percentage metrics)
+                const formattedDelta = formatValue(Math.abs(variance.delta / rawMultiplier));
                 const sign = variance.delta > 0 ? '+' : variance.delta < 0 ? '-' : '';
                 const colorClass = variance.delta === 0
                   ? 'text-gray-500'
