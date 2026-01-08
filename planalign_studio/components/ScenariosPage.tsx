@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate, useOutletContext } from 'react-router-dom';
-import { Plus, Play, Trash2, Pencil, Check, X, Layers, Settings, Clock, AlertCircle, CheckSquare, Square, PlayCircle } from 'lucide-react';
+import { Plus, Play, Trash2, Pencil, Check, X, Layers, Settings, Clock, AlertCircle, CheckSquare, Square, PlayCircle, Eye } from 'lucide-react';
 import { LayoutContextType } from './Layout';
 import { listScenarios, createScenario, updateScenario, deleteScenario, Scenario } from '../services/api';
 
@@ -165,9 +165,9 @@ export default function ScenariosPage() {
   }
 
   return (
-    <div className="h-full flex flex-col">
+    <div className="h-full flex flex-col overflow-hidden">
       {/* Header */}
-      <div className="flex justify-between items-center mb-6">
+      <div className="flex-shrink-0 flex justify-between items-center mb-6">
         <div>
           <h1 className="text-2xl font-bold text-gray-900">Scenarios</h1>
           <p className="text-gray-500 text-sm">
@@ -223,9 +223,11 @@ export default function ScenariosPage() {
         </div>
       </div>
 
-      {/* Create Form */}
-      {showCreateForm && (
-        <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6 mb-6">
+      {/* Scrollable content area */}
+      <div className="flex-1 min-h-0 overflow-y-auto">
+        {/* Create Form */}
+        {showCreateForm && (
+          <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6 mb-6">
           <h3 className="font-semibold text-gray-900 mb-4">Create New Scenario</h3>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
             <div>
@@ -282,8 +284,8 @@ export default function ScenariosPage() {
         </div>
       )}
 
-      {/* Content */}
-      <div className="flex-1 min-h-0 bg-white rounded-xl shadow-sm border border-gray-200 flex flex-col overflow-hidden">
+        {/* Content */}
+        <div className="bg-white rounded-xl shadow-sm border border-gray-200 flex flex-col overflow-hidden">
         {loading ? (
           <div className="flex items-center justify-center h-64">
             <div className="text-center">
@@ -433,6 +435,16 @@ export default function ScenariosPage() {
                         <Play size={14} className="mr-1" />
                         Run
                       </button>
+                      {scenario.last_run_at && (
+                        <button
+                          onClick={() => navigate(`/simulate/${scenario.id}`)}
+                          className="px-3 py-1.5 bg-blue-100 text-blue-700 rounded-lg text-sm hover:bg-blue-200 flex items-center"
+                          title="View last run results"
+                        >
+                          <Eye size={14} className="mr-1" />
+                          Results
+                        </button>
+                      )}
                       <button
                         onClick={() => handleStartEdit(scenario)}
                         className="p-1.5 text-gray-400 hover:text-blue-500 rounded"
@@ -455,19 +467,20 @@ export default function ScenariosPage() {
             ))}
           </div>
         )}
-      </div>
+        </div>
 
-      {/* Info Box */}
-      <div className="mt-6 bg-blue-50 rounded-xl p-4 border border-blue-100">
-        <div className="flex items-start">
-          <Layers className="w-5 h-5 text-blue-500 mr-3 mt-0.5 flex-shrink-0" />
-          <div>
-            <h4 className="font-semibold text-blue-900 mb-1">How Scenarios Work</h4>
-            <ul className="text-sm text-blue-700 space-y-1">
-              <li>Each scenario inherits the workspace's base configuration</li>
-              <li>Configure scenario-specific overrides by clicking "Configure"</li>
-              <li>Run simulations independently and compare results across scenarios</li>
-            </ul>
+        {/* Info Box */}
+        <div className="mt-6 bg-blue-50 rounded-xl p-4 border border-blue-100 flex-shrink-0">
+          <div className="flex items-start">
+            <Layers className="w-5 h-5 text-blue-500 mr-3 mt-0.5 flex-shrink-0" />
+            <div>
+              <h4 className="font-semibold text-blue-900 mb-1">How Scenarios Work</h4>
+              <ul className="text-sm text-blue-700 space-y-1">
+                <li>Each scenario inherits the workspace's base configuration</li>
+                <li>Configure scenario-specific overrides by clicking "Configure"</li>
+                <li>Run simulations independently and compare results across scenarios</li>
+              </ul>
+            </div>
           </div>
         </div>
       </div>
