@@ -93,7 +93,7 @@ const tableToTSV = (data: TableDataForTSV): string => {
   });
   lines.push([comparisonLabel || 'Comparison', ...comparisonValues].join('\t'));
 
-  // Variance row
+  // Variance row (absolute delta)
   const varianceValues = years.map(year => {
     const baselineValue = baselineData.get(year);
     const comparisonValue = comparisonData.get(year);
@@ -112,9 +112,28 @@ const tableToTSV = (data: TableDataForTSV): string => {
       : `${Math.abs(variance.delta).toFixed(2)}%`;
     const sign = variance.delta > 0 ? '+' : variance.delta < 0 ? '-' : '';
 
-    return `${sign}${formattedDelta} (${sign}${Math.abs(variance.deltaPct).toFixed(1)}%)`;
+    return `${sign}${formattedDelta}`;
   });
   lines.push(['Variance', ...varianceValues].join('\t'));
+
+  // Variance % row (percentage change)
+  const variancePctValues = years.map(year => {
+    const baselineValue = baselineData.get(year);
+    const comparisonValue = comparisonData.get(year);
+
+    if (baselineValue === undefined || comparisonValue === undefined) {
+      return '-';
+    }
+
+    const variance = calculateVariance(
+      baselineValue * rawMultiplier,
+      comparisonValue * rawMultiplier
+    );
+
+    const sign = variance.delta > 0 ? '+' : variance.delta < 0 ? '-' : '';
+    return `${sign}${Math.abs(variance.deltaPct).toFixed(1)}%`;
+  });
+  lines.push(['Variance %', ...variancePctValues].join('\t'));
 
   return lines.join('\n');
 };
@@ -353,7 +372,7 @@ const MetricTable = ({
               })}
             </tr>
 
-            {/* Row 3: Variance */}
+            {/* Row 3: Variance (absolute delta) */}
             <tr className="bg-gray-50">
               <td className="px-6 py-3 text-sm font-medium text-gray-700">
                 Variance
@@ -375,14 +394,56 @@ const MetricTable = ({
                   comparisonValue * rawMultiplier
                 );
 
+                const formattedDelta = isCost
+                  ? formatCurrency(Math.abs(variance.delta))
+                  : `${Math.abs(variance.delta).toFixed(2)}%`;
+                const sign = variance.delta > 0 ? '+' : variance.delta < 0 ? '-' : '';
+                const colorClass = variance.delta === 0
+                  ? 'text-gray-500'
+                  : isCost
+                    ? (variance.delta > 0 ? 'text-red-600' : 'text-green-600')
+                    : (variance.delta > 0 ? 'text-green-600' : 'text-red-600');
+
                 return (
-                  <td key={year} className="px-6 py-3 text-right">
-                    <VarianceDisplay
-                      delta={variance.delta}
-                      deltaPct={variance.deltaPct}
-                      isCost={isCost}
-                      formatValue={isCost ? formatCurrency : (v) => `${v.toFixed(2)}%`}
-                    />
+                  <td key={year} className={`px-6 py-3 text-sm text-right font-medium ${colorClass}`}>
+                    {sign}{formattedDelta}
+                  </td>
+                );
+              })}
+            </tr>
+
+            {/* Row 4: Variance % (percentage change) */}
+            <tr className="bg-gray-50">
+              <td className="px-6 py-3 text-sm font-medium text-gray-700">
+                Variance %
+              </td>
+              {years.map(year => {
+                const baselineValue = baselineData.get(year);
+                const comparisonValue = comparisonData.get(year);
+
+                if (baselineValue === undefined || comparisonValue === undefined) {
+                  return (
+                    <td key={`${year}-pct`} className="px-6 py-3 text-sm text-gray-500 text-right">
+                      -
+                    </td>
+                  );
+                }
+
+                const variance = calculateVariance(
+                  baselineValue * rawMultiplier,
+                  comparisonValue * rawMultiplier
+                );
+
+                const sign = variance.delta > 0 ? '+' : variance.delta < 0 ? '-' : '';
+                const colorClass = variance.delta === 0
+                  ? 'text-gray-500'
+                  : isCost
+                    ? (variance.delta > 0 ? 'text-red-600' : 'text-green-600')
+                    : (variance.delta > 0 ? 'text-green-600' : 'text-red-600');
+
+                return (
+                  <td key={`${year}-pct`} className={`px-6 py-3 text-sm text-right font-medium ${colorClass}`}>
+                    {sign}{Math.abs(variance.deltaPct).toFixed(1)}%
                   </td>
                 );
               })}
