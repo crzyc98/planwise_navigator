@@ -10,8 +10,10 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import {
   Scale, RefreshCw, AlertCircle, ChevronDown, Database, Loader2,
-  TrendingUp, TrendingDown, Minus, DollarSign, Users, Percent, ArrowLeftRight
+  TrendingUp, TrendingDown, Minus, DollarSign, Users, Percent, ArrowLeftRight,
+  Copy, Check
 } from 'lucide-react';
+import { useCopyToClipboard } from '../hooks/useCopyToClipboard';
 import {
   listWorkspaces,
   listScenarios,
@@ -49,6 +51,81 @@ const calculateVariance = (baseline: number, comparison: number): { delta: numbe
   const delta = comparison - baseline;
   const deltaPct = baseline !== 0 ? ((comparison - baseline) / baseline) * 100 : 0;
   return { delta, deltaPct };
+};
+
+// ============================================================================
+// E015: Table to TSV Conversion Utilities
+// ============================================================================
+
+interface TableDataForTSV {
+  title: string;
+  years: number[];
+  baselineData: Map<number, number>;
+  comparisonData: Map<number, number>;
+  formatValue: (val: number) => string;
+  comparisonLabel: string;
+  isCost: boolean;
+  rawMultiplier?: number;
+}
+
+/**
+ * Converts a single metric table to TSV format for clipboard/Excel export.
+ */
+const tableToTSV = (data: TableDataForTSV): string => {
+  const { years, baselineData, comparisonData, formatValue, comparisonLabel, isCost, rawMultiplier = 1 } = data;
+
+  const lines: string[] = [];
+
+  // Header row: Scenario + year columns
+  lines.push(['Scenario', ...years.map(String)].join('\t'));
+
+  // Baseline row
+  const baselineValues = years.map(year => {
+    const value = baselineData.get(year);
+    return value !== undefined ? formatValue(value) : '-';
+  });
+  lines.push(['Baseline', ...baselineValues].join('\t'));
+
+  // Comparison row
+  const comparisonValues = years.map(year => {
+    const value = comparisonData.get(year);
+    return value !== undefined ? formatValue(value) : '-';
+  });
+  lines.push([comparisonLabel || 'Comparison', ...comparisonValues].join('\t'));
+
+  // Variance row
+  const varianceValues = years.map(year => {
+    const baselineValue = baselineData.get(year);
+    const comparisonValue = comparisonData.get(year);
+
+    if (baselineValue === undefined || comparisonValue === undefined) {
+      return '-';
+    }
+
+    const variance = calculateVariance(
+      baselineValue * rawMultiplier,
+      comparisonValue * rawMultiplier
+    );
+
+    const formattedDelta = isCost
+      ? formatCurrency(Math.abs(variance.delta))
+      : `${Math.abs(variance.delta).toFixed(2)}%`;
+    const sign = variance.delta > 0 ? '+' : variance.delta < 0 ? '-' : '';
+
+    return `${sign}${formattedDelta} (${sign}${Math.abs(variance.deltaPct).toFixed(1)}%)`;
+  });
+  lines.push(['Variance', ...varianceValues].join('\t'));
+
+  return lines.join('\n');
+};
+
+/**
+ * Converts all metric tables to TSV format with section headers.
+ */
+const allTablesToTSV = (tables: TableDataForTSV[]): string => {
+  return tables.map(table => {
+    return `${table.title}\n${tableToTSV(table)}`;
+  }).join('\n\n');
 };
 
 // ============================================================================
@@ -117,8 +194,9 @@ const VarianceDisplay = ({ delta, deltaPct, isCost = false, formatValue }: Varia
   const formattedDelta = formatValue ? formatValue(Math.abs(delta)) : Math.abs(delta).toFixed(2);
   const sign = isPositive ? '+' : isNegative ? '-' : '';
 
+  // E015: Added justify-end to align variance display with right-aligned year columns
   return (
-    <div className={`inline-flex items-center ${colorClass}`}>
+    <div className={`inline-flex items-center justify-end ${colorClass}`}>
       <Icon size={16} className="mr-1" />
       <span className="font-medium">
         {sign}{formattedDelta} ({sign}{Math.abs(deltaPct).toFixed(1)}%)
@@ -164,6 +242,28 @@ const MetricTable = ({
   rawMultiplier = 1,
   loading = false,
 }: MetricTableProps) => {
+  // E015: Copy to clipboard functionality
+  const { copy, copied, error } = useCopyToClipboard();
+
+  const handleCopy = useCallback(() => {
+    if (years.length === 0) return;
+
+    const tsvData = tableToTSV({
+      title,
+      years,
+      baselineData,
+      comparisonData,
+      formatValue,
+      comparisonLabel,
+      isCost,
+      rawMultiplier,
+    });
+
+    copy(tsvData);
+  }, [title, years, baselineData, comparisonData, formatValue, comparisonLabel, isCost, rawMultiplier, copy]);
+
+  const isCopyDisabled = years.length === 0 || loading;
+
   if (loading) {
     return (
       <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
@@ -179,10 +279,27 @@ const MetricTable = ({
 
   return (
     <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
-      {/* Metric Title Header */}
-      <div className="px-6 py-4 border-b border-gray-200 bg-gray-50">
+      {/* Metric Title Header with Copy Button */}
+      <div className="px-6 py-4 border-b border-gray-200 bg-gray-50 flex items-center justify-between">
         <h3 className="text-md font-semibold text-gray-900">{title}</h3>
+        <button
+          onClick={handleCopy}
+          disabled={isCopyDisabled}
+          className={`p-1.5 rounded-md transition-colors ${
+            copied
+              ? 'text-green-600 bg-green-50'
+              : 'text-gray-400 hover:text-gray-600 hover:bg-gray-100'
+          } ${isCopyDisabled ? 'opacity-50 cursor-not-allowed' : ''}`}
+          title={copied ? 'Copied!' : error ? error : 'Copy to clipboard'}
+        >
+          {copied ? <Check size={16} /> : <Copy size={16} />}
+        </button>
       </div>
+      {error && (
+        <div className="px-6 py-2 bg-red-50 text-red-600 text-xs">
+          {error}
+        </div>
+      )}
 
       <div className="overflow-x-auto">
         <table className="w-full">
@@ -357,6 +474,9 @@ export default function ScenarioCostComparison() {
   // Derived data
   const baselineAnalytics = comparisonData?.analytics.find(a => a.scenario_id === baselineScenarioId);
   const comparisonAnalytics = comparisonData?.analytics.find(a => a.scenario_id === comparisonScenarioId);
+
+  // E015: Copy All Tables functionality
+  const { copy: copyAll, copied: allCopied, error: copyAllError } = useCopyToClipboard();
 
   // Fetch workspaces on mount
   useEffect(() => {
@@ -780,11 +900,48 @@ export default function ScenarioCostComparison() {
 
           {/* E014: Year-by-Year Breakdown - Separate Tables per Metric */}
           <div className="space-y-6">
-            <div>
-              <h2 className="text-lg font-semibold text-gray-900">Year-by-Year Breakdown</h2>
-              <p className="text-sm text-gray-500 mt-1">
-                Detailed comparison of metrics for each simulation year
-              </p>
+            <div className="flex items-center justify-between">
+              <div>
+                <h2 className="text-lg font-semibold text-gray-900">Year-by-Year Breakdown</h2>
+                <p className="text-sm text-gray-500 mt-1">
+                  Detailed comparison of metrics for each simulation year
+                </p>
+              </div>
+              {/* E015: Copy All Tables button */}
+              {metricData && (
+                <button
+                  onClick={() => {
+                    const tables: TableDataForTSV[] = METRICS.map((metric) => {
+                      const data = metricData[metric.key as keyof typeof metricData];
+                      if (!data || typeof data !== 'object' || !('baselineMap' in data)) {
+                        return null;
+                      }
+                      return {
+                        title: metric.title,
+                        years: metricData.years,
+                        baselineData: data.baselineMap,
+                        comparisonData: data.comparisonMap,
+                        formatValue: metric.format,
+                        comparisonLabel: metricData.comparisonScenarioName,
+                        isCost: metric.isCost,
+                        rawMultiplier: metric.rawMultiplier,
+                      };
+                    }).filter((t): t is TableDataForTSV => t !== null);
+
+                    copyAll(allTablesToTSV(tables));
+                  }}
+                  disabled={loading || !metricData}
+                  className={`flex items-center gap-2 px-3 py-1.5 rounded-lg text-sm font-medium transition-colors ${
+                    allCopied
+                      ? 'bg-green-50 text-green-700 border border-green-200'
+                      : 'bg-gray-50 text-gray-600 border border-gray-200 hover:bg-gray-100 hover:text-gray-800'
+                  } ${loading || !metricData ? 'opacity-50 cursor-not-allowed' : ''}`}
+                  title={allCopied ? 'All tables copied!' : copyAllError ? copyAllError : 'Copy all tables to clipboard'}
+                >
+                  {allCopied ? <Check size={16} /> : <Copy size={16} />}
+                  <span>{allCopied ? 'Copied!' : 'Copy All Tables'}</span>
+                </button>
+              )}
             </div>
 
             {metricData && METRICS.map((metric) => {
