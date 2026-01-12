@@ -165,11 +165,27 @@ planalign_engine/
 
 ### Prerequisites
 
-- **Python 3.11+** (CPython 3.11.x recommended)
+- **Python 3.11 or 3.12** (CPython 3.11.x recommended, 3.12.x also supported)
 - **Node.js 18+** (required for PlanAlign Studio frontend)
 - **uv** package manager (optional but recommended for 10× faster installs)
 - Access to raw employee census data
 - On-premises deployment environment
+
+#### Installing Python on Windows
+
+If Python 3.11 or 3.12 is not installed, use Windows Package Manager (winget):
+
+```powershell
+# Install Python 3.12 (recommended for Windows)
+winget install --id Python.Python.3.12 -e
+
+# Or install Python 3.11
+winget install --id Python.Python.3.11 -e
+```
+
+**Note:** After installation, restart your terminal and verify with `python --version`.
+
+**Important:** Python 3.13+ is not yet supported due to missing pre-built wheels for `pydantic-core`.
 
 ### Installation
 
