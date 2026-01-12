@@ -165,102 +165,66 @@ planalign_engine/
 
 ### Prerequisites
 
-- **Python 3.11 or 3.12** (CPython 3.11.x recommended, 3.12.x also supported)
+- **Python 3.11 or 3.12** (3.12 recommended)
 - **Node.js 18+** (required for PlanAlign Studio frontend)
-- **uv** package manager (optional but recommended for 10× faster installs)
 - Access to raw employee census data
 - On-premises deployment environment
 
-#### Installing Python on Windows
-
-If Python 3.11 or 3.12 is not installed, use Windows Package Manager (winget):
-
-```powershell
-# Install Python 3.12 (recommended for Windows)
-winget install --id Python.Python.3.12 -e
-
-# Or install Python 3.11
-winget install --id Python.Python.3.11 -e
-```
-
-**Note:** After installation, restart your terminal and verify with `python --version`.
-
 **Important:** Python 3.13+ is not yet supported due to missing pre-built wheels for `pydantic-core`.
 
-### Installation
+### Installation (Windows)
 
-#### Recommended: Using uv (10× faster)
+1. **Install Python 3.12** using Windows Package Manager (winget):
 
-**uv** is a blazing-fast Python package installer built in Rust. Installation takes ~40 seconds instead of 5+ minutes.
-
-1. **Install uv**:
-
-**On macOS/Linux:**
-```bash
-curl -LsSf https://astral.sh/uv/install.sh | sh
-# Add to PATH if needed
-export PATH="$HOME/.local/bin:$PATH"
-```
-
-**On Windows (PowerShell):**
 ```powershell
-powershell -c "irm https://astral.sh/uv/install.ps1 | iex"
+winget install --id Python.Python.3.12 -e
 ```
 
-**Alternative (all platforms):**
-```bash
-pip install uv
-```
+After installation, restart your terminal and verify with `python --version`.
 
 2. **Clone and setup environment**:
-```bash
+
+```powershell
 git clone <repository-url> planalign_engine
 cd planalign_engine
 
-# Create virtual environment with uv
-uv venv .venv --python python3.11
+# Create virtual environment
+python -m venv .venv
 
-# Activate virtual environment
-# On macOS/Linux:
-source .venv/bin/activate
-# On Windows (PowerShell):
-# .venv\Scripts\Activate.ps1
-# On Windows (CMD):
+# Activate virtual environment (PowerShell)
+.venv\Scripts\Activate.ps1
+# Or for CMD:
 # .venv\Scripts\activate.bat
 
-# Install all dependencies in editable mode (~40 seconds)
-uv pip install -e ".[dev]"
+# Upgrade pip and install dependencies
+pip install --upgrade pip
+pip install -e ".[dev]"
 ```
 
 3. **Install dbt dependencies**:
-```bash
+
+```powershell
 cd dbt
 dbt deps
 cd ..
 ```
 
 4. **Install frontend dependencies** (required for PlanAlign Studio):
-```bash
+
+```powershell
 cd planalign_studio
 npm install
 cd ..
 ```
 
-#### Alternative: Using pip
-
-If uv is not available, use traditional pip:
+#### Alternative: macOS/Linux Installation
 
 ```bash
 # Create virtual environment
-python3.11 -m venv .venv
+python3.12 -m venv .venv
 
 # Activate virtual environment
-# On macOS/Linux:
 source .venv/bin/activate
-# On Windows (PowerShell):
-# .venv\Scripts\Activate.ps1
-# On Windows (CMD):
-# .venv\Scripts\activate.bat
 
 # Install all dependencies in editable mode
 pip install --upgrade pip
