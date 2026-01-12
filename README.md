@@ -246,19 +246,7 @@ npm install
 cd ..
 ```
 
-#### Alternative: Using Make (recommended for development)
-
-```bash
-# One command to set up everything (includes planwise CLI installation)
-make install
-
-# Or for full development setup including dbt deps and seeds
-make dev-setup
-```
-
-**Note**: The Makefile `install` target automatically installs dependencies and the planwise CLI.
-
-#### Legacy: Using pip
+#### Alternative: Using pip
 
 If uv is not available, use traditional pip:
 
