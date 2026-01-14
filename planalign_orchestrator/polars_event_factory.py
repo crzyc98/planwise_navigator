@@ -1628,6 +1628,42 @@ class PolarsEventGenerator:
             self.logger.warning(f"No events generated for year {simulation_year}")
             return pl.DataFrame()
 
+    def _create_empty_events_schema(self, simulation_year: int) -> pl.DataFrame:
+        """
+        Create an empty DataFrame with the correct event schema.
+
+        This ensures parquet files are written even for years with no events,
+        which is required for DuckDB's read_parquet() glob patterns in
+        fct_yearly_events.sql to work correctly.
+        """
+        return pl.DataFrame({
+            'scenario_id': pl.Series([], dtype=pl.Utf8),
+            'plan_design_id': pl.Series([], dtype=pl.Utf8),
+            'employee_id': pl.Series([], dtype=pl.Utf8),
+            'employee_ssn': pl.Series([], dtype=pl.Utf8),
+            'event_type': pl.Series([], dtype=pl.Utf8),
+            'event_category': pl.Series([], dtype=pl.Utf8),
+            'event_date': pl.Series([], dtype=pl.Date),
+            'effective_date': pl.Series([], dtype=pl.Date),
+            'event_details': pl.Series([], dtype=pl.Utf8),
+            'event_payload': pl.Series([], dtype=pl.Utf8),
+            'compensation_amount': pl.Series([], dtype=pl.Float64),
+            'previous_compensation': pl.Series([], dtype=pl.Float64),
+            'employee_deferral_rate': pl.Series([], dtype=pl.Float64),
+            'prev_employee_deferral_rate': pl.Series([], dtype=pl.Float64),
+            'employee_age': pl.Series([], dtype=pl.Int64),
+            'employee_tenure': pl.Series([], dtype=pl.Float64),
+            'employee_birth_date': pl.Series([], dtype=pl.Date),
+            'level_id': pl.Series([], dtype=pl.Utf8),
+            'age_band': pl.Series([], dtype=pl.Utf8),
+            'tenure_band': pl.Series([], dtype=pl.Utf8),
+            'simulation_year': pl.Series([], dtype=pl.Int64),
+            'event_probability': pl.Series([], dtype=pl.Float64),
+            'event_id': pl.Series([], dtype=pl.Utf8),
+            'created_at': pl.Series([], dtype=pl.Datetime),
+            'generation_method': pl.Series([], dtype=pl.Utf8),
+        })
+
     def generate_multi_year_events(self) -> None:
         """
         Generate events for all years and write to partitioned Parquet files.
@@ -1654,13 +1690,13 @@ class PolarsEventGenerator:
 
                 year_events = self.generate_year_events(year)
 
+                # Write year partition (even if empty - required for DuckDB glob patterns)
+                year_output_path = self.config.output_path / f"simulation_year={year}"
+                year_output_path.mkdir(exist_ok=True)
+
+                parquet_file = year_output_path / f"events_{year}.parquet"
+
                 if year_events.height > 0:
-                    # Write year partition
-                    year_output_path = self.config.output_path / f"simulation_year={year}"
-                    year_output_path.mkdir(exist_ok=True)
-
-                    parquet_file = year_output_path / f"events_{year}.parquet"
-
                     # Write with compression and optimization
                     write_options = {
                         'compression': 'zstd' if self.config.enable_compression else None,
@@ -1677,7 +1713,14 @@ class PolarsEventGenerator:
                     year_duration = time.time() - year_start
                     self.logger.info(f"Year {year} completed in {year_duration:.1f}s - wrote {year_events.height:,} events")
                 else:
-                    self.logger.warning(f"No events generated for year {year}")
+                    # Write empty parquet file with correct schema
+                    # This ensures fct_yearly_events.sql read_parquet() glob pattern succeeds
+                    empty_events = self._create_empty_events_schema(year)
+                    empty_events.write_parquet(parquet_file)
+                    successful_years.append(year)
+
+                    year_duration = time.time() - year_start
+                    self.logger.warning(f"No events generated for year {year} - wrote empty parquet file ({year_duration:.1f}s)")
 
             except Exception as e:
                 failed_years.append(year)
