@@ -157,7 +157,7 @@ workforce_after_promotions AS (
         w.current_age,
         w.current_tenure,
         CASE
-            WHEN ec.has_promotion THEN ec.promotion_level_id
+            WHEN ec.has_promotion THEN CAST(ec.promotion_level_id AS INTEGER)
             ELSE CAST(w.level_id AS INTEGER)
         END AS level_id,
         w.termination_date,

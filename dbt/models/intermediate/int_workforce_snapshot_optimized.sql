@@ -188,9 +188,10 @@ workforce_with_events_applied AS (
         b.current_tenure,
 
         -- **PRESERVED LEVEL LOGIC**: Identical level determination
+        -- Cast VARCHAR level_id from events to INTEGER for type consistency
         CASE
-            WHEN e.has_promotion THEN e.promotion_new_level
-            WHEN e.is_new_hire THEN e.hire_level
+            WHEN e.has_promotion THEN CAST(e.promotion_new_level AS INTEGER)
+            WHEN e.is_new_hire THEN CAST(e.hire_level AS INTEGER)
             ELSE b.level_id
         END AS level_id,
 
