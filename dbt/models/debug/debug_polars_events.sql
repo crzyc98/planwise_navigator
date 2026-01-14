@@ -92,8 +92,8 @@ SELECT
   total_merit_increases,
   total_enrollment_events,
   quality_status,
-  -- Performance metrics
-  ROUND(total_events / GREATEST(1, EXTRACT(EPOCH FROM (CURRENT_TIMESTAMP - CURRENT_TIMESTAMP))), 2) as events_per_second_theoretical,
+  -- Performance metrics placeholder (non-functional - would need actual timing data from Polars factory)
+  total_events as events_generated,
   -- Event distribution
   ROUND(100.0 * total_hires / GREATEST(1, total_events), 2) as hire_percentage,
   ROUND(100.0 * total_terminations / GREATEST(1, total_events), 2) as termination_percentage,
