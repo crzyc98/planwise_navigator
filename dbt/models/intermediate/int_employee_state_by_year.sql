@@ -269,7 +269,7 @@ state_transitions AS (
     END AS employment_status,
 
     CASE
-      WHEN e.had_promotion = 1 THEN e.new_level
+      WHEN e.had_promotion = 1 THEN CAST(e.new_level AS INTEGER)
       ELSE COALESCE(p.level_id, b.level_id, 1)
     END AS level_id,
 
