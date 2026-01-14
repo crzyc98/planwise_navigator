@@ -1654,7 +1654,7 @@ class PolarsEventGenerator:
             'employee_age': pl.Series([], dtype=pl.Int64),
             'employee_tenure': pl.Series([], dtype=pl.Float64),
             'employee_birth_date': pl.Series([], dtype=pl.Date),
-            'level_id': pl.Series([], dtype=pl.Utf8),
+            'level_id': pl.Series([], dtype=pl.Int64),
             'age_band': pl.Series([], dtype=pl.Utf8),
             'tenure_band': pl.Series([], dtype=pl.Utf8),
             'simulation_year': pl.Series([], dtype=pl.Int64),
