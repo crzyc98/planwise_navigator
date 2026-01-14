@@ -1726,6 +1726,18 @@ class PolarsEventGenerator:
                 failed_years.append(year)
                 self.logger.error(f"Failed to generate events for year {year}: {e}", exc_info=True)
 
+                # Still write empty parquet file to prevent dbt read_parquet failures
+                # This ensures fct_yearly_events.sql can always find a file for every year
+                try:
+                    year_output_path = self.config.output_path / f"simulation_year={year}"
+                    year_output_path.mkdir(parents=True, exist_ok=True)
+                    parquet_file = year_output_path / f"events_{year}.parquet"
+                    empty_events = self._create_empty_events_schema(year)
+                    empty_events.write_parquet(parquet_file)
+                    self.logger.warning(f"Wrote empty parquet file for failed year {year} to prevent downstream errors")
+                except Exception as write_error:
+                    self.logger.error(f"Failed to write empty parquet for year {year}: {write_error}")
+
         # Final statistics and summary
         total_duration = time.time() - total_start_time
 
