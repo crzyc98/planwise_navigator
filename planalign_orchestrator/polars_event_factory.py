@@ -205,25 +205,23 @@ class PolarsEventGenerator:
         Load baseline workforce from dbt seeds or database.
 
         Tries multiple sources in order of preference:
-        1. Parquet files (fastest)
-        2. DuckDB simulation database
+        1. DuckDB simulation database (if database_path is configured - workspace mode)
+        2. Parquet files relative to output_path (if available)
         3. CSV seeds (fallback)
+
+        Note: When database_path is explicitly set (workspace/scenario mode),
+        we skip hardcoded project-level parquet paths to ensure isolation.
         """
-        # Try Parquet first (fastest)
-        parquet_path = Path("data/parquet/stg_census_data.parquet")
-        if parquet_path.exists():
-            self.logger.info(f"Loading workforce from Parquet: {parquet_path}")
-            df = pl.read_parquet(parquet_path)
-        else:
-            # Try DuckDB database
-            try:
-                import duckdb
-                # Use database_path from config if specified (for batch mode), otherwise default
-                db_path = self.config.database_path if self.config.database_path else get_database_path()
-                if db_path.exists():
-                    self.logger.info(f"Loading workforce from DuckDB: {db_path}")
+        df = None
+
+        # If database_path is explicitly configured (workspace mode), use it directly
+        # This ensures we don't accidentally use stale data from project-level paths
+        if self.config.database_path:
+            db_path = self.config.database_path
+            if db_path.exists():
+                self.logger.info(f"Loading workforce from workspace DuckDB: {db_path}")
+                try:
                     conn = duckdb.connect(str(db_path))
-                    # Query baseline workforce for all years
                     query = """
                     SELECT DISTINCT
                         employee_id,
@@ -241,17 +239,54 @@ class PolarsEventGenerator:
                     """
                     df = pl.from_pandas(conn.execute(query).df())
                     conn.close()
-                else:
-                    raise FileNotFoundError(f"Database not found: {db_path}")
+                except Exception as e:
+                    self.logger.warning(f"Could not load from workspace database: {e}")
+            else:
+                self.logger.warning(f"Workspace database not found: {db_path}")
+
+        # If not in workspace mode or workspace load failed, try parquet relative to output_path
+        if df is None:
+            # Check for parquet in the configured output path's parent directory
+            parquet_path = self.config.output_path.parent / "stg_census_data.parquet"
+            if parquet_path.exists():
+                self.logger.info(f"Loading workforce from Parquet: {parquet_path}")
+                df = pl.read_parquet(parquet_path)
+
+        # Fallback: try default database path
+        if df is None:
+            try:
+                db_path = get_database_path()
+                if db_path.exists():
+                    self.logger.info(f"Loading workforce from default DuckDB: {db_path}")
+                    conn = duckdb.connect(str(db_path))
+                    query = """
+                    SELECT DISTINCT
+                        employee_id,
+                        employee_ssn,
+                        employee_birth_date,
+                        employee_hire_date,
+                        employee_gross_compensation,
+                        employee_annualized_compensation,
+                        employee_deferral_rate,
+                        current_eligibility_status,
+                        employee_enrollment_date,
+                        active
+                    FROM stg_census_data
+                    WHERE active = true
+                    """
+                    df = pl.from_pandas(conn.execute(query).df())
+                    conn.close()
             except Exception as e:
-                self.logger.warning(f"Could not load from database: {e}")
-                # Fallback to CSV
-                csv_path = Path("dbt/seeds/census_data.csv")
-                if csv_path.exists():
-                    self.logger.info(f"Loading workforce from CSV: {csv_path}")
-                    df = pl.read_csv(csv_path)
-                else:
-                    raise FileNotFoundError("No workforce data found in any location")
+                self.logger.warning(f"Could not load from default database: {e}")
+
+        # Last resort: CSV seeds
+        if df is None:
+            csv_path = Path("dbt/seeds/census_data.csv")
+            if csv_path.exists():
+                self.logger.info(f"Loading workforce from CSV: {csv_path}")
+                df = pl.read_csv(csv_path)
+            else:
+                raise FileNotFoundError("No workforce data found in any location")
 
         # Ensure required columns exist and add metadata
         required_cols = ['employee_id', 'employee_gross_compensation']
