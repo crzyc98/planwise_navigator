@@ -141,6 +141,9 @@ snapshot_proration AS (
         {{ simulation_year }} AS simulation_year,
         comp.employee_compensation AS current_compensation,
         -- FIX: Calculate prorated compensation for terminated employees
+        -- NOTE: GREATEST(0, ...) handles edge cases where termination_date precedes year start
+        -- (e.g., data quality issues, prior-year terminations in snapshot). Negative day counts
+        -- are clamped to 0, resulting in $0 prorated compensation for such records.
         CASE
             WHEN term.termination_date IS NOT NULL THEN
                 ROUND(
