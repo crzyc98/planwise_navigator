@@ -475,3 +475,271 @@ class WorkspaceStorage:
             yaml.dump(config, f, default_flow_style=False)
 
         return True
+
+    # ==================== Workspace Repair Operations ====================
+
+    def repair_workspaces(self) -> Dict[str, Any]:
+        """
+        Scan and repair corrupted workspace and scenario JSON files.
+
+        This method checks all workspaces for corrupted JSON files and attempts
+        to repair them by:
+        1. Detecting JSON parse errors
+        2. Backing up corrupted files
+        3. Recreating minimal valid JSON from available metadata
+
+        Returns:
+            Dictionary with repair report:
+            - workspaces_scanned: Number of workspaces checked
+            - scenarios_scanned: Number of scenarios checked
+            - repairs: List of repair actions taken
+            - errors: List of unrecoverable errors
+        """
+        report = {
+            "workspaces_scanned": 0,
+            "scenarios_scanned": 0,
+            "repairs": [],
+            "errors": [],
+        }
+
+        logger.info("Starting workspace repair scan...")
+
+        for workspace_dir in sorted(self.workspaces_root.iterdir()):
+            if not workspace_dir.is_dir() or workspace_dir.name.startswith("."):
+                continue
+
+            workspace_id = workspace_dir.name
+            report["workspaces_scanned"] += 1
+
+            # Check and repair workspace.json
+            workspace_json = workspace_dir / "workspace.json"
+            repair_result = self._repair_json_file(
+                workspace_json,
+                self._create_minimal_workspace_json,
+                {"workspace_id": workspace_id, "workspace_dir": workspace_dir},
+            )
+            if repair_result:
+                report["repairs"].append(repair_result)
+
+            # Check and repair scenario files
+            scenarios_dir = workspace_dir / "scenarios"
+            if scenarios_dir.exists():
+                for scenario_dir in scenarios_dir.iterdir():
+                    if not scenario_dir.is_dir():
+                        continue
+
+                    scenario_id = scenario_dir.name
+                    report["scenarios_scanned"] += 1
+
+                    scenario_json = scenario_dir / "scenario.json"
+                    repair_result = self._repair_json_file(
+                        scenario_json,
+                        self._create_minimal_scenario_json,
+                        {
+                            "workspace_id": workspace_id,
+                            "scenario_id": scenario_id,
+                            "scenario_dir": scenario_dir,
+                        },
+                    )
+                    if repair_result:
+                        report["repairs"].append(repair_result)
+
+        logger.info(
+            f"Workspace repair complete: {report['workspaces_scanned']} workspaces, "
+            f"{report['scenarios_scanned']} scenarios, {len(report['repairs'])} repairs"
+        )
+
+        return report
+
+    def _repair_json_file(
+        self,
+        json_path: Path,
+        create_minimal_fn,
+        context: Dict[str, Any],
+    ) -> Optional[Dict[str, Any]]:
+        """
+        Attempt to repair a JSON file if corrupted.
+
+        Args:
+            json_path: Path to the JSON file
+            create_minimal_fn: Function to create minimal valid JSON
+            context: Context data for the creation function
+
+        Returns:
+            Repair action dict if repaired, None if file was OK or doesn't exist
+        """
+        if not json_path.exists():
+            # File doesn't exist - create it if parent directory exists
+            if json_path.parent.exists():
+                logger.warning(f"Missing JSON file, creating: {json_path}")
+                try:
+                    minimal_data = create_minimal_fn(context)
+                    with open(json_path, "w") as f:
+                        json.dump(minimal_data, f, indent=2)
+                    return {
+                        "file": str(json_path),
+                        "action": "created",
+                        "reason": "file_missing",
+                    }
+                except Exception as e:
+                    logger.error(f"Failed to create {json_path}: {e}")
+                    return {
+                        "file": str(json_path),
+                        "action": "failed",
+                        "reason": str(e),
+                    }
+            return None
+
+        # Try to load the JSON file
+        try:
+            with open(json_path, "r") as f:
+                content = f.read()
+
+            # Check for empty file
+            if not content.strip():
+                raise json.JSONDecodeError("Empty file", content, 0)
+
+            # Try to parse
+            data = json.loads(content)
+
+            # Validate required fields exist
+            if json_path.name == "workspace.json":
+                required = ["id", "name", "created_at", "updated_at"]
+            else:  # scenario.json
+                required = ["id", "workspace_id", "name", "created_at"]
+
+            missing = [f for f in required if f not in data]
+            if missing:
+                raise ValueError(f"Missing required fields: {missing}")
+
+            return None  # File is OK
+
+        except (json.JSONDecodeError, ValueError, UnicodeDecodeError) as e:
+            logger.warning(f"Corrupted JSON file detected: {json_path} - {e}")
+
+            # Backup the corrupted file
+            backup_path = json_path.with_suffix(".json.corrupted")
+            backup_num = 1
+            while backup_path.exists():
+                backup_path = json_path.with_suffix(f".json.corrupted.{backup_num}")
+                backup_num += 1
+
+            try:
+                shutil.copy2(json_path, backup_path)
+                logger.info(f"Backed up corrupted file to: {backup_path}")
+            except Exception as backup_err:
+                logger.error(f"Failed to backup corrupted file: {backup_err}")
+
+            # Try to salvage partial data
+            salvaged_data = self._try_salvage_json(json_path)
+
+            # Create minimal valid JSON
+            try:
+                minimal_data = create_minimal_fn(context, salvaged_data)
+                with open(json_path, "w") as f:
+                    json.dump(minimal_data, f, indent=2)
+
+                return {
+                    "file": str(json_path),
+                    "action": "repaired",
+                    "reason": str(e),
+                    "backup": str(backup_path),
+                    "salvaged_fields": list(salvaged_data.keys()) if salvaged_data else [],
+                }
+            except Exception as repair_err:
+                logger.error(f"Failed to repair {json_path}: {repair_err}")
+                return {
+                    "file": str(json_path),
+                    "action": "failed",
+                    "reason": str(repair_err),
+                }
+
+    def _try_salvage_json(self, json_path: Path) -> Dict[str, Any]:
+        """
+        Try to salvage partial data from a corrupted JSON file.
+
+        Uses multiple strategies:
+        1. Try parsing with error recovery
+        2. Extract key-value pairs with regex
+        3. Return empty dict if nothing salvageable
+        """
+        salvaged = {}
+
+        try:
+            with open(json_path, "r", errors="replace") as f:
+                content = f.read()
+
+            # Try to find common field patterns
+            import re
+
+            # Look for "id": "value" patterns
+            id_match = re.search(r'"id"\s*:\s*"([^"]+)"', content)
+            if id_match:
+                salvaged["id"] = id_match.group(1)
+
+            # Look for "name": "value" patterns
+            name_match = re.search(r'"name"\s*:\s*"([^"]+)"', content)
+            if name_match:
+                salvaged["name"] = name_match.group(1)
+
+            # Look for "workspace_id": "value" patterns
+            ws_id_match = re.search(r'"workspace_id"\s*:\s*"([^"]+)"', content)
+            if ws_id_match:
+                salvaged["workspace_id"] = ws_id_match.group(1)
+
+            # Look for "description": "value" patterns
+            desc_match = re.search(r'"description"\s*:\s*"([^"]*)"', content)
+            if desc_match:
+                salvaged["description"] = desc_match.group(1)
+
+            # Look for ISO date patterns for created_at/updated_at
+            date_pattern = r'\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}'
+            dates = re.findall(date_pattern, content)
+            if dates:
+                salvaged["_salvaged_dates"] = dates
+
+        except Exception as e:
+            logger.debug(f"Could not salvage data from {json_path}: {e}")
+
+        return salvaged
+
+    def _create_minimal_workspace_json(
+        self, context: Dict[str, Any], salvaged: Optional[Dict[str, Any]] = None
+    ) -> Dict[str, Any]:
+        """Create minimal valid workspace.json from context and salvaged data."""
+        salvaged = salvaged or {}
+        now = datetime.utcnow().isoformat()
+
+        # Try to use salvaged dates
+        dates = salvaged.get("_salvaged_dates", [])
+        created_at = dates[0] if dates else now
+        updated_at = dates[-1] if dates else now
+
+        return {
+            "id": salvaged.get("id", context["workspace_id"]),
+            "name": salvaged.get("name", f"Recovered Workspace ({context['workspace_id'][:8]})"),
+            "description": salvaged.get("description", "Workspace recovered from corrupted data"),
+            "created_at": created_at,
+            "updated_at": updated_at,
+        }
+
+    def _create_minimal_scenario_json(
+        self, context: Dict[str, Any], salvaged: Optional[Dict[str, Any]] = None
+    ) -> Dict[str, Any]:
+        """Create minimal valid scenario.json from context and salvaged data."""
+        salvaged = salvaged or {}
+        now = datetime.utcnow().isoformat()
+
+        # Try to use salvaged dates
+        dates = salvaged.get("_salvaged_dates", [])
+        created_at = dates[0] if dates else now
+
+        return {
+            "id": salvaged.get("id", context["scenario_id"]),
+            "workspace_id": salvaged.get("workspace_id", context["workspace_id"]),
+            "name": salvaged.get("name", f"Recovered Scenario ({context['scenario_id'][:8]})"),
+            "description": salvaged.get("description", "Scenario recovered from corrupted data"),
+            "config_overrides": {},
+            "status": "not_run",
+            "created_at": created_at,
+        }

@@ -22,6 +22,54 @@ from rich.table import Table
 console = Console()
 
 
+def _repair_workspaces_on_startup() -> None:
+    """
+    Run workspace repair on startup to fix any corrupted JSON files.
+
+    This ensures the studio can start even if workspaces were corrupted
+    by crashes, sync issues, or other problems.
+    """
+    try:
+        from planalign_api.storage.workspace_storage import WorkspaceStorage
+        from planalign_api.config import get_settings
+
+        console.print("[dim]Checking workspace integrity...[/dim]")
+
+        storage = WorkspaceStorage()
+        report = storage.repair_workspaces()
+
+        if report["repairs"]:
+            console.print(
+                f"[yellow]⚠️ Repaired {len(report['repairs'])} corrupted file(s)[/yellow]"
+            )
+            for repair in report["repairs"]:
+                action = repair.get("action", "unknown")
+                file_path = repair.get("file", "unknown")
+                reason = repair.get("reason", "")
+
+                if action == "repaired":
+                    console.print(f"  [yellow]↳ Repaired:[/yellow] {Path(file_path).name}")
+                    if repair.get("backup"):
+                        console.print(f"    [dim]Backup: {repair['backup']}[/dim]")
+                    if repair.get("salvaged_fields"):
+                        console.print(
+                            f"    [dim]Salvaged: {', '.join(repair['salvaged_fields'])}[/dim]"
+                        )
+                elif action == "created":
+                    console.print(f"  [yellow]↳ Created:[/yellow] {Path(file_path).name}")
+                elif action == "failed":
+                    console.print(f"  [red]↳ Failed:[/red] {Path(file_path).name} - {reason}")
+
+            console.print()
+        else:
+            console.print("[green]✓ All workspaces OK[/green]")
+
+    except Exception as e:
+        # Don't prevent studio from starting if repair fails
+        console.print(f"[yellow]Warning: Workspace check failed: {e}[/yellow]")
+        console.print("[dim]Continuing with startup...[/dim]")
+
+
 def _get_npm_command() -> str:
     """
     Get the correct npm command for the current platform.
@@ -110,6 +158,11 @@ def launch_studio(
         )
     )
     console.print()
+
+    # Run workspace repair before starting servers
+    if not frontend_only:
+        _repair_workspaces_on_startup()
+        console.print()
 
     started_services = []
 
