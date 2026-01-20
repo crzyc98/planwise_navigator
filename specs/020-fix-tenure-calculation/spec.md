@@ -74,9 +74,14 @@ As a plan administrator, I need tenure bands to be assigned based on the correct
 
 ### Key Entities
 
-- **Employee**: Has hire_date (date), current_tenure (integer years)
+- **Employee**: Has hire_date (date), termination_date (date, nullable), current_tenure (integer years)
 - **Simulation Year**: Defines the plan year end date (12/31/YYYY) used as reference for tenure calculation
 - **Tenure Band**: Classification based on tenure value using [min, max) intervals
+
+### Tenure Calculation Rules
+
+- **Active employees**: Tenure calculated to December 31 of simulation year
+- **Terminated employees**: Tenure calculated to termination date (not year end)
 
 ## Success Criteria *(mandatory)*
 
