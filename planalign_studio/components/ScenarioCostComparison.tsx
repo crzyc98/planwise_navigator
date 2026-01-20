@@ -35,7 +35,7 @@ import {
   DCPlanAnalytics,
   ContributionYearSummary,
 } from '../services/api';
-import { COLORS } from '../constants';
+import { COLORS, MAX_SCENARIO_SELECTION } from '../constants';
 
 // ============================================================================
 // Utility Functions
@@ -366,8 +366,8 @@ export default function ScenarioCostComparison() {
         }
         return prev; // Can't deselect the last one
       } else {
-        // Selecting - max 5 scenarios
-        if (prev.length < 5) {
+        // Selecting - max scenarios based on constant
+        if (prev.length < MAX_SCENARIO_SELECTION) {
           return [...prev, id];
         }
         return prev;
@@ -498,6 +498,8 @@ export default function ScenarioCostComparison() {
               {filteredScenarios.map((scenario) => {
                 const isSelected = selectedScenarioIds.includes(scenario.id);
                 const isAnchor = anchorScenarioId === scenario.id;
+                const isAtLimit = selectedScenarioIds.length >= MAX_SCENARIO_SELECTION;
+                const isDisabled = isAtLimit && !isSelected;
 
                 return (
                   <div
@@ -507,18 +509,22 @@ export default function ScenarioCostComparison() {
                         ? isAnchor
                           ? 'bg-blue-50 border-blue-200 shadow-sm'
                           : 'bg-fidelity-green/5 border-fidelity-green/20'
-                        : 'hover:bg-gray-50 border-transparent'
+                        : isDisabled
+                          ? 'bg-gray-50 border-transparent'
+                          : 'hover:bg-gray-50 border-transparent'
                     }`}
                   >
                     <button
                       onClick={() => toggleSelection(scenario.id)}
-                      className="flex items-start flex-1 min-w-0"
+                      disabled={isDisabled}
+                      title={isDisabled ? `Maximum of ${MAX_SCENARIO_SELECTION} scenarios selected` : undefined}
+                      className={`flex items-start flex-1 min-w-0 ${isDisabled ? 'opacity-50 cursor-not-allowed' : ''}`}
                     >
                       <div className="mt-1 mr-3 flex-shrink-0">
                         {isSelected ? (
                           <CheckSquare size={16} className={isAnchor ? 'text-blue-600' : 'text-fidelity-green'} />
                         ) : (
-                          <Square size={16} className="text-gray-300" />
+                          <Square size={16} className={isDisabled ? 'text-gray-200' : 'text-gray-300'} />
                         )}
                       </div>
                       <div className="flex-1 min-w-0">
