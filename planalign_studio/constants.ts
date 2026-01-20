@@ -3,6 +3,9 @@ import { ChartDataPoint, SimulationConfig, BatchJob, ComparisonMetric, Workspace
 export const APP_NAME = "PlanAlign Engine";
 export const APP_VERSION = "1.0.0";
 
+// Maximum number of scenarios that can be selected for comparison
+export const MAX_SCENARIO_SELECTION = 6;
+
 export const MOCK_WORKSPACES: Workspace[] = [
   {
     id: 'ws_001',
@@ -159,7 +162,7 @@ export const COLORS = {
   secondary: '#4CAF50',
   accent: '#FF9800',
   danger: '#F44336',
-  charts: ['#0088FE', '#00C49F', '#FFBB28', '#FF8042', '#8884d8']
+  charts: ['#0088FE', '#00C49F', '#FFBB28', '#FF8042', '#8884d8', '#E91E63']
 };
 
 export const MOCK_BATCH_JOBS: BatchJob[] = [
