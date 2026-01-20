@@ -199,11 +199,11 @@ temporal_calculations AS (
                 DATE_DIFF('year', employee_birth_date, effective_date)
             ELSE NULL
         END AS calculated_age,
-        -- Calculate tenure at the time of each event
+        -- Calculate tenure at the time of each event (E020 FIX: day-based calculation)
         CASE
-            WHEN employee_hire_date IS NOT NULL AND employee_hire_date <= effective_date THEN
-                DATE_DIFF('year', employee_hire_date, effective_date)
             WHEN event_type = 'hire' THEN 0  -- New hires start with 0 tenure
+            WHEN employee_hire_date IS NOT NULL AND employee_hire_date <= effective_date THEN
+                FLOOR((effective_date - employee_hire_date) / 365.25)::INTEGER
             ELSE NULL
         END AS calculated_tenure
     FROM date_and_status_propagated_stream

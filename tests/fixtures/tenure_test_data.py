@@ -130,19 +130,45 @@ YEAR_OVER_YEAR_CASES = [
     ),
 ]
 
+# Terminated employee test cases
+TERMINATED_EMPLOYEE_CASES = [
+    TenureTestCase(
+        name="terminated_mid_year",
+        hire_date=date(2020, 1, 1),
+        simulation_year=2025,  # termination_date would be 2025-06-30
+        expected_tenure=5,  # floor(2007 days / 365.25) = 5 (to termination, not year end which would be 5)
+        description="Terminated mid-year - tenure calculated to termination date 2025-06-30"
+    ),
+    TenureTestCase(
+        name="terminated_early_year_short_tenure",
+        hire_date=date(2024, 12, 15),
+        simulation_year=2025,  # termination_date would be 2025-01-15
+        expected_tenure=0,  # floor(31 days / 365.25) = 0 (vs 1 year if calculated to year end)
+        description="Terminated early year - tenure 0 to termination vs 1 to year end"
+    ),
+]
+
 # All test cases combined
 ALL_TEST_CASES = SPEC_ACCEPTANCE_CASES + EDGE_CASES
 
 
-def calculate_expected_tenure(hire_date: date, simulation_year: int) -> int:
+def calculate_expected_tenure(
+    hire_date: date,
+    simulation_year: int,
+    termination_date: date = None
+) -> int:
     """
     Calculate expected tenure using the reference formula.
 
-    Formula: floor((simulation_year_end_date - hire_date) / 365.25)
+    Formula: floor((effective_end_date - hire_date) / 365.25)
+
+    For active employees, effective_end_date = December 31 of simulation year.
+    For terminated employees, effective_end_date = termination_date.
 
     Args:
         hire_date: Employee's hire date
         simulation_year: The simulation year
+        termination_date: Optional termination date for terminated employees
 
     Returns:
         Integer years of service (truncated, not rounded)
@@ -152,12 +178,16 @@ def calculate_expected_tenure(hire_date: date, simulation_year: int) -> int:
     if hire_date is None:
         return 0
 
-    year_end = date(simulation_year, 12, 31)
+    # Use termination date if provided, otherwise use year end
+    if termination_date is not None:
+        effective_end = termination_date
+    else:
+        effective_end = date(simulation_year, 12, 31)
 
-    if hire_date > year_end:
+    if hire_date > effective_end:
         return 0
 
-    days = (year_end - hire_date).days
+    days = (effective_end - hire_date).days
     return int(math.floor(days / 365.25))
 
 

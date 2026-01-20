@@ -18,6 +18,7 @@ from hypothesis import strategies as st
 from tests.fixtures.tenure_test_data import (
     ALL_TEST_CASES,
     YEAR_OVER_YEAR_CASES,
+    TERMINATED_EMPLOYEE_CASES,
     calculate_expected_tenure,
     get_tenure_band,
     TenureTestCase,
@@ -262,6 +263,55 @@ class TestTenureBandAssignment:
         tenure = 1
         band = get_tenure_band(tenure)
         assert band == "< 2", f"Tenure 1 should be in '< 2' band, got '{band}'"
+
+
+class TestTerminatedEmployeeTenure:
+    """Tests for terminated employee tenure calculation."""
+
+    def test_terminated_mid_year_uses_termination_date(self):
+        """
+        Test that terminated employees have tenure calculated to termination date.
+
+        Validates: Terminated employee tenure = floor((termination_date - hire_date) / 365.25)
+        """
+        hire_date = date(2020, 1, 1)
+        termination_date = date(2025, 6, 30)
+        simulation_year = 2025
+
+        # Tenure to termination date (2007 days)
+        tenure_to_termination = calculate_expected_tenure(hire_date, simulation_year, termination_date)
+        # Tenure to year end (2191 days)
+        tenure_to_year_end = calculate_expected_tenure(hire_date, simulation_year, None)
+
+        assert tenure_to_termination == 5, f"Expected 5 years to termination, got {tenure_to_termination}"
+        assert tenure_to_year_end == 5, f"Expected 5 years to year end, got {tenure_to_year_end}"
+        # In this case they're the same, but the calculation path differs
+
+    def test_terminated_early_year_differs_from_year_end(self):
+        """
+        Test case where termination date gives different tenure than year end.
+
+        Hire: 2024-12-15, Termination: 2025-01-15 = 31 days = 0 years
+        Hire: 2024-12-15, Year End: 2025-12-31 = 381 days = 1 year
+        """
+        hire_date = date(2024, 12, 15)
+        termination_date = date(2025, 1, 15)
+        simulation_year = 2025
+
+        tenure_to_termination = calculate_expected_tenure(hire_date, simulation_year, termination_date)
+        tenure_to_year_end = calculate_expected_tenure(hire_date, simulation_year, None)
+
+        assert tenure_to_termination == 0, f"Expected 0 years to termination, got {tenure_to_termination}"
+        assert tenure_to_year_end == 1, f"Expected 1 year to year end, got {tenure_to_year_end}"
+        # This demonstrates why termination date matters for accurate tenure
+
+    def test_terminated_same_day_as_hire(self):
+        """Test termination on hire date results in 0 tenure."""
+        hire_date = date(2025, 6, 15)
+        termination_date = date(2025, 6, 15)
+
+        tenure = calculate_expected_tenure(hire_date, 2025, termination_date)
+        assert tenure == 0, f"Expected 0 years for same-day termination, got {tenure}"
 
 
 class TestSqlPolarsParity:
