@@ -17,7 +17,7 @@ import {
   DCPlanAnalytics as DCPlanAnalyticsData,
   DCPlanComparisonResponse,
 } from '../services/api';
-import { COLORS } from '../constants';
+import { COLORS, MAX_SCENARIO_SELECTION } from '../constants';
 
 const formatCurrency = (value: number): string => {
   if (value >= 1000000) {
@@ -195,7 +195,7 @@ export default function DCPlanAnalytics() {
     if (comparisonMode) {
       if (selectedScenarioIds.includes(scenarioId)) {
         setSelectedScenarioIds(selectedScenarioIds.filter(id => id !== scenarioId));
-      } else if (selectedScenarioIds.length < 3) {
+      } else if (selectedScenarioIds.length < MAX_SCENARIO_SELECTION) {
         setSelectedScenarioIds([...selectedScenarioIds, scenarioId]);
       }
     } else {
@@ -318,14 +318,14 @@ export default function DCPlanAnalytics() {
       {comparisonMode && (
         <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
           <p className="text-sm font-medium text-blue-900 mb-2">
-            Select 2-3 scenarios to compare (click to select/deselect):
+            Select 2-{MAX_SCENARIO_SELECTION} scenarios to compare (click to select/deselect):
           </p>
           <div className="flex flex-wrap gap-2">
             {completedScenarios.map(scenario => (
               <button
                 key={scenario.id}
                 onClick={() => handleScenarioToggle(scenario.id)}
-                disabled={!selectedScenarioIds.includes(scenario.id) && selectedScenarioIds.length >= 3}
+                disabled={!selectedScenarioIds.includes(scenario.id) && selectedScenarioIds.length >= MAX_SCENARIO_SELECTION}
                 className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-colors ${
                   selectedScenarioIds.includes(scenario.id)
                     ? 'bg-fidelity-green text-white'
