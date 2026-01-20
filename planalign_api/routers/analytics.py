@@ -5,6 +5,7 @@ from typing import List
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 
 from ..config import APISettings, get_settings
+from ..constants import MAX_SCENARIO_COMPARISON
 from ..models.analytics import DCPlanAnalytics, DCPlanComparisonResponse
 from ..services.analytics_service import AnalyticsService
 from ..storage.workspace_storage import WorkspaceStorage
@@ -82,12 +83,12 @@ async def get_dc_plan_analytics(
 )
 async def compare_dc_plan_analytics(
     workspace_id: str,
-    scenarios: str = Query(..., description="Comma-separated scenario IDs (max 3)"),
+    scenarios: str = Query(..., description=f"Comma-separated scenario IDs (max {MAX_SCENARIO_COMPARISON})"),
     storage: WorkspaceStorage = Depends(get_storage),
     analytics_service: AnalyticsService = Depends(get_analytics_service),
 ) -> DCPlanComparisonResponse:
     """
-    Compare DC Plan analytics across multiple scenarios (max 3).
+    Compare DC Plan analytics across multiple scenarios (max {MAX_SCENARIO_COMPARISON}).
 
     Returns side-by-side analytics for comparison.
     """
@@ -108,10 +109,10 @@ async def compare_dc_plan_analytics(
             detail="At least 2 scenarios required for comparison",
         )
 
-    if len(scenario_ids) > 3:
+    if len(scenario_ids) > MAX_SCENARIO_COMPARISON:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Maximum 3 scenarios allowed for comparison",
+            detail=f"Maximum {MAX_SCENARIO_COMPARISON} scenarios allowed for comparison",
         )
 
     # Verify all scenarios exist and are completed

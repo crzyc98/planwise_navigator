@@ -3,6 +3,9 @@
 # Simulation telemetry constants
 MAX_RECENT_EVENTS = 20  # Maximum number of recent events to show in telemetry
 
+# Scenario comparison limits
+MAX_SCENARIO_COMPARISON = 6  # Maximum scenarios for side-by-side comparison
+
 # Default values for simulation results
 DEFAULT_PARTICIPATION_RATE = 0.85  # Default plan participation rate when not calculated
 
