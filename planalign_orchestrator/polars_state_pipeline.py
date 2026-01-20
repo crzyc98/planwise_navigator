@@ -1856,12 +1856,13 @@ class SnapshotBuilder:
             .cast(pl.Int32)
             .alias('current_age'),
 
-            # Calculate tenure
+            # Calculate tenure: floor((year_end - hire_date) / 365.25)
+            # E020 FIX: Use 0 for null hire_date to match SQL behavior (FR-006)
             pl.when(pl.col('employee_hire_date').is_not_null())
             .then(
                 (pl.lit(year_end) - pl.col('employee_hire_date').cast(pl.Date)).dt.total_days() / 365.25
             )
-            .otherwise(5.0)
+            .otherwise(0)
             .cast(pl.Int32)
             .alias('current_tenure'),
 
