@@ -2,9 +2,8 @@
 """
 Event Generation Executor Module
 
-Responsible for executing event generation using either SQL-based dbt models or
-Polars-based bulk event factory. Supports hybrid pipeline integration with
-automatic fallback and performance monitoring.
+Responsible for executing event generation using SQL-based dbt models.
+Supports performance monitoring and comprehensive error handling.
 
 This module extracts event generation logic from PipelineOrchestrator to support
 modular pipeline architecture (Story S072-02 Part 1).
@@ -52,8 +51,7 @@ def normalize_path_for_duckdb(path: Path, base_dir: Path = None) -> str:
         '../data/parquet'  # Converted to forward slashes
 
     Note:
-        This function is critical for Windows compatibility in Polars mode.
-        DuckDB's read_parquet() fails with mixed or backslash paths on Windows.
+        This function ensures DuckDB's read_parquet() works correctly on all platforms.
     """
     if base_dir is None:
         base_dir = Path.cwd()
@@ -100,23 +98,17 @@ class PipelineStageError(RuntimeError):
 
 
 class EventGenerationExecutor:
-    """Executes event generation using SQL or Polars modes.
+    """Executes event generation using SQL-based dbt models.
 
-    This class handles the execution of event generation for multi-year simulations,
-    supporting both traditional SQL-based dbt models and high-performance Polars-based
-    bulk event factories. It provides automatic fallback, performance monitoring, and
-    comprehensive error handling.
+    This class handles the execution of event generation for multi-year simulations
+    using SQL-based dbt models. It provides performance monitoring and comprehensive
+    error handling.
 
     Key Features:
-        - Hybrid SQL/Polars event generation
-        - Automatic fallback on Polars errors
+        - SQL-based event generation via dbt models
         - Sharded event generation for large datasets
         - Performance monitoring and reporting
         - Year-specific model selection
-
-    Performance Targets:
-        - Polars mode: ≤60s for 5k employees × 5 years
-        - SQL mode: Baseline performance with threading optimization
 
     Attributes:
         config: Simulation configuration with event generation settings
@@ -174,258 +166,44 @@ class EventGenerationExecutor:
     def execute_hybrid_event_generation(
         self, years: List[int]
     ) -> Dict[str, Any]:
-        """Execute event generation using either SQL or Polars mode based on configuration.
-
-        This method implements the hybrid pipeline integration that supports both
-        SQL-based (traditional dbt models) and Polars-based (bulk factory) event generation.
-        It automatically selects the appropriate mode based on configuration and provides
-        automatic fallback to SQL mode if Polars generation fails.
+        """Execute event generation using SQL-based dbt models.
 
         Args:
             years: List of simulation years to generate events for
 
         Returns:
             Dictionary with execution results:
-                - mode: 'sql' or 'polars'
+                - mode: 'sql'
                 - success: Whether all years completed successfully
                 - execution_time: Total execution time in seconds
                 - total_events: Total number of events generated
-                - performance_target_met: Whether performance target was met (Polars only)
-                - fallback_used: Whether fallback to SQL mode was triggered
-                - output_path: Path to Polars output (Polars only)
-                - successful_years: List of years completed successfully (SQL only)
+                - successful_years: List of years completed successfully
 
         Raises:
-            PipelineStageError: If event generation fails and fallback is disabled
-            ImportError: If Polars mode is requested but polars is not installed
+            PipelineStageError: If event generation fails
 
         Example:
             >>> result = executor.execute_hybrid_event_generation([2025, 2026, 2027])
-            >>> if result['mode'] == 'polars':
-            ...     print(f"Polars mode: {result['total_events']} events in {result['execution_time']:.1f}s")
-            ...     print(f"Target met: {result['performance_target_met']}")
+            >>> print(f"Generated {result['total_events']} events in {result['execution_time']:.1f}s")
         """
-        event_mode = self.config.get_event_generation_mode()
         start_time = time.time()
 
         if self.verbose:
-            print(f"🔄 Executing event generation in {event_mode.upper()} mode for years {years}")
+            print(f"🔄 Executing event generation in SQL mode for years {years}")
 
-        try:
-            if event_mode == "polars" and self.config.is_polars_mode_enabled():
-                return self._execute_polars_event_generation(years, start_time)
-            else:
-                return self._execute_sql_event_generation(years, start_time)
-        except Exception as e:
-            # Check if fallback is enabled for Polars mode
-            polars_settings = self.config.get_polars_settings()
-            if event_mode == "polars" and polars_settings.fallback_on_error:
-                if self.verbose:
-                    print(f"⚠️ Polars event generation failed: {e}")
-                    print("🔄 Falling back to SQL mode...")
-                return self._execute_sql_event_generation(years, start_time, fallback=True)
-            else:
-                raise
-
-    def _execute_polars_event_generation(
-        self, years: List[int], start_time: float, fallback: bool = False
-    ) -> Dict[str, Any]:
-        """Execute event generation using Polars bulk event factory.
-
-        This provides high-performance vectorized event generation using Polars
-        with target performance of ≤60s for 5k employees × 5 years. The Polars
-        mode uses lazy evaluation, streaming, and parallel I/O for optimal performance.
-
-        Args:
-            years: List of simulation years to generate events for
-            start_time: Timestamp when event generation started
-            fallback: Whether this is a fallback execution after error
-
-        Returns:
-            Dictionary with Polars execution results:
-                - mode: 'polars'
-                - success: Always True if no exception raised
-                - execution_time: Total execution time in seconds
-                - total_events: Total number of events generated
-                - output_path: Path to Parquet output directory
-                - performance_target_met: Whether ≤60s target was met
-                - fallback_used: Whether this is a fallback execution
-
-        Raises:
-            ImportError: If polars or polars_event_factory is not available
-            PipelineStageError: If Polars event generation fails
-
-        Notes:
-            - Updates dbt_vars with polars_events_path for downstream models
-            - Configures POLARS_MAX_THREADS environment variable
-            - Collects performance statistics for monitoring
-        """
-        try:
-            from ..polars_event_factory import PolarsEventGenerator, EventFactoryConfig
-        except ImportError as e:
-            if fallback:
-                raise ImportError(f"Polars event factory not available for fallback: {e}")
-            raise ImportError(f"Polars event factory not available: {e}. Install polars>=1.0.0")
-
-        polars_settings = self.config.get_polars_settings()
-
-        # Configure Polars event factory
-        # E078 FIX: Use original simulation start_year, not min(years)
-        # When processing years individually (e.g., [2026]), min(years) would be 2026
-        # But we need to know the ORIGINAL start year (2025) to determine when to use baseline vs previous year
-        # Get promotion rate multiplier from compensation settings
-        promotion_rate_multiplier = getattr(
-            self.config.compensation, 'promotion_rate_multiplier', 1.0
-        ) if hasattr(self.config, 'compensation') else 1.0
-
-        factory_config = EventFactoryConfig(
-            start_year=self.config.simulation.start_year,  # E078: Use original simulation start year
-            end_year=max(years),
-            output_path=Path(polars_settings.output_path),
-            scenario_id=getattr(self.config, 'scenario_id', 'default') or 'default',
-            plan_design_id=getattr(self.config, 'plan_design_id', 'default') or 'default',
-            random_seed=self.config.simulation.random_seed,
-            batch_size=polars_settings.batch_size,
-            enable_profiling=polars_settings.enable_profiling,
-            enable_compression=polars_settings.enable_compression,
-            compression_level=polars_settings.compression_level,
-            max_memory_gb=polars_settings.max_memory_gb,
-            lazy_evaluation=polars_settings.lazy_evaluation,
-            streaming=polars_settings.streaming,
-            parallel_io=polars_settings.parallel_io,
-            database_path=self.db_manager.db_path,  # Pass batch-specific database path
-            promotion_rate_multiplier=promotion_rate_multiplier,  # E082: Promotion rate multiplier
-            dbt_vars=self.dbt_vars  # E102: Pass UI config for escalation settings
-        )
-
-        if self.verbose:
-            print(f"📊 Polars event generation configuration:")
-            print(f"   Max threads: {polars_settings.max_threads}")
-            print(f"   Batch size: {polars_settings.batch_size:,}")
-            print(f"   Output path: {polars_settings.output_path}")
-            print(f"   Memory limit: {polars_settings.max_memory_gb}GB")
-            print(f"   Compression: {'enabled' if polars_settings.enable_compression else 'disabled'}")
-
-        # Set Polars thread count
-        os.environ['POLARS_MAX_THREADS'] = str(polars_settings.max_threads)
-
-        # FIX: Build FOUNDATION models before Polars event generation
-        # Polars termination generation depends on int_workforce_needs_by_level
-        if self.verbose:
-            print("🔄 Building FOUNDATION models required by Polars event generation...")
-
-        foundation_start = time.time()
-        for year in years:
-            # Build workforce needs models that Polars termination generation depends on
-            result = self.dbt_runner.execute_command(
-                ["run", "--select", "int_workforce_needs int_workforce_needs_by_level"],
-                simulation_year=year,
-                dbt_vars=self.dbt_vars,
-                stream_output=self.verbose
-            )
-            if not result.success:
-                from ..exceptions import PipelineStageError
-                raise PipelineStageError(
-                    f"Failed to build workforce needs for year {year}: {result.error_message}"
-                )
-
-        foundation_duration = time.time() - foundation_start
-        if self.verbose:
-            print(f"✅ FOUNDATION models built in {foundation_duration:.1f}s")
-
-        # Generate events using Polars
-        generator = PolarsEventGenerator(factory_config)
-        generator.generate_multi_year_events()
-
-        polars_duration = time.time() - start_time
-        total_events = generator.stats.get('total_events_generated', 0)
-
-        if self.verbose:
-            print(f"✅ Polars event generation completed in {polars_duration:.1f}s")
-            print(f"📊 Generated {total_events:,} events")
-            if polars_duration > 0:
-                print(f"⚡ Performance: {total_events/polars_duration:.0f} events/second")
-
-            # Performance assessment
-            if polars_duration <= 60 and len(years) >= 3:
-                print("🎯 PERFORMANCE TARGET MET: ≤60s for multi-year generation")
-            elif polars_duration <= 60:
-                print("🎯 Performance target met for available years")
-            else:
-                print(f"⏰ Performance target missed: {polars_duration:.1f}s (target: ≤60s)")
-
-        # Update dbt variables to point to Polars output
-        # Note: Path must be relative to dbt/ directory where dbt runs
-        # IMPORTANT: Use normalize_path_for_duckdb() for Windows compatibility (E012)
-        polars_path = Path(factory_config.output_path)
-        polars_events_path = normalize_path_for_duckdb(polars_path)
-
-        if self.verbose:
-            logger.info(f"Path normalization: {factory_config.output_path} -> {polars_events_path}")
-
-        self.dbt_vars.update({
-            'polars_events_path': polars_events_path,
-            'event_generation_mode': 'polars',
-            'polars_enabled': True
-        })
-
-        # Build fct_yearly_events and non-event dbt models needed for STATE_ACCUMULATION
-        # Epic E078: fct_yearly_events must be built BEFORE int_employer_eligibility
-        # because int_employer_eligibility reads from fct_yearly_events in Polars mode
-        if self.verbose:
-            print("📋 Building post-Polars dbt models (fct_yearly_events, int_employer_eligibility)...")
-
-        for year in years:
-            # First build fct_yearly_events to load Polars parquet files
-            result = self.dbt_runner.execute_command(
-                ["run", "--select", "fct_yearly_events"],
-                simulation_year=year,
-                dbt_vars=self.dbt_vars,
-                stream_output=self.verbose
-            )
-            if not result.success:
-                raise PipelineStageError(
-                    f"Failed to build fct_yearly_events for year {year}: {result.error_message}"
-                )
-
-            # Then build int_employer_eligibility which depends on fct_yearly_events in Polars mode
-            result = self.dbt_runner.execute_command(
-                ["run", "--select", "int_employer_eligibility"],
-                simulation_year=year,
-                dbt_vars=self.dbt_vars,
-                stream_output=self.verbose
-            )
-            if not result.success:
-                raise PipelineStageError(
-                    f"Failed to build int_employer_eligibility for year {year}: {result.error_message}"
-                )
-
-        polars_duration = time.time() - start_time
-
-        return {
-            'mode': 'polars',
-            'success': True,
-            'execution_time': polars_duration,
-            'total_events': total_events,
-            'output_path': str(factory_config.output_path),
-            'performance_target_met': polars_duration <= 60,
-            'fallback_used': fallback
-        }
+        return self._execute_sql_event_generation(years, start_time)
 
     def _execute_sql_event_generation(
-        self, years: List[int], start_time: float, fallback: bool = False
+        self, years: List[int], start_time: float
     ) -> Dict[str, Any]:
-        """Execute event generation using traditional SQL-based dbt models.
+        """Execute event generation using SQL-based dbt models.
 
-        This uses the existing dbt event generation models with optional
-        threading and sharding optimizations. SQL mode provides baseline
-        performance and serves as a fallback when Polars mode is unavailable
-        or fails.
+        This uses the dbt event generation models with optional
+        threading and sharding optimizations.
 
         Args:
             years: List of simulation years to generate events for
             start_time: Timestamp when event generation started
-            fallback: Whether this is a fallback execution after Polars failure
 
         Returns:
             Dictionary with SQL execution results:
@@ -434,7 +212,6 @@ class EventGenerationExecutor:
                 - execution_time: Total execution time in seconds
                 - total_events: Total number of events generated across all years
                 - successful_years: List of years that completed successfully
-                - fallback_used: Whether this is a fallback execution
 
         Raises:
             PipelineStageError: If event generation fails for any year
@@ -445,8 +222,6 @@ class EventGenerationExecutor:
             - Queries database to count events per year for statistics
             - Supports sharded execution for large datasets
         """
-        if fallback and self.verbose:
-            print("🔄 Executing SQL event generation (fallback mode)")
 
         total_events = 0
         successful_years = []
@@ -501,9 +276,7 @@ class EventGenerationExecutor:
                     )
 
             except Exception as e:
-                if fallback:
-                    raise PipelineStageError(f"SQL fallback failed for year {year}: {e}")
-                raise
+                raise PipelineStageError(f"SQL event generation failed for year {year}: {e}")
 
         sql_duration = time.time() - start_time
 
@@ -519,7 +292,6 @@ class EventGenerationExecutor:
             'execution_time': sql_duration,
             'total_events': total_events,
             'successful_years': successful_years,
-            'fallback_used': fallback
         }
 
     def _execute_sharded_event_generation(self, year: int) -> List[DbtResult]:

@@ -353,19 +353,9 @@ class SimulationService:
                 "--verbose",
             ]
 
-            # Check engine setting from config (advanced settings)
-            # The frontend sends 'polars' or 'sql' in the advanced.engine field
-            advanced_config = config.get("advanced", {})
-            engine = advanced_config.get("engine", "sql")
-            if engine == "polars":
-                cmd.append("--use-polars-engine")
-                # T016-T018: Pass workspace-specific Polars output path for isolation
-                # This ensures each workspace/scenario has its own parquet files
-                polars_output = scenario_path / "data" / "parquet" / "events"
-                cmd.extend(["--polars-output", os.fspath(polars_output)])
-                logger.info(f"Using Polars engine (375× faster) with workspace-specific output: {polars_output}")
-            else:
-                logger.info("Using SQL/dbt engine")
+            # All simulations use SQL/dbt mode
+            # Legacy 'polars' engine setting in configs is silently ignored for backward compatibility
+            logger.info("Using SQL/dbt engine")
 
             logger.info(f"Starting simulation with config: {config_path}")
             logger.info(f"Scenario database: {scenario_db_path}")
