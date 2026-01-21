@@ -25,10 +25,11 @@ WITH base_employees AS (
         -- **HOTFIX**: Use gross compensation to avoid annualization calculation bug
         -- TODO: Fix the annualization logic in stg_census_data.sql later
         stg.employee_gross_compensation AS current_compensation,
-        -- Calculate age and tenure based on the simulation_effective_date
+        -- Calculate age based on the simulation_effective_date
         EXTRACT(YEAR FROM '{{ simulation_effective_date_str }}'::DATE) - EXTRACT(YEAR FROM stg.employee_birth_date) AS current_age,
-        -- **E077 FIX**: Floor tenure at 0 to prevent negative values for employees hired after effective date
-        GREATEST(0, EXTRACT(YEAR FROM '{{ simulation_effective_date_str }}'::DATE) - EXTRACT(YEAR FROM stg.employee_hire_date)) AS current_tenure,
+        -- **E020 FIX**: Use day-based tenure calculation: floor((12/31/simulation_year - hire_date) / 365.25)
+        -- This replaces year-only subtraction for accurate tenure values
+        {{ calculate_tenure('stg.employee_hire_date', "MAKE_DATE(" ~ simulation_year ~ ", 12, 31)") }} AS current_tenure,
         -- Dynamically assign level_id with fallback for unmatched compensation ranges
         COALESCE(level_match.level_id, 1) AS level_id,
         -- Add eligibility and enrollment fields from census
