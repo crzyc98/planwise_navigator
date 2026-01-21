@@ -785,6 +785,11 @@ See `/docs/VERSIONING_GUIDE.md` for detailed versioning workflow.
 - Python 3.11 + pathlib (stdlib), Typer (CLI), Pydantic v2 (config), DuckDB (storage) (012-polars-path-fixes)
 - DuckDB databases (scenario-specific), Parquet files (Polars output) (012-polars-path-fixes)
 - DuckDB 1.0.0 (`dbt/simulation.duckdb`) (013-cost-comparison-metrics)
+- TypeScript 5.8, React 19.2 + React, Recharts 3.5.0, Lucide-react 0.554.0 (019-expand-scenario-comparison)
+- N/A (frontend-only change; backend API already supports variable scenario counts) (019-expand-scenario-comparison)
+- Python 3.11, SQL (DuckDB 1.0.0) + dbt-core 1.8.8, dbt-duckdb 1.8.1, Polars 1.0+ (020-fix-tenure-calculation)
+- SQL (DuckDB 1.0.0) + dbt-core 1.8.8, Python 3.11 (Polars pipeline parity) + dbt-duckdb 1.8.1, Polars 1.0+ (for state pipeline parity) (021-fix-termination-events)
+- SQL (DuckDB 1.0.0), Python 3.11 + dbt-core 1.8.8, dbt-duckdb 1.8.1, Polars 1.0+ (022-fix-hire-termination-order)
 
 ## Recent Changes
 - 001-centralize-band-definitions: Added SQL (DuckDB 1.0.0), dbt-core 1.8.8 + dbt-duckdb 1.8.1, DuckDB
