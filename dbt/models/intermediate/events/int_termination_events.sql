@@ -101,7 +101,11 @@ final_experienced_terminations AS (
         'deterministic_termination' AS termination_reason,
         w.employee_gross_compensation AS final_compensation,
         w.current_age,
-        w.current_tenure,
+        -- E020 FIX: Calculate tenure at termination date, not year end
+        {{ calculate_tenure(
+            'w.employee_hire_date',
+            "(CAST('" ~ simulation_year ~ "-01-01' AS DATE) + INTERVAL ((ABS(HASH(w.employee_id)) % 365)) DAY)"
+        ) }} AS current_tenure,
         w.level_id,
         w.age_band,
         w.tenure_band,

@@ -1856,12 +1856,18 @@ class SnapshotBuilder:
             .cast(pl.Int32)
             .alias('current_age'),
 
-            # Calculate tenure
-            pl.when(pl.col('employee_hire_date').is_not_null())
+            # Calculate tenure: floor((effective_end_date - hire_date) / 365.25)
+            # E020 FIX: For terminated employees, use termination_date; otherwise use year_end
+            # Use 0 for null hire_date to match SQL behavior (FR-006)
+            pl.when(pl.col('employee_hire_date').is_null())
+            .then(0)
+            .when(pl.col('termination_date').is_not_null())
             .then(
+                (pl.col('termination_date').cast(pl.Date) - pl.col('employee_hire_date').cast(pl.Date)).dt.total_days() / 365.25
+            )
+            .otherwise(
                 (pl.lit(year_end) - pl.col('employee_hire_date').cast(pl.Date)).dt.total_days() / 365.25
             )
-            .otherwise(5.0)
             .cast(pl.Int32)
             .alias('current_tenure'),
 
