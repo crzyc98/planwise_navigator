@@ -119,7 +119,7 @@ SELECT
     '< 2' AS tenure_band, -- All new hires are in lowest tenure band
     st.termination_rate,
     st.random_value,
-    'new_hire_termination' AS termination_type,
+    'new_hire_termination' AS event_category,  -- E021 FIX: Renamed from termination_type for consistency
     -- Add reference to workforce planning
     wn.workforce_needs_id,
     wn.scenario_id

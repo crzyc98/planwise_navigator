@@ -243,7 +243,7 @@ WITH all_events AS (
     nht.age_band,
     nht.tenure_band,
     nht.termination_rate AS event_probability,
-    'termination' AS event_category
+    nht.event_category  -- E021 FIX: Use source event_category instead of hardcoded 'termination'
   FROM {{ ref('int_new_hire_termination_events') }} nht
   WHERE nht.simulation_year = {{ simulation_year }}
 

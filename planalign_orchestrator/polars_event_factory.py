@@ -390,6 +390,75 @@ class PolarsEventGenerator:
 
         return parameters
 
+    @staticmethod
+    def _generate_termination_date_expr(
+        simulation_year: int,
+        hire_date_col: str = 'employee_hire_date',
+        random_seed: int = 42
+    ) -> pl.Expr:
+        """
+        Generate termination date expression constrained by hire date.
+
+        This matches the SQL macro generate_termination_date() which produces dates
+        distributed across the available range while maintaining determinism.
+
+        Bug Fix (E021): Previously dates were hardcoded to September 15, causing all
+        terminations to cluster on the same date. Now uses a year-aware hash that
+        produces different dates per employee per year while maintaining determinism.
+
+        Bug Fix (E022): Now accepts hire_date column to ensure termination dates
+        are always >= hire_date. The date is computed as:
+        hire_date + (hash % days_until_year_end) instead of Jan 1 + (hash % 365).
+        This prevents impossible scenarios where employees are terminated before hired.
+
+        Args:
+            simulation_year: The simulation year
+            hire_date_col: Column name containing hire date (default: 'employee_hire_date')
+            random_seed: Random seed for determinism (default: 42)
+
+        Returns:
+            Polars expression that computes termination date >= hire_date
+        """
+        year_start = date(simulation_year, 1, 1)
+        year_end = date(simulation_year, 12, 31)
+
+        # Create a deterministic day offset using year-aware hash
+        hash_expr = (
+            pl.col('employee_id').hash() +
+            pl.lit(simulation_year * 1000000) +
+            pl.lit(random_seed * 31337)
+        )
+
+        # E022 FIX: Use hire_date as lower bound for termination date
+        # For employees hired this year: hire_date + (hash % days_until_year_end)
+        # For employees hired before: use full year range starting from Jan 1
+        # E022 FIX (Bugfix): Cast divisor to UInt64 to prevent precision loss
+        # When u64 % i64, Polars converts to f64 and loses precision for large hashes
+        # This caused all termination dates to equal hire dates (0 day offset)
+        return (
+            pl.when(pl.col(hire_date_col).is_null())
+            .then(pl.lit(None).cast(pl.Date))
+            .when(pl.col(hire_date_col) > pl.lit(year_end))
+            .then(pl.lit(None).cast(pl.Date))
+            .when(pl.col(hire_date_col) >= pl.lit(year_start))
+            .then(
+                # Hired this year: use hire_date as base
+                pl.col(hire_date_col) +
+                pl.duration(days=(
+                    hash_expr %
+                    pl.max_horizontal(
+                        pl.lit(1),
+                        (pl.lit(year_end) - pl.col(hire_date_col)).dt.total_days() + 1
+                    ).cast(pl.UInt64)  # CRITICAL: Cast to UInt64 to match hash type
+                ).cast(pl.Int64))
+            )
+            .otherwise(
+                # Hired before this year: use Jan 1 as base
+                pl.lit(year_start) +
+                pl.duration(days=(hash_expr % pl.lit(365).cast(pl.UInt64)).cast(pl.Int64))
+            )
+        ).cast(pl.Date)
+
     def _fetch_workforce_needs(self, simulation_year: int) -> Optional[Dict[str, Any]]:
         """Load workforce planning needs for the given year from DuckDB."""
         if simulation_year in self._workforce_needs_cache:
@@ -801,11 +870,16 @@ class PolarsEventGenerator:
         all_terminations = pl.concat(selected_terminations, how='vertical')
 
         # Add termination event fields
+        # E021 FIX: Use year-aware hash for date distribution instead of hardcoded Sept 15
+        # E022 FIX: Use hire_date as lower bound for termination date
+        termination_date_expr = self._generate_termination_date_expr(
+            simulation_year, 'employee_hire_date', self.config.random_seed
+        )
         terminations = all_terminations.with_columns([
             pl.lit('termination').alias('event_type'),
             pl.lit('termination').alias('event_category'),
-            pl.date(simulation_year, 9, 15).alias('event_date'),  # Fall terminations
-            pl.date(simulation_year, 9, 15).alias('effective_date'),
+            termination_date_expr.alias('event_date'),
+            termination_date_expr.alias('effective_date'),
             pl.concat_str([
                 pl.lit('Termination - voluntary (tenure: '),
                 pl.col('tenure_months').cast(pl.Utf8),
@@ -1376,12 +1450,17 @@ class PolarsEventGenerator:
         selected_terminations = ranked_hires.head(target_terminations)
 
         # Add termination event fields
+        # E021 FIX: Use year-aware hash for date distribution instead of hardcoded Sept 15
+        # E022 FIX: Use hire_date (effective_date from hire event) as lower bound
+        # New hires have their hire date in 'effective_date' column from the hire event
+        termination_date_expr = self._generate_termination_date_expr(
+            simulation_year, 'effective_date', self.config.random_seed
+        )
         nh_terminations = selected_terminations.with_columns([
             pl.lit('termination').alias('event_type'),
-            pl.lit('termination').alias('event_category'),
-            # Terminations occur in fall (September 15)
-            pl.date(simulation_year, 9, 15).alias('event_date'),
-            pl.date(simulation_year, 9, 15).alias('effective_date'),
+            pl.lit('new_hire_termination').alias('event_category'),  # E021 FIX: Use correct category
+            termination_date_expr.alias('event_date'),
+            termination_date_expr.alias('effective_date'),
             pl.concat_str([
                 pl.lit('New hire termination - voluntary')
             ]).alias('event_details'),
