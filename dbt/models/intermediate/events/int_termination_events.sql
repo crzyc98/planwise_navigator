@@ -97,14 +97,15 @@ final_experienced_terminations AS (
         w.employee_ssn,
         'termination' AS event_type,
         {{ simulation_year }} AS simulation_year,
-        (CAST('{{ simulation_year }}-01-01' AS DATE) + INTERVAL ((ABS(HASH(w.employee_id)) % 365)) DAY) AS effective_date,
+        {{ generate_termination_date('w.employee_id', simulation_year, var('random_seed', 42)) }} AS effective_date,
         'deterministic_termination' AS termination_reason,
         w.employee_gross_compensation AS final_compensation,
         w.current_age,
         -- E020 FIX: Calculate tenure at termination date, not year end
+        -- E021 FIX: Use same year-aware hash for consistent date
         {{ calculate_tenure(
             'w.employee_hire_date',
-            "(CAST('" ~ simulation_year ~ "-01-01' AS DATE) + INTERVAL ((ABS(HASH(w.employee_id)) % 365)) DAY)"
+            generate_termination_date('w.employee_id', simulation_year, var('random_seed', 42))
         ) }} AS current_tenure,
         w.level_id,
         w.age_band,

@@ -745,16 +745,21 @@ final_workforce AS (
             ELSE '20+'
         END AS tenure_band,
         -- **FIX 1**: Enhanced detailed_status_code logic to handle all edge cases
-        -- Tighten classification: require a hire event in the current year to classify as new_hire_*
+        -- E021 FIX: Tighten classification - require BOTH is_new_hire flag AND current-year hire_date
+        -- This prevents employees from baseline census being misclassified as new hires
         CASE
-            -- Active new hires: must have a current-year HIRE event
+            -- Active new hires: must have is_new_hire flag AND hire_date in current year
             WHEN COALESCE(ec.is_new_hire, false) = true
                  AND fwc.employment_status = 'active'
+                 AND fwc.employee_hire_date IS NOT NULL
+                 AND EXTRACT(YEAR FROM fwc.employee_hire_date) = sp.current_year
             THEN 'new_hire_active'
 
-            -- Terminated new hires: must have a current-year HIRE event
+            -- Terminated new hires: must have is_new_hire flag AND hire_date in current year
             WHEN COALESCE(ec.is_new_hire, false) = true
                  AND fwc.employment_status = 'terminated'
+                 AND fwc.employee_hire_date IS NOT NULL
+                 AND EXTRACT(YEAR FROM fwc.employee_hire_date) = sp.current_year
             THEN 'new_hire_termination'
 
             -- Active existing employees (hired before current year, still active)
