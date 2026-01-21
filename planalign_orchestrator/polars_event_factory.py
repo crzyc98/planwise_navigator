@@ -432,6 +432,9 @@ class PolarsEventGenerator:
         # E022 FIX: Use hire_date as lower bound for termination date
         # For employees hired this year: hire_date + (hash % days_until_year_end)
         # For employees hired before: use full year range starting from Jan 1
+        # E022 FIX (Bugfix): Cast divisor to UInt64 to prevent precision loss
+        # When u64 % i64, Polars converts to f64 and loses precision for large hashes
+        # This caused all termination dates to equal hire dates (0 day offset)
         return (
             pl.when(pl.col(hire_date_col).is_null())
             .then(pl.lit(None).cast(pl.Date))
@@ -446,13 +449,13 @@ class PolarsEventGenerator:
                     pl.max_horizontal(
                         pl.lit(1),
                         (pl.lit(year_end) - pl.col(hire_date_col)).dt.total_days() + 1
-                    )
+                    ).cast(pl.UInt64)  # CRITICAL: Cast to UInt64 to match hash type
                 ).cast(pl.Int64))
             )
             .otherwise(
                 # Hired before this year: use Jan 1 as base
                 pl.lit(year_start) +
-                pl.duration(days=(hash_expr % 365).cast(pl.Int64))
+                pl.duration(days=(hash_expr % pl.lit(365).cast(pl.UInt64)).cast(pl.Int64))
             )
         ).cast(pl.Date)
 
