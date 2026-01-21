@@ -126,7 +126,6 @@ class MockEventGenerator:
     execution_order: int = 100
     requires_hazard: bool = False
     supports_sql: bool = True
-    supports_polars: bool = False
 
     def __init__(self, event_type: str = "mock_event"):
         self.event_type = event_type
@@ -147,7 +146,6 @@ def create_mock_generator(
     execution_order: int = 100,
     requires_hazard: bool = False,
     supports_sql: bool = True,
-    supports_polars: bool = False,
 ):
     """
     Factory function to create mock generator classes for testing.
@@ -157,7 +155,6 @@ def create_mock_generator(
         execution_order: Processing order (lower = earlier)
         requires_hazard: Whether generator uses hazard tables
         supports_sql: Whether SQL mode is supported
-        supports_polars: Whether Polars mode is supported
 
     Returns:
         A mock generator class (not instance)
@@ -170,6 +167,5 @@ def create_mock_generator(
     DynamicMockGenerator.execution_order = execution_order
     DynamicMockGenerator.requires_hazard = requires_hazard
     DynamicMockGenerator.supports_sql = supports_sql
-    DynamicMockGenerator.supports_polars = supports_polars
 
     return DynamicMockGenerator

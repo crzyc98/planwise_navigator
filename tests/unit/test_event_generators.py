@@ -2,6 +2,7 @@
 Event Generator Tests (T050)
 
 Tests for mode support flags and generator attributes.
+Updated for SQL-only mode (E024 - Polars removal).
 """
 
 import pytest
@@ -38,10 +39,10 @@ def mock_context():
 
 
 class TestModeSupport:
-    """Tests for supports_sql and supports_polars attributes (T050)."""
+    """Tests for supports_sql attribute (SQL-only mode after E024)."""
 
     def test_default_mode_support(self, mock_context):
-        """Default generator supports SQL but not Polars."""
+        """Default generator supports SQL."""
 
         @EventRegistry.register("default_mode")
         class DefaultModeGenerator(EventGenerator):
@@ -56,17 +57,15 @@ class TestModeSupport:
 
         gen = EventRegistry.get("default_mode")
         assert gen.supports_sql is True
-        assert gen.supports_polars is False
 
-    def test_sql_only_generator(self, mock_context):
-        """Generator can be SQL-only."""
+    def test_sql_generator(self, mock_context):
+        """Generator with explicit SQL support."""
 
-        @EventRegistry.register("sql_only")
-        class SQLOnlyGenerator(EventGenerator):
-            event_type = "sql_only"
+        @EventRegistry.register("sql_gen")
+        class SQLGenerator(EventGenerator):
+            event_type = "sql_gen"
             execution_order = 50
             supports_sql = True
-            supports_polars = False
 
             def generate_events(self, context):
                 return []
@@ -74,49 +73,8 @@ class TestModeSupport:
             def validate_event(self, event):
                 return ValidationResult(is_valid=True)
 
-        gen = EventRegistry.get("sql_only")
+        gen = EventRegistry.get("sql_gen")
         assert gen.supports_sql is True
-        assert gen.supports_polars is False
-
-    def test_polars_only_generator(self, mock_context):
-        """Generator can be Polars-only."""
-
-        @EventRegistry.register("polars_only")
-        class PolarsOnlyGenerator(EventGenerator):
-            event_type = "polars_only"
-            execution_order = 50
-            supports_sql = False
-            supports_polars = True
-
-            def generate_events(self, context):
-                return []
-
-            def validate_event(self, event):
-                return ValidationResult(is_valid=True)
-
-        gen = EventRegistry.get("polars_only")
-        assert gen.supports_sql is False
-        assert gen.supports_polars is True
-
-    def test_dual_mode_generator(self, mock_context):
-        """Generator can support both modes."""
-
-        @EventRegistry.register("dual_mode")
-        class DualModeGenerator(EventGenerator):
-            event_type = "dual_mode"
-            execution_order = 50
-            supports_sql = True
-            supports_polars = True
-
-            def generate_events(self, context):
-                return []
-
-            def validate_event(self, event):
-                return ValidationResult(is_valid=True)
-
-        gen = EventRegistry.get("dual_mode")
-        assert gen.supports_sql is True
-        assert gen.supports_polars is True
 
 
 class TestRegistryModeFiltering:
@@ -130,7 +88,6 @@ class TestRegistryModeFiltering:
             event_type = "sql_gen"
             execution_order = 10
             supports_sql = True
-            supports_polars = False
 
             def generate_events(self, context):
                 return []
@@ -138,25 +95,11 @@ class TestRegistryModeFiltering:
             def validate_event(self, event):
                 return ValidationResult(is_valid=True)
 
-        @EventRegistry.register("polars_gen")
-        class PolarsGen(EventGenerator):
-            event_type = "polars_gen"
+        @EventRegistry.register("another_sql_gen")
+        class AnotherSQLGen(EventGenerator):
+            event_type = "another_sql_gen"
             execution_order = 20
-            supports_sql = False
-            supports_polars = True
-
-            def generate_events(self, context):
-                return []
-
-            def validate_event(self, event):
-                return ValidationResult(is_valid=True)
-
-        @EventRegistry.register("both_gen")
-        class BothGen(EventGenerator):
-            event_type = "both_gen"
-            execution_order = 30
             supports_sql = True
-            supports_polars = True
 
             def generate_events(self, context):
                 return []
@@ -173,18 +116,16 @@ class TestRegistryModeFiltering:
         sql_types = [g.event_type for g in sql_generators]
 
         assert "sql_gen" in sql_types
-        assert "both_gen" in sql_types
-        assert "polars_gen" not in sql_types
+        assert "another_sql_gen" in sql_types
 
-    def test_list_polars_supported(self, mock_context):
-        """Can list generators that support Polars mode."""
+    def test_list_by_mode_sql(self, mock_context):
+        """list_by_mode returns SQL generators."""
 
-        @EventRegistry.register("sql_only_p")
-        class SQLOnlyP(EventGenerator):
-            event_type = "sql_only_p"
+        @EventRegistry.register("sql_gen_1")
+        class SQLGen1(EventGenerator):
+            event_type = "sql_gen_1"
             execution_order = 10
             supports_sql = True
-            supports_polars = False
 
             def generate_events(self, context):
                 return []
@@ -192,25 +133,11 @@ class TestRegistryModeFiltering:
             def validate_event(self, event):
                 return ValidationResult(is_valid=True)
 
-        @EventRegistry.register("polars_only_p")
-        class PolarsOnlyP(EventGenerator):
-            event_type = "polars_only_p"
+        @EventRegistry.register("sql_gen_2")
+        class SQLGen2(EventGenerator):
+            event_type = "sql_gen_2"
             execution_order = 20
-            supports_sql = False
-            supports_polars = True
-
-            def generate_events(self, context):
-                return []
-
-            def validate_event(self, event):
-                return ValidationResult(is_valid=True)
-
-        @EventRegistry.register("both_p")
-        class BothP(EventGenerator):
-            event_type = "both_p"
-            execution_order = 30
             supports_sql = True
-            supports_polars = True
 
             def generate_events(self, context):
                 return []
@@ -218,17 +145,11 @@ class TestRegistryModeFiltering:
             def validate_event(self, event):
                 return ValidationResult(is_valid=True)
 
-        # Filter Polars-supported generators
-        polars_generators = [
-            EventRegistry.get(et)
-            for et in EventRegistry.list_all()
-            if EventRegistry.get(et).supports_polars
-        ]
-        polars_types = [g.event_type for g in polars_generators]
+        sql_generators = EventRegistry.list_by_mode("sql", "test_scenario")
+        sql_types = [g.event_type for g in sql_generators]
 
-        assert "polars_only_p" in polars_types
-        assert "both_p" in polars_types
-        assert "sql_only_p" not in polars_types
+        assert "sql_gen_1" in sql_types
+        assert "sql_gen_2" in sql_types
 
 
 class TestGeneratorAttributes:

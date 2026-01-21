@@ -303,7 +303,7 @@ class TestWrapperValidation:
 
 
 class TestWrapperModeSupport:
-    """Tests for wrapper mode support attributes."""
+    """Tests for wrapper mode support attributes (SQL-only after E024)."""
 
     def test_existing_events_support_sql_mode(self, mock_context):
         """Existing event wrappers support SQL mode by default."""
@@ -313,7 +313,6 @@ class TestWrapperModeSupport:
             event_type = "sql_support_test"
             execution_order = 50
             supports_sql = True
-            supports_polars = False
 
             def generate_events(self, context):
                 return []
@@ -323,17 +322,15 @@ class TestWrapperModeSupport:
 
         gen = EventRegistry.get("sql_support_test")
         assert gen.supports_sql is True
-        assert gen.supports_polars is False
 
-    def test_termination_supports_polars(self, mock_context):
-        """Termination generator can support Polars mode."""
+    def test_all_generators_support_sql(self, mock_context):
+        """All generators support SQL mode (SQL-only after E024)."""
 
-        @EventRegistry.register("polars_support_test")
-        class PolarsSupportGenerator(EventGenerator):
-            event_type = "polars_support_test"
+        @EventRegistry.register("sql_gen_test")
+        class SQLGenGenerator(EventGenerator):
+            event_type = "sql_gen_test"
             execution_order = 10
             supports_sql = True
-            supports_polars = True  # Termination has Polars implementation
 
             def generate_events(self, context):
                 return []
@@ -341,9 +338,8 @@ class TestWrapperModeSupport:
             def validate_event(self, event):
                 return ValidationResult(is_valid=True)
 
-        gen = EventRegistry.get("polars_support_test")
+        gen = EventRegistry.get("sql_gen_test")
         assert gen.supports_sql is True
-        assert gen.supports_polars is True
 
 
 class TestBaselineSnapshotCapture:

@@ -151,7 +151,6 @@ class SabbaticalEventGenerator(EventGenerator):
     execution_order = 35  # Determines execution sequence
     requires_hazard = False
     supports_sql = True
-    supports_polars = False
 
     def generate_events(self, context: EventContext):
         # Implementation (SQL mode delegates to dbt models)
@@ -189,7 +188,7 @@ planalign_engine/
 │  │  ├─ workflow.py                # Stage definitions and workflow building
 │  │  ├─ state_manager.py           # Checkpoint and state management
 │  │  ├─ year_executor.py           # Stage-by-stage execution orchestration
-│  │  ├─ event_generation_executor.py # Hybrid SQL/Polars event generation
+│  │  ├─ event_generation_executor.py # SQL-based event generation
 │  │  ├─ hooks.py                   # Extensible callback system
 │  │  └─ data_cleanup.py            # Database cleanup operations
 │  ├─ generators/                    # Event type abstraction layer (E004)
@@ -261,7 +260,7 @@ from planalign_orchestrator.pipeline import (
     WorkflowBuilder,      # Stage definitions and workflow building
     StateManager,         # Checkpoint and state management
     YearExecutor,         # Stage-by-stage execution orchestration
-    EventGenerationExecutor,  # Hybrid SQL/Polars event generation
+    EventGenerationExecutor,  # SQL-based event generation
     HookManager,          # Extensible callback system
     DataCleanupManager    # Database cleanup operations
 )
@@ -693,7 +692,7 @@ planalign checkpoints status          # Recovery recommendations
 
 ### **Completed Epics (Production-Ready)**
 
-- ✅ **E068**: Performance Optimization - 2× improvement (285s → 150s), 375× with Polars mode
+- ✅ **E068**: Performance Optimization - 2× improvement (285s → 150s)
 - ✅ **E069**: Batch Scenario Processing - Excel export with metadata, database isolation
 - ✅ **E072**: Pipeline Modularization - 51% code reduction (2,478 → 1,220 lines), 6 focused modules
 - ✅ **E074**: Enhanced Error Handling - Context-rich diagnostics, <5min bug diagnosis
@@ -702,7 +701,7 @@ planalign checkpoints status          # Recovery recommendations
 - ✅ **E083**: Workspace Cloud Synchronization - Git-based sync with audit trails
 - ✅ **E080**: Validation Model to Test Conversion - Converted 30 validation models to dbt tests, 90 passing tests, removed legacy validation code
 - ✅ **E073**: Config Module Refactoring - Split 1,471-line config.py into 7 focused modules
-- ✅ **E076**: Polars State Accumulation Pipeline - 60-75% performance improvement achieved
+- ✅ **E024**: Remove Polars Pipeline - Simplified to SQL-only mode, ~4,400 LOC removed
 - ✅ **E077**: Bulletproof Workforce Growth Accuracy - Deterministic growth with algebraic solver
 - ✅ **E082**: Configurable New Hire Demographics - Age/level distribution via seeds + UI
 - ✅ **E084**: Configurable DC Plan Match Formulas - UI config, editable match tiers, graded core by service
@@ -714,15 +713,9 @@ planalign checkpoints status          # Recovery recommendations
 
 ### **Superseded**
 
-- ⚠️ **E078**: Cohort Pipeline Integration - SUPERSEDED by E076
-  - **Original Goal**: Mode-aware model references for Polars compatibility (2-5× improvement)
-  - **Resolution**: E076 achieves 1000x+ improvement, making E078 unnecessary
-  - **Status**: Partial implementation reverted; SQL mode default
-
-- ⚠️ **E079**: Performance Architectural Simplification - SUPERSEDED by E076
-  - **Original Problem**: 60% performance regression (261s → 419s)
-  - **Resolution**: E076 Polars pipeline achieved 1000x+ improvement (0.22s for 2-year simulation)
-  - **Status**: No longer needed - Polars bypasses dbt bottlenecks
+- ⚠️ **E076, E078, E079**: Polars-related performance epics - SUPERSEDED by E024
+  - **Resolution**: E024 removed Polars pipeline in favor of SQL-only mode
+  - **Status**: Codebase simplified; all simulations use dbt/SQL path
 
 -----
 
@@ -767,10 +760,10 @@ See `/docs/VERSIONING_GUIDE.md` for detailed versioning workflow.
 ## Active Technologies
 - SQL (DuckDB 1.0.0), dbt-core 1.8.8 + dbt-duckdb 1.8.1, DuckDB (001-centralize-band-definitions)
 - DuckDB (dbt/simulation.duckdb) (001-centralize-band-definitions)
-- Python 3.11, SQL (DuckDB 1.0.0) + dbt-core 1.8.8, dbt-duckdb 1.8.1, Polars (002-fix-auto-escalation-hire-filter)
+- Python 3.11, SQL (DuckDB 1.0.0) + dbt-core 1.8.8, dbt-duckdb 1.8.1 (002-fix-auto-escalation-hire-filter)
 - Python 3.11 (backend), TypeScript 5.x (frontend) + FastAPI (backend), React 18 + Vite (frontend), Pydantic v2 (validation) (003-studio-band-config)
 - CSV files (dbt seeds: `config_age_bands.csv`, `config_tenure_bands.csv`), Parquet (census data) (003-studio-band-config)
-- Python 3.11 + Pydantic v2 (validation), dbt-core 1.8.8 (SQL transforms), Polars 1.0+ (high-performance mode) (004-event-type-abstraction)
+- Python 3.11 + Pydantic v2 (validation), dbt-core 1.8.8 (SQL transforms) (004-event-type-abstraction)
 - DuckDB 1.0.0 (immutable event store at `dbt/simulation.duckdb`) (004-event-type-abstraction)
 - Python 3.11 + Pydantic v2 (validation), FastAPI (dependency injection context), pathlib (path handling) (005-database-path-resolver)
 - DuckDB databases at multiple levels (scenario, workspace, project) (005-database-path-resolver)
@@ -782,14 +775,16 @@ See `/docs/VERSIONING_GUIDE.md` for detailed versioning workflow.
 - Python 3.11 (orchestrator), SQL/Jinja (dbt models), TypeScript 5.x (frontend) + dbt-core 1.8.8, dbt-duckdb 1.8.1, Pydantic v2, React 18 (010-fix-match-service-tiers)
 - Python 3.11 + sqlparse 0.5.4+, dbt-core 1.8.8, dbt-duckdb 1.8.1 (011-sqlparse-token-limit-fix)
 - DuckDB 1.0.0 (dbt/simulation.duckdb) (011-sqlparse-token-limit-fix)
-- Python 3.11 + pathlib (stdlib), Typer (CLI), Pydantic v2 (config), DuckDB (storage) (012-polars-path-fixes)
-- DuckDB databases (scenario-specific), Parquet files (Polars output) (012-polars-path-fixes)
+- Python 3.11 + pathlib (stdlib), Typer (CLI), Pydantic v2 (config), DuckDB (storage) (012-path-handling)
 - DuckDB 1.0.0 (`dbt/simulation.duckdb`) (013-cost-comparison-metrics)
 - TypeScript 5.8, React 19.2 + React, Recharts 3.5.0, Lucide-react 0.554.0 (019-expand-scenario-comparison)
 - N/A (frontend-only change; backend API already supports variable scenario counts) (019-expand-scenario-comparison)
-- Python 3.11, SQL (DuckDB 1.0.0) + dbt-core 1.8.8, dbt-duckdb 1.8.1, Polars 1.0+ (020-fix-tenure-calculation)
-- SQL (DuckDB 1.0.0) + dbt-core 1.8.8, Python 3.11 (Polars pipeline parity) + dbt-duckdb 1.8.1, Polars 1.0+ (for state pipeline parity) (021-fix-termination-events)
-- SQL (DuckDB 1.0.0), Python 3.11 + dbt-core 1.8.8, dbt-duckdb 1.8.1, Polars 1.0+ (022-fix-hire-termination-order)
+- Python 3.11, SQL (DuckDB 1.0.0) + dbt-core 1.8.8, dbt-duckdb 1.8.1 (020-fix-tenure-calculation)
+- SQL (DuckDB 1.0.0) + dbt-core 1.8.8, Python 3.11 + dbt-duckdb 1.8.1 (021-fix-termination-events)
+- SQL (DuckDB 1.0.0), Python 3.11 + dbt-core 1.8.8, dbt-duckdb 1.8.1 (022-fix-hire-termination-order)
+- Python 3.11 (orchestrator), SQL/Jinja (dbt models) + dbt-core 1.8.8, dbt-duckdb 1.8.1 (023-fix-midyear-tenure)
+- Python 3.11, TypeScript 5.x (frontend) + dbt-core 1.8.8, dbt-duckdb 1.8.1, FastAPI (API), React 18 + Vite (frontend), Pydantic v2 (config), Typer/Rich (CLI) (024-remove-polars-pipeline)
 
 ## Recent Changes
+- 024-remove-polars-pipeline: Removed Polars dependency, simplified to SQL-only mode
 - 001-centralize-band-definitions: Added SQL (DuckDB 1.0.0), dbt-core 1.8.8 + dbt-duckdb 1.8.1, DuckDB

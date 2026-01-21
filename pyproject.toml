@@ -23,7 +23,6 @@ dependencies = [
     "hypothesis>=6.0.0",
 
     # Performance optimization dependencies
-    "polars>=0.20.0",
     "lz4>=4.3.3",
     "psutil>=5.9.0",
     "networkx>=3.0",

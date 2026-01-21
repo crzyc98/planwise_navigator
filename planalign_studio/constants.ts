@@ -78,7 +78,6 @@ export const MOCK_CONFIGS: SimulationConfig[] = [
     baseTurnoverRate: 10.0,
     regrettableFactor: 0.5,
     advanced: {
-        engine: 'polars',
         enableMultithreading: true,
         checkpointFrequency: 'year',
         logLevel: 'INFO',
@@ -103,7 +102,6 @@ export const MOCK_CONFIGS: SimulationConfig[] = [
     targetPercentile: 75,
     baseTurnoverRate: 15.0,
     advanced: {
-        engine: 'polars',
         enableMultithreading: true,
         checkpointFrequency: 'year',
         logLevel: 'DEBUG',
@@ -127,7 +125,6 @@ export const MOCK_CONFIGS: SimulationConfig[] = [
     newHireStrategy: 'fixed',
     baseTurnoverRate: 8.0,
     advanced: {
-        engine: 'pandas',
         enableMultithreading: false,
         checkpointFrequency: 'none',
         logLevel: 'INFO',
