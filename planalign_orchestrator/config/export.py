@@ -526,18 +526,8 @@ def _export_threading_vars(cfg: "SimulationConfig") -> Dict[str, Any]:
     dbt_vars["event_shards"] = e068c_config.event_shards
     dbt_vars["max_parallel_years"] = e068c_config.max_parallel_years
 
-    # E068G Event generation mode
-    event_gen_mode = cfg.get_event_generation_mode()
-    polars_settings = cfg.get_polars_settings()
-    dbt_vars["event_generation_mode"] = event_gen_mode
-    dbt_vars["polars_enabled"] = cfg.is_polars_mode_enabled()
-    if event_gen_mode == "polars":
-        dbt_vars["polars_output_path"] = polars_settings.output_path
-        dbt_vars["polars_max_threads"] = polars_settings.max_threads
-
-    # E077: Polars cohort engine
-    dbt_vars["use_polars_engine"] = cfg.is_cohort_engine_enabled()
-    dbt_vars["polars_cohort_dir"] = str(cfg.get_cohort_output_dir()) if cfg.is_cohort_engine_enabled() else "outputs/polars_cohorts"
+    # E068G Event generation mode (SQL-only after E024)
+    dbt_vars["event_generation_mode"] = "sql"
 
     return dbt_vars
 

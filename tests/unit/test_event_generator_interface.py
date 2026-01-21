@@ -123,7 +123,6 @@ class TestEventGeneratorInterface:
         generator = DefaultsGenerator()
         assert generator.requires_hazard is False
         assert generator.supports_sql is True
-        assert generator.supports_polars is False
 
     def test_override_optional_attributes(self):
         """Can override optional attributes."""
@@ -133,7 +132,6 @@ class TestEventGeneratorInterface:
             execution_order = 100
             requires_hazard = True
             supports_sql = False
-            supports_polars = True
 
             def generate_events(self, context):
                 return []
@@ -144,7 +142,6 @@ class TestEventGeneratorInterface:
         generator = CustomGenerator()
         assert generator.requires_hazard is True
         assert generator.supports_sql is False
-        assert generator.supports_polars is True
 
 
 class TestEventGeneratorCalculateHazard:

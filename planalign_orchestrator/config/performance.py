@@ -167,47 +167,43 @@ class OrchestratorSettings(BaseModel):
 
 
 # =============================================================================
-# Polars Event Settings
+# Legacy Polars Event Settings (kept for backward compatibility)
 # =============================================================================
 
 class PolarsEventSettings(BaseModel):
-    """Polars event generation configuration for E068G and E077."""
-    enabled: bool = Field(default=False, description="Enable Polars-based event generation")
-    max_threads: int = Field(default=16, ge=1, le=32, description="Maximum threads for Polars operations")
-    batch_size: int = Field(default=10000, ge=1000, le=50000, description="Batch size for employee processing")
-    output_path: str = Field(default="data/parquet/events", description="Output directory for partitioned Parquet files")
-    enable_compression: bool = Field(default=True, description="Enable zstd compression for Parquet files")
-    compression_level: int = Field(default=6, ge=1, le=22, description="Compression level for zstd (1-22)")
-    enable_profiling: bool = Field(default=False, description="Enable Polars query profiling")
-    max_memory_gb: float = Field(default=8.0, ge=1.0, le=64.0, description="Maximum memory usage in GB")
-    lazy_evaluation: bool = Field(default=True, description="Enable lazy evaluation for memory efficiency")
-    streaming: bool = Field(default=True, description="Enable streaming mode")
-    parallel_io: bool = Field(default=True, description="Enable parallel I/O operations")
-    fallback_on_error: bool = Field(default=True, description="Fall back to SQL mode on Polars errors")
+    """Legacy Polars settings - retained for backward compatibility.
 
-    # E077: Cohort Generation Engine configuration
-    use_cohort_engine: bool = Field(default=False, description="Use E077 cohort generation engine (375× faster)")
-    cohort_output_dir: str = Field(default="outputs/polars_cohorts", description="Directory for cohort Parquet files")
-
-    # E076: Polars State Accumulation Pipeline configuration
-    state_accumulation_enabled: bool = Field(default=False, description="Enable Polars-based state accumulation (E076)")
-    state_accumulation_fallback_on_error: bool = Field(default=True, description="Fall back to dbt if Polars state pipeline fails")
-    state_accumulation_validate_results: bool = Field(default=False, description="Validate Polars output against dbt baseline")
+    All simulations now use SQL mode. These settings are ignored but kept
+    to prevent config parsing errors from existing configuration files.
+    """
+    enabled: bool = Field(default=False, description="[DEPRECATED] Polars mode removed")
+    max_threads: int = Field(default=16, ge=1, le=32, description="[DEPRECATED]")
+    batch_size: int = Field(default=10000, ge=1000, le=50000, description="[DEPRECATED]")
+    output_path: str = Field(default="data/parquet/events", description="[DEPRECATED]")
+    enable_compression: bool = Field(default=True, description="[DEPRECATED]")
+    compression_level: int = Field(default=6, ge=1, le=22, description="[DEPRECATED]")
+    enable_profiling: bool = Field(default=False, description="[DEPRECATED]")
+    max_memory_gb: float = Field(default=8.0, ge=1.0, le=64.0, description="[DEPRECATED]")
+    lazy_evaluation: bool = Field(default=True, description="[DEPRECATED]")
+    streaming: bool = Field(default=True, description="[DEPRECATED]")
+    parallel_io: bool = Field(default=True, description="[DEPRECATED]")
+    fallback_on_error: bool = Field(default=True, description="[DEPRECATED]")
+    use_cohort_engine: bool = Field(default=False, description="[DEPRECATED]")
+    cohort_output_dir: str = Field(default="outputs/polars_cohorts", description="[DEPRECATED]")
+    state_accumulation_enabled: bool = Field(default=False, description="[DEPRECATED]")
+    state_accumulation_fallback_on_error: bool = Field(default=True, description="[DEPRECATED]")
+    state_accumulation_validate_results: bool = Field(default=False, description="[DEPRECATED]")
 
 
 class EventGenerationSettings(BaseModel):
-    """Event generation mode configuration supporting SQL and Polars."""
-    mode: str = Field(default="sql", description="Event generation mode: 'sql' or 'polars'")
-    polars: PolarsEventSettings = Field(default_factory=PolarsEventSettings, description="Polars-specific configuration")
+    """Event generation configuration. All simulations use SQL mode."""
+    mode: str = Field(default="sql", description="Event generation mode (always 'sql')")
+    polars: PolarsEventSettings = Field(default_factory=PolarsEventSettings, description="[DEPRECATED] Legacy Polars settings")
 
     def validate_mode(self) -> None:
-        """Validate event generation mode configuration."""
-        valid_modes = {"sql", "polars"}
-        if self.mode not in valid_modes:
-            raise ValueError(f"Invalid event generation mode '{self.mode}'. Must be one of: {valid_modes}")
-
-        if self.mode == "polars" and not self.polars.enabled:
-            raise ValueError("Polars mode selected but polars.enabled is False")
+        """Validate event generation mode - always SQL."""
+        # Silently accept 'polars' for backward compatibility but mode is always 'sql'
+        pass
 
 
 # =============================================================================

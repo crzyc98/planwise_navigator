@@ -300,7 +300,7 @@ class EventRegistry:
         List enabled generators that support a specific execution mode.
 
         Args:
-            mode: "sql" or "polars"
+            mode: Execution mode (only "sql" is supported)
             scenario_id: Scenario identifier
 
         Returns:
@@ -309,19 +309,16 @@ class EventRegistry:
 
         Example:
             sql_generators = EventRegistry.list_by_mode("sql", "baseline")
-            polars_generators = EventRegistry.list_by_mode("polars", "baseline")
         """
-        if mode not in ("sql", "polars"):
-            raise ValueError(f"Invalid mode '{mode}'. Must be 'sql' or 'polars'")
+        if mode != "sql":
+            raise ValueError(f"Invalid mode '{mode}'. Must be 'sql'")
 
         enabled = cls.list_enabled(scenario_id)
         generators = []
 
         for et in enabled:
             gen = cls.get(et)
-            if mode == "sql" and gen.supports_sql:
-                generators.append(gen)
-            elif mode == "polars" and gen.supports_polars:
+            if gen.supports_sql:
                 generators.append(gen)
 
         return sorted(generators, key=lambda g: g.execution_order)
@@ -344,13 +341,7 @@ class EventRegistry:
             gen_class = cls._generators[event_type]
             order = getattr(gen_class, "execution_order", "?")
             sql = getattr(gen_class, "supports_sql", True)
-            polars = getattr(gen_class, "supports_polars", False)
-            modes = []
-            if sql:
-                modes.append("sql")
-            if polars:
-                modes.append("polars")
-            mode_str = ",".join(modes) or "none"
-            lines.append(f"  - {event_type} (order={order}, modes={mode_str}): {gen_class.__name__}")
+            mode_str = "sql" if sql else "none"
+            lines.append(f"  - {event_type} (order={order}, mode={mode_str}): {gen_class.__name__}")
 
         return "\n".join(lines)

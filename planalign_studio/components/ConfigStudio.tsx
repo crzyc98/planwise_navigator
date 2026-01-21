@@ -278,7 +278,6 @@ export default function ConfigStudio() {
     dcEscalationHireDateCutoff: '2020-01-01',
 
     // Advanced Settings
-    engine: 'polars',
     enableMultithreading: true,
     checkpointFrequency: 'year', // 'year', 'stage', 'none'
     memoryLimitGB: 4.0,
@@ -3212,42 +3211,6 @@ export default function ConfigStudio() {
                 <div className="border-b border-gray-100 pb-4">
                   <h2 className="text-lg font-bold text-gray-900">Advanced Execution Settings</h2>
                   <p className="text-sm text-gray-500">Configure engine performance, logging, and validation rules.</p>
-                </div>
-
-                {/* Engine Selection */}
-                <div className="bg-gray-50 p-6 rounded-lg border border-gray-200">
-                  <h3 className="text-sm font-bold text-gray-900 flex items-center mb-4">
-                    <Zap size={16} className="mr-2 text-yellow-500" /> Simulation Engine
-                  </h3>
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    <label className={`relative flex flex-col p-4 border rounded-lg cursor-pointer transition-all ${formData.engine === 'polars' ? 'border-fidelity-green bg-green-50 ring-1 ring-fidelity-green' : 'border-gray-200 bg-white hover:border-gray-300'}`}>
-                      <input
-                        type="radio"
-                        name="engine"
-                        value="polars"
-                        checked={formData.engine === 'polars'}
-                        onChange={handleChange}
-                        className="absolute top-4 right-4 h-4 w-4 text-fidelity-green focus:ring-fidelity-green"
-                      />
-                      <span className="font-bold text-gray-900">Polars Engine (Recommended)</span>
-                      <span className="text-xs text-gray-500 mt-1">High-performance Rust-based engine. Up to 375x faster for large datasets.</span>
-                      <span className="mt-3 inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-green-100 text-green-800 w-fit">Fastest</span>
-                    </label>
-
-                    <label className={`relative flex flex-col p-4 border rounded-lg cursor-pointer transition-all ${formData.engine === 'pandas' ? 'border-fidelity-green bg-green-50 ring-1 ring-fidelity-green' : 'border-gray-200 bg-white hover:border-gray-300'}`}>
-                      <input
-                        type="radio"
-                        name="engine"
-                        value="pandas"
-                        checked={formData.engine === 'pandas'}
-                        onChange={handleChange}
-                        className="absolute top-4 right-4 h-4 w-4 text-fidelity-green focus:ring-fidelity-green"
-                      />
-                      <span className="font-bold text-gray-900">Pandas Engine (Legacy)</span>
-                      <span className="text-xs text-gray-500 mt-1">Standard Python dataframe library. Better for debugging custom logic.</span>
-                      <span className="mt-3 inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-gray-100 text-gray-800 w-fit">Stable</span>
-                    </label>
-                  </div>
                 </div>
 
                 {/* System Configuration */}

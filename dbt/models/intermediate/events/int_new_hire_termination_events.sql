@@ -46,19 +46,54 @@ eligible_new_hires AS (
 ),
 
 -- Compute a guaranteed in-year candidate termination date when possible
+-- E025 FIX: Apply proportional minimum tenure to prevent same-day terminations
+-- - Late-year hires (<30 days remaining): minimum 1 day tenure
+-- - Mid-year hires (30-89 days remaining): minimum 30 days tenure
+-- - Early/mid-year hires (90+ days remaining): minimum 30-90 days (randomized)
 eligible_terminations AS (
     SELECT
         e.*,
+        -- Calculate proportional minimum tenure based on days remaining
         CASE
-            WHEN e.days_until_year_end >= 1 THEN
+            WHEN e.days_until_year_end < 1 THEN NULL  -- No time for any tenure
+            WHEN e.days_until_year_end < 30 THEN 1    -- Late hire: min 1 day
+            WHEN e.days_until_year_end < 90 THEN 30   -- Mid-year: min 30 days
+            ELSE 30 + (ABS(HASH(e.employee_id || '|MIN|{{ var('random_seed', 42) }}')) % 61)  -- Early: 30-90 random
+        END AS min_tenure_days,
+        CASE
+            -- No days remaining - cannot terminate this year
+            WHEN e.days_until_year_end < 1 THEN NULL
+            -- Late-year hire (<30 days remaining): min 1 day tenure, distribute across remaining days
+            WHEN e.days_until_year_end < 30 THEN
                 e.hire_date
                 + CAST(
                     CAST(
-                      1 + (CAST(SUBSTR(e.employee_id, -3) AS INTEGER) % LEAST(240, e.days_until_year_end))
-                      AS VARCHAR
+                        1 + (CAST(SUBSTR(e.employee_id, -3) AS INTEGER) % GREATEST(1, e.days_until_year_end))
+                        AS VARCHAR
                     ) || ' days' AS INTERVAL
-                  )
-            ELSE NULL
+                )
+            -- Mid-year hire (30-89 days remaining): min 30 days tenure
+            WHEN e.days_until_year_end < 90 THEN
+                e.hire_date
+                + CAST(
+                    CAST(
+                        30 + (CAST(SUBSTR(e.employee_id, -3) AS INTEGER) % GREATEST(1, e.days_until_year_end - 29))
+                        AS VARCHAR
+                    ) || ' days' AS INTERVAL
+                )
+            -- Early/mid-year hire (90+ days remaining): min 30-90 days (randomized per employee)
+            ELSE
+                e.hire_date
+                + CAST(
+                    CAST(
+                        -- Random minimum: 30 + (0-60) = 30-90 days
+                        (30 + (ABS(HASH(e.employee_id || '|MIN|{{ var('random_seed', 42) }}')) % 61))
+                        -- Plus additional random days within remaining window
+                        + (CAST(SUBSTR(e.employee_id, -3) AS INTEGER)
+                           % GREATEST(1, e.days_until_year_end - (30 + (ABS(HASH(e.employee_id || '|MIN|{{ var('random_seed', 42) }}')) % 61)) + 1))
+                        AS VARCHAR
+                    ) || ' days' AS INTERVAL
+                )
         END AS candidate_termination_date
     FROM eligible_new_hires e
 ),

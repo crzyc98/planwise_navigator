@@ -20,7 +20,7 @@ import time
 
 from .adaptive_memory_manager import AdaptiveMemoryManager, create_adaptive_memory_manager, OptimizationLevel
 from .checkpoint_manager import CheckpointManager
-from .config import SimulationConfig, to_dbt_vars, PolarsEventSettings, get_database_path
+from .config import SimulationConfig, to_dbt_vars, get_database_path
 from .dbt_runner import DbtResult, DbtRunner
 from .recovery_orchestrator import RecoveryOrchestrator
 from .registries import RegistryManager
@@ -36,9 +36,6 @@ from .pipeline.data_cleanup import DataCleanupManager
 from .pipeline.hooks import HookManager, HookType
 from .pipeline.year_executor import YearExecutor
 from .pipeline.event_generation_executor import EventGenerationExecutor
-
-# Import Polars cohort generation (E077)
-from .polars_integration import execute_polars_cohort_generation
 
 # Import model parallelization components
 try:
@@ -85,10 +82,8 @@ class PipelineOrchestrator:
         self.event_shards = e068c_config.event_shards
         self.max_parallel_years = e068c_config.max_parallel_years
 
-        # E068G: Extract event generation configuration
-        self.event_generation_mode = config.get_event_generation_mode()
-        self.polars_settings = config.get_polars_settings()
-        self.is_polars_enabled = config.is_polars_mode_enabled()
+        # E068G: Event generation mode is always SQL
+        self.event_generation_mode = "sql"
 
         # Log E068C threading configuration
         if self.verbose:
@@ -96,16 +91,7 @@ class PipelineOrchestrator:
             print(f"   dbt_threads: {self.dbt_threads}")
             print(f"   event_shards: {self.event_shards}")
             print(f"   max_parallel_years: {self.max_parallel_years}")
-
-            # E068G: Log event generation configuration
-            print(f"🔄 E068G Event Generation Configuration:")
-            print(f"   mode: {self.event_generation_mode}")
-            if self.event_generation_mode == "polars":
-                print(f"   polars_enabled: {self.is_polars_enabled}")
-                print(f"   max_threads: {self.polars_settings.max_threads}")
-                print(f"   batch_size: {self.polars_settings.batch_size:,}")
-                print(f"   output_path: {self.polars_settings.output_path}")
-                print(f"   fallback_on_error: {self.polars_settings.fallback_on_error}")
+            print(f"🔄 Event Generation Mode: SQL")
 
         # Enhanced compensation parameter visibility
         self._log_compensation_parameters()
@@ -435,9 +421,6 @@ class PipelineOrchestrator:
                 print(f"   Query profiling enabled")
                 print(f"   Reports directory: {self.reports_dir / 'duckdb_performance'}")
 
-            # Setup hybrid performance monitoring for E068G integration
-            self._setup_hybrid_performance_monitoring()
-
         except ImportError:
             self.duckdb_performance_monitor = None
             if self.verbose:
@@ -446,25 +429,6 @@ class PipelineOrchestrator:
             self.duckdb_performance_monitor = None
             if self.verbose:
                 print(f"⚠️ Failed to initialize DuckDB Performance Monitor: {e}")
-
-    def _setup_hybrid_performance_monitoring(self) -> None:
-        """Setup hybrid performance monitoring for E068G"""
-        try:
-            from .hybrid_performance_monitor import HybridPerformanceMonitor
-
-            self.hybrid_performance_monitor = HybridPerformanceMonitor(
-                reports_dir=self.reports_dir / "hybrid_performance",
-                verbose=self.verbose
-            )
-
-            if self.verbose:
-                print("📊 E068G Hybrid Performance Monitor initialized")
-        except ImportError:
-            self.hybrid_performance_monitor = None
-        except Exception as e:
-            self.hybrid_performance_monitor = None
-            if self.verbose:
-                print(f"⚠️ Failed to initialize Hybrid Performance Monitor: {e}")
 
     def _cleanup_resources(self) -> None:
         """Cleanup resource management components"""
@@ -776,16 +740,6 @@ class PipelineOrchestrator:
         except Exception:
             pass
 
-        # Generate and save hybrid performance report (E068G)
-        if hasattr(self, 'hybrid_performance_monitor') and self.hybrid_performance_monitor:
-            try:
-                report_path = self.hybrid_performance_monitor.save_performance_report()
-                if self.verbose:
-                    print(f"📊 Hybrid performance report saved: {report_path}")
-            except Exception as e:
-                if self.verbose:
-                    print(f"⚠️ Failed to save hybrid performance report: {e}")
-
         # Cleanup resource management components (S067-03)
         self._cleanup_resources()
 
@@ -802,8 +756,7 @@ class PipelineOrchestrator:
             summary.threading_config = {
                 "dbt_threads": self.dbt_threads,
                 "event_shards": self.event_shards,
-                "event_generation_mode": self.config.get_event_generation_mode(),
-                "polars_enabled": self.config.is_polars_mode_enabled()
+                "event_generation_mode": "sql",
             }
 
         return summary
@@ -871,12 +824,7 @@ class PipelineOrchestrator:
                 checkpoint_name = f"{stage.name.value}_{year}_start"
                 self.duckdb_performance_monitor.record_checkpoint(checkpoint_name)
 
-            # E077: Generate Polars cohorts AFTER FOUNDATION stage completes
-            if stage.name == WorkflowStage.FOUNDATION:
-                # First, execute the FOUNDATION stage using standard logic (handled below)
-                pass
-
-            # E068G: Use hybrid event generation for EVENT_GENERATION stage
+            # E068G: Use event generation for EVENT_GENERATION stage
             if stage.name == WorkflowStage.EVENT_GENERATION:
                 try:
                     hybrid_result = self.event_generation_executor.execute_hybrid_event_generation([year])
@@ -1001,36 +949,6 @@ class PipelineOrchestrator:
             # Run stage validation using existing logic (skip in dry-run mode)
             if not dry_run:
                 self._run_stage_validation(stage, year, fail_on_validation_error)
-
-            # E077: Generate Polars cohorts AFTER FOUNDATION stage completes and validates
-            if stage.name == WorkflowStage.FOUNDATION and self.config.is_cohort_engine_enabled():
-                try:
-                    if self.verbose:
-                        print(f"   ⚡ E077: Generating Polars cohorts for year {year}...")
-
-                    scenario_id = getattr(self.config, 'scenario_id', 'default') or 'default'
-                    cohort_output_dir = self.config.get_cohort_output_dir()
-
-                    # Pass database path to ensure Polars uses correct scenario database
-                    db_path = getattr(self.db_manager, 'db_path', None)
-
-                    cohorts = execute_polars_cohort_generation(
-                        config=self.config,
-                        simulation_year=year,
-                        scenario_id=scenario_id,
-                        output_dir=cohort_output_dir,
-                        database_path=db_path
-                    )
-
-                    if self.verbose:
-                        print(f"   ✓ Polars cohorts generated successfully")
-                        print(f"      Output: {cohort_output_dir / scenario_id}_{year}")
-
-                except Exception as e:
-                    # Log error but don't fail - fall back to SQL-based hiring
-                    if self.verbose:
-                        print(f"   ⚠️ Polars cohort generation failed: {e}")
-                        print("      Falling back to SQL-based hiring")
 
     def _run_stage_validation(
         self, stage: StageDefinition, year: int, fail_on_validation_error: bool
