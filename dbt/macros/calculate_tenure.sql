@@ -47,9 +47,9 @@
         {% if termination_date_column %}
         -- Use termination date if provided and not null, otherwise use plan year end
         WHEN {{ termination_date_column }} IS NOT NULL AND {{ hire_date_column }} > {{ termination_date_column }} THEN 0
-        WHEN {{ termination_date_column }} IS NOT NULL THEN FLOOR(({{ termination_date_column }} - {{ hire_date_column }}) / 365.25)::INTEGER
+        WHEN {{ termination_date_column }} IS NOT NULL THEN FLOOR(DATEDIFF('day', {{ hire_date_column }}::DATE, ({{ termination_date_column }})::DATE) / 365.25)::INTEGER
         {% endif %}
         WHEN {{ hire_date_column }} > {{ as_of_date }} THEN 0
-        ELSE FLOOR(({{ as_of_date }} - {{ hire_date_column }}) / 365.25)::INTEGER
+        ELSE FLOOR(DATEDIFF('day', {{ hire_date_column }}::DATE, ({{ as_of_date }})::DATE) / 365.25)::INTEGER
     END
 {% endmacro %}
