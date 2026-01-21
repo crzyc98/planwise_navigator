@@ -678,7 +678,15 @@ final_workforce AS (
             fwc.employee_gross_compensation
         ) AS prorated_annual_compensation,
         fwc.current_age,
-        fwc.current_tenure,
+        -- E022 FIX: Recalculate tenure for terminated employees using termination_date
+        -- Active employees: tenure to year-end (Dec 31)
+        -- Terminated employees: tenure to termination_date (Anniversary Year Method)
+        CASE
+            WHEN fwc.employment_status = 'terminated' AND fwc.termination_date IS NOT NULL THEN
+                {{ calculate_tenure('fwc.employee_hire_date', "MAKE_DATE(" ~ var('simulation_year') ~ ", 12, 31)", 'fwc.termination_date') }}
+            ELSE
+                fwc.current_tenure
+        END AS current_tenure,
         fwc.level_id,
         fwc.employment_status,
         fwc.termination_date,
