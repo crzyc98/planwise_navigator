@@ -440,7 +440,8 @@ export default function Layout() {
           <NavItem to="/simulate" icon={<PlayCircle size={20} />} label="Simulate" />
           <NavItem to="/analytics" icon={<BarChart3 size={20} />} label="Analytics" end />
           <NavItem to="/analytics/dc-plan" icon={<PieChart size={20} />} label="DC Plan" />
-          <NavItem to="/compare" icon={<Scale size={20} />} label="Compare Costs" />
+          <NavItem to="/analytics/vesting" icon={<Scale size={20} />} label="Vesting" />
+          <NavItem to="/compare" icon={<BarChart3 size={20} />} label="Compare Costs" />
           <NavItem to="/batch" icon={<Database size={20} />} label="Batch Processing" />
         </nav>
       </aside>
