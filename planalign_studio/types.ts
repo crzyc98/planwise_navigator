@@ -100,7 +100,9 @@ export interface SimulationConfig {
 
   // Advanced
   advanced?: {
-    engine: 'polars' | 'pandas';
+    // Engine field accepts legacy values for backward compatibility
+    // All simulations now use SQL mode regardless of this setting
+    engine?: 'polars' | 'pandas';
     enableMultithreading: boolean;
     checkpointFrequency: 'year' | 'stage' | 'none';
     logLevel: 'DEBUG' | 'INFO' | 'WARNING';

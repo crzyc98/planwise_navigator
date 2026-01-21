@@ -85,53 +85,37 @@ class SimulationConfig(BaseModel):
         return 1
 
     def get_event_generation_mode(self) -> str:
-        """Get configured event generation mode (sql or polars)."""
-        if self.optimization and self.optimization.event_generation:
-            return self.optimization.event_generation.mode
+        """Get event generation mode - always 'sql'."""
         return "sql"
 
     def get_polars_settings(self) -> PolarsEventSettings:
-        """Get Polars event generation settings."""
+        """Get Polars settings for backward compatibility."""
         if self.optimization and self.optimization.event_generation:
             return self.optimization.event_generation.polars
         return PolarsEventSettings()
 
     def is_polars_mode_enabled(self) -> bool:
-        """Check if Polars event generation mode is enabled and configured."""
-        return (self.get_event_generation_mode() == "polars" and
-                self.get_polars_settings().enabled)
+        """Check if Polars mode is enabled - always False."""
+        return False
 
     def is_cohort_engine_enabled(self) -> bool:
-        """Check if E077 Polars cohort generation engine is enabled."""
-        polars_settings = self.get_polars_settings()
-        return polars_settings.use_cohort_engine
+        """Check if cohort generation engine is enabled - always False."""
+        return False
 
     def get_cohort_output_dir(self) -> Path:
         """Get configured cohort output directory."""
-        polars_settings = self.get_polars_settings()
-        return get_project_root() / polars_settings.cohort_output_dir
+        return get_project_root() / "outputs/cohorts"
 
     def is_polars_state_accumulation_enabled(self) -> bool:
-        """Check if E076 Polars state accumulation pipeline is enabled.
-
-        Returns True only when:
-        1. Polars mode is enabled for event generation
-        2. state_accumulation_enabled is explicitly set to True
-        """
-        polars_settings = self.get_polars_settings()
-        return self.is_polars_mode_enabled() and polars_settings.state_accumulation_enabled
+        """Check if Polars state accumulation is enabled - always False."""
+        return False
 
     def get_polars_state_accumulation_settings(self) -> dict:
-        """Get E076 Polars state accumulation configuration.
-
-        Returns:
-            Dictionary with state accumulation settings.
-        """
-        polars_settings = self.get_polars_settings()
+        """Get state accumulation configuration for backward compatibility."""
         return {
-            "enabled": polars_settings.state_accumulation_enabled,
-            "fallback_on_error": polars_settings.state_accumulation_fallback_on_error,
-            "validate_results": polars_settings.state_accumulation_validate_results,
+            "enabled": False,
+            "fallback_on_error": True,
+            "validate_results": False,
         }
 
     def validate_threading_configuration(self) -> None:

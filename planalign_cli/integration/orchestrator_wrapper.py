@@ -33,14 +33,10 @@ class OrchestratorWrapper:
         config_path: Path,
         db_path: Path,
         verbose: bool = False,
-        use_polars_engine: bool = False,
-        polars_output: Optional[Path] = None,
     ):
         self.config_path = config_path
         self.db_path = db_path
         self.verbose = verbose
-        self.use_polars_engine = use_polars_engine
-        self.polars_output = polars_output
 
         # Lazy initialization
         self._config = None
@@ -61,25 +57,8 @@ class OrchestratorWrapper:
                 from planalign_orchestrator.config import OptimizationSettings
                 self._config.optimization = OptimizationSettings()
 
-            # Set event generation mode based on CLI flag
-            # This explicitly overrides any config file settings to ensure
-            # the UI selection (polars vs sql/pandas) is respected
-            if self.use_polars_engine:
-                # Enable Polars event generation and cohort engine
-                self._config.optimization.event_generation.mode = "polars"
-                self._config.optimization.event_generation.polars.enabled = True
-                self._config.optimization.event_generation.polars.use_cohort_engine = True
-
-                # T012: Override Polars output path if specified via CLI
-                if self.polars_output:
-                    # Ensure directory exists (T014)
-                    self.polars_output.mkdir(parents=True, exist_ok=True)
-                    self._config.optimization.event_generation.polars.output_path = str(self.polars_output)
-            else:
-                # Explicitly set SQL mode to override any config file polars settings
-                self._config.optimization.event_generation.mode = "sql"
-                self._config.optimization.event_generation.polars.enabled = False
-                self._config.optimization.event_generation.polars.use_cohort_engine = False
+            # All simulations use SQL mode
+            self._config.optimization.event_generation.mode = "sql"
 
         return self._config
 

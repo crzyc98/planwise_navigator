@@ -96,8 +96,6 @@ def simulate(
     fail_on_validation_error: bool = typer.Option(False, "--fail-on-validation-error", help="Fail simulation on validation errors"),
     verbose: bool = typer.Option(False, "--verbose", "-v", help="Show detailed output"),
     growth: Optional[str] = typer.Option(None, "--growth", help="Target growth rate (e.g., '3.5%' or '0.035')"),
-    use_polars_engine: bool = typer.Option(False, "--use-polars-engine", help="Use E077 Polars cohort engine (375× faster)"),
-    polars_output: Optional[Path] = typer.Option(None, "--polars-output", help="Directory for Polars parquet output (default: data/parquet/events)"),
 ):
     """🎯 Run multi-year workforce simulation with Rich progress tracking."""
     run_simulation(
@@ -111,8 +109,6 @@ def simulate(
         fail_on_validation_error=fail_on_validation_error,
         verbose=verbose,
         growth=growth,
-        use_polars_engine=use_polars_engine,
-        polars_output=polars_output,
     )
 
 # Status commands

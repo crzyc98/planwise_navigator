@@ -96,7 +96,7 @@ class GeneratorMetrics:
         event_type: Generator event type identifier
         event_count: Number of events generated
         execution_time_ms: Generation time in milliseconds
-        mode: Execution mode ("sql" or "polars")
+        mode: Execution mode (always "sql")
         year: Simulation year
         scenario_id: Scenario identifier
     """
@@ -104,7 +104,7 @@ class GeneratorMetrics:
     event_type: str
     event_count: int
     execution_time_ms: float
-    mode: str  # "sql" or "polars"
+    mode: str  # always "sql"
     year: int
     scenario_id: str
 
@@ -140,7 +140,6 @@ class EventGenerator(ABC):
     Optional attributes:
     - requires_hazard: Whether generator uses hazard probability tables
     - supports_sql: Whether SQL/dbt mode is supported (default: True)
-    - supports_polars: Whether Polars mode is supported (default: False)
 
     Example:
         from planalign_orchestrator.generators import EventGenerator, EventRegistry
@@ -151,7 +150,6 @@ class EventGenerator(ABC):
             execution_order = 35
             requires_hazard = False
             supports_sql = True
-            supports_polars = False
 
             def generate_events(self, context: EventContext) -> List[SimulationEvent]:
                 # Implementation here
@@ -169,7 +167,6 @@ class EventGenerator(ABC):
     # Optional attributes with defaults
     requires_hazard: bool = False
     supports_sql: bool = True
-    supports_polars: bool = False
 
     @abstractmethod
     def generate_events(self, context: EventContext) -> List["SimulationEvent"]:
@@ -238,7 +235,7 @@ class EventGenerator(ABC):
 
         Args:
             context: Runtime context
-            mode: Execution mode ("sql" or "polars")
+            mode: Execution mode (always "sql")
 
         Returns:
             Tuple of (events, metrics)

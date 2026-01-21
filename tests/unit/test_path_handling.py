@@ -1,12 +1,10 @@
 """
-Unit tests for path handling in Polars mode.
+Unit tests for path handling.
 
 Tests for:
 - T002: POSIX path conversion
 - T003: Absolute-to-relative path conversion
 - T004: Paths with spaces
-- T008: --polars-output option parsing
-- T009: Warning when --polars-output used without --use-polars-engine
 - T015: Workspace-specific path construction
 """
 
@@ -97,42 +95,10 @@ class TestNormalizePathForDuckDB:
             assert "\\" not in result, f"Backslash found in result for {path}: {result}"
 
 
-class TestPolarsOutputCLIOption:
-    """Tests for --polars-output CLI option (T008, T009)."""
-
-    def test_polars_output_option_exists(self):
-        """T008: The --polars-output option should be available."""
-        from planalign_cli.commands.simulate import run_simulation
-        import typer
-        import inspect
-
-        # Get the function signature
-        sig = inspect.signature(run_simulation)
-        params = sig.parameters
-
-        # Check if polars_output parameter exists
-        assert "polars_output" in params, "--polars-output option not found in run_simulation"
-
-    def test_polars_output_is_optional_path(self):
-        """T008: --polars-output should be an Optional[Path] with None default."""
-        from planalign_cli.commands.simulate import run_simulation
-        import inspect
-        from typing import Optional
-        from pathlib import Path
-
-        sig = inspect.signature(run_simulation)
-        params = sig.parameters
-
-        # Check the parameter type and default
-        polars_output_param = params.get("polars_output")
-        assert polars_output_param is not None
-        assert polars_output_param.default is None or polars_output_param.default.default is None
-
-
 class TestWorkspacePathConstruction:
     """Tests for workspace-specific path construction (T015)."""
 
-    def test_workspace_polars_path_structure(self):
+    def test_workspace_parquet_path_structure(self):
         """T015: Workspace-specific path should follow the correct structure."""
         # This tests the path construction logic for workspace isolation
         workspace_id = "ws-12345"
@@ -140,13 +106,13 @@ class TestWorkspacePathConstruction:
 
         # Simulate the path construction that simulation_service.py should do
         base_path = Path("workspaces") / workspace_id / "scenarios" / scenario_id
-        polars_output = base_path / "data" / "parquet" / "events"
+        parquet_output = base_path / "data" / "parquet" / "events"
 
         # Should produce the expected structure
         expected_parts = ["workspaces", workspace_id, "scenarios", scenario_id, "data", "parquet", "events"]
 
         # Verify structure (platform-independent check)
-        path_str = polars_output.as_posix()
+        path_str = parquet_output.as_posix()
         for part in expected_parts:
             assert part in path_str, f"Expected '{part}' in path: {path_str}"
 
@@ -156,8 +122,8 @@ class TestWorkspacePathConstruction:
         scenario_id = "baseline"
 
         base_path = Path("workspaces") / workspace_id / "scenarios" / scenario_id
-        polars_output = base_path / "data" / "parquet" / "events"
+        parquet_output = base_path / "data" / "parquet" / "events"
 
         # as_posix() should give forward slashes
-        path_str = polars_output.as_posix()
+        path_str = parquet_output.as_posix()
         assert "\\" not in path_str
