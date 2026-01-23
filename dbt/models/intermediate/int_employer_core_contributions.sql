@@ -339,7 +339,9 @@ SELECT
     ) AS rn
 
 FROM population pop
-CROSS JOIN irs_compensation_limits lim  -- E026: Join 401(a)(17) limits
+-- E026: CROSS JOIN is safe here because irs_compensation_limits CTE filters to a single
+-- simulation_year, guaranteeing exactly one row. This provides the 401(a)(17) limit constant.
+CROSS JOIN irs_compensation_limits lim
 LEFT JOIN workforce_proration wf
     ON pop.employee_id = wf.employee_id AND pop.simulation_year = wf.simulation_year
 LEFT JOIN eligibility_check elig

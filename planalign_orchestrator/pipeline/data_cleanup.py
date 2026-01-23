@@ -381,7 +381,7 @@ class DataCleanupManager:
 
                 # Get CSV headers
                 try:
-                    with open(csv_path, 'r', newline='') as f:
+                    with open(csv_path, 'r', encoding='utf-8', newline='') as f:
                         reader = csv.reader(f)
                         csv_headers = set(next(reader))
                 except Exception as e:

@@ -141,6 +141,8 @@ service_based_match AS (
             * LEAST(ec.eligible_compensation, lim.irs_401a17_limit) AS match_amount,
         'graded_by_service' AS formula_type
     FROM employee_contributions ec
+    -- E026: CROSS JOIN is safe here because irs_compensation_limits CTE filters to a single
+    -- simulation_year, guaranteeing exactly one row. This provides the 401(a)(17) limit constant.
     CROSS JOIN irs_compensation_limits lim
 ),
 
@@ -186,6 +188,8 @@ tiered_match AS (
         ) AS match_amount,
         '{{ match_template }}' AS formula_type
     FROM employee_contributions ec
+    -- E026: CROSS JOIN is safe here because irs_compensation_limits CTE filters to a single
+    -- simulation_year, guaranteeing exactly one row. This provides the 401(a)(17) limit constant.
     CROSS JOIN irs_compensation_limits lim
     CROSS JOIN (
         {% for tier in match_tiers %}
