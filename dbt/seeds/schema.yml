@@ -32,9 +32,9 @@ seeds:
         scenario_id: varchar
         fiscal_year: integer
         metric_name: varchar
-        target_value: decimal(10,4)
+        target_value: decimal(14,2)
         tolerance_pct: decimal(5,4)
-        priority: integer
+        priority: varchar
         description: varchar
 
   - name: config_age_bands
