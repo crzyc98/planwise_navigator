@@ -10,7 +10,7 @@ from datetime import date, datetime
 from pathlib import Path
 from typing import List, Optional, Tuple
 
-import polars as pl
+import duckdb
 
 from ..models.bands import (
     Band,
@@ -301,23 +301,31 @@ class BandService:
         if not resolved.exists():
             raise ValueError(f"File not found: {file_path}")
 
-        # Read the file
+        # Read the file using DuckDB
         suffix = resolved.suffix.lower()
+        conn = duckdb.connect(":memory:")
+
         if suffix == ".parquet":
-            df = pl.read_parquet(resolved)
+            conn.execute(f"CREATE TABLE census AS SELECT * FROM read_parquet('{resolved}')")
         elif suffix == ".csv":
-            df = pl.read_csv(resolved, infer_schema_length=10000)
+            conn.execute(f"CREATE TABLE census AS SELECT * FROM read_csv('{resolved}', header=true, auto_detect=true)")
         else:
+            conn.close()
             raise ValueError(f"Unsupported file type: {suffix}")
+
+        # Get column names
+        columns_result = conn.execute("SELECT column_name FROM information_schema.columns WHERE table_name = 'census'").fetchall()
+        columns = [row[0] for row in columns_result]
 
         # Find birth date column
         birth_date_col = None
         for col_name in ["employee_birth_date", "birth_date", "birthdate", "dob"]:
-            if col_name in df.columns:
+            if col_name in columns:
                 birth_date_col = col_name
                 break
 
         if not birth_date_col:
+            conn.close()
             raise ValueError(
                 "Census file must contain a birth date column "
                 "(employee_birth_date, birth_date, birthdate, or dob)"
@@ -326,120 +334,116 @@ class BandService:
         # Find hire date column for recent hires analysis
         hire_date_col = None
         for col_name in ["employee_hire_date", "hire_date", "hiredate", "start_date"]:
-            if col_name in df.columns:
+            if col_name in columns:
                 hire_date_col = col_name
                 break
 
         # Calculate dates
         today = date.today()
 
-        # Parse birth dates
-        try:
-            df = df.with_columns([pl.col(birth_date_col).cast(pl.Date).alias("_birth_date")])
-        except Exception:
-            df = df.with_columns([pl.col(birth_date_col).str.to_date().alias("_birth_date")])
-
-        # Parse hire dates if available
-        if hire_date_col:
-            try:
-                df = df.with_columns([pl.col(hire_date_col).cast(pl.Date).alias("_hire_date")])
-            except Exception:
-                try:
-                    df = df.with_columns([pl.col(hire_date_col).str.to_date().alias("_hire_date")])
-                except Exception:
-                    hire_date_col = None  # Could not parse, skip
-
         # Filter to active employees
-        if "active" in df.columns:
-            df = df.filter(pl.col("active") == True)  # noqa: E712
-        elif "status" in df.columns:
-            df = df.filter(pl.col("status").str.to_lowercase() == "active")
+        if "active" in columns:
+            conn.execute("DELETE FROM census WHERE active != true")
+        elif "status" in columns:
+            conn.execute("DELETE FROM census WHERE LOWER(status) != 'active'")
 
-        # Filter to recent hires if hire date is available
+        # Check for recent hires
         recent_hires_only = False
         recent_year = None
-        if hire_date_col and "_hire_date" in df.columns:
-            max_hire_date = df.select(pl.col("_hire_date").max()).item()
-            if max_hire_date:
-                recent_year = max_hire_date.year
-                recent_hires = df.filter(pl.col("_hire_date").dt.year() == recent_year)
-                if recent_hires.height >= 10:
-                    df = recent_hires
-                    recent_hires_only = True
 
-        # Calculate age at hire (if recent hires) or current age
-        if recent_hires_only and "_hire_date" in df.columns:
-            df = df.with_columns(
-                [
-                    ((pl.col("_hire_date") - pl.col("_birth_date")).dt.total_days() / 365.25)
-                    .floor()
-                    .cast(pl.Int32)
-                    .alias("_age")
-                ]
-            )
+        if hire_date_col:
+            try:
+                max_hire_date_result = conn.execute(f"SELECT MAX(CAST({hire_date_col} AS DATE)) FROM census").fetchone()
+                max_hire_date = max_hire_date_result[0] if max_hire_date_result else None
+
+                if max_hire_date:
+                    recent_year = max_hire_date.year
+                    recent_count = conn.execute(f"""
+                        SELECT COUNT(*) FROM census
+                        WHERE YEAR(CAST({hire_date_col} AS DATE)) = {recent_year}
+                    """).fetchone()[0]
+
+                    if recent_count >= 10:
+                        conn.execute(f"""
+                            DELETE FROM census
+                            WHERE YEAR(CAST({hire_date_col} AS DATE)) != {recent_year}
+                        """)
+                        recent_hires_only = True
+            except Exception:
+                hire_date_col = None  # Could not parse, skip
+
+        # Calculate age
+        if recent_hires_only and hire_date_col:
+            conn.execute(f"""
+                ALTER TABLE census ADD COLUMN _age INTEGER;
+                UPDATE census SET _age = FLOOR(
+                    DATEDIFF('day', CAST({birth_date_col} AS DATE), CAST({hire_date_col} AS DATE)) / 365.25
+                )
+            """)
         else:
-            df = df.with_columns(
-                [
-                    ((pl.lit(today) - pl.col("_birth_date")).dt.total_days() / 365.25)
-                    .floor()
-                    .cast(pl.Int32)
-                    .alias("_age")
-                ]
-            )
+            conn.execute(f"""
+                ALTER TABLE census ADD COLUMN _age INTEGER;
+                UPDATE census SET _age = FLOOR(
+                    DATEDIFF('day', CAST({birth_date_col} AS DATE), '{today}'::DATE) / 365.25
+                )
+            """)
 
         # Filter out invalid ages
-        df = df.filter((pl.col("_age") >= 18) & (pl.col("_age") < 100))
+        conn.execute("DELETE FROM census WHERE _age < 18 OR _age >= 100")
 
-        if df.height == 0:
+        total_count = conn.execute("SELECT COUNT(*) FROM census").fetchone()[0]
+        if total_count == 0:
+            conn.close()
             raise ValueError("No employees with valid age data found")
 
         # Calculate distribution statistics
-        stats = df.select(
-            [
-                pl.col("_age").count().alias("total"),
-                pl.col("_age").min().alias("min_age"),
-                pl.col("_age").max().alias("max_age"),
-                pl.col("_age").median().alias("median_age"),
-                pl.col("_age").mean().alias("mean_age"),
-                pl.col("_age").quantile(0.10).alias("p10"),
-                pl.col("_age").quantile(0.25).alias("p25"),
-                pl.col("_age").quantile(0.50).alias("p50"),
-                pl.col("_age").quantile(0.75).alias("p75"),
-                pl.col("_age").quantile(0.90).alias("p90"),
-            ]
-        ).to_dicts()[0]
+        stats = conn.execute("""
+            SELECT
+                COUNT(_age) as total,
+                MIN(_age) as min_age,
+                MAX(_age) as max_age,
+                MEDIAN(_age) as median_age,
+                AVG(_age) as mean_age,
+                QUANTILE_CONT(_age, 0.10) as p10,
+                QUANTILE_CONT(_age, 0.25) as p25,
+                QUANTILE_CONT(_age, 0.50) as p50,
+                QUANTILE_CONT(_age, 0.75) as p75,
+                QUANTILE_CONT(_age, 0.90) as p90
+            FROM census
+        """).fetchone()
 
         # Generate suggested bands using percentile-based boundaries
-        # For 6 bands: 0%, 10%, 25%, 50%, 75%, 90%, 100%
-        suggested_bands = self._generate_age_bands_from_percentiles(
-            df=df,
+        suggested_bands = self._generate_age_bands_from_percentiles_duckdb(
+            conn=conn,
             num_bands=num_bands,
         )
+
+        conn.close()
 
         analysis_type = f"Recent hires from {recent_year}" if recent_hires_only else "All employees"
 
         return BandAnalysisResult(
             suggested_bands=suggested_bands,
             distribution_stats=DistributionStats(
-                total_employees=int(stats["total"]),
-                min_value=int(stats["min_age"]),
-                max_value=int(stats["max_age"]),
-                median_value=float(stats["median_age"]),
-                mean_value=float(stats["mean_age"]),
+                total_employees=int(stats[0]),
+                min_value=int(stats[1]),
+                max_value=int(stats[2]),
+                median_value=float(stats[3]),
+                mean_value=float(stats[4]),
                 percentiles={
-                    10: float(stats["p10"]),
-                    25: float(stats["p25"]),
-                    50: float(stats["p50"]),
-                    75: float(stats["p75"]),
-                    90: float(stats["p90"]),
+                    10: float(stats[5]),
+                    25: float(stats[6]),
+                    50: float(stats[7]),
+                    75: float(stats[8]),
+                    90: float(stats[9]),
                 },
             ),
             analysis_type=analysis_type,
             source_file=str(file_path),
         )
 
-    def _generate_age_bands_from_percentiles(self, df: pl.DataFrame, num_bands: int) -> List[Band]:
-        """Generate age bands based on data percentiles."""
+    def _generate_age_bands_from_percentiles_duckdb(self, conn: duckdb.DuckDBPyConnection, num_bands: int) -> List[Band]:
+        """Generate age bands based on data percentiles using DuckDB."""
         # Define percentile boundaries for different band counts
         if num_bands == 6:
             percentiles = [0, 10, 25, 50, 75, 90, 100]
@@ -457,7 +461,7 @@ class BandService:
             elif p == 100:
                 boundaries.append(999)  # Upper bound
             else:
-                val = df.select(pl.col("_age").quantile(p / 100)).item()
+                val = conn.execute(f"SELECT QUANTILE_CONT(_age, {p / 100}) FROM census").fetchone()[0]
                 boundaries.append(int(val))
 
         # Ensure boundaries are strictly increasing
@@ -521,23 +525,31 @@ class BandService:
         if not resolved.exists():
             raise ValueError(f"File not found: {file_path}")
 
-        # Read the file
+        # Read the file using DuckDB
         suffix = resolved.suffix.lower()
+        conn = duckdb.connect(":memory:")
+
         if suffix == ".parquet":
-            df = pl.read_parquet(resolved)
+            conn.execute(f"CREATE TABLE census AS SELECT * FROM read_parquet('{resolved}')")
         elif suffix == ".csv":
-            df = pl.read_csv(resolved, infer_schema_length=10000)
+            conn.execute(f"CREATE TABLE census AS SELECT * FROM read_csv('{resolved}', header=true, auto_detect=true)")
         else:
+            conn.close()
             raise ValueError(f"Unsupported file type: {suffix}")
+
+        # Get column names
+        columns_result = conn.execute("SELECT column_name FROM information_schema.columns WHERE table_name = 'census'").fetchall()
+        columns = [row[0] for row in columns_result]
 
         # Find hire date column
         hire_date_col = None
         for col_name in ["employee_hire_date", "hire_date", "hiredate", "start_date"]:
-            if col_name in df.columns:
+            if col_name in columns:
                 hire_date_col = col_name
                 break
 
         if not hire_date_col:
+            conn.close()
             raise ValueError(
                 "Census file must contain a hire date column "
                 "(employee_hire_date, hire_date, hiredate, or start_date)"
@@ -546,78 +558,74 @@ class BandService:
         # Calculate dates
         today = date.today()
 
-        # Parse hire dates
-        try:
-            df = df.with_columns([pl.col(hire_date_col).cast(pl.Date).alias("_hire_date")])
-        except Exception:
-            df = df.with_columns([pl.col(hire_date_col).str.to_date().alias("_hire_date")])
-
         # Filter to active employees
-        if "active" in df.columns:
-            df = df.filter(pl.col("active") == True)  # noqa: E712
-        elif "status" in df.columns:
-            df = df.filter(pl.col("status").str.to_lowercase() == "active")
+        if "active" in columns:
+            conn.execute("DELETE FROM census WHERE active != true")
+        elif "status" in columns:
+            conn.execute("DELETE FROM census WHERE LOWER(status) != 'active'")
 
         # Calculate tenure in years
-        df = df.with_columns(
-            [
-                ((pl.lit(today) - pl.col("_hire_date")).dt.total_days() / 365.25)
-                .floor()
-                .cast(pl.Int32)
-                .alias("_tenure")
-            ]
-        )
+        conn.execute(f"""
+            ALTER TABLE census ADD COLUMN _tenure INTEGER;
+            UPDATE census SET _tenure = FLOOR(
+                DATEDIFF('day', CAST({hire_date_col} AS DATE), '{today}'::DATE) / 365.25
+            )
+        """)
 
         # Filter out invalid tenure (negative or very high)
-        df = df.filter((pl.col("_tenure") >= 0) & (pl.col("_tenure") < 100))
+        conn.execute("DELETE FROM census WHERE _tenure < 0 OR _tenure >= 100")
 
-        if df.height == 0:
+        total_count = conn.execute("SELECT COUNT(*) FROM census").fetchone()[0]
+        if total_count == 0:
+            conn.close()
             raise ValueError("No employees with valid tenure data found")
 
         # Calculate distribution statistics
-        stats = df.select(
-            [
-                pl.col("_tenure").count().alias("total"),
-                pl.col("_tenure").min().alias("min_tenure"),
-                pl.col("_tenure").max().alias("max_tenure"),
-                pl.col("_tenure").median().alias("median_tenure"),
-                pl.col("_tenure").mean().alias("mean_tenure"),
-                pl.col("_tenure").quantile(0.10).alias("p10"),
-                pl.col("_tenure").quantile(0.25).alias("p25"),
-                pl.col("_tenure").quantile(0.50).alias("p50"),
-                pl.col("_tenure").quantile(0.75).alias("p75"),
-                pl.col("_tenure").quantile(0.90).alias("p90"),
-            ]
-        ).to_dicts()[0]
+        stats = conn.execute("""
+            SELECT
+                COUNT(_tenure) as total,
+                MIN(_tenure) as min_tenure,
+                MAX(_tenure) as max_tenure,
+                MEDIAN(_tenure) as median_tenure,
+                AVG(_tenure) as mean_tenure,
+                QUANTILE_CONT(_tenure, 0.10) as p10,
+                QUANTILE_CONT(_tenure, 0.25) as p25,
+                QUANTILE_CONT(_tenure, 0.50) as p50,
+                QUANTILE_CONT(_tenure, 0.75) as p75,
+                QUANTILE_CONT(_tenure, 0.90) as p90
+            FROM census
+        """).fetchone()
 
         # Generate suggested bands using percentile-based boundaries
-        suggested_bands = self._generate_tenure_bands_from_percentiles(
-            df=df,
+        suggested_bands = self._generate_tenure_bands_from_percentiles_duckdb(
+            conn=conn,
             num_bands=num_bands,
         )
+
+        conn.close()
 
         return BandAnalysisResult(
             suggested_bands=suggested_bands,
             distribution_stats=DistributionStats(
-                total_employees=int(stats["total"]),
-                min_value=int(stats["min_tenure"]),
-                max_value=int(stats["max_tenure"]),
-                median_value=float(stats["median_tenure"]),
-                mean_value=float(stats["mean_tenure"]),
+                total_employees=int(stats[0]),
+                min_value=int(stats[1]),
+                max_value=int(stats[2]),
+                median_value=float(stats[3]),
+                mean_value=float(stats[4]),
                 percentiles={
-                    10: float(stats["p10"]),
-                    25: float(stats["p25"]),
-                    50: float(stats["p50"]),
-                    75: float(stats["p75"]),
-                    90: float(stats["p90"]),
+                    10: float(stats[5]),
+                    25: float(stats[6]),
+                    50: float(stats[7]),
+                    75: float(stats[8]),
+                    90: float(stats[9]),
                 },
             ),
             analysis_type="All employees",
             source_file=str(file_path),
         )
 
-    def _generate_tenure_bands_from_percentiles(self, df: pl.DataFrame, num_bands: int) -> List[Band]:
-        """Generate tenure bands based on data percentiles."""
+    def _generate_tenure_bands_from_percentiles_duckdb(self, conn: duckdb.DuckDBPyConnection, num_bands: int) -> List[Band]:
+        """Generate tenure bands based on data percentiles using DuckDB."""
         # For tenure, use even percentile distribution
         percentiles = [int(100 * i / num_bands) for i in range(num_bands + 1)]
 
@@ -629,7 +637,7 @@ class BandService:
             elif p == 100:
                 boundaries.append(999)  # Upper bound
             else:
-                val = df.select(pl.col("_tenure").quantile(p / 100)).item()
+                val = conn.execute(f"SELECT QUANTILE_CONT(_tenure, {p / 100}) FROM census").fetchone()[0]
                 boundaries.append(int(val))
 
         # Ensure boundaries are strictly increasing

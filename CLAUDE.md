@@ -787,6 +787,8 @@ See `/docs/VERSIONING_GUIDE.md` for detailed versioning workflow.
 - Python 3.11 (backend), TypeScript 5.x (frontend) + FastAPI (backend API), React 18 + Vite (frontend), Pydantic v2 (validation), Recharts (visualization) (025-vesting-analysis)
 - DuckDB 1.0.0 (`dbt/simulation.duckdb`) - read-only access to `fct_workforce_snapshot` (025-vesting-analysis)
 - SQL (DuckDB 1.0.0), Jinja2 (dbt macros) + dbt-core 1.8.8, dbt-duckdb 1.8.1 (026-fix-401a17-comp-limit)
+- Python 3.11 + Existing codebase (no new dependencies) (027-tech-debt-modularization)
+- N/A (code refactoring only) (027-tech-debt-modularization)
 
 ## Recent Changes
 - 024-remove-polars-pipeline: Removed Polars dependency, simplified to SQL-only mode
