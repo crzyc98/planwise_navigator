@@ -12,6 +12,7 @@ import BatchProcessing from './components/BatchProcessing';
 import WorkspaceManager from './components/WorkspaceManager';
 import DCPlanAnalytics from './components/DCPlanAnalytics';
 import ScenarioCostComparison from './components/ScenarioCostComparison';
+import VestingAnalysis from './components/VestingAnalysis';
 
 // Error boundary to catch and display React errors
 class ErrorBoundary extends React.Component<
@@ -76,6 +77,7 @@ export default function App() {
             <Route path="analytics" element={<AnalyticsDashboard />} />
             <Route path="analytics/compare" element={<ScenarioComparison />} />
             <Route path="analytics/dc-plan" element={<DCPlanAnalytics />} />
+            <Route path="analytics/vesting" element={<VestingAnalysis />} />
             <Route path="compare" element={<ScenarioCostComparison />} />
             <Route path="batch" element={<BatchProcessing />} />
             <Route path="workspaces" element={<WorkspaceManager />} />

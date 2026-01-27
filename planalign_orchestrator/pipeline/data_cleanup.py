@@ -12,9 +12,14 @@ essential baseline tables like seeds and staging data.
 
 from __future__ import annotations
 
-from typing import List
+import csv
+import logging
+from pathlib import Path
+from typing import List, Set
 
 from planalign_orchestrator.utils import DatabaseConnectionManager
+
+logger = logging.getLogger(__name__)
 
 
 class DataCleanupManager:
@@ -320,3 +325,113 @@ class DataCleanupManager:
             return [t for t in tables if self.should_clear_table(t, patterns)]
 
         return self.db_manager.execute_with_retry(_run)
+
+    def drop_seed_tables_with_schema_mismatch(
+        self,
+        seeds_dir: Path | None = None
+    ) -> List[str]:
+        """Drop seed tables whose schema doesn't match the CSV headers.
+
+        This prevents DuckDB CSV sniffing errors when seed files gain new columns.
+        The table will be recreated with the correct schema by `dbt seed --full-refresh`.
+
+        Args:
+            seeds_dir: Path to dbt seeds directory. If None, uses default location.
+
+        Returns:
+            List of table names that were dropped due to schema mismatch.
+
+        Example:
+            >>> dropped = cleanup.drop_seed_tables_with_schema_mismatch()
+            >>> if dropped:
+            ...     print(f"Dropped {len(dropped)} tables with outdated schema")
+        """
+        if seeds_dir is None:
+            # Default to dbt/seeds relative to project root
+            project_root = Path(__file__).parent.parent.parent
+            seeds_dir = project_root / "dbt" / "seeds"
+
+        if not seeds_dir.exists():
+            logger.warning(f"Seeds directory not found: {seeds_dir}")
+            return []
+
+        dropped_tables: List[str] = []
+
+        def _run(conn):
+            nonlocal dropped_tables
+
+            # Get all existing tables
+            existing_tables = {
+                row[0]: row[0]
+                for row in conn.execute(
+                    """
+                    SELECT table_name
+                    FROM information_schema.tables
+                    WHERE table_schema = 'main'
+                    """
+                ).fetchall()
+            }
+
+            # Check each CSV file in seeds directory
+            for csv_path in seeds_dir.glob("*.csv"):
+                table_name = csv_path.stem  # e.g., config_irs_limits
+
+                if table_name not in existing_tables:
+                    continue  # Table doesn't exist, will be created fresh
+
+                # Get CSV headers
+                try:
+                    with open(csv_path, 'r', encoding='utf-8', newline='') as f:
+                        reader = csv.reader(f)
+                        csv_headers = set(next(reader))
+                except Exception as e:
+                    logger.warning(f"Could not read CSV headers from {csv_path}: {e}")
+                    continue
+
+                # Get table columns
+                try:
+                    table_columns = {
+                        row[0]
+                        for row in conn.execute(
+                            """
+                            SELECT column_name
+                            FROM information_schema.columns
+                            WHERE table_schema = 'main' AND table_name = ?
+                            """,
+                            [table_name]
+                        ).fetchall()
+                    }
+                except Exception as e:
+                    logger.warning(f"Could not get columns for table {table_name}: {e}")
+                    continue
+
+                # Check for schema mismatch (missing columns in table)
+                missing_columns = csv_headers - table_columns
+                if missing_columns:
+                    logger.info(
+                        f"Schema mismatch for {table_name}: "
+                        f"CSV has columns {missing_columns} not in table. Dropping table."
+                    )
+                    if self.verbose:
+                        print(
+                            f"  🔄 Dropping {table_name} - schema mismatch "
+                            f"(missing: {', '.join(sorted(missing_columns))})"
+                        )
+
+                    try:
+                        conn.execute(f"DROP TABLE IF EXISTS {table_name}")
+                        dropped_tables.append(table_name)
+                    except Exception as e:
+                        logger.error(f"Failed to drop table {table_name}: {e}")
+
+            return dropped_tables
+
+        self.db_manager.execute_with_retry(_run)
+
+        if dropped_tables and self.verbose:
+            print(
+                f"🧹 Dropped {len(dropped_tables)} seed table(s) with schema mismatch: "
+                f"{', '.join(dropped_tables)}"
+            )
+
+        return dropped_tables
