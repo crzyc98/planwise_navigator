@@ -1,39 +1,24 @@
-#!/usr/bin/env python3
 """
-Audit & Reporting utilities for Navigator Orchestrator.
-
-DEPRECATION NOTICE:
-    This module is a backward compatibility wrapper. For new code, import directly from:
-    - planalign_orchestrator.reports
-
-Example:
-    # Old way (still works):
-    from planalign_orchestrator.reports import YearAuditor
-
-    # New way (preferred):
-    from planalign_orchestrator.reports import YearAuditor
+Reports package for PlanAlign Engine audit and reporting.
 
 Generates single-year and multi-year reports, supports basic export formats,
 and integrates data quality validation results.
 """
 
-# Re-export all public symbols from the reports package
-from .reports import (
-    # Data models
+from .data_models import (
     WorkforceBreakdown,
     EventSummary,
     YearAuditReport,
     MultiYearSummary,
-    # Reporters
-    YearAuditor,
-    MultiYearReporter,
-    # Formatters
+)
+from .formatters import (
     ConsoleReporter,
     ReportTemplate,
-    # Templates
     EXECUTIVE_SUMMARY_TEMPLATE,
     DETAILED_AUDIT_TEMPLATE,
 )
+from .year_auditor import YearAuditor
+from .multi_year_reporter import MultiYearReporter
 
 __all__ = [
     # Data models
