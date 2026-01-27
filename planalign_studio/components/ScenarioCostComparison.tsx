@@ -149,6 +149,21 @@ export default function ScenarioCostComparison() {
   );
 
   // -------------------------------------------------------------------------
+  // Derived Data: Sorted Filtered Scenarios (selected first, in order)
+  // -------------------------------------------------------------------------
+  const sortedFilteredScenarios = useMemo(() => {
+    // Selected scenarios in their current order
+    const selected = selectedScenarioIds
+      .map(id => filteredScenarios.find(s => s.id === id))
+      .filter((s): s is Scenario => s !== undefined);
+    // Unselected scenarios
+    const unselected = filteredScenarios.filter(
+      s => !selectedScenarioIds.includes(s.id)
+    );
+    return [...selected, ...unselected];
+  }, [filteredScenarios, selectedScenarioIds]);
+
+  // -------------------------------------------------------------------------
   // Derived Data: Anchor Analytics
   // -------------------------------------------------------------------------
   const anchorAnalytics = useMemo(() =>
@@ -530,7 +545,7 @@ export default function ScenarioCostComparison() {
               <div className="px-2 py-1 text-[10px] font-bold text-gray-400 uppercase tracking-widest">
                 Select & Anchor
               </div>
-              {filteredScenarios.map((scenario) => {
+              {sortedFilteredScenarios.map((scenario) => {
                 const isSelected = selectedScenarioIds.includes(scenario.id);
                 const isAnchor = anchorScenarioId === scenario.id;
                 const isAtLimit = selectedScenarioIds.length >= MAX_SCENARIO_SELECTION;
