@@ -5,6 +5,8 @@ seeds:
     description: "IRS contribution and compensation limits by year"
     config:
       delimiter: ","
+      quote: '"'
+      header: true
       column_types:
         limit_year: integer
         base_limit: integer
