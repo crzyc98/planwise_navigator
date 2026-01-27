@@ -70,6 +70,15 @@ export default function CostComparison() {
     c.name.toLowerCase().includes(searchQuery.toLowerCase())
   );
 
+  // Sorted configs: selected first (in order), then unselected
+  const sortedFilteredConfigs = useMemo(() => {
+    const selected = selectedIds
+      .map(id => filteredConfigs.find(c => c.id === id))
+      .filter((c): c is typeof filteredConfigs[0] => c !== undefined);
+    const unselected = filteredConfigs.filter(c => !selectedIds.includes(c.id));
+    return [...selected, ...unselected];
+  }, [filteredConfigs, selectedIds]);
+
   // Years in the data
   const years = useMemo(() => RETIREMENT_COST_DATA.map(d => d.year), []);
   const yearCount = years.length;
@@ -170,7 +179,7 @@ export default function CostComparison() {
 
         <div className="flex-1 overflow-y-auto p-2 space-y-1">
           <div className="px-2 py-1 text-[10px] font-bold text-gray-400 uppercase tracking-widest">Select & Anchor</div>
-          {filteredConfigs.map((config) => {
+          {sortedFilteredConfigs.map((config) => {
             const isSelected = selectedIds.includes(config.id);
             const isBaseline = baselineId === config.id;
 
