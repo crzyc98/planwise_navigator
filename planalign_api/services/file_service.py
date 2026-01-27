@@ -1,11 +1,11 @@
 """File service for census file uploads and validation."""
 
 import logging
-from datetime import datetime
+from datetime import datetime, date, timedelta
 from pathlib import Path
 from typing import Dict, List, Optional, Tuple
 
-import polars as pl
+import duckdb
 
 logger = logging.getLogger(__name__)
 
@@ -124,19 +124,28 @@ class FileService:
             ValueError: If required columns are missing
         """
         suffix = file_path.suffix.lower()
+        conn = duckdb.connect(":memory:")
 
         try:
             if suffix == ".parquet":
-                df = pl.read_parquet(file_path)
+                conn.execute(f"CREATE TABLE census AS SELECT * FROM read_parquet('{file_path}')")
             elif suffix == ".csv":
-                df = pl.read_csv(file_path, infer_schema_length=10000)
+                conn.execute(f"CREATE TABLE census AS SELECT * FROM read_csv('{file_path}', header=true, auto_detect=true)")
             else:
+                conn.close()
                 raise ValueError(f"Unsupported file type: {suffix}")
         except Exception as e:
+            conn.close()
             raise ValueError(f"Failed to read file: {e}")
 
-        columns = df.columns
+        # Get column names
+        columns_result = conn.execute("SELECT column_name FROM information_schema.columns WHERE table_name = 'census'").fetchall()
+        columns = [row[0] for row in columns_result]
         warnings: List[str] = []
+
+        # Get row count
+        row_count = conn.execute("SELECT COUNT(*) FROM census").fetchone()[0]
+        conn.close()
 
         # Check required columns
         missing_required = [col for col in self.REQUIRED_COLUMNS if col not in columns]
@@ -164,7 +173,7 @@ class FileService:
                     warnings.append(f"Recommended column missing: {col}")
 
         return {
-            "row_count": len(df),
+            "row_count": row_count,
             "columns": columns,
             "file_size_bytes": file_path.stat().st_size,
             "validation_warnings": warnings,
@@ -300,23 +309,31 @@ class FileService:
         if not resolved.exists():
             raise ValueError(f"File not found: {file_path}")
 
-        # Read the file
+        # Read the file using DuckDB
         suffix = resolved.suffix.lower()
+        conn = duckdb.connect(":memory:")
+
         if suffix == ".parquet":
-            df = pl.read_parquet(resolved)
+            conn.execute(f"CREATE TABLE census AS SELECT * FROM read_parquet('{resolved}')")
         elif suffix == ".csv":
-            df = pl.read_csv(resolved, infer_schema_length=10000)
+            conn.execute(f"CREATE TABLE census AS SELECT * FROM read_csv('{resolved}', header=true, auto_detect=true)")
         else:
+            conn.close()
             raise ValueError(f"Unsupported file type: {suffix}")
+
+        # Get column names
+        columns_result = conn.execute("SELECT column_name FROM information_schema.columns WHERE table_name = 'census'").fetchall()
+        columns = [row[0] for row in columns_result]
 
         # Find birth date column
         birth_date_col = None
         for col_name in ["employee_birth_date", "birth_date", "birthdate", "dob"]:
-            if col_name in df.columns:
+            if col_name in columns:
                 birth_date_col = col_name
                 break
 
         if not birth_date_col:
+            conn.close()
             raise ValueError(
                 "Census file must contain a birth date column "
                 "(employee_birth_date, birth_date, birthdate, or dob)"
@@ -325,71 +342,60 @@ class FileService:
         # Find hire date column
         hire_date_col = None
         for col_name in ["employee_hire_date", "hire_date", "hiredate", "start_date"]:
-            if col_name in df.columns:
+            if col_name in columns:
                 hire_date_col = col_name
                 break
 
         # Calculate dates
         today = datetime.now().date()
 
-        # Parse birth dates
-        try:
-            df = df.with_columns([
-                pl.col(birth_date_col).cast(pl.Date).alias("_birth_date")
-            ])
-        except Exception:
-            # Try string parsing if direct cast fails
-            df = df.with_columns([
-                pl.col(birth_date_col).str.to_date().alias("_birth_date")
-            ])
-
-        # Parse hire dates if available
-        if hire_date_col:
-            try:
-                df = df.with_columns([
-                    pl.col(hire_date_col).cast(pl.Date).alias("_hire_date")
-                ])
-            except Exception:
-                df = df.with_columns([
-                    pl.col(hire_date_col).str.to_date().alias("_hire_date")
-                ])
-
         # Filter to active employees if status column exists
-        if "active" in df.columns:
-            df = df.filter(pl.col("active") == True)  # noqa: E712
-        elif "status" in df.columns:
-            df = df.filter(pl.col("status").str.to_lowercase() == "active")
+        if "active" in columns:
+            conn.execute("DELETE FROM census WHERE active != true")
+        elif "status" in columns:
+            conn.execute("DELETE FROM census WHERE LOWER(status) != 'active'")
 
-        # Filter to most recent calendar year of hires if hire date is available
+        # Check if we should filter to recent hires
         recent_hires_only = False
         recent_year = None
-        if hire_date_col and "_hire_date" in df.columns:
+
+        if hire_date_col:
             # Find the most recent calendar year with hires
-            max_hire_date = df.select(pl.col("_hire_date").max()).item()
+            max_hire_date_result = conn.execute(f"SELECT MAX(CAST({hire_date_col} AS DATE)) FROM census").fetchone()
+            max_hire_date = max_hire_date_result[0] if max_hire_date_result else None
+
             if max_hire_date:
                 recent_year = max_hire_date.year
-                recent_hires = df.filter(pl.col("_hire_date").dt.year() == recent_year)
-                if recent_hires.height >= 10:  # Need at least 10 recent hires for meaningful analysis
-                    df = recent_hires
+                # Check if we have enough recent hires
+                recent_count = conn.execute(f"""
+                    SELECT COUNT(*) FROM census
+                    WHERE YEAR(CAST({hire_date_col} AS DATE)) = {recent_year}
+                """).fetchone()[0]
+
+                if recent_count >= 10:
+                    conn.execute(f"""
+                        DELETE FROM census
+                        WHERE YEAR(CAST({hire_date_col} AS DATE)) != {recent_year}
+                    """)
                     recent_hires_only = True
 
-        # Calculate age at hire (if we have recent hires) or current age
-        if recent_hires_only and "_hire_date" in df.columns:
+        # Calculate ages
+        if recent_hires_only and hire_date_col:
             # Age at time of hire
-            df = df.with_columns([
-                ((pl.col("_hire_date") - pl.col("_birth_date")).dt.total_days() / 365.25)
-                .floor()
-                .cast(pl.Int32)
-                .alias("_age")
-            ])
+            conn.execute(f"""
+                ALTER TABLE census ADD COLUMN _age INTEGER;
+                UPDATE census SET _age = FLOOR(
+                    DATEDIFF('day', CAST({birth_date_col} AS DATE), CAST({hire_date_col} AS DATE)) / 365.25
+                )
+            """)
         else:
             # Current age
-            df = df.with_columns([
-                ((pl.lit(today) - pl.col("_birth_date")).dt.total_days() / 365.25)
-                .floor()
-                .cast(pl.Int32)
-                .alias("_age")
-            ])
+            conn.execute(f"""
+                ALTER TABLE census ADD COLUMN _age INTEGER;
+                UPDATE census SET _age = FLOOR(
+                    DATEDIFF('day', CAST({birth_date_col} AS DATE), '{today}'::DATE) / 365.25
+                )
+            """)
 
         # Define age buckets matching our seed structure
         age_buckets = [
@@ -403,8 +409,9 @@ class FileService:
             (50, 48, 100, "Late career changes"),
         ]
 
-        total_count = len(df)
+        total_count = conn.execute("SELECT COUNT(*) FROM census").fetchone()[0]
         if total_count == 0:
+            conn.close()
             raise ValueError(
                 "No employees found. "
                 + ("No hires in the last 12 months." if hire_date_col else "")
@@ -412,9 +419,10 @@ class FileService:
 
         distribution = []
         for target_age, min_age, max_age, description in age_buckets:
-            count = df.filter(
-                (pl.col("_age") >= min_age) & (pl.col("_age") < max_age)
-            ).height
+            count = conn.execute(f"""
+                SELECT COUNT(*) FROM census
+                WHERE _age >= {min_age} AND _age < {max_age}
+            """).fetchone()[0]
             weight = round(count / total_count, 4) if total_count > 0 else 0
 
             distribution.append({
@@ -423,6 +431,8 @@ class FileService:
                 "description": description,
                 "count": count,
             })
+
+        conn.close()
 
         # Normalize weights to sum to 1.0
         total_weight = sum(d["weight"] for d in distribution)
@@ -468,23 +478,31 @@ class FileService:
         if not resolved.exists():
             raise ValueError(f"File not found: {file_path}")
 
-        # Read the file
+        # Read the file using DuckDB
         suffix = resolved.suffix.lower()
+        conn = duckdb.connect(":memory:")
+
         if suffix == ".parquet":
-            df = pl.read_parquet(resolved)
+            conn.execute(f"CREATE TABLE census AS SELECT * FROM read_parquet('{resolved}')")
         elif suffix == ".csv":
-            df = pl.read_csv(resolved, infer_schema_length=10000)
+            conn.execute(f"CREATE TABLE census AS SELECT * FROM read_csv('{resolved}', header=true, auto_detect=true)")
         else:
+            conn.close()
             raise ValueError(f"Unsupported file type: {suffix}")
+
+        # Get column names
+        columns_result = conn.execute("SELECT column_name FROM information_schema.columns WHERE table_name = 'census'").fetchall()
+        columns = [row[0] for row in columns_result]
 
         # Find compensation column
         comp_col = None
         for col_name in ["employee_gross_compensation", "annual_salary", "compensation", "salary", "base_salary"]:
-            if col_name in df.columns:
+            if col_name in columns:
                 comp_col = col_name
                 break
 
         if not comp_col:
+            conn.close()
             raise ValueError(
                 "Census file must contain a compensation column "
                 "(employee_gross_compensation, annual_salary, compensation, salary, or base_salary)"
@@ -493,34 +511,33 @@ class FileService:
         # Find level column (optional - will still work without it)
         level_col = None
         for col_name in ["employee_job_level", "job_level", "level", "grade", "band"]:
-            if col_name in df.columns:
+            if col_name in columns:
                 level_col = col_name
                 break
 
         # Find hire date column for recent hires analysis
         hire_date_col = None
         for col_name in ["employee_hire_date", "hire_date", "hiredate", "start_date"]:
-            if col_name in df.columns:
+            if col_name in columns:
                 hire_date_col = col_name
                 break
 
-        # Cast compensation to float
+        # Add working columns for compensation
         try:
-            df = df.with_columns([
-                pl.col(comp_col).cast(pl.Float64).alias("_compensation")
-            ])
+            conn.execute(f"ALTER TABLE census ADD COLUMN _compensation DOUBLE")
+            conn.execute(f"UPDATE census SET _compensation = CAST({comp_col} AS DOUBLE)")
             if level_col:
-                df = df.with_columns([
-                    pl.col(level_col).cast(pl.Int32).alias("_level")
-                ])
+                conn.execute(f"ALTER TABLE census ADD COLUMN _level INTEGER")
+                conn.execute(f"UPDATE census SET _level = CAST({level_col} AS INTEGER)")
         except Exception as e:
+            conn.close()
             raise ValueError(f"Failed to parse compensation data: {e}")
 
         # Filter to active employees if status column exists
-        if "active" in df.columns:
-            df = df.filter(pl.col("active") == True)  # noqa: E712
-        elif "status" in df.columns:
-            df = df.filter(pl.col("status").str.to_lowercase() == "active")
+        if "active" in columns:
+            conn.execute("DELETE FROM census WHERE active != true")
+        elif "status" in columns:
+            conn.execute("DELETE FROM census WHERE LOWER(status) != 'active'")
 
         # Try to parse hire dates and annualize compensation
         recent_hires_only = False
@@ -529,112 +546,103 @@ class FileService:
 
         if hire_date_col:
             try:
-                df = df.with_columns([
-                    pl.col(hire_date_col).cast(pl.Date).alias("_hire_date")
-                ])
-            except Exception:
-                try:
-                    df = df.with_columns([
-                        pl.col(hire_date_col).str.to_date().alias("_hire_date")
-                    ])
-                except Exception:
-                    # Can't parse dates, skip hire date processing
-                    pass
-
-            if "_hire_date" in df.columns:
-                from datetime import timedelta, date
+                conn.execute(f"ALTER TABLE census ADD COLUMN _hire_date DATE")
+                conn.execute(f"UPDATE census SET _hire_date = CAST({hire_date_col} AS DATE)")
 
                 # Find the "census date" - assume it's the max hire date or end of that year
-                max_hire_date = df.select(pl.col("_hire_date").max()).item()
+                max_hire_date_result = conn.execute("SELECT MAX(_hire_date) FROM census").fetchone()
+                max_hire_date = max_hire_date_result[0] if max_hire_date_result else None
+
                 if max_hire_date:
                     # Assume census is from end of the year of the most recent hire
-                    census_date = date(max_hire_date.year, 12, 31)
+                    census_year = max_hire_date.year
+                    census_date = date(census_year, 12, 31)
 
-                    # Calculate days worked in census year for each employee
-                    # For employees hired in census year, annualize their compensation
-                    df = df.with_columns([
-                        # Days from hire to end of year (capped at 365)
-                        pl.when(pl.col("_hire_date").dt.year() == census_date.year)
-                        .then(
-                            (pl.lit(census_date) - pl.col("_hire_date")).dt.total_days().clip(1, 365)
-                        )
-                        .otherwise(pl.lit(365))
-                        .alias("_days_worked")
-                    ])
+                    # Calculate days worked and annualize compensation
+                    conn.execute(f"""
+                        ALTER TABLE census ADD COLUMN _days_worked INTEGER;
+                        UPDATE census SET _days_worked = CASE
+                            WHEN YEAR(_hire_date) = {census_year}
+                            THEN LEAST(365, GREATEST(1, DATEDIFF('day', _hire_date, '{census_date}'::DATE)))
+                            ELSE 365
+                        END
+                    """)
 
-                    # Annualize compensation: if worked partial year, scale up to full year
-                    # Only annualize if days_worked < 365 and compensation seems prorated
-                    df = df.with_columns([
-                        pl.when(pl.col("_days_worked") < 365)
-                        .then(pl.col("_compensation") * 365.0 / pl.col("_days_worked"))
-                        .otherwise(pl.col("_compensation"))
-                        .alias("_compensation_annualized")
-                    ])
-
-                    # Use annualized compensation for analysis
-                    df = df.with_columns([
-                        pl.col("_compensation_annualized").alias("_compensation")
-                    ])
+                    conn.execute("""
+                        UPDATE census SET _compensation = CASE
+                            WHEN _days_worked < 365 THEN _compensation * 365.0 / _days_worked
+                            ELSE _compensation
+                        END
+                    """)
                     annualized = True
 
                     # Now filter to recent hires if requested
                     if lookback_years > 0:
                         cutoff_date = max_hire_date - timedelta(days=lookback_years * 365)
-                        recent_hires = df.filter(pl.col("_hire_date") >= cutoff_date)
+                        recent_count = conn.execute(f"SELECT COUNT(*) FROM census WHERE _hire_date >= '{cutoff_date}'").fetchone()[0]
 
                         # Need enough data for meaningful analysis (at least 20 employees)
-                        if recent_hires.height >= 20:
-                            df = recent_hires
+                        if recent_count >= 20:
+                            conn.execute(f"DELETE FROM census WHERE _hire_date < '{cutoff_date}'")
                             recent_hires_only = True
-                            lookback_description = f"Hires from last {lookback_years} years ({recent_hires.height} employees, annualized)"
+                            lookback_description = f"Hires from last {lookback_years} years ({recent_count} employees, annualized)"
                         else:
-                            lookback_description = f"All employees (only {recent_hires.height} recent hires found, need 20+)"
+                            lookback_description = f"All employees (only {recent_count} recent hires found, need 20+)"
+            except Exception:
+                # Can't parse dates, skip hire date processing
+                pass
 
         # Filter out invalid compensation (after annualization)
-        df = df.filter(pl.col("_compensation") > 0)
-        # Also filter out unreasonably high annualized values (> $2M is likely an error)
-        df = df.filter(pl.col("_compensation") < 2_000_000)
+        conn.execute("DELETE FROM census WHERE _compensation <= 0 OR _compensation >= 2000000")
 
-        total_count = len(df)
+        total_count = conn.execute("SELECT COUNT(*) FROM census").fetchone()[0]
         if total_count == 0:
+            conn.close()
             raise ValueError("No employees with valid compensation data found")
 
         # If we have level data, calculate by level
-        if level_col and "_level" in df.columns:
-            level_stats = df.group_by("_level").agg([
-                pl.col("_compensation").min().alias("min_comp"),
-                pl.col("_compensation").max().alias("max_comp"),
-                pl.col("_compensation").median().alias("median_comp"),
-                pl.col("_compensation").quantile(0.25).alias("p25_comp"),
-                pl.col("_compensation").quantile(0.75).alias("p75_comp"),
-                pl.col("_compensation").mean().alias("avg_comp"),
-                pl.col("_compensation").count().alias("employee_count"),
-            ]).sort("_level")
+        if level_col:
+            level_stats = conn.execute("""
+                SELECT
+                    _level,
+                    MIN(_compensation) as min_comp,
+                    MAX(_compensation) as max_comp,
+                    MEDIAN(_compensation) as median_comp,
+                    QUANTILE_CONT(_compensation, 0.25) as p25_comp,
+                    QUANTILE_CONT(_compensation, 0.75) as p75_comp,
+                    AVG(_compensation) as avg_comp,
+                    COUNT(*) as employee_count
+                FROM census
+                WHERE _level IS NOT NULL
+                GROUP BY _level
+                ORDER BY _level
+            """).fetchall()
 
             levels = []
             level_names = {1: "Staff", 2: "Manager", 3: "Sr Manager", 4: "Director", 5: "VP"}
 
-            for row in level_stats.iter_rows(named=True):
-                level_id = row["_level"]
+            for row in level_stats:
+                level_id = row[0]
                 # Use P25-P75 as the recommended hiring range (more robust than min/max)
-                # This avoids outliers at both ends and gives a realistic market range
-                recommended_min = row["p25_comp"]
-                recommended_max = row["p75_comp"]
+                recommended_min = row[4]  # p25_comp
+                recommended_max = row[5]  # p75_comp
                 levels.append({
                     "level": level_id,
                     "name": level_names.get(level_id, f"Level {level_id}"),
-                    "employee_count": row["employee_count"],
+                    "employee_count": row[7],
                     # Raw min/max for reference
-                    "raw_min_compensation": round(row["min_comp"], 2),
-                    "raw_max_compensation": round(row["max_comp"], 2),
+                    "raw_min_compensation": round(row[1], 2),
+                    "raw_max_compensation": round(row[2], 2),
                     # Recommended range (P25-P75) for new hire targeting
                     "min_compensation": round(recommended_min, 2),
                     "max_compensation": round(recommended_max, 2),
-                    "median_compensation": round(row["median_comp"], 2),
-                    "p25_compensation": round(row["p25_comp"], 2),
-                    "p75_compensation": round(row["p75_comp"], 2),
-                    "avg_compensation": round(row["avg_comp"], 2),
+                    "median_compensation": round(row[3], 2),
+                    "p25_compensation": round(row[4], 2),
+                    "p75_compensation": round(row[5], 2),
+                    "avg_compensation": round(row[6], 2),
                 })
+
+            conn.close()
 
             analysis_desc = lookback_description or "All employees"
             if annualized and "annualized" not in analysis_desc.lower():
@@ -652,59 +660,60 @@ class FileService:
             }
         else:
             # No level data - provide overall distribution with suggested bands
-            # Use P5 and P97 to avoid outliers at the extremes
-            overall_stats = df.select([
-                pl.col("_compensation").min().alias("min_comp"),
-                pl.col("_compensation").max().alias("max_comp"),
-                pl.col("_compensation").median().alias("median_comp"),
-                pl.col("_compensation").quantile(0.05).alias("p5_comp"),
-                pl.col("_compensation").quantile(0.10).alias("p10_comp"),
-                pl.col("_compensation").quantile(0.25).alias("p25_comp"),
-                pl.col("_compensation").quantile(0.50).alias("p50_comp"),
-                pl.col("_compensation").quantile(0.75).alias("p75_comp"),
-                pl.col("_compensation").quantile(0.90).alias("p90_comp"),
-                pl.col("_compensation").quantile(0.95).alias("p95_comp"),
-                pl.col("_compensation").quantile(0.97).alias("p97_comp"),
-                pl.col("_compensation").mean().alias("avg_comp"),
-            ]).to_dicts()[0]
+            overall_stats = conn.execute("""
+                SELECT
+                    MIN(_compensation) as min_comp,
+                    MAX(_compensation) as max_comp,
+                    MEDIAN(_compensation) as median_comp,
+                    QUANTILE_CONT(_compensation, 0.05) as p5_comp,
+                    QUANTILE_CONT(_compensation, 0.10) as p10_comp,
+                    QUANTILE_CONT(_compensation, 0.25) as p25_comp,
+                    QUANTILE_CONT(_compensation, 0.50) as p50_comp,
+                    QUANTILE_CONT(_compensation, 0.75) as p75_comp,
+                    QUANTILE_CONT(_compensation, 0.90) as p90_comp,
+                    QUANTILE_CONT(_compensation, 0.95) as p95_comp,
+                    QUANTILE_CONT(_compensation, 0.97) as p97_comp,
+                    AVG(_compensation) as avg_comp
+                FROM census
+            """).fetchone()
+
+            conn.close()
 
             # Create suggested level ranges based on percentiles
-            # Use P5 as floor (not min) to avoid outliers dragging down Level 1
-            # Use P97 as ceiling (not max) to avoid outliers inflating Level 5
             suggested_levels = [
                 {
                     "level": 1,
                     "name": "Staff",
-                    "suggested_min": round(overall_stats["p5_comp"], 0),
-                    "suggested_max": round(overall_stats["p25_comp"], 0),
+                    "suggested_min": round(overall_stats[3], 0),  # p5
+                    "suggested_max": round(overall_stats[5], 0),  # p25
                     "percentile_range": "5th-25th",
                 },
                 {
                     "level": 2,
                     "name": "Manager",
-                    "suggested_min": round(overall_stats["p25_comp"], 0),
-                    "suggested_max": round(overall_stats["p50_comp"], 0),
+                    "suggested_min": round(overall_stats[5], 0),  # p25
+                    "suggested_max": round(overall_stats[6], 0),  # p50
                     "percentile_range": "25th-50th",
                 },
                 {
                     "level": 3,
                     "name": "Sr Manager",
-                    "suggested_min": round(overall_stats["p50_comp"], 0),
-                    "suggested_max": round(overall_stats["p75_comp"], 0),
+                    "suggested_min": round(overall_stats[6], 0),  # p50
+                    "suggested_max": round(overall_stats[7], 0),  # p75
                     "percentile_range": "50th-75th",
                 },
                 {
                     "level": 4,
                     "name": "Director",
-                    "suggested_min": round(overall_stats["p75_comp"], 0),
-                    "suggested_max": round(overall_stats["p90_comp"], 0),
+                    "suggested_min": round(overall_stats[7], 0),  # p75
+                    "suggested_max": round(overall_stats[8], 0),  # p90
                     "percentile_range": "75th-90th",
                 },
                 {
                     "level": 5,
                     "name": "VP",
-                    "suggested_min": round(overall_stats["p90_comp"], 0),
-                    "suggested_max": round(overall_stats["p97_comp"], 0),
+                    "suggested_min": round(overall_stats[8], 0),  # p90
+                    "suggested_max": round(overall_stats[10], 0),  # p97
                     "percentile_range": "90th-97th",
                 },
             ]
@@ -722,14 +731,14 @@ class FileService:
                 "compensation_annualized": annualized,
                 "message": "Census does not have job level data. Showing overall compensation distribution with suggested level ranges based on percentiles of recent hires." if recent_hires_only else "Census does not have job level data. Showing overall compensation distribution with suggested level ranges based on percentiles.",
                 "overall_stats": {
-                    "min_compensation": round(overall_stats["min_comp"], 2),
-                    "max_compensation": round(overall_stats["max_comp"], 2),
-                    "median_compensation": round(overall_stats["median_comp"], 2),
-                    "p10_compensation": round(overall_stats["p10_comp"], 2),
-                    "p25_compensation": round(overall_stats["p25_comp"], 2),
-                    "p75_compensation": round(overall_stats["p75_comp"], 2),
-                    "p90_compensation": round(overall_stats["p90_comp"], 2),
-                    "avg_compensation": round(overall_stats["avg_comp"], 2),
+                    "min_compensation": round(overall_stats[0], 2),
+                    "max_compensation": round(overall_stats[1], 2),
+                    "median_compensation": round(overall_stats[2], 2),
+                    "p10_compensation": round(overall_stats[4], 2),
+                    "p25_compensation": round(overall_stats[5], 2),
+                    "p75_compensation": round(overall_stats[7], 2),
+                    "p90_compensation": round(overall_stats[8], 2),
+                    "avg_compensation": round(overall_stats[11], 2),
                 },
                 "suggested_levels": suggested_levels,
                 "source_file": str(file_path),
