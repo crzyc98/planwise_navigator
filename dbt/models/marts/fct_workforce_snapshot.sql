@@ -381,7 +381,9 @@ employee_eligibility AS (
         WHERE simulation_year = {{ simulation_year }}
     ) accumulator ON baseline.employee_id = accumulator.employee_id
     LEFT JOIN employee_events_consolidated ec ON baseline.employee_id = ec.employee_id
+    -- **E028 PERFORMANCE FIX**: Add simulation_year filter to reduce full table scan
     WHERE baseline.employment_status = 'active'
+      AND baseline.simulation_year = {{ simulation_year }}
 
     UNION ALL
 
@@ -419,8 +421,11 @@ employee_eligibility AS (
         WHERE simulation_year = {{ simulation_year }}
     ) accumulator ON he.employee_id = accumulator.employee_id
     -- Only include if they're not already in baseline (avoid duplicates)
+    -- **E028 PERFORMANCE FIX**: Add simulation_year filter to reduce full table scan
     WHERE he.employee_id NOT IN (
-        SELECT employee_id FROM {{ ref('int_baseline_workforce') }} WHERE employment_status = 'active'
+        SELECT employee_id FROM {{ ref('int_baseline_workforce') }}
+        WHERE employment_status = 'active'
+          AND simulation_year = {{ simulation_year }}
     )
     {% else %}
     -- Subsequent years: Base on current workforce to avoid missing employees without explicit eligibility events
@@ -467,10 +472,12 @@ employee_eligibility AS (
           )
     ) events ON fwc.employee_id = events.employee_id
     -- Baseline fallback for employees without eligibility events
+    -- **E028 PERFORMANCE FIX**: Add simulation_year filter to reduce full table scan
     LEFT JOIN (
         SELECT employee_id, employee_eligibility_date, waiting_period_days, current_eligibility_status, employee_enrollment_date
         FROM {{ ref('int_baseline_workforce') }}
         WHERE employment_status = 'active'
+          AND simulation_year = {{ simulation_year }}
     ) baseline ON fwc.employee_id = baseline.employee_id
     -- Enrollment status from state accumulator for current year
     LEFT JOIN (
@@ -865,9 +872,19 @@ final_workforce_with_contributions AS (
         AND eligibility.simulation_year = fw.simulation_year
 ),
 
-final_output AS (
+-- **E028 PERFORMANCE FIX**: Pre-fetch baseline compensation for quality flag calculation
+-- Replaces 4 O(n²) scalar subqueries with single O(n) JOIN
+baseline_comp_for_quality AS (
     SELECT
         employee_id,
+        current_compensation AS baseline_compensation
+    FROM {{ ref('int_baseline_workforce') }}
+    WHERE simulation_year = {{ var('simulation_year') }}
+),
+
+final_output AS (
+    SELECT
+        final_workforce_with_contributions.employee_id,
         employee_ssn,
         employee_birth_date,
         employee_hire_date,
@@ -967,62 +984,14 @@ final_output AS (
 
             WHEN current_compensation < 10000 AND employment_status = 'active' THEN 'WARNING_UNDER_10K'
 
-            -- Inflation detection with baseline comparison
-            WHEN (
-                SELECT
-                    CASE
-                        WHEN b.current_compensation > 0 AND
-                             (current_compensation / b.current_compensation) > 100.0
-                        THEN true
-                        ELSE false
-                    END
-                FROM {{ ref('int_baseline_workforce') }} b
-                WHERE b.employee_id = final_workforce_with_contributions.employee_id
-                  AND b.simulation_year = {{ var('simulation_year') }}
-                LIMIT 1
-            ) = true THEN 'CRITICAL_INFLATION_100X'
-
-            WHEN (
-                SELECT
-                    CASE
-                        WHEN b.current_compensation > 0 AND
-                             (current_compensation / b.current_compensation) > 50.0
-                        THEN true
-                        ELSE false
-                    END
-                FROM {{ ref('int_baseline_workforce') }} b
-                WHERE b.employee_id = final_workforce_with_contributions.employee_id
-                  AND b.simulation_year = {{ var('simulation_year') }}
-                LIMIT 1
-            ) = true THEN 'CRITICAL_INFLATION_50X'
-
-            WHEN (
-                SELECT
-                    CASE
-                        WHEN b.current_compensation > 0 AND
-                             (current_compensation / b.current_compensation) > 10.0
-                        THEN true
-                        ELSE false
-                    END
-                FROM {{ ref('int_baseline_workforce') }} b
-                WHERE b.employee_id = final_workforce_with_contributions.employee_id
-                  AND b.simulation_year = {{ var('simulation_year') }}
-                LIMIT 1
-            ) = true THEN 'SEVERE_INFLATION_10X'
-
-            WHEN (
-                SELECT
-                    CASE
-                        WHEN b.current_compensation > 0 AND
-                             (current_compensation / b.current_compensation) > 5.0
-                        THEN true
-                        ELSE false
-                    END
-                FROM {{ ref('int_baseline_workforce') }} b
-                WHERE b.employee_id = final_workforce_with_contributions.employee_id
-                  AND b.simulation_year = {{ var('simulation_year') }}
-                LIMIT 1
-            ) = true THEN 'WARNING_INFLATION_5X'
+            -- **E028 PERFORMANCE FIX**: Inflation detection with pre-joined baseline (O(n) vs O(n²))
+            -- Uses baseline_comp_for_quality CTE joined once instead of 4 scalar subqueries
+            WHEN bcq.baseline_compensation IS NULL THEN 'NORMAL'  -- New hire (not in baseline)
+            WHEN bcq.baseline_compensation <= 0 THEN 'NORMAL'     -- Zero baseline compensation
+            WHEN (current_compensation / bcq.baseline_compensation) > 100.0 THEN 'CRITICAL_INFLATION_100X'
+            WHEN (current_compensation / bcq.baseline_compensation) > 50.0 THEN 'CRITICAL_INFLATION_50X'
+            WHEN (current_compensation / bcq.baseline_compensation) > 10.0 THEN 'SEVERE_INFLATION_10X'
+            WHEN (current_compensation / bcq.baseline_compensation) > 5.0 THEN 'WARNING_INFLATION_5X'
 
             -- NORMAL: Compensation within expected bounds
             ELSE 'NORMAL'
@@ -1031,6 +1000,9 @@ final_output AS (
         CURRENT_TIMESTAMP AS snapshot_created_at
     FROM final_workforce_with_contributions
     CROSS JOIN irs_limits_for_year irs_limits
+    -- **E028 PERFORMANCE FIX**: Join baseline compensation once for quality flag calculation
+    LEFT JOIN baseline_comp_for_quality bcq
+        ON final_workforce_with_contributions.employee_id = bcq.employee_id
     {% if is_incremental() %}
     WHERE simulation_year = {{ simulation_year }}
     {% endif %}
