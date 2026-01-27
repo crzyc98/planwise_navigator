@@ -234,12 +234,9 @@ export default function BatchProcessing() {
               </button>
               <button
                 type="button"
-                onClick={() => setExecutionMode('sequential')}
-                className={`flex-1 px-4 py-2 text-sm font-medium border rounded-r-lg ${
-                  executionMode === 'sequential'
-                    ? 'bg-fidelity-green text-white border-fidelity-green'
-                    : 'bg-white text-gray-700 border-gray-300 hover:bg-gray-50'
-                }`}
+                disabled
+                title="Sequential mode is not yet supported"
+                className="flex-1 px-4 py-2 text-sm font-medium border rounded-r-lg bg-gray-100 text-gray-400 border-gray-200 cursor-not-allowed"
               >
                 Sequential
               </button>
