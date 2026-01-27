@@ -10,7 +10,8 @@ import {
   CheckSquare, Square, Info,
   TrendingUp, Download, Filter, Search,
   Layers, Anchor, Calendar, Calculator, TrendingDown,
-  DollarSign, Briefcase, Target, ShieldCheck, Zap
+  DollarSign, Briefcase, Target, ShieldCheck, Zap,
+  ArrowUp, ArrowDown
 } from 'lucide-react';
 import { LayoutContextType } from './Layout';
 import { MOCK_CONFIGS, RETIREMENT_COST_DATA, COLORS } from '../constants';
@@ -45,6 +46,26 @@ export default function CostComparison() {
     }
   };
 
+  const moveScenarioUp = (id: string) => {
+    setSelectedIds(prev => {
+      const idx = prev.indexOf(id);
+      if (idx <= 0) return prev;
+      const newArr = [...prev];
+      [newArr[idx - 1], newArr[idx]] = [newArr[idx], newArr[idx - 1]];
+      return newArr;
+    });
+  };
+
+  const moveScenarioDown = (id: string) => {
+    setSelectedIds(prev => {
+      const idx = prev.indexOf(id);
+      if (idx < 0 || idx >= prev.length - 1) return prev;
+      const newArr = [...prev];
+      [newArr[idx], newArr[idx + 1]] = [newArr[idx + 1], newArr[idx]];
+      return newArr;
+    });
+  };
+
   const filteredConfigs = workspaceConfigs.filter(c =>
     c.name.toLowerCase().includes(searchQuery.toLowerCase())
   );
@@ -57,6 +78,19 @@ export default function CostComparison() {
   const baselineConfig = useMemo(() =>
     MOCK_CONFIGS.find(c => c.id === baselineId),
   [baselineId]);
+
+  // Consistent color mapping for scenarios (excludes baseline which always uses #1e293b)
+  const scenarioColorMap = useMemo(() => {
+    const map: Record<string, string> = {};
+    let colorIdx = 0;
+    selectedIds.forEach(id => {
+      if (id !== baselineId) {
+        map[id] = COLORS.charts[colorIdx % COLORS.charts.length];
+        colorIdx++;
+      }
+    });
+    return map;
+  }, [selectedIds, baselineId]);
 
   // Transformation logic for charts
   const processedData = useMemo(() => {
@@ -173,17 +207,39 @@ export default function CostComparison() {
                 </button>
 
                 {isSelected && (
-                  <button
-                    onClick={() => setBaselineId(config.id)}
-                    className={`ml-2 p-1 rounded-md transition-colors ${
-                      isBaseline
-                        ? 'bg-blue-600 text-white'
-                        : 'text-gray-400 hover:text-blue-600 hover:bg-blue-50'
-                    }`}
-                    title={isBaseline ? "Current Anchor" : "Set as Anchor"}
-                  >
-                    <Anchor size={14} />
-                  </button>
+                  <div className="flex items-center ml-2 space-x-1">
+                    {/* Reorder buttons */}
+                    <div className="flex flex-col">
+                      <button
+                        onClick={() => moveScenarioUp(config.id)}
+                        disabled={selectedIds.indexOf(config.id) === 0}
+                        className="p-0.5 rounded text-gray-400 hover:text-gray-600 hover:bg-gray-100 disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
+                        title="Move up"
+                      >
+                        <ArrowUp size={12} />
+                      </button>
+                      <button
+                        onClick={() => moveScenarioDown(config.id)}
+                        disabled={selectedIds.indexOf(config.id) === selectedIds.length - 1}
+                        className="p-0.5 rounded text-gray-400 hover:text-gray-600 hover:bg-gray-100 disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
+                        title="Move down"
+                      >
+                        <ArrowDown size={12} />
+                      </button>
+                    </div>
+                    {/* Anchor button */}
+                    <button
+                      onClick={() => setBaselineId(config.id)}
+                      className={`p-1 rounded-md transition-colors ${
+                        isBaseline
+                          ? 'bg-blue-600 text-white'
+                          : 'text-gray-400 hover:text-blue-600 hover:bg-blue-50'
+                      }`}
+                      title={isBaseline ? "Current Anchor" : "Set as Anchor"}
+                    >
+                      <Anchor size={14} />
+                    </button>
+                  </div>
                 )}
               </div>
             );
@@ -290,12 +346,12 @@ export default function CostComparison() {
                     contentStyle={{ borderRadius: '12px', border: 'none', boxShadow: '0 10px 15px -3px rgba(0, 0, 0, 0.1)' }}
                   />
                   <Legend iconType="circle" />
-                  {selectedIds.map((id, idx) => (
+                  {selectedIds.map((id) => (
                     <Bar
                       key={id}
                       dataKey={id}
                       name={workspaceConfigs.find(c => c.id === id)?.name || id}
-                      fill={id === baselineId ? '#1e293b' : COLORS.charts[idx % COLORS.charts.length]}
+                      fill={id === baselineId ? '#1e293b' : scenarioColorMap[id]}
                       radius={[4, 4, 0, 0]}
                       barSize={selectedIds.length > 4 ? 12 : 30}
                     />
@@ -310,14 +366,14 @@ export default function CostComparison() {
                     contentStyle={{ borderRadius: '12px', border: 'none', boxShadow: '0 10px 15px -3px rgba(0, 0, 0, 0.1)' }}
                   />
                   <Legend iconType="circle" />
-                  {selectedIds.map((id, idx) => (
+                  {selectedIds.map((id) => (
                     <Area
                       key={id}
                       type="monotone"
                       dataKey={id}
                       name={workspaceConfigs.find(c => c.id === id)?.name || id}
-                      stroke={id === baselineId ? '#1e293b' : COLORS.charts[idx % COLORS.charts.length]}
-                      fill={id === baselineId ? '#1e293b' : COLORS.charts[idx % COLORS.charts.length]}
+                      stroke={id === baselineId ? '#1e293b' : scenarioColorMap[id]}
+                      fill={id === baselineId ? '#1e293b' : scenarioColorMap[id]}
                       fillOpacity={0.1}
                       strokeWidth={id === baselineId ? 3 : 2}
                     />
@@ -350,13 +406,13 @@ export default function CostComparison() {
                    contentStyle={{ borderRadius: '12px', border: 'none', boxShadow: '0 10px 15px -3px rgba(0, 0, 0, 0.1)' }}
                  />
                  <Legend />
-                 {selectedIds.filter(id => id !== baselineId).map((id, idx) => (
+                 {selectedIds.filter(id => id !== baselineId).map((id) => (
                    <Line
                      key={`${id}_delta`}
                      type="monotone"
                      dataKey={`${id}_delta`}
                      name={`Delta: ${workspaceConfigs.find(c => c.id === id)?.name}`}
-                     stroke={COLORS.charts[idx % COLORS.charts.length]}
+                     stroke={scenarioColorMap[id]}
                      strokeWidth={2}
                      dot={{ r: 4 }}
                    />

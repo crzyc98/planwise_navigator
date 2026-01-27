@@ -22,7 +22,7 @@ import {
   Anchor, Calendar, DollarSign, Download,
   RefreshCw, AlertCircle, Loader2, ChevronDown,
   TrendingUp, TrendingDown, Info, Calculator,
-  ShieldCheck, Zap, Copy, Check
+  ShieldCheck, Zap, Copy, Check, ArrowUp, ArrowDown
 } from 'lucide-react';
 import { useCopyToClipboard } from '../hooks/useCopyToClipboard';
 import {
@@ -248,6 +248,21 @@ export default function ScenarioCostComparison() {
   }, [anchorAnalytics]);
 
   // -------------------------------------------------------------------------
+  // Derived Data: Consistent Color Map for Scenarios
+  // -------------------------------------------------------------------------
+  const scenarioColorMap = useMemo(() => {
+    const map: Record<string, string> = {};
+    let colorIdx = 0;
+    selectedScenarioIds.forEach(id => {
+      if (id !== anchorScenarioId) {
+        map[id] = COLORS.charts[colorIdx % COLORS.charts.length];
+        colorIdx++;
+      }
+    });
+    return map;
+  }, [selectedScenarioIds, anchorScenarioId]);
+
+  // -------------------------------------------------------------------------
   // API Functions
   // -------------------------------------------------------------------------
   const fetchWorkspaces = useCallback(async () => {
@@ -380,6 +395,26 @@ export default function ScenarioCostComparison() {
       setAnchorScenarioId(id);
     }
   }, [selectedScenarioIds]);
+
+  const moveScenarioUp = useCallback((id: string) => {
+    setSelectedScenarioIds(prev => {
+      const idx = prev.indexOf(id);
+      if (idx <= 0) return prev; // Already at top or not found
+      const newArr = [...prev];
+      [newArr[idx - 1], newArr[idx]] = [newArr[idx], newArr[idx - 1]];
+      return newArr;
+    });
+  }, []);
+
+  const moveScenarioDown = useCallback((id: string) => {
+    setSelectedScenarioIds(prev => {
+      const idx = prev.indexOf(id);
+      if (idx < 0 || idx >= prev.length - 1) return prev; // At bottom or not found
+      const newArr = [...prev];
+      [newArr[idx], newArr[idx + 1]] = [newArr[idx + 1], newArr[idx]];
+      return newArr;
+    });
+  }, []);
 
   // -------------------------------------------------------------------------
   // Table Data for Copy
@@ -540,17 +575,39 @@ export default function ScenarioCostComparison() {
                     </button>
 
                     {isSelected && (
-                      <button
-                        onClick={() => handleSetAnchor(scenario.id)}
-                        className={`ml-2 p-1 rounded-md transition-colors ${
-                          isAnchor
-                            ? 'bg-blue-600 text-white'
-                            : 'text-gray-400 hover:text-blue-600 hover:bg-blue-50'
-                        }`}
-                        title={isAnchor ? 'Current Anchor' : 'Set as Anchor'}
-                      >
-                        <Anchor size={14} />
-                      </button>
+                      <div className="flex items-center ml-2 space-x-1">
+                        {/* Reorder buttons */}
+                        <div className="flex flex-col">
+                          <button
+                            onClick={() => moveScenarioUp(scenario.id)}
+                            disabled={selectedScenarioIds.indexOf(scenario.id) === 0}
+                            className="p-0.5 rounded text-gray-400 hover:text-gray-600 hover:bg-gray-100 disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
+                            title="Move up"
+                          >
+                            <ArrowUp size={12} />
+                          </button>
+                          <button
+                            onClick={() => moveScenarioDown(scenario.id)}
+                            disabled={selectedScenarioIds.indexOf(scenario.id) === selectedScenarioIds.length - 1}
+                            className="p-0.5 rounded text-gray-400 hover:text-gray-600 hover:bg-gray-100 disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
+                            title="Move down"
+                          >
+                            <ArrowDown size={12} />
+                          </button>
+                        </div>
+                        {/* Anchor button */}
+                        <button
+                          onClick={() => handleSetAnchor(scenario.id)}
+                          className={`p-1 rounded-md transition-colors ${
+                            isAnchor
+                              ? 'bg-blue-600 text-white'
+                              : 'text-gray-400 hover:text-blue-600 hover:bg-blue-50'
+                          }`}
+                          title={isAnchor ? 'Current Anchor' : 'Set as Anchor'}
+                        >
+                          <Anchor size={14} />
+                        </button>
+                      </div>
                     )}
                   </div>
                 );
@@ -686,12 +743,12 @@ export default function ScenarioCostComparison() {
                         formatter={(value: number) => formatCurrency(value)}
                       />
                       <Legend iconType="circle" />
-                      {selectedScenarioIds.map((id, idx) => (
+                      {selectedScenarioIds.map((id) => (
                         <Bar
                           key={id}
                           dataKey={id}
                           name={comparisonData.scenario_names[id] || id}
-                          fill={id === anchorScenarioId ? '#1e293b' : COLORS.charts[idx % COLORS.charts.length]}
+                          fill={id === anchorScenarioId ? '#1e293b' : scenarioColorMap[id]}
                           radius={[4, 4, 0, 0]}
                           barSize={selectedScenarioIds.length > 4 ? 12 : 30}
                         />
@@ -707,14 +764,14 @@ export default function ScenarioCostComparison() {
                         formatter={(value: number) => formatCurrency(value)}
                       />
                       <Legend iconType="circle" />
-                      {selectedScenarioIds.map((id, idx) => (
+                      {selectedScenarioIds.map((id) => (
                         <Area
                           key={id}
                           type="monotone"
                           dataKey={id}
                           name={comparisonData.scenario_names[id] || id}
-                          stroke={id === anchorScenarioId ? '#1e293b' : COLORS.charts[idx % COLORS.charts.length]}
-                          fill={id === anchorScenarioId ? '#1e293b' : COLORS.charts[idx % COLORS.charts.length]}
+                          stroke={id === anchorScenarioId ? '#1e293b' : scenarioColorMap[id]}
+                          fill={id === anchorScenarioId ? '#1e293b' : scenarioColorMap[id]}
                           fillOpacity={0.1}
                           strokeWidth={id === anchorScenarioId ? 3 : 2}
                         />
@@ -749,13 +806,13 @@ export default function ScenarioCostComparison() {
                         formatter={(value: number) => formatCurrency(value)}
                       />
                       <Legend />
-                      {selectedScenarioIds.filter(id => id !== anchorScenarioId).map((id, idx) => (
+                      {selectedScenarioIds.filter(id => id !== anchorScenarioId).map((id) => (
                         <Line
                           key={`${id}_delta`}
                           type="monotone"
                           dataKey={`${id}_delta`}
                           name={`Delta: ${comparisonData.scenario_names[id]}`}
-                          stroke={COLORS.charts[idx % COLORS.charts.length]}
+                          stroke={scenarioColorMap[id]}
                           strokeWidth={2}
                           dot={{ r: 4 }}
                         />
