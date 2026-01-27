@@ -1,0 +1,202 @@
+version: 2
+
+seeds:
+  - name: config_irs_limits
+    description: "IRS contribution and compensation limits by year"
+    config:
+      column_types:
+        limit_year: integer
+        base_limit: integer
+        catch_up_limit: integer
+        catch_up_age_threshold: integer
+        compensation_limit: integer
+
+  - name: comp_levers
+    description: "Compensation parameters by scenario and year"
+    config:
+      column_types:
+        scenario_id: varchar
+        fiscal_year: integer
+        job_level: varchar
+        event_type: varchar
+        parameter_name: varchar
+        parameter_value: decimal(10,4)
+        is_locked: boolean
+        created_at: timestamp
+        created_by: varchar
+
+  - name: comp_targets
+    description: "Compensation metric targets by scenario"
+    config:
+      column_types:
+        scenario_id: varchar
+        fiscal_year: integer
+        metric_name: varchar
+        target_value: decimal(14,2)
+        tolerance_pct: decimal(5,4)
+        priority: varchar
+        description: varchar
+
+  - name: config_age_bands
+    description: "Age band definitions for workforce segmentation"
+    config:
+      column_types:
+        band_id: integer
+        band_label: varchar
+        min_value: integer
+        max_value: integer
+        display_order: integer
+
+  - name: config_tenure_bands
+    description: "Tenure band definitions for workforce segmentation"
+    config:
+      column_types:
+        band_id: integer
+        band_label: varchar
+        min_value: integer
+        max_value: integer
+        display_order: integer
+
+  - name: config_cola_by_year
+    description: "Cost of living adjustment rates by year"
+    config:
+      column_types:
+        year: integer
+        cola_rate: decimal(5,4)
+
+  - name: config_job_levels
+    description: "Job level definitions with compensation ranges"
+    config:
+      column_types:
+        level_id: integer
+        name: varchar
+        description: varchar
+        job_families: varchar
+        min_compensation: decimal(12,2)
+        max_compensation: decimal(12,2)
+        comp_base_salary: decimal(12,2)
+        comp_age_factor: decimal(8,4)
+        comp_stochastic_std_dev: decimal(8,4)
+        avg_annual_merit_increase: decimal(5,4)
+        promotion_probability: decimal(5,4)
+        target_bonus_percent: decimal(5,4)
+        created_at: timestamp
+        updated_at: timestamp
+
+  - name: config_new_hire_age_distribution
+    description: "Age distribution for new hire generation"
+    config:
+      column_types:
+        scenario_id: varchar
+        hire_age: integer
+        age_weight: decimal(5,4)
+        description: varchar
+
+  - name: config_new_hire_level_distribution
+    description: "Job level distribution for new hire generation"
+    config:
+      column_types:
+        scenario_id: varchar
+        level_id: integer
+        level_name: varchar
+        distribution_pct: decimal(5,4)
+        use_fixed_distribution: boolean
+
+  - name: config_promotion_hazard_base
+    description: "Base promotion hazard rates"
+    config:
+      column_types:
+        base_rate: decimal(8,6)
+        level_dampener_factor: decimal(8,6)
+
+  - name: config_promotion_hazard_age_multipliers
+    description: "Promotion hazard multipliers by age band"
+    config:
+      column_types:
+        age_band: varchar
+        multiplier: decimal(8,6)
+
+  - name: config_promotion_hazard_tenure_multipliers
+    description: "Promotion hazard multipliers by tenure band"
+    config:
+      column_types:
+        tenure_band: varchar
+        multiplier: decimal(8,6)
+
+  - name: config_termination_hazard_base
+    description: "Base termination hazard rates"
+    config:
+      column_types:
+        base_rate_for_new_hire: decimal(8,6)
+        level_discount_factor: decimal(8,6)
+        min_level_discount_multiplier: decimal(8,6)
+
+  - name: config_termination_hazard_age_multipliers
+    description: "Termination hazard multipliers by age band"
+    config:
+      column_types:
+        age_band: varchar
+        multiplier: decimal(8,6)
+
+  - name: config_termination_hazard_tenure_multipliers
+    description: "Termination hazard multipliers by tenure band"
+    config:
+      column_types:
+        tenure_band: varchar
+        multiplier: decimal(8,6)
+
+  - name: config_raises_hazard
+    description: "Merit raise hazard configuration"
+    config:
+      column_types:
+        merit_base: decimal(5,4)
+        merit_tenure_bump_bands: varchar
+        merit_tenure_bump_value: decimal(5,4)
+        merit_low_level_cutoff: integer
+        merit_low_level_bump_value: decimal(5,4)
+        promotion_raise: decimal(5,4)
+
+  - name: config_raise_timing_distribution
+    description: "Monthly distribution of raise timing"
+    config:
+      column_types:
+        month: integer
+        percentage: decimal(5,4)
+        business_justification: varchar
+        industry_profile: varchar
+
+  - name: config_timing_validation_rules
+    description: "Validation rules for raise timing"
+    config:
+      column_types:
+        rule_name: varchar
+        rule_type: varchar
+        target_value: decimal(8,4)
+        tolerance: decimal(5,4)
+        enforcement_level: varchar
+
+  - name: default_deferral_rates
+    description: "Default 401k deferral rates by demographics"
+    config:
+      column_types:
+        scenario_id: varchar
+        age_segment: varchar
+        income_segment: varchar
+        default_rate: decimal(5,4)
+        auto_escalate: boolean
+        auto_escalate_rate: decimal(5,4)
+        max_rate: decimal(5,4)
+        effective_date: date
+
+  - name: scenario_meta
+    description: "Scenario metadata and configuration"
+    config:
+      column_types:
+        scenario_id: varchar
+        scenario_name: varchar
+        description: varchar
+        created_by: varchar
+        status: varchar
+        base_scenario_id: varchar
+        created_at: timestamp
+        updated_at: timestamp

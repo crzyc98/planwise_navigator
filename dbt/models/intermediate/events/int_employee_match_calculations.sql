@@ -75,7 +75,16 @@
 -- Deferral-based Tiers: {{ match_tiers | length }} defined
 -- Service-based Tiers: {{ employer_match_graded_schedule | length }} defined
 
-WITH employee_contributions AS (
+-- E026: IRS Section 401(a)(17) compensation limit for employer contributions
+WITH irs_compensation_limits AS (
+    SELECT
+        limit_year,
+        compensation_limit AS irs_401a17_limit
+    FROM {{ ref('config_irs_limits') }}
+    WHERE limit_year = {{ simulation_year }}
+),
+
+employee_contributions AS (
     -- Get ALL employee contribution data with eligibility determination (Epic E058 Phase 2)
     -- E010: Also join years of service from workforce snapshot for service-based matching
     SELECT
@@ -109,7 +118,8 @@ WITH employee_contributions AS (
 {% if employer_match_status == 'graded_by_service' %}
 -- E010: Service-based match calculation
 -- Match rate varies by employee years of service
--- Formula: match = tier_rate × min(deferral%, tier_max_deferral_pct) × compensation
+-- Formula: match = tier_rate × min(deferral%, tier_max_deferral_pct) × capped_compensation
+-- E026: Apply IRS 401(a)(17) compensation limit
 service_based_match AS (
     SELECT
         ec.employee_id,
@@ -118,16 +128,22 @@ service_based_match AS (
         ec.deferral_rate,
         ec.annual_deferrals,
         ec.years_of_service,
+        -- E026: Get the 401(a)(17) limit for capping
+        lim.irs_401a17_limit,
         -- Get the match rate for this employee's service tier
         {{ get_tiered_match_rate('ec.years_of_service', employer_match_graded_schedule, 0.50) }} AS tier_rate,
         -- Get the max deferral cap for this employee's service tier
         {{ get_tiered_match_max_deferral('ec.years_of_service', employer_match_graded_schedule, 0.06) }} AS tier_max_deferral_pct,
-        -- Calculate match: rate × min(deferral%, max_deferral_pct) × compensation
+        -- Calculate match: rate × min(deferral%, max_deferral_pct) × capped_compensation
+        -- E026: Use LEAST(compensation, 401a17_limit) to cap at IRS limit
         {{ get_tiered_match_rate('ec.years_of_service', employer_match_graded_schedule, 0.50) }}
             * LEAST(ec.deferral_rate, {{ get_tiered_match_max_deferral('ec.years_of_service', employer_match_graded_schedule, 0.06) }})
-            * ec.eligible_compensation AS match_amount,
+            * LEAST(ec.eligible_compensation, lim.irs_401a17_limit) AS match_amount,
         'graded_by_service' AS formula_type
     FROM employee_contributions ec
+    -- E026: CROSS JOIN is safe here because irs_compensation_limits CTE filters to a single
+    -- simulation_year, guaranteeing exactly one row. This provides the 401(a)(17) limit constant.
+    CROSS JOIN irs_compensation_limits lim
 ),
 
 -- Unified all_matches CTE for service-based mode
@@ -140,12 +156,14 @@ all_matches AS (
         annual_deferrals,
         match_amount,
         formula_type,
-        years_of_service  -- E010: Include for audit trail
+        years_of_service,  -- E010: Include for audit trail
+        irs_401a17_limit   -- E026: Include for audit trail
     FROM service_based_match
 ),
 {% else %}
 -- E084 Phase B: Deferral-based tiered match calculation (default mode)
 -- All formulas (simple, tiered, stretch, safe_harbor, qaca) can be expressed as tiers
+-- E026: Apply IRS 401(a)(17) compensation limit
 tiered_match AS (
     SELECT
         ec.employee_id,
@@ -154,19 +172,25 @@ tiered_match AS (
         ec.deferral_rate,
         ec.annual_deferrals,
         ec.years_of_service,
+        -- E026: Get the 401(a)(17) limit for capping
+        lim.irs_401a17_limit,
         -- Calculate match for each tier from match_tiers variable
+        -- E026: Use LEAST(compensation, 401a17_limit) to cap at IRS limit
         SUM(
             CASE
                 WHEN ec.deferral_rate > tier.employee_min
                 THEN LEAST(
                     ec.deferral_rate - tier.employee_min,
                     tier.employee_max - tier.employee_min
-                ) * tier.match_rate * ec.eligible_compensation
+                ) * tier.match_rate * LEAST(ec.eligible_compensation, lim.irs_401a17_limit)
                 ELSE 0
             END
         ) AS match_amount,
         '{{ match_template }}' AS formula_type
     FROM employee_contributions ec
+    -- E026: CROSS JOIN is safe here because irs_compensation_limits CTE filters to a single
+    -- simulation_year, guaranteeing exactly one row. This provides the 401(a)(17) limit constant.
+    CROSS JOIN irs_compensation_limits lim
     CROSS JOIN (
         {% for tier in match_tiers %}
         SELECT
@@ -178,7 +202,7 @@ tiered_match AS (
         {% endfor %}
     ) AS tier
     GROUP BY ec.employee_id, ec.simulation_year, ec.eligible_compensation,
-             ec.deferral_rate, ec.annual_deferrals, ec.years_of_service
+             ec.deferral_rate, ec.annual_deferrals, ec.years_of_service, lim.irs_401a17_limit
 ),
 
 -- Unified all_matches CTE for deferral-based mode
@@ -191,12 +215,13 @@ all_matches AS (
         annual_deferrals,
         match_amount,
         formula_type,
-        years_of_service  -- E010: Include for completeness (NULL-like behavior in deferral mode)
+        years_of_service,  -- E010: Include for completeness (NULL-like behavior in deferral mode)
+        irs_401a17_limit   -- E026: Include for audit trail
     FROM tiered_match
 ),
 {% endif %}
 
--- Apply match caps and eligibility filtering (Epic E058 Phase 2, E084 Phase B, E010)
+-- Apply match caps and eligibility filtering (Epic E058 Phase 2, E084 Phase B, E010, E026)
 final_match AS (
     SELECT
         am.employee_id,
@@ -207,12 +232,17 @@ final_match AS (
         am.formula_type,
         -- E010: Years of service for service-based matching audit trail
         am.years_of_service,
+        -- E026: IRS 401(a)(17) limit for audit trail
+        am.irs_401a17_limit,
+        -- E026: Track if 401(a)(17) limit was applied
+        am.eligible_compensation > am.irs_401a17_limit AS irs_401a17_limit_applied,
         -- Join eligibility data back from employee_contributions CTE
         ec.is_eligible_for_match,
         ec.match_eligibility_reason,
         ec.eligibility_config_applied,
         {% if employer_match_status == 'graded_by_service' %}
         -- E010: Service-based mode - no match cap, tier already includes max_deferral_pct
+        -- E026: 401(a)(17) cap already applied in match_amount calculation
         am.match_amount AS capped_match_amount,
         -- E010: Apply eligibility filtering
         CASE
@@ -223,21 +253,23 @@ final_match AS (
         FALSE AS match_cap_applied,
         {% else %}
         -- E084 Phase B: Apply maximum match cap using match_cap_percent variable
+        -- E026: Match cap is already based on 401(a)(17)-capped compensation from match_amount
         LEAST(
             am.match_amount,
-            am.eligible_compensation * {{ match_cap_percent }}
+            LEAST(am.eligible_compensation, am.irs_401a17_limit) * {{ match_cap_percent }}
         ) AS capped_match_amount,
         -- Epic E058 Phase 2: Apply eligibility filtering - ineligible employees get $0 match
+        -- E026: Use 401(a)(17)-capped compensation for cap calculation
         CASE
             WHEN ec.is_eligible_for_match THEN
                 LEAST(
                     am.match_amount,
-                    am.eligible_compensation * {{ match_cap_percent }}
+                    LEAST(am.eligible_compensation, am.irs_401a17_limit) * {{ match_cap_percent }}
                 )
             ELSE 0
         END AS employer_match_amount,
         -- Track if cap was applied (before eligibility filtering)
-        am.match_amount > am.eligible_compensation * {{ match_cap_percent }} AS match_cap_applied,
+        am.match_amount > LEAST(am.eligible_compensation, am.irs_401a17_limit) * {{ match_cap_percent }} AS match_cap_applied,
         {% endif %}
         -- Epic E058 Phase 2: Match status tracking field
         CASE
@@ -264,6 +296,9 @@ SELECT
     ROUND(capped_match_amount, 2) AS capped_match_amount,
     formula_type,
     match_cap_applied,
+    -- E026: IRS 401(a)(17) compliance fields
+    irs_401a17_limit,
+    irs_401a17_limit_applied,
     -- Epic E058 Phase 2: Eligibility integration fields
     is_eligible_for_match,
     match_eligibility_reason,

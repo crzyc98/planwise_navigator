@@ -115,6 +115,7 @@ seeds:
         base_limit: integer
         catch_up_limit: integer
         catch_up_age_threshold: integer
+        compensation_limit: integer
 
     comp_levers:
       +column_types:

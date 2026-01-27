@@ -981,3 +981,146 @@ export async function analyzeTenureBands(
   );
   return handleResponse<BandAnalysisResult>(response);
 }
+
+// ============================================================================
+// Vesting Analysis Endpoints (Feature 025)
+// ============================================================================
+
+/**
+ * Vesting schedule type enum values.
+ * Maps to VestingScheduleType in backend.
+ */
+export type VestingScheduleType =
+  | 'immediate'
+  | 'cliff_2_year'
+  | 'cliff_3_year'
+  | 'cliff_4_year'
+  | 'qaca_2_year'
+  | 'graded_3_year'
+  | 'graded_4_year'
+  | 'graded_5_year';
+
+/**
+ * Vesting schedule metadata for display.
+ */
+export interface VestingScheduleInfo {
+  schedule_type: VestingScheduleType;
+  name: string;
+  description: string;
+  percentages: Record<number, number>;
+}
+
+/**
+ * Response for listing all vesting schedules.
+ */
+export interface VestingScheduleListResponse {
+  schedules: VestingScheduleInfo[];
+}
+
+/**
+ * Configuration for a vesting schedule in analysis request.
+ */
+export interface VestingScheduleConfig {
+  schedule_type: VestingScheduleType;
+  name: string;
+  require_hours_credit?: boolean;
+  hours_threshold?: number;
+}
+
+/**
+ * Request body for vesting analysis.
+ */
+export interface VestingAnalysisRequest {
+  current_schedule: VestingScheduleConfig;
+  proposed_schedule: VestingScheduleConfig;
+  simulation_year?: number;
+}
+
+/**
+ * Summary statistics for vesting analysis.
+ */
+export interface VestingAnalysisSummary {
+  analysis_year: number;
+  terminated_employee_count: number;
+  total_employer_contributions: number;
+  current_total_vested: number;
+  current_total_forfeited: number;
+  proposed_total_vested: number;
+  proposed_total_forfeited: number;
+  forfeiture_variance: number;
+  forfeiture_variance_pct: number;
+}
+
+/**
+ * Vesting breakdown by tenure band.
+ */
+export interface TenureBandSummary {
+  tenure_band: string;
+  employee_count: number;
+  total_contributions: number;
+  current_forfeitures: number;
+  proposed_forfeitures: number;
+  forfeiture_variance: number;
+}
+
+/**
+ * Employee-level vesting detail.
+ */
+export interface EmployeeVestingDetail {
+  employee_id: string;
+  hire_date: string;
+  termination_date: string;
+  tenure_years: number;
+  tenure_band: string;
+  annual_hours_worked: number;
+  total_employer_contributions: number;
+  current_vesting_pct: number;
+  current_vested_amount: number;
+  current_forfeiture: number;
+  proposed_vesting_pct: number;
+  proposed_vested_amount: number;
+  proposed_forfeiture: number;
+  forfeiture_variance: number;
+}
+
+/**
+ * Full vesting analysis response.
+ */
+export interface VestingAnalysisResponse {
+  scenario_id: string;
+  scenario_name: string;
+  current_schedule: VestingScheduleConfig;
+  proposed_schedule: VestingScheduleConfig;
+  summary: VestingAnalysisSummary;
+  by_tenure_band: TenureBandSummary[];
+  employee_details: EmployeeVestingDetail[];
+}
+
+/**
+ * Get list of all available vesting schedules.
+ */
+export async function listVestingSchedules(): Promise<VestingScheduleListResponse> {
+  const response = await fetch(`${API_BASE}/api/vesting/schedules`);
+  return handleResponse<VestingScheduleListResponse>(response);
+}
+
+/**
+ * Run vesting analysis comparing two schedules.
+ * Compares current vs proposed vesting schedules and projects
+ * forfeiture differences for terminated employees.
+ */
+export async function analyzeVesting(
+  workspaceId: string,
+  scenarioId: string,
+  request: VestingAnalysisRequest
+): Promise<VestingAnalysisResponse> {
+  const response = await fetch(
+    `${API_BASE}/api/workspaces/${workspaceId}/scenarios/${scenarioId}/analytics/vesting`,
+    {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(request),
+    }
+  );
+  return handleResponse<VestingAnalysisResponse>(response);
+}

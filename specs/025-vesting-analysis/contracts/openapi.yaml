@@ -1,0 +1,433 @@
+openapi: 3.1.0
+info:
+  title: Vesting Analysis API
+  description: API endpoints for vesting schedule analysis and forfeiture projections
+  version: 1.0.0
+  contact:
+    name: PlanAlign Engine Team
+
+servers:
+  - url: http://localhost:8000
+    description: Local development server
+
+tags:
+  - name: Vesting
+    description: Vesting schedule analysis endpoints
+
+paths:
+  /api/vesting/schedules:
+    get:
+      tags:
+        - Vesting
+      summary: List available vesting schedules
+      description: Returns all pre-defined vesting schedule types with their percentage progressions
+      operationId: listVestingSchedules
+      responses:
+        '200':
+          description: List of available vesting schedules
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/VestingScheduleListResponse'
+              example:
+                schedules:
+                  - schedule_type: immediate
+                    name: Immediate
+                    description: 100% vested from day one
+                    percentages:
+                      '0': 1.0
+                  - schedule_type: cliff_3_year
+                    name: 3-Year Cliff
+                    description: 0% until 3 years, then 100%
+                    percentages:
+                      '0': 0.0
+                      '1': 0.0
+                      '2': 0.0
+                      '3': 1.0
+
+  /api/workspaces/{workspace_id}/scenarios/{scenario_id}/analytics/vesting:
+    post:
+      tags:
+        - Vesting
+      summary: Run vesting analysis
+      description: |
+        Compares two vesting schedules and projects forfeiture differences
+        for terminated employees in the specified simulation year.
+      operationId: analyzeVesting
+      parameters:
+        - name: workspace_id
+          in: path
+          required: true
+          description: Workspace identifier
+          schema:
+            type: string
+            example: ws_12345
+        - name: scenario_id
+          in: path
+          required: true
+          description: Scenario identifier
+          schema:
+            type: string
+            example: baseline_2025
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/VestingAnalysisRequest'
+            example:
+              current_schedule:
+                schedule_type: graded_5_year
+                name: 5-Year Graded
+                require_hours_credit: false
+                hours_threshold: 1000
+              proposed_schedule:
+                schedule_type: cliff_3_year
+                name: 3-Year Cliff
+                require_hours_credit: false
+                hours_threshold: 1000
+              simulation_year: 2027
+      responses:
+        '200':
+          description: Vesting analysis results
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/VestingAnalysisResponse'
+        '400':
+          description: Invalid request parameters
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          description: Workspace, scenario, or simulation data not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '500':
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+components:
+  schemas:
+    VestingScheduleType:
+      type: string
+      enum:
+        - immediate
+        - cliff_2_year
+        - cliff_3_year
+        - cliff_4_year
+        - qaca_2_year
+        - graded_3_year
+        - graded_4_year
+        - graded_5_year
+      description: Pre-defined vesting schedule types (8 total)
+
+    VestingScheduleInfo:
+      type: object
+      required:
+        - schedule_type
+        - name
+        - description
+        - percentages
+      properties:
+        schedule_type:
+          $ref: '#/components/schemas/VestingScheduleType'
+        name:
+          type: string
+          minLength: 1
+          maxLength: 50
+          example: 5-Year Graded
+        description:
+          type: string
+          maxLength: 200
+          example: 20% per year from year 1-5
+        percentages:
+          type: object
+          additionalProperties:
+            type: number
+            format: float
+            minimum: 0
+            maximum: 1
+          example:
+            '0': 0.0
+            '1': 0.2
+            '2': 0.4
+            '3': 0.6
+            '4': 0.8
+            '5': 1.0
+
+    VestingScheduleConfig:
+      type: object
+      required:
+        - schedule_type
+        - name
+      properties:
+        schedule_type:
+          $ref: '#/components/schemas/VestingScheduleType'
+        name:
+          type: string
+          minLength: 1
+          maxLength: 50
+          example: 5-Year Graded
+        require_hours_credit:
+          type: boolean
+          default: false
+          description: If true, employees must meet hours threshold for vesting credit
+        hours_threshold:
+          type: integer
+          minimum: 0
+          maximum: 2080
+          default: 1000
+          description: Minimum annual hours for vesting credit
+
+    VestingAnalysisRequest:
+      type: object
+      required:
+        - current_schedule
+        - proposed_schedule
+      properties:
+        current_schedule:
+          $ref: '#/components/schemas/VestingScheduleConfig'
+        proposed_schedule:
+          $ref: '#/components/schemas/VestingScheduleConfig'
+        simulation_year:
+          type: integer
+          minimum: 2020
+          maximum: 2050
+          nullable: true
+          description: Simulation year to analyze (default is final year)
+
+    EmployeeVestingDetail:
+      type: object
+      required:
+        - employee_id
+        - hire_date
+        - termination_date
+        - tenure_years
+        - tenure_band
+        - annual_hours_worked
+        - total_employer_contributions
+        - current_vesting_pct
+        - current_vested_amount
+        - current_forfeiture
+        - proposed_vesting_pct
+        - proposed_vested_amount
+        - proposed_forfeiture
+        - forfeiture_variance
+      properties:
+        employee_id:
+          type: string
+          minLength: 1
+          example: EMP_001
+        hire_date:
+          type: string
+          format: date
+          example: '2022-03-15'
+        termination_date:
+          type: string
+          format: date
+          example: '2027-06-30'
+        tenure_years:
+          type: integer
+          minimum: 0
+          example: 5
+        tenure_band:
+          type: string
+          example: '5-9'
+        annual_hours_worked:
+          type: integer
+          minimum: 0
+          example: 1950
+        total_employer_contributions:
+          type: number
+          format: decimal
+          minimum: 0
+          example: 15000.00
+        current_vesting_pct:
+          type: number
+          format: decimal
+          minimum: 0
+          maximum: 1
+          example: 1.0
+        current_vested_amount:
+          type: number
+          format: decimal
+          minimum: 0
+          example: 15000.00
+        current_forfeiture:
+          type: number
+          format: decimal
+          minimum: 0
+          example: 0.00
+        proposed_vesting_pct:
+          type: number
+          format: decimal
+          minimum: 0
+          maximum: 1
+          example: 1.0
+        proposed_vested_amount:
+          type: number
+          format: decimal
+          minimum: 0
+          example: 15000.00
+        proposed_forfeiture:
+          type: number
+          format: decimal
+          minimum: 0
+          example: 0.00
+        forfeiture_variance:
+          type: number
+          format: decimal
+          description: Proposed - Current forfeiture (negative = less forfeiture)
+          example: 0.00
+
+    TenureBandSummary:
+      type: object
+      required:
+        - tenure_band
+        - employee_count
+        - total_contributions
+        - current_forfeitures
+        - proposed_forfeitures
+        - forfeiture_variance
+      properties:
+        tenure_band:
+          type: string
+          example: '< 2'
+        employee_count:
+          type: integer
+          minimum: 0
+          example: 45
+        total_contributions:
+          type: number
+          format: decimal
+          minimum: 0
+          example: 225000.00
+        current_forfeitures:
+          type: number
+          format: decimal
+          minimum: 0
+          example: 112500.00
+        proposed_forfeitures:
+          type: number
+          format: decimal
+          minimum: 0
+          example: 225000.00
+        forfeiture_variance:
+          type: number
+          format: decimal
+          example: 112500.00
+
+    VestingAnalysisSummary:
+      type: object
+      required:
+        - analysis_year
+        - terminated_employee_count
+        - total_employer_contributions
+        - current_total_vested
+        - current_total_forfeited
+        - proposed_total_vested
+        - proposed_total_forfeited
+        - forfeiture_variance
+        - forfeiture_variance_pct
+      properties:
+        analysis_year:
+          type: integer
+          example: 2027
+        terminated_employee_count:
+          type: integer
+          minimum: 0
+          example: 150
+        total_employer_contributions:
+          type: number
+          format: decimal
+          minimum: 0
+          example: 750000.00
+        current_total_vested:
+          type: number
+          format: decimal
+          minimum: 0
+          example: 525000.00
+        current_total_forfeited:
+          type: number
+          format: decimal
+          minimum: 0
+          example: 225000.00
+        proposed_total_vested:
+          type: number
+          format: decimal
+          minimum: 0
+          example: 450000.00
+        proposed_total_forfeited:
+          type: number
+          format: decimal
+          minimum: 0
+          example: 300000.00
+        forfeiture_variance:
+          type: number
+          format: decimal
+          description: Proposed - Current total forfeiture
+          example: 75000.00
+        forfeiture_variance_pct:
+          type: number
+          format: decimal
+          description: Percentage change in forfeitures
+          example: 33.33
+
+    VestingAnalysisResponse:
+      type: object
+      required:
+        - scenario_id
+        - scenario_name
+        - current_schedule
+        - proposed_schedule
+        - summary
+        - by_tenure_band
+        - employee_details
+      properties:
+        scenario_id:
+          type: string
+          example: baseline_2025
+        scenario_name:
+          type: string
+          example: Baseline Scenario
+        current_schedule:
+          $ref: '#/components/schemas/VestingScheduleConfig'
+        proposed_schedule:
+          $ref: '#/components/schemas/VestingScheduleConfig'
+        summary:
+          $ref: '#/components/schemas/VestingAnalysisSummary'
+        by_tenure_band:
+          type: array
+          items:
+            $ref: '#/components/schemas/TenureBandSummary'
+        employee_details:
+          type: array
+          items:
+            $ref: '#/components/schemas/EmployeeVestingDetail'
+
+    VestingScheduleListResponse:
+      type: object
+      required:
+        - schedules
+      properties:
+        schedules:
+          type: array
+          items:
+            $ref: '#/components/schemas/VestingScheduleInfo'
+
+    ErrorResponse:
+      type: object
+      required:
+        - detail
+      properties:
+        detail:
+          type: string
+          description: Error message
+          example: Scenario not found

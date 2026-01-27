@@ -42,6 +42,7 @@ from planalign_orchestrator.self_healing.initialization_state import (
     create_standard_steps,
 )
 from planalign_orchestrator.self_healing.table_checker import TableExistenceChecker
+from planalign_orchestrator.pipeline.data_cleanup import DataCleanupManager
 from planalign_orchestrator.utils import DatabaseConnectionManager, ExecutionMutex
 
 logger = logging.getLogger(__name__)
@@ -388,7 +389,20 @@ class AutoInitializer:
             )
 
     def _run_dbt_seed(self) -> None:
-        """Run dbt seed to load configuration data."""
+        """Run dbt seed to load configuration data.
+
+        Before loading seeds, checks for and drops any seed tables whose schema
+        doesn't match their CSV file headers. This prevents DuckDB CSV sniffing
+        errors when seed files gain new columns (e.g., adding compensation_limit
+        to config_irs_limits.csv in E026).
+        """
+        # E026: Drop seed tables with schema mismatch before loading
+        # This prevents "CSV options could not be auto-detected" errors
+        cleanup_manager = DataCleanupManager(self.db_manager, verbose=self.verbose)
+        dropped = cleanup_manager.drop_seed_tables_with_schema_mismatch()
+        if dropped:
+            logger.info(f"Dropped {len(dropped)} seed tables with schema mismatch: {dropped}")
+
         result = self.dbt_runner.execute_command(
             ["seed", "--full-refresh", "--threads", "1"],
             stream_output=self.verbose,

@@ -789,6 +789,17 @@ class PipelineOrchestrator:
 
         # Ensure seeds are loaded once
         if not self._seeded:
+            # E026: Drop seed tables with schema mismatch before loading
+            # This prevents DuckDB CSV sniffing errors when seed files gain new columns
+            cleanup_manager = DataCleanupManager(self.db_manager, verbose=self.verbose)
+            dropped = cleanup_manager.drop_seed_tables_with_schema_mismatch()
+            if dropped:
+                logging.getLogger(__name__).info(
+                    f"Dropped {len(dropped)} seed tables with schema mismatch: {dropped}"
+                )
+                if self.verbose:
+                    print(f"   🔄 Dropped {len(dropped)} seed table(s) with outdated schema")
+
             seed_res = self.dbt_runner.execute_command(["seed"], stream_output=True)
             if not seed_res.success:
                 raise PipelineStageError(

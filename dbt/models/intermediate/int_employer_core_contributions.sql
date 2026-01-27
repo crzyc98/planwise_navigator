@@ -60,7 +60,16 @@
 {% set core_allow_experienced_terminations = core_eligibility.get('allow_experienced_terminations', var('core_allow_experienced_terminations', false)) %}
 {% set core_require_active_eoy = core_eligibility.get('require_active_at_year_end', var('core_require_active_eoy', true)) %}
 
-WITH employee_compensation AS (
+-- E026: IRS Section 401(a)(17) compensation limit for employer contributions
+WITH irs_compensation_limits AS (
+    SELECT
+        limit_year,
+        compensation_limit AS irs_401a17_limit
+    FROM {{ ref('config_irs_limits') }}
+    WHERE limit_year = {{ simulation_year }}
+),
+
+employee_compensation AS (
     -- Get current year compensation for all employees
     SELECT
         employee_id,
@@ -215,6 +224,7 @@ snapshot_flags AS (
 ),
 
 -- Main query with window function for deduplication
+-- E026: Added IRS 401(a)(17) compensation limit enforcement
 core_contributions AS (
 SELECT
     pop.employee_id,
@@ -224,9 +234,14 @@ SELECT
     COALESCE(wf.employment_status, pop.employment_status) AS employment_status,
     elig.eligible_for_core,
     elig.annual_hours_worked,
+    -- E026: IRS 401(a)(17) limit for audit trail
+    lim.irs_401a17_limit,
+    -- E026: Track if 401(a)(17) limit was applied
+    COALESCE(wf.prorated_annual_compensation, pop.prorated_annual_compensation, pop.employee_compensation) > lim.irs_401a17_limit AS irs_401a17_limit_applied,
 
     -- Core contribution calculation
     -- Configurable rate for eligible employees
+    -- E026: Apply 401(a)(17) cap to compensation used in calculation
     CASE
         WHEN {{ employer_core_enabled }}
             AND COALESCE(elig.eligible_for_core, FALSE) = TRUE
@@ -260,7 +275,11 @@ SELECT
                 )
             )
         THEN ROUND(
-            COALESCE(wf.prorated_annual_compensation, pop.prorated_annual_compensation, pop.employee_compensation) *
+            -- E026: Use LEAST(compensation, 401a17_limit) to cap at IRS limit
+            LEAST(
+                COALESCE(wf.prorated_annual_compensation, pop.prorated_annual_compensation, pop.employee_compensation),
+                lim.irs_401a17_limit
+            ) *
             {% if employer_core_status == 'graded_by_service' and employer_core_graded_schedule | length > 0 %}
             {{ get_tiered_core_rate('COALESCE(snap.years_of_service, 0)', employer_core_graded_schedule, employer_core_contribution_rate) }}
             {% else %}
@@ -320,6 +339,9 @@ SELECT
     ) AS rn
 
 FROM population pop
+-- E026: CROSS JOIN is safe here because irs_compensation_limits CTE filters to a single
+-- simulation_year, guaranteeing exactly one row. This provides the 401(a)(17) limit constant.
+CROSS JOIN irs_compensation_limits lim
 LEFT JOIN workforce_proration wf
     ON pop.employee_id = wf.employee_id AND pop.simulation_year = wf.simulation_year
 LEFT JOIN eligibility_check elig
@@ -344,6 +366,9 @@ SELECT
     contribution_method,
     standard_core_rate,
     applied_years_of_service,
+    -- E026: IRS 401(a)(17) compliance fields
+    irs_401a17_limit,
+    irs_401a17_limit_applied,
     created_at,
     scenario_id,
     parameter_scenario_id
