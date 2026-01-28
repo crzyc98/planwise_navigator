@@ -90,19 +90,21 @@ interface CustomLegendProps {
   items: Array<{ name: string; color: string }>;
 }
 
-const CustomLegend = ({ items }: CustomLegendProps) => (
-  <div className="flex flex-wrap justify-center gap-4 mt-2">
-    {items.map((item, index) => (
-      <div key={index} className="flex items-center gap-1.5">
-        <div
-          className="w-3 h-3 rounded-full"
-          style={{ backgroundColor: item.color }}
-        />
-        <span className="text-xs text-gray-600">{item.name}</span>
-      </div>
-    ))}
-  </div>
-);
+const CustomLegend: React.FC<CustomLegendProps> = ({ items }) => {
+  return (
+    <div className="flex flex-wrap justify-center gap-4 mt-2">
+      {items.map((item, index) => (
+        <div key={index} className="flex items-center gap-1.5">
+          <div
+            className="w-3 h-3 rounded-full"
+            style={{ backgroundColor: item.color }}
+          />
+          <span className="text-xs text-gray-600">{item.name}</span>
+        </div>
+      ))}
+    </div>
+  );
+};
 
 const EmptyState = ({ message, onRefresh }: { message: string; onRefresh?: () => void }) => (
   <div className="flex flex-col items-center justify-center h-96 text-gray-400">
