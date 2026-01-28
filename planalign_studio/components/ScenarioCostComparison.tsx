@@ -29,6 +29,7 @@ import {
   listWorkspaces,
   listScenarios,
   compareDCPlanAnalytics,
+  getScenarioConfig,
   Workspace,
   Scenario,
   DCPlanComparisonResponse,
@@ -57,6 +58,25 @@ const formatPercent = (value: number, decimals: number = 1): string => {
 // ============================================================================
 // Sub-Components
 // ============================================================================
+
+// Custom legend that respects the order of items passed to it
+interface CustomLegendProps {
+  items: Array<{ name: string; color: string }>;
+}
+
+const CustomLegend = ({ items }: CustomLegendProps) => (
+  <div className="flex flex-wrap justify-center gap-4 mt-2">
+    {items.map((item, index) => (
+      <div key={index} className="flex items-center gap-1.5">
+        <div
+          className="w-3 h-3 rounded-full"
+          style={{ backgroundColor: item.color }}
+        />
+        <span className="text-xs text-gray-600">{item.name}</span>
+      </div>
+    ))}
+  </div>
+);
 
 const EmptyState = ({ message, onRefresh }: { message: string; onRefresh?: () => void }) => (
   <div className="flex flex-col items-center justify-center h-96 text-gray-400">
@@ -124,6 +144,7 @@ export default function ScenarioCostComparison() {
   const [loading, setLoading] = useState(false);
   const [loadingScenarios, setLoadingScenarios] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [anchorConfig, setAnchorConfig] = useState<Record<string, any> | null>(null);
 
   // -------------------------------------------------------------------------
   // Copy to Clipboard Hook
@@ -263,36 +284,55 @@ export default function ScenarioCostComparison() {
   }, [selectedScenarioIds, anchorScenarioId]);
 
   // -------------------------------------------------------------------------
-  // Derived Data: Legend Payloads (explicit ordering for Recharts)
+  // Derived Data: Plan Design from Anchor Config
   // -------------------------------------------------------------------------
-  const costTrendsLegendPayload = useMemo(() => {
-    if (!comparisonData) return [];
-    return selectedScenarioIds.map(id => ({
-      value: comparisonData.scenario_names[id] || id,
-      type: 'circle' as const,
-      color: id === anchorScenarioId ? '#1e293b' : scenarioColorMap[id],
-      dataKey: id,
-    }));
-  }, [selectedScenarioIds, anchorScenarioId, scenarioColorMap, comparisonData]);
+  const coreDesign = useMemo(() => {
+    if (!anchorConfig?.employer_core_contribution) {
+      return { title: 'Core Contribution', subtitle: 'Not configured' };
+    }
+    const core = anchorConfig.employer_core_contribution;
+    if (!core.enabled) {
+      return { title: 'Core Contribution', subtitle: 'Disabled' };
+    }
+    if (core.status === 'graded_by_service') {
+      const schedule = core.graded_schedule || [];
+      const rates = schedule.map((t: any) => `${(t.contribution_rate * 100).toFixed(0)}%`).join(' / ');
+      return { title: 'Graded by Service', subtitle: rates || 'See schedule' };
+    }
+    const rate = (core.contribution_rate * 100).toFixed(1);
+    return { title: 'Fixed Non-Elective', subtitle: `${rate}% Automatic Contribution` };
+  }, [anchorConfig]);
 
-  const incrementalCostsLegendPayload = useMemo(() => {
-    if (!comparisonData) return [];
-    const nonAnchorIds = selectedScenarioIds.filter(id => id !== anchorScenarioId);
-    const payload = nonAnchorIds.map(id => ({
-      value: `Delta: ${comparisonData.scenario_names[id]}`,
-      type: 'line' as const,
-      color: scenarioColorMap[id],
-      dataKey: `${id}_delta`,
-    }));
-    // Add baseline zero line
-    payload.push({
-      value: 'Baseline Zero',
-      type: 'line' as const,
-      color: '#1e293b',
-      dataKey: 'baseline_zero',
-    });
-    return payload;
-  }, [selectedScenarioIds, anchorScenarioId, scenarioColorMap, comparisonData]);
+  const matchDesign = useMemo(() => {
+    if (!anchorConfig?.employer_match) {
+      return { title: 'Employer Match', subtitle: 'Not configured' };
+    }
+    const match = anchorConfig.employer_match;
+    const activeFormula = match.active_formula;
+    const formulas = match.formulas || {};
+    const formula = formulas[activeFormula];
+
+    if (!formula) {
+      return { title: activeFormula || 'Match Formula', subtitle: 'See configuration' };
+    }
+
+    if (formula.type === 'simple') {
+      const matchRate = ((formula.match_rate || 0) * 100).toFixed(0);
+      const maxMatch = ((formula.max_match_percentage || 0) * 100).toFixed(0);
+      return { title: `${matchRate}% Match`, subtitle: `Up to ${maxMatch}% of pay` };
+    }
+
+    if (formula.type === 'tiered' && formula.tiers) {
+      const firstTier = formula.tiers[0];
+      if (firstTier) {
+        const matchRate = ((firstTier.match_rate || 0) * 100).toFixed(0);
+        const tierMax = ((firstTier.employee_max || 0) * 100).toFixed(0);
+        return { title: `${matchRate}% on first ${tierMax}%`, subtitle: formula.name || 'Tiered Match' };
+      }
+    }
+
+    return { title: formula.name || activeFormula, subtitle: 'See configuration' };
+  }, [anchorConfig]);
 
   // -------------------------------------------------------------------------
   // API Functions
@@ -395,6 +435,20 @@ export default function ScenarioCostComparison() {
       setComparisonData(null);
     }
   }, [selectedScenarioIds, fetchComparison]);
+
+  // Fetch anchor scenario config for plan design display
+  useEffect(() => {
+    if (selectedWorkspaceId && anchorScenarioId) {
+      getScenarioConfig(selectedWorkspaceId, anchorScenarioId)
+        .then(setAnchorConfig)
+        .catch(err => {
+          console.error('Failed to fetch anchor config:', err);
+          setAnchorConfig(null);
+        });
+    } else {
+      setAnchorConfig(null);
+    }
+  }, [selectedWorkspaceId, anchorScenarioId]);
 
   // -------------------------------------------------------------------------
   // Event Handlers
@@ -750,8 +804,8 @@ export default function ScenarioCostComparison() {
                       <ShieldCheck size={12} />
                       <span>Core Design</span>
                     </div>
-                    <p className="text-sm font-bold text-blue-900">Fixed Non-Elective</p>
-                    <p className="text-[10px] text-blue-700 mt-1">3.0% Automatic Contribution</p>
+                    <p className="text-sm font-bold text-blue-900">{coreDesign.title}</p>
+                    <p className="text-[10px] text-blue-700 mt-1">{coreDesign.subtitle}</p>
                   </div>
 
                   {/* Match Design Pill */}
@@ -760,8 +814,8 @@ export default function ScenarioCostComparison() {
                       <Zap size={12} />
                       <span>Match Design</span>
                     </div>
-                    <p className="text-sm font-bold text-green-900">100% Up To 6%</p>
-                    <p className="text-[10px] text-green-700 mt-1">Employee Elective Contribution</p>
+                    <p className="text-sm font-bold text-green-900">{matchDesign.title}</p>
+                    <p className="text-[10px] text-green-700 mt-1">{matchDesign.subtitle}</p>
                   </div>
                 </div>
               </div>
@@ -799,7 +853,7 @@ export default function ScenarioCostComparison() {
               <div className="h-96">
                 <ResponsiveContainer width="100%" height="100%">
                   {viewMode === 'annual' ? (
-                    <BarChart key={selectedScenarioIds.join(',')} data={processedData} margin={{ top: 20, right: 30, left: 20, bottom: 5 }}>
+                    <BarChart key={selectedScenarioIds.join(',')} data={processedData} margin={{ top: 20, right: 30, left: 20, bottom: 40 }}>
                       <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
                       <XAxis dataKey="year" stroke="#94a3b8" fontSize={12} />
                       <YAxis stroke="#94a3b8" fontSize={12} tickFormatter={v => formatCurrency(v)} />
@@ -808,7 +862,16 @@ export default function ScenarioCostComparison() {
                         contentStyle={{ borderRadius: '12px', border: 'none', boxShadow: '0 10px 15px -3px rgba(0, 0, 0, 0.1)' }}
                         formatter={(value: number) => formatCurrency(value)}
                       />
-                      <Legend iconType="circle" payload={costTrendsLegendPayload} />
+                      <Legend
+                        content={() => (
+                          <CustomLegend
+                            items={selectedScenarioIds.map(id => ({
+                              name: comparisonData.scenario_names[id] || id,
+                              color: id === anchorScenarioId ? '#1e293b' : scenarioColorMap[id],
+                            }))}
+                          />
+                        )}
+                      />
                       {selectedScenarioIds.map((id) => (
                         <Bar
                           key={id}
@@ -821,7 +884,7 @@ export default function ScenarioCostComparison() {
                       ))}
                     </BarChart>
                   ) : (
-                    <AreaChart key={selectedScenarioIds.join(',')} data={processedData} margin={{ top: 20, right: 30, left: 20, bottom: 5 }}>
+                    <AreaChart key={selectedScenarioIds.join(',')} data={processedData} margin={{ top: 20, right: 30, left: 20, bottom: 40 }}>
                       <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
                       <XAxis dataKey="year" stroke="#94a3b8" fontSize={12} />
                       <YAxis stroke="#94a3b8" fontSize={12} tickFormatter={v => formatCurrency(v)} />
@@ -829,7 +892,16 @@ export default function ScenarioCostComparison() {
                         contentStyle={{ borderRadius: '12px', border: 'none', boxShadow: '0 10px 15px -3px rgba(0, 0, 0, 0.1)' }}
                         formatter={(value: number) => formatCurrency(value)}
                       />
-                      <Legend iconType="circle" payload={costTrendsLegendPayload} />
+                      <Legend
+                        content={() => (
+                          <CustomLegend
+                            items={selectedScenarioIds.map(id => ({
+                              name: comparisonData.scenario_names[id] || id,
+                              color: id === anchorScenarioId ? '#1e293b' : scenarioColorMap[id],
+                            }))}
+                          />
+                        )}
+                      />
                       {selectedScenarioIds.map((id) => (
                         <Area
                           key={id}
@@ -863,7 +935,7 @@ export default function ScenarioCostComparison() {
 
                 <div className="h-64">
                   <ResponsiveContainer width="100%" height="100%">
-                    <ComposedChart key={selectedScenarioIds.join(',')} data={processedData}>
+                    <ComposedChart key={selectedScenarioIds.join(',')} data={processedData} margin={{ bottom: 30 }}>
                       <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
                       <XAxis dataKey="year" stroke="#94a3b8" fontSize={12} />
                       <YAxis stroke="#94a3b8" fontSize={12} tickFormatter={v => formatCurrency(v)} />
@@ -871,7 +943,21 @@ export default function ScenarioCostComparison() {
                         contentStyle={{ borderRadius: '12px', border: 'none', boxShadow: '0 10px 15px -3px rgba(0, 0, 0, 0.1)' }}
                         formatter={(value: number) => formatCurrency(value)}
                       />
-                      <Legend payload={incrementalCostsLegendPayload} />
+                      <Legend
+                        content={() => (
+                          <CustomLegend
+                            items={[
+                              ...selectedScenarioIds
+                                .filter(id => id !== anchorScenarioId)
+                                .map(id => ({
+                                  name: `Delta: ${comparisonData.scenario_names[id]}`,
+                                  color: scenarioColorMap[id],
+                                })),
+                              { name: 'Baseline Zero', color: '#1e293b' },
+                            ]}
+                          />
+                        )}
+                      />
                       {selectedScenarioIds.filter(id => id !== anchorScenarioId).map((id) => (
                         <Line
                           key={`${id}_delta`}

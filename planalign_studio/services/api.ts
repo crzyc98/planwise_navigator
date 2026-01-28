@@ -292,6 +292,16 @@ export async function getScenario(workspaceId: string, scenarioId: string): Prom
   return handleResponse<Scenario>(response);
 }
 
+export async function getScenarioConfig(
+  workspaceId: string,
+  scenarioId: string
+): Promise<Record<string, any>> {
+  const response = await fetch(
+    `${API_BASE}/api/workspaces/${workspaceId}/scenarios/${scenarioId}/config`
+  );
+  return handleResponse<Record<string, any>>(response);
+}
+
 export async function createScenario(
   workspaceId: string,
   data: ScenarioCreate
