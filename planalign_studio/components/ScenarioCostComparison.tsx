@@ -175,7 +175,7 @@ export default function ScenarioCostComparison() {
   // -------------------------------------------------------------------------
   const [comparisonData, setComparisonData] = useState<DCPlanComparisonResponse | null>(null);
   const [loading, setLoading] = useState(false);
-  const [loadingScenarios, setLoadingScenarios] = useState(false);
+  const [loadingScenarios, setLoadingScenarios] = useState(true); // Start true since we fetch on mount
   const [error, setError] = useState<string | null>(null);
   const [anchorConfig, setAnchorConfig] = useState<Record<string, any> | null>(null);
 
@@ -476,12 +476,15 @@ export default function ScenarioCostComparison() {
   }, [activeWorkspace?.id, fetchScenarios]);
 
   useEffect(() => {
+    // Don't fetch comparison while scenarios are still loading
+    if (loadingScenarios) return;
+
     if (selectedScenarioIds.length > 0) {
       fetchComparison();
     } else {
       setComparisonData(null);
     }
-  }, [selectedScenarioIds, fetchComparison]);
+  }, [selectedScenarioIds, fetchComparison, loadingScenarios]);
 
   // Fetch anchor scenario config for plan design display
   useEffect(() => {
