@@ -12,6 +12,7 @@
  */
 
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
+import { useOutletContext } from 'react-router-dom';
 import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid,
   Tooltip, Legend, ResponsiveContainer,
@@ -20,17 +21,16 @@ import {
 import {
   CheckSquare, Square, Search, Filter,
   Anchor, Calendar, DollarSign, Download,
-  RefreshCw, AlertCircle, Loader2, ChevronDown,
+  RefreshCw, AlertCircle, Loader2,
   TrendingUp, TrendingDown, Info, Calculator,
   ShieldCheck, Zap, Copy, Check, ArrowUp, ArrowDown
 } from 'lucide-react';
 import { useCopyToClipboard } from '../hooks/useCopyToClipboard';
+import { LayoutContextType } from './Layout';
 import {
-  listWorkspaces,
   listScenarios,
   compareDCPlanAnalytics,
   getScenarioConfig,
-  Workspace,
   Scenario,
   DCPlanComparisonResponse,
   DCPlanAnalytics,
@@ -151,11 +151,14 @@ const LoadingState = () => (
 
 export default function ScenarioCostComparison() {
   // -------------------------------------------------------------------------
-  // State: Workspace & Scenario Selection
+  // Context: Active Workspace from Layout
   // -------------------------------------------------------------------------
-  const [workspaces, setWorkspaces] = useState<Workspace[]>([]);
+  const { activeWorkspace } = useOutletContext<LayoutContextType>();
+
+  // -------------------------------------------------------------------------
+  // State: Scenario Selection
+  // -------------------------------------------------------------------------
   const [scenarios, setScenarios] = useState<Scenario[]>([]);
-  const [selectedWorkspaceId, setSelectedWorkspaceId] = useState<string>('');
   const [selectedScenarioIds, setSelectedScenarioIds] = useState<string[]>([]);
   const [anchorScenarioId, setAnchorScenarioId] = useState<string>('');
 
@@ -375,18 +378,6 @@ export default function ScenarioCostComparison() {
   // -------------------------------------------------------------------------
   // API Functions
   // -------------------------------------------------------------------------
-  const fetchWorkspaces = useCallback(async () => {
-    try {
-      const data = await listWorkspaces();
-      setWorkspaces(data);
-      if (data.length > 0 && !selectedWorkspaceId) {
-        setSelectedWorkspaceId(data[0].id);
-      }
-    } catch (err) {
-      console.error('Failed to fetch workspaces:', err);
-    }
-  }, [selectedWorkspaceId]);
-
   const fetchScenarios = useCallback(async (workspaceId: string) => {
     setLoadingScenarios(true);
     try {
@@ -447,7 +438,7 @@ export default function ScenarioCostComparison() {
   }, []);
 
   const fetchComparison = useCallback(async () => {
-    if (!selectedWorkspaceId || selectedScenarioIds.length === 0) {
+    if (!activeWorkspace?.id || selectedScenarioIds.length === 0) {
       setComparisonData(null);
       return;
     }
@@ -455,7 +446,7 @@ export default function ScenarioCostComparison() {
     setLoading(true);
     setError(null);
     try {
-      const data = await compareDCPlanAnalytics(selectedWorkspaceId, selectedScenarioIds);
+      const data = await compareDCPlanAnalytics(activeWorkspace.id, selectedScenarioIds);
       setComparisonData(data);
     } catch (err) {
       console.error('Failed to fetch comparison:', err);
@@ -464,24 +455,20 @@ export default function ScenarioCostComparison() {
     } finally {
       setLoading(false);
     }
-  }, [selectedWorkspaceId, selectedScenarioIds]);
+  }, [activeWorkspace?.id, selectedScenarioIds]);
 
   // -------------------------------------------------------------------------
   // Effects
   // -------------------------------------------------------------------------
   useEffect(() => {
-    fetchWorkspaces();
-  }, [fetchWorkspaces]);
-
-  useEffect(() => {
-    if (selectedWorkspaceId) {
-      fetchScenarios(selectedWorkspaceId);
+    if (activeWorkspace?.id) {
+      fetchScenarios(activeWorkspace.id);
     } else {
       setScenarios([]);
       setSelectedScenarioIds([]);
       setAnchorScenarioId('');
     }
-  }, [selectedWorkspaceId, fetchScenarios]);
+  }, [activeWorkspace?.id, fetchScenarios]);
 
   useEffect(() => {
     if (selectedScenarioIds.length > 0) {
@@ -493,8 +480,8 @@ export default function ScenarioCostComparison() {
 
   // Fetch anchor scenario config for plan design display
   useEffect(() => {
-    if (selectedWorkspaceId && anchorScenarioId) {
-      getScenarioConfig(selectedWorkspaceId, anchorScenarioId)
+    if (activeWorkspace?.id && anchorScenarioId) {
+      getScenarioConfig(activeWorkspace.id, anchorScenarioId)
         .then(setAnchorConfig)
         .catch(err => {
           console.error('Failed to fetch anchor config:', err);
@@ -503,17 +490,17 @@ export default function ScenarioCostComparison() {
     } else {
       setAnchorConfig(null);
     }
-  }, [selectedWorkspaceId, anchorScenarioId]);
+  }, [activeWorkspace?.id, anchorScenarioId]);
 
   // Save comparison preferences when selection or anchor changes
   useEffect(() => {
-    if (selectedWorkspaceId && selectedScenarioIds.length > 0) {
-      saveComparisonPrefs(selectedWorkspaceId, {
+    if (activeWorkspace?.id && selectedScenarioIds.length > 0) {
+      saveComparisonPrefs(activeWorkspace.id, {
         selectedIds: selectedScenarioIds,
         anchorId: anchorScenarioId,
       });
     }
-  }, [selectedWorkspaceId, selectedScenarioIds, anchorScenarioId]);
+  }, [activeWorkspace?.id, selectedScenarioIds, anchorScenarioId]);
 
   // -------------------------------------------------------------------------
   // Event Handlers
@@ -642,23 +629,6 @@ export default function ScenarioCostComparison() {
               onChange={(e) => setSearchQuery(e.target.value)}
               className="w-full pl-8 pr-3 py-1.5 text-xs bg-white border border-gray-200 rounded-md focus:ring-1 focus:ring-fidelity-green outline-none"
             />
-          </div>
-
-          {/* Workspace Selector */}
-          <div className="mt-3">
-            <div className="relative">
-              <select
-                value={selectedWorkspaceId}
-                onChange={(e) => setSelectedWorkspaceId(e.target.value)}
-                className="w-full pl-3 pr-8 py-1.5 text-xs border border-gray-200 rounded-md bg-white focus:ring-1 focus:ring-fidelity-green outline-none appearance-none"
-              >
-                <option value="">Select workspace...</option>
-                {workspaces.map((ws) => (
-                  <option key={ws.id} value={ws.id}>{ws.name}</option>
-                ))}
-              </select>
-              <ChevronDown size={14} className="absolute right-2.5 top-2.5 text-gray-400 pointer-events-none" />
-            </div>
           </div>
         </div>
 
@@ -834,7 +804,6 @@ export default function ScenarioCostComparison() {
         {!loading && !error && selectedScenarioIds.length === 0 && (
           <EmptyState
             message="Select at least one scenario from the sidebar to view cost comparison."
-            onRefresh={fetchWorkspaces}
           />
         )}
 
