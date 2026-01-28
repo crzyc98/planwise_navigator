@@ -1,4 +1,4 @@
-import React, { Component, ReactNode, ErrorInfo } from 'react';
+import React from 'react';
 import { HashRouter, Routes, Route, Navigate } from 'react-router-dom';
 import Layout from './components/Layout';
 import Dashboard from './components/Dashboard';
@@ -15,41 +15,32 @@ import ScenarioCostComparison from './components/ScenarioCostComparison';
 import VestingAnalysis from './components/VestingAnalysis';
 
 // Error boundary to catch and display React errors
-interface ErrorBoundaryProps {
-  children: ReactNode;
-}
-
-interface ErrorBoundaryState {
-  hasError: boolean;
-  error: Error | null;
-}
-
-class ErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundaryState> {
-  constructor(props: ErrorBoundaryProps) {
+class ErrorBoundary extends React.Component<
+  { children: React.ReactNode },
+  { hasError: boolean; error: Error | null }
+> {
+  constructor(props: { children: React.ReactNode }) {
     super(props);
     this.state = { hasError: false, error: null };
   }
 
-  static getDerivedStateFromError(error: Error): ErrorBoundaryState {
+  static getDerivedStateFromError(error: Error) {
     return { hasError: true, error };
   }
 
-  componentDidCatch(error: Error, errorInfo: ErrorInfo): void {
+  componentDidCatch(error: Error, errorInfo: React.ErrorInfo) {
     console.error('React Error Boundary caught:', error, errorInfo);
   }
 
-  render(): ReactNode {
-    const { children } = this.props;
-    const { hasError, error } = this.state;
-
-    if (hasError) {
+  render() {
+    if (this.state.hasError) {
       return (
         <div className="p-8 bg-red-50 min-h-screen">
           <h1 className="text-2xl font-bold text-red-700 mb-4">Something went wrong</h1>
           <pre className="bg-red-100 p-4 rounded text-sm overflow-auto">
-            {error?.message}
+            {this.state.error?.message}
             {'\n\n'}
-            {error?.stack}
+            {this.state.error?.stack}
           </pre>
           <button
             className="mt-4 px-4 py-2 bg-red-600 text-white rounded"
@@ -60,7 +51,7 @@ class ErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundaryState> {
         </div>
       );
     }
-    return children;
+    return this.props.children;
   }
 }
 

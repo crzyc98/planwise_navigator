@@ -20,7 +20,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Dict, List, Optional, Tuple
 
-import duckdb
+import polars as pl
 
 logger = logging.getLogger(__name__)
 
@@ -131,54 +131,39 @@ class CompensationSolver:
         if not full_path.exists():
             raise ValueError(f"Census file not found: {full_path}")
 
-        # Use DuckDB to read census data
-        conn = duckdb.connect(":memory:")
-
-        # Read census data based on file type
+        # Read census data
         if full_path.suffix == ".parquet":
-            conn.execute(f"CREATE TABLE census AS SELECT * FROM read_parquet('{full_path}')")
+            df = pl.read_parquet(full_path)
         else:
-            conn.execute(f"CREATE TABLE census AS SELECT * FROM read_csv('{full_path}', header=true, auto_detect=true)")
+            df = pl.read_csv(full_path)
 
-        # Get column names (normalized to lowercase)
-        columns_result = conn.execute("SELECT column_name FROM information_schema.columns WHERE table_name = 'census'").fetchall()
-        original_columns = [row[0] for row in columns_result]
-
-        # Rename columns to lowercase
-        for col in original_columns:
-            if col != col.lower():
-                conn.execute(f'ALTER TABLE census RENAME COLUMN "{col}" TO "{col.lower()}"')
-
-        # Get updated column list
-        columns_result = conn.execute("SELECT column_name FROM information_schema.columns WHERE table_name = 'census'").fetchall()
-        columns = [row[0] for row in columns_result]
+        # Normalize column names
+        df = df.rename({col: col.lower() for col in df.columns})
 
         # Filter to active employees
-        if "active" in columns:
-            conn.execute("DELETE FROM census WHERE active != true")
-        elif "employee_termination_date" in columns:
-            conn.execute("DELETE FROM census WHERE employee_termination_date IS NOT NULL")
+        if "active" in df.columns:
+            df = df.filter(pl.col("active") == True)
+        elif "employee_termination_date" in df.columns:
+            df = df.filter(pl.col("employee_termination_date").is_null())
 
-        # Get total headcount
-        total_headcount = conn.execute("SELECT COUNT(*) FROM census").fetchone()[0]
+        total_headcount = len(df)
 
         # Get compensation column
         comp_col = None
         for col in ["employee_gross_compensation", "annual_salary", "compensation", "salary"]:
-            if col in columns:
+            if col in df.columns:
                 comp_col = col
                 break
 
         if comp_col is None:
-            conn.close()
             raise ValueError("No compensation column found in census")
 
-        avg_compensation = conn.execute(f"SELECT AVG({comp_col}) FROM census").fetchone()[0]
+        avg_compensation = df[comp_col].mean()
 
         # Get level column
         level_col = None
         for col in ["level_id", "job_level", "level", "employee_level"]:
-            if col in columns:
+            if col in df.columns:
                 level_col = col
                 break
 
@@ -186,20 +171,19 @@ class CompensationSolver:
         distributions = []
 
         if level_col:
-            level_stats = conn.execute(f"""
-                SELECT
-                    {level_col} as level,
-                    COUNT(*) as headcount,
-                    AVG({comp_col}) as avg_compensation
-                FROM census
-                GROUP BY {level_col}
-                ORDER BY {level_col}
-            """).fetchall()
+            level_stats = (
+                df.group_by(level_col)
+                .agg([
+                    pl.count().alias("headcount"),
+                    pl.col(comp_col).mean().alias("avg_compensation"),
+                ])
+                .sort(level_col)
+            )
 
-            for row in level_stats:
-                level = int(row[0])
-                headcount = row[1]
-                avg_comp = row[2]
+            for row in level_stats.iter_rows(named=True):
+                level = int(row[level_col])
+                headcount = row["headcount"]
+                avg_comp = row["avg_compensation"]
 
                 distributions.append(LevelDistribution(
                     level=level,
@@ -220,7 +204,6 @@ class CompensationSolver:
                 promotion_rate=0.10,  # Default 10% promotion rate
             ))
 
-        conn.close()
         return distributions, avg_compensation, total_headcount
 
     def _level_name(self, level: int) -> str:

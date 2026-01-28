@@ -476,7 +476,7 @@ export default function AnalyticsDashboard() {
                   <ResponsiveContainer width="100%" height="100%">
                     <PieChart>
                       <Pie
-                        data={Object.entries(results.event_trends).map(([name, values]: [string, number[]]) => ({
+                        data={Object.entries(results.event_trends).map(([name, values]) => ({
                           name,
                           value: values.reduce((a, b) => a + b, 0)
                         }))}
@@ -540,7 +540,7 @@ export default function AnalyticsDashboard() {
                         const statuses = [...new Set(results.compensation_by_status.map(r => r.employment_status))];
                         return years.map(year => {
                           const entry: Record<string, any> = { year };
-                          statuses.forEach((status: string) => {
+                          statuses.forEach(status => {
                             const match = results.compensation_by_status.find(
                               r => r.simulation_year === year && r.employment_status === status
                             );
@@ -568,7 +568,7 @@ export default function AnalyticsDashboard() {
                         height={36}
                         formatter={(value) => formatStatus(value)}
                       />
-                      {[...new Set(results.compensation_by_status.map(r => r.employment_status))].map((status: string) => (
+                      {[...new Set(results.compensation_by_status.map(r => r.employment_status))].map((status) => (
                         <Bar
                           key={status}
                           dataKey={status}

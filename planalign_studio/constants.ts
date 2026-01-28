@@ -12,22 +12,14 @@ export const MOCK_WORKSPACES: Workspace[] = [
     name: 'Q1 2025 Planning',
     description: 'Strategic workforce planning for upcoming fiscal year.',
     scenarios: ['cfg_001', 'cfg_002'],
-    lastRun: '2 days ago',
-    created_at: '2025-01-01T00:00:00Z',
-    updated_at: '2025-01-15T00:00:00Z',
-    base_config: {},
-    storage_path: '/workspaces/ws_001',
+    lastRun: '2 days ago'
   },
   {
     id: 'ws_002',
     name: 'Tech Org Restructure',
     description: 'Analysis of engineering department scaling scenarios.',
     scenarios: ['cfg_003'],
-    lastRun: '1 week ago',
-    created_at: '2025-01-01T00:00:00Z',
-    updated_at: '2025-01-20T00:00:00Z',
-    base_config: {},
-    storage_path: '/workspaces/ws_002',
+    lastRun: '1 week ago'
   }
 ];
 
@@ -208,12 +200,4 @@ export const COMPARISON_DATA: ComparisonMetric[] = [
   { metric: 'Avg Compensation', unit: '$K', 'Baseline 2025-2027': 134, 'High Growth Q1': 135, 'Cost Optimization': 133 },
   { metric: 'Turnover Rate', unit: '%', 'Baseline 2025-2027': 12.0, 'High Growth Q1': 14.5, 'Cost Optimization': 11.2 },
   { metric: 'DC Plan Enrollment', unit: '%', 'Baseline 2025-2027': 78.4, 'High Growth Q1': 76.2, 'Cost Optimization': 79.8 },
-];
-
-// Retirement cost data by scenario ID (values in $M)
-export const RETIREMENT_COST_DATA: Array<{ year: number; [scenarioId: string]: number }> = [
-  { year: 2025, cfg_001: 4.25, cfg_002: 4.85, cfg_003: 3.95 },
-  { year: 2026, cfg_001: 4.52, cfg_002: 5.62, cfg_003: 4.08 },
-  { year: 2027, cfg_001: 4.80, cfg_002: 6.48, cfg_003: 4.15 },
-  { year: 2028, cfg_001: 5.10, cfg_002: 7.45, cfg_003: 4.22 },
 ];

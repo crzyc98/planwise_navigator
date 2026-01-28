@@ -12,7 +12,6 @@
  */
 
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
-import { useOutletContext } from 'react-router-dom';
 import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid,
   Tooltip, Legend, ResponsiveContainer,
@@ -21,16 +20,16 @@ import {
 import {
   CheckSquare, Square, Search, Filter,
   Anchor, Calendar, DollarSign, Download,
-  RefreshCw, AlertCircle, Loader2,
+  RefreshCw, AlertCircle, Loader2, ChevronDown,
   TrendingUp, TrendingDown, Info, Calculator,
-  ShieldCheck, Zap, Copy, Check, ArrowUp, ArrowDown
+  ShieldCheck, Zap, Copy, Check
 } from 'lucide-react';
 import { useCopyToClipboard } from '../hooks/useCopyToClipboard';
-import { LayoutContextType } from './Layout';
 import {
+  listWorkspaces,
   listScenarios,
   compareDCPlanAnalytics,
-  getScenarioConfig,
+  Workspace,
   Scenario,
   DCPlanComparisonResponse,
   DCPlanAnalytics,
@@ -56,55 +55,8 @@ const formatPercent = (value: number, decimals: number = 1): string => {
 };
 
 // ============================================================================
-// LocalStorage Helpers for Persisting Comparison Preferences
-// ============================================================================
-
-const STORAGE_KEY_PREFIX = 'planalign_comparison_';
-
-function saveComparisonPrefs(workspaceId: string, prefs: { selectedIds: string[]; anchorId: string }) {
-  try {
-    localStorage.setItem(`${STORAGE_KEY_PREFIX}${workspaceId}`, JSON.stringify(prefs));
-  } catch (e) {
-    console.warn('Failed to save comparison preferences:', e);
-  }
-}
-
-function loadComparisonPrefs(workspaceId: string): { selectedIds: string[]; anchorId: string } | null {
-  try {
-    const stored = localStorage.getItem(`${STORAGE_KEY_PREFIX}${workspaceId}`);
-    if (stored) {
-      return JSON.parse(stored);
-    }
-  } catch (e) {
-    console.warn('Failed to load comparison preferences:', e);
-  }
-  return null;
-}
-
-// ============================================================================
 // Sub-Components
 // ============================================================================
-
-// Custom legend that respects the order of items passed to it
-interface CustomLegendProps {
-  items: Array<{ name: string; color: string }>;
-}
-
-const CustomLegend: React.FC<CustomLegendProps> = ({ items }) => {
-  return (
-    <div className="flex flex-wrap justify-center gap-4 mt-2">
-      {items.map((item, index) => (
-        <div key={index} className="flex items-center gap-1.5">
-          <div
-            className="w-3 h-3 rounded-full"
-            style={{ backgroundColor: item.color }}
-          />
-          <span className="text-xs text-gray-600">{item.name}</span>
-        </div>
-      ))}
-    </div>
-  );
-};
 
 const EmptyState = ({ message, onRefresh }: { message: string; onRefresh?: () => void }) => (
   <div className="flex flex-col items-center justify-center h-96 text-gray-400">
@@ -151,18 +103,13 @@ const LoadingState = () => (
 
 export default function ScenarioCostComparison() {
   // -------------------------------------------------------------------------
-  // Context: Active Workspace from Layout
+  // State: Workspace & Scenario Selection
   // -------------------------------------------------------------------------
-  const { activeWorkspace } = useOutletContext<LayoutContextType>();
-
-  // -------------------------------------------------------------------------
-  // State: Scenario Selection
-  // -------------------------------------------------------------------------
+  const [workspaces, setWorkspaces] = useState<Workspace[]>([]);
   const [scenarios, setScenarios] = useState<Scenario[]>([]);
+  const [selectedWorkspaceId, setSelectedWorkspaceId] = useState<string>('');
   const [selectedScenarioIds, setSelectedScenarioIds] = useState<string[]>([]);
   const [anchorScenarioId, setAnchorScenarioId] = useState<string>('');
-  // Track which workspace the current selection belongs to (prevents saving stale data on workspace switch)
-  const [selectionWorkspaceId, setSelectionWorkspaceId] = useState<string>('');
 
   // -------------------------------------------------------------------------
   // State: View Configuration
@@ -175,9 +122,8 @@ export default function ScenarioCostComparison() {
   // -------------------------------------------------------------------------
   const [comparisonData, setComparisonData] = useState<DCPlanComparisonResponse | null>(null);
   const [loading, setLoading] = useState(false);
-  const [loadingScenarios, setLoadingScenarios] = useState(true); // Start true since we fetch on mount
+  const [loadingScenarios, setLoadingScenarios] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [anchorConfig, setAnchorConfig] = useState<Record<string, any> | null>(null);
 
   // -------------------------------------------------------------------------
   // Copy to Clipboard Hook
@@ -302,110 +248,28 @@ export default function ScenarioCostComparison() {
   }, [anchorAnalytics]);
 
   // -------------------------------------------------------------------------
-  // Derived Data: Ordered Scenario IDs (anchor first, then rest in user order)
-  // -------------------------------------------------------------------------
-  const orderedScenarioIds = useMemo(() => {
-    if (!anchorScenarioId) return selectedScenarioIds;
-    const nonAnchor = selectedScenarioIds.filter(id => id !== anchorScenarioId);
-    return [anchorScenarioId, ...nonAnchor];
-  }, [selectedScenarioIds, anchorScenarioId]);
-
-  // -------------------------------------------------------------------------
-  // Derived Data: Consistent Color Map for Scenarios
-  // -------------------------------------------------------------------------
-  const scenarioColorMap = useMemo(() => {
-    const map: Record<string, string> = {};
-    let colorIdx = 0;
-    // Use orderedScenarioIds so colors are stable relative to display order
-    orderedScenarioIds.forEach(id => {
-      if (id !== anchorScenarioId) {
-        map[id] = COLORS.charts[colorIdx % COLORS.charts.length];
-        colorIdx++;
-      }
-    });
-    return map;
-  }, [orderedScenarioIds, anchorScenarioId]);
-
-  // -------------------------------------------------------------------------
-  // Derived Data: Plan Design from Anchor Config
-  // -------------------------------------------------------------------------
-  const coreDesign = useMemo(() => {
-    if (!anchorConfig?.employer_core_contribution) {
-      return { title: 'Core Contribution', subtitle: 'Not configured' };
-    }
-    const core = anchorConfig.employer_core_contribution;
-    if (!core.enabled) {
-      return { title: 'Core Contribution', subtitle: 'Disabled' };
-    }
-    if (core.status === 'graded_by_service') {
-      const schedule = core.graded_schedule || [];
-      const rates = schedule.map((t: any) => `${(t.contribution_rate * 100).toFixed(0)}%`).join(' / ');
-      return { title: 'Graded by Service', subtitle: rates || 'See schedule' };
-    }
-    const rate = (core.contribution_rate * 100).toFixed(1);
-    return { title: 'Fixed Non-Elective', subtitle: `${rate}% Automatic Contribution` };
-  }, [anchorConfig]);
-
-  const matchDesign = useMemo(() => {
-    if (!anchorConfig?.employer_match) {
-      return { title: 'Employer Match', subtitle: 'Not configured' };
-    }
-    const match = anchorConfig.employer_match;
-    const activeFormula = match.active_formula;
-    const formulas = match.formulas || {};
-    const formula = formulas[activeFormula];
-
-    if (!formula) {
-      return { title: activeFormula || 'Match Formula', subtitle: 'See configuration' };
-    }
-
-    if (formula.type === 'simple') {
-      const matchRate = ((formula.match_rate || 0) * 100).toFixed(0);
-      const maxMatch = ((formula.max_match_percentage || 0) * 100).toFixed(0);
-      return { title: `${matchRate}% Match`, subtitle: `Up to ${maxMatch}% of pay` };
-    }
-
-    if (formula.type === 'tiered' && formula.tiers) {
-      const firstTier = formula.tiers[0];
-      if (firstTier) {
-        const matchRate = ((firstTier.match_rate || 0) * 100).toFixed(0);
-        const tierMax = ((firstTier.employee_max || 0) * 100).toFixed(0);
-        return { title: `${matchRate}% on first ${tierMax}%`, subtitle: formula.name || 'Tiered Match' };
-      }
-    }
-
-    return { title: formula.name || activeFormula, subtitle: 'See configuration' };
-  }, [anchorConfig]);
-
-  // -------------------------------------------------------------------------
   // API Functions
   // -------------------------------------------------------------------------
+  const fetchWorkspaces = useCallback(async () => {
+    try {
+      const data = await listWorkspaces();
+      setWorkspaces(data);
+      if (data.length > 0 && !selectedWorkspaceId) {
+        setSelectedWorkspaceId(data[0].id);
+      }
+    } catch (err) {
+      console.error('Failed to fetch workspaces:', err);
+    }
+  }, [selectedWorkspaceId]);
+
   const fetchScenarios = useCallback(async (workspaceId: string) => {
     setLoadingScenarios(true);
     try {
       const data = await listScenarios(workspaceId);
       setScenarios(data);
 
+      // Smart auto-selection: find "baseline" scenario
       const completed = data.filter(s => s.status === 'completed');
-      const completedIds = new Set(completed.map(s => s.id));
-
-      // Try to restore saved preferences
-      const savedPrefs = loadComparisonPrefs(workspaceId);
-      if (savedPrefs) {
-        // Filter to only include scenarios that still exist and are completed
-        const validSelectedIds = savedPrefs.selectedIds.filter(id => completedIds.has(id));
-        const validAnchorId = completedIds.has(savedPrefs.anchorId) ? savedPrefs.anchorId : '';
-
-        if (validSelectedIds.length > 0) {
-          // Restore saved selection
-          setSelectedScenarioIds(validSelectedIds);
-          setAnchorScenarioId(validAnchorId || validSelectedIds[0]);
-          setSelectionWorkspaceId(workspaceId);
-          return;
-        }
-      }
-
-      // Fall back to auto-selection: find "baseline" scenario
       if (completed.length >= 1) {
         const baselineScenario = completed.find(
           s => s.name.toLowerCase() === 'baseline'
@@ -428,11 +292,9 @@ export default function ScenarioCostComparison() {
           setSelectedScenarioIds([completed[0].id]);
           setAnchorScenarioId(completed[0].id);
         }
-        setSelectionWorkspaceId(workspaceId);
       } else {
         setSelectedScenarioIds([]);
         setAnchorScenarioId('');
-        setSelectionWorkspaceId(workspaceId);
       }
     } catch (err) {
       console.error('Failed to fetch scenarios:', err);
@@ -443,7 +305,7 @@ export default function ScenarioCostComparison() {
   }, []);
 
   const fetchComparison = useCallback(async () => {
-    if (!activeWorkspace?.id || selectedScenarioIds.length === 0) {
+    if (!selectedWorkspaceId || selectedScenarioIds.length === 0) {
       setComparisonData(null);
       return;
     }
@@ -451,7 +313,7 @@ export default function ScenarioCostComparison() {
     setLoading(true);
     setError(null);
     try {
-      const data = await compareDCPlanAnalytics(activeWorkspace.id, selectedScenarioIds);
+      const data = await compareDCPlanAnalytics(selectedWorkspaceId, selectedScenarioIds);
       setComparisonData(data);
     } catch (err) {
       console.error('Failed to fetch comparison:', err);
@@ -460,58 +322,32 @@ export default function ScenarioCostComparison() {
     } finally {
       setLoading(false);
     }
-  }, [activeWorkspace?.id, selectedScenarioIds]);
+  }, [selectedWorkspaceId, selectedScenarioIds]);
 
   // -------------------------------------------------------------------------
   // Effects
   // -------------------------------------------------------------------------
   useEffect(() => {
-    if (activeWorkspace?.id) {
-      fetchScenarios(activeWorkspace.id);
+    fetchWorkspaces();
+  }, [fetchWorkspaces]);
+
+  useEffect(() => {
+    if (selectedWorkspaceId) {
+      fetchScenarios(selectedWorkspaceId);
     } else {
       setScenarios([]);
       setSelectedScenarioIds([]);
       setAnchorScenarioId('');
     }
-  }, [activeWorkspace?.id, fetchScenarios]);
+  }, [selectedWorkspaceId, fetchScenarios]);
 
   useEffect(() => {
-    // Don't fetch comparison while scenarios are still loading
-    if (loadingScenarios) return;
-
     if (selectedScenarioIds.length > 0) {
       fetchComparison();
     } else {
       setComparisonData(null);
     }
-  }, [selectedScenarioIds, fetchComparison, loadingScenarios]);
-
-  // Fetch anchor scenario config for plan design display
-  useEffect(() => {
-    if (activeWorkspace?.id && anchorScenarioId) {
-      getScenarioConfig(activeWorkspace.id, anchorScenarioId)
-        .then(setAnchorConfig)
-        .catch(err => {
-          console.error('Failed to fetch anchor config:', err);
-          setAnchorConfig(null);
-        });
-    } else {
-      setAnchorConfig(null);
-    }
-  }, [activeWorkspace?.id, anchorScenarioId]);
-
-  // Save comparison preferences when selection or anchor changes
-  // Only save when selections belong to the current workspace (prevents saving stale data on switch)
-  useEffect(() => {
-    if (activeWorkspace?.id &&
-        selectionWorkspaceId === activeWorkspace.id &&
-        selectedScenarioIds.length > 0) {
-      saveComparisonPrefs(activeWorkspace.id, {
-        selectedIds: selectedScenarioIds,
-        anchorId: anchorScenarioId,
-      });
-    }
-  }, [activeWorkspace?.id, selectionWorkspaceId, selectedScenarioIds, anchorScenarioId]);
+  }, [selectedScenarioIds, fetchComparison]);
 
   // -------------------------------------------------------------------------
   // Event Handlers
@@ -544,26 +380,6 @@ export default function ScenarioCostComparison() {
       setAnchorScenarioId(id);
     }
   }, [selectedScenarioIds]);
-
-  const moveScenarioUp = useCallback((id: string) => {
-    setSelectedScenarioIds(prev => {
-      const idx = prev.indexOf(id);
-      if (idx <= 0) return prev; // Already at top or not found
-      const newArr = [...prev];
-      [newArr[idx - 1], newArr[idx]] = [newArr[idx], newArr[idx - 1]];
-      return newArr;
-    });
-  }, []);
-
-  const moveScenarioDown = useCallback((id: string) => {
-    setSelectedScenarioIds(prev => {
-      const idx = prev.indexOf(id);
-      if (idx < 0 || idx >= prev.length - 1) return prev; // At bottom or not found
-      const newArr = [...prev];
-      [newArr[idx], newArr[idx + 1]] = [newArr[idx + 1], newArr[idx]];
-      return newArr;
-    });
-  }, []);
 
   // -------------------------------------------------------------------------
   // Table Data for Copy
@@ -641,6 +457,23 @@ export default function ScenarioCostComparison() {
               className="w-full pl-8 pr-3 py-1.5 text-xs bg-white border border-gray-200 rounded-md focus:ring-1 focus:ring-fidelity-green outline-none"
             />
           </div>
+
+          {/* Workspace Selector */}
+          <div className="mt-3">
+            <div className="relative">
+              <select
+                value={selectedWorkspaceId}
+                onChange={(e) => setSelectedWorkspaceId(e.target.value)}
+                className="w-full pl-3 pr-8 py-1.5 text-xs border border-gray-200 rounded-md bg-white focus:ring-1 focus:ring-fidelity-green outline-none appearance-none"
+              >
+                <option value="">Select workspace...</option>
+                {workspaces.map((ws) => (
+                  <option key={ws.id} value={ws.id}>{ws.name}</option>
+                ))}
+              </select>
+              <ChevronDown size={14} className="absolute right-2.5 top-2.5 text-gray-400 pointer-events-none" />
+            </div>
+          </div>
         </div>
 
         {/* Scenario List */}
@@ -659,130 +492,69 @@ export default function ScenarioCostComparison() {
             </div>
           ) : (
             <>
-              {/* Selected scenarios - anchor first, then rest in order */}
-              {orderedScenarioIds.length > 0 && (
-                <>
-                  <div className="px-2 py-1 text-[10px] font-bold text-gray-400 uppercase tracking-widest">
-                    Selected ({orderedScenarioIds.length})
-                  </div>
-                  {orderedScenarioIds.map((id, index) => {
-                    const scenario = filteredScenarios.find(s => s.id === id);
-                    if (!scenario) return null;
-                    const isAnchor = anchorScenarioId === id;
-                    // For reorder: anchor is always index 0, non-anchor items can move
-                    const canMoveUp = !isAnchor && index > 1; // Can't move above anchor (index 0)
-                    const canMoveDown = !isAnchor && index < orderedScenarioIds.length - 1;
+              <div className="px-2 py-1 text-[10px] font-bold text-gray-400 uppercase tracking-widest">
+                Select & Anchor
+              </div>
+              {filteredScenarios.map((scenario) => {
+                const isSelected = selectedScenarioIds.includes(scenario.id);
+                const isAnchor = anchorScenarioId === scenario.id;
+                const isAtLimit = selectedScenarioIds.length >= MAX_SCENARIO_SELECTION;
+                const isDisabled = isAtLimit && !isSelected;
 
-                    return (
-                      <div
-                        key={id}
-                        className={`group w-full text-left px-3 py-2 rounded-lg flex items-center justify-between transition-all border ${
+                return (
+                  <div
+                    key={scenario.id}
+                    className={`group w-full text-left px-3 py-2 rounded-lg flex items-center justify-between transition-all border ${
+                      isSelected
+                        ? isAnchor
+                          ? 'bg-blue-50 border-blue-200 shadow-sm'
+                          : 'bg-fidelity-green/5 border-fidelity-green/20'
+                        : isDisabled
+                          ? 'bg-gray-50 border-transparent'
+                          : 'hover:bg-gray-50 border-transparent'
+                    }`}
+                  >
+                    <button
+                      onClick={() => toggleSelection(scenario.id)}
+                      disabled={isDisabled}
+                      title={isDisabled ? `Maximum of ${MAX_SCENARIO_SELECTION} scenarios selected` : undefined}
+                      className={`flex items-start flex-1 min-w-0 ${isDisabled ? 'opacity-50 cursor-not-allowed' : ''}`}
+                    >
+                      <div className="mt-1 mr-3 flex-shrink-0">
+                        {isSelected ? (
+                          <CheckSquare size={16} className={isAnchor ? 'text-blue-600' : 'text-fidelity-green'} />
+                        ) : (
+                          <Square size={16} className={isDisabled ? 'text-gray-200' : 'text-gray-300'} />
+                        )}
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <span className={`text-xs font-semibold block truncate ${
+                          isSelected ? (isAnchor ? 'text-blue-700' : 'text-fidelity-green') : 'text-gray-700'
+                        }`}>
+                          {scenario.name}
+                        </span>
+                        <p className="text-[9px] text-gray-500 uppercase tracking-tight">
+                          {isAnchor ? 'Baseline Anchor' : 'Scenario'}
+                        </p>
+                      </div>
+                    </button>
+
+                    {isSelected && (
+                      <button
+                        onClick={() => handleSetAnchor(scenario.id)}
+                        className={`ml-2 p-1 rounded-md transition-colors ${
                           isAnchor
-                            ? 'bg-blue-50 border-blue-200 shadow-sm'
-                            : 'bg-fidelity-green/5 border-fidelity-green/20'
+                            ? 'bg-blue-600 text-white'
+                            : 'text-gray-400 hover:text-blue-600 hover:bg-blue-50'
                         }`}
+                        title={isAnchor ? 'Current Anchor' : 'Set as Anchor'}
                       >
-                        <button
-                          onClick={() => toggleSelection(id)}
-                          className="flex items-start flex-1 min-w-0"
-                        >
-                          <div className="mt-1 mr-3 flex-shrink-0">
-                            <CheckSquare size={16} className={isAnchor ? 'text-blue-600' : 'text-fidelity-green'} />
-                          </div>
-                          <div className="flex-1 min-w-0">
-                            <span className={`text-xs font-semibold block truncate ${
-                              isAnchor ? 'text-blue-700' : 'text-fidelity-green'
-                            }`}>
-                              {scenario.name}
-                            </span>
-                            <p className="text-[9px] text-gray-500 uppercase tracking-tight">
-                              {isAnchor ? 'Baseline Anchor' : 'Scenario'}
-                            </p>
-                          </div>
-                        </button>
-
-                        <div className="flex items-center ml-2 space-x-1">
-                          {/* Reorder buttons - only for non-anchor items */}
-                          {!isAnchor && (
-                            <div className="flex flex-col">
-                              <button
-                                onClick={() => moveScenarioUp(id)}
-                                disabled={!canMoveUp}
-                                className="p-0.5 rounded text-gray-400 hover:text-gray-600 hover:bg-gray-100 disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
-                                title="Move up"
-                              >
-                                <ArrowUp size={12} />
-                              </button>
-                              <button
-                                onClick={() => moveScenarioDown(id)}
-                                disabled={!canMoveDown}
-                                className="p-0.5 rounded text-gray-400 hover:text-gray-600 hover:bg-gray-100 disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
-                                title="Move down"
-                              >
-                                <ArrowDown size={12} />
-                              </button>
-                            </div>
-                          )}
-                          {/* Anchor button */}
-                          <button
-                            onClick={() => handleSetAnchor(id)}
-                            className={`p-1 rounded-md transition-colors ${
-                              isAnchor
-                                ? 'bg-blue-600 text-white'
-                                : 'text-gray-400 hover:text-blue-600 hover:bg-blue-50'
-                            }`}
-                            title={isAnchor ? 'Current Anchor' : 'Set as Anchor'}
-                          >
-                            <Anchor size={14} />
-                          </button>
-                        </div>
-                      </div>
-                    );
-                  })}
-                </>
-              )}
-
-              {/* Unselected scenarios */}
-              {filteredScenarios.filter(s => !selectedScenarioIds.includes(s.id)).length > 0 && (
-                <>
-                  <div className="px-2 py-1 mt-2 text-[10px] font-bold text-gray-400 uppercase tracking-widest">
-                    Available
+                        <Anchor size={14} />
+                      </button>
+                    )}
                   </div>
-                  {filteredScenarios.filter(s => !selectedScenarioIds.includes(s.id)).map((scenario) => {
-                    const isAtLimit = selectedScenarioIds.length >= MAX_SCENARIO_SELECTION;
-
-                    return (
-                      <div
-                        key={scenario.id}
-                        className={`group w-full text-left px-3 py-2 rounded-lg flex items-center justify-between transition-all border ${
-                          isAtLimit
-                            ? 'bg-gray-50 border-transparent'
-                            : 'hover:bg-gray-50 border-transparent'
-                        }`}
-                      >
-                        <button
-                          onClick={() => toggleSelection(scenario.id)}
-                          disabled={isAtLimit}
-                          title={isAtLimit ? `Maximum of ${MAX_SCENARIO_SELECTION} scenarios selected` : undefined}
-                          className={`flex items-start flex-1 min-w-0 ${isAtLimit ? 'opacity-50 cursor-not-allowed' : ''}`}
-                        >
-                          <div className="mt-1 mr-3 flex-shrink-0">
-                            <Square size={16} className={isAtLimit ? 'text-gray-200' : 'text-gray-300'} />
-                          </div>
-                          <div className="flex-1 min-w-0">
-                            <span className="text-xs font-semibold block truncate text-gray-700">
-                              {scenario.name}
-                            </span>
-                            <p className="text-[9px] text-gray-500 uppercase tracking-tight">
-                              Scenario
-                            </p>
-                          </div>
-                        </button>
-                      </div>
-                    );
-                  })}
-                </>
-              )}
+                );
+              })}
             </>
           )}
         </div>
@@ -815,6 +587,7 @@ export default function ScenarioCostComparison() {
         {!loading && !error && selectedScenarioIds.length === 0 && (
           <EmptyState
             message="Select at least one scenario from the sidebar to view cost comparison."
+            onRefresh={fetchWorkspaces}
           />
         )}
 
@@ -854,8 +627,8 @@ export default function ScenarioCostComparison() {
                       <ShieldCheck size={12} />
                       <span>Core Design</span>
                     </div>
-                    <p className="text-sm font-bold text-blue-900">{coreDesign.title}</p>
-                    <p className="text-[10px] text-blue-700 mt-1">{coreDesign.subtitle}</p>
+                    <p className="text-sm font-bold text-blue-900">Fixed Non-Elective</p>
+                    <p className="text-[10px] text-blue-700 mt-1">3.0% Automatic Contribution</p>
                   </div>
 
                   {/* Match Design Pill */}
@@ -864,8 +637,8 @@ export default function ScenarioCostComparison() {
                       <Zap size={12} />
                       <span>Match Design</span>
                     </div>
-                    <p className="text-sm font-bold text-green-900">{matchDesign.title}</p>
-                    <p className="text-[10px] text-green-700 mt-1">{matchDesign.subtitle}</p>
+                    <p className="text-sm font-bold text-green-900">100% Up To 6%</p>
+                    <p className="text-[10px] text-green-700 mt-1">Employee Elective Contribution</p>
                   </div>
                 </div>
               </div>
@@ -903,7 +676,7 @@ export default function ScenarioCostComparison() {
               <div className="h-96">
                 <ResponsiveContainer width="100%" height="100%">
                   {viewMode === 'annual' ? (
-                    <BarChart key={selectedScenarioIds.join(',')} data={processedData} margin={{ top: 20, right: 30, left: 20, bottom: 40 }}>
+                    <BarChart data={processedData} margin={{ top: 20, right: 30, left: 20, bottom: 5 }}>
                       <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
                       <XAxis dataKey="year" stroke="#94a3b8" fontSize={12} />
                       <YAxis stroke="#94a3b8" fontSize={12} tickFormatter={v => formatCurrency(v)} />
@@ -912,29 +685,20 @@ export default function ScenarioCostComparison() {
                         contentStyle={{ borderRadius: '12px', border: 'none', boxShadow: '0 10px 15px -3px rgba(0, 0, 0, 0.1)' }}
                         formatter={(value: number) => formatCurrency(value)}
                       />
-                      <Legend
-                        content={() => (
-                          <CustomLegend
-                            items={orderedScenarioIds.map(id => ({
-                              name: comparisonData.scenario_names[id] || id,
-                              color: id === anchorScenarioId ? '#1e293b' : scenarioColorMap[id],
-                            }))}
-                          />
-                        )}
-                      />
-                      {orderedScenarioIds.map((id) => (
+                      <Legend iconType="circle" />
+                      {selectedScenarioIds.map((id, idx) => (
                         <Bar
                           key={id}
                           dataKey={id}
                           name={comparisonData.scenario_names[id] || id}
-                          fill={id === anchorScenarioId ? '#1e293b' : scenarioColorMap[id]}
+                          fill={id === anchorScenarioId ? '#1e293b' : COLORS.charts[idx % COLORS.charts.length]}
                           radius={[4, 4, 0, 0]}
                           barSize={selectedScenarioIds.length > 4 ? 12 : 30}
                         />
                       ))}
                     </BarChart>
                   ) : (
-                    <AreaChart key={selectedScenarioIds.join(',')} data={processedData} margin={{ top: 20, right: 30, left: 20, bottom: 40 }}>
+                    <AreaChart data={processedData} margin={{ top: 20, right: 30, left: 20, bottom: 5 }}>
                       <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
                       <XAxis dataKey="year" stroke="#94a3b8" fontSize={12} />
                       <YAxis stroke="#94a3b8" fontSize={12} tickFormatter={v => formatCurrency(v)} />
@@ -942,24 +706,15 @@ export default function ScenarioCostComparison() {
                         contentStyle={{ borderRadius: '12px', border: 'none', boxShadow: '0 10px 15px -3px rgba(0, 0, 0, 0.1)' }}
                         formatter={(value: number) => formatCurrency(value)}
                       />
-                      <Legend
-                        content={() => (
-                          <CustomLegend
-                            items={orderedScenarioIds.map(id => ({
-                              name: comparisonData.scenario_names[id] || id,
-                              color: id === anchorScenarioId ? '#1e293b' : scenarioColorMap[id],
-                            }))}
-                          />
-                        )}
-                      />
-                      {orderedScenarioIds.map((id) => (
+                      <Legend iconType="circle" />
+                      {selectedScenarioIds.map((id, idx) => (
                         <Area
                           key={id}
                           type="monotone"
                           dataKey={id}
                           name={comparisonData.scenario_names[id] || id}
-                          stroke={id === anchorScenarioId ? '#1e293b' : scenarioColorMap[id]}
-                          fill={id === anchorScenarioId ? '#1e293b' : scenarioColorMap[id]}
+                          stroke={id === anchorScenarioId ? '#1e293b' : COLORS.charts[idx % COLORS.charts.length]}
+                          fill={id === anchorScenarioId ? '#1e293b' : COLORS.charts[idx % COLORS.charts.length]}
                           fillOpacity={0.1}
                           strokeWidth={id === anchorScenarioId ? 3 : 2}
                         />
@@ -985,7 +740,7 @@ export default function ScenarioCostComparison() {
 
                 <div className="h-64">
                   <ResponsiveContainer width="100%" height="100%">
-                    <ComposedChart key={selectedScenarioIds.join(',')} data={processedData} margin={{ bottom: 30 }}>
+                    <ComposedChart data={processedData}>
                       <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
                       <XAxis dataKey="year" stroke="#94a3b8" fontSize={12} />
                       <YAxis stroke="#94a3b8" fontSize={12} tickFormatter={v => formatCurrency(v)} />
@@ -993,28 +748,14 @@ export default function ScenarioCostComparison() {
                         contentStyle={{ borderRadius: '12px', border: 'none', boxShadow: '0 10px 15px -3px rgba(0, 0, 0, 0.1)' }}
                         formatter={(value: number) => formatCurrency(value)}
                       />
-                      <Legend
-                        content={() => (
-                          <CustomLegend
-                            items={[
-                              ...orderedScenarioIds
-                                .filter(id => id !== anchorScenarioId)
-                                .map(id => ({
-                                  name: `Delta: ${comparisonData.scenario_names[id]}`,
-                                  color: scenarioColorMap[id],
-                                })),
-                              { name: 'Baseline Zero', color: '#1e293b' },
-                            ]}
-                          />
-                        )}
-                      />
-                      {orderedScenarioIds.filter(id => id !== anchorScenarioId).map((id) => (
+                      <Legend />
+                      {selectedScenarioIds.filter(id => id !== anchorScenarioId).map((id, idx) => (
                         <Line
                           key={`${id}_delta`}
                           type="monotone"
                           dataKey={`${id}_delta`}
                           name={`Delta: ${comparisonData.scenario_names[id]}`}
-                          stroke={scenarioColorMap[id]}
+                          stroke={COLORS.charts[idx % COLORS.charts.length]}
                           strokeWidth={2}
                           dot={{ r: 4 }}
                         />
@@ -1078,7 +819,7 @@ export default function ScenarioCostComparison() {
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-gray-100 bg-white">
-                    {orderedScenarioIds.map((id) => {
+                    {selectedScenarioIds.map((id) => {
                       const analytics = comparisonData.analytics.find(a => a.scenario_id === id);
                       if (!analytics) return null;
 

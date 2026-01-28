@@ -35,13 +35,9 @@ export interface LogEvent {
 export interface Workspace {
   id: string;
   name: string;
-  description: string | null;
-  scenarios?: string[]; // List of Config IDs belonging to this workspace
+  description: string;
+  scenarios: string[]; // List of Config IDs belonging to this workspace
   lastRun?: string;
-  created_at: string;
-  updated_at: string;
-  base_config: Record<string, any>;
-  storage_path: string;
 }
 
 export interface Notification {

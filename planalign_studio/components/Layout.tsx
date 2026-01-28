@@ -48,13 +48,9 @@ const NavItem = ({ to, icon, label, end }: { to: string; icon: React.ReactNode; 
 const toFrontendWorkspace = (ws: ApiWorkspace): Workspace => ({
   id: ws.id,
   name: ws.name,
-  description: ws.description,
+  description: ws.description || '',
   scenarios: [], // Scenarios loaded separately
   lastRun: ws.updated_at ? new Date(ws.updated_at).toLocaleDateString() : 'Never',
-  created_at: ws.created_at,
-  updated_at: ws.updated_at,
-  base_config: ws.base_config,
-  storage_path: ws.storage_path,
 });
 
 export default function Layout() {
@@ -197,11 +193,7 @@ export default function Layout() {
         name: newWorkspaceName,
         description: newWorkspaceDesc || 'No description provided.',
         scenarios: [],
-        lastRun: 'Never',
-        created_at: new Date().toISOString(),
-        updated_at: new Date().toISOString(),
-        base_config: {},
-        storage_path: '',
+        lastRun: 'Never'
       };
 
       const created = await addWorkspace(newWorkspace);
