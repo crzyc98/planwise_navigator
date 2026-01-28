@@ -721,24 +721,24 @@ export default function ScenarioCostComparison() {
                         <div className="flex items-center ml-2 space-x-1">
                           {/* Reorder buttons - only for non-anchor items */}
                           {!isAnchor && (
-                          <div className="flex flex-col">
-                            <button
-                              onClick={() => moveScenarioUp(id)}
-                              disabled={!canMoveUp}
-                              className="p-0.5 rounded text-gray-400 hover:text-gray-600 hover:bg-gray-100 disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
-                              title="Move up"
-                            >
-                              <ArrowUp size={12} />
-                            </button>
-                            <button
-                              onClick={() => moveScenarioDown(id)}
-                              disabled={!canMoveDown}
-                              className="p-0.5 rounded text-gray-400 hover:text-gray-600 hover:bg-gray-100 disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
-                              title="Move down"
-                            >
-                              <ArrowDown size={12} />
-                            </button>
-                          </div>
+                            <div className="flex flex-col">
+                              <button
+                                onClick={() => moveScenarioUp(id)}
+                                disabled={!canMoveUp}
+                                className="p-0.5 rounded text-gray-400 hover:text-gray-600 hover:bg-gray-100 disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
+                                title="Move up"
+                              >
+                                <ArrowUp size={12} />
+                              </button>
+                              <button
+                                onClick={() => moveScenarioDown(id)}
+                                disabled={!canMoveDown}
+                                className="p-0.5 rounded text-gray-400 hover:text-gray-600 hover:bg-gray-100 disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
+                                title="Move down"
+                              >
+                                <ArrowDown size={12} />
+                              </button>
+                            </div>
                           )}
                           {/* Anchor button */}
                           <button
