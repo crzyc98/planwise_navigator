@@ -161,6 +161,8 @@ export default function ScenarioCostComparison() {
   const [scenarios, setScenarios] = useState<Scenario[]>([]);
   const [selectedScenarioIds, setSelectedScenarioIds] = useState<string[]>([]);
   const [anchorScenarioId, setAnchorScenarioId] = useState<string>('');
+  // Track which workspace the current selection belongs to (prevents saving stale data on workspace switch)
+  const [selectionWorkspaceId, setSelectionWorkspaceId] = useState<string>('');
 
   // -------------------------------------------------------------------------
   // State: View Configuration
@@ -398,6 +400,7 @@ export default function ScenarioCostComparison() {
           // Restore saved selection
           setSelectedScenarioIds(validSelectedIds);
           setAnchorScenarioId(validAnchorId || validSelectedIds[0]);
+          setSelectionWorkspaceId(workspaceId);
           return;
         }
       }
@@ -425,9 +428,11 @@ export default function ScenarioCostComparison() {
           setSelectedScenarioIds([completed[0].id]);
           setAnchorScenarioId(completed[0].id);
         }
+        setSelectionWorkspaceId(workspaceId);
       } else {
         setSelectedScenarioIds([]);
         setAnchorScenarioId('');
+        setSelectionWorkspaceId(workspaceId);
       }
     } catch (err) {
       console.error('Failed to fetch scenarios:', err);
@@ -493,14 +498,17 @@ export default function ScenarioCostComparison() {
   }, [activeWorkspace?.id, anchorScenarioId]);
 
   // Save comparison preferences when selection or anchor changes
+  // Only save when selections belong to the current workspace (prevents saving stale data on switch)
   useEffect(() => {
-    if (activeWorkspace?.id && selectedScenarioIds.length > 0) {
+    if (activeWorkspace?.id &&
+        selectionWorkspaceId === activeWorkspace.id &&
+        selectedScenarioIds.length > 0) {
       saveComparisonPrefs(activeWorkspace.id, {
         selectedIds: selectedScenarioIds,
         anchorId: anchorScenarioId,
       });
     }
-  }, [activeWorkspace?.id, selectedScenarioIds, anchorScenarioId]);
+  }, [activeWorkspace?.id, selectionWorkspaceId, selectedScenarioIds, anchorScenarioId]);
 
   // -------------------------------------------------------------------------
   // Event Handlers
