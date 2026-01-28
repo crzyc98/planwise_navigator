@@ -56,6 +56,32 @@ const formatPercent = (value: number, decimals: number = 1): string => {
 };
 
 // ============================================================================
+// LocalStorage Helpers for Persisting Comparison Preferences
+// ============================================================================
+
+const STORAGE_KEY_PREFIX = 'planalign_comparison_';
+
+function saveComparisonPrefs(workspaceId: string, prefs: { selectedIds: string[]; anchorId: string }) {
+  try {
+    localStorage.setItem(`${STORAGE_KEY_PREFIX}${workspaceId}`, JSON.stringify(prefs));
+  } catch (e) {
+    console.warn('Failed to save comparison preferences:', e);
+  }
+}
+
+function loadComparisonPrefs(workspaceId: string): { selectedIds: string[]; anchorId: string } | null {
+  try {
+    const stored = localStorage.getItem(`${STORAGE_KEY_PREFIX}${workspaceId}`);
+    if (stored) {
+      return JSON.parse(stored);
+    }
+  } catch (e) {
+    console.warn('Failed to load comparison preferences:', e);
+  }
+  return null;
+}
+
+// ============================================================================
 // Sub-Components
 // ============================================================================
 
@@ -269,19 +295,29 @@ export default function ScenarioCostComparison() {
   }, [anchorAnalytics]);
 
   // -------------------------------------------------------------------------
+  // Derived Data: Ordered Scenario IDs (anchor first, then rest in user order)
+  // -------------------------------------------------------------------------
+  const orderedScenarioIds = useMemo(() => {
+    if (!anchorScenarioId) return selectedScenarioIds;
+    const nonAnchor = selectedScenarioIds.filter(id => id !== anchorScenarioId);
+    return [anchorScenarioId, ...nonAnchor];
+  }, [selectedScenarioIds, anchorScenarioId]);
+
+  // -------------------------------------------------------------------------
   // Derived Data: Consistent Color Map for Scenarios
   // -------------------------------------------------------------------------
   const scenarioColorMap = useMemo(() => {
     const map: Record<string, string> = {};
     let colorIdx = 0;
-    selectedScenarioIds.forEach(id => {
+    // Use orderedScenarioIds so colors are stable relative to display order
+    orderedScenarioIds.forEach(id => {
       if (id !== anchorScenarioId) {
         map[id] = COLORS.charts[colorIdx % COLORS.charts.length];
         colorIdx++;
       }
     });
     return map;
-  }, [selectedScenarioIds, anchorScenarioId]);
+  }, [orderedScenarioIds, anchorScenarioId]);
 
   // -------------------------------------------------------------------------
   // Derived Data: Plan Design from Anchor Config
@@ -355,8 +391,25 @@ export default function ScenarioCostComparison() {
       const data = await listScenarios(workspaceId);
       setScenarios(data);
 
-      // Smart auto-selection: find "baseline" scenario
       const completed = data.filter(s => s.status === 'completed');
+      const completedIds = new Set(completed.map(s => s.id));
+
+      // Try to restore saved preferences
+      const savedPrefs = loadComparisonPrefs(workspaceId);
+      if (savedPrefs) {
+        // Filter to only include scenarios that still exist and are completed
+        const validSelectedIds = savedPrefs.selectedIds.filter(id => completedIds.has(id));
+        const validAnchorId = completedIds.has(savedPrefs.anchorId) ? savedPrefs.anchorId : '';
+
+        if (validSelectedIds.length > 0) {
+          // Restore saved selection
+          setSelectedScenarioIds(validSelectedIds);
+          setAnchorScenarioId(validAnchorId || validSelectedIds[0]);
+          return;
+        }
+      }
+
+      // Fall back to auto-selection: find "baseline" scenario
       if (completed.length >= 1) {
         const baselineScenario = completed.find(
           s => s.name.toLowerCase() === 'baseline'
@@ -449,6 +502,16 @@ export default function ScenarioCostComparison() {
       setAnchorConfig(null);
     }
   }, [selectedWorkspaceId, anchorScenarioId]);
+
+  // Save comparison preferences when selection or anchor changes
+  useEffect(() => {
+    if (selectedWorkspaceId && selectedScenarioIds.length > 0) {
+      saveComparisonPrefs(selectedWorkspaceId, {
+        selectedIds: selectedScenarioIds,
+        anchorId: anchorScenarioId,
+      });
+    }
+  }, [selectedWorkspaceId, selectedScenarioIds, anchorScenarioId]);
 
   // -------------------------------------------------------------------------
   // Event Handlers
@@ -613,16 +676,19 @@ export default function ScenarioCostComparison() {
             </div>
           ) : (
             <>
-              {/* Selected scenarios - render in selectedScenarioIds order */}
-              {selectedScenarioIds.length > 0 && (
+              {/* Selected scenarios - anchor first, then rest in order */}
+              {orderedScenarioIds.length > 0 && (
                 <>
                   <div className="px-2 py-1 text-[10px] font-bold text-gray-400 uppercase tracking-widest">
-                    Selected ({selectedScenarioIds.length})
+                    Selected ({orderedScenarioIds.length})
                   </div>
-                  {selectedScenarioIds.map((id, index) => {
+                  {orderedScenarioIds.map((id, index) => {
                     const scenario = filteredScenarios.find(s => s.id === id);
                     if (!scenario) return null;
                     const isAnchor = anchorScenarioId === id;
+                    // For reorder: anchor is always index 0, non-anchor items can move
+                    const canMoveUp = !isAnchor && index > 1; // Can't move above anchor (index 0)
+                    const canMoveDown = !isAnchor && index < orderedScenarioIds.length - 1;
 
                     return (
                       <div
@@ -653,11 +719,12 @@ export default function ScenarioCostComparison() {
                         </button>
 
                         <div className="flex items-center ml-2 space-x-1">
-                          {/* Reorder buttons */}
+                          {/* Reorder buttons - only for non-anchor items */}
+                          {!isAnchor && (
                           <div className="flex flex-col">
                             <button
                               onClick={() => moveScenarioUp(id)}
-                              disabled={index === 0}
+                              disabled={!canMoveUp}
                               className="p-0.5 rounded text-gray-400 hover:text-gray-600 hover:bg-gray-100 disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
                               title="Move up"
                             >
@@ -665,13 +732,14 @@ export default function ScenarioCostComparison() {
                             </button>
                             <button
                               onClick={() => moveScenarioDown(id)}
-                              disabled={index === selectedScenarioIds.length - 1}
+                              disabled={!canMoveDown}
                               className="p-0.5 rounded text-gray-400 hover:text-gray-600 hover:bg-gray-100 disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
                               title="Move down"
                             >
                               <ArrowDown size={12} />
                             </button>
                           </div>
+                          )}
                           {/* Anchor button */}
                           <button
                             onClick={() => handleSetAnchor(id)}
@@ -865,14 +933,14 @@ export default function ScenarioCostComparison() {
                       <Legend
                         content={() => (
                           <CustomLegend
-                            items={selectedScenarioIds.map(id => ({
+                            items={orderedScenarioIds.map(id => ({
                               name: comparisonData.scenario_names[id] || id,
                               color: id === anchorScenarioId ? '#1e293b' : scenarioColorMap[id],
                             }))}
                           />
                         )}
                       />
-                      {selectedScenarioIds.map((id) => (
+                      {orderedScenarioIds.map((id) => (
                         <Bar
                           key={id}
                           dataKey={id}
@@ -895,14 +963,14 @@ export default function ScenarioCostComparison() {
                       <Legend
                         content={() => (
                           <CustomLegend
-                            items={selectedScenarioIds.map(id => ({
+                            items={orderedScenarioIds.map(id => ({
                               name: comparisonData.scenario_names[id] || id,
                               color: id === anchorScenarioId ? '#1e293b' : scenarioColorMap[id],
                             }))}
                           />
                         )}
                       />
-                      {selectedScenarioIds.map((id) => (
+                      {orderedScenarioIds.map((id) => (
                         <Area
                           key={id}
                           type="monotone"
@@ -947,7 +1015,7 @@ export default function ScenarioCostComparison() {
                         content={() => (
                           <CustomLegend
                             items={[
-                              ...selectedScenarioIds
+                              ...orderedScenarioIds
                                 .filter(id => id !== anchorScenarioId)
                                 .map(id => ({
                                   name: `Delta: ${comparisonData.scenario_names[id]}`,
@@ -958,7 +1026,7 @@ export default function ScenarioCostComparison() {
                           />
                         )}
                       />
-                      {selectedScenarioIds.filter(id => id !== anchorScenarioId).map((id) => (
+                      {orderedScenarioIds.filter(id => id !== anchorScenarioId).map((id) => (
                         <Line
                           key={`${id}_delta`}
                           type="monotone"
@@ -1028,7 +1096,7 @@ export default function ScenarioCostComparison() {
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-gray-100 bg-white">
-                    {selectedScenarioIds.map((id) => {
+                    {orderedScenarioIds.map((id) => {
                       const analytics = comparisonData.analytics.find(a => a.scenario_id === id);
                       if (!analytics) return null;
 
