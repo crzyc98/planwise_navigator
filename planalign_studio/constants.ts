@@ -12,14 +12,22 @@ export const MOCK_WORKSPACES: Workspace[] = [
     name: 'Q1 2025 Planning',
     description: 'Strategic workforce planning for upcoming fiscal year.',
     scenarios: ['cfg_001', 'cfg_002'],
-    lastRun: '2 days ago'
+    lastRun: '2 days ago',
+    created_at: '2025-01-01T00:00:00Z',
+    updated_at: '2025-01-15T00:00:00Z',
+    base_config: {},
+    storage_path: '/workspaces/ws_001',
   },
   {
     id: 'ws_002',
     name: 'Tech Org Restructure',
     description: 'Analysis of engineering department scaling scenarios.',
     scenarios: ['cfg_003'],
-    lastRun: '1 week ago'
+    lastRun: '1 week ago',
+    created_at: '2025-01-01T00:00:00Z',
+    updated_at: '2025-01-20T00:00:00Z',
+    base_config: {},
+    storage_path: '/workspaces/ws_002',
   }
 ];
 
