@@ -149,21 +149,6 @@ export default function ScenarioCostComparison() {
   );
 
   // -------------------------------------------------------------------------
-  // Derived Data: Sorted Filtered Scenarios (selected first, in order)
-  // -------------------------------------------------------------------------
-  const sortedFilteredScenarios = useMemo(() => {
-    // Selected scenarios in their current order
-    const selected = selectedScenarioIds
-      .map(id => filteredScenarios.find(s => s.id === id))
-      .filter((s): s is Scenario => s !== undefined);
-    // Unselected scenarios
-    const unselected = filteredScenarios.filter(
-      s => !selectedScenarioIds.includes(s.id)
-    );
-    return [...selected, ...unselected];
-  }, [filteredScenarios, selectedScenarioIds]);
-
-  // -------------------------------------------------------------------------
   // Derived Data: Anchor Analytics
   // -------------------------------------------------------------------------
   const anchorAnalytics = useMemo(() =>
@@ -542,91 +527,125 @@ export default function ScenarioCostComparison() {
             </div>
           ) : (
             <>
-              <div className="px-2 py-1 text-[10px] font-bold text-gray-400 uppercase tracking-widest">
-                Select & Anchor
-              </div>
-              {sortedFilteredScenarios.map((scenario) => {
-                const isSelected = selectedScenarioIds.includes(scenario.id);
-                const isAnchor = anchorScenarioId === scenario.id;
-                const isAtLimit = selectedScenarioIds.length >= MAX_SCENARIO_SELECTION;
-                const isDisabled = isAtLimit && !isSelected;
+              {/* Selected scenarios - render in selectedScenarioIds order */}
+              {selectedScenarioIds.length > 0 && (
+                <>
+                  <div className="px-2 py-1 text-[10px] font-bold text-gray-400 uppercase tracking-widest">
+                    Selected ({selectedScenarioIds.length})
+                  </div>
+                  {selectedScenarioIds.map((id, index) => {
+                    const scenario = filteredScenarios.find(s => s.id === id);
+                    if (!scenario) return null;
+                    const isAnchor = anchorScenarioId === id;
 
-                return (
-                  <div
-                    key={scenario.id}
-                    className={`group w-full text-left px-3 py-2 rounded-lg flex items-center justify-between transition-all border ${
-                      isSelected
-                        ? isAnchor
-                          ? 'bg-blue-50 border-blue-200 shadow-sm'
-                          : 'bg-fidelity-green/5 border-fidelity-green/20'
-                        : isDisabled
-                          ? 'bg-gray-50 border-transparent'
-                          : 'hover:bg-gray-50 border-transparent'
-                    }`}
-                  >
-                    <button
-                      onClick={() => toggleSelection(scenario.id)}
-                      disabled={isDisabled}
-                      title={isDisabled ? `Maximum of ${MAX_SCENARIO_SELECTION} scenarios selected` : undefined}
-                      className={`flex items-start flex-1 min-w-0 ${isDisabled ? 'opacity-50 cursor-not-allowed' : ''}`}
-                    >
-                      <div className="mt-1 mr-3 flex-shrink-0">
-                        {isSelected ? (
-                          <CheckSquare size={16} className={isAnchor ? 'text-blue-600' : 'text-fidelity-green'} />
-                        ) : (
-                          <Square size={16} className={isDisabled ? 'text-gray-200' : 'text-gray-300'} />
-                        )}
-                      </div>
-                      <div className="flex-1 min-w-0">
-                        <span className={`text-xs font-semibold block truncate ${
-                          isSelected ? (isAnchor ? 'text-blue-700' : 'text-fidelity-green') : 'text-gray-700'
-                        }`}>
-                          {scenario.name}
-                        </span>
-                        <p className="text-[9px] text-gray-500 uppercase tracking-tight">
-                          {isAnchor ? 'Baseline Anchor' : 'Scenario'}
-                        </p>
-                      </div>
-                    </button>
+                    return (
+                      <div
+                        key={id}
+                        className={`group w-full text-left px-3 py-2 rounded-lg flex items-center justify-between transition-all border ${
+                          isAnchor
+                            ? 'bg-blue-50 border-blue-200 shadow-sm'
+                            : 'bg-fidelity-green/5 border-fidelity-green/20'
+                        }`}
+                      >
+                        <button
+                          onClick={() => toggleSelection(id)}
+                          className="flex items-start flex-1 min-w-0"
+                        >
+                          <div className="mt-1 mr-3 flex-shrink-0">
+                            <CheckSquare size={16} className={isAnchor ? 'text-blue-600' : 'text-fidelity-green'} />
+                          </div>
+                          <div className="flex-1 min-w-0">
+                            <span className={`text-xs font-semibold block truncate ${
+                              isAnchor ? 'text-blue-700' : 'text-fidelity-green'
+                            }`}>
+                              {scenario.name}
+                            </span>
+                            <p className="text-[9px] text-gray-500 uppercase tracking-tight">
+                              {isAnchor ? 'Baseline Anchor' : 'Scenario'}
+                            </p>
+                          </div>
+                        </button>
 
-                    {isSelected && (
-                      <div className="flex items-center ml-2 space-x-1">
-                        {/* Reorder buttons */}
-                        <div className="flex flex-col">
+                        <div className="flex items-center ml-2 space-x-1">
+                          {/* Reorder buttons */}
+                          <div className="flex flex-col">
+                            <button
+                              onClick={() => moveScenarioUp(id)}
+                              disabled={index === 0}
+                              className="p-0.5 rounded text-gray-400 hover:text-gray-600 hover:bg-gray-100 disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
+                              title="Move up"
+                            >
+                              <ArrowUp size={12} />
+                            </button>
+                            <button
+                              onClick={() => moveScenarioDown(id)}
+                              disabled={index === selectedScenarioIds.length - 1}
+                              className="p-0.5 rounded text-gray-400 hover:text-gray-600 hover:bg-gray-100 disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
+                              title="Move down"
+                            >
+                              <ArrowDown size={12} />
+                            </button>
+                          </div>
+                          {/* Anchor button */}
                           <button
-                            onClick={() => moveScenarioUp(scenario.id)}
-                            disabled={selectedScenarioIds.indexOf(scenario.id) === 0}
-                            className="p-0.5 rounded text-gray-400 hover:text-gray-600 hover:bg-gray-100 disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
-                            title="Move up"
+                            onClick={() => handleSetAnchor(id)}
+                            className={`p-1 rounded-md transition-colors ${
+                              isAnchor
+                                ? 'bg-blue-600 text-white'
+                                : 'text-gray-400 hover:text-blue-600 hover:bg-blue-50'
+                            }`}
+                            title={isAnchor ? 'Current Anchor' : 'Set as Anchor'}
                           >
-                            <ArrowUp size={12} />
-                          </button>
-                          <button
-                            onClick={() => moveScenarioDown(scenario.id)}
-                            disabled={selectedScenarioIds.indexOf(scenario.id) === selectedScenarioIds.length - 1}
-                            className="p-0.5 rounded text-gray-400 hover:text-gray-600 hover:bg-gray-100 disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
-                            title="Move down"
-                          >
-                            <ArrowDown size={12} />
+                            <Anchor size={14} />
                           </button>
                         </div>
-                        {/* Anchor button */}
+                      </div>
+                    );
+                  })}
+                </>
+              )}
+
+              {/* Unselected scenarios */}
+              {filteredScenarios.filter(s => !selectedScenarioIds.includes(s.id)).length > 0 && (
+                <>
+                  <div className="px-2 py-1 mt-2 text-[10px] font-bold text-gray-400 uppercase tracking-widest">
+                    Available
+                  </div>
+                  {filteredScenarios.filter(s => !selectedScenarioIds.includes(s.id)).map((scenario) => {
+                    const isAtLimit = selectedScenarioIds.length >= MAX_SCENARIO_SELECTION;
+
+                    return (
+                      <div
+                        key={scenario.id}
+                        className={`group w-full text-left px-3 py-2 rounded-lg flex items-center justify-between transition-all border ${
+                          isAtLimit
+                            ? 'bg-gray-50 border-transparent'
+                            : 'hover:bg-gray-50 border-transparent'
+                        }`}
+                      >
                         <button
-                          onClick={() => handleSetAnchor(scenario.id)}
-                          className={`p-1 rounded-md transition-colors ${
-                            isAnchor
-                              ? 'bg-blue-600 text-white'
-                              : 'text-gray-400 hover:text-blue-600 hover:bg-blue-50'
-                          }`}
-                          title={isAnchor ? 'Current Anchor' : 'Set as Anchor'}
+                          onClick={() => toggleSelection(scenario.id)}
+                          disabled={isAtLimit}
+                          title={isAtLimit ? `Maximum of ${MAX_SCENARIO_SELECTION} scenarios selected` : undefined}
+                          className={`flex items-start flex-1 min-w-0 ${isAtLimit ? 'opacity-50 cursor-not-allowed' : ''}`}
                         >
-                          <Anchor size={14} />
+                          <div className="mt-1 mr-3 flex-shrink-0">
+                            <Square size={16} className={isAtLimit ? 'text-gray-200' : 'text-gray-300'} />
+                          </div>
+                          <div className="flex-1 min-w-0">
+                            <span className="text-xs font-semibold block truncate text-gray-700">
+                              {scenario.name}
+                            </span>
+                            <p className="text-[9px] text-gray-500 uppercase tracking-tight">
+                              Scenario
+                            </p>
+                          </div>
                         </button>
                       </div>
-                    )}
-                  </div>
-                );
-              })}
+                    );
+                  })}
+                </>
+              )}
             </>
           )}
         </div>
@@ -748,7 +767,7 @@ export default function ScenarioCostComparison() {
               <div className="h-96">
                 <ResponsiveContainer width="100%" height="100%">
                   {viewMode === 'annual' ? (
-                    <BarChart data={processedData} margin={{ top: 20, right: 30, left: 20, bottom: 5 }}>
+                    <BarChart key={selectedScenarioIds.join(',')} data={processedData} margin={{ top: 20, right: 30, left: 20, bottom: 5 }}>
                       <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
                       <XAxis dataKey="year" stroke="#94a3b8" fontSize={12} />
                       <YAxis stroke="#94a3b8" fontSize={12} tickFormatter={v => formatCurrency(v)} />
@@ -770,7 +789,7 @@ export default function ScenarioCostComparison() {
                       ))}
                     </BarChart>
                   ) : (
-                    <AreaChart data={processedData} margin={{ top: 20, right: 30, left: 20, bottom: 5 }}>
+                    <AreaChart key={selectedScenarioIds.join(',')} data={processedData} margin={{ top: 20, right: 30, left: 20, bottom: 5 }}>
                       <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
                       <XAxis dataKey="year" stroke="#94a3b8" fontSize={12} />
                       <YAxis stroke="#94a3b8" fontSize={12} tickFormatter={v => formatCurrency(v)} />
@@ -812,7 +831,7 @@ export default function ScenarioCostComparison() {
 
                 <div className="h-64">
                   <ResponsiveContainer width="100%" height="100%">
-                    <ComposedChart data={processedData}>
+                    <ComposedChart key={selectedScenarioIds.join(',')} data={processedData}>
                       <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
                       <XAxis dataKey="year" stroke="#94a3b8" fontSize={12} />
                       <YAxis stroke="#94a3b8" fontSize={12} tickFormatter={v => formatCurrency(v)} />
