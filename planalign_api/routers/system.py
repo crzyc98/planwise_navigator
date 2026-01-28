@@ -161,13 +161,20 @@ async def get_default_config(
             },
         },
         "employer_match": {
-            "active_formula": "simple",
+            "active_formula": "simple_match",
             "formulas": {
-                "simple": {
+                "simple_match": {
+                    "name": "Simple Match",
+                    "type": "simple",
                     "match_rate": 0.50,
-                    "match_limit": 0.06,
+                    "max_match_percentage": 0.06,
                 },
             },
+        },
+        "employer_core_contribution": {
+            "enabled": True,
+            "status": "flat",
+            "contribution_rate": 0.03,
         },
         "optimization": {
             "event_generation": {

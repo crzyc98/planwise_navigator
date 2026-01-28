@@ -49,6 +49,22 @@ async def get_default_config(
         "enrollment": {
             "auto_enrollment": {"enabled": True},
         },
+        "employer_match": {
+            "active_formula": "simple_match",
+            "formulas": {
+                "simple_match": {
+                    "name": "Simple Match",
+                    "type": "simple",
+                    "match_rate": 0.50,
+                    "max_match_percentage": 0.06,
+                },
+            },
+        },
+        "employer_core_contribution": {
+            "enabled": True,
+            "status": "flat",
+            "contribution_rate": 0.03,
+        },
     }
 
 
