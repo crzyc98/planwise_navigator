@@ -263,6 +263,38 @@ export default function ScenarioCostComparison() {
   }, [selectedScenarioIds, anchorScenarioId]);
 
   // -------------------------------------------------------------------------
+  // Derived Data: Legend Payloads (explicit ordering for Recharts)
+  // -------------------------------------------------------------------------
+  const costTrendsLegendPayload = useMemo(() => {
+    if (!comparisonData) return [];
+    return selectedScenarioIds.map(id => ({
+      value: comparisonData.scenario_names[id] || id,
+      type: 'circle' as const,
+      color: id === anchorScenarioId ? '#1e293b' : scenarioColorMap[id],
+      dataKey: id,
+    }));
+  }, [selectedScenarioIds, anchorScenarioId, scenarioColorMap, comparisonData]);
+
+  const incrementalCostsLegendPayload = useMemo(() => {
+    if (!comparisonData) return [];
+    const nonAnchorIds = selectedScenarioIds.filter(id => id !== anchorScenarioId);
+    const payload = nonAnchorIds.map(id => ({
+      value: `Delta: ${comparisonData.scenario_names[id]}`,
+      type: 'line' as const,
+      color: scenarioColorMap[id],
+      dataKey: `${id}_delta`,
+    }));
+    // Add baseline zero line
+    payload.push({
+      value: 'Baseline Zero',
+      type: 'line' as const,
+      color: '#1e293b',
+      dataKey: 'baseline_zero',
+    });
+    return payload;
+  }, [selectedScenarioIds, anchorScenarioId, scenarioColorMap, comparisonData]);
+
+  // -------------------------------------------------------------------------
   // API Functions
   // -------------------------------------------------------------------------
   const fetchWorkspaces = useCallback(async () => {
@@ -776,7 +808,7 @@ export default function ScenarioCostComparison() {
                         contentStyle={{ borderRadius: '12px', border: 'none', boxShadow: '0 10px 15px -3px rgba(0, 0, 0, 0.1)' }}
                         formatter={(value: number) => formatCurrency(value)}
                       />
-                      <Legend iconType="circle" />
+                      <Legend iconType="circle" payload={costTrendsLegendPayload} />
                       {selectedScenarioIds.map((id) => (
                         <Bar
                           key={id}
@@ -797,7 +829,7 @@ export default function ScenarioCostComparison() {
                         contentStyle={{ borderRadius: '12px', border: 'none', boxShadow: '0 10px 15px -3px rgba(0, 0, 0, 0.1)' }}
                         formatter={(value: number) => formatCurrency(value)}
                       />
-                      <Legend iconType="circle" />
+                      <Legend iconType="circle" payload={costTrendsLegendPayload} />
                       {selectedScenarioIds.map((id) => (
                         <Area
                           key={id}
@@ -839,7 +871,7 @@ export default function ScenarioCostComparison() {
                         contentStyle={{ borderRadius: '12px', border: 'none', boxShadow: '0 10px 15px -3px rgba(0, 0, 0, 0.1)' }}
                         formatter={(value: number) => formatCurrency(value)}
                       />
-                      <Legend />
+                      <Legend payload={incrementalCostsLegendPayload} />
                       {selectedScenarioIds.filter(id => id !== anchorScenarioId).map((id) => (
                         <Line
                           key={`${id}_delta`}
