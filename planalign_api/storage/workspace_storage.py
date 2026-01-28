@@ -423,6 +423,28 @@ class WorkspaceStorage:
         # Deep merge base config with overrides
         merged = self._deep_merge(workspace.base_config, scenario.config_overrides)
         logger.info(f"E091: Merged config simulation: {merged.get('simulation', {})}")
+
+        # Ensure employer_match and employer_core_contribution always have defaults
+        # This handles workspaces created before these sections were added
+        if "employer_match" not in merged:
+            merged["employer_match"] = {
+                "active_formula": "simple_match",
+                "formulas": {
+                    "simple_match": {
+                        "name": "Simple Match",
+                        "type": "simple",
+                        "match_rate": 0.50,
+                        "max_match_percentage": 0.06,
+                    },
+                },
+            }
+        if "employer_core_contribution" not in merged:
+            merged["employer_core_contribution"] = {
+                "enabled": True,
+                "status": "flat",
+                "contribution_rate": 0.03,
+            }
+
         return merged
 
     def _deep_merge(
