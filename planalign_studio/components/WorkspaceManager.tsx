@@ -64,7 +64,11 @@ export default function WorkspaceManager() {
       name: newName,
       description: newDesc || 'No description provided.',
       scenarios: [],
-      lastRun: 'Never'
+      lastRun: 'Never',
+      created_at: new Date().toISOString(),
+      updated_at: new Date().toISOString(),
+      base_config: {},
+      storage_path: '',
     };
 
     addWorkspace(newWorkspace);

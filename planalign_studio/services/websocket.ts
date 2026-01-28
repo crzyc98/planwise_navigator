@@ -81,7 +81,7 @@ export function useSimulationSocket(runId: string | null): UseSimulationSocketRe
   const [recentEvents, setRecentEvents] = useState<SimulationTelemetry['recent_events']>([]);
 
   const wsRef = useRef<WebSocket | null>(null);
-  const reconnectTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const reconnectTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const maxReconnectAttempts = 5;
   const reconnectDelay = 2000;
 
@@ -224,7 +224,7 @@ export function useBatchSocket(batchId: string | null): UseBatchSocketResult {
   const [batchStatus, setBatchStatus] = useState<BatchTelemetry | null>(null);
 
   const wsRef = useRef<WebSocket | null>(null);
-  const reconnectTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const reconnectTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const maxReconnectAttempts = 5;
   const reconnectDelay = 2000;
 

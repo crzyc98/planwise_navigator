@@ -278,6 +278,7 @@ export default function ConfigStudio() {
     dcEscalationHireDateCutoff: '2020-01-01',
 
     // Advanced Settings
+    engine: 'sql' as const, // Legacy field, always 'sql' now
     enableMultithreading: true,
     checkpointFrequency: 'year', // 'year', 'stage', 'none'
     memoryLimitGB: 4.0,
@@ -1525,9 +1526,9 @@ export default function ConfigStudio() {
 
                           // E089: Auto-save census path to prevent data loss
                           let autoSaved = false;
-                          if (activeScenario && activeWorkspace) {
+                          if (currentScenario && activeWorkspace) {
                             try {
-                              await updateScenario(activeWorkspace.id, activeScenario.id, {
+                              await updateScenario(activeWorkspace.id, currentScenario.id, {
                                 config_overrides: {
                                   data_sources: {
                                     census_parquet_path: result.file_path,
@@ -2844,7 +2845,7 @@ export default function ConfigStudio() {
                       <select
                         value={formData.dcMatchTemplate}
                         onChange={(e) => {
-                          const templateKey = e.target.value as keyof typeof MATCH_TEMPLATES;
+                          const templateKey = e.target.value as 'simple' | 'tiered' | 'stretch' | 'safe_harbor' | 'qaca';
                           const template = MATCH_TEMPLATES[templateKey];
                           if (template) {
                             setFormData(prev => ({

@@ -52,7 +52,7 @@ export const useMockSimulationSocket = (simulationId: string | null) => {
         let newProgress = prev.progress_percent + Math.random() * 5;
         let newStage = prev.current_stage;
         let newYear = prev.current_year;
-        let newStatus = prev.status;
+        let newStatus: 'queued' | 'running' | 'paused' | 'completed' | 'failed' = prev.status;
 
         if (newProgress >= 100) {
           const currentStageIndex = STAGES.indexOf(prev.current_stage);

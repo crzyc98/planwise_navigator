@@ -91,7 +91,7 @@ export default function ScenarioComparison() {
               const newMap = new Map(prev);
               const existing = newMap.get(scenario.id);
               if (existing) {
-                newMap.set(scenario.id, { ...existing, results, loading: false });
+                newMap.set(scenario.id, { scenario: existing.scenario, results, loading: false, error: null });
               }
               return newMap;
             });
@@ -105,7 +105,8 @@ export default function ScenarioComparison() {
               const existing = newMap.get(scenario.id);
               if (existing) {
                 newMap.set(scenario.id, {
-                  ...existing,
+                  scenario: existing.scenario,
+                  results: existing.results,
                   loading: false,
                   error: isMissingResults
                     ? `${scenario.name} has not been run yet or has no results`
@@ -126,9 +127,9 @@ export default function ScenarioComparison() {
     loadScenarios();
   }, [scenarioIds.join(',')]);
 
-  // Get all scenarios with results
-  const scenariosWithResults = Array.from(scenarioData.values())
-    .filter(d => d.results !== null);
+  // Get all scenarios with results (explicitly typed for TypeScript)
+  const scenariosWithResults: Array<ScenarioData & { results: SimulationResults }> = Array.from(scenarioData.values())
+    .filter((d): d is ScenarioData & { results: SimulationResults } => d.results !== null);
 
   // Build comparison data for charts
   const buildComparisonData = () => {
