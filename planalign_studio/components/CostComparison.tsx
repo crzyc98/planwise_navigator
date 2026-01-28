@@ -19,18 +19,46 @@ import { MOCK_CONFIGS, RETIREMENT_COST_DATA, COLORS } from '../constants';
 export default function CostComparison() {
   const { activeWorkspace } = useOutletContext<LayoutContextType>();
 
-  // Get all configs for the current workspace
+  // Get all configs for the current workspace (safe with optional chaining)
   const workspaceConfigs = useMemo(() => {
+    if (!activeWorkspace) return [];
     return MOCK_CONFIGS.filter(c => activeWorkspace.scenarios.includes(c.id));
-  }, [activeWorkspace.scenarios]);
+  }, [activeWorkspace]);
 
-  // UI State
-  const [selectedIds, setSelectedIds] = useState<string[]>(
+  // Issue 5: Memoized config name lookup for O(1) access
+  const configNameMap = useMemo(() => {
+    const map: Record<string, string> = {};
+    workspaceConfigs.forEach(c => {
+      map[c.id] = c.name;
+    });
+    return map;
+  }, [workspaceConfigs]);
+
+  // UI State - hooks must be called unconditionally
+  const [selectedIds, setSelectedIds] = useState<string[]>(() =>
     workspaceConfigs.slice(0, 3).map(c => c.id)
   );
-  const [baselineId, setBaselineId] = useState<string>(workspaceConfigs[0]?.id || '');
+  const [baselineId, setBaselineId] = useState<string>(() => workspaceConfigs[0]?.id || '');
   const [viewMode, setViewMode] = useState<'annual' | 'cumulative'>('annual');
   const [searchQuery, setSearchQuery] = useState('');
+
+  // Issue 1: Early return if no workspace (after all hooks)
+  if (!activeWorkspace) {
+    return (
+      <div className="flex items-center justify-center h-full text-gray-500">
+        No workspace selected
+      </div>
+    );
+  }
+
+  // Issue 2: Guard for empty workspaceConfigs (after all hooks)
+  if (workspaceConfigs.length === 0) {
+    return (
+      <div className="flex items-center justify-center h-full text-gray-500">
+        No scenarios configured for this workspace
+      </div>
+    );
+  }
 
   const toggleSelection = (id: string) => {
     if (selectedIds.includes(id)) {
@@ -103,6 +131,15 @@ export default function CostComparison() {
 
   // Transformation logic for charts
   const processedData = useMemo(() => {
+    // Issue 6: Validate data availability
+    const firstRow = RETIREMENT_COST_DATA[0] as Record<string, unknown> | undefined;
+    if (firstRow) {
+      const missingScenarios = selectedIds.filter(id => !(id in firstRow));
+      if (missingScenarios.length > 0) {
+        console.warn(`Missing cost data for scenarios: ${missingScenarios.join(', ')}`);
+      }
+    }
+
     const data = RETIREMENT_COST_DATA.map((yearRow: any) => {
       const row: any = { year: yearRow.year };
 
@@ -286,7 +323,7 @@ export default function CostComparison() {
                 <Calendar size={12} className="mr-1.5" /> {yearCount}-Year Plan
               </span>
               <span className="flex items-center text-xs font-medium text-gray-500 bg-gray-100 px-2 py-1 rounded">
-                <DollarSign size={12} className="mr-1.5" /> ${baselineSummary.cumulativeTotal.toFixed(1)}M Total Costs
+                <DollarSign size={12} className="mr-1.5" /> ${baselineSummary.cumulativeTotal.toFixed(2)}M Total Costs
               </span>
             </div>
           </div>
@@ -359,7 +396,7 @@ export default function CostComparison() {
                     <Bar
                       key={id}
                       dataKey={id}
-                      name={workspaceConfigs.find(c => c.id === id)?.name || id}
+                      name={configNameMap[id] || id}
                       fill={id === baselineId ? '#1e293b' : scenarioColorMap[id]}
                       radius={[4, 4, 0, 0]}
                       barSize={selectedIds.length > 4 ? 12 : 30}
@@ -380,7 +417,7 @@ export default function CostComparison() {
                       key={id}
                       type="monotone"
                       dataKey={id}
-                      name={workspaceConfigs.find(c => c.id === id)?.name || id}
+                      name={configNameMap[id] || id}
                       stroke={id === baselineId ? '#1e293b' : scenarioColorMap[id]}
                       fill={id === baselineId ? '#1e293b' : scenarioColorMap[id]}
                       fillOpacity={0.1}
@@ -420,7 +457,7 @@ export default function CostComparison() {
                      key={`${id}_delta`}
                      type="monotone"
                      dataKey={`${id}_delta`}
-                     name={`Delta: ${workspaceConfigs.find(c => c.id === id)?.name}`}
+                     name={`Delta: ${configNameMap[id]}`}
                      stroke={scenarioColorMap[id]}
                      strokeWidth={2}
                      dot={{ r: 4 }}
@@ -459,7 +496,6 @@ export default function CostComparison() {
               </thead>
               <tbody className="divide-y divide-gray-100 bg-white">
                 {selectedIds.map((id) => {
-                  const config = workspaceConfigs.find(c => c.id === id);
                   const isBaseline = id === baselineId;
 
                   const annuals = RETIREMENT_COST_DATA.map(d => (d as any)[id] || 0);
@@ -473,7 +509,7 @@ export default function CostComparison() {
                         <div className="flex items-center">
                           <div className={`w-2 h-2 rounded-full mr-2 ${isBaseline ? 'bg-blue-600' : 'bg-fidelity-green'}`} />
                           <span className={`text-sm font-bold ${isBaseline ? 'text-blue-700' : 'text-gray-900'}`}>
-                            {config?.name}
+                            {configNameMap[id]}
                             {isBaseline && <span className="ml-2 text-[8px] font-bold bg-blue-100 text-blue-600 px-1 py-0.5 rounded uppercase">Anchor</span>}
                           </span>
                         </div>
