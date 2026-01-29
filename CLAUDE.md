@@ -791,6 +791,8 @@ See `/docs/VERSIONING_GUIDE.md` for detailed versioning workflow.
 - N/A (code refactoring only) (027-tech-debt-modularization)
 - SQL (DuckDB 1.0.0) with Jinja2 templating (dbt-core 1.8.8) + dbt-duckdb 1.8.1, DuckDB 1.0.0 (028-fix-snapshot-perf-regression)
 - DuckDB database at `dbt/simulation.duckdb` (028-fix-snapshot-perf-regression)
+- Python 3.11 + FastAPI, Pydantic v2 (029-fix-vesting-endpoint)
+- N/A (bug fix, no storage changes) (029-fix-vesting-endpoint)
 
 ## Recent Changes
 - 024-remove-polars-pipeline: Removed Polars dependency, simplified to SQL-only mode

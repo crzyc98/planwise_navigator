@@ -201,23 +201,48 @@ class VestingService:
         return result[0] if result and result[0] else 2025
 
     def _get_terminated_employees(self, conn, year: int) -> List[dict]:
-        """Query terminated employees with employer contributions (T025)."""
-        query = """
-            SELECT
-                employee_id,
-                employee_hire_date,
-                termination_date,
-                current_tenure,
-                tenure_band,
-                COALESCE(total_employer_contributions, 0) as total_employer_contributions,
-                COALESCE(annual_hours_worked, 0) as annual_hours_worked
-            FROM fct_workforce_snapshot
-            WHERE simulation_year = ?
-              AND UPPER(employment_status) = 'TERMINATED'
-              AND total_employer_contributions > 0
-            ORDER BY total_employer_contributions DESC
+        """Query terminated employees with employer contributions (T025).
+
+        Note: When employees are terminated, their total_employer_contributions
+        is reset to 0 in the snapshot. We need to look up their contributions
+        from the prior year when they were still active.
         """
-        result = conn.execute(query, [year]).fetchall()
+        query = """
+            WITH terminated_this_year AS (
+                SELECT
+                    t.employee_id,
+                    t.employee_hire_date,
+                    t.termination_date,
+                    t.current_tenure,
+                    t.tenure_band,
+                    COALESCE(t.annual_hours_worked, 0) as annual_hours_worked
+                FROM fct_workforce_snapshot t
+                WHERE t.simulation_year = ?
+                  AND UPPER(t.employment_status) = 'TERMINATED'
+            ),
+            prior_year_contributions AS (
+                SELECT
+                    employee_id,
+                    total_employer_contributions
+                FROM fct_workforce_snapshot
+                WHERE simulation_year = ? - 1
+                  AND UPPER(employment_status) = 'ACTIVE'
+            )
+            SELECT
+                t.employee_id,
+                t.employee_hire_date,
+                t.termination_date,
+                t.current_tenure,
+                t.tenure_band,
+                COALESCE(p.total_employer_contributions, 0) as total_employer_contributions,
+                t.annual_hours_worked
+            FROM terminated_this_year t
+            LEFT JOIN prior_year_contributions p
+              ON t.employee_id = p.employee_id
+            WHERE COALESCE(p.total_employer_contributions, 0) > 0
+            ORDER BY p.total_employer_contributions DESC
+        """
+        result = conn.execute(query, [year, year]).fetchall()
         columns = [
             'employee_id', 'employee_hire_date', 'termination_date',
             'current_tenure', 'tenure_band', 'total_employer_contributions',
