@@ -67,7 +67,7 @@ async def analyze_vesting(
     if not scenario:
         raise HTTPException(status_code=404, detail="Scenario not found")
 
-    scenario_name = scenario.get("name", scenario_id)
+    scenario_name = scenario.name or scenario_id
 
     result = vesting_service.analyze_vesting(
         workspace_id, scenario_id, scenario_name, request

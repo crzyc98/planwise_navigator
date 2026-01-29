@@ -5,7 +5,6 @@
     "context": "..",
     "args": {
       "TZ": "${localEnv:TZ:America/New_York}",
-      "CLAUDE_CODE_VERSION": "latest",
       "GIT_DELTA_VERSION": "0.18.2",
       "ZSH_IN_DOCKER_VERSION": "1.2.0"
     }
@@ -29,7 +28,7 @@
         "dbaeumer.vscode-eslint"
       ],
       "settings": {
-        "python.defaultInterpreterPath": "/workspace/.venv/bin/python",
+        "python.defaultInterpreterPath": "/home/node/venv/bin/python",
         "editor.formatOnSave": true,
         "editor.defaultFormatter": "esbenp.prettier-vscode",
         "[python]": {
@@ -60,8 +59,11 @@
     "DBT_PROFILES_DIR": "/workspace/dbt",
     "DEVCONTAINER": "true"
   },
+  "remoteEnv": {
+    "PATH": "/home/node/.local/bin:${containerEnv:PATH}"
+  },
   "workspaceMount": "source=${localWorkspaceFolder},target=/workspace,type=bind,consistency=delegated",
   "workspaceFolder": "/workspace",
-  "postCreateCommand": "uv venv .venv && .venv/bin/pip install -e '.[dev]' || echo 'Python setup failed - run manually'",
+  "postCreateCommand": "uv venv /home/node/venv && /home/node/venv/bin/pip install -e '.[dev]' dbt-core || echo 'Setup failed'",
   "postStartCommand": "echo 'Container started - run: sudo /usr/local/bin/init-firewall.sh to enable firewall'"
 }
