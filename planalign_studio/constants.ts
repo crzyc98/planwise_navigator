@@ -21,7 +21,7 @@ export const MOCK_WORKSPACES: Workspace[] = [
   {
     id: 'ws_002',
     name: 'Tech Org Restructure',
-    description: 'Analysis of engineering department scaling scenarios.',
+    description: null,
     scenarios: ['cfg_003'],
     lastRun: '1 week ago',
     created_at: '2025-01-01T00:00:00Z',

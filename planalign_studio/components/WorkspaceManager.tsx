@@ -30,13 +30,13 @@ export default function WorkspaceManager() {
 
   const filteredWorkspaces = workspaces.filter(ws =>
     ws.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-    ws.description.toLowerCase().includes(searchQuery.toLowerCase())
+    (ws.description ?? '').toLowerCase().includes(searchQuery.toLowerCase())
   );
 
   const startEditing = (ws: Workspace) => {
     setEditingId(ws.id);
     setEditName(ws.name);
-    setEditDesc(ws.description);
+    setEditDesc(ws.description ?? '');
   };
 
   const saveEdit = (id: string) => {
@@ -171,7 +171,7 @@ export default function WorkspaceManager() {
                   )}
                 </div>
                 <p className="text-sm text-gray-600 mb-4 line-clamp-2 min-h-[40px]">
-                  {ws.description}
+                  {ws.description || 'No description'}
                 </p>
                 <div className="flex items-center text-xs text-gray-500 mb-4 space-x-4">
                   <span className="flex items-center">

@@ -793,6 +793,8 @@ See `/docs/VERSIONING_GUIDE.md` for detailed versioning workflow.
 - DuckDB database at `dbt/simulation.duckdb` (028-fix-snapshot-perf-regression)
 - Python 3.11 + FastAPI, Pydantic v2 (029-fix-vesting-endpoint)
 - N/A (bug fix, no storage changes) (029-fix-vesting-endpoint)
+- TypeScript 5.x (frontend only) + React 18, Lucide-react (icons), existing Tailwind CSS (030-vesting-hours-toggle)
+- N/A (frontend state only; backend unchanged) (030-vesting-hours-toggle)
 
 ## Recent Changes
 - 024-remove-polars-pipeline: Removed Polars dependency, simplified to SQL-only mode
