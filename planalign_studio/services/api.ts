@@ -379,6 +379,19 @@ export async function cancelSimulation(scenarioId: string): Promise<{ success: b
   return handleResponse<{ success: boolean }>(response);
 }
 
+export async function resetSimulation(scenarioId: string): Promise<{
+  success: boolean;
+  scenario_id: string;
+  previous_status: string;
+  new_status: string;
+  message: string;
+}> {
+  const response = await fetch(`${API_BASE}/api/scenarios/${scenarioId}/run/reset`, {
+    method: 'POST',
+  });
+  return handleResponse(response);
+}
+
 export async function getSimulationResults(scenarioId: string): Promise<SimulationResults> {
   const response = await fetch(`${API_BASE}/api/scenarios/${scenarioId}/results`);
   return handleResponse<SimulationResults>(response);
