@@ -352,6 +352,21 @@ class VestingService:
             forfeiture_variance_pct=variance_pct
         )
 
+    def _tenure_band_sort_key(self, band: str) -> int:
+        """Extract numeric sort key from tenure band string.
+
+        Handles formats like: '<2', '2-4', '5-9', '10-19', '20+'
+        """
+        import re
+        # Extract first number from the band string
+        match = re.search(r'\d+', band)
+        if match:
+            return int(match.group())
+        # '<2' or similar - sort first
+        if '<' in band:
+            return 0
+        return 999  # Unknown format goes last
+
     def _aggregate_by_tenure_band(
         self,
         details: List[EmployeeVestingDetail]
@@ -381,7 +396,7 @@ class VestingService:
                 proposed_forfeitures=data['proposed_forfeitures'],
                 forfeiture_variance=data['proposed_forfeitures'] - data['current_forfeitures']
             )
-            for band, data in sorted(bands.items())
+            for band, data in sorted(bands.items(), key=lambda x: self._tenure_band_sort_key(x[0]))
         ]
 
     def analyze_vesting(

@@ -795,6 +795,8 @@ See `/docs/VERSIONING_GUIDE.md` for detailed versioning workflow.
 - N/A (bug fix, no storage changes) (029-fix-vesting-endpoint)
 - TypeScript 5.x (frontend only) + React 18, Lucide-react (icons), existing Tailwind CSS (030-vesting-hours-toggle)
 - N/A (frontend state only; backend unchanged) (030-vesting-hours-toggle)
+- Python 3.11 (backend), TypeScript 5.x (frontend) + FastAPI (backend), React 18 + Vite (frontend), py7zr (7z compression), Pydantic v2 (validation) (031-workspace-export)
+- Filesystem (workspace directories at `~/.planalign/workspaces/`), 7z archives for export/impor (031-workspace-export)
 
 ## Recent Changes
 - 024-remove-polars-pipeline: Removed Polars dependency, simplified to SQL-only mode
