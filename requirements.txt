@@ -12,7 +12,6 @@ scikit-learn>=1.3.0
 hypothesis>=6.0.0
 
 # Performance optimization dependencies
-polars>=0.20.0
 lz4>=4.3.3
 psutil>=5.9.0
 networkx>=3.0
@@ -36,3 +35,6 @@ uvicorn[standard]>=0.27.0
 pydantic-settings>=2.1.0
 python-multipart>=0.0.6
 websockets>=12.0
+
+# Export/Import dependencies (031-workspace-export)
+py7zr>=1.0.0

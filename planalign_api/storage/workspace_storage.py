@@ -765,3 +765,61 @@ class WorkspaceStorage:
             "status": "not_run",
             "created_at": created_at,
         }
+
+    # ==================== Export Operations ====================
+
+    def get_workspace_files_for_export(self, workspace_id: str) -> List[Path]:
+        """Get list of all files in a workspace for export.
+
+        Args:
+            workspace_id: UUID of the workspace
+
+        Returns:
+            List of Path objects for all files in the workspace directory
+
+        Raises:
+            ValueError: If workspace does not exist
+        """
+        workspace_path = self._workspace_path(workspace_id)
+        if not workspace_path.exists():
+            raise ValueError(f"Workspace not found: {workspace_id}")
+
+        files = []
+        for file_path in workspace_path.rglob("*"):
+            if file_path.is_file():
+                files.append(file_path)
+
+        return files
+
+    def is_simulation_running(self, workspace_id: str) -> bool:
+        """Check if any simulation is currently running for a workspace.
+
+        This checks for running scenarios by looking at scenario status fields.
+
+        Args:
+            workspace_id: UUID of the workspace
+
+        Returns:
+            True if any scenario has a 'running' status, False otherwise
+        """
+        scenarios_dir = self._scenarios_path(workspace_id)
+        if not scenarios_dir.exists():
+            return False
+
+        for scenario_dir in scenarios_dir.iterdir():
+            if not scenario_dir.is_dir():
+                continue
+
+            scenario_json = scenario_dir / "scenario.json"
+            if not scenario_json.exists():
+                continue
+
+            try:
+                with open(scenario_json) as f:
+                    data = json.load(f)
+                if data.get("status") == "running":
+                    return True
+            except (json.JSONDecodeError, IOError):
+                continue
+
+        return False

@@ -1,11 +1,12 @@
-import React, { useState } from 'react';
+import React, { useState, useRef } from 'react';
 import { useOutletContext, useNavigate } from 'react-router-dom';
 import {
   Briefcase, Search, Plus, Trash2, Edit2, Check, X,
-  ArrowRight, Layout, Calendar
+  ArrowRight, Layout, Calendar, Download, Upload, AlertCircle, Loader2
 } from 'lucide-react';
 import { LayoutContextType } from './Layout';
 import { Workspace } from '../types';
+import * as api from '../services/api';
 
 export default function WorkspaceManager() {
   const navigate = useNavigate();
@@ -28,15 +29,27 @@ export default function WorkspaceManager() {
   const [newName, setNewName] = useState('');
   const [newDesc, setNewDesc] = useState('');
 
+  // Export/Import state
+  const [exportingId, setExportingId] = useState<string | null>(null);
+  const [isImportOpen, setIsImportOpen] = useState(false);
+  const [importFile, setImportFile] = useState<File | null>(null);
+  const [importValidation, setImportValidation] = useState<api.ImportValidationResponse | null>(null);
+  const [importError, setImportError] = useState<string | null>(null);
+  const [isValidating, setIsValidating] = useState(false);
+  const [isImporting, setIsImporting] = useState(false);
+  const [conflictResolution, setConflictResolution] = useState<'rename' | 'replace'>('rename');
+  const [customName, setCustomName] = useState('');
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
   const filteredWorkspaces = workspaces.filter(ws =>
     ws.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-    ws.description.toLowerCase().includes(searchQuery.toLowerCase())
+    (ws.description ?? '').toLowerCase().includes(searchQuery.toLowerCase())
   );
 
   const startEditing = (ws: Workspace) => {
     setEditingId(ws.id);
     setEditName(ws.name);
-    setEditDesc(ws.description);
+    setEditDesc(ws.description ?? '');
   };
 
   const saveEdit = (id: string) => {
@@ -82,6 +95,77 @@ export default function WorkspaceManager() {
     navigate('/');
   };
 
+  // Export a single workspace
+  const handleExport = async (workspaceId: string) => {
+    setExportingId(workspaceId);
+    try {
+      await api.exportWorkspace(workspaceId);
+    } catch (err) {
+      console.error('Export failed:', err);
+      alert(`Export failed: ${err instanceof Error ? err.message : 'Unknown error'}`);
+    } finally {
+      setExportingId(null);
+    }
+  };
+
+  // Handle file selection for import
+  const handleFileSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    setImportFile(file);
+    setImportValidation(null);
+    setImportError(null);
+    setIsValidating(true);
+
+    try {
+      const validation = await api.validateImport(file);
+      setImportValidation(validation);
+      if (validation.conflict) {
+        setCustomName(validation.conflict.suggested_name);
+      }
+    } catch (err) {
+      setImportError(err instanceof Error ? err.message : 'Validation failed');
+    } finally {
+      setIsValidating(false);
+    }
+  };
+
+  // Execute import
+  const handleImport = async () => {
+    if (!importFile || !importValidation?.valid) return;
+
+    setIsImporting(true);
+    try {
+      const resolution = importValidation.conflict ? conflictResolution : undefined;
+      const newWorkspaceName = conflictResolution === 'rename' ? customName : undefined;
+
+      await api.importWorkspace(importFile, resolution, newWorkspaceName);
+
+      // Refresh workspace list (handled by parent context)
+      window.location.reload();
+    } catch (err) {
+      setImportError(err instanceof Error ? err.message : 'Import failed');
+    } finally {
+      setIsImporting(false);
+    }
+  };
+
+  // Reset import dialog
+  const closeImportDialog = () => {
+    setIsImportOpen(false);
+    setImportFile(null);
+    setImportValidation(null);
+    setImportError(null);
+    setIsValidating(false);
+    setIsImporting(false);
+    setConflictResolution('rename');
+    setCustomName('');
+    if (fileInputRef.current) {
+      fileInputRef.current.value = '';
+    }
+  };
+
   return (
     <div className="max-w-6xl mx-auto animate-fadeIn">
       {/* Header */}
@@ -90,13 +174,22 @@ export default function WorkspaceManager() {
           <h1 className="text-2xl font-bold text-gray-900">Manage Workspaces</h1>
           <p className="text-gray-500 mt-1">Organize your simulation environments and projects.</p>
         </div>
-        <button
-          onClick={() => setIsCreateOpen(true)}
-          className="flex items-center px-4 py-2 bg-fidelity-green text-white rounded-lg hover:bg-fidelity-dark transition-colors shadow-sm"
-        >
-          <Plus size={20} className="mr-2" />
-          Create New Workspace
-        </button>
+        <div className="flex gap-2">
+          <button
+            onClick={() => setIsImportOpen(true)}
+            className="flex items-center px-4 py-2 bg-white border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors shadow-sm"
+          >
+            <Upload size={20} className="mr-2" />
+            Import
+          </button>
+          <button
+            onClick={() => setIsCreateOpen(true)}
+            className="flex items-center px-4 py-2 bg-fidelity-green text-white rounded-lg hover:bg-fidelity-dark transition-colors shadow-sm"
+          >
+            <Plus size={20} className="mr-2" />
+            Create New Workspace
+          </button>
+        </div>
       </div>
 
       {/* Search Bar */}
@@ -171,7 +264,7 @@ export default function WorkspaceManager() {
                   )}
                 </div>
                 <p className="text-sm text-gray-600 mb-4 line-clamp-2 min-h-[40px]">
-                  {ws.description}
+                  {ws.description || 'No description'}
                 </p>
                 <div className="flex items-center text-xs text-gray-500 mb-4 space-x-4">
                   <span className="flex items-center">
@@ -197,6 +290,18 @@ export default function WorkspaceManager() {
                       title="Edit"
                     >
                       <Edit2 size={16} />
+                    </button>
+                    <button
+                      onClick={() => handleExport(ws.id)}
+                      disabled={exportingId === ws.id}
+                      className="p-1.5 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded-md transition-colors disabled:opacity-50"
+                      title="Export"
+                    >
+                      {exportingId === ws.id ? (
+                        <Loader2 size={16} className="animate-spin" />
+                      ) : (
+                        <Download size={16} />
+                      )}
                     </button>
                     {workspaces.length > 1 && (
                       <button
@@ -286,6 +391,155 @@ export default function WorkspaceManager() {
                 </button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {/* Import Modal */}
+      {isImportOpen && (
+        <div className="fixed inset-0 z-[60] flex items-center justify-center p-4">
+          <div className="absolute inset-0 bg-black/50 backdrop-blur-sm" onClick={closeImportDialog}></div>
+          <div className="bg-white rounded-xl shadow-2xl w-full max-w-lg relative z-10 overflow-hidden animate-fadeIn">
+            <div className="px-6 py-4 border-b border-gray-100 flex justify-between items-center bg-gray-50">
+              <h3 className="font-semibold text-gray-800">Import Workspace</h3>
+              <button onClick={closeImportDialog} className="text-gray-400 hover:text-gray-600">
+                <X size={20} />
+              </button>
+            </div>
+            <div className="p-6 space-y-4">
+              {/* File Selection */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Select Archive File (.7z)
+                </label>
+                <input
+                  ref={fileInputRef}
+                  type="file"
+                  accept=".7z"
+                  onChange={handleFileSelect}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-fidelity-green focus:border-fidelity-green file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border-0 file:text-sm file:font-medium file:bg-fidelity-green file:text-white hover:file:bg-fidelity-dark"
+                />
+              </div>
+
+              {/* Validation Status */}
+              {isValidating && (
+                <div className="flex items-center text-gray-600">
+                  <Loader2 size={16} className="animate-spin mr-2" />
+                  Validating archive...
+                </div>
+              )}
+
+              {/* Validation Error */}
+              {importError && (
+                <div className="p-3 bg-red-50 border border-red-200 rounded-lg flex items-start">
+                  <AlertCircle size={20} className="text-red-500 mr-2 flex-shrink-0 mt-0.5" />
+                  <div className="text-sm text-red-700">{importError}</div>
+                </div>
+              )}
+
+              {/* Validation Results */}
+              {importValidation && !importValidation.valid && (
+                <div className="p-3 bg-red-50 border border-red-200 rounded-lg">
+                  <div className="font-medium text-red-800 mb-2">Validation Failed</div>
+                  <ul className="text-sm text-red-700 list-disc list-inside">
+                    {importValidation.errors.map((err, i) => (
+                      <li key={i}>{err}</li>
+                    ))}
+                  </ul>
+                </div>
+              )}
+
+              {importValidation?.valid && (
+                <>
+                  {/* Manifest Info */}
+                  <div className="p-3 bg-green-50 border border-green-200 rounded-lg">
+                    <div className="font-medium text-green-800 mb-2">Archive Valid</div>
+                    <div className="text-sm text-green-700 space-y-1">
+                      <div><span className="font-medium">Name:</span> {importValidation.manifest?.workspace_name}</div>
+                      <div><span className="font-medium">Scenarios:</span> {importValidation.manifest?.contents.scenario_count}</div>
+                      <div><span className="font-medium">Exported:</span> {importValidation.manifest?.export_date ? new Date(importValidation.manifest.export_date).toLocaleString() : 'Unknown'}</div>
+                    </div>
+                  </div>
+
+                  {/* Warnings */}
+                  {importValidation.warnings.length > 0 && (
+                    <div className="p-3 bg-yellow-50 border border-yellow-200 rounded-lg">
+                      <div className="font-medium text-yellow-800 mb-2">Warnings</div>
+                      <ul className="text-sm text-yellow-700 list-disc list-inside">
+                        {importValidation.warnings.map((warn, i) => (
+                          <li key={i}>{warn}</li>
+                        ))}
+                      </ul>
+                    </div>
+                  )}
+
+                  {/* Conflict Resolution */}
+                  {importValidation.conflict && (
+                    <div className="p-3 bg-orange-50 border border-orange-200 rounded-lg">
+                      <div className="font-medium text-orange-800 mb-2">Name Conflict</div>
+                      <p className="text-sm text-orange-700 mb-3">
+                        A workspace named "{importValidation.conflict.existing_workspace_name}" already exists.
+                      </p>
+                      <div className="space-y-2">
+                        <label className="flex items-center">
+                          <input
+                            type="radio"
+                            name="conflict"
+                            value="rename"
+                            checked={conflictResolution === 'rename'}
+                            onChange={() => setConflictResolution('rename')}
+                            className="mr-2"
+                          />
+                          <span className="text-sm text-gray-700">Rename to:</span>
+                        </label>
+                        {conflictResolution === 'rename' && (
+                          <input
+                            type="text"
+                            value={customName}
+                            onChange={(e) => setCustomName(e.target.value)}
+                            className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-fidelity-green focus:border-fidelity-green text-sm"
+                          />
+                        )}
+                        <label className="flex items-center">
+                          <input
+                            type="radio"
+                            name="conflict"
+                            value="replace"
+                            checked={conflictResolution === 'replace'}
+                            onChange={() => setConflictResolution('replace')}
+                            className="mr-2"
+                          />
+                          <span className="text-sm text-gray-700">Replace existing workspace</span>
+                        </label>
+                      </div>
+                    </div>
+                  )}
+                </>
+              )}
+
+              {/* Actions */}
+              <div className="flex justify-end space-x-3 pt-2">
+                <button
+                  type="button"
+                  onClick={closeImportDialog}
+                  className="px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-100 rounded-lg"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={handleImport}
+                  disabled={!importValidation?.valid || isImporting}
+                  className={`px-4 py-2 text-sm font-medium text-white rounded-lg transition-colors flex items-center ${
+                    !importValidation?.valid || isImporting
+                      ? 'bg-gray-300 cursor-not-allowed'
+                      : 'bg-fidelity-green hover:bg-fidelity-dark'
+                  }`}
+                >
+                  {isImporting && <Loader2 size={16} className="animate-spin mr-2" />}
+                  Import Workspace
+                </button>
+              </div>
+            </div>
           </div>
         </div>
       )}

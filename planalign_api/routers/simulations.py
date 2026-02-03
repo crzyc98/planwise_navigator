@@ -203,6 +203,46 @@ async def cancel_simulation(
     )
 
 
+@router.post("/{scenario_id}/run/reset")
+async def reset_simulation_status(
+    scenario_id: str,
+    storage: WorkspaceStorage = Depends(get_storage),
+) -> Dict[str, Any]:
+    """Force reset a stuck simulation status."""
+    workspace, scenario = _find_scenario_and_workspace(storage, scenario_id)
+    if not scenario or not workspace:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Scenario {scenario_id} not found",
+        )
+
+    # Only allow reset if status is "running" or "queued"
+    if scenario.status not in ("running", "queued"):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"Scenario status is '{scenario.status}', not stuck",
+        )
+
+    # Check if actually running (has active process)
+    if scenario.last_run_id and scenario.last_run_id in _active_runs:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="Simulation is actively running. Use cancel instead.",
+        )
+
+    # Reset the status
+    previous_status = scenario.status
+    storage.update_scenario_status(workspace.id, scenario_id, "failed", None)
+
+    return {
+        "success": True,
+        "scenario_id": scenario_id,
+        "previous_status": previous_status,
+        "new_status": "failed",
+        "message": "Simulation status reset from stuck state",
+    }
+
+
 @router.get("/{scenario_id}/runs", response_model=List[RunSummary])
 async def list_runs(
     scenario_id: str,

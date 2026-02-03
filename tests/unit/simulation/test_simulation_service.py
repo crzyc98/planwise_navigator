@@ -1,7 +1,6 @@
 """Tests for SimulationService class."""
 
-from pathlib import Path
-from unittest.mock import MagicMock, AsyncMock, patch
+from unittest.mock import MagicMock, patch
 import pytest
 
 from planalign_api.services.simulation.service import SimulationService

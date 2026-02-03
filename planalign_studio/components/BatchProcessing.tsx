@@ -33,7 +33,7 @@ export default function BatchProcessing() {
   // Creation State
   const [newBatchName, setNewBatchName] = useState('');
   const [selectedScenarioIds, setSelectedScenarioIds] = useState<string[]>([]);
-  const [executionMode, setExecutionMode] = useState<'parallel' | 'sequential'>('parallel');
+  const [executionMode, setExecutionMode] = useState<'parallel' | 'sequential'>('sequential');
   const [exportFormat, setExportFormat] = useState<'excel' | 'csv'>('excel');
   const [isSubmitting, setIsSubmitting] = useState(false);
 
@@ -223,25 +223,25 @@ export default function BatchProcessing() {
             <div className="flex rounded-md shadow-sm" role="group">
               <button
                 type="button"
-                onClick={() => setExecutionMode('parallel')}
-                className={`flex-1 px-4 py-2 text-sm font-medium border rounded-l-lg ${
-                  executionMode === 'parallel'
-                    ? 'bg-fidelity-green text-white border-fidelity-green'
-                    : 'bg-white text-gray-700 border-gray-300 hover:bg-gray-50'
-                }`}
+                disabled
+                title="Parallel mode is not yet supported"
+                className="flex-1 px-4 py-2 text-sm font-medium border rounded-l-lg bg-gray-100 text-gray-400 border-gray-200 cursor-not-allowed"
               >
                 Parallel
               </button>
               <button
                 type="button"
-                disabled
-                title="Sequential mode is not yet supported"
-                className="flex-1 px-4 py-2 text-sm font-medium border rounded-r-lg bg-gray-100 text-gray-400 border-gray-200 cursor-not-allowed"
+                onClick={() => setExecutionMode('sequential')}
+                className={`flex-1 px-4 py-2 text-sm font-medium border rounded-r-lg ${
+                  executionMode === 'sequential'
+                    ? 'bg-fidelity-green text-white border-fidelity-green'
+                    : 'bg-white text-gray-700 border-gray-300 hover:bg-gray-50'
+                }`}
               >
                 Sequential
               </button>
             </div>
-            <p className="text-xs text-gray-500 mt-1">Parallel runs all scenarios simultaneously.</p>
+            <p className="text-xs text-gray-500 mt-1">Sequential runs scenarios one at a time.</p>
           </div>
 
           <div>
