@@ -797,6 +797,8 @@ See `/docs/VERSIONING_GUIDE.md` for detailed versioning workflow.
 - N/A (frontend state only; backend unchanged) (030-vesting-hours-toggle)
 - Python 3.11 (backend), TypeScript 5.x (frontend) + FastAPI (backend), React 18 + Vite (frontend), py7zr (7z compression), Pydantic v2 (validation) (031-workspace-export)
 - Filesystem (workspace directories at `~/.planalign/workspaces/`), 7z archives for export/impor (031-workspace-export)
+- Python 3.12.x (primary), Python 3.11.x (backward compatible) + duckdb==1.0.0, dbt-core==1.8.8, dbt-duckdb==1.8.1, pydantic==2.7.4, FastAPI, pytest (032-python312-upgrade)
+- DuckDB (dbt/simulation.duckdb) - no changes required (032-python312-upgrade)
 
 ## Recent Changes
 - 024-remove-polars-pipeline: Removed Polars dependency, simplified to SQL-only mode

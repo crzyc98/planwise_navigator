@@ -40,8 +40,6 @@ dbt/.user_*
 dbt/.dbt/
 dbt/macros/packages/
 results/
-dbt/dbt_project.yml
-dbt/profiles.yml
 compute_logs/
 local_artifact_storage/history/
 local_artifact_storage/schedules/
