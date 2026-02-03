@@ -1,0 +1,528 @@
+openapi: 3.1.0
+info:
+  title: Workspace Export/Import API
+  version: 1.0.0
+  description: API endpoints for exporting and importing PlanAlign workspaces
+
+paths:
+  /api/workspaces/{workspace_id}/export:
+    post:
+      summary: Export a single workspace
+      description: Creates a 7z archive of the workspace and returns it for download
+      operationId: exportWorkspace
+      tags:
+        - Workspace Export
+      parameters:
+        - name: workspace_id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+          description: UUID of the workspace to export
+      responses:
+        '200':
+          description: Archive file ready for download
+          headers:
+            Content-Disposition:
+              schema:
+                type: string
+              example: 'attachment; filename="MyWorkspace_20260130_120000.7z"'
+          content:
+            application/x-7z-compressed:
+              schema:
+                type: string
+                format: binary
+        '404':
+          description: Workspace not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '409':
+          description: Cannot export - simulation is running
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '507':
+          description: Insufficient storage to create archive
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /api/workspaces/bulk-export:
+    post:
+      summary: Start bulk export of multiple workspaces
+      description: Initiates export of multiple workspaces, returning operation ID for tracking
+      operationId: bulkExportWorkspaces
+      tags:
+        - Workspace Export
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/BulkExportRequest'
+      responses:
+        '202':
+          description: Bulk export started
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/BulkExportStatus'
+        '400':
+          description: Invalid request (empty list, invalid IDs)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /api/workspaces/bulk-export/{operation_id}:
+    get:
+      summary: Get bulk export status
+      description: Returns current status of a bulk export operation
+      operationId: getBulkExportStatus
+      tags:
+        - Workspace Export
+      parameters:
+        - name: operation_id
+          in: path
+          required: true
+          schema:
+            type: string
+          description: Operation ID from bulk-export initiation
+      responses:
+        '200':
+          description: Current operation status
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/BulkExportStatus'
+        '404':
+          description: Operation not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /api/workspaces/bulk-export/{operation_id}/download/{workspace_id}:
+    get:
+      summary: Download individual archive from bulk export
+      description: Downloads a specific workspace archive from a completed bulk export
+      operationId: downloadBulkExportArchive
+      tags:
+        - Workspace Export
+      parameters:
+        - name: operation_id
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: workspace_id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Archive file ready for download
+          content:
+            application/x-7z-compressed:
+              schema:
+                type: string
+                format: binary
+        '404':
+          description: Operation or workspace not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /api/workspaces/import/validate:
+    post:
+      summary: Validate import archive
+      description: Validates a 7z archive without importing, checking for conflicts
+      operationId: validateImport
+      tags:
+        - Workspace Import
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              required:
+                - file
+              properties:
+                file:
+                  type: string
+                  format: binary
+                  description: 7z archive to validate
+      responses:
+        '200':
+          description: Validation result
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ImportValidationResponse'
+        '413':
+          description: File exceeds 1GB limit
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /api/workspaces/import:
+    post:
+      summary: Import a workspace from archive
+      description: Imports a workspace from a 7z archive
+      operationId: importWorkspace
+      tags:
+        - Workspace Import
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              required:
+                - file
+              properties:
+                file:
+                  type: string
+                  format: binary
+                  description: 7z archive to import
+                conflict_resolution:
+                  type: string
+                  enum: [rename, replace]
+                  description: How to handle name conflicts (required if conflict exists)
+                new_name:
+                  type: string
+                  minLength: 1
+                  maxLength: 100
+                  description: New workspace name if conflict_resolution=rename
+      responses:
+        '201':
+          description: Workspace imported successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ImportResponse'
+        '400':
+          description: Invalid archive or missing required fields
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '409':
+          description: Name conflict requires resolution
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ImportValidationResponse'
+        '413':
+          description: File exceeds 1GB limit
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /api/workspaces/bulk-import:
+    post:
+      summary: Start bulk import of multiple archives
+      description: Initiates import of multiple archives, returning operation ID for tracking
+      operationId: bulkImportWorkspaces
+      tags:
+        - Workspace Import
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              required:
+                - files
+              properties:
+                files:
+                  type: array
+                  items:
+                    type: string
+                    format: binary
+                  description: Array of 7z archives to import
+                conflict_resolution:
+                  type: string
+                  enum: [rename, skip]
+                  default: rename
+                  description: How to handle name conflicts for all files
+      responses:
+        '202':
+          description: Bulk import started
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/BulkImportStatus'
+        '400':
+          description: Invalid request
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /api/workspaces/bulk-import/{operation_id}:
+    get:
+      summary: Get bulk import status
+      description: Returns current status of a bulk import operation
+      operationId: getBulkImportStatus
+      tags:
+        - Workspace Import
+      parameters:
+        - name: operation_id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Current operation status
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/BulkImportStatus'
+        '404':
+          description: Operation not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+components:
+  schemas:
+    BulkExportRequest:
+      type: object
+      required:
+        - workspace_ids
+      properties:
+        workspace_ids:
+          type: array
+          items:
+            type: string
+            format: uuid
+          minItems: 1
+          maxItems: 50
+          description: List of workspace UUIDs to export
+
+    BulkExportStatus:
+      type: object
+      required:
+        - operation_id
+        - status
+        - total
+        - completed
+        - results
+      properties:
+        operation_id:
+          type: string
+          description: Unique operation identifier
+        status:
+          type: string
+          enum: [pending, in_progress, completed, failed]
+        total:
+          type: integer
+          minimum: 0
+        completed:
+          type: integer
+          minimum: 0
+        current_workspace:
+          type: string
+          description: Name of workspace currently being processed
+        results:
+          type: array
+          items:
+            $ref: '#/components/schemas/ExportResult'
+
+    ExportResult:
+      type: object
+      required:
+        - workspace_id
+        - workspace_name
+        - status
+      properties:
+        workspace_id:
+          type: string
+          format: uuid
+        workspace_name:
+          type: string
+        filename:
+          type: string
+          description: Generated archive filename
+        size_bytes:
+          type: integer
+          minimum: 0
+        status:
+          type: string
+          enum: [success, failed]
+        error:
+          type: string
+          description: Error message if failed
+
+    ExportManifest:
+      type: object
+      required:
+        - version
+        - export_date
+        - app_version
+        - workspace_id
+        - workspace_name
+        - contents
+      properties:
+        version:
+          type: string
+          example: "1.0"
+        export_date:
+          type: string
+          format: date-time
+        app_version:
+          type: string
+          example: "1.0.0"
+        workspace_id:
+          type: string
+          format: uuid
+        workspace_name:
+          type: string
+        contents:
+          $ref: '#/components/schemas/ManifestContents'
+
+    ManifestContents:
+      type: object
+      required:
+        - scenario_count
+        - scenarios
+        - file_count
+        - total_size_bytes
+        - checksum_sha256
+      properties:
+        scenario_count:
+          type: integer
+          minimum: 0
+        scenarios:
+          type: array
+          items:
+            type: string
+        file_count:
+          type: integer
+          minimum: 0
+        total_size_bytes:
+          type: integer
+          minimum: 0
+        checksum_sha256:
+          type: string
+          pattern: '^[a-f0-9]{64}$'
+
+    ImportValidationResponse:
+      type: object
+      required:
+        - valid
+        - warnings
+        - errors
+      properties:
+        valid:
+          type: boolean
+        manifest:
+          $ref: '#/components/schemas/ExportManifest'
+        conflict:
+          $ref: '#/components/schemas/ImportConflict'
+        warnings:
+          type: array
+          items:
+            type: string
+        errors:
+          type: array
+          items:
+            type: string
+
+    ImportConflict:
+      type: object
+      required:
+        - existing_workspace_id
+        - existing_workspace_name
+        - suggested_name
+      properties:
+        existing_workspace_id:
+          type: string
+          format: uuid
+        existing_workspace_name:
+          type: string
+        suggested_name:
+          type: string
+          description: Auto-generated alternative name
+
+    ImportResponse:
+      type: object
+      required:
+        - workspace_id
+        - name
+        - scenario_count
+        - status
+        - warnings
+      properties:
+        workspace_id:
+          type: string
+          format: uuid
+        name:
+          type: string
+        scenario_count:
+          type: integer
+          minimum: 0
+        status:
+          type: string
+          enum: [success, partial]
+        warnings:
+          type: array
+          items:
+            type: string
+
+    BulkImportStatus:
+      type: object
+      required:
+        - operation_id
+        - status
+        - total
+        - completed
+        - results
+      properties:
+        operation_id:
+          type: string
+        status:
+          type: string
+          enum: [pending, in_progress, completed, failed]
+        total:
+          type: integer
+          minimum: 0
+        completed:
+          type: integer
+          minimum: 0
+        current_file:
+          type: string
+        results:
+          type: array
+          items:
+            $ref: '#/components/schemas/ImportResponse'
+
+    ErrorResponse:
+      type: object
+      required:
+        - error
+        - message
+      properties:
+        error:
+          type: string
+          description: Error code
+        message:
+          type: string
+          description: Human-readable error message
+        details:
+          type: object
+          description: Additional error context

@@ -152,3 +152,82 @@ export interface ComparisonMetric {
   baselineValue?: number | string;
   [scenarioName: string]: string | number | undefined;
 }
+
+// Export/Import Types (031-workspace-export)
+export interface ManifestContents {
+  scenario_count: number;
+  scenarios: string[];
+  file_count: number;
+  total_size_bytes: number;
+  checksum_sha256: string;
+}
+
+export interface ExportManifest {
+  version: string;
+  export_date: string;
+  app_version: string;
+  workspace_id: string;
+  workspace_name: string;
+  contents: ManifestContents;
+}
+
+export type ExportStatus = 'success' | 'failed';
+
+export interface ExportResult {
+  workspace_id: string;
+  workspace_name: string;
+  filename: string;
+  size_bytes: number;
+  status: ExportStatus;
+  error?: string;
+}
+
+export interface BulkExportRequest {
+  workspace_ids: string[];
+}
+
+export type BulkOperationStatus = 'pending' | 'in_progress' | 'completed' | 'failed';
+
+export interface BulkExportStatus {
+  operation_id: string;
+  status: BulkOperationStatus;
+  total: number;
+  completed: number;
+  current_workspace?: string;
+  results: ExportResult[];
+}
+
+export interface ImportConflict {
+  existing_workspace_id: string;
+  existing_workspace_name: string;
+  suggested_name: string;
+}
+
+export interface ImportValidationResponse {
+  valid: boolean;
+  manifest?: ExportManifest;
+  conflict?: ImportConflict;
+  warnings: string[];
+  errors: string[];
+}
+
+export type ConflictResolution = 'rename' | 'replace' | 'skip';
+
+export type ImportStatus = 'success' | 'partial';
+
+export interface ImportResponse {
+  workspace_id: string;
+  name: string;
+  scenario_count: number;
+  status: ImportStatus;
+  warnings: string[];
+}
+
+export interface BulkImportStatus {
+  operation_id: string;
+  status: BulkOperationStatus;
+  total: number;
+  completed: number;
+  current_file?: string;
+  results: ImportResponse[];
+}

@@ -49,6 +49,9 @@ dependencies = [
 
     # Git sync dependencies (E083)
     "GitPython>=3.1.0",
+
+    # Export/Import dependencies (031-workspace-export)
+    "py7zr[all]>=1.0.0",
 ]
 
 [project.optional-dependencies]

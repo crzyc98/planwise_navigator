@@ -115,10 +115,13 @@ class TestPerformanceMonitor:
         mock_process.return_value = mock_process_instance
         performance_monitor._process = mock_process_instance
 
+        metrics = None
         with pytest.raises(ValueError):
-            with performance_monitor.time_operation("failing_operation") as metrics:
+            with performance_monitor.time_operation("failing_operation") as m:
+                metrics = m
                 raise ValueError("Test error")
 
+        assert metrics is not None
         assert metrics.status == "failed"
         assert metrics.error_message == "Test error"
 

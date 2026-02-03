@@ -7,7 +7,7 @@ from decimal import Decimal
 from enum import Enum
 from typing import List, Optional
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_serializer
 
 
 class VestingScheduleType(str, Enum):
@@ -98,6 +98,15 @@ class EmployeeVestingDetail(BaseModel):
         description="Proposed - Current forfeiture (negative = less forfeiture)"
     )
 
+    @field_serializer(
+        'total_employer_contributions', 'current_vesting_pct', 'current_vested_amount',
+        'current_forfeiture', 'proposed_vesting_pct', 'proposed_vested_amount',
+        'proposed_forfeiture', 'forfeiture_variance'
+    )
+    def serialize_decimal(self, v: Decimal) -> float:
+        """Serialize Decimal as float for JSON responses."""
+        return float(v)
+
 
 class TenureBandSummary(BaseModel):
     """Forfeiture summary for a tenure band."""
@@ -108,6 +117,14 @@ class TenureBandSummary(BaseModel):
     current_forfeitures: Decimal = Field(..., ge=0)
     proposed_forfeitures: Decimal = Field(..., ge=0)
     forfeiture_variance: Decimal
+
+    @field_serializer(
+        'total_contributions', 'current_forfeitures', 'proposed_forfeitures',
+        'forfeiture_variance'
+    )
+    def serialize_decimal(self, v: Decimal) -> float:
+        """Serialize Decimal as float for JSON responses."""
+        return float(v)
 
 
 class VestingAnalysisSummary(BaseModel):
@@ -134,6 +151,15 @@ class VestingAnalysisSummary(BaseModel):
         ...,
         description="Percentage change in forfeitures"
     )
+
+    @field_serializer(
+        'total_employer_contributions', 'current_total_vested', 'current_total_forfeited',
+        'proposed_total_vested', 'proposed_total_forfeited', 'forfeiture_variance',
+        'forfeiture_variance_pct'
+    )
+    def serialize_decimal(self, v: Decimal) -> float:
+        """Serialize Decimal as float for JSON responses."""
+        return float(v)
 
 
 class VestingAnalysisResponse(BaseModel):

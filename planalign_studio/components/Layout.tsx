@@ -514,11 +514,13 @@ export default function Layout() {
                             {activeWorkspace.id === workspace.id && <Check size={14} className="text-fidelity-green flex-shrink-0" />}
                           </div>
                           <div className="group relative">
-                            <p className="text-xs text-gray-500 mt-0.5 truncate">{workspace.description}</p>
+                            <p className="text-xs text-gray-500 mt-0.5 truncate">{workspace.description || 'No description'}</p>
                             {/* Tooltip on hover */}
-                            <div className="absolute left-0 top-full mt-1 hidden group-hover:block z-50 w-full bg-gray-800 text-white text-xs rounded px-2 py-1 shadow-lg pointer-events-none">
-                              {workspace.description}
-                            </div>
+                            {workspace.description && (
+                              <div className="absolute left-0 top-full mt-1 hidden group-hover:block z-50 w-full bg-gray-800 text-white text-xs rounded px-2 py-1 shadow-lg pointer-events-none">
+                                {workspace.description}
+                              </div>
+                            )}
                           </div>
                           <p className="text-[10px] text-gray-400 mt-1 uppercase flex items-center justify-between">
                             <span>Last Run: {workspace.lastRun || 'Never'}</span>

@@ -1,8 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import { useOutletContext, useNavigate, useSearchParams } from 'react-router-dom';
-import { Play, Pause, Square, Activity, Cpu, Server, Clock, Database, AlertCircle, History, CheckCircle, XCircle, CircleDot, ExternalLink } from 'lucide-react';
+import { Play, Pause, Square, Activity, Cpu, Server, Clock, Database, AlertCircle, History, CheckCircle, XCircle, CircleDot, ExternalLink, RefreshCw } from 'lucide-react';
 import { useSimulationSocket } from '../services/websocket';
-import { listScenarios, startSimulation, cancelSimulation, Scenario } from '../services/api';
+import { listScenarios, startSimulation, cancelSimulation, resetSimulation, Scenario } from '../services/api';
 import { LogEvent, Workspace } from '../types';
 
 interface LayoutContext {
@@ -409,7 +409,29 @@ export default function SimulationControl() {
                         <span className="text-gray-400">—</span>
                       )}
                     </td>
-                    <td className="py-3 px-4 text-right">
+                    <td className="py-3 px-4 text-right space-x-2">
+                      {/* Show Force Reset if stuck (running but not in our active tracking) */}
+                      {scenario.status === 'running' && scenario.id !== runningScenarioId && (
+                        <button
+                          onClick={async (e) => {
+                            e.stopPropagation();
+                            if (!confirm('Force reset this stuck simulation? This marks it as failed.')) return;
+                            try {
+                              setError(null);
+                              await resetSimulation(scenario.id);
+                              const data = await listScenarios(activeWorkspace.id);
+                              setScenarios(data);
+                            } catch (err) {
+                              setError(err instanceof Error ? err.message : 'Failed to reset simulation');
+                            }
+                          }}
+                          className="text-sm px-3 py-1.5 rounded font-medium bg-orange-100 text-orange-700 hover:bg-orange-200"
+                        >
+                          <RefreshCw size={14} className="inline mr-1" />
+                          Force Reset
+                        </button>
+                      )}
+                      {/* Run button (disabled only if we're actively tracking this run) */}
                       <button
                         onClick={async (e) => {
                           e.stopPropagation(); // Prevent row click
@@ -424,14 +446,14 @@ export default function SimulationControl() {
                             setError(err instanceof Error ? err.message : 'Failed to start simulation');
                           }
                         }}
-                        disabled={scenario.status === 'running'}
+                        disabled={scenario.status === 'running' && scenario.id === runningScenarioId}
                         className={`text-sm px-3 py-1.5 rounded font-medium transition-colors ${
-                          scenario.status === 'running'
+                          scenario.status === 'running' && scenario.id === runningScenarioId
                             ? 'bg-gray-100 text-gray-400 cursor-not-allowed'
                             : 'bg-fidelity-green text-white hover:bg-fidelity-dark'
                         }`}
                       >
-                        {scenario.status === 'running' ? 'Running...' : 'Run'}
+                        {scenario.status === 'running' && scenario.id === runningScenarioId ? 'Running...' : 'Run'}
                       </button>
                     </td>
                   </tr>

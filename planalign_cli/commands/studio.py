@@ -97,6 +97,28 @@ def _get_npm_command() -> str:
 _processes: list[subprocess.Popen] = []
 
 
+def _kill_port(port: int) -> None:
+    """Kill any process using the specified port."""
+    try:
+        # Find PIDs using the port
+        result = subprocess.run(
+            ["lsof", "-ti", f":{port}"],
+            capture_output=True,
+            text=True,
+        )
+        pids = result.stdout.strip().split("\n")
+        for pid in pids:
+            if pid:
+                try:
+                    os.kill(int(pid), signal.SIGKILL)
+                except (ProcessLookupError, ValueError):
+                    pass
+        if any(pids):
+            time.sleep(0.5)  # Brief pause after killing
+    except Exception:
+        pass  # lsof not available or other error, continue anyway
+
+
 def _cleanup_processes(signum=None, frame=None):
     """Terminate all child processes."""
     for proc in _processes:
@@ -169,6 +191,7 @@ def launch_studio(
     try:
         # Start API backend
         if not frontend_only:
+            _kill_port(api_port)
             console.print("[cyan]Starting API backend...[/cyan]")
 
             # Determine output handling
@@ -221,6 +244,7 @@ def launch_studio(
 
         # Start frontend
         if not api_only:
+            _kill_port(frontend_port)
             console.print("[cyan]Starting frontend...[/cyan]")
 
             # Check if node_modules exists

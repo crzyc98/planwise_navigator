@@ -379,6 +379,19 @@ export async function cancelSimulation(scenarioId: string): Promise<{ success: b
   return handleResponse<{ success: boolean }>(response);
 }
 
+export async function resetSimulation(scenarioId: string): Promise<{
+  success: boolean;
+  scenario_id: string;
+  previous_status: string;
+  new_status: string;
+  message: string;
+}> {
+  const response = await fetch(`${API_BASE}/api/scenarios/${scenarioId}/run/reset`, {
+    method: 'POST',
+  });
+  return handleResponse(response);
+}
+
 export async function getSimulationResults(scenarioId: string): Promise<SimulationResults> {
   const response = await fetch(`${API_BASE}/api/scenarios/${scenarioId}/results`);
   return handleResponse<SimulationResults>(response);
@@ -1133,4 +1146,233 @@ export async function analyzeVesting(
     }
   );
   return handleResponse<VestingAnalysisResponse>(response);
+}
+
+// ============================================================================
+// Workspace Export/Import Endpoints (Feature 031)
+// ============================================================================
+
+/**
+ * Export/Import types aligned with backend models.
+ */
+export interface ExportManifest {
+  version: string;
+  export_date: string;
+  app_version: string;
+  workspace_id: string;
+  workspace_name: string;
+  contents: {
+    scenario_count: number;
+    scenarios: string[];
+    file_count: number;
+    total_size_bytes: number;
+    checksum_sha256: string;
+  };
+}
+
+export interface ExportResult {
+  workspace_id: string;
+  workspace_name: string;
+  filename: string;
+  size_bytes: number;
+  status: 'success' | 'failed';
+  error?: string;
+}
+
+export interface BulkExportStatus {
+  operation_id: string;
+  status: 'pending' | 'in_progress' | 'completed' | 'failed';
+  total: number;
+  completed: number;
+  current_workspace?: string;
+  results: ExportResult[];
+}
+
+export interface ImportConflict {
+  existing_workspace_id: string;
+  existing_workspace_name: string;
+  suggested_name: string;
+}
+
+export interface ImportValidationResponse {
+  valid: boolean;
+  manifest?: ExportManifest;
+  conflict?: ImportConflict;
+  warnings: string[];
+  errors: string[];
+}
+
+export interface ImportResponse {
+  workspace_id: string;
+  name: string;
+  scenario_count: number;
+  status: 'success' | 'partial';
+  warnings: string[];
+}
+
+export interface BulkImportStatus {
+  operation_id: string;
+  status: 'pending' | 'in_progress' | 'completed' | 'failed';
+  total: number;
+  completed: number;
+  current_file?: string;
+  results: ImportResponse[];
+}
+
+/**
+ * Export a single workspace as a 7z archive.
+ * Returns the download URL for the exported archive.
+ */
+export function getExportWorkspaceUrl(workspaceId: string): string {
+  return `${API_BASE}/api/workspaces/${workspaceId}/export`;
+}
+
+/**
+ * Export a single workspace and trigger browser download.
+ */
+export async function exportWorkspace(workspaceId: string): Promise<void> {
+  const response = await fetch(`${API_BASE}/api/workspaces/${workspaceId}/export`, {
+    method: 'POST',
+  });
+
+  if (!response.ok) {
+    let detail: string | undefined;
+    try {
+      const error = await response.json();
+      detail = error.detail;
+    } catch {
+      // Response wasn't JSON
+    }
+    throw new ApiError(response.status, response.statusText, detail);
+  }
+
+  // Get filename from Content-Disposition header
+  const contentDisposition = response.headers.get('Content-Disposition');
+  let filename = 'workspace_export.7z';
+  if (contentDisposition) {
+    const filenameMatch = contentDisposition.match(/filename="?([^"]+)"?/);
+    if (filenameMatch) {
+      filename = filenameMatch[1];
+    }
+  }
+
+  // Trigger download
+  const blob = await response.blob();
+  const url = window.URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = filename;
+  document.body.appendChild(a);
+  a.click();
+  window.URL.revokeObjectURL(url);
+  document.body.removeChild(a);
+}
+
+/**
+ * Start bulk export of multiple workspaces.
+ */
+export async function bulkExportWorkspaces(
+  workspaceIds: string[]
+): Promise<BulkExportStatus> {
+  const response = await fetch(`${API_BASE}/api/workspaces/bulk-export`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ workspace_ids: workspaceIds }),
+  });
+  return handleResponse<BulkExportStatus>(response);
+}
+
+/**
+ * Get status of a bulk export operation.
+ */
+export async function getBulkExportStatus(
+  operationId: string
+): Promise<BulkExportStatus> {
+  const response = await fetch(
+    `${API_BASE}/api/workspaces/bulk-export/${operationId}`
+  );
+  return handleResponse<BulkExportStatus>(response);
+}
+
+/**
+ * Download an individual archive from bulk export.
+ */
+export function getBulkExportDownloadUrl(
+  operationId: string,
+  workspaceId: string
+): string {
+  return `${API_BASE}/api/workspaces/bulk-export/${operationId}/download/${workspaceId}`;
+}
+
+/**
+ * Validate an archive before import.
+ * Returns validation result with any conflicts or warnings.
+ */
+export async function validateImport(
+  file: File
+): Promise<ImportValidationResponse> {
+  const formData = new FormData();
+  formData.append('file', file);
+
+  const response = await fetch(`${API_BASE}/api/workspaces/import/validate`, {
+    method: 'POST',
+    body: formData,
+  });
+  return handleResponse<ImportValidationResponse>(response);
+}
+
+/**
+ * Import a workspace from a 7z archive.
+ */
+export async function importWorkspace(
+  file: File,
+  conflictResolution?: 'rename' | 'replace' | 'skip',
+  newName?: string
+): Promise<ImportResponse> {
+  const formData = new FormData();
+  formData.append('file', file);
+  if (conflictResolution) {
+    formData.append('conflict_resolution', conflictResolution);
+  }
+  if (newName) {
+    formData.append('new_name', newName);
+  }
+
+  const response = await fetch(`${API_BASE}/api/workspaces/import`, {
+    method: 'POST',
+    body: formData,
+  });
+  return handleResponse<ImportResponse>(response);
+}
+
+/**
+ * Bulk import multiple archives.
+ */
+export async function bulkImportWorkspaces(
+  files: File[],
+  defaultResolution: 'rename' | 'replace' | 'skip' = 'rename'
+): Promise<BulkImportStatus> {
+  const formData = new FormData();
+  files.forEach((file) => {
+    formData.append('files', file);
+  });
+  formData.append('default_resolution', defaultResolution);
+
+  const response = await fetch(`${API_BASE}/api/workspaces/bulk-import`, {
+    method: 'POST',
+    body: formData,
+  });
+  return handleResponse<BulkImportStatus>(response);
+}
+
+/**
+ * Get status of a bulk import operation.
+ */
+export async function getBulkImportStatus(
+  operationId: string
+): Promise<BulkImportStatus> {
+  const response = await fetch(
+    `${API_BASE}/api/workspaces/bulk-import/${operationId}`
+  );
+  return handleResponse<BulkImportStatus>(response);
 }
