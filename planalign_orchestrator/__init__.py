@@ -25,10 +25,12 @@ from .performance_monitor import PerformanceMetrics, PerformanceMonitor
 from .registries import (DeferralEscalationRegistry, EnrollmentRegistry,
                          Registry, RegistryManager, RegistryValidationResult,
                          SQLTemplateManager)
-from .reports import (DETAILED_AUDIT_TEMPLATE, EXECUTIVE_SUMMARY_TEMPLATE,
-                      ConsoleReporter, EventSummary, MultiYearReporter,
-                      MultiYearSummary, ReportTemplate, WorkforceBreakdown,
-                      YearAuditor, YearAuditReport)
+from .reports.data_models import (EventSummary, MultiYearSummary,
+                                  WorkforceBreakdown, YearAuditReport)
+from .reports.formatters import (ConsoleReporter, DETAILED_AUDIT_TEMPLATE,
+                                 EXECUTIVE_SUMMARY_TEMPLATE, ReportTemplate)
+from .reports.multi_year_reporter import MultiYearReporter
+from .reports.year_auditor import YearAuditor
 from .run_summary import RunIssue, RunMetadata, RunSummaryGenerator
 from .utils import DatabaseConnectionManager, ExecutionMutex, time_block
 from .validation import (DataValidator, EventSequenceRule, EventSpikeRule,

@@ -24,7 +24,9 @@ from .config import SimulationConfig, to_dbt_vars, get_database_path
 from .dbt_runner import DbtResult, DbtRunner
 from .recovery_orchestrator import RecoveryOrchestrator
 from .registries import RegistryManager
-from .reports import MultiYearReporter, MultiYearSummary, YearAuditor
+from .reports.data_models import MultiYearSummary
+from .reports.multi_year_reporter import MultiYearReporter
+from .reports.year_auditor import YearAuditor
 from .observability import ObservabilityManager
 from .utils import DatabaseConnectionManager, ExecutionMutex, time_block
 from .validation import DataValidator

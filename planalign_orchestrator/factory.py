@@ -15,7 +15,7 @@ from .dbt_runner import DbtRunner
 from .pipeline_orchestrator import PipelineOrchestrator
 from .pipeline.hooks import Hook, HookType
 from .registries import RegistryManager
-from .reports import MultiYearReporter
+from .reports.multi_year_reporter import MultiYearReporter
 from .self_healing import AutoInitializer
 from .utils import DatabaseConnectionManager
 from .validation import (DataValidator, EventSequenceRule,

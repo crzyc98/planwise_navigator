@@ -111,6 +111,11 @@ class CompensationSolver:
         """Initialize solver with workspace root directory."""
         self.workspaces_root = workspaces_root
 
+    @staticmethod
+    def _quote_identifier(identifier: str) -> str:
+        """Safely quote SQL identifiers (defense-in-depth)."""
+        return f"\"{identifier.replace('\"', '\"\"')}\""
+
     def analyze_workforce_for_solver(
         self,
         workspace_id: str,
@@ -136,9 +141,15 @@ class CompensationSolver:
 
         # Read census data based on file type
         if full_path.suffix == ".parquet":
-            conn.execute(f"CREATE TABLE census AS SELECT * FROM read_parquet('{full_path}')")
+            conn.execute(
+                "CREATE TABLE census AS SELECT * FROM read_parquet(?)",
+                [str(full_path)],
+            )
         else:
-            conn.execute(f"CREATE TABLE census AS SELECT * FROM read_csv('{full_path}', header=true, auto_detect=true)")
+            conn.execute(
+                "CREATE TABLE census AS SELECT * FROM read_csv_auto(?, header=true)",
+                [str(full_path)],
+            )
 
         # Get column names (normalized to lowercase)
         columns_result = conn.execute("SELECT column_name FROM information_schema.columns WHERE table_name = 'census'").fetchall()
@@ -147,15 +158,25 @@ class CompensationSolver:
         # Rename columns to lowercase
         for col in original_columns:
             if col != col.lower():
-                conn.execute(f'ALTER TABLE census RENAME COLUMN "{col}" TO "{col.lower()}"')
+                conn.execute(
+                    f"ALTER TABLE census RENAME COLUMN {self._quote_identifier(col)} "
+                    f"TO {self._quote_identifier(col.lower())}"
+                )
 
         # Get updated column list
         columns_result = conn.execute("SELECT column_name FROM information_schema.columns WHERE table_name = 'census'").fetchall()
         columns = [row[0] for row in columns_result]
 
-        # Filter to active employees
+        # Filter to active employees with robust boolean handling
         if "active" in columns:
-            conn.execute("DELETE FROM census WHERE active != true")
+            conn.execute(
+                """
+                DELETE FROM census
+                WHERE
+                    active IS NULL
+                    OR LOWER(CAST(active AS VARCHAR)) NOT IN ('true', 't', '1', 'yes', 'y')
+                """
+            )
         elif "employee_termination_date" in columns:
             conn.execute("DELETE FROM census WHERE employee_termination_date IS NOT NULL")
 
@@ -173,7 +194,10 @@ class CompensationSolver:
             conn.close()
             raise ValueError("No compensation column found in census")
 
-        avg_compensation = conn.execute(f"SELECT AVG({comp_col}) FROM census").fetchone()[0]
+        comp_col_sql = self._quote_identifier(comp_col)
+        avg_compensation = conn.execute(
+            f"SELECT AVG({comp_col_sql}) FROM census"
+        ).fetchone()[0]
 
         # Get level column
         level_col = None
@@ -186,15 +210,18 @@ class CompensationSolver:
         distributions = []
 
         if level_col:
-            level_stats = conn.execute(f"""
+            level_col_sql = self._quote_identifier(level_col)
+            level_stats = conn.execute(
+                f"""
                 SELECT
-                    {level_col} as level,
+                    {level_col_sql} as level,
                     COUNT(*) as headcount,
-                    AVG({comp_col}) as avg_compensation
+                    AVG({comp_col_sql}) as avg_compensation
                 FROM census
-                GROUP BY {level_col}
-                ORDER BY {level_col}
-            """).fetchall()
+                GROUP BY {level_col_sql}
+                ORDER BY {level_col_sql}
+                """
+            ).fetchall()
 
             for row in level_stats:
                 level = int(row[0])
