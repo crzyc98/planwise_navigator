@@ -174,7 +174,7 @@ class CompensationSolver:
                 DELETE FROM census
                 WHERE
                     active IS NULL
-                    OR LOWER(CAST(active AS VARCHAR)) NOT IN ('true', 't', '1', 'yes', 'y')
+                    OR LOWER(TRIM(CAST(active AS VARCHAR))) NOT IN ('true', 't', '1', '1.0', 'yes', 'y')
                 """
             )
         elif "employee_termination_date" in columns:
