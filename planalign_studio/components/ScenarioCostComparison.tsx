@@ -180,9 +180,10 @@ export default function ScenarioCostComparison() {
   const [anchorConfig, setAnchorConfig] = useState<Record<string, any> | null>(null);
 
   // -------------------------------------------------------------------------
-  // Copy to Clipboard Hook
+  // Copy to Clipboard Hooks
   // -------------------------------------------------------------------------
   const { copy, copied, error: copyError } = useCopyToClipboard();
+  const { copy: copyCompensation, copied: copiedCompensation } = useCopyToClipboard();
 
   // -------------------------------------------------------------------------
   // Derived Data: Completed Scenarios
@@ -610,6 +611,52 @@ export default function ScenarioCostComparison() {
     const tsv = tableToTSV();
     if (tsv) copy(tsv);
   }, [tableToTSV, copy]);
+
+  // -------------------------------------------------------------------------
+  // Compensation Table Data for Copy
+  // -------------------------------------------------------------------------
+  const compensationTableToTSV = useCallback(() => {
+    if (!comparisonData || years.length === 0) return '';
+
+    const lines: string[] = [];
+
+    // Header row
+    lines.push(['Scenario', ...years.map(String), 'Total', 'Variance'].join('\t'));
+
+    // Data rows
+    selectedScenarioIds.forEach(id => {
+      const analytics = comparisonData.analytics.find(a => a.scenario_id === id);
+      if (!analytics) return;
+
+      const yearValues = years.map(year => {
+        const yearData = analytics.contribution_by_year.find(y => y.year === year);
+        return yearData ? formatCurrency(yearData.total_compensation) : '-';
+      });
+
+      const total = analytics.contribution_by_year.reduce(
+        (sum, y) => sum + y.total_compensation, 0
+      );
+
+      let variance = '--';
+      if (id !== anchorScenarioId && anchorAnalytics) {
+        const anchorTotal = anchorAnalytics.contribution_by_year.reduce(
+          (sum, y) => sum + y.total_compensation, 0
+        );
+        const delta = total - anchorTotal;
+        variance = `${delta >= 0 ? '+' : ''}${formatCurrency(delta)}`;
+      }
+
+      const name = comparisonData.scenario_names[id] || id;
+      lines.push([name, ...yearValues, formatCurrency(total), variance].join('\t'));
+    });
+
+    return lines.join('\n');
+  }, [comparisonData, years, selectedScenarioIds, anchorScenarioId, anchorAnalytics]);
+
+  const handleCompensationCopy = useCallback(() => {
+    const tsv = compensationTableToTSV();
+    if (tsv) copyCompensation(tsv);
+  }, [compensationTableToTSV, copyCompensation]);
 
   // -------------------------------------------------------------------------
   // Render
@@ -1115,6 +1162,110 @@ export default function ScenarioCostComparison() {
                             return (
                               <td key={year} className="px-6 py-4 whitespace-nowrap text-right text-sm text-gray-600 font-mono">
                                 {yearData ? formatCurrency(yearData.total_employer_cost) : '-'}
+                              </td>
+                            );
+                          })}
+                          <td className="px-6 py-4 whitespace-nowrap text-right text-sm text-gray-900 font-bold font-mono bg-gray-50/50 border-l border-gray-100">
+                            {formatCurrency(total)}
+                          </td>
+                          <td className="px-6 py-4 whitespace-nowrap text-right">
+                            {isAnchor ? (
+                              <span className="text-xs text-gray-400 italic">--</span>
+                            ) : (
+                              <span className={`px-2 py-1 text-xs font-bold rounded ${
+                                delta >= 0 ? 'bg-orange-50 text-orange-700' : 'bg-green-50 text-green-700'
+                              }`}>
+                                {delta >= 0 ? '+' : ''}{formatCurrency(delta)}
+                              </span>
+                            )}
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+
+            {/* Multi-Year Compensation Matrix Table */}
+            <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
+              <div className="px-6 py-4 border-b border-gray-200 bg-gray-50 flex items-center justify-between">
+                <h3 className="text-sm font-bold text-gray-800 uppercase tracking-wider">Multi-Year Compensation Matrix</h3>
+                <div className="flex items-center space-x-2">
+                  <span className="text-[10px] bg-white border border-gray-200 text-gray-600 px-2 py-0.5 rounded font-bold flex items-center">
+                    <DollarSign size={8} className="mr-0.5" /> VALUES IN $
+                  </span>
+                  <button
+                    onClick={handleCompensationCopy}
+                    className={`p-1.5 rounded-md transition-colors ${
+                      copiedCompensation
+                        ? 'text-green-600 bg-green-50'
+                        : 'text-gray-400 hover:text-gray-600 hover:bg-gray-100'
+                    }`}
+                    title={copiedCompensation ? 'Copied!' : 'Copy to clipboard'}
+                  >
+                    {copiedCompensation ? <Check size={16} /> : <Copy size={16} />}
+                  </button>
+                </div>
+              </div>
+              <div className="overflow-x-auto">
+                <table className="min-w-full divide-y divide-gray-200">
+                  <thead className="bg-gray-50 font-bold">
+                    <tr>
+                      <th className="px-6 py-4 text-left text-xs text-gray-500 uppercase tracking-wider border-r border-gray-200">
+                        Scenario Name
+                      </th>
+                      {years.map(y => (
+                        <th key={y} className="px-6 py-2 text-center text-[10px] text-gray-400 uppercase">
+                          {y}
+                        </th>
+                      ))}
+                      <th className="px-6 py-4 text-right text-xs text-gray-900 uppercase tracking-wider bg-gray-100 border-l border-gray-200">
+                        Total
+                      </th>
+                      <th className="px-6 py-4 text-right text-xs text-gray-900 uppercase tracking-wider bg-gray-50">
+                        Variance
+                      </th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-gray-100 bg-white">
+                    {orderedScenarioIds.map((id) => {
+                      const analytics = comparisonData.analytics.find(a => a.scenario_id === id);
+                      if (!analytics) return null;
+
+                      const isAnchor = id === anchorScenarioId;
+                      const total = analytics.contribution_by_year.reduce(
+                        (sum, y) => sum + y.total_compensation, 0
+                      );
+
+                      let delta = 0;
+                      if (!isAnchor && anchorAnalytics) {
+                        const anchorTotal = anchorAnalytics.contribution_by_year.reduce(
+                          (sum, y) => sum + y.total_compensation, 0
+                        );
+                        delta = total - anchorTotal;
+                      }
+
+                      return (
+                        <tr key={id} className={`hover:bg-gray-50 transition-colors ${isAnchor ? 'bg-blue-50/30' : ''}`}>
+                          <td className="px-6 py-4 whitespace-nowrap border-r border-gray-100">
+                            <div className="flex items-center">
+                              <div className={`w-2 h-2 rounded-full mr-2 ${isAnchor ? 'bg-blue-600' : 'bg-fidelity-green'}`} />
+                              <span className={`text-sm font-bold ${isAnchor ? 'text-blue-700' : 'text-gray-900'}`}>
+                                {comparisonData.scenario_names[id]}
+                                {isAnchor && (
+                                  <span className="ml-2 text-[8px] font-bold bg-blue-100 text-blue-600 px-1 py-0.5 rounded uppercase">
+                                    Anchor
+                                  </span>
+                                )}
+                              </span>
+                            </div>
+                          </td>
+                          {years.map((year) => {
+                            const yearData = analytics.contribution_by_year.find(y => y.year === year);
+                            return (
+                              <td key={year} className="px-6 py-4 whitespace-nowrap text-right text-sm text-gray-600 font-mono">
+                                {yearData ? formatCurrency(yearData.total_compensation) : '-'}
                               </td>
                             );
                           })}
