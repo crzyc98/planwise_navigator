@@ -801,6 +801,7 @@ See `/docs/VERSIONING_GUIDE.md` for detailed versioning workflow.
 - DuckDB (dbt/simulation.duckdb) - no changes required (032-python312-upgrade)
 - TypeScript 5.x (frontend) + React 18, Recharts, Lucide-react, Tailwind CSS (033-compensation-matrix)
 - N/A (frontend-only; uses existing API response data) (033-compensation-matrix)
+- Python 3.11 + Existing planalign_orchestrator modules (no new dependencies) (034-orchestrator-modularization)
 
 ## Recent Changes
 - 024-remove-polars-pipeline: Removed Polars dependency, simplified to SQL-only mode
