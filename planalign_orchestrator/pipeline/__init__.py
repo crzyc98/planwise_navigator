@@ -20,6 +20,7 @@ from .year_executor import YearExecutor, PipelineStageError
 from .event_generation_executor import EventGenerationExecutor
 from .hooks import HookManager, Hook, HookType
 from .data_cleanup import DataCleanupManager
+from .stage_validator import StageValidator
 
 __all__ = [
     # Workflow components
@@ -32,6 +33,9 @@ __all__ = [
     "YearExecutor",
     "EventGenerationExecutor",
     "PipelineStageError",
+
+    # Validation
+    "StageValidator",
 
     # State management
     "StateManager",
