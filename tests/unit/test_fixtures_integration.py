@@ -125,6 +125,6 @@ def test_baseline_workforce_df_fixture(baseline_workforce_df):
     assert "base_salary" in baseline_workforce_df.columns
     assert "department" in baseline_workforce_df.columns
 
-    # Verify data types
-    assert baseline_workforce_df["employee_id"].dtype == object
+    # Verify data types (allow both object and StringDtype for pandas compatibility)
+    assert str(baseline_workforce_df["employee_id"].dtype) in ["object", "str", "string"]
     assert baseline_workforce_df["base_salary"].dtype in [int, float]
