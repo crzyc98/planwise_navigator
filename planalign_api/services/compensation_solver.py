@@ -114,7 +114,8 @@ class CompensationSolver:
     @staticmethod
     def _quote_identifier(identifier: str) -> str:
         """Safely quote SQL identifiers (defense-in-depth)."""
-        return f"\"{identifier.replace('\"', '\"\"')}\""
+        escaped = identifier.replace('"', '""')
+        return f'"{escaped}"'
 
     def analyze_workforce_for_solver(
         self,

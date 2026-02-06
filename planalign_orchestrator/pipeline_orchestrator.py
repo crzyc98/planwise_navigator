@@ -18,9 +18,14 @@ from pathlib import Path
 from typing import Any, Dict, List, Optional
 import time
 
-from .adaptive_memory_manager import AdaptiveMemoryManager, create_adaptive_memory_manager, OptimizationLevel
 from .checkpoint_manager import CheckpointManager
 from .config import SimulationConfig, to_dbt_vars, get_database_path
+from .orchestrator_setup import (
+    setup_memory_manager,
+    setup_parallelization,
+    setup_hazard_cache,
+    setup_performance_monitor,
+)
 from .dbt_runner import DbtResult, DbtRunner
 from .recovery_orchestrator import RecoveryOrchestrator
 from .registries import RegistryManager
@@ -38,6 +43,7 @@ from .pipeline.data_cleanup import DataCleanupManager
 from .pipeline.hooks import HookManager, HookType
 from .pipeline.year_executor import YearExecutor
 from .pipeline.event_generation_executor import EventGenerationExecutor
+from .pipeline.stage_validator import StageValidator
 
 # Import model parallelization components
 try:
@@ -128,16 +134,38 @@ class PipelineOrchestrator:
             self.observability = None
 
         # S063-08: Adaptive Memory Management
-        self._setup_adaptive_memory_manager()
+        self.memory_manager = setup_memory_manager(
+            config=self.config,
+            reports_dir=self.reports_dir,
+            verbose=self.verbose
+        )
 
         # S067-02: Model-level parallelization setup
-        self._setup_model_parallelization()
+        (
+            self.parallel_execution_engine,
+            self.parallelization_config,
+            self.resource_manager,
+            self.dependency_analyzer,
+            self.model_parallelization_enabled,
+        ) = setup_parallelization(
+            config=self.config,
+            dbt_runner=self.dbt_runner,
+            verbose=self.verbose
+        )
 
         # E068D: Initialize hazard cache manager for automatic change detection
-        self._setup_hazard_cache_manager()
+        self.hazard_cache_manager = setup_hazard_cache(
+            db_manager=self.db_manager,
+            dbt_runner=self.dbt_runner,
+            verbose=self.verbose
+        )
 
         # E068E: Initialize DuckDB performance monitoring system
-        self._setup_performance_monitoring()
+        self.duckdb_performance_monitor = setup_performance_monitor(
+            db_manager=self.db_manager,
+            reports_dir=self.reports_dir,
+            verbose=self.verbose
+        )
 
         # Enhanced checkpoint system
         self.enhanced_checkpoints = enhanced_checkpoints
@@ -166,6 +194,14 @@ class PipelineOrchestrator:
         self.cleanup_manager = DataCleanupManager(db_manager=db_manager, verbose=verbose)
         self.hook_manager = HookManager(verbose=verbose)
 
+        # Initialize stage validator (Story S034 - Orchestrator Modularization Phase 2)
+        self.stage_validator = StageValidator(
+            db_manager=db_manager,
+            config=config,
+            state_manager=self.state_manager,
+            verbose=verbose
+        )
+
         # Initialize event generation executor
         self.event_generation_executor = EventGenerationExecutor(
             config=config,
@@ -177,10 +213,6 @@ class PipelineOrchestrator:
         )
 
         # Initialize year executor with optional parallelization support
-        parallel_execution_engine = getattr(self, 'parallel_execution_engine', None) if MODEL_PARALLELIZATION_AVAILABLE else None
-        model_parallelization_enabled = getattr(self, 'model_parallelization_enabled', False)
-        parallelization_config = getattr(self, 'parallelization_config', None)
-
         self.year_executor = YearExecutor(
             config=config,
             dbt_runner=dbt_runner,
@@ -190,247 +222,10 @@ class PipelineOrchestrator:
             start_year=config.simulation.start_year,
             event_shards=self.event_shards,
             verbose=verbose,
-            parallel_execution_engine=parallel_execution_engine,
-            model_parallelization_enabled=model_parallelization_enabled,
-            parallelization_config=parallelization_config
+            parallel_execution_engine=self.parallel_execution_engine,
+            model_parallelization_enabled=self.model_parallelization_enabled,
+            parallelization_config=self.parallelization_config
         )
-
-    def _setup_adaptive_memory_manager(self) -> None:
-        """Setup adaptive memory management system"""
-        try:
-            # Extract optimization config from simulation config
-            optimization_config = getattr(self.config, 'optimization', None)
-
-            if optimization_config and hasattr(optimization_config, 'adaptive_memory'):
-                adaptive_config = optimization_config.adaptive_memory
-
-                # Create adaptive memory manager with config
-                from .adaptive_memory_manager import AdaptiveConfig, MemoryThresholds, BatchSizeConfig
-
-                # Build adaptive config from simulation config
-                config = AdaptiveConfig(
-                    enabled=adaptive_config.enabled,
-                    monitoring_interval_seconds=adaptive_config.monitoring_interval_seconds,
-                    history_size=adaptive_config.history_size,
-                    thresholds=MemoryThresholds(
-                        moderate_mb=adaptive_config.thresholds.moderate_mb,
-                        high_mb=adaptive_config.thresholds.high_mb,
-                        critical_mb=adaptive_config.thresholds.critical_mb,
-                        gc_trigger_mb=adaptive_config.thresholds.gc_trigger_mb,
-                        fallback_trigger_mb=adaptive_config.thresholds.fallback_trigger_mb
-                    ),
-                    batch_sizes=BatchSizeConfig(
-                        low=adaptive_config.batch_sizes.low,
-                        medium=adaptive_config.batch_sizes.medium,
-                        high=adaptive_config.batch_sizes.high,
-                        fallback=adaptive_config.batch_sizes.fallback
-                    ),
-                    auto_gc_enabled=adaptive_config.auto_gc_enabled,
-                    fallback_enabled=adaptive_config.fallback_enabled,
-                    profiling_enabled=adaptive_config.profiling_enabled,
-                    recommendation_window_minutes=adaptive_config.recommendation_window_minutes,
-                    min_samples_for_recommendation=adaptive_config.min_samples_for_recommendation,
-                    leak_detection_enabled=adaptive_config.leak_detection_enabled,
-                    leak_threshold_mb=adaptive_config.leak_threshold_mb,
-                    leak_window_minutes=adaptive_config.leak_window_minutes
-                )
-
-                # Import logger
-                from .logger import ProductionLogger
-                logger = ProductionLogger("AdaptiveMemoryManager")
-
-                self.memory_manager = AdaptiveMemoryManager(
-                    config,
-                    logger,
-                    reports_dir=self.reports_dir / "memory"
-                )
-
-                if self.verbose:
-                    print("🧠 Adaptive Memory Manager initialized")
-                    print(f"   Thresholds: {adaptive_config.thresholds.moderate_mb}MB / {adaptive_config.thresholds.high_mb}MB / {adaptive_config.thresholds.critical_mb}MB")
-                    print(f"   Batch sizes: {adaptive_config.batch_sizes.fallback}-{adaptive_config.batch_sizes.high}")
-                    print(f"   Auto-GC: {adaptive_config.auto_gc_enabled}, Fallback: {adaptive_config.fallback_enabled}")
-            else:
-                # Create default adaptive memory manager for backward compatibility
-                self.memory_manager = create_adaptive_memory_manager(
-                    optimization_level=OptimizationLevel.MEDIUM,
-                    memory_limit_gb=4.0  # Default for work laptops
-                )
-                if self.verbose:
-                    print("🧠 Adaptive Memory Manager initialized (default configuration)")
-
-        except Exception as e:
-            # Fallback to None - orchestrator will work without adaptive memory management
-            self.memory_manager = None
-            if self.verbose:
-                print(f"⚠️ Failed to initialize Adaptive Memory Manager: {e}")
-                print("   Continuing without adaptive memory management")
-
-    def _setup_model_parallelization(self) -> None:
-        """Setup model-level parallelization system with advanced resource management"""
-        try:
-            # Check if model parallelization is enabled in config
-            threading_config = getattr(self.config, 'orchestrator', None)
-            if threading_config and hasattr(threading_config, 'threading'):
-                parallelization_config = threading_config.threading.parallelization
-                resource_mgmt_config = threading_config.threading.resource_management
-            else:
-                # Fallback: check if enabled via optimization config
-                optimization_config = getattr(self.config, 'optimization', None)
-                parallelization_config = None
-                resource_mgmt_config = None
-                if optimization_config and hasattr(optimization_config, 'model_parallelization'):
-                    parallelization_config = optimization_config.model_parallelization
-
-            if (parallelization_config and
-                parallelization_config.enabled and
-                MODEL_PARALLELIZATION_AVAILABLE):
-
-                # Initialize dependency analyzer
-                from .logger import ProductionLogger
-                logger = ProductionLogger("ModelParallelization")
-
-                manifest_path = Path("dbt/target/manifest.json")
-                if not manifest_path.exists():
-                    if self.verbose:
-                        print("⚠️ dbt manifest not found - run 'dbt compile' first")
-                        print("   Model parallelization will not be available")
-                    self.model_parallelization_enabled = False
-                    self.parallel_execution_engine = None
-                    self.parallelization_config = None
-                    self.resource_manager = None
-                    return
-
-                # Initialize dependency analyzer
-                self.dependency_analyzer = ModelDependencyAnalyzer(str(manifest_path))
-
-                # Initialize resource manager if available
-                if resource_mgmt_config and RESOURCE_MANAGEMENT_AVAILABLE:
-                    self.resource_manager = self._create_resource_manager(resource_mgmt_config)
-                else:
-                    self.resource_manager = None
-
-                # Initialize parallel execution engine
-                self.parallel_execution_engine = ParallelExecutionEngine(
-                    dbt_runner=self.dbt_runner,
-                    dependency_analyzer=self.dependency_analyzer,
-                    max_workers=parallelization_config.max_parallel_models,
-                    logger=logger,
-                    resource_manager=self.resource_manager
-                )
-
-                self.model_parallelization_enabled = True
-                self.parallelization_config = parallelization_config
-
-                if self.verbose:
-                    print("⚡ Model-level parallelization enabled")
-                    print(f"   Max parallel models: {parallelization_config.max_parallel_models}")
-                    print(f"   Dependency-aware scheduling: {parallelization_config.dependency_aware_scheduling}")
-                    if self.resource_manager:
-                        print("   Advanced resource management: enabled")
-            else:
-                self.model_parallelization_enabled = False
-                self.parallel_execution_engine = None
-                self.parallelization_config = None
-                self.resource_manager = None
-
-        except Exception as e:
-            # Fallback to sequential execution
-            self.model_parallelization_enabled = False
-            self.parallel_execution_engine = None
-            self.parallelization_config = None
-            self.resource_manager = None
-            if self.verbose:
-                print(f"⚠️ Failed to initialize model parallelization: {e}")
-                print("   Falling back to sequential execution")
-
-    def _create_resource_manager(self, config) -> Optional[ResourceManager]:
-        """Create resource manager with configuration"""
-        try:
-            if not RESOURCE_MANAGEMENT_AVAILABLE:
-                return None
-
-            from .logger import ProductionLogger
-            logger = ProductionLogger("ResourceManager")
-
-            # Create resource manager with config
-            resource_manager = ResourceManager(
-                memory_limit_mb=config.memory_limit_mb,
-                cpu_limit_percent=config.cpu_limit_percent,
-                enable_gc_on_pressure=config.enable_gc_on_pressure,
-                enable_connection_pooling=config.enable_connection_pooling,
-                connection_pool_size=config.connection_pool_size,
-                enable_memory_profiling=config.enable_memory_profiling,
-                logger=logger
-            )
-
-            if self.verbose:
-                print(f"📊 Resource Manager initialized:")
-                print(f"   Memory limit: {config.memory_limit_mb}MB")
-                print(f"   CPU limit: {config.cpu_limit_percent}%")
-                print(f"   Auto GC on pressure: {config.enable_gc_on_pressure}")
-                print(f"   Connection pooling: {config.enable_connection_pooling} (pool size: {config.connection_pool_size})")
-
-            return resource_manager
-
-        except Exception as e:
-            if self.verbose:
-                print(f"⚠️ Failed to create resource manager: {e}")
-            return None
-
-    def _setup_hazard_cache_manager(self) -> None:
-        """Initialize E068D hazard cache manager for automatic change detection"""
-        try:
-            from .hazard_cache_manager import HazardCacheManager
-
-            # Extract dbt project path from runner
-            dbt_project_path = getattr(self.dbt_runner, 'project_dir', Path('dbt'))
-
-            self.hazard_cache_manager = HazardCacheManager(
-                db_manager=self.db_manager,
-                dbt_runner=self.dbt_runner,
-                dbt_project_path=dbt_project_path,
-                verbose=self.verbose
-            )
-
-            if self.verbose:
-                print("🗄️ E068D Hazard Cache Manager initialized")
-                print(f"   SHA256 parameter fingerprinting enabled")
-                print(f"   Automatic cache invalidation on parameter changes")
-
-        except ImportError:
-            self.hazard_cache_manager = None
-            if self.verbose:
-                print("ℹ️ E068D Hazard Cache Manager not available (module not found)")
-        except Exception as e:
-            self.hazard_cache_manager = None
-            if self.verbose:
-                print(f"⚠️ Failed to initialize Hazard Cache Manager: {e}")
-
-    def _setup_performance_monitoring(self) -> None:
-        """Initialize E068E DuckDB performance monitoring system"""
-        try:
-            from .duckdb_performance_monitor import DuckDBPerformanceMonitor
-
-            self.duckdb_performance_monitor = DuckDBPerformanceMonitor(
-                db_manager=self.db_manager,
-                reports_dir=self.reports_dir / "duckdb_performance",
-                verbose=self.verbose
-            )
-
-            if self.verbose:
-                print("📊 E068E DuckDB Performance Monitor initialized")
-                print(f"   Query profiling enabled")
-                print(f"   Reports directory: {self.reports_dir / 'duckdb_performance'}")
-
-        except ImportError:
-            self.duckdb_performance_monitor = None
-            if self.verbose:
-                print("ℹ️ E068E DuckDB Performance Monitor not available (module not found)")
-        except Exception as e:
-            self.duckdb_performance_monitor = None
-            if self.verbose:
-                print(f"⚠️ Failed to initialize DuckDB Performance Monitor: {e}")
 
     def _cleanup_resources(self) -> None:
         """Cleanup resource management components"""
@@ -959,154 +754,9 @@ class PipelineOrchestrator:
                 checkpoint_name = f"{stage.name.value}_{year}_complete"
                 self.duckdb_performance_monitor.record_checkpoint(checkpoint_name)
 
-            # Run stage validation using existing logic (skip in dry-run mode)
+            # Run stage validation using StageValidator (skip in dry-run mode)
             if not dry_run:
-                self._run_stage_validation(stage, year, fail_on_validation_error)
-
-    def _run_stage_validation(
-        self, stage: StageDefinition, year: int, fail_on_validation_error: bool
-    ) -> None:
-        """Run validation checks for a completed workflow stage."""
-        # Comprehensive validation for foundation models
-        if stage.name == WorkflowStage.FOUNDATION:
-            start_year = self.config.simulation.start_year
-
-            def _chk(conn):
-                # Helper to safely query table row counts (handles missing tables)
-                def _safe_count(table: str, year_val: int) -> int:
-                    try:
-                        return conn.execute(
-                            f"SELECT COUNT(*) FROM {table} WHERE simulation_year = ?",
-                            [year_val],
-                        ).fetchone()[0]
-                    except Exception:
-                        # Table doesn't exist yet (expected on first run in new workspace)
-                        return 0
-
-                baseline = _safe_count("int_baseline_workforce", year)
-                # For years > start_year, baseline lives in start_year; fetch preserved baseline rows
-                preserved_baseline = _safe_count("int_baseline_workforce", start_year)
-                compensation = _safe_count("int_employee_compensation_by_year", year)
-                wn = _safe_count("int_workforce_needs", year)
-                wnbl = _safe_count("int_workforce_needs_by_level", year)
-                # Epic E039: Employer contribution model validation (eligibility may not be built in FOUNDATION)
-                employer_elig = _safe_count("int_employer_eligibility", year)
-                # int_employer_core_contributions is built in STATE_ACCUMULATION, not FOUNDATION
-                employer_core = _safe_count("int_employer_core_contributions", year)
-                # Diagnostics: hiring demand (safe query with COALESCE for missing tables)
-                try:
-                    total_hires_needed = conn.execute(
-                        "SELECT COALESCE(MAX(total_hires_needed), 0) FROM int_workforce_needs WHERE simulation_year = ?",
-                        [year],
-                    ).fetchone()[0]
-                except Exception:
-                    total_hires_needed = 0
-                try:
-                    level_hires_needed = conn.execute(
-                        "SELECT COALESCE(SUM(hires_needed), 0) FROM int_workforce_needs_by_level WHERE simulation_year = ?",
-                        [year],
-                    ).fetchone()[0]
-                except Exception:
-                    level_hires_needed = 0
-                return (
-                    int(baseline),
-                    int(preserved_baseline),
-                    int(compensation),
-                    int(wn),
-                    int(wnbl),
-                    int(employer_elig or 0),
-                    int(employer_core or 0),
-                    int(total_hires_needed or 0),
-                    int(level_hires_needed or 0),
-                )
-
-            (
-                baseline_cnt,
-                preserved_baseline_cnt,
-                comp_cnt,
-                wn_cnt,
-                wnbl_cnt,
-                employer_elig_cnt,
-                employer_core_cnt,
-                total_hires_needed,
-                level_hires_needed,
-            ) = self.db_manager.execute_with_retry(_chk)
-            print(f"   📊 Foundation model validation for year {year}:")
-            if year == start_year:
-                print(f"      int_baseline_workforce: {baseline_cnt} rows")
-            else:
-                # Baseline is only populated in start_year; show preserved baseline for clarity
-                print(
-                    f"      int_baseline_workforce: {baseline_cnt} rows (current year); preserved baseline {preserved_baseline_cnt} rows (start_year={start_year})"
-                )
-            print(f"      int_employee_compensation_by_year: {comp_cnt} rows")
-            print(f"      int_workforce_needs: {wn_cnt} rows")
-            print(f"      int_workforce_needs_by_level: {wnbl_cnt} rows")
-            print(
-                f"      int_employer_eligibility: {employer_elig_cnt} rows (not built in FOUNDATION)"
-            )
-            print(
-                f"      int_employer_core_contributions: {employer_core_cnt} rows (built later in STATE_ACCUMULATION)"
-            )
-            print(f"      hiring_demand.total_hires_needed: {total_hires_needed}")
-            print(f"      hiring_demand.sum_by_level: {level_hires_needed}")
-
-            # Epic E042 Fix: Only validate baseline workforce for first year
-            if baseline_cnt == 0 and year == self.config.simulation.start_year:
-                raise PipelineStageError(
-                    f"CRITICAL: int_baseline_workforce has 0 rows for year {year}. Check census data processing."
-                )
-            elif baseline_cnt == 0 and year > self.config.simulation.start_year:
-                print(
-                    f"ℹ️ int_baseline_workforce has 0 rows for year {year} (expected). Baseline is preserved in start_year={start_year} with {preserved_baseline_cnt} rows."
-                )
-            if comp_cnt == 0:
-                raise PipelineStageError(
-                    f"CRITICAL: int_employee_compensation_by_year has 0 rows for year {year}. Foundation models are broken."
-                )
-            if wn_cnt == 0 or wnbl_cnt == 0:
-                raise PipelineStageError(
-                    f"CRITICAL: workforce_needs rows={wn_cnt}, by_level rows={wnbl_cnt} for {year}. Hiring will fail."
-                )
-            if employer_elig_cnt == 0:
-                print(
-                    f"ℹ️ int_employer_eligibility has 0 rows for year {year} (expected before EVENT_GENERATION)."
-                )
-            if employer_core_cnt == 0:
-                print(
-                    f"ℹ️ int_employer_core_contributions has 0 rows for year {year} (expected; built during STATE_ACCUMULATION)."
-                )
-            if total_hires_needed == 0 or level_hires_needed == 0:
-                print(
-                    "⚠️ Hiring demand calculated as 0; new hire events will not be generated. Verify target_growth_rate and termination rates."
-                )
-
-        # Post event-generation sanity check: ensure hires materialized and have compensation
-        elif stage.name == WorkflowStage.EVENT_GENERATION:
-
-            def _ev_chk(conn):
-                hires = conn.execute(
-                    "SELECT COUNT(*) FROM int_hiring_events WHERE simulation_year = ?",
-                    [year],
-                ).fetchone()[0]
-                demand = conn.execute(
-                    "SELECT COALESCE(SUM(hires_needed),0) FROM int_workforce_needs_by_level WHERE simulation_year = ?",
-                    [year],
-                ).fetchone()[0]
-                return int(hires), int(demand)
-
-            hires_cnt, demand_cnt = self.db_manager.execute_with_retry(_ev_chk)
-            print(f"   📊 Event generation validation for year {year}:")
-            print(f"      int_hiring_events: {hires_cnt} rows")
-            print(f"      hiring_demand (sum_by_level): {demand_cnt}")
-            if hires_cnt == 0 and demand_cnt > 0:
-                raise PipelineStageError(
-                    f"CRITICAL: Hiring demand={demand_cnt} but 0 int_hiring_events rows for {year}. Check hiring logic."
-                )
-
-        # Verify population (snapshots and events exist) after STATE_ACCUMULATION
-        elif stage.name == WorkflowStage.STATE_ACCUMULATION:
-            self.state_manager.verify_year_population(year)
+                self.stage_validator.validate_stage(stage, year, fail_on_validation_error)
 
     def get_adaptive_batch_size(self) -> int:
         """Get current adaptive batch size from memory manager"""
