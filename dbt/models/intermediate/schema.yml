@@ -2134,12 +2134,46 @@ models:
           - accepted_values:
               values: ['VALID', 'INVALID_EMPLOYEE_ID', 'INVALID_SIMULATION_YEAR', 'INVALID_ENROLLMENT_STATUS']
 
-  # TEMPORARILY DISABLED: int_deferral_rate_escalation_events
-  # - name: int_deferral_rate_escalation_events
-  #   description: >
-  #     Generate annual deferral rate escalation events for eligible enrolled employees.
-  #     Implements Epic E035 requirements with configurable increment amounts (default 1%),
-  #     maximum rate caps (default 10%), and demographic-based eligibility rules.
-  #     Integrates with existing parameter system for job-level configuration.
-  #   config:
-  #     tags: ["escalation", "deferral", "events", "epic_e035"]
+  # NOTE: int_deferral_rate_escalation_events is materialized as ephemeral.
+  # Ephemeral models are inlined as CTEs into downstream models and do not exist
+  # as standalone database objects, so dbt schema tests (not_null, accepted_values)
+  # cannot be applied directly. The data quality validations for escalation events
+  # are instead enforced via:
+  #   - dbt/models/marts/data_quality/dq_deferral_escalation_validation.sql (summary health check)
+  #   - dbt/tests/data_quality/test_deferral_escalation.sql (singular test on fct_yearly_events)
+  #   - tests/test_escalation_events.py (pytest integration test)
+  - name: int_deferral_rate_escalation_events
+    description: >
+      Generate annual deferral rate escalation events for eligible enrolled employees.
+      Epic E035: Automatic Annual Deferral Rate Escalation.
+      This model uses a dependency-safe pattern (direct table reference to
+      int_deferral_rate_state_accumulator_v2) to avoid circular dependencies with
+      fct_workforce_snapshot. Implements configurable increment amounts (default 1%),
+      maximum rate caps (default 10%), and demographic-based eligibility rules.
+      Integrates with existing parameter system for job-level configuration.
+    config:
+      materialized: ephemeral
+      tags: ["escalation", "deferral", "events", "epic_e035", "EVENT_GENERATION", "E068A_EPHEMERAL"]
+    columns:
+      - name: employee_id
+        description: Unique identifier for the employee receiving escalation
+      - name: event_type
+        description: "Always 'deferral_escalation' for this model"
+      - name: simulation_year
+        description: The simulation year in which the escalation occurs
+      - name: effective_date
+        description: "Effective date of the escalation (defaults to January 1st)"
+      - name: new_deferral_rate
+        description: "New deferral rate after escalation (capped at escalation cap, default 10%)"
+      - name: previous_deferral_rate
+        description: Deferral rate before escalation was applied
+      - name: escalation_rate
+        description: "The increment amount applied (default 1%)"
+      - name: employee_deferral_rate
+        description: "Alias of new_deferral_rate for downstream compatibility"
+      - name: prev_employee_deferral_rate
+        description: "Alias of previous_deferral_rate for downstream compatibility"
+      - name: event_details
+        description: Human-readable description of the escalation change
+      - name: event_category
+        description: "Always 'deferral_escalation' for this model"

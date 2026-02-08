@@ -1,38 +1,85 @@
--- Converted from validation model to test
--- Added simulation_year filter for performance
-
 /*
-  Data Quality Validation Summary for Deferral Rate Escalation (Epic E035)
+  Data Quality Singular Test for Deferral Rate Escalation (Epic E035)
 
-  This lightweight summary produces the metrics required by the schema tests while
-  avoiding circular dependencies. When the full escalation pipeline is enabled,
-  replace these with real aggregations.
+  Returns failing rows from fct_yearly_events where deferral_escalation events
+  violate any of these rules:
+  - employee_deferral_rate must be <= 0.10 (cap)
+  - no duplicate employee_id + simulation_year combinations
+  - employee_id must not be null
+  - event_details must not be null
 
-  Returns failing records for dbt test.
+  Test passes when zero rows are returned.
+  Handles the case where no escalation events exist (passes with zero rows).
 */
 
 {% set simulation_year = var('simulation_year', 2025) %}
+{% set esc_cap = var('deferral_escalation_cap', 0.10) %}
 
-WITH summary AS (
+WITH escalation_events AS (
   SELECT
-    {{ simulation_year }}::INTEGER AS simulation_year,
-    100::INTEGER AS health_score,
-    'PERFECT'::VARCHAR AS health_status,
-    0::INTEGER AS total_violations,
-    0::INTEGER AS total_records,
-    0.0::DOUBLE AS violation_rate_pct,
-    0::INTEGER AS invalid_deferral_rates,
-    0::INTEGER AS duplicate_escalations,
-    0::INTEGER AS incorrect_effective_dates,
-    0::INTEGER AS deferral_rate_mismatches,
-    0::INTEGER AS escalation_count_decreases,
-    'System healthy; no issues detected'::VARCHAR AS recommendations,
-    CURRENT_TIMESTAMP AS validation_timestamp
+    employee_id,
+    simulation_year,
+    effective_date,
+    employee_deferral_rate,
+    prev_employee_deferral_rate,
+    event_details
+  FROM {{ ref('fct_yearly_events') }}
+  WHERE event_type = 'deferral_escalation'
+    AND simulation_year = {{ simulation_year }}
+),
+
+-- Failure: rate exceeds cap
+rate_violations AS (
+  SELECT
+    employee_id,
+    simulation_year,
+    'rate_exceeds_cap' AS violation_type,
+    employee_deferral_rate AS violation_value
+  FROM escalation_events
+  WHERE employee_deferral_rate > {{ esc_cap }} + 0.0001
+),
+
+-- Failure: duplicate employee + year
+duplicate_violations AS (
+  SELECT
+    employee_id,
+    simulation_year,
+    'duplicate_employee_year' AS violation_type,
+    n::DOUBLE AS violation_value
+  FROM (
+    SELECT employee_id, simulation_year, COUNT(*) AS n
+    FROM escalation_events
+    GROUP BY employee_id, simulation_year
+    HAVING COUNT(*) > 1
+  ) dups
+),
+
+-- Failure: null employee_id
+null_employee_violations AS (
+  SELECT
+    employee_id,
+    simulation_year,
+    'null_employee_id' AS violation_type,
+    NULL::DOUBLE AS violation_value
+  FROM escalation_events
+  WHERE employee_id IS NULL
+),
+
+-- Failure: null event_details
+null_details_violations AS (
+  SELECT
+    employee_id,
+    simulation_year,
+    'null_event_details' AS violation_type,
+    NULL::DOUBLE AS violation_value
+  FROM escalation_events
+  WHERE event_details IS NULL
 )
 
--- Return only failing records for dbt test (empty if healthy)
-SELECT *
-FROM summary
-WHERE total_violations > 0
-   OR health_status != 'PERFECT'
-   OR violation_rate_pct > 0
+SELECT * FROM rate_violations
+UNION ALL
+SELECT * FROM duplicate_violations
+UNION ALL
+SELECT * FROM null_employee_violations
+UNION ALL
+SELECT * FROM null_details_violations
