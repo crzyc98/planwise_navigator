@@ -77,9 +77,7 @@ raw_data AS (
 ),
 
 -- Annualized compensation calculation
--- IMPORTANT: The source column `employee_gross_compensation` is defined as an annual amount
--- in the contract. To avoid double-annualizing, we only apply calendar-day gross-up when
--- explicitly enabled via var('annualize_partial_year_compensation').
+-- The source column `employee_gross_compensation` is defined as an annual rate per the data contract.
 annualized_data AS (
   SELECT
       *,
@@ -114,10 +112,8 @@ comp_data AS (
       WHEN ad.days_active_in_year = 0 THEN 0.0
       ELSE ad.employee_gross_compensation * (ad.days_active_in_year / 365.0)
     END AS computed_plan_year_compensation,
-    CASE
-      WHEN ad.days_active_in_year = 0 THEN ad.employee_gross_compensation
-      ELSE (ad.employee_gross_compensation * (ad.days_active_in_year / 365.0)) * 365.0 / GREATEST(1, ad.days_active_in_year)
-    END AS employee_annualized_compensation
+    -- Gross compensation is already an annual rate; no annualization needed.
+    ad.employee_gross_compensation AS employee_annualized_compensation
   FROM annualized_data ad
 ),
 

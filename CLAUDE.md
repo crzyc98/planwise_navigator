@@ -806,6 +806,7 @@ See `/docs/VERSIONING_GUIDE.md` for detailed versioning workflow.
 - N/A (pure Python refactoring, no database changes) (035-events-modularization)
 - Python 3.11, SQL (DuckDB 1.0.0 via dbt-core 1.8.8 + dbt-duckdb 1.8.1) + dbt-core 1.8.8, dbt-duckdb 1.8.1, Pydantic v2.7.4, planalign_orchestrator (036-fix-deferral-escalation-cycle)
 - DuckDB (`dbt/simulation.duckdb`) - immutable event store (036-fix-deferral-escalation-cycle)
+- SQL (DuckDB 1.0.0) via dbt-core 1.8.8 + dbt-duckdb 1.8.1 + dbt-core 1.8.8, dbt-duckdb 1.8.1, dbt-utils (037-fix-annualization-logic)
 
 ## Recent Changes
 - 024-remove-polars-pipeline: Removed Polars dependency, simplified to SQL-only mode

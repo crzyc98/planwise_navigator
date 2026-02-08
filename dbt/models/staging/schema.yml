@@ -53,11 +53,24 @@ models:
         data_type: double
         constraints:
           - type: not_null
+        data_tests:
+          - not_null
+          - dbt_utils.accepted_range:
+              min_value: 0
+              name: "plan_year_comp_non_negative"
+          - dbt_utils.expression_is_true:
+              expression: "<= employee_gross_compensation * (366.0 / 365.0)"
+              name: "plan_year_comp_not_exceeds_gross"
       - name: employee_annualized_compensation
-        description: "Annualized compensation calculated for partial year workers."
+        description: "Annualized compensation equals gross compensation (gross is already an annual rate per data contract)."
         data_type: double
         constraints:
           - type: not_null
+        data_tests:
+          - not_null
+          - dbt_utils.expression_is_true:
+              expression: "= employee_gross_compensation"
+              name: "annualized_comp_equals_gross"
       - name: employee_capped_compensation
         description: "Capped compensation for benefit calculations."
         data_type: decimal(12,2)
