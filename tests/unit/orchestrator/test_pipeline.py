@@ -47,6 +47,25 @@ def _seed_minimal(db_path: Path, years):
         )
         """
     )
+    # Create accumulator tables required for year dependency validation
+    conn.execute(
+        """
+        CREATE TABLE int_enrollment_state_accumulator(
+            employee_id VARCHAR,
+            simulation_year INTEGER,
+            enrollment_date DATE
+        )
+        """
+    )
+    conn.execute(
+        """
+        CREATE TABLE int_deferral_rate_state_accumulator_v2(
+            employee_id VARCHAR,
+            simulation_year INTEGER,
+            deferral_rate DECIMAL(10,4)
+        )
+        """
+    )
     for y in years:
         # 5 active, 3 participating
         conn.executemany(
@@ -59,6 +78,15 @@ def _seed_minimal(db_path: Path, years):
             "INSERT INTO fct_yearly_events VALUES (?,?,?, DATE '" + str(y) + "-06-01')",
             [(f"E{y}{i}", "hire", y) for i in range(2)]
             + [(f"T{y}{i}", "termination", y) for i in range(1)],
+        )
+        # Seed accumulators with minimal data for year dependency validation
+        conn.executemany(
+            "INSERT INTO int_enrollment_state_accumulator VALUES (?,?,?)",
+            [(f"E{y}0", y, f"{y}-01-15")],
+        )
+        conn.executemany(
+            "INSERT INTO int_deferral_rate_state_accumulator_v2 VALUES (?,?,?)",
+            [(f"E{y}0", y, 0.06)],
         )
     conn.close()
 
