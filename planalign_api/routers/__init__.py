@@ -10,6 +10,7 @@ from .files import router as files_router
 from .templates import router as templates_router
 from .analytics import router as analytics_router
 from .bands import router as bands_router
+from .promotion_hazard import router as promotion_hazard_router
 
 __all__ = [
     "system_router",
@@ -22,4 +23,5 @@ __all__ = [
     "templates_router",
     "analytics_router",
     "bands_router",
+    "promotion_hazard_router",
 ]
