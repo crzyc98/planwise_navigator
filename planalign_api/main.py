@@ -31,6 +31,7 @@ from .routers import (
     templates_router,
     analytics_router,
     bands_router,
+    promotion_hazard_router,
 )
 from .routers.vesting import router as vesting_router
 from .routers.sync import router as sync_router
@@ -96,6 +97,7 @@ def create_app() -> FastAPI:
     app.include_router(sync_router, prefix="/api", tags=["Sync"])
     app.include_router(analytics_router, prefix="/api/workspaces", tags=["Analytics"])
     app.include_router(bands_router, prefix="/api/workspaces", tags=["Bands"])
+    app.include_router(promotion_hazard_router, prefix="/api/workspaces", tags=["Promotion Hazard"])
     app.include_router(vesting_router, prefix="/api", tags=["Vesting"])
 
     # WebSocket endpoints

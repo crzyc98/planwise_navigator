@@ -445,16 +445,93 @@ class WorkspaceStorage:
                 "contribution_rate": 0.03,
             }
 
+        # Fall back to global CSV seed files for seed config sections
+        self._inject_seed_config_defaults(merged)
+
         return merged
+
+    def _inject_seed_config_defaults(self, merged: Dict[str, Any]) -> None:
+        """Inject global CSV seed defaults for missing seed config sections.
+
+        For each of promotion_hazard, age_bands, and tenure_bands:
+        if the key is absent from the merged config, read from the
+        global dbt/seeds/ CSV files and inject into the config dict.
+        """
+        from ..services.promotion_hazard_service import PromotionHazardService
+        from ..services.band_service import BandService
+
+        try:
+            if "promotion_hazard" not in merged:
+                ph_service = PromotionHazardService()
+                ph_config = ph_service.read_all()
+                merged["promotion_hazard"] = {
+                    "base_rate": ph_config.base.base_rate,
+                    "level_dampener_factor": ph_config.base.level_dampener_factor,
+                    "age_multipliers": [
+                        {"age_band": m.age_band, "multiplier": m.multiplier}
+                        for m in ph_config.age_multipliers
+                    ],
+                    "tenure_multipliers": [
+                        {"tenure_band": m.tenure_band, "multiplier": m.multiplier}
+                        for m in ph_config.tenure_multipliers
+                    ],
+                }
+                logger.info("Injected promotion_hazard defaults from global CSV seeds")
+        except Exception as e:
+            logger.warning(f"Could not read promotion hazard defaults from CSV: {e}")
+
+        try:
+            if "age_bands" not in merged or "tenure_bands" not in merged:
+                band_service = BandService(workspaces_root=self.workspaces_root)
+                band_config = band_service.read_band_configs()
+
+                if "age_bands" not in merged:
+                    merged["age_bands"] = [
+                        {
+                            "band_id": b.band_id,
+                            "band_label": b.band_label,
+                            "min_value": b.min_value,
+                            "max_value": b.max_value,
+                            "display_order": b.display_order,
+                        }
+                        for b in band_config.age_bands
+                    ]
+                    logger.info("Injected age_bands defaults from global CSV seeds")
+
+                if "tenure_bands" not in merged:
+                    merged["tenure_bands"] = [
+                        {
+                            "band_id": b.band_id,
+                            "band_label": b.band_label,
+                            "min_value": b.min_value,
+                            "max_value": b.max_value,
+                            "display_order": b.display_order,
+                        }
+                        for b in band_config.tenure_bands
+                    ]
+                    logger.info("Injected tenure_bands defaults from global CSV seeds")
+        except Exception as e:
+            logger.warning(f"Could not read band defaults from CSV: {e}")
+
+    # Seed config sections that should replace atomically (not deep-merge)
+    _ATOMIC_SECTIONS = {"promotion_hazard", "age_bands", "tenure_bands"}
 
     def _deep_merge(
         self, base: Dict[str, Any], overrides: Dict[str, Any]
     ) -> Dict[str, Any]:
-        """Deep merge two dictionaries."""
+        """Deep merge two dictionaries.
+
+        Seed config sections (promotion_hazard, age_bands, tenure_bands)
+        are treated as atomic replacements — the override replaces the
+        entire section rather than merging field-by-field.
+        """
         result = base.copy()
 
         for key, value in overrides.items():
-            if key in result and isinstance(result[key], dict) and isinstance(value, dict):
+            if key in self._ATOMIC_SECTIONS:
+                # Section-level replacement for seed configs
+                result[key] = value
+            elif key in result and isinstance(result[key], dict) and isinstance(value, dict):
                 result[key] = self._deep_merge(result[key], value)
             else:
                 result[key] = value
