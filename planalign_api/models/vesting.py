@@ -178,3 +178,10 @@ class VestingScheduleListResponse(BaseModel):
     """Response listing available vesting schedules."""
 
     schedules: List[VestingScheduleInfo]
+
+
+class ScenarioYearsResponse(BaseModel):
+    """Available simulation years for a scenario."""
+
+    years: List[int] = Field(..., description="Sorted ascending list of available simulation years")
+    default_year: int = Field(..., description="The most recent (final) year")

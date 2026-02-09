@@ -1142,6 +1142,14 @@ export interface VestingAnalysisResponse {
 }
 
 /**
+ * Available simulation years for a scenario.
+ */
+export interface ScenarioYearsResponse {
+  years: number[];
+  default_year: number;
+}
+
+/**
  * Get list of all available vesting schedules.
  */
 export async function listVestingSchedules(): Promise<VestingScheduleListResponse> {
@@ -1168,6 +1176,19 @@ export async function analyzeVesting(
     }
   );
   return handleResponse<VestingAnalysisResponse>(response);
+}
+
+/**
+ * Get available simulation years for vesting analysis in a scenario.
+ */
+export async function getScenarioYears(
+  workspaceId: string,
+  scenarioId: string
+): Promise<ScenarioYearsResponse> {
+  const response = await fetch(
+    `${API_BASE}/api/workspaces/${workspaceId}/scenarios/${scenarioId}/analytics/vesting/years`
+  );
+  return handleResponse<ScenarioYearsResponse>(response);
 }
 
 // ============================================================================
