@@ -24,6 +24,7 @@ from ..models.workspace import (
     WorkspaceUpdate,
 )
 from ..services.export_service import ExportService
+from ..services.seed_config_validator import validate_seed_configs
 from ..storage.workspace_storage import WorkspaceStorage
 
 router = APIRouter()
@@ -147,7 +148,24 @@ async def update_workspace(
     Update a workspace.
 
     Allows updating name, description, and base configuration.
+    Validates seed config sections (promotion_hazard, age_bands, tenure_bands)
+    atomically — if any section is invalid, the entire update is rejected.
     """
+    # Validate seed config sections in base_config if present
+    if data.base_config:
+        errors = validate_seed_configs(data.base_config)
+        if errors:
+            raise HTTPException(
+                status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                detail={
+                    "message": "Validation failed",
+                    "errors": [
+                        {"section": e.section, "field": e.field, "message": e.message}
+                        for e in errors
+                    ],
+                },
+            )
+
     workspace = storage.update_workspace(
         workspace_id,
         name=data.name,

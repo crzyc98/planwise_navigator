@@ -172,6 +172,19 @@ class SimulationService:
 
             logger.info(f"Wrote merged config to: {config_path}")
 
+            # 313: Write scenario-specific seed CSVs from merged config
+            try:
+                from planalign_orchestrator.pipeline.seed_writer import write_all_seed_csvs
+                seeds_dir = Path(__file__).parent.parent.parent.parent / "dbt" / "seeds"
+                written = write_all_seed_csvs(config, seeds_dir)
+                written_sections = [k for k, v in written.items() if v]
+                if written_sections:
+                    logger.info(f"313: Wrote scenario-specific seed CSVs: {', '.join(written_sections)}")
+                else:
+                    logger.info("313: No seed config overrides — using global CSV defaults")
+            except Exception as e:
+                logger.warning(f"313: Failed to write seed CSVs (using global defaults): {e}")
+
             # Build the planalign simulate command
             year_range = (
                 f"{start_year}-{end_year}" if start_year != end_year else str(start_year)

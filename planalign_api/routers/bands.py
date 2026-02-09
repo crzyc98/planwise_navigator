@@ -13,8 +13,6 @@ from ..models.bands import (
     BandAnalysisRequest,
     BandAnalysisResult,
     BandConfig,
-    BandSaveRequest,
-    BandSaveResponse,
 )
 from ..services.band_service import BandService
 
@@ -72,69 +70,6 @@ async def get_band_configs(workspace_id: str) -> BandConfig:
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Failed to read band configurations: {e}",
-        )
-
-
-# -----------------------------------------------------------------------------
-# PUT /config/bands - Save Band Configurations (T016)
-# -----------------------------------------------------------------------------
-
-
-@router.put(
-    "/{workspace_id}/config/bands",
-    response_model=BandSaveResponse,
-    summary="Save band configurations",
-    description="""
-Save updated band configurations to dbt seed files.
-
-Validates for:
-- [min, max) interval convention
-- No gaps between consecutive bands
-- No overlapping ranges
-- Coverage from 0 to upper bound
-""",
-)
-async def save_band_configs(
-    workspace_id: str,
-    request: BandSaveRequest,
-) -> BandSaveResponse:
-    """
-    Save band configurations after validation.
-
-    Args:
-        workspace_id: Workspace ID
-        request: Band configuration to save
-
-    Returns:
-        BandSaveResponse with success status and any validation errors
-    """
-    service = get_band_service()
-
-    try:
-        success, validation_errors, message = service.save_band_configs(
-            age_bands=request.age_bands,
-            tenure_bands=request.tenure_bands,
-        )
-
-        # Return 400 if validation failed
-        if not success and validation_errors:
-            return BandSaveResponse(
-                success=False,
-                validation_errors=validation_errors,
-                message=message,
-            )
-
-        return BandSaveResponse(
-            success=success,
-            validation_errors=validation_errors,
-            message=message,
-        )
-
-    except Exception as e:
-        logger.error(f"Failed to save band configurations: {e}")
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Failed to save band configurations: {e}",
         )
 
 

@@ -13,6 +13,7 @@ from ..models.scenario import (
     ScenarioCreate,
     ScenarioUpdate,
 )
+from ..services.seed_config_validator import validate_seed_configs
 from ..storage.workspace_storage import WorkspaceStorage
 
 router = APIRouter()
@@ -120,7 +121,24 @@ async def update_scenario(
     Update a scenario.
 
     Allows updating name, description, and config_overrides.
+    Validates seed config sections (promotion_hazard, age_bands, tenure_bands)
+    atomically — if any section is invalid, the entire update is rejected.
     """
+    # Validate seed config sections in config_overrides if present
+    if data.config_overrides:
+        errors = validate_seed_configs(data.config_overrides)
+        if errors:
+            raise HTTPException(
+                status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                detail={
+                    "message": "Validation failed",
+                    "errors": [
+                        {"section": e.section, "field": e.field, "message": e.message}
+                        for e in errors
+                    ],
+                },
+            )
+
     scenario = storage.update_scenario(
         workspace_id,
         scenario_id,
