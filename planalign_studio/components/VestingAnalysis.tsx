@@ -5,13 +5,14 @@ import {
 } from 'recharts';
 import {
   Scale, DollarSign, Users, TrendingDown, TrendingUp,
-  RefreshCw, AlertCircle, ChevronDown, ChevronUp, Database, Loader2, Table
+  RefreshCw, AlertCircle, ChevronDown, ChevronUp, Database, Loader2, Table, Calendar
 } from 'lucide-react';
 import {
   listWorkspaces,
   listScenarios,
   listVestingSchedules,
   analyzeVesting,
+  getScenarioYears,
   Workspace,
   Scenario,
   VestingScheduleInfo,
@@ -111,6 +112,11 @@ export default function VestingAnalysis() {
   const [selectedWorkspaceId, setSelectedWorkspaceId] = useState<string>('');
   const [selectedScenarioId, setSelectedScenarioId] = useState<string>('');
 
+  // State for year selection
+  const [availableYears, setAvailableYears] = useState<number[]>([]);
+  const [selectedYear, setSelectedYear] = useState<number | undefined>(undefined);
+  const [loadingYears, setLoadingYears] = useState(false);
+
   // State for schedule selection
   const [currentSchedule, setCurrentSchedule] = useState<VestingScheduleConfig | null>(null);
   const [proposedSchedule, setProposedSchedule] = useState<VestingScheduleConfig | null>(null);
@@ -142,6 +148,16 @@ export default function VestingAnalysis() {
       setSelectedScenarioId('');
     }
   }, [selectedWorkspaceId]);
+
+  // Fetch available years when scenario changes
+  useEffect(() => {
+    if (selectedWorkspaceId && selectedScenarioId) {
+      fetchYears(selectedWorkspaceId, selectedScenarioId);
+    } else {
+      setAvailableYears([]);
+      setSelectedYear(undefined);
+    }
+  }, [selectedWorkspaceId, selectedScenarioId]);
 
   const fetchWorkspaces = async () => {
     try {
@@ -198,8 +214,23 @@ export default function VestingAnalysis() {
     }
   };
 
+  const fetchYears = async (workspaceId: string, scenarioId: string) => {
+    setLoadingYears(true);
+    try {
+      const data = await getScenarioYears(workspaceId, scenarioId);
+      setAvailableYears(data.years);
+      setSelectedYear(data.default_year);
+    } catch (err) {
+      console.error('Failed to fetch scenario years:', err);
+      setAvailableYears([]);
+      setSelectedYear(undefined);
+    } finally {
+      setLoadingYears(false);
+    }
+  };
+
   const handleAnalyze = async () => {
-    if (!selectedWorkspaceId || !selectedScenarioId || !currentSchedule || !proposedSchedule) {
+    if (!selectedWorkspaceId || !selectedScenarioId || !currentSchedule || !proposedSchedule || !selectedYear) {
       return;
     }
 
@@ -210,6 +241,7 @@ export default function VestingAnalysis() {
       const request: VestingAnalysisRequest = {
         current_schedule: currentSchedule,
         proposed_schedule: proposedSchedule,
+        simulation_year: selectedYear,
       };
       const result = await analyzeVesting(selectedWorkspaceId, selectedScenarioId, request);
       setAnalysisResult(result);
@@ -284,7 +316,7 @@ export default function VestingAnalysis() {
     employees: band.employee_count,
   })) || [];
 
-  const canAnalyze = selectedWorkspaceId && selectedScenarioId && currentSchedule && proposedSchedule;
+  const canAnalyze = selectedWorkspaceId && selectedScenarioId && currentSchedule && proposedSchedule && selectedYear;
 
   // Sort employee details (T045)
   const handleSort = (field: SortField) => {
@@ -379,6 +411,8 @@ export default function VestingAnalysis() {
                 value={selectedScenarioId}
                 onChange={(e) => {
                   setSelectedScenarioId(e.target.value);
+                  setAvailableYears([]);
+                  setSelectedYear(undefined);
                   setAnalysisResult(null);
                 }}
                 disabled={!selectedWorkspaceId || loadingScenarios}
@@ -494,8 +528,38 @@ export default function VestingAnalysis() {
           </div>
         </div>
 
-        {/* Analyze Button */}
-        <div className="mt-4 flex justify-end">
+        {/* Analysis Year Selector */}
+        <div className="mt-4 flex items-end gap-4">
+          <div className="w-48">
+            <label className="block text-sm font-medium text-gray-700 mb-1 flex items-center">
+              <Calendar size={14} className="mr-1.5 text-gray-400" />
+              Analysis Year
+            </label>
+            <div className="relative">
+              <select
+                value={selectedYear ?? ''}
+                onChange={(e) => {
+                  setSelectedYear(e.target.value ? Number(e.target.value) : undefined);
+                  setAnalysisResult(null);
+                }}
+                disabled={!selectedScenarioId || loadingYears || availableYears.length === 0}
+                className="appearance-none w-full bg-white border border-gray-300 rounded-lg pl-3 pr-10 py-2 text-sm focus:ring-fidelity-green focus:border-fidelity-green shadow-sm disabled:bg-gray-50 disabled:text-gray-400"
+              >
+                {loadingYears ? (
+                  <option value="">Loading...</option>
+                ) : availableYears.length === 0 ? (
+                  <option value="">No years available</option>
+                ) : (
+                  availableYears.map(year => (
+                    <option key={year} value={year}>{year}</option>
+                  ))
+                )}
+              </select>
+              <ChevronDown size={16} className="absolute right-3 top-2.5 text-gray-400 pointer-events-none" />
+            </div>
+          </div>
+          <div className="flex-1" />
+          {/* Analyze Button */}
           <button
             onClick={handleAnalyze}
             disabled={!canAnalyze || analyzing}
@@ -514,7 +578,6 @@ export default function VestingAnalysis() {
             )}
           </button>
         </div>
-      </div>
 
       {/* Content Area */}
       {analyzing ? (

@@ -8,6 +8,7 @@ from typing import List, Optional
 
 from ..models.vesting import (
     EmployeeVestingDetail,
+    ScenarioYearsResponse,
     TenureBandSummary,
     VestingAnalysisRequest,
     VestingAnalysisResponse,
@@ -199,6 +200,32 @@ class VestingService:
             "SELECT MAX(simulation_year) FROM fct_workforce_snapshot"
         ).fetchone()
         return result[0] if result and result[0] else 2025
+
+    def get_available_years(
+        self, workspace_id: str, scenario_id: str
+    ) -> Optional[ScenarioYearsResponse]:
+        """Get available simulation years for a scenario."""
+        import duckdb
+
+        resolved = self.db_resolver.resolve(workspace_id, scenario_id)
+        if not resolved.exists:
+            logger.error(f"Database not found for scenario {scenario_id}")
+            return None
+
+        conn = duckdb.connect(str(resolved.path), read_only=True)
+        try:
+            rows = conn.execute(
+                "SELECT DISTINCT simulation_year FROM fct_workforce_snapshot ORDER BY simulation_year ASC"
+            ).fetchall()
+            years = [row[0] for row in rows]
+            if not years:
+                return None
+            return ScenarioYearsResponse(
+                years=years,
+                default_year=max(years),
+            )
+        finally:
+            conn.close()
 
     def _get_terminated_employees(self, conn, year: int) -> List[dict]:
         """Query terminated employees with employer contributions (T025).
