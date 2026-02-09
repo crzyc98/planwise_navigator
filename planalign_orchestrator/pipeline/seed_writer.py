@@ -7,6 +7,8 @@ Handles promotion hazard parameters, age bands, and tenure bands.
 
 import csv
 import logging
+import os
+import tempfile
 from pathlib import Path
 from typing import Any
 
@@ -25,39 +27,60 @@ def write_promotion_hazard_csvs(config: dict[str, Any], seeds_dir: Path) -> None
             - tenure_multipliers: list of dicts with {tenure_band, multiplier}
         seeds_dir: Path to dbt seeds directory
     """
-    # Write base configuration
+    # Write base configuration (atomic)
     base_file = seeds_dir / "config_promotion_hazard_base.csv"
-    with open(base_file, "w", newline="") as f:
-        writer = csv.DictWriter(f, fieldnames=["base_rate", "level_dampener_factor"])
-        writer.writeheader()
-        writer.writerow({
-            "base_rate": config["base_rate"],
-            "level_dampener_factor": config["level_dampener_factor"]
-        })
+    tmp_fd, tmp_path = tempfile.mkstemp(dir=seeds_dir, suffix=".csv.tmp")
+    try:
+        with os.fdopen(tmp_fd, "w", newline="") as f:
+            writer = csv.DictWriter(f, fieldnames=["base_rate", "level_dampener_factor"])
+            writer.writeheader()
+            writer.writerow({
+                "base_rate": config["base_rate"],
+                "level_dampener_factor": config["level_dampener_factor"]
+            })
+        os.replace(tmp_path, str(base_file))
+    except Exception:
+        if os.path.exists(tmp_path):
+            os.unlink(tmp_path)
+        raise
     logger.info(f"Wrote promotion hazard base config to {base_file}")
 
-    # Write age multipliers
+    # Write age multipliers (atomic)
     age_file = seeds_dir / "config_promotion_hazard_age_multipliers.csv"
-    with open(age_file, "w", newline="") as f:
-        writer = csv.DictWriter(f, fieldnames=["age_band", "multiplier"])
-        writer.writeheader()
-        for entry in config["age_multipliers"]:
-            writer.writerow({
-                "age_band": entry["age_band"],
-                "multiplier": entry["multiplier"]
-            })
+    tmp_fd, tmp_path = tempfile.mkstemp(dir=seeds_dir, suffix=".csv.tmp")
+    try:
+        with os.fdopen(tmp_fd, "w", newline="") as f:
+            writer = csv.DictWriter(f, fieldnames=["age_band", "multiplier"])
+            writer.writeheader()
+            for entry in config["age_multipliers"]:
+                writer.writerow({
+                    "age_band": entry["age_band"],
+                    "multiplier": entry["multiplier"]
+                })
+        os.replace(tmp_path, str(age_file))
+    except Exception:
+        if os.path.exists(tmp_path):
+            os.unlink(tmp_path)
+        raise
     logger.info(f"Wrote {len(config['age_multipliers'])} age multipliers to {age_file}")
 
-    # Write tenure multipliers
+    # Write tenure multipliers (atomic)
     tenure_file = seeds_dir / "config_promotion_hazard_tenure_multipliers.csv"
-    with open(tenure_file, "w", newline="") as f:
-        writer = csv.DictWriter(f, fieldnames=["tenure_band", "multiplier"])
-        writer.writeheader()
-        for entry in config["tenure_multipliers"]:
-            writer.writerow({
-                "tenure_band": entry["tenure_band"],
-                "multiplier": entry["multiplier"]
-            })
+    tmp_fd, tmp_path = tempfile.mkstemp(dir=seeds_dir, suffix=".csv.tmp")
+    try:
+        with os.fdopen(tmp_fd, "w", newline="") as f:
+            writer = csv.DictWriter(f, fieldnames=["tenure_band", "multiplier"])
+            writer.writeheader()
+            for entry in config["tenure_multipliers"]:
+                writer.writerow({
+                    "tenure_band": entry["tenure_band"],
+                    "multiplier": entry["multiplier"]
+                })
+        os.replace(tmp_path, str(tenure_file))
+    except Exception:
+        if os.path.exists(tmp_path):
+            os.unlink(tmp_path)
+        raise
     logger.info(f"Wrote {len(config['tenure_multipliers'])} tenure multipliers to {tenure_file}")
 
 
@@ -73,36 +96,50 @@ def write_band_csvs(config: dict[str, Any], seeds_dir: Path) -> None:
     """
     fieldnames = ["band_id", "band_label", "min_value", "max_value", "display_order"]
 
-    # Write age bands if present
+    # Write age bands if present (atomic)
     if "age_bands" in config:
         age_file = seeds_dir / "config_age_bands.csv"
-        with open(age_file, "w", newline="") as f:
-            writer = csv.DictWriter(f, fieldnames=fieldnames)
-            writer.writeheader()
-            for band in config["age_bands"]:
-                writer.writerow({
-                    "band_id": band["band_id"],
-                    "band_label": band["band_label"],
-                    "min_value": band["min_value"],
-                    "max_value": band["max_value"],
-                    "display_order": band["display_order"]
-                })
+        tmp_fd, tmp_path = tempfile.mkstemp(dir=seeds_dir, suffix=".csv.tmp")
+        try:
+            with os.fdopen(tmp_fd, "w", newline="") as f:
+                writer = csv.DictWriter(f, fieldnames=fieldnames)
+                writer.writeheader()
+                for band in config["age_bands"]:
+                    writer.writerow({
+                        "band_id": band["band_id"],
+                        "band_label": band["band_label"],
+                        "min_value": band["min_value"],
+                        "max_value": band["max_value"],
+                        "display_order": band["display_order"]
+                    })
+            os.replace(tmp_path, str(age_file))
+        except Exception:
+            if os.path.exists(tmp_path):
+                os.unlink(tmp_path)
+            raise
         logger.info(f"Wrote {len(config['age_bands'])} age bands to {age_file}")
 
-    # Write tenure bands if present
+    # Write tenure bands if present (atomic)
     if "tenure_bands" in config:
         tenure_file = seeds_dir / "config_tenure_bands.csv"
-        with open(tenure_file, "w", newline="") as f:
-            writer = csv.DictWriter(f, fieldnames=fieldnames)
-            writer.writeheader()
-            for band in config["tenure_bands"]:
-                writer.writerow({
-                    "band_id": band["band_id"],
-                    "band_label": band["band_label"],
-                    "min_value": band["min_value"],
-                    "max_value": band["max_value"],
-                    "display_order": band["display_order"]
-                })
+        tmp_fd, tmp_path = tempfile.mkstemp(dir=seeds_dir, suffix=".csv.tmp")
+        try:
+            with os.fdopen(tmp_fd, "w", newline="") as f:
+                writer = csv.DictWriter(f, fieldnames=fieldnames)
+                writer.writeheader()
+                for band in config["tenure_bands"]:
+                    writer.writerow({
+                        "band_id": band["band_id"],
+                        "band_label": band["band_label"],
+                        "min_value": band["min_value"],
+                        "max_value": band["max_value"],
+                        "display_order": band["display_order"]
+                    })
+            os.replace(tmp_path, str(tenure_file))
+        except Exception:
+            if os.path.exists(tmp_path):
+                os.unlink(tmp_path)
+            raise
         logger.info(f"Wrote {len(config['tenure_bands'])} tenure bands to {tenure_file}")
 
 
@@ -118,6 +155,8 @@ def write_all_seed_csvs(merged_config: dict[str, Any], seeds_dir: Path) -> dict[
         Dictionary indicating which sections were written, e.g.:
         {"promotion_hazard": True, "age_bands": True, "tenure_bands": False}
     """
+    seeds_dir.mkdir(parents=True, exist_ok=True)
+
     written_sections = {
         "promotion_hazard": False,
         "age_bands": False,

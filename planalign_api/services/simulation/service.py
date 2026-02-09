@@ -173,13 +173,25 @@ class SimulationService:
             logger.info(f"Wrote merged config to: {config_path}")
 
             # 313: Write scenario-specific seed CSVs from merged config
+            # Seeds are written to the scenario directory first (provenance),
+            # then copied to dbt/seeds/ (the only path dbt reads from).
             try:
                 from planalign_orchestrator.pipeline.seed_writer import write_all_seed_csvs
-                seeds_dir = Path(__file__).parent.parent.parent.parent / "dbt" / "seeds"
-                written = write_all_seed_csvs(config, seeds_dir)
+
+                # Step 1: Write to scenario-owned seeds directory
+                scenario_seeds_dir = scenario_path / "seeds"
+                written = write_all_seed_csvs(config, scenario_seeds_dir)
                 written_sections = [k for k, v in written.items() if v]
+
+                # Step 2: Copy scenario seeds into the shared dbt/seeds/ for dbt
                 if written_sections:
-                    logger.info(f"313: Wrote scenario-specific seed CSVs: {', '.join(written_sections)}")
+                    dbt_seeds_dir = Path(__file__).parent.parent.parent.parent / "dbt" / "seeds"
+                    for csv_file in scenario_seeds_dir.glob("config_*.csv"):
+                        shutil.copy2(csv_file, dbt_seeds_dir / csv_file.name)
+                    logger.info(
+                        f"313: Wrote scenario seeds to {scenario_seeds_dir} "
+                        f"and copied to dbt/seeds/: {', '.join(written_sections)}"
+                    )
                 else:
                     logger.info("313: No seed config overrides — using global CSV defaults")
             except Exception as e:

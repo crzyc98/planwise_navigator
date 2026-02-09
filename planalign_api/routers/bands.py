@@ -6,15 +6,17 @@ in PlanAlign Studio.
 
 import logging
 
-from fastapi import APIRouter, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, status
 
-from ..config import get_settings
+from ..config import APISettings, get_settings
 from ..models.bands import (
+    Band,
     BandAnalysisRequest,
     BandAnalysisResult,
     BandConfig,
 )
 from ..services.band_service import BandService
+from ..storage.workspace_storage import WorkspaceStorage
 
 logger = logging.getLogger(__name__)
 
@@ -25,6 +27,11 @@ def get_band_service() -> BandService:
     """Get band service instance."""
     settings = get_settings()
     return BandService(settings.workspaces_root)
+
+
+def get_storage(settings: APISettings = Depends(get_settings)) -> WorkspaceStorage:
+    """Dependency to get workspace storage."""
+    return WorkspaceStorage(settings.workspaces_root)
 
 
 # -----------------------------------------------------------------------------
@@ -38,21 +45,72 @@ def get_band_service() -> BandService:
     summary="Get band configurations",
     description="Retrieve current age and tenure band definitions from dbt seed files",
 )
-async def get_band_configs(workspace_id: str) -> BandConfig:
+async def get_band_configs(
+    workspace_id: str,
+    storage: WorkspaceStorage = Depends(get_storage),
+) -> BandConfig:
     """
     Get current band configurations.
 
+    Follows the fallback chain: workspace base_config > global CSV defaults.
+
     Args:
-        workspace_id: Workspace ID (for API consistency; bands are global)
+        workspace_id: Workspace ID
+        storage: Injected workspace storage
 
     Returns:
         BandConfig with age_bands and tenure_bands
     """
     service = get_band_service()
 
+    # Try workspace base_config first
+    age_bands = None
+    tenure_bands = None
+    workspace = storage.get_workspace(workspace_id)
+
+    if workspace is not None and workspace.base_config:
+        if "age_bands" in workspace.base_config:
+            try:
+                age_bands = [
+                    Band(**band_dict)
+                    for band_dict in workspace.base_config["age_bands"]
+                ]
+                logger.info(
+                    f"Loaded {len(age_bands)} age bands from workspace "
+                    f"'{workspace_id}' base_config"
+                )
+            except Exception as e:
+                logger.warning(
+                    f"Failed to parse age bands from workspace base_config, "
+                    f"falling back to global CSV: {e}"
+                )
+                age_bands = None
+
+        if "tenure_bands" in workspace.base_config:
+            try:
+                tenure_bands = [
+                    Band(**band_dict)
+                    for band_dict in workspace.base_config["tenure_bands"]
+                ]
+                logger.info(
+                    f"Loaded {len(tenure_bands)} tenure bands from workspace "
+                    f"'{workspace_id}' base_config"
+                )
+            except Exception as e:
+                logger.warning(
+                    f"Failed to parse tenure bands from workspace base_config, "
+                    f"falling back to global CSV: {e}"
+                )
+                tenure_bands = None
+
+    # Fall back to global CSV for any missing band types
     try:
-        config = service.read_band_configs()
-        return config
+        if age_bands is None:
+            age_bands = service.read_bands_from_csv("age")
+            logger.info("Loaded age bands from global CSV (fallback)")
+        if tenure_bands is None:
+            tenure_bands = service.read_bands_from_csv("tenure")
+            logger.info("Loaded tenure bands from global CSV (fallback)")
     except FileNotFoundError as e:
         logger.error(f"Band configuration file not found: {e}")
         raise HTTPException(
@@ -71,6 +129,8 @@ async def get_band_configs(workspace_id: str) -> BandConfig:
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Failed to read band configurations: {e}",
         )
+
+    return BandConfig(age_bands=age_bands, tenure_bands=tenure_bands)
 
 
 # -----------------------------------------------------------------------------
