@@ -949,25 +949,6 @@ export async function getBandConfigs(workspaceId: string): Promise<BandConfig> {
 }
 
 /**
- * Save band configurations to dbt seed files.
- * Validates for [min, max) convention, no gaps, no overlaps.
- */
-export async function saveBandConfigs(
-  workspaceId: string,
-  request: BandSaveRequest
-): Promise<BandSaveResponse> {
-  const response = await fetch(
-    `${API_BASE}/api/workspaces/${workspaceId}/config/bands`,
-    {
-      method: 'PUT',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(request),
-    }
-  );
-  return handleResponse<BandSaveResponse>(response);
-}
-
-/**
  * Analyze census data for age band suggestions.
  * Uses percentile-based boundary detection focusing on recent hires.
  */
@@ -1003,6 +984,47 @@ export async function analyzeTenureBands(
     }
   );
   return handleResponse<BandAnalysisResult>(response);
+}
+
+// ============================================================================
+// Promotion Hazard Configuration Endpoints (Feature 038)
+// ============================================================================
+
+export interface PromotionHazardBase {
+  base_rate: number;
+  level_dampener_factor: number;
+}
+
+export interface PromotionHazardAgeMultiplier {
+  age_band: string;
+  multiplier: number;
+}
+
+export interface PromotionHazardTenureMultiplier {
+  tenure_band: string;
+  multiplier: number;
+}
+
+export interface PromotionHazardConfig {
+  base: PromotionHazardBase;
+  age_multipliers: PromotionHazardAgeMultiplier[];
+  tenure_multipliers: PromotionHazardTenureMultiplier[];
+}
+
+export interface PromotionHazardSaveResponse {
+  success: boolean;
+  errors: string[];
+  message: string;
+}
+
+/**
+ * Get promotion hazard configuration from dbt seed files.
+ */
+export async function getPromotionHazardConfig(workspaceId: string): Promise<PromotionHazardConfig> {
+  const response = await fetch(
+    `${API_BASE}/api/workspaces/${workspaceId}/config/promotion-hazards`
+  );
+  return handleResponse<PromotionHazardConfig>(response);
 }
 
 // ============================================================================

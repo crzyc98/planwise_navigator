@@ -807,6 +807,11 @@ See `/docs/VERSIONING_GUIDE.md` for detailed versioning workflow.
 - Python 3.11, SQL (DuckDB 1.0.0 via dbt-core 1.8.8 + dbt-duckdb 1.8.1) + dbt-core 1.8.8, dbt-duckdb 1.8.1, Pydantic v2.7.4, planalign_orchestrator (036-fix-deferral-escalation-cycle)
 - DuckDB (`dbt/simulation.duckdb`) - immutable event store (036-fix-deferral-escalation-cycle)
 - SQL (DuckDB 1.0.0) via dbt-core 1.8.8 + dbt-duckdb 1.8.1 + dbt-core 1.8.8, dbt-duckdb 1.8.1, dbt-utils (037-fix-annualization-logic)
+- TypeScript 5.x (frontend), Python 3.11 (backend) + React 18, Vite, FastAPI, Pydantic v2 (038-promotion-probability-ui)
+- Workspace YAML (`base_config.yaml`, `overrides.yaml`), dbt CSV seed (`config_job_levels.csv`) (038-promotion-probability-ui)
+- dbt CSV seeds (`dbt/seeds/config_promotion_hazard_*.csv`) — direct read/write (038-promotion-probability-ui)
+- Python 3.11 (backend), TypeScript 5.x (frontend) + FastAPI (API), Pydantic v2 (validation), React 18 + Vite (frontend), dbt-core 1.8.8 (039-per-scenario-seed-config)
+- Workspace YAML files (`base_config.yaml`, `overrides.yaml`), DuckDB (simulation), CSV seeds (ephemeral working copies) (039-per-scenario-seed-config)
 
 ## Recent Changes
 - 024-remove-polars-pipeline: Removed Polars dependency, simplified to SQL-only mode

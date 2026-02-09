@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react'
 import { Save, AlertTriangle, FileText, Settings, HelpCircle, TrendingUp, Users, DollarSign, Zap, Server, Shield, PieChart, Database, Upload, Check, X, ArrowLeft, Target, Sparkles, Play, Copy, Info, Layers } from 'lucide-react';
 import { useNavigate, useOutletContext, useParams } from 'react-router-dom';
 import { LayoutContextType } from './Layout';
-import { updateWorkspace as apiUpdateWorkspace, getScenario, updateScenario, Scenario, uploadCensusFile, validateFilePath, listTemplates, Template, analyzeAgeDistribution, analyzeCompensation, CompensationAnalysis, solveCompensationGrowth, CompensationSolverResponse, listScenarios, getBandConfigs, saveBandConfigs, analyzeAgeBands, analyzeTenureBands, Band, BandConfig, BandValidationError, BandAnalysisResult } from '../services/api';
+import { updateWorkspace as apiUpdateWorkspace, getScenario, getScenarioConfig, updateScenario, Scenario, uploadCensusFile, validateFilePath, listTemplates, Template, analyzeAgeDistribution, analyzeCompensation, CompensationAnalysis, solveCompensationGrowth, CompensationSolverResponse, listScenarios, getBandConfigs, analyzeAgeBands, analyzeTenureBands, Band, BandConfig, BandValidationError, BandAnalysisResult, getPromotionHazardConfig, PromotionHazardConfig } from '../services/api';
 
 // E084 Phase B: Match template presets with editable tiers
 interface MatchTier {
@@ -142,11 +142,10 @@ export default function ConfigStudio() {
   const [availableScenarios, setAvailableScenarios] = useState<Scenario[]>([]);
   const [copyingScenariosLoading, setCopyingScenariosLoading] = useState(false);
 
-  // E003: Band configuration state
+  // E003: Band configuration state (used for display/editing, populated from formData or global defaults)
   const [bandConfig, setBandConfig] = useState<BandConfig | null>(null);
   const [bandConfigLoading, setBandConfigLoading] = useState(false);
   const [bandConfigError, setBandConfigError] = useState<string | null>(null);
-  const [bandSaveStatus, setBandSaveStatus] = useState<'idle' | 'saving' | 'success' | 'error'>('idle');
   const [bandValidationErrors, setBandValidationErrors] = useState<BandValidationError[]>([]);
 
   // E003: Band analysis state for "Match Census" buttons
@@ -154,6 +153,12 @@ export default function ConfigStudio() {
   const [ageBandAnalyzing, setAgeBandAnalyzing] = useState(false);
   const [tenureBandAnalysis, setTenureBandAnalysis] = useState<BandAnalysisResult | null>(null);
   const [tenureBandAnalyzing, setTenureBandAnalyzing] = useState(false);
+
+  // 038: Promotion hazard configuration state (used for display/editing, populated from formData or global defaults)
+  const [promotionHazardConfig, setPromotionHazardConfig] = useState<PromotionHazardConfig | null>(null);
+  const [promotionHazardLoading, setPromotionHazardLoading] = useState(false);
+  const [promotionHazardError, setPromotionHazardError] = useState<string | null>(null);
+  const [promotionHazardValidationErrors, setPromotionHazardValidationErrors] = useState<string[]>([]);
 
   // Expanded State for all tabs
   const [formData, setFormData] = useState({
@@ -504,6 +509,10 @@ export default function ConfigStudio() {
   // Track saved state for dirty detection (Option 3: Persist Draft + Warn on Page Leave)
   const [savedFormData, setSavedFormData] = useState<typeof formData | null>(null);
 
+  // 313: Track saved state for seed configs (promotion hazard and bands)
+  const [savedPromotionHazardConfig, setSavedPromotionHazardConfig] = useState<PromotionHazardConfig | null>(null);
+  const [savedBandConfig, setSavedBandConfig] = useState<BandConfig | null>(null);
+
 
   // Load scenario if scenarioId is provided
   useEffect(() => {
@@ -805,11 +814,14 @@ export default function ConfigStudio() {
     }
   }, [formData, activeWorkspace?.base_config, currentScenario?.config_overrides, savedFormData]);
 
-  // Compute isDirty by comparing current formData with savedFormData
+  // Compute isDirty by comparing current formData with savedFormData (including seed configs)
   const isDirty = useMemo(() => {
     if (!savedFormData) return false;
-    return JSON.stringify(formData) !== JSON.stringify(savedFormData);
-  }, [formData, savedFormData]);
+    const formDirty = JSON.stringify(formData) !== JSON.stringify(savedFormData);
+    const promotionHazardDirty = JSON.stringify(promotionHazardConfig) !== JSON.stringify(savedPromotionHazardConfig);
+    const bandDirty = JSON.stringify(bandConfig) !== JSON.stringify(savedBandConfig);
+    return formDirty || promotionHazardDirty || bandDirty;
+  }, [formData, savedFormData, promotionHazardConfig, savedPromotionHazardConfig, bandConfig, savedBandConfig]);
 
   // Compute which sections have unsaved changes (for dirty indicators on tabs)
   const dirtySections = useMemo(() => {
@@ -882,8 +894,18 @@ export default function ConfigStudio() {
       dirty.add('advanced');
     }
 
+    // 313: Promotion hazard section (displayed under compensation tab)
+    if (JSON.stringify(promotionHazardConfig) !== JSON.stringify(savedPromotionHazardConfig)) {
+      dirty.add('compensation');
+    }
+
+    // 313: Band configuration section (displayed under segmentation tab)
+    if (JSON.stringify(bandConfig) !== JSON.stringify(savedBandConfig)) {
+      dirty.add('segmentation');
+    }
+
     return dirty;
-  }, [formData, savedFormData]);
+  }, [formData, savedFormData, promotionHazardConfig, savedPromotionHazardConfig, bandConfig, savedBandConfig]);
 
   // Warn user when leaving page with unsaved changes (browser refresh/close)
   useEffect(() => {
@@ -899,27 +921,69 @@ export default function ConfigStudio() {
     return () => window.removeEventListener('beforeunload', handleBeforeUnload);
   }, [isDirty]);
 
-  // E003: Load band configurations on component mount
+  // 313: Load seed configs (bands + promotion hazard) from merged scenario config or global defaults
   useEffect(() => {
-    const loadBandConfigs = async () => {
+    const loadSeedConfigs = async () => {
       if (!activeWorkspace?.id) return;
 
       setBandConfigLoading(true);
       setBandConfigError(null);
+      setPromotionHazardLoading(true);
+      setPromotionHazardError(null);
 
       try {
-        const config = await getBandConfigs(activeWorkspace.id);
-        setBandConfig(config);
+        // 313: When viewing a scenario, load from merged config (includes per-scenario overrides)
+        if (scenarioId) {
+          const mergedConfig = await getScenarioConfig(activeWorkspace.id, scenarioId);
+
+          // Load promotion hazard from merged config
+          if (mergedConfig.promotion_hazard) {
+            const ph = mergedConfig.promotion_hazard;
+            const phConfig: PromotionHazardConfig = {
+              base: {
+                base_rate: ph.base_rate,
+                level_dampener_factor: ph.level_dampener_factor,
+              },
+              age_multipliers: ph.age_multipliers || [],
+              tenure_multipliers: ph.tenure_multipliers || [],
+            };
+            setPromotionHazardConfig(phConfig);
+            setSavedPromotionHazardConfig(JSON.parse(JSON.stringify(phConfig)));
+          }
+
+          // Load bands from merged config
+          if (mergedConfig.age_bands && mergedConfig.tenure_bands) {
+            const bc: BandConfig = {
+              age_bands: mergedConfig.age_bands,
+              tenure_bands: mergedConfig.tenure_bands,
+            };
+            setBandConfig(bc);
+            setSavedBandConfig(JSON.parse(JSON.stringify(bc)));
+          }
+        } else {
+          // No scenario selected — load from global CSV endpoints
+          const [bandCfg, phCfg] = await Promise.all([
+            getBandConfigs(activeWorkspace.id),
+            getPromotionHazardConfig(activeWorkspace.id),
+          ]);
+          setBandConfig(bandCfg);
+          setSavedBandConfig(JSON.parse(JSON.stringify(bandCfg)));
+          setPromotionHazardConfig(phCfg);
+          setSavedPromotionHazardConfig(JSON.parse(JSON.stringify(phCfg)));
+        }
       } catch (error) {
-        console.error('Failed to load band configurations:', error);
-        setBandConfigError(error instanceof Error ? error.message : 'Failed to load band configurations');
+        console.error('Failed to load seed configurations:', error);
+        const msg = error instanceof Error ? error.message : 'Failed to load seed configurations';
+        setBandConfigError(msg);
+        setPromotionHazardError(msg);
       } finally {
         setBandConfigLoading(false);
+        setPromotionHazardLoading(false);
       }
     };
 
-    loadBandConfigs();
-  }, [activeWorkspace?.id]);
+    loadSeedConfigs();
+  }, [activeWorkspace?.id, scenarioId]);
 
   // E003: Handler for editing a band field
   const handleBandChange = (
@@ -944,7 +1008,6 @@ export default function ConfigStudio() {
 
     // Clear previous validation errors and save status when editing
     setBandValidationErrors([]);
-    setBandSaveStatus('idle');
   };
 
   // E003: Client-side band validation
@@ -1012,41 +1075,60 @@ export default function ConfigStudio() {
     return errors;
   };
 
-  // E003: Handler for saving band configurations
-  const handleSaveBands = async () => {
-    if (!activeWorkspace?.id || !bandConfig) return;
+  // 038: Change handler for promotion hazard base parameters
+  const handlePromotionHazardBaseChange = (field: 'base_rate' | 'level_dampener_factor', value: string) => {
+    if (!promotionHazardConfig) return;
+    setPromotionHazardConfig({
+      ...promotionHazardConfig,
+      base: {
+        ...promotionHazardConfig.base,
+        [field]: parseFloat(value) / 100 || 0, // Convert from percentage to decimal
+      },
+    });
+    setPromotionHazardValidationErrors([]);
+  };
 
-    // Client-side validation first
-    const ageErrors = validateBandsClient(bandConfig.age_bands, 'age');
-    const tenureErrors = validateBandsClient(bandConfig.tenure_bands, 'tenure');
-    const allErrors = [...ageErrors, ...tenureErrors];
+  // 038: Change handler for promotion hazard age multipliers
+  const handlePromotionHazardAgeMultiplierChange = (index: number, value: string) => {
+    if (!promotionHazardConfig) return;
+    const updated = [...promotionHazardConfig.age_multipliers];
+    updated[index] = { ...updated[index], multiplier: parseFloat(value) || 0 };
+    setPromotionHazardConfig({ ...promotionHazardConfig, age_multipliers: updated });
+    setPromotionHazardValidationErrors([]);
+  };
 
-    if (allErrors.length > 0) {
-      setBandValidationErrors(allErrors);
-      setBandSaveStatus('error');
-      return;
+  // 038: Change handler for promotion hazard tenure multipliers
+  const handlePromotionHazardTenureMultiplierChange = (index: number, value: string) => {
+    if (!promotionHazardConfig) return;
+    const updated = [...promotionHazardConfig.tenure_multipliers];
+    updated[index] = { ...updated[index], multiplier: parseFloat(value) || 0 };
+    setPromotionHazardConfig({ ...promotionHazardConfig, tenure_multipliers: updated });
+    setPromotionHazardValidationErrors([]);
+  };
+
+  // 038: Client-side validation for promotion hazard config
+  const validatePromotionHazardConfig = (config: PromotionHazardConfig): string[] => {
+    const errors: string[] = [];
+    const baseRatePercent = config.base.base_rate * 100;
+    const dampenerPercent = config.base.level_dampener_factor * 100;
+
+    if (baseRatePercent < 0 || baseRatePercent > 100) {
+      errors.push('Base rate must be between 0% and 100%');
     }
-
-    setBandSaveStatus('saving');
-    setBandValidationErrors([]);
-
-    try {
-      const result = await saveBandConfigs(activeWorkspace.id, {
-        age_bands: bandConfig.age_bands,
-        tenure_bands: bandConfig.tenure_bands,
-      });
-
-      if (result.success) {
-        setBandSaveStatus('success');
-        setTimeout(() => setBandSaveStatus('idle'), 3000);
-      } else {
-        setBandValidationErrors(result.validation_errors);
-        setBandSaveStatus('error');
+    if (dampenerPercent < 0 || dampenerPercent > 100) {
+      errors.push('Level dampener must be between 0% and 100%');
+    }
+    for (const m of config.age_multipliers) {
+      if (m.multiplier < 0) {
+        errors.push(`Age multiplier for band '${m.age_band}' must be non-negative`);
       }
-    } catch (error) {
-      console.error('Failed to save band configurations:', error);
-      setBandSaveStatus('error');
     }
+    for (const m of config.tenure_multipliers) {
+      if (m.multiplier < 0) {
+        errors.push(`Tenure multiplier for band '${m.tenure_band}' must be non-negative`);
+      }
+    }
+    return errors;
   };
 
   // E003: Handler for "Match Census" age bands
@@ -1079,7 +1161,6 @@ export default function ConfigStudio() {
       age_bands: ageBandAnalysis.suggested_bands,
     });
     setAgeBandAnalysis(null);
-    setBandSaveStatus('idle');
     setBandValidationErrors([]);
   };
 
@@ -1113,7 +1194,6 @@ export default function ConfigStudio() {
       tenure_bands: tenureBandAnalysis.suggested_bands,
     });
     setTenureBandAnalysis(null);
-    setBandSaveStatus('idle');
     setBandValidationErrors([]);
   };
 
@@ -1240,6 +1320,62 @@ export default function ConfigStudio() {
         },
       };
 
+      // 313: Client-side validation for seed configs before save
+      if (promotionHazardConfig) {
+        const hazardErrors = validatePromotionHazardConfig(promotionHazardConfig);
+        if (hazardErrors.length > 0) {
+          setPromotionHazardValidationErrors(hazardErrors);
+          setSaveStatus('error');
+          setSaveMessage('Promotion hazard validation failed - check errors below');
+          return;
+        }
+      }
+
+      if (bandConfig) {
+        const ageErrors = validateBandsClient(bandConfig.age_bands, 'age');
+        const tenureErrors = validateBandsClient(bandConfig.tenure_bands, 'tenure');
+        const allBandErrors = [...ageErrors, ...tenureErrors];
+        if (allBandErrors.length > 0) {
+          setBandValidationErrors(allBandErrors);
+          setSaveStatus('error');
+          setSaveMessage('Band configuration validation failed - check errors below');
+          return;
+        }
+      }
+
+      // 313: Include seed configs in the unified payload
+      if (promotionHazardConfig) {
+        (configPayload as any).promotion_hazard = {
+          base_rate: promotionHazardConfig.base.base_rate,
+          level_dampener_factor: promotionHazardConfig.base.level_dampener_factor,
+          age_multipliers: promotionHazardConfig.age_multipliers.map(m => ({
+            age_band: m.age_band,
+            multiplier: m.multiplier,
+          })),
+          tenure_multipliers: promotionHazardConfig.tenure_multipliers.map(m => ({
+            tenure_band: m.tenure_band,
+            multiplier: m.multiplier,
+          })),
+        };
+      }
+
+      if (bandConfig) {
+        (configPayload as any).age_bands = bandConfig.age_bands.map(b => ({
+          band_id: b.band_id,
+          band_label: b.band_label,
+          min_value: b.min_value,
+          max_value: b.max_value,
+          display_order: b.display_order,
+        }));
+        (configPayload as any).tenure_bands = bandConfig.tenure_bands.map(b => ({
+          band_id: b.band_id,
+          band_label: b.band_label,
+          min_value: b.min_value,
+          max_value: b.max_value,
+          display_order: b.display_order,
+        }));
+      }
+
       // Save to scenario or workspace depending on context
       if (currentScenario && scenarioId) {
         // Save to scenario's config_overrides
@@ -1258,8 +1394,14 @@ export default function ConfigStudio() {
       setSaveStatus('success');
       setSaveMessage('Configuration saved successfully!');
 
-      // Update savedFormData to reflect the new saved state (clears dirty indicators)
+      // Update saved state to reflect the new saved state (clears dirty indicators)
       setSavedFormData({ ...formData });
+      if (promotionHazardConfig) {
+        setSavedPromotionHazardConfig(JSON.parse(JSON.stringify(promotionHazardConfig)));
+      }
+      if (bandConfig) {
+        setSavedBandConfig(JSON.parse(JSON.stringify(bandConfig)));
+      }
 
       // Reset status after 3 seconds
       setTimeout(() => {
@@ -2393,6 +2535,162 @@ export default function ConfigStudio() {
                         </div>
                       </div>
                     </div>
+
+                    {/* 038: Promotion Hazard Section */}
+                    <div className="bg-gray-50 p-6 rounded-lg border border-gray-200 mt-6">
+                      <h3 className="text-sm font-semibold text-gray-900 mb-2">Promotion Hazard</h3>
+                      <p className="text-xs text-gray-500 mb-4">
+                        Configure the base promotion rate, level dampener, and age/tenure multipliers that drive promotion probabilities in the simulation.
+                        Formula: base_rate &times; tenure_multiplier &times; age_multiplier &times; max(0, 1 - level_dampener &times; (level - 1)), capped at 100%.
+                      </p>
+
+                      {/* Loading State */}
+                      {promotionHazardLoading && (
+                        <div className="flex items-center justify-center py-6">
+                          <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-fidelity-green"></div>
+                          <span className="ml-3 text-gray-600 text-sm">Loading promotion hazard config...</span>
+                        </div>
+                      )}
+
+                      {/* Error State */}
+                      {promotionHazardError && !promotionHazardLoading && (
+                        <div className="bg-red-50 border border-red-200 rounded-lg p-3 mb-4">
+                          <div className="flex items-center">
+                            <AlertTriangle className="w-4 h-4 text-red-600 mr-2" />
+                            <span className="text-red-800 text-sm">{promotionHazardError}</span>
+                          </div>
+                        </div>
+                      )}
+
+                      {/* Validation Errors */}
+                      {promotionHazardValidationErrors.length > 0 && (
+                        <div className="bg-red-50 border border-red-200 rounded-lg p-3 mb-4">
+                          <div className="flex items-start">
+                            <AlertTriangle className="w-4 h-4 text-red-600 mr-2 mt-0.5" />
+                            <div>
+                              <h4 className="text-red-800 font-medium text-sm">Validation Errors</h4>
+                              <ul className="mt-1 space-y-1">
+                                {promotionHazardValidationErrors.map((err, idx) => (
+                                  <li key={idx} className="text-xs text-red-700">{err}</li>
+                                ))}
+                              </ul>
+                            </div>
+                          </div>
+                        </div>
+                      )}
+
+                      {/* 313: Promotion hazard saves through unified "Save Changes" button */}
+                      {saveStatus === 'success' && (
+                        <div className="bg-green-50 border border-green-200 rounded-lg p-3 mb-4">
+                          <div className="flex items-center">
+                            <Check className="w-4 h-4 text-green-600 mr-2" />
+                            <span className="text-green-800 text-sm">Configuration saved successfully.</span>
+                          </div>
+                        </div>
+                      )}
+
+                      {promotionHazardConfig && !promotionHazardLoading && (
+                        <>
+                          {/* Base Parameters */}
+                          <div className="mb-6">
+                            <h4 className="text-xs font-semibold text-gray-700 uppercase tracking-wider mb-3">Base Parameters</h4>
+                            <div className="grid grid-cols-2 gap-4">
+                              <div>
+                                <label className="block text-xs text-gray-500 mb-1">Base Rate (%)</label>
+                                <input
+                                  type="number"
+                                  step="0.1"
+                                  min="0"
+                                  max="100"
+                                  value={parseFloat((promotionHazardConfig.base.base_rate * 100).toFixed(4))}
+                                  onChange={(e) => handlePromotionHazardBaseChange('base_rate', e.target.value)}
+                                  className="w-full shadow-sm focus:ring-fidelity-green focus:border-fidelity-green text-sm border-gray-300 rounded-md p-2 border"
+                                />
+                                <p className="mt-1 text-xs text-gray-400">Stored as {promotionHazardConfig.base.base_rate}</p>
+                              </div>
+                              <div>
+                                <label className="block text-xs text-gray-500 mb-1">Level Dampener (%)</label>
+                                <input
+                                  type="number"
+                                  step="0.1"
+                                  min="0"
+                                  max="100"
+                                  value={parseFloat((promotionHazardConfig.base.level_dampener_factor * 100).toFixed(4))}
+                                  onChange={(e) => handlePromotionHazardBaseChange('level_dampener_factor', e.target.value)}
+                                  className="w-full shadow-sm focus:ring-fidelity-green focus:border-fidelity-green text-sm border-gray-300 rounded-md p-2 border"
+                                />
+                                <p className="mt-1 text-xs text-gray-400">Stored as {promotionHazardConfig.base.level_dampener_factor}</p>
+                              </div>
+                            </div>
+                          </div>
+
+                          {/* Age Multipliers Table */}
+                          <div className="mb-6">
+                            <h4 className="text-xs font-semibold text-gray-700 uppercase tracking-wider mb-3">Age Multipliers</h4>
+                            <div className="overflow-x-auto">
+                              <table className="w-full text-sm">
+                                <thead>
+                                  <tr className="border-b border-gray-200">
+                                    <th className="text-left py-2 px-3 font-medium text-gray-700">Age Band</th>
+                                    <th className="text-left py-2 px-3 font-medium text-gray-700">Multiplier</th>
+                                  </tr>
+                                </thead>
+                                <tbody>
+                                  {promotionHazardConfig.age_multipliers.map((m, idx) => (
+                                    <tr key={m.age_band} className="border-b border-gray-100">
+                                      <td className="py-2 px-3 text-gray-600">{m.age_band}</td>
+                                      <td className="py-2 px-3">
+                                        <input
+                                          type="number"
+                                          step="0.1"
+                                          min="0"
+                                          value={m.multiplier}
+                                          onChange={(e) => handlePromotionHazardAgeMultiplierChange(idx, e.target.value)}
+                                          className="w-24 px-2 py-1 border rounded text-sm border-gray-300"
+                                        />
+                                      </td>
+                                    </tr>
+                                  ))}
+                                </tbody>
+                              </table>
+                            </div>
+                          </div>
+
+                          {/* Tenure Multipliers Table */}
+                          <div className="mb-6">
+                            <h4 className="text-xs font-semibold text-gray-700 uppercase tracking-wider mb-3">Tenure Multipliers</h4>
+                            <div className="overflow-x-auto">
+                              <table className="w-full text-sm">
+                                <thead>
+                                  <tr className="border-b border-gray-200">
+                                    <th className="text-left py-2 px-3 font-medium text-gray-700">Tenure Band</th>
+                                    <th className="text-left py-2 px-3 font-medium text-gray-700">Multiplier</th>
+                                  </tr>
+                                </thead>
+                                <tbody>
+                                  {promotionHazardConfig.tenure_multipliers.map((m, idx) => (
+                                    <tr key={m.tenure_band} className="border-b border-gray-100">
+                                      <td className="py-2 px-3 text-gray-600">{m.tenure_band}</td>
+                                      <td className="py-2 px-3">
+                                        <input
+                                          type="number"
+                                          step="0.1"
+                                          min="0"
+                                          value={m.multiplier}
+                                          onChange={(e) => handlePromotionHazardTenureMultiplierChange(idx, e.target.value)}
+                                          className="w-24 px-2 py-1 border rounded text-sm border-gray-300"
+                                        />
+                                      </td>
+                                    </tr>
+                                  ))}
+                                </tbody>
+                              </table>
+                            </div>
+                          </div>
+
+                        </>
+                      )}
+                    </div>
                  </div>
                </div>
             )}
@@ -2445,12 +2743,12 @@ export default function ConfigStudio() {
                       </div>
                     )}
 
-                    {/* Save Status */}
-                    {bandSaveStatus === 'success' && (
+                    {/* 313: Band configs save through unified "Save Changes" button */}
+                    {saveStatus === 'success' && (
                       <div className="bg-green-50 border border-green-200 rounded-lg p-4">
                         <div className="flex items-center">
                           <Check className="w-5 h-5 text-green-600 mr-2" />
-                          <span className="text-green-800">Band configurations saved successfully. Seeds will be reloaded at simulation start.</span>
+                          <span className="text-green-800">Configuration saved successfully.</span>
                         </div>
                       </div>
                     )}
@@ -2691,32 +2989,7 @@ export default function ConfigStudio() {
                       </p>
                     </div>
 
-                    {/* Save Button */}
-                    <div className="flex justify-end">
-                      <button
-                        onClick={handleSaveBands}
-                        disabled={bandSaveStatus === 'saving' || bandValidationErrors.length > 0}
-                        className={`flex items-center px-4 py-2 rounded-lg font-medium transition-colors ${
-                          bandValidationErrors.length > 0
-                            ? 'bg-gray-300 text-gray-500 cursor-not-allowed'
-                            : bandSaveStatus === 'saving'
-                            ? 'bg-gray-400 text-white cursor-wait'
-                            : 'bg-fidelity-green text-white hover:bg-fidelity-green-dark'
-                        }`}
-                      >
-                        {bandSaveStatus === 'saving' ? (
-                          <>
-                            <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2" />
-                            Saving...
-                          </>
-                        ) : (
-                          <>
-                            <Save size={18} className="mr-2" />
-                            Save Band Configurations
-                          </>
-                        )}
-                      </button>
-                    </div>
+                    {/* 313: Band save button removed - bands are saved through the unified "Save Changes" button */}
                   </>
                 )}
               </div>
@@ -3535,6 +3808,25 @@ export default function ConfigStudio() {
                               censusDataStatus: 'error',
                             }));
                           }
+                        }
+
+                        // 313: Copy seed configs (promotion hazard, bands) from source scenario
+                        if (cfg.promotion_hazard) {
+                          const ph = cfg.promotion_hazard;
+                          setPromotionHazardConfig({
+                            base: {
+                              base_rate: ph.base_rate,
+                              level_dampener_factor: ph.level_dampener_factor,
+                            },
+                            age_multipliers: ph.age_multipliers || [],
+                            tenure_multipliers: ph.tenure_multipliers || [],
+                          });
+                        }
+                        if (cfg.age_bands && cfg.tenure_bands) {
+                          setBandConfig({
+                            age_bands: cfg.age_bands,
+                            tenure_bands: cfg.tenure_bands,
+                          });
                         }
 
                         setShowCopyScenarioModal(false);
