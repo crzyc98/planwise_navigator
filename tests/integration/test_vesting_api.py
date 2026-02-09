@@ -131,6 +131,46 @@ class TestVestingAnalysisEndpoint:
         assert response.status_code == 422
 
 
+class TestVestingYearsEndpoint:
+    """Tests for GET /api/workspaces/{workspace_id}/scenarios/{scenario_id}/analytics/vesting/years."""
+
+    def test_get_vesting_years_missing_workspace(self, client):
+        """Non-existent workspace returns 404."""
+        response = client.get(
+            "/api/workspaces/nonexistent_ws/scenarios/baseline/analytics/vesting/years"
+        )
+        assert response.status_code == 404
+
+    def test_get_vesting_years_missing_scenario(self, client):
+        """Non-existent scenario returns 404."""
+        response = client.get(
+            "/api/workspaces/test_ws/scenarios/nonexistent_scenario/analytics/vesting/years"
+        )
+        assert response.status_code == 404
+
+    def test_years_response_has_required_fields(self):
+        """ScenarioYearsResponse model validates correctly."""
+        from planalign_api.models.vesting import ScenarioYearsResponse
+
+        response = ScenarioYearsResponse(
+            years=[2025, 2026, 2027],
+            default_year=2027,
+        )
+        assert response.years == [2025, 2026, 2027]
+        assert response.default_year == 2027
+
+    def test_years_response_single_year(self):
+        """ScenarioYearsResponse with single year validates correctly."""
+        from planalign_api.models.vesting import ScenarioYearsResponse
+
+        response = ScenarioYearsResponse(
+            years=[2025],
+            default_year=2025,
+        )
+        assert len(response.years) == 1
+        assert response.default_year == 2025
+
+
 class TestVestingAnalysisResponseStructure:
     """Tests for vesting analysis response structure."""
 

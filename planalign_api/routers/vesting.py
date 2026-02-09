@@ -5,6 +5,7 @@ from __future__ import annotations
 from fastapi import APIRouter, Depends, HTTPException
 
 from ..models.vesting import (
+    ScenarioYearsResponse,
     VestingAnalysisRequest,
     VestingAnalysisResponse,
     VestingScheduleListResponse,
@@ -38,6 +39,40 @@ async def list_vesting_schedules() -> VestingScheduleListResponse:
     percentage progressions and descriptions.
     """
     return get_schedule_list()
+
+
+@router.get(
+    "/workspaces/{workspace_id}/scenarios/{scenario_id}/analytics/vesting/years",
+    response_model=ScenarioYearsResponse,
+)
+async def get_vesting_years(
+    workspace_id: str,
+    scenario_id: str,
+    vesting_service: VestingService = Depends(get_vesting_service),
+) -> ScenarioYearsResponse:
+    """
+    Get available simulation years for vesting analysis.
+
+    Returns the list of simulation years present in the scenario's
+    database, sorted ascending, with the default (final) year.
+    """
+    storage = vesting_service.storage
+    workspace = storage.get_workspace(workspace_id)
+    if not workspace:
+        raise HTTPException(status_code=404, detail="Workspace not found")
+
+    scenario = storage.get_scenario(workspace_id, scenario_id)
+    if not scenario:
+        raise HTTPException(status_code=404, detail="Scenario not found")
+
+    result = vesting_service.get_available_years(workspace_id, scenario_id)
+    if result is None:
+        raise HTTPException(
+            status_code=404,
+            detail="Simulation data not found. Ensure the scenario has completed simulation.",
+        )
+
+    return result
 
 
 @router.post(

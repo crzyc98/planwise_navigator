@@ -812,6 +812,8 @@ See `/docs/VERSIONING_GUIDE.md` for detailed versioning workflow.
 - dbt CSV seeds (`dbt/seeds/config_promotion_hazard_*.csv`) — direct read/write (038-promotion-probability-ui)
 - Python 3.11 (backend), TypeScript 5.x (frontend) + FastAPI (API), Pydantic v2 (validation), React 18 + Vite (frontend), dbt-core 1.8.8 (039-per-scenario-seed-config)
 - Workspace YAML files (`base_config.yaml`, `overrides.yaml`), DuckDB (simulation), CSV seeds (ephemeral working copies) (039-per-scenario-seed-config)
+- Python 3.11 (backend), TypeScript 5.x (frontend) + FastAPI (backend API), React 18 + Vite (frontend), Pydantic v2 (validation), DuckDB 1.0.0 (storage) (040-vesting-year-selector)
+- DuckDB (`dbt/simulation.duckdb`) — read-only queries via `DatabasePathResolver` (040-vesting-year-selector)
 
 ## Recent Changes
 - 024-remove-polars-pipeline: Removed Polars dependency, simplified to SQL-only mode
