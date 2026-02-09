@@ -624,7 +624,7 @@ export default function ScenarioCostComparison() {
     lines.push(['Scenario', ...years.map(String), 'Total', 'Variance'].join('\t'));
 
     // Data rows
-    selectedScenarioIds.forEach(id => {
+    orderedScenarioIds.forEach(id => {
       const analytics = comparisonData.analytics.find(a => a.scenario_id === id);
       if (!analytics) return;
 
@@ -651,7 +651,7 @@ export default function ScenarioCostComparison() {
     });
 
     return lines.join('\n');
-  }, [comparisonData, years, selectedScenarioIds, anchorScenarioId, anchorAnalytics]);
+  }, [comparisonData, years, orderedScenarioIds, anchorScenarioId, anchorAnalytics]);
 
   const handleCompensationCopy = useCallback(() => {
     const tsv = compensationTableToTSV();

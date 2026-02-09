@@ -85,8 +85,15 @@ def validate_promotion_hazard(config: dict) -> List[SeedConfigValidationError]:
         ))
 
     # Validate age_multipliers
-    age_multipliers = config.get("age_multipliers", [])
-    if not isinstance(age_multipliers, list):
+    age_multipliers = config.get("age_multipliers")
+    if age_multipliers is None:
+        errors.append(SeedConfigValidationError(
+            section="promotion_hazard",
+            field="age_multipliers",
+            message="age_multipliers is required"
+        ))
+        age_multipliers = []
+    elif not isinstance(age_multipliers, list):
         errors.append(SeedConfigValidationError(
             section="promotion_hazard",
             field="age_multipliers",
@@ -130,8 +137,15 @@ def validate_promotion_hazard(config: dict) -> List[SeedConfigValidationError]:
                 ))
 
     # Validate tenure_multipliers
-    tenure_multipliers = config.get("tenure_multipliers", [])
-    if not isinstance(tenure_multipliers, list):
+    tenure_multipliers = config.get("tenure_multipliers")
+    if tenure_multipliers is None:
+        errors.append(SeedConfigValidationError(
+            section="promotion_hazard",
+            field="tenure_multipliers",
+            message="tenure_multipliers is required"
+        ))
+        tenure_multipliers = []
+    elif not isinstance(tenure_multipliers, list):
         errors.append(SeedConfigValidationError(
             section="promotion_hazard",
             field="tenure_multipliers",
