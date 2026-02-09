@@ -646,7 +646,7 @@ export default function ScenarioCostComparison() {
         variance = `${delta >= 0 ? '+' : ''}${formatCurrency(delta)}`;
       }
 
-      const name = comparisonData.scenario_names[id] || id;
+      const name = comparisonData.scenario_names[id] || analytics.scenario_name || id;
       lines.push([name, ...yearValues, formatCurrency(total), variance].join('\t'));
     });
 
@@ -1252,7 +1252,7 @@ export default function ScenarioCostComparison() {
                             <div className="flex items-center">
                               <div className={`w-2 h-2 rounded-full mr-2 ${isAnchor ? 'bg-blue-600' : 'bg-fidelity-green'}`} />
                               <span className={`text-sm font-bold ${isAnchor ? 'text-blue-700' : 'text-gray-900'}`}>
-                                {comparisonData.scenario_names[id]}
+                                {comparisonData.scenario_names[id] || analytics.scenario_name || id}
                                 {isAnchor && (
                                   <span className="ml-2 text-[8px] font-bold bg-blue-100 text-blue-600 px-1 py-0.5 rounded uppercase">
                                     Anchor
