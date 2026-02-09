@@ -1,12 +1,12 @@
 # Fidelity PlanAlign Engine
 
-**An enterprise-grade, on-premises workforce simulation platform with immutable event sourcing, built on DuckDB, dbt, Dagster, and Streamlit.**
+**An enterprise-grade, on-premises workforce simulation platform with immutable event sourcing, built on DuckDB, dbt, FastAPI, and React.**
 
 ## Overview
 
 Fidelity PlanAlign Engine represents a paradigm shift from rigid spreadsheets to a dynamic, fully transparent simulation engine—essentially a workforce "time machine" that captures every employee lifecycle event with UUID-stamped precision and enables instant scenario replay.
 
-This enterprise-grade platform replaces legacy Pandas-based pipelines with an immutable event-sourced architecture optimized for analytical workloads, audit trails, and regulatory compliance.
+This enterprise-grade platform uses an immutable event-sourced architecture optimized for analytical workloads, audit trails, and regulatory compliance.
 
 ### Key Features
 
@@ -23,6 +23,9 @@ This enterprise-grade platform replaces legacy Pandas-based pipelines with an im
 - **Reproducible Results**: Random seed control for identical simulation outcomes
 - **Scalable Performance**: Handle 100K+ employee records with minimal memory footprint
 - **Workspace Cloud Sync**: Git-based synchronization for cross-device access and team collaboration
+- **Per-Scenario Seed Config**: Workspace-level and scenario-level overrides for bands, promotion hazards, and other seed parameters
+- **Dynamic Band Assignment**: Age/tenure band macros read from configurable seed tables, not hardcoded values
+- **DC Plan Modeling**: Retirement plan contribution, vesting, enrollment, and forfeiture simulation
 
 ### PlanAlign Orchestrator
 
@@ -34,9 +37,10 @@ Enterprise-grade orchestration engine with modular architecture:
   - `workflow.py`: Workflow stage definitions and builders
   - `year_executor.py`: Year-by-year execution logic
   - `state_manager.py`: State management and checkpointing
-  - `event_generation_executor.py`: Hybrid SQL/Polars event generation
+  - `event_generation_executor.py`: SQL-based event generation
   - `hooks.py`: Extensible hook system
   - `data_cleanup.py`: Data cleanup utilities
+  - `seed_writer.py`: Atomic seed CSV writer with directory safety
 - `config.py`: Type-safe configuration management
 - `dbt_runner.py`: Streaming dbt execution with retry/backoff
 - `registries.py`: State registries across simulation years
@@ -59,7 +63,6 @@ Enterprise-grade orchestration engine with modular architecture:
 | **Orchestration** | planalign_orchestrator | Custom | Multi-year pipeline orchestration with checkpoints |
 | **CLI Interface** | planwise (Rich + Typer) | 1.0.0 | Beautiful terminal interface with progress tracking |
 | **Web Studio** | FastAPI + React/Vite | 0.1.0 | Modern web-based scenario management |
-| **Dashboard** | Streamlit | 1.39.0 | Interactive analytics interface |
 | **Configuration** | Pydantic | 2.7.4 | Type-safe parameter management |
 | **Git Sync** | GitPython | 3.1.0+ | Workspace cloud synchronization |
 | **Python** | CPython | 3.11.x | Long-term support version |
@@ -77,13 +80,21 @@ Raw Census Data → Staging Models → Event Generation → Immutable Event Stor
 2. **Event Generation**: Modular engines create immutable workforce events (UUID-stamped)
 3. **Event Store**: Permanent, tamper-proof audit trail in `fct_yearly_events`
 4. **Snapshot Layer**: Point-in-time workforce states reconstructed from events
-5. **Dashboard Layer**: Interactive scenario analysis with time-machine capabilities
+5. **Analytics Layer**: Scenario comparison, cost metrics, and vesting analysis via PlanAlign Studio
+
+### Seed Configuration Fallback Chain
+Seed-based parameters (bands, promotion hazards) follow a strict override hierarchy:
+1. **Scenario overrides** (`config_overrides`) — highest priority
+2. **Workspace base config** (`base_config.yaml`) — workspace defaults
+3. **Global CSV seeds** (`dbt/seeds/config_*.csv`) — project defaults
 
 ### Modular Engine Architecture
 - **Compensation Engine**: COLA, merit, and promotion-based salary adjustments
 - **Termination Engine**: Hazard-based turnover modeling with age/tenure factors
 - **Hiring Engine**: Growth-driven recruitment with realistic demographic sampling
 - **Promotion Engine**: Band-aware advancement with configurable probabilities
+- **DC Plan Engine**: Retirement plan contribution, vesting, and distribution modeling
+- **Plan Administration Engine**: Forfeiture processing, HCE determination, IRS compliance
 
 ## Directory Structure
 
@@ -545,9 +556,10 @@ python -m planalign_orchestrator batch --scenarios baseline --verbose
 - **Analytics**: Derived metrics and trend analysis for strategic planning
 
 ### Analytics
-- **Interactive Dashboard**: Streamlit-based scenario analysis
-- **Comparative Analysis**: Multi-scenario comparison capabilities
-- **Export Capabilities**: Data export for external reporting
+- **PlanAlign Studio**: Web-based scenario management, comparison, and visualization
+- **Comparative Analysis**: Multi-scenario cost comparison with anchor-first ordering
+- **Vesting Analysis**: Service-year vesting schedule visualization
+- **Export Capabilities**: Excel export with metadata, TSV clipboard copy
 
 ## Configuration
 
@@ -561,9 +573,12 @@ Key configuration options in `config/simulation_config.yaml`:
 - `random_seed`: For reproducible results
 
 ### Advanced Configuration
-- **Hazard Multipliers**: Age and tenure-based risk adjustments
-- **Promotion Matrices**: Level-to-level transition probabilities
+- **Hazard Multipliers**: Age and tenure-based risk adjustments (configurable via UI or seed CSVs)
+- **Promotion Hazards**: Base rate, level dampener, and per-band multipliers
+- **Age/Tenure Bands**: Configurable band boundaries read dynamically by dbt macros
 - **Compensation Models**: Merit raise and promotion increase rules
+- **DC Plan Design**: Match formulas, core contributions, vesting schedules, IRS limits
+- **Per-Scenario Overrides**: Each scenario can override any seed parameter independently
 
 ## Data Quality & Testing
 
@@ -591,7 +606,7 @@ Key configuration options in `config/simulation_config.yaml`:
 ### Local Development
 - Single-machine deployment with file-based DuckDB
 - planwise CLI for interactive simulation execution
-- Streamlit dashboard for immediate feedback and compensation tuning
+- PlanAlign Studio (web UI) for scenario management and visualization
 - Checkpoint-based resumability for long-running simulations
 
 ### Production Deployment
@@ -791,7 +806,15 @@ planalign sync disconnect
 
 **API Endpoints**: `/api/sync/status`, `/api/sync/push`, `/api/sync/pull`, `/api/sync/init`
 
-**Documentation**: `docs/epics/E083_workspace_cloud_sync.md`
+### Per-Scenario Seed Config & Dynamic Band Macros (Feb 2026)
+
+Seed configuration improvements for isolation and correctness:
+- **Workspace fallback chain**: GET endpoints for bands and promotion hazards now check workspace `base_config` before falling back to global CSVs
+- **Seed isolation**: Simulation writes seeds to scenario directory first (provenance), then copies to `dbt/seeds/` for dbt consumption
+- **Atomic seed writes**: CSV seed files written via temp file + `os.replace()` to prevent partial files
+- **Dynamic band macros**: `assign_age_band` and `assign_tenure_band` now use `run_query` to read from seed tables at compile time instead of hardcoded CASE expressions
+- **Validator hardening**: `age_multipliers` and `tenure_multipliers` are now required fields (not silently defaulted to empty)
+- **68 unit tests** for seed config validation
 
 ---
 
