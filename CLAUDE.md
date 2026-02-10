@@ -814,6 +814,7 @@ See `/docs/VERSIONING_GUIDE.md` for detailed versioning workflow.
 - Workspace YAML files (`base_config.yaml`, `overrides.yaml`), DuckDB (simulation), CSV seeds (ephemeral working copies) (039-per-scenario-seed-config)
 - Python 3.11 (backend), TypeScript 5.x (frontend) + FastAPI (backend API), React 18 + Vite (frontend), Pydantic v2 (validation), DuckDB 1.0.0 (storage) (040-vesting-year-selector)
 - DuckDB (`dbt/simulation.duckdb`) — read-only queries via `DatabasePathResolver` (040-vesting-year-selector)
+- N/A (configuration files only) + Git (`.gitignore` syntax) (042-gitignore-dbt-artifacts)
 
 ## Recent Changes
 - 024-remove-polars-pipeline: Removed Polars dependency, simplified to SQL-only mode
