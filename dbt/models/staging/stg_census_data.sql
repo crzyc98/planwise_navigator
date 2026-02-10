@@ -76,8 +76,10 @@ raw_data AS (
   FROM parquet_with_schema
 ),
 
--- Annualized compensation calculation
--- The source column `employee_gross_compensation` is defined as an annual rate per the data contract.
+-- Plan year proration and active-days calculation
+-- DATA CONTRACT: `employee_gross_compensation` is the annual salary rate (not prorated plan-year earnings).
+-- This CTE computes the employee's active window within the plan year to derive days_active_in_year,
+-- which is used downstream to calculate plan-year compensation (prorated portion of the annual rate).
 annualized_data AS (
   SELECT
       *,
@@ -104,15 +106,20 @@ annualized_data AS (
   WHERE rn = 1
 ),
 
--- Compensation calculations using previously derived days_active_in_year
+-- Derive two compensation fields from the annual salary rate:
+--   1. computed_plan_year_compensation: prorated amount for the active portion of the plan year
+--      (annual rate * days_active_in_year / 365). Equals 0 when employee has no plan-year overlap.
+--   2. employee_annualized_compensation: full-year equivalent salary rate, equal to
+--      employee_gross_compensation per the data contract (annual rate, not prorated).
 comp_data AS (
   SELECT
     ad.*,
+    -- Plan-year compensation: prorated by active days in the plan year
     CASE
       WHEN ad.days_active_in_year = 0 THEN 0.0
       ELSE ad.employee_gross_compensation * (ad.days_active_in_year / 365.0)
     END AS computed_plan_year_compensation,
-    -- Gross compensation is already an annual rate; no annualization needed.
+    -- Annualized compensation: the full-year salary rate (equals gross per data contract)
     ad.employee_gross_compensation AS employee_annualized_compensation
   FROM annualized_data ad
 ),
