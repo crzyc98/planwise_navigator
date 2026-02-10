@@ -182,7 +182,7 @@ class AnalyticsService:
                     COALESCE(SUM(employer_match_amount) + SUM(employer_core_amount), 0) as total_employer_cost,
                     COALESCE(SUM(prorated_annual_contributions) + SUM(employer_match_amount) + SUM(employer_core_amount), 0) as total_all,
                     AVG(CASE WHEN is_enrolled_flag THEN current_deferral_rate ELSE NULL END) as avg_deferral_rate,
-                    COUNT(CASE WHEN is_enrolled_flag THEN 1 END) * 100.0 / NULLIF(COUNT(*), 0) as participation_rate,
+                    COALESCE(COUNT(CASE WHEN UPPER(employment_status) = 'ACTIVE' AND is_enrolled_flag THEN 1 END) * 100.0 / NULLIF(COUNT(CASE WHEN UPPER(employment_status) = 'ACTIVE' THEN 1 END), 0), 0) as participation_rate,
                     COUNT(CASE WHEN is_enrolled_flag THEN 1 END) as participant_count,
                     COALESCE(SUM(prorated_annual_compensation), 0) as total_compensation
                 FROM fct_workforce_snapshot
