@@ -400,6 +400,32 @@ class WorkspaceStorage:
         shutil.rmtree(scenario_path)
         return True
 
+    def delete_scenario_database(self, workspace_id: str, scenario_id: str) -> bool:
+        """Delete only the scenario's DuckDB database file(s), keeping config intact."""
+        scenario_path = self._scenario_path(workspace_id, scenario_id)
+        if not scenario_path.exists():
+            return False
+
+        deleted = False
+        for suffix in ("simulation.duckdb", "simulation.duckdb.wal"):
+            db_file = scenario_path / suffix
+            if db_file.exists():
+                db_file.unlink()
+                deleted = True
+
+        # Also clean up run databases
+        runs_dir = scenario_path / "runs"
+        if runs_dir.exists():
+            for run_dir in runs_dir.iterdir():
+                if run_dir.is_dir():
+                    for suffix in ("simulation.duckdb", "simulation.duckdb.wal"):
+                        db_file = run_dir / suffix
+                        if db_file.exists():
+                            db_file.unlink()
+                            deleted = True
+
+        return deleted
+
     def get_scenario_database_path(self, workspace_id: str, scenario_id: str) -> Path:
         """Get path to scenario's DuckDB database."""
         return self._scenario_path(workspace_id, scenario_id) / "simulation.duckdb"
