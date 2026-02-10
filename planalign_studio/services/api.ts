@@ -341,6 +341,17 @@ export async function deleteScenario(
   return handleResponse<{ success: boolean }>(response);
 }
 
+export async function deleteScenarioDatabase(
+  workspaceId: string,
+  scenarioId: string
+): Promise<{ success: boolean; deleted: boolean; message: string }> {
+  const response = await fetch(
+    `${API_BASE}/api/workspaces/${workspaceId}/scenarios/${scenarioId}/database`,
+    { method: 'DELETE' }
+  );
+  return handleResponse<{ success: boolean; deleted: boolean; message: string }>(response);
+}
+
 export async function getMergedConfig(
   workspaceId: string,
   scenarioId: string

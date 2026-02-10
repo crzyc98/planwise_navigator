@@ -1,8 +1,8 @@
 import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react';
-import { Save, AlertTriangle, FileText, Settings, HelpCircle, TrendingUp, Users, DollarSign, Zap, Server, Shield, PieChart, Database, Upload, Check, X, ArrowLeft, Target, Sparkles, Play, Copy, Info, Layers } from 'lucide-react';
+import { Save, AlertTriangle, FileText, Settings, HelpCircle, TrendingUp, Users, DollarSign, Zap, Server, Shield, PieChart, Database, Upload, Check, X, ArrowLeft, Target, Sparkles, Play, Copy, Info, Layers, Trash2 } from 'lucide-react';
 import { useNavigate, useOutletContext, useParams } from 'react-router-dom';
 import { LayoutContextType } from './Layout';
-import { updateWorkspace as apiUpdateWorkspace, getScenario, getScenarioConfig, updateScenario, Scenario, uploadCensusFile, validateFilePath, listTemplates, Template, analyzeAgeDistribution, analyzeCompensation, CompensationAnalysis, solveCompensationGrowth, CompensationSolverResponse, listScenarios, getBandConfigs, analyzeAgeBands, analyzeTenureBands, Band, BandConfig, BandValidationError, BandAnalysisResult, getPromotionHazardConfig, PromotionHazardConfig } from '../services/api';
+import { updateWorkspace as apiUpdateWorkspace, getScenario, getScenarioConfig, updateScenario, Scenario, uploadCensusFile, validateFilePath, listTemplates, Template, analyzeAgeDistribution, analyzeCompensation, CompensationAnalysis, solveCompensationGrowth, CompensationSolverResponse, listScenarios, getBandConfigs, analyzeAgeBands, analyzeTenureBands, Band, BandConfig, BandValidationError, BandAnalysisResult, getPromotionHazardConfig, PromotionHazardConfig, deleteScenarioDatabase } from '../services/api';
 
 // E084 Phase B: Match template presets with editable tiers
 interface MatchTier {
@@ -136,6 +136,10 @@ export default function ConfigStudio() {
   const [solverStatus, setSolverStatus] = useState<'idle' | 'solving' | 'success' | 'error'>('idle');
   const [solverResult, setSolverResult] = useState<CompensationSolverResponse | null>(null);
   const [solverError, setSolverError] = useState<string>('');
+
+  // Database delete state
+  const [dbDeleteStatus, setDbDeleteStatus] = useState<'idle' | 'confirming' | 'deleting' | 'success' | 'error'>('idle');
+  const [dbDeleteMessage, setDbDeleteMessage] = useState('');
 
   // Copy from scenario modal state
   const [showCopyScenarioModal, setShowCopyScenarioModal] = useState(false);
@@ -3561,6 +3565,72 @@ export default function ConfigStudio() {
                       </div>
                    </div>
                 </div>
+
+                {/* Danger Zone */}
+                {scenarioId && activeWorkspace?.id && (
+                  <div className="border border-red-200 rounded-lg p-6 bg-red-50/50">
+                    <h3 className="text-sm font-bold text-red-700 flex items-center mb-2">
+                      <AlertTriangle size={16} className="mr-2" /> Danger Zone
+                    </h3>
+                    <p className="text-sm text-gray-600 mb-4">
+                      Irreversible actions that affect this scenario's simulation data.
+                    </p>
+
+                    <div className="flex items-center justify-between bg-white p-4 rounded-md border border-red-200">
+                      <div>
+                        <p className="text-sm font-medium text-gray-900">Delete Simulation Database</p>
+                        <p className="text-xs text-gray-500 mt-0.5">
+                          Removes all simulation results so you can run a fresh simulation. Configuration is preserved.
+                        </p>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        {dbDeleteStatus === 'confirming' ? (
+                          <>
+                            <button
+                              onClick={() => setDbDeleteStatus('idle')}
+                              className="px-3 py-1.5 text-sm text-gray-600 bg-gray-100 hover:bg-gray-200 rounded-md transition-colors"
+                            >
+                              Cancel
+                            </button>
+                            <button
+                              onClick={async () => {
+                                setDbDeleteStatus('deleting');
+                                try {
+                                  const result = await deleteScenarioDatabase(activeWorkspace.id, scenarioId);
+                                  setDbDeleteMessage(result.message);
+                                  setDbDeleteStatus('success');
+                                  setTimeout(() => setDbDeleteStatus('idle'), 4000);
+                                } catch (err) {
+                                  setDbDeleteMessage(err instanceof Error ? err.message : 'Failed to delete database');
+                                  setDbDeleteStatus('error');
+                                  setTimeout(() => setDbDeleteStatus('idle'), 4000);
+                                }
+                              }}
+                              className="px-3 py-1.5 text-sm text-white bg-red-600 hover:bg-red-700 rounded-md transition-colors font-medium"
+                            >
+                              Yes, delete it
+                            </button>
+                          </>
+                        ) : dbDeleteStatus === 'deleting' ? (
+                          <span className="text-sm text-gray-500">Deleting...</span>
+                        ) : dbDeleteStatus === 'success' ? (
+                          <span className="text-sm text-green-600 flex items-center gap-1">
+                            <Check size={14} /> {dbDeleteMessage}
+                          </span>
+                        ) : dbDeleteStatus === 'error' ? (
+                          <span className="text-sm text-red-600">{dbDeleteMessage}</span>
+                        ) : (
+                          <button
+                            onClick={() => setDbDeleteStatus('confirming')}
+                            className="px-3 py-1.5 text-sm text-red-600 border border-red-300 hover:bg-red-50 rounded-md transition-colors flex items-center gap-1.5"
+                          >
+                            <Trash2 size={14} /> Delete Database
+                          </button>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                )}
               </div>
             )}
 

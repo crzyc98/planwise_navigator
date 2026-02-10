@@ -174,6 +174,39 @@ async def delete_scenario(
     return {"success": True}
 
 
+@router.delete("/{workspace_id}/scenarios/{scenario_id}/database")
+async def delete_scenario_database(
+    workspace_id: str,
+    scenario_id: str,
+    storage: WorkspaceStorage = Depends(get_storage),
+) -> Dict[str, Any]:
+    """
+    Delete only the scenario's simulation database, keeping configuration intact.
+
+    This allows re-running the simulation from scratch without losing config.
+    """
+    scenario = storage.get_scenario(workspace_id, scenario_id)
+    if not scenario:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Scenario {scenario_id} not found in workspace {workspace_id}",
+        )
+
+    deleted = storage.delete_scenario_database(workspace_id, scenario_id)
+
+    # Reset scenario status since results are gone
+    if deleted:
+        storage.update_scenario_status(workspace_id, scenario_id, "pending", None)
+
+    return {
+        "success": True,
+        "deleted": deleted,
+        "message": "Database deleted. Scenario is ready for a fresh simulation."
+        if deleted
+        else "No database files found to delete.",
+    }
+
+
 @router.get("/{workspace_id}/scenarios/{scenario_id}/results/export")
 async def export_scenario_results(
     workspace_id: str,
