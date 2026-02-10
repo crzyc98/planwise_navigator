@@ -22,6 +22,7 @@ WITH base_employees AS (
         stg.employee_ssn,
         stg.employee_birth_date,
         stg.employee_hire_date,
+        -- Annual salary rate from staging (equals employee_gross_compensation per data contract)
         stg.employee_annualized_compensation AS current_compensation,
         -- Calculate age based on the simulation_effective_date
         EXTRACT(YEAR FROM '{{ simulation_effective_date_str }}'::DATE) - EXTRACT(YEAR FROM stg.employee_birth_date) AS current_age,
