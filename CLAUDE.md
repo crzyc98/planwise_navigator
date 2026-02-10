@@ -818,6 +818,8 @@ See `/docs/VERSIONING_GUIDE.md` for detailed versioning workflow.
 - DuckDB (`dbt/simulation.duckdb`) — read-only access in analytics service (041-fix-yearly-participation-rate)
 - N/A (configuration files only) + Git (`.gitignore` syntax) (042-gitignore-dbt-artifacts)
 - SQL (DuckDB 1.0.0) via dbt-core 1.8.8, dbt-duckdb 1.8.1 + dbt-core 1.8.8, dbt-duckdb 1.8.1, dbt-utils (043-fix-annualization-logic)
+- TypeScript 5.x (React 18 frontend) + React 18, Vite, Tailwind CSS (044-fix-salary-range-ux)
+- N/A (frontend state only; no backend/database changes) (044-fix-salary-range-ux)
 
 ## Recent Changes
 - 024-remove-polars-pipeline: Removed Polars dependency, simplified to SQL-only mode
