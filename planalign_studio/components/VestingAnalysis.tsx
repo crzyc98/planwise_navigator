@@ -578,6 +578,7 @@ export default function VestingAnalysis() {
             )}
           </button>
         </div>
+      </div>
 
       {/* Content Area */}
       {analyzing ? (
