@@ -816,6 +816,7 @@ See `/docs/VERSIONING_GUIDE.md` for detailed versioning workflow.
 - DuckDB (`dbt/simulation.duckdb`) — read-only queries via `DatabasePathResolver` (040-vesting-year-selector)
 - Python 3.11 + FastAPI, Pydantic v2, DuckDB 1.0.0 (041-fix-yearly-participation-rate)
 - DuckDB (`dbt/simulation.duckdb`) — read-only access in analytics service (041-fix-yearly-participation-rate)
+- N/A (configuration files only) + Git (`.gitignore` syntax) (042-gitignore-dbt-artifacts)
 
 ## Recent Changes
 - 024-remove-polars-pipeline: Removed Polars dependency, simplified to SQL-only mode
