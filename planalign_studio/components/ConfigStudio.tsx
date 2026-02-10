@@ -111,6 +111,43 @@ const InputField: React.FC<InputFieldProps> = ({
   </div>
 );
 
+// E044: Helper component for salary range inputs with onBlur commit pattern
+function CompensationInput({ value, onCommit, hasError, step = 500, min = 0 }: {
+  value: number;
+  onCommit: (v: number) => void;
+  hasError?: boolean;
+  step?: number;
+  min?: number;
+}) {
+  const [localValue, setLocalValue] = useState(String(value));
+
+  useEffect(() => {
+    setLocalValue(String(value));
+  }, [value]);
+
+  const commit = () => {
+    const parsed = parseFloat(localValue) || 0;
+    const clamped = Math.max(parsed, min);
+    onCommit(clamped);
+    setLocalValue(String(clamped));
+  };
+
+  return (
+    <input
+      type="number"
+      step={step}
+      min={min}
+      value={localValue}
+      onChange={(e) => setLocalValue(e.target.value)}
+      onBlur={commit}
+      onKeyDown={(e) => { if (e.key === 'Enter') commit(); }}
+      className={`w-36 shadow-sm sm:text-sm rounded-md p-1 border text-right focus:ring-fidelity-green focus:border-fidelity-green ${
+        hasError ? 'border-red-500' : 'border-gray-300'
+      }`}
+    />
+  );
+}
+
 export default function ConfigStudio() {
   const navigate = useNavigate();
   const { scenarioId } = useParams<{ scenarioId?: string }>();
@@ -344,7 +381,7 @@ export default function ConfigStudio() {
   const [matchCompSuccess, setMatchCompSuccess] = useState(false);
   const [compensationAnalysis, setCompensationAnalysis] = useState<CompensationAnalysis | null>(null);
   const [compLookbackYears, setCompLookbackYears] = useState<number>(4); // Default 4 years lookback
-  const [compScaleFactor, setCompScaleFactor] = useState<number>(1.0); // Multiplier to scale up/down ranges
+  const [compScaleFactor, setCompScaleFactor] = useState<number>(1.5); // Multiplier to scale up/down ranges (default 1.5x for market adjustment)
 
   // E082: Handler for job level compensation changes
   const handleJobLevelCompChange = (index: number, field: 'minComp' | 'maxComp', value: string) => {
@@ -2439,32 +2476,38 @@ export default function ConfigStudio() {
                             </tr>
                           </thead>
                           <tbody className="bg-white divide-y divide-gray-200">
-                            {formData.jobLevelCompensation.map((row, idx) => (
-                              <tr key={row.level}>
-                                <td className="px-4 py-2 text-sm text-gray-900 font-medium">{row.level}</td>
-                                <td className="px-4 py-2 text-sm text-gray-700">{row.name}</td>
-                                <td className="px-4 py-2">
-                                  <input
-                                    type="number"
-                                    step="1000"
-                                    min="0"
-                                    value={row.minComp}
-                                    onChange={(e) => handleJobLevelCompChange(idx, 'minComp', e.target.value)}
-                                    className="w-28 shadow-sm focus:ring-fidelity-green focus:border-fidelity-green sm:text-sm border-gray-300 rounded-md p-1 border text-right"
-                                  />
-                                </td>
-                                <td className="px-4 py-2">
-                                  <input
-                                    type="number"
-                                    step="1000"
-                                    min="0"
-                                    value={row.maxComp}
-                                    onChange={(e) => handleJobLevelCompChange(idx, 'maxComp', e.target.value)}
-                                    className="w-28 shadow-sm focus:ring-fidelity-green focus:border-fidelity-green sm:text-sm border-gray-300 rounded-md p-1 border text-right"
-                                  />
-                                </td>
-                              </tr>
-                            ))}
+                            {formData.jobLevelCompensation.map((row, idx) => {
+                              const hasRangeError = row.minComp > row.maxComp && row.minComp > 0 && row.maxComp > 0;
+                              return (
+                                <React.Fragment key={row.level}>
+                                  <tr>
+                                    <td className="px-4 py-2 text-sm text-gray-900 font-medium">{row.level}</td>
+                                    <td className="px-4 py-2 text-sm text-gray-700">{row.name}</td>
+                                    <td className="px-4 py-2">
+                                      <CompensationInput
+                                        value={row.minComp}
+                                        onCommit={(v) => handleJobLevelCompChange(idx, 'minComp', String(v))}
+                                        hasError={hasRangeError}
+                                      />
+                                    </td>
+                                    <td className="px-4 py-2">
+                                      <CompensationInput
+                                        value={row.maxComp}
+                                        onCommit={(v) => handleJobLevelCompChange(idx, 'maxComp', String(v))}
+                                        hasError={hasRangeError}
+                                      />
+                                    </td>
+                                  </tr>
+                                  {hasRangeError && (
+                                    <tr>
+                                      <td colSpan={4} className="px-4 pb-1 pt-0">
+                                        <span className="text-xs text-red-600">Min exceeds max</span>
+                                      </td>
+                                    </tr>
+                                  )}
+                                </React.Fragment>
+                              );
+                            })}
                           </tbody>
                         </table>
                       </div>
