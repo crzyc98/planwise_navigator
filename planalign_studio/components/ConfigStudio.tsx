@@ -382,6 +382,7 @@ export default function ConfigStudio() {
   const [compensationAnalysis, setCompensationAnalysis] = useState<CompensationAnalysis | null>(null);
   const [compLookbackYears, setCompLookbackYears] = useState<number>(4); // Default 4 years lookback
   const [compScaleFactor, setCompScaleFactor] = useState<number>(1.5); // Multiplier to scale up/down ranges (default 1.5x for market adjustment)
+  const [compScaleLocal, setCompScaleLocal] = useState<string>('1.5'); // Local string for editable input
 
   // E082: Handler for job level compensation changes
   const handleJobLevelCompChange = (index: number, field: 'minComp' | 'maxComp', value: string) => {
@@ -1240,6 +1241,12 @@ export default function ConfigStudio() {
 
   // Handle save configuration
   const handleSaveConfig = async () => {
+    // Flush any pending local-value edits (CompensationInput, scale factor)
+    // by blurring the active element, which triggers their onBlur commit handlers.
+    if (document.activeElement instanceof HTMLElement) {
+      document.activeElement.blur();
+    }
+
     setSaveStatus('saving');
     setSaveMessage('Saving configuration...');
 
@@ -2396,12 +2403,16 @@ export default function ConfigStudio() {
                             <label className="text-xs text-gray-500">Scale:</label>
                             <input
                               type="number"
-                              value={compScaleFactor}
-                              onChange={(e) => {
-                                const val = parseFloat(e.target.value);
-                                if (!isNaN(val) && val >= 0.5 && val <= 3.0) {
-                                  setCompScaleFactor(val);
-                                }
+                              value={compScaleLocal}
+                              onChange={(e) => setCompScaleLocal(e.target.value)}
+                              onBlur={() => {
+                                const val = parseFloat(compScaleLocal);
+                                const clamped = isNaN(val) ? 1.5 : Math.min(3.0, Math.max(0.5, val));
+                                setCompScaleFactor(clamped);
+                                setCompScaleLocal(String(clamped));
+                              }}
+                              onKeyDown={(e) => {
+                                if (e.key === 'Enter') (e.target as HTMLInputElement).blur();
                               }}
                               min={0.5}
                               max={3.0}
