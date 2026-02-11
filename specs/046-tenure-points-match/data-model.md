@@ -18,7 +18,7 @@ A configuration entity defining a match rate bracket based on employee years of 
 
 **Validation rules**:
 - First tier must have `min_years = 0`
-- Last tier should have `max_years = null` (unbounded)
+- Last tier is recommended to have `max_years = null` (unbounded). If the last tier has a finite max, employees exceeding that value receive no match (default rate = 0).
 - Tiers must be contiguous: tier[N].max_years == tier[N+1].min_years
 - No gaps or overlaps between tiers
 - At least one tier required when `employer_match_status = 'tenure_based'`

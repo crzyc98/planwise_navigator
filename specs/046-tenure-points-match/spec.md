@@ -80,23 +80,25 @@ A plan administrator uses the PlanAlign Studio web interface to select one of th
 - What happens when an employee has zero deferrals? The match amount is 0 because the formula includes `min(employee_deferral%, max_deferral_pct)` which yields 0. Match status should be "no_deferrals".
 - What happens when an employee's compensation exceeds the IRS 401(a)(17) limit? Compensation is capped at the IRS limit before the match formula is applied, consistent with existing modes.
 - What happens when `employer_match_status` is set to an unrecognized value? Configuration validation rejects the value with a clear error message listing valid options.
+- What happens when the last tier has a finite max and an employee's points or tenure exceeds it? The employee receives no match from the tier lookup (default rate = 0). It is recommended that the last tier use a null upper bound to avoid this; however, bounded final tiers are permitted.
 
 ## Requirements *(mandatory)*
 
 ### Functional Requirements
 
-- **FR-001**: System MUST support `employer_match_status` values of `'deferral_based'`, `'graded_by_service'`, `'tenure_based'`, and `'points_based'` as mutually exclusive match calculation modes.
+- **FR-001**: System MUST support `employer_match_status` values of `'deferral_based'`, `'graded_by_service'`, `'tenure_based'`, and `'points_based'` as mutually exclusive match calculation modes. Any unrecognized value MUST be rejected at configuration load time with a clear error listing valid options.
 - **FR-002**: System MUST allow configuration of `tenure_match_tiers` as an ordered list of tiers, each specifying `min_years`, `max_years` (nullable for unbounded), `match_rate` (percentage), and `max_deferral_pct` (percentage).
 - **FR-003**: System MUST allow configuration of `points_match_tiers` as an ordered list of tiers, each specifying `min_points`, `max_points` (nullable for unbounded), `match_rate` (percentage), and `max_deferral_pct` (percentage).
 - **FR-004**: For `tenure_based` mode, system MUST calculate match as: `tenure_tier_rate x min(employee_deferral%, tier_max_deferral_pct) x capped_compensation`, where the tenure tier is determined by the employee's years of service.
-- **FR-005**: For `points_based` mode, system MUST calculate match as: `points_tier_rate x min(employee_deferral%, tier_max_deferral_pct) x capped_compensation`, where points = `FLOOR(current_age) + FLOOR(years_of_service)`.
+- **FR-005**: For `points_based` mode, system MUST calculate match as: `points_tier_rate x min(employee_deferral%, tier_max_deferral_pct) x capped_compensation`, where points = `FLOOR(current_age) + FLOOR(years_of_service)`. Note: `years_of_service` is already defined as `FLOOR(current_tenure)` in the upstream data model, so the FLOOR is a no-op on that term but is specified for clarity.
 - **FR-006**: System MUST assign tiers using the `[min, max)` interval convention (lower bound inclusive, upper bound exclusive).
-- **FR-007**: System MUST include an `applied_points` audit field in match calculation output when using `points_based` mode, containing the employee's calculated points value.
+- **FR-007**: System MUST include an `applied_points` audit field in match calculation output when using `points_based` mode, containing the employee's calculated points value. The `applied_years_of_service` audit field MUST also be populated in `points_based` mode since years of service is a component of the points calculation.
 - **FR-008**: System MUST continue to apply the IRS Section 401(a)(17) compensation cap before calculating match amounts in all modes.
 - **FR-009**: System MUST validate tier configurations to ensure: no gaps between consecutive tiers, no overlapping ranges, first tier starts at 0, each tier's upper bound exceeds its lower bound, and at least one tier is defined.
 - **FR-010**: System MUST leave existing `deferral_based` and `graded_by_service` match modes fully functional and unaffected by the addition of new modes.
 - **FR-011**: System MUST correctly recalculate points and tenure each simulation year so that employees crossing tier boundaries receive updated match rates.
-- **FR-012**: System MUST apply match eligibility requirements (minimum tenure, active status, minimum hours) consistently across all match modes.
+- **FR-012**: System MUST apply match eligibility requirements (minimum tenure, active status, minimum hours) consistently across all match modes. Ineligible employees MUST receive a match amount of 0 regardless of their points or tenure tier.
+- **FR-013**: System MUST verify that the IRS Section 401(a)(17) compensation cap and match eligibility logic produce correct results specifically in `tenure_based` and `points_based` modes, not only in pre-existing modes.
 
 ### Key Entities
 
@@ -110,7 +112,7 @@ A plan administrator uses the PlanAlign Studio web interface to select one of th
 - The `tenure_based` mode uses the same match formula structure as the existing `graded_by_service` mode but with a distinct configuration key (`tenure_match_tiers`) to support the new tier schema with explicit `match_rate` and `max_deferral_pct` per tier.
 - Points are calculated as integer values using `FLOOR` on both age and tenure before summing, per the acceptance criteria.
 - The existing `applied_years_of_service` audit field will also be populated for the `tenure_based` mode (reusing the same field since it represents the same underlying data).
-- Match rate values in tier configuration are expressed as percentages (e.g., 50 means 50%) and are converted to decimals (0.50) during calculation, consistent with existing service-tier configuration.
+- Match rate values have different representations at each layer: the API accepts decimals (0.50 = 50%), the Pydantic config models store percentages (50 = 50%), and the dbt variables receive percentages (50 = 50%). The export function handles conversion from Pydantic to dbt. The dbt macros divide by 100 to convert to decimals for the formula. This is consistent with the existing service-tier configuration pattern.
 - Only one match mode is active per scenario; switching modes does not require clearing previously configured tiers for other modes.
 
 ## Success Criteria *(mandatory)*
@@ -122,4 +124,4 @@ A plan administrator uses the PlanAlign Studio web interface to select one of th
 - **SC-003**: All match calculation results include the appropriate audit fields (`applied_points` for points mode, `applied_years_of_service` for tenure mode) for every employee in every simulation year.
 - **SC-004**: Existing simulations using `deferral_based` or `graded_by_service` modes produce identical results before and after the change (zero regression).
 - **SC-005**: Invalid tier configurations (gaps, overlaps, missing start-at-zero) are rejected with descriptive error messages within 1 second of submission.
-- **SC-006**: Multi-year simulations correctly reflect tier changes when employees cross boundaries — at least 95% of boundary-crossing employees show updated match rates in the following simulation year.
+- **SC-006**: Multi-year simulations correctly reflect tier changes when employees cross boundaries — 100% of boundary-crossing employees show updated match rates in the following simulation year.

@@ -286,6 +286,10 @@ export default function ConfigStudio() {
       { deferralMin: 0, deferralMax: 3, matchRate: 100 },
       { deferralMin: 3, deferralMax: 5, matchRate: 50 },
     ],
+    // E046: Match mode selector and tier editors for tenure/points modes
+    dcMatchMode: 'deferral_based' as 'deferral_based' | 'graded_by_service' | 'tenure_based' | 'points_based',
+    dcTenureMatchTiers: [] as Array<{ minYears: number; maxYears: number | null; matchRate: number; maxDeferralPct: number }>,
+    dcPointsMatchTiers: [] as Array<{ minPoints: number; maxPoints: number | null; matchRate: number; maxDeferralPct: number }>,
     dcAutoEscalation: true,
     dcEscalationRate: 1.0,
     dcEscalationCap: 10.0,
@@ -669,6 +673,25 @@ export default function ConfigStudio() {
                 }))
               : prev.dcMatchTiers,
 
+            // E046: Match mode and new tier types
+            dcMatchMode: cfg.dc_plan?.match_status || prev.dcMatchMode,
+            dcTenureMatchTiers: cfg.dc_plan?.tenure_match_tiers
+              ? cfg.dc_plan.tenure_match_tiers.map((t: any) => ({
+                  minYears: t.min_years ?? 0,
+                  maxYears: t.max_years ?? null,
+                  matchRate: (t.match_rate != null && t.match_rate <= 1) ? t.match_rate * 100 : (t.match_rate ?? 0),
+                  maxDeferralPct: (t.max_deferral_pct != null && t.max_deferral_pct <= 1) ? t.max_deferral_pct * 100 : (t.max_deferral_pct ?? 6),
+                }))
+              : prev.dcTenureMatchTiers,
+            dcPointsMatchTiers: cfg.dc_plan?.points_match_tiers
+              ? cfg.dc_plan.points_match_tiers.map((t: any) => ({
+                  minPoints: t.min_points ?? 0,
+                  maxPoints: t.max_points ?? null,
+                  matchRate: (t.match_rate != null && t.match_rate <= 1) ? t.match_rate * 100 : (t.match_rate ?? 0),
+                  maxDeferralPct: (t.max_deferral_pct != null && t.max_deferral_pct <= 1) ? t.max_deferral_pct * 100 : (t.max_deferral_pct ?? 6),
+                }))
+              : prev.dcPointsMatchTiers,
+
             // DC Plan - Match Eligibility (E084)
             dcMatchMinTenureYears: cfg.dc_plan?.match_min_tenure_years ?? prev.dcMatchMinTenureYears,
             dcMatchRequireYearEndActive: cfg.dc_plan?.match_require_year_end_active ?? prev.dcMatchRequireYearEndActive,
@@ -834,6 +857,24 @@ export default function ConfigStudio() {
             matchRate: (t.match_rate ?? 0) * 100,
           }))
         : prev.dcMatchTiers,
+      // E046: Match mode and new tier types
+      dcMatchMode: cfg.dc_plan?.match_status || prev.dcMatchMode,
+      dcTenureMatchTiers: cfg.dc_plan?.tenure_match_tiers
+        ? cfg.dc_plan.tenure_match_tiers.map((t: any) => ({
+            minYears: t.min_years ?? 0,
+            maxYears: t.max_years ?? null,
+            matchRate: (t.match_rate != null && t.match_rate <= 1) ? t.match_rate * 100 : (t.match_rate ?? 0),
+            maxDeferralPct: (t.max_deferral_pct != null && t.max_deferral_pct <= 1) ? t.max_deferral_pct * 100 : (t.max_deferral_pct ?? 6),
+          }))
+        : prev.dcTenureMatchTiers,
+      dcPointsMatchTiers: cfg.dc_plan?.points_match_tiers
+        ? cfg.dc_plan.points_match_tiers.map((t: any) => ({
+            minPoints: t.min_points ?? 0,
+            maxPoints: t.max_points ?? null,
+            matchRate: (t.match_rate != null && t.match_rate <= 1) ? t.match_rate * 100 : (t.match_rate ?? 0),
+            maxDeferralPct: (t.max_deferral_pct != null && t.max_deferral_pct <= 1) ? t.max_deferral_pct * 100 : (t.max_deferral_pct ?? 6),
+          }))
+        : prev.dcPointsMatchTiers,
       dcAutoEscalation: cfg.dc_plan?.auto_escalation ?? prev.dcAutoEscalation,
       dcEscalationRate: cfg.dc_plan?.escalation_rate_percent || prev.dcEscalationRate,
       dcEscalationCap: cfg.dc_plan?.escalation_cap_percent || prev.dcEscalationCap,
@@ -1325,6 +1366,21 @@ export default function ConfigStudio() {
             match_rate: t.matchRate / 100,
           })),
           match_cap_percent: calculateMatchCap(formData.dcMatchTiers), // Auto-calculated from tiers
+
+          // E046: Match mode and new tier types
+          match_status: formData.dcMatchMode,
+          tenure_match_tiers: formData.dcTenureMatchTiers.map(t => ({
+            min_years: t.minYears,
+            max_years: t.maxYears,
+            match_rate: t.matchRate / 100,  // Convert % to decimal for API
+            max_deferral_pct: t.maxDeferralPct / 100,
+          })),
+          points_match_tiers: formData.dcPointsMatchTiers.map(t => ({
+            min_points: t.minPoints,
+            max_points: t.maxPoints,
+            match_rate: t.matchRate / 100,
+            max_deferral_pct: t.maxDeferralPct / 100,
+          })),
 
           // E084: Match Eligibility
           match_min_tenure_years: Number(formData.dcMatchMinTenureYears),
@@ -3170,7 +3226,172 @@ export default function ConfigStudio() {
                     <div className="col-span-6 h-px bg-gray-200 my-2"></div>
                     <h4 className="col-span-6 text-sm font-semibold text-gray-900">Employer Match Formula</h4>
 
-                    {/* E084 Phase B: Template selector + editable tiers */}
+                    {/* E046: Match Mode Selector */}
+                    <div className="sm:col-span-3">
+                      <label className="block text-sm font-medium text-gray-700">Match Calculation Mode</label>
+                      <select
+                        value={formData.dcMatchMode}
+                        onChange={(e) => setFormData(prev => ({ ...prev, dcMatchMode: e.target.value as any }))}
+                        className="mt-1 block w-full pl-3 pr-10 py-2 text-base border-gray-300 focus:outline-none focus:ring-fidelity-green focus:border-fidelity-green sm:text-sm rounded-md border shadow-sm"
+                      >
+                        <option value="deferral_based">Deferral-Based (match varies by deferral %)</option>
+                        <option value="graded_by_service">Graded by Service (existing service tiers)</option>
+                        <option value="tenure_based">Tenure-Based (match varies by years of service)</option>
+                        <option value="points_based">Points-Based (match varies by age + tenure points)</option>
+                      </select>
+                      <p className="mt-1 text-xs text-gray-500">
+                        {formData.dcMatchMode === 'tenure_based' && 'Match rate increases with employee years of service'}
+                        {formData.dcMatchMode === 'points_based' && 'Points = FLOOR(age) + FLOOR(tenure). Higher points = higher match'}
+                        {formData.dcMatchMode === 'deferral_based' && 'Traditional: match rate varies by employee deferral percentage'}
+                        {formData.dcMatchMode === 'graded_by_service' && 'Uses existing graded-by-service schedule'}
+                      </p>
+                    </div>
+
+                    {/* E046: Tenure-Based Tier Editor */}
+                    {formData.dcMatchMode === 'tenure_based' && (
+                      <div className="sm:col-span-6 bg-gray-50 p-4 rounded-lg border border-gray-200">
+                        <label className="block text-sm font-medium text-gray-700 mb-3">Tenure Match Tiers</label>
+                        <div className="space-y-2">
+                          {formData.dcTenureMatchTiers.map((tier, idx) => (
+                            <div key={idx} className="flex items-center gap-2 bg-white p-2 rounded border border-gray-200">
+                              <span className="text-xs text-gray-500 w-4">{idx + 1}.</span>
+                              <input type="number" min={0} value={tier.minYears}
+                                onChange={(e) => {
+                                  const newTiers = [...formData.dcTenureMatchTiers];
+                                  newTiers[idx] = { ...newTiers[idx], minYears: parseInt(e.target.value) || 0 };
+                                  setFormData(prev => ({ ...prev, dcTenureMatchTiers: newTiers }));
+                                }}
+                                className="w-16 shadow-sm focus:ring-fidelity-green focus:border-fidelity-green sm:text-sm border-gray-300 rounded-md p-1 border text-center"
+                              />
+                              <span className="text-sm text-gray-600">to</span>
+                              <input type="number" min={0} value={tier.maxYears ?? ''}
+                                placeholder="∞"
+                                onChange={(e) => {
+                                  const newTiers = [...formData.dcTenureMatchTiers];
+                                  newTiers[idx] = { ...newTiers[idx], maxYears: e.target.value === '' ? null : parseInt(e.target.value) || 0 };
+                                  setFormData(prev => ({ ...prev, dcTenureMatchTiers: newTiers }));
+                                }}
+                                className="w-16 shadow-sm focus:ring-fidelity-green focus:border-fidelity-green sm:text-sm border-gray-300 rounded-md p-1 border text-center"
+                              />
+                              <span className="text-sm text-gray-600">yrs →</span>
+                              <input type="number" step="5" min={0} max={200} value={tier.matchRate}
+                                onChange={(e) => {
+                                  const newTiers = [...formData.dcTenureMatchTiers];
+                                  newTiers[idx] = { ...newTiers[idx], matchRate: parseFloat(e.target.value) || 0 };
+                                  setFormData(prev => ({ ...prev, dcTenureMatchTiers: newTiers }));
+                                }}
+                                className="w-16 shadow-sm focus:ring-fidelity-green focus:border-fidelity-green sm:text-sm border-gray-300 rounded-md p-1 border text-center"
+                              />
+                              <span className="text-sm text-gray-600">% match, max</span>
+                              <input type="number" step="1" min={0} max={100} value={tier.maxDeferralPct}
+                                onChange={(e) => {
+                                  const newTiers = [...formData.dcTenureMatchTiers];
+                                  newTiers[idx] = { ...newTiers[idx], maxDeferralPct: parseFloat(e.target.value) || 0 };
+                                  setFormData(prev => ({ ...prev, dcTenureMatchTiers: newTiers }));
+                                }}
+                                className="w-14 shadow-sm focus:ring-fidelity-green focus:border-fidelity-green sm:text-sm border-gray-300 rounded-md p-1 border text-center"
+                              />
+                              <span className="text-sm text-gray-600">% def</span>
+                              {formData.dcTenureMatchTiers.length > 1 && (
+                                <button type="button"
+                                  onClick={() => {
+                                    const newTiers = formData.dcTenureMatchTiers.filter((_, i) => i !== idx);
+                                    setFormData(prev => ({ ...prev, dcTenureMatchTiers: newTiers }));
+                                  }}
+                                  className="ml-auto text-red-500 hover:text-red-700 p-1"
+                                ><X size={16} /></button>
+                              )}
+                            </div>
+                          ))}
+                        </div>
+                        <button type="button"
+                          onClick={() => {
+                            const last = formData.dcTenureMatchTiers[formData.dcTenureMatchTiers.length - 1];
+                            const newTier = { minYears: last?.maxYears ?? 0, maxYears: null, matchRate: 100, maxDeferralPct: 6 };
+                            setFormData(prev => ({ ...prev, dcTenureMatchTiers: [...prev.dcTenureMatchTiers, newTier] }));
+                          }}
+                          className="mt-3 text-sm text-fidelity-green hover:text-green-700 flex items-center gap-1"
+                        >+ Add Tier</button>
+                        {formData.dcTenureMatchTiers.length === 0 && (
+                          <p className="mt-2 text-xs text-amber-600">Add at least one tier to configure tenure-based matching</p>
+                        )}
+                      </div>
+                    )}
+
+                    {/* E046: Points-Based Tier Editor */}
+                    {formData.dcMatchMode === 'points_based' && (
+                      <div className="sm:col-span-6 bg-gray-50 p-4 rounded-lg border border-gray-200">
+                        <label className="block text-sm font-medium text-gray-700 mb-1">Points Match Tiers</label>
+                        <p className="text-xs text-gray-500 mb-3">Points = FLOOR(age) + FLOOR(years of service). Uses [min, max) intervals.</p>
+                        <div className="space-y-2">
+                          {formData.dcPointsMatchTiers.map((tier, idx) => (
+                            <div key={idx} className="flex items-center gap-2 bg-white p-2 rounded border border-gray-200">
+                              <span className="text-xs text-gray-500 w-4">{idx + 1}.</span>
+                              <input type="number" min={0} value={tier.minPoints}
+                                onChange={(e) => {
+                                  const newTiers = [...formData.dcPointsMatchTiers];
+                                  newTiers[idx] = { ...newTiers[idx], minPoints: parseInt(e.target.value) || 0 };
+                                  setFormData(prev => ({ ...prev, dcPointsMatchTiers: newTiers }));
+                                }}
+                                className="w-16 shadow-sm focus:ring-fidelity-green focus:border-fidelity-green sm:text-sm border-gray-300 rounded-md p-1 border text-center"
+                              />
+                              <span className="text-sm text-gray-600">to</span>
+                              <input type="number" min={0} value={tier.maxPoints ?? ''}
+                                placeholder="∞"
+                                onChange={(e) => {
+                                  const newTiers = [...formData.dcPointsMatchTiers];
+                                  newTiers[idx] = { ...newTiers[idx], maxPoints: e.target.value === '' ? null : parseInt(e.target.value) || 0 };
+                                  setFormData(prev => ({ ...prev, dcPointsMatchTiers: newTiers }));
+                                }}
+                                className="w-16 shadow-sm focus:ring-fidelity-green focus:border-fidelity-green sm:text-sm border-gray-300 rounded-md p-1 border text-center"
+                              />
+                              <span className="text-sm text-gray-600">pts →</span>
+                              <input type="number" step="5" min={0} max={200} value={tier.matchRate}
+                                onChange={(e) => {
+                                  const newTiers = [...formData.dcPointsMatchTiers];
+                                  newTiers[idx] = { ...newTiers[idx], matchRate: parseFloat(e.target.value) || 0 };
+                                  setFormData(prev => ({ ...prev, dcPointsMatchTiers: newTiers }));
+                                }}
+                                className="w-16 shadow-sm focus:ring-fidelity-green focus:border-fidelity-green sm:text-sm border-gray-300 rounded-md p-1 border text-center"
+                              />
+                              <span className="text-sm text-gray-600">% match, max</span>
+                              <input type="number" step="1" min={0} max={100} value={tier.maxDeferralPct}
+                                onChange={(e) => {
+                                  const newTiers = [...formData.dcPointsMatchTiers];
+                                  newTiers[idx] = { ...newTiers[idx], maxDeferralPct: parseFloat(e.target.value) || 0 };
+                                  setFormData(prev => ({ ...prev, dcPointsMatchTiers: newTiers }));
+                                }}
+                                className="w-14 shadow-sm focus:ring-fidelity-green focus:border-fidelity-green sm:text-sm border-gray-300 rounded-md p-1 border text-center"
+                              />
+                              <span className="text-sm text-gray-600">% def</span>
+                              {formData.dcPointsMatchTiers.length > 1 && (
+                                <button type="button"
+                                  onClick={() => {
+                                    const newTiers = formData.dcPointsMatchTiers.filter((_, i) => i !== idx);
+                                    setFormData(prev => ({ ...prev, dcPointsMatchTiers: newTiers }));
+                                  }}
+                                  className="ml-auto text-red-500 hover:text-red-700 p-1"
+                                ><X size={16} /></button>
+                              )}
+                            </div>
+                          ))}
+                        </div>
+                        <button type="button"
+                          onClick={() => {
+                            const last = formData.dcPointsMatchTiers[formData.dcPointsMatchTiers.length - 1];
+                            const newTier = { minPoints: last?.maxPoints ?? 0, maxPoints: null, matchRate: 100, maxDeferralPct: 6 };
+                            setFormData(prev => ({ ...prev, dcPointsMatchTiers: [...prev.dcPointsMatchTiers, newTier] }));
+                          }}
+                          className="mt-3 text-sm text-fidelity-green hover:text-green-700 flex items-center gap-1"
+                        >+ Add Tier</button>
+                        {formData.dcPointsMatchTiers.length === 0 && (
+                          <p className="mt-2 text-xs text-amber-600">Add at least one tier to configure points-based matching</p>
+                        )}
+                      </div>
+                    )}
+
+                    {/* E084 Phase B: Template selector + editable tiers (only for deferral_based mode) */}
+                    {formData.dcMatchMode === 'deferral_based' && (
                     <div className="sm:col-span-3">
                       <label className="block text-sm font-medium text-gray-700">Start from Template</label>
                       <select
@@ -3194,7 +3415,9 @@ export default function ConfigStudio() {
                       </select>
                       <p className="mt-1 text-xs text-gray-500">Select a template, then customize tiers below</p>
                     </div>
+                    )}
 
+                    {formData.dcMatchMode === 'deferral_based' && (<>
                     <div className="sm:col-span-3">
                       <label className="block text-sm font-medium text-gray-700">Max Employer Match</label>
                       <div className="mt-1 bg-gray-100 rounded-md p-2 border border-gray-200">
@@ -3297,6 +3520,7 @@ export default function ConfigStudio() {
                         </div>
                       </div>
                     )}
+                    </>)}
 
                     {/* E084: Match Eligibility Section */}
                     <div className="col-span-6 h-px bg-gray-200 my-2"></div>
@@ -3733,6 +3957,24 @@ export default function ConfigStudio() {
                             matchRate: (t.match_rate ?? 0) * 100,
                           }))
                         : prev.dcMatchTiers,
+                      // E046: Tenure/Points match mode
+                      dcMatchMode: cfg.dc_plan?.match_status || prev.dcMatchMode,
+                      dcTenureMatchTiers: cfg.dc_plan?.tenure_match_tiers?.length
+                        ? cfg.dc_plan.tenure_match_tiers.map((t: any) => ({
+                            minYears: t.min_years ?? 0,
+                            maxYears: t.max_years ?? null,
+                            matchRate: (t.match_rate ?? 0) * 100,
+                            maxDeferralPct: (t.max_deferral_pct ?? 0) * 100,
+                          }))
+                        : prev.dcTenureMatchTiers,
+                      dcPointsMatchTiers: cfg.dc_plan?.points_match_tiers?.length
+                        ? cfg.dc_plan.points_match_tiers.map((t: any) => ({
+                            minPoints: t.min_points ?? 0,
+                            maxPoints: t.max_points ?? null,
+                            matchRate: (t.match_rate ?? 0) * 100,
+                            maxDeferralPct: (t.max_deferral_pct ?? 0) * 100,
+                          }))
+                        : prev.dcPointsMatchTiers,
                       dcAutoEscalation: cfg.dc_plan?.auto_escalation ?? prev.dcAutoEscalation,
                     }));
                     setShowTemplateModal(false);
@@ -3867,6 +4109,24 @@ export default function ConfigStudio() {
                                 matchRate: (t.match_rate ?? 0) * 100,
                               }))
                             : prev.dcMatchTiers,
+                          // E046: Tenure/Points match mode
+                          dcMatchMode: cfg.dc_plan?.match_status || prev.dcMatchMode,
+                          dcTenureMatchTiers: cfg.dc_plan?.tenure_match_tiers?.length
+                            ? cfg.dc_plan.tenure_match_tiers.map((t: any) => ({
+                                minYears: t.min_years ?? 0,
+                                maxYears: t.max_years ?? null,
+                                matchRate: (t.match_rate ?? 0) * 100,
+                                maxDeferralPct: (t.max_deferral_pct ?? 0) * 100,
+                              }))
+                            : prev.dcTenureMatchTiers,
+                          dcPointsMatchTiers: cfg.dc_plan?.points_match_tiers?.length
+                            ? cfg.dc_plan.points_match_tiers.map((t: any) => ({
+                                minPoints: t.min_points ?? 0,
+                                maxPoints: t.max_points ?? null,
+                                matchRate: (t.match_rate ?? 0) * 100,
+                                maxDeferralPct: (t.max_deferral_pct ?? 0) * 100,
+                              }))
+                            : prev.dcPointsMatchTiers,
                           // DC Plan - Match Eligibility
                           dcMatchMinTenureYears: cfg.dc_plan?.match_min_tenure_years ?? prev.dcMatchMinTenureYears,
                           dcMatchRequireYearEndActive: cfg.dc_plan?.match_require_year_end_active ?? prev.dcMatchRequireYearEndActive,

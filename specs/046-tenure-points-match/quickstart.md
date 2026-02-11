@@ -96,23 +96,25 @@ pytest tests/ -k "match" -v
 ### Tenure-Based Match
 ```yaml
 # In config/simulation_config.yaml or scenario overrides
+# Field names here are Pydantic model fields (match_rate).
+# The export function maps match_rate -> rate for dbt variables.
 employer_match_status: 'tenure_based'
 tenure_match_tiers:
   - min_years: 0
     max_years: 2
-    rate: 25
+    match_rate: 25
     max_deferral_pct: 6
   - min_years: 2
     max_years: 5
-    rate: 50
+    match_rate: 50
     max_deferral_pct: 6
   - min_years: 5
     max_years: 10
-    rate: 75
+    match_rate: 75
     max_deferral_pct: 6
   - min_years: 10
     max_years: null
-    rate: 100
+    match_rate: 100
     max_deferral_pct: 6
 ```
 
@@ -122,19 +124,19 @@ employer_match_status: 'points_based'
 points_match_tiers:
   - min_points: 0
     max_points: 40
-    rate: 25
+    match_rate: 25
     max_deferral_pct: 6
   - min_points: 40
     max_points: 60
-    rate: 50
+    match_rate: 50
     max_deferral_pct: 6
   - min_points: 60
     max_points: 80
-    rate: 75
+    match_rate: 75
     max_deferral_pct: 6
   - min_points: 80
     max_points: null
-    rate: 100
+    match_rate: 100
     max_deferral_pct: 6
 ```
 

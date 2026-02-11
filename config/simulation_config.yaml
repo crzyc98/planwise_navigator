@@ -410,6 +410,55 @@ employer_match:
       max_match_percentage: 0.035  # 3.5% of compensation (1% + 2.5%)
       vesting_schedule: 'qaca_2_year'  # QACA allows 2-year cliff vesting
 
+  # E046: Match calculation mode (overrides deferral-based formula system above)
+  # Set employer_match_status to switch modes:
+  #   'deferral_based' (default) - uses formulas/tiers above
+  #   'graded_by_service' - uses employer_match_graded_schedule
+  #   'tenure_based' - uses tenure_match_tiers below
+  #   'points_based' - uses points_match_tiers below (points = FLOOR(age) + FLOOR(tenure))
+  # employer_match_status: 'deferral_based'
+
+  # E046: Tenure-based match tiers (used when employer_match_status: 'tenure_based')
+  # Match rate varies by employee years of service using [min, max) intervals
+  # tenure_match_tiers:
+  #   - min_years: 0
+  #     max_years: 2
+  #     match_rate: 25          # 25% match rate
+  #     max_deferral_pct: 6     # Match on up to 6% deferral
+  #   - min_years: 2
+  #     max_years: 5
+  #     match_rate: 50          # 50% match rate
+  #     max_deferral_pct: 6
+  #   - min_years: 5
+  #     max_years: 10
+  #     match_rate: 75          # 75% match rate
+  #     max_deferral_pct: 6
+  #   - min_years: 10
+  #     max_years: null         # Unbounded (10+ years)
+  #     match_rate: 100         # 100% match rate
+  #     max_deferral_pct: 6
+
+  # E046: Points-based match tiers (used when employer_match_status: 'points_based')
+  # Points = FLOOR(current_age) + FLOOR(years_of_service)
+  # Match rate varies by point total using [min, max) intervals
+  # points_match_tiers:
+  #   - min_points: 0
+  #     max_points: 40
+  #     match_rate: 25          # 25% match for points 0-39
+  #     max_deferral_pct: 6
+  #   - min_points: 40
+  #     max_points: 60
+  #     match_rate: 50          # 50% match for points 40-59
+  #     max_deferral_pct: 6
+  #   - min_points: 60
+  #     max_points: 80
+  #     match_rate: 75          # 75% match for points 60-79
+  #     max_deferral_pct: 6
+  #   - min_points: 80
+  #     max_points: null        # Unbounded (80+ points)
+  #     match_rate: 100         # 100% match for 80+ points
+  #     max_deferral_pct: 6
+
 # Employer core (non-elective) contribution configuration
 employer_core_contribution:
   enabled: true                    # Master on/off switch

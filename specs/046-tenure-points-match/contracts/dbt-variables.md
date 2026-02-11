@@ -16,7 +16,7 @@
 
 **Type**: array of objects
 **Default**: `[]` (empty — only populated when `employer_match_status = 'tenure_based'`)
-**Source**: `dc_plan.tenure_match_tiers` (UI) or `simulation_config.yaml`
+**Source**: Exported by `_export_employer_match_vars()` from validated Pydantic config (`match_rate` → `rate`). Input config uses `match_rate`; dbt receives `rate`.
 
 **Schema**:
 ```yaml
@@ -47,7 +47,7 @@ tenure_match_tiers:
 
 **Type**: array of objects
 **Default**: `[]` (empty — only populated when `employer_match_status = 'points_based'`)
-**Source**: `dc_plan.points_match_tiers` (UI) or `simulation_config.yaml`
+**Source**: Exported by `_export_employer_match_vars()` from validated Pydantic config (`match_rate` → `rate`). Input config uses `match_rate`; dbt receives `rate`.
 
 **Schema**:
 ```yaml

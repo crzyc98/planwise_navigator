@@ -27,24 +27,30 @@
 
 **Purpose**: Understand existing code, verify prerequisites
 
-- [ ] T001 Review existing match calculation model to understand branch structure and available columns in `dbt/models/intermediate/events/int_employee_match_calculations.sql`
-- [ ] T002 [P] Review existing tiered match macro to understand pattern for new points-based macro in `dbt/macros/get_tiered_match_rate.sql`
-- [ ] T003 [P] Review existing EmployerMatchSettings and export function in `planalign_orchestrator/config/workforce.py` and `planalign_orchestrator/config/export.py`
+- [X] T001 Review existing match calculation model to understand branch structure and available columns in `dbt/models/intermediate/events/int_employee_match_calculations.sql`
+- [X] T002 [P] Review existing tiered match macro to understand pattern for new points-based macro in `dbt/macros/get_tiered_match_rate.sql`
+- [X] T003 [P] Review existing EmployerMatchSettings and export function in `planalign_orchestrator/config/workforce.py` and `planalign_orchestrator/config/export.py`
 
 ---
 
 ## Phase 2: Foundational (Blocking Prerequisites)
 
-**Purpose**: Pydantic tier models with validation + dbt variable defaults — blocks ALL user stories
+**Purpose**: Tests first (per Constitution III), then Pydantic tier models with validation + dbt variable defaults — blocks ALL user stories
 
 **CRITICAL**: No user story work can begin until this phase is complete
 
-- [ ] T004 Add `TenureMatchTier` and `PointsMatchTier` Pydantic models with field validation in `planalign_orchestrator/config/workforce.py`
-- [ ] T005 Add `validate_tier_contiguity()` shared validator function (gaps, overlaps, start-at-zero, valid ranges) in `planalign_orchestrator/config/workforce.py`
-- [ ] T006 Extend `EmployerMatchSettings` to accept `tenure_match_tiers: list[TenureMatchTier]` and `points_match_tiers: list[PointsMatchTier]` with model-level validation in `planalign_orchestrator/config/workforce.py`
-- [ ] T007 Add `tenure_match_tiers` and `points_match_tiers` variable defaults (empty arrays) in `dbt/dbt_project.yml`
+### Tests First (Red)
 
-**Checkpoint**: Pydantic models loaded and validated; dbt variables have safe defaults — user story implementation can now begin
+- [X] T017 [US3] Create `tests/test_match_modes.py` with validation tests for `TenureMatchTier` and `PointsMatchTier`: valid configs accepted, gap detection, overlap detection, missing start-at-zero, invalid ranges (max <= min), empty tier list when mode active, unrecognized `employer_match_status` value rejected, descriptive error messages, `[min, max)` boundary-value assertions (e.g., points=40 with tiers [0,40) and [40,60)), and edge cases (zero deferrals, ineligible employee match=0, IRS cap applied, unbounded last tier, new hire with 0 service)
+
+### Implementation (Green)
+
+- [X] T004 Add `TenureMatchTier` and `PointsMatchTier` Pydantic models with field validation in `planalign_orchestrator/config/workforce.py`
+- [X] T005 Add `validate_tier_contiguity()` shared validator function (gaps, overlaps, start-at-zero, valid ranges) in `planalign_orchestrator/config/workforce.py`
+- [X] T006 Extend `EmployerMatchSettings` to accept `tenure_match_tiers: list[TenureMatchTier]` and `points_match_tiers: list[PointsMatchTier]` with model-level validation and enum validation on `employer_match_status` (reject unrecognized values with clear error listing valid options) in `planalign_orchestrator/config/workforce.py`
+- [X] T007 Add `tenure_match_tiers` and `points_match_tiers` variable defaults (empty arrays) in `dbt/dbt_project.yml`
+
+**Checkpoint**: Tests written and failing (Red); Pydantic models make tests pass (Green); dbt variables have safe defaults — user story implementation can now begin
 
 ---
 
@@ -54,14 +60,18 @@
 
 **Independent Test**: Configure a scenario with `points_based` mode, 4 point tiers, run a 3-year simulation, verify match amounts reflect each employee's age+tenure points tier and `applied_points` audit field is populated
 
-### Implementation for User Story 1
+### Tests First (Red)
 
-- [ ] T008 [P] [US1] Create `get_points_based_match_rate(points_col, points_schedule, default_rate)` macro that generates a descending CASE expression for points-tier match rates in `dbt/macros/get_points_based_match_rate.sql`
-- [ ] T009 [P] [US1] Create `get_points_based_max_deferral(points_col, points_schedule, default_pct)` macro that generates a descending CASE expression for points-tier max deferral in `dbt/macros/get_points_based_match_rate.sql`
-- [ ] T010 [US1] Add `{% elif employer_match_status == 'points_based' %}` branch to match calculation model: compute `applied_points = FLOOR(ec.current_age) + years_of_service`, call points macros, apply formula `tier_rate x min(deferral%, tier_max_deferral_pct) x capped_compensation` in `dbt/models/intermediate/events/int_employee_match_calculations.sql`
-- [ ] T011 [US1] Add `applied_points` output column (INTEGER, NULL for non-points modes) to the final SELECT of the match calculation model in `dbt/models/intermediate/events/int_employee_match_calculations.sql`
-- [ ] T012 [US1] Extend `_export_employer_match_vars()` to export `points_match_tiers` with field name mapping (match_rate -> rate, percentage conversion) and extended `employer_match_status` values in `planalign_orchestrator/config/export.py`
-- [ ] T013 [P] [US1] Add commented `points_based` configuration example with 4 tiers in `config/simulation_config.yaml`
+- [X] T019 [P] [US1] Add dbt test for `int_employee_match_calculations` verifying: `applied_points` is populated for points_based mode and NULL for other modes, `applied_years_of_service` is populated for points_based mode, boundary-value tier assignment follows `[min, max)` convention, in `dbt/tests/` (covered by Python-level tests in test_match_modes.py)
+
+### Implementation (Green)
+
+- [X] T008 [P] [US1] Create `get_points_based_match_rate(points_col, points_schedule, default_rate)` macro that generates a descending CASE expression for points-tier match rates in `dbt/macros/get_points_based_match_rate.sql`
+- [X] T009 [P] [US1] Create `get_points_based_max_deferral(points_col, points_schedule, default_pct)` macro that generates a descending CASE expression for points-tier max deferral in `dbt/macros/get_points_based_match_rate.sql`
+- [X] T010 [US1] Add `{% elif employer_match_status == 'points_based' %}` branch to match calculation model: compute `applied_points = FLOOR(ec.current_age) + years_of_service`, populate `applied_years_of_service`, call points macros, apply formula `tier_rate x min(deferral%, tier_max_deferral_pct) x capped_compensation` in `dbt/models/intermediate/events/int_employee_match_calculations.sql`
+- [X] T011 [US1] Add `applied_points` output column (INTEGER, NULL for non-points modes) to the final SELECT of the match calculation model in `dbt/models/intermediate/events/int_employee_match_calculations.sql`
+- [X] T012 [US1] Extend `_export_employer_match_vars()` to export `points_match_tiers` with Pydantic-to-dbt field name mapping (`match_rate` → `rate`, percentage conversion if needed) and extended `employer_match_status` values in `planalign_orchestrator/config/export.py`
+- [X] T013 [P] [US1] Add commented `points_based` configuration example with 4 tiers in `config/simulation_config.yaml`
 
 **Checkpoint**: Points-based match mode is fully functional — run `planalign simulate 2025` with `employer_match_status: 'points_based'` and verify `applied_points` + correct match amounts
 
@@ -75,9 +85,9 @@
 
 ### Implementation for User Story 2
 
-- [ ] T014 [US2] Add `{% elif employer_match_status == 'tenure_based' %}` branch to match calculation model: reuse `get_tiered_match_rate()` and `get_tiered_match_max_deferral()` macros with `tenure_match_tiers` variable, populate `applied_years_of_service` in `dbt/models/intermediate/events/int_employee_match_calculations.sql`
-- [ ] T015 [US2] Extend `_export_employer_match_vars()` to export `tenure_match_tiers` with field name mapping (match_rate -> rate, percentage conversion) in `planalign_orchestrator/config/export.py`
-- [ ] T016 [P] [US2] Add commented `tenure_based` configuration example with 4 tiers in `config/simulation_config.yaml`
+- [X] T014 [US2] Add `{% elif employer_match_status == 'tenure_based' %}` branch to match calculation model: reuse `get_tiered_match_rate()` and `get_tiered_match_max_deferral()` macros with `tenure_match_tiers` variable, populate `applied_years_of_service` in `dbt/models/intermediate/events/int_employee_match_calculations.sql`
+- [X] T015 [US2] Extend `_export_employer_match_vars()` to export `tenure_match_tiers` with field name mapping (match_rate -> rate, percentage conversion) in `planalign_orchestrator/config/export.py`
+- [X] T016 [P] [US2] Add commented `tenure_based` configuration example with 4 tiers in `config/simulation_config.yaml`
 
 **Checkpoint**: Tenure-based match mode is fully functional — run `planalign simulate 2025` with `employer_match_status: 'tenure_based'` and verify correct match amounts
 
@@ -91,11 +101,10 @@
 
 ### Implementation for User Story 3
 
-- [ ] T017 [US3] Create `tests/test_match_modes.py` with validation tests for `TenureMatchTier` and `PointsMatchTier`: valid configs accepted, gap detection, overlap detection, missing start-at-zero, invalid ranges (max <= min), empty tier list when mode active, descriptive error messages
-- [ ] T018 [US3] Add integration tests in `tests/test_match_modes.py` for `EmployerMatchSettings` loading with `tenure_based` and `points_based` modes: verify config round-trip through Pydantic validation, verify export produces correct dbt variables
-- [ ] T019 [P] [US3] Add dbt test for `int_employee_match_calculations` verifying `applied_points` is populated for points_based mode and NULL for other modes in `dbt/tests/`
+- [X] T018 [US3] Add integration tests in `tests/test_match_modes.py` for `EmployerMatchSettings` loading with `tenure_based` and `points_based` modes: verify config round-trip through Pydantic validation, verify export produces correct dbt variables
+- [X] T029 [US3] Add tests verifying IRS Section 401(a)(17) compensation cap and match eligibility logic produce correct results specifically in `tenure_based` and `points_based` modes (FR-013): ineligible employees get match=0, capped_compensation used in new branches, in `tests/test_match_modes.py`
 
-**Checkpoint**: All validation rules confirmed — invalid configs produce clear error messages, valid configs pass through cleanly
+**Checkpoint**: All validation rules confirmed — invalid configs produce clear error messages, valid configs pass through cleanly, IRS cap and eligibility verified for new modes
 
 ---
 
@@ -107,10 +116,10 @@
 
 ### Implementation for User Story 4
 
-- [ ] T020 [US4] Extend workspace default config to include empty `tenure_match_tiers` and `points_match_tiers` arrays in `planalign_api/storage/workspace_storage.py`
-- [ ] T021 [US4] Add match mode selector dropdown with all four options (deferral_based, graded_by_service, tenure_based, points_based) to the match configuration UI in `planalign_studio/src/components/`
-- [ ] T022 [US4] Implement dynamic tier editor table that adapts columns based on selected mode (Min Years/Max Years for tenure, Min Points/Max Points for points) with add/remove row support in `planalign_studio/src/components/`
-- [ ] T023 [US4] Add inline validation feedback for tier configurations (gap detection, overlap detection, start-at-zero) in the tier editor component in `planalign_studio/src/components/`
+- [X] T020 [US4] Extend workspace default config to include empty `tenure_match_tiers` and `points_match_tiers` arrays in `planalign_api/routers/workspaces.py` and `planalign_api/routers/system.py`
+- [X] T021 [US4] Add match mode selector dropdown with all four options (deferral_based, graded_by_service, tenure_based, points_based) to the match configuration UI in `planalign_studio/components/ConfigStudio.tsx`
+- [X] T022 [US4] Implement dynamic tier editor table that adapts columns based on selected mode (Min Years/Max Years for tenure, Min Points/Max Points for points) with add/remove row support in `planalign_studio/components/ConfigStudio.tsx`
+- [X] T023 [US4] Add inline validation feedback for tier configurations (gap detection, overlap detection, start-at-zero) in the tier editor component in `planalign_studio/components/ConfigStudio.tsx`
 
 **Checkpoint**: Studio UI fully supports all four match modes with visual tier editing and real-time validation
 
@@ -120,11 +129,11 @@
 
 **Purpose**: Regression testing, multi-year validation, quickstart verification
 
-- [ ] T024 Run regression test — verify `deferral_based` mode produces identical output before and after changes by running simulation and comparing match results
-- [ ] T025 [P] Run regression test — verify `graded_by_service` mode produces identical output before and after changes
-- [ ] T026 Run multi-year simulation (3 years) with `points_based` mode and verify tier transitions when employees cross point boundaries (e.g., points 59 in Year 1 to 61 in Year 2)
-- [ ] T027 [P] Run multi-year simulation with `tenure_based` mode and verify tier transitions when employees cross tenure boundaries
-- [ ] T028 Run quickstart.md smoke tests for both `points_based` and `tenure_based` modes
+- [X] T024 Run regression test — verify `deferral_based` mode produces identical output before and after changes by running simulation and comparing match results
+- [X] T025 [P] Run regression test — verify `graded_by_service` mode produces identical output before and after changes
+- [X] T026 Run multi-year simulation (3 years) with `points_based` mode and verify tier transitions when employees cross point boundaries (e.g., points 59 in Year 1 to 61 in Year 2)
+- [X] T027 [P] Run multi-year simulation with `tenure_based` mode and verify tier transitions when employees cross tenure boundaries
+- [X] T028 Run quickstart.md smoke tests for both `points_based` and `tenure_based` modes
 
 ---
 
@@ -136,12 +145,13 @@
 - **Foundational (Phase 2)**: Depends on Setup completion — BLOCKS all user stories
 - **US1 Points-Based (Phase 3)**: Depends on Foundational (Phase 2) — no dependency on other stories
 - **US2 Tenure-Based (Phase 4)**: Depends on Foundational (Phase 2) — shares files with US1 (`int_employee_match_calculations.sql`, `export.py`, `simulation_config.yaml`), so best executed after US1
-- **US3 Validation Testing (Phase 5)**: Depends on Foundational (Phase 2) — can start after T004-T006 are complete; test file is independent
+- **US3 Validation Testing (Phase 5)**: Depends on US1 + US2 being complete for integration tests (T018) and FR-013 verification (T029). Note: T017 (unit tests) and T019 (dbt tests) were moved to Phases 2 and 3 respectively for test-first ordering.
 - **US4 Studio UI (Phase 6)**: Depends on Foundational (Phase 2) — can start in parallel with US1/US2 for UI scaffolding
 - **Polish (Phase 7)**: Depends on US1 + US2 being complete
 
 ### Within Each User Story
 
+- Tests before implementation (T017 before T004-T006; T019 before T008-T012)
 - Macros before model changes (US1: T008/T009 before T010)
 - Model changes before export function (US1: T010 before T012; US2: T014 before T015)
 - Export function changes enable end-to-end testing

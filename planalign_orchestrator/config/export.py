@@ -315,6 +315,37 @@ def _export_employer_match_vars(cfg: "SimulationConfig") -> Dict[str, Any]:
             }
             dbt_vars["employer_match"] = dbt_employer_match
 
+            # E046: Export match mode and tier configurations from Pydantic model
+            match_status = employer_data.get("employer_match_status")
+            if match_status is not None:
+                dbt_vars["employer_match_status"] = str(match_status)
+
+            # E046: Export tenure_match_tiers from Pydantic model
+            tenure_tiers = employer_data.get("tenure_match_tiers")
+            if tenure_tiers and len(tenure_tiers) > 0:
+                dbt_vars["tenure_match_tiers"] = [
+                    {
+                        "min_years": t.get("min_years", 0),
+                        "max_years": t.get("max_years"),
+                        "rate": t.get("match_rate", 0),
+                        "max_deferral_pct": t.get("max_deferral_pct", 6),
+                    }
+                    for t in tenure_tiers
+                ]
+
+            # E046: Export points_match_tiers from Pydantic model
+            points_tiers = employer_data.get("points_match_tiers")
+            if points_tiers and len(points_tiers) > 0:
+                dbt_vars["points_match_tiers"] = [
+                    {
+                        "min_points": t.get("min_points", 0),
+                        "max_points": t.get("max_points"),
+                        "rate": t.get("match_rate", 0),
+                        "max_deferral_pct": t.get("max_deferral_pct", 6),
+                    }
+                    for t in points_tiers
+                ]
+
             # Backward compatibility
             active_formula = employer_data.get("active_formula")
             formulas = employer_data.get("formulas")
@@ -413,6 +444,46 @@ def _export_employer_match_vars(cfg: "SimulationConfig") -> Dict[str, Any]:
                         }
                         transformed_schedule.append(transformed_tier)
                     dbt_vars["employer_match_graded_schedule"] = transformed_schedule
+
+            # E046: Tenure-based match tiers (for tenure_based mode)
+            tenure_tiers = dc_plan_dict.get("tenure_match_tiers")
+            if tenure_tiers is not None:
+                if isinstance(tenure_tiers, list) and len(tenure_tiers) > 0:
+                    transformed_tiers = []
+                    for tier in tenure_tiers:
+                        transformed_tier = {
+                            "min_years": tier.get("min_years", 0),
+                            "max_years": tier.get("max_years"),
+                            # Convert decimal rate (0.50) to percentage (50.0) if needed
+                            "rate": (tier.get("match_rate", tier.get("rate", 0)) * 100)
+                            if tier.get("match_rate") is not None and tier.get("match_rate") <= 1
+                            else tier.get("rate", tier.get("match_rate", 0)),
+                            "max_deferral_pct": (tier.get("max_deferral_pct", 0) * 100)
+                            if tier.get("max_deferral_pct") is not None and tier.get("max_deferral_pct") <= 1
+                            else tier.get("max_deferral_pct", 6),
+                        }
+                        transformed_tiers.append(transformed_tier)
+                    dbt_vars["tenure_match_tiers"] = transformed_tiers
+
+            # E046: Points-based match tiers (for points_based mode)
+            points_tiers = dc_plan_dict.get("points_match_tiers")
+            if points_tiers is not None:
+                if isinstance(points_tiers, list) and len(points_tiers) > 0:
+                    transformed_tiers = []
+                    for tier in points_tiers:
+                        transformed_tier = {
+                            "min_points": tier.get("min_points", 0),
+                            "max_points": tier.get("max_points"),
+                            # Convert decimal rate (0.50) to percentage (50.0) if needed
+                            "rate": (tier.get("match_rate", tier.get("rate", 0)) * 100)
+                            if tier.get("match_rate") is not None and tier.get("match_rate") <= 1
+                            else tier.get("rate", tier.get("match_rate", 0)),
+                            "max_deferral_pct": (tier.get("max_deferral_pct", 0) * 100)
+                            if tier.get("max_deferral_pct") is not None and tier.get("max_deferral_pct") <= 1
+                            else tier.get("max_deferral_pct", 6),
+                        }
+                        transformed_tiers.append(transformed_tier)
+                    dbt_vars["points_match_tiers"] = transformed_tiers
 
             # E095: Export match eligibility from dc_plan (UI format) to employer_match structure
             # The UI sends flat fields like match_min_hours_annual, we need to merge into employer_match
