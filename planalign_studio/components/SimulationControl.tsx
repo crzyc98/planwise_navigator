@@ -1,17 +1,21 @@
 import React, { useState, useEffect } from 'react';
 import { useOutletContext, useNavigate, useSearchParams } from 'react-router-dom';
-import { Play, Pause, Square, Activity, Cpu, Server, Clock, Database, AlertCircle, History, CheckCircle, XCircle, CircleDot, ExternalLink, RefreshCw } from 'lucide-react';
+import { Play, Pause, Square, Activity, Cpu, Server, Clock, Database, AlertCircle, History, CheckCircle, XCircle, CircleDot, ExternalLink, RefreshCw, Loader2 } from 'lucide-react';
 import { useSimulationSocket } from '../services/websocket';
 import { listScenarios, startSimulation, cancelSimulation, resetSimulation, Scenario } from '../services/api';
-import { LogEvent, Workspace } from '../types';
-
-interface LayoutContext {
-  activeWorkspace: Workspace;
-  setLastRunScenarioId: (id: string | null) => void;
-}
+import { LayoutContextType } from './Layout';
 
 export default function SimulationControl() {
-  const { activeWorkspace, setLastRunScenarioId } = useOutletContext<LayoutContext>();
+  const {
+    activeWorkspace,
+    setLastRunScenarioId,
+    isSimulationRunning,
+    activeRunId,
+    runningScenarioId,
+    setSimulationRunning,
+    clearSimulationRunning,
+    lastHeartbeatRef,
+  } = useOutletContext<LayoutContextType>();
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const scenarioIdFromUrl = searchParams.get('scenario');
@@ -19,8 +23,6 @@ export default function SimulationControl() {
   // Fetch scenarios from API
   const [scenarios, setScenarios] = useState<Scenario[]>([]);
   const [selectedScenarioId, setSelectedScenarioId] = useState<string>('');
-  const [activeRunId, setActiveRunId] = useState<string | null>(null);
-  const [runningScenarioId, setRunningScenarioId] = useState<string | null>(null); // Track which scenario is actually running
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -59,8 +61,7 @@ export default function SimulationControl() {
     try {
       setError(null);
       const run = await startSimulation(selectedScenarioId);
-      setRunningScenarioId(selectedScenarioId); // Remember which scenario we started
-      setActiveRunId(run.id);
+      setSimulationRunning(run.id, selectedScenarioId);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to start simulation');
     }
@@ -70,7 +71,7 @@ export default function SimulationControl() {
     if (!selectedScenarioId) return;
     try {
       await cancelSimulation(selectedScenarioId);
-      setActiveRunId(null);
+      clearSimulationRunning();
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to stop simulation');
     }
@@ -82,8 +83,7 @@ export default function SimulationControl() {
       // Give a moment to show 100% completion, then navigate to detail page
       const timer = setTimeout(() => {
         const completedScenarioId = runningScenarioId; // Use the scenario that was actually started
-        setActiveRunId(null);
-        setRunningScenarioId(null);
+        clearSimulationRunning();
         // Navigate to the simulation detail page to see results
         if (completedScenarioId) {
           // Store completed scenario for Analytics page context
@@ -93,7 +93,7 @@ export default function SimulationControl() {
       }, 2000);
       return () => clearTimeout(timer);
     }
-  }, [telemetry?.current_stage, telemetry?.progress, runningScenarioId, navigate, setLastRunScenarioId]);
+  }, [telemetry?.current_stage, telemetry?.progress, runningScenarioId, navigate, setLastRunScenarioId, clearSimulationRunning]);
 
   // Map telemetry to legacy status format for compatibility
   const isCompleted = telemetry?.current_stage === 'COMPLETED' || telemetry?.progress === 100;
@@ -138,6 +138,13 @@ export default function SimulationControl() {
     }
   }, [activeRunId, activeWorkspace.id]);
 
+  // Feature 045: Update heartbeat timestamp when telemetry is received
+  useEffect(() => {
+    if (telemetry && isSimulationRunning) {
+      lastHeartbeatRef.current = Date.now();
+    }
+  }, [telemetry, isSimulationRunning, lastHeartbeatRef]);
+
   return (
     <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
 
@@ -154,15 +161,24 @@ export default function SimulationControl() {
             {!activeRunId ? (
               <button
                 onClick={handleStart}
-                disabled={!selectedScenarioId || isLoading}
+                disabled={!selectedScenarioId || isLoading || isSimulationRunning}
                 className={`flex items-center px-6 py-2 text-white rounded-lg transition-all shadow-md font-medium ${
-                  !selectedScenarioId || isLoading
+                  !selectedScenarioId || isLoading || isSimulationRunning
                     ? 'bg-gray-300 cursor-not-allowed'
                     : 'bg-fidelity-green hover:bg-fidelity-dark'
                 }`}
               >
-                <Play size={20} className="mr-2" />
-                Start Simulation
+                {isSimulationRunning ? (
+                  <>
+                    <Loader2 size={20} className="mr-2 animate-spin" />
+                    Running...
+                  </>
+                ) : (
+                  <>
+                    <Play size={20} className="mr-2" />
+                    Start Simulation
+                  </>
+                )}
               </button>
             ) : (
               <div className="flex space-x-2">
@@ -431,7 +447,7 @@ export default function SimulationControl() {
                           Force Reset
                         </button>
                       )}
-                      {/* Run button (disabled only if we're actively tracking this run) */}
+                      {/* Run button (disabled when any simulation is running) */}
                       <button
                         onClick={async (e) => {
                           e.stopPropagation(); // Prevent row click
@@ -439,21 +455,25 @@ export default function SimulationControl() {
                             setError(null);
                             const run = await startSimulation(scenario.id);
                             setSelectedScenarioId(scenario.id);
-                            setRunningScenarioId(scenario.id); // Remember which scenario we started
-                            setActiveRunId(run.id);
+                            setSimulationRunning(run.id, scenario.id);
                             window.scrollTo({ top: 0, behavior: 'smooth' });
                           } catch (err) {
                             setError(err instanceof Error ? err.message : 'Failed to start simulation');
                           }
                         }}
-                        disabled={scenario.status === 'running' && scenario.id === runningScenarioId}
+                        disabled={isSimulationRunning}
                         className={`text-sm px-3 py-1.5 rounded font-medium transition-colors ${
-                          scenario.status === 'running' && scenario.id === runningScenarioId
+                          isSimulationRunning
                             ? 'bg-gray-100 text-gray-400 cursor-not-allowed'
                             : 'bg-fidelity-green text-white hover:bg-fidelity-dark'
                         }`}
                       >
-                        {scenario.status === 'running' && scenario.id === runningScenarioId ? 'Running...' : 'Run'}
+                        {isSimulationRunning && scenario.id === runningScenarioId ? (
+                          <>
+                            <Loader2 size={14} className="inline mr-1 animate-spin" />
+                            Running...
+                          </>
+                        ) : isSimulationRunning ? 'Busy' : 'Run'}
                       </button>
                     </td>
                   </tr>
