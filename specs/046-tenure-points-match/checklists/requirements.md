@@ -33,4 +33,4 @@
 
 - All items pass validation. Spec is ready for `/speckit.clarify` or `/speckit.plan`.
 - The spec references field names like `applied_points` and `FLOOR()` which are domain-specific business terms, not implementation details — these are part of the business requirements and acceptance criteria.
-- FR-001 through FR-012 each map to at least one acceptance scenario across the 4 user stories.
+- FR-001 through FR-012 each map to at least one acceptance scenario across the 4 user stories. FR-013 (IRS cap + eligibility verification in new modes) maps to test task T029 in Phase 5.

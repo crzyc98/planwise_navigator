@@ -98,8 +98,7 @@ Both `tenure_match_tiers` and `points_match_tiers` share the same validation rul
 
 1. **Non-empty**: At least 1 tier when the corresponding mode is active
 2. **Start at zero**: First tier's min value must be 0
-3. **Contiguous**: tier[N].max == tier[N+1].min (no gaps)
-4. **Non-overlapping**: tier[N].max <= tier[N+1].min
-5. **Valid ranges**: max > min (or max is null for unbounded last tier)
-6. **Valid rates**: 0 <= match_rate <= 1.0 (as decimal from UI)
-7. **Valid deferral**: 0 < max_deferral_pct <= 1.0 (as decimal from UI)
+3. **Contiguous**: tier[N].max == tier[N+1].min (no gaps, no overlaps — contiguity implies both)
+4. **Valid ranges**: max > min (or max is null for unbounded last tier)
+5. **Valid rates**: 0 <= match_rate <= 1.0 (API accepts decimals; Pydantic stores as percentage 0-100; export handles conversion)
+6. **Valid deferral**: 0 <= max_deferral_pct <= 1.0 (API accepts decimals; 0 is valid — effectively disables match for that tier)

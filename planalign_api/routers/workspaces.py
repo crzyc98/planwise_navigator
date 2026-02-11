@@ -83,6 +83,9 @@ async def get_default_config(
                     "max_match_percentage": 0.06,
                 },
             },
+            # E046: New match mode defaults (empty tiers = not configured)
+            "tenure_match_tiers": [],
+            "points_match_tiers": [],
         },
         "employer_core_contribution": {
             "enabled": True,
