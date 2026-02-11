@@ -1214,6 +1214,49 @@ export default function ConfigStudio() {
     return errors;
   };
 
+  // E046: Validate tenure/points match tiers for gaps, overlaps, and ordering issues
+  const validateMatchTiers = (
+    tiers: Array<{ min: number; max: number | null }>,
+    label: string,
+  ): string[] => {
+    const warnings: string[] = [];
+    if (tiers.length === 0) return warnings;
+
+    const sorted = [...tiers].sort((a, b) => a.min - b.min);
+
+    // First tier should start at 0
+    if (sorted[0].min !== 0) {
+      warnings.push(`First tier starts at ${sorted[0].min} — should start at 0 to cover all employees`);
+    }
+
+    // Check each tier's own range
+    for (let i = 0; i < sorted.length; i++) {
+      const t = sorted[i];
+      if (t.max !== null && t.max <= t.min) {
+        warnings.push(`Tier ${i + 1}: max (${t.max}) must be greater than min (${t.min})`);
+      }
+    }
+
+    // Check gaps and overlaps between consecutive tiers
+    for (let i = 0; i < sorted.length - 1; i++) {
+      const currMax = sorted[i].max;
+      const nextMin = sorted[i + 1].min;
+
+      if (currMax === null) {
+        warnings.push(`Tier ${i + 1} has no upper bound but is not the last tier — tiers after it will never apply`);
+        continue;
+      }
+
+      if (currMax < nextMin) {
+        warnings.push(`Gap: ${label} ${currMax}–${nextMin} is not covered between tier ${i + 1} and ${i + 2}`);
+      } else if (currMax > nextMin) {
+        warnings.push(`Overlap: tiers ${i + 1} and ${i + 2} both cover ${label} ${nextMin}–${currMax}`);
+      }
+    }
+
+    return warnings;
+  };
+
   // E003: Handler for "Match Census" age bands
   const handleMatchCensusAgeBands = async () => {
     if (!activeWorkspace?.id || !formData.censusDataPath) {
@@ -3315,6 +3358,24 @@ export default function ConfigStudio() {
                         {formData.dcTenureMatchTiers.length === 0 && (
                           <p className="mt-2 text-xs text-amber-600">Add at least one tier to configure tenure-based matching</p>
                         )}
+                        {/* E046: Tenure tier gap/overlap warnings */}
+                        {(() => {
+                          const warnings = validateMatchTiers(
+                            formData.dcTenureMatchTiers.map(t => ({ min: t.minYears, max: t.maxYears })),
+                            'tenure years',
+                          );
+                          return warnings.length > 0 ? (
+                            <div className="mt-3 bg-amber-50 border border-amber-300 rounded-md p-3">
+                              <p className="text-xs font-medium text-amber-800 mb-1">Tier configuration warnings:</p>
+                              <ul className="list-disc list-inside space-y-0.5">
+                                {warnings.map((w, i) => (
+                                  <li key={i} className="text-xs text-amber-700">{w}</li>
+                                ))}
+                              </ul>
+                              <p className="text-xs text-amber-600 mt-1.5">Tiers use [min, max) intervals — min is inclusive, max is exclusive.</p>
+                            </div>
+                          ) : null;
+                        })()}
                       </div>
                     )}
 
