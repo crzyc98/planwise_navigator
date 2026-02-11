@@ -530,8 +530,18 @@ async def export_results(
     )
 
 
+@router.get("/active", summary="Get active simulation runs")
+async def get_active_simulations():
+    """Return all currently active simulation runs for page-refresh recovery."""
+    return {"active_runs": get_active_runs()}
+
+
 def get_active_runs() -> list:
-    """Return all currently active simulation runs."""
+    """Return all currently active simulation runs.
+
+    Note: started_at is always present because SimulationRun requires it
+    at creation time (see start_simulation endpoint).
+    """
     return [
         {
             "run_id": run.id,
@@ -539,7 +549,7 @@ def get_active_runs() -> list:
             "status": run.status,
             "progress": run.progress,
             "current_stage": run.current_stage,
-            "started_at": run.started_at.isoformat() if run.started_at else None,
+            "started_at": run.started_at.isoformat(),
         }
         for run in _active_runs.values()
         if run.status in ("pending", "queued", "running")

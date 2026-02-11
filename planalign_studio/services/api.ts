@@ -384,7 +384,7 @@ export interface ActiveSimulationsResponse {
 }
 
 export async function getActiveSimulations(): Promise<ActiveSimulationsResponse> {
-  const response = await fetch(`${API_BASE}/api/simulations/active`);
+  const response = await fetch(`${API_BASE}/api/scenarios/active`);
   return handleResponse<ActiveSimulationsResponse>(response);
 }
 
