@@ -366,6 +366,28 @@ export async function getMergedConfig(
 // Simulation Endpoints
 // ============================================================================
 
+// ============================================================================
+// Active Simulation Detection (Feature 045)
+// ============================================================================
+
+export interface ActiveRun {
+  run_id: string;
+  scenario_id: string;
+  status: string;
+  progress: number;
+  current_stage: string | null;
+  started_at: string;
+}
+
+export interface ActiveSimulationsResponse {
+  active_runs: ActiveRun[];
+}
+
+export async function getActiveSimulations(): Promise<ActiveSimulationsResponse> {
+  const response = await fetch(`${API_BASE}/api/simulations/active`);
+  return handleResponse<ActiveSimulationsResponse>(response);
+}
+
 export async function startSimulation(
   scenarioId: string,
   options?: { resume_from_checkpoint?: boolean }

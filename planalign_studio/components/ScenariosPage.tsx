@@ -1,12 +1,12 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate, useOutletContext } from 'react-router-dom';
-import { Plus, Play, Trash2, Pencil, Check, X, Layers, Settings, Clock, AlertCircle, CheckSquare, Square, PlayCircle, Eye } from 'lucide-react';
+import { Plus, Play, Trash2, Pencil, Check, X, Layers, Settings, Clock, AlertCircle, CheckSquare, Square, PlayCircle, Eye, Loader2 } from 'lucide-react';
 import { LayoutContextType } from './Layout';
 import { listScenarios, createScenario, updateScenario, deleteScenario, Scenario } from '../services/api';
 
 export default function ScenariosPage() {
   const navigate = useNavigate();
-  const { activeWorkspace } = useOutletContext<LayoutContextType>();
+  const { activeWorkspace, isSimulationRunning, runningScenarioId } = useOutletContext<LayoutContextType>();
 
   const [scenarios, setScenarios] = useState<Scenario[]>([]);
   const [loading, setLoading] = useState(true);
@@ -429,11 +429,30 @@ export default function ScenariosPage() {
                       </button>
                       <button
                         onClick={() => navigate(`/simulate?scenario=${scenario.id}`)}
-                        className="px-3 py-1.5 bg-fidelity-green text-white rounded-lg text-sm hover:bg-fidelity-dark flex items-center"
-                        title="Run simulation"
+                        disabled={isSimulationRunning}
+                        className={`px-3 py-1.5 rounded-lg text-sm flex items-center ${
+                          isSimulationRunning
+                            ? 'bg-gray-300 text-gray-500 cursor-not-allowed'
+                            : 'bg-fidelity-green text-white hover:bg-fidelity-dark'
+                        }`}
+                        title={isSimulationRunning ? 'A simulation is already running' : 'Run simulation'}
                       >
-                        <Play size={14} className="mr-1" />
-                        Run
+                        {isSimulationRunning && scenario.id === runningScenarioId ? (
+                          <>
+                            <Loader2 size={14} className="mr-1 animate-spin" />
+                            Running...
+                          </>
+                        ) : isSimulationRunning ? (
+                          <>
+                            <Play size={14} className="mr-1" />
+                            Busy
+                          </>
+                        ) : (
+                          <>
+                            <Play size={14} className="mr-1" />
+                            Run
+                          </>
+                        )}
                       </button>
                       {scenario.last_run_at && (
                         <button

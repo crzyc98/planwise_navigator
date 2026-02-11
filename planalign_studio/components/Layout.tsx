@@ -13,6 +13,7 @@ import {
   createWorkspace as apiCreateWorkspace,
   updateWorkspace as apiUpdateWorkspace,
   deleteWorkspace as apiDeleteWorkspace,
+  getActiveSimulations,
   Workspace as ApiWorkspace,
 } from '../services/api';
 
@@ -25,6 +26,13 @@ export interface LayoutContextType {
   deleteWorkspace: (id: string) => void;
   lastRunScenarioId: string | null;
   setLastRunScenarioId: (id: string | null) => void;
+  // Feature 045: Global simulation running state
+  isSimulationRunning: boolean;
+  activeRunId: string | null;
+  runningScenarioId: string | null;
+  setSimulationRunning: (runId: string, scenarioId: string) => void;
+  clearSimulationRunning: () => void;
+  lastHeartbeatRef: React.MutableRefObject<number>;
 }
 
 const NavItem = ({ to, icon, label, end }: { to: string; icon: React.ReactNode; label: string; end?: boolean }) => (
@@ -67,6 +75,56 @@ export default function Layout() {
   const [isWorkspaceLoading, setIsWorkspaceLoading] = useState(true);
   const [workspaceError, setWorkspaceError] = useState<string | null>(null);
   const [lastRunScenarioId, setLastRunScenarioId] = useState<string | null>(null);
+
+  // Feature 045: Global simulation running state
+  const [isSimulationRunning, setIsSimulationRunning] = useState(false);
+  const [activeRunId, setActiveRunId] = useState<string | null>(null);
+  const [runningScenarioId, setRunningScenarioId] = useState<string | null>(null);
+  const lastHeartbeatRef = useRef<number>(0);
+
+  const setSimulationRunning = useCallback((runId: string, scenarioId: string) => {
+    setIsSimulationRunning(true);
+    setActiveRunId(runId);
+    setRunningScenarioId(scenarioId);
+    lastHeartbeatRef.current = Date.now();
+  }, []);
+
+  const clearSimulationRunning = useCallback(() => {
+    setIsSimulationRunning(false);
+    setActiveRunId(null);
+    setRunningScenarioId(null);
+    lastHeartbeatRef.current = 0;
+  }, []);
+
+  // Feature 045: Detect active simulations on page load (refresh recovery)
+  useEffect(() => {
+    getActiveSimulations()
+      .then((response) => {
+        if (response.active_runs.length > 0) {
+          const run = response.active_runs[0];
+          setSimulationRunning(run.run_id, run.scenario_id);
+        }
+      })
+      .catch(() => {
+        // Silently ignore - API may not be ready yet
+      });
+  }, [setSimulationRunning]);
+
+  // Feature 045: Safety timeout - re-enable buttons after 30 minutes with no heartbeat
+  useEffect(() => {
+    if (!isSimulationRunning) return;
+
+    const SAFETY_TIMEOUT_MS = 30 * 60 * 1000; // 30 minutes
+    const CHECK_INTERVAL_MS = 60 * 1000; // Check every minute
+
+    const interval = setInterval(() => {
+      if (lastHeartbeatRef.current > 0 && Date.now() - lastHeartbeatRef.current > SAFETY_TIMEOUT_MS) {
+        clearSimulationRunning();
+      }
+    }, CHECK_INTERVAL_MS);
+
+    return () => clearInterval(interval);
+  }, [isSimulationRunning, clearSimulationRunning]);
 
   // Create Workspace State
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
@@ -362,6 +420,12 @@ export default function Layout() {
     deleteWorkspace,
     lastRunScenarioId,
     setLastRunScenarioId,
+    isSimulationRunning,
+    activeRunId,
+    runningScenarioId,
+    setSimulationRunning,
+    clearSimulationRunning,
+    lastHeartbeatRef,
   };
 
   return (
