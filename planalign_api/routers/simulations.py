@@ -530,6 +530,22 @@ async def export_results(
     )
 
 
+def get_active_runs() -> list:
+    """Return all currently active simulation runs."""
+    return [
+        {
+            "run_id": run.id,
+            "scenario_id": run.scenario_id,
+            "status": run.status,
+            "progress": run.progress,
+            "current_stage": run.current_stage,
+            "started_at": run.started_at.isoformat() if run.started_at else None,
+        }
+        for run in _active_runs.values()
+        if run.status in ("pending", "queued", "running")
+    ]
+
+
 def update_run_status(run_id: str, **updates):
     """Update an active run's status (called by simulation service)."""
     if run_id in _active_runs:
