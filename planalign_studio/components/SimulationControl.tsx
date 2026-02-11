@@ -68,9 +68,9 @@ export default function SimulationControl() {
   };
 
   const handleStop = async () => {
-    if (!selectedScenarioId) return;
+    if (!runningScenarioId) return;
     try {
-      await cancelSimulation(selectedScenarioId);
+      await cancelSimulation(runningScenarioId);
       clearSimulationRunning();
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to stop simulation');

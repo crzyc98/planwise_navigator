@@ -110,16 +110,36 @@ export default function Layout() {
       });
   }, [setSimulationRunning]);
 
-  // Feature 045: Safety timeout - re-enable buttons after 30 minutes with no heartbeat
+  // Feature 045: Safety timeout - verify with server when heartbeat is stale,
+  // hard-clear after 30 minutes as last resort
   useEffect(() => {
     if (!isSimulationRunning) return;
 
-    const SAFETY_TIMEOUT_MS = 30 * 60 * 1000; // 30 minutes
+    const SAFETY_TIMEOUT_MS = 30 * 60 * 1000; // 30 minutes hard cutoff
+    const STALE_THRESHOLD_MS = 60 * 1000; // Poll server after 1 minute without heartbeat
     const CHECK_INTERVAL_MS = 60 * 1000; // Check every minute
 
-    const interval = setInterval(() => {
-      if (lastHeartbeatRef.current > 0 && Date.now() - lastHeartbeatRef.current > SAFETY_TIMEOUT_MS) {
+    const interval = setInterval(async () => {
+      if (lastHeartbeatRef.current <= 0) return;
+
+      const heartbeatAge = Date.now() - lastHeartbeatRef.current;
+
+      // Hard safety timeout - always clear after 30 minutes
+      if (heartbeatAge > SAFETY_TIMEOUT_MS) {
         clearSimulationRunning();
+        return;
+      }
+
+      // Stale heartbeat - verify with server whether run is still active
+      if (heartbeatAge > STALE_THRESHOLD_MS) {
+        try {
+          const response = await getActiveSimulations();
+          if (response.active_runs.length === 0) {
+            clearSimulationRunning();
+          }
+        } catch {
+          // Server unreachable - let the hard timeout handle it
+        }
       }
     }, CHECK_INTERVAL_MS);
 

@@ -100,13 +100,6 @@ def create_app() -> FastAPI:
     app.include_router(promotion_hazard_router, prefix="/api/workspaces", tags=["Promotion Hazard"])
     app.include_router(vesting_router, prefix="/api", tags=["Vesting"])
 
-    # Active simulations endpoint (Feature 045: Disable Run button during active simulation)
-    @app.get("/api/simulations/active", tags=["Simulations"])
-    async def get_active_simulations():
-        """Return all currently active simulation runs for page-refresh recovery."""
-        from .routers.simulations import get_active_runs
-        return {"active_runs": get_active_runs()}
-
     # WebSocket endpoints
     @app.websocket("/ws/simulation/{run_id}")
     async def websocket_simulation(websocket: WebSocket, run_id: str):
