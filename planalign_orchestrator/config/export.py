@@ -286,7 +286,7 @@ def _export_employer_match_vars(cfg: "SimulationConfig") -> Dict[str, Any]:
             'minimum_tenure_years': 0,
             'require_active_at_year_end': True,
             'minimum_hours_annual': 1000,
-            'allow_new_hires': True,
+            'allow_new_hires': True,  # Safe: minimum_tenure_years is 0
             'allow_terminated_new_hires': False,
             'allow_experienced_terminations': False
         }
@@ -302,15 +302,17 @@ def _export_employer_match_vars(cfg: "SimulationConfig") -> Dict[str, Any]:
                 employer_data = employer_match if isinstance(employer_match, dict) else {}
 
             # Generate nested employer_match variable structure
+            elig = employer_data.get('eligibility', {})
+            min_tenure = elig.get('minimum_tenure_years', 0)
             dbt_employer_match = {
                 'apply_eligibility': employer_data.get('apply_eligibility', False),
                 'eligibility': {
-                    'minimum_tenure_years': employer_data.get('eligibility', {}).get('minimum_tenure_years', 0),
-                    'require_active_at_year_end': employer_data.get('eligibility', {}).get('require_active_at_year_end', True),
-                    'minimum_hours_annual': employer_data.get('eligibility', {}).get('minimum_hours_annual', 1000),
-                    'allow_new_hires': employer_data.get('eligibility', {}).get('allow_new_hires', True),
-                    'allow_terminated_new_hires': employer_data.get('eligibility', {}).get('allow_terminated_new_hires', False),
-                    'allow_experienced_terminations': employer_data.get('eligibility', {}).get('allow_experienced_terminations', False)
+                    'minimum_tenure_years': min_tenure,
+                    'require_active_at_year_end': elig.get('require_active_at_year_end', True),
+                    'minimum_hours_annual': elig.get('minimum_hours_annual', 1000),
+                    'allow_new_hires': elig.get('allow_new_hires', min_tenure == 0),
+                    'allow_terminated_new_hires': elig.get('allow_terminated_new_hires', False),
+                    'allow_experienced_terminations': elig.get('allow_experienced_terminations', False)
                 }
             }
             dbt_vars["employer_match"] = dbt_employer_match
@@ -357,15 +359,17 @@ def _export_employer_match_vars(cfg: "SimulationConfig") -> Dict[str, Any]:
             # Try legacy configuration from extra fields
             employer_legacy = getattr(cfg, "employer_match", None)
             if employer_legacy and isinstance(employer_legacy, dict):
+                legacy_elig = employer_legacy.get('eligibility', {})
+                legacy_min_tenure = legacy_elig.get('minimum_tenure_years', 0)
                 dbt_employer_match = {
                     'apply_eligibility': employer_legacy.get('apply_eligibility', False),
                     'eligibility': {
-                        'minimum_tenure_years': employer_legacy.get('eligibility', {}).get('minimum_tenure_years', 0),
-                        'require_active_at_year_end': employer_legacy.get('eligibility', {}).get('require_active_at_year_end', True),
-                        'minimum_hours_annual': employer_legacy.get('eligibility', {}).get('minimum_hours_annual', 1000),
-                        'allow_new_hires': employer_legacy.get('eligibility', {}).get('allow_new_hires', True),
-                        'allow_terminated_new_hires': employer_legacy.get('eligibility', {}).get('allow_terminated_new_hires', False),
-                        'allow_experienced_terminations': employer_legacy.get('eligibility', {}).get('allow_experienced_terminations', False)
+                        'minimum_tenure_years': legacy_min_tenure,
+                        'require_active_at_year_end': legacy_elig.get('require_active_at_year_end', True),
+                        'minimum_hours_annual': legacy_elig.get('minimum_hours_annual', 1000),
+                        'allow_new_hires': legacy_elig.get('allow_new_hires', legacy_min_tenure == 0),
+                        'allow_terminated_new_hires': legacy_elig.get('allow_terminated_new_hires', False),
+                        'allow_experienced_terminations': legacy_elig.get('allow_experienced_terminations', False)
                     }
                 }
                 dbt_vars["employer_match"] = dbt_employer_match
@@ -498,6 +502,9 @@ def _export_employer_match_vars(cfg: "SimulationConfig") -> Dict[str, Any]:
                 match_eligibility_overrides["allow_terminated_new_hires"] = bool(dc_plan_dict["match_allow_terminated_new_hires"])
             if dc_plan_dict.get("match_allow_experienced_terminations") is not None:
                 match_eligibility_overrides["allow_experienced_terminations"] = bool(dc_plan_dict["match_allow_experienced_terminations"])
+            # E047: Export match_allow_new_hires from dc_plan (UI path)
+            if dc_plan_dict.get("match_allow_new_hires") is not None:
+                match_eligibility_overrides["allow_new_hires"] = bool(dc_plan_dict["match_allow_new_hires"])
 
             # Merge dc_plan eligibility overrides into employer_match
             if match_eligibility_overrides:
@@ -663,6 +670,11 @@ def _export_core_contribution_vars(cfg: "SimulationConfig") -> Dict[str, Any]:
                 if key in eligibility and eligibility.get(key) is not None:
                     nested_elig[key] = eligibility.get(key)
 
+            # E047: Apply conditional allow_new_hires default when not explicitly set
+            if "allow_new_hires" not in nested_elig:
+                core_min_tenure = nested_elig.get("minimum_tenure_years", 0)
+                nested_elig["allow_new_hires"] = (core_min_tenure == 0)
+
             if nested_elig:
                 dbt_core_nested["eligibility"] = nested_elig
 
@@ -698,6 +710,9 @@ def _export_core_contribution_vars(cfg: "SimulationConfig") -> Dict[str, Any]:
                 core_eligibility_overrides["allow_terminated_new_hires"] = bool(dc_plan_dict["core_allow_terminated_new_hires"])
             if dc_plan_dict.get("core_allow_experienced_terminations") is not None:
                 core_eligibility_overrides["allow_experienced_terminations"] = bool(dc_plan_dict["core_allow_experienced_terminations"])
+            # E047: Export core_allow_new_hires from dc_plan (UI path)
+            if dc_plan_dict.get("core_allow_new_hires") is not None:
+                core_eligibility_overrides["allow_new_hires"] = bool(dc_plan_dict["core_allow_new_hires"])
 
             # Also handle core enabled, contribution rate, status and graded schedule from dc_plan
             core_top_level = {}

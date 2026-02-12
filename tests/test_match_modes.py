@@ -731,6 +731,152 @@ class TestMultiYearTenureBased:
 # =============================================================================
 
 
+# =============================================================================
+# E047: Tenure Eligibility — allow_new_hires Conditional Default Tests
+# =============================================================================
+
+
+class TestAllowNewHiresConditionalDefault:
+    """E047: Verify allow_new_hires defaults based on minimum_tenure_years."""
+
+    def test_tenure_gt_zero_defaults_allow_new_hires_false(self):
+        """T009: minimum_tenure_years=2 without explicit allow_new_hires → False."""
+        from planalign_orchestrator.config.workforce import EmployerMatchEligibilitySettings
+
+        settings = EmployerMatchEligibilitySettings(minimum_tenure_years=2)
+        assert settings.allow_new_hires is False
+
+    def test_tenure_zero_defaults_allow_new_hires_true(self):
+        """T010: minimum_tenure_years=0 without explicit allow_new_hires → True (backward compat)."""
+        from planalign_orchestrator.config.workforce import EmployerMatchEligibilitySettings
+
+        settings = EmployerMatchEligibilitySettings(minimum_tenure_years=0)
+        assert settings.allow_new_hires is True
+
+    def test_default_eligibility_preserves_backward_compat(self):
+        """T010b: Default EmployerMatchEligibilitySettings() → allow_new_hires=True."""
+        from planalign_orchestrator.config.workforce import EmployerMatchEligibilitySettings
+
+        settings = EmployerMatchEligibilitySettings()
+        assert settings.minimum_tenure_years == 0
+        assert settings.allow_new_hires is True
+
+    def test_explicit_true_preserved_with_tenure(self):
+        """T011: Explicit allow_new_hires=True is not overridden by conditional logic."""
+        from planalign_orchestrator.config.workforce import EmployerMatchEligibilitySettings
+
+        settings = EmployerMatchEligibilitySettings(
+            minimum_tenure_years=2, allow_new_hires=True
+        )
+        assert settings.allow_new_hires is True
+
+    def test_explicit_false_preserved_with_zero_tenure(self):
+        """Explicit allow_new_hires=False is preserved even with tenure=0."""
+        from planalign_orchestrator.config.workforce import EmployerMatchEligibilitySettings
+
+        settings = EmployerMatchEligibilitySettings(
+            minimum_tenure_years=0, allow_new_hires=False
+        )
+        assert settings.allow_new_hires is False
+
+    def test_export_produces_false_when_tenure_gt_zero(self):
+        """T012: Config export with tenure > 0 and no explicit allow_new_hires → false."""
+        from planalign_orchestrator.config.workforce import EmployerMatchEligibilitySettings
+
+        cfg = _make_config_mock(
+            apply_eligibility=True,
+            eligibility=EmployerMatchEligibilitySettings(minimum_tenure_years=2),
+        )
+        dbt_vars = _export_employer_match_vars(cfg)
+
+        assert dbt_vars["employer_match"]["eligibility"]["allow_new_hires"] is False
+
+    def test_export_produces_true_when_tenure_zero(self):
+        """T012b: Config export with tenure=0 and no explicit allow_new_hires → true."""
+        from planalign_orchestrator.config.workforce import EmployerMatchEligibilitySettings
+
+        cfg = _make_config_mock(
+            apply_eligibility=True,
+            eligibility=EmployerMatchEligibilitySettings(minimum_tenure_years=0),
+        )
+        dbt_vars = _export_employer_match_vars(cfg)
+
+        assert dbt_vars["employer_match"]["eligibility"]["allow_new_hires"] is True
+
+    def test_dc_plan_match_allow_new_hires_propagates(self):
+        """T027: dc_plan.match_allow_new_hires propagates to employer_match dbt var."""
+        cfg = _FakeConfig(
+            employer_match=None,
+            dc_plan={
+                "match_allow_new_hires": False,
+                "match_min_tenure_years": 2,
+            },
+        )
+        dbt_vars = _export_employer_match_vars(cfg)
+
+        assert "employer_match" in dbt_vars
+        assert dbt_vars["employer_match"]["eligibility"]["allow_new_hires"] is False
+
+    def test_dc_plan_match_allow_new_hires_true_propagates(self):
+        """T027b: dc_plan.match_allow_new_hires=True explicitly propagates."""
+        cfg = _FakeConfig(
+            employer_match=None,
+            dc_plan={
+                "match_allow_new_hires": True,
+                "match_min_tenure_years": 2,
+            },
+        )
+        dbt_vars = _export_employer_match_vars(cfg)
+
+        assert "employer_match" in dbt_vars
+        assert dbt_vars["employer_match"]["eligibility"]["allow_new_hires"] is True
+
+
+class TestContradictoryConfigWarnings:
+    """E047 US3: Verify warnings for contradictory allow_new_hires + tenure settings."""
+
+    def test_contradictory_settings_emit_warning(self):
+        """T019: allow_new_hires=True + minimum_tenure_years=2 → warning emitted."""
+        from planalign_orchestrator.config.workforce import EmployerMatchEligibilitySettings
+
+        with pytest.warns(UserWarning, match="Contradictory eligibility"):
+            EmployerMatchEligibilitySettings(
+                minimum_tenure_years=2, allow_new_hires=True
+            )
+
+    def test_non_contradictory_no_warning(self):
+        """T020: allow_new_hires=True + minimum_tenure_years=0 → no warning."""
+        from planalign_orchestrator.config.workforce import EmployerMatchEligibilitySettings
+
+        # Should NOT emit any warning
+        import warnings
+        with warnings.catch_warnings():
+            warnings.simplefilter("error")
+            EmployerMatchEligibilitySettings(
+                minimum_tenure_years=0, allow_new_hires=True
+            )
+
+    def test_no_warning_when_allow_false_with_tenure(self):
+        """No warning when allow_new_hires=False + minimum_tenure_years>0 (consistent)."""
+        from planalign_orchestrator.config.workforce import EmployerMatchEligibilitySettings
+
+        import warnings
+        with warnings.catch_warnings():
+            warnings.simplefilter("error")
+            EmployerMatchEligibilitySettings(
+                minimum_tenure_years=2, allow_new_hires=False
+            )
+
+    def test_no_warning_when_default_resolves(self):
+        """No warning when allow_new_hires is defaulted (not explicitly set)."""
+        from planalign_orchestrator.config.workforce import EmployerMatchEligibilitySettings
+
+        import warnings
+        with warnings.catch_warnings():
+            warnings.simplefilter("error")
+            EmployerMatchEligibilitySettings(minimum_tenure_years=2)
+
+
 class TestQuickstartSmokeTests:
     """T028: Validate the quickstart.md config examples parse and export correctly."""
 
