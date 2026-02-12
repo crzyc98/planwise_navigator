@@ -3352,7 +3352,7 @@ export default function ConfigStudio() {
                             const last = formData.dcTenureMatchTiers[formData.dcTenureMatchTiers.length - 1];
                             const newMin = last ? (last.maxYears ?? last.minYears + 5) : 0;
                             const updatedTiers = [...formData.dcTenureMatchTiers];
-                            if (last && last.maxYears == null) {
+                            if (last && last.maxYears === null) {
                               updatedTiers[updatedTiers.length - 1] = { ...last, maxYears: newMin };
                             }
                             const newTier = { minYears: newMin, maxYears: null, matchRate: 100, maxDeferralPct: 6 };
@@ -3447,7 +3447,7 @@ export default function ConfigStudio() {
                             const last = formData.dcPointsMatchTiers[formData.dcPointsMatchTiers.length - 1];
                             const newMin = last ? (last.maxPoints ?? last.minPoints + 10) : 0;
                             const updatedTiers = [...formData.dcPointsMatchTiers];
-                            if (last && last.maxPoints == null) {
+                            if (last && last.maxPoints === null) {
                               updatedTiers[updatedTiers.length - 1] = { ...last, maxPoints: newMin };
                             }
                             const newTier = { minPoints: newMin, maxPoints: null, matchRate: 100, maxDeferralPct: 6 };

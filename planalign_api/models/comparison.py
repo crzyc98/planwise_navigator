@@ -47,6 +47,43 @@ class DeltaValue(BaseModel):
     delta_pcts: Dict[str, float] = Field(description="Percentage deltas")
 
 
+class DCPlanMetrics(BaseModel):
+    """DC plan metrics for a single scenario in a single year."""
+
+    participation_rate: float = Field(default=0.0, description="Participation rate (%)")
+    avg_deferral_rate: float = Field(default=0.0, description="Average deferral rate")
+    total_employee_contributions: float = Field(
+        default=0.0, description="Total employee contributions"
+    )
+    total_employer_match: float = Field(
+        default=0.0, description="Total employer match"
+    )
+    total_employer_core: float = Field(
+        default=0.0, description="Total employer core"
+    )
+    total_employer_cost: float = Field(
+        default=0.0, description="Total employer cost (match + core)"
+    )
+    employer_cost_rate: float = Field(
+        default=0.0, description="Employer cost rate (%)"
+    )
+    participant_count: int = Field(
+        default=0, description="Number of enrolled employees"
+    )
+
+
+class DCPlanComparisonYear(BaseModel):
+    """DC plan comparison for a single year."""
+
+    year: int = Field(description="Simulation year")
+    values: Dict[str, DCPlanMetrics] = Field(
+        description="Metrics by scenario ID"
+    )
+    deltas: Dict[str, DCPlanMetrics] = Field(
+        description="Delta from baseline by scenario ID"
+    )
+
+
 class ComparisonResponse(BaseModel):
     """Full comparison response."""
 
@@ -62,6 +99,12 @@ class ComparisonResponse(BaseModel):
     # Event comparison
     event_comparison: List[EventComparisonMetric] = Field(
         description="Event metrics comparison"
+    )
+
+    # DC plan comparison by year
+    dc_plan_comparison: List[DCPlanComparisonYear] = Field(
+        default_factory=list,
+        description="Year-by-year DC plan comparison",
     )
 
     # Summary deltas
