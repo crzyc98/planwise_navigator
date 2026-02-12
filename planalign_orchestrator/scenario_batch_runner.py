@@ -367,6 +367,9 @@ class ScenarioBatchRunner:
         except ValueError as e:
             raise ValueError(f"Invalid threading configuration: {e}")
 
+        # Validate eligibility configuration (emits warnings for contradictory settings)
+        config.validate_eligibility_configuration()
+
     def _save_config_copy(self, config: SimulationConfig, output_path: Path) -> None:
         """Save a copy of the merged configuration for reference.
 

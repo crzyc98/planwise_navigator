@@ -41,7 +41,13 @@
 {% set core_minimum_tenure_years = core_eligibility.get('minimum_tenure_years', 1) | int %}
 {% set core_require_active_eoy = core_eligibility.get('require_active_at_year_end', true) %}
 {% set core_minimum_hours = core_eligibility.get('minimum_hours_annual', 1000) | int %}
-{% set core_allow_new_hires = core_eligibility.get('allow_new_hires', true) %}
+{# E047: Default allow_new_hires to false when tenure requirement exists #}
+{% set core_allow_new_hires_raw = core_eligibility.get('allow_new_hires', none) %}
+{% if core_allow_new_hires_raw is none %}
+    {% set core_allow_new_hires = (core_minimum_tenure_years == 0) %}
+{% else %}
+    {% set core_allow_new_hires = core_allow_new_hires_raw %}
+{% endif %}
 {% set core_allow_terminated_new_hires = core_eligibility.get('allow_terminated_new_hires', false) %}
 {% set core_allow_experienced_terminations = core_eligibility.get('allow_experienced_terminations', false) %}
 
@@ -54,7 +60,13 @@
 {% set match_minimum_tenure_years = match_eligibility.get('minimum_tenure_years', 0) | int %}
 {% set match_require_active_eoy = match_eligibility.get('require_active_at_year_end', true) %}
 {% set match_minimum_hours = match_eligibility.get('minimum_hours_annual', 1000) | int %}
-{% set match_allow_new_hires = match_eligibility.get('allow_new_hires', true) %}
+{# E047: Default allow_new_hires to false when tenure requirement exists #}
+{% set match_allow_new_hires_raw = match_eligibility.get('allow_new_hires', none) %}
+{% if match_allow_new_hires_raw is none %}
+    {% set match_allow_new_hires = (match_minimum_tenure_years == 0) %}
+{% else %}
+    {% set match_allow_new_hires = match_allow_new_hires_raw %}
+{% endif %}
 {% set match_allow_terminated_new_hires = match_eligibility.get('allow_terminated_new_hires', false) %}
 {% set match_allow_experienced_terminations = match_eligibility.get('allow_experienced_terminations', false) %}
 

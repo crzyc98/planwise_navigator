@@ -50,6 +50,7 @@ def cmd_run(args: argparse.Namespace) -> int:
     # Extract threading configuration from config (with CLI override)
     if cfg.orchestrator:
         cfg.validate_threading_configuration()
+    cfg.validate_eligibility_configuration()
 
     thread_count = args.threads if args.threads is not None else cfg.get_thread_count()
     threading_enabled = True

@@ -6,6 +6,7 @@ E046: Tenure-based and points-based employer match modes.
 
 from __future__ import annotations
 
+import warnings
 from typing import Any, Dict, List, Literal, Optional
 
 from pydantic import BaseModel, Field, model_validator
@@ -108,6 +109,33 @@ class EmployerMatchEligibilitySettings(BaseModel):
     allow_new_hires: bool = Field(default=True, description="Allow new hires to qualify")
     allow_terminated_new_hires: bool = Field(default=False, description="Allow new-hire terminations to qualify")
     allow_experienced_terminations: bool = Field(default=False, description="Allow experienced terminations to qualify")
+
+    @model_validator(mode='before')
+    @classmethod
+    def resolve_allow_new_hires_default(cls, data: Any) -> Any:
+        """Conditionally default allow_new_hires based on minimum_tenure_years.
+
+        When allow_new_hires is not explicitly provided:
+        - minimum_tenure_years == 0 → allow_new_hires = True (backward compat)
+        - minimum_tenure_years > 0  → allow_new_hires = False (enforce tenure)
+
+        When allow_new_hires is explicitly True with minimum_tenure_years > 0,
+        emits a warning about contradictory configuration.
+        """
+        if isinstance(data, dict):
+            min_tenure = data.get('minimum_tenure_years', 0)
+            if 'allow_new_hires' not in data:
+                data['allow_new_hires'] = (min_tenure == 0)
+            elif data['allow_new_hires'] is True and min_tenure > 0:
+                warnings.warn(
+                    f"Contradictory eligibility configuration: allow_new_hires=True "
+                    f"with minimum_tenure_years={min_tenure}. New hires (tenure=0) "
+                    f"will bypass the tenure requirement. Set allow_new_hires=False "
+                    f"or minimum_tenure_years=0 to resolve.",
+                    UserWarning,
+                    stacklevel=2,
+                )
+        return data
 
 
 def validate_tier_contiguity(
