@@ -119,26 +119,21 @@ class SimulationConfig(BaseModel):
         }
 
     def validate_eligibility_configuration(self) -> None:
-        """Validate eligibility configuration and warn about contradictory settings."""
-        import warnings
+        """Validate eligibility configuration and warn about contradictory settings.
 
-        if self.employer_match and self.employer_match.eligibility:
-            elig = self.employer_match.eligibility
-            if elig.allow_new_hires and elig.minimum_tenure_years > 0:
-                warnings.warn(
-                    f"Employer match: allow_new_hires=True with "
-                    f"minimum_tenure_years={elig.minimum_tenure_years}. "
-                    f"New hires will bypass the tenure requirement.",
-                    UserWarning,
-                    stacklevel=2,
-                )
+        Note: employer_match contradictory config warnings are handled by
+        EmployerMatchEligibilitySettings.resolve_allow_new_hires_default
+        during Pydantic validation. Only untyped dict-based extras (e.g.,
+        employer_core_contribution) need checking here.
+        """
+        import warnings
 
         # Check core contribution eligibility
         core_contrib = getattr(self, "employer_core_contribution", None)
         if core_contrib and isinstance(core_contrib, dict):
             core_elig = core_contrib.get("eligibility", {})
             if isinstance(core_elig, dict):
-                core_allow = core_elig.get("allow_new_hires", True)
+                core_allow = core_elig.get("allow_new_hires", False)
                 core_tenure = core_elig.get("minimum_tenure_years", 0)
                 if core_allow and core_tenure > 0:
                     warnings.warn(

@@ -824,6 +824,7 @@ See `/docs/VERSIONING_GUIDE.md` for detailed versioning workflow.
 - N/A (reads from in-memory `_active_runs` dict; no database changes) (045-disable-run-during-sim)
 - Python 3.11 (backend), SQL/Jinja2 (dbt models), TypeScript 5.x (frontend) + dbt-core 1.8.8, dbt-duckdb 1.8.1, Pydantic v2.7.4, FastAPI, React 18 + Vite (046-tenure-points-match)
 - DuckDB 1.0.0 (`dbt/simulation.duckdb`) — immutable event store (046-tenure-points-match)
+- Python 3.11 (orchestrator), SQL/Jinja2 (dbt models) + dbt-core 1.8.8, dbt-duckdb 1.8.1, Pydantic v2.7.4 (047-fix-tenure-eligibility)
 
 ## Recent Changes
 - 024-remove-polars-pipeline: Removed Polars dependency, simplified to SQL-only mode

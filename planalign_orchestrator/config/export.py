@@ -513,6 +513,11 @@ def _export_employer_match_vars(cfg: "SimulationConfig") -> Dict[str, Any]:
                 # Deep merge eligibility
                 current_eligibility = dbt_vars["employer_match"].get("eligibility", {}).copy()
                 current_eligibility.update(match_eligibility_overrides)
+                # If UI changed minimum_tenure_years but didn't explicitly set
+                # allow_new_hires, re-derive it from the new tenure value to
+                # avoid a stale True surviving from the original config
+                if "minimum_tenure_years" in match_eligibility_overrides and "allow_new_hires" not in match_eligibility_overrides:
+                    current_eligibility["allow_new_hires"] = (current_eligibility["minimum_tenure_years"] == 0)
                 dbt_vars["employer_match"]["eligibility"] = current_eligibility
                 # Enable eligibility when UI sets values
                 dbt_vars["employer_match"]["apply_eligibility"] = True
@@ -671,8 +676,9 @@ def _export_core_contribution_vars(cfg: "SimulationConfig") -> Dict[str, Any]:
                     nested_elig[key] = eligibility.get(key)
 
             # E047: Apply conditional allow_new_hires default when not explicitly set
+            # Default tenure to 1 to match dbt's int_employer_eligibility.sql default
             if "allow_new_hires" not in nested_elig:
-                core_min_tenure = nested_elig.get("minimum_tenure_years", 0)
+                core_min_tenure = nested_elig.get("minimum_tenure_years", 1)
                 nested_elig["allow_new_hires"] = (core_min_tenure == 0)
 
             if nested_elig:
@@ -765,6 +771,10 @@ def _export_core_contribution_vars(cfg: "SimulationConfig") -> Dict[str, Any]:
                     else:
                         current_eligibility = {}
                     current_eligibility.update(core_eligibility_overrides)
+                    # If UI changed minimum_tenure_years but didn't explicitly set
+                    # allow_new_hires, re-derive it from the new tenure value
+                    if "minimum_tenure_years" in core_eligibility_overrides and "allow_new_hires" not in core_eligibility_overrides:
+                        current_eligibility["allow_new_hires"] = (current_eligibility["minimum_tenure_years"] == 0)
                     dbt_vars["employer_core_contribution"]["eligibility"] = current_eligibility
 
     except Exception as e:
