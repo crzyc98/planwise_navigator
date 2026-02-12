@@ -6,6 +6,8 @@ from typing import Any, Dict, List, Optional
 
 from ..models.comparison import (
     ComparisonResponse,
+    DCPlanComparisonYear,
+    DCPlanMetrics,
     DeltaValue,
     EventComparisonMetric,
     WorkforceComparisonYear,
@@ -73,6 +75,11 @@ class ComparisonService:
             scenario_data, baseline_data, baseline_id
         )
 
+        # Build DC plan comparison
+        dc_plan_comparison = self._build_dc_plan_comparison(
+            scenario_data, baseline_data, baseline_id
+        )
+
         # Build summary deltas
         summary_deltas = self._build_summary_deltas(
             scenario_data, baseline_data, baseline_id
@@ -84,6 +91,7 @@ class ComparisonService:
             baseline_scenario=baseline_id,
             workforce_comparison=workforce_comparison,
             event_comparison=event_comparison,
+            dc_plan_comparison=dc_plan_comparison,
             summary_deltas=summary_deltas,
         )
 
@@ -149,12 +157,59 @@ class ComparisonService:
             except Exception:
                 hires_by_year = {}
 
+            # Load DC plan metrics by year
+            try:
+                dc_plan_df = conn.execute("""
+                    SELECT
+                        simulation_year,
+                        COALESCE(
+                            COUNT(CASE WHEN UPPER(employment_status) = 'ACTIVE'
+                                       AND is_enrolled_flag THEN 1 END) * 100.0
+                            / NULLIF(COUNT(CASE WHEN UPPER(employment_status) = 'ACTIVE'
+                                               THEN 1 END), 0),
+                            0
+                        ) AS participation_rate,
+                        AVG(CASE WHEN is_enrolled_flag
+                            THEN current_deferral_rate ELSE NULL END
+                        ) AS avg_deferral_rate,
+                        COALESCE(SUM(prorated_annual_contributions), 0)
+                            AS total_employee_contributions,
+                        COALESCE(SUM(employer_match_amount), 0)
+                            AS total_employer_match,
+                        COALESCE(SUM(employer_core_amount), 0)
+                            AS total_employer_core,
+                        COALESCE(
+                            SUM(employer_match_amount) + SUM(employer_core_amount), 0
+                        ) AS total_employer_cost,
+                        COALESCE(SUM(prorated_annual_compensation), 0)
+                            AS total_compensation,
+                        COUNT(CASE WHEN is_enrolled_flag THEN 1 END)
+                            AS participant_count
+                    FROM fct_workforce_snapshot
+                    GROUP BY simulation_year
+                    ORDER BY simulation_year
+                """).fetchdf()
+                dc_plan = dc_plan_df.to_dict("records")
+                # Compute employer_cost_rate and handle NULL avg_deferral_rate
+                for row in dc_plan:
+                    total_comp = row.get("total_compensation", 0) or 0
+                    total_cost = row.get("total_employer_cost", 0) or 0
+                    row["employer_cost_rate"] = (
+                        (total_cost / total_comp * 100) if total_comp > 0 else 0.0
+                    )
+                    avg_def = row.get("avg_deferral_rate")
+                    if avg_def is None or (isinstance(avg_def, float) and avg_def != avg_def):
+                        row["avg_deferral_rate"] = 0.0
+            except Exception:
+                dc_plan = []
+
             conn.close()
 
             return {
                 "workforce": workforce,
                 "events": events,
                 "hires_by_year": hires_by_year,
+                "dc_plan": dc_plan,
             }
 
         except Exception as e:
@@ -336,6 +391,91 @@ class ComparisonService:
 
         return comparison
 
+    def _build_dc_plan_comparison(
+        self,
+        scenario_data: Dict[str, Dict[str, Any]],
+        baseline_data: Dict[str, Any],
+        baseline_id: str,
+    ) -> List[DCPlanComparisonYear]:
+        """Build year-by-year DC plan comparison with deltas."""
+        # Collect all years across all scenarios
+        all_years: set = set()
+        for data in scenario_data.values():
+            for row in data.get("dc_plan", []):
+                all_years.add(row["simulation_year"])
+
+        comparison = []
+
+        for year in sorted(all_years):
+            values: Dict[str, DCPlanMetrics] = {}
+            deltas: Dict[str, DCPlanMetrics] = {}
+
+            # Get baseline DC plan row for this year
+            baseline_row = next(
+                (r for r in baseline_data.get("dc_plan", [])
+                 if r["simulation_year"] == year),
+                None,
+            )
+
+            if not baseline_row:
+                continue
+
+            baseline_metrics = DCPlanMetrics(
+                participation_rate=baseline_row.get("participation_rate", 0.0),
+                avg_deferral_rate=baseline_row.get("avg_deferral_rate", 0.0),
+                total_employee_contributions=baseline_row.get("total_employee_contributions", 0.0),
+                total_employer_match=baseline_row.get("total_employer_match", 0.0),
+                total_employer_core=baseline_row.get("total_employer_core", 0.0),
+                total_employer_cost=baseline_row.get("total_employer_cost", 0.0),
+                employer_cost_rate=baseline_row.get("employer_cost_rate", 0.0),
+                participant_count=int(baseline_row.get("participant_count", 0)),
+            )
+            values[baseline_id] = baseline_metrics
+            deltas[baseline_id] = DCPlanMetrics()  # All zeros
+
+            # Calculate for each non-baseline scenario
+            for scenario_id, data in scenario_data.items():
+                if scenario_id == baseline_id:
+                    continue
+
+                scenario_row = next(
+                    (r for r in data.get("dc_plan", [])
+                     if r["simulation_year"] == year),
+                    None,
+                )
+
+                if not scenario_row:
+                    continue
+
+                scenario_metrics = DCPlanMetrics(
+                    participation_rate=scenario_row.get("participation_rate", 0.0),
+                    avg_deferral_rate=scenario_row.get("avg_deferral_rate", 0.0),
+                    total_employee_contributions=scenario_row.get("total_employee_contributions", 0.0),
+                    total_employer_match=scenario_row.get("total_employer_match", 0.0),
+                    total_employer_core=scenario_row.get("total_employer_core", 0.0),
+                    total_employer_cost=scenario_row.get("total_employer_cost", 0.0),
+                    employer_cost_rate=scenario_row.get("employer_cost_rate", 0.0),
+                    participant_count=int(scenario_row.get("participant_count", 0)),
+                )
+                values[scenario_id] = scenario_metrics
+
+                deltas[scenario_id] = DCPlanMetrics(
+                    participation_rate=scenario_metrics.participation_rate - baseline_metrics.participation_rate,
+                    avg_deferral_rate=scenario_metrics.avg_deferral_rate - baseline_metrics.avg_deferral_rate,
+                    total_employee_contributions=scenario_metrics.total_employee_contributions - baseline_metrics.total_employee_contributions,
+                    total_employer_match=scenario_metrics.total_employer_match - baseline_metrics.total_employer_match,
+                    total_employer_core=scenario_metrics.total_employer_core - baseline_metrics.total_employer_core,
+                    total_employer_cost=scenario_metrics.total_employer_cost - baseline_metrics.total_employer_cost,
+                    employer_cost_rate=scenario_metrics.employer_cost_rate - baseline_metrics.employer_cost_rate,
+                    participant_count=scenario_metrics.participant_count - baseline_metrics.participant_count,
+                )
+
+            comparison.append(
+                DCPlanComparisonYear(year=year, values=values, deltas=deltas)
+            )
+
+        return comparison
+
     def _build_summary_deltas(
         self,
         scenario_data: Dict[str, Dict[str, Any]],
@@ -411,6 +551,63 @@ class ComparisonService:
             scenarios=growth_scenarios,
             deltas=growth_deltas,
             delta_pcts=growth_delta_pcts,
+        )
+
+        # Final participation rate (from DC plan data)
+        baseline_dc = baseline_data.get("dc_plan", [])
+        baseline_pr = (
+            baseline_dc[-1].get("participation_rate", 0.0)
+            if baseline_dc
+            else 0.0
+        )
+
+        pr_scenarios: Dict[str, float] = {}
+        pr_deltas: Dict[str, float] = {}
+        pr_delta_pcts: Dict[str, float] = {}
+
+        for scenario_id, data in scenario_data.items():
+            dc_plan = data.get("dc_plan", [])
+            pr = dc_plan[-1].get("participation_rate", 0.0) if dc_plan else 0.0
+            pr_scenarios[scenario_id] = pr
+            delta = pr - baseline_pr
+            pr_deltas[scenario_id] = delta
+            pr_delta_pcts[scenario_id] = (
+                (delta / abs(baseline_pr) * 100) if baseline_pr != 0 else 0.0
+            )
+
+        summary["final_participation_rate"] = DeltaValue(
+            baseline=baseline_pr,
+            scenarios=pr_scenarios,
+            deltas=pr_deltas,
+            delta_pcts=pr_delta_pcts,
+        )
+
+        # Final employer cost (from DC plan data)
+        baseline_ec = (
+            baseline_dc[-1].get("total_employer_cost", 0.0)
+            if baseline_dc
+            else 0.0
+        )
+
+        ec_scenarios: Dict[str, float] = {}
+        ec_deltas: Dict[str, float] = {}
+        ec_delta_pcts: Dict[str, float] = {}
+
+        for scenario_id, data in scenario_data.items():
+            dc_plan = data.get("dc_plan", [])
+            ec = dc_plan[-1].get("total_employer_cost", 0.0) if dc_plan else 0.0
+            ec_scenarios[scenario_id] = ec
+            delta = ec - baseline_ec
+            ec_deltas[scenario_id] = delta
+            ec_delta_pcts[scenario_id] = (
+                (delta / abs(baseline_ec) * 100) if baseline_ec != 0 else 0.0
+            )
+
+        summary["final_employer_cost"] = DeltaValue(
+            baseline=baseline_ec,
+            scenarios=ec_scenarios,
+            deltas=ec_deltas,
+            delta_pcts=ec_delta_pcts,
         )
 
         return summary
