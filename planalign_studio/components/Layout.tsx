@@ -81,6 +81,7 @@ export default function Layout() {
   const [activeRunId, setActiveRunId] = useState<string | null>(null);
   const [runningScenarioId, setRunningScenarioId] = useState<string | null>(null);
   const lastHeartbeatRef = useRef<number>(0);
+  const checkInFlightRef = useRef<boolean>(false);
 
   const setSimulationRunning = useCallback((runId: string, scenarioId: string) => {
     setIsSimulationRunning(true);
@@ -118,10 +119,10 @@ export default function Layout() {
     const SAFETY_TIMEOUT_MS = 30 * 60 * 1000; // 30 minutes hard cutoff
     const STALE_THRESHOLD_MS = 60 * 1000; // Poll server after 1 minute without heartbeat
     const CHECK_INTERVAL_MS = 60 * 1000; // Check every minute
-    let checkInFlight = false;
+    checkInFlightRef.current = false;
 
     const interval = setInterval(async () => {
-      if (checkInFlight) return; // Skip if previous check hasn't resolved
+      if (checkInFlightRef.current) return; // Skip if previous check hasn't resolved
       if (lastHeartbeatRef.current <= 0) return;
 
       const heartbeatAge = Date.now() - lastHeartbeatRef.current;
@@ -134,7 +135,7 @@ export default function Layout() {
 
       // Stale heartbeat - verify with server whether our specific run is still active
       if (heartbeatAge > STALE_THRESHOLD_MS) {
-        checkInFlight = true;
+        checkInFlightRef.current = true;
         try {
           const response = await getActiveSimulations();
           const ourRunStillActive = response.active_runs.some(
@@ -146,7 +147,7 @@ export default function Layout() {
         } catch {
           // Server unreachable - let the hard timeout handle it
         } finally {
-          checkInFlight = false;
+          checkInFlightRef.current = false;
         }
       }
     }, CHECK_INTERVAL_MS);
