@@ -221,6 +221,7 @@ class OrchestratorWrapper:
         # Get threading configuration
         if self.config.orchestrator:
             self.config.validate_threading_configuration()
+        self.config.validate_eligibility_configuration()
 
         thread_count = threads if threads is not None else self.config.get_thread_count()
         threading_enabled = True
