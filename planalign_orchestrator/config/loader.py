@@ -118,6 +118,37 @@ class SimulationConfig(BaseModel):
             "validate_results": False,
         }
 
+    def validate_eligibility_configuration(self) -> None:
+        """Validate eligibility configuration and warn about contradictory settings."""
+        import warnings
+
+        if self.employer_match and self.employer_match.eligibility:
+            elig = self.employer_match.eligibility
+            if elig.allow_new_hires and elig.minimum_tenure_years > 0:
+                warnings.warn(
+                    f"Employer match: allow_new_hires=True with "
+                    f"minimum_tenure_years={elig.minimum_tenure_years}. "
+                    f"New hires will bypass the tenure requirement.",
+                    UserWarning,
+                    stacklevel=2,
+                )
+
+        # Check core contribution eligibility
+        core_contrib = getattr(self, "employer_core_contribution", None)
+        if core_contrib and isinstance(core_contrib, dict):
+            core_elig = core_contrib.get("eligibility", {})
+            if isinstance(core_elig, dict):
+                core_allow = core_elig.get("allow_new_hires", True)
+                core_tenure = core_elig.get("minimum_tenure_years", 0)
+                if core_allow and core_tenure > 0:
+                    warnings.warn(
+                        f"Employer core: allow_new_hires=True with "
+                        f"minimum_tenure_years={core_tenure}. "
+                        f"New hires will bypass the tenure requirement.",
+                        UserWarning,
+                        stacklevel=2,
+                    )
+
     def validate_threading_configuration(self) -> None:
         """Validate threading configuration and log warnings."""
         if self.optimization and self.optimization.e068c_threading:

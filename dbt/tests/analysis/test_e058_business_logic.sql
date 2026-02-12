@@ -223,14 +223,37 @@ new_hire_edge_cases AS (
         AND e.match_apply_eligibility = TRUE
         AND e.current_tenure < 1.0  -- New hires (less than 1 year tenure)
         AND (
-            -- If new hires not allowed but employee is eligible
-            (e.match_allow_new_hires = FALSE AND e.eligible_for_match = TRUE) OR
+            -- E047 T013: If new hires not allowed AND tenure below minimum, must be ineligible
+            (e.match_allow_new_hires = FALSE
+             AND e.current_tenure < e.match_tenure_requirement
+             AND e.eligible_for_match = TRUE) OR
             -- If new hires allowed but employee is ineligible due to tenure only
             (e.match_allow_new_hires = TRUE
              AND e.eligible_for_match = FALSE
              AND e.match_eligibility_reason = 'insufficient_tenure'
              AND e.current_tenure >= e.match_tenure_requirement)
         )
+),
+
+-- E047 T014: Boundary test — employees with exactly minimum_tenure_years ARE eligible (>= check)
+tenure_boundary_validation AS (
+    SELECT
+        'tenure_boundary_gte_check' as test_name,
+        e.employee_id,
+        e.current_tenure,
+        e.match_tenure_requirement,
+        e.eligible_for_match,
+        e.match_eligibility_reason,
+        'Employees with tenure >= minimum must be eligible (boundary check)' as test_description,
+        'MEDIUM' as severity
+    FROM {{ ref('int_employer_eligibility') }} e
+    WHERE e.simulation_year = {{ simulation_year }}
+        AND e.match_apply_eligibility = TRUE
+        AND e.current_tenure >= e.match_tenure_requirement
+        AND e.annual_hours_worked >= e.match_hours_requirement
+        AND e.employment_status = 'active'
+        AND e.eligible_for_match = FALSE
+        AND e.match_eligibility_reason = 'insufficient_tenure'
 )
 
 -- Return only failing records (0 rows = all tests pass)
@@ -333,6 +356,17 @@ FROM (
         {{ simulation_year }},
         CURRENT_TIMESTAMP
     FROM new_hire_edge_cases
+
+    UNION ALL
+
+    SELECT
+        test_name,
+        employee_id,
+        test_description,
+        severity,
+        {{ simulation_year }},
+        CURRENT_TIMESTAMP
+    FROM tenure_boundary_validation
 ) all_validation_failures
 ORDER BY
     CASE severity
