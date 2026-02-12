@@ -3350,8 +3350,13 @@ export default function ConfigStudio() {
                         <button type="button"
                           onClick={() => {
                             const last = formData.dcTenureMatchTiers[formData.dcTenureMatchTiers.length - 1];
-                            const newTier = { minYears: last?.maxYears ?? 0, maxYears: null, matchRate: 100, maxDeferralPct: 6 };
-                            setFormData(prev => ({ ...prev, dcTenureMatchTiers: [...prev.dcTenureMatchTiers, newTier] }));
+                            const newMin = last ? (last.maxYears ?? last.minYears + 5) : 0;
+                            const updatedTiers = [...formData.dcTenureMatchTiers];
+                            if (last && last.maxYears == null) {
+                              updatedTiers[updatedTiers.length - 1] = { ...last, maxYears: newMin };
+                            }
+                            const newTier = { minYears: newMin, maxYears: null, matchRate: 100, maxDeferralPct: 6 };
+                            setFormData(prev => ({ ...prev, dcTenureMatchTiers: [...updatedTiers, newTier] }));
                           }}
                           className="mt-3 text-sm text-fidelity-green hover:text-green-700 flex items-center gap-1"
                         >+ Add Tier</button>
@@ -3440,14 +3445,37 @@ export default function ConfigStudio() {
                         <button type="button"
                           onClick={() => {
                             const last = formData.dcPointsMatchTiers[formData.dcPointsMatchTiers.length - 1];
-                            const newTier = { minPoints: last?.maxPoints ?? 0, maxPoints: null, matchRate: 100, maxDeferralPct: 6 };
-                            setFormData(prev => ({ ...prev, dcPointsMatchTiers: [...prev.dcPointsMatchTiers, newTier] }));
+                            const newMin = last ? (last.maxPoints ?? last.minPoints + 10) : 0;
+                            const updatedTiers = [...formData.dcPointsMatchTiers];
+                            if (last && last.maxPoints == null) {
+                              updatedTiers[updatedTiers.length - 1] = { ...last, maxPoints: newMin };
+                            }
+                            const newTier = { minPoints: newMin, maxPoints: null, matchRate: 100, maxDeferralPct: 6 };
+                            setFormData(prev => ({ ...prev, dcPointsMatchTiers: [...updatedTiers, newTier] }));
                           }}
                           className="mt-3 text-sm text-fidelity-green hover:text-green-700 flex items-center gap-1"
                         >+ Add Tier</button>
                         {formData.dcPointsMatchTiers.length === 0 && (
                           <p className="mt-2 text-xs text-amber-600">Add at least one tier to configure points-based matching</p>
                         )}
+                        {/* E046: Points tier gap/overlap warnings */}
+                        {(() => {
+                          const warnings = validateMatchTiers(
+                            formData.dcPointsMatchTiers.map(t => ({ min: t.minPoints, max: t.maxPoints })),
+                            'points',
+                          );
+                          return warnings.length > 0 ? (
+                            <div className="mt-3 bg-amber-50 border border-amber-300 rounded-md p-3">
+                              <p className="text-xs font-medium text-amber-800 mb-1">Tier configuration warnings:</p>
+                              <ul className="list-disc list-inside space-y-0.5">
+                                {warnings.map((w, i) => (
+                                  <li key={i} className="text-xs text-amber-700">{w}</li>
+                                ))}
+                              </ul>
+                              <p className="text-xs text-amber-600 mt-1.5">Tiers use [min, max) intervals — min is inclusive, max is exclusive.</p>
+                            </div>
+                          ) : null;
+                        })()}
                       </div>
                     )}
 

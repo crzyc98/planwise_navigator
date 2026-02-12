@@ -7,7 +7,7 @@ E046: Tenure-based and points-based employer match modes.
 from __future__ import annotations
 
 import warnings
-from typing import Any, Dict, List, Literal, Optional
+from typing import Any, Dict, List, Optional
 
 from pydantic import BaseModel, Field, model_validator
 
@@ -202,7 +202,7 @@ class TenureMatchTier(BaseModel):
         default=None, description="Upper bound of service years (exclusive); null = unbounded"
     )
     match_rate: float = Field(
-        ge=0, le=100, description="Match rate as percentage (e.g., 50 = 50%)"
+        ge=0, le=200, description="Match rate as percentage (e.g., 50 = 50%, 200 = 200%)"
     )
     max_deferral_pct: float = Field(
         ge=0, le=100, description="Maximum employee deferral % eligible for match (e.g., 6 = 6%)"
@@ -229,7 +229,7 @@ class PointsMatchTier(BaseModel):
         default=None, description="Upper bound of points (exclusive); null = unbounded"
     )
     match_rate: float = Field(
-        ge=0, le=100, description="Match rate as percentage (e.g., 50 = 50%)"
+        ge=0, le=200, description="Match rate as percentage (e.g., 50 = 50%, 200 = 200%)"
     )
     max_deferral_pct: float = Field(
         ge=0, le=100, description="Maximum employee deferral % eligible for match (e.g., 6 = 6%)"

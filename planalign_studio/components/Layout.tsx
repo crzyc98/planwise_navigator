@@ -118,8 +118,10 @@ export default function Layout() {
     const SAFETY_TIMEOUT_MS = 30 * 60 * 1000; // 30 minutes hard cutoff
     const STALE_THRESHOLD_MS = 60 * 1000; // Poll server after 1 minute without heartbeat
     const CHECK_INTERVAL_MS = 60 * 1000; // Check every minute
+    let checkInFlight = false;
 
     const interval = setInterval(async () => {
+      if (checkInFlight) return; // Skip if previous check hasn't resolved
       if (lastHeartbeatRef.current <= 0) return;
 
       const heartbeatAge = Date.now() - lastHeartbeatRef.current;
@@ -130,21 +132,27 @@ export default function Layout() {
         return;
       }
 
-      // Stale heartbeat - verify with server whether run is still active
+      // Stale heartbeat - verify with server whether our specific run is still active
       if (heartbeatAge > STALE_THRESHOLD_MS) {
+        checkInFlight = true;
         try {
           const response = await getActiveSimulations();
-          if (response.active_runs.length === 0) {
+          const ourRunStillActive = response.active_runs.some(
+            (run) => run.run_id === activeRunId
+          );
+          if (!ourRunStillActive) {
             clearSimulationRunning();
           }
         } catch {
           // Server unreachable - let the hard timeout handle it
+        } finally {
+          checkInFlight = false;
         }
       }
     }, CHECK_INTERVAL_MS);
 
     return () => clearInterval(interval);
-  }, [isSimulationRunning, clearSimulationRunning]);
+  }, [isSimulationRunning, activeRunId, clearSimulationRunning]);
 
   // Create Workspace State
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);

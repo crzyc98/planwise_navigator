@@ -17,10 +17,11 @@
     -- Get max deferral percentage (returns decimal, e.g., 0.06 for 6%)
     {{ get_points_based_max_deferral('applied_points', points_match_tiers, 0.06) }}
 
-  Tier matching uses [min, max) convention:
-    - min_points is inclusive
-    - max_points is exclusive (or null for infinity)
-    - Tiers are sorted descending by min_points for correct CASE evaluation
+  Tier matching:
+    - Tiers are sorted descending by min_points
+    - CASE evaluates top-down, so the first WHEN (highest min_points) that
+      matches acts as the implicit upper bound for lower tiers
+    - Example: tiers [80, 60, 40, 0] → points=70 skips >=80, hits >=60
 
   Rate/Percentage conversion:
     - Config sends rates as percentages (e.g., 50 for 50%, 6 for 6%)
