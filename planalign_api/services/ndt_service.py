@@ -7,7 +7,7 @@ from typing import List, Optional
 from pydantic import BaseModel
 
 from ..storage.workspace_storage import WorkspaceStorage
-from .database_path_resolver import DatabasePathResolver
+from .database_path_resolver import DatabasePathResolver, IsolationMode
 
 logger = logging.getLogger(__name__)
 
@@ -76,7 +76,9 @@ class NDTService:
         db_resolver: Optional[DatabasePathResolver] = None,
     ):
         self.storage = storage
-        self.db_resolver = db_resolver or DatabasePathResolver(storage)
+        self.db_resolver = db_resolver or DatabasePathResolver(
+            storage, isolation_mode=IsolationMode.MULTI_TENANT
+        )
 
     @staticmethod
     def _ensure_seed_current(db_path: Path) -> None:
