@@ -1532,3 +1532,132 @@ export async function getNDTAvailableYears(
   );
   return handleResponse<NDTAvailableYearsResponse>(response);
 }
+
+// ============================================================================
+// NDT 401(a)(4) General Test (Feature 051)
+// ============================================================================
+
+export interface Section401a4EmployeeDetail {
+  employee_id: string;
+  is_hce: boolean;
+  employer_nec_amount: number;
+  employer_match_amount: number;
+  total_employer_amount: number;
+  plan_compensation: number;
+  contribution_rate: number;
+  years_of_service: number;
+}
+
+export interface Section401a4ScenarioResult {
+  scenario_id: string;
+  scenario_name: string;
+  simulation_year: number;
+  test_result: 'pass' | 'fail' | 'error';
+  test_message?: string;
+  applied_test: 'ratio' | 'general';
+  hce_count: number;
+  nhce_count: number;
+  excluded_count: number;
+  hce_average_rate: number;
+  nhce_average_rate: number;
+  hce_median_rate: number;
+  nhce_median_rate: number;
+  ratio: number;
+  ratio_test_threshold: number;
+  margin: number;
+  include_match: boolean;
+  service_risk_flag: boolean;
+  service_risk_detail?: string;
+  hce_threshold_used: number;
+  employees?: Section401a4EmployeeDetail[];
+}
+
+export interface Section401a4TestResponse {
+  test_type: string;
+  year: number;
+  results: Section401a4ScenarioResult[];
+}
+
+/**
+ * Run 401(a)(4) general nondiscrimination test for one or more scenarios.
+ */
+export async function run401a4Test(
+  workspaceId: string,
+  scenarioIds: string[],
+  year: number,
+  includeEmployees: boolean = false,
+  includeMatch: boolean = false
+): Promise<Section401a4TestResponse> {
+  const params = new URLSearchParams({
+    scenarios: scenarioIds.join(','),
+    year: year.toString(),
+    include_employees: includeEmployees.toString(),
+    include_match: includeMatch.toString(),
+  });
+  const response = await fetch(
+    `${API_BASE}/api/workspaces/${workspaceId}/analytics/ndt/401a4?${params}`
+  );
+  return handleResponse<Section401a4TestResponse>(response);
+}
+
+// ============================================================================
+// NDT 415 Annual Additions Limit Test (Feature 051)
+// ============================================================================
+
+export interface Section415EmployeeDetail {
+  employee_id: string;
+  status: 'pass' | 'at_risk' | 'breach';
+  employee_deferrals: number;
+  employer_match: number;
+  employer_nec: number;
+  total_annual_additions: number;
+  gross_compensation: number;
+  applicable_limit: number;
+  headroom: number;
+  utilization_pct: number;
+}
+
+export interface Section415ScenarioResult {
+  scenario_id: string;
+  scenario_name: string;
+  simulation_year: number;
+  test_result: 'pass' | 'fail' | 'error';
+  test_message?: string;
+  total_participants: number;
+  excluded_count: number;
+  breach_count: number;
+  at_risk_count: number;
+  passing_count: number;
+  max_utilization_pct: number;
+  warning_threshold_pct: number;
+  annual_additions_limit: number;
+  employees?: Section415EmployeeDetail[];
+}
+
+export interface Section415TestResponse {
+  test_type: string;
+  year: number;
+  results: Section415ScenarioResult[];
+}
+
+/**
+ * Run Section 415 annual additions limit test for one or more scenarios.
+ */
+export async function run415Test(
+  workspaceId: string,
+  scenarioIds: string[],
+  year: number,
+  includeEmployees: boolean = false,
+  warningThreshold: number = 0.95
+): Promise<Section415TestResponse> {
+  const params = new URLSearchParams({
+    scenarios: scenarioIds.join(','),
+    year: year.toString(),
+    include_employees: includeEmployees.toString(),
+    warning_threshold: warningThreshold.toString(),
+  });
+  const response = await fetch(
+    `${API_BASE}/api/workspaces/${workspaceId}/analytics/ndt/415?${params}`
+  );
+  return handleResponse<Section415TestResponse>(response);
+}

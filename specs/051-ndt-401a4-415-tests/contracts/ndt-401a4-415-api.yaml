@@ -1,0 +1,319 @@
+openapi: 3.0.3
+info:
+  title: NDT 401(a)(4) & 415 API
+  version: 1.0.0
+  description: Non-discrimination testing endpoints for Section 401(a)(4) general test and Section 415 annual additions limit test.
+
+paths:
+  /api/workspaces/{workspace_id}/analytics/ndt/401a4:
+    get:
+      operationId: run401a4Test
+      summary: Run 401(a)(4) general nondiscrimination test
+      description: |
+        Calculates employer contribution rates for HCE/NHCE groups, applies ratio test (70% threshold),
+        falls back to general test (midpoint comparison) if ratio test fails.
+        Optionally flags service-based NEC tenure skew risk.
+      parameters:
+        - name: workspace_id
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: scenarios
+          in: query
+          required: true
+          description: Comma-separated scenario IDs
+          schema:
+            type: string
+        - name: year
+          in: query
+          required: true
+          schema:
+            type: integer
+        - name: include_employees
+          in: query
+          required: false
+          schema:
+            type: boolean
+            default: false
+        - name: include_match
+          in: query
+          required: false
+          description: Include employer match in contribution rate (default NEC-only)
+          schema:
+            type: boolean
+            default: false
+      responses:
+        '200':
+          description: Test results for all requested scenarios
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Section401a4TestResponse'
+        '400':
+          description: Invalid scenario or missing data
+
+  /api/workspaces/{workspace_id}/analytics/ndt/415:
+    get:
+      operationId: run415Test
+      summary: Run Section 415 annual additions limit test
+      description: |
+        For each participant, sums employee deferrals (excl. catch-up) + employer match + employer NEC.
+        Compares to lesser of IRS 415 dollar limit or 100% of uncapped gross compensation.
+        Flags breaches and at-risk participants.
+      parameters:
+        - name: workspace_id
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: scenarios
+          in: query
+          required: true
+          description: Comma-separated scenario IDs
+          schema:
+            type: string
+        - name: year
+          in: query
+          required: true
+          schema:
+            type: integer
+        - name: include_employees
+          in: query
+          required: false
+          schema:
+            type: boolean
+            default: false
+        - name: warning_threshold
+          in: query
+          required: false
+          description: At-risk threshold as decimal (0.0-1.0, default 0.95)
+          schema:
+            type: number
+            format: float
+            default: 0.95
+            minimum: 0.0
+            maximum: 1.0
+      responses:
+        '200':
+          description: Test results for all requested scenarios
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Section415TestResponse'
+        '400':
+          description: Invalid scenario or missing data
+
+components:
+  schemas:
+    Section401a4TestResponse:
+      type: object
+      required: [test_type, year, results]
+      properties:
+        test_type:
+          type: string
+          enum: ['401a4']
+        year:
+          type: integer
+        results:
+          type: array
+          items:
+            $ref: '#/components/schemas/Section401a4ScenarioResult'
+
+    Section401a4ScenarioResult:
+      type: object
+      required: [scenario_id, scenario_name, simulation_year, test_result]
+      properties:
+        scenario_id:
+          type: string
+        scenario_name:
+          type: string
+        simulation_year:
+          type: integer
+        test_result:
+          type: string
+          enum: [pass, fail, error]
+        test_message:
+          type: string
+          nullable: true
+        applied_test:
+          type: string
+          enum: [ratio, general]
+          default: ratio
+        hce_count:
+          type: integer
+          default: 0
+        nhce_count:
+          type: integer
+          default: 0
+        excluded_count:
+          type: integer
+          default: 0
+        hce_average_rate:
+          type: number
+          format: float
+          default: 0.0
+        nhce_average_rate:
+          type: number
+          format: float
+          default: 0.0
+        hce_median_rate:
+          type: number
+          format: float
+          default: 0.0
+        nhce_median_rate:
+          type: number
+          format: float
+          default: 0.0
+        ratio:
+          type: number
+          format: float
+          default: 0.0
+        ratio_test_threshold:
+          type: number
+          format: float
+          default: 0.70
+        margin:
+          type: number
+          format: float
+          default: 0.0
+        include_match:
+          type: boolean
+          default: false
+        service_risk_flag:
+          type: boolean
+          default: false
+        service_risk_detail:
+          type: string
+          nullable: true
+        hce_threshold_used:
+          type: integer
+          default: 0
+        employees:
+          type: array
+          nullable: true
+          items:
+            $ref: '#/components/schemas/Section401a4EmployeeDetail'
+
+    Section401a4EmployeeDetail:
+      type: object
+      required: [employee_id, is_hce, contribution_rate]
+      properties:
+        employee_id:
+          type: string
+        is_hce:
+          type: boolean
+        employer_nec_amount:
+          type: number
+          format: float
+        employer_match_amount:
+          type: number
+          format: float
+        total_employer_amount:
+          type: number
+          format: float
+        plan_compensation:
+          type: number
+          format: float
+        contribution_rate:
+          type: number
+          format: float
+        years_of_service:
+          type: number
+          format: float
+
+    Section415TestResponse:
+      type: object
+      required: [test_type, year, results]
+      properties:
+        test_type:
+          type: string
+          enum: ['415']
+        year:
+          type: integer
+        results:
+          type: array
+          items:
+            $ref: '#/components/schemas/Section415ScenarioResult'
+
+    Section415ScenarioResult:
+      type: object
+      required: [scenario_id, scenario_name, simulation_year, test_result]
+      properties:
+        scenario_id:
+          type: string
+        scenario_name:
+          type: string
+        simulation_year:
+          type: integer
+        test_result:
+          type: string
+          enum: [pass, fail, error]
+        test_message:
+          type: string
+          nullable: true
+        total_participants:
+          type: integer
+          default: 0
+        excluded_count:
+          type: integer
+          default: 0
+        breach_count:
+          type: integer
+          default: 0
+        at_risk_count:
+          type: integer
+          default: 0
+        passing_count:
+          type: integer
+          default: 0
+        max_utilization_pct:
+          type: number
+          format: float
+          default: 0.0
+        warning_threshold_pct:
+          type: number
+          format: float
+          default: 0.95
+        annual_additions_limit:
+          type: integer
+          default: 0
+        employees:
+          type: array
+          nullable: true
+          items:
+            $ref: '#/components/schemas/Section415EmployeeDetail'
+
+    Section415EmployeeDetail:
+      type: object
+      required: [employee_id, status, total_annual_additions, applicable_limit]
+      properties:
+        employee_id:
+          type: string
+        status:
+          type: string
+          enum: [pass, at_risk, breach]
+        employee_deferrals:
+          type: number
+          format: float
+        employer_match:
+          type: number
+          format: float
+        employer_nec:
+          type: number
+          format: float
+        total_annual_additions:
+          type: number
+          format: float
+        gross_compensation:
+          type: number
+          format: float
+        applicable_limit:
+          type: number
+          format: float
+        headroom:
+          type: number
+          format: float
+        utilization_pct:
+          type: number
+          format: float
