@@ -364,7 +364,7 @@ class TestAllNHCE:
 
 
 class TestNoEmployerContributions:
-    """No employer contributions returns informational message."""
+    """No employer contributions — all employees filtered out as non-benefiting."""
 
     def test_no_employer_contributions(self, service_with_db):
         service, conn, mock_resolver = service_with_db
@@ -381,13 +381,67 @@ class TestNoEmployerContributions:
         with patch("duckdb.connect", return_value=conn):
             result = service.run_401a4_test("ws1", "sc1", "Test", 2025)
 
-        assert result.test_result == "pass"
-        assert result.test_message is not None
-        assert "no employer contributions" in result.test_message.lower()
+        # Non-benefiting employees excluded → no rows → error
+        assert result.test_result == "error"
+        assert "no eligible employees" in result.test_message.lower()
 
 
 # ==============================================================================
 # Test 10: Edge case - zero compensation excluded
+# ==============================================================================
+
+
+class TestNonBenefitingExcluded:
+    """Employees with zero employer match AND zero core are excluded from population."""
+
+    def test_non_benefiting_excluded(self, service_with_db):
+        service, conn, mock_resolver = service_with_db
+
+        # HCE with core contribution (benefiting)
+        _insert_employee(conn, "HCE1", 2024, 200000.0, 200000.0, 0.0)
+        _insert_employee(conn, "HCE1", 2025, 100000.0, 100000.0, core_amount=8000.0, tenure=10.0)
+        # NHCE with core contribution (benefiting)
+        _insert_employee(conn, "NHCE1", 2024, 80000.0, 80000.0, 0.0)
+        _insert_employee(conn, "NHCE1", 2025, 100000.0, 100000.0, core_amount=6000.0, tenure=5.0)
+        # NHCE with zero match AND zero core (non-benefiting — should be excluded)
+        _insert_employee(conn, "NHCE2", 2024, 60000.0, 60000.0, 0.0)
+        _insert_employee(conn, "NHCE2", 2025, 60000.0, 60000.0,
+                         core_amount=0.0, match_amount=0.0, tenure=3.0)
+
+        mock_resolver.resolve.return_value = ResolvedDatabasePath(path=Path(":memory:"), source="scenario")
+
+        with patch("duckdb.connect", return_value=conn):
+            result = service.run_401a4_test("ws1", "sc1", "Test", 2025)
+
+        # NHCE2 excluded: only 2 benefiting employees remain
+        assert result.hce_count == 1
+        assert result.nhce_count == 1
+        # NHCE avg should be 6% (only NHCE1), not diluted to 3% by zero-contribution NHCE2
+        assert abs(result.nhce_average_rate - 0.06) < 0.001
+
+    def test_match_only_employee_included(self, service_with_db):
+        """Employee with match but no core is still benefiting."""
+        service, conn, mock_resolver = service_with_db
+
+        _insert_employee(conn, "HCE1", 2024, 200000.0, 200000.0, 0.0)
+        _insert_employee(conn, "HCE1", 2025, 100000.0, 100000.0,
+                         match_amount=5000.0, core_amount=0.0, tenure=10.0)
+        _insert_employee(conn, "NHCE1", 2024, 80000.0, 80000.0, 0.0)
+        _insert_employee(conn, "NHCE1", 2025, 100000.0, 100000.0,
+                         match_amount=3000.0, core_amount=0.0, tenure=5.0)
+
+        mock_resolver.resolve.return_value = ResolvedDatabasePath(path=Path(":memory:"), source="scenario")
+
+        with patch("duckdb.connect", return_value=conn):
+            result = service.run_401a4_test("ws1", "sc1", "Test", 2025, include_match=True)
+
+        # Both included — match-only counts as benefiting
+        assert result.hce_count == 1
+        assert result.nhce_count == 1
+
+
+# ==============================================================================
+# Test 11: Edge case - zero compensation excluded
 # ==============================================================================
 
 
@@ -401,15 +455,15 @@ class TestZeroCompExcluded:
         _insert_employee(conn, "HCE1", 2025, 200000.0, 200000.0, core_amount=10000.0, tenure=10.0)
         _insert_employee(conn, "NHCE1", 2024, 80000.0, 80000.0, 0.0)
         _insert_employee(conn, "NHCE1", 2025, 80000.0, 80000.0, core_amount=4000.0, tenure=5.0)
-        # Zero comp employee - should be excluded
+        # Zero comp employee with a core contribution — benefiting but zero comp
         _insert_employee(conn, "ZERO1", 2024, 0.0, 0.0, 0.0)
-        _insert_employee(conn, "ZERO1", 2025, 0.0, 0.0, core_amount=0.0, tenure=1.0)
+        _insert_employee(conn, "ZERO1", 2025, 0.0, 0.0, core_amount=100.0, tenure=1.0)
 
         mock_resolver.resolve.return_value = ResolvedDatabasePath(path=Path(":memory:"), source="scenario")
 
         with patch("duckdb.connect", return_value=conn):
             result = service.run_401a4_test("ws1", "sc1", "Test", 2025)
 
-        # Zero-comp employee not counted in HCE or NHCE
+        # Zero-comp employee passes benefiting filter but excluded by comp check
         assert result.hce_count + result.nhce_count == 2
         assert result.excluded_count >= 1

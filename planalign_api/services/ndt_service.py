@@ -148,6 +148,49 @@ class Section415TestResponse(BaseModel):
 
 
 # ==============================================================================
+# ADP (Actual Deferral Percentage) Test Response Models
+# ==============================================================================
+
+
+class ADPEmployeeDetail(BaseModel):
+    employee_id: str
+    is_hce: bool
+    employee_deferrals: float
+    plan_compensation: float
+    individual_adp: float
+    prior_year_compensation: Optional[float] = None
+
+
+class ADPScenarioResult(BaseModel):
+    scenario_id: str
+    scenario_name: str
+    simulation_year: int
+    test_result: str  # "pass", "fail", "exempt", "error"
+    test_message: Optional[str] = None
+    hce_count: int = 0
+    nhce_count: int = 0
+    excluded_count: int = 0
+    hce_average_adp: float = 0.0
+    nhce_average_adp: float = 0.0
+    basic_test_threshold: float = 0.0
+    alternative_test_threshold: float = 0.0
+    applied_test: str = "basic"  # "basic" or "alternative"
+    applied_threshold: float = 0.0
+    margin: float = 0.0
+    excess_hce_amount: Optional[float] = None
+    testing_method: str = "current"  # "current" or "prior"
+    safe_harbor: bool = False
+    hce_threshold_used: int = 0
+    employees: Optional[List[ADPEmployeeDetail]] = None
+
+
+class ADPTestResponse(BaseModel):
+    test_type: str = "adp"
+    year: int
+    results: List[ADPScenarioResult]
+
+
+# ==============================================================================
 # NDT Service
 # ==============================================================================
 
@@ -597,6 +640,7 @@ class NDTService:
                 prorated_annual_compensation,
                 current_tenure
             FROM current_year
+            WHERE (employer_core_amount > 0 OR employer_match_amount > 0)
             ORDER BY is_hce DESC
             """
 
@@ -966,3 +1010,340 @@ class NDTService:
                 test_result="error",
                 test_message=str(e),
             )
+
+    # ==================================================================
+    # ADP (Actual Deferral Percentage) Test
+    # ==================================================================
+
+    def run_adp_test(
+        self,
+        workspace_id: str,
+        scenario_id: str,
+        scenario_name: str,
+        year: int,
+        include_employees: bool = False,
+        safe_harbor: bool = False,
+        testing_method: str = "current",
+    ) -> ADPScenarioResult:
+        """Run the ADP non-discrimination test for a single scenario and year."""
+        import duckdb
+
+        # Safe harbor short-circuit
+        if safe_harbor:
+            return ADPScenarioResult(
+                scenario_id=scenario_id,
+                scenario_name=scenario_name,
+                simulation_year=year,
+                test_result="exempt",
+                test_message="Safe harbor plan — ADP test not required",
+                safe_harbor=True,
+                testing_method=testing_method,
+            )
+
+        resolved = self.db_resolver.resolve(workspace_id, scenario_id)
+        if not resolved.exists:
+            return ADPScenarioResult(
+                scenario_id=scenario_id,
+                scenario_name=scenario_name,
+                simulation_year=year,
+                test_result="error",
+                test_message=f"Database not found for scenario {scenario_id}",
+                testing_method=testing_method,
+            )
+
+        try:
+            self._ensure_seed_current(resolved.path)
+            conn = duckdb.connect(str(resolved.path), read_only=True)
+
+            # Get HCE threshold for the prior year
+            hce_threshold_row = conn.execute(
+                "SELECT hce_compensation_threshold FROM config_irs_limits WHERE limit_year = ?",
+                [year - 1],
+            ).fetchone()
+
+            if not hce_threshold_row or hce_threshold_row[0] is None:
+                hce_threshold_row = conn.execute(
+                    "SELECT hce_compensation_threshold FROM config_irs_limits WHERE limit_year = ?",
+                    [year],
+                ).fetchone()
+                if not hce_threshold_row or hce_threshold_row[0] is None:
+                    conn.close()
+                    return ADPScenarioResult(
+                        scenario_id=scenario_id,
+                        scenario_name=scenario_name,
+                        simulation_year=year,
+                        test_result="error",
+                        test_message=f"HCE compensation threshold not found in config_irs_limits for year {year - 1} or {year}.",
+                        testing_method=testing_method,
+                    )
+
+            hce_threshold = int(hce_threshold_row[0])
+
+            # Check if prior year data exists
+            prior_year_exists = conn.execute(
+                "SELECT COUNT(*) FROM fct_workforce_snapshot WHERE simulation_year = ?",
+                [year - 1],
+            ).fetchone()[0] > 0
+
+            # Prior year testing method: get NHCE ADP from prior year
+            prior_year_nhce_adp = None
+            actual_testing_method = testing_method
+            if testing_method == "prior":
+                if prior_year_exists:
+                    prior_nhce_query = """
+                    WITH prior_hce AS (
+                        SELECT employee_id, current_compensation AS comp
+                        FROM fct_workforce_snapshot
+                        WHERE simulation_year = ?
+                    ),
+                    prior_data AS (
+                        SELECT
+                            s.employee_id,
+                            COALESCE(s.prorated_annual_contributions, 0) AS deferrals,
+                            s.prorated_annual_compensation AS comp,
+                            CASE WHEN COALESCE(h.comp, s.current_compensation) > ?
+                                 THEN TRUE ELSE FALSE END AS is_hce
+                        FROM fct_workforce_snapshot s
+                        LEFT JOIN prior_hce h ON s.employee_id = h.employee_id
+                        WHERE s.simulation_year = ?
+                          AND (s.current_eligibility_status = 'eligible' OR s.current_eligibility_status IS NULL)
+                          AND s.prorated_annual_compensation > 0
+                    )
+                    SELECT deferrals / comp AS adp
+                    FROM prior_data
+                    WHERE is_hce = FALSE
+                    """
+                    # For prior year NHCE baseline, use year-2 for HCE determination of year-1
+                    prior_hce_year = year - 2 if conn.execute(
+                        "SELECT COUNT(*) FROM fct_workforce_snapshot WHERE simulation_year = ?",
+                        [year - 2],
+                    ).fetchone()[0] > 0 else year - 1
+
+                    prior_nhce_rows = conn.execute(
+                        prior_nhce_query, [prior_hce_year, hce_threshold, year - 1]
+                    ).fetchall()
+
+                    if prior_nhce_rows:
+                        prior_year_nhce_adp = sum(r[0] for r in prior_nhce_rows) / len(prior_nhce_rows)
+                    else:
+                        actual_testing_method = "current"
+                else:
+                    actual_testing_method = "current"
+
+            # Main ADP query with HCE determination
+            query = """
+            WITH prior_year AS (
+                SELECT employee_id, current_compensation AS prior_year_comp
+                FROM fct_workforce_snapshot
+                WHERE simulation_year = ?
+            ),
+            current_year AS (
+                SELECT
+                    s.employee_id,
+                    s.current_eligibility_status,
+                    COALESCE(s.prorated_annual_contributions, 0) AS deferrals,
+                    s.prorated_annual_compensation,
+                    COALESCE(p.prior_year_comp, s.current_compensation) AS prior_year_comp,
+                    CASE WHEN COALESCE(p.prior_year_comp, s.current_compensation) > ?
+                         THEN TRUE ELSE FALSE END AS is_hce
+                FROM fct_workforce_snapshot s
+                LEFT JOIN prior_year p ON s.employee_id = p.employee_id
+                WHERE s.simulation_year = ?
+                  AND (s.current_eligibility_status = 'eligible' OR s.current_eligibility_status IS NULL)
+            ),
+            per_employee AS (
+                SELECT *,
+                    CASE WHEN prorated_annual_compensation > 0
+                         THEN deferrals / prorated_annual_compensation
+                         ELSE 0 END AS individual_adp
+                FROM current_year
+            )
+            SELECT
+                employee_id,
+                is_hce,
+                deferrals,
+                prorated_annual_compensation,
+                individual_adp,
+                prior_year_comp
+            FROM per_employee
+            ORDER BY is_hce DESC, individual_adp DESC
+            """
+
+            prior_year_param = year - 1 if prior_year_exists else year
+            rows = conn.execute(query, [prior_year_param, hce_threshold, year]).fetchall()
+            conn.close()
+
+            if not rows:
+                return ADPScenarioResult(
+                    scenario_id=scenario_id,
+                    scenario_name=scenario_name,
+                    simulation_year=year,
+                    test_result="error",
+                    test_message="No eligible employees found for ADP test",
+                    testing_method=actual_testing_method,
+                )
+
+            # Separate HCE/NHCE and compute ADPs
+            hce_adps: List[float] = []
+            nhce_adps: List[float] = []
+            hce_compensations: List[float] = []
+            employees: List[ADPEmployeeDetail] = []
+            excluded_count = 0
+
+            for row in rows:
+                emp_id, is_hce, deferrals, comp, adp, prior_comp = row
+
+                if comp is None or comp <= 0:
+                    excluded_count += 1
+                    continue
+
+                if is_hce:
+                    hce_adps.append(adp)
+                    hce_compensations.append(float(comp))
+                else:
+                    nhce_adps.append(adp)
+
+                if include_employees:
+                    employees.append(ADPEmployeeDetail(
+                        employee_id=str(emp_id),
+                        is_hce=bool(is_hce),
+                        employee_deferrals=float(deferrals),
+                        plan_compensation=float(comp),
+                        individual_adp=float(adp),
+                        prior_year_compensation=float(prior_comp) if prior_comp is not None else None,
+                    ))
+
+            # Edge case: no NHCE
+            if not nhce_adps:
+                return ADPScenarioResult(
+                    scenario_id=scenario_id,
+                    scenario_name=scenario_name,
+                    simulation_year=year,
+                    test_result="error",
+                    test_message="Insufficient NHCE population",
+                    hce_count=len(hce_adps),
+                    nhce_count=0,
+                    excluded_count=excluded_count,
+                    hce_threshold_used=hce_threshold,
+                    testing_method=actual_testing_method,
+                    employees=employees if include_employees else None,
+                )
+
+            # Edge case: no HCE -> auto-pass
+            if not hce_adps:
+                nhce_avg = sum(nhce_adps) / len(nhce_adps)
+                return ADPScenarioResult(
+                    scenario_id=scenario_id,
+                    scenario_name=scenario_name,
+                    simulation_year=year,
+                    test_result="pass",
+                    test_message="No HCE employees in population",
+                    hce_count=0,
+                    nhce_count=len(nhce_adps),
+                    excluded_count=excluded_count,
+                    hce_average_adp=0.0,
+                    nhce_average_adp=nhce_avg,
+                    hce_threshold_used=hce_threshold,
+                    testing_method=actual_testing_method,
+                    employees=employees if include_employees else None,
+                )
+
+            # Compute pass/fail
+            nhce_baseline = prior_year_nhce_adp if actual_testing_method == "prior" and prior_year_nhce_adp is not None else None
+            test_message = None
+            if testing_method == "prior" and actual_testing_method == "current":
+                test_message = "Prior year data not available — fell back to current year testing method"
+
+            return self._compute_adp_result(
+                scenario_id=scenario_id,
+                scenario_name=scenario_name,
+                year=year,
+                hce_adps=hce_adps,
+                nhce_adps=nhce_adps,
+                hce_compensations=hce_compensations,
+                hce_threshold=hce_threshold,
+                excluded_count=excluded_count,
+                testing_method=actual_testing_method,
+                nhce_baseline_adp=nhce_baseline,
+                test_message=test_message,
+                employees=employees if include_employees else None,
+            )
+
+        except Exception as e:
+            logger.error(f"Failed to run ADP test: {e}")
+            return ADPScenarioResult(
+                scenario_id=scenario_id,
+                scenario_name=scenario_name,
+                simulation_year=year,
+                test_result="error",
+                test_message=str(e),
+                testing_method=testing_method,
+            )
+
+    def _compute_adp_result(
+        self,
+        scenario_id: str,
+        scenario_name: str,
+        year: int,
+        hce_adps: List[float],
+        nhce_adps: List[float],
+        hce_compensations: List[float],
+        hce_threshold: int,
+        excluded_count: int,
+        testing_method: str,
+        nhce_baseline_adp: Optional[float],
+        test_message: Optional[str],
+        employees: Optional[List[ADPEmployeeDetail]],
+    ) -> ADPScenarioResult:
+        """Compute IRS ADP test pass/fail using basic and alternative tests."""
+        hce_avg = sum(hce_adps) / len(hce_adps)
+        nhce_avg = sum(nhce_adps) / len(nhce_adps)
+
+        # Use prior year NHCE baseline if provided
+        baseline_nhce = nhce_baseline_adp if nhce_baseline_adp is not None else nhce_avg
+
+        # Basic test: NHCE avg x 1.25
+        basic_threshold = baseline_nhce * 1.25
+
+        # Alternative test: lesser of (NHCE avg x 2.0) and (NHCE avg + 0.02)
+        alt_threshold = min(baseline_nhce * 2.0, baseline_nhce + 0.02)
+
+        # Select more favorable test (higher threshold)
+        if basic_threshold >= alt_threshold:
+            applied_test = "basic"
+            applied_threshold = basic_threshold
+        else:
+            applied_test = "alternative"
+            applied_threshold = alt_threshold
+
+        # Determine pass/fail
+        test_result = "pass" if hce_avg <= applied_threshold else "fail"
+        margin = applied_threshold - hce_avg
+
+        # Compute excess HCE amount when failing
+        excess_hce_amount = None
+        if test_result == "fail":
+            total_hce_comp = sum(hce_compensations)
+            excess_hce_amount = (hce_avg - applied_threshold) * total_hce_comp
+
+        return ADPScenarioResult(
+            scenario_id=scenario_id,
+            scenario_name=scenario_name,
+            simulation_year=year,
+            test_result=test_result,
+            test_message=test_message,
+            hce_count=len(hce_adps),
+            nhce_count=len(nhce_adps),
+            excluded_count=excluded_count,
+            hce_average_adp=hce_avg,
+            nhce_average_adp=nhce_avg,
+            basic_test_threshold=basic_threshold,
+            alternative_test_threshold=alt_threshold,
+            applied_test=applied_test,
+            applied_threshold=applied_threshold,
+            margin=margin,
+            excess_hce_amount=excess_hce_amount,
+            testing_method=testing_method,
+            hce_threshold_used=hce_threshold,
+            employees=employees,
+        )
