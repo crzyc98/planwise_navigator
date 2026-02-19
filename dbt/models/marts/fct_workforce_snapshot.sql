@@ -23,7 +23,10 @@ irs_limits_for_year AS (
     SELECT
         base_limit,
         catch_up_limit,
-        catch_up_age_threshold
+        catch_up_age_threshold,
+        super_catch_up_limit,
+        super_catch_up_age_min,
+        super_catch_up_age_max
     FROM {{ ref('config_irs_limits') }}
     WHERE limit_year = {{ simulation_year }}
     LIMIT 1
@@ -940,10 +943,14 @@ final_output AS (
         COALESCE(annual_contribution_amount * 0.15, 0.0) AS roth_contributions,
         COALESCE(annual_contribution_amount, 0.0) AS ytd_contributions,
         -- IRS 402(g) limit check using configurable limits from config_irs_limits seed
+        -- SECURE 2.0: super catch-up for ages 60-63
         CASE
             WHEN COALESCE(annual_contribution_amount, 0.0) >=
                 CASE
-                    WHEN current_age >= irs_limits.catch_up_age_threshold THEN irs_limits.catch_up_limit
+                    WHEN current_age >= irs_limits.super_catch_up_age_min AND current_age <= irs_limits.super_catch_up_age_max
+                        THEN irs_limits.super_catch_up_limit
+                    WHEN current_age >= irs_limits.catch_up_age_threshold
+                        THEN irs_limits.catch_up_limit
                     ELSE irs_limits.base_limit
                 END
             THEN true

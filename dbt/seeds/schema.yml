@@ -10,6 +10,11 @@ seeds:
         catch_up_limit: integer
         catch_up_age_threshold: integer
         compensation_limit: integer
+        hce_compensation_threshold: integer
+        super_catch_up_limit: integer
+        super_catch_up_age_min: integer
+        super_catch_up_age_max: integer
+        is_estimated: boolean
 
   - name: comp_levers
     description: "Compensation parameters by scenario and year"
