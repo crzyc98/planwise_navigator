@@ -1452,3 +1452,83 @@ export async function getBulkImportStatus(
   );
   return handleResponse<BulkImportStatus>(response);
 }
+
+// ============================================================================
+// NDT Testing Endpoints (Feature 050)
+// ============================================================================
+
+export interface ACPEmployeeDetail {
+  employee_id: string;
+  is_hce: boolean;
+  is_enrolled: boolean;
+  employer_match_amount: number;
+  eligible_compensation: number;
+  individual_acp: number;
+  prior_year_compensation: number | null;
+}
+
+export interface ACPScenarioResult {
+  scenario_id: string;
+  scenario_name: string;
+  simulation_year: number;
+  test_result: 'pass' | 'fail' | 'error';
+  test_message?: string;
+  hce_count: number;
+  nhce_count: number;
+  excluded_count: number;
+  eligible_not_enrolled_count: number;
+  hce_average_acp: number;
+  nhce_average_acp: number;
+  basic_test_threshold: number;
+  alternative_test_threshold: number;
+  applied_test: 'basic' | 'alternative';
+  applied_threshold: number;
+  margin: number;
+  hce_threshold_used: number;
+  employees?: ACPEmployeeDetail[];
+}
+
+export interface ACPTestResponse {
+  test_type: string;
+  year: number;
+  results: ACPScenarioResult[];
+}
+
+export interface NDTAvailableYearsResponse {
+  years: number[];
+  default_year: number | null;
+}
+
+/**
+ * Run ACP non-discrimination test for one or more scenarios.
+ */
+export async function runACPTest(
+  workspaceId: string,
+  scenarioIds: string[],
+  year: number,
+  includeEmployees: boolean = false
+): Promise<ACPTestResponse> {
+  const params = new URLSearchParams({
+    scenarios: scenarioIds.join(','),
+    year: year.toString(),
+    include_employees: includeEmployees.toString(),
+  });
+  const response = await fetch(
+    `${API_BASE}/api/workspaces/${workspaceId}/analytics/ndt/acp?${params}`
+  );
+  return handleResponse<ACPTestResponse>(response);
+}
+
+/**
+ * Get available simulation years for NDT testing.
+ */
+export async function getNDTAvailableYears(
+  workspaceId: string,
+  scenarioId: string
+): Promise<NDTAvailableYearsResponse> {
+  const params = new URLSearchParams({ scenario_id: scenarioId });
+  const response = await fetch(
+    `${API_BASE}/api/workspaces/${workspaceId}/analytics/ndt/available-years?${params}`
+  );
+  return handleResponse<NDTAvailableYearsResponse>(response);
+}

@@ -829,6 +829,8 @@ See `/docs/VERSIONING_GUIDE.md` for detailed versioning workflow.
 - DuckDB (per-scenario databases resolved via `DatabasePathResolver`) (048-comparison-dc-metrics)
 - TypeScript 5.x (React 18 frontend) + React 18, react-router-dom, Lucide-react (icons), Tailwind CSS (049-refactor-config-studio)
 - N/A (frontend reads/writes via API service layer) (049-refactor-config-studio)
+- Python 3.11 (backend), TypeScript 5.x (frontend) + FastAPI (API), React 18 + Vite (frontend), DuckDB 1.0.0 (analytics queries), Pydantic v2 (validation) (050-ndt-acp-testing)
+- DuckDB (read-only queries against per-scenario `simulation.duckdb` via `DatabasePathResolver`) (050-ndt-acp-testing)
 
 ## Recent Changes
 - 024-remove-polars-pipeline: Removed Polars dependency, simplified to SQL-only mode
