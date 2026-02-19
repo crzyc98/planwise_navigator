@@ -95,6 +95,9 @@ def service_with_db():
 
     # We'll patch the duckdb.connect call in the service to return our in-memory conn
     service = NDTService(storage, db_resolver=mock_resolver)
+    # Patch _ensure_seed_current since test DBs already have correct schema
+    # and in-memory connections can't be shared across duckdb.connect calls
+    service._ensure_seed_current = MagicMock()
     return service, conn, mock_resolver
 
 

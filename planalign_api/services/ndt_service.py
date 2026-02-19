@@ -1,6 +1,7 @@
 """NDT (Non-Discrimination Testing) service for ACP test computation."""
 
 import logging
+from pathlib import Path
 from typing import List, Optional
 
 from pydantic import BaseModel
@@ -66,6 +67,9 @@ class AvailableYearsResponse(BaseModel):
 class NDTService:
     """Service for Non-Discrimination Testing analytics."""
 
+    # Path to dbt seeds directory
+    _SEEDS_DIR = Path(__file__).resolve().parents[2] / "dbt" / "seeds"
+
     def __init__(
         self,
         storage: WorkspaceStorage,
@@ -73,6 +77,55 @@ class NDTService:
     ):
         self.storage = storage
         self.db_resolver = db_resolver or DatabasePathResolver(storage)
+
+    @staticmethod
+    def _ensure_seed_current(db_path: Path) -> None:
+        """Ensure config_irs_limits seed table has the hce_compensation_threshold column.
+
+        Opens the database read-write, checks for the column, and reloads the
+        seed from CSV if missing. Uses the same schema-mismatch pattern as
+        DataCleanupManager.drop_seed_tables_with_schema_mismatch().
+        """
+        import duckdb
+
+        csv_path = NDTService._SEEDS_DIR / "config_irs_limits.csv"
+        if not csv_path.exists():
+            logger.warning(f"Seed CSV not found: {csv_path}")
+            return
+
+        conn = duckdb.connect(str(db_path))
+        try:
+            # Check if the column already exists
+            has_column = conn.execute(
+                """
+                SELECT 1 FROM information_schema.columns
+                WHERE table_schema = 'main'
+                  AND table_name = 'config_irs_limits'
+                  AND column_name = 'hce_compensation_threshold'
+                LIMIT 1
+                """,
+            ).fetchone()
+
+            if has_column:
+                return  # Already up to date
+
+            # Column missing — reload the seed table from CSV
+            logger.info(
+                "config_irs_limits missing hce_compensation_threshold column, "
+                "reloading seed from CSV"
+            )
+            conn.execute("DROP TABLE IF EXISTS config_irs_limits")
+            conn.execute(
+                f"""
+                CREATE TABLE config_irs_limits AS
+                SELECT * FROM read_csv_auto('{csv_path}')
+                """
+            )
+            logger.info("config_irs_limits seed reloaded successfully")
+        except Exception as e:
+            logger.error(f"Failed to ensure seed current: {e}")
+        finally:
+            conn.close()
 
     def get_available_years(
         self, workspace_id: str, scenario_id: str
@@ -120,9 +173,12 @@ class NDTService:
             )
 
         try:
+            # Ensure seed table has the hce_compensation_threshold column
+            self._ensure_seed_current(resolved.path)
+
             conn = duckdb.connect(str(resolved.path), read_only=True)
 
-            # Check if HCE threshold exists for the determination year
+            # Get HCE threshold for the prior year (used for HCE determination)
             hce_threshold_row = conn.execute(
                 "SELECT hce_compensation_threshold FROM config_irs_limits WHERE limit_year = ?",
                 [year - 1],
@@ -141,7 +197,7 @@ class NDTService:
                         scenario_name=scenario_name,
                         simulation_year=year,
                         test_result="error",
-                        test_message=f"HCE compensation threshold not found in config_irs_limits for year {year - 1} or {year}. Please add the hce_compensation_threshold column to the IRS limits seed.",
+                        test_message=f"HCE compensation threshold not found in config_irs_limits for year {year - 1} or {year}.",
                     )
 
             hce_threshold = int(hce_threshold_row[0])
