@@ -230,7 +230,7 @@ class NDTService:
                 FROM fct_workforce_snapshot s
                 LEFT JOIN prior_year p ON s.employee_id = p.employee_id
                 WHERE s.simulation_year = ?
-                  AND s.current_eligibility_status = 'eligible'
+                  AND (s.current_eligibility_status = 'eligible' OR s.current_eligibility_status IS NULL)
                   AND s.prorated_annual_compensation > 0
             ),
             per_employee AS (
