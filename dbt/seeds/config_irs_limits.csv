@@ -1,4 +1,5 @@
 limit_year,base_limit,catch_up_limit,catch_up_age_threshold,compensation_limit,hce_compensation_threshold
+2024,23000,30500,50,345000,155000
 2025,23500,31000,50,350000,160000
 2026,24000,32000,50,360000,165000
 2027,24500,32500,50,370000,170000
