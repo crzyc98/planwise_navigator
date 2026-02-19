@@ -220,7 +220,7 @@ snapshot_flags AS (
         employee_id,
         detailed_status_code,
         FLOOR(COALESCE(current_tenure, 0))::INT AS years_of_service,
-        age_as_of_december_31
+        current_age
     FROM {{ ref('int_workforce_snapshot_optimized') }}
     WHERE simulation_year = {{ simulation_year }}
 ),
@@ -283,7 +283,7 @@ SELECT
                 lim.irs_401a17_limit
             ) *
             {% if employer_core_status == 'points_based' and employer_core_points_schedule | length > 0 %}
-            {{ get_points_based_match_rate('(FLOOR(COALESCE(snap.age_as_of_december_31, 0))::INT + FLOOR(COALESCE(snap.years_of_service, 0))::INT)', employer_core_points_schedule, employer_core_contribution_rate) }}
+            {{ get_points_based_match_rate('(FLOOR(COALESCE(snap.current_age, 0))::INT + FLOOR(COALESCE(snap.years_of_service, 0))::INT)', employer_core_points_schedule, employer_core_contribution_rate) }}
             {% elif employer_core_status == 'graded_by_service' and employer_core_graded_schedule | length > 0 %}
             {{ get_tiered_core_rate('COALESCE(snap.years_of_service, 0)', employer_core_graded_schedule, employer_core_contribution_rate) }}
             {% else %}
@@ -319,7 +319,7 @@ SELECT
              )
         THEN
             {% if employer_core_status == 'points_based' and employer_core_points_schedule | length > 0 %}
-            {{ get_points_based_match_rate('(FLOOR(COALESCE(snap.age_as_of_december_31, 0))::INT + FLOOR(COALESCE(snap.years_of_service, 0))::INT)', employer_core_points_schedule, employer_core_contribution_rate) }}
+            {{ get_points_based_match_rate('(FLOOR(COALESCE(snap.current_age, 0))::INT + FLOOR(COALESCE(snap.years_of_service, 0))::INT)', employer_core_points_schedule, employer_core_contribution_rate) }}
             {% elif employer_core_status == 'graded_by_service' and employer_core_graded_schedule | length > 0 %}
             {{ get_tiered_core_rate('COALESCE(snap.years_of_service, 0)', employer_core_graded_schedule, employer_core_contribution_rate) }}
             {% else %}
