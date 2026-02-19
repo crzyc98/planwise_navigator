@@ -1,0 +1,232 @@
+openapi: "3.0.3"
+info:
+  title: PlanAlign NDT Testing API
+  version: "1.0.0"
+  description: Non-Discriminatory Testing endpoints for IRS compliance analysis
+
+paths:
+  /api/workspaces/{workspace_id}/analytics/ndt/acp:
+    get:
+      operationId: runACPTest
+      summary: Run ACP non-discrimination test
+      description: |
+        Computes the ACP test for one or more completed scenarios in a given year.
+        Returns pass/fail status, group averages, and test thresholds per scenario.
+      tags:
+        - NDT Testing
+      parameters:
+        - name: workspace_id
+          in: path
+          required: true
+          schema:
+            type: string
+          description: Workspace identifier
+        - name: scenarios
+          in: query
+          required: true
+          schema:
+            type: string
+          description: Comma-separated scenario IDs (e.g., "baseline,high_growth")
+        - name: year
+          in: query
+          required: true
+          schema:
+            type: integer
+          description: Simulation year to analyze
+        - name: include_employees
+          in: query
+          required: false
+          schema:
+            type: boolean
+            default: false
+          description: Whether to include per-employee detail in the response
+      responses:
+        "200":
+          description: ACP test results for requested scenarios
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ACPTestResponse"
+        "400":
+          description: Invalid parameters (no scenarios, invalid year, scenario not completed)
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "404":
+          description: Workspace or scenario not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /api/workspaces/{workspace_id}/analytics/ndt/available-years:
+    get:
+      operationId: getNDTAvailableYears
+      summary: Get available simulation years for NDT testing
+      description: Returns the list of simulation years with completed data for a given scenario.
+      tags:
+        - NDT Testing
+      parameters:
+        - name: workspace_id
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: scenario_id
+          in: query
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: List of available years
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AvailableYearsResponse"
+        "404":
+          description: Workspace or scenario not found
+
+components:
+  schemas:
+    ACPTestResponse:
+      type: object
+      required:
+        - test_type
+        - year
+        - results
+      properties:
+        test_type:
+          type: string
+          enum: [acp]
+        year:
+          type: integer
+        results:
+          type: array
+          items:
+            $ref: "#/components/schemas/ACPScenarioResult"
+
+    ACPScenarioResult:
+      type: object
+      required:
+        - scenario_id
+        - scenario_name
+        - simulation_year
+        - test_result
+        - hce_count
+        - nhce_count
+        - hce_average_acp
+        - nhce_average_acp
+        - basic_test_threshold
+        - alternative_test_threshold
+        - applied_test
+        - applied_threshold
+        - margin
+      properties:
+        scenario_id:
+          type: string
+        scenario_name:
+          type: string
+        simulation_year:
+          type: integer
+        test_result:
+          type: string
+          enum: [pass, fail, error]
+        test_message:
+          type: string
+          description: Explanatory message (especially for error results)
+        hce_count:
+          type: integer
+        nhce_count:
+          type: integer
+        excluded_count:
+          type: integer
+          description: Employees excluded from test (zero compensation)
+        eligible_not_enrolled_count:
+          type: integer
+          description: Eligible employees not enrolled (ACP = 0%)
+        hce_average_acp:
+          type: number
+          format: double
+          description: HCE group average ACP (decimal, e.g., 0.045 = 4.5%)
+        nhce_average_acp:
+          type: number
+          format: double
+          description: NHCE group average ACP (decimal)
+        basic_test_threshold:
+          type: number
+          format: double
+          description: NHCE avg x 1.25
+        alternative_test_threshold:
+          type: number
+          format: double
+          description: Lesser of (NHCE x 2) and (NHCE + 0.02)
+        applied_test:
+          type: string
+          enum: [basic, alternative]
+        applied_threshold:
+          type: number
+          format: double
+        margin:
+          type: number
+          format: double
+          description: applied_threshold - hce_average_acp (positive = passing)
+        hce_threshold_used:
+          type: integer
+          description: IRS dollar threshold used for HCE determination
+        employees:
+          type: array
+          description: Per-employee detail (only present if include_employees=true)
+          items:
+            $ref: "#/components/schemas/ACPEmployeeDetail"
+
+    ACPEmployeeDetail:
+      type: object
+      required:
+        - employee_id
+        - is_hce
+        - is_enrolled
+        - employer_match_amount
+        - eligible_compensation
+        - individual_acp
+      properties:
+        employee_id:
+          type: string
+        is_hce:
+          type: boolean
+        is_enrolled:
+          type: boolean
+        employer_match_amount:
+          type: number
+          format: double
+        eligible_compensation:
+          type: number
+          format: double
+        individual_acp:
+          type: number
+          format: double
+        prior_year_compensation:
+          type: number
+          format: double
+
+    AvailableYearsResponse:
+      type: object
+      required:
+        - years
+      properties:
+        years:
+          type: array
+          items:
+            type: integer
+        default_year:
+          type: integer
+          description: Suggested default year (latest available)
+
+    ErrorResponse:
+      type: object
+      required:
+        - detail
+      properties:
+        detail:
+          type: string
