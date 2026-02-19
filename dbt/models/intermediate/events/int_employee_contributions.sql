@@ -15,11 +15,12 @@
   Employee 401(k) Contributions Calculator - IRS Compliant Version
 
   Calculates IRS-compliant 401(k) contributions with proper limit enforcement.
-  No contributions will exceed IRS 402(g) limits ($23,500 base / $31,000 catch-up).
+  No contributions will exceed IRS 402(g) limits ($23,500 base / $31,000 catch-up / $34,750 super catch-up).
 
   Key Features:
   - IRS limit enforcement using LEAST() function for compliance
-  - Age-based limit determination (catch-up at age 50+)
+  - SECURE 2.0 super catch-up for ages 60-63 ($11,250 vs $7,500)
+  - Age-based limit determination (catch-up at age 50+, super catch-up at ages 60-63)
   - Full transparency with requested vs. capped amounts
   - Audit trail for all limit applications
   - Configurable limits via config_irs_limits seed
@@ -40,7 +41,10 @@ irs_limits_exact AS (
         limit_year,
         base_limit,
         catch_up_limit,
-        catch_up_age_threshold
+        catch_up_age_threshold,
+        super_catch_up_limit,
+        super_catch_up_age_min,
+        super_catch_up_age_max
     FROM {{ ref('config_irs_limits') }}
     WHERE limit_year = (SELECT current_year FROM simulation_parameters)
 ),
@@ -51,7 +55,10 @@ irs_limits_fallback AS (
         limit_year,
         base_limit,
         catch_up_limit,
-        catch_up_age_threshold
+        catch_up_age_threshold,
+        super_catch_up_limit,
+        super_catch_up_age_min,
+        super_catch_up_age_max
     FROM {{ ref('config_irs_limits') }}
     WHERE NOT EXISTS (SELECT 1 FROM irs_limits_exact)
     ORDER BY ABS(limit_year - (SELECT current_year FROM simulation_parameters))
@@ -218,10 +225,12 @@ employee_contributions AS (
         -- Calculate requested contribution amount (before IRS limits)
         wf.prorated_annual_compensation * COALESCE(dr.deferral_rate, 0.0) AS requested_contribution_amount,
 
-        -- Determine applicable IRS limit based on age
+        -- Determine applicable IRS limit based on age (SECURE 2.0: super catch-up for ages 60-63)
         CASE
+            WHEN wf.current_age >= il.super_catch_up_age_min AND wf.current_age <= il.super_catch_up_age_max
+                THEN il.super_catch_up_limit
             WHEN wf.current_age >= il.catch_up_age_threshold
-            THEN il.catch_up_limit
+                THEN il.catch_up_limit
             ELSE il.base_limit
         END AS applicable_irs_limit,
 
@@ -229,8 +238,10 @@ employee_contributions AS (
         LEAST(
             (wf.prorated_annual_compensation * COALESCE(dr.deferral_rate, 0.0)),
             CASE
+                WHEN wf.current_age >= il.super_catch_up_age_min AND wf.current_age <= il.super_catch_up_age_max
+                    THEN il.super_catch_up_limit
                 WHEN wf.current_age >= il.catch_up_age_threshold
-                THEN il.catch_up_limit
+                    THEN il.catch_up_limit
                 ELSE il.base_limit
             END
         ) AS annual_contribution_amount,
@@ -238,20 +249,36 @@ employee_contributions AS (
         -- Transparency and audit fields
         CASE
             WHEN (wf.prorated_annual_compensation * COALESCE(dr.deferral_rate, 0.0)) >
-                 CASE WHEN wf.current_age >= il.catch_up_age_threshold
-                      THEN il.catch_up_limit ELSE il.base_limit END
+                 CASE
+                     WHEN wf.current_age >= il.super_catch_up_age_min AND wf.current_age <= il.super_catch_up_age_max
+                         THEN il.super_catch_up_limit
+                     WHEN wf.current_age >= il.catch_up_age_threshold
+                         THEN il.catch_up_limit
+                     ELSE il.base_limit
+                 END
             THEN true ELSE false
         END AS irs_limit_applied,
 
         -- Amount that was capped off due to IRS limits
         GREATEST(0,
             (wf.prorated_annual_compensation * COALESCE(dr.deferral_rate, 0.0)) -
-            CASE WHEN wf.current_age >= il.catch_up_age_threshold
-                 THEN il.catch_up_limit ELSE il.base_limit END
+            CASE
+                WHEN wf.current_age >= il.super_catch_up_age_min AND wf.current_age <= il.super_catch_up_age_max
+                    THEN il.super_catch_up_limit
+                WHEN wf.current_age >= il.catch_up_age_threshold
+                    THEN il.catch_up_limit
+                ELSE il.base_limit
+            END
         ) AS amount_capped_by_irs_limit,
 
-        -- Age-based limit type for reporting
-        CASE WHEN wf.current_age >= il.catch_up_age_threshold THEN 'CATCH_UP' ELSE 'BASE' END AS limit_type,
+        -- Age-based limit type for reporting (SECURE 2.0: super catch-up for ages 60-63)
+        CASE
+            WHEN wf.current_age >= il.super_catch_up_age_min AND wf.current_age <= il.super_catch_up_age_max
+                THEN 'SUPER_CATCH_UP'
+            WHEN wf.current_age >= il.catch_up_age_threshold
+                THEN 'CATCH_UP'
+            ELSE 'BASE'
+        END AS limit_type,
 
         -- Set contribution base
         -- Base used for contributions and employer match calculations
@@ -276,8 +303,13 @@ employee_contributions AS (
         END AS contribution_duration_category,
         CASE
             WHEN (wf.prorated_annual_compensation * COALESCE(dr.deferral_rate, 0.0)) >
-                 CASE WHEN wf.current_age >= il.catch_up_age_threshold
-                      THEN il.catch_up_limit ELSE il.base_limit END
+                 CASE
+                     WHEN wf.current_age >= il.super_catch_up_age_min AND wf.current_age <= il.super_catch_up_age_max
+                         THEN il.super_catch_up_limit
+                     WHEN wf.current_age >= il.catch_up_age_threshold
+                         THEN il.catch_up_limit
+                     ELSE il.base_limit
+                 END
             THEN 'IRS_LIMITED'
             ELSE 'NORMAL'
         END AS contribution_quality_flag,

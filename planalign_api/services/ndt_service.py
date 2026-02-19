@@ -82,10 +82,11 @@ class NDTService:
 
     @staticmethod
     def _ensure_seed_current(db_path: Path) -> None:
-        """Ensure config_irs_limits seed table has the hce_compensation_threshold column.
+        """Ensure config_irs_limits seed table has required columns.
 
-        Opens the database read-write, checks for the column, and reloads the
-        seed from CSV if missing. Uses the same schema-mismatch pattern as
+        Opens the database read-write, checks for hce_compensation_threshold
+        and super_catch_up_limit columns, and reloads the seed from CSV if
+        either is missing. Uses the same schema-mismatch pattern as
         DataCleanupManager.drop_seed_tables_with_schema_mismatch().
         """
         import duckdb
@@ -97,23 +98,38 @@ class NDTService:
 
         conn = duckdb.connect(str(db_path))
         try:
-            # Check if the column already exists
-            has_column = conn.execute(
+            # Check if both required columns exist
+            column_count = conn.execute(
                 """
-                SELECT 1 FROM information_schema.columns
+                SELECT COUNT(*) FROM information_schema.columns
                 WHERE table_schema = 'main'
                   AND table_name = 'config_irs_limits'
-                  AND column_name = 'hce_compensation_threshold'
-                LIMIT 1
+                  AND column_name IN ('hce_compensation_threshold', 'super_catch_up_limit')
                 """,
-            ).fetchone()
+            ).fetchone()[0]
 
-            if has_column:
+            if column_count == 2:
                 return  # Already up to date
 
-            # Column missing — reload the seed table from CSV
+            # Column(s) missing — reload the seed table from CSV
+            missing = []
+            if column_count < 2:
+                for col in ('hce_compensation_threshold', 'super_catch_up_limit'):
+                    has = conn.execute(
+                        """
+                        SELECT 1 FROM information_schema.columns
+                        WHERE table_schema = 'main'
+                          AND table_name = 'config_irs_limits'
+                          AND column_name = ?
+                        LIMIT 1
+                        """,
+                        [col],
+                    ).fetchone()
+                    if not has:
+                        missing.append(col)
+
             logger.info(
-                "config_irs_limits missing hce_compensation_threshold column, "
+                f"config_irs_limits missing column(s): {missing}, "
                 "reloading seed from CSV"
             )
             conn.execute("DROP TABLE IF EXISTS config_irs_limits")
