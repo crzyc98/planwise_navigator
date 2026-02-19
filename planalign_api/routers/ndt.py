@@ -5,6 +5,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query, status
 from ..config import APISettings, get_settings
 from ..services.ndt_service import (
     ACPTestResponse,
+    ADPTestResponse,
     AvailableYearsResponse,
     NDTService,
     Section401a4TestResponse,
@@ -240,6 +241,76 @@ async def run_415_test(
 
     return Section415TestResponse(
         test_type="415",
+        year=year,
+        results=results,
+    )
+
+
+@router.get(
+    "/{workspace_id}/analytics/ndt/adp",
+    response_model=ADPTestResponse,
+)
+async def run_adp_test(
+    workspace_id: str,
+    scenarios: str = Query(..., description="Comma-separated scenario IDs"),
+    year: int = Query(..., description="Simulation year to analyze"),
+    include_employees: bool = Query(False, description="Include per-employee detail"),
+    safe_harbor: bool = Query(False, description="Mark plan as safe harbor (returns exempt)"),
+    testing_method: str = Query("current", description="Testing method: current or prior"),
+    storage: WorkspaceStorage = Depends(get_storage),
+    ndt_service: NDTService = Depends(get_ndt_service),
+) -> ADPTestResponse:
+    """Run ADP non-discrimination test for one or more scenarios."""
+    workspace = storage.get_workspace(workspace_id)
+    if not workspace:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Workspace {workspace_id} not found",
+        )
+
+    scenario_ids = [s.strip() for s in scenarios.split(",") if s.strip()]
+    if not scenario_ids:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="At least one scenario ID is required",
+        )
+
+    if testing_method not in ("current", "prior"):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="testing_method must be 'current' or 'prior'",
+        )
+
+    scenario_names = {}
+    for scenario_id in scenario_ids:
+        scenario = storage.get_scenario(workspace_id, scenario_id)
+        if not scenario:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail=f"Scenario {scenario_id} not found",
+            )
+        if scenario.status != "completed":
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=f"Scenario {scenario_id} has not completed successfully",
+            )
+        scenario_names[scenario_id] = scenario.name
+
+    results = []
+    for scenario_id in scenario_ids:
+        result = ndt_service.run_adp_test(
+            workspace_id=workspace_id,
+            scenario_id=scenario_id,
+            scenario_name=scenario_names[scenario_id],
+            year=year,
+            include_employees=include_employees,
+            safe_harbor=safe_harbor,
+            testing_method=testing_method,
+        )
+        results.append(result)
+
+    return ADPTestResponse(
+        test_type="adp",
         year=year,
         results=results,
     )

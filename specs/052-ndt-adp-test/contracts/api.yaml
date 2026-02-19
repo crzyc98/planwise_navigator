@@ -1,0 +1,205 @@
+# OpenAPI Contract: NDT ADP Test Endpoint
+# Branch: 052-ndt-adp-test
+
+paths:
+  /{workspace_id}/analytics/ndt/adp:
+    get:
+      summary: Run ADP (Actual Deferral Percentage) test
+      description: |
+        Calculates ADP for each eligible participant as employee elective deferrals
+        divided by plan compensation. Separates into HCE/NHCE groups, computes group
+        averages, and applies the IRS two-prong test (basic 1.25x and alternative
+        min(2x, +2pp)). Returns pass/fail/exempt with margin, applied prong, and
+        optional excess HCE amount on failure.
+      operationId: runADPTest
+      tags:
+        - NDT Testing
+      parameters:
+        - name: workspace_id
+          in: path
+          required: true
+          schema:
+            type: string
+          description: Workspace identifier
+        - name: scenarios
+          in: query
+          required: true
+          schema:
+            type: string
+          description: Comma-separated scenario IDs (max 6)
+          example: "baseline,high_growth"
+        - name: year
+          in: query
+          required: true
+          schema:
+            type: integer
+          description: Simulation year to analyze
+          example: 2025
+        - name: include_employees
+          in: query
+          required: false
+          schema:
+            type: boolean
+            default: false
+          description: Include per-employee ADP detail in response
+        - name: safe_harbor
+          in: query
+          required: false
+          schema:
+            type: boolean
+            default: false
+          description: Mark plan as safe harbor (returns exempt without calculation)
+        - name: testing_method
+          in: query
+          required: false
+          schema:
+            type: string
+            enum: [current, prior]
+            default: current
+          description: ADP testing method - current year or prior year NHCE baseline
+      responses:
+        "200":
+          description: ADP test results
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ADPTestResponse"
+        "400":
+          description: Invalid parameters (bad scenario ID, year, etc.)
+        "404":
+          description: Workspace or scenario not found
+        "422":
+          description: Scenario not completed
+
+components:
+  schemas:
+    ADPEmployeeDetail:
+      type: object
+      required:
+        - employee_id
+        - is_hce
+        - employee_deferrals
+        - plan_compensation
+        - individual_adp
+      properties:
+        employee_id:
+          type: string
+          description: Unique employee identifier
+        is_hce:
+          type: boolean
+          description: Whether employee is classified as HCE
+        employee_deferrals:
+          type: number
+          format: float
+          description: Total elective deferrals (pre-tax + Roth)
+        plan_compensation:
+          type: number
+          format: float
+          description: Plan-year eligible compensation
+        individual_adp:
+          type: number
+          format: float
+          description: Individual ADP (deferrals / compensation)
+        prior_year_compensation:
+          type: number
+          format: float
+          nullable: true
+          description: Prior-year compensation used for HCE determination
+
+    ADPScenarioResult:
+      type: object
+      required:
+        - scenario_id
+        - scenario_name
+        - simulation_year
+        - test_result
+      properties:
+        scenario_id:
+          type: string
+        scenario_name:
+          type: string
+        simulation_year:
+          type: integer
+        test_result:
+          type: string
+          enum: [pass, fail, exempt, error]
+        test_message:
+          type: string
+          nullable: true
+        hce_count:
+          type: integer
+          default: 0
+        nhce_count:
+          type: integer
+          default: 0
+        excluded_count:
+          type: integer
+          default: 0
+        hce_average_adp:
+          type: number
+          format: float
+          default: 0.0
+        nhce_average_adp:
+          type: number
+          format: float
+          default: 0.0
+        basic_test_threshold:
+          type: number
+          format: float
+          default: 0.0
+          description: "Prong 1: NHCE avg x 1.25"
+        alternative_test_threshold:
+          type: number
+          format: float
+          default: 0.0
+          description: "Prong 2: min(NHCE avg x 2, NHCE avg + 0.02)"
+        applied_test:
+          type: string
+          enum: [basic, alternative]
+          default: basic
+        applied_threshold:
+          type: number
+          format: float
+          default: 0.0
+        margin:
+          type: number
+          format: float
+          default: 0.0
+          description: "applied_threshold - hce_average_adp (positive = passing)"
+        excess_hce_amount:
+          type: number
+          format: float
+          nullable: true
+          description: "Total excess HCE deferrals to reduce (only when failing)"
+        testing_method:
+          type: string
+          enum: [current, prior]
+          default: current
+        safe_harbor:
+          type: boolean
+          default: false
+        hce_threshold_used:
+          type: integer
+          default: 0
+        employees:
+          type: array
+          nullable: true
+          items:
+            $ref: "#/components/schemas/ADPEmployeeDetail"
+
+    ADPTestResponse:
+      type: object
+      required:
+        - test_type
+        - year
+        - results
+      properties:
+        test_type:
+          type: string
+          default: "adp"
+        year:
+          type: integer
+        results:
+          type: array
+          items:
+            $ref: "#/components/schemas/ADPScenarioResult"

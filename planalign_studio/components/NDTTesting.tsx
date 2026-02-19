@@ -10,6 +10,7 @@ import {
   runACPTest,
   run401a4Test,
   run415Test,
+  runADPTest,
   getNDTAvailableYears,
   Scenario,
   ACPTestResponse,
@@ -18,12 +19,14 @@ import {
   Section401a4ScenarioResult,
   Section415TestResponse,
   Section415ScenarioResult,
+  ADPTestResponse,
+  ADPScenarioResult,
 } from '../services/api';
 import { MAX_SCENARIO_SELECTION } from '../constants';
 import type { LayoutContextType } from './Layout';
 
-type TestType = 'acp' | '401a4' | '415';
-type AnyTestResponse = ACPTestResponse | Section401a4TestResponse | Section415TestResponse;
+type TestType = 'acp' | '401a4' | '415' | 'adp';
+type AnyTestResponse = ACPTestResponse | Section401a4TestResponse | Section415TestResponse | ADPTestResponse;
 
 const formatPercent = (value: number): string => {
   return `${(value * 100).toFixed(2)}%`;
@@ -37,6 +40,7 @@ const formatCurrency = (value: number): string => {
 
 const TEST_TYPE_LABELS: Record<TestType, string> = {
   acp: 'ACP Test',
+  adp: 'ADP Test',
   '401a4': '401(a)(4) General Test',
   '415': '415 Annual Additions',
 };
@@ -55,6 +59,8 @@ export default function NDTTesting() {
   // Test-specific options
   const [includeMatch, setIncludeMatch] = useState(false);
   const [warningThreshold, setWarningThreshold] = useState(0.95);
+  const [safeHarbor, setSafeHarbor] = useState(false);
+  const [testingMethod, setTestingMethod] = useState<'current' | 'prior'>('current');
 
   // Results state
   const [testResponse, setTestResponse] = useState<AnyTestResponse | null>(null);
@@ -131,6 +137,10 @@ export default function NDTTesting() {
         data = await runACPTest(
           activeWorkspace.id, selectedScenarioIds, selectedYear, showEmployees,
         );
+      } else if (testType === 'adp') {
+        data = await runADPTest(
+          activeWorkspace.id, selectedScenarioIds, selectedYear, showEmployees, safeHarbor, testingMethod,
+        );
       } else if (testType === '401a4') {
         data = await run401a4Test(
           activeWorkspace.id, selectedScenarioIds, selectedYear, showEmployees, includeMatch,
@@ -146,7 +156,7 @@ export default function NDTTesting() {
     } finally {
       setLoading(false);
     }
-  }, [activeWorkspace?.id, selectedScenarioIds, selectedYear, showEmployees, testType, includeMatch, warningThreshold]);
+  }, [activeWorkspace?.id, selectedScenarioIds, selectedYear, showEmployees, testType, includeMatch, warningThreshold, safeHarbor, testingMethod]);
 
   const handleToggleEmployees = useCallback(async () => {
     const newVal = !showEmployees;
@@ -158,6 +168,8 @@ export default function NDTTesting() {
         let data: AnyTestResponse;
         if (testType === 'acp') {
           data = await runACPTest(activeWorkspace.id, selectedScenarioIds, selectedYear, true);
+        } else if (testType === 'adp') {
+          data = await runADPTest(activeWorkspace.id, selectedScenarioIds, selectedYear, true, safeHarbor, testingMethod);
         } else if (testType === '401a4') {
           data = await run401a4Test(activeWorkspace.id, selectedScenarioIds, selectedYear, true, includeMatch);
         } else {
@@ -170,7 +182,7 @@ export default function NDTTesting() {
         setLoading(false);
       }
     }
-  }, [showEmployees, testResponse, activeWorkspace?.id, selectedScenarioIds, selectedYear, testType, includeMatch, warningThreshold]);
+  }, [showEmployees, testResponse, activeWorkspace?.id, selectedScenarioIds, selectedYear, testType, includeMatch, warningThreshold, safeHarbor, testingMethod]);
 
   const handleScenarioToggle = (scenarioId: string) => {
     if (comparisonMode) {
@@ -235,6 +247,7 @@ export default function NDTTesting() {
                 onChange={(e) => { setTestType(e.target.value as TestType); setTestResponse(null); setError(null); }}
               >
                 <option value="acp">ACP Test</option>
+                <option value="adp">ADP Test</option>
                 <option value="401a4">401(a)(4) General Test</option>
                 <option value="415">415 Annual Additions</option>
               </select>
@@ -315,6 +328,40 @@ export default function NDTTesting() {
                   <option value={0.90}>90%</option>
                   <option value={0.95}>95%</option>
                   <option value={1.0}>100%</option>
+                </select>
+                <ChevronDown size={16} className="absolute right-3 top-2.5 text-gray-400 pointer-events-none" />
+              </div>
+            </div>
+          )}
+
+          {/* ADP specific: Safe Harbor toggle */}
+          {testType === 'adp' && (
+            <div>
+              <label className="block text-xs font-medium text-gray-500 mb-1">&nbsp;</label>
+              <label className="flex items-center px-3 py-2 bg-white border border-gray-300 rounded-lg cursor-pointer hover:bg-gray-50">
+                <input
+                  type="checkbox"
+                  checked={safeHarbor}
+                  onChange={(e) => setSafeHarbor(e.target.checked)}
+                  className="mr-2 rounded border-gray-300 text-fidelity-green focus:ring-fidelity-green"
+                />
+                <span className="text-sm text-gray-700">Safe Harbor</span>
+              </label>
+            </div>
+          )}
+
+          {/* ADP specific: Testing Method selector */}
+          {testType === 'adp' && (
+            <div>
+              <label className="block text-xs font-medium text-gray-500 mb-1">Testing Method</label>
+              <div className="relative">
+                <select
+                  value={testingMethod}
+                  onChange={(e) => setTestingMethod(e.target.value as 'current' | 'prior')}
+                  className="appearance-none bg-white border border-gray-300 rounded-lg pl-3 pr-10 py-2 text-sm focus:ring-fidelity-green focus:border-fidelity-green shadow-sm min-w-[140px]"
+                >
+                  <option value="current">Current Year</option>
+                  <option value="prior">Prior Year</option>
                 </select>
                 <ChevronDown size={16} className="absolute right-3 top-2.5 text-gray-400 pointer-events-none" />
               </div>
@@ -490,6 +537,18 @@ export default function NDTTesting() {
               : `Select a scenario and year, then click "Run Test" to see ${TEST_TYPE_LABELS[testType]} results.`}
           </p>
         </div>
+      ) : testType === 'adp' ? (
+        // ADP results
+        testResponse.results.length === 1 && !comparisonMode ? (
+          <ADPSingleResult
+            result={(testResponse as ADPTestResponse).results[0]}
+            showEmployees={showEmployees}
+            onToggleEmployees={handleToggleEmployees}
+            loading={loading}
+          />
+        ) : (
+          <ADPComparisonResults results={(testResponse as ADPTestResponse).results} scenarioOrder={selectedScenarioIds} />
+        )
       ) : testType === 'acp' ? (
         // ACP results
         testResponse.results.length === 1 && !comparisonMode ? (
@@ -1332,6 +1391,319 @@ function Section415ComparisonResults({ results, scenarioOrder }: { results: Sect
                   <div className="flex justify-between text-xs text-gray-500 pt-1">
                     <span>Participants: {result.total_participants}</span>
                     <span>Limit: {formatCurrency(result.annual_additions_limit)}</span>
+                  </div>
+                </div>
+              )}
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+// ==============================================================================
+// ADP Single Scenario Result
+// ==============================================================================
+
+function ADPSingleResult({
+  result,
+  showEmployees,
+  onToggleEmployees,
+  loading,
+}: {
+  result: ADPScenarioResult;
+  showEmployees: boolean;
+  onToggleEmployees: () => void;
+  loading: boolean;
+}) {
+  const isPassing = result.test_result === 'pass';
+  const isExempt = result.test_result === 'exempt';
+  const isFailing = result.test_result === 'fail';
+  const isError = result.test_result === 'error';
+
+  if (isError) {
+    return (
+      <div className="bg-yellow-50 border border-yellow-200 rounded-xl p-6">
+        <div className="flex items-center mb-2">
+          <AlertCircle size={24} className="text-yellow-600 mr-3" />
+          <h3 className="text-lg font-semibold text-yellow-800">Test Error</h3>
+        </div>
+        <p className="text-sm text-yellow-700">{result.test_message}</p>
+      </div>
+    );
+  }
+
+  if (isExempt) {
+    return (
+      <div className="bg-blue-50 border-2 border-blue-300 rounded-xl p-6">
+        <div className="flex items-center mb-2">
+          <Shield size={32} className="text-blue-600 mr-3" />
+          <div>
+            <h3 className="text-xl font-bold text-blue-800">ADP Test: EXEMPT</h3>
+            <p className="text-sm text-blue-600">
+              {result.scenario_name} &mdash; Year {result.simulation_year}
+            </p>
+          </div>
+        </div>
+        <div className="mt-3 bg-blue-100 rounded-lg p-3">
+          <p className="text-sm text-blue-700">
+            <Info size={14} className="inline mr-1" />
+            Safe harbor plan &mdash; ADP test is not required.
+          </p>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="space-y-6">
+      <div className={`rounded-xl p-6 border-2 ${
+        isPassing ? 'bg-green-50 border-green-300' : 'bg-red-50 border-red-300'
+      }`}>
+        <div className="flex items-center justify-between mb-4">
+          <div className="flex items-center">
+            {isPassing ? (
+              <CheckCircle size={32} className="text-green-600 mr-3" />
+            ) : (
+              <XCircle size={32} className="text-red-600 mr-3" />
+            )}
+            <div>
+              <h3 className="text-xl font-bold">
+                <span className={isPassing ? 'text-green-800' : 'text-red-800'}>
+                  ADP Test: {isPassing ? 'PASS' : 'FAIL'}
+                </span>
+              </h3>
+              <p className={`text-sm ${isPassing ? 'text-green-600' : 'text-red-600'}`}>
+                {result.scenario_name} &mdash; Year {result.simulation_year}
+                {result.testing_method === 'prior' && (
+                  <span className="ml-2 text-xs opacity-75">(Prior Year Method)</span>
+                )}
+              </p>
+            </div>
+          </div>
+          <div className={`text-right px-4 py-2 rounded-lg ${isPassing ? 'bg-green-100' : 'bg-red-100'}`}>
+            <p className="text-xs font-medium text-gray-500">Margin</p>
+            <p className={`text-lg font-bold ${isPassing ? 'text-green-700' : 'text-red-700'}`}>
+              {result.margin >= 0 ? '+' : ''}{formatPercent(result.margin)}
+            </p>
+          </div>
+        </div>
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+          <div className="bg-white/70 rounded-lg p-3">
+            <p className="text-xs text-gray-500">HCE Avg ADP</p>
+            <p className="text-lg font-bold text-gray-900">{formatPercent(result.hce_average_adp)}</p>
+          </div>
+          <div className="bg-white/70 rounded-lg p-3">
+            <p className="text-xs text-gray-500">NHCE Avg ADP</p>
+            <p className="text-lg font-bold text-gray-900">{formatPercent(result.nhce_average_adp)}</p>
+          </div>
+          <div className="bg-white/70 rounded-lg p-3">
+            <p className="text-xs text-gray-500">Applied Threshold</p>
+            <p className="text-lg font-bold text-gray-900">{formatPercent(result.applied_threshold)}</p>
+          </div>
+          <div className="bg-white/70 rounded-lg p-3">
+            <p className="text-xs text-gray-500">Test Method</p>
+            <p className="text-lg font-bold text-gray-900 capitalize">{result.applied_test}</p>
+          </div>
+        </div>
+      </div>
+
+      {/* Excess HCE Amount (prominent when failing) */}
+      {isFailing && result.excess_hce_amount != null && (
+        <div className="bg-red-50 border border-red-300 rounded-xl p-4 flex items-start">
+          <DollarSign size={20} className="text-red-600 mr-3 mt-0.5 flex-shrink-0" />
+          <div>
+            <h4 className="text-sm font-semibold text-red-800">Excess HCE Deferrals</h4>
+            <p className="text-2xl font-bold text-red-700 mt-1">{formatCurrency(result.excess_hce_amount)}</p>
+            <p className="text-xs text-red-600 mt-1">
+              Aggregate HCE deferral reduction needed for HCE average ADP to meet the applied threshold.
+            </p>
+          </div>
+        </div>
+      )}
+
+      {/* Testing method fallback warning */}
+      {result.test_message && (
+        <div className="bg-amber-50 border border-amber-300 rounded-xl p-3 flex items-start">
+          <AlertTriangle size={16} className="text-amber-600 mr-2 mt-0.5 flex-shrink-0" />
+          <p className="text-sm text-amber-700">{result.test_message}</p>
+        </div>
+      )}
+
+      <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
+        <h3 className="text-lg font-semibold text-gray-800 mb-4 flex items-center">
+          <Info size={20} className="mr-2 text-gray-400" />
+          Detailed Breakdown
+        </h3>
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-4">
+          <div className="bg-gray-50 rounded-lg p-3">
+            <p className="text-xs text-gray-500 flex items-center"><Users size={12} className="mr-1" /> HCE Count</p>
+            <p className="text-xl font-bold text-gray-900">{result.hce_count}</p>
+          </div>
+          <div className="bg-gray-50 rounded-lg p-3">
+            <p className="text-xs text-gray-500 flex items-center"><Users size={12} className="mr-1" /> NHCE Count</p>
+            <p className="text-xl font-bold text-gray-900">{result.nhce_count}</p>
+          </div>
+          <div className="bg-gray-50 rounded-lg p-3">
+            <p className="text-xs text-gray-500">Excluded (zero comp)</p>
+            <p className="text-xl font-bold text-gray-900">{result.excluded_count}</p>
+          </div>
+          <div className="bg-gray-50 rounded-lg p-3">
+            <p className="text-xs text-gray-500">Testing Method</p>
+            <p className="text-xl font-bold text-gray-900 capitalize">{result.testing_method}</p>
+          </div>
+        </div>
+        <div className="bg-gray-50 rounded-lg p-4 space-y-2">
+          <div className="flex justify-between text-sm">
+            <span className="text-gray-600">Basic Test (NHCE x 1.25)</span>
+            <span className={`font-medium ${result.applied_test === 'basic' ? 'text-fidelity-green font-bold' : 'text-gray-700'}`}>
+              {formatPercent(result.basic_test_threshold)}
+              {result.applied_test === 'basic' && ' (applied)'}
+            </span>
+          </div>
+          <div className="flex justify-between text-sm">
+            <span className="text-gray-600">Alternative Test (min of NHCE x 2, NHCE + 2%)</span>
+            <span className={`font-medium ${result.applied_test === 'alternative' ? 'text-fidelity-green font-bold' : 'text-gray-700'}`}>
+              {formatPercent(result.alternative_test_threshold)}
+              {result.applied_test === 'alternative' && ' (applied)'}
+            </span>
+          </div>
+          <div className="border-t border-gray-200 pt-2 mt-2 flex justify-between text-sm">
+            <span className="text-gray-600">HCE Compensation Threshold</span>
+            <span className="font-medium text-gray-700">{formatCurrency(result.hce_threshold_used)}</span>
+          </div>
+        </div>
+      </div>
+
+      {/* Employee Detail Table */}
+      <div className="bg-white rounded-xl shadow-sm border border-gray-200">
+        <button
+          onClick={onToggleEmployees}
+          className="w-full px-6 py-4 flex items-center justify-between hover:bg-gray-50 transition-colors rounded-xl"
+        >
+          <span className="text-sm font-semibold text-gray-800 flex items-center">
+            <ChevronRight size={18} className={`mr-2 transition-transform ${showEmployees ? 'rotate-90' : ''}`} />
+            Employee Details ({result.hce_count + result.nhce_count} employees)
+          </span>
+          {loading && <Loader2 size={16} className="animate-spin text-gray-400" />}
+        </button>
+        {showEmployees && result.employees && (
+          <div className="px-6 pb-6 overflow-x-auto">
+            <table className="min-w-full">
+              <thead>
+                <tr className="border-b border-gray-200">
+                  <th className="text-left py-2 px-3 text-xs font-semibold text-gray-500 uppercase">Employee ID</th>
+                  <th className="text-left py-2 px-3 text-xs font-semibold text-gray-500 uppercase">Classification</th>
+                  <th className="text-right py-2 px-3 text-xs font-semibold text-gray-500 uppercase">Deferrals</th>
+                  <th className="text-right py-2 px-3 text-xs font-semibold text-gray-500 uppercase">Compensation</th>
+                  <th className="text-right py-2 px-3 text-xs font-semibold text-gray-500 uppercase">ADP</th>
+                  <th className="text-right py-2 px-3 text-xs font-semibold text-gray-500 uppercase">Prior Year Comp</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-gray-100">
+                {result.employees.map((emp) => (
+                  <tr key={emp.employee_id} className="hover:bg-gray-50">
+                    <td className="py-2 px-3 text-sm text-gray-900 font-mono">{emp.employee_id}</td>
+                    <td className="py-2 px-3">
+                      <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium ${
+                        emp.is_hce ? 'bg-purple-100 text-purple-800' : 'bg-blue-100 text-blue-800'
+                      }`}>
+                        {emp.is_hce ? 'HCE' : 'NHCE'}
+                      </span>
+                    </td>
+                    <td className="py-2 px-3 text-sm text-right text-gray-700">{formatCurrency(emp.employee_deferrals)}</td>
+                    <td className="py-2 px-3 text-sm text-right text-gray-700">{formatCurrency(emp.plan_compensation)}</td>
+                    <td className="py-2 px-3 text-sm text-right font-medium text-gray-900">{formatPercent(emp.individual_adp)}</td>
+                    <td className="py-2 px-3 text-sm text-right text-gray-700">
+                      {emp.prior_year_compensation != null ? formatCurrency(emp.prior_year_compensation) : '—'}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+// ==============================================================================
+// ADP Comparison Results
+// ==============================================================================
+
+function ADPComparisonResults({ results, scenarioOrder }: { results: ADPScenarioResult[]; scenarioOrder: string[] }) {
+  const ordered = [...results].sort((a, b) => scenarioOrder.indexOf(a.scenario_id) - scenarioOrder.indexOf(b.scenario_id));
+  return (
+    <div className="space-y-6">
+      <div className={`grid gap-6 ${
+        ordered.length === 2 ? 'grid-cols-1 md:grid-cols-2' :
+        ordered.length === 3 ? 'grid-cols-1 md:grid-cols-3' :
+        'grid-cols-1 md:grid-cols-2 lg:grid-cols-3'
+      }`}>
+        {ordered.map((result) => {
+          const isPassing = result.test_result === 'pass';
+          const isExempt = result.test_result === 'exempt';
+          const isFailing = result.test_result === 'fail';
+          const isError = result.test_result === 'error';
+          return (
+            <div key={result.scenario_id} className={`rounded-xl p-5 border-2 ${
+              isError ? 'bg-yellow-50 border-yellow-300' :
+              isExempt ? 'bg-blue-50 border-blue-300' :
+              isPassing ? 'bg-green-50 border-green-300' : 'bg-red-50 border-red-300'
+            }`}>
+              <div className="flex items-center justify-between mb-3">
+                <h3 className="text-sm font-bold text-gray-800 truncate mr-2">{result.scenario_name}</h3>
+                {isError ? (
+                  <span className="flex-shrink-0 px-2 py-1 rounded-full text-xs font-bold bg-yellow-200 text-yellow-800">ERROR</span>
+                ) : isExempt ? (
+                  <span className="flex-shrink-0 px-2 py-1 rounded-full text-xs font-bold bg-blue-200 text-blue-800 flex items-center">
+                    <Shield size={12} className="mr-1" /> EXEMPT
+                  </span>
+                ) : isPassing ? (
+                  <span className="flex-shrink-0 px-2 py-1 rounded-full text-xs font-bold bg-green-200 text-green-800 flex items-center">
+                    <CheckCircle size={12} className="mr-1" /> PASS
+                  </span>
+                ) : (
+                  <span className="flex-shrink-0 px-2 py-1 rounded-full text-xs font-bold bg-red-200 text-red-800 flex items-center">
+                    <XCircle size={12} className="mr-1" /> FAIL
+                  </span>
+                )}
+              </div>
+              {isError ? (
+                <p className="text-xs text-yellow-700">{result.test_message}</p>
+              ) : isExempt ? (
+                <p className="text-xs text-blue-700">Safe harbor — test not required</p>
+              ) : (
+                <div className="space-y-2">
+                  <div className="flex justify-between text-sm">
+                    <span className="text-gray-600">HCE Avg ADP</span>
+                    <span className="font-medium text-gray-900">{formatPercent(result.hce_average_adp)}</span>
+                  </div>
+                  <div className="flex justify-between text-sm">
+                    <span className="text-gray-600">NHCE Avg ADP</span>
+                    <span className="font-medium text-gray-900">{formatPercent(result.nhce_average_adp)}</span>
+                  </div>
+                  <div className="flex justify-between text-sm">
+                    <span className="text-gray-600">Threshold</span>
+                    <span className="font-medium text-gray-900">{formatPercent(result.applied_threshold)}</span>
+                  </div>
+                  <div className={`flex justify-between text-sm border-t pt-2 ${isPassing ? 'border-green-200' : 'border-red-200'}`}>
+                    <span className="text-gray-600">Margin</span>
+                    <span className={`font-bold ${isPassing ? 'text-green-700' : 'text-red-700'}`}>
+                      {result.margin >= 0 ? '+' : ''}{formatPercent(result.margin)}
+                    </span>
+                  </div>
+                  {isFailing && result.excess_hce_amount != null && (
+                    <div className="flex justify-between text-sm text-red-700">
+                      <span>Excess Amount</span>
+                      <span className="font-bold">{formatCurrency(result.excess_hce_amount)}</span>
+                    </div>
+                  )}
+                  <div className="flex justify-between text-xs text-gray-500 pt-1">
+                    <span>HCE: {result.hce_count} | NHCE: {result.nhce_count}</span>
+                    <span className="capitalize">{result.applied_test} test</span>
                   </div>
                 </div>
               )}

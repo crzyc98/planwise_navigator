@@ -1640,6 +1640,72 @@ export interface Section415TestResponse {
   results: Section415ScenarioResult[];
 }
 
+// ============================================================================
+// NDT ADP (Actual Deferral Percentage) Test (Feature 052)
+// ============================================================================
+
+export interface ADPEmployeeDetail {
+  employee_id: string;
+  is_hce: boolean;
+  employee_deferrals: number;
+  plan_compensation: number;
+  individual_adp: number;
+  prior_year_compensation: number | null;
+}
+
+export interface ADPScenarioResult {
+  scenario_id: string;
+  scenario_name: string;
+  simulation_year: number;
+  test_result: 'pass' | 'fail' | 'exempt' | 'error';
+  test_message?: string;
+  hce_count: number;
+  nhce_count: number;
+  excluded_count: number;
+  hce_average_adp: number;
+  nhce_average_adp: number;
+  basic_test_threshold: number;
+  alternative_test_threshold: number;
+  applied_test: 'basic' | 'alternative';
+  applied_threshold: number;
+  margin: number;
+  excess_hce_amount: number | null;
+  testing_method: 'current' | 'prior';
+  safe_harbor: boolean;
+  hce_threshold_used: number;
+  employees?: ADPEmployeeDetail[];
+}
+
+export interface ADPTestResponse {
+  test_type: string;
+  year: number;
+  results: ADPScenarioResult[];
+}
+
+/**
+ * Run ADP non-discrimination test for one or more scenarios.
+ */
+export async function runADPTest(
+  workspaceId: string,
+  scenarioIds: string[],
+  year: number,
+  includeEmployees: boolean = false,
+  safeHarbor: boolean = false,
+  testingMethod: string = 'current'
+): Promise<ADPTestResponse> {
+  const params = new URLSearchParams({
+    scenarios: scenarioIds.join(','),
+    year: year.toString(),
+    include_employees: includeEmployees.toString(),
+    safe_harbor: safeHarbor.toString(),
+    testing_method: testingMethod,
+  });
+  const response = await fetch(
+    `${API_BASE}/api/workspaces/${workspaceId}/analytics/ndt/adp?${params}`
+  );
+  return handleResponse<ADPTestResponse>(response);
+}
+
 /**
  * Run Section 415 annual additions limit test for one or more scenarios.
  */
