@@ -2,7 +2,8 @@ import React, { useState, useEffect, useCallback } from 'react';
 import { useOutletContext } from 'react-router-dom';
 import {
   Shield, ChevronDown, Loader2, AlertCircle, RefreshCw, CheckCircle,
-  XCircle, ChevronRight, Users, DollarSign, Info, AlertTriangle
+  XCircle, ChevronRight, Users, DollarSign, Info, AlertTriangle,
+  ArrowUp, ArrowDown, CheckSquare, Square
 } from 'lucide-react';
 import {
   listScenarios,
@@ -183,6 +184,26 @@ export default function NDTTesting() {
     }
   };
 
+  const moveScenarioUp = useCallback((id: string) => {
+    setSelectedScenarioIds(prev => {
+      const idx = prev.indexOf(id);
+      if (idx <= 0) return prev;
+      const newArr = [...prev];
+      [newArr[idx - 1], newArr[idx]] = [newArr[idx], newArr[idx - 1]];
+      return newArr;
+    });
+  }, []);
+
+  const moveScenarioDown = useCallback((id: string) => {
+    setSelectedScenarioIds(prev => {
+      const idx = prev.indexOf(id);
+      if (idx < 0 || idx >= prev.length - 1) return prev;
+      const newArr = [...prev];
+      [newArr[idx], newArr[idx + 1]] = [newArr[idx + 1], newArr[idx]];
+      return newArr;
+    });
+  }, []);
+
   const completedScenarios = scenarios.filter(s => s.status === 'completed');
   const canRun = selectedScenarioIds.length > 0 && selectedYear !== null && !loading;
 
@@ -343,31 +364,97 @@ export default function NDTTesting() {
           </div>
         </div>
 
-        {/* Comparison Mode Scenario Pills */}
+        {/* Comparison Mode Scenario List */}
         {comparisonMode && (
-          <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
-            <p className="text-sm font-medium text-blue-900 mb-2">
-              Select scenarios to compare (click to select/deselect):
-            </p>
-            <div className="flex flex-wrap gap-2">
-              {completedScenarios.map(scenario => (
-                <button
-                  key={scenario.id}
-                  onClick={() => handleScenarioToggle(scenario.id)}
-                  disabled={!selectedScenarioIds.includes(scenario.id) && selectedScenarioIds.length >= MAX_SCENARIO_SELECTION}
-                  className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-colors ${
-                    selectedScenarioIds.includes(scenario.id)
-                      ? 'bg-fidelity-green text-white'
-                      : 'bg-white border border-gray-300 text-gray-700 hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed'
-                  }`}
-                >
-                  {scenario.name}
-                </button>
-              ))}
-              {completedScenarios.length === 0 && (
-                <p className="text-sm text-gray-500">No completed scenarios available.</p>
-              )}
-            </div>
+          <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 space-y-2">
+            {/* Selected scenarios with reorder controls */}
+            {selectedScenarioIds.length > 0 && (
+              <>
+                <div className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">
+                  Selected ({selectedScenarioIds.length})
+                </div>
+                {selectedScenarioIds.map((id, index) => {
+                  const scenario = completedScenarios.find(s => s.id === id);
+                  if (!scenario) return null;
+                  const canMoveUp = index > 0;
+                  const canMoveDown = index < selectedScenarioIds.length - 1;
+
+                  return (
+                    <div
+                      key={id}
+                      className="group w-full text-left px-3 py-2 rounded-lg flex items-center justify-between transition-all border bg-fidelity-green/5 border-fidelity-green/20"
+                    >
+                      <button
+                        onClick={() => handleScenarioToggle(id)}
+                        className="flex items-center flex-1 min-w-0"
+                      >
+                        <CheckSquare size={16} className="text-fidelity-green mr-3 flex-shrink-0" />
+                        <span className="text-xs font-semibold text-fidelity-green truncate">
+                          {scenario.name}
+                        </span>
+                      </button>
+                      {selectedScenarioIds.length > 1 && (
+                        <div className="flex flex-col ml-2">
+                          <button
+                            onClick={() => moveScenarioUp(id)}
+                            disabled={!canMoveUp}
+                            className="p-0.5 rounded text-gray-400 hover:text-gray-600 hover:bg-gray-100 disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
+                            title="Move up"
+                          >
+                            <ArrowUp size={12} />
+                          </button>
+                          <button
+                            onClick={() => moveScenarioDown(id)}
+                            disabled={!canMoveDown}
+                            className="p-0.5 rounded text-gray-400 hover:text-gray-600 hover:bg-gray-100 disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
+                            title="Move down"
+                          >
+                            <ArrowDown size={12} />
+                          </button>
+                        </div>
+                      )}
+                    </div>
+                  );
+                })}
+              </>
+            )}
+
+            {/* Unselected scenarios */}
+            {completedScenarios.filter(s => !selectedScenarioIds.includes(s.id)).length > 0 && (
+              <>
+                <div className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mt-2">
+                  Available
+                </div>
+                {completedScenarios.filter(s => !selectedScenarioIds.includes(s.id)).map(scenario => {
+                  const isAtLimit = selectedScenarioIds.length >= MAX_SCENARIO_SELECTION;
+                  return (
+                    <div
+                      key={scenario.id}
+                      className={`w-full text-left px-3 py-2 rounded-lg flex items-center transition-all border ${
+                        isAtLimit
+                          ? 'bg-gray-50 border-transparent opacity-50 cursor-not-allowed'
+                          : 'hover:bg-gray-50 border-transparent'
+                      }`}
+                    >
+                      <button
+                        onClick={() => !isAtLimit && handleScenarioToggle(scenario.id)}
+                        disabled={isAtLimit}
+                        className="flex items-center flex-1 min-w-0"
+                      >
+                        <Square size={16} className="text-gray-400 mr-3 flex-shrink-0" />
+                        <span className="text-xs font-medium text-gray-600 truncate">
+                          {scenario.name}
+                        </span>
+                      </button>
+                    </div>
+                  );
+                })}
+              </>
+            )}
+
+            {completedScenarios.length === 0 && (
+              <p className="text-sm text-gray-500">No completed scenarios available.</p>
+            )}
           </div>
         )}
       </div>
@@ -413,7 +500,7 @@ export default function NDTTesting() {
             loading={loading}
           />
         ) : (
-          <ACPComparisonResults results={(testResponse as ACPTestResponse).results} />
+          <ACPComparisonResults results={(testResponse as ACPTestResponse).results} scenarioOrder={selectedScenarioIds} />
         )
       ) : testType === '401a4' ? (
         // 401(a)(4) results
@@ -425,7 +512,7 @@ export default function NDTTesting() {
             loading={loading}
           />
         ) : (
-          <Section401a4ComparisonResults results={(testResponse as Section401a4TestResponse).results} />
+          <Section401a4ComparisonResults results={(testResponse as Section401a4TestResponse).results} scenarioOrder={selectedScenarioIds} />
         )
       ) : (
         // 415 results
@@ -437,7 +524,7 @@ export default function NDTTesting() {
             loading={loading}
           />
         ) : (
-          <Section415ComparisonResults results={(testResponse as Section415TestResponse).results} />
+          <Section415ComparisonResults results={(testResponse as Section415TestResponse).results} scenarioOrder={selectedScenarioIds} />
         )
       )}
     </div>
@@ -630,15 +717,16 @@ function ACPSingleResult({
 // ACP Comparison Results
 // ==============================================================================
 
-function ACPComparisonResults({ results }: { results: ACPScenarioResult[] }) {
+function ACPComparisonResults({ results, scenarioOrder }: { results: ACPScenarioResult[]; scenarioOrder: string[] }) {
+  const ordered = [...results].sort((a, b) => scenarioOrder.indexOf(a.scenario_id) - scenarioOrder.indexOf(b.scenario_id));
   return (
     <div className="space-y-6">
       <div className={`grid gap-6 ${
-        results.length === 2 ? 'grid-cols-1 md:grid-cols-2' :
-        results.length === 3 ? 'grid-cols-1 md:grid-cols-3' :
+        ordered.length === 2 ? 'grid-cols-1 md:grid-cols-2' :
+        ordered.length === 3 ? 'grid-cols-1 md:grid-cols-3' :
         'grid-cols-1 md:grid-cols-2 lg:grid-cols-3'
       }`}>
-        {results.map((result) => {
+        {ordered.map((result) => {
           const isPassing = result.test_result === 'pass';
           const isError = result.test_result === 'error';
           return (
@@ -907,15 +995,16 @@ function Section401a4SingleResult({
 // 401(a)(4) Comparison Results
 // ==============================================================================
 
-function Section401a4ComparisonResults({ results }: { results: Section401a4ScenarioResult[] }) {
+function Section401a4ComparisonResults({ results, scenarioOrder }: { results: Section401a4ScenarioResult[]; scenarioOrder: string[] }) {
+  const ordered = [...results].sort((a, b) => scenarioOrder.indexOf(a.scenario_id) - scenarioOrder.indexOf(b.scenario_id));
   return (
     <div className="space-y-6">
       <div className={`grid gap-6 ${
-        results.length === 2 ? 'grid-cols-1 md:grid-cols-2' :
-        results.length === 3 ? 'grid-cols-1 md:grid-cols-3' :
+        ordered.length === 2 ? 'grid-cols-1 md:grid-cols-2' :
+        ordered.length === 3 ? 'grid-cols-1 md:grid-cols-3' :
         'grid-cols-1 md:grid-cols-2 lg:grid-cols-3'
       }`}>
-        {results.map((result) => {
+        {ordered.map((result) => {
           const isPassing = result.test_result === 'pass';
           const isError = result.test_result === 'error';
           return (
@@ -1180,15 +1269,16 @@ function Section415SingleResult({
 // 415 Comparison Results
 // ==============================================================================
 
-function Section415ComparisonResults({ results }: { results: Section415ScenarioResult[] }) {
+function Section415ComparisonResults({ results, scenarioOrder }: { results: Section415ScenarioResult[]; scenarioOrder: string[] }) {
+  const ordered = [...results].sort((a, b) => scenarioOrder.indexOf(a.scenario_id) - scenarioOrder.indexOf(b.scenario_id));
   return (
     <div className="space-y-6">
       <div className={`grid gap-6 ${
-        results.length === 2 ? 'grid-cols-1 md:grid-cols-2' :
-        results.length === 3 ? 'grid-cols-1 md:grid-cols-3' :
+        ordered.length === 2 ? 'grid-cols-1 md:grid-cols-2' :
+        ordered.length === 3 ? 'grid-cols-1 md:grid-cols-3' :
         'grid-cols-1 md:grid-cols-2 lg:grid-cols-3'
       }`}>
-        {results.map((result) => {
+        {ordered.map((result) => {
           const isPassing = result.test_result === 'pass';
           const isError = result.test_result === 'error';
           return (
