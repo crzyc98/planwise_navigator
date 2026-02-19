@@ -820,13 +820,13 @@ function Section401a4SingleResult({
         </div>
         <div className="bg-gray-50 rounded-lg p-4 space-y-2">
           <div className="flex justify-between text-sm">
-            <span className="text-gray-600">Ratio Test (NHCE avg / HCE avg >= 70%)</span>
+            <span className="text-gray-600">Ratio Test (NHCE avg / HCE avg &gt;= 70%)</span>
             <span className={`font-medium ${result.ratio >= 0.70 ? 'text-green-600' : 'text-red-600'}`}>
               {formatPercent(result.ratio)} {result.ratio >= 0.70 ? 'PASS' : 'FAIL'}
             </span>
           </div>
           <div className="flex justify-between text-sm">
-            <span className="text-gray-600">General Test (NHCE median / HCE median >= 70%)</span>
+            <span className="text-gray-600">General Test (NHCE median / HCE median &gt;= 70%)</span>
             <span className="font-medium text-gray-700">
               {result.hce_median_rate > 0
                 ? `${formatPercent(result.nhce_median_rate / result.hce_median_rate)}`
