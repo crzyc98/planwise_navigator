@@ -757,6 +757,27 @@ def _export_core_contribution_vars(cfg: "SimulationConfig") -> Dict[str, Any]:
                         transformed_schedule.append(transformed_tier)
                     dbt_vars["employer_core_graded_schedule"] = transformed_schedule
 
+            # E053: Core points schedule (for points_based mode)
+            if dc_plan_dict.get("core_points_schedule") is not None:
+                points_schedule = dc_plan_dict["core_points_schedule"]
+                if isinstance(points_schedule, list) and len(points_schedule) > 0:
+                    core_top_level["points_schedule"] = points_schedule
+                    # Transform field names for dbt macro compatibility:
+                    # API uses: min_points, max_points, contribution_rate (decimal)
+                    # Macro expects: min_points, max_points, rate (percentage)
+                    transformed_points = []
+                    for tier in points_schedule:
+                        transformed_tier = {
+                            "min_points": tier.get("min_points", 0),
+                            "max_points": tier.get("max_points"),
+                            # Convert decimal rate (0.03) to percentage (3.0) for macro
+                            "rate": (tier.get("contribution_rate", tier.get("rate", 0)) * 100)
+                            if tier.get("contribution_rate") is not None
+                            else tier.get("rate", 0),
+                        }
+                        transformed_points.append(transformed_tier)
+                    dbt_vars["employer_core_points_schedule"] = transformed_points
+
             # Merge dc_plan eligibility overrides into employer_core_contribution
             if core_eligibility_overrides or core_top_level:
                 if "employer_core_contribution" not in dbt_vars:

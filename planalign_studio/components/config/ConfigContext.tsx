@@ -259,6 +259,13 @@ export function ConfigProvider({ activeWorkspace, scenarioId, children }: Config
                   rate: tier.contribution_rate * 100,
                 }))
               : prev.dcCoreGradedSchedule,
+            dcCorePointsSchedule: cfg.dc_plan?.core_points_schedule
+              ? cfg.dc_plan.core_points_schedule.map((tier: any) => ({
+                  minPoints: tier.min_points ?? 0,
+                  maxPoints: tier.max_points ?? null,
+                  rate: (tier.contribution_rate != null && tier.contribution_rate <= 1) ? tier.contribution_rate * 100 : (tier.contribution_rate ?? 0),
+                }))
+              : prev.dcCorePointsSchedule,
             dcCoreMinTenureYears: cfg.dc_plan?.core_min_tenure_years ?? prev.dcCoreMinTenureYears,
             dcCoreRequireYearEndActive: cfg.dc_plan?.core_require_year_end_active ?? prev.dcCoreRequireYearEndActive,
             dcCoreMinHoursAnnual: cfg.dc_plan?.core_min_hours_annual ?? prev.dcCoreMinHoursAnnual,

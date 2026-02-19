@@ -511,6 +511,7 @@ export function DCPlanSection() {
                >
                  <option value="flat">Flat Rate (same for all)</option>
                  <option value="graded_by_service">Graded by Service (increases with tenure)</option>
+                 <option value="points_based">Points-Based (varies by age + tenure points)</option>
                </select>
              </div>
 
@@ -595,8 +596,127 @@ export function DCPlanSection() {
                  >
                    + Add Tier
                  </button>
+                {/* E053: Graded core tier gap/overlap warnings */}
+                {(() => {
+                  const warnings = validateMatchTiers(
+                    formData.dcCoreGradedSchedule.map(t => ({ min: t.serviceYearsMin, max: t.serviceYearsMax })),
+                    'service years',
+                  );
+                  return warnings.length > 0 ? (
+                    <div className="mt-3 bg-amber-50 border border-amber-300 rounded-md p-3">
+                      <p className="text-xs font-medium text-amber-800 mb-1">Tier configuration warnings:</p>
+                      <ul className="list-disc list-inside space-y-0.5">
+                        {warnings.map((w, i) => (
+                          <li key={i} className="text-xs text-amber-700">{w}</li>
+                        ))}
+                      </ul>
+                      <p className="text-xs text-amber-600 mt-1.5">Tiers use [min, max) intervals — min is inclusive, max is exclusive.</p>
+                    </div>
+                  ) : null;
+                })()}
                </div>
              )}
+
+            {/* E053: Points-Based Core Tier Editor */}
+            {formData.dcCoreStatus === 'points_based' && (
+              <div className="sm:col-span-6 bg-gray-50 p-4 rounded-lg border border-gray-200">
+                <label className="block text-sm font-medium text-gray-700 mb-1">Points Core Schedule</label>
+                <p className="text-xs text-gray-500 mb-3">Points = FLOOR(age) + FLOOR(years of service). Uses [min, max) intervals.</p>
+                <div className="space-y-2">
+                  {formData.dcCorePointsSchedule.map((tier, idx) => (
+                    <div key={idx} className="flex items-center gap-3 text-sm">
+                      <span className="text-gray-500 w-8">{idx + 1}.</span>
+                      <input
+                        type="number"
+                        value={tier.minPoints}
+                        onChange={(e) => {
+                          const newSchedule = [...formData.dcCorePointsSchedule];
+                          newSchedule[idx] = { ...tier, minPoints: Number(e.target.value) };
+                          setFormData((prev: any) => ({ ...prev, dcCorePointsSchedule: newSchedule }));
+                        }}
+                        className="w-16 px-2 py-1 border border-gray-300 rounded text-center"
+                        min={0}
+                      />
+                      <span className="text-gray-500">to</span>
+                      <input
+                        type="number"
+                        value={tier.maxPoints ?? ''}
+                        placeholder="&#8734;"
+                        onChange={(e) => {
+                          const newSchedule = [...formData.dcCorePointsSchedule];
+                          newSchedule[idx] = { ...tier, maxPoints: e.target.value ? Number(e.target.value) : null };
+                          setFormData((prev: any) => ({ ...prev, dcCorePointsSchedule: newSchedule }));
+                        }}
+                        className="w-16 px-2 py-1 border border-gray-300 rounded text-center"
+                        min={0}
+                      />
+                      <span className="text-gray-500">pts &#8594;</span>
+                      <input
+                        type="number"
+                        value={tier.rate}
+                        onChange={(e) => {
+                          const newSchedule = [...formData.dcCorePointsSchedule];
+                          newSchedule[idx] = { ...tier, rate: Number(e.target.value) };
+                          setFormData((prev: any) => ({ ...prev, dcCorePointsSchedule: newSchedule }));
+                        }}
+                        step="0.5"
+                        className="w-20 px-2 py-1 border border-gray-300 rounded text-center"
+                        min={0}
+                      />
+                      <span className="text-gray-500">%</span>
+                      {formData.dcCorePointsSchedule.length > 1 && (
+                        <button
+                          type="button"
+                          onClick={() => {
+                            const newSchedule = formData.dcCorePointsSchedule.filter((_: any, i: number) => i !== idx);
+                            setFormData((prev: any) => ({ ...prev, dcCorePointsSchedule: newSchedule }));
+                          }}
+                          className="text-red-500 hover:text-red-700 px-2"
+                        >
+                          &#10005;
+                        </button>
+                      )}
+                    </div>
+                  ))}
+                </div>
+                <button
+                  type="button"
+                  onClick={() => {
+                    const lastTier = formData.dcCorePointsSchedule[formData.dcCorePointsSchedule.length - 1];
+                    const newMin = (lastTier?.maxPoints ?? lastTier?.minPoints ?? 0) + 10;
+                    const newSchedule = [
+                      ...formData.dcCorePointsSchedule,
+                      { minPoints: newMin, maxPoints: null, rate: (lastTier?.rate ?? 1) + 1 }
+                    ];
+                    setFormData((prev: any) => ({ ...prev, dcCorePointsSchedule: newSchedule }));
+                  }}
+                  className="mt-3 text-sm text-fidelity-green hover:text-green-700 font-medium"
+                >
+                  + Add Tier
+                </button>
+                {formData.dcCorePointsSchedule.length === 0 && (
+                  <p className="mt-2 text-xs text-amber-600">Add at least one tier to configure points-based core contributions</p>
+                )}
+                {/* E053: Points core tier gap/overlap warnings */}
+                {(() => {
+                  const warnings = validateMatchTiers(
+                    formData.dcCorePointsSchedule.map(t => ({ min: t.minPoints, max: t.maxPoints })),
+                    'points',
+                  );
+                  return warnings.length > 0 ? (
+                    <div className="mt-3 bg-amber-50 border border-amber-300 rounded-md p-3">
+                      <p className="text-xs font-medium text-amber-800 mb-1">Tier configuration warnings:</p>
+                      <ul className="list-disc list-inside space-y-0.5">
+                        {warnings.map((w, i) => (
+                          <li key={i} className="text-xs text-amber-700">{w}</li>
+                        ))}
+                      </ul>
+                      <p className="text-xs text-amber-600 mt-1.5">Tiers use [min, max) intervals — min is inclusive, max is exclusive.</p>
+                    </div>
+                  ) : null;
+                })()}
+              </div>
+            )}
 
              <InputField label="Min. Tenure" {...inputProps('dcCoreMinTenureYears')} type="number" suffix="Years" helper="Years of service required" min={0} />
              <InputField label="Min. Annual Hours" {...inputProps('dcCoreMinHoursAnnual')} type="number" suffix="Hours" helper="Hours worked per year" min={0} />

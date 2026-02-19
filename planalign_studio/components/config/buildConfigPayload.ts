@@ -99,6 +99,11 @@ export function buildConfigPayload(
         service_years_max: tier.serviceYearsMax,
         contribution_rate: tier.rate / 100,
       })),
+      core_points_schedule: formData.dcCorePointsSchedule.map((tier: any) => ({
+        min_points: tier.minPoints,
+        max_points: tier.maxPoints,
+        contribution_rate: tier.rate / 100,
+      })),
       core_min_tenure_years: Number(formData.dcCoreMinTenureYears),
       core_require_year_end_active: Boolean(formData.dcCoreRequireYearEndActive),
       core_min_hours_annual: Number(formData.dcCoreMinHoursAnnual),
