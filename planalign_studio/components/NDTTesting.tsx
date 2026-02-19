@@ -211,7 +211,7 @@ export default function NDTTesting() {
               <select
                 className="appearance-none bg-white border border-gray-300 rounded-lg pl-3 pr-10 py-2 text-sm focus:ring-fidelity-green focus:border-fidelity-green shadow-sm min-w-[200px]"
                 value={testType}
-                onChange={(e) => setTestType(e.target.value as TestType)}
+                onChange={(e) => { setTestType(e.target.value as TestType); setTestResponse(null); setError(null); }}
               >
                 <option value="acp">ACP Test</option>
                 <option value="401a4">401(a)(4) General Test</option>
