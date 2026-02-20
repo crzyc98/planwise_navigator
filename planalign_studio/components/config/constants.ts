@@ -135,6 +135,9 @@ export const DEFAULT_FORM_DATA: FormData = {
   dcAutoEnrollScope: 'new_hires_only',
   dcAutoEnrollHireDateCutoff: '2020-01-01',
 
+  // DC Plan - Match Enable/Disable
+  dcMatchEnabled: true,
+
   // DC Plan - Match Eligibility
   dcMatchMinTenureYears: 0,
   dcMatchRequireYearEndActive: true,
@@ -165,7 +168,7 @@ export const DEFAULT_FORM_DATA: FormData = {
   // DC Plan - Auto-Escalation Advanced
   dcEscalationEffectiveDay: '01-01',
   dcEscalationDelayYears: 1,
-  dcEscalationHireDateCutoff: '2020-01-01',
+  dcEscalationHireDateCutoff: '',
 
   // Advanced
   engine: 'sql',

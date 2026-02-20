@@ -66,6 +66,7 @@ export function buildConfigPayload(
       auto_enroll_opt_out_grace_period: Number(formData.dcAutoEnrollOptOutGracePeriod),
       auto_enroll_scope: formData.dcAutoEnrollScope,
       auto_enroll_hire_date_cutoff: formData.dcAutoEnrollHireDateCutoff,
+      match_enabled: Boolean(formData.dcMatchEnabled),
       match_template: formData.dcMatchTemplate,
       match_tiers: formData.dcMatchTiers.map(t => ({
         employee_min: t.deferralMin / 100,

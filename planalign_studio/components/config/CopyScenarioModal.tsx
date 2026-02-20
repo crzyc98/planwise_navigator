@@ -127,6 +127,8 @@ export function CopyScenarioModal({ availableScenarios, onClose }: CopyScenarioM
                             maxDeferralPct: (t.max_deferral_pct ?? 0) * 100,
                           }))
                         : prev.dcPointsMatchTiers,
+                      // DC Plan - Match Enable/Disable
+                      dcMatchEnabled: cfg.dc_plan?.match_enabled ?? prev.dcMatchEnabled,
                       // DC Plan - Match Eligibility
                       dcMatchMinTenureYears: cfg.dc_plan?.match_min_tenure_years ?? prev.dcMatchMinTenureYears,
                       dcMatchRequireYearEndActive: cfg.dc_plan?.match_require_year_end_active ?? prev.dcMatchRequireYearEndActive,
@@ -156,7 +158,9 @@ export function CopyScenarioModal({ availableScenarios, onClose }: CopyScenarioM
                       dcEscalationCap: cfg.dc_plan?.escalation_cap_percent ?? prev.dcEscalationCap,
                       dcEscalationEffectiveDay: cfg.dc_plan?.escalation_effective_day || prev.dcEscalationEffectiveDay,
                       dcEscalationDelayYears: cfg.dc_plan?.escalation_delay_years ?? prev.dcEscalationDelayYears,
-                      dcEscalationHireDateCutoff: cfg.dc_plan?.escalation_hire_date_cutoff || prev.dcEscalationHireDateCutoff,
+                      dcEscalationHireDateCutoff: cfg.dc_plan?.escalation_hire_date_cutoff
+                        || prev.dcEscalationHireDateCutoff
+                        || ((cfg.dc_plan?.auto_escalation ?? prev.dcAutoEscalation) ? `${cfg.simulation?.start_year || prev.startYear}-01-01` : ''),
                       // Advanced
                       engine: cfg.advanced?.engine || prev.engine,
                       enableMultithreading: cfg.advanced?.enable_multithreading ?? prev.enableMultithreading,
