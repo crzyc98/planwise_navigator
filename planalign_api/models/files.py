@@ -1,9 +1,28 @@
 """File upload and validation models."""
 
 from datetime import datetime
-from typing import List, Optional
+from typing import List, Literal, Optional
 
 from pydantic import BaseModel, Field
+
+
+class StructuredWarning(BaseModel):
+    """A structured validation warning about a census column."""
+
+    field_name: str = Field(..., description="Expected census column name")
+    severity: Literal["critical", "optional"] = Field(
+        ..., description="Warning severity tier"
+    )
+    warning_type: Literal["missing", "alias_found"] = Field(
+        ..., description="Type of warning"
+    )
+    impact_description: str = Field(
+        ..., description="Human-readable simulation impact"
+    )
+    detected_alias: Optional[str] = Field(
+        None, description="Alias column name found in file"
+    )
+    suggested_action: str = Field(..., description="Recommended user action")
 
 
 class FileUploadResponse(BaseModel):
@@ -18,6 +37,10 @@ class FileUploadResponse(BaseModel):
     upload_timestamp: datetime = Field(..., description="When the file was uploaded")
     validation_warnings: List[str] = Field(
         default_factory=list, description="Non-fatal validation warnings"
+    )
+    structured_warnings: List[StructuredWarning] = Field(
+        default_factory=list,
+        description="Structured validation warnings with severity and impact",
     )
 
 
@@ -51,6 +74,13 @@ class FileValidationResponse(BaseModel):
     columns: Optional[List[str]] = Field(None, description="List of column names")
     last_modified: Optional[datetime] = Field(None, description="Last modification timestamp")
     error_message: Optional[str] = Field(None, description="Error message if validation failed")
+    validation_warnings: List[str] = Field(
+        default_factory=list, description="Non-fatal validation warnings"
+    )
+    structured_warnings: List[StructuredWarning] = Field(
+        default_factory=list,
+        description="Structured validation warnings with severity and impact",
+    )
 
 
 class CompensationSolverRequest(BaseModel):

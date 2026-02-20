@@ -585,9 +585,13 @@ export function DCPlanSection() {
                    type="button"
                    onClick={() => {
                      const lastTier = formData.dcCoreGradedSchedule[formData.dcCoreGradedSchedule.length - 1];
-                     const newMin = (lastTier?.serviceYearsMax ?? lastTier?.serviceYearsMin ?? 0) + 1;
+                     const newMin = (lastTier?.serviceYearsMax ?? (lastTier?.serviceYearsMin ?? 0) + 5);
+                     const updatedSchedule = [...formData.dcCoreGradedSchedule];
+                     if (lastTier && lastTier.serviceYearsMax === null) {
+                       updatedSchedule[updatedSchedule.length - 1] = { ...lastTier, serviceYearsMax: newMin };
+                     }
                      const newSchedule = [
-                       ...formData.dcCoreGradedSchedule,
+                       ...updatedSchedule,
                        { serviceYearsMin: newMin, serviceYearsMax: null, rate: (lastTier?.rate ?? 1) + 1 }
                      ];
                      setFormData((prev: any) => ({ ...prev, dcCoreGradedSchedule: newSchedule }));
@@ -683,9 +687,13 @@ export function DCPlanSection() {
                   type="button"
                   onClick={() => {
                     const lastTier = formData.dcCorePointsSchedule[formData.dcCorePointsSchedule.length - 1];
-                    const newMin = (lastTier?.maxPoints ?? lastTier?.minPoints ?? 0) + 10;
+                    const newMin = (lastTier?.maxPoints ?? (lastTier?.minPoints ?? 0) + 10);
+                    const updatedSchedule = [...formData.dcCorePointsSchedule];
+                    if (lastTier && lastTier.maxPoints === null) {
+                      updatedSchedule[updatedSchedule.length - 1] = { ...lastTier, maxPoints: newMin };
+                    }
                     const newSchedule = [
-                      ...formData.dcCorePointsSchedule,
+                      ...updatedSchedule,
                       { minPoints: newMin, maxPoints: null, rate: (lastTier?.rate ?? 1) + 1 }
                     ];
                     setFormData((prev: any) => ({ ...prev, dcCorePointsSchedule: newSchedule }));

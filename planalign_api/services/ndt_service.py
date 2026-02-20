@@ -1,9 +1,10 @@
-"""NDT (Non-Discrimination Testing) service for ACP, 401(a)(4), and 415 tests."""
+"""NDT (Non-Discrimination Testing) service for ACP, ADP, 401(a)(4), and 415 tests."""
 
 import logging
 import statistics
+import threading
 from pathlib import Path
-from typing import List, Optional
+from typing import Dict, List, Optional, Set
 
 from pydantic import BaseModel
 
@@ -201,6 +202,11 @@ class NDTService:
     # Path to dbt seeds directory
     _SEEDS_DIR = Path(__file__).resolve().parents[2] / "dbt" / "seeds"
 
+    # Per-path lock to serialize seed checks and avoid racing with readers
+    _seed_lock_guard: threading.Lock = threading.Lock()
+    _seed_locks: Dict[str, threading.Lock] = {}
+    _seed_verified: Set[str] = set()
+
     def __init__(
         self,
         storage: WorkspaceStorage,
@@ -212,74 +218,96 @@ class NDTService:
         )
 
     @staticmethod
+    def _get_seed_lock(db_path: Path) -> threading.Lock:
+        """Get or create a per-path lock for seed operations."""
+        key = str(db_path)
+        with NDTService._seed_lock_guard:
+            if key not in NDTService._seed_locks:
+                NDTService._seed_locks[key] = threading.Lock()
+            return NDTService._seed_locks[key]
+
+    @staticmethod
     def _ensure_seed_current(db_path: Path) -> None:
         """Ensure config_irs_limits seed table has required columns.
 
-        Opens the database read-write, checks for hce_compensation_threshold
-        and super_catch_up_limit columns, and reloads the seed from CSV if
-        either is missing. Uses the same schema-mismatch pattern as
-        DataCleanupManager.drop_seed_tables_with_schema_mismatch().
+        Thread-safe: uses a per-path lock so concurrent requests don't
+        race on DROP/CREATE, and caches verification so the check runs
+        at most once per database path per process lifetime.
         """
         import duckdb
+
+        key = str(db_path)
+
+        # Fast path: already verified this database, no lock needed
+        if key in NDTService._seed_verified:
+            return
 
         csv_path = NDTService._SEEDS_DIR / "config_irs_limits.csv"
         if not csv_path.exists():
             logger.warning(f"Seed CSV not found: {csv_path}")
             return
 
-        conn = duckdb.connect(str(db_path))
-        required_columns = (
-            'hce_compensation_threshold',
-            'super_catch_up_limit',
-            'annual_additions_limit',
-        )
-        try:
-            # Check if all required columns exist
-            column_count = conn.execute(
-                """
-                SELECT COUNT(*) FROM information_schema.columns
-                WHERE table_schema = 'main'
-                  AND table_name = 'config_irs_limits'
-                  AND column_name IN (?, ?, ?)
-                """,
-                list(required_columns),
-            ).fetchone()[0]
+        lock = NDTService._get_seed_lock(db_path)
+        with lock:
+            # Re-check after acquiring lock (another thread may have finished)
+            if key in NDTService._seed_verified:
+                return
 
-            if column_count == len(required_columns):
-                return  # Already up to date
-
-            # Column(s) missing — reload the seed table from CSV
-            missing = []
-            for col in required_columns:
-                has = conn.execute(
+            required_columns = (
+                'hce_compensation_threshold',
+                'super_catch_up_limit',
+                'annual_additions_limit',
+            )
+            conn = duckdb.connect(str(db_path))
+            try:
+                # Check if all required columns exist
+                column_count = conn.execute(
                     """
-                    SELECT 1 FROM information_schema.columns
+                    SELECT COUNT(*) FROM information_schema.columns
                     WHERE table_schema = 'main'
                       AND table_name = 'config_irs_limits'
-                      AND column_name = ?
-                    LIMIT 1
+                      AND column_name IN (?, ?, ?)
                     """,
-                    [col],
-                ).fetchone()
-                if not has:
-                    missing.append(col)
+                    list(required_columns),
+                ).fetchone()[0]
 
-            logger.info(
-                f"config_irs_limits missing column(s): {missing}, "
-                "reloading seed from CSV"
-            )
-            conn.execute("DROP TABLE IF EXISTS config_irs_limits")
-            conn.execute(
-                f"""
-                CREATE TABLE config_irs_limits AS
-                SELECT * FROM read_csv_auto('{csv_path}')
-                """
-            )
-            logger.info("config_irs_limits seed reloaded successfully")
-        except Exception as e:
-            logger.error(f"Failed to ensure seed current: {e}")
-        finally:
-            conn.close()
+                if column_count == len(required_columns):
+                    NDTService._seed_verified.add(key)
+                    return  # Already up to date
+
+                # Column(s) missing — reload the seed table from CSV
+                missing = []
+                for col in required_columns:
+                    has = conn.execute(
+                        """
+                        SELECT 1 FROM information_schema.columns
+                        WHERE table_schema = 'main'
+                          AND table_name = 'config_irs_limits'
+                          AND column_name = ?
+                        LIMIT 1
+                        """,
+                        [col],
+                    ).fetchone()
+                    if not has:
+                        missing.append(col)
+
+                logger.info(
+                    f"config_irs_limits missing column(s): {missing}, "
+                    "reloading seed from CSV"
+                )
+                conn.execute("DROP TABLE IF EXISTS config_irs_limits")
+                conn.execute(
+                    f"""
+                    CREATE TABLE config_irs_limits AS
+                    SELECT * FROM read_csv_auto('{csv_path}')
+                    """
+                )
+                logger.info("config_irs_limits seed reloaded successfully")
+                NDTService._seed_verified.add(key)
+            except Exception as e:
+                logger.error(f"Failed to ensure seed current: {e}")
+            finally:
+                conn.close()
 
     def get_available_years(
         self, workspace_id: str, scenario_id: str
@@ -843,7 +871,9 @@ class NDTService:
     ) -> None:
         """Detect service-based NEC tenure skew risk (mutates result in-place)."""
         try:
-            config = self.storage.get_scenario_config(workspace_id, scenario_id)
+            config = self.storage.get_merged_config(workspace_id, scenario_id)
+            if not config:
+                return
             ec_config = config.get("employer_core_contribution", {})
             if not isinstance(ec_config, dict):
                 return
