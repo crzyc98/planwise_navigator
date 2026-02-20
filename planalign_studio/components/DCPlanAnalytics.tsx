@@ -1,4 +1,5 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect } from 'react';
+import { useOutletContext } from 'react-router-dom';
 import {
   BarChart, Bar, PieChart, Pie, Cell,
   XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer
@@ -7,12 +8,11 @@ import {
   Users, DollarSign, TrendingUp, PieChart as PieChartIcon,
   RefreshCw, AlertCircle, ChevronDown, Database, Loader2, ArrowUpRight
 } from 'lucide-react';
+import { LayoutContextType } from './Layout';
 import {
-  listWorkspaces,
   listScenarios,
   getDCPlanAnalytics,
   compareDCPlanAnalytics,
-  Workspace,
   Scenario,
   DCPlanAnalytics as DCPlanAnalyticsData,
   DCPlanComparisonResponse,
@@ -87,10 +87,11 @@ const PARTICIPATION_COLORS = ['#00853F', '#4CAF50', '#81C784'];
 const CONTRIBUTION_COLORS = { employee: '#0088FE', match: '#00C49F', core: '#FFBB28' };
 
 export default function DCPlanAnalytics() {
-  // State for workspace/scenario selection
-  const [workspaces, setWorkspaces] = useState<Workspace[]>([]);
+  // Workspace context from Layout (shared across all pages)
+  const { activeWorkspace } = useOutletContext<LayoutContextType>();
+
+  // State for scenario selection (page-local)
   const [scenarios, setScenarios] = useState<Scenario[]>([]);
-  const [selectedWorkspaceId, setSelectedWorkspaceId] = useState<string>('');
   const [selectedScenarioIds, setSelectedScenarioIds] = useState<string[]>([]);
 
   // State for results
@@ -103,44 +104,34 @@ export default function DCPlanAnalytics() {
   // Comparison mode toggle
   const [comparisonMode, setComparisonMode] = useState(false);
 
-  // Fetch workspaces on mount
-  useEffect(() => {
-    fetchWorkspaces();
-  }, []);
-
   // Fetch scenarios when workspace changes
   useEffect(() => {
-    if (selectedWorkspaceId) {
-      fetchScenarios(selectedWorkspaceId);
+    if (activeWorkspace?.id) {
+      fetchScenarios(activeWorkspace.id);
+      setSelectedScenarioIds([]);
+      setAnalytics(null);
+      setComparisonData(null);
+      setError(null);
     } else {
       setScenarios([]);
       setSelectedScenarioIds([]);
+      setAnalytics(null);
+      setComparisonData(null);
     }
-  }, [selectedWorkspaceId]);
+  }, [activeWorkspace?.id]);
 
   // Fetch analytics when scenario changes
   useEffect(() => {
+    if (!activeWorkspace?.id) return;
     if (selectedScenarioIds.length === 1 && !comparisonMode) {
-      fetchAnalytics(selectedWorkspaceId, selectedScenarioIds[0]);
+      fetchAnalytics(selectedScenarioIds[0]);
     } else if (selectedScenarioIds.length >= 2 && comparisonMode) {
-      fetchComparison(selectedWorkspaceId, selectedScenarioIds);
+      fetchComparison(selectedScenarioIds);
     } else {
       setAnalytics(null);
       setComparisonData(null);
     }
-  }, [selectedScenarioIds, comparisonMode, selectedWorkspaceId]);
-
-  const fetchWorkspaces = async () => {
-    try {
-      const data = await listWorkspaces();
-      setWorkspaces(data);
-      if (data.length > 0) {
-        setSelectedWorkspaceId(data[0].id);
-      }
-    } catch (err) {
-      console.error('Failed to fetch workspaces:', err);
-    }
-  };
+  }, [selectedScenarioIds, comparisonMode, activeWorkspace?.id]);
 
   const fetchScenarios = async (workspaceId: string) => {
     setLoadingScenarios(true);
@@ -159,11 +150,12 @@ export default function DCPlanAnalytics() {
     }
   };
 
-  const fetchAnalytics = async (workspaceId: string, scenarioId: string) => {
+  const fetchAnalytics = async (scenarioId: string) => {
+    if (!activeWorkspace?.id) return;
     setLoading(true);
     setError(null);
     try {
-      const data = await getDCPlanAnalytics(workspaceId, scenarioId);
+      const data = await getDCPlanAnalytics(activeWorkspace.id, scenarioId);
       setAnalytics(data);
       setComparisonData(null);
     } catch (err: any) {
@@ -175,11 +167,12 @@ export default function DCPlanAnalytics() {
     }
   };
 
-  const fetchComparison = async (workspaceId: string, scenarioIds: string[]) => {
+  const fetchComparison = async (scenarioIds: string[]) => {
+    if (!activeWorkspace?.id) return;
     setLoading(true);
     setError(null);
     try {
-      const data = await compareDCPlanAnalytics(workspaceId, scenarioIds);
+      const data = await compareDCPlanAnalytics(activeWorkspace.id, scenarioIds);
       setComparisonData(data);
       setAnalytics(null);
     } catch (err: any) {
@@ -204,9 +197,8 @@ export default function DCPlanAnalytics() {
   };
 
   const handleRefresh = () => {
-    fetchWorkspaces();
-    if (selectedWorkspaceId) {
-      fetchScenarios(selectedWorkspaceId);
+    if (activeWorkspace?.id) {
+      fetchScenarios(activeWorkspace.id);
     }
   };
 
@@ -249,30 +241,12 @@ export default function DCPlanAnalytics() {
           <p className="text-gray-500 mt-1">Analyze retirement plan contributions and participation.</p>
         </div>
         <div className="flex flex-wrap gap-2">
-          {/* Workspace Selector */}
-          <div className="relative">
-            <select
-              value={selectedWorkspaceId}
-              onChange={(e) => {
-                setSelectedWorkspaceId(e.target.value);
-                setSelectedScenarioIds([]);
-              }}
-              className="appearance-none bg-white border border-gray-300 rounded-lg pl-3 pr-10 py-2 text-sm focus:ring-fidelity-green focus:border-fidelity-green shadow-sm min-w-[160px]"
-            >
-              <option value="">Select Workspace</option>
-              {workspaces.map(ws => (
-                <option key={ws.id} value={ws.id}>{ws.name}</option>
-              ))}
-            </select>
-            <ChevronDown size={16} className="absolute right-3 top-2.5 text-gray-400 pointer-events-none" />
-          </div>
-
           {/* Scenario Selector */}
           <div className="relative">
             <select
               value={comparisonMode ? '' : selectedScenarioIds[0] || ''}
               onChange={(e) => handleScenarioToggle(e.target.value)}
-              disabled={!selectedWorkspaceId || loadingScenarios || comparisonMode}
+              disabled={!activeWorkspace?.id || loadingScenarios || comparisonMode}
               className="appearance-none bg-white border border-gray-300 rounded-lg pl-3 pr-10 py-2 text-sm focus:ring-fidelity-green focus:border-fidelity-green shadow-sm min-w-[200px] disabled:bg-gray-50 disabled:text-gray-400"
             >
               <option value="">
