@@ -834,6 +834,8 @@ See `/docs/VERSIONING_GUIDE.md` for detailed versioning workflow.
 - Python 3.11 (backend), TypeScript 5.x (frontend) + FastAPI (API), Pydantic v2 (models), React 18 + Vite (frontend), DuckDB 1.0.0 (queries) (051-ndt-401a4-415-tests)
 - DuckDB (per-scenario `simulation.duckdb` via `DatabasePathResolver`) — read-only access (052-ndt-adp-test)
 - TypeScript 5.x (frontend), Python 3.11 (backend), SQL/Jinja2 (dbt) + React 18, Vite (frontend); dbt-core 1.8.8, dbt-duckdb 1.8.1 (backend) (053-core-contribution-tiers)
+- TypeScript 5.x (React 18 frontend) + React 18, react-router-dom (useOutletContext), Vite (054-fix-dcplan-workspace-context)
+- N/A (frontend state only; backend API unchanged) (054-fix-dcplan-workspace-context)
 
 ## Recent Changes
 - 024-remove-polars-pipeline: Removed Polars dependency, simplified to SQL-only mode
