@@ -570,16 +570,17 @@ export function ConfigProvider({ activeWorkspace, scenarioId, children }: Config
         const hazardErrors = validatePromotionHazardConfigFn(promotionHazardConfig);
         if (hazardErrors.length > 0) {
           setSaveStatus('error');
-          setSaveMessage('Promotion hazard validation failed - check errors below');
+          setSaveMessage(hazardErrors.join('; '));
           return;
         }
       }
       if (bandConfig) {
         const ageErrors = validateBandsClient(bandConfig.age_bands, 'age');
         const tenureErrors = validateBandsClient(bandConfig.tenure_bands, 'tenure');
-        if ([...ageErrors, ...tenureErrors].length > 0) {
+        const allBandErrors = [...ageErrors, ...tenureErrors];
+        if (allBandErrors.length > 0) {
           setSaveStatus('error');
-          setSaveMessage('Band configuration validation failed - check errors below');
+          setSaveMessage(allBandErrors.map(e => e.message).join('; '));
           return;
         }
       }

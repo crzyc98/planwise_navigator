@@ -50,6 +50,42 @@ class FileService:
         "status": "active",
     }
 
+    # Critical columns — simulation results are unreliable without these
+    CRITICAL_COLUMNS = [
+        "employee_hire_date",
+        "employee_gross_compensation",
+        "employee_birth_date",
+    ]
+
+    # Field impact descriptions: column → (severity, impact, suggested_action, default_behavior)
+    FIELD_IMPACT_DESCRIPTIONS: Dict[str, Dict[str, str]] = {
+        "employee_hire_date": {
+            "severity": "critical",
+            "impact": "Tenure calculations, new hire identification, turnover modeling, and annualized compensation will not work correctly",
+            "action": "Add an employee_hire_date column to your census file",
+        },
+        "employee_gross_compensation": {
+            "severity": "critical",
+            "impact": "Compensation-based calculations, merit raises, promotion modeling, HCE determination, and contribution calculations will use defaults or produce inaccurate results",
+            "action": "Add an employee_gross_compensation column to your census file",
+        },
+        "employee_birth_date": {
+            "severity": "critical",
+            "impact": "Age-based calculations, age band segmentation, HCE determination, and retirement eligibility will not work correctly",
+            "action": "Add an employee_birth_date column to your census file",
+        },
+        "employee_termination_date": {
+            "severity": "optional",
+            "impact": "Terminated employee identification may be incomplete",
+            "action": "Add an employee_termination_date column, or ensure the active column is present",
+        },
+        "active": {
+            "severity": "optional",
+            "impact": "Employee active/inactive filtering may be unavailable; all employees will be treated as active",
+            "action": "Add an active column to your census file",
+        },
+    }
+
     # Maximum file size: 100MB
     MAX_FILE_SIZE_BYTES = 100 * 1024 * 1024
 
@@ -178,7 +214,8 @@ class FileService:
                 f"Found columns: {', '.join(columns)}"
             )
 
-        # Check recommended columns
+        # Check recommended columns and build structured warnings
+        structured_warnings: List[Dict[str, Optional[str]]] = []
         for col in self.RECOMMENDED_COLUMNS:
             if col not in columns:
                 # Check if an alias exists in the file
@@ -188,18 +225,40 @@ class FileService:
                         alias_found = alias
                         break
 
+                # Get impact description metadata
+                field_info = self.FIELD_IMPACT_DESCRIPTIONS.get(col)
+
                 if alias_found:
                     warnings.append(
                         f"Column '{alias_found}' found - consider renaming to '{col}' for consistency"
                     )
+                    if field_info:
+                        structured_warnings.append({
+                            "field_name": col,
+                            "severity": field_info["severity"],
+                            "warning_type": "alias_found",
+                            "impact_description": field_info["impact"],
+                            "detected_alias": alias_found,
+                            "suggested_action": f"Rename column '{alias_found}' to '{col}' for full compatibility",
+                        })
                 else:
                     warnings.append(f"Recommended column missing: {col}")
+                    if field_info:
+                        structured_warnings.append({
+                            "field_name": col,
+                            "severity": field_info["severity"],
+                            "warning_type": "missing",
+                            "impact_description": field_info["impact"],
+                            "detected_alias": None,
+                            "suggested_action": field_info["action"],
+                        })
 
         return {
             "row_count": row_count,
             "columns": columns,
             "file_size_bytes": file_path.stat().st_size,
             "validation_warnings": warnings,
+            "structured_warnings": structured_warnings,
         }
 
     def validate_path(
@@ -260,6 +319,8 @@ class FileService:
                 "row_count": metadata["row_count"],
                 "columns": metadata["columns"],
                 "last_modified": datetime.fromtimestamp(resolved.stat().st_mtime),
+                "validation_warnings": metadata.get("validation_warnings", []),
+                "structured_warnings": metadata.get("structured_warnings", []),
             }
         except ValueError as e:
             return {

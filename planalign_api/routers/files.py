@@ -131,6 +131,7 @@ async def upload_census_file(
         columns=metadata["columns"],
         upload_timestamp=datetime.utcnow(),
         validation_warnings=metadata.get("validation_warnings", []),
+        structured_warnings=metadata.get("structured_warnings", []),
     )
 
 
