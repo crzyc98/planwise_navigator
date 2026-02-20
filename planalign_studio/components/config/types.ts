@@ -119,6 +119,9 @@ export interface FormData {
   dcAutoEnrollScope: string;
   dcAutoEnrollHireDateCutoff: string;
 
+  // DC Plan - Match Enable/Disable
+  dcMatchEnabled: boolean;
+
   // DC Plan - Match Eligibility
   dcMatchMinTenureYears: number;
   dcMatchRequireYearEndActive: boolean;

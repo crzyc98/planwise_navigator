@@ -96,8 +96,22 @@ export function DCPlanSection() {
          )}
 
          <div className="col-span-6 h-px bg-gray-200 my-2"></div>
-         <h4 className="col-span-6 text-sm font-semibold text-gray-900">Employer Match Formula</h4>
+         <div className="sm:col-span-6 flex items-center justify-between mb-2">
+           <h4 className="text-sm font-semibold text-gray-900">Employer Match Formula</h4>
+           <div className="flex items-center">
+             <input
+               type="checkbox"
+               name="dcMatchEnabled"
+               checked={formData.dcMatchEnabled}
+               onChange={handleChange}
+               className="h-4 w-4 text-fidelity-green rounded"
+             />
+             <span className="ml-2 text-sm text-gray-600">Enabled</span>
+           </div>
+         </div>
+         <p className="col-span-6 text-xs text-gray-500 -mt-4 mb-2">Configure employer matching contributions on employee deferrals</p>
 
+         {formData.dcMatchEnabled && (<>
          {/* E046: Match Mode Selector */}
          <div className="sm:col-span-3">
            <label className="block text-sm font-medium text-gray-700">Match Calculation Mode</label>
@@ -274,7 +288,7 @@ export function DCPlanSection() {
              <button type="button"
                onClick={() => {
                  const last = formData.dcPointsMatchTiers[formData.dcPointsMatchTiers.length - 1];
-                 const newMin = last ? (last.maxPoints ?? last.minPoints + 10) : 0;
+                 const newMin = last ? (last.maxPoints ?? last.minPoints) + 10 : 0;
                  const updatedTiers = [...formData.dcPointsMatchTiers];
                  if (last && last.maxPoints === null) {
                    updatedTiers[updatedTiers.length - 1] = { ...last, maxPoints: newMin };
@@ -480,6 +494,7 @@ export function DCPlanSection() {
            />
            <label className="ml-2 block text-sm text-gray-700">Allow Experienced Terminations</label>
          </div>
+         </>)}
 
          {/* E084: Core Contribution Section */}
          <div className="col-span-6 h-px bg-gray-200 my-2"></div>
@@ -687,7 +702,7 @@ export function DCPlanSection() {
                   type="button"
                   onClick={() => {
                     const lastTier = formData.dcCorePointsSchedule[formData.dcCorePointsSchedule.length - 1];
-                    const newMin = (lastTier?.maxPoints ?? (lastTier?.minPoints ?? 0) + 10);
+                    const newMin = (lastTier?.maxPoints ?? (lastTier?.minPoints ?? 0)) + 10;
                     const updatedSchedule = [...formData.dcCorePointsSchedule];
                     if (lastTier && lastTier.maxPoints === null) {
                       updatedSchedule[updatedSchedule.length - 1] = { ...lastTier, maxPoints: newMin };
@@ -768,7 +783,15 @@ export function DCPlanSection() {
          <div className="sm:col-span-6 flex items-center justify-between mb-2">
              <h4 className="text-sm font-semibold text-gray-900">Auto-Escalation</h4>
              <div className="flex items-center">
-                 <input type="checkbox" name="dcAutoEscalation" checked={formData.dcAutoEscalation} onChange={handleChange} className="h-4 w-4 text-fidelity-green rounded" />
+                 <input type="checkbox" name="dcAutoEscalation" checked={formData.dcAutoEscalation} onChange={(e) => {
+                  const checked = e.target.checked;
+                  setFormData(prev => ({
+                    ...prev,
+                    dcAutoEscalation: checked,
+                    // Auto-populate hire date cutoff with 1/1 of the simulation start year
+                    ...(checked && !prev.dcEscalationHireDateCutoff ? { dcEscalationHireDateCutoff: `${prev.startYear}-01-01` } : {}),
+                  }));
+                }} className="h-4 w-4 text-fidelity-green rounded" />
                  <span className="ml-2 text-sm text-gray-600">Enabled</span>
              </div>
          </div>

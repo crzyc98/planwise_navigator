@@ -244,6 +244,7 @@ export function ConfigProvider({ activeWorkspace, scenarioId, children }: Config
                   maxDeferralPct: (t.max_deferral_pct != null && t.max_deferral_pct <= 1) ? t.max_deferral_pct * 100 : (t.max_deferral_pct ?? 6),
                 }))
               : prev.dcPointsMatchTiers,
+            dcMatchEnabled: cfg.dc_plan?.match_enabled ?? prev.dcMatchEnabled,
             dcMatchMinTenureYears: cfg.dc_plan?.match_min_tenure_years ?? prev.dcMatchMinTenureYears,
             dcMatchRequireYearEndActive: cfg.dc_plan?.match_require_year_end_active ?? prev.dcMatchRequireYearEndActive,
             dcMatchMinHoursAnnual: cfg.dc_plan?.match_min_hours_annual ?? prev.dcMatchMinHoursAnnual,
@@ -276,7 +277,10 @@ export function ConfigProvider({ activeWorkspace, scenarioId, children }: Config
             dcEscalationCap: cfg.dc_plan?.escalation_cap_percent ?? prev.dcEscalationCap,
             dcEscalationEffectiveDay: cfg.dc_plan?.escalation_effective_day || prev.dcEscalationEffectiveDay,
             dcEscalationDelayYears: cfg.dc_plan?.escalation_delay_years ?? prev.dcEscalationDelayYears,
-            dcEscalationHireDateCutoff: cfg.dc_plan?.escalation_hire_date_cutoff || prev.dcEscalationHireDateCutoff,
+            dcEscalationHireDateCutoff: cfg.dc_plan?.escalation_hire_date_cutoff
+              || prev.dcEscalationHireDateCutoff
+              // Auto-default to 1/1 of start year when escalation is on but no cutoff saved
+              || ((cfg.dc_plan?.auto_escalation ?? prev.dcAutoEscalation) ? `${cfg.simulation?.start_year || prev.startYear}-01-01` : ''),
 
             // Advanced
             engine: cfg.advanced?.engine || prev.engine,
@@ -514,6 +518,7 @@ export function ConfigProvider({ activeWorkspace, scenarioId, children }: Config
     if (formData.dcEligibilityMonths !== savedFormData.dcEligibilityMonths ||
         formData.dcAutoEnroll !== savedFormData.dcAutoEnroll ||
         formData.dcDefaultDeferral !== savedFormData.dcDefaultDeferral ||
+        formData.dcMatchEnabled !== savedFormData.dcMatchEnabled ||
         formData.dcMatchTemplate !== savedFormData.dcMatchTemplate ||
         JSON.stringify(formData.dcMatchTiers) !== JSON.stringify(savedFormData.dcMatchTiers) ||
         formData.dcAutoEscalation !== savedFormData.dcAutoEscalation ||
