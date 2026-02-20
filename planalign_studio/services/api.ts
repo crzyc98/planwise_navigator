@@ -574,6 +574,15 @@ export async function getRunById(scenarioId: string, runId: string): Promise<Run
 // File Upload Endpoints
 // ============================================================================
 
+export interface StructuredWarning {
+  field_name: string;
+  severity: 'critical' | 'optional';
+  warning_type: 'missing' | 'alias_found';
+  impact_description: string;
+  detected_alias: string | null;
+  suggested_action: string;
+}
+
 export interface FileUploadResponse {
   success: boolean;
   file_path: string;
@@ -583,6 +592,7 @@ export interface FileUploadResponse {
   columns: string[];
   upload_timestamp: string;
   validation_warnings: string[];
+  structured_warnings: StructuredWarning[];
 }
 
 export interface FileValidationResponse {
@@ -595,6 +605,8 @@ export interface FileValidationResponse {
   columns?: string[];
   last_modified?: string;
   error_message?: string;
+  validation_warnings: string[];
+  structured_warnings: StructuredWarning[];
 }
 
 export async function uploadCensusFile(
@@ -1691,7 +1703,7 @@ export async function runADPTest(
   year: number,
   includeEmployees: boolean = false,
   safeHarbor: boolean = false,
-  testingMethod: string = 'current'
+  testingMethod: 'current' | 'prior' = 'current'
 ): Promise<ADPTestResponse> {
   const params = new URLSearchParams({
     scenarios: scenarioIds.join(','),

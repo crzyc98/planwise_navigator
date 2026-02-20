@@ -836,6 +836,8 @@ See `/docs/VERSIONING_GUIDE.md` for detailed versioning workflow.
 - TypeScript 5.x (frontend), Python 3.11 (backend), SQL/Jinja2 (dbt) + React 18, Vite (frontend); dbt-core 1.8.8, dbt-duckdb 1.8.1 (backend) (053-core-contribution-tiers)
 - TypeScript 5.x (React 18 frontend) + React 18, react-router-dom (useOutletContext), Vite (054-fix-dcplan-workspace-context)
 - N/A (frontend state only; backend API unchanged) (054-fix-dcplan-workspace-context)
+- Python 3.11 (backend), TypeScript 5.x (frontend) + FastAPI (backend API), Pydantic v2 (validation/models), React 18 + Vite (frontend) (055-census-field-warnings)
+- N/A (no database changes; warnings are computed at validation time) (055-census-field-warnings)
 
 ## Recent Changes
 - 024-remove-polars-pipeline: Removed Polars dependency, simplified to SQL-only mode
