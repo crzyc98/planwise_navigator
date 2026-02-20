@@ -1,14 +1,19 @@
 import { useState, useRef } from 'react';
-import { Database, Upload, Check, HelpCircle } from 'lucide-react';
+import { Database, Upload, Check, AlertTriangle, Info, ArrowRight } from 'lucide-react';
 import { useConfigContext } from './ConfigContext';
-import { uploadCensusFile, validateFilePath, updateScenario } from '../../services/api';
+import { uploadCensusFile, validateFilePath, updateScenario, StructuredWarning } from '../../services/api';
 
 export function DataSourcesSection() {
   const { formData, setFormData, handleChange, activeWorkspace, currentScenario, scenarioId } = useConfigContext();
 
   const [uploadStatus, setUploadStatus] = useState<'idle' | 'uploading' | 'success' | 'error'>('idle');
   const [uploadMessage, setUploadMessage] = useState('');
+  const [structuredWarnings, setStructuredWarnings] = useState<StructuredWarning[]>([]);
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  const criticalWarnings = structuredWarnings.filter(w => w.severity === 'critical');
+  const optionalWarnings = structuredWarnings.filter(w => w.severity === 'optional' && w.warning_type === 'missing');
+  const aliasWarnings = structuredWarnings.filter(w => w.warning_type === 'alias_found');
 
   return (
     <div className="space-y-8 animate-fadeIn">
@@ -65,6 +70,7 @@ export function DataSourcesSection() {
 
               setUploadStatus('uploading');
               setUploadMessage(`Uploading ${file.name}...`);
+              setStructuredWarnings([]);
 
               try {
                 const result = await uploadCensusFile(activeWorkspace.id, file);
@@ -94,17 +100,16 @@ export function DataSourcesSection() {
                   }
                 }
 
-                if (result.validation_warnings.length > 0) {
-                  setUploadStatus('success');
-                  setUploadMessage(`Uploaded with warnings: ${result.validation_warnings.join(', ')}`);
-                } else {
-                  setUploadStatus('success');
-                  const savedMsg = autoSaved ? ' and saved' : '';
-                  setUploadMessage(`File uploaded${savedMsg}! ${result.row_count.toLocaleString()} rows, ${result.columns.length} columns`);
-                }
+                // Set structured warnings for tiered display
+                setStructuredWarnings(result.structured_warnings || []);
+
+                setUploadStatus('success');
+                const savedMsg = autoSaved ? ' and saved' : '';
+                setUploadMessage(`File uploaded${savedMsg}! ${result.row_count.toLocaleString()} rows, ${result.columns.length} columns`);
               } catch (error) {
                 setUploadStatus('error');
                 setUploadMessage(error instanceof Error ? error.message : 'Upload failed');
+                setStructuredWarnings([]);
               }
             }}
           />
@@ -135,6 +140,76 @@ export function DataSourcesSection() {
           )}
         </div>
 
+        {/* Structured Field Warnings */}
+        {uploadStatus === 'success' && structuredWarnings.length > 0 && (
+          <div className="mt-4 space-y-3">
+            {/* Critical field warnings (amber) */}
+            {criticalWarnings.length > 0 && (
+              <div className="bg-amber-50 rounded-lg p-4 border border-amber-200">
+                <div className="flex items-start mb-2">
+                  <AlertTriangle className="w-5 h-5 text-amber-600 mr-2 mt-0.5 flex-shrink-0" />
+                  <h4 className="font-semibold text-amber-900">
+                    Missing Critical Fields ({criticalWarnings.length})
+                  </h4>
+                </div>
+                <p className="text-xs text-amber-700 mb-3 ml-7">
+                  Simulation results may be unreliable without these fields.
+                </p>
+                <ul className="space-y-2 ml-7">
+                  {criticalWarnings.map((w) => (
+                    <li key={w.field_name} className="text-sm">
+                      <span className="font-mono font-medium text-amber-900">{w.field_name}</span>
+                      <span className="text-amber-700"> — {w.impact_description}</span>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            )}
+
+            {/* Optional field notices (blue) */}
+            {optionalWarnings.length > 0 && (
+              <div className="bg-blue-50 rounded-lg p-4 border border-blue-200">
+                <div className="flex items-start mb-2">
+                  <Info className="w-5 h-5 text-blue-500 mr-2 mt-0.5 flex-shrink-0" />
+                  <h4 className="font-semibold text-blue-900">
+                    Optional Fields Using Defaults ({optionalWarnings.length})
+                  </h4>
+                </div>
+                <ul className="space-y-2 ml-7">
+                  {optionalWarnings.map((w) => (
+                    <li key={w.field_name} className="text-sm">
+                      <span className="font-mono font-medium text-blue-900">{w.field_name}</span>
+                      <span className="text-blue-700"> — {w.impact_description}</span>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            )}
+
+            {/* Alias suggestions */}
+            {aliasWarnings.length > 0 && (
+              <div className="bg-gray-50 rounded-lg p-4 border border-gray-300">
+                <div className="flex items-start mb-2">
+                  <ArrowRight className="w-5 h-5 text-gray-500 mr-2 mt-0.5 flex-shrink-0" />
+                  <h4 className="font-semibold text-gray-900">
+                    Column Rename Suggestions ({aliasWarnings.length})
+                  </h4>
+                </div>
+                <ul className="space-y-2 ml-7">
+                  {aliasWarnings.map((w) => (
+                    <li key={w.field_name} className="text-sm">
+                      <span className="font-mono text-gray-600">{w.detected_alias}</span>
+                      <ArrowRight size={12} className="inline mx-1 text-gray-400" />
+                      <span className="font-mono font-medium text-gray-900">{w.field_name}</span>
+                      <span className="text-gray-600"> — {w.suggested_action}</span>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            )}
+          </div>
+        )}
+
         {/* Manual Path Input */}
         <div className="mt-4">
           <label className="block text-sm font-medium text-gray-700 mb-1">
@@ -161,6 +236,7 @@ export function DataSourcesSection() {
 
                 setUploadStatus('uploading');
                 setUploadMessage('Validating path...');
+                setStructuredWarnings([]);
 
                 try {
                   const result = await validateFilePath(
@@ -175,41 +251,24 @@ export function DataSourcesSection() {
                       censusRowCount: result.row_count || 0,
                       censusLastModified: result.last_modified?.split('T')[0] || 'Unknown'
                     }));
+                    setStructuredWarnings(result.structured_warnings || []);
                     setUploadStatus('success');
                     setUploadMessage(`Valid: ${result.row_count?.toLocaleString()} rows, ${result.columns?.length} columns`);
                   } else {
                     setUploadStatus('error');
                     setUploadMessage(result.error_message || 'Invalid path');
                     setFormData(prev => ({ ...prev, censusDataStatus: 'error' }));
+                    setStructuredWarnings([]);
                   }
                 } catch (error) {
                   setUploadStatus('error');
                   setUploadMessage(error instanceof Error ? error.message : 'Validation failed');
+                  setStructuredWarnings([]);
                 }
               }}
             >
               Validate
             </button>
-          </div>
-        </div>
-      </div>
-
-      {/* Required Columns Info */}
-      <div className="bg-blue-50 rounded-xl p-6 border border-blue-100">
-        <div className="flex items-start">
-          <HelpCircle className="w-5 h-5 text-blue-500 mr-3 mt-0.5" />
-          <div>
-            <h4 className="font-semibold text-blue-900 mb-2">Required Census Columns</h4>
-            <p className="text-sm text-blue-700 mb-3">
-              Your census file must contain the following columns for the simulation to run correctly:
-            </p>
-            <div className="grid grid-cols-2 gap-2 text-xs font-mono">
-              {['employee_id', 'hire_date', 'department', 'job_level', 'annual_salary', 'birth_date', 'termination_date', 'status'].map(col => (
-                <div key={col} className="bg-white px-2 py-1 rounded border border-blue-200 text-blue-800">
-                  {col}
-                </div>
-              ))}
-            </div>
           </div>
         </div>
       </div>

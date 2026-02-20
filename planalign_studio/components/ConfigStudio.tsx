@@ -31,7 +31,7 @@ function ConfigShell() {
   const {
     currentScenario, scenarioId, scenarioLoading,
     dirtySections, isDirty,
-    handleSaveConfig, saveStatus,
+    handleSaveConfig, saveStatus, saveMessage,
     activeWorkspace,
   } = useConfigContext();
 
@@ -182,6 +182,14 @@ function ConfigShell() {
           </button>
         </div>
       </div>
+
+      {/* Validation error banner */}
+      {saveStatus === 'error' && saveMessage && (
+        <div className="mb-4 rounded-lg bg-red-50 border border-red-200 p-4 flex items-start">
+          <AlertTriangle className="h-5 w-5 text-red-400 mt-0.5 flex-shrink-0" />
+          <p className="ml-3 text-sm text-red-700">{saveMessage}</p>
+        </div>
+      )}
 
       {/* Content: Sidebar + Form */}
       <div className="flex-1 bg-white rounded-xl shadow-sm border border-gray-200 flex overflow-hidden">

@@ -31,7 +31,7 @@ export function SimulationSection() {
           type="number"
           step="0.1"
           suffix="%"
-          helper="Target annual workforce growth (e.g., 3% = 0.03)"
+          helper="Target annual workforce growth as a percentage (e.g., 3 for 3%)"
         />
 
         <div className="sm:col-span-6 pt-4">

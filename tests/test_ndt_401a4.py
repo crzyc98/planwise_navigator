@@ -90,7 +90,7 @@ class MockStorage:
     def _scenario_path(self, workspace_id: str, scenario_id: str) -> Path:
         return Path("/mock/workspaces") / workspace_id / "scenarios" / scenario_id
 
-    def get_scenario_config(self, workspace_id: str, scenario_id: str):
+    def get_merged_config(self, workspace_id: str, scenario_id: str):
         return {}
 
 
@@ -230,7 +230,7 @@ class TestServiceRiskFlag:
         mock_resolver.resolve.return_value = ResolvedDatabasePath(path=Path(":memory:"), source="scenario")
 
         # Mock storage to return graded_by_service config
-        service.storage.get_scenario_config = MagicMock(return_value={
+        service.storage.get_merged_config = MagicMock(return_value={
             "employer_core_contribution": {"status": "graded_by_service"}
         })
 
