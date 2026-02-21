@@ -2,12 +2,14 @@
 
 E073: Config Module Refactoring - workforce module.
 E046: Tenure-based and points-based employer match modes.
+E058: Match-responsive deferral adjustments.
 """
 
 from __future__ import annotations
 
 import warnings
-from typing import Any, Dict, List, Optional
+from decimal import Decimal
+from typing import Any, Dict, List, Literal, Optional
 
 from pydantic import BaseModel, Field, model_validator
 
@@ -298,6 +300,86 @@ class EmployerMatchSettings(BaseModel):
                 min_key="min",
                 max_key="max",
                 label="points",
+            )
+
+        return self
+
+
+# =============================================================================
+# Deferral Match Response Settings (E058)
+# =============================================================================
+
+class DeferralMatchResponseSettings(BaseModel):
+    """Configuration for match-responsive deferral adjustments.
+
+    E058: When employer match formulas change, employees may adjust their
+    deferral rates in response. This models upward adjustments (increasing
+    deferrals to capture more match) and downward adjustments (reducing
+    deferrals when match is reduced).
+    """
+
+    enabled: bool = Field(default=False, description="Master toggle for match-responsive behavior")
+
+    # Upward response parameters
+    upward_participation_rate: Decimal = Field(
+        default=Decimal("0.40"), ge=0, le=1,
+        description="Fraction of below-max employees who respond upward",
+    )
+    upward_maximize_rate: Decimal = Field(
+        default=Decimal("0.60"), ge=0, le=1,
+        description="Fraction of upward responders who jump to match-maximizing rate",
+    )
+    upward_partial_increase_rate: Decimal = Field(
+        default=Decimal("0.40"), ge=0, le=1,
+        description="Fraction of upward responders who partially increase",
+    )
+    upward_partial_increase_factor: Decimal = Field(
+        default=Decimal("0.50"), ge=0, le=1,
+        description="Gap-closing factor for partial upward responders",
+    )
+
+    # Downward response parameters
+    downward_enabled: bool = Field(default=True, description="Enable downward adjustments")
+    downward_participation_rate: Decimal = Field(
+        default=Decimal("0.15"), ge=0, le=1,
+        description="Fraction of above-max employees who respond downward",
+    )
+    downward_reduce_to_max_rate: Decimal = Field(
+        default=Decimal("0.70"), ge=0, le=1,
+        description="Fraction of downward responders who reduce to match-maximizing rate",
+    )
+    downward_partial_decrease_rate: Decimal = Field(
+        default=Decimal("0.30"), ge=0, le=1,
+        description="Fraction of downward responders who partially decrease",
+    )
+    downward_partial_decrease_factor: Decimal = Field(
+        default=Decimal("0.50"), ge=0, le=1,
+        description="Gap-closing factor for partial downward responders",
+    )
+
+    # Timing
+    effective_timing: Literal["first_year"] = Field(
+        default="first_year",
+        description="When match-response events fire (first simulation year only)",
+    )
+
+    @model_validator(mode="after")
+    def validate_rate_sums(self) -> "DeferralMatchResponseSettings":
+        """Validate that upward and downward sub-rates sum to 1.0."""
+        upward_sum = self.upward_maximize_rate + self.upward_partial_increase_rate
+        if abs(float(upward_sum) - 1.0) > 0.001:
+            raise ValueError(
+                f"upward_maximize_rate ({self.upward_maximize_rate}) + "
+                f"upward_partial_increase_rate ({self.upward_partial_increase_rate}) "
+                f"must equal 1.0, got {upward_sum}"
+            )
+
+        downward_sum = self.downward_reduce_to_max_rate + self.downward_partial_decrease_rate
+        if abs(float(downward_sum) - 1.0) > 0.001:
+            raise ValueError(
+                f"downward_reduce_to_max_rate ({self.downward_reduce_to_max_rate}) + "
+                f"downward_partial_decrease_rate ({self.downward_partial_decrease_rate}) "
+                f"must equal 1.0, got {downward_sum}"
             )
 
         return self

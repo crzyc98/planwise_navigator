@@ -19,6 +19,7 @@ from .workforce import (
     EligibilitySettings,
     PlanEligibilitySettings,
     EmployerMatchSettings,
+    DeferralMatchResponseSettings,
 )
 from .performance import (
     OptimizationSettings,
@@ -44,6 +45,12 @@ class SimulationConfig(BaseModel):
     eligibility: EligibilitySettings = Field(default_factory=EligibilitySettings)
     plan_eligibility: PlanEligibilitySettings = Field(default_factory=PlanEligibilitySettings)
     employer_match: Optional[EmployerMatchSettings] = Field(default=None, description="Employer match configuration")
+
+    # E058: Match-responsive deferral adjustments
+    deferral_match_response: DeferralMatchResponseSettings = Field(
+        default_factory=DeferralMatchResponseSettings,
+        description="Match-responsive deferral adjustment settings",
+    )
 
     # Performance optimization configuration (optional for backward compatibility)
     optimization: Optional[OptimizationSettings] = Field(default=None, description="Performance optimization settings")

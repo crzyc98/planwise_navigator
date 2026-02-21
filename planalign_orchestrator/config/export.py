@@ -806,6 +806,58 @@ def _export_core_contribution_vars(cfg: "SimulationConfig") -> Dict[str, Any]:
     return dbt_vars
 
 
+def _export_deferral_match_response_vars(cfg: "SimulationConfig") -> Dict[str, Any]:
+    """Export deferral match response settings to dbt vars.
+
+    E058: Match-responsive deferral adjustments.
+    Exports all DeferralMatchResponseSettings fields as flat dbt variables
+    prefixed with `deferral_match_response_`.
+    """
+    dbt_vars: Dict[str, Any] = {}
+
+    try:
+        dmr = cfg.deferral_match_response
+        dbt_vars["deferral_match_response_enabled"] = bool(dmr.enabled)
+        dbt_vars["deferral_match_response_upward_participation_rate"] = float(dmr.upward_participation_rate)
+        dbt_vars["deferral_match_response_upward_maximize_rate"] = float(dmr.upward_maximize_rate)
+        dbt_vars["deferral_match_response_upward_partial_factor"] = float(dmr.upward_partial_increase_factor)
+        dbt_vars["deferral_match_response_downward_enabled"] = bool(dmr.downward_enabled)
+        dbt_vars["deferral_match_response_downward_participation_rate"] = float(dmr.downward_participation_rate)
+        dbt_vars["deferral_match_response_downward_reduce_to_max_rate"] = float(dmr.downward_reduce_to_max_rate)
+        dbt_vars["deferral_match_response_downward_partial_factor"] = float(dmr.downward_partial_decrease_factor)
+
+        # Pre-compute match-maximizing deferral rate from active formula
+        # This avoids Jinja2 scoping issues when iterating tiers in SQL
+        match_max_rate = 0.06  # sensible default
+        try:
+            all_vars = {}
+            all_vars.update(_export_simulation_vars(cfg))
+            all_vars.update(_export_legacy_vars(cfg))
+            all_vars.update(_export_enrollment_vars(cfg))
+            all_vars.update(_export_employer_match_vars(cfg))
+            formulas = all_vars.get("match_formulas", {})
+            active_key = all_vars.get("active_match_formula", "")
+            if active_key and active_key in formulas:
+                formula = formulas[active_key]
+                formula_type = formula.get("type", "simple")
+                if formula_type == "simple":
+                    match_max_rate = float(formula.get("max_match_percentage", 0.06))
+                elif formula_type in ("tiered", "safe_harbor", "qaca"):
+                    tiers = formula.get("tiers", [])
+                    if tiers:
+                        match_max_rate = max(
+                            float(t.get("employee_max", 0)) for t in tiers
+                        )
+        except Exception:
+            pass  # fall back to default 0.06
+        dbt_vars["deferral_match_response_match_max_rate"] = match_max_rate
+    except Exception:
+        # Feature not configured - use defaults (disabled)
+        dbt_vars["deferral_match_response_enabled"] = False
+
+    return dbt_vars
+
+
 def to_dbt_vars(cfg: "SimulationConfig") -> Dict[str, Any]:
     """Map typed config to dbt vars compatible with existing models.
 
@@ -827,6 +879,7 @@ def to_dbt_vars(cfg: "SimulationConfig") -> Dict[str, Any]:
     dbt_vars.update(_export_compensation_vars(cfg))
     dbt_vars.update(_export_threading_vars(cfg))
     dbt_vars.update(_export_core_contribution_vars(cfg))
+    dbt_vars.update(_export_deferral_match_response_vars(cfg))
 
     # Remove any keys marked with the _REMOVE_KEY sentinel
     # This allows UI to explicitly clear values set by legacy YAML

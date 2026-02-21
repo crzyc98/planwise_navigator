@@ -71,3 +71,38 @@ models:
           - not_null
           - accepted_values:
               values: [true, false]
+
+  - name: int_deferral_match_response_events
+    description: >
+      Match-responsive deferral adjustment events (Epic E058).
+      Generates events when employees adjust deferrals in response to the
+      match formula gap. Fires in the first simulation year only.
+    config:
+      tags: ["EVENT_GENERATION", "E058_MATCH_RESPONSE"]
+    data_tests:
+      - dbt_utils.unique_combination_of_columns:
+          combination_of_columns:
+            - employee_id
+            - simulation_year
+          config:
+            severity: error
+            error_if: ">= 1"
+    columns:
+      - name: employee_id
+        description: Unique employee identifier
+        data_tests:
+          - not_null
+      - name: event_type
+        description: Event type (always 'deferral_match_response')
+        data_tests:
+          - not_null
+          - accepted_values:
+              values: ['deferral_match_response']
+      - name: employee_deferral_rate
+        description: New deferral rate after match-responsive adjustment
+        data_tests:
+          - not_null
+          - dbt_utils.accepted_range:
+              min_value: 0.0
+              max_value: 1.0
+              inclusive: true
