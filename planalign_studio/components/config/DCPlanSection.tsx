@@ -354,7 +354,7 @@ export function DCPlanSection() {
            <label className="block text-sm font-medium text-gray-700">Max Employer Match</label>
            <div className="mt-1 bg-gray-100 rounded-md p-2 border border-gray-200">
              <span className="text-lg font-semibold text-gray-900">
-               {(calculateMatchCap(formData.dcMatchTiers) * 100).toFixed(1)}%
+               {(calculateMatchCap(formData.dcMatchTiers) * 100).toFixed(2)}%
              </span>
              <span className="text-sm text-gray-500 ml-1">of compensation</span>
            </div>
@@ -462,37 +462,29 @@ export function DCPlanSection() {
          <InputField label="Min. Tenure" {...inputProps('dcMatchMinTenureYears')} type="number" suffix="Years" helper="Years of service required" min={0} />
          <InputField label="Min. Annual Hours" {...inputProps('dcMatchMinHoursAnnual')} type="number" suffix="Hours" helper="Hours worked per year" min={0} />
 
-         <div className="sm:col-span-3 flex items-center">
+         <div className="sm:col-span-6 flex items-center">
            <input
              type="checkbox"
-             name="dcMatchRequireYearEndActive"
              checked={formData.dcMatchRequireYearEndActive}
-             onChange={handleChange}
+             onChange={(e) => {
+               const checked = e.target.checked;
+               setFormData(prev => ({
+                 ...prev,
+                 dcMatchRequireYearEndActive: checked,
+                 dcMatchAllowTerminatedNewHires: !checked,
+                 dcMatchAllowExperiencedTerminations: !checked,
+               }));
+             }}
              className="h-4 w-4 text-fidelity-green focus:ring-fidelity-green border-gray-300 rounded"
            />
-           <label className="ml-2 block text-sm text-gray-700">Require Active at Year-End</label>
-         </div>
-
-         <div className="sm:col-span-3 flex items-center">
-           <input
-             type="checkbox"
-             name="dcMatchAllowTerminatedNewHires"
-             checked={formData.dcMatchAllowTerminatedNewHires}
-             onChange={handleChange}
-             className="h-4 w-4 text-fidelity-green focus:ring-fidelity-green border-gray-300 rounded"
-           />
-           <label className="ml-2 block text-sm text-gray-700">Allow Terminated New Hires</label>
-         </div>
-
-         <div className="sm:col-span-3 flex items-center">
-           <input
-             type="checkbox"
-             name="dcMatchAllowExperiencedTerminations"
-             checked={formData.dcMatchAllowExperiencedTerminations}
-             onChange={handleChange}
-             className="h-4 w-4 text-fidelity-green focus:ring-fidelity-green border-gray-300 rounded"
-           />
-           <label className="ml-2 block text-sm text-gray-700">Allow Experienced Terminations</label>
+           <div className="ml-2">
+             <label className="block text-sm text-gray-700">Last Day Working Rule</label>
+             <p className="text-xs text-gray-500">
+               {formData.dcMatchRequireYearEndActive
+                 ? 'Enabled — only employees active at year-end receive match contributions'
+                 : 'Disabled — terminated employees may still receive match contributions'}
+             </p>
+           </div>
          </div>
          </>)}
 
@@ -744,37 +736,29 @@ export function DCPlanSection() {
              <InputField label="Min. Tenure" {...inputProps('dcCoreMinTenureYears')} type="number" suffix="Years" helper="Years of service required" min={0} />
              <InputField label="Min. Annual Hours" {...inputProps('dcCoreMinHoursAnnual')} type="number" suffix="Hours" helper="Hours worked per year" min={0} />
 
-             <div className="sm:col-span-3 flex items-center">
+             <div className="sm:col-span-6 flex items-center">
                <input
                  type="checkbox"
-                 name="dcCoreRequireYearEndActive"
                  checked={formData.dcCoreRequireYearEndActive}
-                 onChange={handleChange}
+                 onChange={(e) => {
+                   const checked = e.target.checked;
+                   setFormData(prev => ({
+                     ...prev,
+                     dcCoreRequireYearEndActive: checked,
+                     dcCoreAllowTerminatedNewHires: !checked,
+                     dcCoreAllowExperiencedTerminations: !checked,
+                   }));
+                 }}
                  className="h-4 w-4 text-fidelity-green focus:ring-fidelity-green border-gray-300 rounded"
                />
-               <label className="ml-2 block text-sm text-gray-700">Require Active at Year-End</label>
-             </div>
-
-             <div className="sm:col-span-3 flex items-center">
-               <input
-                 type="checkbox"
-                 name="dcCoreAllowTerminatedNewHires"
-                 checked={formData.dcCoreAllowTerminatedNewHires}
-                 onChange={handleChange}
-                 className="h-4 w-4 text-fidelity-green focus:ring-fidelity-green border-gray-300 rounded"
-               />
-               <label className="ml-2 block text-sm text-gray-700">Allow Terminated New Hires</label>
-             </div>
-
-             <div className="sm:col-span-3 flex items-center">
-               <input
-                 type="checkbox"
-                 name="dcCoreAllowExperiencedTerminations"
-                 checked={formData.dcCoreAllowExperiencedTerminations}
-                 onChange={handleChange}
-                 className="h-4 w-4 text-fidelity-green focus:ring-fidelity-green border-gray-300 rounded"
-               />
-               <label className="ml-2 block text-sm text-gray-700">Allow Experienced Terminations</label>
+               <div className="ml-2">
+                 <label className="block text-sm text-gray-700">Last Day Working Rule</label>
+                 <p className="text-xs text-gray-500">
+                   {formData.dcCoreRequireYearEndActive
+                     ? 'Enabled — only employees active at year-end receive core contributions'
+                     : 'Disabled — terminated employees may still receive core contributions'}
+                 </p>
+               </div>
              </div>
            </>
          )}

@@ -1,8 +1,8 @@
 """Tests for AnalyticsService participation rate consistency.
 
 Feature: 041-fix-yearly-participation-rate
-Validates that per-year participation rate uses active-only population,
-matching the top-level participation rate calculation.
+Validates that per-year participation rate defaults to all participants
+(active + terminated) and supports active_only toggle.
 """
 
 import tempfile
@@ -106,11 +106,11 @@ def analytics_service(tmp_path):
 # =============================================================================
 
 
-class TestParticipationRateActiveOnly:
-    """T002: Verify per-year participation rate uses active employees only."""
+class TestParticipationRateDefaultAll:
+    """T002: Verify per-year participation rate defaults to all employees."""
 
-    def test_participation_rate_excludes_terminated(self, in_memory_conn):
-        """8 active (6 enrolled) + 2 terminated (1 enrolled) => rate = 75.0, not 70.0."""
+    def test_participation_rate_includes_terminated_by_default(self, in_memory_conn):
+        """8 active (6 enrolled) + 2 terminated (1 enrolled) => default rate = 70.0 (7/10)."""
         _seed_employees(in_memory_conn, [
             # Active enrolled (6)
             {"employee_id": "A1", "year": 2025, "status": "ACTIVE", "enrolled": True},
@@ -132,7 +132,29 @@ class TestParticipationRateActiveOnly:
         results = service._get_contribution_by_year(in_memory_conn)
 
         assert len(results) == 1
-        # 6 enrolled active / 8 total active = 75.0%
+        # Default: 7 enrolled / 10 total = 70.0%
+        assert results[0].participation_rate == 70.0
+
+    def test_participation_rate_active_only(self, in_memory_conn):
+        """Same data with active_only=True => rate = 75.0 (6/8)."""
+        _seed_employees(in_memory_conn, [
+            {"employee_id": "A1", "year": 2025, "status": "ACTIVE", "enrolled": True},
+            {"employee_id": "A2", "year": 2025, "status": "ACTIVE", "enrolled": True},
+            {"employee_id": "A3", "year": 2025, "status": "ACTIVE", "enrolled": True},
+            {"employee_id": "A4", "year": 2025, "status": "ACTIVE", "enrolled": True},
+            {"employee_id": "A5", "year": 2025, "status": "ACTIVE", "enrolled": True},
+            {"employee_id": "A6", "year": 2025, "status": "ACTIVE", "enrolled": True},
+            {"employee_id": "A7", "year": 2025, "status": "ACTIVE", "enrolled": False},
+            {"employee_id": "A8", "year": 2025, "status": "ACTIVE", "enrolled": False},
+            {"employee_id": "T1", "year": 2025, "status": "TERMINATED", "enrolled": True},
+            {"employee_id": "T2", "year": 2025, "status": "TERMINATED", "enrolled": False},
+        ])
+
+        service = AnalyticsService(storage=MagicMock(), db_resolver=MagicMock())
+        results = service._get_contribution_by_year(in_memory_conn, active_only=True)
+
+        assert len(results) == 1
+        # Active only: 6 enrolled active / 8 total active = 75.0%
         assert results[0].participation_rate == 75.0
 
 
@@ -142,10 +164,10 @@ class TestParticipationRateActiveOnly:
 
 
 class TestZeroActiveEmployees:
-    """T003: Verify participation rate is 0.0 when no active employees exist."""
+    """T003: Verify participation rate handles all-terminated correctly."""
 
-    def test_zero_active_returns_zero(self, in_memory_conn):
-        """All terminated => participation_rate = 0.0, no division error."""
+    def test_all_terminated_default_includes_them(self, in_memory_conn):
+        """All terminated, default (all participants) => 2/3 = 66.67%."""
         _seed_employees(in_memory_conn, [
             {"employee_id": "T1", "year": 2025, "status": "TERMINATED", "enrolled": True},
             {"employee_id": "T2", "year": 2025, "status": "TERMINATED", "enrolled": True},
@@ -156,7 +178,20 @@ class TestZeroActiveEmployees:
         results = service._get_contribution_by_year(in_memory_conn)
 
         assert len(results) == 1
-        assert results[0].participation_rate == 0.0
+        assert results[0].participation_rate == 66.67
+
+    def test_all_terminated_active_only_returns_zero(self, in_memory_conn):
+        """All terminated with active_only=True => 0.0, no division error."""
+        _seed_employees(in_memory_conn, [
+            {"employee_id": "T1", "year": 2025, "status": "TERMINATED", "enrolled": True},
+            {"employee_id": "T2", "year": 2025, "status": "TERMINATED", "enrolled": True},
+            {"employee_id": "T3", "year": 2025, "status": "TERMINATED", "enrolled": False},
+        ])
+
+        service = AnalyticsService(storage=MagicMock(), db_resolver=MagicMock())
+        results = service._get_contribution_by_year(in_memory_conn, active_only=True)
+
+        assert len(results) == 0  # No active employees, no rows returned
 
 
 # =============================================================================
@@ -165,23 +200,41 @@ class TestZeroActiveEmployees:
 
 
 class TestAllActiveEnrolled:
-    """T004: Verify participation rate is 100.0 when all active are enrolled."""
+    """T004: Verify participation rate when all active are enrolled."""
 
-    def test_all_active_enrolled(self, in_memory_conn):
-        """5 active all enrolled + 2 terminated not enrolled => rate = 100.0."""
+    def test_all_active_enrolled_default(self, in_memory_conn):
+        """5 active enrolled + 2 terminated not enrolled => default rate = 71.43 (5/7)."""
         _seed_employees(in_memory_conn, [
             {"employee_id": "A1", "year": 2025, "status": "ACTIVE", "enrolled": True},
             {"employee_id": "A2", "year": 2025, "status": "ACTIVE", "enrolled": True},
             {"employee_id": "A3", "year": 2025, "status": "ACTIVE", "enrolled": True},
             {"employee_id": "A4", "year": 2025, "status": "ACTIVE", "enrolled": True},
             {"employee_id": "A5", "year": 2025, "status": "ACTIVE", "enrolled": True},
-            # Terminated should not affect rate
             {"employee_id": "T1", "year": 2025, "status": "TERMINATED", "enrolled": False},
             {"employee_id": "T2", "year": 2025, "status": "TERMINATED", "enrolled": False},
         ])
 
         service = AnalyticsService(storage=MagicMock(), db_resolver=MagicMock())
         results = service._get_contribution_by_year(in_memory_conn)
+
+        assert len(results) == 1
+        # Default: 5 enrolled / 7 total = 71.43%
+        assert results[0].participation_rate == 71.43
+
+    def test_all_active_enrolled_active_only(self, in_memory_conn):
+        """Same data with active_only=True => rate = 100.0 (5/5)."""
+        _seed_employees(in_memory_conn, [
+            {"employee_id": "A1", "year": 2025, "status": "ACTIVE", "enrolled": True},
+            {"employee_id": "A2", "year": 2025, "status": "ACTIVE", "enrolled": True},
+            {"employee_id": "A3", "year": 2025, "status": "ACTIVE", "enrolled": True},
+            {"employee_id": "A4", "year": 2025, "status": "ACTIVE", "enrolled": True},
+            {"employee_id": "A5", "year": 2025, "status": "ACTIVE", "enrolled": True},
+            {"employee_id": "T1", "year": 2025, "status": "TERMINATED", "enrolled": False},
+            {"employee_id": "T2", "year": 2025, "status": "TERMINATED", "enrolled": False},
+        ])
+
+        service = AnalyticsService(storage=MagicMock(), db_resolver=MagicMock())
+        results = service._get_contribution_by_year(in_memory_conn, active_only=True)
 
         assert len(results) == 1
         assert results[0].participation_rate == 100.0
@@ -253,8 +306,8 @@ class TestFinalYearMatchesTopLevel:
         assert result is not None
         assert len(result.contribution_by_year) == 2
 
-        # Top-level rate comes from _get_participation_summary (final year, active only)
-        # Final year 2026: 3 active enrolled / 4 active total = 75.0%
+        # Top-level rate comes from _get_participation_summary (final year, all participants)
+        # Final year 2026: 4 enrolled / 5 total = 80.0%
         top_level_rate = result.participation_rate
         final_year_rate = result.contribution_by_year[-1].participation_rate
 

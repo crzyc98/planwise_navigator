@@ -13,6 +13,8 @@ from .sql_security import (
     CENSUS_COMPENSATION_COLUMNS,
     CENSUS_HIRE_DATE_COLUMNS,
     CENSUS_JOB_LEVEL_COLUMNS,
+    CENSUS_STATUS_COLUMNS,
+    CENSUS_TERMINATION_DATE_COLUMNS,
     SQLSecurityError,
     validate_column_name_from_set,
     validate_file_path_for_sql,
@@ -39,16 +41,22 @@ class FileService:
         "active",
     ]
 
-    # Column aliases - maps common alternative names to expected names
-    # Used for informative messages, not auto-renaming
-    COLUMN_ALIASES = {
-        "hire_date": "employee_hire_date",
-        "birth_date": "employee_birth_date",
-        "termination_date": "employee_termination_date",
-        "annual_salary": "employee_gross_compensation",
-        "compensation": "employee_gross_compensation",
-        "status": "active",
+    # Canonical column map: canonical_name -> frozenset of aliases (from sql_security.py)
+    _CANONICAL_COLUMN_MAP = {
+        "employee_birth_date": CENSUS_BIRTH_DATE_COLUMNS,
+        "employee_hire_date": CENSUS_HIRE_DATE_COLUMNS,
+        "employee_termination_date": CENSUS_TERMINATION_DATE_COLUMNS,
+        "employee_gross_compensation": CENSUS_COMPENSATION_COLUMNS,
+        "employee_job_level": CENSUS_JOB_LEVEL_COLUMNS,
+        "active": CENSUS_STATUS_COLUMNS,
     }
+
+    # Flattened alias -> canonical map (excludes canonical names themselves)
+    COLUMN_ALIASES: Dict[str, str] = {}
+    for _canonical, _aliases in _CANONICAL_COLUMN_MAP.items():
+        for _alias in _aliases:
+            if _alias != _canonical:
+                COLUMN_ALIASES[_alias] = _canonical
 
     # Critical columns — simulation results are unreliable without these
     CRITICAL_COLUMNS = [
@@ -86,6 +94,21 @@ class FileService:
         },
     }
 
+    # Critical fields for data quality — nulls in these are errors, not warnings
+    DATA_QUALITY_CRITICAL_FIELDS = {
+        "employee_id",
+        "employee_hire_date",
+        "employee_gross_compensation",
+        "employee_birth_date",
+    }
+
+    # All date column sets combined for DQ checks
+    ALL_DATE_COLUMN_SETS = (
+        CENSUS_BIRTH_DATE_COLUMNS
+        | CENSUS_HIRE_DATE_COLUMNS
+        | CENSUS_TERMINATION_DATE_COLUMNS
+    )
+
     # Maximum file size: 100MB
     MAX_FILE_SIZE_BYTES = 100 * 1024 * 1024
 
@@ -109,7 +132,10 @@ class FileService:
         filename: str,
     ) -> Tuple[str, Dict, str]:
         """
-        Save an uploaded file and return its path and metadata.
+        Save an uploaded file, normalizing column names and filename.
+
+        Census files are normalized to canonical column names and saved as
+        ``data/census.parquet`` regardless of the original filename.
 
         Args:
             workspace_id: The workspace ID
@@ -136,27 +162,121 @@ class FileService:
                 f"File exceeds maximum size of {self.MAX_FILE_SIZE_BYTES // (1024 * 1024)}MB"
             )
 
-        # Determine target path
+        # Normalize columns and save as canonical parquet
         data_dir = self._get_data_directory(workspace_id)
-        file_path = data_dir / filename
-
-        # Write file
-        file_path.write_bytes(file_content)
-        logger.info(f"Saved uploaded file to {file_path}")
+        canonical_path, column_renames = self._normalize_and_save_census(
+            data_dir, file_content, filename
+        )
 
         try:
-            # Parse and validate the file
-            metadata = self._parse_and_validate_file(file_path)
+            # Parse and validate the normalized file
+            metadata = self._parse_and_validate_file(canonical_path)
         except Exception as e:
             # Clean up file if validation fails
-            file_path.unlink(missing_ok=True)
+            canonical_path.unlink(missing_ok=True)
             raise ValueError(f"Failed to parse file: {e}")
 
-        # Return relative path for storage in config
-        relative_path = f"data/{filename}"
-        absolute_path = str(file_path.resolve())
+        # Add normalization info to metadata
+        metadata["column_renames"] = column_renames
+        metadata["original_filename"] = filename
+
+        # Generate auto_mapped structured warnings for each rename
+        for rename in column_renames:
+            field_info = self.FIELD_IMPACT_DESCRIPTIONS.get(rename["canonical"])
+            if field_info:
+                metadata["structured_warnings"].append({
+                    "field_name": rename["canonical"],
+                    "severity": "info",
+                    "warning_type": "auto_mapped",
+                    "impact_description": field_info["impact"],
+                    "detected_alias": rename["original"],
+                    "suggested_action": f"Column '{rename['original']}' was auto-renamed to '{rename['canonical']}'",
+                })
+
+        # Return canonical path
+        relative_path = "data/census.parquet"
+        absolute_path = str(canonical_path.resolve())
 
         return relative_path, metadata, absolute_path
+
+    def _normalize_and_save_census(
+        self,
+        data_dir: Path,
+        file_content: bytes,
+        filename: str,
+    ) -> Tuple[Path, List[Dict[str, str]]]:
+        """
+        Normalize column names and save as canonical parquet.
+
+        Writes raw bytes to a temp file, reads into DuckDB, renames alias
+        columns to canonical names, and exports as ``data/census.parquet``.
+
+        Args:
+            data_dir: Workspace data directory
+            file_content: Raw file bytes
+            filename: Original filename (used to determine format)
+
+        Returns:
+            Tuple of (canonical_path, list_of_renames) where each rename is
+            ``{"original": alias, "canonical": canonical_name}``
+        """
+        suffix = Path(filename).suffix.lower()
+        temp_path = data_dir / f"_temp_upload{suffix}"
+        canonical_path = data_dir / "census.parquet"
+
+        try:
+            # Write raw bytes to temp file
+            temp_path.write_bytes(file_content)
+
+            conn = duckdb.connect(":memory:")
+            try:
+                # Validate temp file path for SQL safety
+                try:
+                    safe_temp_path = validate_file_path_for_sql(
+                        temp_path, [data_dir.parent], context="census upload"
+                    )
+                except SQLSecurityError as e:
+                    raise ValueError(str(e))
+
+                # Read into DuckDB
+                if suffix == ".parquet":
+                    conn.execute(f"CREATE TABLE census AS SELECT * FROM read_parquet('{safe_temp_path}')")
+                elif suffix == ".csv":
+                    conn.execute(f"CREATE TABLE census AS SELECT * FROM read_csv('{safe_temp_path}', header=true, auto_detect=true)")
+                else:
+                    raise ValueError(f"Unsupported file type: {suffix}")
+
+                # Get current columns
+                columns_result = conn.execute(
+                    "SELECT column_name FROM information_schema.columns WHERE table_name = 'census'"
+                ).fetchall()
+                columns = {row[0] for row in columns_result}
+
+                # Detect and rename alias columns
+                renames: List[Dict[str, str]] = []
+                for alias, canonical in self.COLUMN_ALIASES.items():
+                    if alias in columns and canonical not in columns:
+                        conn.execute(f'ALTER TABLE census RENAME COLUMN "{alias}" TO "{canonical}"')
+                        renames.append({"original": alias, "canonical": canonical})
+                        logger.info(f"Auto-renamed column '{alias}' to '{canonical}'")
+
+                # Export as canonical parquet
+                try:
+                    safe_canonical_path = validate_file_path_for_sql(
+                        canonical_path, [data_dir.parent], context="census output"
+                    )
+                except SQLSecurityError as e:
+                    raise ValueError(str(e))
+
+                conn.execute(f"COPY census TO '{safe_canonical_path}' (FORMAT PARQUET)")
+                logger.info(f"Saved normalized census to {canonical_path}")
+
+                return canonical_path, renames
+            finally:
+                conn.close()
+        finally:
+            # Clean up temp file
+            temp_path.unlink(missing_ok=True)
 
     def _parse_and_validate_file(self, file_path: Path) -> Dict:
         """
@@ -166,7 +286,8 @@ class FileService:
             file_path: Path to the file
 
         Returns:
-            Dict with row_count, columns, file_size_bytes, validation_warnings
+            Dict with row_count, columns, file_size_bytes, validation_warnings,
+            structured_warnings, data_quality_warnings
 
         Raises:
             ValueError: If required columns are missing
@@ -188,78 +309,269 @@ class FileService:
             elif suffix == ".csv":
                 conn.execute(f"CREATE TABLE census AS SELECT * FROM read_csv('{safe_path}', header=true, auto_detect=true)")
             else:
-                conn.close()
                 raise ValueError(f"Unsupported file type: {suffix}")
+
+            # Get column names
+            columns_result = conn.execute("SELECT column_name FROM information_schema.columns WHERE table_name = 'census'").fetchall()
+            columns = [row[0] for row in columns_result]
+            warnings: List[str] = []
+
+            # Get row count
+            row_count = conn.execute("SELECT COUNT(*) FROM census").fetchone()[0]
+
+            # Check required columns
+            missing_required = [col for col in self.REQUIRED_COLUMNS if col not in columns]
+            if missing_required:
+                raise ValueError(
+                    f"Missing required column(s): {', '.join(missing_required)}. "
+                    f"Found columns: {', '.join(columns)}"
+                )
+
+            # Check recommended columns and build structured warnings
+            structured_warnings: List[Dict[str, Optional[str]]] = []
+            for col in self.RECOMMENDED_COLUMNS:
+                if col not in columns:
+                    # Check if an alias exists in the file
+                    alias_found = None
+                    for alias, expected in self.COLUMN_ALIASES.items():
+                        if expected == col and alias in columns:
+                            alias_found = alias
+                            break
+
+                    # Get impact description metadata
+                    field_info = self.FIELD_IMPACT_DESCRIPTIONS.get(col)
+
+                    if alias_found:
+                        warnings.append(
+                            f"Column '{alias_found}' found - consider renaming to '{col}' for consistency"
+                        )
+                        if field_info:
+                            structured_warnings.append({
+                                "field_name": col,
+                                "severity": field_info["severity"],
+                                "warning_type": "alias_found",
+                                "impact_description": field_info["impact"],
+                                "detected_alias": alias_found,
+                                "suggested_action": f"Rename column '{alias_found}' to '{col}' for full compatibility",
+                            })
+                    else:
+                        warnings.append(f"Recommended column missing: {col}")
+                        if field_info:
+                            structured_warnings.append({
+                                "field_name": col,
+                                "severity": field_info["severity"],
+                                "warning_type": "missing",
+                                "impact_description": field_info["impact"],
+                                "detected_alias": None,
+                                "suggested_action": field_info["action"],
+                            })
+
+            # Run row-level data quality checks
+            data_quality_warnings = self._run_data_quality_checks(conn, columns, row_count)
+
+            return {
+                "row_count": row_count,
+                "columns": columns,
+                "file_size_bytes": file_path.stat().st_size,
+                "validation_warnings": warnings,
+                "structured_warnings": structured_warnings,
+                "data_quality_warnings": data_quality_warnings,
+            }
         except SQLSecurityError:
-            conn.close()
+            raise
+        except ValueError:
             raise
         except Exception as e:
-            conn.close()
             raise ValueError(f"Failed to read file: {e}")
+        finally:
+            conn.close()
 
-        # Get column names
-        columns_result = conn.execute("SELECT column_name FROM information_schema.columns WHERE table_name = 'census'").fetchall()
-        columns = [row[0] for row in columns_result]
-        warnings: List[str] = []
+    def _run_data_quality_checks(
+        self, conn: duckdb.DuckDBPyConnection, columns: List[str], row_count: int
+    ) -> List[Dict]:
+        """Run row-level data quality checks on the loaded census table."""
+        if row_count == 0:
+            return []
 
-        # Get row count
-        row_count = conn.execute("SELECT COUNT(*) FROM census").fetchone()[0]
-        conn.close()
+        warnings: List[Dict] = []
 
-        # Check required columns
-        missing_required = [col for col in self.REQUIRED_COLUMNS if col not in columns]
-        if missing_required:
-            raise ValueError(
-                f"Missing required column(s): {', '.join(missing_required)}. "
-                f"Found columns: {', '.join(columns)}"
-            )
+        try:
+            warnings.extend(self._check_null_empty(conn, columns, row_count))
+            warnings.extend(self._check_date_quality(conn, columns, row_count))
+            warnings.extend(self._check_numeric_quality(conn, columns, row_count))
+        except Exception as e:
+            logger.warning(f"Data quality checks failed (non-fatal): {e}")
 
-        # Check recommended columns and build structured warnings
-        structured_warnings: List[Dict[str, Optional[str]]] = []
+        return warnings
+
+    def _check_null_empty(
+        self, conn: duckdb.DuckDBPyConnection, columns: List[str], row_count: int
+    ) -> List[Dict]:
+        """Check for null or empty values in recommended columns."""
+        warnings: List[Dict] = []
+
         for col in self.RECOMMENDED_COLUMNS:
             if col not in columns:
-                # Check if an alias exists in the file
-                alias_found = None
-                for alias, expected in self.COLUMN_ALIASES.items():
-                    if expected == col and alias in columns:
-                        alias_found = alias
-                        break
+                continue
 
-                # Get impact description metadata
-                field_info = self.FIELD_IMPACT_DESCRIPTIONS.get(col)
+            try:
+                # Get count of affected rows
+                count_result = conn.execute(f"""
+                    SELECT COUNT(*) FROM (
+                        SELECT CAST("{col}" AS VARCHAR) AS val FROM census
+                    ) WHERE val IS NULL OR TRIM(val) = ''
+                """).fetchone()
 
-                if alias_found:
-                    warnings.append(
-                        f"Column '{alias_found}' found - consider renaming to '{col}' for consistency"
-                    )
-                    if field_info:
-                        structured_warnings.append({
-                            "field_name": col,
-                            "severity": field_info["severity"],
-                            "warning_type": "alias_found",
-                            "impact_description": field_info["impact"],
-                            "detected_alias": alias_found,
-                            "suggested_action": f"Rename column '{alias_found}' to '{col}' for full compatibility",
-                        })
-                else:
-                    warnings.append(f"Recommended column missing: {col}")
-                    if field_info:
-                        structured_warnings.append({
-                            "field_name": col,
-                            "severity": field_info["severity"],
-                            "warning_type": "missing",
-                            "impact_description": field_info["impact"],
-                            "detected_alias": None,
-                            "suggested_action": field_info["action"],
-                        })
+                affected_count = count_result[0]
+                if affected_count == 0:
+                    continue
 
-        return {
-            "row_count": row_count,
-            "columns": columns,
-            "file_size_bytes": file_path.stat().st_size,
-            "validation_warnings": warnings,
-            "structured_warnings": structured_warnings,
-        }
+                # Get up to 5 sample rows
+                sample_rows = conn.execute(f"""
+                    SELECT rn, val FROM (
+                        SELECT ROW_NUMBER() OVER () AS rn, CAST("{col}" AS VARCHAR) AS val
+                        FROM census
+                    ) WHERE val IS NULL OR TRIM(val) = ''
+                    ORDER BY rn
+                    LIMIT 5
+                """).fetchall()
+
+                samples = [
+                    {"row_number": row[0], "value": row[1]}
+                    for row in sample_rows
+                ]
+
+                severity = "error" if col in self.DATA_QUALITY_CRITICAL_FIELDS else "warning"
+                pct = round((affected_count / row_count) * 100, 1)
+
+                warnings.append({
+                    "field_name": col,
+                    "check_type": "null_or_empty",
+                    "severity": severity,
+                    "affected_count": affected_count,
+                    "total_count": row_count,
+                    "affected_percentage": pct,
+                    "message": f"{affected_count} of {row_count} rows ({pct}%) have null or empty {col}",
+                    "samples": samples,
+                    "suggested_action": f"Review and fill in missing {col} values in your census file",
+                })
+            except Exception as e:
+                logger.debug(f"Null check failed for column {col}: {e}")
+
+        return warnings
+
+    def _check_date_quality(
+        self, conn: duckdb.DuckDBPyConnection, columns: List[str], row_count: int
+    ) -> List[Dict]:
+        """Check for unparseable dates in date columns."""
+        warnings: List[Dict] = []
+
+        for col in columns:
+            if col not in self.ALL_DATE_COLUMN_SETS:
+                continue
+
+            try:
+                # Check for values that are non-null strings but fail date parsing
+                count_result = conn.execute(f"""
+                    SELECT COUNT(*) FROM (
+                        SELECT CAST("{col}" AS VARCHAR) AS val FROM census
+                    ) WHERE val IS NOT NULL AND TRIM(val) != ''
+                      AND TRY_CAST(val AS DATE) IS NULL
+                """).fetchone()
+
+                affected_count = count_result[0]
+                if affected_count == 0:
+                    continue
+
+                # Get up to 5 samples
+                sample_rows = conn.execute(f"""
+                    SELECT rn, val FROM (
+                        SELECT ROW_NUMBER() OVER () AS rn, CAST("{col}" AS VARCHAR) AS val
+                        FROM census
+                    ) WHERE val IS NOT NULL AND TRIM(val) != ''
+                      AND TRY_CAST(val AS DATE) IS NULL
+                    ORDER BY rn
+                    LIMIT 5
+                """).fetchall()
+
+                samples = [
+                    {"row_number": row[0], "value": row[1]}
+                    for row in sample_rows
+                ]
+
+                pct = round((affected_count / row_count) * 100, 1)
+
+                warnings.append({
+                    "field_name": col,
+                    "check_type": "unparseable_date",
+                    "severity": "error",
+                    "affected_count": affected_count,
+                    "total_count": row_count,
+                    "affected_percentage": pct,
+                    "message": f"{affected_count} of {row_count} rows ({pct}%) have unparseable dates in {col}",
+                    "samples": samples,
+                    "suggested_action": f"Use a consistent date format (YYYY-MM-DD recommended) for {col}",
+                })
+            except Exception as e:
+                logger.debug(f"Date quality check failed for column {col}: {e}")
+
+        return warnings
+
+    def _check_numeric_quality(
+        self, conn: duckdb.DuckDBPyConnection, columns: List[str], row_count: int
+    ) -> List[Dict]:
+        """Check for negative or zero values in compensation columns."""
+        warnings: List[Dict] = []
+
+        for col in columns:
+            if col not in CENSUS_COMPENSATION_COLUMNS:
+                continue
+
+            try:
+                count_result = conn.execute(f"""
+                    SELECT COUNT(*) FROM (
+                        SELECT TRY_CAST("{col}" AS DOUBLE) AS num_val FROM census
+                    ) WHERE num_val IS NOT NULL AND num_val <= 0
+                """).fetchone()
+
+                affected_count = count_result[0]
+                if affected_count == 0:
+                    continue
+
+                # Get up to 5 samples
+                sample_rows = conn.execute(f"""
+                    SELECT rn, val FROM (
+                        SELECT ROW_NUMBER() OVER () AS rn,
+                               CAST("{col}" AS VARCHAR) AS val,
+                               TRY_CAST("{col}" AS DOUBLE) AS num_val
+                        FROM census
+                    ) WHERE num_val IS NOT NULL AND num_val <= 0
+                    ORDER BY rn
+                    LIMIT 5
+                """).fetchall()
+
+                samples = [
+                    {"row_number": row[0], "value": row[1]}
+                    for row in sample_rows
+                ]
+
+                pct = round((affected_count / row_count) * 100, 1)
+
+                warnings.append({
+                    "field_name": col,
+                    "check_type": "negative_value",
+                    "severity": "warning",
+                    "affected_count": affected_count,
+                    "total_count": row_count,
+                    "affected_percentage": pct,
+                    "message": f"{affected_count} of {row_count} rows ({pct}%) have zero or negative {col}",
+                    "samples": samples,
+                    "suggested_action": f"Verify that {col} values are positive annual compensation amounts",
+                })
+            except Exception as e:
+                logger.debug(f"Numeric quality check failed for column {col}: {e}")
+
+        return warnings
 
     def validate_path(
         self, workspace_id: str, file_path: str
@@ -321,6 +633,7 @@ class FileService:
                 "last_modified": datetime.fromtimestamp(resolved.stat().st_mtime),
                 "validation_warnings": metadata.get("validation_warnings", []),
                 "structured_warnings": metadata.get("structured_warnings", []),
+                "data_quality_warnings": metadata.get("data_quality_warnings", []),
             }
         except ValueError as e:
             return {

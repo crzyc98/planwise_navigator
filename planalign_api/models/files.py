@@ -10,10 +10,10 @@ class StructuredWarning(BaseModel):
     """A structured validation warning about a census column."""
 
     field_name: str = Field(..., description="Expected census column name")
-    severity: Literal["critical", "optional"] = Field(
+    severity: Literal["critical", "optional", "info"] = Field(
         ..., description="Warning severity tier"
     )
-    warning_type: Literal["missing", "alias_found"] = Field(
+    warning_type: Literal["missing", "alias_found", "auto_mapped"] = Field(
         ..., description="Type of warning"
     )
     impact_description: str = Field(
@@ -23,6 +23,35 @@ class StructuredWarning(BaseModel):
         None, description="Alias column name found in file"
     )
     suggested_action: str = Field(..., description="Recommended user action")
+
+
+class DataQualitySample(BaseModel):
+    """A sample row exhibiting a data quality issue."""
+
+    row_number: int = Field(..., description="1-based row number")
+    value: Optional[str] = Field(None, description="Problematic value (None if null)")
+
+
+class DataQualityWarning(BaseModel):
+    """A row-level data quality warning for a census field."""
+
+    field_name: str = Field(..., description="Column name with the issue")
+    check_type: Literal[
+        "null_or_empty", "unparseable_date", "mixed_date_formats", "negative_value"
+    ] = Field(..., description="Type of quality check that found the issue")
+    severity: Literal["error", "warning", "info"] = Field(
+        ..., description="Issue severity"
+    )
+    affected_count: int = Field(..., description="Number of rows affected")
+    total_count: int = Field(..., description="Total number of rows checked")
+    affected_percentage: float = Field(
+        ..., description="Percentage of rows affected (0-100)"
+    )
+    message: str = Field(..., description="Human-readable description")
+    samples: List[DataQualitySample] = Field(
+        default_factory=list, description="Up to 5 sample rows"
+    )
+    suggested_action: str = Field(..., description="Recommended fix")
 
 
 class FileUploadResponse(BaseModel):
@@ -41,6 +70,17 @@ class FileUploadResponse(BaseModel):
     structured_warnings: List[StructuredWarning] = Field(
         default_factory=list,
         description="Structured validation warnings with severity and impact",
+    )
+    data_quality_warnings: List[DataQualityWarning] = Field(
+        default_factory=list,
+        description="Row-level data quality warnings",
+    )
+    column_renames: List[dict] = Field(
+        default_factory=list,
+        description="Columns that were auto-renamed from aliases to canonical names",
+    )
+    original_filename: Optional[str] = Field(
+        None, description="Original uploaded filename before normalization"
     )
 
 
@@ -80,6 +120,10 @@ class FileValidationResponse(BaseModel):
     structured_warnings: List[StructuredWarning] = Field(
         default_factory=list,
         description="Structured validation warnings with severity and impact",
+    )
+    data_quality_warnings: List[DataQualityWarning] = Field(
+        default_factory=list,
+        description="Row-level data quality warnings",
     )
 
 

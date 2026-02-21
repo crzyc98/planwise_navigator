@@ -787,3 +787,7 @@ ops:
       new_hire_termination_rate: 0.25
       random_seed: 42
       full_refresh: false
+
+# Run retention configuration
+storage:
+  max_runs_per_scenario: 3  # Maximum archived runs to keep per scenario (0 = unlimited)

@@ -385,6 +385,65 @@ export default function AnalyticsDashboard() {
             </div>
           )}
 
+          {/* CAGR Summary Table */}
+          {results.cagr_metrics && results.cagr_metrics.length > 0 && (
+            <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-200">
+              <div className="flex items-center mb-4">
+                <TrendingUp size={20} className="text-fidelity-green mr-2" />
+                <h3 className="text-lg font-semibold text-gray-800">Compound Annual Growth Rate (CAGR)</h3>
+              </div>
+              <div className="overflow-x-auto">
+                <table className="min-w-full divide-y divide-gray-200">
+                  <thead className="bg-gray-50">
+                    <tr>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Metric</th>
+                      <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Start Value</th>
+                      <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">End Value</th>
+                      <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Years</th>
+                      <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">CAGR</th>
+                    </tr>
+                  </thead>
+                  <tbody className="bg-white divide-y divide-gray-200">
+                    {results.cagr_metrics.map((row, idx) => {
+                      const isCompensation = row.metric.toLowerCase().includes('compensation');
+                      const formatValue = (val: number) => {
+                        if (isCompensation) {
+                          return val >= 1_000_000
+                            ? `$${(val / 1_000_000).toFixed(2)}M`
+                            : `$${Math.round(val).toLocaleString()}`;
+                        }
+                        return val.toLocaleString();
+                      };
+                      const cagrDisplay = row.years > 0
+                        ? `${row.cagr_pct >= 0 ? '+' : ''}${row.cagr_pct.toFixed(2)}%`
+                        : 'N/A';
+                      const cagrColor = row.years === 0
+                        ? 'text-gray-500'
+                        : row.cagr_pct > 0
+                          ? 'text-green-600'
+                          : row.cagr_pct < 0
+                            ? 'text-red-600'
+                            : 'text-gray-600';
+
+                      return (
+                        <tr key={idx} className={idx % 2 === 0 ? 'bg-white' : 'bg-gray-50'}>
+                          <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">{row.metric}</td>
+                          <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-700 text-right">{formatValue(row.start_value)}</td>
+                          <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-700 text-right">{formatValue(row.end_value)}</td>
+                          <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-700 text-right">{row.years}</td>
+                          <td className={`px-6 py-4 whitespace-nowrap text-sm font-semibold text-right ${cagrColor}`}>{cagrDisplay}</td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+              {results.cagr_metrics[0]?.years === 0 && (
+                <p className="mt-3 text-xs text-gray-400">CAGR requires more than one simulation year to calculate.</p>
+              )}
+            </div>
+          )}
+
           {/* Main Charts Grid */}
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
 

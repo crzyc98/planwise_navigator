@@ -33,3 +33,6 @@ MEDIA_TYPE_MAP = {
     ".log": "text/plain",
     ".duckdb": "application/octet-stream",
 }
+
+# Run retention
+DEFAULT_MAX_RUNS_PER_SCENARIO = 3  # Maximum runs to keep per scenario (0 = unlimited)

@@ -100,6 +100,12 @@ class SimulationResults(BaseModel):
         description="Compensation breakdown by year and employment status"
     )
 
+    # CAGR metrics for key workforce measures
+    cagr_metrics: List[Dict[str, Any]] = Field(
+        default_factory=list,
+        description="CAGR calculations for headcount, total compensation, and average compensation"
+    )
+
 
 class RunRequest(BaseModel):
     """Request to start a simulation run."""

@@ -119,6 +119,14 @@ export interface SimulationResults {
     employee_count: number;
     avg_compensation: number;
   }>;
+  // CAGR metrics for key workforce measures
+  cagr_metrics: Array<{
+    metric: string;
+    start_value: number;
+    end_value: number;
+    years: number;
+    cagr_pct: number;
+  }>;
 }
 
 export interface BatchJob {
@@ -576,10 +584,27 @@ export async function getRunById(scenarioId: string, runId: string): Promise<Run
 
 export interface StructuredWarning {
   field_name: string;
-  severity: 'critical' | 'optional';
-  warning_type: 'missing' | 'alias_found';
+  severity: 'critical' | 'optional' | 'info';
+  warning_type: 'missing' | 'alias_found' | 'auto_mapped';
   impact_description: string;
   detected_alias: string | null;
+  suggested_action: string;
+}
+
+export interface DataQualitySample {
+  row_number: number;
+  value: string | null;
+}
+
+export interface DataQualityWarning {
+  field_name: string;
+  check_type: 'null_or_empty' | 'unparseable_date' | 'mixed_date_formats' | 'negative_value';
+  severity: 'error' | 'warning' | 'info';
+  affected_count: number;
+  total_count: number;
+  affected_percentage: number;
+  message: string;
+  samples: DataQualitySample[];
   suggested_action: string;
 }
 
@@ -593,6 +618,9 @@ export interface FileUploadResponse {
   upload_timestamp: string;
   validation_warnings: string[];
   structured_warnings: StructuredWarning[];
+  data_quality_warnings: DataQualityWarning[];
+  column_renames: Array<{ original: string; canonical: string }>;
+  original_filename: string | null;
 }
 
 export interface FileValidationResponse {
@@ -607,6 +635,7 @@ export interface FileValidationResponse {
   error_message?: string;
   validation_warnings: string[];
   structured_warnings: StructuredWarning[];
+  data_quality_warnings: DataQualityWarning[];
 }
 
 export async function uploadCensusFile(
@@ -907,21 +936,27 @@ export interface DCPlanComparisonResponse {
 
 export async function getDCPlanAnalytics(
   workspaceId: string,
-  scenarioId: string
+  scenarioId: string,
+  activeOnly: boolean = false
 ): Promise<DCPlanAnalytics> {
+  const params = activeOnly ? '?active_only=true' : '';
   const response = await fetch(
-    `${API_BASE}/api/workspaces/${workspaceId}/scenarios/${scenarioId}/analytics/dc-plan`
+    `${API_BASE}/api/workspaces/${workspaceId}/scenarios/${scenarioId}/analytics/dc-plan${params}`
   );
   return handleResponse<DCPlanAnalytics>(response);
 }
 
 export async function compareDCPlanAnalytics(
   workspaceId: string,
-  scenarioIds: string[]
+  scenarioIds: string[],
+  activeOnly: boolean = false
 ): Promise<DCPlanComparisonResponse> {
   const params = new URLSearchParams({
     scenarios: scenarioIds.join(','),
   });
+  if (activeOnly) {
+    params.set('active_only', 'true');
+  }
   const response = await fetch(
     `${API_BASE}/api/workspaces/${workspaceId}/analytics/dc-plan/compare?${params}`
   );
@@ -1029,6 +1064,46 @@ export async function analyzeTenureBands(
     }
   );
   return handleResponse<BandAnalysisResult>(response);
+}
+
+// ============================================================================
+// Turnover Rate Analysis Endpoints (Feature 056)
+// ============================================================================
+
+export interface TurnoverRateSuggestion {
+  rate: number;
+  sample_size: number;
+  terminated_count: number;
+  confidence: 'high' | 'moderate' | 'low';
+}
+
+export interface TurnoverAnalysisResult {
+  experienced_rate: TurnoverRateSuggestion | null;
+  new_hire_rate: TurnoverRateSuggestion | null;
+  total_employees: number;
+  total_terminated: number;
+  analysis_type: string;
+  source_file: string;
+  message: string | null;
+}
+
+/**
+ * Analyze census data for turnover rate suggestions.
+ * Calculates experienced and new hire termination rates from census termination data.
+ */
+export async function analyzeTurnoverRates(
+  workspaceId: string,
+  filePath: string
+): Promise<TurnoverAnalysisResult> {
+  const response = await fetch(
+    `${API_BASE}/api/workspaces/${workspaceId}/analyze-turnover`,
+    {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ file_path: filePath }),
+    }
+  );
+  return handleResponse<TurnoverAnalysisResult>(response);
 }
 
 // ============================================================================
