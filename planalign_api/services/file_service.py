@@ -13,6 +13,7 @@ from .sql_security import (
     CENSUS_COMPENSATION_COLUMNS,
     CENSUS_HIRE_DATE_COLUMNS,
     CENSUS_JOB_LEVEL_COLUMNS,
+    CENSUS_STATUS_COLUMNS,
     CENSUS_TERMINATION_DATE_COLUMNS,
     SQLSecurityError,
     validate_column_name_from_set,
@@ -40,16 +41,22 @@ class FileService:
         "active",
     ]
 
-    # Column aliases - maps common alternative names to expected names
-    # Used for informative messages, not auto-renaming
-    COLUMN_ALIASES = {
-        "hire_date": "employee_hire_date",
-        "birth_date": "employee_birth_date",
-        "termination_date": "employee_termination_date",
-        "annual_salary": "employee_gross_compensation",
-        "compensation": "employee_gross_compensation",
-        "status": "active",
+    # Canonical column map: canonical_name -> frozenset of aliases (from sql_security.py)
+    _CANONICAL_COLUMN_MAP = {
+        "employee_birth_date": CENSUS_BIRTH_DATE_COLUMNS,
+        "employee_hire_date": CENSUS_HIRE_DATE_COLUMNS,
+        "employee_termination_date": CENSUS_TERMINATION_DATE_COLUMNS,
+        "employee_gross_compensation": CENSUS_COMPENSATION_COLUMNS,
+        "employee_job_level": CENSUS_JOB_LEVEL_COLUMNS,
+        "active": CENSUS_STATUS_COLUMNS,
     }
+
+    # Flattened alias -> canonical map (excludes canonical names themselves)
+    COLUMN_ALIASES: Dict[str, str] = {}
+    for _canonical, _aliases in _CANONICAL_COLUMN_MAP.items():
+        for _alias in _aliases:
+            if _alias != _canonical:
+                COLUMN_ALIASES[_alias] = _canonical
 
     # Critical columns — simulation results are unreliable without these
     CRITICAL_COLUMNS = [
@@ -125,7 +132,10 @@ class FileService:
         filename: str,
     ) -> Tuple[str, Dict, str]:
         """
-        Save an uploaded file and return its path and metadata.
+        Save an uploaded file, normalizing column names and filename.
+
+        Census files are normalized to canonical column names and saved as
+        ``data/census.parquet`` regardless of the original filename.
 
         Args:
             workspace_id: The workspace ID
@@ -152,27 +162,121 @@ class FileService:
                 f"File exceeds maximum size of {self.MAX_FILE_SIZE_BYTES // (1024 * 1024)}MB"
             )
 
-        # Determine target path
+        # Normalize columns and save as canonical parquet
         data_dir = self._get_data_directory(workspace_id)
-        file_path = data_dir / filename
-
-        # Write file
-        file_path.write_bytes(file_content)
-        logger.info(f"Saved uploaded file to {file_path}")
+        canonical_path, column_renames = self._normalize_and_save_census(
+            data_dir, file_content, filename
+        )
 
         try:
-            # Parse and validate the file
-            metadata = self._parse_and_validate_file(file_path)
+            # Parse and validate the normalized file
+            metadata = self._parse_and_validate_file(canonical_path)
         except Exception as e:
             # Clean up file if validation fails
-            file_path.unlink(missing_ok=True)
+            canonical_path.unlink(missing_ok=True)
             raise ValueError(f"Failed to parse file: {e}")
 
-        # Return relative path for storage in config
-        relative_path = f"data/{filename}"
-        absolute_path = str(file_path.resolve())
+        # Add normalization info to metadata
+        metadata["column_renames"] = column_renames
+        metadata["original_filename"] = filename
+
+        # Generate auto_mapped structured warnings for each rename
+        for rename in column_renames:
+            field_info = self.FIELD_IMPACT_DESCRIPTIONS.get(rename["canonical"])
+            if field_info:
+                metadata["structured_warnings"].append({
+                    "field_name": rename["canonical"],
+                    "severity": "info",
+                    "warning_type": "auto_mapped",
+                    "impact_description": field_info["impact"],
+                    "detected_alias": rename["original"],
+                    "suggested_action": f"Column '{rename['original']}' was auto-renamed to '{rename['canonical']}'",
+                })
+
+        # Return canonical path
+        relative_path = "data/census.parquet"
+        absolute_path = str(canonical_path.resolve())
 
         return relative_path, metadata, absolute_path
+
+    def _normalize_and_save_census(
+        self,
+        data_dir: Path,
+        file_content: bytes,
+        filename: str,
+    ) -> Tuple[Path, List[Dict[str, str]]]:
+        """
+        Normalize column names and save as canonical parquet.
+
+        Writes raw bytes to a temp file, reads into DuckDB, renames alias
+        columns to canonical names, and exports as ``data/census.parquet``.
+
+        Args:
+            data_dir: Workspace data directory
+            file_content: Raw file bytes
+            filename: Original filename (used to determine format)
+
+        Returns:
+            Tuple of (canonical_path, list_of_renames) where each rename is
+            ``{"original": alias, "canonical": canonical_name}``
+        """
+        suffix = Path(filename).suffix.lower()
+        temp_path = data_dir / f"_temp_upload{suffix}"
+        canonical_path = data_dir / "census.parquet"
+
+        try:
+            # Write raw bytes to temp file
+            temp_path.write_bytes(file_content)
+
+            conn = duckdb.connect(":memory:")
+            try:
+                # Validate temp file path for SQL safety
+                try:
+                    safe_temp_path = validate_file_path_for_sql(
+                        temp_path, [data_dir.parent], context="census upload"
+                    )
+                except SQLSecurityError as e:
+                    raise ValueError(str(e))
+
+                # Read into DuckDB
+                if suffix == ".parquet":
+                    conn.execute(f"CREATE TABLE census AS SELECT * FROM read_parquet('{safe_temp_path}')")
+                elif suffix == ".csv":
+                    conn.execute(f"CREATE TABLE census AS SELECT * FROM read_csv('{safe_temp_path}', header=true, auto_detect=true)")
+                else:
+                    raise ValueError(f"Unsupported file type: {suffix}")
+
+                # Get current columns
+                columns_result = conn.execute(
+                    "SELECT column_name FROM information_schema.columns WHERE table_name = 'census'"
+                ).fetchall()
+                columns = {row[0] for row in columns_result}
+
+                # Detect and rename alias columns
+                renames: List[Dict[str, str]] = []
+                for alias, canonical in self.COLUMN_ALIASES.items():
+                    if alias in columns and canonical not in columns:
+                        conn.execute(f'ALTER TABLE census RENAME COLUMN "{alias}" TO "{canonical}"')
+                        renames.append({"original": alias, "canonical": canonical})
+                        logger.info(f"Auto-renamed column '{alias}' to '{canonical}'")
+
+                # Export as canonical parquet
+                try:
+                    safe_canonical_path = validate_file_path_for_sql(
+                        canonical_path, [data_dir.parent], context="census output"
+                    )
+                except SQLSecurityError as e:
+                    raise ValueError(str(e))
+
+                conn.execute(f"COPY census TO '{safe_canonical_path}' (FORMAT PARQUET)")
+                logger.info(f"Saved normalized census to {canonical_path}")
+
+                return canonical_path, renames
+            finally:
+                conn.close()
+        finally:
+            # Clean up temp file
+            temp_path.unlink(missing_ok=True)
 
     def _parse_and_validate_file(self, file_path: Path) -> Dict:
         """

@@ -426,6 +426,75 @@ class WorkspaceStorage:
 
         return deleted
 
+    def cleanup_old_runs(
+        self,
+        workspace_id: str,
+        scenario_id: str,
+        max_runs: int = 3,
+    ) -> Dict[str, Any]:
+        """Prune old run directories beyond the retention limit.
+
+        Keeps the most recent `max_runs` runs (by started_at in run_metadata.json)
+        and removes the rest.
+
+        Args:
+            workspace_id: UUID of the workspace
+            scenario_id: UUID of the scenario
+            max_runs: Maximum number of runs to retain (0 = unlimited)
+
+        Returns:
+            Dictionary with removed_count, bytes_freed, removed_runs list.
+        """
+        result: Dict[str, Any] = {"removed_count": 0, "bytes_freed": 0, "removed_runs": []}
+
+        if max_runs <= 0:
+            return result
+
+        runs_dir = self._scenario_path(workspace_id, scenario_id) / "runs"
+        if not runs_dir.exists():
+            return result
+
+        # Collect run directories with their started_at timestamps
+        run_entries: List[Dict[str, Any]] = []
+        for run_dir in runs_dir.iterdir():
+            if not run_dir.is_dir():
+                continue
+
+            started_at = datetime.min
+            metadata_path = run_dir / "run_metadata.json"
+            if metadata_path.exists():
+                try:
+                    with open(metadata_path) as f:
+                        metadata = json.load(f)
+                    started_at = datetime.fromisoformat(metadata["started_at"])
+                except Exception:
+                    pass  # Treat corrupt/missing metadata as oldest
+
+            run_entries.append({"path": run_dir, "started_at": started_at, "run_id": run_dir.name})
+
+        if len(run_entries) <= max_runs:
+            return result
+
+        # Sort newest first, prune the tail
+        run_entries.sort(key=lambda e: e["started_at"], reverse=True)
+        to_remove = run_entries[max_runs:]
+
+        for entry in to_remove:
+            run_dir = entry["path"]
+            run_id = entry["run_id"]
+            try:
+                dir_size = sum(f.stat().st_size for f in run_dir.rglob("*") if f.is_file())
+                shutil.rmtree(run_dir)
+                result["removed_count"] += 1
+                result["bytes_freed"] += dir_size
+                result["removed_runs"].append(run_id)
+                freed_mb = dir_size / (1024 * 1024)
+                logger.info(f"Pruned old run {run_id} ({freed_mb:.1f}MB)")
+            except Exception as e:
+                logger.warning(f"Failed to remove run {run_id}: {e}")
+
+        return result
+
     def get_scenario_database_path(self, workspace_id: str, scenario_id: str) -> Path:
         """Get path to scenario's DuckDB database."""
         return self._scenario_path(workspace_id, scenario_id) / "simulation.duckdb"
