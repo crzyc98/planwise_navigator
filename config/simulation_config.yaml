@@ -685,6 +685,22 @@ multi_year:
     log_level: "INFO"  # Logging level for multi-year operations
     enable_memory_profiling: false  # Enable memory usage profiling
 
+# Epic E058: Match-Responsive Deferral Adjustments
+# When employer match formulas change, employees may adjust their deferral rates
+# in response. Fires in the first simulation year only.
+deferral_match_response:
+  enabled: true                           # Master on/off (opt-in, disabled by default)
+  upward_participation_rate: 0.40         # 40% of below-max employees respond upward
+  upward_maximize_rate: 0.60              # 60% of upward responders jump to match-maximizing rate
+  upward_partial_increase_rate: 0.40      # 40% of upward responders partially increase
+  upward_partial_increase_factor: 0.50    # Close 50% of the gap for partial responders
+  downward_enabled: true                  # Enable downward adjustments
+  downward_participation_rate: 0.15       # 15% of above-max employees respond downward
+  downward_reduce_to_max_rate: 0.70       # 70% of downward responders reduce to match-maximizing rate
+  downward_partial_decrease_rate: 0.30    # 30% of downward responders partially decrease
+  downward_partial_decrease_factor: 0.50  # Close 50% of the gap for partial decreasers
+  effective_timing: "first_year"          # Only fires in the first simulation year
+
 # Epic E035: Automatic Annual Deferral Rate Escalation Configuration (Simplified)
 deferral_auto_escalation:
   enabled: true                 # Master on/off switch

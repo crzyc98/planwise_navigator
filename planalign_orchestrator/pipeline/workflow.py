@@ -166,6 +166,7 @@ class WorkflowBuilder:
                     "int_voluntary_enrollment_decision",
                     "int_proactive_voluntary_enrollment",
                     "int_enrollment_events",
+                    "int_deferral_match_response_events",
                     "int_deferral_rate_escalation_events",
                 ],
                 validation_rules=["hire_termination_ratio", "event_sequence"],
