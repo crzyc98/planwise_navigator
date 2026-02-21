@@ -841,6 +841,8 @@ See `/docs/VERSIONING_GUIDE.md` for detailed versioning workflow.
 - TypeScript 5.x (React 18 frontend) + React 18, Recharts 3.5.0, Lucide-react (icons), Tailwind CSS (057-dc-comparison-charts)
 - N/A (frontend reads from existing API; no database changes) (057-dc-comparison-charts)
 - Python 3.11 (config/orchestrator), SQL/Jinja2 (dbt models) + dbt-core 1.8.8, dbt-duckdb 1.8.1, Pydantic v2.7.4 (058-deferral-match-response)
+- Python 3.11 (backend), TypeScript 5.x (frontend) + FastAPI (backend API), Pydantic v2 (models), React 18 + Recharts 3.5 (frontend charts) (059-deferral-dist-comparison)
+- DuckDB 1.0.0 (per-scenario `simulation.duckdb` via `DatabasePathResolver`) — read-only access (059-deferral-dist-comparison)
 
 ## Recent Changes
 - 024-remove-polars-pipeline: Removed Polars dependency, simplified to SQL-only mode

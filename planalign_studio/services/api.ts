@@ -888,6 +888,11 @@ export interface DeferralRateBucket {
   percentage: number;
 }
 
+export interface DeferralDistributionYear {
+  year: number;
+  distribution: DeferralRateBucket[];
+}
+
 export interface ParticipationByMethod {
   auto_enrolled: number;
   voluntary_enrolled: number;
@@ -918,6 +923,7 @@ export interface DCPlanAnalytics {
   total_employer_core: number;
   total_all_contributions: number;
   deferral_rate_distribution: DeferralRateBucket[];
+  deferral_distribution_by_year: DeferralDistributionYear[];
   escalation_metrics: EscalationMetrics;
   irs_limit_metrics: IRSLimitMetrics;
   // E104: New fields for cost comparison

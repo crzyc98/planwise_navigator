@@ -25,6 +25,11 @@ interface TrendDataPoint {
   [scenarioName: string]: number | undefined;
 }
 
+interface DistributionDataPoint {
+  bucket: string;
+  [scenarioName: string]: number | string | undefined;
+}
+
 interface ContributionBreakdownPoint {
   name: string;
   employee: number;
@@ -125,6 +130,68 @@ export default function DCPlanComparisonSection({
     () => buildTrendData('average_deferral_rate', 100),
     [comparisonData]
   );
+
+  // --- Deferral Distribution Chart Data ---
+
+  const BUCKET_ORDER = ['0%', '1%', '2%', '3%', '4%', '5%', '6%', '7%', '8%', '9%', '10%+'];
+
+  const availableDistributionYears = useMemo((): number[] => {
+    if (!comparisonData || comparisonData.analytics.length === 0) return [];
+
+    const yearSets = comparisonData.analytics.map(a => {
+      if (a.deferral_distribution_by_year && a.deferral_distribution_by_year.length > 0) {
+        return new Set(a.deferral_distribution_by_year.map(d => d.year));
+      }
+      return new Set<number>();
+    });
+
+    if (yearSets.every(s => s.size === 0)) return [];
+
+    // Intersection of all non-empty year sets
+    const nonEmpty = yearSets.filter(s => s.size > 0);
+    if (nonEmpty.length === 0) return [];
+
+    const common = [...nonEmpty[0]].filter(y => nonEmpty.every(s => s.has(y)));
+    return common.sort();
+  }, [comparisonData]);
+
+  const [selectedDistributionYear, setSelectedDistributionYear] = React.useState<number | null>(null);
+
+  // Default to final year when available years change
+  React.useEffect(() => {
+    if (availableDistributionYears.length > 0) {
+      setSelectedDistributionYear(availableDistributionYears[availableDistributionYears.length - 1]);
+    } else {
+      setSelectedDistributionYear(null);
+    }
+  }, [availableDistributionYears.join(',')]);
+
+  const distributionChartData = useMemo((): DistributionDataPoint[] => {
+    if (!comparisonData || comparisonData.analytics.length === 0) return [];
+
+    const useByYear = selectedDistributionYear !== null && availableDistributionYears.length > 0;
+
+    return BUCKET_ORDER.map(bucket => {
+      const point: DistributionDataPoint = { bucket };
+
+      comparisonData.analytics.forEach(a => {
+        const scenarioName = comparisonData.scenario_names[a.scenario_id] || a.scenario_id;
+
+        let distribution = a.deferral_rate_distribution;
+        if (useByYear && a.deferral_distribution_by_year && a.deferral_distribution_by_year.length > 0) {
+          const yearData = a.deferral_distribution_by_year.find(d => d.year === selectedDistributionYear);
+          if (yearData) {
+            distribution = yearData.distribution;
+          }
+        }
+
+        const bucketData = distribution?.find(b => b.bucket === bucket);
+        point[scenarioName] = bucketData?.percentage ?? 0;
+      });
+
+      return point;
+    });
+  }, [comparisonData, selectedDistributionYear, availableDistributionYears]);
 
   const contributionBreakdownData = useMemo((): ContributionBreakdownPoint[] => {
     if (!comparisonData || comparisonData.analytics.length === 0) return [];
@@ -394,6 +461,63 @@ export default function DCPlanComparisonSection({
               </div>
             )}
           </div>
+        </div>
+      </div>
+
+      {/* Deferral Rate Distribution Comparison — Full Width */}
+      <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
+        <div className="flex items-center justify-between mb-4">
+          <div>
+            <h3 className="text-lg font-semibold text-gray-800">Deferral Rate Distribution</h3>
+            <p className="text-sm text-gray-500">
+              Percentage of enrolled employees by deferral rate bucket
+            </p>
+          </div>
+          {availableDistributionYears.length > 1 && (
+            <select
+              value={selectedDistributionYear ?? ''}
+              onChange={e => setSelectedDistributionYear(Number(e.target.value))}
+              className="px-3 py-1.5 text-sm border border-gray-300 rounded-lg bg-white text-gray-700 focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-green-500"
+            >
+              {availableDistributionYears.map(y => (
+                <option key={y} value={y}>
+                  {y}{y === availableDistributionYears[availableDistributionYears.length - 1] ? ' (Final)' : ''}
+                </option>
+              ))}
+            </select>
+          )}
+          {availableDistributionYears.length === 1 && selectedDistributionYear !== null && (
+            <span className="text-sm text-gray-500">Year {selectedDistributionYear}</span>
+          )}
+        </div>
+        <div className="h-80">
+          {distributionChartData.length > 0 ? (
+            <ResponsiveContainer width="100%" height="100%">
+              <BarChart data={distributionChartData}>
+                <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#E5E7EB" />
+                <XAxis dataKey="bucket" stroke="#9CA3AF" />
+                <YAxis stroke="#9CA3AF" tickFormatter={v => formatPercent(v, 0)} />
+                <Tooltip
+                  contentStyle={tooltipStyle}
+                  formatter={(value: number, name: string) => [formatPercent(value, 1), name]}
+                />
+                <Legend verticalAlign="top" height={36} />
+                {scenarioNames.map(name => (
+                  <Bar
+                    key={name}
+                    dataKey={name}
+                    fill={scenarioColors[name]}
+                    radius={[4, 4, 0, 0]}
+                    barSize={scenarioNames.length > 4 ? 12 : scenarioNames.length > 2 ? 20 : 30}
+                  />
+                ))}
+              </BarChart>
+            </ResponsiveContainer>
+          ) : (
+            <div className="h-full flex items-center justify-center text-gray-400">
+              <p>No deferral distribution data available</p>
+            </div>
+          )}
         </div>
       </div>
 

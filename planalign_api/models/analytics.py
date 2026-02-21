@@ -41,6 +41,15 @@ class DeferralRateBucket(BaseModel):
     percentage: float = Field(description="Percentage of enrolled employees")
 
 
+class DeferralDistributionYear(BaseModel):
+    """Deferral rate distribution for a specific simulation year."""
+
+    year: int = Field(description="Simulation year")
+    distribution: List[DeferralRateBucket] = Field(
+        description="11-bucket deferral rate distribution for this year"
+    )
+
+
 class ParticipationByMethod(BaseModel):
     """Participation breakdown by enrollment method."""
 
@@ -94,6 +103,12 @@ class DCPlanAnalytics(BaseModel):
     # Deferral rate distribution (11 buckets: 0%, 1%, 2%...9%, 10%+)
     deferral_rate_distribution: List[DeferralRateBucket] = Field(
         description="Deferral rate distribution buckets"
+    )
+
+    # Per-year deferral rate distributions (E059)
+    deferral_distribution_by_year: List[DeferralDistributionYear] = Field(
+        default_factory=list,
+        description="Per-year deferral rate distributions for all simulation years",
     )
 
     # Escalation metrics
