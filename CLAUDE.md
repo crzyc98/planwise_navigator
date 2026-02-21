@@ -840,6 +840,7 @@ See `/docs/VERSIONING_GUIDE.md` for detailed versioning workflow.
 - N/A (no database changes; warnings are computed at validation time) (055-census-field-warnings)
 - TypeScript 5.x (React 18 frontend) + React 18, Recharts 3.5.0, Lucide-react (icons), Tailwind CSS (057-dc-comparison-charts)
 - N/A (frontend reads from existing API; no database changes) (057-dc-comparison-charts)
+- Python 3.11 (config/orchestrator), SQL/Jinja2 (dbt models) + dbt-core 1.8.8, dbt-duckdb 1.8.1, Pydantic v2.7.4 (058-deferral-match-response)
 
 ## Recent Changes
 - 024-remove-polars-pipeline: Removed Polars dependency, simplified to SQL-only mode
