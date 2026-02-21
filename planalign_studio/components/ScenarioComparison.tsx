@@ -14,8 +14,11 @@ import {
   Scenario,
   listScenarios,
   listWorkspaces,
+  compareDCPlanAnalytics,
+  DCPlanComparisonResponse,
 } from '../services/api';
 import { COLORS } from '../constants';
+import DCPlanComparisonSection from './DCPlanComparisonSection';
 
 interface ScenarioData {
   scenario: Scenario;
@@ -41,6 +44,10 @@ export default function ScenarioComparison() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [expandedMetrics, setExpandedMetrics] = useState(true);
+  const [expandedDCPlan, setExpandedDCPlan] = useState(true);
+  const [dcPlanData, setDcPlanData] = useState<DCPlanComparisonResponse | null>(null);
+  const [dcPlanLoading, setDcPlanLoading] = useState(false);
+  const [dcPlanError, setDcPlanError] = useState<string | null>(null);
 
   // Get scenario IDs from URL params
   const scenarioIds = searchParams.get('scenarios')?.split(',').filter(Boolean) || [];
@@ -130,6 +137,40 @@ export default function ScenarioComparison() {
   // Get all scenarios with results (explicitly typed for TypeScript)
   const scenariosWithResults: Array<ScenarioData & { results: SimulationResults }> = Array.from(scenarioData.values())
     .filter((d): d is ScenarioData & { results: SimulationResults } => d.results !== null);
+
+  // Fetch DC plan comparison data when scenarios are loaded
+  useEffect(() => {
+    const fetchDCPlanData = async () => {
+      if (scenariosWithResults.length < 2) return;
+
+      // Derive workspace ID from the first scenario
+      const workspaceId = scenariosWithResults[0].scenario.workspace_id;
+      if (!workspaceId) return;
+
+      const ids = scenariosWithResults.map(d => d.scenario.id);
+
+      setDcPlanLoading(true);
+      setDcPlanError(null);
+
+      try {
+        const data = await compareDCPlanAnalytics(workspaceId, ids);
+        setDcPlanData(data);
+      } catch (err: any) {
+        console.error('Failed to fetch DC plan comparison:', err);
+        setDcPlanError(err.message || 'Failed to load DC plan comparison data');
+      } finally {
+        setDcPlanLoading(false);
+      }
+    };
+
+    fetchDCPlanData();
+  }, [scenariosWithResults.map(d => d.scenario.id).join(',')]);
+
+  // Build scenario color map (shared between workforce and DC plan charts)
+  const scenarioColors: Record<string, string> = {};
+  scenariosWithResults.forEach((d, idx) => {
+    scenarioColors[d.scenario.name] = COMPARISON_COLORS[idx % COMPARISON_COLORS.length];
+  });
 
   // Build comparison data for charts
   const buildComparisonData = () => {
@@ -529,6 +570,32 @@ export default function ScenarioComparison() {
             )}
           </div>
         </div>
+      </div>
+
+      {/* DC Plan Comparison Section */}
+      <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
+        <button
+          onClick={() => setExpandedDCPlan(!expandedDCPlan)}
+          className="w-full px-6 py-4 flex items-center justify-between bg-gray-50 border-b border-gray-200 hover:bg-gray-100 transition-colors"
+        >
+          <h2 className="text-lg font-semibold text-gray-800 flex items-center">
+            <DollarSign size={20} className="mr-2 text-gray-500" />
+            DC Plan Comparison
+          </h2>
+          {expandedDCPlan ? <ChevronUp size={20} /> : <ChevronDown size={20} />}
+        </button>
+
+        {expandedDCPlan && (
+          <div className="p-6">
+            <DCPlanComparisonSection
+              comparisonData={dcPlanData}
+              loading={dcPlanLoading}
+              error={dcPlanError}
+              scenarioNames={scenariosWithResults.map(d => d.scenario.name)}
+              scenarioColors={scenarioColors}
+            />
+          </div>
+        )}
       </div>
 
       {/* Loading states for individual scenarios */}
