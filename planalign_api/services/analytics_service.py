@@ -30,7 +30,11 @@ class AnalyticsService:
         self.db_resolver = db_resolver or DatabasePathResolver(storage)
 
     def get_dc_plan_analytics(
-        self, workspace_id: str, scenario_id: str, scenario_name: str
+        self,
+        workspace_id: str,
+        scenario_id: str,
+        scenario_name: str,
+        active_only: bool = False,
     ) -> Optional[DCPlanAnalytics]:
         """
         Get DC Plan analytics for a single scenario.
@@ -48,10 +52,10 @@ class AnalyticsService:
             conn = duckdb.connect(str(resolved.path), read_only=True)
 
             # Get participation summary (from final year)
-            participation = self._get_participation_summary(conn)
+            participation = self._get_participation_summary(conn, active_only)
 
             # Get contribution totals by year
-            contribution_by_year = self._get_contribution_by_year(conn)
+            contribution_by_year = self._get_contribution_by_year(conn, active_only)
 
             # Calculate grand totals
             total_employee = sum(c.total_employee_contributions for c in contribution_by_year)
@@ -114,10 +118,20 @@ class AnalyticsService:
             logger.error(f"Failed to get DC plan analytics: {e}")
             return None
 
-    def _get_participation_summary(self, conn) -> dict:
-        """Get participation summary from final simulation year."""
+    def _get_participation_summary(self, conn, active_only: bool = False) -> dict:
+        """Get participation summary from final simulation year.
+
+        Args:
+            active_only: If True, filter to active employees only.
+                         If False (default), include all employees (active + terminated).
+        """
         try:
-            result = conn.execute("""
+            status_filter = (
+                "AND UPPER(employment_status) = 'ACTIVE'"
+                if active_only
+                else ""
+            )
+            result = conn.execute(f"""
                 WITH final_year AS (
                     SELECT MAX(simulation_year) as max_year
                     FROM fct_workforce_snapshot
@@ -131,7 +145,7 @@ class AnalyticsService:
                               OR participation_status_detail ILIKE '%baseline%' THEN 1 ELSE 0 END) as census_enrolled
                 FROM fct_workforce_snapshot, final_year
                 WHERE simulation_year = final_year.max_year
-                  AND UPPER(employment_status) = 'ACTIVE'
+                  {status_filter}
             """).fetchone()
 
             total_eligible = result[0] or 0
@@ -167,13 +181,32 @@ class AnalyticsService:
                 ),
             }
 
-    def _get_contribution_by_year(self, conn) -> List[ContributionYearSummary]:
-        """Get contribution totals by simulation year."""
+    def _get_contribution_by_year(
+        self, conn, active_only: bool = False
+    ) -> List[ContributionYearSummary]:
+        """Get contribution totals by simulation year.
+
+        Args:
+            active_only: If True, filter to active employees only.
+                         If False (default), include all employees (active + terminated).
+        """
         try:
             # E104: Enhanced query with average deferral rate, participation rate, and total employer cost
             # E013: Added total_compensation for employer cost rate calculation
-            # Note: Includes all employees (active + terminated) to capture full contribution costs
-            df = conn.execute("""
+            if active_only:
+                status_filter = "WHERE UPPER(employment_status) = 'ACTIVE'"
+                participation_rate_expr = (
+                    "COALESCE(COUNT(CASE WHEN is_enrolled_flag THEN 1 END) * 100.0 "
+                    "/ NULLIF(COUNT(*), 0), 0)"
+                )
+            else:
+                status_filter = ""
+                participation_rate_expr = (
+                    "COALESCE(COUNT(CASE WHEN is_enrolled_flag THEN 1 END) * 100.0 "
+                    "/ NULLIF(COUNT(*), 0), 0)"
+                )
+
+            df = conn.execute(f"""
                 SELECT
                     simulation_year as year,
                     COALESCE(SUM(prorated_annual_contributions), 0) as total_employee,
@@ -182,10 +215,11 @@ class AnalyticsService:
                     COALESCE(SUM(employer_match_amount) + SUM(employer_core_amount), 0) as total_employer_cost,
                     COALESCE(SUM(prorated_annual_contributions) + SUM(employer_match_amount) + SUM(employer_core_amount), 0) as total_all,
                     AVG(CASE WHEN is_enrolled_flag THEN current_deferral_rate ELSE NULL END) as avg_deferral_rate,
-                    COALESCE(COUNT(CASE WHEN UPPER(employment_status) = 'ACTIVE' AND is_enrolled_flag THEN 1 END) * 100.0 / NULLIF(COUNT(CASE WHEN UPPER(employment_status) = 'ACTIVE' THEN 1 END), 0), 0) as participation_rate,
+                    {participation_rate_expr} as participation_rate,
                     COUNT(CASE WHEN is_enrolled_flag THEN 1 END) as participant_count,
                     COALESCE(SUM(prorated_annual_compensation), 0) as total_compensation
                 FROM fct_workforce_snapshot
+                {status_filter}
                 GROUP BY simulation_year
                 ORDER BY simulation_year
             """).fetchdf()

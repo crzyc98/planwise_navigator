@@ -202,8 +202,8 @@ class TestOptionalFieldWarnings:
 class TestAliasDetection:
     """Test structured warnings for detected column aliases."""
 
-    def test_alias_found_generates_alias_warning(self, file_service, tmp_workspace):
-        """Alias column produces warning_type='alias_found' with detected_alias set."""
+    def test_alias_found_generates_auto_mapped_warning(self, file_service, tmp_workspace):
+        """Alias column is auto-renamed and produces warning_type='auto_mapped'."""
         workspace_root, workspace_id = tmp_workspace
         content = _create_csv(
             workspace_root, workspace_id, "test.csv",
@@ -214,14 +214,18 @@ class TestAliasDetection:
         _, metadata, _ = file_service.save_uploaded_file(workspace_id, content, "test.csv")
 
         structured = metadata.get("structured_warnings", [])
-        alias_warnings = [w for w in structured if w["warning_type"] == "alias_found"]
-        assert len(alias_warnings) == 1
-        assert alias_warnings[0]["field_name"] == "employee_hire_date"
-        assert alias_warnings[0]["detected_alias"] == "hire_date"
-        assert "rename" in alias_warnings[0]["suggested_action"].lower()
+        auto_mapped = [w for w in structured if w["warning_type"] == "auto_mapped"]
+        assert len(auto_mapped) == 1
+        assert auto_mapped[0]["field_name"] == "employee_hire_date"
+        assert auto_mapped[0]["detected_alias"] == "hire_date"
+        assert auto_mapped[0]["severity"] == "info"
+
+        # Verify the saved file has canonical column names
+        assert "employee_hire_date" in metadata["columns"]
+        assert "hire_date" not in metadata["columns"]
 
     def test_alias_replaces_generic_missing_warning(self, file_service, tmp_workspace):
-        """When alias is detected, no generic 'missing' warning for same field."""
+        """When alias is auto-mapped, no generic 'missing' warning for same field."""
         workspace_root, workspace_id = tmp_workspace
         content = _create_csv(
             workspace_root, workspace_id, "test.csv",
@@ -234,7 +238,7 @@ class TestAliasDetection:
         structured = metadata.get("structured_warnings", [])
         hire_date_warnings = [w for w in structured if w["field_name"] == "employee_hire_date"]
         assert len(hire_date_warnings) == 1
-        assert hire_date_warnings[0]["warning_type"] == "alias_found"
+        assert hire_date_warnings[0]["warning_type"] == "auto_mapped"
 
     def test_alias_when_target_column_also_present(self, file_service, tmp_workspace):
         """No alias warning when both the alias and the canonical column exist."""
@@ -305,3 +309,467 @@ class TestEdgeCases:
 
         assert len(metadata["validation_warnings"]) == 0
         assert len(metadata["structured_warnings"]) == 0
+
+
+# =============================================================================
+# Phase 6: Data Quality - Null/Empty checks
+# =============================================================================
+
+
+class TestDataQualityNullEmpty:
+    """Test row-level null/empty data quality checks."""
+
+    def test_null_employee_id_produces_error_severity(self, file_service, tmp_workspace):
+        """Null employee_id (critical field) should produce error-severity DQ warning."""
+        workspace_root, workspace_id = tmp_workspace
+        content = _create_csv(
+            workspace_root, workspace_id, "test.csv",
+            columns=["employee_id", "employee_hire_date", "employee_gross_compensation",
+                      "employee_birth_date", "employee_termination_date", "active"],
+            rows=[
+                ["", "2020-01-15", "75000", "1985-06-01", "", "true"],
+                ["EMP002", "2021-03-01", "80000", "1990-02-15", "", "true"],
+            ],
+        )
+
+        _, metadata, _ = file_service.save_uploaded_file(workspace_id, content, "test.csv")
+
+        dq = metadata.get("data_quality_warnings", [])
+        null_id = [w for w in dq if w["field_name"] == "employee_id" and w["check_type"] == "null_or_empty"]
+        assert len(null_id) == 1
+        assert null_id[0]["severity"] == "error"
+        assert null_id[0]["affected_count"] == 1
+        assert null_id[0]["total_count"] == 2
+        assert null_id[0]["affected_percentage"] == 50.0
+
+    def test_null_optional_field_produces_warning_severity(self, file_service, tmp_workspace):
+        """Null optional field should produce warning-severity DQ warning."""
+        workspace_root, workspace_id = tmp_workspace
+        content = _create_csv(
+            workspace_root, workspace_id, "test.csv",
+            columns=["employee_id", "employee_hire_date", "employee_gross_compensation",
+                      "employee_birth_date", "employee_termination_date", "active"],
+            rows=[
+                ["EMP001", "2020-01-15", "75000", "1985-06-01", "", "true"],
+                ["EMP002", "2021-03-01", "80000", "1990-02-15", "", "true"],
+            ],
+        )
+
+        _, metadata, _ = file_service.save_uploaded_file(workspace_id, content, "test.csv")
+
+        dq = metadata.get("data_quality_warnings", [])
+        null_term = [w for w in dq if w["field_name"] == "employee_termination_date" and w["check_type"] == "null_or_empty"]
+        assert len(null_term) == 1
+        assert null_term[0]["severity"] == "warning"
+
+    def test_clean_data_produces_no_dq_warnings(self, file_service, tmp_workspace):
+        """Fully populated data should produce no DQ warnings."""
+        workspace_root, workspace_id = tmp_workspace
+        content = _create_csv(
+            workspace_root, workspace_id, "test.csv",
+            columns=["employee_id", "employee_hire_date", "employee_gross_compensation",
+                      "employee_birth_date", "employee_termination_date", "active"],
+            rows=[
+                ["EMP001", "2020-01-15", "75000", "1985-06-01", "2025-01-01", "true"],
+                ["EMP002", "2021-03-01", "80000", "1990-02-15", "2025-06-01", "true"],
+            ],
+        )
+
+        _, metadata, _ = file_service.save_uploaded_file(workspace_id, content, "test.csv")
+
+        dq = metadata.get("data_quality_warnings", [])
+        assert len(dq) == 0
+
+    def test_samples_capped_at_5(self, file_service, tmp_workspace):
+        """Samples should contain at most 5 entries even with more issues."""
+        workspace_root, workspace_id = tmp_workspace
+        rows = [["", "2020-01-15", "75000", "1985-06-01", "", "true"] for _ in range(10)]
+        content = _create_csv(
+            workspace_root, workspace_id, "test.csv",
+            columns=["employee_id", "employee_hire_date", "employee_gross_compensation",
+                      "employee_birth_date", "employee_termination_date", "active"],
+            rows=rows,
+        )
+
+        _, metadata, _ = file_service.save_uploaded_file(workspace_id, content, "test.csv")
+
+        dq = metadata.get("data_quality_warnings", [])
+        null_id = [w for w in dq if w["field_name"] == "employee_id" and w["check_type"] == "null_or_empty"]
+        assert len(null_id) == 1
+        assert null_id[0]["affected_count"] == 10
+        assert len(null_id[0]["samples"]) <= 5
+
+    def test_samples_contain_row_number_and_value(self, file_service, tmp_workspace):
+        """Sample entries should have row_number and value keys."""
+        workspace_root, workspace_id = tmp_workspace
+        content = _create_csv(
+            workspace_root, workspace_id, "test.csv",
+            columns=["employee_id", "employee_hire_date", "employee_gross_compensation",
+                      "employee_birth_date", "employee_termination_date", "active"],
+            rows=[
+                ["", "2020-01-15", "75000", "1985-06-01", "", "true"],
+            ],
+        )
+
+        _, metadata, _ = file_service.save_uploaded_file(workspace_id, content, "test.csv")
+
+        dq = metadata.get("data_quality_warnings", [])
+        null_id = [w for w in dq if w["field_name"] == "employee_id"]
+        assert len(null_id) == 1
+        assert len(null_id[0]["samples"]) >= 1
+        sample = null_id[0]["samples"][0]
+        assert "row_number" in sample
+        assert "value" in sample
+
+
+# =============================================================================
+# Phase 7: Data Quality - Date checks
+# =============================================================================
+
+
+class TestDataQualityDates:
+    """Test row-level date quality checks."""
+
+    def test_unparseable_dates_flagged(self, file_service, tmp_workspace):
+        """Unparseable date strings should be flagged.
+
+        Note: DuckDB CSV auto-detect may successfully parse some formats,
+        turning truly unparseable values into NULLs (caught by null check).
+        This test uses a value that is clearly not a date.
+        """
+        workspace_root, workspace_id = tmp_workspace
+        content = _create_csv(
+            workspace_root, workspace_id, "test.csv",
+            columns=["employee_id", "employee_hire_date", "employee_gross_compensation",
+                      "employee_birth_date", "employee_termination_date", "active"],
+            rows=[
+                ["EMP001", "not-a-date", "75000", "1985-06-01", "", "true"],
+                ["EMP002", "2021-03-01", "80000", "1990-02-15", "", "true"],
+            ],
+        )
+
+        _, metadata, _ = file_service.save_uploaded_file(workspace_id, content, "test.csv")
+
+        dq = metadata.get("data_quality_warnings", [])
+        # DuckDB may parse the column as VARCHAR when it sees "not-a-date",
+        # in which case we get an unparseable_date warning.
+        # Or it may fail to auto-detect, leaving the column as VARCHAR.
+        # Either way, there should be some data quality warning flagging the issue.
+        date_or_null_issues = [
+            w for w in dq
+            if w["field_name"] == "employee_hire_date"
+            and w["check_type"] in ("unparseable_date", "null_or_empty")
+        ]
+        assert len(date_or_null_issues) >= 1
+
+
+# =============================================================================
+# Phase 8: Data Quality - Numeric checks
+# =============================================================================
+
+
+class TestDataQualityNumeric:
+    """Test row-level numeric quality checks."""
+
+    def test_negative_compensation_flagged(self, file_service, tmp_workspace):
+        """Negative compensation values should produce a DQ warning."""
+        workspace_root, workspace_id = tmp_workspace
+        content = _create_csv(
+            workspace_root, workspace_id, "test.csv",
+            columns=["employee_id", "employee_hire_date", "employee_gross_compensation",
+                      "employee_birth_date", "employee_termination_date", "active"],
+            rows=[
+                ["EMP001", "2020-01-15", "-5000", "1985-06-01", "", "true"],
+                ["EMP002", "2021-03-01", "80000", "1990-02-15", "", "true"],
+            ],
+        )
+
+        _, metadata, _ = file_service.save_uploaded_file(workspace_id, content, "test.csv")
+
+        dq = metadata.get("data_quality_warnings", [])
+        neg_comp = [w for w in dq if w["field_name"] == "employee_gross_compensation" and w["check_type"] == "negative_value"]
+        assert len(neg_comp) == 1
+        assert neg_comp[0]["severity"] == "warning"
+        assert neg_comp[0]["affected_count"] == 1
+
+    def test_zero_compensation_flagged(self, file_service, tmp_workspace):
+        """Zero compensation should also be flagged."""
+        workspace_root, workspace_id = tmp_workspace
+        content = _create_csv(
+            workspace_root, workspace_id, "test.csv",
+            columns=["employee_id", "employee_hire_date", "employee_gross_compensation",
+                      "employee_birth_date", "employee_termination_date", "active"],
+            rows=[
+                ["EMP001", "2020-01-15", "0", "1985-06-01", "", "true"],
+                ["EMP002", "2021-03-01", "80000", "1990-02-15", "", "true"],
+            ],
+        )
+
+        _, metadata, _ = file_service.save_uploaded_file(workspace_id, content, "test.csv")
+
+        dq = metadata.get("data_quality_warnings", [])
+        neg_comp = [w for w in dq if w["field_name"] == "employee_gross_compensation" and w["check_type"] == "negative_value"]
+        assert len(neg_comp) == 1
+
+
+# =============================================================================
+# Phase 9: Data Quality - Backward compatibility
+# =============================================================================
+
+
+class TestDataQualityBackwardCompat:
+    """Test backward compatibility of data_quality_warnings field."""
+
+    def test_data_quality_warnings_field_always_present(self, file_service, tmp_workspace):
+        """data_quality_warnings should always be present in metadata."""
+        workspace_root, workspace_id = tmp_workspace
+        content = _create_csv(
+            workspace_root, workspace_id, "test.csv",
+            columns=["employee_id", "employee_hire_date", "employee_gross_compensation",
+                      "employee_birth_date", "employee_termination_date", "active"],
+            rows=[["EMP001", "2020-01-15", "75000", "1985-06-01", "2025-01-01", "true"]],
+        )
+
+        _, metadata, _ = file_service.save_uploaded_file(workspace_id, content, "test.csv")
+
+        assert "data_quality_warnings" in metadata
+        assert isinstance(metadata["data_quality_warnings"], list)
+
+    def test_structured_warnings_unaffected_by_dq(self, file_service, tmp_workspace):
+        """Existing structured_warnings should be unaffected by DQ additions."""
+        workspace_root, workspace_id = tmp_workspace
+        content = _create_csv(
+            workspace_root, workspace_id, "test.csv",
+            columns=["employee_id"],
+            rows=[["EMP001"]],
+        )
+
+        _, metadata, _ = file_service.save_uploaded_file(workspace_id, content, "test.csv")
+
+        # structured_warnings should still have the missing-field warnings
+        assert len(metadata["structured_warnings"]) > 0
+        # data_quality_warnings is separate
+        assert "data_quality_warnings" in metadata
+
+    def test_validate_path_includes_dq_warnings(self, file_service, tmp_workspace):
+        """validate_path should also include data_quality_warnings."""
+        workspace_root, workspace_id = tmp_workspace
+        _create_csv(
+            workspace_root, workspace_id, "test.csv",
+            columns=["employee_id", "employee_hire_date", "employee_gross_compensation",
+                      "employee_birth_date", "employee_termination_date", "active"],
+            rows=[
+                ["", "2020-01-15", "75000", "1985-06-01", "", "true"],
+            ],
+        )
+
+        result = file_service.validate_path(workspace_id, "data/test.csv")
+
+        assert result["valid"] is True
+        assert "data_quality_warnings" in result
+        assert isinstance(result["data_quality_warnings"], list)
+        # Should have null employee_id warning
+        null_id = [w for w in result["data_quality_warnings"]
+                   if w["field_name"] == "employee_id" and w["check_type"] == "null_or_empty"]
+        assert len(null_id) == 1
+
+
+# =============================================================================
+# Column Auto-Mapping Tests
+# =============================================================================
+
+
+class TestColumnAutoMapping:
+    """Test automatic column renaming from aliases to canonical names."""
+
+    def test_alias_columns_are_renamed(self, file_service, tmp_workspace):
+        """Alias columns should be renamed to canonical names in the saved file."""
+        workspace_root, workspace_id = tmp_workspace
+        content = _create_csv(
+            workspace_root, workspace_id, "test.csv",
+            columns=["employee_id", "hire_date", "compensation", "birth_date", "active"],
+            rows=[["EMP001", "2020-01-15", "75000", "1985-06-01", "true"]],
+        )
+
+        _, metadata, _ = file_service.save_uploaded_file(workspace_id, content, "test.csv")
+
+        # Canonical names should be in the saved columns
+        assert "employee_hire_date" in metadata["columns"]
+        assert "employee_gross_compensation" in metadata["columns"]
+        assert "employee_birth_date" in metadata["columns"]
+        # Original aliases should NOT be in the saved columns
+        assert "hire_date" not in metadata["columns"]
+        assert "compensation" not in metadata["columns"]
+        assert "birth_date" not in metadata["columns"]
+
+    def test_canonical_columns_untouched(self, file_service, tmp_workspace):
+        """Columns already using canonical names should not be affected."""
+        workspace_root, workspace_id = tmp_workspace
+        content = _create_csv(
+            workspace_root, workspace_id, "test.csv",
+            columns=["employee_id", "employee_hire_date", "employee_gross_compensation",
+                      "employee_birth_date", "employee_termination_date", "active"],
+            rows=[["EMP001", "2020-01-15", "75000", "1985-06-01", "2025-01-01", "true"]],
+        )
+
+        _, metadata, _ = file_service.save_uploaded_file(workspace_id, content, "test.csv")
+
+        assert "employee_hire_date" in metadata["columns"]
+        assert len(metadata["column_renames"]) == 0
+
+    def test_both_alias_and_canonical_skips_rename(self, file_service, tmp_workspace):
+        """When both alias and canonical column exist, skip rename for that column."""
+        workspace_root, workspace_id = tmp_workspace
+        content = _create_csv(
+            workspace_root, workspace_id, "test.csv",
+            columns=["employee_id", "hire_date", "employee_hire_date",
+                      "employee_gross_compensation", "employee_birth_date",
+                      "employee_termination_date", "active"],
+            rows=[["EMP001", "2020-01-15", "2020-01-15", "75000", "1985-06-01", "2025-01-01", "true"]],
+        )
+
+        _, metadata, _ = file_service.save_uploaded_file(workspace_id, content, "test.csv")
+
+        # Both columns should still exist (no rename attempted)
+        assert "employee_hire_date" in metadata["columns"]
+        assert "hire_date" in metadata["columns"]
+        # No rename for hire_date
+        hire_renames = [r for r in metadata["column_renames"] if r["original"] == "hire_date"]
+        assert len(hire_renames) == 0
+
+    def test_unknown_columns_preserved(self, file_service, tmp_workspace):
+        """Unknown/custom columns should pass through unchanged."""
+        workspace_root, workspace_id = tmp_workspace
+        content = _create_csv(
+            workspace_root, workspace_id, "test.csv",
+            columns=["employee_id", "employee_hire_date", "employee_gross_compensation",
+                      "employee_birth_date", "custom_field", "department_code", "active"],
+            rows=[["EMP001", "2020-01-15", "75000", "1985-06-01", "foo", "DEPT1", "true"]],
+        )
+
+        _, metadata, _ = file_service.save_uploaded_file(workspace_id, content, "test.csv")
+
+        assert "custom_field" in metadata["columns"]
+        assert "department_code" in metadata["columns"]
+
+    def test_column_renames_populated_in_metadata(self, file_service, tmp_workspace):
+        """column_renames should list each rename performed."""
+        workspace_root, workspace_id = tmp_workspace
+        content = _create_csv(
+            workspace_root, workspace_id, "test.csv",
+            columns=["employee_id", "hire_date", "salary", "dob", "active"],
+            rows=[["EMP001", "2020-01-15", "75000", "1985-06-01", "true"]],
+        )
+
+        _, metadata, _ = file_service.save_uploaded_file(workspace_id, content, "test.csv")
+
+        renames = metadata["column_renames"]
+        rename_map = {r["original"]: r["canonical"] for r in renames}
+        assert rename_map["hire_date"] == "employee_hire_date"
+        assert rename_map["salary"] == "employee_gross_compensation"
+        assert rename_map["dob"] == "employee_birth_date"
+
+    def test_csv_converted_to_parquet(self, file_service, tmp_workspace):
+        """CSV files should be converted to parquet format."""
+        workspace_root, workspace_id = tmp_workspace
+        content = _create_csv(
+            workspace_root, workspace_id, "test.csv",
+            columns=["employee_id", "employee_hire_date", "employee_gross_compensation",
+                      "employee_birth_date", "active"],
+            rows=[["EMP001", "2020-01-15", "75000", "1985-06-01", "true"]],
+        )
+
+        relative_path, metadata, absolute_path = file_service.save_uploaded_file(
+            workspace_id, content, "test.csv"
+        )
+
+        assert relative_path == "data/census.parquet"
+        assert absolute_path.endswith("census.parquet")
+        assert Path(absolute_path).exists()
+
+
+# =============================================================================
+# Filename Normalization Tests
+# =============================================================================
+
+
+class TestFilenameNormalization:
+    """Test that uploaded files are always saved as census.parquet."""
+
+    def test_file_saved_as_census_parquet(self, file_service, tmp_workspace):
+        """Regardless of input filename, output should be census.parquet."""
+        workspace_root, workspace_id = tmp_workspace
+        content = _create_csv(
+            workspace_root, workspace_id, "my_custom_census_2024.csv",
+            columns=["employee_id", "employee_hire_date", "employee_gross_compensation",
+                      "employee_birth_date", "active"],
+            rows=[["EMP001", "2020-01-15", "75000", "1985-06-01", "true"]],
+        )
+
+        relative_path, _, absolute_path = file_service.save_uploaded_file(
+            workspace_id, content, "my_custom_census_2024.csv"
+        )
+
+        assert relative_path == "data/census.parquet"
+        assert Path(absolute_path).name == "census.parquet"
+
+    def test_original_filename_preserved_in_metadata(self, file_service, tmp_workspace):
+        """Original filename should be stored in metadata."""
+        workspace_root, workspace_id = tmp_workspace
+        content = _create_csv(
+            workspace_root, workspace_id, "hr_export_jan2025.csv",
+            columns=["employee_id", "employee_hire_date", "employee_gross_compensation",
+                      "employee_birth_date", "active"],
+            rows=[["EMP001", "2020-01-15", "75000", "1985-06-01", "true"]],
+        )
+
+        _, metadata, _ = file_service.save_uploaded_file(
+            workspace_id, content, "hr_export_jan2025.csv"
+        )
+
+        assert metadata["original_filename"] == "hr_export_jan2025.csv"
+
+    def test_temp_files_cleaned_up(self, file_service, tmp_workspace):
+        """Temp files should be cleaned up after normalization."""
+        workspace_root, workspace_id = tmp_workspace
+        content = _create_csv(
+            workspace_root, workspace_id, "test.csv",
+            columns=["employee_id", "employee_hire_date", "employee_gross_compensation",
+                      "employee_birth_date", "active"],
+            rows=[["EMP001", "2020-01-15", "75000", "1985-06-01", "true"]],
+        )
+
+        file_service.save_uploaded_file(workspace_id, content, "test.csv")
+
+        data_dir = workspace_root / workspace_id / "data"
+        temp_files = list(data_dir.glob("_temp_upload*"))
+        assert len(temp_files) == 0
+
+    def test_multiple_uploads_overwrite_census_parquet(self, file_service, tmp_workspace):
+        """Later uploads should overwrite census.parquet."""
+        workspace_root, workspace_id = tmp_workspace
+
+        # First upload
+        content1 = _create_csv(
+            workspace_root, workspace_id, "first.csv",
+            columns=["employee_id", "employee_hire_date", "employee_gross_compensation",
+                      "employee_birth_date", "active"],
+            rows=[["EMP001", "2020-01-15", "75000", "1985-06-01", "true"]],
+        )
+        file_service.save_uploaded_file(workspace_id, content1, "first.csv")
+
+        # Second upload
+        content2 = _create_csv(
+            workspace_root, workspace_id, "second.csv",
+            columns=["employee_id", "employee_hire_date", "employee_gross_compensation",
+                      "employee_birth_date", "active"],
+            rows=[
+                ["EMP001", "2020-01-15", "75000", "1985-06-01", "true"],
+                ["EMP002", "2021-03-01", "80000", "1990-02-15", "true"],
+            ],
+        )
+        _, metadata, _ = file_service.save_uploaded_file(workspace_id, content2, "second.csv")
+
+        # Should have 2 rows from second upload
+        assert metadata["row_count"] == 2
+        assert metadata["original_filename"] == "second.csv"

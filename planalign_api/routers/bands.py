@@ -1,7 +1,7 @@
-"""Band configuration management router.
+"""Band configuration and census analysis router.
 
 API endpoints for viewing, editing, and analyzing age and tenure band configurations
-in PlanAlign Studio.
+and turnover rate analysis in PlanAlign Studio.
 """
 
 import logging
@@ -15,7 +15,9 @@ from ..models.bands import (
     BandAnalysisResult,
     BandConfig,
 )
+from ..models.turnover import TurnoverAnalysisRequest, TurnoverAnalysisResult
 from ..services.band_service import BandService
+from ..services.turnover_service import TurnoverAnalysisService
 from ..storage.workspace_storage import WorkspaceStorage
 
 logger = logging.getLogger(__name__)
@@ -229,4 +231,59 @@ async def analyze_tenure_bands(
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Failed to analyze census: {e}",
+        )
+
+
+# -----------------------------------------------------------------------------
+# POST /analyze-turnover - Analyze Census for Turnover Rate Suggestions
+# -----------------------------------------------------------------------------
+
+
+def get_turnover_service() -> TurnoverAnalysisService:
+    """Get turnover analysis service instance."""
+    settings = get_settings()
+    return TurnoverAnalysisService(settings.workspaces_root)
+
+
+@router.post(
+    "/{workspace_id}/analyze-turnover",
+    response_model=TurnoverAnalysisResult,
+    summary="Analyze census for turnover rate suggestions",
+    description="""
+Analyzes census data to suggest termination rates for experienced employees
+and new hires based on actual termination history in the census file.
+""",
+)
+async def analyze_turnover(
+    workspace_id: str,
+    request: TurnoverAnalysisRequest,
+) -> TurnoverAnalysisResult:
+    """
+    Analyze census data and suggest termination rates.
+
+    Args:
+        workspace_id: Workspace ID
+        request: Request with file_path to census file
+
+    Returns:
+        TurnoverAnalysisResult with suggested rates and statistics
+    """
+    service = get_turnover_service()
+
+    try:
+        result = service.analyze_turnover_rates(
+            workspace_id=workspace_id,
+            file_path=request.file_path,
+        )
+        return result
+    except ValueError as e:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=str(e),
+        )
+    except Exception as e:
+        logger.error(f"Failed to analyze turnover rates: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to analyze census for turnover rates: {e}",
         )
