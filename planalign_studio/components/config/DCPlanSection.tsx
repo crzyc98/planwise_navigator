@@ -354,7 +354,7 @@ export function DCPlanSection() {
            <label className="block text-sm font-medium text-gray-700">Max Employer Match</label>
            <div className="mt-1 bg-gray-100 rounded-md p-2 border border-gray-200">
              <span className="text-lg font-semibold text-gray-900">
-               {(calculateMatchCap(formData.dcMatchTiers) * 100).toFixed(1)}%
+               {(calculateMatchCap(formData.dcMatchTiers) * 100).toFixed(2)}%
              </span>
              <span className="text-sm text-gray-500 ml-1">of compensation</span>
            </div>

@@ -583,6 +583,23 @@ export interface StructuredWarning {
   suggested_action: string;
 }
 
+export interface DataQualitySample {
+  row_number: number;
+  value: string | null;
+}
+
+export interface DataQualityWarning {
+  field_name: string;
+  check_type: 'null_or_empty' | 'unparseable_date' | 'mixed_date_formats' | 'negative_value';
+  severity: 'error' | 'warning' | 'info';
+  affected_count: number;
+  total_count: number;
+  affected_percentage: number;
+  message: string;
+  samples: DataQualitySample[];
+  suggested_action: string;
+}
+
 export interface FileUploadResponse {
   success: boolean;
   file_path: string;
@@ -593,6 +610,7 @@ export interface FileUploadResponse {
   upload_timestamp: string;
   validation_warnings: string[];
   structured_warnings: StructuredWarning[];
+  data_quality_warnings: DataQualityWarning[];
 }
 
 export interface FileValidationResponse {
@@ -607,6 +625,7 @@ export interface FileValidationResponse {
   error_message?: string;
   validation_warnings: string[];
   structured_warnings: StructuredWarning[];
+  data_quality_warnings: DataQualityWarning[];
 }
 
 export async function uploadCensusFile(
