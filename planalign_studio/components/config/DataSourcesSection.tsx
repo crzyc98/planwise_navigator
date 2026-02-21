@@ -17,6 +17,7 @@ export function DataSourcesSection() {
   const criticalWarnings = structuredWarnings.filter(w => w.severity === 'critical');
   const optionalWarnings = structuredWarnings.filter(w => w.severity === 'optional' && w.warning_type === 'missing');
   const aliasWarnings = structuredWarnings.filter(w => w.warning_type === 'alias_found');
+  const autoMappedWarnings = structuredWarnings.filter(w => w.warning_type === 'auto_mapped');
 
   return (
     <div className="space-y-8 animate-fadeIn">
@@ -193,6 +194,30 @@ export function DataSourcesSection() {
                     <li key={w.field_name} className="text-sm">
                       <span className="font-mono font-medium text-blue-900">{w.field_name}</span>
                       <span className="text-blue-700"> — {w.impact_description}</span>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            )}
+
+            {/* Auto-mapped columns (green info) */}
+            {autoMappedWarnings.length > 0 && (
+              <div className="bg-green-50 rounded-lg p-4 border border-green-200">
+                <div className="flex items-start mb-2">
+                  <Check className="w-5 h-5 text-green-600 mr-2 mt-0.5 flex-shrink-0" />
+                  <h4 className="font-semibold text-green-900">
+                    Columns Auto-Renamed ({autoMappedWarnings.length})
+                  </h4>
+                </div>
+                <p className="text-xs text-green-700 mb-3 ml-7">
+                  These columns were automatically renamed to match expected names.
+                </p>
+                <ul className="space-y-2 ml-7">
+                  {autoMappedWarnings.map((w) => (
+                    <li key={w.field_name} className="text-sm">
+                      <span className="font-mono text-green-700">{w.detected_alias}</span>
+                      <ArrowRight size={12} className="inline mx-1 text-green-400" />
+                      <span className="font-mono font-medium text-green-900">{w.field_name}</span>
                     </li>
                   ))}
                 </ul>

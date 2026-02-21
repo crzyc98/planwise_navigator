@@ -4,7 +4,7 @@ import {
   LayoutDashboard, PlayCircle, BarChart3, Settings, Database,
   Activity, Bell, ChevronDown, Check, Search, Briefcase,
   X, Info, AlertTriangle, AlertCircle, CheckCircle, Moon, Sun, HelpCircle,
-  Plus, Loader2, Layers, PieChart, Scale, Shield
+  Plus, Loader2, Layers, PieChart, Scale, Shield, Menu, PanelLeftClose, PanelLeftOpen
 } from 'lucide-react';
 import { APP_NAME, MOCK_NOTIFICATIONS, APP_VERSION } from '../constants';
 import { Workspace, Notification } from '../types';
@@ -35,20 +35,21 @@ export interface LayoutContextType {
   lastHeartbeatRef: React.MutableRefObject<number>;
 }
 
-const NavItem = ({ to, icon, label, end }: { to: string; icon: React.ReactNode; label: string; end?: boolean }) => (
+const NavItem = ({ to, icon, label, end, collapsed }: { to: string; icon: React.ReactNode; label: string; end?: boolean; collapsed?: boolean }) => (
   <NavLink
     to={to}
     end={end}
+    title={collapsed ? label : undefined}
     className={({ isActive }) =>
-      `flex items-center px-4 py-3 text-sm font-medium transition-colors rounded-lg mb-1 ${
+      `flex items-center ${collapsed ? 'justify-center px-2' : 'px-4'} py-3 text-sm font-medium transition-colors rounded-lg mb-1 ${
         isActive
           ? 'bg-fidelity-green text-white shadow-md'
           : 'text-gray-600 hover:bg-gray-100 hover:text-fidelity-green'
       }`
     }
   >
-    <span className="mr-3">{icon}</span>
-    {label}
+    <span className={collapsed ? '' : 'mr-3'}>{icon}</span>
+    {!collapsed && label}
   </NavLink>
 );
 
@@ -75,6 +76,9 @@ export default function Layout() {
   const [isWorkspaceLoading, setIsWorkspaceLoading] = useState(true);
   const [workspaceError, setWorkspaceError] = useState<string | null>(null);
   const [lastRunScenarioId, setLastRunScenarioId] = useState<string | null>(null);
+
+  // Sidebar collapse state
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
 
   // Feature 045: Global simulation running state
   const [isSimulationRunning, setIsSimulationRunning] = useState(false);
@@ -526,25 +530,46 @@ export default function Layout() {
       )}
 
       {/* Sidebar */}
-      <aside className="w-64 bg-white border-r border-gray-200 flex flex-col z-10 flex-shrink-0">
-        <div className="flex items-center px-6 h-16 border-b border-gray-200">
-          <Activity className="w-8 h-8 text-fidelity-green mr-3" />
-          <span className="text-lg font-bold text-gray-800 tracking-tight">{APP_NAME}</span>
+      <aside className={`${sidebarCollapsed ? 'w-16' : 'w-64'} bg-white border-r border-gray-200 flex flex-col z-10 flex-shrink-0 transition-all duration-200`}>
+        <div className={`flex items-center ${sidebarCollapsed ? 'justify-center px-2' : 'px-6'} h-16 border-b border-gray-200`}>
+          {sidebarCollapsed ? (
+            <button
+              onClick={() => setSidebarCollapsed(false)}
+              className="p-1.5 rounded-lg text-gray-500 hover:bg-gray-100 hover:text-fidelity-green transition-colors"
+              title="Expand sidebar"
+            >
+              <PanelLeftOpen size={20} />
+            </button>
+          ) : (
+            <>
+              <Activity className="w-8 h-8 text-fidelity-green mr-3 flex-shrink-0" />
+              <span className="text-lg font-bold text-gray-800 tracking-tight flex-1 truncate">{APP_NAME}</span>
+              <button
+                onClick={() => setSidebarCollapsed(true)}
+                className="p-1.5 rounded-lg text-gray-400 hover:bg-gray-100 hover:text-gray-600 transition-colors flex-shrink-0"
+                title="Collapse sidebar"
+              >
+                <PanelLeftClose size={18} />
+              </button>
+            </>
+          )}
         </div>
 
-        <nav className="flex-1 px-4 py-6 overflow-y-auto">
-          <div className="mb-2 px-4 text-xs font-semibold text-gray-400 uppercase tracking-wider">
-            Main
-          </div>
-          <NavItem to="/" icon={<LayoutDashboard size={20} />} label="Dashboard" />
-          <NavItem to="/scenarios" icon={<Layers size={20} />} label="Scenarios" />
-          <NavItem to="/simulate" icon={<PlayCircle size={20} />} label="Simulate" />
-          <NavItem to="/analytics" icon={<BarChart3 size={20} />} label="Analytics" end />
-          <NavItem to="/analytics/dc-plan" icon={<PieChart size={20} />} label="DC Plan" />
-          <NavItem to="/analytics/vesting" icon={<Scale size={20} />} label="Vesting" />
-          <NavItem to="/analytics/ndt" icon={<Shield size={20} />} label="NDT Testing" />
-          <NavItem to="/compare" icon={<BarChart3 size={20} />} label="Compare Costs" />
-          <NavItem to="/batch" icon={<Database size={20} />} label="Batch Processing" />
+        <nav className={`flex-1 ${sidebarCollapsed ? 'px-2' : 'px-4'} py-6 overflow-y-auto`}>
+          {!sidebarCollapsed && (
+            <div className="mb-2 px-4 text-xs font-semibold text-gray-400 uppercase tracking-wider">
+              Main
+            </div>
+          )}
+          <NavItem to="/" icon={<LayoutDashboard size={20} />} label="Dashboard" collapsed={sidebarCollapsed} />
+          <NavItem to="/scenarios" icon={<Layers size={20} />} label="Scenarios" collapsed={sidebarCollapsed} />
+          <NavItem to="/simulate" icon={<PlayCircle size={20} />} label="Simulate" collapsed={sidebarCollapsed} />
+          <NavItem to="/analytics" icon={<BarChart3 size={20} />} label="Analytics" end collapsed={sidebarCollapsed} />
+          <NavItem to="/analytics/dc-plan" icon={<PieChart size={20} />} label="DC Plan" collapsed={sidebarCollapsed} />
+          <NavItem to="/analytics/vesting" icon={<Scale size={20} />} label="Vesting" collapsed={sidebarCollapsed} />
+          <NavItem to="/analytics/ndt" icon={<Shield size={20} />} label="NDT Testing" collapsed={sidebarCollapsed} />
+          <NavItem to="/compare" icon={<BarChart3 size={20} />} label="Compare Costs" collapsed={sidebarCollapsed} />
+          <NavItem to="/batch" icon={<Database size={20} />} label="Batch Processing" collapsed={sidebarCollapsed} />
         </nav>
       </aside>
 

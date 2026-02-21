@@ -23,9 +23,10 @@ import {
   Anchor, Calendar, DollarSign, Download,
   RefreshCw, AlertCircle, Loader2,
   TrendingUp, TrendingDown, Info, Calculator,
-  ShieldCheck, Zap, Copy, Check, ArrowUp, ArrowDown
+  Eye, Copy, Check, ArrowUp, ArrowDown
 } from 'lucide-react';
 import { useCopyToClipboard } from '../hooks/useCopyToClipboard';
+import { PlanDesignModal } from './PlanDesignModal';
 import { LayoutContextType } from './Layout';
 import {
   listScenarios,
@@ -178,6 +179,7 @@ export default function ScenarioCostComparison() {
   const [loadingScenarios, setLoadingScenarios] = useState(true); // Start true since we fetch on mount
   const [error, setError] = useState<string | null>(null);
   const [anchorConfig, setAnchorConfig] = useState<Record<string, any> | null>(null);
+  const [showPlanDesign, setShowPlanDesign] = useState(false);
 
   // -------------------------------------------------------------------------
   // Copy to Clipboard Hooks
@@ -326,57 +328,6 @@ export default function ScenarioCostComparison() {
     });
     return map;
   }, [orderedScenarioIds, anchorScenarioId]);
-
-  // -------------------------------------------------------------------------
-  // Derived Data: Plan Design from Anchor Config
-  // -------------------------------------------------------------------------
-  const coreDesign = useMemo(() => {
-    if (!anchorConfig?.employer_core_contribution) {
-      return { title: 'Core Contribution', subtitle: 'Not configured' };
-    }
-    const core = anchorConfig.employer_core_contribution;
-    if (!core.enabled) {
-      return { title: 'Core Contribution', subtitle: 'Disabled' };
-    }
-    if (core.status === 'graded_by_service') {
-      const schedule = core.graded_schedule || [];
-      const rates = schedule.map((t: any) => `${(t.contribution_rate * 100).toFixed(0)}%`).join(' / ');
-      return { title: 'Graded by Service', subtitle: rates || 'See schedule' };
-    }
-    const rate = (core.contribution_rate * 100).toFixed(1);
-    return { title: 'Fixed Non-Elective', subtitle: `${rate}% Automatic Contribution` };
-  }, [anchorConfig]);
-
-  const matchDesign = useMemo(() => {
-    if (!anchorConfig?.employer_match) {
-      return { title: 'Employer Match', subtitle: 'Not configured' };
-    }
-    const match = anchorConfig.employer_match;
-    const activeFormula = match.active_formula;
-    const formulas = match.formulas || {};
-    const formula = formulas[activeFormula];
-
-    if (!formula) {
-      return { title: activeFormula || 'Match Formula', subtitle: 'See configuration' };
-    }
-
-    if (formula.type === 'simple') {
-      const matchRate = ((formula.match_rate || 0) * 100).toFixed(0);
-      const maxMatch = ((formula.max_match_percentage || 0) * 100).toFixed(0);
-      return { title: `${matchRate}% Match`, subtitle: `Up to ${maxMatch}% of pay` };
-    }
-
-    if (formula.type === 'tiered' && formula.tiers) {
-      const firstTier = formula.tiers[0];
-      if (firstTier) {
-        const matchRate = ((firstTier.match_rate || 0) * 100).toFixed(0);
-        const tierMax = ((firstTier.employee_max || 0) * 100).toFixed(0);
-        return { title: `${matchRate}% on first ${tierMax}%`, subtitle: formula.name || 'Tiered Match' };
-      }
-    }
-
-    return { title: formula.name || activeFormula, subtitle: 'See configuration' };
-  }, [anchorConfig]);
 
   // -------------------------------------------------------------------------
   // API Functions
@@ -894,27 +845,13 @@ export default function ScenarioCostComparison() {
                   </div>
                 </div>
 
-                <div className="flex gap-4">
-                  {/* Core Design Pill */}
-                  <div className="bg-blue-50 border border-blue-100 rounded-xl p-4 min-w-[180px]">
-                    <div className="flex items-center space-x-2 text-blue-600 font-bold text-[9px] uppercase tracking-wider mb-2">
-                      <ShieldCheck size={12} />
-                      <span>Core Design</span>
-                    </div>
-                    <p className="text-sm font-bold text-blue-900">{coreDesign.title}</p>
-                    <p className="text-[10px] text-blue-700 mt-1">{coreDesign.subtitle}</p>
-                  </div>
-
-                  {/* Match Design Pill */}
-                  <div className="bg-green-50 border border-green-100 rounded-xl p-4 min-w-[180px]">
-                    <div className="flex items-center space-x-2 text-fidelity-green font-bold text-[9px] uppercase tracking-wider mb-2">
-                      <Zap size={12} />
-                      <span>Match Design</span>
-                    </div>
-                    <p className="text-sm font-bold text-green-900">{matchDesign.title}</p>
-                    <p className="text-[10px] text-green-700 mt-1">{matchDesign.subtitle}</p>
-                  </div>
-                </div>
+                <button
+                  onClick={() => setShowPlanDesign(true)}
+                  className="flex items-center gap-2 px-4 py-2.5 bg-blue-50 border border-blue-200 rounded-xl text-blue-700 hover:bg-blue-100 hover:border-blue-300 transition-colors text-sm font-medium"
+                >
+                  <Eye size={16} />
+                  View Plan Design
+                </button>
               </div>
             )}
 
@@ -1336,6 +1273,11 @@ export default function ScenarioCostComparison() {
           </>
         )}
       </div>
+
+      {/* Plan Design Modal */}
+      {showPlanDesign && (
+        <PlanDesignModal config={anchorConfig} onClose={() => setShowPlanDesign(false)} />
+      )}
     </div>
   );
 }

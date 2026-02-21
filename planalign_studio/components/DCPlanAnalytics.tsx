@@ -104,6 +104,9 @@ export default function DCPlanAnalytics() {
   // Comparison mode toggle
   const [comparisonMode, setComparisonMode] = useState(false);
 
+  // Active-only toggle for participation metrics (default: all participants)
+  const [activeOnly, setActiveOnly] = useState(false);
+
   // Fetch scenarios when workspace changes
   useEffect(() => {
     if (activeWorkspace?.id) {
@@ -120,7 +123,7 @@ export default function DCPlanAnalytics() {
     }
   }, [activeWorkspace?.id]);
 
-  // Fetch analytics when scenario changes
+  // Fetch analytics when scenario or active-only toggle changes
   useEffect(() => {
     if (!activeWorkspace?.id) return;
     if (selectedScenarioIds.length === 1 && !comparisonMode) {
@@ -131,7 +134,7 @@ export default function DCPlanAnalytics() {
       setAnalytics(null);
       setComparisonData(null);
     }
-  }, [selectedScenarioIds, comparisonMode, activeWorkspace?.id]);
+  }, [selectedScenarioIds, comparisonMode, activeWorkspace?.id, activeOnly]);
 
   const fetchScenarios = async (workspaceId: string) => {
     setLoadingScenarios(true);
@@ -155,7 +158,7 @@ export default function DCPlanAnalytics() {
     setLoading(true);
     setError(null);
     try {
-      const data = await getDCPlanAnalytics(activeWorkspace.id, scenarioId);
+      const data = await getDCPlanAnalytics(activeWorkspace.id, scenarioId, activeOnly);
       setAnalytics(data);
       setComparisonData(null);
     } catch (err: any) {
@@ -172,7 +175,7 @@ export default function DCPlanAnalytics() {
     setLoading(true);
     setError(null);
     try {
-      const data = await compareDCPlanAnalytics(activeWorkspace.id, scenarioIds);
+      const data = await compareDCPlanAnalytics(activeWorkspace.id, scenarioIds, activeOnly);
       setComparisonData(data);
       setAnalytics(null);
     } catch (err: any) {
@@ -277,6 +280,17 @@ export default function DCPlanAnalytics() {
           >
             Compare {comparisonMode && `(${selectedScenarioIds.length}/3)`}
           </button>
+
+          {/* Active Employees Only Toggle */}
+          <label className="flex items-center gap-2 px-3 py-2 bg-white border border-gray-300 rounded-lg text-sm cursor-pointer hover:bg-gray-50 transition-colors">
+            <input
+              type="checkbox"
+              checked={activeOnly}
+              onChange={(e) => setActiveOnly(e.target.checked)}
+              className="w-4 h-4 text-fidelity-green rounded border-gray-300 focus:ring-fidelity-green"
+            />
+            <span className="font-medium text-gray-700 whitespace-nowrap">Active employees only</span>
+          </label>
 
           <button
             onClick={handleRefresh}
@@ -448,7 +462,7 @@ export default function DCPlanAnalytics() {
             <KPICard
               title="Participation Rate"
               value={`${analytics.participation_rate.toFixed(1)}%`}
-              subtext={`${analytics.total_enrolled.toLocaleString()} of ${analytics.total_eligible.toLocaleString()} eligible`}
+              subtext={`${analytics.total_enrolled.toLocaleString()} of ${analytics.total_eligible.toLocaleString()} ${activeOnly ? 'active eligible' : 'eligible'}`}
               icon={Users}
               color="purple"
               loading={loading}

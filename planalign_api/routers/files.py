@@ -133,6 +133,8 @@ async def upload_census_file(
         validation_warnings=metadata.get("validation_warnings", []),
         structured_warnings=metadata.get("structured_warnings", []),
         data_quality_warnings=metadata.get("data_quality_warnings", []),
+        column_renames=metadata.get("column_renames", []),
+        original_filename=metadata.get("original_filename"),
     )
 
 

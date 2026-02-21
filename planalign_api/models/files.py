@@ -10,10 +10,10 @@ class StructuredWarning(BaseModel):
     """A structured validation warning about a census column."""
 
     field_name: str = Field(..., description="Expected census column name")
-    severity: Literal["critical", "optional"] = Field(
+    severity: Literal["critical", "optional", "info"] = Field(
         ..., description="Warning severity tier"
     )
-    warning_type: Literal["missing", "alias_found"] = Field(
+    warning_type: Literal["missing", "alias_found", "auto_mapped"] = Field(
         ..., description="Type of warning"
     )
     impact_description: str = Field(
@@ -74,6 +74,13 @@ class FileUploadResponse(BaseModel):
     data_quality_warnings: List[DataQualityWarning] = Field(
         default_factory=list,
         description="Row-level data quality warnings",
+    )
+    column_renames: List[dict] = Field(
+        default_factory=list,
+        description="Columns that were auto-renamed from aliases to canonical names",
+    )
+    original_filename: Optional[str] = Field(
+        None, description="Original uploaded filename before normalization"
     )
 
 
