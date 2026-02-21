@@ -7,6 +7,7 @@ from typing import List, Optional
 from ..models.analytics import (
     ContributionYearSummary,
     DCPlanAnalytics,
+    DeferralDistributionYear,
     DeferralRateBucket,
     EscalationMetrics,
     IRSLimitMetrics,
@@ -83,6 +84,9 @@ class AnalyticsService:
             # Get deferral rate distribution
             deferral_distribution = self._get_deferral_distribution(conn)
 
+            # Get per-year deferral distributions (E059)
+            deferral_distribution_by_year = self._get_deferral_distribution_all_years(conn)
+
             # Get escalation metrics
             escalation = self._get_escalation_metrics(conn)
 
@@ -104,6 +108,7 @@ class AnalyticsService:
                 total_employer_core=total_core,
                 total_all_contributions=total_all,
                 deferral_rate_distribution=deferral_distribution,
+                deferral_distribution_by_year=deferral_distribution_by_year,
                 escalation_metrics=escalation,
                 irs_limit_metrics=irs_limits,
                 # E104: New fields for cost comparison
@@ -316,6 +321,76 @@ class AnalyticsService:
                 DeferralRateBucket(bucket=b, count=0, percentage=0.0)
                 for b in ['0%', '1%', '2%', '3%', '4%', '5%', '6%', '7%', '8%', '9%', '10%+']
             ]
+
+    def _get_deferral_distribution_all_years(
+        self, conn
+    ) -> List[DeferralDistributionYear]:
+        """Get deferral rate distribution for all simulation years (E059)."""
+        bucket_order = ['0%', '1%', '2%', '3%', '4%', '5%', '6%', '7%', '8%', '9%', '10%+']
+        try:
+            df = conn.execute("""
+                WITH bucketed AS (
+                    SELECT
+                        simulation_year,
+                        CASE
+                            WHEN current_deferral_rate IS NULL OR current_deferral_rate = 0 THEN '0%'
+                            WHEN current_deferral_rate < 0.015 THEN '1%'
+                            WHEN current_deferral_rate < 0.025 THEN '2%'
+                            WHEN current_deferral_rate < 0.035 THEN '3%'
+                            WHEN current_deferral_rate < 0.045 THEN '4%'
+                            WHEN current_deferral_rate < 0.055 THEN '5%'
+                            WHEN current_deferral_rate < 0.065 THEN '6%'
+                            WHEN current_deferral_rate < 0.075 THEN '7%'
+                            WHEN current_deferral_rate < 0.085 THEN '8%'
+                            WHEN current_deferral_rate < 0.095 THEN '9%'
+                            ELSE '10%+'
+                        END as bucket
+                    FROM fct_workforce_snapshot
+                    WHERE UPPER(employment_status) = 'ACTIVE'
+                      AND is_enrolled_flag = true
+                )
+                SELECT
+                    simulation_year,
+                    bucket,
+                    COUNT(*) as count
+                FROM bucketed
+                GROUP BY simulation_year, bucket
+                ORDER BY simulation_year, bucket
+            """).fetchdf()
+
+            # Group by year
+            years_data: dict = {}
+            for _, row in df.iterrows():
+                year = int(row["simulation_year"])
+                bucket = str(row["bucket"])
+                count = int(row["count"])
+                if year not in years_data:
+                    years_data[year] = {}
+                years_data[year][bucket] = count
+
+            results = []
+            for year in sorted(years_data.keys()):
+                bucket_counts = years_data[year]
+                total_count = sum(bucket_counts.values())
+
+                distribution = [
+                    DeferralRateBucket(
+                        bucket=b,
+                        count=bucket_counts.get(b, 0),
+                        percentage=(
+                            round(bucket_counts.get(b, 0) / total_count * 100, 2)
+                            if total_count > 0
+                            else 0.0
+                        ),
+                    )
+                    for b in bucket_order
+                ]
+                results.append(DeferralDistributionYear(year=year, distribution=distribution))
+
+            return results
+        except Exception as e:
+            logger.warning(f"Failed to get deferral distribution by year: {e}")
+            return []
 
     def _get_escalation_metrics(self, conn) -> EscalationMetrics:
         """Get deferral escalation metrics."""
