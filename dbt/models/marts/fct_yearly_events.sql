@@ -146,8 +146,9 @@ final_events AS (
           WHEN 'eligibility' THEN 3
           WHEN 'enrollment' THEN 4
           WHEN 'enrollment_change' THEN 5
-          WHEN 'deferral_escalation' THEN 6
-          WHEN 'promotion' THEN 7
+          WHEN 'deferral_match_response' THEN 6
+          WHEN 'deferral_escalation' THEN 7
+          WHEN 'promotion' THEN 8
           WHEN 'raise' THEN 8
           WHEN 'merit' THEN 8
           ELSE 9
@@ -346,6 +347,32 @@ WITH all_events AS (
     event_category
   FROM {{ ref('int_deferral_rate_escalation_events') }}
   WHERE simulation_year = {{ simulation_year }}
+
+  UNION ALL
+
+  -- E058: Match-responsive deferral adjustment events
+  SELECT
+    '{{ var('scenario_id', 'default') }}' AS scenario_id,
+    '{{ var('plan_design_id', 'default') }}' AS plan_design_id,
+    employee_id,
+    employee_ssn,
+    event_type,
+    simulation_year,
+    effective_date,
+    event_details,
+    compensation_amount,
+    previous_compensation,
+    employee_deferral_rate,
+    prev_employee_deferral_rate,
+    employee_age,
+    employee_tenure,
+    level_id,
+    age_band,
+    tenure_band,
+    event_probability,
+    event_category
+  FROM {{ ref('int_deferral_match_response_events') }}
+  WHERE simulation_year = {{ simulation_year }}
 ),
 
 -- Final selection with event sequencing for conflict resolution
@@ -392,10 +419,11 @@ final_events AS (
           WHEN 'eligibility' THEN 3
           WHEN 'enrollment' THEN 4
           WHEN 'enrollment_change' THEN 5
-          WHEN 'deferral_escalation' THEN 6
-          WHEN 'promotion' THEN 7
-          WHEN 'raise' THEN 8  -- Note: 'raise' not 'RAISE' for consistency
-          ELSE 9
+          WHEN 'deferral_match_response' THEN 6
+          WHEN 'deferral_escalation' THEN 7
+          WHEN 'promotion' THEN 8
+          WHEN 'raise' THEN 9  -- Note: 'raise' not 'RAISE' for consistency
+          ELSE 10
         END,
         effective_date
     ) AS event_sequence,

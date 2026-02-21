@@ -100,6 +100,23 @@ current_year_escalations AS (
     {% endif %}
 ),
 
+-- E058: Get current year's match-response events
+current_year_match_response AS (
+    SELECT
+        employee_id,
+        effective_date,
+        employee_deferral_rate AS match_responsive_rate,
+        prev_employee_deferral_rate,
+        ROW_NUMBER() OVER (
+            PARTITION BY employee_id
+            ORDER BY effective_date DESC
+        ) AS rn
+    FROM {{ ref('int_deferral_match_response_events') }}
+    WHERE simulation_year = {{ simulation_year }}
+        AND employee_id IS NOT NULL
+        AND employee_deferral_rate IS NOT NULL
+),
+
 -- Capture current year's opt-out events (set deferral to 0 and unenroll)
 -- (supports both SQL and Polars event generation modes)
 current_year_opt_outs AS (
@@ -264,16 +281,29 @@ baseline_deferral_rates AS (
 -- FIRST YEAR: Combine historical enrollments with current escalations
 first_year_state AS (
     SELECT
-        COALESCE(w.employee_id, he.employee_id, ce.employee_id, oo.employee_id) as employee_id,
+        COALESCE(w.employee_id, he.employee_id, ce.employee_id, mr.employee_id, oo.employee_id) as employee_id,
         {{ simulation_year }} as simulation_year,
 
-        -- E096 FIX: Calculate current deferral rate with proper non-enrolled handling
-        -- Non-enrolled employees (he.employee_id IS NULL) should get 0, not fallback rate
+        -- E058+E096: Calculate current deferral rate with match-response + escalation additive logic
+        -- Priority: opt-out > (match-response + escalation additive) > escalation > match-response > enrollment
         CASE
             WHEN oo.employee_id IS NOT NULL THEN 0.00::DECIMAL(5,4)  -- Opted out
             WHEN he.employee_id IS NULL THEN 0.00::DECIMAL(5,4)      -- Not enrolled (no enrollment event)
+            -- E058 D2: Additive case - both match-response and escalation in same year
+            WHEN mr.match_responsive_rate IS NOT NULL AND ce.new_deferral_rate IS NOT NULL
+                THEN LEAST(
+                    mr.match_responsive_rate + ce.escalation_rate,
+                    {{ var('deferral_escalation_cap', 0.10) }},
+                    CASE WHEN cyw.employee_compensation > 0
+                         THEN ({{ var('irs_402g_limit', 23500) }}::DECIMAL / cyw.employee_compensation)
+                         ELSE {{ var('deferral_escalation_cap', 0.10) }}
+                    END
+                )::DECIMAL(5,4)
+            -- Only escalation
+            WHEN ce.new_deferral_rate IS NOT NULL THEN ce.new_deferral_rate
+            -- Only match-response
+            WHEN mr.match_responsive_rate IS NOT NULL THEN mr.match_responsive_rate
             ELSE COALESCE(
-                ce.new_deferral_rate,      -- Latest escalation this year
                 he.initial_deferral_rate,  -- Initial enrollment rate
                 br.fallback_rate,          -- Demographic fallback (only for enrolled)
                 0.03::DECIMAL(5,4)         -- Hard fallback (only for enrolled)
@@ -325,18 +355,19 @@ first_year_state AS (
         CURRENT_TIMESTAMP as created_at,
         'default'::VARCHAR as scenario_id,
         CASE
-            WHEN COALESCE(w.employee_id, he.employee_id, ce.employee_id) IS NULL THEN 'INVALID_EMPLOYEE_ID'
-            WHEN COALESCE(ce.new_deferral_rate, he.initial_deferral_rate, br.fallback_rate, 0.03) < 0
-                OR COALESCE(ce.new_deferral_rate, he.initial_deferral_rate, br.fallback_rate, 0.03) > 1
+            WHEN COALESCE(w.employee_id, he.employee_id, ce.employee_id, mr.employee_id) IS NULL THEN 'INVALID_EMPLOYEE_ID'
+            WHEN COALESCE(ce.new_deferral_rate, mr.match_responsive_rate, he.initial_deferral_rate, br.fallback_rate, 0.03) < 0
+                OR COALESCE(ce.new_deferral_rate, mr.match_responsive_rate, he.initial_deferral_rate, br.fallback_rate, 0.03) > 1
                 THEN 'INVALID_RATE'
             ELSE 'VALID'
         END as data_quality_flag,
 
-        -- Epic E049: Rate source tracking for lineage
-        -- E096 FIX: Add 'not_enrolled' source for employees without enrollment events
+        -- E058: Rate source tracking with match-response
         CASE
             WHEN oo.employee_id IS NOT NULL THEN 'opt_out'
-            WHEN he.employee_id IS NULL THEN 'not_enrolled'  -- E096: Track non-enrolled employees
+            WHEN he.employee_id IS NULL THEN 'not_enrolled'
+            WHEN mr.employee_id IS NOT NULL AND ce.employee_id IS NOT NULL THEN 'match_response_plus_escalation'
+            WHEN mr.employee_id IS NOT NULL THEN 'match_response'
             WHEN ce.employee_id IS NOT NULL THEN 'escalation_event'
             WHEN he.source = 'synthetic_baseline' THEN 'census_rate'
             WHEN he.source = 'fct_yearly_events' THEN 'enrollment_event'
@@ -347,8 +378,11 @@ first_year_state AS (
     FROM current_year_workforce w
     FULL OUTER JOIN first_year_enrolled_employees he ON w.employee_id = he.employee_id
     LEFT JOIN current_year_escalations ce ON COALESCE(w.employee_id, he.employee_id) = ce.employee_id AND ce.rn = 1
+    LEFT JOIN current_year_match_response mr ON COALESCE(w.employee_id, he.employee_id) = mr.employee_id AND mr.rn = 1
     LEFT JOIN current_year_opt_outs oo ON COALESCE(w.employee_id, he.employee_id) = oo.employee_id
     LEFT JOIN baseline_deferral_rates br ON COALESCE(w.employee_id, he.employee_id) = br.employee_id
+    -- E058: Join workforce for compensation (needed for IRS limit calculation in additive case)
+    LEFT JOIN current_year_workforce cyw ON COALESCE(w.employee_id, he.employee_id) = cyw.employee_id
     -- E096 FIX: Include ALL workforce employees, not just those with enrollment events
     -- Non-enrolled employees get deferral_rate = 0 and is_enrolled_flag = false
     -- This ensures census employees without explicit enrollment data still appear
@@ -359,14 +393,25 @@ first_year_state AS (
 -- SUBSEQUENT YEARS: Temporal accumulation pattern
 subsequent_year_state AS (
     SELECT
-        COALESCE(w.employee_id, ps.employee_id, ne.employee_id, ce.employee_id, oo.employee_id) as employee_id,
+        COALESCE(w.employee_id, ps.employee_id, ne.employee_id, ce.employee_id, mr.employee_id, oo.employee_id) as employee_id,
         {{ simulation_year }} as simulation_year,
 
-        -- TEMPORAL LOGIC with opt-out override: Apply escalations, enrollment, or carry-forward unless opted out
+        -- E058: TEMPORAL LOGIC with match-response + escalation additive handling
         CASE
             WHEN oo.employee_id IS NOT NULL THEN 0.00::DECIMAL(5,4)
+            -- E058 D2: Additive case - both match-response and escalation in same year
+            WHEN mr.match_responsive_rate IS NOT NULL AND ce.new_deferral_rate IS NOT NULL
+                THEN LEAST(
+                    mr.match_responsive_rate + ce.escalation_rate,
+                    {{ var('deferral_escalation_cap', 0.10) }},
+                    CASE WHEN cyw.employee_compensation > 0
+                         THEN ({{ var('irs_402g_limit', 23500) }}::DECIMAL / cyw.employee_compensation)
+                         ELSE {{ var('deferral_escalation_cap', 0.10) }}
+                    END
+                )::DECIMAL(5,4)
             ELSE COALESCE(
                 ce.new_deferral_rate,                    -- Current year escalation overwrites all
+                mr.match_responsive_rate,                -- Match-response rate
                 ne.initial_deferral_rate,                -- New enrollment this year
                 ps.previous_deferral_rate,               -- Carry forward from previous year
                 br.fallback_rate,                        -- Demographic fallback
@@ -395,7 +440,7 @@ subsequent_year_state AS (
         -- Rate change calculation
         CASE
             WHEN COALESCE(ps.original_deferral_rate, ne.initial_deferral_rate, br.fallback_rate, 0.03) > 0.0001
-            THEN ((COALESCE(ce.new_deferral_rate, ne.initial_deferral_rate, ps.previous_deferral_rate, br.fallback_rate, 0.03) -
+            THEN ((COALESCE(ce.new_deferral_rate, mr.match_responsive_rate, ne.initial_deferral_rate, ps.previous_deferral_rate, br.fallback_rate, 0.03) -
                    COALESCE(ps.original_deferral_rate, ne.initial_deferral_rate, br.fallback_rate, 0.03)) /
                    COALESCE(ps.original_deferral_rate, ne.initial_deferral_rate, br.fallback_rate, 0.03))::DECIMAL(8,4)
             ELSE NULL
@@ -429,16 +474,18 @@ subsequent_year_state AS (
         CURRENT_TIMESTAMP as created_at,
         'default'::VARCHAR as scenario_id,
         CASE
-            WHEN COALESCE(w.employee_id, ps.employee_id, ne.employee_id, ce.employee_id) IS NULL THEN 'INVALID_EMPLOYEE_ID'
-            WHEN COALESCE(ce.new_deferral_rate, ne.initial_deferral_rate, ps.previous_deferral_rate, br.fallback_rate, 0.03) < 0
-                OR COALESCE(ce.new_deferral_rate, ne.initial_deferral_rate, ps.previous_deferral_rate, br.fallback_rate, 0.03) > 1
+            WHEN COALESCE(w.employee_id, ps.employee_id, ne.employee_id, ce.employee_id, mr.employee_id) IS NULL THEN 'INVALID_EMPLOYEE_ID'
+            WHEN COALESCE(ce.new_deferral_rate, mr.match_responsive_rate, ne.initial_deferral_rate, ps.previous_deferral_rate, br.fallback_rate, 0.03) < 0
+                OR COALESCE(ce.new_deferral_rate, mr.match_responsive_rate, ne.initial_deferral_rate, ps.previous_deferral_rate, br.fallback_rate, 0.03) > 1
                 THEN 'INVALID_RATE'
             ELSE 'VALID'
         END as data_quality_flag,
 
-        -- Epic E049: Rate source tracking for lineage (subsequent years)
+        -- E058: Rate source tracking with match-response (subsequent years)
         CASE
             WHEN oo.employee_id IS NOT NULL THEN 'opt_out'
+            WHEN mr.employee_id IS NOT NULL AND ce.employee_id IS NOT NULL THEN 'match_response_plus_escalation'
+            WHEN mr.employee_id IS NOT NULL THEN 'match_response'
             WHEN ce.employee_id IS NOT NULL THEN 'escalation_event'
             WHEN ne.source = 'synthetic_baseline' THEN 'census_rate'
             WHEN ne.source = 'fct_yearly_events' THEN 'enrollment_event'
@@ -451,10 +498,13 @@ subsequent_year_state AS (
     FULL OUTER JOIN previous_year_state ps ON w.employee_id = ps.employee_id
     LEFT JOIN current_year_new_enrollments ne ON COALESCE(w.employee_id, ps.employee_id) = ne.employee_id AND ne.rn = 1
     LEFT JOIN current_year_escalations ce ON COALESCE(w.employee_id, ps.employee_id) = ce.employee_id AND ce.rn = 1
+    LEFT JOIN current_year_match_response mr ON COALESCE(w.employee_id, ps.employee_id) = mr.employee_id AND mr.rn = 1
     LEFT JOIN current_year_opt_outs oo ON COALESCE(w.employee_id, ps.employee_id) = oo.employee_id
     LEFT JOIN baseline_deferral_rates br ON COALESCE(w.employee_id, ps.employee_id) = br.employee_id
-    -- Include employees who are enrolled (new enrollments, carry-forward, or have escalations)
-    WHERE (ps.employee_id IS NOT NULL OR ne.employee_id IS NOT NULL OR ce.employee_id IS NOT NULL)
+    -- E058: Join workforce for compensation (needed for IRS limit calculation in additive case)
+    LEFT JOIN current_year_workforce cyw ON COALESCE(w.employee_id, ps.employee_id) = cyw.employee_id
+    -- Include employees who are enrolled (new enrollments, carry-forward, have escalations, or match-response)
+    WHERE (ps.employee_id IS NOT NULL OR ne.employee_id IS NOT NULL OR ce.employee_id IS NOT NULL OR mr.employee_id IS NOT NULL)
       AND COALESCE(ps.is_enrolled_flag, ne.employee_id IS NOT NULL, false) = true
 )
 
