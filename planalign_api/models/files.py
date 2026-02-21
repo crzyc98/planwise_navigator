@@ -25,6 +25,35 @@ class StructuredWarning(BaseModel):
     suggested_action: str = Field(..., description="Recommended user action")
 
 
+class DataQualitySample(BaseModel):
+    """A sample row exhibiting a data quality issue."""
+
+    row_number: int = Field(..., description="1-based row number")
+    value: Optional[str] = Field(None, description="Problematic value (None if null)")
+
+
+class DataQualityWarning(BaseModel):
+    """A row-level data quality warning for a census field."""
+
+    field_name: str = Field(..., description="Column name with the issue")
+    check_type: Literal[
+        "null_or_empty", "unparseable_date", "mixed_date_formats", "negative_value"
+    ] = Field(..., description="Type of quality check that found the issue")
+    severity: Literal["error", "warning", "info"] = Field(
+        ..., description="Issue severity"
+    )
+    affected_count: int = Field(..., description="Number of rows affected")
+    total_count: int = Field(..., description="Total number of rows checked")
+    affected_percentage: float = Field(
+        ..., description="Percentage of rows affected (0-100)"
+    )
+    message: str = Field(..., description="Human-readable description")
+    samples: List[DataQualitySample] = Field(
+        default_factory=list, description="Up to 5 sample rows"
+    )
+    suggested_action: str = Field(..., description="Recommended fix")
+
+
 class FileUploadResponse(BaseModel):
     """Response after successful file upload."""
 
@@ -41,6 +70,10 @@ class FileUploadResponse(BaseModel):
     structured_warnings: List[StructuredWarning] = Field(
         default_factory=list,
         description="Structured validation warnings with severity and impact",
+    )
+    data_quality_warnings: List[DataQualityWarning] = Field(
+        default_factory=list,
+        description="Row-level data quality warnings",
     )
 
 
@@ -80,6 +113,10 @@ class FileValidationResponse(BaseModel):
     structured_warnings: List[StructuredWarning] = Field(
         default_factory=list,
         description="Structured validation warnings with severity and impact",
+    )
+    data_quality_warnings: List[DataQualityWarning] = Field(
+        default_factory=list,
+        description="Row-level data quality warnings",
     )
 
 

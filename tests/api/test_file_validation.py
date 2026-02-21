@@ -305,3 +305,266 @@ class TestEdgeCases:
 
         assert len(metadata["validation_warnings"]) == 0
         assert len(metadata["structured_warnings"]) == 0
+
+
+# =============================================================================
+# Phase 6: Data Quality - Null/Empty checks
+# =============================================================================
+
+
+class TestDataQualityNullEmpty:
+    """Test row-level null/empty data quality checks."""
+
+    def test_null_employee_id_produces_error_severity(self, file_service, tmp_workspace):
+        """Null employee_id (critical field) should produce error-severity DQ warning."""
+        workspace_root, workspace_id = tmp_workspace
+        content = _create_csv(
+            workspace_root, workspace_id, "test.csv",
+            columns=["employee_id", "employee_hire_date", "employee_gross_compensation",
+                      "employee_birth_date", "employee_termination_date", "active"],
+            rows=[
+                ["", "2020-01-15", "75000", "1985-06-01", "", "true"],
+                ["EMP002", "2021-03-01", "80000", "1990-02-15", "", "true"],
+            ],
+        )
+
+        _, metadata, _ = file_service.save_uploaded_file(workspace_id, content, "test.csv")
+
+        dq = metadata.get("data_quality_warnings", [])
+        null_id = [w for w in dq if w["field_name"] == "employee_id" and w["check_type"] == "null_or_empty"]
+        assert len(null_id) == 1
+        assert null_id[0]["severity"] == "error"
+        assert null_id[0]["affected_count"] == 1
+        assert null_id[0]["total_count"] == 2
+        assert null_id[0]["affected_percentage"] == 50.0
+
+    def test_null_optional_field_produces_warning_severity(self, file_service, tmp_workspace):
+        """Null optional field should produce warning-severity DQ warning."""
+        workspace_root, workspace_id = tmp_workspace
+        content = _create_csv(
+            workspace_root, workspace_id, "test.csv",
+            columns=["employee_id", "employee_hire_date", "employee_gross_compensation",
+                      "employee_birth_date", "employee_termination_date", "active"],
+            rows=[
+                ["EMP001", "2020-01-15", "75000", "1985-06-01", "", "true"],
+                ["EMP002", "2021-03-01", "80000", "1990-02-15", "", "true"],
+            ],
+        )
+
+        _, metadata, _ = file_service.save_uploaded_file(workspace_id, content, "test.csv")
+
+        dq = metadata.get("data_quality_warnings", [])
+        null_term = [w for w in dq if w["field_name"] == "employee_termination_date" and w["check_type"] == "null_or_empty"]
+        assert len(null_term) == 1
+        assert null_term[0]["severity"] == "warning"
+
+    def test_clean_data_produces_no_dq_warnings(self, file_service, tmp_workspace):
+        """Fully populated data should produce no DQ warnings."""
+        workspace_root, workspace_id = tmp_workspace
+        content = _create_csv(
+            workspace_root, workspace_id, "test.csv",
+            columns=["employee_id", "employee_hire_date", "employee_gross_compensation",
+                      "employee_birth_date", "employee_termination_date", "active"],
+            rows=[
+                ["EMP001", "2020-01-15", "75000", "1985-06-01", "2025-01-01", "true"],
+                ["EMP002", "2021-03-01", "80000", "1990-02-15", "2025-06-01", "true"],
+            ],
+        )
+
+        _, metadata, _ = file_service.save_uploaded_file(workspace_id, content, "test.csv")
+
+        dq = metadata.get("data_quality_warnings", [])
+        assert len(dq) == 0
+
+    def test_samples_capped_at_5(self, file_service, tmp_workspace):
+        """Samples should contain at most 5 entries even with more issues."""
+        workspace_root, workspace_id = tmp_workspace
+        rows = [["", "2020-01-15", "75000", "1985-06-01", "", "true"] for _ in range(10)]
+        content = _create_csv(
+            workspace_root, workspace_id, "test.csv",
+            columns=["employee_id", "employee_hire_date", "employee_gross_compensation",
+                      "employee_birth_date", "employee_termination_date", "active"],
+            rows=rows,
+        )
+
+        _, metadata, _ = file_service.save_uploaded_file(workspace_id, content, "test.csv")
+
+        dq = metadata.get("data_quality_warnings", [])
+        null_id = [w for w in dq if w["field_name"] == "employee_id" and w["check_type"] == "null_or_empty"]
+        assert len(null_id) == 1
+        assert null_id[0]["affected_count"] == 10
+        assert len(null_id[0]["samples"]) <= 5
+
+    def test_samples_contain_row_number_and_value(self, file_service, tmp_workspace):
+        """Sample entries should have row_number and value keys."""
+        workspace_root, workspace_id = tmp_workspace
+        content = _create_csv(
+            workspace_root, workspace_id, "test.csv",
+            columns=["employee_id", "employee_hire_date", "employee_gross_compensation",
+                      "employee_birth_date", "employee_termination_date", "active"],
+            rows=[
+                ["", "2020-01-15", "75000", "1985-06-01", "", "true"],
+            ],
+        )
+
+        _, metadata, _ = file_service.save_uploaded_file(workspace_id, content, "test.csv")
+
+        dq = metadata.get("data_quality_warnings", [])
+        null_id = [w for w in dq if w["field_name"] == "employee_id"]
+        assert len(null_id) == 1
+        assert len(null_id[0]["samples"]) >= 1
+        sample = null_id[0]["samples"][0]
+        assert "row_number" in sample
+        assert "value" in sample
+
+
+# =============================================================================
+# Phase 7: Data Quality - Date checks
+# =============================================================================
+
+
+class TestDataQualityDates:
+    """Test row-level date quality checks."""
+
+    def test_unparseable_dates_flagged(self, file_service, tmp_workspace):
+        """Unparseable date strings should be flagged.
+
+        Note: DuckDB CSV auto-detect may successfully parse some formats,
+        turning truly unparseable values into NULLs (caught by null check).
+        This test uses a value that is clearly not a date.
+        """
+        workspace_root, workspace_id = tmp_workspace
+        content = _create_csv(
+            workspace_root, workspace_id, "test.csv",
+            columns=["employee_id", "employee_hire_date", "employee_gross_compensation",
+                      "employee_birth_date", "employee_termination_date", "active"],
+            rows=[
+                ["EMP001", "not-a-date", "75000", "1985-06-01", "", "true"],
+                ["EMP002", "2021-03-01", "80000", "1990-02-15", "", "true"],
+            ],
+        )
+
+        _, metadata, _ = file_service.save_uploaded_file(workspace_id, content, "test.csv")
+
+        dq = metadata.get("data_quality_warnings", [])
+        # DuckDB may parse the column as VARCHAR when it sees "not-a-date",
+        # in which case we get an unparseable_date warning.
+        # Or it may fail to auto-detect, leaving the column as VARCHAR.
+        # Either way, there should be some data quality warning flagging the issue.
+        date_or_null_issues = [
+            w for w in dq
+            if w["field_name"] == "employee_hire_date"
+            and w["check_type"] in ("unparseable_date", "null_or_empty")
+        ]
+        assert len(date_or_null_issues) >= 1
+
+
+# =============================================================================
+# Phase 8: Data Quality - Numeric checks
+# =============================================================================
+
+
+class TestDataQualityNumeric:
+    """Test row-level numeric quality checks."""
+
+    def test_negative_compensation_flagged(self, file_service, tmp_workspace):
+        """Negative compensation values should produce a DQ warning."""
+        workspace_root, workspace_id = tmp_workspace
+        content = _create_csv(
+            workspace_root, workspace_id, "test.csv",
+            columns=["employee_id", "employee_hire_date", "employee_gross_compensation",
+                      "employee_birth_date", "employee_termination_date", "active"],
+            rows=[
+                ["EMP001", "2020-01-15", "-5000", "1985-06-01", "", "true"],
+                ["EMP002", "2021-03-01", "80000", "1990-02-15", "", "true"],
+            ],
+        )
+
+        _, metadata, _ = file_service.save_uploaded_file(workspace_id, content, "test.csv")
+
+        dq = metadata.get("data_quality_warnings", [])
+        neg_comp = [w for w in dq if w["field_name"] == "employee_gross_compensation" and w["check_type"] == "negative_value"]
+        assert len(neg_comp) == 1
+        assert neg_comp[0]["severity"] == "warning"
+        assert neg_comp[0]["affected_count"] == 1
+
+    def test_zero_compensation_flagged(self, file_service, tmp_workspace):
+        """Zero compensation should also be flagged."""
+        workspace_root, workspace_id = tmp_workspace
+        content = _create_csv(
+            workspace_root, workspace_id, "test.csv",
+            columns=["employee_id", "employee_hire_date", "employee_gross_compensation",
+                      "employee_birth_date", "employee_termination_date", "active"],
+            rows=[
+                ["EMP001", "2020-01-15", "0", "1985-06-01", "", "true"],
+                ["EMP002", "2021-03-01", "80000", "1990-02-15", "", "true"],
+            ],
+        )
+
+        _, metadata, _ = file_service.save_uploaded_file(workspace_id, content, "test.csv")
+
+        dq = metadata.get("data_quality_warnings", [])
+        neg_comp = [w for w in dq if w["field_name"] == "employee_gross_compensation" and w["check_type"] == "negative_value"]
+        assert len(neg_comp) == 1
+
+
+# =============================================================================
+# Phase 9: Data Quality - Backward compatibility
+# =============================================================================
+
+
+class TestDataQualityBackwardCompat:
+    """Test backward compatibility of data_quality_warnings field."""
+
+    def test_data_quality_warnings_field_always_present(self, file_service, tmp_workspace):
+        """data_quality_warnings should always be present in metadata."""
+        workspace_root, workspace_id = tmp_workspace
+        content = _create_csv(
+            workspace_root, workspace_id, "test.csv",
+            columns=["employee_id", "employee_hire_date", "employee_gross_compensation",
+                      "employee_birth_date", "employee_termination_date", "active"],
+            rows=[["EMP001", "2020-01-15", "75000", "1985-06-01", "2025-01-01", "true"]],
+        )
+
+        _, metadata, _ = file_service.save_uploaded_file(workspace_id, content, "test.csv")
+
+        assert "data_quality_warnings" in metadata
+        assert isinstance(metadata["data_quality_warnings"], list)
+
+    def test_structured_warnings_unaffected_by_dq(self, file_service, tmp_workspace):
+        """Existing structured_warnings should be unaffected by DQ additions."""
+        workspace_root, workspace_id = tmp_workspace
+        content = _create_csv(
+            workspace_root, workspace_id, "test.csv",
+            columns=["employee_id"],
+            rows=[["EMP001"]],
+        )
+
+        _, metadata, _ = file_service.save_uploaded_file(workspace_id, content, "test.csv")
+
+        # structured_warnings should still have the missing-field warnings
+        assert len(metadata["structured_warnings"]) > 0
+        # data_quality_warnings is separate
+        assert "data_quality_warnings" in metadata
+
+    def test_validate_path_includes_dq_warnings(self, file_service, tmp_workspace):
+        """validate_path should also include data_quality_warnings."""
+        workspace_root, workspace_id = tmp_workspace
+        _create_csv(
+            workspace_root, workspace_id, "test.csv",
+            columns=["employee_id", "employee_hire_date", "employee_gross_compensation",
+                      "employee_birth_date", "employee_termination_date", "active"],
+            rows=[
+                ["", "2020-01-15", "75000", "1985-06-01", "", "true"],
+            ],
+        )
+
+        result = file_service.validate_path(workspace_id, "data/test.csv")
+
+        assert result["valid"] is True
+        assert "data_quality_warnings" in result
+        assert isinstance(result["data_quality_warnings"], list)
+        # Should have null employee_id warning
+        null_id = [w for w in result["data_quality_warnings"]
+                   if w["field_name"] == "employee_id" and w["check_type"] == "null_or_empty"]
+        assert len(null_id) == 1

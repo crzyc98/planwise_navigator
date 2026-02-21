@@ -1,7 +1,7 @@
 import { useState, useRef } from 'react';
-import { Database, Upload, Check, AlertTriangle, Info, ArrowRight } from 'lucide-react';
+import { Database, Upload, Check, AlertTriangle, Info, ArrowRight, ChevronDown, ChevronRight, FileWarning } from 'lucide-react';
 import { useConfigContext } from './ConfigContext';
-import { uploadCensusFile, validateFilePath, updateScenario, StructuredWarning } from '../../services/api';
+import { uploadCensusFile, validateFilePath, updateScenario, StructuredWarning, DataQualityWarning } from '../../services/api';
 
 export function DataSourcesSection() {
   const { formData, setFormData, handleChange, activeWorkspace, currentScenario, scenarioId } = useConfigContext();
@@ -9,6 +9,9 @@ export function DataSourcesSection() {
   const [uploadStatus, setUploadStatus] = useState<'idle' | 'uploading' | 'success' | 'error'>('idle');
   const [uploadMessage, setUploadMessage] = useState('');
   const [structuredWarnings, setStructuredWarnings] = useState<StructuredWarning[]>([]);
+  const [dataQualityWarnings, setDataQualityWarnings] = useState<DataQualityWarning[]>([]);
+  const [dqExpanded, setDqExpanded] = useState(false);
+  const [expandedFields, setExpandedFields] = useState<Set<string>>(new Set());
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const criticalWarnings = structuredWarnings.filter(w => w.severity === 'critical');
@@ -71,6 +74,8 @@ export function DataSourcesSection() {
               setUploadStatus('uploading');
               setUploadMessage(`Uploading ${file.name}...`);
               setStructuredWarnings([]);
+              setDataQualityWarnings([]);
+              setExpandedFields(new Set());
 
               try {
                 const result = await uploadCensusFile(activeWorkspace.id, file);
@@ -103,6 +108,13 @@ export function DataSourcesSection() {
                 // Set structured warnings for tiered display
                 setStructuredWarnings(result.structured_warnings || []);
 
+                // Set data quality warnings
+                const dqWarnings = result.data_quality_warnings || [];
+                setDataQualityWarnings(dqWarnings);
+                const hasErrors = dqWarnings.some(w => w.severity === 'error');
+                setDqExpanded(hasErrors);
+                setExpandedFields(new Set());
+
                 setUploadStatus('success');
                 const savedMsg = autoSaved ? ' and saved' : '';
                 setUploadMessage(`File uploaded${savedMsg}! ${result.row_count.toLocaleString()} rows, ${result.columns.length} columns`);
@@ -110,6 +122,7 @@ export function DataSourcesSection() {
                 setUploadStatus('error');
                 setUploadMessage(error instanceof Error ? error.message : 'Upload failed');
                 setStructuredWarnings([]);
+                setDataQualityWarnings([]);
               }
             }}
           />
@@ -210,6 +223,148 @@ export function DataSourcesSection() {
           </div>
         )}
 
+        {/* Data Quality Warnings (row-level checks) */}
+        {uploadStatus === 'success' && dataQualityWarnings.length > 0 && (() => {
+          const worstSeverity = dataQualityWarnings.some(w => w.severity === 'error')
+            ? 'error'
+            : dataQualityWarnings.some(w => w.severity === 'warning')
+              ? 'warning'
+              : 'info';
+          const totalIssues = dataQualityWarnings.reduce((sum, w) => sum + w.affected_count, 0);
+
+          const severityConfig = {
+            error: { bg: 'bg-red-50', border: 'border-red-200', text: 'text-red-900', icon: 'text-red-600', badge: 'bg-red-100 text-red-800' },
+            warning: { bg: 'bg-amber-50', border: 'border-amber-200', text: 'text-amber-900', icon: 'text-amber-600', badge: 'bg-amber-100 text-amber-800' },
+            info: { bg: 'bg-blue-50', border: 'border-blue-200', text: 'text-blue-900', icon: 'text-blue-500', badge: 'bg-blue-100 text-blue-800' },
+          };
+          const config = severityConfig[worstSeverity];
+
+          // Group warnings by field
+          const byField = dataQualityWarnings.reduce<Record<string, DataQualityWarning[]>>((acc, w) => {
+            (acc[w.field_name] = acc[w.field_name] || []).push(w);
+            return acc;
+          }, {});
+
+          const toggleField = (field: string) => {
+            setExpandedFields(prev => {
+              const next = new Set(prev);
+              if (next.has(field)) next.delete(field);
+              else next.add(field);
+              return next;
+            });
+          };
+
+          return (
+            <div className={`mt-4 ${config.bg} rounded-lg border ${config.border}`}>
+              <button
+                type="button"
+                className="w-full flex items-center justify-between p-4"
+                onClick={() => setDqExpanded(!dqExpanded)}
+              >
+                <div className="flex items-center">
+                  <FileWarning className={`w-5 h-5 ${config.icon} mr-2 flex-shrink-0`} />
+                  <span className={`font-semibold ${config.text}`}>
+                    Data Quality Issues ({totalIssues.toLocaleString()} issues across {dataQualityWarnings.length} checks)
+                  </span>
+                </div>
+                {dqExpanded
+                  ? <ChevronDown className={`w-4 h-4 ${config.icon}`} />
+                  : <ChevronRight className={`w-4 h-4 ${config.icon}`} />
+                }
+              </button>
+
+              {dqExpanded && (
+                <div className="px-4 pb-4 space-y-2">
+                  {Object.entries(byField).map(([field, fieldWarnings]) => {
+                    const fieldWorst = fieldWarnings.some(w => w.severity === 'error')
+                      ? 'error'
+                      : fieldWarnings.some(w => w.severity === 'warning')
+                        ? 'warning'
+                        : 'info';
+                    const fieldConfig = severityConfig[fieldWorst];
+                    const isFieldExpanded = expandedFields.has(field);
+
+                    return (
+                      <div key={field} className="bg-white rounded-lg border border-gray-200 overflow-hidden">
+                        <button
+                          type="button"
+                          className="w-full flex items-center justify-between p-3 hover:bg-gray-50"
+                          onClick={() => toggleField(field)}
+                        >
+                          <div className="flex items-center space-x-2">
+                            {isFieldExpanded
+                              ? <ChevronDown className="w-3 h-3 text-gray-400" />
+                              : <ChevronRight className="w-3 h-3 text-gray-400" />
+                            }
+                            <span className="font-mono text-sm font-medium text-gray-900">{field}</span>
+                            <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium ${fieldConfig.badge}`}>
+                              {fieldWorst}
+                            </span>
+                            <span className="text-xs text-gray-500">
+                              {fieldWarnings.length} {fieldWarnings.length === 1 ? 'check' : 'checks'}
+                            </span>
+                          </div>
+                        </button>
+
+                        {isFieldExpanded && (
+                          <div className="px-3 pb-3 space-y-3 border-t border-gray-100 pt-3">
+                            {fieldWarnings.map((w, idx) => {
+                              const wConfig = severityConfig[w.severity];
+                              return (
+                                <div key={idx} className="space-y-2">
+                                  <div className="flex items-start justify-between">
+                                    <p className="text-sm text-gray-700">{w.message}</p>
+                                    <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium ${wConfig.badge} ml-2 flex-shrink-0`}>
+                                      {w.severity}
+                                    </span>
+                                  </div>
+
+                                  {/* Progress bar */}
+                                  <div className="flex items-center space-x-2">
+                                    <div className="flex-1 bg-gray-200 rounded-full h-1.5">
+                                      <div
+                                        className={`h-1.5 rounded-full ${
+                                          w.severity === 'error' ? 'bg-red-500' :
+                                          w.severity === 'warning' ? 'bg-amber-500' : 'bg-blue-500'
+                                        }`}
+                                        style={{ width: `${Math.min(w.affected_percentage, 100)}%` }}
+                                      />
+                                    </div>
+                                    <span className="text-xs text-gray-500 w-12 text-right">{w.affected_percentage}%</span>
+                                  </div>
+
+                                  {/* Sample values */}
+                                  {w.samples.length > 0 && (
+                                    <div className="bg-gray-50 rounded p-2">
+                                      <p className="text-xs text-gray-500 mb-1">Sample rows:</p>
+                                      <div className="space-y-0.5">
+                                        {w.samples.map((s, si) => (
+                                          <div key={si} className="text-xs font-mono text-gray-600">
+                                            Row {s.row_number}: <span className="text-gray-900">{s.value === null ? <em className="text-gray-400">null</em> : `"${s.value}"`}</span>
+                                          </div>
+                                        ))}
+                                      </div>
+                                    </div>
+                                  )}
+
+                                  {/* Suggested action */}
+                                  <p className="text-xs text-gray-500">
+                                    <span className="font-medium">Suggestion:</span> {w.suggested_action}
+                                  </p>
+                                </div>
+                              );
+                            })}
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+          );
+        })()}
+
         {/* Manual Path Input */}
         <div className="mt-4">
           <label className="block text-sm font-medium text-gray-700 mb-1">
@@ -237,6 +392,8 @@ export function DataSourcesSection() {
                 setUploadStatus('uploading');
                 setUploadMessage('Validating path...');
                 setStructuredWarnings([]);
+                setDataQualityWarnings([]);
+                setExpandedFields(new Set());
 
                 try {
                   const result = await validateFilePath(
@@ -252,6 +409,11 @@ export function DataSourcesSection() {
                       censusLastModified: result.last_modified?.split('T')[0] || 'Unknown'
                     }));
                     setStructuredWarnings(result.structured_warnings || []);
+                    const dqWarnings = result.data_quality_warnings || [];
+                    setDataQualityWarnings(dqWarnings);
+                    const hasErrors = dqWarnings.some(w => w.severity === 'error');
+                    setDqExpanded(hasErrors);
+                    setExpandedFields(new Set());
                     setUploadStatus('success');
                     setUploadMessage(`Valid: ${result.row_count?.toLocaleString()} rows, ${result.columns?.length} columns`);
                   } else {
@@ -259,11 +421,13 @@ export function DataSourcesSection() {
                     setUploadMessage(result.error_message || 'Invalid path');
                     setFormData(prev => ({ ...prev, censusDataStatus: 'error' }));
                     setStructuredWarnings([]);
+                    setDataQualityWarnings([]);
                   }
                 } catch (error) {
                   setUploadStatus('error');
                   setUploadMessage(error instanceof Error ? error.message : 'Validation failed');
                   setStructuredWarnings([]);
+                  setDataQualityWarnings([]);
                 }
               }}
             >
