@@ -14,8 +14,8 @@ export function DataSourcesSection() {
   const [expandedFields, setExpandedFields] = useState<Set<string>>(new Set());
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  const criticalWarnings = structuredWarnings.filter(w => w.severity === 'critical');
-  const optionalWarnings = structuredWarnings.filter(w => w.severity === 'optional' && w.warning_type === 'missing');
+  const criticalWarnings = structuredWarnings.filter(w => w.severity === 'critical' && w.warning_type === 'missing');
+  const optionalWarnings = structuredWarnings.filter(w => (w.severity === 'optional' || w.severity === 'info') && w.warning_type === 'missing');
   const aliasWarnings = structuredWarnings.filter(w => w.warning_type === 'alias_found');
   const autoMappedWarnings = structuredWarnings.filter(w => w.warning_type === 'auto_mapped');
 
