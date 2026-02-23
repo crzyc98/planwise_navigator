@@ -422,8 +422,9 @@ final_events AS (
           WHEN 'deferral_match_response' THEN 6
           WHEN 'deferral_escalation' THEN 7
           WHEN 'promotion' THEN 8
-          WHEN 'raise' THEN 9  -- Note: 'raise' not 'RAISE' for consistency
-          ELSE 10
+          WHEN 'raise' THEN 8
+          WHEN 'merit' THEN 8
+          ELSE 9
         END,
         effective_date
     ) AS event_sequence,

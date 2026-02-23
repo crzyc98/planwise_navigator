@@ -256,7 +256,13 @@ class FileService:
                 renames: List[Dict[str, str]] = []
                 for alias, canonical in self.COLUMN_ALIASES.items():
                     if alias in columns and canonical not in columns:
-                        conn.execute(f'ALTER TABLE census RENAME COLUMN "{alias}" TO "{canonical}"')
+                        safe_alias = validate_column_name_from_set(
+                            alias, ALL_CENSUS_COLUMNS, "census alias column"
+                        )
+                        safe_canonical = validate_column_name_from_set(
+                            canonical, ALL_CENSUS_COLUMNS, "census canonical column"
+                        )
+                        conn.execute(f'ALTER TABLE census RENAME COLUMN "{safe_alias}" TO "{safe_canonical}"')
                         renames.append({"original": alias, "canonical": canonical})
                         logger.info(f"Auto-renamed column '{alias}' to '{canonical}'")
 
