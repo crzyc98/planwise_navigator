@@ -80,6 +80,10 @@ class SimulationService:
             f"scenario={scenario_id}, run={run_id}"
         )
 
+        # Defaults for error-handler fallback (overwritten below on success)
+        start_year = 2025
+        total_years = 3
+
         try:
             # Mark as running
             update_run_status(run_id, status="running")
@@ -228,10 +232,8 @@ class SimulationService:
                     run_id=run_id,
                     progress=0,
                     current_stage="FAILED",
-                    current_year=(
-                        current_year if "current_year" in dir() else start_year  # noqa: F821
-                    ),
-                    total_years=total_years if "total_years" in dir() else 3,  # noqa: F821
+                    current_year=start_year,
+                    total_years=total_years,
                 )
             except Exception:
                 pass
