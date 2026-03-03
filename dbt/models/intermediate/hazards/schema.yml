@@ -1,0 +1,43 @@
+version: 2
+
+models:
+  - name: int_hazard_termination
+    description: >
+      Termination hazard model: computes termination probability for each combination
+      of simulation year, job level, tenure band, and age band.
+      Applies a level discount factor so higher-level employees have progressively
+      lower termination rates, floored at min_level_discount_multiplier (default 0.4).
+    config:
+      tags: ["FOUNDATION", "EVENT_GENERATION"]
+    columns:
+      - name: termination_rate
+        description: Computed termination probability incorporating base rate, tenure, age, and level discount
+        data_tests:
+          - not_null
+    data_tests:
+      - dbt_utils.expression_is_true:
+          name: "termination_rate_positive"
+          expression: "termination_rate > 0"
+          config:
+            severity: error
+      - dbt_utils.expression_is_true:
+          name: "higher_levels_lower_or_equal_rates"
+          expression: >
+            (SELECT COUNT(*) FROM (
+              SELECT
+                h.year,
+                h.tenure_band,
+                h.age_band,
+                h.termination_rate AS higher_level_rate,
+                l1.termination_rate AS level1_rate
+              FROM {{ ref('int_hazard_termination') }} h
+              JOIN {{ ref('int_hazard_termination') }} l1
+                ON h.year = l1.year
+                AND h.tenure_band = l1.tenure_band
+                AND h.age_band = l1.age_band
+                AND l1.level_id = 1
+              WHERE h.level_id > 1
+                AND h.termination_rate > l1.termination_rate
+            )) = 0
+          config:
+            severity: error

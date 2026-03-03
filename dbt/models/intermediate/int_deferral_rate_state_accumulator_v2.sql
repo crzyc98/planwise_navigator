@@ -290,14 +290,13 @@ first_year_state AS (
             WHEN oo.employee_id IS NOT NULL THEN 0.00::DECIMAL(5,4)  -- Opted out
             WHEN he.employee_id IS NULL THEN 0.00::DECIMAL(5,4)      -- Not enrolled (no enrollment event)
             -- E058 D2: Additive case - both match-response and escalation in same year
+            -- Only apply additive logic when compensation > 0 (IRS limit requires real comp)
             WHEN mr.match_responsive_rate IS NOT NULL AND ce.new_deferral_rate IS NOT NULL
+                 AND COALESCE(cyw.employee_compensation, 0) > 0
                 THEN LEAST(
                     mr.match_responsive_rate + ce.escalation_rate,
                     {{ var('deferral_escalation_cap', 0.10) }},
-                    CASE WHEN cyw.employee_compensation > 0
-                         THEN ({{ var('irs_402g_limit', 23500) }}::DECIMAL / cyw.employee_compensation)
-                         ELSE {{ var('deferral_escalation_cap', 0.10) }}
-                    END
+                    ({{ var('irs_402g_limit', 23500) }}::DECIMAL / cyw.employee_compensation)
                 )::DECIMAL(5,4)
             -- Only escalation
             WHEN ce.new_deferral_rate IS NOT NULL THEN ce.new_deferral_rate
@@ -400,14 +399,13 @@ subsequent_year_state AS (
         CASE
             WHEN oo.employee_id IS NOT NULL THEN 0.00::DECIMAL(5,4)
             -- E058 D2: Additive case - both match-response and escalation in same year
+            -- Only apply additive logic when compensation > 0 (IRS limit requires real comp)
             WHEN mr.match_responsive_rate IS NOT NULL AND ce.new_deferral_rate IS NOT NULL
+                 AND COALESCE(cyw.employee_compensation, 0) > 0
                 THEN LEAST(
                     mr.match_responsive_rate + ce.escalation_rate,
                     {{ var('deferral_escalation_cap', 0.10) }},
-                    CASE WHEN cyw.employee_compensation > 0
-                         THEN ({{ var('irs_402g_limit', 23500) }}::DECIMAL / cyw.employee_compensation)
-                         ELSE {{ var('deferral_escalation_cap', 0.10) }}
-                    END
+                    ({{ var('irs_402g_limit', 23500) }}::DECIMAL / cyw.employee_compensation)
                 )::DECIMAL(5,4)
             ELSE COALESCE(
                 ce.new_deferral_rate,                    -- Current year escalation overwrites all
