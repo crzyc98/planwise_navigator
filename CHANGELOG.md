@@ -69,6 +69,15 @@ Fidelity PlanAlign Engine follows **Semantic Versioning 2.0.0** (MAJOR.MINOR.PAT
 ## [Unreleased]
 
 ### Added
+### Changed
+### Fixed
+### Removed
+
+---
+
+## [2.1.0] - 2026-03-03 "Studio & Compliance"
+
+### Added
 
 **PlanAlign Studio (Web Interface)**
 - **E081**: FastAPI backend + React/Vite frontend for scenario management, batch processing, and real-time simulation telemetry via WebSocket
@@ -297,7 +306,8 @@ Fidelity PlanAlign Engine follows **Semantic Versioning 2.0.0** (MAJOR.MINOR.PAT
 
 ## Version History
 
-- **2.0.0** (2025-11-24): PlanAlign Engine - Project rename, PlanAlign Studio web interface, DC plan modeling, NDT testing
+- **2.1.0** (2026-03-03): Studio & Compliance - PlanAlign Studio, NDT testing, DC plan modeling, SQL-only mode, 60+ features/fixes
+- **2.0.0** (2025-11-24): PlanAlign Engine - Project rename from PlanWise Navigator
 - **1.0.0** (2025-01-15): Foundation - Initial production release with event sourcing, pipeline modularization, and comprehensive testing
 
 ---
