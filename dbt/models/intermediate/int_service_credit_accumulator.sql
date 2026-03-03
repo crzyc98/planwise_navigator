@@ -27,8 +27,16 @@
 
 {% set simulation_year = var('simulation_year', 2025) | int %}
 {% set start_year = var('start_year', 2025) | int %}
-{% set plan_year_start_month = var('erisa_eligibility', {}).get('plan_year_start_month', 1) | int %}
-{% set plan_year_start_day = var('erisa_eligibility', {}).get('plan_year_start_day', 1) | int %}
+
+-- Plan year boundaries from existing UI-controlled config (setup.plan_year_start_date)
+{% set pysd = var('plan_year_start_date', '2025-01-01') | string %}
+{% set plan_year_start_month = pysd[5:7] | int %}
+{% set plan_year_start_day = pysd[8:10] | int %}
+
+-- Hours threshold from existing employer match/core eligibility config (UI-controlled)
+{% set employer_match_config = var('employer_match', {}) %}
+{% set match_eligibility = employer_match_config.get('eligibility', {}) %}
+{% set eligibility_threshold_hours = match_eligibility.get('minimum_hours_annual', 1000) | int %}
 
 {% if simulation_year == start_year %}
 -- =========================================================================
@@ -103,7 +111,7 @@ SELECT
 
   -- Vesting years: independently computed from plan-year hours
   CASE
-    WHEN {{ classify_service_hours('COALESCE(vh.vesting_hours_this_year, 0)') }} = 'year_of_service' THEN 1
+    WHEN {{ classify_service_hours('COALESCE(vh.vesting_hours_this_year, 0)', eligibility_threshold_hours) }} = 'year_of_service' THEN 1
     ELSE 0
   END AS vesting_years_credited,
 
@@ -113,7 +121,7 @@ SELECT
 
   -- Classifications
   COALESCE(ecp.eligibility_classification, 'no_credit') AS eligibility_classification_this_year,
-  {{ classify_service_hours('COALESCE(vh.vesting_hours_this_year, 0)') }} AS vesting_classification_this_year,
+  {{ classify_service_hours('COALESCE(vh.vesting_hours_this_year, 0)', eligibility_threshold_hours) }} AS vesting_classification_this_year,
 
   -- Plan eligibility (latches TRUE)
   COALESCE(ecp.is_eligible_this_year, FALSE) AS is_plan_eligible,
@@ -218,7 +226,7 @@ SELECT
   -- Cumulative vesting years
   COALESCE(py.prior_vesting_years, 0) +
     CASE
-      WHEN {{ classify_service_hours('COALESCE(vh.vesting_hours_this_year, 0)') }} = 'year_of_service' THEN 1
+      WHEN {{ classify_service_hours('COALESCE(vh.vesting_hours_this_year, 0)', eligibility_threshold_hours) }} = 'year_of_service' THEN 1
       ELSE 0
     END AS vesting_years_credited,
 
@@ -228,7 +236,7 @@ SELECT
 
   -- Classifications (reset per year)
   COALESCE(ecp.eligibility_classification, 'no_credit') AS eligibility_classification_this_year,
-  {{ classify_service_hours('COALESCE(vh.vesting_hours_this_year, 0)') }} AS vesting_classification_this_year,
+  {{ classify_service_hours('COALESCE(vh.vesting_hours_this_year, 0)', eligibility_threshold_hours) }} AS vesting_classification_this_year,
 
   -- Plan eligibility: latch TRUE once met, never revert
   CASE
