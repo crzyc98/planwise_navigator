@@ -69,11 +69,115 @@ Fidelity PlanAlign Engine follows **Semantic Versioning 2.0.0** (MAJOR.MINOR.PAT
 ## [Unreleased]
 
 ### Added
+
+**PlanAlign Studio (Web Interface)**
+- **E081**: FastAPI backend + React/Vite frontend for scenario management, batch processing, and real-time simulation telemetry via WebSocket
+- **E085**: DC Plan Contribution Analytics Dashboard with per-year metrics and export
+- **E093**: Compensation analytics broken out by detailed status code
+- **E104**: Scenario cost comparison page with multi-scenario charting
+- **E013**: Employer cost ratio metrics (employer cost per $1 of employee comp) on comparison page
+- **E014/E018**: Redesigned comparison page with sidebar layout, year-by-year breakdown tables, and variance rows
+- **E015**: Copy-to-clipboard for comparison tables with Excel-compatible variance formatting
+- **033**: Multi-year compensation matrix on Compare Cost page
+- **046**: Tenure-based and points-based employer match contribution modes with gap/overlap validation
+- **048**: DC plan metrics (participation rate, avg deferral, employer cost) in scenario comparison API
+- **049**: Refactored ConfigStudio into modular section components
+- **050**: NDT ACP (Actual Contribution Percentage) non-discrimination testing
+- **051**: NDT 401(a)(4) general test and 415 annual additions limit test
+- **052**: NDT ADP (Actual Deferral Percentage) nondiscrimination test with scenario comparison mode
+- **053**: Core contribution tier validation and points-based contribution mode
+- **055**: Structured census field validation warnings with tiered severity UI
+- **056**: Row-level data quality warnings for census uploads
+- **057**: DC plan comparison charts on scenario comparison page
+- **059**: Deferral rate distribution comparison across scenarios
+- **060**: Average/total compensation toggle with CAGR display on charts
+- Unsaved changes tracking in ConfigStudio with beforeunload guard
+- Automatic workspace repair on startup
+- Delete database option in Advanced Settings tab
+- Scenario reorder controls with anchor-first ordering and localStorage persistence
+- SECURE 2.0 super catch-up contribution limits for ages 60-63
+
+**Event Sourcing & Simulation Engine**
+- **E001**: Centralized age/tenure band definitions in dbt seeds with `assign_age_band`/`assign_tenure_band` macros
+- **E003**: Band configuration management UI in PlanAlign Studio
+- **E004**: Event type abstraction layer (`EventGenerator`, `EventRegistry`) for extensible event generation
+- **E005**: Unified `DatabasePathResolver` for API services (workspace, scenario, project-level databases)
+- **E006**: Self-healing dbt initialization with automatic seed/dependency install
+- **E007**: State accumulator contract with type-safe Pydantic validation
+- **E008**: Hardened IRS 402(g) contribution limit enforcement
+- **E010**: Service-based employer match contribution tiers
+- **E025/E026**: Vesting analysis page + IRS 401(a)(17) compensation limit compliance
+- **E058**: Match-responsive deferral adjustment events
+- **E082**: Configurable new hire demographics (age/level distribution via seeds + UI) and promotion rate multiplier
+- **E084**: Configurable DC Plan match formulas with editable tiers and graded core by service
+- **039**: Per-scenario seed configuration with unified save and workspace fallback chain
+- **040**: Vesting year selector on analysis page
+- Level discount factor in termination hazard model (higher-level employees get lower termination rates)
+
+**Infrastructure & Architecture**
+- **E073**: Split 1,471-line config.py into 7 focused modules
+- **E076**: Polars state accumulation pipeline with 1000x+ performance benchmarking
+- **E083**: Workspace cloud synchronization via Git (`planalign sync` commands)
+- **E011**: Auto-install sqlparse token limit fix on first import (with sitecustomize.py Windows fallback)
+- **031**: Workspace export/import via 7z archives
+- **034**: Extracted setup and validation concerns from PipelineOrchestrator
+- **035**: Modularized config/events.py into domain-specific submodules
+- **027**: Split large monolith files into focused packages
+- Schema tests for hazard termination model (not_null, monotonicity)
+
 ### Changed
+- Scenario comparison limit increased from 3 to 6 scenarios
+- Tenure calculation now uses day-based precision instead of year-only subtraction
+- Terminated employee tenure calculated to termination date (not year-end)
+- Census compensation uses correct annualization logic
+- Participation rate computed using active employees only per year
+- Deferral rate IRS 402(g) cap simplified to guard on compensation > 0 upfront
+- Dynamic band macros now use `run_query` to read from seed tables at compile time
+- `age_multipliers` and `tenure_multipliers` are now required config fields
+- Seed writes use atomic temp file + `os.replace()` to prevent partial files
+- Windows compatibility: ProactorEventLoop, cross-platform subprocess, UTF-8 encoding
+
 ### Fixed
-### Deprecated
+- **E009**: Service-based core contribution tier support
+- **E022**: Hire-termination date ordering and type mismatches
+- **E025**: Proportional minimum tenure for new hire terminations
+- **E028**: O(n^2) scalar subqueries in fct_workforce_snapshot (performance regression)
+- **E036**: Deferral rate escalation now generates events for eligible employees
+- **E037/E043**: Census compensation annualization logic corrected
+- **E041**: Consistent per-year participation rate
+- **E044**: Salary range input UX and default scale factor
+- **E047**: Tenure eligibility enforcement for employer contributions; Add Tier defaulting fix
+- **E054**: Shared workspace context in DC Plan analytics page
+- **E086**: Removed unused turnover parameters from UI
+- **E087**: Analytics Dashboard export and storage path display
+- **E088**: Removed hardcoded Impact Preview section from Config Studio
+- **E089**: Census file upload persistence and metadata display
+- **E090**: Census file upload now used in simulations
+- **E091**: Use prorated_annual_compensation for analytics
+- **E092**: DC Plan analytics page database fallback and case sensitivity
+- **E094**: Analytics page remembers workspace and simulation after run
+- **E095**: Wired eligibility_months UI field to dbt vars
+- **E096**: Participation bug (event type mismatch in deferral accumulator) — 5 bugs fixed
+- **E097**: Polars schema mismatch and year range cleanup
+- **E098**: Extended seed data through 2035 to fix 2030 contribution bug
+- **E099**: Copy scenario now includes all DC Plan and New Hire settings
+- **E100**: Copy scenario now includes data sources (census file path)
+- **E101**: UI auto-escalation settings now override legacy YAML config
+- **E102**: Escalation delay years variable name mismatch; hire date cutoff clearing; Polars var passthrough
+- **E103**: Analytics page dropdowns correctly select workspace/scenario from URL
+- Auto-escalation hire date filter uses inclusive comparison (>=)
+- DuckDB ORDER BY in UNION ALL subquery error
+- Cast level_id to INTEGER in snapshot and state models
+- Polars: empty parquet files for years with no events, workspace database path priority
+- Studio: chart colors, legend ordering, TypeScript errors, stale data overwrite, workspace switching
+- Event priority inconsistency, error handler fragility, SQL safety, and warning filter gaps
+- Resolved 8 failing unit tests and 5 flaky/environment-specific tests
+
 ### Removed
-### Security
+- **E024**: Removed Polars pipeline — simplified to SQL-only mode (~4,400 LOC removed)
+- Removed deprecated Streamlit dashboard
+- Removed Makefile and Make references
+- Removed 179 lines of redundant content from CLAUDE.md and README.md
 
 ---
 
@@ -193,6 +297,7 @@ Fidelity PlanAlign Engine follows **Semantic Versioning 2.0.0** (MAJOR.MINOR.PAT
 
 ## Version History
 
+- **2.0.0** (2025-11-24): PlanAlign Engine - Project rename, PlanAlign Studio web interface, DC plan modeling, NDT testing
 - **1.0.0** (2025-01-15): Foundation - Initial production release with event sourcing, pipeline modularization, and comprehensive testing
 
 ---
