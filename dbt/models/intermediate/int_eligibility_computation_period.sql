@@ -15,6 +15,7 @@
   - Overlap/double-credit rule per ERISA
   - IRC 410(a)(4) plan entry date computation
   - Prorated hours from 2,080 annual basis
+  - Hours threshold from existing employer_match/employer_core_contribution eligibility config
 
   Sources:
   - int_baseline_workforce: Census employees with hire dates
@@ -25,9 +26,15 @@
 {% set simulation_year = var('simulation_year', 2025) | int %}
 {% set start_year = var('start_year', 2025) | int %}
 
--- Plan year boundaries (configurable via erisa_eligibility config)
-{% set plan_year_start_month = var('erisa_eligibility', {}).get('plan_year_start_month', 1) | int %}
-{% set plan_year_start_day = var('erisa_eligibility', {}).get('plan_year_start_day', 1) | int %}
+-- Plan year boundaries from existing UI-controlled config (setup.plan_year_start_date)
+{% set pysd = var('plan_year_start_date', '2025-01-01') | string %}
+{% set plan_year_start_month = pysd[5:7] | int %}
+{% set plan_year_start_day = pysd[8:10] | int %}
+
+-- Hours threshold from existing employer match/core eligibility config (UI-controlled)
+{% set employer_match_config = var('employer_match', {}) %}
+{% set match_eligibility = employer_match_config.get('eligibility', {}) %}
+{% set eligibility_threshold_hours = match_eligibility.get('minimum_hours_annual', 1000) | int %}
 
 WITH
 -- Census employees (baseline workforce)
@@ -228,19 +235,19 @@ classified_periods AS (
     -- IECP threshold met?
     CASE
       WHEN cp.period_type = 'iecp' AND cp.is_hire_year
-        THEN cp.iecp_year1_hours >= 1000
+        THEN cp.iecp_year1_hours >= {{ eligibility_threshold_hours }}
       WHEN cp.period_type = 'iecp' AND NOT cp.is_hire_year
-        THEN (cp.iecp_year1_hours + cp.iecp_year2_hours) >= 1000
+        THEN (cp.iecp_year1_hours + cp.iecp_year2_hours) >= {{ eligibility_threshold_hours }}
       ELSE FALSE
     END AS iecp_eligible,
 
     -- Plan year threshold met? (only relevant when IECP is complete or plan_year period)
     CASE
-      WHEN cp.period_type = 'plan_year' THEN cp.plan_year_hours >= 1000
+      WHEN cp.period_type = 'plan_year' THEN cp.plan_year_hours >= {{ eligibility_threshold_hours }}
       -- In IECP completion year, also check the plan year portion for overlap
       WHEN cp.period_type = 'iecp' AND NOT cp.is_hire_year
            AND cp.is_iecp_complete_this_year
-        THEN cp.plan_year_hours >= 1000
+        THEN cp.plan_year_hours >= {{ eligibility_threshold_hours }}
       ELSE FALSE
     END AS is_plan_year_eligible,
 
@@ -248,8 +255,8 @@ classified_periods AS (
     CASE
       WHEN cp.period_type = 'iecp' AND NOT cp.is_hire_year
            AND cp.is_iecp_complete_this_year
-           AND (cp.iecp_year1_hours + cp.iecp_year2_hours) >= 1000
-           AND cp.plan_year_hours >= 1000
+           AND (cp.iecp_year1_hours + cp.iecp_year2_hours) >= {{ eligibility_threshold_hours }}
+           AND cp.plan_year_hours >= {{ eligibility_threshold_hours }}
         THEN TRUE
       -- Jan 1 hires: IECP = plan year, no double credit
       WHEN cp.period_type = 'iecp' AND cp.is_hire_year
@@ -277,8 +284,8 @@ final AS (
     ROUND(cp.iecp_year2_hours, 2)::DECIMAL(8,2) AS iecp_year2_hours,
     ROUND(cp.iecp_total_hours, 2)::DECIMAL(8,2) AS iecp_total_hours,
 
-    -- Hours classification using reusable macro
-    {{ classify_service_hours('cp.annual_hours_prorated') }} AS hours_classification,
+    -- Hours classification using reusable macro (threshold from UI config)
+    {{ classify_service_hours('cp.annual_hours_prorated', eligibility_threshold_hours) }} AS hours_classification,
 
     cp.is_iecp_complete_this_year AS is_iecp_complete,
     cp.is_plan_year_eligible,

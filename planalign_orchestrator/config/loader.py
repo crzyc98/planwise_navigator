@@ -18,7 +18,6 @@ from .workforce import (
     EnrollmentSettings,
     EligibilitySettings,
     PlanEligibilitySettings,
-    ErisaEligibilitySettings,
     EmployerMatchSettings,
     DeferralMatchResponseSettings,
 )
@@ -46,12 +45,6 @@ class SimulationConfig(BaseModel):
     eligibility: EligibilitySettings = Field(default_factory=EligibilitySettings)
     plan_eligibility: PlanEligibilitySettings = Field(default_factory=PlanEligibilitySettings)
     employer_match: Optional[EmployerMatchSettings] = Field(default=None, description="Employer match configuration")
-
-    # E063: ERISA 1,000-Hour Eligibility Rules
-    erisa_eligibility: ErisaEligibilitySettings = Field(
-        default_factory=ErisaEligibilitySettings,
-        description="ERISA eligibility computation settings",
-    )
 
     # E058: Match-responsive deferral adjustments
     deferral_match_response: DeferralMatchResponseSettings = Field(

@@ -99,24 +99,6 @@ class PlanEligibilitySettings(BaseModel):
     minimum_age: Optional[int] = None
 
 
-class ErisaEligibilitySettings(BaseModel):
-    """ERISA 1,000-Hour Eligibility Rules configuration (E063)."""
-    enabled: bool = Field(default=True, description="Enable ERISA eligibility computation")
-    hour_counting_method: Literal["prorated"] = Field(
-        default="prorated",
-        description="Hour counting method (only 'prorated' supported this iteration)",
-    )
-    plan_year_start_month: int = Field(default=1, ge=1, le=12, description="Plan year start month")
-    plan_year_start_day: int = Field(default=1, ge=1, le=31, description="Plan year start day")
-    eligibility_threshold_hours: int = Field(
-        default=1000, ge=0, le=3000, description="Hours required for year of service"
-    )
-    vesting_computation_period: Literal["plan_year", "anniversary_year"] = Field(
-        default="plan_year",
-        description="Vesting computation period type",
-    )
-
-
 # =============================================================================
 # Employer Match Settings
 # =============================================================================
