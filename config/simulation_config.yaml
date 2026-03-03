@@ -792,6 +792,15 @@ corporate_network:
     - "https://www.google.com"
     - "https://github.com"
 
+# Epic E063-1000: ERISA 1,000-Hour Eligibility Rules Configuration
+erisa_eligibility:
+  enabled: true
+  hour_counting_method: "prorated"        # Only "prorated" supported in this iteration
+  plan_year_start_month: 1
+  plan_year_start_day: 1
+  eligibility_threshold_hours: 1000
+  vesting_computation_period: "plan_year"  # "plan_year" | "anniversary_year"
+
 # Dagster op configuration (maintained for backward compatibility)
 ops:
   run_multi_year_simulation:
