@@ -10,6 +10,9 @@ simulation.duckdb.zip
 *.duckdb
 *.duckdb.wal
 
+# Dagster (not used — prevent accidental re-creation)
+workspace.yaml
+
 # Data
 data/secret/
 

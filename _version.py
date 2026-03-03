@@ -9,29 +9,17 @@ Version format: MAJOR.MINOR.PATCH
 - MINOR: New features in a backwards-compatible manner (e.g., new epics)
 - PATCH: Backwards-compatible bug fixes
 
-Version History:
-- 2.0.0: Renamed from PlanWise Navigator to Fidelity PlanAlign Engine
-  - Breaking change: CLI command renamed from 'planwise' to 'planalign'
-  - Breaking change: Package renamed from 'navigator_orchestrator' to 'planalign_orchestrator'
-  - Breaking change: Package renamed from 'planwise_cli' to 'planalign_cli'
-- 1.0.0: Initial production release (as PlanWise Navigator)
-  - E068: Performance Optimization (2× improvement)
-  - E069: Batch Scenario Processing
-  - E072: Pipeline Modularization
-  - E074: Enhanced Error Handling
-  - E075: Testing Infrastructure (256 tests)
-  - E078: Cohort Pipeline Integration
-  - E080: Validation Model to Test Conversion
+See CHANGELOG.md for detailed version history.
 """
 
 from __future__ import annotations
 
-__version__ = "2.0.0"
+__version__ = "2.1.0"
 __version_info__ = tuple(int(x) for x in __version__.split("."))
 
 # Release metadata
-__release_date__ = "2025-11-24"
-__release_name__ = "PlanAlign Engine"
+__release_date__ = "2026-03-03"
+__release_name__ = "Studio & Compliance"
 
 # Git information (can be populated by CI/CD or build scripts)
 __git_sha__ = None
