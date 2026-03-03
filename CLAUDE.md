@@ -843,6 +843,7 @@ See `/docs/VERSIONING_GUIDE.md` for detailed versioning workflow.
 - Python 3.11 (config/orchestrator), SQL/Jinja2 (dbt models) + dbt-core 1.8.8, dbt-duckdb 1.8.1, Pydantic v2.7.4 (058-deferral-match-response)
 - Python 3.11 (backend), TypeScript 5.x (frontend) + FastAPI (backend API), Pydantic v2 (models), React 18 + Recharts 3.5 (frontend charts) (059-deferral-dist-comparison)
 - DuckDB 1.0.0 (per-scenario `simulation.duckdb` via `DatabasePathResolver`) — read-only access (059-deferral-dist-comparison)
+- TypeScript 5.x (React 18 frontend) + React 18, Recharts 3.5.0, Lucide-react, Tailwind CSS (060-comp-chart-toggle)
 
 ## Recent Changes
 - 024-remove-polars-pipeline: Removed Polars dependency, simplified to SQL-only mode
