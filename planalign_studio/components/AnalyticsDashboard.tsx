@@ -103,6 +103,9 @@ export default function AnalyticsDashboard() {
   const [loadingScenarios, setLoadingScenarios] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
+  // E060: Toggle between average and total compensation chart views
+  const [compMetric, setCompMetric] = useState<'average' | 'total'>('average');
+
   // Initialize from URL parameter if present
   useEffect(() => {
     const initFromUrl = async () => {
@@ -224,7 +227,18 @@ export default function AnalyticsDashboard() {
     year: row.simulation_year,
     headcount: row.headcount,
     avgCompensation: Math.round(row.avg_compensation / 1000), // in $K
+    totalCompensation: Math.round((row.total_compensation || 0) / 1_000_000 * 10) / 10, // in $M, 1 decimal
   })) || [];
+
+  // E060: CAGR lookup from pre-computed cagr_metrics
+  const compCagrMetric = results?.cagr_metrics?.find(
+    (m) => m.metric === (compMetric === 'average' ? 'Average Compensation' : 'Total Compensation')
+  );
+  const compCagrDisplay = (() => {
+    if (!compCagrMetric || compCagrMetric.years <= 0) return null;
+    if (compCagrMetric.start_value === 0) return 'N/A';
+    return `${compCagrMetric.cagr_pct >= 0 ? '+' : ''}${compCagrMetric.cagr_pct.toFixed(2)}%`;
+  })();
 
   const eventChartData = results ? Object.keys(results.event_trends).length > 0
     ? Array.from(
@@ -501,22 +515,71 @@ export default function AnalyticsDashboard() {
               </div>
             </div>
 
-            {/* Average Compensation Trend - All Employees */}
+            {/* Compensation Trend - All Employees (E060: Average/Total toggle with CAGR) */}
             <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-200">
-              <h3 className="text-lg font-semibold text-gray-800 mb-6">Average Compensation - All Employees ($K)</h3>
+              <div className="flex items-center justify-between mb-6">
+                <h3 className="text-lg font-semibold text-gray-800">
+                  {compMetric === 'average'
+                    ? 'Average Compensation - All Employees ($K)'
+                    : 'Total Compensation - All Employees ($M)'}
+                  {compCagrDisplay && (
+                    <span className="text-sm font-normal text-gray-500 ml-2">
+                      — CAGR: {compCagrDisplay}
+                    </span>
+                  )}
+                </h3>
+                <div className="flex rounded-lg border border-gray-300 overflow-hidden">
+                  <button
+                    onClick={() => setCompMetric('average')}
+                    className={`px-3 py-1 text-xs font-medium transition-colors ${
+                      compMetric === 'average'
+                        ? 'bg-fidelity-green text-white'
+                        : 'bg-white text-gray-600 hover:bg-gray-50'
+                    }`}
+                  >
+                    Average
+                  </button>
+                  <button
+                    onClick={() => setCompMetric('total')}
+                    className={`px-3 py-1 text-xs font-medium transition-colors ${
+                      compMetric === 'total'
+                        ? 'bg-fidelity-green text-white'
+                        : 'bg-white text-gray-600 hover:bg-gray-50'
+                    }`}
+                  >
+                    Total
+                  </button>
+                </div>
+              </div>
               <div className="h-80">
                 {workforceChartData.length > 0 ? (
                   <ResponsiveContainer width="100%" height="100%">
                     <LineChart data={workforceChartData}>
                       <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#E5E7EB" />
                       <XAxis dataKey="year" stroke="#9CA3AF" />
-                      <YAxis stroke="#9CA3AF" tickFormatter={(value) => `$${value}K`} />
+                      <YAxis
+                        stroke="#9CA3AF"
+                        tickFormatter={compMetric === 'average'
+                          ? (value) => `$${value}K`
+                          : (value) => `$${value}M`
+                        }
+                      />
                       <Tooltip
                         contentStyle={{ backgroundColor: '#fff', borderRadius: '8px', border: '1px solid #e5e7eb' }}
-                        formatter={(value: number) => [`$${value}K`, 'Avg Compensation']}
+                        formatter={compMetric === 'average'
+                          ? (value: number) => [`$${value}K`, 'Avg Compensation']
+                          : (value: number) => [`$${value}M`, 'Total Compensation']
+                        }
                       />
                       <Legend verticalAlign="top" height={36}/>
-                      <Line type="monotone" dataKey="avgCompensation" name="Avg Compensation" stroke={COLORS.accent} strokeWidth={3} dot={{ r: 4 }} />
+                      <Line
+                        type="monotone"
+                        dataKey={compMetric === 'average' ? 'avgCompensation' : 'totalCompensation'}
+                        name={compMetric === 'average' ? 'Avg Compensation' : 'Total Compensation'}
+                        stroke={COLORS.accent}
+                        strokeWidth={3}
+                        dot={{ r: 4 }}
+                      />
                     </LineChart>
                   </ResponsiveContainer>
                 ) : (
