@@ -106,14 +106,17 @@ SELECT
   COALESCE(bl.employee_id, ecp.employee_id) AS employee_id,
   {{ simulation_year }} AS simulation_year,
 
-  -- Eligibility years: from computation period (0, 1, or 2 for double credit)
-  COALESCE(ecp.eligibility_years_this_period, 0) AS eligibility_years_credited,
+  -- Eligibility years: seed from census tenure + current year credit
+  -- Census employees get FLOOR(tenure) as historical credit, plus current year's computation
+  COALESCE(FLOOR(bl.current_tenure)::INT, 0) + COALESCE(ecp.eligibility_years_this_period, 0)
+    AS eligibility_years_credited,
 
-  -- Vesting years: independently computed from plan-year hours
-  CASE
-    WHEN {{ classify_service_hours('COALESCE(vh.vesting_hours_this_year, 0)', eligibility_threshold_hours) }} = 'year_of_service' THEN 1
-    ELSE 0
-  END AS vesting_years_credited,
+  -- Vesting years: seed from census tenure + current year plan-year hours
+  COALESCE(FLOOR(bl.current_tenure)::INT, 0) +
+    CASE
+      WHEN {{ classify_service_hours('COALESCE(vh.vesting_hours_this_year, 0)', eligibility_threshold_hours) }} = 'year_of_service' THEN 1
+      ELSE 0
+    END AS vesting_years_credited,
 
   -- Current year hours
   ROUND(COALESCE(ecp.eligibility_hours, 0.0), 2)::DECIMAL(8,2) AS eligibility_hours_this_year,
@@ -123,8 +126,11 @@ SELECT
   COALESCE(ecp.eligibility_classification, 'no_credit') AS eligibility_classification_this_year,
   {{ classify_service_hours('COALESCE(vh.vesting_hours_this_year, 0)', eligibility_threshold_hours) }} AS vesting_classification_this_year,
 
-  -- Plan eligibility (latches TRUE)
-  COALESCE(ecp.is_eligible_this_year, FALSE) AS is_plan_eligible,
+  -- Plan eligibility (latches TRUE) — census employees with tenure are already eligible
+  CASE
+    WHEN COALESCE(bl.current_tenure, 0) >= 1 THEN TRUE
+    ELSE COALESCE(ecp.is_eligible_this_year, FALSE)
+  END AS is_plan_eligible,
 
   -- Plan entry date
   ecp.plan_entry_date,

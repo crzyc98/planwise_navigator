@@ -169,13 +169,22 @@ computation_periods AS (
       ELSE eb.year_end
     END AS period_end_date,
 
-    -- IECP Year 1 hours: hire_date to year_end in hire year
+    -- IECP Year 1 hours: hire_date to end of hire year
     CASE
       WHEN eb.is_hire_year THEN
         GREATEST(0.0,
           DATEDIFF('day', eb.hire_date, MAKE_DATE({{ simulation_year }}, 12, 31))
           / 365.0 * 2080.0
         )
+      -- IECP completion year: retroactively compute Year 1 from actual hire year
+      WHEN NOT eb.is_hire_year
+           AND eb.hire_date_anniversary > eb.year_start
+           AND eb.hire_date_anniversary <= eb.year_end
+        THEN
+          GREATEST(0.0,
+            DATEDIFF('day', eb.hire_date, MAKE_DATE(EXTRACT(YEAR FROM eb.hire_date)::INT, 12, 31))
+            / 365.0 * 2080.0
+          )
       ELSE 0.0
     END AS iecp_year1_hours,
 
