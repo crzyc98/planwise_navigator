@@ -72,11 +72,13 @@ WITH irs_compensation_limits AS (
 
 employee_compensation AS (
     -- Get current year compensation for all employees
+    -- Include current_tenure as fallback for years_of_service (cold-start resilience)
     SELECT
         employee_id,
         simulation_year,
         employee_compensation,
-        employment_status
+        employment_status,
+        current_tenure
     FROM {{ ref('int_employee_compensation_by_year') }}
     WHERE simulation_year = {{ simulation_year }}
         AND employee_id IS NOT NULL
@@ -105,10 +107,10 @@ new_hires_curr_year AS (
 
 -- Unified population for the year: compensation snapshot plus new hires
 population AS (
-    SELECT employee_id, simulation_year, employee_compensation, NULL::DOUBLE AS prorated_annual_compensation, employment_status
+    SELECT employee_id, simulation_year, employee_compensation, NULL::DOUBLE AS prorated_annual_compensation, employment_status, current_tenure
     FROM employee_compensation
     UNION ALL
-    SELECT employee_id, simulation_year, employee_compensation, prorated_annual_compensation, employment_status
+    SELECT employee_id, simulation_year, employee_compensation, prorated_annual_compensation, employment_status, 0::INTEGER AS current_tenure
     FROM new_hires_curr_year
 ),
 
@@ -283,9 +285,9 @@ SELECT
                 lim.irs_401a17_limit
             ) *
             {% if employer_core_status == 'points_based' and employer_core_points_schedule | length > 0 %}
-            {{ get_points_based_match_rate('(FLOOR(COALESCE(snap.current_age, 0))::INT + FLOOR(COALESCE(snap.years_of_service, 0))::INT)', employer_core_points_schedule, employer_core_contribution_rate) }}
+            {{ get_points_based_match_rate('(FLOOR(COALESCE(snap.current_age, 0))::INT + FLOOR(COALESCE(snap.years_of_service, FLOOR(COALESCE(pop.current_tenure, 0))::INT))::INT)', employer_core_points_schedule, employer_core_contribution_rate) }}
             {% elif employer_core_status == 'graded_by_service' and employer_core_graded_schedule | length > 0 %}
-            {{ get_tiered_core_rate('COALESCE(snap.years_of_service, 0)', employer_core_graded_schedule, employer_core_contribution_rate) }}
+            {{ get_tiered_core_rate('COALESCE(snap.years_of_service, FLOOR(COALESCE(pop.current_tenure, 0))::INT)', employer_core_graded_schedule, employer_core_contribution_rate) }}
             {% else %}
             {{ employer_core_contribution_rate }}
             {% endif %}
@@ -319,9 +321,9 @@ SELECT
              )
         THEN
             {% if employer_core_status == 'points_based' and employer_core_points_schedule | length > 0 %}
-            {{ get_points_based_match_rate('(FLOOR(COALESCE(snap.current_age, 0))::INT + FLOOR(COALESCE(snap.years_of_service, 0))::INT)', employer_core_points_schedule, employer_core_contribution_rate) }}
+            {{ get_points_based_match_rate('(FLOOR(COALESCE(snap.current_age, 0))::INT + FLOOR(COALESCE(snap.years_of_service, FLOOR(COALESCE(pop.current_tenure, 0))::INT))::INT)', employer_core_points_schedule, employer_core_contribution_rate) }}
             {% elif employer_core_status == 'graded_by_service' and employer_core_graded_schedule | length > 0 %}
-            {{ get_tiered_core_rate('COALESCE(snap.years_of_service, 0)', employer_core_graded_schedule, employer_core_contribution_rate) }}
+            {{ get_tiered_core_rate('COALESCE(snap.years_of_service, FLOOR(COALESCE(pop.current_tenure, 0))::INT)', employer_core_graded_schedule, employer_core_contribution_rate) }}
             {% else %}
             {{ employer_core_contribution_rate }}
             {% endif %}
@@ -335,7 +337,7 @@ SELECT
     END AS contribution_method,
     {{ employer_core_contribution_rate }} AS standard_core_rate,
     -- Audit trail: years of service used for tier lookup
-    COALESCE(snap.years_of_service, 0) AS applied_years_of_service,
+    COALESCE(snap.years_of_service, FLOOR(COALESCE(pop.current_tenure, 0))::INT) AS applied_years_of_service,
     CURRENT_TIMESTAMP AS created_at,
     '{{ var("scenario_id", "default") }}' AS scenario_id,
     '{{ var("parameter_scenario_id", "default") }}' AS parameter_scenario_id,
