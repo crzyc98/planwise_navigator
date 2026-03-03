@@ -5,8 +5,8 @@
 
 -- Termination hazard model: computes termination probability for each combination of
 -- simulation year, job level, tenure band and age band.
--- Formula is currently simplified to: base_rate * tenure_multiplier * age_multiplier.
--- TODO: incorporate level discount factor once legacy logic is fully analysed.
+-- Formula: base_rate * tenure_multiplier * age_multiplier * level_discount
+-- Higher-level employees get progressively lower termination rates, floored at min_level_discount_multiplier.
 
 WITH years AS (
     SELECT DISTINCT year
@@ -25,7 +25,7 @@ age AS (
     FROM {{ ref('stg_config_termination_hazard_age_multipliers') }}
 ),
 base AS (
-    SELECT base_rate_for_new_hire
+    SELECT base_rate_for_new_hire, level_discount_factor, min_level_discount_multiplier
     FROM {{ ref('stg_config_termination_hazard_base') }}
 )
 SELECT
@@ -33,7 +33,8 @@ SELECT
     l.level_id,
     t.tenure_band,
     a.age_band,
-    b.base_rate_for_new_hire * t.tenure_mult * a.age_mult AS termination_rate
+    b.base_rate_for_new_hire * t.tenure_mult * a.age_mult *
+    GREATEST(b.min_level_discount_multiplier, 1 - b.level_discount_factor * (l.level_id - 1)) AS termination_rate
 FROM years y
 CROSS JOIN levels l
 CROSS JOIN tenure t
