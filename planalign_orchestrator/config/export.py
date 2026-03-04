@@ -635,6 +635,41 @@ def _export_core_contribution_vars(cfg: "SimulationConfig") -> Dict[str, Any]:
             if rate is not None:
                 dbt_vars["employer_core_contribution_rate"] = float(rate)
 
+            # Export status and graded/points schedules from direct YAML path
+            # (previously only exported from dc_plan UI path, causing cold-start bug)
+            status = core_contrib.get("status")
+            if status is not None:
+                dbt_vars["employer_core_status"] = str(status)
+
+            graded_schedule = core_contrib.get("graded_schedule")
+            if isinstance(graded_schedule, list) and len(graded_schedule) > 0:
+                transformed_schedule = []
+                for tier in graded_schedule:
+                    transformed_tier = {
+                        "min_years": tier.get("service_years_min", tier.get("min_years", 0)),
+                        "max_years": tier.get("service_years_max", tier.get("max_years")),
+                        # Convert decimal rate (0.06) to percentage (6.0) for macro
+                        "rate": (tier.get("contribution_rate", tier.get("rate", 0)) * 100)
+                        if tier.get("contribution_rate") is not None
+                        else tier.get("rate", 0),
+                    }
+                    transformed_schedule.append(transformed_tier)
+                dbt_vars["employer_core_graded_schedule"] = transformed_schedule
+
+            points_schedule = core_contrib.get("points_schedule")
+            if isinstance(points_schedule, list) and len(points_schedule) > 0:
+                transformed_points = []
+                for tier in points_schedule:
+                    transformed_tier = {
+                        "min_points": tier.get("min_points", 0),
+                        "max_points": tier.get("max_points"),
+                        "rate": (tier.get("contribution_rate", tier.get("rate", 0)) * 100)
+                        if tier.get("contribution_rate") is not None
+                        else tier.get("rate", 0),
+                    }
+                    transformed_points.append(transformed_tier)
+                dbt_vars["employer_core_points_schedule"] = transformed_points
+
             if eligibility:
                 min_tenure = eligibility.get("minimum_tenure_years")
                 require_active = eligibility.get("require_active_at_year_end")
