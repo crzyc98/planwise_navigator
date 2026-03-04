@@ -2177,3 +2177,198 @@ models:
         description: Human-readable description of the escalation change
       - name: event_category
         description: "Always 'deferral_escalation' for this model"
+
+  # =========================================================================
+  # Epic E063: ERISA 1,000-Hour Eligibility Rules
+  # =========================================================================
+
+  - name: int_eligibility_computation_period
+    description: "ERISA-compliant eligibility computation periods with IECP, plan-year switching, overlap/double-credit, and IRC 410(a)(4) entry dates."
+    config:
+      tags: ["eligibility", "erisa", "STATE_ACCUMULATION"]
+    columns:
+      - name: employee_id
+        data_type: varchar
+        tests: [not_null]
+        description: "Employee identifier"
+      - name: simulation_year
+        data_type: integer
+        tests: [not_null]
+        description: "Current simulation year"
+      - name: period_type
+        data_type: varchar
+        tests:
+          - not_null
+          - accepted_values:
+              values: ['iecp', 'plan_year']
+        description: "Computation period type: iecp or plan_year"
+      - name: period_start_date
+        data_type: date
+        tests: [not_null]
+        description: "Start of computation period"
+      - name: period_end_date
+        data_type: date
+        tests: [not_null]
+        description: "End of computation period"
+      - name: hire_date
+        data_type: date
+        tests: [not_null]
+        description: "Employee hire date"
+      - name: iecp_end_date
+        data_type: date
+        tests: [not_null]
+        description: "Hire date + 12 months (first anniversary)"
+      - name: annual_hours_prorated
+        data_type: decimal(8,2)
+        tests:
+          - not_null
+          - dbt_utils.accepted_range:
+              min_value: 0
+              max_value: 3000
+        description: "Hours credited in this period (prorated from 2,080)"
+      - name: iecp_year1_hours
+        data_type: decimal(8,2)
+        description: "IECP hours in hire year (hire_date to year-end)"
+      - name: iecp_year2_hours
+        data_type: decimal(8,2)
+        description: "IECP hours in second year (year-start to anniversary)"
+      - name: iecp_total_hours
+        data_type: decimal(8,2)
+        description: "Sum of year1 + year2 IECP hours"
+      - name: hours_classification
+        data_type: varchar
+        tests:
+          - not_null
+          - accepted_values:
+              values: ['year_of_service', 'no_credit']
+        description: "Service hours classification from 1,000-hour threshold"
+      - name: is_iecp_complete
+        data_type: boolean
+        tests: [not_null]
+        description: "Whether the IECP 12-month window has been completed"
+      - name: is_plan_year_eligible
+        data_type: boolean
+        tests: [not_null]
+        description: "Whether employee meets 1,000 hours in this plan year"
+      - name: iecp_eligible
+        data_type: boolean
+        tests: [not_null]
+        description: "Whether employee meets 1,000 hours in the IECP"
+      - name: overlap_double_credit
+        data_type: boolean
+        tests: [not_null]
+        description: "True if qualifies for both IECP and plan year credit"
+      - name: eligibility_years_this_period
+        data_type: integer
+        tests:
+          - not_null
+          - dbt_utils.accepted_range:
+              min_value: 0
+              max_value: 2
+        description: "0, 1, or 2 (if overlap double credit applies)"
+      - name: plan_entry_date
+        data_type: date
+        description: "Computed entry date per IRC 410(a)(4), NULL until eligible"
+      - name: eligibility_reason
+        data_type: varchar
+        tests:
+          - not_null
+          - accepted_values:
+              values: ['eligible_iecp', 'eligible_plan_year', 'eligible_double_credit', 'pending_iecp', 'insufficient_hours_iecp', 'insufficient_hours_plan_year', 'already_eligible']
+        description: "Reason code for eligibility determination"
+      - name: scenario_id
+        data_type: varchar
+        tests: [not_null]
+        description: "Scenario identifier"
+      - name: plan_design_id
+        data_type: varchar
+        tests: [not_null]
+        description: "Plan design identifier"
+
+  - name: int_service_credit_accumulator
+    description: "Temporal state accumulator for independent eligibility and vesting service years tracking (ERISA E063)."
+    config:
+      tags: ["eligibility", "erisa", "STATE_ACCUMULATION"]
+    columns:
+      - name: employee_id
+        data_type: varchar
+        tests: [not_null]
+        description: "Employee identifier"
+      - name: simulation_year
+        data_type: integer
+        tests: [not_null]
+        description: "Current simulation year"
+      - name: eligibility_years_credited
+        data_type: integer
+        tests:
+          - not_null
+          - dbt_utils.accepted_range:
+              min_value: 0
+        description: "Cumulative eligibility service years"
+      - name: vesting_years_credited
+        data_type: integer
+        tests:
+          - not_null
+          - dbt_utils.accepted_range:
+              min_value: 0
+        description: "Cumulative vesting service years"
+      - name: eligibility_hours_this_year
+        data_type: decimal(8,2)
+        tests:
+          - not_null
+          - dbt_utils.accepted_range:
+              min_value: 0
+        description: "Hours in this year's eligibility computation period"
+      - name: vesting_hours_this_year
+        data_type: decimal(8,2)
+        tests:
+          - not_null
+          - dbt_utils.accepted_range:
+              min_value: 0
+        description: "Hours in this year's vesting computation period"
+      - name: eligibility_classification_this_year
+        data_type: varchar
+        tests:
+          - not_null
+          - accepted_values:
+              values: ['year_of_service', 'no_credit']
+        description: "Eligibility hours classification"
+      - name: vesting_classification_this_year
+        data_type: varchar
+        tests:
+          - not_null
+          - accepted_values:
+              values: ['year_of_service', 'no_credit']
+        description: "Vesting hours classification"
+      - name: is_plan_eligible
+        data_type: boolean
+        tests: [not_null]
+        description: "Has met eligibility threshold (ever), never reverts"
+      - name: plan_entry_date
+        data_type: date
+        description: "Date of plan entry (once eligible), NULL until eligible"
+      - name: first_eligible_date
+        data_type: date
+        description: "Date eligibility was first satisfied, NULL until eligible"
+      - name: employment_status
+        data_type: varchar
+        tests:
+          - not_null
+          - accepted_values:
+              values: ['active', 'terminated']
+        description: "Current employment status"
+      - name: service_credit_source
+        data_type: varchar
+        tests:
+          - not_null
+          - accepted_values:
+              values: ['baseline', 'accumulated']
+        description: "Audit trail: baseline (first year) or accumulated"
+      - name: scenario_id
+        data_type: varchar
+        tests: [not_null]
+        description: "Scenario identifier"
+      - name: plan_design_id
+        data_type: varchar
+        tests: [not_null]
+        description: "Plan design identifier"
