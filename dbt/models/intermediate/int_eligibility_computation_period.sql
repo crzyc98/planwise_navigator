@@ -20,7 +20,7 @@
   Sources:
   - int_baseline_workforce: Census employees with hire dates
   - int_hiring_events: Simulated new hires
-  - int_new_hire_termination_events: Employment status (terminated flag)
+  - int_new_hire_termination_events: Employment status (terminated flag + termination date)
 */
 
 {% set simulation_year = var('simulation_year', 2025) | int %}
@@ -71,9 +71,9 @@ all_employees AS (
   SELECT * FROM new_hires
 ),
 
--- Flag terminated new hires
+-- Flag terminated new hires (with termination date for hours proration)
 terminated_new_hires AS (
-  SELECT DISTINCT employee_id
+  SELECT employee_id, effective_date AS termination_date
   FROM {{ ref('int_new_hire_termination_events') }}
   WHERE simulation_year = {{ simulation_year }}
 ),
@@ -90,26 +90,39 @@ employee_base AS (
       ELSE 'active'
     END AS employment_status,
 
+    -- Termination date for hours proration (NULL if still active)
+    tnr.termination_date,
+
     -- IECP boundary: hire_date + 12 months
-    ae.hire_date + INTERVAL '1 year' AS hire_date_anniversary,
+    (ae.hire_date + INTERVAL '1 year')::DATE AS hire_date_anniversary,
 
     -- Plan year boundaries for current simulation year
     MAKE_DATE({{ simulation_year }}, {{ plan_year_start_month }}, {{ plan_year_start_day }}) AS plan_year_start,
-    MAKE_DATE({{ simulation_year }}, 12, 31) AS year_end,
-    MAKE_DATE({{ simulation_year }}, 1, 1) AS year_start,
+    (MAKE_DATE({{ simulation_year }} + 1, {{ plan_year_start_month }}, {{ plan_year_start_day }}) - INTERVAL '1 day')::DATE AS plan_year_end,
 
     -- Next plan year start (for entry date calculation)
     MAKE_DATE({{ simulation_year }} + 1, {{ plan_year_start_month }}, {{ plan_year_start_day }}) AS next_plan_year_start,
 
-    -- Is this the employee's hire year?
+    -- End of plan year containing the hire date (for retroactive IECP Year 1)
     CASE
-      WHEN EXTRACT(YEAR FROM ae.hire_date) = {{ simulation_year }} THEN TRUE
+      WHEN ae.hire_date >= MAKE_DATE(EXTRACT(YEAR FROM ae.hire_date)::INT, {{ plan_year_start_month }}, {{ plan_year_start_day }})
+      THEN (MAKE_DATE(EXTRACT(YEAR FROM ae.hire_date)::INT + 1, {{ plan_year_start_month }}, {{ plan_year_start_day }}) - INTERVAL '1 day')::DATE
+      ELSE (MAKE_DATE(EXTRACT(YEAR FROM ae.hire_date)::INT, {{ plan_year_start_month }}, {{ plan_year_start_day }}) - INTERVAL '1 day')::DATE
+    END AS hire_plan_year_end,
+
+    -- Is the hire date within the current plan year?
+    CASE
+      WHEN ae.hire_date >= MAKE_DATE({{ simulation_year }}, {{ plan_year_start_month }}, {{ plan_year_start_day }})
+           AND ae.hire_date <= (MAKE_DATE({{ simulation_year }} + 1, {{ plan_year_start_month }}, {{ plan_year_start_day }}) - INTERVAL '1 day')::DATE
+        THEN TRUE
       ELSE FALSE
     END AS is_hire_year,
 
-    -- Is the IECP complete by end of this year?
+    -- Is the IECP complete by end of this plan year?
     CASE
-      WHEN (ae.hire_date + INTERVAL '1 year') <= MAKE_DATE({{ simulation_year }}, 12, 31) THEN TRUE
+      WHEN (ae.hire_date + INTERVAL '1 year')::DATE
+           <= (MAKE_DATE({{ simulation_year }} + 1, {{ plan_year_start_month }}, {{ plan_year_start_day }}) - INTERVAL '1 day')::DATE
+        THEN TRUE
       ELSE FALSE
     END AS is_iecp_complete_this_year
 
@@ -130,90 +143,110 @@ computation_periods AS (
     eb.scenario_id,
     eb.plan_design_id,
     eb.employment_status,
+    eb.termination_date,
     eb.plan_year_start,
-    eb.year_end,
-    eb.year_start,
+    eb.plan_year_end,
+    eb.hire_plan_year_end,
     eb.next_plan_year_start,
     eb.is_hire_year,
     eb.is_iecp_complete_this_year,
 
     -- Determine period type
     CASE
-      -- Hire year: always IECP
+      -- Hire plan year: always IECP
       WHEN eb.is_hire_year THEN 'iecp'
-      -- Year after hire when IECP completes this year: still evaluating IECP
+      -- Plan year where IECP completes: still evaluating IECP
       WHEN NOT eb.is_hire_year
-           AND eb.hire_date_anniversary > eb.year_start
-           AND eb.hire_date_anniversary <= eb.year_end
+           AND eb.hire_date_anniversary > eb.plan_year_start
+           AND eb.hire_date_anniversary <= eb.plan_year_end
         THEN 'iecp'
-      -- All other years: plan year
+      -- All other plan years
       ELSE 'plan_year'
     END AS period_type,
 
-    -- Period start/end dates
+    -- Period start/end dates (capped at termination date for terminated employees)
     CASE
       WHEN eb.is_hire_year THEN eb.hire_date
       WHEN NOT eb.is_hire_year
-           AND eb.hire_date_anniversary > eb.year_start
-           AND eb.hire_date_anniversary <= eb.year_end
-        THEN eb.year_start
+           AND eb.hire_date_anniversary > eb.plan_year_start
+           AND eb.hire_date_anniversary <= eb.plan_year_end
+        THEN eb.plan_year_start
       ELSE eb.plan_year_start
     END AS period_start_date,
 
     CASE
-      WHEN eb.is_hire_year THEN eb.year_end
+      WHEN eb.is_hire_year THEN
+        COALESCE(LEAST(eb.termination_date, eb.plan_year_end), eb.plan_year_end)
       WHEN NOT eb.is_hire_year
-           AND eb.hire_date_anniversary > eb.year_start
-           AND eb.hire_date_anniversary <= eb.year_end
-        THEN eb.hire_date_anniversary
-      ELSE eb.year_end
+           AND eb.hire_date_anniversary > eb.plan_year_start
+           AND eb.hire_date_anniversary <= eb.plan_year_end
+        THEN COALESCE(LEAST(eb.termination_date, eb.hire_date_anniversary), eb.hire_date_anniversary)
+      ELSE COALESCE(LEAST(eb.termination_date, eb.plan_year_end), eb.plan_year_end)
     END AS period_end_date,
 
-    -- IECP Year 1 hours: hire_date to end of hire year
+    -- IECP Year 1 hours: hire_date to end of hire plan year
+    -- Capped at termination date for terminated employees
     CASE
       WHEN eb.is_hire_year THEN
         GREATEST(0.0,
-          DATEDIFF('day', eb.hire_date, MAKE_DATE({{ simulation_year }}, 12, 31))
+          DATEDIFF('day', eb.hire_date,
+            COALESCE(LEAST(eb.termination_date, eb.plan_year_end), eb.plan_year_end))
           / 365.0 * 2080.0
         )
-      -- IECP completion year: retroactively compute Year 1 from actual hire year
+      -- IECP completion year: retroactively compute Year 1 from hire plan year
+      -- Termination in the completion year does not alter prior-year hours
       WHEN NOT eb.is_hire_year
-           AND eb.hire_date_anniversary > eb.year_start
-           AND eb.hire_date_anniversary <= eb.year_end
+           AND eb.hire_date_anniversary > eb.plan_year_start
+           AND eb.hire_date_anniversary <= eb.plan_year_end
         THEN
           GREATEST(0.0,
-            DATEDIFF('day', eb.hire_date, MAKE_DATE(EXTRACT(YEAR FROM eb.hire_date)::INT, 12, 31))
+            DATEDIFF('day', eb.hire_date, eb.hire_plan_year_end)
             / 365.0 * 2080.0
           )
       ELSE 0.0
     END AS iecp_year1_hours,
 
-    -- IECP Year 2 hours: year_start to hire_date_anniversary in the year IECP completes
+    -- IECP Year 2 hours: plan_year_start to hire_date_anniversary in the year IECP completes
+    -- Capped at termination date for terminated employees
     CASE
       WHEN NOT eb.is_hire_year
-           AND eb.hire_date_anniversary > eb.year_start
-           AND eb.hire_date_anniversary <= eb.year_end
+           AND eb.hire_date_anniversary > eb.plan_year_start
+           AND eb.hire_date_anniversary <= eb.plan_year_end
         THEN
           GREATEST(0.0,
-            DATEDIFF('day', MAKE_DATE({{ simulation_year }}, 1, 1), eb.hire_date_anniversary)
+            DATEDIFF('day', eb.plan_year_start,
+              COALESCE(LEAST(eb.termination_date, eb.hire_date_anniversary), eb.hire_date_anniversary))
             / 365.0 * 2080.0
           )
       ELSE 0.0
     END AS iecp_year2_hours,
 
     -- Plan year hours: full year for plan-year periods, or post-IECP portion for overlap year
+    -- Capped at termination date for terminated employees
     CASE
-      -- Full plan year
+      -- Full plan year (active employees)
       WHEN NOT eb.is_hire_year
-           AND eb.hire_date_anniversary <= eb.year_start
+           AND eb.hire_date_anniversary <= eb.plan_year_start
+           AND (eb.termination_date IS NULL OR eb.termination_date > eb.plan_year_end)
         THEN 2080.0
-      -- Plan year portion after IECP completes (for overlap evaluation)
+      -- Full plan year (terminated during plan year)
       WHEN NOT eb.is_hire_year
-           AND eb.hire_date_anniversary > eb.year_start
-           AND eb.hire_date_anniversary <= eb.year_end
+           AND eb.hire_date_anniversary <= eb.plan_year_start
+           AND eb.termination_date IS NOT NULL
+           AND eb.termination_date <= eb.plan_year_end
         THEN
           GREATEST(0.0,
-            DATEDIFF('day', eb.hire_date_anniversary, MAKE_DATE({{ simulation_year }}, 12, 31))
+            DATEDIFF('day', eb.plan_year_start, eb.termination_date)
+            / 365.0 * 2080.0
+          )
+      -- Plan year portion after IECP completes (for overlap evaluation)
+      WHEN NOT eb.is_hire_year
+           AND eb.hire_date_anniversary > eb.plan_year_start
+           AND eb.hire_date_anniversary <= eb.plan_year_end
+        THEN
+          GREATEST(0.0,
+            DATEDIFF('day', eb.hire_date_anniversary,
+              COALESCE(LEAST(eb.termination_date, eb.plan_year_end), eb.plan_year_end))
             / 365.0 * 2080.0
           )
       ELSE 0.0
@@ -267,7 +300,7 @@ classified_periods AS (
            AND (cp.iecp_year1_hours + cp.iecp_year2_hours) >= {{ eligibility_threshold_hours }}
            AND cp.plan_year_hours >= {{ eligibility_threshold_hours }}
         THEN TRUE
-      -- Jan 1 hires: IECP = plan year, no double credit
+      -- Plan year start hires: IECP = plan year, no double credit
       WHEN cp.period_type = 'iecp' AND cp.is_hire_year
            AND EXTRACT(MONTH FROM cp.hire_date) = {{ plan_year_start_month }}
            AND EXTRACT(DAY FROM cp.hire_date) = {{ plan_year_start_day }}

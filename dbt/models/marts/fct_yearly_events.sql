@@ -136,7 +136,7 @@ final_events AS (
     event_probability,
     event_category,
     -- Add event sequencing for conflict resolution
-    -- Priority: termination(1) > hire(2) > eligibility(3) > enrollment(4) > enrollment_change(5) > deferral_escalation(6) > promotion(7) > merit_increase(8)
+    -- Priority: termination(1) > hire(2) > eligibility(3) > enrollment(4) > enrollment_change(5) > deferral_match_response(6) > deferral_escalation(7) > promotion(8) > raise(9) > merit(10)
     ROW_NUMBER() OVER (
       PARTITION BY scenario_id, plan_design_id, employee_id, simulation_year
       ORDER BY
@@ -149,11 +149,12 @@ final_events AS (
           WHEN 'deferral_match_response' THEN 6
           WHEN 'deferral_escalation' THEN 7
           WHEN 'promotion' THEN 8
-          WHEN 'raise' THEN 8
-          WHEN 'merit' THEN 8
-          ELSE 9
+          WHEN 'raise' THEN 9
+          WHEN 'merit' THEN 10
+          ELSE 11
         END,
-        effective_date
+        effective_date,
+        event_type
     ) AS event_sequence,
     created_at,
     parameter_scenario_id,
@@ -409,7 +410,7 @@ final_events AS (
     event_probability,
     event_category,
     -- Add event sequencing for conflict resolution
-    -- Priority: termination(1) > hire(2) > eligibility(3) > enrollment(4) > enrollment_change(5) > deferral_escalation(6) > promotion(7) > merit_increase(8)
+    -- Priority: termination(1) > hire(2) > eligibility(3) > enrollment(4) > enrollment_change(5) > deferral_match_response(6) > deferral_escalation(7) > promotion(8) > raise(9) > merit(10)
     ROW_NUMBER() OVER (
       PARTITION BY scenario_id, plan_design_id, employee_id, simulation_year
       ORDER BY
@@ -422,11 +423,12 @@ final_events AS (
           WHEN 'deferral_match_response' THEN 6
           WHEN 'deferral_escalation' THEN 7
           WHEN 'promotion' THEN 8
-          WHEN 'raise' THEN 8
-          WHEN 'merit' THEN 8
-          ELSE 9
+          WHEN 'raise' THEN 9
+          WHEN 'merit' THEN 10
+          ELSE 11
         END,
-        effective_date
+        effective_date,
+        event_type
     ) AS event_sequence,
     -- Add metadata for audit trail
     CURRENT_TIMESTAMP AS created_at,
