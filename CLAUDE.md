@@ -756,3 +756,10 @@ See `/docs/VERSIONING_GUIDE.md` for detailed versioning workflow.
   * [Semantic Versioning](https://semver.org/)
   * [dbt Style Guide](https://docs.getdbt.com/docs/collaborate/style-guide)
   * [DuckDB Documentation](https://duckdb.org/docs/)
+
+## Active Technologies
+- Python 3.11, SQL (dbt-core 1.8.8) + dbt-duckdb 1.8.1, DuckDB 1.0.0, Pydantic 2.7.4 (063-1000-hr-eligibility)
+- DuckDB (`dbt/simulation.duckdb`) (063-1000-hr-eligibility)
+
+## Recent Changes
+- 063-1000-hr-eligibility: Added Python 3.11, SQL (dbt-core 1.8.8) + dbt-duckdb 1.8.1, DuckDB 1.0.0, Pydantic 2.7.4

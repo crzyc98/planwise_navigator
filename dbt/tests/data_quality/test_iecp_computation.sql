@@ -19,6 +19,11 @@
   Returns failure rows only with descriptive issue_description.
 */
 
+-- Plan year boundaries from same config the model uses
+{% set pysd = var('plan_year_start_date', '2025-01-01') | string %}
+{% set plan_year_start_month = pysd[5:7] | int %}
+{% set plan_year_start_day = pysd[8:10] | int %}
+
 WITH validation_checks AS (
   SELECT
     ecp.employee_id,
@@ -75,7 +80,7 @@ WITH validation_checks AS (
     CASE
       WHEN ecp.plan_entry_date IS NOT NULL
            AND ecp.plan_entry_date > LEAST(
-             MAKE_DATE(ecp.simulation_year + 1, 1, 1),
+             MAKE_DATE(ecp.simulation_year + 1, {{ plan_year_start_month }}, {{ plan_year_start_day }}),
              CASE
                WHEN ecp.period_type = 'iecp' AND EXTRACT(YEAR FROM ecp.hire_date) = ecp.simulation_year
                  THEN (ecp.period_end_date + INTERVAL '6 months')::DATE
