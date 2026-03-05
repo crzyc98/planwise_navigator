@@ -433,8 +433,9 @@ export async function resetSimulation(scenarioId: string): Promise<{
   return handleResponse(response);
 }
 
-export async function getSimulationResults(scenarioId: string): Promise<SimulationResults> {
-  const response = await fetch(`${API_BASE}/api/scenarios/${scenarioId}/results`);
+export async function getSimulationResults(scenarioId: string, population: string = 'all'): Promise<SimulationResults> {
+  const params = population !== 'all' ? `?population=${population}` : '';
+  const response = await fetch(`${API_BASE}/api/scenarios/${scenarioId}/results${params}`);
   return handleResponse<SimulationResults>(response);
 }
 

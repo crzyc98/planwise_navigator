@@ -103,6 +103,9 @@ export default function AnalyticsDashboard() {
   const [loadingScenarios, setLoadingScenarios] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
+  // Population filter toggle
+  const [population, setPopulation] = useState<'all' | 'active' | 'terminated'>('all');
+
   // E060: Toggle between average and total compensation chart views
   const [compMetric, setCompMetric] = useState<'average' | 'total'>('average');
 
@@ -142,14 +145,14 @@ export default function AnalyticsDashboard() {
     }
   }, [selectedWorkspaceId, initializedFromUrl]);
 
-  // Fetch results when scenario changes
+  // Fetch results when scenario or population changes
   useEffect(() => {
     if (selectedScenarioId) {
       fetchResults(selectedScenarioId);
     } else {
       setResults(null);
     }
-  }, [selectedScenarioId]);
+  }, [selectedScenarioId, population]);
 
   // E103 FIX: Accept optional parameter to skip auto-selection when initialized from URL
   const fetchWorkspaces = async (skipAutoSelect = false) => {
@@ -194,7 +197,7 @@ export default function AnalyticsDashboard() {
     setLoading(true);
     setError(null);
     try {
-      const data = await getSimulationResults(scenarioId);
+      const data = await getSimulationResults(scenarioId, population);
       setResults(data);
     } catch (err: any) {
       console.error('Failed to fetch results:', err);
@@ -306,6 +309,23 @@ export default function AnalyticsDashboard() {
               ))}
             </select>
             <ChevronDown size={16} className="absolute right-3 top-2.5 text-gray-400 pointer-events-none" />
+          </div>
+
+          {/* Population Filter Toggle */}
+          <div className="flex rounded-lg border border-gray-300 overflow-hidden shadow-sm">
+            {(['all', 'active', 'terminated'] as const).map((opt) => (
+              <button
+                key={opt}
+                onClick={() => setPopulation(opt)}
+                className={`px-3 py-2 text-sm font-medium transition-colors ${
+                  population === opt
+                    ? 'bg-fidelity-green text-white'
+                    : 'bg-white text-gray-600 hover:bg-gray-50'
+                }`}
+              >
+                {opt === 'all' ? 'All' : opt === 'active' ? 'Active' : 'Terminated'}
+              </button>
+            ))}
           </div>
 
           <button

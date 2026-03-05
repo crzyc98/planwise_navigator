@@ -255,11 +255,11 @@ class SimulationService:
         return True
 
     def get_results(
-        self, workspace_id: str, scenario_id: str
+        self, workspace_id: str, scenario_id: str, population: str = "all"
     ) -> Optional[SimulationResults]:
         """Get simulation results for a completed scenario."""
         return read_results(
-            workspace_id, scenario_id, self.storage, self.db_resolver
+            workspace_id, scenario_id, self.storage, self.db_resolver, population
         )
 
     def get_telemetry(self, run_id: str) -> Optional[SimulationTelemetry]:
