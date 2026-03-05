@@ -26,6 +26,12 @@ def main():
     parser.add_argument("--host", default="0.0.0.0", help="Host to bind to")
     parser.add_argument("--port", type=int, default=8000, help="Port to bind to")
     parser.add_argument("--reload", action="store_true", help="Enable auto-reload")
+    parser.add_argument(
+        "--reload-dir",
+        action="append",
+        default=None,
+        help="Directory to watch for reload (can be repeated)",
+    )
     args = parser.parse_args()
 
     uvicorn.run(
@@ -33,6 +39,7 @@ def main():
         host=args.host,
         port=args.port,
         reload=args.reload,
+        reload_dirs=args.reload_dir,
     )
 
 

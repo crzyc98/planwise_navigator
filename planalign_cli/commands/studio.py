@@ -203,6 +203,17 @@ def launch_studio(
 
             # On Windows, use planalign_api.run which sets ProactorEventLoop
             # before uvicorn creates its event loop (required for subprocess support)
+            # Use --reload-dir to restrict file watching to source code only.
+            # Without this, watchfiles monitors .venv/site-packages and triggers
+            # spurious reloads when dbt writes to dbt_common during simulation,
+            # killing the subprocess with exit code 130 (SIGINT).
+            reload_args = [
+                "--reload",
+                "--reload-dir", "planalign_api",
+                "--reload-dir", "planalign_orchestrator",
+                "--reload-dir", "config",
+            ]
+
             if sys.platform == "win32":
                 api_cmd = [
                     sys.executable,
@@ -210,7 +221,7 @@ def launch_studio(
                     "planalign_api.run",
                     "--host", "0.0.0.0",
                     "--port", str(api_port),
-                    "--reload",
+                    *reload_args,
                 ]
             else:
                 api_cmd = [
@@ -220,7 +231,7 @@ def launch_studio(
                     "planalign_api.main:app",
                     "--host", "0.0.0.0",
                     "--port", str(api_port),
-                    "--reload",
+                    *reload_args,
                 ]
 
             api_process = subprocess.Popen(
