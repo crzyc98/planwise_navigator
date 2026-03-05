@@ -253,6 +253,7 @@ cython_debug/
 # Generated simulation reports and checkpoints
 .planalign_checkpoints/
 reports/
+!planalign_orchestrator/reports/
 *.backup.py
 rebuild_everything.sh
 
