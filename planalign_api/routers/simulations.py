@@ -7,7 +7,7 @@ from datetime import datetime
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
-from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, status
+from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Query, status
 from fastapi.responses import FileResponse
 
 from ..config import APISettings, get_settings
@@ -432,6 +432,7 @@ async def get_run(
 @router.get("/{scenario_id}/results", response_model=SimulationResults)
 async def get_results(
     scenario_id: str,
+    population: str = Query("all"),
     storage: WorkspaceStorage = Depends(get_storage),
     simulation_service: SimulationService = Depends(get_simulation_service),
 ) -> SimulationResults:
@@ -450,7 +451,7 @@ async def get_results(
         )
 
     # First check if results exist (this also validates scenario has completed runs)
-    results = simulation_service.get_results(workspace.id, scenario_id)
+    results = simulation_service.get_results(workspace.id, scenario_id, population)
     if results:
         # Update scenario status if it's stale (has results but status isn't completed)
         if scenario.status != "completed":
