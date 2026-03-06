@@ -1,4 +1,4 @@
-"""DC Plan analytics endpoints."""
+"""Analytics endpoints: DC Plan and Winners & Losers."""
 
 from typing import List
 
@@ -7,7 +7,9 @@ from fastapi import APIRouter, Depends, HTTPException, Query, status
 from ..config import APISettings, get_settings
 from ..constants import MAX_SCENARIO_COMPARISON
 from ..models.analytics import DCPlanAnalytics, DCPlanComparisonResponse
+from ..models.winners_losers import WinnersLosersResponse
 from ..services.analytics_service import AnalyticsService
+from ..services.winners_losers_service import WinnersLosersService
 from ..storage.workspace_storage import WorkspaceStorage
 
 router = APIRouter()
@@ -154,3 +156,62 @@ async def compare_dc_plan_analytics(
         scenario_names=scenario_names,
         analytics=analytics_list,
     )
+
+
+# ---------------------------------------------------------------------------
+# Winners & Losers
+# ---------------------------------------------------------------------------
+
+
+def get_winners_losers_service(
+    storage: WorkspaceStorage = Depends(get_storage),
+) -> WinnersLosersService:
+    """Dependency to get winners/losers service."""
+    return WinnersLosersService(storage)
+
+
+@router.get(
+    "/{workspace_id}/analytics/winners-losers",
+    response_model=WinnersLosersResponse,
+)
+async def get_winners_losers(
+    workspace_id: str,
+    plan_a: str = Query(..., description="Scenario ID for Plan A (reference)"),
+    plan_b: str = Query(..., description="Scenario ID for Plan B (alternative)"),
+    storage: WorkspaceStorage = Depends(get_storage),
+    service: WinnersLosersService = Depends(get_winners_losers_service),
+) -> WinnersLosersResponse:
+    """
+    Compare two scenarios and classify employees as winners, losers, or
+    neutral based on total employer contributions (match + core).
+    """
+    # Validate workspace
+    workspace = storage.get_workspace(workspace_id)
+    if not workspace:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Workspace {workspace_id} not found",
+        )
+
+    # Validate both scenarios exist and are completed
+    for label, sid in [("Plan A", plan_a), ("Plan B", plan_b)]:
+        scenario = storage.get_scenario(workspace_id, sid)
+        if not scenario:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail=f"{label} scenario {sid} not found",
+            )
+        if scenario.status != "completed":
+            raise HTTPException(
+                status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                detail=f"{label} scenario {sid} has not completed successfully",
+            )
+
+    result = service.analyze(workspace_id, plan_a, plan_b)
+    if not result:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Failed to generate winners/losers analysis",
+        )
+
+    return result
