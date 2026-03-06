@@ -14,6 +14,7 @@ import DCPlanAnalytics from './components/DCPlanAnalytics';
 import ScenarioCostComparison from './components/ScenarioCostComparison';
 import VestingAnalysis from './components/VestingAnalysis';
 import NDTTesting from './components/NDTTesting';
+import WinnersLosersTab from './components/WinnersLosersTab';
 
 // Error boundary to catch and display React errors
 interface ErrorBoundaryProps {
@@ -89,6 +90,7 @@ export default function App() {
             <Route path="analytics/dc-plan" element={<DCPlanAnalytics />} />
             <Route path="analytics/vesting" element={<VestingAnalysis />} />
             <Route path="analytics/ndt" element={<NDTTesting />} />
+            <Route path="analytics/winners-losers" element={<WinnersLosersTab />} />
             <Route path="compare" element={<ScenarioCostComparison />} />
             <Route path="batch" element={<BatchProcessing />} />
             <Route path="workspaces" element={<WorkspaceManager />} />

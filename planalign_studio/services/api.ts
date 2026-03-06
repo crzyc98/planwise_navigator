@@ -129,6 +129,38 @@ export interface SimulationResults {
   }>;
 }
 
+export interface BandGroupResult {
+  band_label: string;
+  winners: number;
+  losers: number;
+  neutral: number;
+  total: number;
+}
+
+export interface HeatmapCell {
+  age_band: string;
+  tenure_band: string;
+  winners: number;
+  losers: number;
+  neutral: number;
+  total: number;
+  net_pct: number;
+}
+
+export interface WinnersLosersResponse {
+  plan_a_scenario_id: string;
+  plan_b_scenario_id: string;
+  final_year: number;
+  total_compared: number;
+  total_excluded: number;
+  total_winners: number;
+  total_losers: number;
+  total_neutral: number;
+  age_band_results: BandGroupResult[];
+  tenure_band_results: BandGroupResult[];
+  heatmap: HeatmapCell[];
+}
+
 export interface BatchJob {
   id: string;
   name: string;
@@ -433,8 +465,9 @@ export async function resetSimulation(scenarioId: string): Promise<{
   return handleResponse(response);
 }
 
-export async function getSimulationResults(scenarioId: string): Promise<SimulationResults> {
-  const response = await fetch(`${API_BASE}/api/scenarios/${scenarioId}/results`);
+export async function getSimulationResults(scenarioId: string, population: string = 'all'): Promise<SimulationResults> {
+  const params = population !== 'all' ? `?population=${population}` : '';
+  const response = await fetch(`${API_BASE}/api/scenarios/${scenarioId}/results${params}`);
   return handleResponse<SimulationResults>(response);
 }
 
@@ -967,6 +1000,18 @@ export async function compareDCPlanAnalytics(
     `${API_BASE}/api/workspaces/${workspaceId}/analytics/dc-plan/compare?${params}`
   );
   return handleResponse<DCPlanComparisonResponse>(response);
+}
+
+export async function getWinnersLosersComparison(
+  workspaceId: string,
+  planA: string,
+  planB: string
+): Promise<WinnersLosersResponse> {
+  const params = new URLSearchParams({ plan_a: planA, plan_b: planB });
+  const response = await fetch(
+    `${API_BASE}/api/workspaces/${workspaceId}/analytics/winners-losers?${params}`
+  );
+  return handleResponse<WinnersLosersResponse>(response);
 }
 
 // ============================================================================
