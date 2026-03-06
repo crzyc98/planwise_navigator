@@ -14,11 +14,21 @@ from ..database_path_resolver import DatabasePathResolver
 logger = logging.getLogger(__name__)
 
 
+def _population_filter(population: str) -> str:
+    """Return a SQL WHERE clause fragment for population filtering."""
+    if population == "active":
+        return " AND LOWER(employment_status) = 'active'"
+    elif population == "terminated":
+        return " AND LOWER(employment_status) != 'active'"
+    return ""
+
+
 def read_results(
     workspace_id: str,
     scenario_id: str,
     storage: WorkspaceStorage,
     db_resolver: DatabasePathResolver,
+    population: str = "all",
 ) -> Optional[SimulationResults]:
     """Query DuckDB for workforce progression, events, and compensation.
 
@@ -27,6 +37,7 @@ def read_results(
         scenario_id: Scenario identifier.
         storage: Workspace storage for config lookup.
         db_resolver: Resolves the correct database path.
+        population: Population filter - "all", "active", or "terminated".
 
     Returns:
         SimulationResults if data is available, else None.
@@ -49,14 +60,18 @@ def read_results(
 
         conn = duckdb.connect(str(resolved.path), read_only=True)
 
+        pop_filter = _population_filter(population)
+
         workforce_progression = _query_workforce_progression(
-            conn, config_start_year, config_end_year
+            conn, config_start_year, config_end_year, pop_filter
         )
         compensation_by_status = _query_compensation_by_status(
-            conn, config_start_year, config_end_year
+            conn, config_start_year, config_end_year, pop_filter
         )
         event_trends = _query_event_trends(conn, config_start_year, config_end_year)
-        participation_rate = _query_participation_rate(conn, config_end_year)
+        participation_rate = _query_participation_rate(
+            conn, config_end_year, pop_filter
+        )
 
         conn.close()
 
@@ -105,20 +120,24 @@ def _get_year_range(
 
 
 def _query_workforce_progression(
-    conn: duckdb.DuckDBPyConnection, start_year: int, end_year: int
+    conn: duckdb.DuckDBPyConnection,
+    start_year: int,
+    end_year: int,
+    pop_filter: str = "",
 ) -> List[Dict[str, Any]]:
     try:
         df = conn.execute(
-            """
+            f"""
             SELECT
                 simulation_year,
-                COUNT(DISTINCT CASE WHEN LOWER(employment_status) = 'active' THEN employee_id END) as headcount,
+                COUNT(DISTINCT employee_id) as headcount,
                 AVG(prorated_annual_compensation) as avg_compensation,
-                SUM(CASE WHEN LOWER(employment_status) = 'active' THEN prorated_annual_compensation ELSE 0 END) as total_compensation,
-                AVG(CASE WHEN LOWER(employment_status) = 'active' THEN prorated_annual_compensation END) as active_avg_compensation
+                SUM(prorated_annual_compensation) as total_compensation,
+                AVG(prorated_annual_compensation) as active_avg_compensation
             FROM fct_workforce_snapshot
             WHERE simulation_year >= ?
               AND simulation_year <= ?
+              {pop_filter}
             GROUP BY simulation_year
             ORDER BY simulation_year
         """,
@@ -131,11 +150,14 @@ def _query_workforce_progression(
 
 
 def _query_compensation_by_status(
-    conn: duckdb.DuckDBPyConnection, start_year: int, end_year: int
+    conn: duckdb.DuckDBPyConnection,
+    start_year: int,
+    end_year: int,
+    pop_filter: str = "",
 ) -> List[Dict[str, Any]]:
     try:
         df = conn.execute(
-            """
+            f"""
             SELECT
                 simulation_year,
                 detailed_status_code as employment_status,
@@ -144,6 +166,7 @@ def _query_compensation_by_status(
             FROM fct_workforce_snapshot
             WHERE simulation_year >= ?
               AND simulation_year <= ?
+              {pop_filter}
             GROUP BY simulation_year, detailed_status_code
             ORDER BY simulation_year, detailed_status_code
         """,
@@ -187,16 +210,17 @@ def _query_event_trends(
 
 
 def _query_participation_rate(
-    conn: duckdb.DuckDBPyConnection, end_year: int
+    conn: duckdb.DuckDBPyConnection, end_year: int, pop_filter: str = ""
 ) -> float:
     try:
         df = conn.execute(
-            """
+            f"""
             SELECT
                 COUNT(DISTINCT CASE WHEN participation_status = 'participating' THEN employee_id END) as participating,
                 COUNT(DISTINCT employee_id) as total_eligible
             FROM fct_workforce_snapshot
             WHERE simulation_year = ?
+              {pop_filter}
         """,
             [end_year],
         ).fetchdf()
