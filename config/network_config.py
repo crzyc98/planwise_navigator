@@ -231,20 +231,21 @@ def create_ssl_context(cert_config: CertificateConfig) -> ssl.SSLContext:
             context.load_verify_locations(cafile=cert_config.ca_bundle_path)
 
         # Configure certificate verification
-        if cert_config.allow_self_signed:
-            context.check_hostname = False
-            context.verify_mode = ssl.CERT_NONE
-        else:
-            context.check_hostname = cert_config.hostname_verification
-            context.verify_mode = ssl.CERT_REQUIRED
+        context.check_hostname = cert_config.hostname_verification
+        context.verify_mode = ssl.CERT_REQUIRED
+
+        # For self-signed certs, load them into the trust store
+        # rather than disabling verification
+        if cert_config.allow_self_signed and cert_config.custom_cert_dir:
+            context.load_verify_locations(capath=cert_config.custom_cert_dir)
 
         # Set certificate chain depth
         context.maximum_version = ssl.TLSVersion.TLSv1_3
         context.minimum_version = ssl.TLSVersion.TLSv1_2
 
     else:
-        # Create unverified context (not recommended for production)
-        context = ssl._create_unverified_context()
+        # Always use secure defaults with hostname and certificate validation
+        context = ssl.create_default_context()
 
     return context
 
