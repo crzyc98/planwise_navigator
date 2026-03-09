@@ -247,9 +247,10 @@ export default function NDTTesting() {
         <div className="flex flex-wrap gap-3 items-end">
           {/* Test Type */}
           <div>
-            <label className="block text-xs font-medium text-gray-500 mb-1">Test Type</label>
+            <label htmlFor="ndt-test-type" className="block text-xs font-medium text-gray-500 mb-1">Test Type</label>
             <div className="relative">
               <select
+                id="ndt-test-type"
                 className="appearance-none bg-white border border-gray-300 rounded-lg pl-3 pr-10 py-2 text-sm focus:ring-fidelity-green focus:border-fidelity-green shadow-sm min-w-[200px]"
                 value={testType}
                 onChange={(e) => { setTestType(e.target.value as TestType); setTestResponse(null); setError(null); }}
@@ -266,9 +267,10 @@ export default function NDTTesting() {
           {/* Scenario Selector (single mode) */}
           {!comparisonMode && (
             <div>
-              <label className="block text-xs font-medium text-gray-500 mb-1">Scenario</label>
+              <label htmlFor="ndt-scenario" className="block text-xs font-medium text-gray-500 mb-1">Scenario</label>
               <div className="relative">
                 <select
+                  id="ndt-scenario"
                   value={selectedScenarioIds[0] || ''}
                   onChange={(e) => handleScenarioToggle(e.target.value)}
                   disabled={loadingScenarios}
@@ -288,9 +290,10 @@ export default function NDTTesting() {
 
           {/* Year Selector */}
           <div>
-            <label className="block text-xs font-medium text-gray-500 mb-1">Year</label>
+            <label htmlFor="ndt-year" className="block text-xs font-medium text-gray-500 mb-1">Year</label>
             <div className="relative">
               <select
+                id="ndt-year"
                 value={selectedYear ?? ''}
                 onChange={(e) => setSelectedYear(Number(e.target.value))}
                 disabled={availableYears.length === 0 || loadingYears}
@@ -310,9 +313,10 @@ export default function NDTTesting() {
           {/* 401(a)(4) specific: Include Match toggle */}
           {testType === '401a4' && (
             <div>
-              <label className="block text-xs font-medium text-gray-500 mb-1">&nbsp;</label>
-              <label className="flex items-center px-3 py-2 bg-white border border-gray-300 rounded-lg cursor-pointer hover:bg-gray-50">
+              <span className="block text-xs font-medium text-gray-500 mb-1">&nbsp;</span>
+              <label htmlFor="ndt-include-match" className="flex items-center px-3 py-2 bg-white border border-gray-300 rounded-lg cursor-pointer hover:bg-gray-50">
                 <input
+                  id="ndt-include-match"
                   type="checkbox"
                   checked={includeMatch}
                   onChange={(e) => setIncludeMatch(e.target.checked)}
@@ -326,9 +330,10 @@ export default function NDTTesting() {
           {/* 415 specific: Warning Threshold */}
           {testType === '415' && (
             <div>
-              <label className="block text-xs font-medium text-gray-500 mb-1">Warning Threshold</label>
+              <label htmlFor="ndt-warning-threshold" className="block text-xs font-medium text-gray-500 mb-1">Warning Threshold</label>
               <div className="relative">
                 <select
+                  id="ndt-warning-threshold"
                   value={warningThreshold}
                   onChange={(e) => setWarningThreshold(Number(e.target.value))}
                   className="appearance-none bg-white border border-gray-300 rounded-lg pl-3 pr-10 py-2 text-sm focus:ring-fidelity-green focus:border-fidelity-green shadow-sm min-w-[100px]"
@@ -345,9 +350,10 @@ export default function NDTTesting() {
           {/* ADP specific: Safe Harbor toggle */}
           {testType === 'adp' && (
             <div>
-              <label className="block text-xs font-medium text-gray-500 mb-1">&nbsp;</label>
-              <label className="flex items-center px-3 py-2 bg-white border border-gray-300 rounded-lg cursor-pointer hover:bg-gray-50">
+              <span className="block text-xs font-medium text-gray-500 mb-1">&nbsp;</span>
+              <label htmlFor="ndt-safe-harbor" className="flex items-center px-3 py-2 bg-white border border-gray-300 rounded-lg cursor-pointer hover:bg-gray-50">
                 <input
+                  id="ndt-safe-harbor"
                   type="checkbox"
                   checked={safeHarbor}
                   onChange={(e) => setSafeHarbor(e.target.checked)}
@@ -361,9 +367,10 @@ export default function NDTTesting() {
           {/* ADP specific: Testing Method selector */}
           {testType === 'adp' && (
             <div>
-              <label className="block text-xs font-medium text-gray-500 mb-1">Testing Method</label>
+              <label htmlFor="ndt-testing-method" className="block text-xs font-medium text-gray-500 mb-1">Testing Method</label>
               <div className="relative">
                 <select
+                  id="ndt-testing-method"
                   value={testingMethod}
                   onChange={(e) => setTestingMethod(e.target.value as 'current' | 'prior')}
                   className="appearance-none bg-white border border-gray-300 rounded-lg pl-3 pr-10 py-2 text-sm focus:ring-fidelity-green focus:border-fidelity-green shadow-sm min-w-[140px]"
@@ -378,7 +385,7 @@ export default function NDTTesting() {
 
           {/* Comparison Mode Toggle */}
           <div>
-            <label className="block text-xs font-medium text-gray-500 mb-1">&nbsp;</label>
+            <span className="block text-xs font-medium text-gray-500 mb-1">&nbsp;</span>
             <button
               onClick={() => {
                 setComparisonMode(!comparisonMode);
@@ -395,7 +402,7 @@ export default function NDTTesting() {
 
           {/* Run Test Button */}
           <div>
-            <label className="block text-xs font-medium text-gray-500 mb-1">&nbsp;</label>
+            <span className="block text-xs font-medium text-gray-500 mb-1">&nbsp;</span>
             <button
               onClick={handleRunTest}
               disabled={!canRun}

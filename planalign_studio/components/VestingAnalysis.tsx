@@ -45,7 +45,7 @@ const TREND_COLOR_MAP: Record<string, string> = {
   down: 'text-green-500',
 };
 
-const KPICard = ({ title, value, subtext, icon: Icon, color, trend, loading }: any) => (
+const KPICard = ({ title, value, subtext, icon: Icon, color, trend, loading }: Readonly<{ title: string; value: string; subtext?: string; icon: React.ElementType; color: string; trend?: string; loading?: boolean }>) => (
   <div className="bg-white p-5 rounded-xl shadow-sm border border-gray-200 flex items-start justify-between">
     <div>
       <p className="text-sm font-medium text-gray-500">{title}</p>
@@ -70,7 +70,7 @@ const KPICard = ({ title, value, subtext, icon: Icon, color, trend, loading }: a
   </div>
 );
 
-const EmptyState = ({ onRefresh }: { onRefresh: () => void }) => (
+const EmptyState = ({ onRefresh }: Readonly<{ onRefresh: () => void }>) => (
   <div className="flex flex-col items-center justify-center h-96 text-gray-400">
     <Database size={48} className="mb-4" />
     <h3 className="text-lg font-semibold text-gray-600 mb-2">No Analysis Results</h3>
@@ -87,7 +87,7 @@ const EmptyState = ({ onRefresh }: { onRefresh: () => void }) => (
   </div>
 );
 
-const ErrorState = ({ message, onRetry }: { message: string; onRetry: () => void }) => (
+const ErrorState = ({ message, onRetry }: Readonly<{ message: string; onRetry: () => void }>) => (
   <div className="flex flex-col items-center justify-center h-96 text-red-400">
     <AlertCircle size={48} className="mb-4" />
     <h3 className="text-lg font-semibold text-red-600 mb-2">Failed to Load Analysis</h3>
@@ -100,6 +100,32 @@ const ErrorState = ({ message, onRetry }: { message: string; onRetry: () => void
       Retry
     </button>
   </div>
+);
+
+const SortHeader = ({ field, label, sortField, sortDirection, onSort }: Readonly<{
+  field: SortField;
+  label: string;
+  sortField: SortField;
+  sortDirection: SortDirection;
+  onSort: (field: SortField) => void;
+}>) => (
+  <th
+    className="text-right py-3 px-4 font-semibold text-gray-600 cursor-pointer hover:bg-gray-50 select-none"
+    onClick={() => onSort(field)}
+  >
+    <div className="flex items-center justify-end gap-1">
+      {label}
+      {sortField === field ? (
+        sortDirection === 'asc' ? (
+          <ChevronUp size={14} className="text-fidelity-green" />
+        ) : (
+          <ChevronDown size={14} className="text-fidelity-green" />
+        )
+      ) : (
+        <ChevronDown size={14} className="text-gray-300" />
+      )}
+    </div>
+  </th>
 );
 
 const TENURE_COLORS = {
@@ -126,7 +152,6 @@ export default function VestingAnalysis() {
 
   // State for results
   const [analysisResult, setAnalysisResult] = useState<VestingAnalysisResponse | null>(null);
-  const [loading, setLoading] = useState(false);
   const [loadingScenarios, setLoadingScenarios] = useState(false);
   const [analyzing, setAnalyzing] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -343,27 +368,6 @@ export default function VestingAnalysis() {
       })
     : [];
 
-  // Sort header component
-  const SortHeader = ({ field, label }: { field: SortField; label: string }) => (
-    <th
-      className="text-right py-3 px-4 font-semibold text-gray-600 cursor-pointer hover:bg-gray-50 select-none"
-      onClick={() => handleSort(field)}
-    >
-      <div className="flex items-center justify-end gap-1">
-        {label}
-        {sortField === field ? (
-          sortDirection === 'asc' ? (
-            <ChevronUp size={14} className="text-fidelity-green" />
-          ) : (
-            <ChevronDown size={14} className="text-fidelity-green" />
-          )
-        ) : (
-          <ChevronDown size={14} className="text-gray-300" />
-        )}
-      </div>
-    </th>
-  );
-
   return (
     <div className="space-y-6 animate-fadeIn">
       {/* Header & Controls */}
@@ -377,7 +381,7 @@ export default function VestingAnalysis() {
           className="flex items-center px-3 py-2 bg-white border border-gray-300 rounded-lg text-sm font-medium hover:bg-gray-50 text-gray-700 shadow-sm transition-colors"
           title="Refresh"
         >
-          <RefreshCw size={16} className={loading ? 'animate-spin' : ''} />
+          <RefreshCw size={16} />
         </button>
       </div>
 
@@ -386,9 +390,10 @@ export default function VestingAnalysis() {
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
           {/* Workspace Selector */}
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Workspace</label>
+            <label htmlFor="vesting-workspace" className="block text-sm font-medium text-gray-700 mb-1">Workspace</label>
             <div className="relative">
               <select
+                id="vesting-workspace"
                 value={selectedWorkspaceId}
                 onChange={(e) => {
                   setSelectedWorkspaceId(e.target.value);
@@ -408,9 +413,10 @@ export default function VestingAnalysis() {
 
           {/* Scenario Selector */}
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Scenario</label>
+            <label htmlFor="vesting-scenario" className="block text-sm font-medium text-gray-700 mb-1">Scenario</label>
             <div className="relative">
               <select
+                id="vesting-scenario"
                 value={selectedScenarioId}
                 onChange={(e) => {
                   setSelectedScenarioId(e.target.value);
@@ -438,9 +444,10 @@ export default function VestingAnalysis() {
 
           {/* Current Schedule Selector */}
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Current Schedule</label>
+            <label htmlFor="vesting-current-schedule" className="block text-sm font-medium text-gray-700 mb-1">Current Schedule</label>
             <div className="relative">
               <select
+                id="vesting-current-schedule"
                 value={currentSchedule?.schedule_type || ''}
                 onChange={(e) => handleScheduleChange('current', e.target.value)}
                 className="appearance-none w-full bg-white border border-gray-300 rounded-lg pl-3 pr-10 py-2 text-sm focus:ring-fidelity-green focus:border-fidelity-green shadow-sm"
@@ -456,8 +463,9 @@ export default function VestingAnalysis() {
             </div>
             {/* T007/T008: Hours Requirement Toggle for Current Schedule (FR-001, FR-002, FR-003, FR-007) */}
             <div className="mt-2">
-              <label className="flex items-center text-sm text-gray-600">
+              <label htmlFor="vesting-current-hours-toggle" className="flex items-center text-sm text-gray-600">
                 <input
+                  id="vesting-current-hours-toggle"
                   type="checkbox"
                   checked={currentSchedule?.require_hours_credit ?? false}
                   onChange={(e) => handleHoursToggle('current', e.target.checked)}
@@ -486,9 +494,10 @@ export default function VestingAnalysis() {
 
           {/* Proposed Schedule Selector */}
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Proposed Schedule</label>
+            <label htmlFor="vesting-proposed-schedule" className="block text-sm font-medium text-gray-700 mb-1">Proposed Schedule</label>
             <div className="relative">
               <select
+                id="vesting-proposed-schedule"
                 value={proposedSchedule?.schedule_type || ''}
                 onChange={(e) => handleScheduleChange('proposed', e.target.value)}
                 className="appearance-none w-full bg-white border border-gray-300 rounded-lg pl-3 pr-10 py-2 text-sm focus:ring-fidelity-green focus:border-fidelity-green shadow-sm"
@@ -504,8 +513,9 @@ export default function VestingAnalysis() {
             </div>
             {/* T009/T010: Hours Requirement Toggle for Proposed Schedule (FR-001, FR-002, FR-003, FR-007) */}
             <div className="mt-2">
-              <label className="flex items-center text-sm text-gray-600">
+              <label htmlFor="vesting-proposed-hours-toggle" className="flex items-center text-sm text-gray-600">
                 <input
+                  id="vesting-proposed-hours-toggle"
                   type="checkbox"
                   checked={proposedSchedule?.require_hours_credit ?? false}
                   onChange={(e) => handleHoursToggle('proposed', e.target.checked)}
@@ -536,12 +546,13 @@ export default function VestingAnalysis() {
         {/* Analysis Year Selector */}
         <div className="mt-4 flex items-end gap-4">
           <div className="w-48">
-            <label className="block text-sm font-medium text-gray-700 mb-1 flex items-center">
+            <label htmlFor="vesting-analysis-year" className="block text-sm font-medium text-gray-700 mb-1 flex items-center">
               <Calendar size={14} className="mr-1.5 text-gray-400" />
               Analysis Year
             </label>
             <div className="relative">
               <select
+                id="vesting-analysis-year"
                 value={selectedYear ?? ''}
                 onChange={(e) => {
                   setSelectedYear(e.target.value ? Number(e.target.value) : undefined);
@@ -605,7 +616,6 @@ export default function VestingAnalysis() {
               subtext={`In year ${analysisResult.summary.analysis_year}`}
               icon={Users}
               color="blue"
-              loading={loading}
             />
             <KPICard
               title="Current Forfeitures"
@@ -613,7 +623,6 @@ export default function VestingAnalysis() {
               subtext={analysisResult.current_schedule.name}
               icon={DollarSign}
               color="orange"
-              loading={loading}
             />
             <KPICard
               title="Proposed Forfeitures"
@@ -621,7 +630,6 @@ export default function VestingAnalysis() {
               subtext={analysisResult.proposed_schedule.name}
               icon={DollarSign}
               color="green"
-              loading={loading}
             />
             <KPICard
               title="Forfeiture Variance"
@@ -630,7 +638,6 @@ export default function VestingAnalysis() {
               icon={analysisResult.summary.forfeiture_variance >= 0 ? TrendingUp : TrendingDown}
               color={analysisResult.summary.forfeiture_variance >= 0 ? 'red' : 'green'}
               trend={analysisResult.summary.forfeiture_variance >= 0 ? 'up' : 'down'}
-              loading={loading}
             />
           </div>
 
@@ -777,13 +784,13 @@ export default function VestingAnalysis() {
                           )}
                         </div>
                       </th>
-                      <SortHeader field="tenure_years" label="Tenure" />
-                      <SortHeader field="total_employer_contributions" label="Contributions" />
-                      <SortHeader field="current_vesting_pct" label="Current %" />
-                      <SortHeader field="current_forfeiture" label="Current Forf." />
-                      <SortHeader field="proposed_vesting_pct" label="Proposed %" />
-                      <SortHeader field="proposed_forfeiture" label="Proposed Forf." />
-                      <SortHeader field="forfeiture_variance" label="Variance" />
+                      <SortHeader field="tenure_years" label="Tenure" sortField={sortField} sortDirection={sortDirection} onSort={handleSort} />
+                      <SortHeader field="total_employer_contributions" label="Contributions" sortField={sortField} sortDirection={sortDirection} onSort={handleSort} />
+                      <SortHeader field="current_vesting_pct" label="Current %" sortField={sortField} sortDirection={sortDirection} onSort={handleSort} />
+                      <SortHeader field="current_forfeiture" label="Current Forf." sortField={sortField} sortDirection={sortDirection} onSort={handleSort} />
+                      <SortHeader field="proposed_vesting_pct" label="Proposed %" sortField={sortField} sortDirection={sortDirection} onSort={handleSort} />
+                      <SortHeader field="proposed_forfeiture" label="Proposed Forf." sortField={sortField} sortDirection={sortDirection} onSort={handleSort} />
+                      <SortHeader field="forfeiture_variance" label="Variance" sortField={sortField} sortDirection={sortDirection} onSort={handleSort} />
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-gray-100">

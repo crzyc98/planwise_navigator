@@ -184,7 +184,7 @@ export default function ScenarioCostComparison() {
   // -------------------------------------------------------------------------
   // Copy to Clipboard Hooks
   // -------------------------------------------------------------------------
-  const { copy, copied, error: copyError } = useCopyToClipboard();
+  const { copy, copied } = useCopyToClipboard();
   const { copy: copyCompensation, copied: copiedCompensation } = useCopyToClipboard();
 
   // -------------------------------------------------------------------------

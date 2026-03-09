@@ -135,11 +135,10 @@ class SabbaticalEventGenerator(EventGenerator):
 
         # Validate reason
         valid_reasons = {"academic", "personal", "medical", "community_service"}
-        if hasattr(payload, "reason"):
-            if payload.reason not in valid_reasons:
-                errors.append(
-                    f"Invalid reason '{payload.reason}'. Must be one of: {valid_reasons}"
-                )
+        if hasattr(payload, "reason") and payload.reason not in valid_reasons:
+            errors.append(
+                f"Invalid reason '{payload.reason}'. Must be one of: {valid_reasons}"
+            )
 
         return ValidationResult(
             is_valid=len(errors) == 0, errors=errors, warnings=warnings

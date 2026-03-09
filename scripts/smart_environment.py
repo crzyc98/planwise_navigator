@@ -20,7 +20,6 @@ Usage:
         print("Environment validation failed:", env.get_validation_errors())
 """
 
-import json
 import os
 import shutil
 import subprocess
@@ -28,7 +27,7 @@ import sys
 from dataclasses import dataclass
 from enum import Enum
 from pathlib import Path
-from typing import Dict, List, Optional, Tuple, Union
+from typing import Dict, List, Optional, Union
 
 
 class CommandType(Enum):
@@ -51,7 +50,7 @@ class EnvironmentConfig:
     dagster_home: Path
     database_files: Dict[str, Path]
     is_valid: bool = False
-    errors: List[str] = None
+    errors: Optional[List[str]] = None
 
     def __post_init__(self):
         if self.errors is None:

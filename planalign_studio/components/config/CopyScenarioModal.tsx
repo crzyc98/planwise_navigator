@@ -2,8 +2,8 @@ import { useConfigContext } from './ConfigContext';
 import { getScenario, validateFilePath, Scenario } from '../../services/api';
 
 interface CopyScenarioModalProps {
-  availableScenarios: Scenario[];
-  onClose: () => void;
+  readonly availableScenarios: Scenario[];
+  readonly onClose: () => void;
 }
 
 export function CopyScenarioModal({ availableScenarios, onClose }: CopyScenarioModalProps) {

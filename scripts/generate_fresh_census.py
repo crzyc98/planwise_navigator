@@ -17,7 +17,7 @@ from datetime import datetime, timedelta
 import random
 
 # Set different random seed than original
-np.random.seed(99999)  # Completely different from any previous seed
+rng = np.random.default_rng(99999)  # Completely different from any previous seed
 random.seed(99999)
 
 def generate_employee_id(index):
@@ -80,7 +80,7 @@ def generate_compensation():
     """Generate compensation with wider, more realistic range."""
     # Use lognormal distribution for realistic salary spread
     # Mean: $85k, wider range: $40k - $500k (vs $50k - $350k original)
-    base_salary = np.random.lognormal(mean=11.3, sigma=0.6)
+    base_salary = rng.lognormal(mean=11.3, sigma=0.6)
 
     # Clamp to realistic range
     salary = max(40000, min(500000, base_salary))

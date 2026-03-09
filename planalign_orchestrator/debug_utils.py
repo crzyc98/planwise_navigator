@@ -288,7 +288,7 @@ class StateVisualizer:
                         error=data.get("error"),
                         models_executed=data.get("models_executed", []),
                     ))
-            except (json.JSONDecodeError, KeyError, ValueError) as e:
+            except (KeyError, ValueError) as e:
                 console.print(f"[yellow]Warning: Could not parse {checkpoint_file}: {e}[/yellow]")
                 continue
 

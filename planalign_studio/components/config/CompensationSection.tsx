@@ -69,9 +69,10 @@ export function CompensationSection() {
             </p>
             <div className="mt-3 flex items-end gap-3">
               <div className="flex-shrink-0 w-32">
-                <label className="block text-xs font-medium text-purple-800 mb-1">Target Growth</label>
+                <label htmlFor="comp-target-growth" className="block text-xs font-medium text-purple-800 mb-1">Target Growth</label>
                 <div className="relative">
                   <input
+                    id="comp-target-growth"
                     type="number"
                     value={formData.targetCompensationGrowth}
                     onChange={(e) => setFormData(prev => ({ ...prev, targetCompensationGrowth: parseFloat(e.target.value) || 0 }))}
@@ -193,9 +194,10 @@ export function CompensationSection() {
           <InputField label="Avg. Promotion Increase" {...inputProps('promoIncrease')} type="number" step="0.5" suffix="%" helper="Base pay bump on promotion" />
 
           <div className="sm:col-span-3">
-            <label className="block text-sm font-medium text-gray-700">Distribution Range</label>
+            <label htmlFor="comp-promo-dist-range" className="block text-sm font-medium text-gray-700">Distribution Range</label>
             <div className="mt-1 relative rounded-md shadow-sm">
               <input
+                id="comp-promo-dist-range"
                 type="number"
                 step="0.5"
                 name="promoDistributionRange"
@@ -219,11 +221,12 @@ export function CompensationSection() {
           <div className="col-span-6 h-px bg-gray-200 my-1"></div>
 
           <div className="col-span-6 sm:col-span-3">
-            <label className="block text-sm font-medium text-gray-700 mb-1">
+            <label htmlFor="comp-promo-rate-mult" className="block text-sm font-medium text-gray-700 mb-1">
               Promotion Rate Multiplier
             </label>
             <div className="relative rounded-md shadow-sm">
               <input
+                id="comp-promo-rate-mult"
                 type="number"
                 step="0.1"
                 min="0"

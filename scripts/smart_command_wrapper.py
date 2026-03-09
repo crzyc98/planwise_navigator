@@ -30,7 +30,7 @@ import sys
 from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path
-from typing import Dict, List, Optional, Union
+from typing import Dict, List, Optional
 
 # Import our environment detection utility
 try:
@@ -164,13 +164,12 @@ class SmartCommandWrapper:
         # Prepare the actual command that would be executed
         cmd_parts = shlex.split(command_line)
 
-        if context["requires_venv"] and context["executable"]:
-            if cmd_parts[0] in ["python", "dbt", "dagster", "pytest"]:
-                if cmd_parts[0] == "python":
-                    cmd_parts[0] = str(context["executable"])
-                else:
-                    venv_bin = context["executable"].parent
-                    cmd_parts[0] = str(venv_bin / cmd_parts[0])
+        if context["requires_venv"] and context["executable"] and cmd_parts[0] in ["python", "dbt", "dagster", "pytest"]:
+            if cmd_parts[0] == "python":
+                cmd_parts[0] = str(context["executable"])
+            else:
+                venv_bin = context["executable"].parent
+                cmd_parts[0] = str(venv_bin / cmd_parts[0])
 
         return {
             "valid": True,
@@ -227,24 +226,23 @@ class SmartCommandWrapper:
         cmd_parts = shlex.split(command_line)
         original_command = cmd_parts[0]
 
-        if context["requires_venv"] and context["executable"]:
-            if cmd_parts[0] in [
+        if context["requires_venv"] and context["executable"] and cmd_parts[0] in [
                 "python",
                 "dbt",
                 "dagster",
                 "pytest",
                 "pip",
             ]:
-                if cmd_parts[0] == "python":
-                    cmd_parts[0] = str(context["executable"])
+            if cmd_parts[0] == "python":
+                cmd_parts[0] = str(context["executable"])
+            else:
+                # Use the virtual environment's bin directory
+                venv_bin = context["executable"].parent
+                tool_path = venv_bin / cmd_parts[0]
+                if tool_path.exists():
+                    cmd_parts[0] = str(tool_path)
                 else:
-                    # Use the virtual environment's bin directory
-                    venv_bin = context["executable"].parent
-                    tool_path = venv_bin / cmd_parts[0]
-                    if tool_path.exists():
-                        cmd_parts[0] = str(tool_path)
-                    else:
-                        self._log(f"Tool not found in venv: {tool_path}", "WARNING")
+                    self._log(f"Tool not found in venv: {tool_path}", "WARNING")
 
         resolved_command = " ".join(cmd_parts)
         self._log(f"Resolved command: {resolved_command}")

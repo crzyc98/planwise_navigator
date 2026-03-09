@@ -193,7 +193,7 @@ export default function SimulationControl() {
 
           {!activeRunId ? (
             <div className="bg-gray-50 p-4 rounded-lg border border-gray-200">
-              <label className="block text-sm font-medium text-gray-700 mb-2">Select Scenario to Run</label>
+              <label htmlFor="sim-scenario-select" className="block text-sm font-medium text-gray-700 mb-2">Select Scenario to Run</label>
               {error && (
                 <div className="flex items-center text-red-600 text-sm p-2 bg-red-50 rounded mb-2">
                   <AlertCircle size={16} className="mr-2" />
@@ -204,6 +204,7 @@ export default function SimulationControl() {
                 <div className="text-gray-500 text-sm p-2">Loading scenarios...</div>
               ) : scenarios.length > 0 ? (
                 <select
+                  id="sim-scenario-select"
                   value={selectedScenarioId}
                   onChange={(e) => setSelectedScenarioId(e.target.value)}
                   className="block w-full border border-gray-300 rounded-md shadow-sm p-2 focus:ring-fidelity-green focus:border-fidelity-green"

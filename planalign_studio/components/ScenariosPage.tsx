@@ -227,8 +227,9 @@ export default function ScenariosPage() {
           <h3 className="font-semibold text-gray-900 mb-4">Create New Scenario</h3>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Name *</label>
+              <label htmlFor="scenario-create-name" className="block text-sm font-medium text-gray-700 mb-1">Name *</label>
               <input
+                id="scenario-create-name"
                 type="text"
                 value={newName}
                 onChange={(e) => setNewName(e.target.value)}
@@ -238,8 +239,9 @@ export default function ScenariosPage() {
               />
             </div>
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Description</label>
+              <label htmlFor="scenario-create-desc" className="block text-sm font-medium text-gray-700 mb-1">Description</label>
               <input
+                id="scenario-create-desc"
                 type="text"
                 value={newDesc}
                 onChange={(e) => setNewDesc(e.target.value)}
@@ -344,8 +346,9 @@ export default function ScenariosPage() {
                   <div className="space-y-3">
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                       <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-1">Name</label>
+                        <label htmlFor="scenario-edit-name" className="block text-sm font-medium text-gray-700 mb-1">Name</label>
                         <input
+                          id="scenario-edit-name"
                           type="text"
                           value={editName}
                           onChange={(e) => setEditName(e.target.value)}
@@ -354,8 +357,9 @@ export default function ScenariosPage() {
                         />
                       </div>
                       <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-1">Description</label>
+                        <label htmlFor="scenario-edit-desc" className="block text-sm font-medium text-gray-700 mb-1">Description</label>
                         <input
+                          id="scenario-edit-desc"
                           type="text"
                           value={editDesc}
                           onChange={(e) => setEditDesc(e.target.value)}

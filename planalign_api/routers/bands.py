@@ -49,7 +49,7 @@ def get_storage(settings: APISettings = Depends(get_settings)) -> WorkspaceStora
 )
 async def get_band_configs(
     workspace_id: str,
-    storage: WorkspaceStorage = Depends(get_storage),
+    _storage: WorkspaceStorage = Depends(get_storage),
 ) -> BandConfig:
     """
     Get current band configurations.

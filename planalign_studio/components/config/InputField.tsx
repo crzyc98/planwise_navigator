@@ -1,16 +1,16 @@
-import React from 'react';
+import React, { useId } from 'react';
 
 export interface InputFieldProps {
-  label: string;
-  name: string;
-  value: any;
-  onChange: (e: React.ChangeEvent<HTMLInputElement>) => void;
-  type?: string;
-  width?: string;
-  suffix?: string;
-  helper?: string;
-  step?: string;
-  min?: number;
+  readonly label: string;
+  readonly name: string;
+  readonly value: any;
+  readonly onChange: (e: React.ChangeEvent<HTMLInputElement>) => void;
+  readonly type?: string;
+  readonly width?: string;
+  readonly suffix?: string;
+  readonly helper?: string;
+  readonly step?: string;
+  readonly min?: number;
 }
 
 export const InputField: React.FC<InputFieldProps> = ({
@@ -24,11 +24,15 @@ export const InputField: React.FC<InputFieldProps> = ({
   helper = "",
   step = "1",
   min
-}) => (
+}) => {
+  const generatedId = useId();
+  const inputId = `input-${name}-${generatedId}`;
+  return (
   <div className={`sm:${width}`}>
-    <label className="block text-sm font-medium text-gray-700">{label}</label>
+    <label htmlFor={inputId} className="block text-sm font-medium text-gray-700">{label}</label>
     <div className="mt-1 relative rounded-md shadow-sm">
       <input
+        id={inputId}
         type={type}
         name={name}
         value={value}
@@ -45,4 +49,5 @@ export const InputField: React.FC<InputFieldProps> = ({
     </div>
     {helper && <p className="mt-1 text-xs text-gray-500">{helper}</p>}
   </div>
-);
+  );
+};

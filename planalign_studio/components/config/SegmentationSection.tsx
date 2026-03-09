@@ -6,7 +6,6 @@ import { Band, BandValidationError, BandAnalysisResult, analyzeAgeBands, analyze
 export function SegmentationSection() {
   const { formData, bandConfig, setBandConfig, saveStatus, activeWorkspace } = useConfigContext();
 
-  const [bandConfigLoading] = useState(false);
   const [bandConfigError, setBandConfigError] = useState<string | null>(null);
   const [bandValidationErrors, setBandValidationErrors] = useState<BandValidationError[]>([]);
   const [ageBandAnalysis, setAgeBandAnalysis] = useState<BandAnalysisResult | null>(null);
@@ -88,14 +87,7 @@ export function SegmentationSection() {
         <p className="text-sm text-gray-500">Configure age and tenure band definitions used for workforce analytics and simulations.</p>
       </div>
 
-      {bandConfigLoading && (
-        <div className="flex items-center justify-center py-12">
-          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-fidelity-green"></div>
-          <span className="ml-3 text-gray-600">Loading band configurations...</span>
-        </div>
-      )}
-
-      {bandConfigError && !bandConfigLoading && (
+      {bandConfigError && (
         <div className="bg-red-50 border border-red-200 rounded-lg p-4">
           <div className="flex items-center">
             <AlertTriangle className="w-5 h-5 text-red-600 mr-2" />
@@ -104,7 +96,7 @@ export function SegmentationSection() {
         </div>
       )}
 
-      {bandConfig && !bandConfigLoading && (
+      {bandConfig && (
         <>
           {bandValidationErrors.length > 0 && (
             <div className="bg-red-50 border border-red-200 rounded-lg p-4">
