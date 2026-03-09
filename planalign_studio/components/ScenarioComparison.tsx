@@ -352,13 +352,17 @@ export default function ScenarioComparison() {
                       Total Growth
                     </div>
                   </td>
-                  {scenariosWithResults.map(d => (
+                  {scenariosWithResults.map(d => {
+                    const growthSign = d.results && d.results.total_growth_pct >= 0 ? '+' : '';
+                    const growthDisplay = d.results ? `${growthSign}${d.results.total_growth_pct.toFixed(1)}%` : '\u2014';
+                    return (
                     <td key={d.scenario.id} className="px-6 py-4 whitespace-nowrap text-sm">
                       <span className={d.results && d.results.total_growth_pct >= 0 ? 'text-green-600' : 'text-red-600'}>
-                        {d.results ? `${d.results.total_growth_pct >= 0 ? '+' : ''}${d.results.total_growth_pct.toFixed(1)}%` : '—'}
+                        {growthDisplay}
                       </span>
                     </td>
-                  ))}
+                    );
+                  })}
                 </tr>
                 <tr>
                   <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">

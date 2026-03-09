@@ -157,11 +157,13 @@ export default function CostComparison() {
   const toggleSelection = (id: string) => {
     if (selectedIds.includes(id)) {
       if (selectedIds.length > 1) {
-        setSelectedIds(prev => prev.filter(i => i !== id));
-        if (baselineId === id) {
-          const remaining = selectedIds.filter(i => i !== id);
-          setBaselineId(remaining[0]);
-        }
+        setSelectedIds(prev => {
+          const next = prev.filter(i => i !== id);
+          if (baselineId === id) {
+            setBaselineId(next[0]);
+          }
+          return next;
+        });
       }
     } else {
       setSelectedIds(prev => [...prev, id]);
@@ -221,17 +223,17 @@ export default function CostComparison() {
           {sortedFilteredConfigs.map((config) => {
             const isSelected = selectedIds.includes(config.id);
             const isBaseline = baselineId === config.id;
+            const selectedStyle = isBaseline
+              ? 'bg-blue-50 border-blue-200 shadow-sm'
+              : 'bg-fidelity-green/5 border-fidelity-green/20';
+            const containerStyle = isSelected ? selectedStyle : 'hover:bg-gray-50 border-transparent';
+            const selectedTextColor = isBaseline ? 'text-blue-700' : 'text-fidelity-green';
+            const textColor = isSelected ? selectedTextColor : 'text-gray-700';
 
             return (
               <div
                 key={config.id}
-                className={`group w-full text-left px-3 py-2 rounded-lg flex items-center justify-between transition-all border ${
-                  isSelected
-                    ? isBaseline
-                        ? 'bg-blue-50 border-blue-200 shadow-sm'
-                        : 'bg-fidelity-green/5 border-fidelity-green/20'
-                    : 'hover:bg-gray-50 border-transparent'
-                }`}
+                className={`group w-full text-left px-3 py-2 rounded-lg flex items-center justify-between transition-all border ${containerStyle}`}
               >
                 <button
                   onClick={() => toggleSelection(config.id)}
@@ -245,7 +247,7 @@ export default function CostComparison() {
                     )}
                   </div>
                   <div className="flex-1 min-w-0">
-                    <span className={`text-xs font-semibold block truncate ${isSelected ? isBaseline ? 'text-blue-700' : 'text-fidelity-green' : 'text-gray-700'}`}>
+                    <span className={`text-xs font-semibold block truncate ${textColor}`}>
                       {config.name}
                     </span>
                     <p className="text-[9px] text-gray-500 uppercase tracking-tight">

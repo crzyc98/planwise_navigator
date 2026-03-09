@@ -64,6 +64,11 @@ export function useConfigContext(): ConfigContextType {
 
 // --- Validation helpers (used by save handler) ---
 
+function convertRateToPercent(value: number | null | undefined, fallback: number): number {
+  if (value != null && value <= 1) return value * 100;
+  return value ?? fallback;
+}
+
 function validateBandsClient(bands: Band[], bandType: 'age' | 'tenure'): BandValidationError[] {
   const errors: BandValidationError[] = [];
   if (bands.length === 0) {
@@ -233,16 +238,16 @@ export function ConfigProvider({ activeWorkspace, scenarioId, children }: Config
               ? cfg.dc_plan.tenure_match_tiers.map((t: any) => ({
                   minYears: t.min_years ?? 0,
                   maxYears: t.max_years ?? null,
-                  matchRate: (t.match_rate != null && t.match_rate <= 1) ? t.match_rate * 100 : (t.match_rate ?? 0),
-                  maxDeferralPct: (t.max_deferral_pct != null && t.max_deferral_pct <= 1) ? t.max_deferral_pct * 100 : (t.max_deferral_pct ?? 6),
+                  matchRate: convertRateToPercent(t.match_rate, 0),
+                  maxDeferralPct: convertRateToPercent(t.max_deferral_pct, 6),
                 }))
               : prev.dcTenureMatchTiers,
             dcPointsMatchTiers: cfg.dc_plan?.points_match_tiers
               ? cfg.dc_plan.points_match_tiers.map((t: any) => ({
                   minPoints: t.min_points ?? 0,
                   maxPoints: t.max_points ?? null,
-                  matchRate: (t.match_rate != null && t.match_rate <= 1) ? t.match_rate * 100 : (t.match_rate ?? 0),
-                  maxDeferralPct: (t.max_deferral_pct != null && t.max_deferral_pct <= 1) ? t.max_deferral_pct * 100 : (t.max_deferral_pct ?? 6),
+                  matchRate: convertRateToPercent(t.match_rate, 0),
+                  maxDeferralPct: convertRateToPercent(t.max_deferral_pct, 6),
                 }))
               : prev.dcPointsMatchTiers,
             dcMatchEnabled: cfg.dc_plan?.match_enabled ?? prev.dcMatchEnabled,
@@ -265,7 +270,7 @@ export function ConfigProvider({ activeWorkspace, scenarioId, children }: Config
               ? cfg.dc_plan.core_points_schedule.map((tier: any) => ({
                   minPoints: tier.min_points ?? 0,
                   maxPoints: tier.max_points ?? null,
-                  rate: (tier.contribution_rate != null && tier.contribution_rate <= 1) ? tier.contribution_rate * 100 : (tier.contribution_rate ?? 0),
+                  rate: convertRateToPercent(tier.contribution_rate, 0),
                 }))
               : prev.dcCorePointsSchedule,
             dcCoreMinTenureYears: cfg.dc_plan?.core_min_tenure_years ?? prev.dcCoreMinTenureYears,
@@ -278,10 +283,12 @@ export function ConfigProvider({ activeWorkspace, scenarioId, children }: Config
             dcEscalationCap: cfg.dc_plan?.escalation_cap_percent ?? prev.dcEscalationCap,
             dcEscalationEffectiveDay: cfg.dc_plan?.escalation_effective_day || prev.dcEscalationEffectiveDay,
             dcEscalationDelayYears: cfg.dc_plan?.escalation_delay_years ?? prev.dcEscalationDelayYears,
-            dcEscalationHireDateCutoff: cfg.dc_plan?.escalation_hire_date_cutoff
-              || prev.dcEscalationHireDateCutoff
-              // Auto-default to 1/1 of start year when escalation is on but no cutoff saved
-              || ((cfg.dc_plan?.auto_escalation ?? prev.dcAutoEscalation) ? `${cfg.simulation?.start_year || prev.startYear}-01-01` : ''),
+            dcEscalationHireDateCutoff: (() => {
+              const cutoff = cfg.dc_plan?.escalation_hire_date_cutoff || prev.dcEscalationHireDateCutoff;
+              if (cutoff) return cutoff;
+              const escalationOn = cfg.dc_plan?.auto_escalation ?? prev.dcAutoEscalation;
+              return escalationOn ? `${cfg.simulation?.start_year || prev.startYear}-01-01` : '';
+            })(),
 
             // Advanced
             engine: cfg.advanced?.engine || prev.engine,
@@ -388,15 +395,15 @@ export function ConfigProvider({ activeWorkspace, scenarioId, children }: Config
       dcTenureMatchTiers: cfg.dc_plan?.tenure_match_tiers
         ? cfg.dc_plan.tenure_match_tiers.map((t: any) => ({
             minYears: t.min_years ?? 0, maxYears: t.max_years ?? null,
-            matchRate: (t.match_rate != null && t.match_rate <= 1) ? t.match_rate * 100 : (t.match_rate ?? 0),
-            maxDeferralPct: (t.max_deferral_pct != null && t.max_deferral_pct <= 1) ? t.max_deferral_pct * 100 : (t.max_deferral_pct ?? 6),
+            matchRate: convertRateToPercent(t.match_rate, 0),
+            maxDeferralPct: convertRateToPercent(t.max_deferral_pct, 6),
           }))
         : prev.dcTenureMatchTiers,
       dcPointsMatchTiers: cfg.dc_plan?.points_match_tiers
         ? cfg.dc_plan.points_match_tiers.map((t: any) => ({
             minPoints: t.min_points ?? 0, maxPoints: t.max_points ?? null,
-            matchRate: (t.match_rate != null && t.match_rate <= 1) ? t.match_rate * 100 : (t.match_rate ?? 0),
-            maxDeferralPct: (t.max_deferral_pct != null && t.max_deferral_pct <= 1) ? t.max_deferral_pct * 100 : (t.max_deferral_pct ?? 6),
+            matchRate: convertRateToPercent(t.match_rate, 0),
+            maxDeferralPct: convertRateToPercent(t.max_deferral_pct, 6),
           }))
         : prev.dcPointsMatchTiers,
       dcAutoEscalation: cfg.dc_plan?.auto_escalation ?? prev.dcAutoEscalation,

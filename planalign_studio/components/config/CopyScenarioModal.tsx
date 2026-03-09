@@ -158,9 +158,13 @@ export function CopyScenarioModal({ availableScenarios, onClose }: CopyScenarioM
                       dcEscalationCap: cfg.dc_plan?.escalation_cap_percent ?? prev.dcEscalationCap,
                       dcEscalationEffectiveDay: cfg.dc_plan?.escalation_effective_day || prev.dcEscalationEffectiveDay,
                       dcEscalationDelayYears: cfg.dc_plan?.escalation_delay_years ?? prev.dcEscalationDelayYears,
-                      dcEscalationHireDateCutoff: cfg.dc_plan?.escalation_hire_date_cutoff
-                        || prev.dcEscalationHireDateCutoff
-                        || ((cfg.dc_plan?.auto_escalation ?? prev.dcAutoEscalation) ? `${cfg.simulation?.start_year || prev.startYear}-01-01` : ''),
+                      dcEscalationHireDateCutoff: (() => {
+                        const hasAutoEscalation = cfg.dc_plan?.auto_escalation ?? prev.dcAutoEscalation;
+                        const fallbackCutoff = hasAutoEscalation ? `${cfg.simulation?.start_year || prev.startYear}-01-01` : '';
+                        return cfg.dc_plan?.escalation_hire_date_cutoff
+                          || prev.dcEscalationHireDateCutoff
+                          || fallbackCutoff;
+                      })(),
                       // Advanced
                       engine: cfg.advanced?.engine || prev.engine,
                       enableMultithreading: cfg.advanced?.enable_multithreading ?? prev.enableMultithreading,
