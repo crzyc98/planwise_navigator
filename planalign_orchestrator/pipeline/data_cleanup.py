@@ -17,6 +17,10 @@ import logging
 from pathlib import Path
 from typing import List, Set
 
+from config.constants import (
+    TABLE_FCT_WORKFORCE_SNAPSHOT,
+    TABLE_FCT_YEARLY_EVENTS,
+)
 from planalign_orchestrator.utils import DatabaseConnectionManager
 
 logger = logging.getLogger(__name__)
@@ -46,8 +50,8 @@ class DataCleanupManager:
 
     # Core fact tables that require year-specific cleanup for idempotency
     FACT_TABLES = [
-        "fct_yearly_events",
-        "fct_workforce_snapshot",
+        TABLE_FCT_YEARLY_EVENTS,
+        TABLE_FCT_WORKFORCE_SNAPSHOT,
         "fct_employer_match_events",
     ]
 

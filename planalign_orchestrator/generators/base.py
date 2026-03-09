@@ -22,6 +22,8 @@ from dataclasses import dataclass, field
 from datetime import date
 from typing import TYPE_CHECKING, Any, Dict, List, Optional
 
+from config.constants import COL_EMPLOYEE_ID, COL_AGE_BAND, COL_TENURE_BAND
+
 if TYPE_CHECKING:
     from config.events import SimulationEvent
     from planalign_orchestrator.config import SimulationConfig
@@ -507,13 +509,13 @@ class HazardBasedEventGeneratorMixin:
         selected = []
         for emp in workforce:
             random_val = self.get_random_value(
-                emp["employee_id"],
+                emp[COL_EMPLOYEE_ID],
                 context.simulation_year,
                 context.random_seed,
             )
             hazard_rate = self.get_hazard_rate(
-                emp.get("age_band", "unknown"),
-                emp.get("tenure_band", "unknown"),
+                emp.get(COL_AGE_BAND, "unknown"),
+                emp.get(COL_TENURE_BAND, "unknown"),
                 emp.get("level_id", 1),
                 context,
             )

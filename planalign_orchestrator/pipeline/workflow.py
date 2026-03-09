@@ -16,6 +16,21 @@ from dataclasses import dataclass
 from enum import Enum
 from typing import List
 
+from config.constants import (
+    MODEL_INT_ACTIVE_EMPLOYEES_PREV_YEAR,
+    MODEL_INT_BASELINE_WORKFORCE,
+    MODEL_INT_EMPLOYEE_COMPENSATION,
+    MODEL_INT_ENROLLMENT_EVENTS,
+    MODEL_INT_ENROLLMENT_STATE_ACCUMULATOR,
+    MODEL_INT_MERIT_EVENTS,
+    MODEL_INT_NEW_HIRE_COMPENSATION,
+    MODEL_INT_PROMOTION_EVENTS,
+    MODEL_INT_TERMINATION_EVENTS,
+    MODEL_INT_WORKFORCE_NEEDS,
+    MODEL_FCT_YEARLY_EVENTS,
+    MODEL_FCT_WORKFORCE_SNAPSHOT,
+)
+
 
 class WorkflowStage(Enum):
     """Enumeration of pipeline workflow stages.
@@ -96,11 +111,11 @@ class WorkflowBuilder:
         if year == start_year:
             initialization_models = [
                 "staging.*",
-                "int_baseline_workforce",
+                MODEL_INT_BASELINE_WORKFORCE,
             ]
         else:
             initialization_models = [
-                "int_active_employees_prev_year_snapshot",
+                MODEL_INT_ACTIVE_EMPLOYEES_PREV_YEAR,
             ]
 
         # Epic E042 Fix: Conditional foundation models to preserve historical data
@@ -108,11 +123,11 @@ class WorkflowBuilder:
             # Year 1: Include baseline workforce (created from census)
             # Ensure new-hire staging is built so NH_YYYY_* appear in compensation
             foundation_models = [
-                "int_baseline_workforce",
-                "int_new_hire_compensation_staging",
-                "int_employee_compensation_by_year",
+                MODEL_INT_BASELINE_WORKFORCE,
+                MODEL_INT_NEW_HIRE_COMPENSATION,
+                MODEL_INT_EMPLOYEE_COMPENSATION,
                 "int_effective_parameters",
-                "int_workforce_needs",
+                MODEL_INT_WORKFORCE_NEEDS,
                 "int_workforce_needs_by_level",
             ]
         else:
@@ -122,9 +137,9 @@ class WorkflowBuilder:
             foundation_models = [
                 "int_prev_year_workforce_summary",
                 "int_prev_year_workforce_by_level",
-                "int_employee_compensation_by_year",
+                MODEL_INT_EMPLOYEE_COMPENSATION,
                 "int_effective_parameters",
-                "int_workforce_needs",
+                MODEL_INT_WORKFORCE_NEEDS,
                 "int_workforce_needs_by_level",
             ]
 
@@ -153,19 +168,19 @@ class WorkflowBuilder:
                         if year == start_year
                         else []
                     ),
-                    "int_termination_events",
+                    MODEL_INT_TERMINATION_EVENTS,
                     "int_hiring_events",
                     "int_new_hire_termination_events",
                     # Build employer eligibility after new-hire terminations to ensure flags are available
                     "int_employer_eligibility",
                     "int_hazard_promotion",
                     "int_hazard_merit",
-                    "int_promotion_events",
-                    "int_merit_events",
+                    MODEL_INT_PROMOTION_EVENTS,
+                    MODEL_INT_MERIT_EVENTS,
                     "int_eligibility_determination",
                     "int_voluntary_enrollment_decision",
                     "int_proactive_voluntary_enrollment",
-                    "int_enrollment_events",
+                    MODEL_INT_ENROLLMENT_EVENTS,
                     "int_deferral_match_response_events",
                     "int_deferral_rate_escalation_events",
                 ],
@@ -176,12 +191,12 @@ class WorkflowBuilder:
                 name=WorkflowStage.STATE_ACCUMULATION,
                 dependencies=[WorkflowStage.EVENT_GENERATION],
                 models=[
-                    "fct_yearly_events",
+                    MODEL_FCT_YEARLY_EVENTS,
                     # Epic E068B: Build employee state accumulator early for O(1) state access
                     "int_employee_state_by_year",
                     # Build proration snapshot before contributions so all bases are prorated
                     "int_workforce_snapshot_optimized",
-                    "int_enrollment_state_accumulator",
+                    MODEL_INT_ENROLLMENT_STATE_ACCUMULATOR,
                     "int_deferral_rate_state_accumulator_v2",
                     "int_deferral_escalation_state_accumulator",
                     # Build employer contributions after contributions are computed to ensure proration
@@ -189,7 +204,7 @@ class WorkflowBuilder:
                     "int_employer_core_contributions",
                     "int_employee_match_calculations",
                     "fct_employer_match_events",
-                    "fct_workforce_snapshot",
+                    MODEL_FCT_WORKFORCE_SNAPSHOT,
                 ],
                 validation_rules=["state_consistency", "accumulator_integrity"],
                 parallel_safe=False,  # Ensure proper sequencing of state models

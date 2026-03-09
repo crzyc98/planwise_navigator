@@ -18,13 +18,15 @@ from planalign_orchestrator.generators.base import (
 )
 from planalign_orchestrator.generators.registry import EventRegistry
 
+from config.constants import EVENT_HIRE
+
 if TYPE_CHECKING:
     from config.events import SimulationEvent
 
 logger = logging.getLogger(__name__)
 
 
-@EventRegistry.register("hire")
+@EventRegistry.register(EVENT_HIRE)
 class HireEventGenerator(EventGenerator):
     """
     Generate hire events for workforce simulation.
@@ -38,7 +40,7 @@ class HireEventGenerator(EventGenerator):
     Execution Order: 20 (after terminations, to backfill)
     """
 
-    event_type = "hire"
+    event_type = EVENT_HIRE
     execution_order = 20
     requires_hazard = False  # Hiring uses growth targets, not hazard tables
     supports_sql = True
@@ -89,7 +91,7 @@ class HireEventGenerator(EventGenerator):
 
         # Check event type
         payload = event.payload
-        if payload.event_type != "hire":
+        if payload.event_type != EVENT_HIRE:
             errors.append(f"Expected event_type 'hire', got '{payload.event_type}'")
             return ValidationResult(is_valid=False, errors=errors)
 

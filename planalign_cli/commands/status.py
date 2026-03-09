@@ -20,6 +20,7 @@ from _version import __version__, get_version_dict
 from ..integration.orchestrator_wrapper import OrchestratorWrapper
 from ..ui.progress import create_status_spinner
 from ..utils.config_helpers import find_default_config
+from config.constants import DATABASE_FILENAME
 
 console = Console()
 status_command = typer.Typer()
@@ -48,7 +49,7 @@ def show_status(
         try:
             # Initialize wrapper with default paths
             config_path = Path(config) if config else find_default_config()
-            db_path = Path(database) if database else Path("dbt/simulation.duckdb")
+            db_path = Path(database) if database else Path("dbt") / DATABASE_FILENAME
 
             wrapper = OrchestratorWrapper(config_path, db_path)
             status_info = wrapper.get_system_status()
@@ -84,7 +85,7 @@ def health_check(
 
     try:
         config_path = Path(config) if config else find_default_config()
-        wrapper = OrchestratorWrapper(config_path, Path("dbt/simulation.duckdb"))
+        wrapper = OrchestratorWrapper(config_path, Path("dbt") / DATABASE_FILENAME)
 
         health_status = wrapper.check_system_health()
 

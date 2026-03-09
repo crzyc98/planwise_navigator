@@ -19,13 +19,15 @@ from planalign_orchestrator.generators.base import (
 )
 from planalign_orchestrator.generators.registry import EventRegistry
 
+from config.constants import EVENT_TERMINATION
+
 if TYPE_CHECKING:
     from config.events import SimulationEvent
 
 logger = logging.getLogger(__name__)
 
 
-@EventRegistry.register("termination")
+@EventRegistry.register(EVENT_TERMINATION)
 class TerminationEventGenerator(HazardBasedEventGeneratorMixin, EventGenerator):
     """
     Generate termination events for workforce simulation.
@@ -40,7 +42,7 @@ class TerminationEventGenerator(HazardBasedEventGeneratorMixin, EventGenerator):
     Execution Order: 10 (first event type, before hires)
     """
 
-    event_type = "termination"
+    event_type = EVENT_TERMINATION
     execution_order = 10
     requires_hazard = True
     supports_sql = True
@@ -93,7 +95,7 @@ class TerminationEventGenerator(HazardBasedEventGeneratorMixin, EventGenerator):
 
         # Check event type
         payload = event.payload
-        if payload.event_type != "termination":
+        if payload.event_type != EVENT_TERMINATION:
             errors.append(
                 f"Expected event_type 'termination', got '{payload.event_type}'"
             )

@@ -12,6 +12,11 @@ from dataclasses import dataclass
 from enum import Enum
 from typing import Any, Dict, List, Optional, Protocol
 
+from config.constants import (
+    COL_EVENT_TYPE,
+    COL_SIMULATION_YEAR,
+    TABLE_FCT_YEARLY_EVENTS,
+)
 from .utils import DatabaseConnectionManager
 
 
@@ -152,9 +157,9 @@ class HireTerminationRatioRule:
     def __init__(
         self,
         *,
-        table: str = "fct_yearly_events",
-        event_col: str = "event_type",
-        year_col: str = "simulation_year",
+        table: str = TABLE_FCT_YEARLY_EVENTS,
+        event_col: str = COL_EVENT_TYPE,
+        year_col: str = COL_SIMULATION_YEAR,
         max_ratio: float = 3.0,
         min_ratio: float = 0.3,
         severity: ValidationSeverity = ValidationSeverity.WARNING,
@@ -210,10 +215,10 @@ class EventSequenceRule:
     def __init__(
         self,
         *,
-        table: str = "fct_yearly_events",
-        event_col: str = "event_type",
+        table: str = TABLE_FCT_YEARLY_EVENTS,
+        event_col: str = COL_EVENT_TYPE,
         date_col: str = "event_date",
-        year_col: str = "simulation_year",
+        year_col: str = COL_SIMULATION_YEAR,
         severity: ValidationSeverity = ValidationSeverity.ERROR,
         name: str = "event_sequence_validation",
     ):
@@ -260,8 +265,8 @@ class EventSpikeRule:
     def __init__(
         self,
         *,
-        table: str = "fct_yearly_events",
-        year_col: str = "simulation_year",
+        table: str = TABLE_FCT_YEARLY_EVENTS,
+        year_col: str = COL_SIMULATION_YEAR,
         spike_ratio: float = 2.0,
         severity: ValidationSeverity = ValidationSeverity.WARNING,
         name: str = "event_spike_detection",

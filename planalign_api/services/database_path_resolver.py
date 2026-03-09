@@ -18,6 +18,8 @@ from typing import TYPE_CHECKING, Literal, Optional, Protocol, runtime_checkable
 
 from pydantic import BaseModel, ConfigDict
 
+from config.constants import DATABASE_FILENAME as _DEFAULT_DATABASE_FILENAME
+
 logger = logging.getLogger(__name__)
 
 
@@ -150,7 +152,7 @@ class DatabasePathResolver:
         storage: WorkspaceStorageProtocol,
         isolation_mode: IsolationMode = IsolationMode.SINGLE_TENANT,
         project_root: Optional[Path] = None,
-        database_filename: str = "simulation.duckdb",
+        database_filename: str = _DEFAULT_DATABASE_FILENAME,
     ) -> None:
         """
         Initialize the resolver.

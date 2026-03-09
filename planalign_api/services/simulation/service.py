@@ -27,6 +27,13 @@ from .results_reader import read_results
 from .run_archiver import archive_run, prune_old_runs
 from .subprocess_utils import create_subprocess, wait_subprocess
 
+from config.constants import (
+    DATABASE_FILENAME,
+    STATUS_COMPLETED,
+    STATUS_FAILED,
+    STATUS_RUNNING,
+)
+
 logger = logging.getLogger(__name__)
 
 
@@ -86,9 +93,9 @@ class SimulationService:
 
         try:
             # Mark as running
-            update_run_status(run_id, status="running")
+            update_run_status(run_id, status=STATUS_RUNNING)
             self.storage.update_scenario_status(
-                workspace_id, scenario_id, "running", run_id
+                workspace_id, scenario_id, STATUS_RUNNING, run_id
             )
 
             # Prepare simulation resources
@@ -142,7 +149,7 @@ class SimulationService:
         self._write_seeds(config, scenario_path)
 
         # Clean stale year data
-        scenario_db_path = scenario_path / "simulation.duckdb"
+        scenario_db_path = scenario_path / DATABASE_FILENAME
         if scenario_db_path.exists():
             cleanup_years_outside_range(scenario_db_path, start_year, end_year)
 
@@ -163,7 +170,7 @@ class SimulationService:
         Returns (parser, start_time, final_elapsed).
         """
         config_path = scenario_path / "config.yaml"
-        scenario_db_path = scenario_path / "simulation.duckdb"
+        scenario_db_path = scenario_path / DATABASE_FILENAME
 
         cmd = self._build_command(config_path, scenario_db_path, start_year, end_year)
         project_root = Path(__file__).parent.parent.parent.parent
@@ -220,13 +227,13 @@ class SimulationService:
         """Mark simulation completed, send final telemetry, archive artifacts."""
         update_run_status(
             run_id,
-            status="completed",
+            status=STATUS_COMPLETED,
             progress=100,
             current_stage="COMPLETED",
             completed_at=datetime.now(),
         )
         self.storage.update_scenario_status(
-            workspace_id, scenario_id, "completed", run_id
+            workspace_id, scenario_id, STATUS_COMPLETED, run_id
         )
 
         # Final telemetry
@@ -288,12 +295,12 @@ class SimulationService:
         logger.exception(f"Simulation {run_id} failed")
         update_run_status(
             run_id,
-            status="failed",
+            status=STATUS_FAILED,
             error_message=str(error),
             completed_at=datetime.now(),
         )
         self.storage.update_scenario_status(
-            workspace_id, scenario_id, "failed", run_id
+            workspace_id, scenario_id, STATUS_FAILED, run_id
         )
         try:
             ts = get_telemetry_service()

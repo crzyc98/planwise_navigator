@@ -18,6 +18,19 @@ import networkx as nx
 import matplotlib.pyplot as plt
 from rich.console import Console
 from rich.table import Table
+from config.constants import (
+    COL_EMPLOYEE_ID,
+    COL_EVENT_TYPE,
+    COL_EFFECTIVE_DATE,
+    COL_SIMULATION_YEAR,
+    EVENT_HIRE,
+    EVENT_TERMINATION,
+    EVENT_PROMOTION,
+    EVENT_ENROLLMENT,
+    TABLE_FCT_WORKFORCE_SNAPSHOT,
+    TABLE_FCT_YEARLY_EVENTS,
+    REGISTRY_ENROLLMENT,
+)
 from planalign_orchestrator.config import get_database_path
 
 console = Console()
@@ -62,16 +75,16 @@ class DatabaseInspector:
         query = f"""
         SELECT
             COUNT(*) as total_events,
-            COUNT(DISTINCT simulation_year) as total_years,
-            MIN(simulation_year) as first_year,
-            MAX(simulation_year) as last_year,
-            COUNT(DISTINCT employee_id) as unique_employees,
-            COUNT(CASE WHEN event_type = 'hire' THEN 1 END) as hires,
-            COUNT(CASE WHEN event_type = 'termination' THEN 1 END) as terminations,
-            COUNT(CASE WHEN event_type = 'promotion' THEN 1 END) as promotions,
-            COUNT(CASE WHEN event_type = 'raise' THEN 1 END) as raises,
-            COUNT(CASE WHEN event_type = 'enrollment' THEN 1 END) as enrollments
-        FROM fct_yearly_events
+            COUNT(DISTINCT {COL_SIMULATION_YEAR}) as total_years,
+            MIN({COL_SIMULATION_YEAR}) as first_year,
+            MAX({COL_SIMULATION_YEAR}) as last_year,
+            COUNT(DISTINCT {COL_EMPLOYEE_ID}) as unique_employees,
+            COUNT(CASE WHEN {COL_EVENT_TYPE} = '{EVENT_HIRE}' THEN 1 END) as hires,
+            COUNT(CASE WHEN {COL_EVENT_TYPE} = '{EVENT_TERMINATION}' THEN 1 END) as terminations,
+            COUNT(CASE WHEN {COL_EVENT_TYPE} = '{EVENT_PROMOTION}' THEN 1 END) as promotions,
+            COUNT(CASE WHEN {COL_EVENT_TYPE} = 'raise' THEN 1 END) as raises,
+            COUNT(CASE WHEN {COL_EVENT_TYPE} = '{EVENT_ENROLLMENT}' THEN 1 END) as enrollments
+        FROM {TABLE_FCT_YEARLY_EVENTS}
         {year_filter}
         """
 
@@ -83,11 +96,11 @@ class DatabaseInspector:
             "year_range": (result[2], result[3]) if result[2] else None,
             "unique_employees": result[4],
             "event_counts": {
-                "hire": result[5],
-                "termination": result[6],
-                "promotion": result[7],
+                EVENT_HIRE: result[5],
+                EVENT_TERMINATION: result[6],
+                EVENT_PROMOTION: result[7],
                 "raise": result[8],
-                "enrollment": result[9],
+                EVENT_ENROLLMENT: result[9],
             },
             "net_workforce_change": result[5] - result[6],
         }
@@ -98,14 +111,14 @@ class DatabaseInspector:
         # Event statistics
         event_query = f"""
         SELECT
-            COUNT(CASE WHEN event_type = 'hire' THEN 1 END) as hires,
-            COUNT(CASE WHEN event_type = 'termination' THEN 1 END) as terminations,
-            COUNT(CASE WHEN event_type = 'promotion' THEN 1 END) as promotions,
-            COUNT(CASE WHEN event_type = 'raise' THEN 1 END) as raises,
-            COUNT(CASE WHEN event_type = 'enrollment' THEN 1 END) as enrollments,
+            COUNT(CASE WHEN {COL_EVENT_TYPE} = '{EVENT_HIRE}' THEN 1 END) as hires,
+            COUNT(CASE WHEN {COL_EVENT_TYPE} = '{EVENT_TERMINATION}' THEN 1 END) as terminations,
+            COUNT(CASE WHEN {COL_EVENT_TYPE} = '{EVENT_PROMOTION}' THEN 1 END) as promotions,
+            COUNT(CASE WHEN {COL_EVENT_TYPE} = 'raise' THEN 1 END) as raises,
+            COUNT(CASE WHEN {COL_EVENT_TYPE} = '{EVENT_ENROLLMENT}' THEN 1 END) as enrollments,
             COUNT(*) as total_events
-        FROM fct_yearly_events
-        WHERE simulation_year = {year}
+        FROM {TABLE_FCT_YEARLY_EVENTS}
+        WHERE {COL_SIMULATION_YEAR} = {year}
         """
         events = self.conn.execute(event_query).fetchone()
 
@@ -115,8 +128,8 @@ class DatabaseInspector:
             COUNT(*) as workforce_count,
             AVG(current_compensation) as avg_salary,
             SUM(current_compensation) as total_comp_cost
-        FROM fct_workforce_snapshot
-        WHERE simulation_year = {year} AND employment_status = 'active'
+        FROM {TABLE_FCT_WORKFORCE_SNAPSHOT}
+        WHERE {COL_SIMULATION_YEAR} = {year} AND employment_status = 'active'
         """
         workforce = self.conn.execute(workforce_query).fetchone()
 
@@ -144,10 +157,10 @@ class DatabaseInspector:
         # Check for duplicate enrollments
         dup_check = f"""
         SELECT COUNT(*) FROM (
-            SELECT employee_id, COUNT(*) as cnt
-            FROM fct_yearly_events
-            WHERE simulation_year = {year} AND event_type = 'enrollment'
-            GROUP BY employee_id
+            SELECT {COL_EMPLOYEE_ID}, COUNT(*) as cnt
+            FROM {TABLE_FCT_YEARLY_EVENTS}
+            WHERE {COL_SIMULATION_YEAR} = {year} AND {COL_EVENT_TYPE} = '{EVENT_ENROLLMENT}'
+            GROUP BY {COL_EMPLOYEE_ID}
             HAVING COUNT(*) > 1
         )
         """
@@ -158,13 +171,13 @@ class DatabaseInspector:
         # Check for enrollments without enrollment dates
         missing_dates = f"""
         SELECT COUNT(*) FROM (
-            SELECT e.employee_id
-            FROM fct_yearly_events e
-            LEFT JOIN fct_workforce_snapshot w
-                ON e.employee_id = w.employee_id
-                AND e.simulation_year = w.simulation_year
-            WHERE e.simulation_year = {year}
-                AND e.event_type = 'enrollment'
+            SELECT e.{COL_EMPLOYEE_ID}
+            FROM {TABLE_FCT_YEARLY_EVENTS} e
+            LEFT JOIN {TABLE_FCT_WORKFORCE_SNAPSHOT} w
+                ON e.{COL_EMPLOYEE_ID} = w.{COL_EMPLOYEE_ID}
+                AND e.{COL_SIMULATION_YEAR} = w.{COL_SIMULATION_YEAR}
+            WHERE e.{COL_SIMULATION_YEAR} = {year}
+                AND e.{COL_EVENT_TYPE} = '{EVENT_ENROLLMENT}'
                 AND w.employee_enrollment_date IS NULL
         )
         """
@@ -173,7 +186,7 @@ class DatabaseInspector:
             issues.append(f"❌ {missing_count} enrollment events missing employee_enrollment_date in snapshot")
 
         # Check for zero workforce
-        if self.conn.execute(f"SELECT COUNT(*) FROM fct_workforce_snapshot WHERE simulation_year = {year}").fetchone()[0] == 0:
+        if self.conn.execute(f"SELECT COUNT(*) FROM {TABLE_FCT_WORKFORCE_SNAPSHOT} WHERE {COL_SIMULATION_YEAR} = {year}").fetchone()[0] == 0:
             issues.append(f"🚨 Zero workforce records for year {year}")
 
         return issues
@@ -182,13 +195,13 @@ class DatabaseInspector:
         """Get complete event timeline for an employee."""
         query = f"""
         SELECT
-            simulation_year,
-            event_type,
-            effective_date,
+            {COL_SIMULATION_YEAR},
+            {COL_EVENT_TYPE},
+            {COL_EFFECTIVE_DATE},
             event_details
-        FROM fct_yearly_events
-        WHERE employee_id = '{employee_id}'
-        ORDER BY simulation_year, effective_date
+        FROM {TABLE_FCT_YEARLY_EVENTS}
+        WHERE {COL_EMPLOYEE_ID} = '{employee_id}'
+        ORDER BY {COL_SIMULATION_YEAR}, {COL_EFFECTIVE_DATE}
         """
         return self.conn.execute(query).df()
 
@@ -293,7 +306,7 @@ class StateVisualizer:
 
         return {
             "eligibility_registry": data.get("eligibility_registry", {}),
-            "enrollment_registry": data.get("enrollment_registry", {}),
+            REGISTRY_ENROLLMENT: data.get(REGISTRY_ENROLLMENT, {}),
             "vesting_registry": data.get("vesting_registry", {}),
             "contribution_registry": data.get("contribution_registry", {}),
         }

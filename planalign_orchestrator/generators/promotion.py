@@ -19,13 +19,15 @@ from planalign_orchestrator.generators.base import (
 )
 from planalign_orchestrator.generators.registry import EventRegistry
 
+from config.constants import EVENT_PROMOTION
+
 if TYPE_CHECKING:
     from config.events import SimulationEvent
 
 logger = logging.getLogger(__name__)
 
 
-@EventRegistry.register("promotion")
+@EventRegistry.register(EVENT_PROMOTION)
 class PromotionEventGenerator(HazardBasedEventGeneratorMixin, EventGenerator):
     """
     Generate promotion events for workforce simulation.
@@ -40,7 +42,7 @@ class PromotionEventGenerator(HazardBasedEventGeneratorMixin, EventGenerator):
     Execution Order: 30 (after hires, before merit)
     """
 
-    event_type = "promotion"
+    event_type = EVENT_PROMOTION
     execution_order = 30
     requires_hazard = True
     supports_sql = True
@@ -91,7 +93,7 @@ class PromotionEventGenerator(HazardBasedEventGeneratorMixin, EventGenerator):
 
         # Check event type
         payload = event.payload
-        if payload.event_type != "promotion":
+        if payload.event_type != EVENT_PROMOTION:
             errors.append(f"Expected event_type 'promotion', got '{payload.event_type}'")
             return ValidationResult(is_valid=False, errors=errors)
 

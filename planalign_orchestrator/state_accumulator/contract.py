@@ -18,6 +18,8 @@ from __future__ import annotations
 
 from pydantic import BaseModel, Field, field_validator
 
+from config.constants import COL_SIMULATION_YEAR
+
 
 class StateAccumulatorContract(BaseModel):
     """Contract defining temporal state accumulator requirements.
@@ -62,7 +64,7 @@ class StateAccumulatorContract(BaseModel):
         description="Database table name for the accumulator"
     )
     prior_year_column: str = Field(
-        default="simulation_year",
+        default=COL_SIMULATION_YEAR,
         description="Column used for year-based filtering"
     )
     start_year_source: str = Field(
