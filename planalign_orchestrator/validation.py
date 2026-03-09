@@ -8,9 +8,10 @@ business rule checks, and simple anomaly detection utilities.
 
 from __future__ import annotations
 
+from abc import ABC, abstractmethod
 from dataclasses import dataclass
 from enum import Enum
-from typing import Any, Dict, List, Optional, Protocol
+from typing import Any, Dict, List, Optional
 
 from config.constants import (
     COL_EVENT_TYPE,
@@ -36,13 +37,16 @@ class ValidationResult:
     affected_records: Optional[int] = None
 
 
-class ValidationRule(Protocol):
+class ValidationRule(ABC):
+    """Base class for all validation rules."""
+
     name: str
     severity: ValidationSeverity
 
+    @abstractmethod
     def validate(
         self, db_connection, year: int
-    ) -> ValidationResult:  # pragma: no cover - Protocol
+    ) -> ValidationResult:  # pragma: no cover
         ...
 
 
@@ -97,7 +101,7 @@ class DataValidator:
 
 
 # Built-in rules
-class RowCountDriftRule:
+class RowCountDriftRule(ValidationRule):
     """Validate row count drift between two tables for the given year.
 
     Parameters allow adapting to different schemas for testing and integration.
@@ -151,7 +155,7 @@ class RowCountDriftRule:
         )
 
 
-class HireTerminationRatioRule:
+class HireTerminationRatioRule(ValidationRule):
     """Validate hire to termination ratios are reasonable for a given year."""
 
     def __init__(
@@ -209,7 +213,7 @@ class HireTerminationRatioRule:
         )
 
 
-class EventSequenceRule:
+class EventSequenceRule(ValidationRule):
     """Validate that no events occur after termination within the same year."""
 
     def __init__(
@@ -259,7 +263,7 @@ class EventSequenceRule:
         )
 
 
-class EventSpikeRule:
+class EventSpikeRule(ValidationRule):
     """Detect unusual spike in total events compared to previous year."""
 
     def __init__(
