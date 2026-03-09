@@ -91,152 +91,221 @@ class SimulationService:
                 workspace_id, scenario_id, "running", run_id
             )
 
-            # Extract year range
-            sim_config = config.get("simulation", {})
-            start_year = int(sim_config.get("start_year", 2025))
-            end_year = int(sim_config.get("end_year", 2027))
-            total_years = end_year - start_year + 1
-            logger.info(
-                f"SimulationService year range: {start_year}-{end_year} "
-                f"({total_years} years)"
+            # Prepare simulation resources
+            scenario_path, start_year, end_year, total_years = (
+                self._prepare_simulation(workspace_id, scenario_id, config)
             )
 
-            # Prepare scenario directory and config
-            scenario_path = self.storage._scenario_path(workspace_id, scenario_id)
-            config_path = scenario_path / "config.yaml"
-
-            self._validate_census(config)
-            self._write_config(config, config_path)
-            self._write_seeds(config, scenario_path)
-
-            # Clean stale year data
-            scenario_db_path = scenario_path / "simulation.duckdb"
-            if scenario_db_path.exists():
-                cleanup_years_outside_range(scenario_db_path, start_year, end_year)
-
-            # Launch subprocess
-            cmd = self._build_command(
-                config_path, scenario_db_path, start_year, end_year
-            )
-            project_root = Path(__file__).parent.parent.parent.parent
-            env = self._build_env(project_root)
-
-            logger.info(f"Command: {' '.join(cmd)}")
-
-            process, line_iterator = await create_subprocess(
-                cmd=cmd, cwd=str(project_root), env=env
-            )
-            self._active_processes[run_id] = process
-
-            # Set up telemetry and output parsing
-            start_time = datetime.now()
-            telemetry_service = get_telemetry_service()
-            await self._wait_for_ws_listener(telemetry_service, run_id)
-            self._send_initial_telemetry(
-                telemetry_service, run_id, start_year, end_year, total_years
+            # Run the simulation subprocess loop
+            parser, start_time, final_elapsed = await self._run_simulation_loop(
+                scenario_path, start_year, end_year, total_years,
+                run_id, config, update_run_status,
             )
 
-            parser = SimulationOutputParser(start_year, total_years)
-
-            # Stream and parse subprocess output
-            output_buffer = await self._stream_output(
-                process,
-                line_iterator,
-                run_id,
-                parser,
-                total_years,
-                start_time,
-                telemetry_service,
-                update_run_status,
+            # Handle successful completion
+            self._finalize_successful_simulation(
+                workspace_id, scenario_id, run_id, config,
+                scenario_path, start_year, end_year, total_years,
+                parser, start_time, final_elapsed, update_run_status,
             )
-
-            # Await exit code
-            return_code = await wait_subprocess(process)
-            self._active_processes.pop(run_id, None)
-            final_elapsed = (datetime.now() - start_time).total_seconds()
-
-            if return_code != 0:
-                self._raise_subprocess_error(return_code, output_buffer)
-
-            # Mark completed
-            update_run_status(
-                run_id,
-                status="completed",
-                progress=100,
-                current_stage="COMPLETED",
-                completed_at=datetime.now(),
-            )
-            self.storage.update_scenario_status(
-                workspace_id, scenario_id, "completed", run_id
-            )
-
-            # Final telemetry
-            telemetry_service.update_telemetry(
-                run_id=run_id,
-                progress=100,
-                current_stage="COMPLETED",
-                current_year=end_year,
-                total_years=total_years,
-                memory_mb=_get_memory_mb(),
-                events_generated=parser.events_generated,
-                elapsed_seconds=final_elapsed,
-                events_per_second=(
-                    parser.events_generated / final_elapsed
-                    if final_elapsed > 0
-                    else 0
-                ),
-                recent_events=parser.recent_events,
-            )
-
-            logger.info(
-                f"Simulation {run_id} completed successfully in {final_elapsed:.1f}s"
-            )
-
-            # Archive run artifacts
-            scenario = self.storage.get_scenario(workspace_id, scenario_id)
-            scenario_name = scenario.name if scenario else scenario_id
-            seed = config.get("simulation", {}).get("seed", 42)
-
-            archive_run(
-                scenario_path=scenario_path,
-                run_id=run_id,
-                scenario_id=scenario_id,
-                scenario_name=scenario_name,
-                workspace_id=workspace_id,
-                config=config,
-                start_time=start_time,
-                elapsed_seconds=final_elapsed,
-                start_year=start_year,
-                end_year=end_year,
-                events_generated=parser.events_generated,
-                seed=seed,
-            )
-
-            # Prune old runs
-            prune_old_runs(self.storage, workspace_id, scenario_id, config)
 
         except Exception as e:
-            logger.exception(f"Simulation {run_id} failed")
-            update_run_status(
-                run_id,
-                status="failed",
-                error_message=str(e),
-                completed_at=datetime.now(),
+            self._handle_simulation_failure(
+                e, workspace_id, scenario_id, run_id,
+                start_year, total_years, update_run_status,
             )
-            self.storage.update_scenario_status(
-                workspace_id, scenario_id, "failed", run_id
+
+    def _prepare_simulation(
+        self,
+        workspace_id: str,
+        scenario_id: str,
+        config: Dict[str, Any],
+    ) -> tuple:
+        """Prepare scenario directory, config, seeds, and year range.
+
+        Returns (scenario_path, start_year, end_year, total_years).
+        """
+        sim_config = config.get("simulation", {})
+        start_year = int(sim_config.get("start_year", 2025))
+        end_year = int(sim_config.get("end_year", 2027))
+        total_years = end_year - start_year + 1
+        logger.info(
+            f"SimulationService year range: {start_year}-{end_year} "
+            f"({total_years} years)"
+        )
+
+        scenario_path = self.storage._scenario_path(workspace_id, scenario_id)
+        config_path = scenario_path / "config.yaml"
+
+        self._validate_census(config)
+        self._write_config(config, config_path)
+        self._write_seeds(config, scenario_path)
+
+        # Clean stale year data
+        scenario_db_path = scenario_path / "simulation.duckdb"
+        if scenario_db_path.exists():
+            cleanup_years_outside_range(scenario_db_path, start_year, end_year)
+
+        return scenario_path, start_year, end_year, total_years
+
+    async def _run_simulation_loop(
+        self,
+        scenario_path: Path,
+        start_year: int,
+        end_year: int,
+        total_years: int,
+        run_id: str,
+        config: Dict[str, Any],
+        update_run_status,
+    ) -> tuple:
+        """Launch subprocess, stream output, and await completion.
+
+        Returns (parser, start_time, final_elapsed).
+        """
+        config_path = scenario_path / "config.yaml"
+        scenario_db_path = scenario_path / "simulation.duckdb"
+
+        cmd = self._build_command(config_path, scenario_db_path, start_year, end_year)
+        project_root = Path(__file__).parent.parent.parent.parent
+        env = self._build_env(project_root)
+
+        logger.info(f"Command: {' '.join(cmd)}")
+
+        process, line_iterator = await create_subprocess(
+            cmd=cmd, cwd=str(project_root), env=env
+        )
+        self._active_processes[run_id] = process
+
+        # Set up telemetry and output parsing
+        start_time = datetime.now()
+        telemetry_service = get_telemetry_service()
+        await self._wait_for_ws_listener(telemetry_service, run_id)
+        self._send_initial_telemetry(
+            telemetry_service, run_id, start_year, end_year, total_years
+        )
+
+        parser = SimulationOutputParser(start_year, total_years)
+
+        # Stream and parse subprocess output
+        output_buffer = await self._stream_output(
+            process, line_iterator, run_id, parser,
+            total_years, start_time, telemetry_service, update_run_status,
+        )
+
+        # Await exit code
+        return_code = await wait_subprocess(process)
+        self._active_processes.pop(run_id, None)
+        final_elapsed = (datetime.now() - start_time).total_seconds()
+
+        if return_code != 0:
+            self._raise_subprocess_error(return_code, output_buffer)
+
+        return parser, start_time, final_elapsed
+
+    def _finalize_successful_simulation(
+        self,
+        workspace_id: str,
+        scenario_id: str,
+        run_id: str,
+        config: Dict[str, Any],
+        scenario_path: Path,
+        start_year: int,
+        end_year: int,
+        total_years: int,
+        parser: SimulationOutputParser,
+        start_time: datetime,
+        final_elapsed: float,
+        update_run_status,
+    ) -> None:
+        """Mark simulation completed, send final telemetry, archive artifacts."""
+        update_run_status(
+            run_id,
+            status="completed",
+            progress=100,
+            current_stage="COMPLETED",
+            completed_at=datetime.now(),
+        )
+        self.storage.update_scenario_status(
+            workspace_id, scenario_id, "completed", run_id
+        )
+
+        # Final telemetry
+        telemetry_service = get_telemetry_service()
+        events_per_second = (
+            parser.events_generated / final_elapsed if final_elapsed > 0 else 0
+        )
+        telemetry_service.update_telemetry(
+            run_id=run_id,
+            progress=100,
+            current_stage="COMPLETED",
+            current_year=end_year,
+            total_years=total_years,
+            memory_mb=_get_memory_mb(),
+            events_generated=parser.events_generated,
+            elapsed_seconds=final_elapsed,
+            events_per_second=events_per_second,
+            recent_events=parser.recent_events,
+        )
+
+        logger.info(
+            f"Simulation {run_id} completed successfully in {final_elapsed:.1f}s"
+        )
+
+        # Archive run artifacts
+        scenario = self.storage.get_scenario(workspace_id, scenario_id)
+        scenario_name = scenario.name if scenario else scenario_id
+        seed = config.get("simulation", {}).get("seed", 42)
+
+        archive_run(
+            scenario_path=scenario_path,
+            run_id=run_id,
+            scenario_id=scenario_id,
+            scenario_name=scenario_name,
+            workspace_id=workspace_id,
+            config=config,
+            start_time=start_time,
+            elapsed_seconds=final_elapsed,
+            start_year=start_year,
+            end_year=end_year,
+            events_generated=parser.events_generated,
+            seed=seed,
+        )
+
+        # Prune old runs
+        prune_old_runs(self.storage, workspace_id, scenario_id, config)
+
+    def _handle_simulation_failure(
+        self,
+        error: Exception,
+        workspace_id: str,
+        scenario_id: str,
+        run_id: str,
+        start_year: int,
+        total_years: int,
+        update_run_status,
+    ) -> None:
+        """Log failure, update status, and send failure telemetry."""
+        logger.exception(f"Simulation {run_id} failed")
+        update_run_status(
+            run_id,
+            status="failed",
+            error_message=str(error),
+            completed_at=datetime.now(),
+        )
+        self.storage.update_scenario_status(
+            workspace_id, scenario_id, "failed", run_id
+        )
+        try:
+            ts = get_telemetry_service()
+            ts.update_telemetry(
+                run_id=run_id,
+                progress=0,
+                current_stage="FAILED",
+                current_year=start_year,
+                total_years=total_years,
             )
-            try:
-                ts = get_telemetry_service()
-                ts.update_telemetry(
-                    run_id=run_id,
-                    progress=0,
-                    current_stage="FAILED",
-                    current_year=start_year,
-                    total_years=total_years,
-                )
-            except Exception:
-                pass
+        except Exception:
+            pass
 
     # ------------------------------------------------------------------
     # Cancel / Results / Telemetry
@@ -484,46 +553,61 @@ class SimulationService:
             if len(output_buffer) > MAX_OUTPUT_BUFFER:
                 output_buffer.pop(0)
 
-            # Route to appropriate log level
-            level = SimulationOutputParser.classify_line(line_text)
-            if level == "error":
-                logger.error(f"Simulation: {line_text}")
-            elif level == "warning":
-                logger.warning(f"Simulation: {line_text}")
-            else:
-                logger.debug(f"Simulation output: {line_text}")
-
-            # Parse progress from line
-            parser.parse_line(line_text)
-            progress = parser.calculate_progress()
-
-            elapsed_seconds = (datetime.now() - start_time).total_seconds()
-
-            update_run_status(
-                run_id,
-                progress=progress,
-                current_year=parser.current_year,
-                current_stage=parser.current_stage,
-            )
-
-            telemetry_service.update_telemetry(
-                run_id=run_id,
-                progress=progress,
-                current_stage=parser.current_stage,
-                current_year=parser.current_year,
-                total_years=total_years,
-                memory_mb=_get_memory_mb(),
-                events_generated=parser.events_generated,
-                elapsed_seconds=elapsed_seconds,
-                events_per_second=(
-                    parser.events_generated / elapsed_seconds
-                    if elapsed_seconds > 0
-                    else 0
-                ),
-                recent_events=parser.recent_events,
+            self._process_output_line(
+                line_text, run_id, parser, total_years,
+                start_time, telemetry_service, update_run_status,
             )
 
         return output_buffer
+
+    @staticmethod
+    def _process_output_line(
+        line_text: str,
+        run_id: str,
+        parser: SimulationOutputParser,
+        total_years: int,
+        start_time: datetime,
+        telemetry_service,
+        update_run_status,
+    ) -> None:
+        """Classify, parse, and broadcast a single output line."""
+        # Route to appropriate log level
+        level = SimulationOutputParser.classify_line(line_text)
+        if level == "error":
+            logger.error(f"Simulation: {line_text}")
+        elif level == "warning":
+            logger.warning(f"Simulation: {line_text}")
+        else:
+            logger.debug(f"Simulation output: {line_text}")
+
+        # Parse progress from line
+        parser.parse_line(line_text)
+        progress = parser.calculate_progress()
+
+        elapsed_seconds = (datetime.now() - start_time).total_seconds()
+        events_per_second = (
+            parser.events_generated / elapsed_seconds if elapsed_seconds > 0 else 0
+        )
+
+        update_run_status(
+            run_id,
+            progress=progress,
+            current_year=parser.current_year,
+            current_stage=parser.current_stage,
+        )
+
+        telemetry_service.update_telemetry(
+            run_id=run_id,
+            progress=progress,
+            current_stage=parser.current_stage,
+            current_year=parser.current_year,
+            total_years=total_years,
+            memory_mb=_get_memory_mb(),
+            events_generated=parser.events_generated,
+            elapsed_seconds=elapsed_seconds,
+            events_per_second=events_per_second,
+            recent_events=parser.recent_events,
+        )
 
     @staticmethod
     def _raise_subprocess_error(

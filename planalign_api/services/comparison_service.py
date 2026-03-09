@@ -95,6 +95,109 @@ class ComparisonService:
             summary_deltas=summary_deltas,
         )
 
+    @staticmethod
+    def _query_workforce(conn) -> List[Dict[str, Any]]:
+        """Query workforce snapshots grouped by simulation year."""
+        try:
+            df = conn.execute("""
+                SELECT
+                    simulation_year,
+                    COUNT(DISTINCT employee_id) as headcount,
+                    COUNT(DISTINCT CASE WHEN UPPER(employment_status) = 'ACTIVE' THEN employee_id END) as active,
+                    COUNT(DISTINCT CASE WHEN UPPER(employment_status) = 'TERMINATED' THEN employee_id END) as terminated
+                FROM fct_workforce_snapshot
+                GROUP BY simulation_year
+                ORDER BY simulation_year
+            """).fetchdf()
+            return df.to_dict("records")
+        except Exception:
+            return []
+
+    @staticmethod
+    def _query_events(conn) -> List[Dict[str, Any]]:
+        """Query event counts grouped by simulation year and event type."""
+        try:
+            df = conn.execute("""
+                SELECT
+                    simulation_year,
+                    event_type,
+                    COUNT(*) as count
+                FROM fct_yearly_events
+                GROUP BY simulation_year, event_type
+                ORDER BY simulation_year, event_type
+            """).fetchdf()
+            return df.to_dict("records")
+        except Exception:
+            return []
+
+    @staticmethod
+    def _query_hires_by_year(conn) -> Dict[int, int]:
+        """Query hire counts grouped by simulation year."""
+        try:
+            df = conn.execute("""
+                SELECT
+                    simulation_year,
+                    COUNT(*) as hires
+                FROM fct_yearly_events
+                WHERE event_type = 'HIRE'
+                GROUP BY simulation_year
+                ORDER BY simulation_year
+            """).fetchdf()
+            return {
+                row["simulation_year"]: row["hires"]
+                for row in df.to_dict("records")
+            }
+        except Exception:
+            return {}
+
+    @staticmethod
+    def _query_dc_plan(conn) -> List[Dict[str, Any]]:
+        """Query DC plan metrics grouped by simulation year."""
+        try:
+            df = conn.execute("""
+                SELECT
+                    simulation_year,
+                    COALESCE(
+                        COUNT(CASE WHEN UPPER(employment_status) = 'ACTIVE'
+                                   AND is_enrolled_flag THEN 1 END) * 100.0
+                        / NULLIF(COUNT(CASE WHEN UPPER(employment_status) = 'ACTIVE'
+                                           THEN 1 END), 0),
+                        0
+                    ) AS participation_rate,
+                    AVG(CASE WHEN is_enrolled_flag
+                        THEN current_deferral_rate ELSE NULL END
+                    ) AS avg_deferral_rate,
+                    COALESCE(SUM(prorated_annual_contributions), 0)
+                        AS total_employee_contributions,
+                    COALESCE(SUM(employer_match_amount), 0)
+                        AS total_employer_match,
+                    COALESCE(SUM(employer_core_amount), 0)
+                        AS total_employer_core,
+                    COALESCE(
+                        SUM(employer_match_amount) + SUM(employer_core_amount), 0
+                    ) AS total_employer_cost,
+                    COALESCE(SUM(prorated_annual_compensation), 0)
+                        AS total_compensation,
+                    COUNT(CASE WHEN is_enrolled_flag THEN 1 END)
+                        AS participant_count
+                FROM fct_workforce_snapshot
+                GROUP BY simulation_year
+                ORDER BY simulation_year
+            """).fetchdf()
+            dc_plan = df.to_dict("records")
+            for row in dc_plan:
+                total_comp = row.get("total_compensation", 0) or 0
+                total_cost = row.get("total_employer_cost", 0) or 0
+                row["employer_cost_rate"] = (
+                    (total_cost / total_comp * 100) if total_comp > 0 else 0.0
+                )
+                avg_def = row.get("avg_deferral_rate")
+                if avg_def is None or (isinstance(avg_def, float) and avg_def != avg_def):
+                    row["avg_deferral_rate"] = 0.0
+            return dc_plan
+        except Exception:
+            return []
+
     def _load_scenario_data(
         self, workspace_id: str, scenario_id: str
     ) -> Optional[Dict[str, Any]]:
@@ -108,109 +211,15 @@ class ComparisonService:
 
             conn = duckdb.connect(str(resolved.path), read_only=True)
 
-            # Load workforce snapshots
-            try:
-                workforce_df = conn.execute("""
-                    SELECT
-                        simulation_year,
-                        COUNT(DISTINCT employee_id) as headcount,
-                        COUNT(DISTINCT CASE WHEN UPPER(employment_status) = 'ACTIVE' THEN employee_id END) as active,
-                        COUNT(DISTINCT CASE WHEN UPPER(employment_status) = 'TERMINATED' THEN employee_id END) as terminated
-                    FROM fct_workforce_snapshot
-                    GROUP BY simulation_year
-                    ORDER BY simulation_year
-                """).fetchdf()
-                workforce = workforce_df.to_dict("records")
-            except Exception:
-                workforce = []
-
-            # Load event counts
-            try:
-                events_df = conn.execute("""
-                    SELECT
-                        simulation_year,
-                        event_type,
-                        COUNT(*) as count
-                    FROM fct_yearly_events
-                    GROUP BY simulation_year, event_type
-                    ORDER BY simulation_year, event_type
-                """).fetchdf()
-                events = events_df.to_dict("records")
-            except Exception:
-                events = []
-
-            # Load hires by year
-            try:
-                hires_df = conn.execute("""
-                    SELECT
-                        simulation_year,
-                        COUNT(*) as hires
-                    FROM fct_yearly_events
-                    WHERE event_type = 'HIRE'
-                    GROUP BY simulation_year
-                    ORDER BY simulation_year
-                """).fetchdf()
-                hires_by_year = {
-                    row["simulation_year"]: row["hires"]
-                    for row in hires_df.to_dict("records")
-                }
-            except Exception:
-                hires_by_year = {}
-
-            # Load DC plan metrics by year
-            try:
-                dc_plan_df = conn.execute("""
-                    SELECT
-                        simulation_year,
-                        COALESCE(
-                            COUNT(CASE WHEN UPPER(employment_status) = 'ACTIVE'
-                                       AND is_enrolled_flag THEN 1 END) * 100.0
-                            / NULLIF(COUNT(CASE WHEN UPPER(employment_status) = 'ACTIVE'
-                                               THEN 1 END), 0),
-                            0
-                        ) AS participation_rate,
-                        AVG(CASE WHEN is_enrolled_flag
-                            THEN current_deferral_rate ELSE NULL END
-                        ) AS avg_deferral_rate,
-                        COALESCE(SUM(prorated_annual_contributions), 0)
-                            AS total_employee_contributions,
-                        COALESCE(SUM(employer_match_amount), 0)
-                            AS total_employer_match,
-                        COALESCE(SUM(employer_core_amount), 0)
-                            AS total_employer_core,
-                        COALESCE(
-                            SUM(employer_match_amount) + SUM(employer_core_amount), 0
-                        ) AS total_employer_cost,
-                        COALESCE(SUM(prorated_annual_compensation), 0)
-                            AS total_compensation,
-                        COUNT(CASE WHEN is_enrolled_flag THEN 1 END)
-                            AS participant_count
-                    FROM fct_workforce_snapshot
-                    GROUP BY simulation_year
-                    ORDER BY simulation_year
-                """).fetchdf()
-                dc_plan = dc_plan_df.to_dict("records")
-                # Compute employer_cost_rate and handle NULL avg_deferral_rate
-                for row in dc_plan:
-                    total_comp = row.get("total_compensation", 0) or 0
-                    total_cost = row.get("total_employer_cost", 0) or 0
-                    row["employer_cost_rate"] = (
-                        (total_cost / total_comp * 100) if total_comp > 0 else 0.0
-                    )
-                    avg_def = row.get("avg_deferral_rate")
-                    if avg_def is None or (isinstance(avg_def, float) and avg_def != avg_def):
-                        row["avg_deferral_rate"] = 0.0
-            except Exception:
-                dc_plan = []
+            result = {
+                "workforce": self._query_workforce(conn),
+                "events": self._query_events(conn),
+                "hires_by_year": self._query_hires_by_year(conn),
+                "dc_plan": self._query_dc_plan(conn),
+            }
 
             conn.close()
-
-            return {
-                "workforce": workforce,
-                "events": events,
-                "hires_by_year": hires_by_year,
-                "dc_plan": dc_plan,
-            }
+            return result
 
         except Exception as e:
             logger.error(f"Failed to load scenario data: {e}")

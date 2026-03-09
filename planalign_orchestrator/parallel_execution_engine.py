@@ -120,26 +120,21 @@ class ParallelExecutionEngine:
             print(f"   Advanced resource management: {'enabled' if resource_manager else 'disabled'}")
             print(f"   Adaptive scaling: {'enabled' if enable_adaptive_scaling else 'disabled'}")
 
-    def execute_stage_with_parallelization(
+    def _determine_effective_workers(
         self,
         stage_models: List[str],
-        context: ExecutionContext,
-        enable_conditional_parallelization: bool = False
-    ) -> ExecutionResult:
-        """Execute a stage with intelligent parallelization and advanced resource management."""
+        context: ExecutionContext
+    ) -> Optional[int]:
+        """Determine effective worker count based on resource state.
 
-        if self.verbose:
-            print(f"🚀 Executing stage {context.stage_name} with {len(stage_models)} models")
-
-        start_time = time.perf_counter()
-
+        Returns the effective worker count, or None if sequential fallback is needed.
+        """
         # Advanced resource management integration (S067-03)
         if self.resource_manager:
-            # Use advanced resource management
             if not self.resource_manager.check_resource_health():
                 if self.verbose:
                     print("⚠️ Critical resource pressure detected, falling back to sequential execution")
-                return self._execute_sequential_fallback(stage_models, context)
+                return None
 
             # Adaptive thread count optimization
             if self.enable_adaptive_scaling:
@@ -162,19 +157,58 @@ class ParallelExecutionEngine:
                         "reason": reason
                     })
 
-            effective_max_workers = self._current_thread_count
+            return self._current_thread_count
 
-        elif self.legacy_resource_monitor and self.resource_monitoring:
-            # Fallback to legacy resource monitoring
+        if self.legacy_resource_monitor and self.resource_monitoring:
             initial_resources = self.legacy_resource_monitor.check_resources()
             if not initial_resources["safe_for_parallelization"]:
                 if self.verbose:
                     print("⚠️ Resource pressure detected, falling back to sequential execution")
-                return self._execute_sequential_fallback(stage_models, context)
-            effective_max_workers = self.max_workers
-        else:
-            # No resource monitoring
-            effective_max_workers = self.max_workers
+                return None
+            return self.max_workers
+
+        # No resource monitoring
+        return self.max_workers
+
+    def _record_final_resource_metrics(
+        self,
+        total_parallelism: int,
+        execution_time: float,
+        context: ExecutionContext
+    ) -> Dict[str, Any]:
+        """Record final resource metrics and return resource status."""
+        if self.resource_manager:
+            final_resources = self.resource_manager.get_resource_status()
+
+            # Record performance for future optimization
+            if self.enable_adaptive_scaling and total_parallelism > 0:
+                self.resource_manager.thread_adjuster.record_performance(
+                    total_parallelism, execution_time
+                )
+
+            return final_resources
+
+        if self.legacy_resource_monitor and self.resource_monitoring:
+            return self.legacy_resource_monitor.check_resources()
+
+        return {}
+
+    def execute_stage_with_parallelization(
+        self,
+        stage_models: List[str],
+        context: ExecutionContext,
+        enable_conditional_parallelization: bool = False
+    ) -> ExecutionResult:
+        """Execute a stage with intelligent parallelization and advanced resource management."""
+
+        if self.verbose:
+            print(f"🚀 Executing stage {context.stage_name} with {len(stage_models)} models")
+
+        start_time = time.perf_counter()
+
+        effective_max_workers = self._determine_effective_workers(stage_models, context)
+        if effective_max_workers is None:
+            return self._execute_sequential_fallback(stage_models, context)
 
         # Create execution plan with adaptive thread count
         execution_plan = self.dependency_analyzer.create_execution_plan(
@@ -211,19 +245,9 @@ class ParallelExecutionEngine:
 
         execution_time = time.perf_counter() - start_time
 
-        # Final resource check and performance recording
-        final_resources = {}
-        if self.resource_manager:
-            final_resources = self.resource_manager.get_resource_status()
-
-            # Record performance for future optimization
-            if self.enable_adaptive_scaling and total_parallelism > 0:
-                self.resource_manager.thread_adjuster.record_performance(
-                    total_parallelism, execution_time
-                )
-
-        elif self.legacy_resource_monitor and self.resource_monitoring:
-            final_resources = self.legacy_resource_monitor.check_resources()
+        final_resources = self._record_final_resource_metrics(
+            total_parallelism, execution_time, context
+        )
 
         # Enhanced execution result with resource management metrics
         execution_result = ExecutionResult(
@@ -327,6 +351,43 @@ class ParallelExecutionEngine:
             errors=errors
         )
 
+    def _collect_deterministic_results(
+        self,
+        future_to_model: Dict[Future, Tuple[str, int]]
+    ) -> Tuple[Dict[str, DbtResult], List[str]]:
+        """Collect results from futures in deterministic order.
+
+        Returns a tuple of (model_results, errors).
+        """
+        errors: List[str] = []
+        completed_futures: Dict[int, Tuple[str, DbtResult]] = {}
+
+        for future in as_completed(future_to_model):
+            model, order_idx = future_to_model[future]
+            try:
+                result = future.result()
+                completed_futures[order_idx] = (model, result)
+
+                if not result.success:
+                    errors.append(f"Model {model} failed with code {result.return_code}")
+                    if self.verbose:
+                        print(f"   ❌ {model}: failed (order: {order_idx})")
+                elif self.verbose:
+                    print(f"   ✅ {model}: {result.execution_time:.1f}s (order: {order_idx})")
+
+            except Exception as e:
+                errors.append(f"Model {model} raised exception: {str(e)}")
+                if self.verbose:
+                    print(f"   💥 {model}: {str(e)} (order: {order_idx})")
+
+        # Process results in deterministic order
+        model_results: Dict[str, DbtResult] = {}
+        for i in sorted(completed_futures.keys()):
+            model, result = completed_futures[i]
+            model_results[model] = result
+
+        return model_results, errors
+
     def _execute_parallel_deterministic(
         self,
         models: List[str],
@@ -338,13 +399,6 @@ class ParallelExecutionEngine:
 
         if self.verbose:
             print(f"   🔐 Deterministic parallel execution: {len(models)} models")
-
-        model_results = {}
-        errors = []
-
-        # DETERMINISM FIX: Use a queue to maintain deterministic execution order
-        from queue import Queue
-        result_queue = Queue()
 
         with ThreadPoolExecutor(max_workers=max_parallel, thread_name_prefix="dbt-model-det") as executor:
             # Submit models in sorted order for deterministic execution
@@ -362,31 +416,7 @@ class ParallelExecutionEngine:
                 future = executor.submit(self._execute_single_model_deterministic, model, model_context, i)
                 future_to_model[future] = (model, i)
 
-            # Collect results in deterministic order (not completion order)
-            completed_futures = {}
-
-            for future in as_completed(future_to_model):
-                model, order_idx = future_to_model[future]
-                try:
-                    result = future.result()
-                    completed_futures[order_idx] = (model, result)
-
-                    if not result.success:
-                        errors.append(f"Model {model} failed with code {result.return_code}")
-                        if self.verbose:
-                            print(f"   ❌ {model}: failed (order: {order_idx})")
-                    elif self.verbose:
-                        print(f"   ✅ {model}: {result.execution_time:.1f}s (order: {order_idx})")
-
-                except Exception as e:
-                    errors.append(f"Model {model} raised exception: {str(e)}")
-                    if self.verbose:
-                        print(f"   💥 {model}: {str(e)} (order: {order_idx})")
-
-            # Process results in deterministic order
-            for i in sorted(completed_futures.keys()):
-                model, result = completed_futures[i]
-                model_results[model] = result
+            model_results, errors = self._collect_deterministic_results(future_to_model)
 
         execution_time = time.perf_counter() - start_time
 

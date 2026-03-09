@@ -154,24 +154,7 @@ class YearExecutor:
             if self.verbose:
                 print(f"   📋 Starting {stage.name.value} with {self.dbt_threads} threads")
 
-            # Execute stage with appropriate threading strategy
-            if stage.name == WorkflowStage.EVENT_GENERATION:
-                # EVENT_GENERATION can be parallelized safely
-                results = self._execute_parallel_stage(stage, year)
-            elif stage.name == WorkflowStage.STATE_ACCUMULATION:
-                # Validate year dependencies before state accumulation
-                # This prevents silent data corruption from out-of-order year execution
-                self._year_validator.validate_year_dependencies(year)
-
-                # Run STATE_ACCUMULATION with dbt
-                if self.verbose:
-                    print(f"   🔒 Running STATE_ACCUMULATION with dbt (sequential)")
-                self._run_stage_models(stage, year)
-                results = []
-            else:
-                # Use existing sequential execution for other stages
-                self._run_stage_models(stage, year)
-                results = []
+            results = self._dispatch_stage_execution(stage, year)
 
             execution_time = time.time() - start_time
             if self.verbose:
@@ -197,6 +180,29 @@ class YearExecutor:
                 "execution_time": execution_time,
                 "error": str(e)
             }
+
+    def _dispatch_stage_execution(self, stage: StageDefinition, year: int) -> List[DbtResult]:
+        """Dispatch to the appropriate execution strategy for the stage.
+
+        Args:
+            stage: Stage definition with models and metadata
+            year: Simulation year
+
+        Returns:
+            List of dbt results (empty list for non-parallel stages)
+        """
+        if stage.name == WorkflowStage.EVENT_GENERATION:
+            return self._execute_parallel_stage(stage, year)
+
+        if stage.name == WorkflowStage.STATE_ACCUMULATION:
+            # Validate year dependencies before state accumulation
+            # This prevents silent data corruption from out-of-order year execution
+            self._year_validator.validate_year_dependencies(year)
+            if self.verbose:
+                print(f"   🔒 Running STATE_ACCUMULATION with dbt (sequential)")
+
+        self._run_stage_models(stage, year)
+        return []
 
     def _execute_parallel_stage(
         self,
@@ -472,65 +478,128 @@ class YearExecutor:
             WorkflowStage.EVENT_GENERATION,
             WorkflowStage.STATE_ACCUMULATION,
         ):
-            setup = getattr(self.config, "setup", None)
-            force_full_refresh = bool(
-                isinstance(setup, dict)
-                and setup.get("clear_tables")
-                and setup.get("clear_mode", "all").lower() == "all"
-            )
-
-            for model in stage.models:
-                # If building the snapshot, clear the year's rows first to avoid dbt pre-hook concurrency
-                if model == "fct_workforce_snapshot":
-                    try:
-                        def _clear(conn):
-                            conn.execute(
-                                "DELETE FROM fct_workforce_snapshot WHERE simulation_year = ?",
-                                [year],
-                            )
-                            return True
-
-                        self.db_manager.execute_with_retry(_clear)
-                        if self.verbose:
-                            print(
-                                f"   🧹 Cleared fct_workforce_snapshot for simulation_year={year} before rebuild"
-                            )
-                    except Exception:
-                        # Non-fatal; proceed with dbt incremental upsert
-                        pass
-                selection = ["run", "--select", model]
-                # Special case: always full-refresh models that have schema issues or self-references
-                if (
-                    model
-                    in [
-                        "int_workforce_snapshot_optimized",
-                        "int_deferral_rate_escalation_events",
-                    ]
-                    or force_full_refresh
-                ):
-                    selection.append("--full-refresh")
-                    if self.verbose:
-                        if model == "int_workforce_snapshot_optimized":
-                            reason = "schema compatibility"
-                        elif model == "int_deferral_rate_escalation_events":
-                            reason = "self-reference incremental"
-                        else:
-                            reason = "clear_mode=all"
-                        print(
-                            f"   🔄 Rebuilding {model} with --full-refresh ({reason}) for year {year}"
-                        )
-                res = self.dbt_runner.execute_command(
-                    selection,
-                    simulation_year=year,
-                    dbt_vars=self._dbt_vars,
-                    stream_output=True,
-                )
-                if not res.success:
-                    raise PipelineStageError(
-                        f"Dbt failed on model {model} in stage {stage.name.value} with code {res.return_code}"
-                    )
+            self._run_sequential_event_models(stage, year)
             return
 
+        self._run_parallel_or_single(stage, year)
+
+    def _run_sequential_event_models(self, stage: StageDefinition, year: int) -> None:
+        """Run event/accumulation stage models sequentially to enforce ordering.
+
+        Args:
+            stage: Stage definition with models to execute
+            year: Simulation year
+
+        Raises:
+            PipelineStageError: If any model execution fails
+        """
+        force_full_refresh = self._is_force_full_refresh()
+
+        for model in stage.models:
+            self._clear_snapshot_rows_if_needed(model, year)
+            selection = ["run", "--select", model]
+            self._append_full_refresh_if_needed(selection, model, force_full_refresh, year)
+            res = self.dbt_runner.execute_command(
+                selection,
+                simulation_year=year,
+                dbt_vars=self._dbt_vars,
+                stream_output=True,
+            )
+            if not res.success:
+                raise PipelineStageError(
+                    f"Dbt failed on model {model} in stage {stage.name.value} with code {res.return_code}"
+                )
+
+    def _is_force_full_refresh(self) -> bool:
+        """Check if setup config requires forced full refresh for all models."""
+        setup = getattr(self.config, "setup", None)
+        return bool(
+            isinstance(setup, dict)
+            and setup.get("clear_tables")
+            and setup.get("clear_mode", "all").lower() == "all"
+        )
+
+    def _clear_snapshot_rows_if_needed(self, model: str, year: int) -> None:
+        """Clear fct_workforce_snapshot rows for the year before rebuild.
+
+        This avoids dbt pre-hook concurrency issues when rebuilding the snapshot.
+
+        Args:
+            model: Model name to check
+            year: Simulation year whose rows should be cleared
+        """
+        if model != "fct_workforce_snapshot":
+            return
+        try:
+            def _clear(conn):
+                conn.execute(
+                    "DELETE FROM fct_workforce_snapshot WHERE simulation_year = ?",
+                    [year],
+                )
+                return True
+
+            self.db_manager.execute_with_retry(_clear)
+            if self.verbose:
+                print(
+                    f"   🧹 Cleared fct_workforce_snapshot for simulation_year={year} before rebuild"
+                )
+        except Exception:
+            # Non-fatal; proceed with dbt incremental upsert
+            pass
+
+    def _append_full_refresh_if_needed(
+        self, selection: List[str], model: str, force_full_refresh: bool, year: int
+    ) -> None:
+        """Append --full-refresh flag for models that require it.
+
+        Args:
+            selection: dbt command list to potentially modify in place
+            model: Current model name
+            force_full_refresh: Whether config forces full refresh for all models
+            year: Simulation year (for verbose logging)
+        """
+        needs_refresh = (
+            model in [
+                "int_workforce_snapshot_optimized",
+                "int_deferral_rate_escalation_events",
+            ]
+            or force_full_refresh
+        )
+        if not needs_refresh:
+            return
+
+        selection.append("--full-refresh")
+        if self.verbose:
+            reason = self._get_full_refresh_reason(model)
+            print(
+                f"   🔄 Rebuilding {model} with --full-refresh ({reason}) for year {year}"
+            )
+
+    def _get_full_refresh_reason(self, model: str) -> str:
+        """Return a human-readable reason for full refresh based on model name.
+
+        Args:
+            model: Model name
+
+        Returns:
+            String describing why full refresh is needed
+        """
+        reasons = {
+            "int_workforce_snapshot_optimized": "schema compatibility",
+            "int_deferral_rate_escalation_events": "self-reference incremental",
+        }
+        return reasons.get(model, "clear_mode=all")
+
+    def _run_parallel_or_single(self, stage: StageDefinition, year: int) -> None:
+        """Execute stage models in parallel or as a single dbt selection.
+
+        Args:
+            stage: Stage definition with models to execute
+            year: Simulation year
+
+        Raises:
+            PipelineStageError: If model execution fails
+        """
         if stage.parallel_safe and len(stage.models) > 1:
             results = self.dbt_runner.run_models(
                 stage.models,
@@ -543,28 +612,47 @@ class YearExecutor:
                 raise PipelineStageError(
                     f"Some models failed in stage {stage.name.value}: {[f.command for f in failed]}"
                 )
-        else:
-            # Run as a single selection for consistent dependency behavior
-            selection = ["run", "--select", " ".join(stage.models)]
-            # Optimization: Only use --full-refresh for FOUNDATION on first year or when clear_mode == 'all'
-            if stage.name == WorkflowStage.FOUNDATION:
-                setup = getattr(self.config, "setup", None)
-                clear_mode = (
-                    isinstance(setup, dict) and setup.get("clear_mode", "all").lower()
-                ) or "all"
-                if year == self.config.simulation.start_year or clear_mode == "all":
-                    selection.append("--full-refresh")
-                    if self.verbose:
-                        print(
-                            f"   🔄 Running {stage.name.value} with --full-refresh (year={year}, clear_mode={clear_mode})"
-                        )
-            res = self.dbt_runner.execute_command(
-                selection,
-                simulation_year=year,
-                dbt_vars=self._dbt_vars,
-                stream_output=True,
+            return
+
+        # Run as a single selection for consistent dependency behavior
+        selection = ["run", "--select", " ".join(stage.models)]
+        if self._should_full_refresh_foundation(stage, year):
+            selection.append("--full-refresh")
+        res = self.dbt_runner.execute_command(
+            selection,
+            simulation_year=year,
+            dbt_vars=self._dbt_vars,
+            stream_output=True,
+        )
+        if not res.success:
+            raise PipelineStageError(
+                f"Dbt failed in stage {stage.name.value} with code {res.return_code}"
             )
-            if not res.success:
-                raise PipelineStageError(
-                    f"Dbt failed in stage {stage.name.value} with code {res.return_code}"
-                )
+
+    def _should_full_refresh_foundation(self, stage: StageDefinition, year: int) -> bool:
+        """Determine if the FOUNDATION stage should use --full-refresh.
+
+        Full refresh is used on the first simulation year or when clear_mode is 'all'.
+
+        Args:
+            stage: Stage definition to check
+            year: Current simulation year
+
+        Returns:
+            True if --full-refresh should be appended
+        """
+        if stage.name != WorkflowStage.FOUNDATION:
+            return False
+
+        setup = getattr(self.config, "setup", None)
+        clear_mode = (
+            isinstance(setup, dict) and setup.get("clear_mode", "all").lower()
+        ) or "all"
+        should_refresh = year == self.config.simulation.start_year or clear_mode == "all"
+
+        if should_refresh and self.verbose:
+            print(
+                f"   🔄 Running {stage.name.value} with --full-refresh (year={year}, clear_mode={clear_mode})"
+            )
+
+        return should_refresh

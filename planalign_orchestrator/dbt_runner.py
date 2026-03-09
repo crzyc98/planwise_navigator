@@ -279,37 +279,46 @@ class DbtRunner:
                 on_line=on_line,
             )
 
-        if not retry:
-            result = _run_once()
-        else:
-            def _wrapped() -> DbtResult:
-                try:
-                    res = _run_once()
-                    if not res.success:
-                        err = classify_dbt_error(res.stdout, res.stderr, res.return_code)
-                        raise err
-                    return res
-                except DbtError:
-                    # Let retry_with_backoff decide on retries
-                    raise
+        result = self._execute_with_retry(_run_once, retry=retry, max_attempts=max_attempts)
 
-            result = retry_with_backoff(_wrapped, max_attempts=max_attempts)
-
-        # Post-execution performance logging with thread utilization metrics
         if log_performance and self.verbose and result.success:
-            threading_info = self.get_thread_utilization_info()
-            execution_time = result.execution_time
-
-            # Calculate rough thread utilization efficiency
-            if threading_info["thread_count"] > 1:
-                # This is a rough estimate - actual efficiency depends on dbt model dependencies
-                theoretical_single_thread_time = execution_time * threading_info["thread_count"]
-                efficiency_pct = min(100.0, (theoretical_single_thread_time / execution_time) / threading_info["thread_count"] * 100)
-                print(f"⚡ Performance: {execution_time:.1f}s with {threading_info['thread_count']} threads (est. efficiency: {efficiency_pct:.0f}%)")
-            else:
-                print(f"⚡ Performance: {execution_time:.1f}s (single-threaded)")
+            self._log_post_execution_performance(result)
 
         return result
+
+    def _execute_with_retry(
+        self,
+        run_once: Callable[[], DbtResult],
+        *,
+        retry: bool,
+        max_attempts: int,
+    ) -> DbtResult:
+        """Execute a dbt command, optionally wrapping with retry logic."""
+        if not retry:
+            return run_once()
+
+        def _wrapped() -> DbtResult:
+            res = run_once()
+            if not res.success:
+                raise classify_dbt_error(res.stdout, res.stderr, res.return_code)
+            return res
+
+        return retry_with_backoff(_wrapped, max_attempts=max_attempts)
+
+    def _log_post_execution_performance(self, result: DbtResult) -> None:
+        """Log post-execution performance metrics with thread utilization info."""
+        threading_info = self.get_thread_utilization_info()
+        execution_time = result.execution_time
+
+        if threading_info["thread_count"] <= 1:
+            print(f"⚡ Performance: {execution_time:.1f}s (single-threaded)")
+            return
+
+        # Calculate rough thread utilization efficiency
+        # This is a rough estimate - actual efficiency depends on dbt model dependencies
+        theoretical_single_thread_time = execution_time * threading_info["thread_count"]
+        efficiency_pct = min(100.0, (theoretical_single_thread_time / execution_time) / threading_info["thread_count"] * 100)
+        print(f"⚡ Performance: {execution_time:.1f}s with {threading_info['thread_count']} threads (est. efficiency: {efficiency_pct:.0f}%)")
 
     def _execute_once(
         self,
@@ -342,55 +351,99 @@ class DbtRunner:
 
         if stream_output:
             return self._execute_with_streaming(cmd, on_line=on_line, start_ts=start)
-        else:
+
+        return self._run_subprocess(cmd, start_ts=start)
+
+    def _build_subprocess_env(self) -> Optional[Dict[str, str]]:
+        """Build environment variables for subprocess execution.
+
+        Sets DATABASE_PATH (relative to working dir) and corporate network
+        proxy/certificate settings when available.
+        """
+        import os
+
+        env: Optional[Dict[str, str]] = None
+
+        if self.database_path:
+            env = os.environ.copy()
+            # For dbt running from /dbt directory, use relative path from dbt/ to database
+            abs_db_path = Path(self.database_path).absolute()
+            abs_working_dir = self.working_dir.absolute()
             try:
-                # Set up environment with DATABASE_PATH if specified
-                env = None
-                if self.database_path:
-                    import os
-                    env = os.environ.copy()
-                    # For dbt running from /dbt directory, use relative path from dbt/ to database
-                    abs_db_path = Path(self.database_path).absolute()
-                    abs_working_dir = self.working_dir.absolute()
-                    try:
-                        relative_path = abs_db_path.relative_to(abs_working_dir)
-                        env['DATABASE_PATH'] = str(relative_path)
-                    except ValueError:
-                        # Fallback to absolute path if relative calculation fails
-                        env['DATABASE_PATH'] = str(abs_db_path)
+                relative_path = abs_db_path.relative_to(abs_working_dir)
+                env['DATABASE_PATH'] = str(relative_path)
+            except ValueError:
+                # Fallback to absolute path if relative calculation fails
+                env['DATABASE_PATH'] = str(abs_db_path)
 
-                # Use corporate network-aware subprocess if available
-                try:
-                    from .network_utils import test_subprocess_with_proxy
-                    res = test_subprocess_with_proxy(
-                        cmd,
-                        env=env,
-                        timeout=None,  # Use configured timeout from network settings
-                        cwd=self.working_dir,
-                    )
-                except ImportError:
-                    # Fallback to standard subprocess
-                    res = subprocess.run(
-                        cmd,
-                        cwd=self.working_dir,
-                        check=False,
-                        capture_output=True,
-                        text=True,
-                        encoding='utf-8',
-                        env=env,
-                    )
+        # Add corporate network environment variables if available
+        try:
+            from .network_utils import load_network_config
+            config = load_network_config()
+            if env is None:
+                env = os.environ.copy()
 
-            except Exception as e:
-                raise DbtExecutionError(str(e))
-            end = time.perf_counter()
-            return DbtResult(
-                success=res.returncode == 0,
-                stdout=res.stdout or "",
-                stderr=res.stderr or "",
-                execution_time=end - start,
-                return_code=res.returncode,
-                command=cmd,
-            )
+            # Add proxy settings to environment
+            if config.proxy.http_proxy:
+                env['HTTP_PROXY'] = config.proxy.http_proxy
+                env['http_proxy'] = config.proxy.http_proxy
+            if config.proxy.https_proxy:
+                env['HTTPS_PROXY'] = config.proxy.https_proxy
+                env['https_proxy'] = config.proxy.https_proxy
+            if config.proxy.no_proxy:
+                env['NO_PROXY'] = ','.join(config.proxy.no_proxy)
+                env['no_proxy'] = ','.join(config.proxy.no_proxy)
+
+            # Add certificate settings
+            if config.certificates.ca_bundle_path:
+                env['REQUESTS_CA_BUNDLE'] = config.certificates.ca_bundle_path
+                env['SSL_CERT_FILE'] = config.certificates.ca_bundle_path
+                env['CURL_CA_BUNDLE'] = config.certificates.ca_bundle_path
+
+        except ImportError:
+            # Corporate network support not available, continue with standard env
+            pass
+
+        return env
+
+    def _run_subprocess(self, cmd: List[str], *, start_ts: float) -> DbtResult:
+        """Execute a dbt command as a subprocess (non-streaming mode)."""
+        try:
+            env = self._build_subprocess_env()
+
+            # Use corporate network-aware subprocess if available
+            try:
+                from .network_utils import test_subprocess_with_proxy
+                res = test_subprocess_with_proxy(
+                    cmd,
+                    env=env,
+                    timeout=None,  # Use configured timeout from network settings
+                    cwd=self.working_dir,
+                )
+            except ImportError:
+                # Fallback to standard subprocess
+                res = subprocess.run(
+                    cmd,
+                    cwd=self.working_dir,
+                    check=False,
+                    capture_output=True,
+                    text=True,
+                    encoding='utf-8',
+                    env=env,
+                )
+
+        except Exception as e:
+            raise DbtExecutionError(str(e))
+
+        end = time.perf_counter()
+        return DbtResult(
+            success=res.returncode == 0,
+            stdout=res.stdout or "",
+            stderr=res.stderr or "",
+            execution_time=end - start_ts,
+            return_code=res.returncode,
+            command=cmd,
+        )
 
     def _execute_with_streaming(
         self,
@@ -400,49 +453,7 @@ class DbtRunner:
         start_ts: float,
     ) -> DbtResult:
         try:
-            # Set up environment with DATABASE_PATH and corporate network settings
-            env = None
-            if self.database_path:
-                import os
-                env = os.environ.copy()
-                # For dbt running from /dbt directory, use relative path from dbt/ to database
-                abs_db_path = Path(self.database_path).absolute()
-                abs_working_dir = self.working_dir.absolute()
-                try:
-                    relative_path = abs_db_path.relative_to(abs_working_dir)
-                    env['DATABASE_PATH'] = str(relative_path)
-                except ValueError:
-                    # Fallback to absolute path if relative calculation fails
-                    env['DATABASE_PATH'] = str(abs_db_path)
-
-            # Add corporate network environment variables if available
-            try:
-                from .network_utils import load_network_config
-                config = load_network_config()
-                if env is None:
-                    import os
-                    env = os.environ.copy()
-
-                # Add proxy settings to environment
-                if config.proxy.http_proxy:
-                    env['HTTP_PROXY'] = config.proxy.http_proxy
-                    env['http_proxy'] = config.proxy.http_proxy
-                if config.proxy.https_proxy:
-                    env['HTTPS_PROXY'] = config.proxy.https_proxy
-                    env['https_proxy'] = config.proxy.https_proxy
-                if config.proxy.no_proxy:
-                    env['NO_PROXY'] = ','.join(config.proxy.no_proxy)
-                    env['no_proxy'] = ','.join(config.proxy.no_proxy)
-
-                # Add certificate settings
-                if config.certificates.ca_bundle_path:
-                    env['REQUESTS_CA_BUNDLE'] = config.certificates.ca_bundle_path
-                    env['SSL_CERT_FILE'] = config.certificates.ca_bundle_path
-                    env['CURL_CA_BUNDLE'] = config.certificates.ca_bundle_path
-
-            except ImportError:
-                # Corporate network support not available, continue with standard env
-                pass
+            env = self._build_subprocess_env()
 
             process = subprocess.Popen(
                 cmd,

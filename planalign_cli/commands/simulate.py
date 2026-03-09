@@ -108,33 +108,18 @@ def run_simulation(
             raise typer.Exit(1)
 
         # Handle resume/restart logic
-        actual_start_year = start_year
-        if force_restart:
-            console.print("🔄 [yellow]Force restart: ignoring checkpoints[/yellow]")
-        elif resume:
-            config_hash = wrapper.recovery_orchestrator.calculate_config_hash(str(config_path))
-            resume_year = wrapper.recovery_orchestrator.resume_simulation(end_year, config_hash)
-            if resume_year:
-                actual_start_year = resume_year
-                console.print(f"🔄 [green]Resume mode: starting from year {actual_start_year}[/green]")
-                if actual_start_year > end_year:
-                    show_success_message(f"Simulation already complete through year {resume_year - 1}")
-                    return
-            else:
-                console.print("🔄 [yellow]No valid checkpoint found, starting from beginning[/yellow]")
+        actual_start_year = _resolve_start_year(
+            wrapper, config_path, start_year, end_year, resume, force_restart
+        )
+        if actual_start_year is None:
+            return
 
         if dry_run:
             _show_dry_run_preview(wrapper, actual_start_year, end_year, threads)
             return
 
-
         # Apply parameter shortcuts (growth rate conversion)
-        if growth:
-            growth_rate = _parse_growth_rate(growth)
-            if verbose:
-                console.print(f"📈 [blue]Growth rate override: {growth} → {growth_rate:.3f}[/blue]")
-            # Note: Growth rate application would require config modification
-            # For now, we show the user-friendly parameter but delegate to existing logic
+        _apply_growth_override(growth, verbose)
 
         # Run simulation with enhanced progress tracking
         total_years = end_year - actual_start_year + 1
@@ -227,6 +212,52 @@ def simulation_status(
     except Exception as e:
         show_error_message(f"Status check failed: {e}")
         raise typer.Exit(1)
+
+def _resolve_start_year(
+    wrapper: OrchestratorWrapper,
+    config_path: Path,
+    start_year: int,
+    end_year: int,
+    resume: bool,
+    force_restart: bool,
+) -> Optional[int]:
+    """Resolve the actual start year based on resume/restart flags.
+
+    Returns the resolved start year, or None if the simulation is already complete.
+    """
+    if force_restart:
+        console.print("🔄 [yellow]Force restart: ignoring checkpoints[/yellow]")
+        return start_year
+
+    if not resume:
+        return start_year
+
+    config_hash = wrapper.recovery_orchestrator.calculate_config_hash(str(config_path))
+    resume_year = wrapper.recovery_orchestrator.resume_simulation(end_year, config_hash)
+
+    if not resume_year:
+        console.print("🔄 [yellow]No valid checkpoint found, starting from beginning[/yellow]")
+        return start_year
+
+    console.print(f"🔄 [green]Resume mode: starting from year {resume_year}[/green]")
+    if resume_year > end_year:
+        show_success_message(f"Simulation already complete through year {resume_year - 1}")
+        return None
+
+    return resume_year
+
+
+def _apply_growth_override(growth: Optional[str], verbose: bool) -> None:
+    """Parse and log growth rate override if provided."""
+    if not growth:
+        return
+
+    growth_rate = _parse_growth_rate(growth)
+    if verbose:
+        console.print(f"📈 [blue]Growth rate override: {growth} → {growth_rate:.3f}[/blue]")
+    # Note: Growth rate application would require config modification
+    # For now, we show the user-friendly parameter but delegate to existing logic
+
 
 def _show_dry_run_preview(wrapper: OrchestratorWrapper, start_year: int, end_year: int, threads: Optional[int]):
     """Show what would be executed in dry run mode."""
@@ -448,6 +479,59 @@ class LiveProgressTracker:
             if hasattr(self, '_update_layout'):
                 self._update_layout()
 
+    def _build_status_table(self) -> Table:
+        """Build the live metrics status table for the progress display."""
+        status_table = Table(title="📊 Live Simulation Metrics", show_header=False, box=None)
+        status_table.add_column("Metric", style="bold cyan", width=18)
+        status_table.add_column("Value", style="green bold")
+
+        # Current progress
+        if self.current_year:
+            status_table.add_row("🗓️ Current Year", str(self.current_year))
+
+        if self.current_stage:
+            stage_display = self.current_stage.replace('_', ' ').title()
+            status_table.add_row("🔄 Current Stage", stage_display)
+
+        # Completion progress
+        status_table.add_row("✅ Years Completed", f"{self.years_completed}/{self.total_years}")
+
+        # Event statistics
+        if self.total_events > 0:
+            status_table.add_row("📈 Total Events", f"{self.total_events:,}")
+
+        if self.current_year and self.current_year in self.year_events:
+            current_year_events = self.year_events[self.current_year]
+            if current_year_events > 0:
+                status_table.add_row(f"📊 Year {self.current_year} Events", f"{current_year_events:,}")
+
+        # Performance metrics
+        if len(self.stage_durations) > 0:
+            avg_stage_time = sum(self.stage_durations.values()) / len(self.stage_durations)
+            status_table.add_row("⚡ Avg Stage Time", f"{avg_stage_time:.1f}s")
+
+        # Estimated completion time (rough calculation)
+        self._add_estimated_remaining(status_table)
+
+        return status_table
+
+    def _add_estimated_remaining(self, status_table: Table) -> None:
+        """Add estimated remaining time row to the status table if calculable."""
+        if not (self.years_completed > 0 and self.stage_durations):
+            return
+
+        avg_time_per_year = sum(self.stage_durations.values()) / max(1, self.years_completed)
+        remaining_years = self.total_years - self.years_completed
+        if remaining_years <= 0:
+            return
+
+        est_remaining_time = remaining_years * avg_time_per_year
+        if est_remaining_time > 60:
+            est_display = f"~{int(est_remaining_time // 60)}m {int(est_remaining_time % 60)}s"
+        else:
+            est_display = f"~{int(est_remaining_time)}s"
+        status_table.add_row("⏱️ Est. Remaining", est_display)
+
     @contextmanager
     def live_display(self):
         """Context manager for live progress display."""
@@ -475,50 +559,7 @@ class LiveProgressTracker:
         # Create dynamic live display with progress and metrics
         def create_live_layout():
             """Create layout with current metrics."""
-            # Create status table with current data
-            status_table = Table(title="📊 Live Simulation Metrics", show_header=False, box=None)
-            status_table.add_column("Metric", style="bold cyan", width=18)
-            status_table.add_column("Value", style="green bold")
-
-            # Current progress
-            if self.current_year:
-                status_table.add_row("🗓️ Current Year", str(self.current_year))
-
-            if self.current_stage:
-                stage_display = self.current_stage.replace('_', ' ').title()
-                status_table.add_row("🔄 Current Stage", stage_display)
-
-            # Completion progress
-            status_table.add_row("✅ Years Completed", f"{self.years_completed}/{self.total_years}")
-
-            # Event statistics
-            if self.total_events > 0:
-                status_table.add_row("📈 Total Events", f"{self.total_events:,}")
-
-            if self.current_year and self.current_year in self.year_events:
-                current_year_events = self.year_events[self.current_year]
-                if current_year_events > 0:
-                    status_table.add_row(f"📊 Year {self.current_year} Events", f"{current_year_events:,}")
-
-            # Performance metrics
-            if len(self.stage_durations) > 0:
-                avg_stage_time = sum(self.stage_durations.values()) / len(self.stage_durations)
-                status_table.add_row("⚡ Avg Stage Time", f"{avg_stage_time:.1f}s")
-
-            # Estimated completion time (rough calculation)
-            if self.years_completed > 0 and self.stage_durations:
-                stages_per_year = len(self.stage_durations) / max(1, self.years_completed)
-                avg_time_per_year = sum(self.stage_durations.values()) / max(1, self.years_completed)
-                remaining_years = self.total_years - self.years_completed
-                if remaining_years > 0:
-                    est_remaining_time = remaining_years * avg_time_per_year
-                    if est_remaining_time > 60:
-                        est_display = f"~{int(est_remaining_time // 60)}m {int(est_remaining_time % 60)}s"
-                    else:
-                        est_display = f"~{int(est_remaining_time)}s"
-                    status_table.add_row("⏱️ Est. Remaining", est_display)
-
-            # Setup layout
+            status_table = self._build_status_table()
             layout = Layout()
             layout.split_column(
                 Layout(self.progress, name="progress", size=5),
