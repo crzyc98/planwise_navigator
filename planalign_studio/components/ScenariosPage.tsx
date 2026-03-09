@@ -336,10 +336,14 @@ export default function ScenariosPage() {
             {scenarios.map((scenario) => (
               <div
                 key={scenario.id}
+                role={selectMode ? "checkbox" : undefined}
+                aria-checked={selectMode ? selectedIds.has(scenario.id) : undefined}
+                tabIndex={selectMode ? 0 : undefined}
                 className={`p-4 hover:bg-gray-50 transition-colors ${
                   selectMode && selectedIds.has(scenario.id) ? 'bg-blue-50' : ''
-                }`}
+                } ${selectMode ? 'cursor-pointer' : ''}`}
                 onClick={selectMode ? () => toggleSelection(scenario.id) : undefined}
+                onKeyDown={selectMode ? (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); toggleSelection(scenario.id); } } : undefined}
               >
                 {editingId === scenario.id ? (
                   // Edit mode
