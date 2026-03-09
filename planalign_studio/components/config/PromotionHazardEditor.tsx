@@ -85,8 +85,9 @@ export function PromotionHazardEditor() {
         <h4 className="text-xs font-semibold text-gray-700 uppercase tracking-wider mb-3">Base Parameters</h4>
         <div className="grid grid-cols-2 gap-4">
           <div>
-            <label className="block text-xs text-gray-500 mb-1">Base Rate (%)</label>
+            <label htmlFor="promo-base-rate" className="block text-xs text-gray-500 mb-1">Base Rate (%)</label>
             <input
+              id="promo-base-rate"
               type="number"
               step="0.1"
               min="0"
@@ -98,8 +99,9 @@ export function PromotionHazardEditor() {
             <p className="mt-1 text-xs text-gray-400">Stored as {promotionHazardConfig.base.base_rate}</p>
           </div>
           <div>
-            <label className="block text-xs text-gray-500 mb-1">Level Dampener (%)</label>
+            <label htmlFor="promo-level-dampener" className="block text-xs text-gray-500 mb-1">Level Dampener (%)</label>
             <input
+              id="promo-level-dampener"
               type="number"
               step="0.1"
               min="0"

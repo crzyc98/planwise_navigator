@@ -127,7 +127,7 @@ def is_sitecustomize_configured() -> bool:
                 content = sc_path.read_text()
                 if "MAX_GROUPING_TOKENS = 50000" in content:
                     return True
-            except (OSError, PermissionError):
+            except OSError:
                 continue
     return False
 
@@ -170,7 +170,7 @@ def ensure_sitecustomize_installed(silent: bool = False) -> bool:
                         file=sys.stderr,
                     )
                 return True
-            except (PermissionError, OSError):
+            except OSError:
                 continue
 
     return False
@@ -211,7 +211,7 @@ def ensure_pth_installed(silent: bool = False) -> bool:
                         file=sys.stderr,
                     )
                 return True
-            except (PermissionError, OSError):
+            except OSError:
                 continue
 
     return False

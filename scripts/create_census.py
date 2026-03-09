@@ -51,7 +51,7 @@ def generate_mock_workforce_parquet(
     # Initialize unified ID generator and set global random seed
     id_generator = UnifiedIDGenerator(random_seed, base_year)
     random.seed(random_seed)
-    np.random.seed(random_seed)
+    rng = np.random.default_rng(random_seed)
 
     employees = []
     current_employee_id = 1
@@ -81,7 +81,7 @@ def generate_mock_workforce_parquet(
         ssn = f"SSN-{100000000 + current_employee_id:09d}"
 
         # Age distribution (skewed slightly younger, then broader middle)
-        age = int(np.random.normal(38, 10))  # Mean 38, Std Dev 10
+        age = int(rng.normal(38, 10))  # Mean 38, Std Dev 10
         age = max(22, min(65, age))  # Clamp between 22 and 65
 
         # Birth date relative to base_year
@@ -90,7 +90,7 @@ def generate_mock_workforce_parquet(
         )
 
         # Tenure distribution (skewed towards shorter tenure)
-        tenure = int(np.random.exponential(5))  # Mean 5 years
+        tenure = int(rng.exponential(5))  # Mean 5 years
         tenure = max(0, min(30, tenure))  # Clamp between 0 and 30
 
         # Hire date relative to base_year and tenure

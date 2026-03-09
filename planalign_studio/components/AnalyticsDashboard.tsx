@@ -470,7 +470,7 @@ export default function AnalyticsDashboard() {
                       })();
 
                       return (
-                        <tr key={idx} className={idx % 2 === 0 ? 'bg-white' : 'bg-gray-50'}>
+                        <tr key={row.metric} className={idx % 2 === 0 ? 'bg-white' : 'bg-gray-50'}>
                           <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">{row.metric}</td>
                           <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-700 text-right">{formatValue(row.start_value)}</td>
                           <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-700 text-right">{formatValue(row.end_value)}</td>
@@ -737,7 +737,7 @@ export default function AnalyticsDashboard() {
                     </thead>
                     <tbody className="bg-white divide-y divide-gray-200">
                       {results.compensation_by_status.map((row, idx) => (
-                        <tr key={idx} className={idx % 2 === 0 ? 'bg-white' : 'bg-gray-50'}>
+                        <tr key={`${row.simulation_year}-${row.employment_status}`} className={idx % 2 === 0 ? 'bg-white' : 'bg-gray-50'}>
                           <td className="px-4 py-2 whitespace-nowrap text-sm text-gray-900">{row.simulation_year}</td>
                           <td className="px-4 py-2 whitespace-nowrap text-sm text-gray-900">
                             <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${statusBadgeColors[row.employment_status] || 'bg-gray-100 text-gray-800'}`}>

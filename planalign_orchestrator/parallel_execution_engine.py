@@ -621,9 +621,8 @@ class ParallelExecutionEngine:
             # Resource check before execution if monitoring enabled (legacy)
             if self.legacy_resource_monitor and self.resource_monitoring:
                 resources = self.legacy_resource_monitor.check_resources()
-                if resources["memory_pressure"]:
-                    if self.verbose:
-                        print(f"   ⚠️ Memory pressure during {model} execution: {resources['memory_mb']:.0f}MB")
+                if resources["memory_pressure"] and self.verbose:
+                    print(f"   ⚠️ Memory pressure during {model} execution: {resources['memory_mb']:.0f}MB")
 
             # DETERMINISM FIX: Create deterministic dbt_vars with thread-local seed
             deterministic_vars = context.dbt_vars.copy()
@@ -673,9 +672,8 @@ class ParallelExecutionEngine:
             # Resource check before execution if monitoring enabled (legacy)
             if self.legacy_resource_monitor and self.resource_monitoring:
                 resources = self.legacy_resource_monitor.check_resources()
-                if resources["memory_pressure"]:
-                    if self.verbose:
-                        print(f"   ⚠️ Memory pressure during {model} execution: {resources['memory_mb']:.0f}MB")
+                if resources["memory_pressure"] and self.verbose:
+                    print(f"   ⚠️ Memory pressure during {model} execution: {resources['memory_mb']:.0f}MB")
 
             # DETERMINISM FIX: Create completely isolated deterministic execution context
             deterministic_vars = context.dbt_vars.copy()

@@ -587,15 +587,14 @@ class RecoveryManager:
             if rp.timestamp > datetime.now() - timedelta(days=1)
         ]
 
-        recovery_readiness = (
-            "excellent"
-            if len(verified_points) >= 3
-            else "good"
-            if len(verified_points) >= 1
-            else "poor"
-            if len(recovery_points) > 0
-            else "critical"
-        )
+        if len(verified_points) >= 3:
+            recovery_readiness = "excellent"
+        elif len(verified_points) >= 1:
+            recovery_readiness = "good"
+        elif len(recovery_points) > 0:
+            recovery_readiness = "poor"
+        else:
+            recovery_readiness = "critical"
 
         return {
             "recovery_readiness": recovery_readiness,

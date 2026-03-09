@@ -348,7 +348,8 @@ class ExcelExporter:
             else "CAST(NULL AS BIGINT) AS enrolled_employees"
         )
 
-        salary_col = "current_salary" if "current_salary" in cols else ("salary" if "salary" in cols else None)
+        salary_col_fallback = "salary" if "salary" in cols else None
+        salary_col = "current_salary" if "current_salary" in cols else salary_col_fallback
         avg_salary_expr = (
             f"ROUND(AVG({salary_col}), 2) AS avg_salary" if salary_col else "CAST(NULL AS DOUBLE) AS avg_salary"
         )

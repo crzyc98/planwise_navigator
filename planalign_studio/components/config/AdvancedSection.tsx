@@ -22,9 +22,10 @@ export function AdvancedSection() {
             <Server size={16} className="mr-2 text-blue-500" /> System Resources
           </h3>
           <div className="space-y-4">
-            <label className="flex items-center justify-between cursor-pointer">
+            <label htmlFor="adv-multithreading" className="flex items-center justify-between cursor-pointer">
               <span className="text-sm text-gray-700">Enable Multithreading</span>
               <input
+                id="adv-multithreading"
                 type="checkbox"
                 name="enableMultithreading"
                 checked={formData.enableMultithreading}
@@ -46,8 +47,9 @@ export function AdvancedSection() {
               </select>
             </div>
             <div className="pt-2 border-t border-gray-100">
-              <label className="block text-xs font-medium text-gray-500 mb-1">Max Memory Limit (GB)</label>
+              <label htmlFor="adv-memory-limit" className="block text-xs font-medium text-gray-500 mb-1">Max Memory Limit (GB)</label>
               <input
+                id="adv-memory-limit"
                 type="number"
                 name="memoryLimitGB"
                 value={formData.memoryLimitGB}
@@ -63,9 +65,10 @@ export function AdvancedSection() {
             <Shield size={16} className="mr-2 text-purple-500" /> Safety & Logging
           </h3>
           <div className="space-y-4">
-            <label className="flex items-center justify-between cursor-pointer">
+            <label htmlFor="adv-strict-validation" className="flex items-center justify-between cursor-pointer">
               <span className="text-sm text-gray-700">Strict Schema Validation</span>
               <input
+                id="adv-strict-validation"
                 type="checkbox"
                 name="strictValidation"
                 checked={formData.strictValidation}

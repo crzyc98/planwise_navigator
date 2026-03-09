@@ -2,8 +2,8 @@ import { useConfigContext } from './ConfigContext';
 import type { Template } from '../../services/api';
 
 interface TemplateModalProps {
-  templates: Template[];
-  onClose: () => void;
+  readonly templates: Template[];
+  readonly onClose: () => void;
 }
 
 export function TemplateModal({ templates, onClose }: TemplateModalProps) {

@@ -66,7 +66,7 @@ class NetworkError:
     url: str
     status_code: Optional[int] = None
     retry_count: int = 0
-    timestamp: float = None
+    timestamp: float | None = None
 
     def __post_init__(self):
         if self.timestamp is None:
@@ -231,7 +231,7 @@ class CorporateNetworkClient:
                         retries=attempt
                     )
 
-            except (HTTPError, URLError, socket.timeout) as e:
+            except (URLError, socket.timeout) as e:
                 last_error = self._create_network_error(e, url, attempt)
 
                 # Don't retry on client errors (4xx)

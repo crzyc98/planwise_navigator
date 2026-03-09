@@ -84,7 +84,7 @@ async def init_sync(request: SyncInitRequest):
 
 
 @router.post("/push", response_model=SyncPushResult)
-async def push_changes(message: str = None):
+async def push_changes(_message: str = None):
     """Push local changes to remote.
 
     Stages all workspace metadata files and pushes to the configured remote.

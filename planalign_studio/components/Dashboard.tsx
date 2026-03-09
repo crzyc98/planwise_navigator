@@ -8,7 +8,7 @@ interface LayoutContext {
   activeWorkspace: Workspace;
 }
 
-const StatCard = ({ title, value, subtext, icon, color, onClick }: any) => (
+const StatCard = ({ title, value, subtext, icon, color, onClick }: Readonly<{ title: string; value: string | number; subtext: string; icon: React.ReactNode; color: string; onClick?: () => void }>) => (
   <div
     role="button"
     tabIndex={0}

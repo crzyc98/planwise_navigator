@@ -96,7 +96,6 @@ export default function SimulationDetail() {
 
   const [details, setDetails] = useState<RunDetails | null>(null);
   const [runs, setRuns] = useState<RunSummary[]>([]);
-  const [selectedRunId, setSelectedRunId] = useState<string | null>(null);
   const [expandedRuns, setExpandedRuns] = useState<Set<string>>(new Set());
   const [runArtifacts, setRunArtifacts] = useState<Record<string, Artifact[]>>({});
   const [isLoading, setIsLoading] = useState(true);
@@ -124,7 +123,6 @@ export default function SimulationDetail() {
         // If we have runs, auto-expand the most recent one
         if (runsData.length > 0) {
           setExpandedRuns(new Set([runsData[0].id]));
-          setSelectedRunId(runsData[0].id);
           // Load artifacts for the first run
           try {
             const runDetails = await getRunById(scenarioId, runsData[0].id);

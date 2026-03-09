@@ -18,7 +18,7 @@ import {
   HeatmapCell,
 } from '../services/api';
 
-const EmptyState = ({ message, onRefresh }: { message: string; onRefresh: () => void }) => (
+const EmptyState = ({ message, onRefresh }: Readonly<{ message: string; onRefresh: () => void }>) => (
   <div className="flex flex-col items-center justify-center h-96 text-gray-400">
     <Database size={48} className="mb-4" />
     <h3 className="text-lg font-semibold text-gray-600 mb-2">No Data Available</h3>
@@ -33,7 +33,7 @@ const EmptyState = ({ message, onRefresh }: { message: string; onRefresh: () => 
   </div>
 );
 
-const ErrorState = ({ message, onRetry }: { message: string; onRetry: () => void }) => (
+const ErrorState = ({ message, onRetry }: Readonly<{ message: string; onRetry: () => void }>) => (
   <div className="flex flex-col items-center justify-center h-96 text-red-400">
     <AlertCircle size={48} className="mb-4" />
     <h3 className="text-lg font-semibold text-red-600 mb-2">Failed to Load Analysis</h3>
@@ -48,7 +48,7 @@ const ErrorState = ({ message, onRetry }: { message: string; onRetry: () => void
   </div>
 );
 
-const KPICard = ({ title, value, icon: Icon, color }: { title: string; value: string | number; icon: any; color: string }) => (
+const KPICard = ({ title, value, icon: Icon, color }: Readonly<{ title: string; value: string | number; icon: React.ElementType; color: string }>) => (
   <div className="bg-white p-5 rounded-xl shadow-sm border border-gray-200 flex items-start justify-between">
     <div>
       <p className="text-sm font-medium text-gray-500">{title}</p>
@@ -200,8 +200,9 @@ export default function WinnersLosersTab() {
         <div className="flex space-x-2">
           {/* Plan A Selector */}
           <div className="relative">
-            <label className="absolute -top-5 left-0 text-xs font-medium text-gray-500">Plan A</label>
+            <label htmlFor="wl-plan-a" className="absolute -top-5 left-0 text-xs font-medium text-gray-500">Plan A</label>
             <select
+              id="wl-plan-a"
               value={planA}
               onChange={(e) => setPlanA(e.target.value)}
               disabled={loadingScenarios}
@@ -217,8 +218,9 @@ export default function WinnersLosersTab() {
 
           {/* Plan B Selector */}
           <div className="relative">
-            <label className="absolute -top-5 left-0 text-xs font-medium text-gray-500">Plan B</label>
+            <label htmlFor="wl-plan-b" className="absolute -top-5 left-0 text-xs font-medium text-gray-500">Plan B</label>
             <select
+              id="wl-plan-b"
               value={planB}
               onChange={(e) => setPlanB(e.target.value)}
               disabled={loadingScenarios}
