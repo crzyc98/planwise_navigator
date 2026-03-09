@@ -98,7 +98,14 @@ _processes: list[subprocess.Popen] = []
 
 
 def _kill_port(port: int) -> None:
-    """Kill any process using the specified port."""
+    """Kill processes using the specified port that belong to the current user.
+
+    Safety: Only sends signals to processes owned by the current OS user
+    (SonarQube S4507 — restrict signal sending to own processes).
+    Uses SIGTERM first for graceful shutdown, escalating to SIGKILL only
+    if the process does not exit within the timeout.
+    """
+    current_uid = os.getuid()
     try:
         # Find PIDs using the port
         result = subprocess.run(
@@ -107,14 +114,29 @@ def _kill_port(port: int) -> None:
             text=True,
         )
         pids = result.stdout.strip().split("\n")
-        for pid in pids:
-            if pid:
-                try:
-                    os.kill(int(pid), signal.SIGKILL)
-                except (ProcessLookupError, ValueError):
-                    pass
-        if any(pids):
-            time.sleep(0.5)  # Brief pause after killing
+        killed_any = False
+        for pid_str in pids:
+            if not pid_str:
+                continue
+            try:
+                pid = int(pid_str)
+                # Only kill processes owned by the current user
+                proc_stat = Path(f"/proc/{pid}/status").read_text()
+                proc_uid = None
+                for line in proc_stat.splitlines():
+                    if line.startswith("Uid:"):
+                        proc_uid = int(line.split()[1])
+                        break
+                if proc_uid is not None and proc_uid != current_uid:
+                    continue  # Skip processes owned by other users
+
+                # Graceful shutdown first (SIGTERM), then escalate
+                os.kill(pid, signal.SIGTERM)
+                killed_any = True
+            except (ProcessLookupError, ValueError, FileNotFoundError, PermissionError):
+                pass
+        if killed_any:
+            time.sleep(0.5)  # Brief pause after signalling
     except Exception:
         pass  # lsof not available or other error, continue anyway
 

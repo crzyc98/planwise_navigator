@@ -130,7 +130,7 @@ class DatabaseConnectionPool:
                 if thread_id:
                     # Set a deterministic seed based on thread ID for any internal RNG
                     import hashlib
-                    thread_seed = int(hashlib.md5(thread_id.encode()).hexdigest()[:8], 16) % (2**31)
+                    thread_seed = int(hashlib.sha256(thread_id.encode()).hexdigest()[:8], 16) % (2**31)
                     # Note: DuckDB doesn't have a direct seed setting, but this prepares for future use
 
             except Exception as e:
@@ -309,8 +309,8 @@ class DatabaseConnectionManager:
                     sleep_time = backoff_seconds * (2**attempt)
                 else:
                     # Add jitter for normal operation
-                    import random
-                    sleep_time = backoff_seconds * (2**attempt) * (0.5 + random.random() * 0.5)
+                    import secrets
+                    sleep_time = backoff_seconds * (2**attempt) * (0.5 + secrets.SystemRandom().random() * 0.5)
                 time.sleep(sleep_time)
                 attempt += 1
         assert last_exc is not None

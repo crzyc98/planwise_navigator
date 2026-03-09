@@ -277,9 +277,7 @@ class ModelDependencyAnalyzer:
             dependents = self.dependency_graph.get_dependents(model)
             internal_dependents = dependents.intersection(model_set)
 
-            if not internal_deps and not internal_dependents:
-                independent.append(model)
-            elif not internal_deps:  # Only has dependents, could be first in parallel group
+            if not internal_deps:  # No upstream deps in set; may have dependents (first in group)
                 independent.append(model)
 
         # Limit to max_parallel to avoid resource exhaustion

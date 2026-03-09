@@ -42,15 +42,28 @@ class ErrorCatalog:
         # Returns resolution steps for database lock issues
     """
 
+    # Maximum error message length to match against — truncate before regex
+    # to prevent polynomial-time backtracking (ReDoS / SonarQube S5852).
+    _MAX_MESSAGE_LENGTH = 2000
+
     def __init__(self):
         self.patterns: List[ErrorPattern] = []
         self._initialize_patterns()
 
     def _initialize_patterns(self) -> None:
-        """Initialize catalog with known error patterns."""
+        """Initialize catalog with known error patterns.
+
+        All regex patterns use bounded repetition ``\\w{0,200}`` instead of
+        unbounded ``.*`` to prevent polynomial backtracking on adversarial
+        input (ReDoS — SonarQube rule S5852).
+        """
+        # Bounded wildcard: match any chars up to a reasonable limit.
+        # Replaces all uses of ``.*`` to eliminate backtracking risk.
+        _W = r"[\s\S]{0,200}"
+
         pattern_definitions = [
             {
-                "regex": r"(conflicting lock|database.*lock|cannot acquire lock|lock.*database)",
+                "regex": rf"(conflicting lock|database{_W}lock|cannot acquire lock|lock{_W}database)",
                 "category": ErrorCategory.DATABASE,
                 "title": "Database Lock Conflict",
                 "description": "Another process has locked the database",
@@ -80,7 +93,7 @@ class ErrorCatalog:
                 "time": "10 minutes",
             },
             {
-                "regex": r"(compilation error|syntax error|jinja.*error)",
+                "regex": rf"(compilation error|syntax error|jinja{_W}error)",
                 "category": ErrorCategory.CONFIGURATION,
                 "title": "dbt Compilation Failure",
                 "description": "Model contains syntax or Jinja template errors",
@@ -95,7 +108,7 @@ class ErrorCatalog:
                 "time": "15 minutes",
             },
             {
-                "regex": r"(depends on.*not found|upstream model.*missing|upstream model.*not found|no model named)",
+                "regex": rf"(depends on{_W}not found|upstream model{_W}missing|upstream model{_W}not found|no model named)",
                 "category": ErrorCategory.DEPENDENCY,
                 "title": "Missing Model Dependency",
                 "description": "Required upstream model not found",
@@ -110,7 +123,7 @@ class ErrorCatalog:
                 "time": "10 minutes",
             },
             {
-                "regex": r"(test failed|failing tests|failure in test|data quality|validation.*failed)",
+                "regex": rf"(test failed|failing tests|failure in test|data quality|validation{_W}failed)",
                 "category": ErrorCategory.DATA_QUALITY,
                 "title": "Data Quality Test Failure",
                 "description": "One or more data quality tests failed",
@@ -126,7 +139,7 @@ class ErrorCatalog:
                 "time": "20 minutes",
             },
             {
-                "regex": r"(proxy.*error|SSL.*error|SSL.*certificate.*verif|certificate.*verif|connection.*timed out)",
+                "regex": rf"(proxy{_W}error|SSL{_W}error|SSL{_W}certificate{_W}verif|certificate{_W}verif|connection{_W}timed out)",
                 "category": ErrorCategory.NETWORK,
                 "title": "Network Configuration Error",
                 "description": "Network request failed due to proxy/SSL issues",
@@ -141,7 +154,7 @@ class ErrorCatalog:
                 "time": "15 minutes",
             },
             {
-                "regex": r"(checkpoint.*corrupt|checkpoint.*invalid|checkpoint.*version)",
+                "regex": rf"(checkpoint{_W}corrupt|checkpoint{_W}invalid|checkpoint{_W}version)",
                 "category": ErrorCategory.STATE,
                 "title": "Checkpoint Corruption",
                 "description": "Checkpoint file is corrupted or incompatible",
@@ -180,6 +193,8 @@ class ErrorCatalog:
         Returns list of resolution hints from matching patterns.
         Updates frequency counter for matched patterns.
         """
+        # Truncate to prevent ReDoS on adversarial input
+        error_message = error_message[:self._MAX_MESSAGE_LENGTH]
         hints = []
         for pattern in self.patterns:
             if pattern.matches(error_message):

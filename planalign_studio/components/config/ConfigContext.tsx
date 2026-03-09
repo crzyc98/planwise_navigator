@@ -478,8 +478,6 @@ export function ConfigProvider({ activeWorkspace, scenarioId, children }: Config
     const handleBeforeUnload = (e: BeforeUnloadEvent) => {
       if (isDirty) {
         e.preventDefault();
-        e.returnValue = '';
-        return '';
       }
     };
     window.addEventListener('beforeunload', handleBeforeUnload);

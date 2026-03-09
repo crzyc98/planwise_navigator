@@ -213,7 +213,7 @@ class HazardBasedEventGeneratorMixin:
         if self.rng_salt:
             hash_key += f"|{self.rng_salt}"
 
-        hash_value = hashlib.md5(hash_key.encode()).hexdigest()
+        hash_value = hashlib.sha256(hash_key.encode()).hexdigest()
         hash_int = int(hash_value[:8], 16)
         return (hash_int % 2147483647) / 2147483647.0
 

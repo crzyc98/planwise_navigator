@@ -130,7 +130,7 @@ class SabbaticalEventGenerator(EventGenerator):
         """Deterministic random value matching dbt hash_rng."""
         import hashlib
         hash_key = f"{seed}|{employee_id}|{year}|sabbatical"
-        hash_value = hashlib.md5(hash_key.encode()).hexdigest()
+        hash_value = hashlib.sha256(hash_key.encode()).hexdigest()
         hash_int = int(hash_value[:8], 16)
         return (hash_int % 2147483647) / 2147483647.0
 

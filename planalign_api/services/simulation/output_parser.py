@@ -6,6 +6,10 @@ from typing import Any, Dict, List, Optional
 
 from ...constants import MAX_RECENT_EVENTS
 
+# Maximum line length to process — truncate before regex to prevent
+# polynomial-time backtracking on adversarial input (ReDoS / SonarQube S5852).
+_MAX_LINE_LENGTH = 1000
+
 # Stage detection patterns applied in priority order
 STAGE_PATTERNS: Dict[str, str] = {
     "INITIALIZATION": r"[Ii]nitializ|[Ss]etup|[Ll]oading",
@@ -46,6 +50,9 @@ class SimulationOutputParser:
             "stage_changed": False,
             "new_event": None,
         }
+
+        # Truncate to prevent ReDoS on adversarial input
+        line_text = line_text[:_MAX_LINE_LENGTH]
 
         # Detect year transitions
         year_match = re.search(r"[Yy]ear[:\s]+(\d{4})", line_text)
@@ -118,7 +125,7 @@ class SimulationOutputParser:
     @staticmethod
     def classify_line(line_text: str) -> str:
         """Return ``'error'``, ``'warning'``, or ``'debug'`` for log routing."""
-        lower = line_text.lower()
+        lower = line_text[:_MAX_LINE_LENGTH].lower()
         if any(kw in lower for kw in ERROR_KEYWORDS):
             return "error"
         if "warning" in lower:
