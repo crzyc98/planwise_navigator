@@ -387,11 +387,7 @@ export default function NDTTesting() {
                   setTestResponse(null);
                 }
               }}
-              className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
-                comparisonMode
-                  ? 'bg-fidelity-green text-white'
-                  : 'bg-white border border-gray-300 text-gray-700 hover:bg-gray-50'
-              }`}
+              className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${comparisonMode ? 'bg-fidelity-green text-white' : 'bg-white border border-gray-300 text-gray-700 hover:bg-gray-50'}`}
             >
               Compare {comparisonMode && `(${selectedScenarioIds.length}/${MAX_SCENARIO_SELECTION})`}
             </button>
@@ -403,11 +399,7 @@ export default function NDTTesting() {
             <button
               onClick={handleRunTest}
               disabled={!canRun}
-              className={`flex items-center px-5 py-2 rounded-lg text-sm font-medium transition-colors ${
-                canRun
-                  ? 'bg-fidelity-green text-white hover:bg-fidelity-dark'
-                  : 'bg-gray-200 text-gray-400 cursor-not-allowed'
-              }`}
+              className={`flex items-center px-5 py-2 rounded-lg text-sm font-medium transition-colors ${canRun ? 'bg-fidelity-green text-white hover:bg-fidelity-dark' : 'bg-gray-200 text-gray-400 cursor-not-allowed'}`}
             >
               {loading ? (
                 <Loader2 size={16} className="mr-2 animate-spin" />
@@ -485,11 +477,7 @@ export default function NDTTesting() {
                   return (
                     <div
                       key={scenario.id}
-                      className={`w-full text-left px-3 py-2 rounded-lg flex items-center transition-all border ${
-                        isAtLimit
-                          ? 'bg-gray-50 border-transparent opacity-50 cursor-not-allowed'
-                          : 'hover:bg-gray-50 border-transparent'
-                      }`}
+                      className={`w-full text-left px-3 py-2 rounded-lg flex items-center transition-all border ${isAtLimit ? 'bg-gray-50 border-transparent opacity-50 cursor-not-allowed' : 'hover:bg-gray-50 border-transparent'}`}
                     >
                       <button
                         onClick={() => !isAtLimit && handleScenarioToggle(scenario.id)}
@@ -630,9 +618,7 @@ function ACPSingleResult({
 
   return (
     <div className="space-y-6">
-      <div className={`rounded-xl p-6 border-2 ${
-        isPassing ? 'bg-green-50 border-green-300' : 'bg-red-50 border-red-300'
-      }`}>
+      <div className={`rounded-xl p-6 border-2 ${isPassing ? 'bg-green-50 border-green-300' : 'bg-red-50 border-red-300'}`}>
         <div className="flex items-center justify-between mb-4">
           <div className="flex items-center">
             {isPassing ? (
@@ -753,16 +739,12 @@ function ACPSingleResult({
                   <tr key={emp.employee_id} className="hover:bg-gray-50">
                     <td className="py-2 px-3 text-sm text-gray-900 font-mono">{emp.employee_id}</td>
                     <td className="py-2 px-3">
-                      <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium ${
-                        emp.is_hce ? 'bg-purple-100 text-purple-800' : 'bg-blue-100 text-blue-800'
-                      }`}>
+                      <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium ${emp.is_hce ? 'bg-purple-100 text-purple-800' : 'bg-blue-100 text-blue-800'}`}>
                         {emp.is_hce ? 'HCE' : 'NHCE'}
                       </span>
                     </td>
                     <td className="py-2 px-3">
-                      <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium ${
-                        emp.is_enrolled ? 'bg-green-100 text-green-800' : 'bg-gray-100 text-gray-600'
-                      }`}>
+                      <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium ${emp.is_enrolled ? 'bg-green-100 text-green-800' : 'bg-gray-100 text-gray-600'}`}>
                         {emp.is_enrolled ? 'Yes' : 'No'}
                       </span>
                     </td>
@@ -794,9 +776,7 @@ function ACPComparisonResults({ results, scenarioOrder }: { results: ACPScenario
           const isError = result.test_result === 'error';
           const cardClass = isPassing ? 'bg-green-50 border-green-300' : 'bg-red-50 border-red-300';
           return (
-            <div key={result.scenario_id} className={`rounded-xl p-5 border-2 ${
-              isError ? 'bg-yellow-50 border-yellow-300' : cardClass
-            }`}>
+            <div key={result.scenario_id} className={`rounded-xl p-5 border-2 ${isError ? 'bg-yellow-50 border-yellow-300' : cardClass}`}>
               <div className="flex items-center justify-between mb-3">
                 <h3 className="text-sm font-bold text-gray-800 truncate mr-2">{result.scenario_name}</h3>
                 {isError ? (
@@ -880,9 +860,7 @@ function Section401a4SingleResult({
   return (
     <div className="space-y-6">
       {/* Pass/Fail Card */}
-      <div className={`rounded-xl p-6 border-2 ${
-        isPassing ? 'bg-green-50 border-green-300' : 'bg-red-50 border-red-300'
-      }`}>
+      <div className={`rounded-xl p-6 border-2 ${isPassing ? 'bg-green-50 border-green-300' : 'bg-red-50 border-red-300'}`}>
         <div className="flex items-center justify-between mb-4">
           <div className="flex items-center">
             {isPassing ? (
@@ -1032,9 +1010,7 @@ function Section401a4SingleResult({
                   <tr key={emp.employee_id} className="hover:bg-gray-50">
                     <td className="py-2 px-3 text-sm text-gray-900 font-mono">{emp.employee_id}</td>
                     <td className="py-2 px-3">
-                      <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium ${
-                        emp.is_hce ? 'bg-purple-100 text-purple-800' : 'bg-blue-100 text-blue-800'
-                      }`}>
+                      <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium ${emp.is_hce ? 'bg-purple-100 text-purple-800' : 'bg-blue-100 text-blue-800'}`}>
                         {emp.is_hce ? 'HCE' : 'NHCE'}
                       </span>
                     </td>
@@ -1069,9 +1045,7 @@ function Section401a4ComparisonResults({ results, scenarioOrder }: { results: Se
           const isError = result.test_result === 'error';
           const cardClass = isPassing ? 'bg-green-50 border-green-300' : 'bg-red-50 border-red-300';
           return (
-            <div key={result.scenario_id} className={`rounded-xl p-5 border-2 ${
-              isError ? 'bg-yellow-50 border-yellow-300' : cardClass
-            }`}>
+            <div key={result.scenario_id} className={`rounded-xl p-5 border-2 ${isError ? 'bg-yellow-50 border-yellow-300' : cardClass}`}>
               <div className="flex items-center justify-between mb-3">
                 <h3 className="text-sm font-bold text-gray-800 truncate mr-2">{result.scenario_name}</h3>
                 {isError ? (
@@ -1165,9 +1139,7 @@ function Section415SingleResult({
   return (
     <div className="space-y-6">
       {/* Pass/Fail Card */}
-      <div className={`rounded-xl p-6 border-2 ${
-        isPassing ? 'bg-green-50 border-green-300' : 'bg-red-50 border-red-300'
-      }`}>
+      <div className={`rounded-xl p-6 border-2 ${isPassing ? 'bg-green-50 border-green-300' : 'bg-red-50 border-red-300'}`}>
         <div className="flex items-center justify-between mb-4">
           <div className="flex items-center">
             {isPassing ? (
@@ -1298,9 +1270,7 @@ function Section415SingleResult({
                   else if (emp.utilization_pct >= 0.95) { utilColorClass = 'text-amber-600'; }
                   else { utilColorClass = 'text-gray-900'; }
                   return (
-                  <tr key={emp.employee_id} className={`hover:bg-gray-50 ${
-                    emp.status === 'breach' ? 'bg-red-50' : rowBgClass
-                  }`}>
+                  <tr key={emp.employee_id} className={`hover:bg-gray-50 ${emp.status === 'breach' ? 'bg-red-50' : rowBgClass}`}>
                     <td className="py-2 px-3 text-sm text-gray-900 font-mono">{emp.employee_id}</td>
                     <td className="py-2 px-3">
                       <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium ${badgeClass}`}>
@@ -1348,9 +1318,7 @@ function Section415ComparisonResults({ results, scenarioOrder }: { results: Sect
           else if (result.max_utilization_pct >= 0.95) { maxUtilColorClass = 'text-amber-600'; }
           else { maxUtilColorClass = 'text-green-700'; }
           return (
-            <div key={result.scenario_id} className={`rounded-xl p-5 border-2 ${
-              isError ? 'bg-yellow-50 border-yellow-300' : cardClass
-            }`}>
+            <div key={result.scenario_id} className={`rounded-xl p-5 border-2 ${isError ? 'bg-yellow-50 border-yellow-300' : cardClass}`}>
               <div className="flex items-center justify-between mb-3">
                 <h3 className="text-sm font-bold text-gray-800 truncate mr-2">{result.scenario_name}</h3>
                 {isError ? (
@@ -1461,9 +1429,7 @@ function ADPSingleResult({
 
   return (
     <div className="space-y-6">
-      <div className={`rounded-xl p-6 border-2 ${
-        isPassing ? 'bg-green-50 border-green-300' : 'bg-red-50 border-red-300'
-      }`}>
+      <div className={`rounded-xl p-6 border-2 ${isPassing ? 'bg-green-50 border-green-300' : 'bg-red-50 border-red-300'}`}>
         <div className="flex items-center justify-between mb-4">
           <div className="flex items-center">
             {isPassing ? (
@@ -1609,9 +1575,7 @@ function ADPSingleResult({
                   <tr key={emp.employee_id} className="hover:bg-gray-50">
                     <td className="py-2 px-3 text-sm text-gray-900 font-mono">{emp.employee_id}</td>
                     <td className="py-2 px-3">
-                      <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium ${
-                        emp.is_hce ? 'bg-purple-100 text-purple-800' : 'bg-blue-100 text-blue-800'
-                      }`}>
+                      <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium ${emp.is_hce ? 'bg-purple-100 text-purple-800' : 'bg-blue-100 text-blue-800'}`}>
                         {emp.is_hce ? 'HCE' : 'NHCE'}
                       </span>
                     </td>
@@ -1652,9 +1616,7 @@ function ADPComparisonResults({ results, scenarioOrder }: { results: ADPScenario
           else if (isPassing) { cardClass = 'bg-green-50 border-green-300'; }
           else { cardClass = 'bg-red-50 border-red-300'; }
           return (
-            <div key={result.scenario_id} className={`rounded-xl p-5 border-2 ${
-              cardClass
-            }`}>
+            <div key={result.scenario_id} className={`rounded-xl p-5 border-2 ${cardClass}`}>
               <div className="flex items-center justify-between mb-3">
                 <h3 className="text-sm font-bold text-gray-800 truncate mr-2">{result.scenario_name}</h3>
                 {isError ? (

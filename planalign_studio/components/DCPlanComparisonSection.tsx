@@ -614,11 +614,7 @@ export default function DCPlanComparisonSection({
                           </div>
                           {!isBaseline && delta !== undefined && (
                             <span
-                              className={`inline-block mt-1 px-2 py-0.5 rounded text-xs font-medium ${
-                                isFavorable(row, delta)
-                                  ? 'bg-green-50 text-green-700'
-                                  : 'bg-red-50 text-red-700'
-                              }`}
+                              className={`inline-block mt-1 px-2 py-0.5 rounded text-xs font-medium ${isFavorable(row, delta) ? 'bg-green-50 text-green-700' : 'bg-red-50 text-red-700'}`}
                             >
                               {formatDelta(row, delta)}
                             </span>

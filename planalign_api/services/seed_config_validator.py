@@ -281,7 +281,7 @@ def validate_bands(bands: list, band_type: str) -> List[SeedConfigValidationErro
     if sorted_bands[0]["min_value"] != 0:
         errors.append(SeedConfigValidationError(
             section=section,
-            field=f"band[0].min_value",
+            field="band[0].min_value",
             message=f"First {band_type} band must start at 0, got {sorted_bands[0]['min_value']}"
         ))
 

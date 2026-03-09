@@ -252,7 +252,7 @@ class DuckDBPerformanceMonitor:
             "=" * 55,
             f"Generated: {datetime.now().isoformat()}",
             f"Database: {self.database_path}",
-            f"Target: 15-25% performance improvement",
+            "Target: 15-25% performance improvement",
             "",
             "EXECUTIVE SUMMARY",
             "-" * 20,

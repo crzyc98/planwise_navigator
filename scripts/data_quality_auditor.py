@@ -335,7 +335,7 @@ class DataQualityAuditor:
         print("🏥 DATA QUALITY AUDIT REPORT")
         print("=" * 80)
 
-        print(f"\n📊 SUMMARY:")
+        print("\n📊 SUMMARY:")
         print(f"  • Total Tables Audited: {self.summary.get('total_tables', 0)}")
         print(f"  • Total Issues Found: {self.summary.get('total_issues', 0)}")
         print(f"  • Audit Timestamp: {self.summary.get('audit_timestamp', 'Unknown')}")
@@ -343,7 +343,7 @@ class DataQualityAuditor:
         # Severity breakdown
         severity_counts = self.summary.get("severity_breakdown", {})
         if severity_counts:
-            print(f"\n🚨 SEVERITY BREAKDOWN:")
+            print("\n🚨 SEVERITY BREAKDOWN:")
             for severity, count in sorted(severity_counts.items()):
                 emoji = {"CRITICAL": "🔴", "WARNING": "🟡", "ERROR": "❌"}.get(
                     severity, "ℹ️"
@@ -353,13 +353,13 @@ class DataQualityAuditor:
         # Issue type breakdown
         issue_types = self.summary.get("issue_type_breakdown", {})
         if issue_types:
-            print(f"\n🔍 ISSUE TYPE BREAKDOWN:")
+            print("\n🔍 ISSUE TYPE BREAKDOWN:")
             for issue_type, count in sorted(issue_types.items()):
                 print(f"  • {issue_type}: {count}")
 
         # Detailed issues
         if self.issues:
-            print(f"\n📝 DETAILED ISSUES:")
+            print("\n📝 DETAILED ISSUES:")
             for i, issue in enumerate(self.issues[:20], 1):  # Show first 20 issues
                 emoji = {"CRITICAL": "🔴", "WARNING": "🟡", "ERROR": "❌"}.get(
                     issue["severity"], "ℹ️"

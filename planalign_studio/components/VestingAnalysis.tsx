@@ -58,9 +58,7 @@ const KPICard = ({ title, value, subtext, icon: Icon, color, trend, loading }: a
             <div className="flex items-center mt-1">
               {trend === 'up' && <TrendingUp size={14} className="text-red-500 mr-1" />}
               {trend === 'down' && <TrendingDown size={14} className="text-green-500 mr-1" />}
-              <span className={`text-xs font-medium ${
-                TREND_COLOR_MAP[trend] || 'text-gray-500'
-              }`}>{subtext}</span>
+              <span className={`text-xs font-medium ${TREND_COLOR_MAP[trend] || 'text-gray-500'}`}>{subtext}</span>
             </div>
           )}
         </>
@@ -720,9 +718,7 @@ export default function VestingAnalysis() {
                       <td className="py-3 px-4 text-right">{formatCurrency(band.total_contributions)}</td>
                       <td className="py-3 px-4 text-right">{formatCurrency(band.current_forfeitures)}</td>
                       <td className="py-3 px-4 text-right">{formatCurrency(band.proposed_forfeitures)}</td>
-                      <td className={`py-3 px-4 text-right font-medium ${
-                        band.forfeiture_variance >= 0 ? 'text-red-600' : 'text-green-600'
-                      }`}>
+                      <td className={`py-3 px-4 text-right font-medium ${band.forfeiture_variance >= 0 ? 'text-red-600' : 'text-green-600'}`}>
                         {band.forfeiture_variance >= 0 ? '+' : ''}{formatCurrency(band.forfeiture_variance)}
                       </td>
                     </tr>
@@ -735,9 +731,7 @@ export default function VestingAnalysis() {
                     <td className="py-3 px-4 text-right">{formatCurrency(analysisResult.summary.total_employer_contributions)}</td>
                     <td className="py-3 px-4 text-right">{formatCurrency(analysisResult.summary.current_total_forfeited)}</td>
                     <td className="py-3 px-4 text-right">{formatCurrency(analysisResult.summary.proposed_total_forfeited)}</td>
-                    <td className={`py-3 px-4 text-right ${
-                      analysisResult.summary.forfeiture_variance >= 0 ? 'text-red-600' : 'text-green-600'
-                    }`}>
+                    <td className={`py-3 px-4 text-right ${analysisResult.summary.forfeiture_variance >= 0 ? 'text-red-600' : 'text-green-600'}`}>
                       {analysisResult.summary.forfeiture_variance >= 0 ? '+' : ''}{formatCurrency(analysisResult.summary.forfeiture_variance)}
                     </td>
                   </tr>
@@ -802,9 +796,7 @@ export default function VestingAnalysis() {
                         <td className="py-3 px-4 text-right">{formatCurrency(emp.current_forfeiture)}</td>
                         <td className="py-3 px-4 text-right">{(emp.proposed_vesting_pct * 100).toFixed(1)}%</td>
                         <td className="py-3 px-4 text-right">{formatCurrency(emp.proposed_forfeiture)}</td>
-                        <td className={`py-3 px-4 text-right font-medium ${
-                          emp.forfeiture_variance >= 0 ? 'text-red-600' : 'text-green-600'
-                        }`}>
+                        <td className={`py-3 px-4 text-right font-medium ${emp.forfeiture_variance >= 0 ? 'text-red-600' : 'text-green-600'}`}>
                           {emp.forfeiture_variance >= 0 ? '+' : ''}{formatCurrency(emp.forfeiture_variance)}
                         </td>
                       </tr>

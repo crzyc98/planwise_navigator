@@ -344,16 +344,12 @@ export default function SimulationDetail() {
             {runs.map((run, index) => (
               <div
                 key={run.id}
-                className={`border rounded-lg overflow-hidden ${
-                  index === 0 ? 'border-fidelity-green' : 'border-gray-200'
-                }`}
+                className={`border rounded-lg overflow-hidden ${index === 0 ? 'border-fidelity-green' : 'border-gray-200'}`}
               >
                 {/* Run Header */}
                 <button
                   onClick={() => toggleRunExpanded(run.id)}
-                  className={`w-full flex items-center justify-between p-4 hover:bg-gray-50 transition-colors ${
-                    expandedRuns.has(run.id) ? 'bg-gray-50' : 'bg-white'
-                  }`}
+                  className={`w-full flex items-center justify-between p-4 hover:bg-gray-50 transition-colors ${expandedRuns.has(run.id) ? 'bg-gray-50' : 'bg-white'}`}
                 >
                   <div className="flex items-center space-x-4">
                     {expandedRuns.has(run.id) ? (

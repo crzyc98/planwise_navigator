@@ -9,7 +9,7 @@ from __future__ import annotations
 import json
 import logging
 import os
-from datetime import datetime
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import List, Optional, Tuple
 
@@ -170,7 +170,7 @@ class SyncService:
                 logs = []
 
         entry = SyncLogEntry(
-            timestamp=datetime.utcnow(),
+            timestamp=datetime.now(timezone.utc),
             operation=operation,
             workspaces_affected=workspaces_affected,
             scenarios_affected=scenarios_affected,

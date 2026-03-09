@@ -191,7 +191,7 @@ class ScenarioBatchRunner:
         if deleted_count > 0:
             print(f"🧹 Deleted {deleted_count} database file(s)")
         else:
-            print(f"ℹ️  No existing databases found to clean")
+            print("ℹ️  No existing databases found to clean")
 
     def _run_isolated_scenario(self, scenario_name: str, config_path: Path, export_format: str, threads: int = 1, optimization: str = "medium") -> Dict[str, Any]:
         """Run single scenario with isolated database.
@@ -221,7 +221,7 @@ class ScenarioBatchRunner:
             import duckdb
             conn = duckdb.connect(str(scenario_db))
             conn.close()
-            print(f"   ✅ Database file created successfully")
+            print("   ✅ Database file created successfully")
 
         print(f"   💽 Database path: {scenario_db}")
         print(f"   📁 Database exists: {scenario_db.exists()}")
@@ -418,7 +418,7 @@ class ScenarioBatchRunner:
         with open(summary_path, "w", encoding="utf-8") as f:
             json.dump(summary, f, indent=2, default=str)
 
-        print(f"\n📋 Batch Summary:")
+        print("\n📋 Batch Summary:")
         print(f"   ✅ Successful: {len(successful)} scenarios")
         print(f"   ❌ Failed: {len(failed)} scenarios")
         print(f"   🎯 Success Rate: {summary['success_rate']:.1%}")

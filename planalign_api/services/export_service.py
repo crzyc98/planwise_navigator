@@ -13,7 +13,7 @@ import os
 import shutil
 import tempfile
 import uuid
-from datetime import datetime
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
 
@@ -123,7 +123,7 @@ class ExportService:
 
         return ExportManifest(
             version=MANIFEST_VERSION,
-            export_date=datetime.utcnow(),
+            export_date=datetime.now(timezone.utc),
             app_version=APP_VERSION,
             workspace_id=workspace_id,
             workspace_name=workspace_name,
@@ -362,7 +362,7 @@ class ExportService:
             raise ValueError("Cannot export workspace while simulation is running")
 
         # Generate archive filename
-        timestamp = datetime.utcnow().strftime("%Y%m%d_%H%M%S")
+        timestamp = datetime.now(timezone.utc).strftime("%Y%m%d_%H%M%S")
         # Sanitize workspace name for filename
         safe_name = "".join(c if c.isalnum() or c in " -_" else "_" for c in workspace_name)
         safe_name = safe_name.strip().replace(" ", "_")
@@ -532,7 +532,7 @@ class ExportService:
 
             workspace_data["id"] = new_workspace_id
             workspace_data["name"] = final_name
-            workspace_data["updated_at"] = datetime.utcnow().isoformat()
+            workspace_data["updated_at"] = datetime.now(timezone.utc).isoformat()
 
             with open(workspace_json_path, "w") as f:
                 json.dump(workspace_data, f, indent=2)

@@ -381,7 +381,7 @@ class RunSummaryGenerator:
 
         # Performance summary
         if perf_summary.get("total_operations", 0) > 0:
-            print(f"\nPerformance:")
+            print("\nPerformance:")
             print(f"  Operations: {perf_summary['total_operations']}")
             print(f"  Total Duration: {perf_summary['total_duration_seconds']}s")
             if perf_summary.get("slowest_operation"):

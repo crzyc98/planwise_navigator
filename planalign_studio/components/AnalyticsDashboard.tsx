@@ -331,11 +331,7 @@ export default function AnalyticsDashboard() {
               <button
                 key={opt}
                 onClick={() => setPopulation(opt)}
-                className={`px-3 py-2 text-sm font-medium transition-colors ${
-                  population === opt
-                    ? 'bg-fidelity-green text-white'
-                    : 'bg-white text-gray-600 hover:bg-gray-50'
-                }`}
+                className={`px-3 py-2 text-sm font-medium transition-colors ${population === opt ? 'bg-fidelity-green text-white' : 'bg-white text-gray-600 hover:bg-gray-50'}`}
               >
                 {{ all: 'All', active: 'Active', terminated: 'Terminated' }[opt]}
               </button>
@@ -565,21 +561,13 @@ export default function AnalyticsDashboard() {
                 <div className="flex rounded-lg border border-gray-300 overflow-hidden">
                   <button
                     onClick={() => setCompMetric('average')}
-                    className={`px-3 py-1 text-xs font-medium transition-colors ${
-                      compMetric === 'average'
-                        ? 'bg-fidelity-green text-white'
-                        : 'bg-white text-gray-600 hover:bg-gray-50'
-                    }`}
+                    className={`px-3 py-1 text-xs font-medium transition-colors ${compMetric === 'average' ? 'bg-fidelity-green text-white' : 'bg-white text-gray-600 hover:bg-gray-50'}`}
                   >
                     Average
                   </button>
                   <button
                     onClick={() => setCompMetric('total')}
-                    className={`px-3 py-1 text-xs font-medium transition-colors ${
-                      compMetric === 'total'
-                        ? 'bg-fidelity-green text-white'
-                        : 'bg-white text-gray-600 hover:bg-gray-50'
-                    }`}
+                    className={`px-3 py-1 text-xs font-medium transition-colors ${compMetric === 'total' ? 'bg-fidelity-green text-white' : 'bg-white text-gray-600 hover:bg-gray-50'}`}
                   >
                     Total
                   </button>
@@ -752,9 +740,7 @@ export default function AnalyticsDashboard() {
                         <tr key={idx} className={idx % 2 === 0 ? 'bg-white' : 'bg-gray-50'}>
                           <td className="px-4 py-2 whitespace-nowrap text-sm text-gray-900">{row.simulation_year}</td>
                           <td className="px-4 py-2 whitespace-nowrap text-sm text-gray-900">
-                            <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
-                              statusBadgeColors[row.employment_status] || 'bg-gray-100 text-gray-800'
-                            }`}>
+                            <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${statusBadgeColors[row.employment_status] || 'bg-gray-100 text-gray-800'}`}>
                               {formatStatus(row.employment_status)}
                             </span>
                           </td>

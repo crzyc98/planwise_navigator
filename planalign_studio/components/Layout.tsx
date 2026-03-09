@@ -41,11 +41,7 @@ const NavItem = ({ to, icon, label, end, collapsed }: { to: string; icon: React.
     end={end}
     title={collapsed ? label : undefined}
     className={({ isActive }) =>
-      `flex items-center ${collapsed ? 'justify-center px-2' : 'px-4'} py-3 text-sm font-medium transition-colors rounded-lg mb-1 ${
-        isActive
-          ? 'bg-fidelity-green text-white shadow-md'
-          : 'text-gray-600 hover:bg-gray-100 hover:text-fidelity-green'
-      }`
+      `flex items-center ${collapsed ? 'justify-center px-2' : 'px-4'} py-3 text-sm font-medium transition-colors rounded-lg mb-1 ${isActive ? 'bg-fidelity-green text-white shadow-md' : 'text-gray-600 hover:bg-gray-100 hover:text-fidelity-green'}`
     }
   >
     <span className={collapsed ? '' : 'mr-3'}>{icon}</span>
@@ -424,9 +420,7 @@ export default function Layout() {
                   <button
                     type="submit"
                     disabled={!newWorkspaceName.trim()}
-                    className={`px-4 py-2 text-sm font-medium text-white rounded-lg transition-colors ${
-                      !newWorkspaceName.trim() ? 'bg-gray-300 cursor-not-allowed' : 'bg-fidelity-green hover:bg-fidelity-dark'
-                    }`}
+                    className={`px-4 py-2 text-sm font-medium text-white rounded-lg transition-colors ${!newWorkspaceName.trim() ? 'bg-gray-300 cursor-not-allowed' : 'bg-fidelity-green hover:bg-fidelity-dark'}`}
                   >
                     Create Workspace
                   </button>
@@ -517,9 +511,7 @@ export default function Layout() {
                 <button
                   type="submit"
                   disabled={!newWorkspaceName.trim()}
-                  className={`px-4 py-2 text-sm font-medium text-white rounded-lg transition-colors ${
-                    !newWorkspaceName.trim() ? 'bg-gray-300 cursor-not-allowed' : 'bg-fidelity-green hover:bg-fidelity-dark'
-                  }`}
+                  className={`px-4 py-2 text-sm font-medium text-white rounded-lg transition-colors ${!newWorkspaceName.trim() ? 'bg-gray-300 cursor-not-allowed' : 'bg-fidelity-green hover:bg-fidelity-dark'}`}
                 >
                   Create Workspace
                 </button>
@@ -617,18 +609,12 @@ export default function Layout() {
                       <button
                         key={workspace.id}
                         onClick={() => handleWorkspaceSelect(workspace)}
-                        className={`w-full text-left px-4 py-3 flex items-start hover:bg-gray-50 transition-colors ${
-                          activeWorkspace.id === workspace.id ? 'bg-blue-50' : ''
-                        }`}
+                        className={`w-full text-left px-4 py-3 flex items-start hover:bg-gray-50 transition-colors ${activeWorkspace.id === workspace.id ? 'bg-blue-50' : ''}`}
                       >
-                        <div className={`mt-1 flex-shrink-0 w-2 h-2 rounded-full mr-3 ${
-                          activeWorkspace.id === workspace.id ? 'bg-fidelity-green' : 'bg-gray-300'
-                        }`} />
+                        <div className={`mt-1 flex-shrink-0 w-2 h-2 rounded-full mr-3 ${activeWorkspace.id === workspace.id ? 'bg-fidelity-green' : 'bg-gray-300'}`} />
                         <div className="flex-1 min-w-0">
                           <div className="flex justify-between items-center">
-                            <span className={`text-sm font-medium truncate pr-2 ${
-                              activeWorkspace.id === workspace.id ? 'text-fidelity-green' : 'text-gray-900'
-                            }`}>
+                            <span className={`text-sm font-medium truncate pr-2 ${activeWorkspace.id === workspace.id ? 'text-fidelity-green' : 'text-gray-900'}`}>
                               {workspace.name}
                             </span>
                             {activeWorkspace.id === workspace.id && <Check size={14} className="text-fidelity-green flex-shrink-0" />}

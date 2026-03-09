@@ -75,7 +75,7 @@ class ExcelExporter:
             # Check if workforce snapshot table exists
             table_exists = self._check_table_exists(conn, TABLE_FCT_WORKFORCE_SNAPSHOT)
             if not table_exists:
-                print(f"   ⚠️  Warning: fct_workforce_snapshot table not found, creating minimal export")
+                print("   ⚠️  Warning: fct_workforce_snapshot table not found, creating minimal export")
                 return self._create_minimal_export(scenario_name, output_dir, export_format)
 
             # Determine total rows and whether to split by year
@@ -679,7 +679,7 @@ class ExcelExporter:
 
                 print(f"   📊 Comparison workbook created with {len(comparison_data)} data points")
             else:
-                print(f"   ⚠️  No comparison data found for scenarios")
+                print("   ⚠️  No comparison data found for scenarios")
 
         except Exception as e:
             print(f"   ❌ Error creating comparison workbook: {e}")

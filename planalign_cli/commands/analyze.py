@@ -457,7 +457,7 @@ def _display_event_trends(event_data: List[Dict[str, Any]], verbose: bool):
             event_types[event_type] = []
         event_types[event_type].append(data)
 
-    console.print(f"\n📊 [bold]Event Trends by Type[/bold]")
+    console.print("\n📊 [bold]Event Trends by Type[/bold]")
 
     for event_type, events in event_types.items():
         if len(events) > 1:
@@ -518,7 +518,7 @@ def _export_workforce_analysis(workforce_data: List[Dict[str, Any]], format: str
         )
 
         console.print(f"   ✅ Analysis exported to: [green]{export_path}[/green]")
-        console.print(f"   📊 Contains: workforce snapshots, event data, and metadata")
+        console.print("   📊 Contains: workforce snapshots, event data, and metadata")
 
     except Exception as e:
         show_error_message(f"Export failed: {e}")

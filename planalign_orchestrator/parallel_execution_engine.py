@@ -112,7 +112,7 @@ class ParallelExecutionEngine:
         self._scaling_history: List[Dict[str, Any]] = []
 
         if verbose:
-            print(f"🔧 ParallelExecutionEngine initialized:")
+            print("🔧 ParallelExecutionEngine initialized:")
             print(f"   Max workers: {max_workers}")
             print(f"   Resource monitoring: {resource_monitoring}")
             print(f"   Deterministic execution: {deterministic_execution}")
@@ -290,7 +290,7 @@ class ParallelExecutionEngine:
         safety_check = self.dependency_analyzer.validate_execution_safety(models)
         if not safety_check["safe"]:
             if self.verbose:
-                print(f"   ⚠️ Safety issues detected, falling back to sequential:")
+                print("   ⚠️ Safety issues detected, falling back to sequential:")
                 for issue in safety_check["issues"]:
                     print(f"      - {issue}")
 
@@ -477,7 +477,7 @@ class ParallelExecutionEngine:
                     # Check for resource pressure after each model completion
                     if not resource_manager.check_resource_health():
                         if self.verbose:
-                            print(f"   ⚠️ Resource pressure detected, may affect remaining models")
+                            print("   ⚠️ Resource pressure detected, may affect remaining models")
 
                 except Exception as e:
                     errors.append(f"Model {model} raised exception: {str(e)}")
@@ -800,7 +800,7 @@ class ParallelExecutionEngine:
 
     def _log_execution_plan(self, plan: Dict[str, Any]) -> None:
         """Log the execution plan for transparency."""
-        print(f"   📋 Execution plan:")
+        print("   📋 Execution plan:")
         print(f"      Total models: {plan['total_models']}")
         print(f"      Parallelizable: {plan['parallelizable_models']}")
         print(f"      Estimated speedup: {plan['estimated_total_speedup']:.1f}x")

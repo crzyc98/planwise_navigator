@@ -10,7 +10,7 @@ import json
 import pytest
 import tempfile
 from pathlib import Path
-from datetime import datetime
+from datetime import datetime, timezone
 from unittest.mock import Mock, patch, MagicMock
 
 # Check if GitPython is available
@@ -51,8 +51,8 @@ def sample_workspace(temp_workspaces_dir):
         "id": workspace_id,
         "name": "Test Workspace",
         "description": "A test workspace",
-        "created_at": datetime.utcnow().isoformat(),
-        "updated_at": datetime.utcnow().isoformat(),
+        "created_at": datetime.now(timezone.utc).isoformat(),
+        "updated_at": datetime.now(timezone.utc).isoformat(),
     }))
 
     # Create base_config.yaml
@@ -72,7 +72,7 @@ def sample_workspace(temp_workspaces_dir):
         "id": scenario_id,
         "workspace_id": workspace_id,
         "name": "Test Scenario",
-        "created_at": datetime.utcnow().isoformat(),
+        "created_at": datetime.now(timezone.utc).isoformat(),
     }))
 
     return workspace_dir
@@ -139,7 +139,7 @@ class TestSyncModels:
         from planalign_api.models.sync import SyncLogEntry
 
         entry = SyncLogEntry(
-            timestamp=datetime.utcnow(),
+            timestamp=datetime.now(timezone.utc),
             operation="push",
             workspaces_affected=3,
             scenarios_affected=10,
@@ -387,7 +387,7 @@ class TestSyncModelsValidation:
 
         with pytest.raises(ValidationError):
             SyncLogEntry(
-                timestamp=datetime.utcnow(),
+                timestamp=datetime.now(timezone.utc),
                 operation="invalid-op",
                 message="Test",
             )

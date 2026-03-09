@@ -153,7 +153,7 @@ class DbtRunner:
         if self.verbose:
             threading_status = "enabled" if threading_enabled else "disabled"
             parallel_status = "enabled" if self._parallel_engine else "disabled"
-            print(f"🧩 DbtRunner initialized:")
+            print("🧩 DbtRunner initialized:")
             print(f"   dbt threads: {threads} ({threading_status}, mode: {threading_mode})")
             print(f"   Model parallelization: {parallel_status}")
             if self._parallel_engine:
@@ -707,7 +707,7 @@ class DbtRunner:
             self.enable_model_parallelization = True
 
             if self.verbose:
-                print(f"✅ Model-level parallelization enabled:")
+                print("✅ Model-level parallelization enabled:")
                 print(f"   Max workers: {self.model_parallelization_max_workers}")
                 print(f"   Memory limit: {self.model_parallelization_memory_limit_mb}MB")
 

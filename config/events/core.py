@@ -11,7 +11,7 @@ Contains:
 - LegacySimulationEvent: Backward compatibility alias
 """
 
-from datetime import date, datetime
+from datetime import date, datetime, timezone
 from decimal import Decimal
 from typing import Annotated, Any, Dict, Literal, Optional, Union
 from uuid import UUID, uuid4
@@ -52,7 +52,7 @@ class SimulationEvent(BaseModel):
     event_id: UUID = Field(default_factory=uuid4)
     employee_id: str = Field(..., min_length=1)
     effective_date: date
-    created_at: datetime = Field(default_factory=datetime.utcnow)
+    created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
 
     # Required context fields (not optional for proper isolation)
     scenario_id: str = Field(..., min_length=1)

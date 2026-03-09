@@ -162,11 +162,7 @@ export default function SimulationControl() {
               <button
                 onClick={handleStart}
                 disabled={!selectedScenarioId || isLoading || isSimulationRunning}
-                className={`flex items-center px-6 py-2 text-white rounded-lg transition-all shadow-md font-medium ${
-                  !selectedScenarioId || isLoading || isSimulationRunning
-                    ? 'bg-gray-300 cursor-not-allowed'
-                    : 'bg-fidelity-green hover:bg-fidelity-dark'
-                }`}
+                className={`flex items-center px-6 py-2 text-white rounded-lg transition-all shadow-md font-medium ${!selectedScenarioId || isLoading || isSimulationRunning ? 'bg-gray-300 cursor-not-allowed' : 'bg-fidelity-green hover:bg-fidelity-dark'}`}
               >
                 {isSimulationRunning ? (
                   <>
@@ -326,15 +322,7 @@ export default function SimulationControl() {
                  {recentEvents.map((event, idx) => (
                    <li key={event.employee_id + '-' + idx} className="p-3 hover:bg-gray-800 transition-colors border-l-4 border-transparent hover:border-fidelity-green">
                      <div className="flex justify-between items-start mb-1">
-                        <span className={`text-xs font-bold px-1.5 rounded ${
-                          ({
-                            HIRE: 'bg-green-900 text-green-300',
-                            TERMINATION: 'bg-red-900 text-red-300',
-                            PROMOTION: 'bg-blue-900 text-blue-300',
-                            STAGE: 'bg-purple-900 text-purple-300',
-                            INFO: 'bg-cyan-900 text-cyan-300',
-                          } as Record<string, string>)[event.event_type] ?? 'bg-yellow-900 text-yellow-300'
-                        }`}>
+                        <span className={`text-xs font-bold px-1.5 rounded ${({ HIRE: 'bg-green-900 text-green-300', TERMINATION: 'bg-red-900 text-red-300', PROMOTION: 'bg-blue-900 text-blue-300', STAGE: 'bg-purple-900 text-purple-300', INFO: 'bg-cyan-900 text-cyan-300' } as Record<string, string>)[event.event_type] ?? 'bg-yellow-900 text-yellow-300'}`}>
                           {event.event_type}
                         </span>
                         <span className="text-xs text-gray-500">{new Date(event.timestamp).toLocaleTimeString()}</span>
@@ -395,14 +383,7 @@ export default function SimulationControl() {
                       </div>
                     </td>
                     <td className="py-3 px-4">
-                      <span className={`inline-flex items-center px-2.5 py-1 rounded-full text-xs font-medium ${
-                        ({
-                          completed: 'bg-green-100 text-green-700',
-                          running: 'bg-blue-100 text-blue-700',
-                          failed: 'bg-red-100 text-red-700',
-                          queued: 'bg-yellow-100 text-yellow-700',
-                        } as Record<string, string>)[scenario.status] ?? 'bg-gray-100 text-gray-600'
-                      }`}>
+                      <span className={`inline-flex items-center px-2.5 py-1 rounded-full text-xs font-medium ${({ completed: 'bg-green-100 text-green-700', running: 'bg-blue-100 text-blue-700', failed: 'bg-red-100 text-red-700', queued: 'bg-yellow-100 text-yellow-700' } as Record<string, string>)[scenario.status] ?? 'bg-gray-100 text-gray-600'}`}>
                         {scenario.status === 'completed' && <CheckCircle size={12} className="mr-1" />}
                         {scenario.status === 'running' && <CircleDot size={12} className="mr-1 animate-pulse" />}
                         {scenario.status === 'failed' && <XCircle size={12} className="mr-1" />}
@@ -464,11 +445,7 @@ export default function SimulationControl() {
                           }
                         }}
                         disabled={isSimulationRunning}
-                        className={`text-sm px-3 py-1.5 rounded font-medium transition-colors ${
-                          isSimulationRunning
-                            ? 'bg-gray-100 text-gray-400 cursor-not-allowed'
-                            : 'bg-fidelity-green text-white hover:bg-fidelity-dark'
-                        }`}
+                        className={`text-sm px-3 py-1.5 rounded font-medium transition-colors ${isSimulationRunning ? 'bg-gray-100 text-gray-400 cursor-not-allowed' : 'bg-fidelity-green text-white hover:bg-fidelity-dark'}`}
                       >
                         {isSimulationRunning && scenario.id === runningScenarioId && (
                           <>

@@ -2,7 +2,7 @@
 
 import asyncio
 import logging
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Any, Dict, Optional, Set
 
 from ..models.simulation import (
@@ -53,7 +53,7 @@ class TelemetryService:
             recent_events=[
                 RecentEvent(**e) for e in (recent_events or [])
             ],
-            timestamp=datetime.utcnow(),
+            timestamp=datetime.now(timezone.utc),
         )
 
         self._telemetry_data[run_id] = telemetry

@@ -3,7 +3,7 @@
 import asyncio
 import os
 import uuid
-from datetime import datetime
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
@@ -167,7 +167,7 @@ async def get_run_status(
         scenario_id=scenario_id,
         status="completed" if scenario.status == "completed" else "not_run",
         progress=100 if scenario.status == "completed" else 0,
-        started_at=scenario.last_run_at or datetime.utcnow(),
+        started_at=scenario.last_run_at or datetime.now(timezone.utc),
         completed_at=scenario.last_run_at,
     )
 
@@ -188,7 +188,7 @@ async def cancel_simulation(
             simulation_service.cancel_simulation(run_id)
 
             run.status = "cancelled"
-            run.completed_at = datetime.utcnow()
+            run.completed_at = datetime.now(timezone.utc)
 
             # Update scenario status
             workspace, scenario = _find_scenario_and_workspace(storage, scenario_id)
