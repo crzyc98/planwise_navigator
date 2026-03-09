@@ -156,7 +156,7 @@ async def _execute_batch(
     batch_id: str,
     scenarios: List[Scenario],
     parallel: bool,
-    export_format: Optional[str],
+    _export_format: Optional[str],
 ) -> None:
     """Execute batch scenarios (background task)."""
     logger.info("=== BATCH EXECUTION STARTED ===")

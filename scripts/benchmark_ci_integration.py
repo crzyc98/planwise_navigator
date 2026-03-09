@@ -27,14 +27,13 @@ import logging
 import argparse
 import subprocess
 from pathlib import Path
-from datetime import datetime, timedelta
+from datetime import datetime
 from dataclasses import dataclass, asdict
-from typing import List, Dict, Any, Optional, Tuple
-import tempfile
+from typing import List, Dict, Any, Optional
 
 # Add project root to path
 sys.path.insert(0, str(Path(__file__).parent.parent))
-from scripts.benchmark_event_generation import EventGenerationBenchmark, BenchmarkScenario
+from scripts.benchmark_event_generation import EventGenerationBenchmark
 
 
 @dataclass
@@ -52,7 +51,7 @@ class PerformanceBaseline:
     throughput_regression_threshold: float = 0.10  # 10% fewer events/sec
     memory_regression_threshold: float = 0.20  # 20% more memory
 
-    timestamp: datetime = None
+    timestamp: Optional[datetime] = None
     git_commit: Optional[str] = None
     build_number: Optional[str] = None
 

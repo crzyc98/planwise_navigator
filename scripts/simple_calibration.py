@@ -91,7 +91,7 @@ def main():
         WHERE scenario_id = 'default'
           AND fiscal_year = 2025
           AND parameter_name IN ('cola_rate', 'merit_base')
-        ORDER BY job_level, parameter_name
+        ORDER BY job_level ASC, parameter_name ASC
     """
     ).df()
 

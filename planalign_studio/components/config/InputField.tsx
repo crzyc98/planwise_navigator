@@ -1,16 +1,16 @@
 import React, { useId } from 'react';
 
 export interface InputFieldProps {
-  label: string;
-  name: string;
-  value: any;
-  onChange: (e: React.ChangeEvent<HTMLInputElement>) => void;
-  type?: string;
-  width?: string;
-  suffix?: string;
-  helper?: string;
-  step?: string;
-  min?: number;
+  readonly label: string;
+  readonly name: string;
+  readonly value: any;
+  readonly onChange: (e: React.ChangeEvent<HTMLInputElement>) => void;
+  readonly type?: string;
+  readonly width?: string;
+  readonly suffix?: string;
+  readonly helper?: string;
+  readonly step?: string;
+  readonly min?: number;
 }
 
 export const InputField: React.FC<InputFieldProps> = ({

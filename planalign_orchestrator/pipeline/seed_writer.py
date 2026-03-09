@@ -29,9 +29,9 @@ def write_promotion_hazard_csvs(config: dict[str, Any], seeds_dir: Path) -> None
     """
     # Write base configuration (atomic)
     base_file = seeds_dir / "config_promotion_hazard_base.csv"
-    tmp_fd, tmp_path = tempfile.mkstemp(dir=seeds_dir, suffix=".csv.tmp")
+    _, tmp_path = tempfile.mkstemp(dir=seeds_dir, suffix=".csv.tmp")
     try:
-        with os.fdopen(tmp_fd, "w", newline="") as f:
+        with os.fdopen(_, "w", newline="") as f:
             writer = csv.DictWriter(f, fieldnames=["base_rate", "level_dampener_factor"])
             writer.writeheader()
             writer.writerow({
@@ -47,9 +47,9 @@ def write_promotion_hazard_csvs(config: dict[str, Any], seeds_dir: Path) -> None
 
     # Write age multipliers (atomic)
     age_file = seeds_dir / "config_promotion_hazard_age_multipliers.csv"
-    tmp_fd, tmp_path = tempfile.mkstemp(dir=seeds_dir, suffix=".csv.tmp")
+    _, tmp_path = tempfile.mkstemp(dir=seeds_dir, suffix=".csv.tmp")
     try:
-        with os.fdopen(tmp_fd, "w", newline="") as f:
+        with os.fdopen(_, "w", newline="") as f:
             writer = csv.DictWriter(f, fieldnames=["age_band", "multiplier"])
             writer.writeheader()
             for entry in config["age_multipliers"]:
@@ -66,9 +66,9 @@ def write_promotion_hazard_csvs(config: dict[str, Any], seeds_dir: Path) -> None
 
     # Write tenure multipliers (atomic)
     tenure_file = seeds_dir / "config_promotion_hazard_tenure_multipliers.csv"
-    tmp_fd, tmp_path = tempfile.mkstemp(dir=seeds_dir, suffix=".csv.tmp")
+    _, tmp_path = tempfile.mkstemp(dir=seeds_dir, suffix=".csv.tmp")
     try:
-        with os.fdopen(tmp_fd, "w", newline="") as f:
+        with os.fdopen(_, "w", newline="") as f:
             writer = csv.DictWriter(f, fieldnames=["tenure_band", "multiplier"])
             writer.writeheader()
             for entry in config["tenure_multipliers"]:
@@ -99,9 +99,9 @@ def write_band_csvs(config: dict[str, Any], seeds_dir: Path) -> None:
     # Write age bands if present (atomic)
     if "age_bands" in config:
         age_file = seeds_dir / "config_age_bands.csv"
-        tmp_fd, tmp_path = tempfile.mkstemp(dir=seeds_dir, suffix=".csv.tmp")
+        _, tmp_path = tempfile.mkstemp(dir=seeds_dir, suffix=".csv.tmp")
         try:
-            with os.fdopen(tmp_fd, "w", newline="") as f:
+            with os.fdopen(_, "w", newline="") as f:
                 writer = csv.DictWriter(f, fieldnames=fieldnames)
                 writer.writeheader()
                 for band in config["age_bands"]:
@@ -122,9 +122,9 @@ def write_band_csvs(config: dict[str, Any], seeds_dir: Path) -> None:
     # Write tenure bands if present (atomic)
     if "tenure_bands" in config:
         tenure_file = seeds_dir / "config_tenure_bands.csv"
-        tmp_fd, tmp_path = tempfile.mkstemp(dir=seeds_dir, suffix=".csv.tmp")
+        _, tmp_path = tempfile.mkstemp(dir=seeds_dir, suffix=".csv.tmp")
         try:
-            with os.fdopen(tmp_fd, "w", newline="") as f:
+            with os.fdopen(_, "w", newline="") as f:
                 writer = csv.DictWriter(f, fieldnames=fieldnames)
                 writer.writeheader()
                 for band in config["tenure_bands"]:

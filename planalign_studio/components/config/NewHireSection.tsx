@@ -269,14 +269,14 @@ export function NewHireSection() {
           <p className="text-xs text-gray-500 mb-4">Choose how new hires are distributed across job levels.</p>
           <div className="flex items-center space-x-4 mb-4">
             <label htmlFor="newhire-level-dist-adaptive" className={`flex items-center p-3 border rounded-lg cursor-pointer transition-colors ${formData.levelDistributionMode === 'adaptive' ? 'bg-green-50 border-fidelity-green ring-1 ring-fidelity-green' : 'bg-white border-gray-200 hover:bg-gray-50'}`}>
-              <input id="newhire-level-dist-adaptive" type="radio" name="levelDistributionMode" value="adaptive" checked={formData.levelDistributionMode === 'adaptive'} onChange={(e) => setFormData({...formData, levelDistributionMode: e.target.value as 'adaptive' | 'fixed'})} className="h-4 w-4 text-fidelity-green focus:ring-fidelity-green border-gray-300" />
+              <input id="newhire-level-dist-adaptive" type="radio" name="levelDistributionMode" value="adaptive" checked={formData.levelDistributionMode === 'adaptive'} onChange={(e) => setFormData({...formData, levelDistributionMode: e.target.value})} className="h-4 w-4 text-fidelity-green focus:ring-fidelity-green border-gray-300" />
               <div className="ml-2">
                 <span className="block text-sm font-medium text-gray-900">Adaptive</span>
                 <span className="block text-xs text-gray-500">Maintain current workforce composition</span>
               </div>
             </label>
             <label htmlFor="newhire-level-dist-fixed" className={`flex items-center p-3 border rounded-lg cursor-pointer transition-colors ${formData.levelDistributionMode === 'fixed' ? 'bg-green-50 border-fidelity-green ring-1 ring-fidelity-green' : 'bg-white border-gray-200 hover:bg-gray-50'}`}>
-              <input id="newhire-level-dist-fixed" type="radio" name="levelDistributionMode" value="fixed" checked={formData.levelDistributionMode === 'fixed'} onChange={(e) => setFormData({...formData, levelDistributionMode: e.target.value as 'adaptive' | 'fixed'})} className="h-4 w-4 text-fidelity-green focus:ring-fidelity-green border-gray-300" />
+              <input id="newhire-level-dist-fixed" type="radio" name="levelDistributionMode" value="fixed" checked={formData.levelDistributionMode === 'fixed'} onChange={(e) => setFormData({...formData, levelDistributionMode: e.target.value})} className="h-4 w-4 text-fidelity-green focus:ring-fidelity-green border-gray-300" />
               <div className="ml-2">
                 <span className="block text-sm font-medium text-gray-900">Fixed Percentages</span>
                 <span className="block text-xs text-gray-500">Specify exact distribution below</span>

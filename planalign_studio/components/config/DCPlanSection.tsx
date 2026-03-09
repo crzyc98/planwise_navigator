@@ -122,7 +122,7 @@ export function DCPlanSection() {
            <select
              id="dcplan-match-mode"
              value={formData.dcMatchMode}
-             onChange={(e) => setFormData(prev => ({ ...prev, dcMatchMode: e.target.value as any }))}
+             onChange={(e) => setFormData(prev => ({ ...prev, dcMatchMode: e.target.value }))}
              className="mt-1 block w-full pl-3 pr-10 py-2 text-base border-gray-300 focus:outline-none focus:ring-fidelity-green focus:border-fidelity-green sm:text-sm rounded-md border shadow-sm"
            >
              <option value="deferral_based">Deferral-Based (match varies by deferral %)</option>
@@ -337,7 +337,7 @@ export function DCPlanSection() {
              id="dcplan-match-template"
              value={formData.dcMatchTemplate}
              onChange={(e) => {
-               const templateKey = e.target.value as 'simple' | 'tiered' | 'stretch' | 'safe_harbor' | 'qaca';
+               const templateKey = e.target.value;
                const template = MATCH_TEMPLATES[templateKey];
                if (template) {
                  setFormData(prev => ({
