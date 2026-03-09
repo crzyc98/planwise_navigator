@@ -556,12 +556,14 @@ class SyncService:
                         else:
                             files_updated += 1
 
+            except GitCommandError:
+                raise
             finally:
                 # Restore stashed changes
                 if stashed:
                     try:
                         repo.git.stash("pop")
-                    except GitCommandError as e:
+                    except GitCommandError:
                         # Conflict during stash pop
                         conflicts = self._get_conflict_files(repo)
                         if conflicts:
@@ -570,13 +572,9 @@ class SyncService:
                                 f"Conflicts in {len(conflicts)} file(s)",
                                 success=False,
                             )
-                            return SyncPullResult(
-                                success=False,
-                                files_updated=files_updated,
-                                files_added=files_added,
-                                files_removed=files_removed,
-                                conflicts=conflicts,
-                                message=f"Conflicts detected in {len(conflicts)} file(s)",
+                            raise SyncConflictError(
+                                f"Conflicts detected in {len(conflicts)} file(s)",
+                                conflicting_files=conflicts,
                             )
 
             workspaces, scenarios = self._count_content()
@@ -602,6 +600,12 @@ class SyncService:
                 message=f"Updated {files_updated}, added {files_added}, removed {files_removed} file(s)",
             )
 
+        except SyncConflictError as e:
+            return SyncPullResult(
+                success=False,
+                conflicts=e.conflicting_files,
+                message=str(e),
+            )
         except GitCommandError as e:
             if "Could not read from remote" in str(e):
                 raise SyncAuthError(

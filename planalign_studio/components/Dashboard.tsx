@@ -10,7 +10,10 @@ interface LayoutContext {
 
 const StatCard = ({ title, value, subtext, icon, color, onClick }: any) => (
   <div
+    role="button"
+    tabIndex={0}
     onClick={onClick}
+    onKeyDown={(e: React.KeyboardEvent) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onClick?.(); } }}
     className={`bg-white rounded-xl shadow-sm border border-gray-100 p-6 flex items-start justify-between cursor-pointer transition-all hover:shadow-md hover:border-${color}-200 group`}
   >
     <div>
@@ -134,7 +137,10 @@ export default function Dashboard() {
                 return (
                   <div
                     key={scenario.id}
+                    role="button"
+                    tabIndex={0}
                     onClick={() => handleSimulationClick(scenario)}
+                    onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); handleSimulationClick(scenario); } }}
                     className="p-6 flex items-center justify-between hover:bg-gray-50 transition-colors cursor-pointer group"
                   >
                     <div className="flex items-center">

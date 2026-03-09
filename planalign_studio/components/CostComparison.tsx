@@ -42,61 +42,12 @@ export default function CostComparison() {
   const [viewMode, setViewMode] = useState<'annual' | 'cumulative'>('annual');
   const [searchQuery, setSearchQuery] = useState('');
 
-  // Issue 1: Early return if no workspace (after all hooks)
-  if (!activeWorkspace) {
-    return (
-      <div className="flex items-center justify-center h-full text-gray-500">
-        No workspace selected
-      </div>
-    );
-  }
-
-  // Issue 2: Guard for empty workspaceConfigs (after all hooks)
-  if (workspaceConfigs.length === 0) {
-    return (
-      <div className="flex items-center justify-center h-full text-gray-500">
-        No scenarios configured for this workspace
-      </div>
-    );
-  }
-
-  const toggleSelection = (id: string) => {
-    if (selectedIds.includes(id)) {
-      if (selectedIds.length > 1) {
-        setSelectedIds(prev => prev.filter(i => i !== id));
-        if (baselineId === id) {
-          const remaining = selectedIds.filter(i => i !== id);
-          setBaselineId(remaining[0]);
-        }
-      }
-    } else {
-      setSelectedIds(prev => [...prev, id]);
-    }
-  };
-
-  const moveScenarioUp = (id: string) => {
-    setSelectedIds(prev => {
-      const idx = prev.indexOf(id);
-      if (idx <= 0) return prev;
-      const newArr = [...prev];
-      [newArr[idx - 1], newArr[idx]] = [newArr[idx], newArr[idx - 1]];
-      return newArr;
-    });
-  };
-
-  const moveScenarioDown = (id: string) => {
-    setSelectedIds(prev => {
-      const idx = prev.indexOf(id);
-      if (idx < 0 || idx >= prev.length - 1) return prev;
-      const newArr = [...prev];
-      [newArr[idx], newArr[idx + 1]] = [newArr[idx + 1], newArr[idx]];
-      return newArr;
-    });
-  };
-
-  const filteredConfigs = workspaceConfigs.filter(c =>
-    c.name.toLowerCase().includes(searchQuery.toLowerCase())
-  );
+  // All useMemo hooks must be called before any early returns
+  const filteredConfigs = useMemo(() =>
+    workspaceConfigs.filter(c =>
+      c.name.toLowerCase().includes(searchQuery.toLowerCase())
+    ),
+  [workspaceConfigs, searchQuery]);
 
   // Sorted configs: selected first (in order), then unselected
   const sortedFilteredConfigs = useMemo(() => {
@@ -185,6 +136,57 @@ export default function CostComparison() {
       avgAnnualCost: cumulativeTotal / yearCount,
     };
   }, [baselineId, yearCount]);
+
+  // Early returns after all hooks
+  if (!activeWorkspace) {
+    return (
+      <div className="flex items-center justify-center h-full text-gray-500">
+        No workspace selected
+      </div>
+    );
+  }
+
+  if (workspaceConfigs.length === 0) {
+    return (
+      <div className="flex items-center justify-center h-full text-gray-500">
+        No scenarios configured for this workspace
+      </div>
+    );
+  }
+
+  const toggleSelection = (id: string) => {
+    if (selectedIds.includes(id)) {
+      if (selectedIds.length > 1) {
+        setSelectedIds(prev => prev.filter(i => i !== id));
+        if (baselineId === id) {
+          const remaining = selectedIds.filter(i => i !== id);
+          setBaselineId(remaining[0]);
+        }
+      }
+    } else {
+      setSelectedIds(prev => [...prev, id]);
+    }
+  };
+
+  const moveScenarioUp = (id: string) => {
+    setSelectedIds(prev => {
+      const idx = prev.indexOf(id);
+      if (idx <= 0) return prev;
+      const newArr = [...prev];
+      [newArr[idx - 1], newArr[idx]] = [newArr[idx], newArr[idx - 1]];
+      return newArr;
+    });
+  };
+
+  const moveScenarioDown = (id: string) => {
+    setSelectedIds(prev => {
+      const idx = prev.indexOf(id);
+      if (idx < 0 || idx >= prev.length - 1) return prev;
+      const newArr = [...prev];
+      [newArr[idx], newArr[idx + 1]] = [newArr[idx + 1], newArr[idx]];
+      return newArr;
+    });
+  };
 
   return (
     <div className="flex h-full gap-6 animate-fadeIn">

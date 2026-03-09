@@ -559,6 +559,7 @@ class ExcelExporter:
             try:
                 # Fallback to information_schema
                 df = self._query_to_df(
+                    conn,
                     f"SELECT LOWER(column_name) AS name FROM information_schema.columns WHERE table_name = '{table_name}'",
                 )
                 return df["name"].tolist()
