@@ -211,11 +211,7 @@ export default function WorkspaceManager() {
         {filteredWorkspaces.map(ws => (
           <div
             key={ws.id}
-            className={`bg-white rounded-xl border p-6 flex flex-col transition-all ${
-              activeWorkspace.id === ws.id
-                ? 'border-fidelity-green shadow-md ring-1 ring-fidelity-green'
-                : 'border-gray-200 shadow-sm hover:shadow-md'
-            }`}
+            className={`bg-white rounded-xl border p-6 flex flex-col transition-all ${activeWorkspace.id === ws.id ? 'border-fidelity-green shadow-md ring-1 ring-fidelity-green' : 'border-gray-200 shadow-sm hover:shadow-md'}`}
           >
             {editingId === ws.id ? (
               // Editing Mode
@@ -247,9 +243,7 @@ export default function WorkspaceManager() {
               <div className="flex-1">
                 <div className="flex justify-between items-start mb-2">
                   <div className="flex items-center">
-                    <div className={`p-2 rounded-lg mr-3 ${
-                      activeWorkspace.id === ws.id ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-500'
-                    }`}>
+                    <div className={`p-2 rounded-lg mr-3 ${activeWorkspace.id === ws.id ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-500'}`}>
                       <Briefcase size={20} />
                     </div>
                     <div>
@@ -383,9 +377,7 @@ export default function WorkspaceManager() {
                 <button
                   type="submit"
                   disabled={!newName.trim()}
-                  className={`px-4 py-2 text-sm font-medium text-white rounded-lg transition-colors ${
-                    !newName.trim() ? 'bg-gray-300 cursor-not-allowed' : 'bg-fidelity-green hover:bg-fidelity-dark'
-                  }`}
+                  className={`px-4 py-2 text-sm font-medium text-white rounded-lg transition-colors ${!newName.trim() ? 'bg-gray-300 cursor-not-allowed' : 'bg-fidelity-green hover:bg-fidelity-dark'}`}
                 >
                   Create Workspace
                 </button>
@@ -529,11 +521,7 @@ export default function WorkspaceManager() {
                 <button
                   onClick={handleImport}
                   disabled={!importValidation?.valid || isImporting}
-                  className={`px-4 py-2 text-sm font-medium text-white rounded-lg transition-colors flex items-center ${
-                    !importValidation?.valid || isImporting
-                      ? 'bg-gray-300 cursor-not-allowed'
-                      : 'bg-fidelity-green hover:bg-fidelity-dark'
-                  }`}
+                  className={`px-4 py-2 text-sm font-medium text-white rounded-lg transition-colors flex items-center ${!importValidation?.valid || isImporting ? 'bg-gray-300 cursor-not-allowed' : 'bg-fidelity-green hover:bg-fidelity-dark'}`}
                 >
                   {isImporting && <Loader2 size={16} className="animate-spin mr-2" />}
                   Import Workspace

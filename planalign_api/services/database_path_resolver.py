@@ -258,14 +258,14 @@ class DatabasePathResolver:
             return ResolvedDatabasePath(
                 path=None,
                 source=None,
-                warning=f"Invalid workspace_id: potential path traversal attempt",
+                warning="Invalid workspace_id: potential path traversal attempt",
             )
 
         if not self._validate_identifier(scenario_id, "scenario_id"):
             return ResolvedDatabasePath(
                 path=None,
                 source=None,
-                warning=f"Invalid scenario_id: potential path traversal attempt",
+                warning="Invalid scenario_id: potential path traversal attempt",
             )
 
         # Step 2: Try scenario-specific database

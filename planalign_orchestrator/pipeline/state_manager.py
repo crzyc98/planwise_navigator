@@ -10,7 +10,7 @@ from __future__ import annotations
 
 import hashlib
 import json
-from datetime import datetime
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Optional
 
@@ -244,7 +244,7 @@ class StateManager:
             '2025:2025-01-15T14:30:00.123456'
         """
         # Lightweight placeholder hash combining year and timestamp
-        return f"{year}:{datetime.utcnow().isoformat()}"
+        return f"{year}:{datetime.now(timezone.utc).isoformat()}"
 
     def verify_year_population(
         self, year: int, dbt_vars: Optional[dict] = None

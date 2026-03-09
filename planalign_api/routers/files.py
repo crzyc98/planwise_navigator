@@ -1,7 +1,7 @@
 """File upload and validation router."""
 
 import logging
-from datetime import datetime
+from datetime import datetime, timezone
 
 from fastapi import APIRouter, File, HTTPException, UploadFile, status
 
@@ -129,7 +129,7 @@ async def upload_census_file(
         file_size_bytes=metadata["file_size_bytes"],
         row_count=metadata["row_count"],
         columns=metadata["columns"],
-        upload_timestamp=datetime.utcnow(),
+        upload_timestamp=datetime.now(timezone.utc),
         validation_warnings=metadata.get("validation_warnings", []),
         structured_warnings=metadata.get("structured_warnings", []),
         data_quality_warnings=metadata.get("data_quality_warnings", []),

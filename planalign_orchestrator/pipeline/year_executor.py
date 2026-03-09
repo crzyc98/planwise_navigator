@@ -203,7 +203,7 @@ class YearExecutor:
             # This prevents silent data corruption from out-of-order year execution
             self._year_validator.validate_year_dependencies(year)
             if self.verbose:
-                print(f"   🔒 Running STATE_ACCUMULATION with dbt (sequential)")
+                print("   🔒 Running STATE_ACCUMULATION with dbt (sequential)")
 
         self._run_stage_models(stage, year)
         return []
@@ -435,7 +435,7 @@ class YearExecutor:
         )
 
         if self.verbose:
-            print(f"   📊 Parallelization results:")
+            print("   📊 Parallelization results:")
             print(f"      Success: {result.success}")
             print(f"      Models executed: {len(result.model_results)}")
             print(f"      Execution time: {result.execution_time:.1f}s")

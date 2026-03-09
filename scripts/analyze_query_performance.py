@@ -496,7 +496,7 @@ class QueryProfileAnalyzer:
     def _generate_directory_report(self, analysis: Dict[str, Any]) -> List[str]:
         """Generate report for directory analysis"""
         lines = [
-            f"Analysis Type: Directory Analysis",
+            "Analysis Type: Directory Analysis",
             f"Total Profiles: {analysis['total_profiles']}",
             f"Successful Analyses: {analysis['successful_analyses']}",
             "",
@@ -536,7 +536,7 @@ class QueryProfileAnalyzer:
     def _generate_live_report(self, analysis: Dict[str, Any]) -> List[str]:
         """Generate report for live database analysis"""
         lines = [
-            f"Analysis Type: Live Database Analysis",
+            "Analysis Type: Live Database Analysis",
             f"Database: {analysis['database_path']}",
             ""
         ]

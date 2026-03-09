@@ -339,7 +339,7 @@ class HazardCacheManager:
                 )
 
                 if not result.success:
-                    error_msg = f"Failed to update cache metadata"
+                    error_msg = "Failed to update cache metadata"
                     if result.stderr:
                         error_msg += f": {result.stderr}"
                     self.logger.error(error_msg)

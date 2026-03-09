@@ -692,6 +692,6 @@ def _show_enhanced_simulation_summary(summary, start_year: int, end_year: int, v
             recommendations.insert(0, "🔍 Low event volume - verify growth parameters and population")
 
     if recommendations:
-        console.print(f"\n💡 [bold]Next Steps & Recommendations[/bold]")
+        console.print("\n💡 [bold]Next Steps & Recommendations[/bold]")
         for rec in recommendations:
             console.print(f"  • {rec}")

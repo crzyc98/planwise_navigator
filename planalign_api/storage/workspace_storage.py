@@ -4,7 +4,7 @@ import json
 import logging
 import shutil
 import uuid
-from datetime import datetime
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
@@ -146,7 +146,7 @@ class WorkspaceStorage:
         (workspace_path / "scenarios").mkdir()
         (workspace_path / "comparisons").mkdir()
 
-        now = datetime.utcnow()
+        now = datetime.now(timezone.utc)
         base_config = create_data.base_config or default_config
 
         # Save workspace.json
@@ -187,7 +187,7 @@ class WorkspaceStorage:
         if not workspace:
             return None
 
-        now = datetime.utcnow()
+        now = datetime.now(timezone.utc)
 
         # Update workspace.json
         workspace_json_path = self._workspace_json_path(workspace_id)
@@ -303,7 +303,7 @@ class WorkspaceStorage:
         (scenario_path / "results").mkdir()
         (scenario_path / "runs").mkdir()
 
-        now = datetime.utcnow()
+        now = datetime.now(timezone.utc)
 
         scenario_data = {
             "id": scenario_id,
@@ -384,7 +384,7 @@ class WorkspaceStorage:
         data["status"] = status
         if run_id:
             data["last_run_id"] = run_id
-            data["last_run_at"] = datetime.utcnow().isoformat() + "Z"  # Add Z for UTC timezone
+            data["last_run_at"] = datetime.now(timezone.utc).isoformat().replace("+00:00", "Z")
         if results_summary:
             data["results_summary"] = results_summary
 
@@ -904,7 +904,7 @@ class WorkspaceStorage:
     ) -> Dict[str, Any]:
         """Create minimal valid workspace.json from context and salvaged data."""
         salvaged = salvaged or {}
-        now = datetime.utcnow().isoformat()
+        now = datetime.now(timezone.utc).isoformat()
 
         # Try to use salvaged dates
         dates = salvaged.get("_salvaged_dates", [])
@@ -924,7 +924,7 @@ class WorkspaceStorage:
     ) -> Dict[str, Any]:
         """Create minimal valid scenario.json from context and salvaged data."""
         salvaged = salvaged or {}
-        now = datetime.utcnow().isoformat()
+        now = datetime.now(timezone.utc).isoformat()
 
         # Try to use salvaged dates
         dates = salvaged.get("_salvaged_dates", [])

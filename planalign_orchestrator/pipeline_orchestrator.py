@@ -13,7 +13,7 @@ from __future__ import annotations
 import json
 import logging
 from dataclasses import dataclass
-from datetime import datetime
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 import time
@@ -101,11 +101,11 @@ class PipelineOrchestrator:
 
         # Log E068C threading configuration
         if self.verbose:
-            print(f"🧵 E068C Threading Configuration:")
+            print("🧵 E068C Threading Configuration:")
             print(f"   dbt_threads: {self.dbt_threads}")
             print(f"   event_shards: {self.event_shards}")
             print(f"   max_parallel_years: {self.max_parallel_years}")
-            print(f"🔄 Event Generation Mode: SQL")
+            print("🔄 Event Generation Mode: SQL")
 
         # Enhanced compensation parameter visibility
         self._log_compensation_parameters()
@@ -262,7 +262,7 @@ class PipelineOrchestrator:
                     # Get final resource statistics
                     final_stats = self.resource_manager.get_resource_status()
                     if self.verbose:
-                        print(f"📊 Final resource status:")
+                        print("📊 Final resource status:")
                         print(f"   Memory: {final_stats['memory']['usage_mb']:.0f}MB")
                         print(f"   CPU: {final_stats['cpu']['current_percent']:.1f}%")
 
@@ -417,7 +417,7 @@ class PipelineOrchestrator:
             return
 
         try:
-            run_id = f"multiyear_{datetime.utcnow().strftime('%Y%m%d_%H%M%S')}"
+            run_id = f"multiyear_{datetime.now(timezone.utc).strftime('%Y%m%d_%H%M%S')}"
             self.checkpoint_manager.save_checkpoint(year, run_id, self.config_hash)
             if self.verbose:
                 print(f"   ✅ Enhanced checkpoint saved for year {year}")
@@ -431,7 +431,7 @@ class PipelineOrchestrator:
             WorkflowCheckpoint(
                 year,
                 WorkflowStage.CLEANUP,
-                datetime.utcnow().isoformat(),
+                datetime.now(timezone.utc).isoformat(),
                 self.state_manager.state_hash(year),
             )
         )
@@ -489,7 +489,7 @@ class PipelineOrchestrator:
             },
             event_trends={},
             participation_trends=[],
-            generated_at=datetime.utcnow(),
+            generated_at=datetime.now(timezone.utc),
         )
 
     def _build_single_year_summary(self, reporter: "MultiYearReporter", year: int) -> MultiYearSummary:
@@ -521,7 +521,7 @@ class PipelineOrchestrator:
             growth_analysis=growth,
             event_trends=event_trends,
             participation_trends=participation_trends,
-            generated_at=datetime.utcnow(),
+            generated_at=datetime.now(timezone.utc),
         )
 
     def _finalize_simulation(self, summary: MultiYearSummary, completed_years: List[int]) -> MultiYearSummary:
@@ -819,7 +819,7 @@ class PipelineOrchestrator:
 
     def _log_simulation_startup_summary(self, start_year: int, end_year: int) -> None:
         """Enhanced simulation startup logging"""
-        print(f"\n🚀 PlanWise Navigator Multi-Year Simulation")
+        print("\n🚀 PlanWise Navigator Multi-Year Simulation")
         print(f"   Period: {start_year} → {end_year} ({end_year - start_year + 1} years)")
         print(f"   Random Seed: {self.config.simulation.random_seed}")
         print(f"   Target Growth: {self.config.simulation.target_growth_rate:.1%}")

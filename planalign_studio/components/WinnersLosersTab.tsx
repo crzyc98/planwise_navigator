@@ -369,9 +369,7 @@ export default function WinnersLosersTab() {
                         return (
                           <div
                             key={`${ab}-${tb}`}
-                            className={`relative group rounded-md p-3 text-center cursor-default transition-colors ${
-                              cell ? heatmapColor(cell) : 'bg-gray-100'
-                            }`}
+                            className={`relative group rounded-md p-3 text-center cursor-default transition-colors ${cell ? heatmapColor(cell) : 'bg-gray-100'}`}
                           >
                             <span className="text-sm font-semibold">
                               {isEmpty ? '—' : cell!.total}

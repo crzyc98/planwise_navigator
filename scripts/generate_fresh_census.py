@@ -329,11 +329,11 @@ def main():
     print(f"   Total employees: {len(df):,}")
     print(f"   Active employees: {df['active'].sum():,}")
     print(f"   Terminated employees: {(~df['active']).sum():,}")
-    print(f"\nDataset characteristics:")
+    print("\nDataset characteristics:")
     print(f"   Salary range: ${df['employee_gross_compensation'].min():,.0f} - ${df['employee_gross_compensation'].max():,.0f}")
     print(f"   Deferral rate range: {df['employee_deferral_rate'].min():.1%} - {df['employee_deferral_rate'].max():.1%}")
     print(f"   Non-participants (0% deferral): {(df['employee_deferral_rate'] == 0).sum():,}")
-    print(f"   Edge cases included: 5 (recent hire, max comp, zero deferral, terminated, min comp)")
+    print("   Edge cases included: 5 (recent hire, max comp, zero deferral, terminated, min comp)")
 
     # Show sample
     print("\nSample of new census data:")

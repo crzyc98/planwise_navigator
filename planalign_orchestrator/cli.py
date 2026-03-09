@@ -250,7 +250,7 @@ def cmd_batch(args: argparse.Namespace) -> int:
     successful = [name for name, result in results.items() if result.get("status") == "completed"]
     failed = [name for name, result in results.items() if result.get("status") == "failed"]
 
-    print(f"\n🎯 Batch execution completed:")
+    print("\n🎯 Batch execution completed:")
     print(f"  ✅ Successful: {len(successful)} scenarios")
     if successful:
         print(f"     {', '.join(successful)}")
