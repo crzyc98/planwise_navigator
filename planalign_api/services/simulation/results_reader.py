@@ -46,20 +46,23 @@ def read_results(
         storage, workspace_id, scenario_id
     )
 
+    resolved = db_resolver.resolve(workspace_id, scenario_id)
+    if not resolved.exists:
+        logger.warning(f"No database found for scenario {scenario_id}")
+        return None
+
+    db_source = resolved.source
+    if resolved.source == "project":
+        db_source = "global (shared - may show data from other scenarios)"
+    logger.info(f"Loading results from {db_source} database: {resolved.path}")
+
     try:
-        resolved = db_resolver.resolve(workspace_id, scenario_id)
-        if not resolved.exists:
-            logger.warning(f"No database found for scenario {scenario_id}")
-            return None
-
-        db_source = resolved.source
-        if resolved.source == "project":
-            db_source = "global (shared - may show data from other scenarios)"
-
-        logger.info(f"Loading results from {db_source} database: {resolved.path}")
-
         conn = duckdb.connect(str(resolved.path), read_only=True)
+    except Exception as e:
+        logger.error(f"Failed to connect to database: {e}")
+        return None
 
+    try:
         pop_filter = _population_filter(population)
 
         workforce_progression = _query_workforce_progression(
@@ -72,33 +75,32 @@ def read_results(
         participation_rate = _query_participation_rate(
             conn, config_end_year, pop_filter
         )
-
-        conn.close()
-
-        cagr_metrics, summary = _compute_cagr_metrics(workforce_progression)
-
-        return SimulationResults(
-            scenario_id=scenario_id,
-            run_id="unknown",
-            start_year=summary["start_year"],
-            end_year=summary["end_year"],
-            final_headcount=summary["final_headcount"],
-            total_growth_pct=summary["total_growth_pct"],
-            cagr=summary["cagr"],
-            participation_rate=participation_rate,
-            workforce_progression=workforce_progression,
-            event_trends=event_trends,
-            growth_analysis={
-                "total_growth_pct": summary["total_growth_pct"],
-                "cagr": summary["cagr"],
-            },
-            compensation_by_status=compensation_by_status,
-            cagr_metrics=cagr_metrics,
-        )
-
     except Exception as e:
         logger.error(f"Failed to load results: {e}")
         return None
+    finally:
+        conn.close()
+
+    cagr_metrics, summary = _compute_cagr_metrics(workforce_progression)
+
+    return SimulationResults(
+        scenario_id=scenario_id,
+        run_id="unknown",
+        start_year=summary["start_year"],
+        end_year=summary["end_year"],
+        final_headcount=summary["final_headcount"],
+        total_growth_pct=summary["total_growth_pct"],
+        cagr=summary["cagr"],
+        participation_rate=participation_rate,
+        workforce_progression=workforce_progression,
+        event_trends=event_trends,
+        growth_analysis={
+            "total_growth_pct": summary["total_growth_pct"],
+            "cagr": summary["cagr"],
+        },
+        compensation_by_status=compensation_by_status,
+        cagr_metrics=cagr_metrics,
+    )
 
 
 # ---------------------------------------------------------------------------
