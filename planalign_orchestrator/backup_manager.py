@@ -239,11 +239,8 @@ class BackupManager:
         latest_link = self.backup_dir / "latest.duckdb"
 
         try:
-            # Remove existing symlink if it exists
-            if latest_link.is_symlink():
-                latest_link.unlink()
-            elif latest_link.exists():
-                # If it's a regular file, remove it
+            # Remove existing symlink or file if it exists
+            if latest_link.is_symlink() or latest_link.exists():
                 latest_link.unlink()
 
             # Create new symlink
