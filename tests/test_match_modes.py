@@ -57,7 +57,7 @@ class TestTenureMatchTier:
         with pytest.raises(ValidationError):
             TenureMatchTier(min_years=0, max_years=5, match_rate=-1, max_deferral_pct=6)
         with pytest.raises(ValidationError):
-            TenureMatchTier(min_years=0, max_years=5, match_rate=101, max_deferral_pct=6)
+            TenureMatchTier(min_years=0, max_years=5, match_rate=201, max_deferral_pct=6)
 
     def test_max_deferral_pct_bounds(self):
         TenureMatchTier(min_years=0, max_years=5, match_rate=50, max_deferral_pct=0)

@@ -462,7 +462,7 @@ class WorkspaceStorage:
             if not run_dir.is_dir():
                 continue
 
-            started_at = datetime.min
+            started_at = datetime.min.replace(tzinfo=timezone.utc)
             metadata_path = run_dir / "run_metadata.json"
             if metadata_path.exists():
                 try:
