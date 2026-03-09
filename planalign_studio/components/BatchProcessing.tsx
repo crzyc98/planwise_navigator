@@ -219,9 +219,9 @@ export default function BatchProcessing() {
         </div>
 
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-          <div>
-            <span className="block text-sm font-medium text-gray-700 mb-2">Execution Mode</span>
-            <div className="flex rounded-md shadow-sm" role="group">
+          <fieldset>
+            <legend className="block text-sm font-medium text-gray-700 mb-2">Execution Mode</legend>
+            <div className="flex rounded-md shadow-sm">
               <button
                 type="button"
                 disabled
@@ -239,11 +239,11 @@ export default function BatchProcessing() {
               </button>
             </div>
             <p className="text-xs text-gray-500 mt-1">Sequential runs scenarios one at a time.</p>
-          </div>
+          </fieldset>
 
-          <div>
-            <span className="block text-sm font-medium text-gray-700 mb-2">Export Format</span>
-            <div className="flex rounded-md shadow-sm" role="group">
+          <fieldset>
+            <legend className="block text-sm font-medium text-gray-700 mb-2">Export Format</legend>
+            <div className="flex rounded-md shadow-sm">
               <button
                 type="button"
                 onClick={() => setExportFormat('excel')}
@@ -259,7 +259,7 @@ export default function BatchProcessing() {
                 CSV (.zip)
               </button>
             </div>
-          </div>
+          </fieldset>
         </div>
 
         <div>

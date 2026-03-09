@@ -1,5 +1,5 @@
 import os
-import random
+import secrets
 import sys
 from datetime import datetime, timedelta
 
@@ -7,6 +7,9 @@ import numpy as np
 import pandas as pd
 import pyarrow as pa
 import pyarrow.parquet as pq
+
+# Use CSPRNG-backed random generator (SonarQube S2245 — avoid predictable PRNG)
+_secure_rng = secrets.SystemRandom()
 
 # Add project root to path for importing UnifiedIDGenerator
 sys.path.append(os.path.join(os.path.dirname(__file__), ".."))
@@ -48,9 +51,8 @@ def generate_mock_workforce_parquet(
     print(f"Generating mock workforce data for {num_employees} employees...")
     print(f"Using random seed: {random_seed} for deterministic generation")
 
-    # Initialize unified ID generator and set global random seed
+    # Initialize unified ID generator; numpy uses seed for reproducible distributions
     id_generator = UnifiedIDGenerator(random_seed, base_year)
-    random.seed(random_seed)
     rng = np.random.default_rng(random_seed)
 
     employees = []
@@ -65,7 +67,7 @@ def generate_mock_workforce_parquet(
         4: 0.10,  # Level 4
         5: 0.05,  # Level 5
     }
-    levels = random.choices(
+    levels = _secure_rng.choices(
         list(level_distribution.keys()),
         weights=list(level_distribution.values()),
         k=num_employees,
@@ -86,7 +88,7 @@ def generate_mock_workforce_parquet(
 
         # Birth date relative to base_year
         birth_date = datetime(
-            base_year - age, random.randint(1, 12), random.randint(1, 28)
+            base_year - age, _secure_rng.randint(1, 12), _secure_rng.randint(1, 28)
         )
 
         # Tenure distribution (skewed towards shorter tenure)
@@ -95,7 +97,7 @@ def generate_mock_workforce_parquet(
 
         # Hire date relative to base_year and tenure
         hire_date = datetime(
-            base_year - tenure, random.randint(1, 12), random.randint(1, 28)
+            base_year - tenure, _secure_rng.randint(1, 12), _secure_rng.randint(1, 28)
         )
         # Ensure hire_date is not in the future relative to base_year's end
         hire_date = min(hire_date, datetime(base_year, 12, 31))
@@ -105,13 +107,13 @@ def generate_mock_workforce_parquet(
         min_comp, max_comp = comp_ranges.get(emp_level, (50000, 100000))
         # Add some variance around the mean for compensation
         gross_compensation = (
-            round(random.uniform(min_comp, max_comp) / 100) * 100
+            round(_secure_rng.uniform(min_comp, max_comp) / 100) * 100
         )  # Round to nearest 100
 
         # Termination status
         is_terminated = False
         termination_date = None
-        if random.random() < target_experienced_termination_rate:
+        if _secure_rng.random() < target_experienced_termination_rate:
             is_terminated = True
             # Termination date within the base_year, but after hire date
             term_date_start = max(hire_date, datetime(base_year, 1, 1))
@@ -120,7 +122,7 @@ def generate_mock_workforce_parquet(
             if term_date_start <= term_date_end:
                 time_delta = term_date_end - term_date_start
                 days_to_add = (
-                    random.randint(0, time_delta.days) if time_delta.days > 0 else 0
+                    _secure_rng.randint(0, time_delta.days) if time_delta.days > 0 else 0
                 )
                 termination_date = term_date_start + timedelta(days=days_to_add)
             else:  # If hire date is in future of base_year, no termination for this year
@@ -128,21 +130,21 @@ def generate_mock_workforce_parquet(
 
         # Generate DC plan fields with realistic values
         # First determine if employee participates (80% participation rate)
-        participates = random.random() > 0.2
+        participates = _secure_rng.random() > 0.2
 
         if participates:
             # Generate total deferral rate between 3% and 15%
-            total_deferral_rate = random.uniform(0.03, 0.15)
+            total_deferral_rate = _secure_rng.uniform(0.03, 0.15)
             employee_contribution = gross_compensation * total_deferral_rate
 
             # Break down employee contribution into three types
             # Most common: pre-tax, then Roth, then after-tax
-            pre_tax_pct = random.uniform(0.6, 1.0)  # 60-100% pre-tax
+            pre_tax_pct = _secure_rng.uniform(0.6, 1.0)  # 60-100% pre-tax
             remaining_pct = 1.0 - pre_tax_pct
 
             if remaining_pct > 0:
                 # Split remaining between Roth and after-tax (favor Roth)
-                roth_pct = random.uniform(0.5, 1.0) * remaining_pct
+                roth_pct = _secure_rng.uniform(0.5, 1.0) * remaining_pct
                 after_tax_pct = remaining_pct - roth_pct
             else:
                 roth_pct = 0.0
@@ -158,11 +160,11 @@ def generate_mock_workforce_parquet(
             after_tax_contribution = 0.0
 
         # Employer contributions based on realistic match formulas
-        employer_match_rate = random.uniform(0.02, 0.06) if participates else 0.0
+        employer_match_rate = _secure_rng.uniform(0.02, 0.06) if participates else 0.0
         employer_match_contribution = min(
             employee_contribution * employer_match_rate, gross_compensation * 0.03
         )
-        employer_core_contribution = gross_compensation * random.uniform(0.01, 0.03)
+        employer_core_contribution = gross_compensation * _secure_rng.uniform(0.01, 0.03)
 
         # Capped compensation (IRS limits - $345,000 for 2024)
         employee_capped_compensation = min(gross_compensation, 345000.0)
@@ -175,7 +177,7 @@ def generate_mock_workforce_parquet(
         )
 
         # Eligibility entry date (typically hire date or next plan entry date)
-        eligibility_months_delay = random.choice(
+        eligibility_months_delay = _secure_rng.choice(
             [0, 1, 3, 6, 12]
         )  # Common eligibility periods
         eligibility_entry_date = hire_date + timedelta(

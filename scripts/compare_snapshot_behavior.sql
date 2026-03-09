@@ -108,7 +108,12 @@ WITH promotion_analysis AS (
         AND e.simulation_year BETWEEN 2024 AND 2027
     GROUP BY e.simulation_year, e.event_type
 )
-SELECT * FROM promotion_analysis
+SELECT
+    simulation_year,
+    event_type,
+    event_count,
+    avg_level_jump
+FROM promotion_analysis
 ORDER BY simulation_year;
 
 -- Termination reason distribution
@@ -290,7 +295,7 @@ WITH employee_metrics AS (
         age,
         years_of_service,
         -- Create a hash of key fields for comparison
-        MD5(CONCAT(
+        SHA256(CONCAT(
             COALESCE(CAST(current_compensation AS VARCHAR), 'NULL'),
             COALESCE(CAST(level_id AS VARCHAR), 'NULL'),
             COALESCE(CAST(age AS VARCHAR), 'NULL'),
@@ -321,5 +326,15 @@ WITH validation_summary AS (
     WHERE simulation_year BETWEEN 2024 AND 2027
     GROUP BY simulation_year
 )
-SELECT * FROM validation_summary
+SELECT
+    simulation_year,
+    total_records,
+    unique_employees,
+    active_count,
+    terminated_count,
+    avg_active_comp,
+    unique_levels,
+    unique_age_bands,
+    unique_tenure_bands
+FROM validation_summary
 ORDER BY simulation_year;
