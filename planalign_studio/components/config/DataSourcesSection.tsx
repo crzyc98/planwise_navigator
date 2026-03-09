@@ -266,7 +266,10 @@ export function DataSourcesSection() {
 
           // Group warnings by field
           const byField = dataQualityWarnings.reduce<Record<string, DataQualityWarning[]>>((acc, w) => {
-            (acc[w.field_name] = acc[w.field_name] || []).push(w);
+            if (!acc[w.field_name]) {
+              acc[w.field_name] = [];
+            }
+            acc[w.field_name].push(w);
             return acc;
           }, {});
 

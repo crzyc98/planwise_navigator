@@ -12,7 +12,7 @@ Provides a `DbtRunner` with:
 from __future__ import annotations
 
 import json
-import random
+import secrets
 import subprocess
 import time
 from dataclasses import dataclass
@@ -89,7 +89,7 @@ def retry_with_backoff(
             if attempt >= max_attempts - 1:
                 raise
             delay = min(base_delay * (backoff_factor**attempt), max_delay)
-            jitter = random.uniform(0, 0.1) * delay
+            jitter = secrets.SystemRandom().uniform(0, 0.1) * delay
             time.sleep(delay + jitter)
             attempt += 1
 

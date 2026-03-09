@@ -143,7 +143,7 @@ export default function ScenariosPage() {
 
   const handleRunBatch = () => {
     if (selectedIds.size === 0) return;
-    const scenarioParam = Array.from(selectedIds).join(',');
+    const scenarioParam = [...selectedIds].map(String).join(',');
     navigate(`/batch?scenarios=${scenarioParam}`);
   };
 

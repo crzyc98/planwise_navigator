@@ -11,14 +11,17 @@ This creates a NEW dataset with:
 - Edge cases to flush out bugs
 """
 
+import secrets
+
 import numpy as np
 import pandas as pd
 from datetime import datetime, timedelta
-import random
 
-# Set different random seed than original
-rng = np.random.default_rng(99999)  # Completely different from any previous seed
-random.seed(99999)
+# Use CSPRNG-backed random generator (SonarQube S2245 — avoid predictable PRNG)
+_secure_rng = secrets.SystemRandom()
+
+# numpy RNG for statistical distributions (lognormal etc.)
+rng = np.random.default_rng(99999)
 
 def generate_employee_id(index):
     """Generate employee ID with different format."""
@@ -32,20 +35,20 @@ def generate_ssn(index):
 def generate_birth_date():
     """Generate birth dates with younger demographic profile."""
     # Bimodal distribution: 60% young (25-40), 40% experienced (40-60)
-    if random.random() < 0.6:
+    if _secure_rng.random() < 0.6:
         # Younger employees (born 1985-2000)
-        years_ago = random.randint(25, 40)
+        years_ago = _secure_rng.randint(25, 40)
     else:
         # Experienced employees (born 1965-1985)
-        years_ago = random.randint(40, 60)
+        years_ago = _secure_rng.randint(40, 60)
 
-    birth_date = datetime(2025, 1, 1) - timedelta(days=years_ago * 365 + random.randint(0, 365))
+    birth_date = datetime(2025, 1, 1) - timedelta(days=years_ago * 365 + _secure_rng.randint(0, 365))
     return birth_date.strftime('%Y-%m-%d')
 
 def generate_hire_date():
     """Generate hire dates with bimodal pattern: tenured + recent."""
     # 30% hired 2005-2015 (tenured), 70% hired 2020-2024 (recent)
-    if random.random() < 0.3:
+    if _secure_rng.random() < 0.3:
         # Tenured employees (10-20 years)
         start_date = datetime(2005, 1, 1)
         end_date = datetime(2015, 12, 31)
@@ -55,13 +58,13 @@ def generate_hire_date():
         end_date = datetime(2024, 12, 31)
 
     days_between = (end_date - start_date).days
-    random_days = random.randint(0, days_between)
+    random_days = _secure_rng.randint(0, days_between)
     hire_date = start_date + timedelta(days=random_days)
     return hire_date.strftime('%Y-%m-%d')
 
 def generate_termination_date(hire_date_str):
     """Generate termination dates for ~10% of employees."""
-    if random.random() > 0.10:  # 90% active, 10% terminated
+    if _secure_rng.random() > 0.10:  # 90% active, 10% terminated
         return None
 
     hire_date = datetime.strptime(hire_date_str, '%Y-%m-%d')
@@ -72,7 +75,7 @@ def generate_termination_date(hire_date_str):
     if max_days < 30:
         return None
 
-    days_employed = random.randint(30, max_days)
+    days_employed = _secure_rng.randint(30, max_days)
     term_date = hire_date + timedelta(days=days_employed)
     return term_date.strftime('%Y-%m-%d')
 
@@ -91,16 +94,16 @@ def generate_compensation():
 def generate_deferral_rate():
     """Generate deferral rates with realistic distribution."""
     # 15% non-participants (0%)
-    if random.random() < 0.15:
+    if _secure_rng.random() < 0.15:
         return 0.0
 
     # 25% at auto-enrollment default (6%)
-    if random.random() < 0.30:  # 0.30 of remaining 85%
+    if _secure_rng.random() < 0.30:  # 0.30 of remaining 85%
         return 0.06
 
     # 60% distributed across other rates
     # Peaks at round numbers: 3%, 5%, 8%, 10%, 15%
-    choice = random.random()
+    choice = _secure_rng.random()
     if choice < 0.20:
         return 0.03
     elif choice < 0.35:
@@ -113,7 +116,7 @@ def generate_deferral_rate():
         return 0.15
     else:
         # Random between 1% and 20%
-        return round(random.uniform(0.01, 0.20), 4)
+        return round(_secure_rng.uniform(0.01, 0.20), 4)
 
 def calculate_capped_compensation(gross_comp):
     """Apply IRS 401(k) compensation cap."""

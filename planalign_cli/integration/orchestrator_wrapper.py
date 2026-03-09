@@ -340,10 +340,16 @@ class ProgressAwareOrchestrator:
         from contextlib import redirect_stdout
         import re
 
-        # Pattern matching for various progress indicators
+        # Maximum line length to process — truncate before regex to prevent
+        # polynomial-time backtracking on adversarial input (ReDoS / SonarQube S5852).
+        max_line_length = 1000
+
+        # Pattern matching for various progress indicators.
+        # Patterns use non-overlapping quantifiers to avoid ReDoS.
         year_pattern = re.compile(r'🔄 Starting simulation year (\d+)')
         stage_pattern = re.compile(r'📋 Executing stage: (\w+)')
-        event_pattern = re.compile(r'📊 Generated (\d+,?\d*) events')
+        # Use \d+(?:,\d+)* instead of \d+,?\d* to avoid overlapping quantifiers
+        event_pattern = re.compile(r'📊 Generated (\d+(?:,\d+)*) events')
         completed_stage_pattern = re.compile(r'✅ Completed (\w+) in (\d+\.\d+)s')
         foundation_validation_pattern = re.compile(r'📊 Foundation model validation for year (\d+):')
 
@@ -369,6 +375,9 @@ class ProgressAwareOrchestrator:
 
             def _process_line(self, line):
                 """Process a complete line for progress indicators."""
+                # Truncate to prevent ReDoS on adversarial input
+                line = line[:max_line_length]
+
                 # Check for year start
                 year_match = year_pattern.search(line)
                 if year_match:

@@ -392,16 +392,6 @@ export async function deleteScenarioDatabase(
   return handleResponse<{ success: boolean; deleted: boolean; message: string }>(response);
 }
 
-export async function getMergedConfig(
-  workspaceId: string,
-  scenarioId: string
-): Promise<Record<string, any>> {
-  const response = await fetch(
-    `${API_BASE}/api/workspaces/${workspaceId}/scenarios/${scenarioId}/config`
-  );
-  return handleResponse<Record<string, any>>(response);
-}
-
 // ============================================================================
 // Simulation Endpoints
 // ============================================================================
@@ -1464,7 +1454,7 @@ export async function exportWorkspace(workspaceId: string): Promise<void> {
   const contentDisposition = response.headers.get('Content-Disposition');
   let filename = 'workspace_export.7z';
   if (contentDisposition) {
-    const filenameMatch = contentDisposition.match(/filename="?([^"]+)"?/);
+    const filenameMatch = /filename="?([^"]+)"?/.exec(contentDisposition);
     if (filenameMatch) {
       filename = filenameMatch[1];
     }
@@ -1605,11 +1595,13 @@ export interface ACPEmployeeDetail {
   prior_year_compensation: number | null;
 }
 
+export type TestResult = 'pass' | 'fail' | 'error';
+
 export interface ACPScenarioResult {
   scenario_id: string;
   scenario_name: string;
   simulation_year: number;
-  test_result: 'pass' | 'fail' | 'error';
+  test_result: TestResult;
   test_message?: string;
   hce_count: number;
   nhce_count: number;
@@ -1690,7 +1682,7 @@ export interface Section401a4ScenarioResult {
   scenario_id: string;
   scenario_name: string;
   simulation_year: number;
-  test_result: 'pass' | 'fail' | 'error';
+  test_result: TestResult;
   test_message?: string;
   applied_test: 'ratio' | 'general';
   hce_count: number;
@@ -1759,7 +1751,7 @@ export interface Section415ScenarioResult {
   scenario_id: string;
   scenario_name: string;
   simulation_year: number;
-  test_result: 'pass' | 'fail' | 'error';
+  test_result: TestResult;
   test_message?: string;
   total_participants: number;
   excluded_count: number;
