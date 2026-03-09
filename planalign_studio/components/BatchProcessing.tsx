@@ -207,8 +207,9 @@ export default function BatchProcessing() {
 
       <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-8 space-y-8">
         <div>
-          <label className="block text-sm font-medium text-gray-700 mb-2">Batch Name</label>
+          <label htmlFor="batch-name" className="block text-sm font-medium text-gray-700 mb-2">Batch Name</label>
           <input
+            id="batch-name"
             type="text"
             placeholder="e.g., Q3 Planning Scenarios"
             className="w-full p-2 border border-gray-300 rounded-md focus:ring-fidelity-green focus:border-fidelity-green"
@@ -219,7 +220,7 @@ export default function BatchProcessing() {
 
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">Execution Mode</label>
+            <span className="block text-sm font-medium text-gray-700 mb-2">Execution Mode</span>
             <div className="flex rounded-md shadow-sm" role="group">
               <button
                 type="button"
@@ -241,7 +242,7 @@ export default function BatchProcessing() {
           </div>
 
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">Export Format</label>
+            <span className="block text-sm font-medium text-gray-700 mb-2">Export Format</span>
             <div className="flex rounded-md shadow-sm" role="group">
               <button
                 type="button"
@@ -262,9 +263,9 @@ export default function BatchProcessing() {
         </div>
 
         <div>
-          <label className="block text-sm font-medium text-gray-700 mb-4">
+          <span className="block text-sm font-medium text-gray-700 mb-4">
             Select Scenarios to Run ({selectedScenarioIds.length} selected)
-          </label>
+          </span>
           {scenarios.length === 0 ? (
             <div className="text-center py-8 text-gray-500 bg-gray-50 rounded-lg border border-gray-200">
               <Layers className="w-10 h-10 mx-auto mb-2 opacity-50" />

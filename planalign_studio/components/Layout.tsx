@@ -389,8 +389,9 @@ export default function Layout() {
               </div>
               <form onSubmit={(e) => { handleCreateWorkspace(e); }} className="p-6 space-y-4">
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Workspace Name</label>
+                  <label htmlFor="layout-empty-workspace-name" className="block text-sm font-medium text-gray-700 mb-1">Workspace Name</label>
                   <input
+                    id="layout-empty-workspace-name"
                     type="text"
                     value={newWorkspaceName}
                     onChange={(e) => setNewWorkspaceName(e.target.value)}
@@ -400,8 +401,9 @@ export default function Layout() {
                   />
                 </div>
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Description (Optional)</label>
+                  <label htmlFor="layout-empty-workspace-desc" className="block text-sm font-medium text-gray-700 mb-1">Description (Optional)</label>
                   <textarea
+                    id="layout-empty-workspace-desc"
                     value={newWorkspaceDesc}
                     onChange={(e) => setNewWorkspaceDesc(e.target.value)}
                     placeholder="Brief description of this workspace's purpose..."
@@ -480,8 +482,9 @@ export default function Layout() {
             </div>
             <form onSubmit={(e) => { handleCreateWorkspace(e); }} className="p-6 space-y-4">
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Workspace Name</label>
+                <label htmlFor="layout-workspace-name" className="block text-sm font-medium text-gray-700 mb-1">Workspace Name</label>
                 <input
+                  id="layout-workspace-name"
                   type="text"
                   value={newWorkspaceName}
                   onChange={(e) => setNewWorkspaceName(e.target.value)}
@@ -491,8 +494,9 @@ export default function Layout() {
                 />
               </div>
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Description (Optional)</label>
+                <label htmlFor="layout-workspace-desc" className="block text-sm font-medium text-gray-700 mb-1">Description (Optional)</label>
                 <textarea
+                  id="layout-workspace-desc"
                   value={newWorkspaceDesc}
                   onChange={(e) => setNewWorkspaceDesc(e.target.value)}
                   placeholder="Brief description of this workspace's purpose..."

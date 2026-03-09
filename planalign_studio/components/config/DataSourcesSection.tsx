@@ -389,11 +389,12 @@ export function DataSourcesSection() {
 
         {/* Manual Path Input */}
         <div className="mt-4">
-          <label className="block text-sm font-medium text-gray-700 mb-1">
+          <label htmlFor="ds-census-path" className="block text-sm font-medium text-gray-700 mb-1">
             Or specify file path manually
           </label>
           <div className="flex space-x-2">
             <input
+              id="ds-census-path"
               type="text"
               name="censusDataPath"
               value={formData.censusDataPath}
