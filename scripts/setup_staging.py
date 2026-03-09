@@ -70,7 +70,7 @@ def main():
         result = subprocess.run(check_cmd, shell=True, capture_output=True, text=True)
         if result.returncode == 0:
             print(f"📊 Staging tables created: {result.stdout.strip()}")
-    except:
+    except Exception:
         pass
 
     return 0
