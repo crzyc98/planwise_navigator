@@ -502,14 +502,18 @@ export default function DCPlanComparisonSection({
                   formatter={(value: number, name: string) => [formatPercent(value, 1), name]}
                 />
                 <Legend verticalAlign="top" height={36} />
-                {scenarioNames.map(name => (
+                {scenarioNames.map(name => {
+                  let barWidth = 30;
+                  if (scenarioNames.length > 4) barWidth = 12;
+                  else if (scenarioNames.length > 2) barWidth = 20;
+                  return (
                   <Bar
                     key={name}
                     dataKey={name}
                     fill={scenarioColors[name]}
                     radius={[4, 4, 0, 0]}
-                    barSize={scenarioNames.length > 4 ? 12 : scenarioNames.length > 2 ? 20 : 30}
-                  />
+                    barSize={barWidth}
+                  />);
                 ))}
               </BarChart>
             </ResponsiveContainer>

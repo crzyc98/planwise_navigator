@@ -40,6 +40,11 @@ const formatPercent = (value: number): string => {
   return `${(value * 100).toFixed(1)}%`;
 };
 
+const TREND_COLOR_MAP: Record<string, string> = {
+  up: 'text-red-500',
+  down: 'text-green-500',
+};
+
 const KPICard = ({ title, value, subtext, icon: Icon, color, trend, loading }: any) => (
   <div className="bg-white p-5 rounded-xl shadow-sm border border-gray-200 flex items-start justify-between">
     <div>
@@ -54,7 +59,7 @@ const KPICard = ({ title, value, subtext, icon: Icon, color, trend, loading }: a
               {trend === 'up' && <TrendingUp size={14} className="text-red-500 mr-1" />}
               {trend === 'down' && <TrendingDown size={14} className="text-green-500 mr-1" />}
               <span className={`text-xs font-medium ${
-                trend === 'up' ? 'text-red-500' : trend === 'down' ? 'text-green-500' : 'text-gray-500'
+                TREND_COLOR_MAP[trend] || 'text-gray-500'
               }`}>{subtext}</span>
             </div>
           )}
@@ -419,7 +424,9 @@ export default function VestingAnalysis() {
                 className="appearance-none w-full bg-white border border-gray-300 rounded-lg pl-3 pr-10 py-2 text-sm focus:ring-fidelity-green focus:border-fidelity-green shadow-sm disabled:bg-gray-50 disabled:text-gray-400"
               >
                 <option value="">
-                  {loadingScenarios ? 'Loading...' : completedScenarios.length === 0 ? 'No completed runs' : 'Select Scenario'}
+                  {loadingScenarios && 'Loading...'}
+                  {!loadingScenarios && completedScenarios.length === 0 && 'No completed runs'}
+                  {!loadingScenarios && completedScenarios.length > 0 && 'Select Scenario'}
                 </option>
                 {completedScenarios.map(scenario => (
                   <option key={scenario.id} value={scenario.id}>

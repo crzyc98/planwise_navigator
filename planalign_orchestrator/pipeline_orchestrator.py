@@ -527,15 +527,16 @@ class PipelineOrchestrator:
     def _finalize_simulation(self, summary: MultiYearSummary, completed_years: List[int]) -> MultiYearSummary:
         """Persist summary CSV, cleanup resources, finalize observability."""
         # Persist summary CSV
-        out_csv = (
-            self.reports_dir
-            / f"multi_year_summary_{completed_years[0]}_{completed_years[-1]}.csv"
-        )
-        summary.export_csv(out_csv)
-        try:
-            print(f"📄 Multi-year CSV summary saved to: {out_csv}")
-        except Exception:
-            pass
+        if completed_years:
+            out_csv = (
+                self.reports_dir
+                / f"multi_year_summary_{completed_years[0]}_{completed_years[-1]}.csv"
+            )
+            summary.export_csv(out_csv)
+            try:
+                print(f"📄 Multi-year CSV summary saved to: {out_csv}")
+            except Exception:
+                pass
 
         self._cleanup_resources()
 
@@ -564,6 +565,7 @@ class PipelineOrchestrator:
         )
 
         self.state_manager.maybe_clear_year_data(year)
+        self.state_manager.clear_year_fact_rows(year)
         self._ensure_hazard_caches_current()
         self._ensure_seeds_loaded()
 

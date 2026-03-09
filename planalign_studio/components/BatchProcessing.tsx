@@ -294,6 +294,7 @@ export default function BatchProcessing() {
                 <div
                   key={scenario.id}
                   role="checkbox"
+                  aria-label={`Select ${scenario.name}`}
                   aria-checked={selectedScenarioIds.includes(scenario.id)}
                   tabIndex={0}
                   onClick={() => toggleScenarioSelection(scenario.id)}
