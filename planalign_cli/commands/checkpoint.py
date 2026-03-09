@@ -16,6 +16,7 @@ from rich.table import Table
 from ..integration.orchestrator_wrapper import OrchestratorWrapper
 from ..ui.progress import show_error_message, show_success_message, show_warning_message
 from ..utils.config_helpers import find_default_config
+from config.constants import DATABASE_FILENAME
 
 console = Console()
 checkpoint_command = typer.Typer()
@@ -37,7 +38,7 @@ def list_checkpoints(
     """List available checkpoints."""
     try:
         config_path = Path(config) if config else find_default_config()
-        db_path = Path(database) if database else Path("dbt/simulation.duckdb")
+        db_path = Path(database) if database else Path("dbt") / DATABASE_FILENAME
 
         wrapper = OrchestratorWrapper(config_path, db_path)
         checkpoints = wrapper.checkpoint_manager.list_checkpoints()
@@ -87,7 +88,7 @@ def checkpoint_status(
     """Show recovery status and recommendations."""
     try:
         config_path = Path(config) if config else find_default_config()
-        db_path = Path(database) if database else Path("dbt/simulation.duckdb")
+        db_path = Path(database) if database else Path("dbt") / DATABASE_FILENAME
 
         wrapper = OrchestratorWrapper(config_path, db_path)
         config_hash = wrapper.recovery_orchestrator.calculate_config_hash(str(config_path))
@@ -136,7 +137,7 @@ def cleanup_checkpoints(
     """Clean up old checkpoints, keeping the most recent ones."""
     try:
         config_path = Path(config) if config else find_default_config()
-        db_path = Path(database) if database else Path("dbt/simulation.duckdb")
+        db_path = Path(database) if database else Path("dbt") / DATABASE_FILENAME
 
         wrapper = OrchestratorWrapper(config_path, db_path)
         removed = wrapper.checkpoint_manager.cleanup_old_checkpoints(keep)
@@ -162,7 +163,7 @@ def validate_recovery(
     """Validate recovery environment and checkpoint integrity."""
     try:
         config_path = Path(config) if config else find_default_config()
-        db_path = Path(database) if database else Path("dbt/simulation.duckdb")
+        db_path = Path(database) if database else Path("dbt") / DATABASE_FILENAME
 
         wrapper = OrchestratorWrapper(config_path, db_path)
         validation = wrapper.recovery_orchestrator.validate_recovery_environment()

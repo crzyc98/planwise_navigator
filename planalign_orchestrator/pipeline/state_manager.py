@@ -14,6 +14,11 @@ from datetime import datetime
 from pathlib import Path
 from typing import Optional
 
+from config.constants import (
+    MODEL_FCT_WORKFORCE_SNAPSHOT,
+    TABLE_FCT_WORKFORCE_SNAPSHOT,
+    TABLE_FCT_YEARLY_EVENTS,
+)
 from planalign_orchestrator.config import SimulationConfig
 from planalign_orchestrator.dbt_runner import DbtRunner
 from planalign_orchestrator.utils import DatabaseConnectionManager
@@ -202,8 +207,8 @@ class StateManager:
 
         def _run(conn):
             for table in (
-                "fct_yearly_events",
-                "fct_workforce_snapshot",
+                TABLE_FCT_YEARLY_EVENTS,
+                TABLE_FCT_WORKFORCE_SNAPSHOT,
                 "fct_employer_match_events",
             ):
                 try:
@@ -267,11 +272,11 @@ class StateManager:
 
         def _counts(conn):
             snap = conn.execute(
-                "SELECT COUNT(*) FROM fct_workforce_snapshot WHERE simulation_year = ?",
+                f"SELECT COUNT(*) FROM {TABLE_FCT_WORKFORCE_SNAPSHOT} WHERE simulation_year = ?",
                 [year],
             ).fetchone()[0]
             events = conn.execute(
-                "SELECT COUNT(*) FROM fct_yearly_events WHERE simulation_year = ?",
+                f"SELECT COUNT(*) FROM {TABLE_FCT_YEARLY_EVENTS} WHERE simulation_year = ?",
                 [year],
             ).fetchone()[0]
             return int(snap), int(events)
@@ -282,7 +287,7 @@ class StateManager:
             try:
                 def _clear(conn):
                     conn.execute(
-                        "DELETE FROM fct_workforce_snapshot WHERE simulation_year = ?",
+                        f"DELETE FROM {TABLE_FCT_WORKFORCE_SNAPSHOT} WHERE simulation_year = ?",
                         [year],
                     )
                     return True
@@ -290,18 +295,18 @@ class StateManager:
             except Exception:
                 pass
             res = self.dbt_runner.execute_command(
-                ["run", "--select", "fct_workforce_snapshot"],
+                ["run", "--select", MODEL_FCT_WORKFORCE_SNAPSHOT],
                 simulation_year=year,
                 dbt_vars=dbt_vars or {},
                 stream_output=True,
             )
             if not res.success:
-                print(f"⚠️ Retry build of fct_workforce_snapshot failed for {year}")
+                print(f"⚠️ Retry build of {TABLE_FCT_WORKFORCE_SNAPSHOT} failed for {year}")
             else:
                 snap_count, _ = self.db_manager.execute_with_retry(_counts)
         if snap_count == 0:
             print(
-                f"⚠️ fct_workforce_snapshot has 0 rows for {year}; verify upstream models and vars"
+                f"⚠️ {TABLE_FCT_WORKFORCE_SNAPSHOT} has 0 rows for {year}; verify upstream models and vars"
             )
 
     def write_checkpoint(self, ckpt: WorkflowCheckpoint) -> None:

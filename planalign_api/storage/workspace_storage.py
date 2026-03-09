@@ -12,6 +12,8 @@ import yaml
 
 logger = logging.getLogger(__name__)
 
+from config.constants import DATABASE_FILENAME, STATUS_RUNNING
+
 from ..config import get_settings
 from ..models.workspace import Workspace, WorkspaceCreate, WorkspaceSummary
 from ..models.scenario import Scenario, ScenarioCreate
@@ -407,7 +409,7 @@ class WorkspaceStorage:
             return False
 
         deleted = False
-        for suffix in ("simulation.duckdb", "simulation.duckdb.wal"):
+        for suffix in (DATABASE_FILENAME, f"{DATABASE_FILENAME}.wal"):
             db_file = scenario_path / suffix
             if db_file.exists():
                 db_file.unlink()
@@ -418,7 +420,7 @@ class WorkspaceStorage:
         if runs_dir.exists():
             for run_dir in runs_dir.iterdir():
                 if run_dir.is_dir():
-                    for suffix in ("simulation.duckdb", "simulation.duckdb.wal"):
+                    for suffix in (DATABASE_FILENAME, f"{DATABASE_FILENAME}.wal"):
                         db_file = run_dir / suffix
                         if db_file.exists():
                             db_file.unlink()
@@ -497,7 +499,7 @@ class WorkspaceStorage:
 
     def get_scenario_database_path(self, workspace_id: str, scenario_id: str) -> Path:
         """Get path to scenario's DuckDB database."""
-        return self._scenario_path(workspace_id, scenario_id) / "simulation.duckdb"
+        return self._scenario_path(workspace_id, scenario_id) / DATABASE_FILENAME
 
     def get_merged_config(
         self, workspace_id: str, scenario_id: str
@@ -989,7 +991,7 @@ class WorkspaceStorage:
             try:
                 with open(scenario_json) as f:
                     data = json.load(f)
-                if data.get("status") == "running":
+                if data.get("status") == STATUS_RUNNING:
                     return True
             except (json.JSONDecodeError, IOError):
                 continue

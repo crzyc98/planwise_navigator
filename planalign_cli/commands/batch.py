@@ -15,6 +15,7 @@ from rich.console import Console
 from ..integration.orchestrator_wrapper import OrchestratorWrapper
 from ..ui.progress import create_batch_progress, show_error_message, show_success_message
 from ..utils.config_helpers import find_default_config, find_scenarios_directory
+from config.constants import DATABASE_FILENAME, STATUS_COMPLETED, STATUS_FAILED
 
 console = Console()
 batch_command = typer.Typer()
@@ -72,7 +73,7 @@ def run_batch(
             raise typer.Exit(1)
 
         # Create wrapper and batch runner
-        wrapper = OrchestratorWrapper(base_config_path, Path("dbt/simulation.duckdb"), verbose=verbose)
+        wrapper = OrchestratorWrapper(base_config_path, Path("dbt") / DATABASE_FILENAME, verbose=verbose)
         batch_runner = wrapper.create_batch_runner(scenarios_path, output_path)
 
         # Determine scenario count for progress tracking
@@ -120,8 +121,8 @@ def run_batch(
 
 def _report_batch_results(results: dict, batch_runner) -> int:
     """Report batch processing results and return exit code."""
-    successful = [name for name, result in results.items() if result.get("status") == "completed"]
-    failed = [name for name, result in results.items() if result.get("status") == "failed"]
+    successful = [name for name, result in results.items() if result.get("status") == STATUS_COMPLETED]
+    failed = [name for name, result in results.items() if result.get("status") == STATUS_FAILED]
 
     console.print(f"\n🎯 [bold blue]Batch execution completed[/bold blue]")
     console.print(f"  ✅ Successful: {len(successful)} scenarios")

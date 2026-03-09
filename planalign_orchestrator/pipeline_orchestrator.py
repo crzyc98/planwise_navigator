@@ -35,6 +35,12 @@ from .reports.year_auditor import YearAuditor
 from .observability import ObservabilityManager
 from .utils import DatabaseConnectionManager, ExecutionMutex, time_block
 from .validation import DataValidator
+from config.constants import (
+    COL_EVENT_TYPE,
+    COL_SIMULATION_YEAR,
+    KEY_SUCCESS,
+    TABLE_FCT_YEARLY_EVENTS,
+)
 
 # Import modular pipeline components
 from .pipeline.workflow import WorkflowBuilder, WorkflowStage, StageDefinition, WorkflowCheckpoint
@@ -497,11 +503,11 @@ class PipelineOrchestrator:
                 "total_growth_pct": 0.0,
             }
             rows = conn.execute(
-                """
-                SELECT lower(event_type) AS et, COUNT(*)
-                FROM fct_yearly_events
-                WHERE simulation_year = ?
-                GROUP BY lower(event_type)
+                f"""
+                SELECT lower({COL_EVENT_TYPE}) AS et, COUNT(*)
+                FROM {TABLE_FCT_YEARLY_EVENTS}
+                WHERE {COL_SIMULATION_YEAR} = ?
+                GROUP BY lower({COL_EVENT_TYPE})
                 """,
                 [year],
             ).fetchall()
@@ -645,7 +651,7 @@ class PipelineOrchestrator:
 
         if stage.name == WorkflowStage.STATE_ACCUMULATION:
             stage_result = self.year_executor.execute_workflow_stage(stage, year)
-            if not stage_result["success"]:
+            if not stage_result[KEY_SUCCESS]:
                 raise PipelineStageError(f"Stage {stage.name.value} failed: {stage_result.get('error', 'Unknown error')}")
             self._record_performance_checkpoint(stage.name.value, year, "complete")
             return True
@@ -656,7 +662,7 @@ class PipelineOrchestrator:
         """Execute the hybrid event generation stage."""
         try:
             hybrid_result = self.event_generation_executor.execute_hybrid_event_generation([year])
-            if not hybrid_result['success']:
+            if not hybrid_result[KEY_SUCCESS]:
                 raise PipelineStageError(f"Hybrid event generation failed: {hybrid_result}")
 
             if self.verbose:

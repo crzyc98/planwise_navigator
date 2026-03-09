@@ -20,13 +20,15 @@ from planalign_orchestrator.generators.base import (
 )
 from planalign_orchestrator.generators.registry import EventRegistry
 
+from config.constants import EVENT_MERIT
+
 if TYPE_CHECKING:
     from config.events import SimulationEvent
 
 logger = logging.getLogger(__name__)
 
 
-@EventRegistry.register("merit")
+@EventRegistry.register(EVENT_MERIT)
 class MeritEventGenerator(HazardBasedEventGeneratorMixin, EventGenerator):
     """
     Generate merit (raise) events for workforce simulation.
@@ -41,7 +43,7 @@ class MeritEventGenerator(HazardBasedEventGeneratorMixin, EventGenerator):
     Execution Order: 40 (after promotions, before enrollment)
     """
 
-    event_type = "merit"
+    event_type = EVENT_MERIT
     execution_order = 40
     requires_hazard = True
     supports_sql = True
@@ -91,7 +93,7 @@ class MeritEventGenerator(HazardBasedEventGeneratorMixin, EventGenerator):
 
         # Check event type
         payload = event.payload
-        if payload.event_type != "merit":
+        if payload.event_type != EVENT_MERIT:
             errors.append(f"Expected event_type 'merit', got '{payload.event_type}'")
             return ValidationResult(is_valid=False, errors=errors)
 

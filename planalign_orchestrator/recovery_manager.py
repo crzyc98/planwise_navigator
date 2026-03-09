@@ -26,6 +26,12 @@ from typing import Any, Dict, List, Optional, Tuple
 import duckdb
 from pydantic import BaseModel, Field
 
+from config.constants import (
+    COL_EMPLOYEE_ID,
+    COL_SIMULATION_YEAR,
+    TABLE_FCT_WORKFORCE_SNAPSHOT,
+    TABLE_FCT_YEARLY_EVENTS,
+)
 from .backup_manager import BackupConfiguration, BackupManager, BackupMetadata
 
 
@@ -175,8 +181,8 @@ class RecoveryManager:
 
                 # Check critical tables exist
                 critical_tables = [
-                    "fct_yearly_events",
-                    "fct_workforce_snapshot",
+                    TABLE_FCT_YEARLY_EVENTS,
+                    TABLE_FCT_WORKFORCE_SNAPSHOT,
                     "stg_census_data",
                 ]
                 missing_tables = []
@@ -208,13 +214,13 @@ class RecoveryManager:
                 # Test data integrity with sample queries
                 try:
                     # Test fct_yearly_events if it exists
-                    if "fct_yearly_events" in table_names:
+                    if TABLE_FCT_YEARLY_EVENTS in table_names:
                         events_sample = conn.execute(
-                            "SELECT event_type, COUNT(*) FROM fct_yearly_events GROUP BY event_type LIMIT 10"
+                            f"SELECT {COL_EVENT_TYPE}, COUNT(*) FROM {TABLE_FCT_YEARLY_EVENTS} GROUP BY {COL_EVENT_TYPE} LIMIT 10"
                         ).fetchall()
 
                         if not events_sample:
-                            warnings.append("fct_yearly_events table is empty")
+                            warnings.append(f"{TABLE_FCT_YEARLY_EVENTS} table is empty")
 
                     checks_performed.append("data_integrity_sampling")
 
@@ -224,18 +230,18 @@ class RecoveryManager:
                 # Test foreign key relationships if possible
                 try:
                     if (
-                        "fct_workforce_snapshot" in table_names
-                        and "fct_yearly_events" in table_names
+                        TABLE_FCT_WORKFORCE_SNAPSHOT in table_names
+                        and TABLE_FCT_YEARLY_EVENTS in table_names
                     ):
                         # Check for orphaned records
                         orphan_check = conn.execute(
-                            """
+                            f"""
                             SELECT COUNT(*)
-                            FROM fct_yearly_events e
-                            LEFT JOIN fct_workforce_snapshot w
-                                ON e.employee_id = w.employee_id
-                                AND e.simulation_year = w.simulation_year
-                            WHERE w.employee_id IS NULL
+                            FROM {TABLE_FCT_YEARLY_EVENTS} e
+                            LEFT JOIN {TABLE_FCT_WORKFORCE_SNAPSHOT} w
+                                ON e.{COL_EMPLOYEE_ID} = w.{COL_EMPLOYEE_ID}
+                                AND e.{COL_SIMULATION_YEAR} = w.{COL_SIMULATION_YEAR}
+                            WHERE w.{COL_EMPLOYEE_ID} IS NULL
                             LIMIT 1000
                         """
                         ).fetchone()
