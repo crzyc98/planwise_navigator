@@ -22,7 +22,7 @@ export function AdvancedSection() {
             <Server size={16} className="mr-2 text-blue-500" /> System Resources
           </h3>
           <div className="space-y-4">
-            <div className="flex items-center justify-between">
+            <label className="flex items-center justify-between cursor-pointer">
               <span className="text-sm text-gray-700">Enable Multithreading</span>
               <input
                 type="checkbox"
@@ -31,7 +31,7 @@ export function AdvancedSection() {
                 onChange={handleChange}
                 className="h-5 w-5 text-fidelity-green focus:ring-fidelity-green border-gray-300 rounded"
               />
-            </div>
+            </label>
             <div className="flex items-center justify-between">
               <span className="text-sm text-gray-700">Checkpoint Frequency</span>
               <select
@@ -63,7 +63,7 @@ export function AdvancedSection() {
             <Shield size={16} className="mr-2 text-purple-500" /> Safety & Logging
           </h3>
           <div className="space-y-4">
-            <div className="flex items-center justify-between">
+            <label className="flex items-center justify-between cursor-pointer">
               <span className="text-sm text-gray-700">Strict Schema Validation</span>
               <input
                 type="checkbox"
@@ -72,7 +72,7 @@ export function AdvancedSection() {
                 onChange={handleChange}
                 className="h-5 w-5 text-fidelity-green focus:ring-fidelity-green border-gray-300 rounded"
               />
-            </div>
+            </label>
             <div className="flex items-center justify-between">
               <span className="text-sm text-gray-700">Logging Level</span>
               <select

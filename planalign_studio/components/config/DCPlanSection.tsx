@@ -50,12 +50,13 @@ export function DCPlanSection() {
             <input
                  type="checkbox"
                  name="dcAutoEnroll"
+                 id="dcAutoEnroll"
                  checked={formData.dcAutoEnroll}
                  onChange={handleChange}
                  className="h-4 w-4 text-fidelity-green focus:ring-fidelity-green border-gray-300 rounded mt-1"
             />
             <div className="ml-3">
-               <label className="block text-sm font-medium text-green-900">Enable Auto-Enrollment</label>
+               <label htmlFor="dcAutoEnroll" className="block text-sm font-medium text-green-900">Enable Auto-Enrollment</label>
                <p className="text-xs text-green-700 mt-0.5">New hires will be automatically enrolled upon eligibility.</p>
             </div>
          </div>
@@ -98,7 +99,7 @@ export function DCPlanSection() {
          <div className="col-span-6 h-px bg-gray-200 my-2"></div>
          <div className="sm:col-span-6 flex items-center justify-between mb-2">
            <h4 className="text-sm font-semibold text-gray-900">Employer Match Formula</h4>
-           <div className="flex items-center">
+           <label className="flex items-center">
              <input
                type="checkbox"
                name="dcMatchEnabled"
@@ -107,7 +108,7 @@ export function DCPlanSection() {
                className="h-4 w-4 text-fidelity-green rounded"
              />
              <span className="ml-2 text-sm text-gray-600">Enabled</span>
-           </div>
+           </label>
          </div>
          <p className="col-span-6 text-xs text-gray-500 -mt-4 mb-2">Configure employer matching contributions on employee deferrals</p>
 
@@ -193,7 +194,8 @@ export function DCPlanSection() {
              <button type="button"
                onClick={() => {
                  const last = formData.dcTenureMatchTiers[formData.dcTenureMatchTiers.length - 1];
-                 const newMin = last ? (last.maxYears ?? last.minYears + 5) : 0;
+                  let newMin = 0;
+                 if (last) { newMin = last.maxYears ?? last.minYears + 5; }
                  const updatedTiers = [...formData.dcTenureMatchTiers];
                  if (last && last.maxYears === null) {
                    updatedTiers[updatedTiers.length - 1] = { ...last, maxYears: newMin };
@@ -288,7 +290,8 @@ export function DCPlanSection() {
              <button type="button"
                onClick={() => {
                  const last = formData.dcPointsMatchTiers[formData.dcPointsMatchTiers.length - 1];
-                 const newMin = last ? (last.maxPoints ?? last.minPoints) + 10 : 0;
+                 let newMin = 0;
+                 if (last) { newMin = (last.maxPoints ?? last.minPoints) + 10; }
                  const updatedTiers = [...formData.dcPointsMatchTiers];
                  if (last && last.maxPoints === null) {
                    updatedTiers[updatedTiers.length - 1] = { ...last, maxPoints: newMin };
@@ -465,6 +468,7 @@ export function DCPlanSection() {
          <div className="sm:col-span-6 flex items-center">
            <input
              type="checkbox"
+             id="dcMatchRequireYearEndActive"
              checked={formData.dcMatchRequireYearEndActive}
              onChange={(e) => {
                const checked = e.target.checked;
@@ -478,7 +482,7 @@ export function DCPlanSection() {
              className="h-4 w-4 text-fidelity-green focus:ring-fidelity-green border-gray-300 rounded"
            />
            <div className="ml-2">
-             <label className="block text-sm text-gray-700">Last Day Working Rule</label>
+             <label htmlFor="dcMatchRequireYearEndActive" className="block text-sm text-gray-700">Last Day Working Rule</label>
              <p className="text-xs text-gray-500">
                {formData.dcMatchRequireYearEndActive
                  ? 'Enabled — only employees active at year-end receive match contributions'
@@ -492,7 +496,7 @@ export function DCPlanSection() {
          <div className="col-span-6 h-px bg-gray-200 my-2"></div>
          <div className="sm:col-span-6 flex items-center justify-between mb-2">
            <h4 className="text-sm font-semibold text-gray-900">Employer Core (Non-Elective) Contribution</h4>
-           <div className="flex items-center">
+           <label className="flex items-center">
              <input
                type="checkbox"
                name="dcCoreEnabled"
@@ -501,7 +505,7 @@ export function DCPlanSection() {
                className="h-4 w-4 text-fidelity-green rounded"
              />
              <span className="ml-2 text-sm text-gray-600">Enabled</span>
-           </div>
+           </label>
          </div>
          <p className="col-span-6 text-xs text-gray-500 -mt-4 mb-2">Automatic employer contribution regardless of employee deferral</p>
 
@@ -739,6 +743,7 @@ export function DCPlanSection() {
              <div className="sm:col-span-6 flex items-center">
                <input
                  type="checkbox"
+                 id="dcCoreRequireYearEndActive"
                  checked={formData.dcCoreRequireYearEndActive}
                  onChange={(e) => {
                    const checked = e.target.checked;
@@ -752,7 +757,7 @@ export function DCPlanSection() {
                  className="h-4 w-4 text-fidelity-green focus:ring-fidelity-green border-gray-300 rounded"
                />
                <div className="ml-2">
-                 <label className="block text-sm text-gray-700">Last Day Working Rule</label>
+                 <label htmlFor="dcCoreRequireYearEndActive" className="block text-sm text-gray-700">Last Day Working Rule</label>
                  <p className="text-xs text-gray-500">
                    {formData.dcCoreRequireYearEndActive
                      ? 'Enabled — only employees active at year-end receive core contributions'
@@ -766,7 +771,7 @@ export function DCPlanSection() {
          <div className="col-span-6 h-px bg-gray-200 my-2"></div>
          <div className="sm:col-span-6 flex items-center justify-between mb-2">
              <h4 className="text-sm font-semibold text-gray-900">Auto-Escalation</h4>
-             <div className="flex items-center">
+             <label className="flex items-center">
                  <input type="checkbox" name="dcAutoEscalation" checked={formData.dcAutoEscalation} onChange={(e) => {
                   const checked = e.target.checked;
                   setFormData(prev => ({
@@ -777,7 +782,7 @@ export function DCPlanSection() {
                   }));
                 }} className="h-4 w-4 text-fidelity-green rounded" />
                  <span className="ml-2 text-sm text-gray-600">Enabled</span>
-             </div>
+             </label>
          </div>
          {formData.dcAutoEscalation && (
            <>

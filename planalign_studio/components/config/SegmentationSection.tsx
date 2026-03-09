@@ -22,11 +22,11 @@ export function SegmentationSection() {
   ) => {
     if (!bandConfig) return;
     const bandsKey = bandType === 'age' ? 'age_bands' : 'tenure_bands';
-    const updatedBands = bandConfig[bandsKey].map(band =>
-      band.band_id === bandId
-        ? { ...band, [field]: typeof value === 'string' && field !== 'band_label' ? parseInt(value) || 0 : value }
-        : band
-    );
+    const updatedBands = bandConfig[bandsKey].map(band => {
+      if (band.band_id !== bandId) return band;
+      const parsedValue = typeof value === 'string' && field !== 'band_label' ? parseInt(value) || 0 : value;
+      return { ...band, [field]: parsedValue };
+    });
     setBandConfig({ ...bandConfig, [bandsKey]: updatedBands });
     setBandValidationErrors([]);
   };

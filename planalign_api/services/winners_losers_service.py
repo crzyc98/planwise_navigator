@@ -121,7 +121,7 @@ class WinnersLosersService:
                 logger.warning(
                     f"No active employees found for scenario {scenario_id}"
                 )
-                return pd.DataFrame(), 0
+                return None, 0
 
             final_year = int(df["simulation_year"].iloc[0])
             return df.drop(columns=["simulation_year"]), final_year
@@ -136,6 +136,9 @@ class WinnersLosersService:
 
         Returns (merged_df, total_excluded).
         """
+        if df_a.empty or df_b.empty or "employee_id" not in df_a.columns or "employee_id" not in df_b.columns:
+            return pd.DataFrame(columns=["employee_id", "age_band", "tenure_band", "delta", "status"]), 0
+
         all_a = set(df_a["employee_id"])
         all_b = set(df_b["employee_id"])
         total_excluded = len(all_a.symmetric_difference(all_b))

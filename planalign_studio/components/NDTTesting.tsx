@@ -38,6 +38,12 @@ const formatCurrency = (value: number): string => {
   return `$${value.toFixed(0)}`;
 };
 
+const getGridColsClass = (count: number): string => {
+  if (count === 2) return 'grid-cols-1 md:grid-cols-2';
+  if (count === 3) return 'grid-cols-1 md:grid-cols-3';
+  return 'grid-cols-1 md:grid-cols-2 lg:grid-cols-3';
+};
+
 const TEST_TYPE_LABELS: Record<TestType, string> = {
   acp: 'ACP Test',
   adp: 'ADP Test',
@@ -218,6 +224,8 @@ export default function NDTTesting() {
 
   const completedScenarios = scenarios.filter(s => s.status === 'completed');
   const canRun = selectedScenarioIds.length > 0 && selectedYear !== null && !loading;
+  const scenarioPlaceholder = completedScenarios.length === 0 ? 'No completed runs' : 'Select Scenario';
+  const yearPlaceholder = availableYears.length === 0 ? 'Select scenario first' : 'Select Year';
 
   return (
     <div className="space-y-6 animate-fadeIn">
@@ -267,7 +275,7 @@ export default function NDTTesting() {
                   className="appearance-none bg-white border border-gray-300 rounded-lg pl-3 pr-10 py-2 text-sm focus:ring-fidelity-green focus:border-fidelity-green shadow-sm min-w-[200px] disabled:bg-gray-50 disabled:text-gray-400"
                 >
                   <option value="">
-                    {loadingScenarios ? 'Loading...' : completedScenarios.length === 0 ? 'No completed runs' : 'Select Scenario'}
+                    {loadingScenarios ? 'Loading...' : scenarioPlaceholder}
                   </option>
                   {completedScenarios.map(s => (
                     <option key={s.id} value={s.id}>{s.name}</option>
@@ -289,7 +297,7 @@ export default function NDTTesting() {
                 className="appearance-none bg-white border border-gray-300 rounded-lg pl-3 pr-10 py-2 text-sm focus:ring-fidelity-green focus:border-fidelity-green shadow-sm min-w-[120px] disabled:bg-gray-50 disabled:text-gray-400"
               >
                 <option value="">
-                  {loadingYears ? 'Loading...' : availableYears.length === 0 ? 'Select scenario first' : 'Select Year'}
+                  {loadingYears ? 'Loading...' : yearPlaceholder}
                 </option>
                 {availableYears.map(y => (
                   <option key={y} value={y}>{y}</option>
@@ -780,17 +788,14 @@ function ACPComparisonResults({ results, scenarioOrder }: { results: ACPScenario
   const ordered = [...results].sort((a, b) => scenarioOrder.indexOf(a.scenario_id) - scenarioOrder.indexOf(b.scenario_id));
   return (
     <div className="space-y-6">
-      <div className={`grid gap-6 ${
-        ordered.length === 2 ? 'grid-cols-1 md:grid-cols-2' :
-        ordered.length === 3 ? 'grid-cols-1 md:grid-cols-3' :
-        'grid-cols-1 md:grid-cols-2 lg:grid-cols-3'
-      }`}>
+      <div className={`grid gap-6 ${getGridColsClass(ordered.length)}`}>
         {ordered.map((result) => {
           const isPassing = result.test_result === 'pass';
           const isError = result.test_result === 'error';
+          const cardClass = isPassing ? 'bg-green-50 border-green-300' : 'bg-red-50 border-red-300';
           return (
             <div key={result.scenario_id} className={`rounded-xl p-5 border-2 ${
-              isError ? 'bg-yellow-50 border-yellow-300' : isPassing ? 'bg-green-50 border-green-300' : 'bg-red-50 border-red-300'
+              isError ? 'bg-yellow-50 border-yellow-300' : cardClass
             }`}>
               <div className="flex items-center justify-between mb-3">
                 <h3 className="text-sm font-bold text-gray-800 truncate mr-2">{result.scenario_name}</h3>
@@ -1058,17 +1063,14 @@ function Section401a4ComparisonResults({ results, scenarioOrder }: { results: Se
   const ordered = [...results].sort((a, b) => scenarioOrder.indexOf(a.scenario_id) - scenarioOrder.indexOf(b.scenario_id));
   return (
     <div className="space-y-6">
-      <div className={`grid gap-6 ${
-        ordered.length === 2 ? 'grid-cols-1 md:grid-cols-2' :
-        ordered.length === 3 ? 'grid-cols-1 md:grid-cols-3' :
-        'grid-cols-1 md:grid-cols-2 lg:grid-cols-3'
-      }`}>
+      <div className={`grid gap-6 ${getGridColsClass(ordered.length)}`}>
         {ordered.map((result) => {
           const isPassing = result.test_result === 'pass';
           const isError = result.test_result === 'error';
+          const cardClass = isPassing ? 'bg-green-50 border-green-300' : 'bg-red-50 border-red-300';
           return (
             <div key={result.scenario_id} className={`rounded-xl p-5 border-2 ${
-              isError ? 'bg-yellow-50 border-yellow-300' : isPassing ? 'bg-green-50 border-green-300' : 'bg-red-50 border-red-300'
+              isError ? 'bg-yellow-50 border-yellow-300' : cardClass
             }`}>
               <div className="flex items-center justify-between mb-3">
                 <h3 className="text-sm font-bold text-gray-800 truncate mr-2">{result.scenario_name}</h3>
@@ -1142,6 +1144,11 @@ function Section415SingleResult({
 }) {
   const isPassing = result.test_result === 'pass';
   const isError = result.test_result === 'error';
+
+  let maxUtilColorClass: string;
+  if (result.max_utilization_pct > 1.0) { maxUtilColorClass = 'text-red-600'; }
+  else if (result.max_utilization_pct >= result.warning_threshold_pct) { maxUtilColorClass = 'text-amber-600'; }
+  else { maxUtilColorClass = 'text-green-600'; }
 
   if (isError) {
     return (
@@ -1237,11 +1244,7 @@ function Section415SingleResult({
           </div>
           <div className="border-t border-gray-200 pt-2 mt-2 flex justify-between text-sm">
             <span className="text-gray-600">Max Utilization</span>
-            <span className={`font-bold ${
-              result.max_utilization_pct > 1.0 ? 'text-red-600' :
-              result.max_utilization_pct >= result.warning_threshold_pct ? 'text-amber-600' :
-              'text-green-600'
-            }`}>
+            <span className={`font-bold ${maxUtilColorClass}`}>
               {formatPercent(result.max_utilization_pct)}
             </span>
           </div>
@@ -1283,19 +1286,25 @@ function Section415SingleResult({
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-100">
-                {result.employees.map((emp) => (
+                {result.employees.map((emp) => {
+                  const statusLabel = emp.status === 'at_risk' ? 'AT RISK' : 'PASS';
+                  const rowBgClass = emp.status === 'at_risk' ? 'bg-amber-50' : '';
+                  let badgeClass: string;
+                  if (emp.status === 'breach') { badgeClass = 'bg-red-100 text-red-800'; }
+                  else if (emp.status === 'at_risk') { badgeClass = 'bg-amber-100 text-amber-800'; }
+                  else { badgeClass = 'bg-green-100 text-green-800'; }
+                  let utilColorClass: string;
+                  if (emp.utilization_pct > 1.0) { utilColorClass = 'text-red-600'; }
+                  else if (emp.utilization_pct >= 0.95) { utilColorClass = 'text-amber-600'; }
+                  else { utilColorClass = 'text-gray-900'; }
+                  return (
                   <tr key={emp.employee_id} className={`hover:bg-gray-50 ${
-                    emp.status === 'breach' ? 'bg-red-50' :
-                    emp.status === 'at_risk' ? 'bg-amber-50' : ''
+                    emp.status === 'breach' ? 'bg-red-50' : rowBgClass
                   }`}>
                     <td className="py-2 px-3 text-sm text-gray-900 font-mono">{emp.employee_id}</td>
                     <td className="py-2 px-3">
-                      <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium ${
-                        emp.status === 'breach' ? 'bg-red-100 text-red-800' :
-                        emp.status === 'at_risk' ? 'bg-amber-100 text-amber-800' :
-                        'bg-green-100 text-green-800'
-                      }`}>
-                        {emp.status === 'breach' ? 'BREACH' : emp.status === 'at_risk' ? 'AT RISK' : 'PASS'}
+                      <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium ${badgeClass}`}>
+                        {emp.status === 'breach' ? 'BREACH' : statusLabel}
                       </span>
                     </td>
                     <td className="py-2 px-3 text-sm text-right text-gray-700">{formatCurrency(emp.employee_deferrals)}</td>
@@ -1306,15 +1315,12 @@ function Section415SingleResult({
                     <td className={`py-2 px-3 text-sm text-right font-medium ${emp.headroom < 0 ? 'text-red-600' : 'text-gray-700'}`}>
                       {formatCurrency(emp.headroom)}
                     </td>
-                    <td className={`py-2 px-3 text-sm text-right font-medium ${
-                      emp.utilization_pct > 1.0 ? 'text-red-600' :
-                      emp.utilization_pct >= 0.95 ? 'text-amber-600' :
-                      'text-gray-900'
-                    }`}>
+                    <td className={`py-2 px-3 text-sm text-right font-medium ${utilColorClass}`}>
                       {formatPercent(emp.utilization_pct)}
                     </td>
                   </tr>
-                ))}
+                  );
+                })}
               </tbody>
             </table>
           </div>
@@ -1332,17 +1338,18 @@ function Section415ComparisonResults({ results, scenarioOrder }: { results: Sect
   const ordered = [...results].sort((a, b) => scenarioOrder.indexOf(a.scenario_id) - scenarioOrder.indexOf(b.scenario_id));
   return (
     <div className="space-y-6">
-      <div className={`grid gap-6 ${
-        ordered.length === 2 ? 'grid-cols-1 md:grid-cols-2' :
-        ordered.length === 3 ? 'grid-cols-1 md:grid-cols-3' :
-        'grid-cols-1 md:grid-cols-2 lg:grid-cols-3'
-      }`}>
+      <div className={`grid gap-6 ${getGridColsClass(ordered.length)}`}>
         {ordered.map((result) => {
           const isPassing = result.test_result === 'pass';
           const isError = result.test_result === 'error';
+          const cardClass = isPassing ? 'bg-green-50 border-green-300' : 'bg-red-50 border-red-300';
+          let maxUtilColorClass: string;
+          if (result.max_utilization_pct > 1.0) { maxUtilColorClass = 'text-red-700'; }
+          else if (result.max_utilization_pct >= 0.95) { maxUtilColorClass = 'text-amber-600'; }
+          else { maxUtilColorClass = 'text-green-700'; }
           return (
             <div key={result.scenario_id} className={`rounded-xl p-5 border-2 ${
-              isError ? 'bg-yellow-50 border-yellow-300' : isPassing ? 'bg-green-50 border-green-300' : 'bg-red-50 border-red-300'
+              isError ? 'bg-yellow-50 border-yellow-300' : cardClass
             }`}>
               <div className="flex items-center justify-between mb-3">
                 <h3 className="text-sm font-bold text-gray-800 truncate mr-2">{result.scenario_name}</h3>
@@ -1380,11 +1387,7 @@ function Section415ComparisonResults({ results, scenarioOrder }: { results: Sect
                   </div>
                   <div className={`flex justify-between text-sm border-t pt-2 ${isPassing ? 'border-green-200' : 'border-red-200'}`}>
                     <span className="text-gray-600">Max Util</span>
-                    <span className={`font-bold ${
-                      result.max_utilization_pct > 1.0 ? 'text-red-700' :
-                      result.max_utilization_pct >= 0.95 ? 'text-amber-600' :
-                      'text-green-700'
-                    }`}>
+                    <span className={`font-bold ${maxUtilColorClass}`}>
                       {formatPercent(result.max_utilization_pct)}
                     </span>
                   </div>
@@ -1637,21 +1640,20 @@ function ADPComparisonResults({ results, scenarioOrder }: { results: ADPScenario
   const ordered = [...results].sort((a, b) => scenarioOrder.indexOf(a.scenario_id) - scenarioOrder.indexOf(b.scenario_id));
   return (
     <div className="space-y-6">
-      <div className={`grid gap-6 ${
-        ordered.length === 2 ? 'grid-cols-1 md:grid-cols-2' :
-        ordered.length === 3 ? 'grid-cols-1 md:grid-cols-3' :
-        'grid-cols-1 md:grid-cols-2 lg:grid-cols-3'
-      }`}>
+      <div className={`grid gap-6 ${getGridColsClass(ordered.length)}`}>
         {ordered.map((result) => {
           const isPassing = result.test_result === 'pass';
           const isExempt = result.test_result === 'exempt';
           const isFailing = result.test_result === 'fail';
           const isError = result.test_result === 'error';
+          let cardClass: string;
+          if (isError) { cardClass = 'bg-yellow-50 border-yellow-300'; }
+          else if (isExempt) { cardClass = 'bg-blue-50 border-blue-300'; }
+          else if (isPassing) { cardClass = 'bg-green-50 border-green-300'; }
+          else { cardClass = 'bg-red-50 border-red-300'; }
           return (
             <div key={result.scenario_id} className={`rounded-xl p-5 border-2 ${
-              isError ? 'bg-yellow-50 border-yellow-300' :
-              isExempt ? 'bg-blue-50 border-blue-300' :
-              isPassing ? 'bg-green-50 border-green-300' : 'bg-red-50 border-red-300'
+              cardClass
             }`}>
               <div className="flex items-center justify-between mb-3">
                 <h3 className="text-sm font-bold text-gray-800 truncate mr-2">{result.scenario_name}</h3>
