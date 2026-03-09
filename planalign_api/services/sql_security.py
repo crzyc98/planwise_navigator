@@ -15,7 +15,7 @@ from pathlib import Path
 from typing import Optional, Set
 
 # Valid SQL identifier pattern: alphanumeric and underscores, must start with letter/underscore
-VALID_IDENTIFIER_PATTERN = re.compile(r"^[a-zA-Z_][a-zA-Z0-9_]*$")
+VALID_IDENTIFIER_PATTERN = re.compile(r"^[a-zA-Z_]\w*$")
 
 # Maximum identifier length (DuckDB limit)
 MAX_IDENTIFIER_LENGTH = 255

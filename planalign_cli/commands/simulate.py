@@ -139,8 +139,6 @@ def run_simulation(
         )
 
         try:
-            # For now, use simpler progress display to avoid stdout conflicts
-            # TODO: Implement proper async streaming in future iteration
             console.print("⏳ [blue]Executing simulation with progress monitoring...[/blue]")
 
             summary = orchestrator.execute_multi_year_simulation(

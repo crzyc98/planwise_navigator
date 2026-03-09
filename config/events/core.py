@@ -27,6 +27,7 @@ from .workforce import (
     SabbaticalPayload,
 )
 from .dc_plan import (
+    AutoEnrollmentOptions,
     EligibilityPayload,
     EnrollmentPayload,
     ContributionPayload,
@@ -298,15 +299,10 @@ class DCPlanEventFactory(EventFactory):
         pre_tax_contribution_rate: Decimal,
         roth_contribution_rate: Decimal,
         after_tax_contribution_rate: Decimal = Decimal("0"),
-        auto_enrollment: bool = False,
-        opt_out_window_expires: Optional[date] = None,
-        enrollment_source: Literal["proactive", "auto", "voluntary"] = "voluntary",
-        auto_enrollment_window_start: Optional[date] = None,
-        auto_enrollment_window_end: Optional[date] = None,
-        proactive_enrollment_eligible: bool = False,
-        window_timing_compliant: bool = True,
+        auto_enrollment_options: Optional[AutoEnrollmentOptions] = None,
     ) -> SimulationEvent:
         """Create enrollment event for deferral elections"""
+        opts = auto_enrollment_options or AutoEnrollmentOptions()
 
         payload = EnrollmentPayload(
             plan_id=plan_id,
@@ -314,13 +310,13 @@ class DCPlanEventFactory(EventFactory):
             pre_tax_contribution_rate=pre_tax_contribution_rate,
             roth_contribution_rate=roth_contribution_rate,
             after_tax_contribution_rate=after_tax_contribution_rate,
-            auto_enrollment=auto_enrollment,
-            opt_out_window_expires=opt_out_window_expires,
-            enrollment_source=enrollment_source,
-            auto_enrollment_window_start=auto_enrollment_window_start,
-            auto_enrollment_window_end=auto_enrollment_window_end,
-            proactive_enrollment_eligible=proactive_enrollment_eligible,
-            window_timing_compliant=window_timing_compliant,
+            auto_enrollment=opts.auto_enrollment,
+            opt_out_window_expires=opts.opt_out_window_expires,
+            enrollment_source=opts.enrollment_source,
+            auto_enrollment_window_start=opts.auto_enrollment_window_start,
+            auto_enrollment_window_end=opts.auto_enrollment_window_end,
+            proactive_enrollment_eligible=opts.proactive_enrollment_eligible,
+            window_timing_compliant=opts.window_timing_compliant,
         )
 
         return SimulationEvent(
