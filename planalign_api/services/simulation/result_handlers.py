@@ -8,6 +8,8 @@ import logging
 from pathlib import Path
 from typing import Any, Dict, Optional
 
+from config.constants import DATABASE_FILENAME
+
 logger = logging.getLogger(__name__)
 
 
@@ -36,10 +38,10 @@ def export_results_to_excel(
         from planalign_orchestrator.config import SimulationConfig
 
         # Find the database - prefer run-specific database if run_dir provided
-        if run_dir and (run_dir / "simulation.duckdb").exists():
-            db_path = run_dir / "simulation.duckdb"
+        if run_dir and (run_dir / DATABASE_FILENAME).exists():
+            db_path = run_dir / DATABASE_FILENAME
         else:
-            db_path = scenario_path / "simulation.duckdb"
+            db_path = scenario_path / DATABASE_FILENAME
 
         if not db_path.exists():
             logger.warning(f"Database not found at {db_path}, skipping Excel export")

@@ -13,6 +13,10 @@ from dataclasses import dataclass
 from datetime import date
 from typing import Any, Dict, List, Optional
 
+from config.constants import (
+    REGISTRY_DEFERRAL_ESCALATION,
+    REGISTRY_ENROLLMENT,
+)
 from .utils import DatabaseConnectionManager
 
 
@@ -193,7 +197,7 @@ class EnrollmentRegistry(Registry, TransactionalRegistry):
         Registries are orchestrator-managed and not partitioned by simulation_year,
         so we need an explicit reset between runs to avoid stale state.
         """
-        return self.execute_transaction(["DELETE FROM enrollment_registry"])
+        return self.execute_transaction([f"DELETE FROM {REGISTRY_ENROLLMENT}"])
 
     def update_post_year(self, year: int) -> bool:
         ops = [
@@ -284,7 +288,7 @@ class DeferralEscalationRegistry(Registry, TransactionalRegistry):
         return self.execute_transaction([self.sql.DEFERRAL_ESCALATION_CREATE])
 
     def reset(self) -> bool:
-        return self.execute_transaction(["DELETE FROM deferral_escalation_registry"])
+        return self.execute_transaction([f"DELETE FROM {REGISTRY_DEFERRAL_ESCALATION}"])
 
     def update_post_year(self, year: int) -> bool:
         ops = [

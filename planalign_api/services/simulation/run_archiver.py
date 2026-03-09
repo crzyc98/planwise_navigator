@@ -9,6 +9,8 @@ from typing import Any, Dict, Optional
 
 import yaml
 
+from config.constants import DATABASE_FILENAME, STATUS_COMPLETED
+
 from ...constants import DEFAULT_MAX_RUNS_PER_SCENARIO
 from ...storage.workspace_storage import WorkspaceStorage
 from .result_handlers import export_results_to_excel
@@ -161,7 +163,7 @@ def _save_metadata(
         "end_year": end_year,
         "events_generated": events_generated,
         "seed": seed,
-        "status": "completed",
+        "status": STATUS_COMPLETED,
     }
     try:
         metadata_path = run_dir / "run_metadata.json"
@@ -173,9 +175,9 @@ def _save_metadata(
 
 
 def _copy_database(scenario_path: Path, run_dir: Path) -> None:
-    db_src = scenario_path / "simulation.duckdb"
+    db_src = scenario_path / DATABASE_FILENAME
     if db_src.exists():
-        db_dest = run_dir / "simulation.duckdb"
+        db_dest = run_dir / DATABASE_FILENAME
         try:
             shutil.copy2(db_src, db_dest)
             logger.debug(f"Database copied to: {db_dest}")

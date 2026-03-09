@@ -8,6 +8,8 @@ from __future__ import annotations
 import os
 from pathlib import Path
 
+from config.constants import DATABASE_FILENAME
+
 
 def get_project_root() -> Path:
     """Get project root directory (planalign_engine/).
@@ -32,7 +34,7 @@ def get_database_path() -> Path:
     Returns:
         Path: Absolute path to the simulation database
     """
-    db_path = os.getenv('DATABASE_PATH', 'dbt/simulation.duckdb')
+    db_path = os.getenv('DATABASE_PATH', f'dbt/{DATABASE_FILENAME}')
     path = Path(db_path)
 
     # Ensure directory exists

@@ -19,13 +19,15 @@ from planalign_orchestrator.generators.base import (
 )
 from planalign_orchestrator.generators.registry import EventRegistry
 
+from config.constants import EVENT_ENROLLMENT
+
 if TYPE_CHECKING:
     from config.events import SimulationEvent
 
 logger = logging.getLogger(__name__)
 
 
-@EventRegistry.register("enrollment")
+@EventRegistry.register(EVENT_ENROLLMENT)
 class EnrollmentEventGenerator(EventGenerator):
     """
     Generate enrollment events for DC plan participation.
@@ -42,7 +44,7 @@ class EnrollmentEventGenerator(EventGenerator):
     Execution Order: 50 (last major event type)
     """
 
-    event_type = "enrollment"
+    event_type = EVENT_ENROLLMENT
     execution_order = 50
     requires_hazard = False  # Enrollment uses eligibility rules, not hazard
     supports_sql = True
@@ -99,7 +101,7 @@ class EnrollmentEventGenerator(EventGenerator):
 
         # Check event type
         payload = event.payload
-        if payload.event_type != "enrollment":
+        if payload.event_type != EVENT_ENROLLMENT:
             errors.append(
                 f"Expected event_type 'enrollment', got '{payload.event_type}'"
             )

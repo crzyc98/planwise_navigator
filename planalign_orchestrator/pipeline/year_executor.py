@@ -21,6 +21,10 @@ import uuid
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
+from config.constants import (
+    MODEL_FCT_YEARLY_EVENTS,
+    TABLE_FCT_WORKFORCE_SNAPSHOT,
+)
 from planalign_orchestrator.config import SimulationConfig, get_database_path
 from planalign_orchestrator.dbt_runner import DbtResult, DbtRunner
 from planalign_orchestrator.state_accumulator import YearDependencyValidator
@@ -302,7 +306,7 @@ class YearExecutor:
 
         # Execute final union writer
         union_result = self.dbt_runner.execute_command(
-            ["run", "--select", "fct_yearly_events"],
+            ["run", "--select", MODEL_FCT_YEARLY_EVENTS],
             simulation_year=year,
             dbt_vars=self._dbt_vars,
             stream_output=True
@@ -528,12 +532,12 @@ class YearExecutor:
             model: Model name to check
             year: Simulation year whose rows should be cleared
         """
-        if model != "fct_workforce_snapshot":
+        if model != TABLE_FCT_WORKFORCE_SNAPSHOT:
             return
         try:
             def _clear(conn):
                 conn.execute(
-                    "DELETE FROM fct_workforce_snapshot WHERE simulation_year = ?",
+                    f"DELETE FROM {TABLE_FCT_WORKFORCE_SNAPSHOT} WHERE simulation_year = ?",
                     [year],
                 )
                 return True
@@ -541,7 +545,7 @@ class YearExecutor:
             self.db_manager.execute_with_retry(_clear)
             if self.verbose:
                 print(
-                    f"   🧹 Cleared fct_workforce_snapshot for simulation_year={year} before rebuild"
+                    f"   🧹 Cleared {TABLE_FCT_WORKFORCE_SNAPSHOT} for simulation_year={year} before rebuild"
                 )
         except Exception:
             # Non-fatal; proceed with dbt incremental upsert

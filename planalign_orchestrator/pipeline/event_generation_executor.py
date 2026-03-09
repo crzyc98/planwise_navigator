@@ -18,6 +18,14 @@ from typing import Any, Dict, List
 
 import logging
 
+from config.constants import (
+    MODEL_FCT_YEARLY_EVENTS,
+    MODEL_INT_ENROLLMENT_EVENTS,
+    MODEL_INT_MERIT_EVENTS,
+    MODEL_INT_PROMOTION_EVENTS,
+    MODEL_INT_TERMINATION_EVENTS,
+    TABLE_FCT_YEARLY_EVENTS,
+)
 from ..config import SimulationConfig
 from ..dbt_runner import DbtResult, DbtRunner
 from ..utils import DatabaseConnectionManager
@@ -264,7 +272,7 @@ class EventGenerationExecutor:
                     # Count events from database
                     def _count_events(conn):
                         return conn.execute(
-                            "SELECT COUNT(*) FROM fct_yearly_events WHERE simulation_year = ?",
+                            f"SELECT COUNT(*) FROM {TABLE_FCT_YEARLY_EVENTS} WHERE simulation_year = ?",
                             [year]
                         ).fetchone()[0]
 
@@ -347,7 +355,7 @@ class EventGenerationExecutor:
 
         # Execute final union writer
         union_result = self.dbt_runner.execute_command(
-            ["run", "--select", "fct_yearly_events"],
+            ["run", "--select", MODEL_FCT_YEARLY_EVENTS],
             simulation_year=year,
             dbt_vars=self.dbt_vars,
             stream_output=True
@@ -389,18 +397,18 @@ class EventGenerationExecutor:
             *([
                 "int_synthetic_baseline_enrollment_events"
             ] if year == self.config.simulation.start_year else []),
-            "int_termination_events",
+            MODEL_INT_TERMINATION_EVENTS,
             "int_hiring_events",
             "int_new_hire_termination_events",
             "int_employer_eligibility",
             "int_hazard_promotion",
             "int_hazard_merit",
-            "int_promotion_events",
-            "int_merit_events",
+            MODEL_INT_PROMOTION_EVENTS,
+            MODEL_INT_MERIT_EVENTS,
             "int_eligibility_determination",
             "int_voluntary_enrollment_decision",
             "int_proactive_voluntary_enrollment",
-            "int_enrollment_events",
+            MODEL_INT_ENROLLMENT_EVENTS,
             "int_deferral_rate_escalation_events",
         ]
         return models

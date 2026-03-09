@@ -18,6 +18,17 @@ from pathlib import Path
 from typing import Any, Dict, List, Optional
 
 import duckdb
+from config.constants import (
+    COL_EMPLOYEE_ID,
+    COL_EVENT_TYPE,
+    COL_EFFECTIVE_DATE,
+    COL_SIMULATION_YEAR,
+    MODEL_INT_BASELINE_WORKFORCE,
+    MODEL_INT_EMPLOYEE_COMPENSATION,
+    MODEL_INT_WORKFORCE_NEEDS,
+    TABLE_FCT_WORKFORCE_SNAPSHOT,
+    TABLE_FCT_YEARLY_EVENTS,
+)
 from planalign_orchestrator.config import get_database_path
 
 logger = logging.getLogger(__name__)
@@ -80,12 +91,12 @@ class CheckpointManager:
             with duckdb.connect(self.db_path) as conn:
                 # Critical table row counts
                 tables = [
-                    "fct_yearly_events",
-                    "fct_workforce_snapshot",
+                    TABLE_FCT_YEARLY_EVENTS,
+                    TABLE_FCT_WORKFORCE_SNAPSHOT,
                     "int_employee_contributions",
-                    "int_baseline_workforce",
-                    "int_employee_compensation_by_year",
-                    "int_workforce_needs",
+                    MODEL_INT_BASELINE_WORKFORCE,
+                    MODEL_INT_EMPLOYEE_COMPENSATION,
+                    MODEL_INT_WORKFORCE_NEEDS,
                 ]
 
                 for table in tables:
@@ -102,12 +113,12 @@ class CheckpointManager:
                 try:
                     # Check for duplicate events
                     duplicate_count = conn.execute(
-                        """
+                        f"""
                         SELECT COUNT(*) FROM (
-                            SELECT employee_id, simulation_year, event_type, effective_date
-                            FROM fct_yearly_events
-                            WHERE simulation_year = ?
-                            GROUP BY employee_id, simulation_year, event_type, effective_date
+                            SELECT {COL_EMPLOYEE_ID}, {COL_SIMULATION_YEAR}, {COL_EVENT_TYPE}, {COL_EFFECTIVE_DATE}
+                            FROM {TABLE_FCT_YEARLY_EVENTS}
+                            WHERE {COL_SIMULATION_YEAR} = ?
+                            GROUP BY {COL_EMPLOYEE_ID}, {COL_SIMULATION_YEAR}, {COL_EVENT_TYPE}, {COL_EFFECTIVE_DATE}
                             HAVING COUNT(*) > 1
                         )
                     """,
@@ -117,18 +128,18 @@ class CheckpointManager:
 
                     # Check workforce balance
                     workforce_count = conn.execute(
-                        "SELECT COUNT(*) FROM fct_workforce_snapshot WHERE simulation_year = ?",
+                        f"SELECT COUNT(*) FROM {TABLE_FCT_WORKFORCE_SNAPSHOT} WHERE {COL_SIMULATION_YEAR} = ?",
                         [year],
                     ).fetchone()[0]
                     state["data_quality_metrics"]["workforce_count"] = workforce_count
 
                     # Check event type distribution
                     event_types = conn.execute(
-                        """
-                        SELECT event_type, COUNT(*)
-                        FROM fct_yearly_events
-                        WHERE simulation_year = ?
-                        GROUP BY event_type
+                        f"""
+                        SELECT {COL_EVENT_TYPE}, COUNT(*)
+                        FROM {TABLE_FCT_YEARLY_EVENTS}
+                        WHERE {COL_SIMULATION_YEAR} = ?
+                        GROUP BY {COL_EVENT_TYPE}
                     """,
                         [year],
                     ).fetchall()
@@ -153,11 +164,11 @@ class CheckpointManager:
             with duckdb.connect(self.db_path) as conn:
                 # Event type distribution
                 event_dist = conn.execute(
-                    """
-                    SELECT event_type, COUNT(*)
-                    FROM fct_yearly_events
-                    WHERE simulation_year = ?
-                    GROUP BY event_type
+                    f"""
+                    SELECT {COL_EVENT_TYPE}, COUNT(*)
+                    FROM {TABLE_FCT_YEARLY_EVENTS}
+                    WHERE {COL_SIMULATION_YEAR} = ?
+                    GROUP BY {COL_EVENT_TYPE}
                 """,
                     [year],
                 ).fetchall()
@@ -165,10 +176,10 @@ class CheckpointManager:
 
                 # Compensation totals
                 comp_total = conn.execute(
-                    """
+                    f"""
                     SELECT SUM(total_compensation)
-                    FROM fct_workforce_snapshot
-                    WHERE simulation_year = ?
+                    FROM {TABLE_FCT_WORKFORCE_SNAPSHOT}
+                    WHERE {COL_SIMULATION_YEAR} = ?
                 """,
                     [year],
                 ).fetchone()[0]
@@ -178,10 +189,10 @@ class CheckpointManager:
 
                 # Contribution totals
                 contrib_total = conn.execute(
-                    """
+                    f"""
                     SELECT SUM(annual_contribution_amount)
                     FROM int_employee_contributions
-                    WHERE simulation_year = ?
+                    WHERE {COL_SIMULATION_YEAR} = ?
                 """,
                     [year],
                 ).fetchone()[0]
@@ -191,10 +202,10 @@ class CheckpointManager:
 
                 # Employee count validation
                 baseline_count = conn.execute(
-                    """
+                    f"""
                     SELECT COUNT(*)
-                    FROM int_baseline_workforce
-                    WHERE simulation_year = ?
+                    FROM {MODEL_INT_BASELINE_WORKFORCE}
+                    WHERE {COL_SIMULATION_YEAR} = ?
                 """,
                     [year],
                 ).fetchone()[0]
@@ -202,10 +213,10 @@ class CheckpointManager:
 
                 # Workforce needs validation
                 hires_needed = conn.execute(
-                    """
+                    f"""
                     SELECT COALESCE(SUM(hires_needed), 0)
                     FROM int_workforce_needs_by_level
-                    WHERE simulation_year = ?
+                    WHERE {COL_SIMULATION_YEAR} = ?
                 """,
                     [year],
                 ).fetchone()[0]

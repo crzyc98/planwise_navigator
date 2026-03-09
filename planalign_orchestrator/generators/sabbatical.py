@@ -22,13 +22,15 @@ from planalign_orchestrator.generators.base import (
 )
 from planalign_orchestrator.generators.registry import EventRegistry
 
+from config.constants import EVENT_SABBATICAL
+
 if TYPE_CHECKING:
     from config.events import SimulationEvent
 
 logger = logging.getLogger(__name__)
 
 
-@EventRegistry.register("sabbatical")
+@EventRegistry.register(EVENT_SABBATICAL)
 class SabbaticalEventGenerator(EventGenerator):
     """
     Generate sabbatical leave events for eligible employees.
@@ -42,7 +44,7 @@ class SabbaticalEventGenerator(EventGenerator):
     targeting approximately 2% of eligible employees per year.
     """
 
-    event_type = "sabbatical"
+    event_type = EVENT_SABBATICAL
     execution_order = 35  # After terminations (20), before promotions (40)
     requires_hazard = False
     supports_sql = True
@@ -94,7 +96,7 @@ class SabbaticalEventGenerator(EventGenerator):
         warnings: List[str] = []
 
         # Check event type
-        if event.payload.event_type != "sabbatical":
+        if event.payload.event_type != EVENT_SABBATICAL:
             errors.append(
                 f"Expected event_type 'sabbatical', got '{event.payload.event_type}'"
             )

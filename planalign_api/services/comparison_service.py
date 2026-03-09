@@ -13,6 +13,15 @@ from ..models.comparison import (
     WorkforceComparisonYear,
     WorkforceMetrics,
 )
+from config.constants import (
+    EVENT_TYPE_HIRE,
+    EVENT_TYPE_PROMOTION,
+    EVENT_TYPE_RAISE,
+    EVENT_TYPE_TERMINATION,
+    TABLE_FCT_WORKFORCE_SNAPSHOT,
+    TABLE_FCT_YEARLY_EVENTS,
+)
+
 from ..storage.workspace_storage import WorkspaceStorage
 from .database_path_resolver import DatabasePathResolver
 
@@ -99,13 +108,13 @@ class ComparisonService:
     def _query_workforce(conn) -> List[Dict[str, Any]]:
         """Query workforce snapshots grouped by simulation year."""
         try:
-            df = conn.execute("""
+            df = conn.execute(f"""
                 SELECT
                     simulation_year,
                     COUNT(DISTINCT employee_id) as headcount,
                     COUNT(DISTINCT CASE WHEN UPPER(employment_status) = 'ACTIVE' THEN employee_id END) as active,
                     COUNT(DISTINCT CASE WHEN UPPER(employment_status) = 'TERMINATED' THEN employee_id END) as terminated
-                FROM fct_workforce_snapshot
+                FROM {TABLE_FCT_WORKFORCE_SNAPSHOT}
                 GROUP BY simulation_year
                 ORDER BY simulation_year
             """).fetchdf()
@@ -117,12 +126,12 @@ class ComparisonService:
     def _query_events(conn) -> List[Dict[str, Any]]:
         """Query event counts grouped by simulation year and event type."""
         try:
-            df = conn.execute("""
+            df = conn.execute(f"""
                 SELECT
                     simulation_year,
                     event_type,
                     COUNT(*) as count
-                FROM fct_yearly_events
+                FROM {TABLE_FCT_YEARLY_EVENTS}
                 GROUP BY simulation_year, event_type
                 ORDER BY simulation_year, event_type
             """).fetchdf()
@@ -134,12 +143,12 @@ class ComparisonService:
     def _query_hires_by_year(conn) -> Dict[int, int]:
         """Query hire counts grouped by simulation year."""
         try:
-            df = conn.execute("""
+            df = conn.execute(f"""
                 SELECT
                     simulation_year,
                     COUNT(*) as hires
-                FROM fct_yearly_events
-                WHERE event_type = 'HIRE'
+                FROM {TABLE_FCT_YEARLY_EVENTS}
+                WHERE event_type = '{EVENT_TYPE_HIRE}'
                 GROUP BY simulation_year
                 ORDER BY simulation_year
             """).fetchdf()
@@ -154,7 +163,7 @@ class ComparisonService:
     def _query_dc_plan(conn) -> List[Dict[str, Any]]:
         """Query DC plan metrics grouped by simulation year."""
         try:
-            df = conn.execute("""
+            df = conn.execute(f"""
                 SELECT
                     simulation_year,
                     COALESCE(
@@ -180,7 +189,7 @@ class ComparisonService:
                         AS total_compensation,
                     COUNT(CASE WHEN is_enrolled_flag THEN 1 END)
                         AS participant_count
-                FROM fct_workforce_snapshot
+                FROM {TABLE_FCT_WORKFORCE_SNAPSHOT}
                 GROUP BY simulation_year
                 ORDER BY simulation_year
             """).fetchdf()
@@ -342,7 +351,7 @@ class ComparisonService:
         baseline_id: str,
     ) -> List[EventComparisonMetric]:
         """Build event comparison across scenarios."""
-        event_types = ["HIRE", "TERMINATION", "PROMOTION", "RAISE"]
+        event_types = [EVENT_TYPE_HIRE, EVENT_TYPE_TERMINATION, EVENT_TYPE_PROMOTION, EVENT_TYPE_RAISE]
         comparison = []
 
         # Get all years
