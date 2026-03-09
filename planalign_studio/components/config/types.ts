@@ -78,6 +78,7 @@ export interface FormData {
   targetGrowthRate: number;
 
   // Compensation
+  targetCompensationGrowth: number;
   meritBudget: number;
   colaRate: number;
   promoIncrease: number;
