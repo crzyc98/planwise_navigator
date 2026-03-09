@@ -329,6 +329,10 @@ class ProgressAwareOrchestrator:
         self._current_year = None
         self._current_stage = None
 
+        # Wire progress callback directly to YearExecutor for direct stage signaling
+        if hasattr(orchestrator, 'year_executor'):
+            orchestrator.year_executor.progress_callback = progress_callback
+
     def __getattr__(self, name):
         """Delegate all other attributes to the wrapped orchestrator."""
         return getattr(self.orchestrator, name)
@@ -347,7 +351,7 @@ class ProgressAwareOrchestrator:
         # Pattern matching for various progress indicators.
         # Patterns use non-overlapping quantifiers to avoid ReDoS.
         year_pattern = re.compile(r'🔄 Starting simulation year (\d+)')
-        stage_pattern = re.compile(r'📋 Executing stage: (\w+)')
+        stage_pattern = re.compile(r'📋 Starting (\w+)')
         # Use \d+(?:,\d+)* instead of \d+,?\d* to avoid overlapping quantifiers
         event_pattern = re.compile(r'📊 Generated (\d+(?:,\d+)*) events')
         completed_stage_pattern = re.compile(r'✅ Completed (\w+) in (\d+\.\d+)s')
@@ -361,8 +365,9 @@ class ProgressAwareOrchestrator:
                 self.buffer = ""
 
             def write(self, text):
-                # Always write to original stdout so user sees output
-                self.original_stdout.write(text)
+                # Do NOT write to original stdout — Rich Live is controlling the terminal.
+                # Raw stdout writes cause display corruption.
+                # Instead, route visible output through the callback's on_dbt_line().
                 self.original_stdout.flush()
 
                 # Add to buffer for pattern matching
@@ -372,6 +377,9 @@ class ProgressAwareOrchestrator:
                 while '\n' in self.buffer:
                     line, self.buffer = self.buffer.split('\n', 1)
                     self._process_line(line)
+                    # Route line to callback for safe Rich Console rendering
+                    if hasattr(self.callback, 'on_dbt_line'):
+                        self.callback.on_dbt_line(line)
 
             def _process_line(self, line):
                 """Process a complete line for progress indicators."""
