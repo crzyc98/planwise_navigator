@@ -32,6 +32,7 @@ from .workforce import (
 
 # DC Plan payloads
 from .dc_plan import (
+    AutoEnrollmentOptions,
     EligibilityPayload,
     EnrollmentPayload,
     ContributionPayload,
@@ -79,6 +80,7 @@ __all__ = [
     "MeritPayload",
     "SabbaticalPayload",
     # DC Plan payloads
+    "AutoEnrollmentOptions",
     "EligibilityPayload",
     "EnrollmentPayload",
     "ContributionPayload",

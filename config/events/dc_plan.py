@@ -11,6 +11,7 @@ Contains:
 - EnrollmentChangePayload: Enrollment modifications
 """
 
+from dataclasses import dataclass, field
 from datetime import date
 from decimal import Decimal
 from typing import Dict, Literal, Optional
@@ -18,6 +19,19 @@ from typing import Dict, Literal, Optional
 from pydantic import BaseModel, Field, field_validator
 
 from .validators import quantize_amount, quantize_rate, quantize_amount_dict, quantize_rate_optional
+
+
+@dataclass
+class AutoEnrollmentOptions:
+    """Grouped auto-enrollment parameters for enrollment event creation."""
+
+    auto_enrollment: bool = False
+    opt_out_window_expires: Optional[date] = None
+    enrollment_source: Literal["proactive", "auto", "voluntary"] = "voluntary"
+    auto_enrollment_window_start: Optional[date] = None
+    auto_enrollment_window_end: Optional[date] = None
+    proactive_enrollment_eligible: bool = False
+    window_timing_compliant: bool = True
 
 
 class EligibilityPayload(BaseModel):
@@ -176,6 +190,7 @@ class EnrollmentChangePayload(BaseModel):
 
 
 __all__ = [
+    "AutoEnrollmentOptions",
     "EligibilityPayload",
     "EnrollmentPayload",
     "ContributionPayload",

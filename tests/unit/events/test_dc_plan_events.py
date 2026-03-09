@@ -8,9 +8,10 @@ from typing import Dict
 import pytest
 from pydantic import ValidationError
 
-from config.events import (ContributionPayload, DCPlanEventFactory,
-                           EligibilityPayload, EnrollmentPayload,
-                           SimulationEvent, VestingPayload)
+from config.events import (AutoEnrollmentOptions, ContributionPayload,
+                           DCPlanEventFactory, EligibilityPayload,
+                           EnrollmentPayload, SimulationEvent,
+                           VestingPayload)
 
 
 class TestEligibilityPayload:
@@ -395,7 +396,7 @@ class TestDCPlanEventFactory:
             enrollment_date=date(2025, 1, 15),
             pre_tax_contribution_rate=Decimal("0.06"),
             roth_contribution_rate=Decimal("0.04"),
-            auto_enrollment=True,
+            auto_enrollment_options=AutoEnrollmentOptions(auto_enrollment=True),
         )
 
         assert isinstance(event, SimulationEvent)

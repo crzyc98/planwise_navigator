@@ -345,9 +345,9 @@ class DbtRunner:
         if self.db_manager:
             try:
                 self.db_manager.close_all()
-            except Exception:
-                # Non-fatal, continue execution
-                pass
+            except Exception as e:
+                if self.verbose:
+                    print(f"⚠️ Non-fatal: failed to close DB connections before dbt subprocess: {e}")
 
         if stream_output:
             return self._execute_with_streaming(cmd, on_line=on_line, start_ts=start)
@@ -576,7 +576,7 @@ class DbtRunner:
         stage_name: str,
         simulation_year: int,
         dbt_vars: Dict[str, Any]
-    ) -> ExecutionResult:
+    ) -> "ExecutionResult | Dict[str, Any]":
         """Fallback to sequential execution when parallelization is unavailable."""
 
         start_time = time.perf_counter()
