@@ -327,12 +327,13 @@ export default function SimulationControl() {
                    <li key={event.employee_id + '-' + idx} className="p-3 hover:bg-gray-800 transition-colors border-l-4 border-transparent hover:border-fidelity-green">
                      <div className="flex justify-between items-start mb-1">
                         <span className={`text-xs font-bold px-1.5 rounded ${
-                          event.event_type === 'HIRE' ? 'bg-green-900 text-green-300' :
-                          event.event_type === 'TERMINATION' ? 'bg-red-900 text-red-300' :
-                          event.event_type === 'PROMOTION' ? 'bg-blue-900 text-blue-300' :
-                          event.event_type === 'STAGE' ? 'bg-purple-900 text-purple-300' :
-                          event.event_type === 'INFO' ? 'bg-cyan-900 text-cyan-300' :
-                          'bg-yellow-900 text-yellow-300'
+                          ({
+                            HIRE: 'bg-green-900 text-green-300',
+                            TERMINATION: 'bg-red-900 text-red-300',
+                            PROMOTION: 'bg-blue-900 text-blue-300',
+                            STAGE: 'bg-purple-900 text-purple-300',
+                            INFO: 'bg-cyan-900 text-cyan-300',
+                          } as Record<string, string>)[event.event_type] ?? 'bg-yellow-900 text-yellow-300'
                         }`}>
                           {event.event_type}
                         </span>
@@ -395,11 +396,12 @@ export default function SimulationControl() {
                     </td>
                     <td className="py-3 px-4">
                       <span className={`inline-flex items-center px-2.5 py-1 rounded-full text-xs font-medium ${
-                        scenario.status === 'completed' ? 'bg-green-100 text-green-700' :
-                        scenario.status === 'running' ? 'bg-blue-100 text-blue-700' :
-                        scenario.status === 'failed' ? 'bg-red-100 text-red-700' :
-                        scenario.status === 'queued' ? 'bg-yellow-100 text-yellow-700' :
-                        'bg-gray-100 text-gray-600'
+                        ({
+                          completed: 'bg-green-100 text-green-700',
+                          running: 'bg-blue-100 text-blue-700',
+                          failed: 'bg-red-100 text-red-700',
+                          queued: 'bg-yellow-100 text-yellow-700',
+                        } as Record<string, string>)[scenario.status] ?? 'bg-gray-100 text-gray-600'
                       }`}>
                         {scenario.status === 'completed' && <CheckCircle size={12} className="mr-1" />}
                         {scenario.status === 'running' && <CircleDot size={12} className="mr-1 animate-pulse" />}
@@ -468,12 +470,14 @@ export default function SimulationControl() {
                             : 'bg-fidelity-green text-white hover:bg-fidelity-dark'
                         }`}
                       >
-                        {isSimulationRunning && scenario.id === runningScenarioId ? (
+                        {isSimulationRunning && scenario.id === runningScenarioId && (
                           <>
                             <Loader2 size={14} className="inline mr-1 animate-spin" />
                             Running...
                           </>
-                        ) : isSimulationRunning ? 'Busy' : 'Run'}
+                        )}
+                        {isSimulationRunning && scenario.id !== runningScenarioId && 'Busy'}
+                        {!isSimulationRunning && 'Run'}
                       </button>
                     </td>
                   </tr>

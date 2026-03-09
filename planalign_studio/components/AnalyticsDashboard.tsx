@@ -25,6 +25,16 @@ interface LayoutContext {
   lastRunScenarioId: string | null;
 }
 
+const trendIcons: Record<string, React.ReactNode> = {
+  up: <ArrowUpRight size={16} className="text-green-500 mr-1" />,
+  down: <ArrowDownRight size={16} className="text-red-500 mr-1" />,
+};
+
+const trendColors: Record<string, string> = {
+  up: 'text-green-600',
+  down: 'text-red-600',
+};
+
 const KPICard = ({ title, value, subtext, trend, icon: Icon, color, loading }: any) => (
   <div className="bg-white p-5 rounded-xl shadow-sm border border-gray-200 flex items-start justify-between">
     <div>
@@ -36,8 +46,8 @@ const KPICard = ({ title, value, subtext, trend, icon: Icon, color, loading }: a
           <h3 className="text-2xl font-bold text-gray-900 mt-1">{value}</h3>
           {subtext && (
             <div className="flex items-center mt-1">
-              {trend === 'up' ? <ArrowUpRight size={16} className="text-green-500 mr-1" /> : trend === 'down' ? <ArrowDownRight size={16} className="text-red-500 mr-1" /> : null}
-              <span className={`text-xs font-medium ${trend === 'up' ? 'text-green-600' : trend === 'down' ? 'text-red-600' : 'text-gray-500'}`}>
+              {trendIcons[trend] || null}
+              <span className={`text-xs font-medium ${trendColors[trend] || 'text-gray-500'}`}>
                 {subtext}
               </span>
             </div>
@@ -300,7 +310,11 @@ export default function AnalyticsDashboard() {
               className="appearance-none bg-white border border-gray-300 rounded-lg pl-3 pr-10 py-2 text-sm focus:ring-fidelity-green focus:border-fidelity-green shadow-sm min-w-[200px] disabled:bg-gray-50 disabled:text-gray-400"
             >
               <option value="">
-                {loadingScenarios ? 'Loading...' : completedScenarios.length === 0 ? 'No completed runs' : 'Select Simulation'}
+                {(() => {
+                  if (loadingScenarios) return 'Loading...';
+                  if (completedScenarios.length === 0) return 'No completed runs';
+                  return 'Select Simulation';
+                })()}
               </option>
               {completedScenarios.map(scenario => (
                 <option key={scenario.id} value={scenario.id}>
@@ -323,7 +337,7 @@ export default function AnalyticsDashboard() {
                     : 'bg-white text-gray-600 hover:bg-gray-50'
                 }`}
               >
-                {opt === 'all' ? 'All' : opt === 'active' ? 'Active' : 'Terminated'}
+                {{ all: 'All', active: 'Active', terminated: 'Terminated' }[opt]}
               </button>
             ))}
           </div>
@@ -448,16 +462,16 @@ export default function AnalyticsDashboard() {
                         }
                         return val.toLocaleString();
                       };
+                      const cagrSign = row.cagr_pct >= 0 ? '+' : '';
                       const cagrDisplay = row.years > 0
-                        ? `${row.cagr_pct >= 0 ? '+' : ''}${row.cagr_pct.toFixed(2)}%`
+                        ? `${cagrSign}${row.cagr_pct.toFixed(2)}%`
                         : 'N/A';
-                      const cagrColor = row.years === 0
-                        ? 'text-gray-500'
-                        : row.cagr_pct > 0
-                          ? 'text-green-600'
-                          : row.cagr_pct < 0
-                            ? 'text-red-600'
-                            : 'text-gray-600';
+                      const cagrColor = (() => {
+                        if (row.years === 0) return 'text-gray-500';
+                        if (row.cagr_pct > 0) return 'text-green-600';
+                        if (row.cagr_pct < 0) return 'text-red-600';
+                        return 'text-gray-600';
+                      })();
 
                       return (
                         <tr key={idx} className={idx % 2 === 0 ? 'bg-white' : 'bg-gray-50'}>
@@ -764,7 +778,11 @@ export default function AnalyticsDashboard() {
                   <div key={key} className="bg-gray-50 p-4 rounded-lg">
                     <p className="text-sm text-gray-500 capitalize">{key.replace(/_/g, ' ')}</p>
                     <p className="text-xl font-bold text-gray-900">
-                      {typeof value === 'number' ? (key.includes('pct') || key.includes('rate') ? `${value.toFixed(1)}%` : value.toLocaleString()) : value}
+                      {(() => {
+                        if (typeof value !== 'number') return value;
+                        if (key.includes('pct') || key.includes('rate')) return `${value.toFixed(1)}%`;
+                        return value.toLocaleString();
+                      })()}
                     </p>
                   </div>
                 ))}
