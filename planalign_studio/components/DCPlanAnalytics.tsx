@@ -272,11 +272,7 @@ export default function DCPlanAnalytics() {
                 setSelectedScenarioIds([]);
               }
             }}
-            className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
-              comparisonMode
-                ? 'bg-fidelity-green text-white'
-                : 'bg-white border border-gray-300 text-gray-700 hover:bg-gray-50'
-            }`}
+            className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${comparisonMode ? 'bg-fidelity-green text-white' : 'bg-white border border-gray-300 text-gray-700 hover:bg-gray-50'}`}
           >
             Compare {comparisonMode && `(${selectedScenarioIds.length}/3)`}
           </button>
@@ -314,11 +310,7 @@ export default function DCPlanAnalytics() {
                 key={scenario.id}
                 onClick={() => handleScenarioToggle(scenario.id)}
                 disabled={!selectedScenarioIds.includes(scenario.id) && selectedScenarioIds.length >= MAX_SCENARIO_SELECTION}
-                className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-colors ${
-                  selectedScenarioIds.includes(scenario.id)
-                    ? 'bg-fidelity-green text-white'
-                    : 'bg-white border border-gray-300 text-gray-700 hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed'
-                }`}
+                className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-colors ${selectedScenarioIds.includes(scenario.id) ? 'bg-fidelity-green text-white' : 'bg-white border border-gray-300 text-gray-700 hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed'}`}
               >
                 {scenario.name}
               </button>

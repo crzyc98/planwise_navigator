@@ -137,15 +137,7 @@ function ConfigShell() {
           <button
             onClick={handleSaveConfig}
             disabled={saveStatus === 'saving'}
-            className={`px-4 py-2 text-white rounded-lg flex items-center font-medium shadow-sm transition-colors ${
-              saveStatus === 'saving'
-                ? 'bg-gray-400 cursor-not-allowed'
-                : saveStatus === 'success'
-                ? 'bg-green-600 hover:bg-green-700'
-                : isDirty
-                ? 'bg-amber-600 hover:bg-amber-700 ring-2 ring-amber-300'
-                : 'bg-fidelity-green hover:bg-fidelity-dark'
-            }`}
+            className={`px-4 py-2 text-white rounded-lg flex items-center font-medium shadow-sm transition-colors ${saveStatus === 'saving' ? 'bg-gray-400 cursor-not-allowed' : saveStatus === 'success' ? 'bg-green-600 hover:bg-green-700' : isDirty ? 'bg-amber-600 hover:bg-amber-700 ring-2 ring-amber-300' : 'bg-fidelity-green hover:bg-fidelity-dark'}`}
           >
             {saveStatus === 'saving' ? (
               <>
@@ -171,11 +163,7 @@ function ConfigShell() {
           </button>
           <button
             onClick={() => navigate(`/simulate?scenario=${scenarioId}`)}
-            className={`px-4 py-2 rounded-lg flex items-center font-medium shadow-sm transition-all ${
-              saveStatus === 'success'
-                ? 'bg-blue-600 hover:bg-blue-700 text-white animate-pulse'
-                : 'bg-blue-100 hover:bg-blue-200 text-blue-700 border border-blue-300'
-            }`}
+            className={`px-4 py-2 rounded-lg flex items-center font-medium shadow-sm transition-all ${saveStatus === 'success' ? 'bg-blue-600 hover:bg-blue-700 text-white animate-pulse' : 'bg-blue-100 hover:bg-blue-200 text-blue-700 border border-blue-300'}`}
           >
             <Play size={18} className="mr-2" />
             Run Simulation
@@ -200,11 +188,7 @@ function ConfigShell() {
               <button
                 key={item.id}
                 onClick={() => setActiveSection(item.id)}
-                className={`w-full text-left px-3 py-3 rounded-md text-sm font-medium transition-colors flex items-center justify-between ${
-                  activeSection === item.id
-                    ? 'bg-white text-fidelity-green shadow-sm border border-gray-200'
-                    : 'text-gray-600 hover:bg-gray-100 hover:text-gray-900'
-                }`}
+                className={`w-full text-left px-3 py-3 rounded-md text-sm font-medium transition-colors flex items-center justify-between ${activeSection === item.id ? 'bg-white text-fidelity-green shadow-sm border border-gray-200' : 'text-gray-600 hover:bg-gray-100 hover:text-gray-900'}`}
               >
                 <span className="flex items-center">
                   <item.icon size={16} className={`mr-3 ${activeSection === item.id ? 'text-fidelity-green' : 'text-gray-400'}`} />

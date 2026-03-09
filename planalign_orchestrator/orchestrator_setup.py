@@ -260,7 +260,7 @@ def _create_resource_manager(config: Any, verbose: bool = False) -> Optional[Any
         )
 
         if verbose:
-            print(f"📊 Resource Manager initialized:")
+            print("📊 Resource Manager initialized:")
             print(f"   Memory limit: {config.memory_limit_mb}MB")
             print(f"   CPU limit: {config.cpu_limit_percent}%")
             print(f"   Auto GC on pressure: {config.enable_gc_on_pressure}")
@@ -310,8 +310,8 @@ def setup_hazard_cache(
 
         if verbose:
             print("🗄️ E068D Hazard Cache Manager initialized")
-            print(f"   SHA256 parameter fingerprinting enabled")
-            print(f"   Automatic cache invalidation on parameter changes")
+            print("   SHA256 parameter fingerprinting enabled")
+            print("   Automatic cache invalidation on parameter changes")
 
         return hazard_cache_manager
 

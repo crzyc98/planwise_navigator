@@ -7,7 +7,7 @@ with workforce breakdown, event summary, and data quality validation.
 
 from __future__ import annotations
 
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Any, Dict, Optional, TYPE_CHECKING
 
 from config.constants import (
@@ -58,7 +58,7 @@ class YearAuditor:
             growth_analysis=ga,
             contribution_summary=cs,
             data_quality_results=dqr,
-            generated_at=datetime.utcnow(),
+            generated_at=datetime.now(timezone.utc),
         )
 
     def generate_detailed_year_audit(self, year: int) -> None:
@@ -165,7 +165,7 @@ class YearAuditor:
             active_result = conn.execute(active_query, [year]).fetchone()
             active_count = active_result[0] if active_result else 0
 
-            print(f"\n📊 Growth from Baseline:")
+            print("\n📊 Growth from Baseline:")
             print(f"   Baseline active employees  : {baseline_count:4,}")
             print(f"   Year-end active employees  : {active_count:4,}")
 
@@ -193,7 +193,7 @@ class YearAuditor:
             current_result = conn.execute(current_query, [year]).fetchone()
             current_count = current_result[0] if current_result else 0
 
-            print(f"\n📊 Year-over-Year Growth:")
+            print("\n📊 Year-over-Year Growth:")
             print(f"   Year {year-1} active employees: {prev_count:4,}")
             print(f"   Year {year} active employees  : {current_count:4,}")
 
@@ -224,7 +224,7 @@ class YearAuditor:
 
             if result and result[0] > 0:
                 enrolled, total_contrib, avg_contrib, avg_rate = result
-                print(f"\n💰 Employee Contributions Summary:")
+                print("\n💰 Employee Contributions Summary:")
                 print(f"   Enrolled employees (active EOY)  : {enrolled:4,}")
                 print(f"   Total annual contributions   : ${total_contrib:10,.0f}")
                 print(f"   Average contribution         : ${avg_contrib:6,.0f}")
@@ -243,14 +243,14 @@ class YearAuditor:
                     f"   ⚠️  Data quality issues      : {failures:4,} validation failures"
                 )
             else:
-                print(f"   ✅ Data quality              : All validations passed")
+                print("   ✅ Data quality              : All validations passed")
 
         except Exception as contrib_error:
             print(f"   ⚠️  Contribution summary unavailable: {contrib_error}")
 
     def _display_data_quality_checks(self, conn, year: int) -> None:
         """Display data quality checks and validation."""
-        print(f"\n🔍 Data Quality Checks:")
+        print("\n🔍 Data Quality Checks:")
 
         # Get events for analysis
         events_query = f"""
@@ -310,7 +310,7 @@ class YearAuditor:
                 match_result = conn.execute(match_query, [year]).fetchone()
                 if match_result:
                     match_cnt, total_cost, avg_match = match_result
-                    print(f"\n💰 Employer Match Summary:")
+                    print("\n💰 Employer Match Summary:")
                     print(f"   Employees receiving match    : {match_cnt:,}")
                     print(f"   Total match cost             : ${total_cost:,.2f}")
                     print(f"   Average match per employee   : ${avg_match:,.2f}")

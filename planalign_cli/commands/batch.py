@@ -124,7 +124,7 @@ def _report_batch_results(results: dict, batch_runner) -> int:
     successful = [name for name, result in results.items() if result.get("status") == STATUS_COMPLETED]
     failed = [name for name, result in results.items() if result.get("status") == STATUS_FAILED]
 
-    console.print(f"\n🎯 [bold blue]Batch execution completed[/bold blue]")
+    console.print("\n🎯 [bold blue]Batch execution completed[/bold blue]")
     console.print(f"  ✅ Successful: {len(successful)} scenarios")
     if successful:
         console.print(f"     [dim]{', '.join(successful)}[/dim]")

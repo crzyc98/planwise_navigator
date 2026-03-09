@@ -18,7 +18,7 @@ See Epic E070 for testing infrastructure modernization.
 import tempfile
 import threading
 import time
-from datetime import date, datetime, timedelta
+from datetime import date, datetime, timedelta, timezone
 from decimal import Decimal
 from pathlib import Path
 from typing import Any, Dict, List, Optional
@@ -249,7 +249,7 @@ class TestMultiYearCoordinationWorkflow:
             "total_impact": Decimal("1500000.00"),
             "employee_count": 100,
             "average_impact": Decimal("15000.00"),
-            "computation_timestamp": datetime.utcnow().isoformat(),
+            "computation_timestamp": datetime.now(timezone.utc).isoformat(),
         }
 
         cache_manager.put(
@@ -394,7 +394,7 @@ class TestMultiYearCoordinationWorkflow:
             "analysis_metadata": {
                 "computation_time_ms": 3000,
                 "data_points": 200,
-                "last_updated": datetime.utcnow().isoformat(),
+                "last_updated": datetime.now(timezone.utc).isoformat(),
             },
         }
 
@@ -451,7 +451,7 @@ class TestMultiYearCoordinationWorkflow:
                     key = f"concurrent_data_{threading.current_thread().ident}_{i}"
                     data = {
                         "thread_data": i,
-                        "timestamp": datetime.utcnow().isoformat(),
+                        "timestamp": datetime.now(timezone.utc).isoformat(),
                     }
 
                     success = cache_manager.put(
@@ -559,7 +559,7 @@ class TestMultiYearCoordinationWorkflow:
             "active_employees": 1000,
             "total_compensation": Decimal("75000000.00"),
             "last_attribution_run": None,
-            "checkpoint_timestamp": datetime.utcnow().isoformat(),
+            "checkpoint_timestamp": datetime.now(timezone.utc).isoformat(),
         }
 
         cache_manager.put(
@@ -586,7 +586,7 @@ class TestMultiYearCoordinationWorkflow:
 
         # Update state to reflect successful operation
         updated_state = initial_state.copy()
-        updated_state["last_attribution_run"] = datetime.utcnow().isoformat()
+        updated_state["last_attribution_run"] = datetime.now(timezone.utc).isoformat()
         updated_state["total_attributions"] = len(attribution_entries)
 
         cache_manager.put(
@@ -682,7 +682,7 @@ class TestMultiYearCoordinationWorkflow:
                 ],
                 "metadata": {
                     "size": 10,
-                    "creation_time": datetime.utcnow().isoformat(),
+                    "creation_time": datetime.now(timezone.utc).isoformat(),
                 },
             }
 
@@ -770,7 +770,7 @@ class TestMultiYearCoordinationWorkflow:
                     for e in sample_simulation_data["events"]
                 ],
                 "checksum": original_events_checksum,
-                "timestamp": datetime.utcnow().isoformat(),
+                "timestamp": datetime.now(timezone.utc).isoformat(),
             },
             entry_type=CacheEntryType.WORKFORCE_STATE,
         )
@@ -780,7 +780,7 @@ class TestMultiYearCoordinationWorkflow:
             data={
                 "metrics": sample_simulation_data["source_metrics"].model_dump(),
                 "checksum": original_source_metrics_checksum,
-                "timestamp": datetime.utcnow().isoformat(),
+                "timestamp": datetime.now(timezone.utc).isoformat(),
             },
             entry_type=CacheEntryType.AGGREGATED_METRICS,
         )
@@ -884,7 +884,7 @@ class TestMultiYearCoordinationWorkflow:
             for i in range(10):
                 cache_manager.put(
                     cache_key=f"preloaded_data_{i}",
-                    data={"preload": i, "timestamp": datetime.utcnow().isoformat()},
+                    data={"preload": i, "timestamp": datetime.now(timezone.utc).isoformat()},
                     entry_type=CacheEntryType.WORKFORCE_STATE,
                 )
 
@@ -896,7 +896,7 @@ class TestMultiYearCoordinationWorkflow:
                     "simulation_state": {
                         "years": simulation_years,
                         "workforce_size": workforce_size,
-                        "checkpoint_timestamp": datetime.utcnow().isoformat(),
+                        "checkpoint_timestamp": datetime.now(timezone.utc).isoformat(),
                     },
                     "cache_state": cache_manager.get_performance_metrics().model_dump(),
                     "optimization_recommendations": recommendations,

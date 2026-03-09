@@ -144,11 +144,7 @@ export default function Dashboard() {
                     className="p-6 flex items-center justify-between hover:bg-gray-50 transition-colors cursor-pointer group"
                   >
                     <div className="flex items-center">
-                      <div className={`w-10 h-10 rounded-full flex items-center justify-center flex-shrink-0 ${
-                        isRunning ? 'bg-blue-100 text-blue-600' :
-                        isCompleted ? 'bg-green-100 text-green-600' :
-                        'bg-gray-100 text-gray-500'
-                      }`}>
+                      <div className={`w-10 h-10 rounded-full flex items-center justify-center flex-shrink-0 ${isRunning ? 'bg-blue-100 text-blue-600' : isCompleted ? 'bg-green-100 text-green-600' : 'bg-gray-100 text-gray-500'}`}>
                         {isRunning ? <TrendingUp size={20} /> : <CheckCircle size={20} />}
                       </div>
                       <div className="ml-4">
@@ -161,12 +157,7 @@ export default function Dashboard() {
                       </div>
                     </div>
                     <div className="flex items-center">
-                      <span className={`px-3 py-1 rounded-full text-xs font-medium border ${
-                        isRunning ? 'bg-blue-50 text-blue-700 border-blue-100' :
-                        isCompleted ? 'bg-green-50 text-green-700 border-green-100' :
-                        scenario.status === 'failed' ? 'bg-red-50 text-red-700 border-red-100' :
-                        'bg-gray-50 text-gray-700 border-gray-100'
-                      }`}>
+                      <span className={`px-3 py-1 rounded-full text-xs font-medium border ${isRunning ? 'bg-blue-50 text-blue-700 border-blue-100' : isCompleted ? 'bg-green-50 text-green-700 border-green-100' : scenario.status === 'failed' ? 'bg-red-50 text-red-700 border-red-100' : 'bg-gray-50 text-gray-700 border-gray-100'}`}>
                         {scenario.status === 'not_run' ? 'Not Run' : scenario.status}
                       </span>
                     </div>

@@ -674,11 +674,7 @@ export default function ScenarioCostComparison() {
                     return (
                       <div
                         key={id}
-                        className={`group w-full text-left px-3 py-2 rounded-lg flex items-center justify-between transition-all border ${
-                          isAnchor
-                            ? 'bg-blue-50 border-blue-200 shadow-sm'
-                            : 'bg-fidelity-green/5 border-fidelity-green/20'
-                        }`}
+                        className={`group w-full text-left px-3 py-2 rounded-lg flex items-center justify-between transition-all border ${isAnchor ? 'bg-blue-50 border-blue-200 shadow-sm' : 'bg-fidelity-green/5 border-fidelity-green/20'}`}
                       >
                         <button
                           onClick={() => toggleSelection(id)}
@@ -688,9 +684,7 @@ export default function ScenarioCostComparison() {
                             <CheckSquare size={16} className={isAnchor ? 'text-blue-600' : 'text-fidelity-green'} />
                           </div>
                           <div className="flex-1 min-w-0">
-                            <span className={`text-xs font-semibold block truncate ${
-                              isAnchor ? 'text-blue-700' : 'text-fidelity-green'
-                            }`}>
+                            <span className={`text-xs font-semibold block truncate ${isAnchor ? 'text-blue-700' : 'text-fidelity-green'}`}>
                               {scenario.name}
                             </span>
                             <p className="text-[9px] text-gray-500 uppercase tracking-tight">
@@ -724,11 +718,7 @@ export default function ScenarioCostComparison() {
                           {/* Anchor button */}
                           <button
                             onClick={() => handleSetAnchor(id)}
-                            className={`p-1 rounded-md transition-colors ${
-                              isAnchor
-                                ? 'bg-blue-600 text-white'
-                                : 'text-gray-400 hover:text-blue-600 hover:bg-blue-50'
-                            }`}
+                            className={`p-1 rounded-md transition-colors ${isAnchor ? 'bg-blue-600 text-white' : 'text-gray-400 hover:text-blue-600 hover:bg-blue-50'}`}
                             title={isAnchor ? 'Current Anchor' : 'Set as Anchor'}
                           >
                             <Anchor size={14} />
@@ -752,11 +742,7 @@ export default function ScenarioCostComparison() {
                     return (
                       <div
                         key={scenario.id}
-                        className={`group w-full text-left px-3 py-2 rounded-lg flex items-center justify-between transition-all border ${
-                          isAtLimit
-                            ? 'bg-gray-50 border-transparent'
-                            : 'hover:bg-gray-50 border-transparent'
-                        }`}
+                        className={`group w-full text-left px-3 py-2 rounded-lg flex items-center justify-between transition-all border ${isAtLimit ? 'bg-gray-50 border-transparent' : 'hover:bg-gray-50 border-transparent'}`}
                       >
                         <button
                           onClick={() => toggleSelection(scenario.id)}
@@ -867,17 +853,13 @@ export default function ScenarioCostComparison() {
                 <div className="flex bg-gray-100 p-1 rounded-lg">
                   <button
                     onClick={() => setViewMode('annual')}
-                    className={`px-4 py-1.5 text-xs font-bold rounded-md transition-all ${
-                      viewMode === 'annual' ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-500 hover:text-gray-700'
-                    }`}
+                    className={`px-4 py-1.5 text-xs font-bold rounded-md transition-all ${viewMode === 'annual' ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-500 hover:text-gray-700'}`}
                   >
                     Annual Spend
                   </button>
                   <button
                     onClick={() => setViewMode('cumulative')}
-                    className={`px-4 py-1.5 text-xs font-bold rounded-md transition-all ${
-                      viewMode === 'cumulative' ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-500 hover:text-gray-700'
-                    }`}
+                    className={`px-4 py-1.5 text-xs font-bold rounded-md transition-all ${viewMode === 'cumulative' ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-500 hover:text-gray-700'}`}
                   >
                     Cumulative Cost
                   </button>
@@ -1030,11 +1012,7 @@ export default function ScenarioCostComparison() {
                   </span>
                   <button
                     onClick={handleCopy}
-                    className={`p-1.5 rounded-md transition-colors ${
-                      copied
-                        ? 'text-green-600 bg-green-50'
-                        : 'text-gray-400 hover:text-gray-600 hover:bg-gray-100'
-                    }`}
+                    className={`p-1.5 rounded-md transition-colors ${copied ? 'text-green-600 bg-green-50' : 'text-gray-400 hover:text-gray-600 hover:bg-gray-100'}`}
                     title={copied ? 'Copied!' : 'Copy to clipboard'}
                   >
                     {copied ? <Check size={16} /> : <Copy size={16} />}
@@ -1109,9 +1087,7 @@ export default function ScenarioCostComparison() {
                             {isAnchor ? (
                               <span className="text-xs text-gray-400 italic">--</span>
                             ) : (
-                              <span className={`px-2 py-1 text-xs font-bold rounded ${
-                                delta >= 0 ? 'bg-orange-50 text-orange-700' : 'bg-green-50 text-green-700'
-                              }`}>
+                              <span className={`px-2 py-1 text-xs font-bold rounded ${delta >= 0 ? 'bg-orange-50 text-orange-700' : 'bg-green-50 text-green-700'}`}>
                                 {delta >= 0 ? '+' : ''}{formatCurrency(delta)}
                               </span>
                             )}
@@ -1134,11 +1110,7 @@ export default function ScenarioCostComparison() {
                   </span>
                   <button
                     onClick={handleCompensationCopy}
-                    className={`p-1.5 rounded-md transition-colors ${
-                      copiedCompensation
-                        ? 'text-green-600 bg-green-50'
-                        : 'text-gray-400 hover:text-gray-600 hover:bg-gray-100'
-                    }`}
+                    className={`p-1.5 rounded-md transition-colors ${copiedCompensation ? 'text-green-600 bg-green-50' : 'text-gray-400 hover:text-gray-600 hover:bg-gray-100'}`}
                     title={copiedCompensation ? 'Copied!' : 'Copy to clipboard'}
                   >
                     {copiedCompensation ? <Check size={16} /> : <Copy size={16} />}
@@ -1213,9 +1185,7 @@ export default function ScenarioCostComparison() {
                             {isAnchor ? (
                               <span className="text-xs text-gray-400 italic">--</span>
                             ) : (
-                              <span className={`px-2 py-1 text-xs font-bold rounded ${
-                                delta >= 0 ? 'bg-orange-50 text-orange-700' : 'bg-green-50 text-green-700'
-                              }`}>
+                              <span className={`px-2 py-1 text-xs font-bold rounded ${delta >= 0 ? 'bg-orange-50 text-orange-700' : 'bg-green-50 text-green-700'}`}>
                                 {delta >= 0 ? '+' : ''}{formatCurrency(delta)}
                               </span>
                             )}

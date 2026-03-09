@@ -25,7 +25,7 @@ import threading
 import time
 from collections import deque
 from dataclasses import dataclass, field
-from datetime import datetime
+from datetime import datetime, timezone
 from enum import Enum
 from pathlib import Path
 from typing import Any, Callable, Dict, List, Optional, Tuple
@@ -133,7 +133,7 @@ class MemoryRecommendation:
         self.priority = priority
         self.estimated_savings_mb = estimated_savings_mb
         self.confidence = confidence
-        self.timestamp = datetime.utcnow()
+        self.timestamp = datetime.now(timezone.utc)
 
     def to_dict(self) -> Dict[str, Any]:
         return {
@@ -184,7 +184,7 @@ class AdaptiveMemoryManager:
 
         # Recommendations
         self._recommendations: List[MemoryRecommendation] = []
-        self._last_recommendation_time = datetime.utcnow()
+        self._last_recommendation_time = datetime.now(timezone.utc)
 
         # Statistics
         self._stats = {
@@ -254,7 +254,7 @@ class AdaptiveMemoryManager:
             gc_collections = sum(gc.get_stats()[i]['collections'] for i in range(len(gc.get_stats())))
 
             snapshot = MemorySnapshot(
-                timestamp=datetime.utcnow(),
+                timestamp=datetime.now(timezone.utc),
                 rss_mb=rss_mb,
                 vms_mb=vms_mb,
                 percent=percent,
@@ -272,7 +272,7 @@ class AdaptiveMemoryManager:
             self.logger.warning(f"Failed to take memory snapshot: {e}")
             # Return minimal snapshot
             return MemorySnapshot(
-                timestamp=datetime.utcnow(),
+                timestamp=datetime.now(timezone.utc),
                 rss_mb=0.0,
                 vms_mb=0.0,
                 percent=0.0,
@@ -395,7 +395,7 @@ class AdaptiveMemoryManager:
 
         # Look at memory growth over a longer window to detect true leaks
         window_minutes = self.config.leak_window_minutes
-        cutoff_time = datetime.utcnow().timestamp() - (window_minutes * 60)
+        cutoff_time = datetime.now(timezone.utc).timestamp() - (window_minutes * 60)
 
         recent_snapshots = [
             s for s in self._history
@@ -436,7 +436,7 @@ class AdaptiveMemoryManager:
                 recommendation = MemoryRecommendation(
                     "memory_leak",
                     f"Sustained memory growth detected: {growth:.1f}MB over {window_minutes} minutes",
-                    f"Consider memory profiling and garbage collection optimization",
+                    "Consider memory profiling and garbage collection optimization",
                     priority="medium",  # Reduced priority since it's smarter detection
                     estimated_savings_mb=growth * 0.5,
                     confidence=0.7
@@ -465,7 +465,7 @@ class AdaptiveMemoryManager:
     def _update_recommendations(self, snapshot: MemorySnapshot) -> None:
         """Update optimization recommendations based on patterns"""
         # Only generate recommendations periodically
-        time_since_last = (datetime.utcnow() - self._last_recommendation_time).total_seconds()
+        time_since_last = (datetime.now(timezone.utc) - self._last_recommendation_time).total_seconds()
         if time_since_last < self.config.recommendation_window_minutes * 60:
             return
 
@@ -530,7 +530,7 @@ class AdaptiveMemoryManager:
         # Add new recommendations
         self._recommendations.extend(recommendations)
         if recommendations:
-            self._last_recommendation_time = datetime.utcnow()
+            self._last_recommendation_time = datetime.now(timezone.utc)
 
             for rec in recommendations:
                 self.logger.info(
@@ -597,7 +597,7 @@ class AdaptiveMemoryManager:
         """Get optimization recommendations"""
         if recent_only:
             # Only return recommendations from last hour
-            cutoff = datetime.utcnow().timestamp() - 3600
+            cutoff = datetime.now(timezone.utc).timestamp() - 3600
             recommendations = [
                 r for r in self._recommendations
                 if r.timestamp.timestamp() >= cutoff
@@ -610,12 +610,12 @@ class AdaptiveMemoryManager:
     def export_memory_profile(self, filepath: Optional[Path] = None) -> Path:
         """Export detailed memory profile for analysis"""
         if filepath is None:
-            timestamp = datetime.utcnow().strftime('%Y%m%d_%H%M%S')
+            timestamp = datetime.now(timezone.utc).strftime('%Y%m%d_%H%M%S')
             filepath = self.reports_dir / f"memory_profile_{timestamp}.json"
 
         profile_data = {
             "metadata": {
-                "export_time": datetime.utcnow().isoformat(),
+                "export_time": datetime.now(timezone.utc).isoformat(),
                 "config": {
                     "thresholds_mb": {
                         "moderate": self.config.thresholds.moderate_mb,

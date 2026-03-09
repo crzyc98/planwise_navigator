@@ -180,7 +180,7 @@ class SimulationConfig(BaseModel):
 
             if mode == "aggressive" and thread_count == 1:
                 import warnings
-                warnings.warn(f"Threading mode is 'aggressive' but thread_count is 1. Consider increasing thread_count or changing mode to 'sequential'.")
+                warnings.warn("Threading mode is 'aggressive' but thread_count is 1. Consider increasing thread_count or changing mode to 'sequential'.")
 
 
 def _lower_keys(d: Dict[str, Any]) -> Dict[str, Any]:

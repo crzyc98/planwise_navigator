@@ -183,11 +183,7 @@ export default function ScenariosPage() {
               <button
                 onClick={handleRunBatch}
                 disabled={selectedIds.size === 0}
-                className={`px-4 py-2 rounded-lg flex items-center font-medium shadow-sm transition-colors ${
-                  selectedIds.size === 0
-                    ? 'bg-gray-200 text-gray-400 cursor-not-allowed'
-                    : 'bg-blue-600 text-white hover:bg-blue-700'
-                }`}
+                className={`px-4 py-2 rounded-lg flex items-center font-medium shadow-sm transition-colors ${selectedIds.size === 0 ? 'bg-gray-200 text-gray-400 cursor-not-allowed' : 'bg-blue-600 text-white hover:bg-blue-700'}`}
               >
                 <PlayCircle size={18} className="mr-2" />
                 Run as Batch
@@ -339,9 +335,7 @@ export default function ScenariosPage() {
                 role={selectMode ? "checkbox" : undefined}
                 aria-checked={selectMode ? selectedIds.has(scenario.id) : undefined}
                 tabIndex={selectMode ? 0 : undefined}
-                className={`p-4 hover:bg-gray-50 transition-colors ${
-                  selectMode && selectedIds.has(scenario.id) ? 'bg-blue-50' : ''
-                } ${selectMode ? 'cursor-pointer' : ''}`}
+                className={`p-4 hover:bg-gray-50 transition-colors ${selectMode && selectedIds.has(scenario.id) ? 'bg-blue-50' : ''} ${selectMode ? 'cursor-pointer' : ''}`}
                 onClick={selectMode ? () => toggleSelection(scenario.id) : undefined}
                 onKeyDown={selectMode ? (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); toggleSelection(scenario.id); } } : undefined}
               >
@@ -434,11 +428,7 @@ export default function ScenariosPage() {
                       <button
                         onClick={() => navigate(`/simulate?scenario=${scenario.id}`)}
                         disabled={isSimulationRunning}
-                        className={`px-3 py-1.5 rounded-lg text-sm flex items-center ${
-                          isSimulationRunning
-                            ? 'bg-gray-300 text-gray-500 cursor-not-allowed'
-                            : 'bg-fidelity-green text-white hover:bg-fidelity-dark'
-                        }`}
+                        className={`px-3 py-1.5 rounded-lg text-sm flex items-center ${isSimulationRunning ? 'bg-gray-300 text-gray-500 cursor-not-allowed' : 'bg-fidelity-green text-white hover:bg-fidelity-dark'}`}
                         title={isSimulationRunning ? 'A simulation is already running' : 'Run simulation'}
                       >
                         {isSimulationRunning && scenario.id === runningScenarioId ? (

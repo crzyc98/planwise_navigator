@@ -1,6 +1,6 @@
 """System health and status models."""
 
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import List, Optional
 
 from pydantic import BaseModel, Field
@@ -19,7 +19,7 @@ class SystemStatus(BaseModel):
 
     system_ready: bool = Field(description="Whether the system is ready for simulations")
     system_message: str = Field(description="Human-readable status message")
-    timestamp: datetime = Field(default_factory=datetime.utcnow)
+    timestamp: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
 
     # Simulation status
     active_simulations: int = Field(default=0, description="Number of running simulations")

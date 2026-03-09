@@ -280,11 +280,7 @@ export default function CostComparison() {
                     {/* Anchor button */}
                     <button
                       onClick={() => setBaselineId(config.id)}
-                      className={`p-1 rounded-md transition-colors ${
-                        isBaseline
-                          ? 'bg-blue-600 text-white'
-                          : 'text-gray-400 hover:text-blue-600 hover:bg-blue-50'
-                      }`}
+                      className={`p-1 rounded-md transition-colors ${isBaseline ? 'bg-blue-600 text-white' : 'text-gray-400 hover:text-blue-600 hover:bg-blue-50'}`}
                       title={isBaseline ? "Current Anchor" : "Set as Anchor"}
                     >
                       <Anchor size={14} />
@@ -367,17 +363,13 @@ export default function CostComparison() {
             <div className="flex bg-gray-100 p-1 rounded-lg">
               <button
                 onClick={() => setViewMode('annual')}
-                className={`px-4 py-1.5 text-xs font-bold rounded-md transition-all ${
-                  viewMode === 'annual' ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-500 hover:text-gray-700'
-                }`}
+                className={`px-4 py-1.5 text-xs font-bold rounded-md transition-all ${viewMode === 'annual' ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-500 hover:text-gray-700'}`}
               >
                 Annual Spend
               </button>
               <button
                 onClick={() => setViewMode('cumulative')}
-                className={`px-4 py-1.5 text-xs font-bold rounded-md transition-all ${
-                  viewMode === 'cumulative' ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-500 hover:text-gray-700'
-                }`}
+                className={`px-4 py-1.5 text-xs font-bold rounded-md transition-all ${viewMode === 'cumulative' ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-500 hover:text-gray-700'}`}
               >
                 Cumulative Cost
               </button>

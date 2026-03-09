@@ -508,7 +508,7 @@ class DependencyAnalyzer:
             self.build_dependency_graph()
 
         # Basic stats
-        console.print(f"\n[bold]Dependency Analysis Report[/bold]")
+        console.print("\n[bold]Dependency Analysis Report[/bold]")
         console.print(f"Total models: {self.graph.number_of_nodes()}")
         console.print(f"Total dependencies: {self.graph.number_of_edges()}")
 

@@ -348,10 +348,7 @@ export function DataSourcesSection() {
                                   <div className="flex items-center space-x-2">
                                     <div className="flex-1 bg-gray-200 rounded-full h-1.5">
                                       <div
-                                        className={`h-1.5 rounded-full ${
-                                          w.severity === 'error' ? 'bg-red-500' :
-                                          w.severity === 'warning' ? 'bg-amber-500' : 'bg-blue-500'
-                                        }`}
+                                        className={`h-1.5 rounded-full ${w.severity === 'error' ? 'bg-red-500' : w.severity === 'warning' ? 'bg-amber-500' : 'bg-blue-500'}`}
                                         style={{ width: `${Math.min(w.affected_percentage, 100)}%` }}
                                       />
                                     </div>

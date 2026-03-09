@@ -215,4 +215,4 @@ class YearDependencyValidator:
                     start_year=self.start_year
                 )
 
-        logger.info(f"Checkpoint dependency chain validated successfully")
+        logger.info("Checkpoint dependency chain validated successfully")
