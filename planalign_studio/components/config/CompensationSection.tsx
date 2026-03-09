@@ -7,7 +7,6 @@ import { solveCompensationGrowth, CompensationSolverResponse } from '../../servi
 export function CompensationSection() {
   const { formData, setFormData, handleChange, inputProps, activeWorkspace } = useConfigContext();
 
-  const [targetCompGrowth, setTargetCompGrowth] = useState<number>(5.0);
   const [solverStatus, setSolverStatus] = useState<'idle' | 'solving' | 'success' | 'error'>('idle');
   const [solverResult, setSolverResult] = useState<CompensationSolverResponse | null>(null);
   const [solverError, setSolverError] = useState<string>('');
@@ -26,7 +25,7 @@ export function CompensationSection() {
     try {
       const result = await solveCompensationGrowth(activeWorkspace.id, {
         file_path: formData.censusDataPath || undefined,
-        target_growth_rate: targetCompGrowth / 100,
+        target_growth_rate: formData.targetCompensationGrowth / 100,
         promotion_increase: Number(formData.promoIncrease) / 100,
         turnover_rate: Number(formData.totalTerminationRate) / 100,
         workforce_growth_rate: Number(formData.targetGrowthRate) / 100,
@@ -74,8 +73,8 @@ export function CompensationSection() {
                 <div className="relative">
                   <input
                     type="number"
-                    value={targetCompGrowth}
-                    onChange={(e) => setTargetCompGrowth(parseFloat(e.target.value) || 0)}
+                    value={formData.targetCompensationGrowth}
+                    onChange={(e) => setFormData(prev => ({ ...prev, targetCompensationGrowth: parseFloat(e.target.value) || 0 }))}
                     step="0.5"
                     min="0"
                     max="20"

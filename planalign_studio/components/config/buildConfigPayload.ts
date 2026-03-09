@@ -26,6 +26,7 @@ export function buildConfigPayload(
       census_parquet_path: formData.censusDataPath,
     },
     compensation: {
+      target_compensation_growth_percent: Number(formData.targetCompensationGrowth),
       merit_budget_percent: Number(formData.meritBudget),
       cola_rate_percent: Number(formData.colaRate),
       promotion_increase_percent: Number(formData.promoIncrease),
