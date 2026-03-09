@@ -543,7 +543,7 @@ class ComparisonService:
             delta = growth - baseline_growth
             growth_deltas[scenario_id] = delta
             growth_delta_pcts[scenario_id] = (
-                (delta / abs(baseline_growth) * 100) if baseline_growth != 0 else 0.0
+                (delta / abs(baseline_growth) * 100) if abs(baseline_growth) > 1e-9 else 0.0
             )
 
         summary["total_growth_pct"] = DeltaValue(
@@ -572,7 +572,7 @@ class ComparisonService:
             delta = pr - baseline_pr
             pr_deltas[scenario_id] = delta
             pr_delta_pcts[scenario_id] = (
-                (delta / abs(baseline_pr) * 100) if baseline_pr != 0 else 0.0
+                (delta / abs(baseline_pr) * 100) if abs(baseline_pr) > 1e-9 else 0.0
             )
 
         summary["final_participation_rate"] = DeltaValue(
@@ -600,7 +600,7 @@ class ComparisonService:
             delta = ec - baseline_ec
             ec_deltas[scenario_id] = delta
             ec_delta_pcts[scenario_id] = (
-                (delta / abs(baseline_ec) * 100) if baseline_ec != 0 else 0.0
+                (delta / abs(baseline_ec) * 100) if abs(baseline_ec) > 1e-9 else 0.0
             )
 
         summary["final_employer_cost"] = DeltaValue(

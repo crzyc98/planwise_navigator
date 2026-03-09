@@ -279,7 +279,7 @@ class CompensationSolver:
             weighted_rate += weight * dist.promotion_rate
             total_weight += weight
 
-        if total_weight == 0:
+        if total_weight < 1e-9:
             return 0.10
 
         return weighted_rate / total_weight

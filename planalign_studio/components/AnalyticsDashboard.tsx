@@ -678,8 +678,8 @@ export default function AnalyticsDashboard() {
                     <BarChart
                       data={(() => {
                         // Transform data: group by year with status as keys
-                        const years = [...new Set(results.compensation_by_status.map(r => r.simulation_year))].sort();
-                        const statuses = [...new Set(results.compensation_by_status.map(r => r.employment_status))];
+                        const years = [...new Set(results.compensation_by_status.map(r => r.simulation_year))].sort((a, b) => a - b);
+                        const statuses = [...new Set(results.compensation_by_status.map(r => r.employment_status))].sort((a, b) => a.localeCompare(b));
                         return years.map(year => {
                           const entry: Record<string, any> = { year };
                           statuses.forEach((status: string) => {

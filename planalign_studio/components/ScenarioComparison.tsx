@@ -182,7 +182,7 @@ export default function ScenarioComparison() {
       d.results?.workforce_progression?.forEach(r => allYears.add(r.simulation_year));
     });
 
-    const years = Array.from(allYears).sort();
+    const years = Array.from(allYears).sort((a, b) => a - b);
 
     // Build workforce comparison data
     const workforce = years.map(year => {

@@ -119,13 +119,13 @@ def run_simulation(
                 console.print(f"🔄 [green]Resume mode: starting from year {actual_start_year}[/green]")
                 if actual_start_year > end_year:
                     show_success_message(f"Simulation already complete through year {resume_year - 1}")
-                    return 0
+                    return
             else:
                 console.print("🔄 [yellow]No valid checkpoint found, starting from beginning[/yellow]")
 
         if dry_run:
             _show_dry_run_preview(wrapper, actual_start_year, end_year, threads)
-            return 0
+            return
 
 
         # Apply parameter shortcuts (growth rate conversion)
@@ -175,7 +175,6 @@ def run_simulation(
         _show_enhanced_simulation_summary(summary, actual_start_year, end_year, verbose)
 
         show_success_message("Multi-year simulation completed successfully")
-        return 0
 
     except Exception as e:
         show_error_message(f"Simulation error: {e}")

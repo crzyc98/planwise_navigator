@@ -103,7 +103,7 @@ export default function DCPlanComparisonSection({
       }
     });
 
-    return Array.from(allYears).sort().map(year => {
+    return Array.from(allYears).sort((a, b) => a - b).map(year => {
       const point: TrendDataPoint = { year };
       comparisonData.analytics.forEach(a => {
         const scenarioName = comparisonData.scenario_names[a.scenario_id] || a.scenario_id;
@@ -152,7 +152,7 @@ export default function DCPlanComparisonSection({
     if (nonEmpty.length === 0) return [];
 
     const common = [...nonEmpty[0]].filter(y => nonEmpty.every(s => s.has(y)));
-    return common.sort();
+    return common.sort((a, b) => a - b);
   }, [comparisonData]);
 
   const [selectedDistributionYear, setSelectedDistributionYear] = React.useState<number | null>(null);
