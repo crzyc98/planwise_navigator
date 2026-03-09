@@ -22,25 +22,20 @@ Key Test Scenarios:
 Epic E068H: Final production readiness validation for 2× performance improvement.
 """
 
-import os
 import sys
 import json
 import time
 import logging
 import argparse
 import statistics
-import subprocess
 import threading
 from pathlib import Path
-from datetime import datetime, timedelta
+from datetime import datetime
 from dataclasses import dataclass, field, asdict
-from typing import List, Dict, Any, Optional, Tuple, Union
-import tempfile
-import shutil
+from typing import List, Dict, Any, Optional, Tuple
 import gc
 
 # Scientific computing for scaling analysis
-import numpy as np
 from scipy import stats
 from scipy.stats import linregress
 import psutil
@@ -741,7 +736,12 @@ class ScaleTestingFramework:
         if memory_growth_per_1k > 2.0:
             risk_factors.append("Excessive memory growth")
 
-        risk_level = "high" if len(risk_factors) >= 3 else "medium" if len(risk_factors) >= 1 else "low"
+        if len(risk_factors) >= 3:
+            risk_level = "high"
+        elif len(risk_factors) >= 1:
+            risk_level = "medium"
+        else:
+            risk_level = "low"
 
         # Generate recommendations
         recommendations = []

@@ -37,7 +37,7 @@ def setup_extensions():
             SELECT extension_name, installed, loaded
             FROM duckdb_extensions()
             WHERE extension_name IN ('parquet', 'httpfs')
-            ORDER BY extension_name
+            ORDER BY extension_name ASC
         """
         ).fetchall()
 

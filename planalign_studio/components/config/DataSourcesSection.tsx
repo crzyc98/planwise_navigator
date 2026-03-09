@@ -4,7 +4,7 @@ import { useConfigContext } from './ConfigContext';
 import { uploadCensusFile, validateFilePath, updateScenario, StructuredWarning, DataQualityWarning } from '../../services/api';
 
 export function DataSourcesSection() {
-  const { formData, setFormData, handleChange, activeWorkspace, currentScenario, scenarioId } = useConfigContext();
+  const { formData, setFormData, handleChange, activeWorkspace, currentScenario } = useConfigContext();
 
   const [uploadStatus, setUploadStatus] = useState<'idle' | 'uploading' | 'success' | 'error'>('idle');
   const [uploadMessage, setUploadMessage] = useState('');

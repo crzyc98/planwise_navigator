@@ -15,11 +15,9 @@ Date: 2025-07-28
 
 import json
 from datetime import datetime
-from typing import Any, Dict, List
+from typing import Dict, List
 
 import duckdb
-import numpy as np
-import pandas as pd
 
 
 class DataQualityAuditor:

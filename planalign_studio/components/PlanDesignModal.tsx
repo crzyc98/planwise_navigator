@@ -10,12 +10,12 @@ import React, { useEffect, useCallback } from 'react';
 import { X, ShieldCheck, Zap, Settings, TrendingUp, Clock, CheckCircle, XCircle } from 'lucide-react';
 
 interface PlanDesignModalProps {
-  config: Record<string, any> | null;
-  onClose: () => void;
+  readonly config: Record<string, any> | null;
+  readonly onClose: () => void;
 }
 
 // Read-only display field
-const Field = ({ label, value, suffix }: { label: string; value: React.ReactNode; suffix?: string }) => (
+const Field = ({ label, value, suffix }: Readonly<{ label: string; value: React.ReactNode; suffix?: string }>) => (
   <div className="sm:col-span-3">
     <dt className="text-xs font-medium text-gray-500">{label}</dt>
     <dd className="mt-0.5 text-sm text-gray-900">
@@ -24,14 +24,14 @@ const Field = ({ label, value, suffix }: { label: string; value: React.ReactNode
   </div>
 );
 
-const StatusBadge = ({ enabled }: { enabled: boolean }) => (
+const StatusBadge = ({ enabled }: Readonly<{ enabled: boolean }>) => (
   <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium ${enabled ? 'bg-green-100 text-green-800' : 'bg-gray-100 text-gray-600'}`}>
     {enabled ? <CheckCircle size={12} /> : <XCircle size={12} />}
     {enabled ? 'Enabled' : 'Disabled'}
   </span>
 );
 
-const SectionHeader = ({ icon: Icon, title, children }: { icon: React.ElementType; title: string; children?: React.ReactNode }) => (
+const SectionHeader = ({ icon: Icon, title, children }: Readonly<{ icon: React.ElementType; title: string; children?: React.ReactNode }>) => (
   <div className="flex items-center justify-between border-b border-gray-200 pb-2 mb-4">
     <div className="flex items-center gap-2">
       <Icon size={16} className="text-gray-600" />

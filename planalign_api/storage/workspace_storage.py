@@ -810,7 +810,7 @@ class WorkspaceStorage:
 
             return None  # File is OK
 
-        except (json.JSONDecodeError, ValueError, UnicodeDecodeError) as e:
+        except (ValueError, UnicodeDecodeError) as e:
             logger.warning(f"Corrupted JSON file detected: {json_path} - {e}")
 
             # Backup the corrupted file

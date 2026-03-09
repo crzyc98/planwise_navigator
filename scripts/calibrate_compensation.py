@@ -7,8 +7,6 @@ This script allows you to manually adjust compensation parameters
 to achieve the 2% target growth rate based on S050 analysis findings.
 """
 
-from typing import Dict, List, Optional
-
 import duckdb
 import pandas as pd
 
@@ -32,7 +30,7 @@ class CompensationCalibrator:
                     fiscal_year
                 FROM stg_comp_levers
                 WHERE scenario_id = ?
-                ORDER BY fiscal_year, job_level, parameter_name
+                ORDER BY fiscal_year ASC, job_level ASC, parameter_name ASC
             """,
                 [scenario_id],
             ).df()
@@ -50,7 +48,7 @@ class CompensationCalibrator:
                     description
                 FROM stg_comp_targets
                 WHERE scenario_id = ?
-                ORDER BY priority, metric_name
+                ORDER BY priority ASC, metric_name ASC
             """,
                 [scenario_id],
             ).df()

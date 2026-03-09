@@ -503,9 +503,7 @@ export default function DCPlanComparisonSection({
                 />
                 <Legend verticalAlign="top" height={36} />
                 {scenarioNames.map(name => {
-                  let barWidth = 30;
-                  if (scenarioNames.length > 4) barWidth = 12;
-                  else if (scenarioNames.length > 2) barWidth = 20;
+                  const barWidth = scenarioNames.length > 4 ? 12 : scenarioNames.length > 2 ? 20 : 30;
                   return (
                   <Bar
                     key={name}

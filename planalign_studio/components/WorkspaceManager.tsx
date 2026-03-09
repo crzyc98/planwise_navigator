@@ -336,7 +336,7 @@ export default function WorkspaceManager() {
       {/* Create Modal */}
       {isCreateOpen && (
         <div className="fixed inset-0 z-[60] flex items-center justify-center p-4">
-          <div className="absolute inset-0 bg-black/50 backdrop-blur-sm" role="presentation" onClick={() => setIsCreateOpen(false)}></div>
+          <div className="absolute inset-0 bg-black/50 backdrop-blur-sm" role="presentation" tabIndex={0} onClick={() => setIsCreateOpen(false)} onKeyDown={(e) => { if (e.key === 'Escape' || e.key === 'Enter') setIsCreateOpen(false); }}></div>
           <div className="bg-white rounded-xl shadow-2xl w-full max-w-md relative z-10 overflow-hidden animate-fadeIn">
             <div className="px-6 py-4 border-b border-gray-100 flex justify-between items-center bg-gray-50">
               <h3 className="font-semibold text-gray-800">Create New Workspace</h3>
@@ -392,7 +392,7 @@ export default function WorkspaceManager() {
       {/* Import Modal */}
       {isImportOpen && (
         <div className="fixed inset-0 z-[60] flex items-center justify-center p-4">
-          <div className="absolute inset-0 bg-black/50 backdrop-blur-sm" role="presentation" onClick={closeImportDialog}></div>
+          <div className="absolute inset-0 bg-black/50 backdrop-blur-sm" role="presentation" tabIndex={0} onClick={closeImportDialog} onKeyDown={(e) => { if (e.key === 'Escape' || e.key === 'Enter') closeImportDialog(); }}></div>
           <div className="bg-white rounded-xl shadow-2xl w-full max-w-lg relative z-10 overflow-hidden animate-fadeIn">
             <div className="px-6 py-4 border-b border-gray-100 flex justify-between items-center bg-gray-50">
               <h3 className="font-semibold text-gray-800">Import Workspace</h3>
