@@ -10,10 +10,7 @@ from __future__ import annotations
 import os
 from datetime import datetime
 from pathlib import Path
-from typing import Any, Dict, Optional, TYPE_CHECKING
-
-if TYPE_CHECKING:
-    pass
+from typing import Any, Dict, Optional, Union
 
 from planalign_orchestrator.checkpoint_manager import CheckpointManager
 from planalign_orchestrator.config import load_simulation_config
@@ -213,7 +210,7 @@ class OrchestratorWrapper:
 
         return health
 
-    def create_orchestrator(self, threads: Optional[int] = None, dry_run: bool = False, verbose: bool = None, progress_callback=None) -> PipelineOrchestrator:
+    def create_orchestrator(self, threads: Optional[int] = None, dry_run: bool = False, verbose: bool = None, progress_callback=None) -> Union[PipelineOrchestrator, "ProgressAwareOrchestrator"]:
         """Create a configured PipelineOrchestrator instance."""
         if verbose is None:
             verbose = self.verbose
