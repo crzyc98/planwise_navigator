@@ -293,7 +293,11 @@ export default function BatchProcessing() {
               {scenarios.map(scenario => (
                 <div
                   key={scenario.id}
+                  role="checkbox"
+                  aria-checked={selectedScenarioIds.includes(scenario.id)}
+                  tabIndex={0}
                   onClick={() => toggleScenarioSelection(scenario.id)}
+                  onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); toggleScenarioSelection(scenario.id); } }}
                   className={`cursor-pointer p-4 rounded-lg border-2 transition-all ${
                     selectedScenarioIds.includes(scenario.id)
                       ? 'border-fidelity-green bg-green-50'

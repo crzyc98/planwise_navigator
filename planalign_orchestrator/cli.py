@@ -98,7 +98,7 @@ def cmd_run(args: argparse.Namespace) -> int:
             print(f"🔄 Resume mode: starting from year {actual_start_year}")
             if actual_start_year > end_year:
                 print(f"✅ Simulation already complete through year {resume_year - 1}")
-                return 0
+                return 2  # Nothing to do — simulation already complete
         else:
             print(f"🔄 No valid checkpoint found, starting from {start_year}")
 

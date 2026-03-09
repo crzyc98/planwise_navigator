@@ -45,7 +45,7 @@ def list_checkpoints(
         if not checkpoints:
             console.print("❌ [yellow]No checkpoints found[/yellow]")
             console.print("💡 [dim]Run a simulation to create checkpoints[/dim]")
-            return 0
+            return
 
         console.print(f"💾 [bold blue]Found {len(checkpoints)} checkpoint(s)[/bold blue]")
 
@@ -70,7 +70,6 @@ def list_checkpoints(
             )
 
         console.print(table)
-        return 0
 
     except Exception as e:
         show_error_message(f"Failed to list checkpoints: {e}")
@@ -118,8 +117,6 @@ def checkpoint_status(
             for rec in status["recommendations"]:
                 console.print(f"  • [dim]{rec}[/dim]")
 
-        return 0
-
     except Exception as e:
         show_error_message(f"Failed to get recovery status: {e}")
         raise typer.Exit(1)
@@ -148,8 +145,6 @@ def cleanup_checkpoints(
             show_success_message(f"Cleaned up {removed} old checkpoint file(s), keeping latest {keep}")
         else:
             console.print("🧹 [dim]No checkpoints to clean up[/dim]")
-
-        return 0
 
     except Exception as e:
         show_error_message(f"Cleanup failed: {e}")

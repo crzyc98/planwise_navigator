@@ -759,7 +759,7 @@ class NDTService:
                 )
 
             # Edge case: no employer contributions at all
-            if all(r == 0.0 for r in hce_rates) and all(r == 0.0 for r in nhce_rates):
+            if all(abs(r) < 1e-9 for r in hce_rates) and all(abs(r) < 1e-9 for r in nhce_rates):
                 return Section401a4ScenarioResult(
                     scenario_id=scenario_id,
                     scenario_name=scenario_name,

@@ -21,9 +21,9 @@ export interface LayoutContextType {
   activeWorkspace: Workspace;
   setActiveWorkspace: (ws: Workspace) => void;
   workspaces: Workspace[];
-  addWorkspace: (ws: Workspace) => void;
-  updateWorkspace: (id: string, updates: Partial<Workspace>) => void;
-  deleteWorkspace: (id: string) => void;
+  addWorkspace: (ws: Workspace) => Promise<Workspace>;
+  updateWorkspace: (id: string, updates: Partial<Workspace>) => Promise<void>;
+  deleteWorkspace: (id: string) => Promise<void>;
   lastRunScenarioId: string | null;
   setLastRunScenarioId: (id: string | null) => void;
   // Feature 045: Global simulation running state
@@ -391,7 +391,7 @@ export default function Layout() {
                   <X size={20} />
                 </button>
               </div>
-              <form onSubmit={handleCreateWorkspace} className="p-6 space-y-4">
+              <form onSubmit={(e) => { handleCreateWorkspace(e); }} className="p-6 space-y-4">
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">Workspace Name</label>
                   <input
@@ -484,7 +484,7 @@ export default function Layout() {
                 <X size={20} />
               </button>
             </div>
-            <form onSubmit={handleCreateWorkspace} className="p-6 space-y-4">
+            <form onSubmit={(e) => { handleCreateWorkspace(e); }} className="p-6 space-y-4">
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">Workspace Name</label>
                 <input
@@ -719,8 +719,11 @@ export default function Layout() {
                            {notifications.map((note) => (
                              <div
                                key={note.id}
+                               role="button"
+                               tabIndex={0}
                                className={`p-4 hover:bg-gray-50 transition-colors flex items-start ${!note.read ? 'bg-blue-50/50' : ''}`}
                                onClick={() => markAsRead(note.id)}
+                               onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); markAsRead(note.id); } }}
                              >
                                 <div className="mt-0.5 mr-3 flex-shrink-0">
                                   {getNotificationIcon(note.type)}
