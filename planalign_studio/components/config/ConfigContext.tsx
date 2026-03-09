@@ -174,6 +174,7 @@ export function ConfigProvider({ activeWorkspace, scenarioId, children }: Config
             censusDataStatus: cfg.data_sources?.census_parquet_path ? 'validating' : prev.censusDataStatus,
 
             // Compensation
+            targetCompensationGrowth: cfg.compensation?.target_compensation_growth_percent ?? prev.targetCompensationGrowth,
             meritBudget: cfg.compensation?.merit_budget_percent ?? prev.meritBudget,
             colaRate: cfg.compensation?.cola_rate_percent ?? prev.colaRate,
             promoIncrease: cfg.compensation?.promotion_increase_percent ?? prev.promoIncrease,
@@ -338,6 +339,7 @@ export function ConfigProvider({ activeWorkspace, scenarioId, children }: Config
       totalTerminationRate: (cfg.workforce?.total_termination_rate || 0.12) * 100,
       newHireTerminationRate: (cfg.workforce?.new_hire_termination_rate || 0.25) * 100,
       // Compensation
+      targetCompensationGrowth: cfg.compensation?.target_compensation_growth_percent ?? prev.targetCompensationGrowth,
       meritBudget: cfg.compensation?.merit_budget_percent || prev.meritBudget,
       colaRate: cfg.compensation?.cola_rate_percent || prev.colaRate,
       promoIncrease: cfg.compensation?.promotion_increase_percent || prev.promoIncrease,
@@ -492,7 +494,8 @@ export function ConfigProvider({ activeWorkspace, scenarioId, children }: Config
     if (formData.censusDataPath !== savedFormData.censusDataPath) {
       dirty.add('datasources');
     }
-    if (formData.meritBudget !== savedFormData.meritBudget ||
+    if (formData.targetCompensationGrowth !== savedFormData.targetCompensationGrowth ||
+        formData.meritBudget !== savedFormData.meritBudget ||
         formData.colaRate !== savedFormData.colaRate ||
         formData.promoIncrease !== savedFormData.promoIncrease ||
         formData.promoDistributionRange !== savedFormData.promoDistributionRange ||

@@ -64,6 +64,7 @@ export const DEFAULT_FORM_DATA: FormData = {
   targetGrowthRate: 3.0,
 
   // Compensation
+  targetCompensationGrowth: 5.0,
   meritBudget: 3.5,
   colaRate: 2.0,
   promoIncrease: 12.5,

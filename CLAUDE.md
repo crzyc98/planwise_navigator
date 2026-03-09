@@ -760,6 +760,8 @@ See `/docs/VERSIONING_GUIDE.md` for detailed versioning workflow.
 ## Active Technologies
 - Python 3.11, SQL (dbt-core 1.8.8) + dbt-duckdb 1.8.1, DuckDB 1.0.0, Pydantic 2.7.4 (063-1000-hr-eligibility)
 - DuckDB (`dbt/simulation.duckdb`) (063-1000-hr-eligibility)
+- TypeScript (React/Vite frontend), Python 3.11 (FastAPI backend) + React, FastAPI, Pydantic v2 (064-fix-comp-growth-persist)
+- Scenario config stored as flexible `Dict[str, Any]` (config_overrides) — no migration needed (064-fix-comp-growth-persist)
 
 ## Recent Changes
 - 063-1000-hr-eligibility: Added Python 3.11, SQL (dbt-core 1.8.8) + dbt-duckdb 1.8.1, DuckDB 1.0.0, Pydantic 2.7.4
