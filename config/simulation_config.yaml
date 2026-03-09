@@ -689,7 +689,7 @@ multi_year:
 # When employer match formulas change, employees may adjust their deferral rates
 # in response. Fires in the first simulation year only.
 deferral_match_response:
-  enabled: true                           # Master on/off (opt-in, disabled by default)
+  enabled: true                           # Master on/off switch
   upward_participation_rate: 0.40         # 40% of below-max employees respond upward
   upward_maximize_rate: 0.60              # 60% of upward responders jump to match-maximizing rate
   upward_partial_increase_rate: 0.40      # 40% of upward responders partially increase
