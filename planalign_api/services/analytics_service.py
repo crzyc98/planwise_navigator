@@ -13,6 +13,8 @@ from ..models.analytics import (
     IRSLimitMetrics,
     ParticipationByMethod,
 )
+from config.constants import TABLE_FCT_WORKFORCE_SNAPSHOT
+
 from ..storage.workspace_storage import WorkspaceStorage
 from .database_path_resolver import DatabasePathResolver
 
@@ -141,7 +143,7 @@ class AnalyticsService:
             result = conn.execute(f"""
                 WITH final_year AS (
                     SELECT MAX(simulation_year) as max_year
-                    FROM fct_workforce_snapshot
+                    FROM {TABLE_FCT_WORKFORCE_SNAPSHOT}
                 )
                 SELECT
                     COUNT(*) as total_eligible,
@@ -150,7 +152,7 @@ class AnalyticsService:
                     SUM(CASE WHEN participation_status_detail ILIKE '%voluntary%' THEN 1 ELSE 0 END) as voluntary_enrolled,
                     SUM(CASE WHEN participation_status_detail ILIKE '%census%'
                               OR participation_status_detail ILIKE '%baseline%' THEN 1 ELSE 0 END) as census_enrolled
-                FROM fct_workforce_snapshot, final_year
+                FROM {TABLE_FCT_WORKFORCE_SNAPSHOT}, final_year
                 WHERE simulation_year = final_year.max_year
                   {status_filter}
             """).fetchone()
@@ -225,7 +227,7 @@ class AnalyticsService:
                     {participation_rate_expr} as participation_rate,
                     COUNT(CASE WHEN is_enrolled_flag THEN 1 END) as participant_count,
                     COALESCE(SUM(prorated_annual_compensation), 0) as total_compensation
-                FROM fct_workforce_snapshot
+                FROM {TABLE_FCT_WORKFORCE_SNAPSHOT}
                 {status_filter}
                 GROUP BY simulation_year
                 ORDER BY simulation_year
@@ -267,10 +269,10 @@ class AnalyticsService:
         """Get deferral rate distribution (11 buckets: 0%, 1%...9%, 10%+)."""
         try:
             # Query for distribution buckets
-            df = conn.execute("""
+            df = conn.execute(f"""
                 WITH final_year AS (
                     SELECT MAX(simulation_year) as max_year
-                    FROM fct_workforce_snapshot
+                    FROM {TABLE_FCT_WORKFORCE_SNAPSHOT}
                 ),
                 bucketed AS (
                     SELECT
@@ -287,7 +289,7 @@ class AnalyticsService:
                             WHEN current_deferral_rate < 0.095 THEN '9%'
                             ELSE '10%+'
                         END as bucket
-                    FROM fct_workforce_snapshot, final_year
+                    FROM {TABLE_FCT_WORKFORCE_SNAPSHOT}, final_year
                     WHERE simulation_year = final_year.max_year
                       AND UPPER(employment_status) = 'ACTIVE'
                       AND is_enrolled_flag = true
@@ -330,7 +332,7 @@ class AnalyticsService:
         """Get deferral rate distribution for all simulation years (E059)."""
         bucket_order = ['0%', '1%', '2%', '3%', '4%', '5%', '6%', '7%', '8%', '9%', '10%+']
         try:
-            df = conn.execute("""
+            df = conn.execute(f"""
                 WITH bucketed AS (
                     SELECT
                         simulation_year,
@@ -347,7 +349,7 @@ class AnalyticsService:
                             WHEN current_deferral_rate < 0.095 THEN '9%'
                             ELSE '10%+'
                         END as bucket
-                    FROM fct_workforce_snapshot
+                    FROM {TABLE_FCT_WORKFORCE_SNAPSHOT}
                     WHERE UPPER(employment_status) = 'ACTIVE'
                       AND is_enrolled_flag = true
                 )
@@ -397,16 +399,16 @@ class AnalyticsService:
     def _get_escalation_metrics(self, conn) -> EscalationMetrics:
         """Get deferral escalation metrics."""
         try:
-            result = conn.execute("""
+            result = conn.execute(f"""
                 WITH final_year AS (
                     SELECT MAX(simulation_year) as max_year
-                    FROM fct_workforce_snapshot
+                    FROM {TABLE_FCT_WORKFORCE_SNAPSHOT}
                 )
                 SELECT
                     SUM(CASE WHEN has_deferral_escalations THEN 1 ELSE 0 END) as employees_with_escalations,
                     AVG(CASE WHEN has_deferral_escalations THEN total_deferral_escalations ELSE NULL END) as avg_escalations,
                     SUM(COALESCE(total_escalation_amount, 0)) as total_escalation_amount
-                FROM fct_workforce_snapshot, final_year
+                FROM {TABLE_FCT_WORKFORCE_SNAPSHOT}, final_year
                 WHERE simulation_year = final_year.max_year
                   AND UPPER(employment_status) = 'ACTIVE'
                   AND is_enrolled_flag = true
@@ -428,16 +430,16 @@ class AnalyticsService:
     def _get_irs_limit_metrics(self, conn) -> IRSLimitMetrics:
         """Get IRS contribution limit metrics."""
         try:
-            result = conn.execute("""
+            result = conn.execute(f"""
                 WITH final_year AS (
                     SELECT MAX(simulation_year) as max_year
-                    FROM fct_workforce_snapshot
+                    FROM {TABLE_FCT_WORKFORCE_SNAPSHOT}
                 ),
                 participants AS (
                     SELECT
                         COUNT(*) as total_participants,
                         SUM(CASE WHEN irs_limit_reached THEN 1 ELSE 0 END) as at_limit
-                    FROM fct_workforce_snapshot, final_year
+                    FROM {TABLE_FCT_WORKFORCE_SNAPSHOT}, final_year
                     WHERE simulation_year = final_year.max_year
                       AND UPPER(employment_status) = 'ACTIVE'
                       AND is_enrolled_flag = true

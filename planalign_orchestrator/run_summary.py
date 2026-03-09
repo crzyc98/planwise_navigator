@@ -11,6 +11,11 @@ from datetime import datetime, timedelta
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
+from config.constants import (
+    KEY_ERRORS,
+    KEY_WARNINGS,
+    STATUS_RUNNING,
+)
 from .logger import ProductionLogger
 from .performance_monitor import PerformanceMonitor
 
@@ -41,7 +46,7 @@ class RunMetadata:
     start_time: datetime
     end_time: Optional[datetime] = None
     duration_seconds: Optional[float] = None
-    status: str = "running"
+    status: str = STATUS_RUNNING
     backup_path: Optional[str] = None
     configuration: Dict[str, Any] = field(default_factory=dict)
     environment: Dict[str, Any] = field(default_factory=dict)
@@ -220,8 +225,8 @@ class RunSummaryGenerator:
             "performance_metrics": performance_summary,
             "custom_metrics": self.custom_metrics,
             "issues": {
-                "errors": [issue.to_dict() for issue in self.errors],
-                "warnings": [issue.to_dict() for issue in self.warnings],
+                KEY_ERRORS: [issue.to_dict() for issue in self.errors],
+                KEY_WARNINGS: [issue.to_dict() for issue in self.warnings],
             },
         }
 

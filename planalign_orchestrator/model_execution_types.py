@@ -13,6 +13,23 @@ from dataclasses import dataclass
 from typing import Dict, List, Set, Optional, Any
 from pathlib import Path
 
+from config.constants import (
+    MODEL_FCT_WORKFORCE_SNAPSHOT,
+    MODEL_FCT_YEARLY_EVENTS,
+    MODEL_INT_BASELINE_WORKFORCE,
+    MODEL_INT_DEFERRAL_RATE_STATE_ACCUMULATOR,
+    MODEL_INT_EMPLOYEE_COMPENSATION,
+    MODEL_INT_ENROLLMENT_EVENTS,
+    MODEL_INT_ENROLLMENT_STATE_ACCUMULATOR,
+    MODEL_INT_HIRE_EVENTS,
+    MODEL_INT_MERIT_EVENTS,
+    MODEL_INT_PROMOTION_EVENTS,
+    MODEL_INT_TERMINATION_EVENTS,
+    MODEL_INT_WORKFORCE_NEEDS,
+    MODEL_INT_WORKFORCE_SNAPSHOT_FINAL,
+    TABLE_STG_CENSUS,
+)
+
 
 class ModelExecutionType(Enum):
     """Classification of model execution safety for parallelization.
@@ -61,15 +78,15 @@ class ModelClassifier:
 
         # SEQUENTIAL: State accumulator models that must run in order
         sequential_models = {
-            "int_enrollment_state_accumulator": "Temporal state tracking across years",
-            "int_deferral_rate_state_accumulator": "Deferral rate state accumulation",
+            MODEL_INT_ENROLLMENT_STATE_ACCUMULATOR: "Temporal state tracking across years",
+            MODEL_INT_DEFERRAL_RATE_STATE_ACCUMULATOR: "Deferral rate state accumulation",
             "int_deferral_rate_state_accumulator_v2": "Enhanced deferral rate state accumulation",
             "int_deferral_escalation_state_accumulator": "Escalation state tracking",
             "int_workforce_previous_year": "Previous year workforce state",
             "int_workforce_previous_year_v2": "Enhanced previous year workforce state",
             "int_active_employees_prev_year_snapshot": "Previous year employee snapshot",
-            "fct_yearly_events": "Event sequencing and ordering critical",
-            "fct_workforce_snapshot": "Depends on all events and state accumulators",
+            MODEL_FCT_YEARLY_EVENTS: "Event sequencing and ordering critical",
+            MODEL_FCT_WORKFORCE_SNAPSHOT: "Depends on all events and state accumulators",
             "int_workforce_snapshot_optimized": "Complex workforce state computation",
         }
 
@@ -99,8 +116,8 @@ class ModelClassifier:
 
             # Independent business logic models
             "int_effective_parameters": "Parameter calculation independent of workforce state",
-            "int_baseline_workforce": "Initial workforce setup (year 1 only)",
-            "int_workforce_needs": "Hiring demand calculation",
+            MODEL_INT_BASELINE_WORKFORCE: "Initial workforce setup (year 1 only)",
+            MODEL_INT_WORKFORCE_NEEDS: "Hiring demand calculation",
             "int_workforce_needs_by_level": "Level-specific hiring demand",
             "int_new_hire_compensation_staging": "New hire compensation calculation",
             "int_employer_eligibility": "Eligibility determination based on static rules",
@@ -119,14 +136,14 @@ class ModelClassifier:
         # CONDITIONAL: Models with complex dependencies that may or may not be parallel-safe
         conditional_models = {
             # Event generation models - may have interdependencies
-            "int_termination_events": "Depends on hazard calculations and workforce state",
+            MODEL_INT_TERMINATION_EVENTS: "Depends on hazard calculations and workforce state",
             "int_hiring_events": "Depends on workforce needs and termination events",
-            "int_promotion_events": "Depends on workforce state and hazard calculations",
-            "int_merit_events": "Depends on workforce state and promotion timing",
+            MODEL_INT_PROMOTION_EVENTS: "Depends on workforce state and hazard calculations",
+            MODEL_INT_MERIT_EVENTS: "Depends on workforce state and promotion timing",
             "int_new_hire_termination_events": "Depends on hiring events",
 
             # Enrollment and contribution models - complex state dependencies
-            "int_enrollment_events": "Depends on eligibility and enrollment decisions",
+            MODEL_INT_ENROLLMENT_EVENTS: "Depends on eligibility and enrollment decisions",
             "int_voluntary_enrollment_decision": "Depends on multiple state factors",
             "int_proactive_voluntary_enrollment": "Depends on enrollment decisions",
             "int_synthetic_baseline_enrollment_events": "Baseline enrollment setup",
@@ -136,7 +153,7 @@ class ModelClassifier:
             "int_deferral_rate_escalation_events": "Depends on enrollment state",
 
             # Complex snapshot and aggregation models
-            "int_employee_compensation_by_year": "Complex compensation aggregation",
+            MODEL_INT_EMPLOYEE_COMPENSATION: "Complex compensation aggregation",
             "fct_employer_match_events": "Depends on multiple contribution calculations",
             "fct_compensation_growth": "Growth calculation across multiple models",
         }

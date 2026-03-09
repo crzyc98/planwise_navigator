@@ -29,6 +29,7 @@ from ..ui.progress import (
     show_warning_message,
 )
 from ..utils.config_helpers import find_default_config, parse_years, validate_year_range
+from config.constants import DATABASE_FILENAME
 
 console = Console()
 simulate_command = typer.Typer()
@@ -87,7 +88,7 @@ def run_simulation(
 
         # Initialize wrapper
         config_path = Path(config) if config else find_default_config()
-        db_path = Path(database) if database else Path("dbt/simulation.duckdb")
+        db_path = Path(database) if database else Path("dbt") / DATABASE_FILENAME
 
         if verbose:
             console.print(f"📁 Config: {config_path}")
@@ -177,7 +178,7 @@ def simulation_status(
     """Show current simulation status and progress."""
     try:
         config_path = Path(config) if config else find_default_config()
-        db_path = Path(database) if database else Path("dbt/simulation.duckdb")
+        db_path = Path(database) if database else Path("dbt") / DATABASE_FILENAME
 
         wrapper = OrchestratorWrapper(config_path, db_path)
         checkpoint_info = wrapper.get_checkpoint_info()

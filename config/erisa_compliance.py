@@ -14,6 +14,14 @@ from typing import Any, Dict, List, Optional, Set
 
 from pydantic import BaseModel, Field, field_validator
 
+from config.constants import (
+    EVENT_HIRE,
+    EVENT_TERMINATION,
+    EVENT_PROMOTION,
+    EVENT_MERIT,
+    EVENT_ENROLLMENT,
+)
+
 
 class ERISAComplianceLevel(str, Enum):
     """Defines the compliance status levels for ERISA requirements."""
@@ -110,12 +118,12 @@ class ERISARequirement(BaseModel):
     def validate_event_types(cls, v):
         """Ensure event types are from the valid set."""
         valid_events = {
-            "hire",
-            "termination",
-            "promotion",
-            "merit",
+            EVENT_HIRE,
+            EVENT_TERMINATION,
+            EVENT_PROMOTION,
+            EVENT_MERIT,
             "eligibility",
-            "enrollment",
+            EVENT_ENROLLMENT,
             "contribution",
             "distribution",
             "vesting",
@@ -265,7 +273,7 @@ class ERISAComplianceValidator:
                 section_reference=ERISASection.SECTION_101,
                 description="Summary Plan Description accuracy",
                 compliance_level=ERISAComplianceLevel.COMPLIANT,
-                event_types_covered=["eligibility", "enrollment", "vesting"],
+                event_types_covered=["eligibility", EVENT_ENROLLMENT, "vesting"],
                 validation_notes="Event schema supports all SPD provisions with plan_id linkage",
                 implementation_status="implemented",
                 test_coverage=True,
@@ -279,7 +287,7 @@ class ERISAComplianceValidator:
                 compliance_level=ERISAComplianceLevel.COMPLIANT,
                 event_types_covered=[
                     "eligibility",
-                    "enrollment",
+                    EVENT_ENROLLMENT,
                     "contribution",
                     "vesting",
                     "distribution",
@@ -335,8 +343,8 @@ class ERISAComplianceValidator:
                 description="Recordkeeping requirements",
                 compliance_level=ERISAComplianceLevel.COMPLIANT,
                 event_types_covered=[
-                    "hire",
-                    "termination",
+                    EVENT_HIRE,
+                    EVENT_TERMINATION,
                     "contribution",
                     "distribution",
                     "vesting",

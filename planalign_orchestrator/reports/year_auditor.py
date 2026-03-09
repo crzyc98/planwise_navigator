@@ -10,6 +10,14 @@ from __future__ import annotations
 from datetime import datetime
 from typing import Any, Dict, Optional, TYPE_CHECKING
 
+from config.constants import (
+    EVENT_HIRE,
+    EVENT_TERMINATION,
+    EVENT_TYPE_TERMINATION,
+    MODEL_INT_BASELINE_WORKFORCE,
+    TABLE_FCT_WORKFORCE_SNAPSHOT,
+    TABLE_FCT_YEARLY_EVENTS,
+)
 from .data_models import (
     WorkforceBreakdown,
     EventSummary,
@@ -82,12 +90,12 @@ class YearAuditor:
 
     def _display_workforce_breakdown(self, conn, year: int) -> None:
         """Display detailed workforce breakdown by status."""
-        workforce_query = """
+        workforce_query = f"""
         SELECT
             detailed_status_code,
             COUNT(*) as employee_count,
             ROUND(COUNT(*) * 100.0 / SUM(COUNT(*)) OVER(), 1) as percentage
-        FROM fct_workforce_snapshot
+        FROM {TABLE_FCT_WORKFORCE_SNAPSHOT}
         WHERE simulation_year = ?
         GROUP BY detailed_status_code
         ORDER BY employee_count DESC
@@ -105,22 +113,22 @@ class YearAuditor:
     def _display_event_summary(self, conn, year: int) -> None:
         """Display event summary for the year."""
         # Raw events for non-headcount-changing types
-        events_query = """
+        events_query = f"""
         SELECT event_type, COUNT(*) AS event_count
-        FROM fct_yearly_events
+        FROM {TABLE_FCT_YEARLY_EVENTS}
         WHERE simulation_year = ?
-          AND event_type NOT IN ('hire', 'termination')
+          AND event_type NOT IN ('{EVENT_HIRE}', '{EVENT_TERMINATION}')
         GROUP BY event_type
         ORDER BY event_count DESC
         """
         results = conn.execute(events_query, [year]).fetchall()
 
         # Derive hires/terminations from the year-end snapshot
-        derived_query = """
+        derived_query = f"""
         SELECT
           SUM(CASE WHEN detailed_status_code IN ('new_hire_active','new_hire_termination') THEN 1 ELSE 0 END) AS hires,
           SUM(CASE WHEN employment_status = 'terminated' THEN 1 ELSE 0 END) AS terminations
-        FROM fct_workforce_snapshot
+        FROM {TABLE_FCT_WORKFORCE_SNAPSHOT}
         WHERE simulation_year = ?
         """
         hires, terminations = conn.execute(derived_query, [year]).fetchone()
@@ -140,18 +148,18 @@ class YearAuditor:
         """Display growth analysis - baseline comparison for year 1, YoY for others."""
         if year == 2025:  # Assuming 2025 is start year
             # Compare with baseline workforce
-            baseline_query = """
+            baseline_query = f"""
             SELECT COUNT(*) as baseline_count
-            FROM int_baseline_workforce
+            FROM {MODEL_INT_BASELINE_WORKFORCE}
             WHERE employment_status = 'active'
             """
             baseline_result = conn.execute(baseline_query).fetchone()
             baseline_count = baseline_result[0] if baseline_result else 0
 
             # Get year-end active employees
-            active_query = """
+            active_query = f"""
             SELECT COUNT(*) as active_count
-            FROM fct_workforce_snapshot
+            FROM {TABLE_FCT_WORKFORCE_SNAPSHOT}
             WHERE simulation_year = ? AND employment_status = 'active'
             """
             active_result = conn.execute(active_query, [year]).fetchone()
@@ -169,17 +177,17 @@ class YearAuditor:
                 )
         else:
             # Year-over-year comparison
-            prev_year_query = """
+            prev_year_query = f"""
             SELECT COUNT(*) as prev_active_count
-            FROM fct_workforce_snapshot
+            FROM {TABLE_FCT_WORKFORCE_SNAPSHOT}
             WHERE simulation_year = ? AND employment_status = 'active'
             """
             prev_result = conn.execute(prev_year_query, [year - 1]).fetchone()
             prev_count = prev_result[0] if prev_result else 0
 
-            current_query = """
+            current_query = f"""
             SELECT COUNT(*) as current_active_count
-            FROM fct_workforce_snapshot
+            FROM {TABLE_FCT_WORKFORCE_SNAPSHOT}
             WHERE simulation_year = ? AND employment_status = 'active'
             """
             current_result = conn.execute(current_query, [year]).fetchone()
@@ -199,14 +207,14 @@ class YearAuditor:
     def _display_contribution_summary(self, conn, year: int) -> None:
         """Display employee contributions summary."""
         try:
-            contributions_query = """
+            contributions_query = f"""
             SELECT
                 COUNT(*) as enrolled_employees_active_eoy,
                 ROUND(SUM(c.annual_contribution_amount), 0) as total_contributions_active_eoy,
                 ROUND(AVG(c.annual_contribution_amount), 0) as avg_contribution_active_eoy,
                 ROUND(AVG(c.effective_annual_deferral_rate) * 100, 1) as avg_deferral_rate_active_eoy
             FROM int_employee_contributions c
-            JOIN fct_workforce_snapshot s
+            JOIN {TABLE_FCT_WORKFORCE_SNAPSHOT} s
               ON s.employee_id = c.employee_id
              AND s.simulation_year = c.simulation_year
             WHERE c.simulation_year = ?
@@ -245,11 +253,11 @@ class YearAuditor:
         print(f"\n🔍 Data Quality Checks:")
 
         # Get events for analysis
-        events_query = """
+        events_query = f"""
         SELECT
             event_type,
             COUNT(*) as event_count
-        FROM fct_yearly_events
+        FROM {TABLE_FCT_YEARLY_EVENTS}
         WHERE simulation_year = ?
         GROUP BY event_type
         ORDER BY event_count DESC
@@ -259,12 +267,12 @@ class YearAuditor:
         if events_results:
             # Check for reasonable hire/termination ratios
             hire_count = sum(
-                count for event_type, count in events_results if event_type == "hire"
+                count for event_type, count in events_results if event_type == EVENT_HIRE
             )
             term_count = sum(
                 count
                 for event_type, count in events_results
-                if event_type in ["termination", "TERMINATION"]
+                if event_type in [EVENT_TERMINATION, EVENT_TYPE_TERMINATION]
             )
 
             if hire_count > 0 and term_count > 0:
@@ -291,12 +299,12 @@ class YearAuditor:
             )
             if match_count > 0:
                 # Get match cost information
-                match_query = """
+                match_query = f"""
                 SELECT
                     COUNT(*) as match_count,
                     SUM(compensation_amount) as total_match_cost,
                     AVG(compensation_amount) as avg_match_amount
-                FROM fct_yearly_events
+                FROM {TABLE_FCT_YEARLY_EVENTS}
                 WHERE simulation_year = ? AND event_type = 'EMPLOYER_MATCH'
                 """
                 match_result = conn.execute(match_query, [year]).fetchone()
@@ -310,9 +318,9 @@ class YearAuditor:
     def _generate_workforce_breakdown(self, conn, year: int) -> WorkforceBreakdown:
         """Generate workforce breakdown data structure."""
         rows = conn.execute(
-            """
+            f"""
             SELECT detailed_status_code, COUNT(*) AS employee_count
-            FROM fct_workforce_snapshot
+            FROM {TABLE_FCT_WORKFORCE_SNAPSHOT}
             WHERE simulation_year = ?
             GROUP BY detailed_status_code
             ORDER BY employee_count DESC
@@ -322,17 +330,17 @@ class YearAuditor:
         breakdown = {r[0]: r[1] for r in rows}
         total = sum(breakdown.values())
         active = conn.execute(
-            """
+            f"""
             SELECT COUNT(*)
-            FROM fct_workforce_snapshot
+            FROM {TABLE_FCT_WORKFORCE_SNAPSHOT}
             WHERE simulation_year = ? AND employment_status = 'active'
             """,
             [year],
         ).fetchone()[0]
         participating = conn.execute(
-            """
+            f"""
             SELECT COUNT(*)
-            FROM fct_workforce_snapshot
+            FROM {TABLE_FCT_WORKFORCE_SNAPSHOT}
             WHERE simulation_year = ?
               AND employment_status = 'active'
               AND participation_status = 'participating'
@@ -352,11 +360,11 @@ class YearAuditor:
         """Generate event summary data structure."""
         # Raw counts excluding hire/termination
         rows = conn.execute(
-            """
+            f"""
             SELECT lower(event_type) AS et, COUNT(*)
-            FROM fct_yearly_events
+            FROM {TABLE_FCT_YEARLY_EVENTS}
             WHERE simulation_year = ?
-              AND lower(event_type) NOT IN ('hire','termination')
+              AND lower(event_type) NOT IN ('{EVENT_HIRE}','{EVENT_TERMINATION}')
             GROUP BY lower(event_type)
             ORDER BY 2 DESC
             """,
@@ -365,22 +373,22 @@ class YearAuditor:
         by_type = {r[0]: r[1] for r in rows}
         # Derive hires/terminations from snapshot for consistency
         hires, terms = conn.execute(
-            """
+            f"""
             SELECT
               SUM(CASE WHEN detailed_status_code IN ('new_hire_active','new_hire_termination') THEN 1 ELSE 0 END) AS hires,
               SUM(CASE WHEN employment_status = 'terminated' THEN 1 ELSE 0 END) AS terminations
-            FROM fct_workforce_snapshot
+            FROM {TABLE_FCT_WORKFORCE_SNAPSHOT}
             WHERE simulation_year = ?
             """,
             [year],
         ).fetchone()
-        by_type["hire"] = int(hires or 0)
-        by_type["termination"] = int(terms or 0)
+        by_type[EVENT_HIRE] = int(hires or 0)
+        by_type[EVENT_TERMINATION] = int(terms or 0)
         total = sum(by_type.values())
         ratio = (
             float("inf")
             if (terms or 0) == 0
-            else (by_type["hire"] / by_type["termination"])
+            else (by_type[EVENT_HIRE] / by_type[EVENT_TERMINATION])
         )
         return EventSummary(
             year=year,
@@ -393,15 +401,15 @@ class YearAuditor:
         """Calculate year-over-year growth analysis."""
         prev = year - 1
         prev_active = conn.execute(
-            """
-            SELECT COUNT(*) FROM fct_workforce_snapshot
+            f"""
+            SELECT COUNT(*) FROM {TABLE_FCT_WORKFORCE_SNAPSHOT}
             WHERE simulation_year = ? AND employment_status = 'active'
             """,
             [prev],
         ).fetchone()
         curr_active = conn.execute(
-            """
-            SELECT COUNT(*) FROM fct_workforce_snapshot
+            f"""
+            SELECT COUNT(*) FROM {TABLE_FCT_WORKFORCE_SNAPSHOT}
             WHERE simulation_year = ? AND employment_status = 'active'
             """,
             [year],
@@ -423,14 +431,14 @@ class YearAuditor:
         """Generate contribution summary data structure."""
         try:
             row = conn.execute(
-                """
+                f"""
                 SELECT
                     COUNT(*) as enrolled_employees_active_eoy,
                     ROUND(SUM(c.annual_contribution_amount), 0) as total_contributions_active_eoy,
                     ROUND(AVG(c.annual_contribution_amount), 0) as avg_contribution_active_eoy,
                     ROUND(AVG(c.effective_annual_deferral_rate) * 100, 1) as avg_deferral_rate_active_eoy
                 FROM int_employee_contributions c
-                JOIN fct_workforce_snapshot s
+                JOIN {TABLE_FCT_WORKFORCE_SNAPSHOT} s
                   ON s.employee_id = c.employee_id
                  AND s.simulation_year = c.simulation_year
                 WHERE c.simulation_year = ?

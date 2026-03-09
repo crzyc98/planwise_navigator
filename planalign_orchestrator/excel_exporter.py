@@ -23,6 +23,13 @@ from typing import Any, Dict, List, Optional, Sequence
 
 import pandas as pd
 
+from config.constants import (
+    COL_EMPLOYEE_ID,
+    COL_EVENT_TYPE,
+    COL_SIMULATION_YEAR,
+    TABLE_FCT_WORKFORCE_SNAPSHOT,
+    TABLE_FCT_YEARLY_EVENTS,
+)
 from .utils import DatabaseConnectionManager
 
 
@@ -66,7 +73,7 @@ class ExcelExporter:
 
         with self.db_manager.get_connection() as conn:
             # Check if workforce snapshot table exists
-            table_exists = self._check_table_exists(conn, "fct_workforce_snapshot")
+            table_exists = self._check_table_exists(conn, TABLE_FCT_WORKFORCE_SNAPSHOT)
             if not table_exists:
                 print(f"   ⚠️  Warning: fct_workforce_snapshot table not found, creating minimal export")
                 return self._create_minimal_export(scenario_name, output_dir, export_format)
@@ -74,7 +81,7 @@ class ExcelExporter:
             # Determine total rows and whether to split by year
             total_rows = self._query_to_df(
                 conn,
-                "SELECT COUNT(*) AS cnt FROM fct_workforce_snapshot",
+                f"SELECT COUNT(*) AS cnt FROM {TABLE_FCT_WORKFORCE_SNAPSHOT}",
             )["cnt"].iloc[0]
             split = split_by_year if split_by_year is not None else total_rows > self.split_threshold
 
@@ -168,13 +175,13 @@ class ExcelExporter:
             # Export per-year CSV files
             years = self._query_to_df(
                 conn,
-                "SELECT DISTINCT simulation_year FROM fct_workforce_snapshot ORDER BY simulation_year",
-            )["simulation_year"].tolist()
+                f"SELECT DISTINCT {COL_SIMULATION_YEAR} FROM {TABLE_FCT_WORKFORCE_SNAPSHOT} ORDER BY {COL_SIMULATION_YEAR}",
+            )[COL_SIMULATION_YEAR].tolist()
 
             for year in years:
                 df_year = self._query_to_df(
                     conn,
-                    "SELECT * FROM fct_workforce_snapshot WHERE simulation_year = ? ORDER BY employee_id",
+                    f"SELECT * FROM {TABLE_FCT_WORKFORCE_SNAPSHOT} WHERE {COL_SIMULATION_YEAR} = ? ORDER BY {COL_EMPLOYEE_ID}",
                     params=[year],
                 )
                 df_year.to_csv(output_dir / f"{scenario_name}_workforce_{year}.csv", index=False)
@@ -182,7 +189,7 @@ class ExcelExporter:
             # Single workforce snapshot CSV
             df_workforce = self._query_to_df(
                 conn,
-                "SELECT * FROM fct_workforce_snapshot ORDER BY simulation_year, employee_id",
+                f"SELECT * FROM {TABLE_FCT_WORKFORCE_SNAPSHOT} ORDER BY {COL_SIMULATION_YEAR}, {COL_EMPLOYEE_ID}",
             )
             df_workforce.to_csv(output_dir / f"{scenario_name}_workforce_snapshot.csv", index=False)
 
@@ -191,7 +198,7 @@ class ExcelExporter:
         df_summary.to_csv(output_dir / f"{scenario_name}_summary_metrics.csv", index=False)
 
         # Export events summary if table exists
-        if self._check_table_exists(conn, "fct_yearly_events"):
+        if self._check_table_exists(conn, TABLE_FCT_YEARLY_EVENTS):
             df_events = self._calculate_events_summary(conn)
             df_events.to_csv(output_dir / f"{scenario_name}_events_summary.csv", index=False)
 
@@ -229,7 +236,7 @@ class ExcelExporter:
             self._format_worksheet(writer.book["Summary_Metrics"])
 
             # Events Summary (if events table exists)
-            if self._check_table_exists(conn, "fct_yearly_events"):
+            if self._check_table_exists(conn, TABLE_FCT_YEARLY_EVENTS):
                 df_events = self._calculate_events_summary(conn)
                 df_events = self._sanitize_for_excel(df_events)
                 df_events.to_excel(writer, sheet_name="Events_Summary", index=False)
@@ -255,13 +262,13 @@ class ExcelExporter:
             # Create per-year sheets
             years = self._query_to_df(
                 conn,
-                "SELECT DISTINCT simulation_year FROM fct_workforce_snapshot ORDER BY simulation_year",
-            )["simulation_year"].tolist()
+                f"SELECT DISTINCT {COL_SIMULATION_YEAR} FROM {TABLE_FCT_WORKFORCE_SNAPSHOT} ORDER BY {COL_SIMULATION_YEAR}",
+            )[COL_SIMULATION_YEAR].tolist()
 
             for year in years:
                 df_year = self._query_to_df(
                     conn,
-                    "SELECT * FROM fct_workforce_snapshot WHERE simulation_year = ? ORDER BY employee_id",
+                    f"SELECT * FROM {TABLE_FCT_WORKFORCE_SNAPSHOT} WHERE {COL_SIMULATION_YEAR} = ? ORDER BY {COL_EMPLOYEE_ID}",
                     params=[year],
                 )
                 sheet_name = f"Workforce_{year}"
@@ -272,7 +279,7 @@ class ExcelExporter:
             # Single workforce snapshot sheet
             df_workforce = self._query_to_df(
                 conn,
-                "SELECT * FROM fct_workforce_snapshot ORDER BY simulation_year, employee_id",
+                f"SELECT * FROM {TABLE_FCT_WORKFORCE_SNAPSHOT} ORDER BY {COL_SIMULATION_YEAR}, {COL_EMPLOYEE_ID}",
             )
             df_workforce = self._sanitize_for_excel(df_workforce)
             df_workforce.to_excel(writer, sheet_name="Workforce_Snapshot", index=False)
@@ -325,7 +332,7 @@ class ExcelExporter:
             DataFrame with summary metrics by year
         """
         # Introspect available columns to avoid binder errors across schema variants
-        cols = self._get_table_columns(conn, "fct_workforce_snapshot")
+        cols = self._get_table_columns(conn, TABLE_FCT_WORKFORCE_SNAPSHOT)
 
         status_expr = None
         if "employment_status" in cols:
@@ -371,7 +378,7 @@ class ExcelExporter:
 
         query = f"""
             SELECT
-                simulation_year,
+                {COL_SIMULATION_YEAR},
                 COUNT(*) AS total_employees,
                 {status_expr},
                 {enrolled_expr},
@@ -379,9 +386,9 @@ class ExcelExporter:
                 {ee_contrib_expr},
                 {er_match_expr},
                 {avg_deferral_expr}
-            FROM fct_workforce_snapshot
-            GROUP BY simulation_year
-            ORDER BY simulation_year
+            FROM {TABLE_FCT_WORKFORCE_SNAPSHOT}
+            GROUP BY {COL_SIMULATION_YEAR}
+            ORDER BY {COL_SIMULATION_YEAR}
         """
 
         return self._query_to_df(conn, query)
@@ -397,18 +404,18 @@ class ExcelExporter:
         """
         return self._query_to_df(
             conn,
-            """
+            f"""
             SELECT
-                simulation_year,
-                event_type,
+                {COL_SIMULATION_YEAR},
+                {COL_EVENT_TYPE},
                 COUNT(*) AS event_count,
                 ROUND(AVG(CASE
-                    WHEN event_type = 'raise' AND compensation_amount IS NOT NULL
+                    WHEN {COL_EVENT_TYPE} = 'raise' AND compensation_amount IS NOT NULL
                     THEN compensation_amount
                     END), 2) AS avg_new_salary_on_raise
-            FROM fct_yearly_events
-            GROUP BY simulation_year, event_type
-            ORDER BY simulation_year, event_type
+            FROM {TABLE_FCT_YEARLY_EVENTS}
+            GROUP BY {COL_SIMULATION_YEAR}, {COL_EVENT_TYPE}
+            ORDER BY {COL_SIMULATION_YEAR}, {COL_EVENT_TYPE}
             """,
         )
 
@@ -432,7 +439,7 @@ class ExcelExporter:
         try:
             years = self._query_to_df(
                 conn,
-                "SELECT MIN(simulation_year) AS min_y, MAX(simulation_year) AS max_y FROM fct_workforce_snapshot",
+                f"SELECT MIN({COL_SIMULATION_YEAR}) AS min_y, MAX({COL_SIMULATION_YEAR}) AS max_y FROM {TABLE_FCT_WORKFORCE_SNAPSHOT}",
             ).iloc[0]
             start_year = int(years["min_y"]) if not pd.isna(years["min_y"]) else config.simulation.start_year
             end_year = int(years["max_y"]) if not pd.isna(years["max_y"]) else config.simulation.end_year
@@ -445,7 +452,7 @@ class ExcelExporter:
             try:
                 total_rows = self._query_to_df(
                     conn,
-                    "SELECT COUNT(*) AS cnt FROM fct_workforce_snapshot",
+                    f"SELECT COUNT(*) AS cnt FROM {TABLE_FCT_WORKFORCE_SNAPSHOT}",
                 )["cnt"].iloc[0]
             except Exception:
                 total_rows = 0

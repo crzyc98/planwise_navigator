@@ -6,6 +6,11 @@ from typing import Any, Dict, List, Optional, Tuple
 
 import duckdb
 
+from config.constants import (
+    TABLE_FCT_WORKFORCE_SNAPSHOT,
+    TABLE_FCT_YEARLY_EVENTS,
+)
+
 from ...constants import DEFAULT_PARTICIPATION_RATE
 from ...models.simulation import SimulationResults
 from ...storage.workspace_storage import WorkspaceStorage
@@ -136,7 +141,7 @@ def _query_workforce_progression(
                 AVG(prorated_annual_compensation) as avg_compensation,
                 SUM(prorated_annual_compensation) as total_compensation,
                 AVG(prorated_annual_compensation) as active_avg_compensation
-            FROM fct_workforce_snapshot
+            FROM {TABLE_FCT_WORKFORCE_SNAPSHOT}
             WHERE simulation_year >= ?
               AND simulation_year <= ?
               {pop_filter}
@@ -165,7 +170,7 @@ def _query_compensation_by_status(
                 detailed_status_code as employment_status,
                 COUNT(DISTINCT employee_id) as employee_count,
                 AVG(prorated_annual_compensation) as avg_compensation
-            FROM fct_workforce_snapshot
+            FROM {TABLE_FCT_WORKFORCE_SNAPSHOT}
             WHERE simulation_year >= ?
               AND simulation_year <= ?
               {pop_filter}
@@ -185,12 +190,12 @@ def _query_event_trends(
 ) -> Dict[str, List[int]]:
     try:
         df = conn.execute(
-            """
+            f"""
             SELECT
                 event_type,
                 simulation_year,
                 COUNT(*) as count
-            FROM fct_yearly_events
+            FROM {TABLE_FCT_YEARLY_EVENTS}
             WHERE simulation_year >= ?
               AND simulation_year <= ?
             GROUP BY event_type, simulation_year
@@ -220,7 +225,7 @@ def _query_participation_rate(
             SELECT
                 COUNT(DISTINCT CASE WHEN participation_status = 'participating' THEN employee_id END) as participating,
                 COUNT(DISTINCT employee_id) as total_eligible
-            FROM fct_workforce_snapshot
+            FROM {TABLE_FCT_WORKFORCE_SNAPSHOT}
             WHERE simulation_year = ?
               {pop_filter}
         """,
