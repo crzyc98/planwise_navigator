@@ -1,6 +1,6 @@
 """Simulation run and telemetry models."""
 
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Any, Dict, List, Literal, Optional
 
 from pydantic import BaseModel, Field
@@ -64,7 +64,7 @@ class SimulationTelemetry(BaseModel):
     recent_events: List[RecentEvent] = Field(
         default_factory=list, description="Recent events (last 20)"
     )
-    timestamp: datetime = Field(default_factory=datetime.utcnow)
+    timestamp: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
 
 
 class SimulationResults(BaseModel):

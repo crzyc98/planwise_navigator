@@ -167,7 +167,7 @@ class CompensationCalibrator:
     def run_simulation_with_scenario(self, scenario_id: str):
         """Run a simulation with the calibrated parameters."""
         print(f"\n🚀 To run simulation with scenario '{scenario_id}':")
-        print(f"   1. Start Dagster: dagster dev")
+        print("   1. Start Dagster: dagster dev")
         print(
             f"   2. Run simulation with scenario variable: --vars scenario_id:{scenario_id}"
         )

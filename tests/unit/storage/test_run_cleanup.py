@@ -1,7 +1,7 @@
 """Tests for WorkspaceStorage.cleanup_old_runs() run retention."""
 
 import json
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
 import pytest
@@ -17,8 +17,8 @@ def _make_workspace(tmp_path: Path, workspace_id: str = "ws-1") -> Path:
         json.dumps({
             "id": workspace_id,
             "name": "Test",
-            "created_at": datetime.utcnow().isoformat(),
-            "updated_at": datetime.utcnow().isoformat(),
+            "created_at": datetime.now(timezone.utc).isoformat(),
+            "updated_at": datetime.now(timezone.utc).isoformat(),
         })
     )
     (ws_dir / "scenarios").mkdir()
@@ -34,7 +34,7 @@ def _make_scenario(ws_dir: Path, scenario_id: str = "sc-1") -> Path:
             "id": scenario_id,
             "workspace_id": ws_dir.name,
             "name": "Test Scenario",
-            "created_at": datetime.utcnow().isoformat(),
+            "created_at": datetime.now(timezone.utc).isoformat(),
         })
     )
     (sc_dir / "runs").mkdir()
@@ -74,7 +74,7 @@ class TestCleanupOldRuns:
     def test_no_pruning_when_under_limit(self, storage, tmp_path):
         ws = _make_workspace(tmp_path)
         sc = _make_scenario(ws)
-        now = datetime.utcnow()
+        now = datetime.now(timezone.utc)
 
         _make_run(sc, "run-1", now - timedelta(hours=2))
         _make_run(sc, "run-2", now - timedelta(hours=1))
@@ -90,7 +90,7 @@ class TestCleanupOldRuns:
     def test_prunes_oldest_runs(self, storage, tmp_path):
         ws = _make_workspace(tmp_path)
         sc = _make_scenario(ws)
-        now = datetime.utcnow()
+        now = datetime.now(timezone.utc)
 
         # Create 5 runs with staggered timestamps
         for i in range(5):
@@ -112,7 +112,7 @@ class TestCleanupOldRuns:
     def test_unlimited_retention(self, storage, tmp_path):
         ws = _make_workspace(tmp_path)
         sc = _make_scenario(ws)
-        now = datetime.utcnow()
+        now = datetime.now(timezone.utc)
 
         for i in range(5):
             _make_run(sc, f"run-{i}", now - timedelta(hours=i))
@@ -127,7 +127,7 @@ class TestCleanupOldRuns:
     def test_handles_missing_metadata(self, storage, tmp_path):
         ws = _make_workspace(tmp_path)
         sc = _make_scenario(ws)
-        now = datetime.utcnow()
+        now = datetime.now(timezone.utc)
 
         # Run without metadata (should be treated as oldest)
         run_no_meta = sc / "runs" / "run-no-meta"
@@ -148,7 +148,7 @@ class TestCleanupOldRuns:
     def test_preserves_active_database(self, storage, tmp_path):
         ws = _make_workspace(tmp_path)
         sc = _make_scenario(ws)
-        now = datetime.utcnow()
+        now = datetime.now(timezone.utc)
 
         # Create scenario-level simulation.duckdb (the active database)
         active_db = sc / "simulation.duckdb"
@@ -167,7 +167,7 @@ class TestCleanupOldRuns:
     def test_returns_bytes_freed(self, storage, tmp_path):
         ws = _make_workspace(tmp_path)
         sc = _make_scenario(ws)
-        now = datetime.utcnow()
+        now = datetime.now(timezone.utc)
 
         file_size = 4096
         _make_run(sc, "run-old", now - timedelta(hours=2), file_size_bytes=file_size)
@@ -193,7 +193,7 @@ class TestCleanupOldRuns:
         """When run count exactly equals max_runs, nothing is pruned."""
         ws = _make_workspace(tmp_path)
         sc = _make_scenario(ws)
-        now = datetime.utcnow()
+        now = datetime.now(timezone.utc)
 
         for i in range(3):
             _make_run(sc, f"run-{i}", now - timedelta(hours=i))

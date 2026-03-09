@@ -220,11 +220,7 @@ export function CopyScenarioModal({ availableScenarios, onClose }: CopyScenarioM
                     <h3 className="font-semibold text-gray-900">{scenario.name}</h3>
                     <p className="text-sm text-gray-500 mt-1">{scenario.description || 'No description'}</p>
                   </div>
-                  <span className={`px-2 py-1 text-xs font-medium rounded ${
-                    scenario.status === 'completed' ? 'bg-green-100 text-green-700' :
-                    scenario.status === 'running' ? 'bg-blue-100 text-blue-700' :
-                    'bg-gray-100 text-gray-600'
-                  }`}>
+                  <span className={`px-2 py-1 text-xs font-medium rounded ${scenario.status === 'completed' ? 'bg-green-100 text-green-700' : scenario.status === 'running' ? 'bg-blue-100 text-blue-700' : 'bg-gray-100 text-gray-600'}`}>
                     {scenario.status || 'draft'}
                   </span>
                 </div>

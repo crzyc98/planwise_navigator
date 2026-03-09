@@ -277,7 +277,7 @@ class MissingConfigurationError(ConfigurationError):
                     title="Add Missing Configuration",
                     description=f"The parameter '{parameter_name}' must be defined",
                     steps=[
-                        f"Open config/simulation_config.yaml",
+                        "Open config/simulation_config.yaml",
                         f"Add {parameter_name} with appropriate value",
                         "Validate config: planwise validate",
                         "Retry simulation"
@@ -536,8 +536,8 @@ class YearDependencyError(StateError):
             description=f"Year {year} requires year {year - 1} data to exist in state accumulators",
             steps=[
                 f"Run simulation from start year: planalign simulate {start_year}-{year}",
-                f"Or resume from checkpoint: planalign simulate --resume-from-checkpoint",
-                f"Verify prior year data exists in state accumulator tables"
+                "Or resume from checkpoint: planalign simulate --resume-from-checkpoint",
+                "Verify prior year data exists in state accumulator tables"
             ],
             documentation_url="docs/guides/year-dependency-validation.md",
             estimated_resolution_time="2-5 minutes"

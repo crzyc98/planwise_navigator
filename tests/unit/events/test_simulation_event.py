@@ -1,7 +1,7 @@
 # filename: tests/unit/test_simulation_event.py
 """Unit tests for the unified SimulationEvent model with Pydantic v2."""
 
-from datetime import date, datetime
+from datetime import date, datetime, timezone
 from decimal import Decimal
 from typing import Any, Dict
 from uuid import UUID, uuid4
@@ -101,7 +101,7 @@ class TestSimulationEvent:
         )
 
         assert isinstance(event.created_at, datetime)
-        assert event.created_at <= datetime.utcnow()
+        assert event.created_at <= datetime.now(timezone.utc)
 
     def test_missing_required_fields(self):
         """Test validation of required fields"""

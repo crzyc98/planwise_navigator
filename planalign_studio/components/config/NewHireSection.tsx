@@ -197,13 +197,7 @@ export function NewHireSection() {
               type="button"
               onClick={handleMatchCensus}
               disabled={matchCensusLoading || !formData.censusDataPath || formData.censusDataStatus !== 'loaded'}
-              className={`inline-flex items-center px-3 py-1.5 border rounded-md text-xs font-medium transition-colors ${
-                matchCensusSuccess
-                  ? 'bg-green-100 border-green-300 text-green-800'
-                  : (formData.censusDataPath && formData.censusDataStatus === 'loaded')
-                    ? 'bg-blue-50 border-blue-200 text-blue-700 hover:bg-blue-100'
-                    : 'bg-gray-100 border-gray-200 text-gray-400 cursor-not-allowed'
-              }`}
+              className={`inline-flex items-center px-3 py-1.5 border rounded-md text-xs font-medium transition-colors ${matchCensusSuccess ? 'bg-green-100 border-green-300 text-green-800' : (formData.censusDataPath && formData.censusDataStatus === 'loaded') ? 'bg-blue-50 border-blue-200 text-blue-700 hover:bg-blue-100' : 'bg-gray-100 border-gray-200 text-gray-400 cursor-not-allowed'}`}
               title={formData.censusDataStatus !== 'loaded' ? 'Load a census file first' : 'Analyze census to match current workforce age distribution'}
             >
               {matchCensusLoading ? (
@@ -376,13 +370,7 @@ export function NewHireSection() {
                 type="button"
                 onClick={handleMatchCompensation}
                 disabled={matchCompLoading || !formData.censusDataPath || formData.censusDataStatus !== 'loaded'}
-                className={`inline-flex items-center px-3 py-1.5 border rounded-md text-xs font-medium transition-colors ${
-                  matchCompSuccess
-                    ? 'bg-green-100 border-green-300 text-green-800'
-                    : (formData.censusDataPath && formData.censusDataStatus === 'loaded')
-                      ? 'bg-blue-50 border-blue-200 text-blue-700 hover:bg-blue-100'
-                      : 'bg-gray-100 border-gray-200 text-gray-400 cursor-not-allowed'
-                }`}
+                className={`inline-flex items-center px-3 py-1.5 border rounded-md text-xs font-medium transition-colors ${matchCompSuccess ? 'bg-green-100 border-green-300 text-green-800' : (formData.censusDataPath && formData.censusDataStatus === 'loaded') ? 'bg-blue-50 border-blue-200 text-blue-700 hover:bg-blue-100' : 'bg-gray-100 border-gray-200 text-gray-400 cursor-not-allowed'}`}
                 title={formData.censusDataStatus !== 'loaded' ? 'Load a census file first' : 'Analyze census to suggest compensation ranges'}
               >
                 {matchCompLoading ? (

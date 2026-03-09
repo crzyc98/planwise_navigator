@@ -7,7 +7,7 @@ with workforce progression, participation trends, and growth analysis.
 
 from __future__ import annotations
 
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Any, Dict, List, TYPE_CHECKING
 
 from .data_models import WorkforceBreakdown, MultiYearSummary
@@ -43,7 +43,7 @@ class MultiYearReporter:
             growth_analysis=growth,
             event_trends=event_trends,
             participation_trends=participation,
-            generated_at=datetime.utcnow(),
+            generated_at=datetime.now(timezone.utc),
         )
 
     def display_comprehensive_multi_year_summary(
@@ -217,7 +217,7 @@ class MultiYearReporter:
                     (final_active / baseline_active) ** (1 / (years_elapsed - 1)) - 1
                 ) * 100
 
-                print(f"\n📊 Overall Growth Analysis:")
+                print("\n📊 Overall Growth Analysis:")
                 print(f"   Starting active workforce    : {baseline_active:6,}")
                 print(f"   Ending active workforce      : {final_active:6,}")
                 print(
@@ -243,7 +243,7 @@ class MultiYearReporter:
         results = conn.execute(events_summary_query, completed_years).fetchall()
 
         if results:
-            print(f"\n📋 Multi-Year Event Summary:")
+            print("\n📋 Multi-Year Event Summary:")
             # Group by event type
             events_by_type = {}
             for event_type, year, count in results:

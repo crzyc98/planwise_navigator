@@ -232,11 +232,7 @@ export default function BatchProcessing() {
               <button
                 type="button"
                 onClick={() => setExecutionMode('sequential')}
-                className={`flex-1 px-4 py-2 text-sm font-medium border rounded-r-lg ${
-                  executionMode === 'sequential'
-                    ? 'bg-fidelity-green text-white border-fidelity-green'
-                    : 'bg-white text-gray-700 border-gray-300 hover:bg-gray-50'
-                }`}
+                className={`flex-1 px-4 py-2 text-sm font-medium border rounded-r-lg ${executionMode === 'sequential' ? 'bg-fidelity-green text-white border-fidelity-green' : 'bg-white text-gray-700 border-gray-300 hover:bg-gray-50'}`}
               >
                 Sequential
               </button>
@@ -250,22 +246,14 @@ export default function BatchProcessing() {
               <button
                 type="button"
                 onClick={() => setExportFormat('excel')}
-                className={`flex-1 px-4 py-2 text-sm font-medium border rounded-l-lg ${
-                  exportFormat === 'excel'
-                    ? 'bg-fidelity-green text-white border-fidelity-green'
-                    : 'bg-white text-gray-700 border-gray-300 hover:bg-gray-50'
-                }`}
+                className={`flex-1 px-4 py-2 text-sm font-medium border rounded-l-lg ${exportFormat === 'excel' ? 'bg-fidelity-green text-white border-fidelity-green' : 'bg-white text-gray-700 border-gray-300 hover:bg-gray-50'}`}
               >
                 Excel (.xlsx)
               </button>
               <button
                 type="button"
                 onClick={() => setExportFormat('csv')}
-                className={`flex-1 px-4 py-2 text-sm font-medium border rounded-r-lg ${
-                  exportFormat === 'csv'
-                    ? 'bg-fidelity-green text-white border-fidelity-green'
-                    : 'bg-white text-gray-700 border-gray-300 hover:bg-gray-50'
-                }`}
+                className={`flex-1 px-4 py-2 text-sm font-medium border rounded-r-lg ${exportFormat === 'csv' ? 'bg-fidelity-green text-white border-fidelity-green' : 'bg-white text-gray-700 border-gray-300 hover:bg-gray-50'}`}
               >
                 CSV (.zip)
               </button>
@@ -299,11 +287,7 @@ export default function BatchProcessing() {
                   tabIndex={0}
                   onClick={() => toggleScenarioSelection(scenario.id)}
                   onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); toggleScenarioSelection(scenario.id); } }}
-                  className={`cursor-pointer p-4 rounded-lg border-2 transition-all ${
-                    selectedScenarioIds.includes(scenario.id)
-                      ? 'border-fidelity-green bg-green-50'
-                      : 'border-gray-200 hover:border-gray-300'
-                  }`}
+                  className={`cursor-pointer p-4 rounded-lg border-2 transition-all ${selectedScenarioIds.includes(scenario.id) ? 'border-fidelity-green bg-green-50' : 'border-gray-200 hover:border-gray-300'}`}
                 >
                   <div className="flex justify-between items-start">
                     <div className="flex-1 min-w-0">
@@ -336,11 +320,7 @@ export default function BatchProcessing() {
           <button
             disabled={selectedScenarioIds.length === 0 || isSubmitting}
             onClick={handleStartBatch}
-            className={`flex items-center px-6 py-3 rounded-lg font-medium shadow-md transition-colors ${
-              selectedScenarioIds.length === 0 || isSubmitting
-                ? 'bg-gray-300 text-gray-500 cursor-not-allowed'
-                : 'bg-fidelity-green text-white hover:bg-fidelity-dark'
-            }`}
+            className={`flex items-center px-6 py-3 rounded-lg font-medium shadow-md transition-colors ${selectedScenarioIds.length === 0 || isSubmitting ? 'bg-gray-300 text-gray-500 cursor-not-allowed' : 'bg-fidelity-green text-white hover:bg-fidelity-dark'}`}
           >
             {isSubmitting ? (
               <>
@@ -414,11 +394,7 @@ export default function BatchProcessing() {
             {selectedBatch.scenarios.map(scenario => (
               <div key={scenario.scenario_id} className="flex items-center justify-between p-4 bg-gray-50 rounded-lg border border-gray-100">
                 <div className="flex items-center space-x-4 w-1/3">
-                  <div className={`w-2 h-12 rounded-full ${
-                    scenario.status === 'completed' ? 'bg-green-500' :
-                    scenario.status === 'running' ? 'bg-blue-500' :
-                    scenario.status === 'failed' ? 'bg-red-500' : 'bg-gray-300'
-                  }`}></div>
+                  <div className={`w-2 h-12 rounded-full ${scenario.status === 'completed' ? 'bg-green-500' : scenario.status === 'running' ? 'bg-blue-500' : scenario.status === 'failed' ? 'bg-red-500' : 'bg-gray-300'}`}></div>
                   <div>
                     <p className="font-medium text-gray-900">{scenario.name}</p>
                     <p className="text-xs text-gray-500">ID: {scenario.scenario_id.substring(0, 8)}...</p>
@@ -552,11 +528,7 @@ export default function BatchProcessing() {
                             {s.status === 'failed' && <XCircle size={14} className="text-red-500 mr-2" />}
                             {s.name}
                           </span>
-                          <span className={`text-xs font-medium ${
-                            s.status === 'completed' ? 'text-green-600' :
-                            s.status === 'running' ? 'text-blue-600' :
-                            s.status === 'failed' ? 'text-red-600' : 'text-gray-400'
-                          }`}>
+                          <span className={`text-xs font-medium ${s.status === 'completed' ? 'text-green-600' : s.status === 'running' ? 'text-blue-600' : s.status === 'failed' ? 'text-red-600' : 'text-gray-400'}`}>
                             {s.status === 'completed' ? 'Completed' :
                              s.status === 'running' ? `Running (${Math.round(s.progress)}%)` :
                              s.status === 'failed' ? 'Failed' : 'Pending'}
@@ -580,11 +552,7 @@ export default function BatchProcessing() {
                     <button
                       key={filter}
                       onClick={() => setStatusFilter(filter as any)}
-                      className={`px-3 py-1 text-xs font-medium rounded-md capitalize transition-colors ${
-                        statusFilter === filter
-                          ? 'bg-white text-gray-900 shadow-sm'
-                          : 'text-gray-500 hover:text-gray-700'
-                      }`}
+                      className={`px-3 py-1 text-xs font-medium rounded-md capitalize transition-colors ${statusFilter === filter ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-500 hover:text-gray-700'}`}
                     >
                       {filter}
                     </button>

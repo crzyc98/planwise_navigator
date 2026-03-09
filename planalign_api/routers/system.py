@@ -1,7 +1,7 @@
 """System health and status endpoints."""
 
 import os
-from datetime import datetime
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Dict
 
@@ -109,7 +109,7 @@ async def system_status(settings: APISettings = Depends(get_settings)) -> System
     return SystemStatus(
         system_ready=True,
         system_message="System is ready for simulations",
-        timestamp=datetime.utcnow(),
+        timestamp=datetime.now(timezone.utc),
         active_simulations=get_active_simulation_count(),
         queued_simulations=0,
         total_storage_mb=storage_mb,

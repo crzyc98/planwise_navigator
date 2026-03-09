@@ -25,9 +25,7 @@ const Field = ({ label, value, suffix }: { label: string; value: React.ReactNode
 );
 
 const StatusBadge = ({ enabled }: { enabled: boolean }) => (
-  <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium ${
-    enabled ? 'bg-green-100 text-green-800' : 'bg-gray-100 text-gray-600'
-  }`}>
+  <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium ${enabled ? 'bg-green-100 text-green-800' : 'bg-gray-100 text-gray-600'}`}>
     {enabled ? <CheckCircle size={12} /> : <XCircle size={12} />}
     {enabled ? 'Enabled' : 'Disabled'}
   </span>
