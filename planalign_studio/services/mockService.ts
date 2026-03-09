@@ -59,16 +59,14 @@ export const useMockSimulationSocket = (simulationId: string | null) => {
           if (currentStageIndex < STAGES.length - 1) {
             newStage = STAGES[currentStageIndex + 1];
             newProgress = 0;
+          } else if (prev.current_year < 2025 + prev.total_years - 1) {
+            // End of year — advance to next year
+            newYear = prev.current_year + 1;
+            newStage = 'INITIALIZATION';
+            newProgress = 0;
           } else {
-             // End of year
-             if (prev.current_year < 2025 + prev.total_years - 1) {
-                newYear = prev.current_year + 1;
-                newStage = 'INITIALIZATION';
-                newProgress = 0;
-             } else {
-               newStatus = 'completed';
-               newProgress = 100;
-             }
+            newStatus = 'completed';
+            newProgress = 100;
           }
         }
 
@@ -76,7 +74,7 @@ export const useMockSimulationSocket = (simulationId: string | null) => {
         if (Math.random() > 0.5 && newStatus === 'running') {
             const type = EVENT_TYPES[Math.floor(Math.random() * EVENT_TYPES.length)];
             const newEvent: LogEvent = {
-                id: Math.random().toString(36).substr(2, 9),
+                id: Math.random().toString(36).substring(2, 11),
                 timestamp: new Date().toLocaleTimeString(),
                 type,
                 details: `Employee ${Math.floor(Math.random() * 9000) + 1000} processed`

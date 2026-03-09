@@ -270,7 +270,7 @@ class EventGenerationExecutor:
                 if all(r.success for r in results):
                     successful_years.append(year)
                     # Count events from database
-                    def _count_events(conn):
+                    def _count_events(conn, year=year):
                         return conn.execute(
                             f"SELECT COUNT(*) FROM {TABLE_FCT_YEARLY_EVENTS} WHERE simulation_year = ?",
                             [year]

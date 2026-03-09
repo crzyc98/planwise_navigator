@@ -4,7 +4,10 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>PlanAlign Engine</title>
-    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- TODO(security/S5725): Pin Tailwind to an exact version and add SRI integrity hash.
+         The play CDN is not recommended for production — migrate to a PostCSS build step.
+         See: https://tailwindcss.com/docs/installation -->
+    <script src="https://cdn.tailwindcss.com" crossorigin="anonymous"></script>
     <script>
       tailwind.config = {
         theme: {
@@ -30,13 +33,17 @@
         }
       }
     </script>
-    <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@300;400;500;700&display=swap" rel="stylesheet">
+    <!-- Google Fonts: SRI not applicable (response varies by user-agent) -->
+    <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@300;400;500;700&display=swap" rel="stylesheet" crossorigin="anonymous">
     <style>
       body {
         font-family: 'Roboto', sans-serif;
         background-color: #f3f4f6;
       }
     </style>
+  <!-- TODO(security/S5725): Pin importmap dependencies to exact versions and self-host
+       for production. Semver ranges (^) prevent SRI integrity verification.
+       Consider bundling with Vite for production builds. -->
   <script type="importmap">
 {
   "imports": {

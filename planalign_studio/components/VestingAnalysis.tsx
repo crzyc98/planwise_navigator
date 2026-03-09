@@ -470,8 +470,8 @@ export default function VestingAnalysis() {
                   checked={currentSchedule?.require_hours_credit ?? false}
                   onChange={(e) => handleHoursToggle('current', e.target.checked)}
                   className="mr-2 rounded border-gray-300 text-fidelity-green focus:ring-fidelity-green"
-                />
-                Require 1,000 hours
+                />{' '}
+                <span>Require 1,000 hours</span>
               </label>
               {currentSchedule?.require_hours_credit && (
                 <div className="mt-1 flex items-center gap-2">
@@ -520,8 +520,8 @@ export default function VestingAnalysis() {
                   checked={proposedSchedule?.require_hours_credit ?? false}
                   onChange={(e) => handleHoursToggle('proposed', e.target.checked)}
                   className="mr-2 rounded border-gray-300 text-fidelity-green focus:ring-fidelity-green"
-                />
-                Require 1,000 hours
+                />{' '}
+                <span>Require 1,000 hours</span>
               </label>
               {proposedSchedule?.require_hours_credit && (
                 <div className="mt-1 flex items-center gap-2">

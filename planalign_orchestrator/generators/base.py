@@ -353,8 +353,8 @@ class HazardBasedEventGeneratorMixin:
         if self.rng_salt:
             hash_key += f"|{self.rng_salt}"
 
-        # Use MD5 hash like dbt macro, then normalize to [0, 1)
-        hash_value = hashlib.md5(hash_key.encode()).hexdigest()
+        # Use SHA-256 for secure hashing (SonarQube S4790), then normalize to [0, 1)
+        hash_value = hashlib.sha256(hash_key.encode()).hexdigest()
         hash_int = int(hash_value[:8], 16)
         return (hash_int % 2147483647) / 2147483647.0
 

@@ -15,7 +15,7 @@ Epic E063 - Story S063-07: Corporate Network and Proxy Support
 from __future__ import annotations
 
 import json
-import random
+import secrets
 import socket
 import subprocess
 import time
@@ -247,7 +247,7 @@ class CorporateNetworkClient:
                     self.config.timeouts.retry_delay * (self.config.timeouts.retry_backoff ** attempt),
                     self.config.timeouts.max_retry_delay
                 )
-                jitter = random.uniform(0, 0.1) * delay
+                jitter = secrets.SystemRandom().uniform(0, 0.1) * delay
                 time.sleep(delay + jitter)
 
         # All retries exhausted, raise the last error
