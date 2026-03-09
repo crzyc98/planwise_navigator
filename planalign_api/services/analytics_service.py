@@ -30,6 +30,43 @@ class AnalyticsService:
         self.storage = storage
         self.db_resolver = db_resolver or DatabasePathResolver(storage)
 
+    @staticmethod
+    def _compute_grand_totals(
+        contribution_by_year: List[ContributionYearSummary],
+    ) -> dict:
+        """Compute aggregate totals across all contribution years."""
+        total_employee = sum(c.total_employee_contributions for c in contribution_by_year)
+        total_match = sum(c.total_employer_match for c in contribution_by_year)
+        total_core = sum(c.total_employer_core for c in contribution_by_year)
+        total_all = sum(c.total_all_contributions for c in contribution_by_year)
+        total_employer_cost = total_match + total_core
+
+        total_participants = sum(c.participant_count for c in contribution_by_year)
+        avg_deferral_rate = (
+            sum(c.average_deferral_rate * c.participant_count for c in contribution_by_year)
+            / total_participants
+            if total_participants > 0
+            else 0.0
+        )
+
+        total_compensation = sum(c.total_compensation for c in contribution_by_year)
+        employer_cost_rate = (
+            (total_employer_cost / total_compensation * 100)
+            if total_compensation > 0
+            else 0.0
+        )
+
+        return {
+            "total_employee": total_employee,
+            "total_match": total_match,
+            "total_core": total_core,
+            "total_all": total_all,
+            "total_employer_cost": total_employer_cost,
+            "avg_deferral_rate": avg_deferral_rate,
+            "total_compensation": total_compensation,
+            "employer_cost_rate": employer_cost_rate,
+        }
+
     def get_dc_plan_analytics(
         self,
         workspace_id: str,
@@ -52,45 +89,12 @@ class AnalyticsService:
 
             conn = duckdb.connect(str(resolved.path), read_only=True)
 
-            # Get participation summary (from final year)
             participation = self._get_participation_summary(conn, active_only)
-
-            # Get contribution totals by year
             contribution_by_year = self._get_contribution_by_year(conn, active_only)
-
-            # Calculate grand totals
-            total_employee = sum(c.total_employee_contributions for c in contribution_by_year)
-            total_match = sum(c.total_employer_match for c in contribution_by_year)
-            total_core = sum(c.total_employer_core for c in contribution_by_year)
-            total_all = sum(c.total_all_contributions for c in contribution_by_year)
-            # E104: Calculate total employer cost and weighted average deferral rate
-            total_employer_cost = total_match + total_core
-            # Weighted average deferral rate across all years (weighted by participant count)
-            total_participants = sum(c.participant_count for c in contribution_by_year)
-            avg_deferral_rate = (
-                sum(c.average_deferral_rate * c.participant_count for c in contribution_by_year)
-                / total_participants
-                if total_participants > 0
-                else 0.0
-            )
-            # E013: Calculate aggregate total_compensation and employer_cost_rate
-            total_compensation = sum(c.total_compensation for c in contribution_by_year)
-            employer_cost_rate = (
-                (total_employer_cost / total_compensation * 100)
-                if total_compensation > 0
-                else 0.0
-            )
-
-            # Get deferral rate distribution
+            totals = self._compute_grand_totals(contribution_by_year)
             deferral_distribution = self._get_deferral_distribution(conn)
-
-            # Get per-year deferral distributions (E059)
             deferral_distribution_by_year = self._get_deferral_distribution_all_years(conn)
-
-            # Get escalation metrics
             escalation = self._get_escalation_metrics(conn)
-
-            # Get IRS limit metrics
             irs_limits = self._get_irs_limit_metrics(conn)
 
             conn.close()
@@ -103,20 +107,18 @@ class AnalyticsService:
                 participation_rate=participation["participation_rate"],
                 participation_by_method=participation["by_method"],
                 contribution_by_year=contribution_by_year,
-                total_employee_contributions=total_employee,
-                total_employer_match=total_match,
-                total_employer_core=total_core,
-                total_all_contributions=total_all,
+                total_employee_contributions=totals["total_employee"],
+                total_employer_match=totals["total_match"],
+                total_employer_core=totals["total_core"],
+                total_all_contributions=totals["total_all"],
                 deferral_rate_distribution=deferral_distribution,
                 deferral_distribution_by_year=deferral_distribution_by_year,
                 escalation_metrics=escalation,
                 irs_limit_metrics=irs_limits,
-                # E104: New fields for cost comparison
-                average_deferral_rate=round(avg_deferral_rate, 4),
-                total_employer_cost=total_employer_cost,
-                # E013: Employer cost ratio metrics
-                total_compensation=total_compensation,
-                employer_cost_rate=round(employer_cost_rate, 2),
+                average_deferral_rate=round(totals["avg_deferral_rate"], 4),
+                total_employer_cost=totals["total_employer_cost"],
+                total_compensation=totals["total_compensation"],
+                employer_cost_rate=round(totals["employer_cost_rate"], 2),
             )
 
         except Exception as e:

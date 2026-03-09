@@ -47,155 +47,131 @@ class ErrorCatalog:
         self._initialize_patterns()
 
     def _initialize_patterns(self) -> None:
-        """Initialize catalog with known error patterns"""
+        """Initialize catalog with known error patterns."""
+        pattern_definitions = [
+            {
+                "regex": r"(conflicting lock|database.*lock|cannot acquire lock|lock.*database)",
+                "category": ErrorCategory.DATABASE,
+                "title": "Database Lock Conflict",
+                "description": "Another process has locked the database",
+                "hint_title": "Close IDE Database Connections",
+                "hint_description": "DuckDB does not support concurrent write connections",
+                "steps": [
+                    "Close database explorer in VS Code/Windsurf/DataGrip",
+                    "Check for other Python processes: ps aux | grep duckdb",
+                    "Kill stale connections: pkill -f 'duckdb.*simulation.duckdb'",
+                    "Retry simulation",
+                ],
+                "time": "1-2 minutes",
+            },
+            {
+                "regex": r"(out of memory|memory exhausted|cannot allocate|memoryerror|unable to allocate)",
+                "category": ErrorCategory.RESOURCE,
+                "title": "Memory Exhaustion",
+                "description": "Insufficient memory for current operation",
+                "hint_title": "Reduce Memory Footprint",
+                "hint_description": "Adjust configuration to reduce memory usage",
+                "steps": [
+                    "Set dbt threads to 1: orchestrator.threading.dbt_threads: 1",
+                    "Enable adaptive memory: optimization.adaptive_memory.enabled: true",
+                    "Reduce batch size: optimization.batch_size: 250",
+                    "Use subset mode: --vars '{dev_employee_limit: 1000}'",
+                ],
+                "time": "10 minutes",
+            },
+            {
+                "regex": r"(compilation error|syntax error|jinja.*error)",
+                "category": ErrorCategory.CONFIGURATION,
+                "title": "dbt Compilation Failure",
+                "description": "Model contains syntax or Jinja template errors",
+                "hint_title": "Debug Model Compilation",
+                "hint_description": "Identify and fix SQL/Jinja syntax errors",
+                "steps": [
+                    "Review error message for line number and specific issue",
+                    "Test compilation: dbt compile --select <model>",
+                    "Check for missing CTEs or incorrect ref() calls",
+                    "Verify dbt_vars: dbt compile --vars '{simulation_year: 2025}'",
+                ],
+                "time": "15 minutes",
+            },
+            {
+                "regex": r"(depends on.*not found|upstream model.*missing|upstream model.*not found|no model named)",
+                "category": ErrorCategory.DEPENDENCY,
+                "title": "Missing Model Dependency",
+                "description": "Required upstream model not found",
+                "hint_title": "Verify Model Dependencies",
+                "hint_description": "Ensure all upstream models exist and are selected",
+                "steps": [
+                    "Check dbt lineage: dbt docs generate && dbt docs serve",
+                    "Verify model exists: ls dbt/models/**/<model>.sql",
+                    "Run full build: dbt build --full-refresh",
+                    "Check model selection syntax: dbt run --select +<model>",
+                ],
+                "time": "10 minutes",
+            },
+            {
+                "regex": r"(test failed|failing tests|failure in test|data quality|validation.*failed)",
+                "category": ErrorCategory.DATA_QUALITY,
+                "title": "Data Quality Test Failure",
+                "description": "One or more data quality tests failed",
+                "hint_title": "Investigate Test Failures",
+                "hint_description": "Review failed tests and affected data",
+                "steps": [
+                    "View test results: dbt test --select <model>",
+                    "Query failed records: SELECT * FROM <model> WHERE ...",
+                    "Check upstream data quality",
+                    "Determine if failure is expected (e.g., new data pattern)",
+                    "Adjust test thresholds if needed or fix data issue",
+                ],
+                "time": "20 minutes",
+            },
+            {
+                "regex": r"(proxy.*error|SSL.*error|SSL.*certificate.*verif|certificate.*verif|connection.*timed out)",
+                "category": ErrorCategory.NETWORK,
+                "title": "Network Configuration Error",
+                "description": "Network request failed due to proxy/SSL issues",
+                "hint_title": "Configure Corporate Network",
+                "hint_description": "Set up proxy and SSL certificates",
+                "steps": [
+                    "Check proxy settings: echo $HTTP_PROXY $HTTPS_PROXY",
+                    "Test connection: curl -x $HTTP_PROXY https://example.com",
+                    "Set CA bundle: export REQUESTS_CA_BUNDLE=/path/to/ca-bundle.crt",
+                    "Update network config: config/network_config.yaml",
+                ],
+                "time": "15 minutes",
+            },
+            {
+                "regex": r"(checkpoint.*corrupt|checkpoint.*invalid|checkpoint.*version)",
+                "category": ErrorCategory.STATE,
+                "title": "Checkpoint Corruption",
+                "description": "Checkpoint file is corrupted or incompatible",
+                "hint_title": "Reset Checkpoint State",
+                "hint_description": "Clean corrupted checkpoints and restart",
+                "steps": [
+                    "List checkpoints: planwise checkpoints list",
+                    "Clean checkpoints: planwise checkpoints cleanup",
+                    "Delete checkpoint dir: rm -rf .planalign_checkpoints/",
+                    "Restart simulation without --resume flag",
+                ],
+                "time": "5 minutes",
+            },
+        ]
 
-        # Database lock errors
-        self.patterns.append(ErrorPattern(
-            pattern=re.compile(r"(conflicting lock|database.*lock|cannot acquire lock|lock.*database)", re.IGNORECASE),
-            category=ErrorCategory.DATABASE,
-            title="Database Lock Conflict",
-            description="Another process has locked the database",
-            resolution_hints=[
-                ResolutionHint(
-                    title="Close IDE Database Connections",
-                    description="DuckDB does not support concurrent write connections",
-                    steps=[
-                        "Close database explorer in VS Code/Windsurf/DataGrip",
-                        "Check for other Python processes: ps aux | grep duckdb",
-                        "Kill stale connections: pkill -f 'duckdb.*simulation.duckdb'",
-                        "Retry simulation"
-                    ],
-                    estimated_resolution_time="1-2 minutes"
-                )
-            ]
-        ))
-
-        # Memory errors
-        self.patterns.append(ErrorPattern(
-            pattern=re.compile(r"(out of memory|memory exhausted|cannot allocate|memoryerror|unable to allocate)", re.IGNORECASE),
-            category=ErrorCategory.RESOURCE,
-            title="Memory Exhaustion",
-            description="Insufficient memory for current operation",
-            resolution_hints=[
-                ResolutionHint(
-                    title="Reduce Memory Footprint",
-                    description="Adjust configuration to reduce memory usage",
-                    steps=[
-                        "Set dbt threads to 1: orchestrator.threading.dbt_threads: 1",
-                        "Enable adaptive memory: optimization.adaptive_memory.enabled: true",
-                        "Reduce batch size: optimization.batch_size: 250",
-                        "Use subset mode: --vars '{dev_employee_limit: 1000}'"
-                    ],
-                    estimated_resolution_time="10 minutes"
-                )
-            ]
-        ))
-
-        # Compilation errors
-        self.patterns.append(ErrorPattern(
-            pattern=re.compile(r"(compilation error|syntax error|jinja.*error)", re.IGNORECASE),
-            category=ErrorCategory.CONFIGURATION,
-            title="dbt Compilation Failure",
-            description="Model contains syntax or Jinja template errors",
-            resolution_hints=[
-                ResolutionHint(
-                    title="Debug Model Compilation",
-                    description="Identify and fix SQL/Jinja syntax errors",
-                    steps=[
-                        "Review error message for line number and specific issue",
-                        "Test compilation: dbt compile --select <model>",
-                        "Check for missing CTEs or incorrect ref() calls",
-                        "Verify dbt_vars: dbt compile --vars '{simulation_year: 2025}'"
-                    ],
-                    estimated_resolution_time="15 minutes"
-                )
-            ]
-        ))
-
-        # Missing dependency errors
-        self.patterns.append(ErrorPattern(
-            pattern=re.compile(r"(depends on.*not found|upstream model.*missing|upstream model.*not found|no model named)", re.IGNORECASE),
-            category=ErrorCategory.DEPENDENCY,
-            title="Missing Model Dependency",
-            description="Required upstream model not found",
-            resolution_hints=[
-                ResolutionHint(
-                    title="Verify Model Dependencies",
-                    description="Ensure all upstream models exist and are selected",
-                    steps=[
-                        "Check dbt lineage: dbt docs generate && dbt docs serve",
-                        "Verify model exists: ls dbt/models/**/<model>.sql",
-                        "Run full build: dbt build --full-refresh",
-                        "Check model selection syntax: dbt run --select +<model>"
-                    ],
-                    estimated_resolution_time="10 minutes"
-                )
-            ]
-        ))
-
-        # Data quality test failures
-        self.patterns.append(ErrorPattern(
-            pattern=re.compile(r"(test failed|failing tests|failure in test|data quality|validation.*failed)", re.IGNORECASE),
-            category=ErrorCategory.DATA_QUALITY,
-            title="Data Quality Test Failure",
-            description="One or more data quality tests failed",
-            resolution_hints=[
-                ResolutionHint(
-                    title="Investigate Test Failures",
-                    description="Review failed tests and affected data",
-                    steps=[
-                        "View test results: dbt test --select <model>",
-                        "Query failed records: SELECT * FROM <model> WHERE ...",
-                        "Check upstream data quality",
-                        "Determine if failure is expected (e.g., new data pattern)",
-                        "Adjust test thresholds if needed or fix data issue"
-                    ],
-                    estimated_resolution_time="20 minutes"
-                )
-            ]
-        ))
-
-        # Network/proxy errors
-        self.patterns.append(ErrorPattern(
-            pattern=re.compile(r"(proxy.*error|SSL.*error|SSL.*certificate.*verif|certificate.*verif|connection.*timed out)", re.IGNORECASE),
-            category=ErrorCategory.NETWORK,
-            title="Network Configuration Error",
-            description="Network request failed due to proxy/SSL issues",
-            resolution_hints=[
-                ResolutionHint(
-                    title="Configure Corporate Network",
-                    description="Set up proxy and SSL certificates",
-                    steps=[
-                        "Check proxy settings: echo $HTTP_PROXY $HTTPS_PROXY",
-                        "Test connection: curl -x $HTTP_PROXY https://example.com",
-                        "Set CA bundle: export REQUESTS_CA_BUNDLE=/path/to/ca-bundle.crt",
-                        "Update network config: config/network_config.yaml"
-                    ],
-                    estimated_resolution_time="15 minutes"
-                )
-            ]
-        ))
-
-        # Checkpoint errors
-        self.patterns.append(ErrorPattern(
-            pattern=re.compile(r"(checkpoint.*corrupt|checkpoint.*invalid|checkpoint.*version)", re.IGNORECASE),
-            category=ErrorCategory.STATE,
-            title="Checkpoint Corruption",
-            description="Checkpoint file is corrupted or incompatible",
-            resolution_hints=[
-                ResolutionHint(
-                    title="Reset Checkpoint State",
-                    description="Clean corrupted checkpoints and restart",
-                    steps=[
-                        "List checkpoints: planwise checkpoints list",
-                        "Clean checkpoints: planwise checkpoints cleanup",
-                        "Delete checkpoint dir: rm -rf .planalign_checkpoints/",
-                        "Restart simulation without --resume flag"
-                    ],
-                    estimated_resolution_time="5 minutes"
-                )
-            ]
-        ))
+        for defn in pattern_definitions:
+            self.patterns.append(ErrorPattern(
+                pattern=re.compile(defn["regex"], re.IGNORECASE),
+                category=defn["category"],
+                title=defn["title"],
+                description=defn["description"],
+                resolution_hints=[
+                    ResolutionHint(
+                        title=defn["hint_title"],
+                        description=defn["hint_description"],
+                        steps=defn["steps"],
+                        estimated_resolution_time=defn["time"],
+                    )
+                ],
+            ))
 
     def find_resolution_hints(self, error_message: str) -> List[ResolutionHint]:
         """

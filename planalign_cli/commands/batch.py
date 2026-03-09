@@ -112,27 +112,31 @@ def run_batch(
             show_error_message("No scenarios were processed")
             raise typer.Exit(1)
 
-        # Report results
-        successful = [name for name, result in results.items() if result.get("status") == "completed"]
-        failed = [name for name, result in results.items() if result.get("status") == "failed"]
-
-        console.print(f"\n🎯 [bold blue]Batch execution completed[/bold blue]")
-        console.print(f"  ✅ Successful: {len(successful)} scenarios")
-        if successful:
-            console.print(f"     [dim]{', '.join(successful)}[/dim]")
-
-        console.print(f"  ❌ Failed: {len(failed)} scenarios")
-        if failed:
-            console.print(f"     [dim red]{', '.join(failed)}[/dim red]")
-
-        if successful:
-            console.print(f"  📊 Outputs: [dim]{batch_runner.batch_output_dir}[/dim]")
-
-        return 0 if not failed else 1
+        return _report_batch_results(results, batch_runner)
 
     except Exception as e:
         show_error_message(f"Batch processing failed: {e}")
         raise typer.Exit(1)
+
+def _report_batch_results(results: dict, batch_runner) -> int:
+    """Report batch processing results and return exit code."""
+    successful = [name for name, result in results.items() if result.get("status") == "completed"]
+    failed = [name for name, result in results.items() if result.get("status") == "failed"]
+
+    console.print(f"\n🎯 [bold blue]Batch execution completed[/bold blue]")
+    console.print(f"  ✅ Successful: {len(successful)} scenarios")
+    if successful:
+        console.print(f"     [dim]{', '.join(successful)}[/dim]")
+
+    console.print(f"  ❌ Failed: {len(failed)} scenarios")
+    if failed:
+        console.print(f"     [dim red]{', '.join(failed)}[/dim red]")
+
+    if successful:
+        console.print(f"  📊 Outputs: [dim]{batch_runner.batch_output_dir}[/dim]")
+
+    return 0 if not failed else 1
+
 
 # Default command
 @batch_command.command(name="", hidden=True)

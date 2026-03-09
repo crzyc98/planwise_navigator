@@ -219,60 +219,25 @@ class ExportService:
         """
         errors: List[str] = []
         warnings: List[str] = []
-        manifest: Optional[ExportManifest] = None
-        conflict: Optional[ImportConflict] = None
 
         # Check file size
         if file_size > MAX_IMPORT_SIZE_BYTES:
             errors.append(f"File size ({file_size / (1024*1024):.1f} MB) exceeds maximum allowed (1 GB)")
             return ImportValidationResponse(valid=False, errors=errors, warnings=warnings)
 
-        # Try to open and validate archive
         try:
-            with tempfile.TemporaryDirectory() as temp_dir:
-                temp_path = Path(temp_dir)
+            manifest = self._extract_and_validate_manifest(archive_path, errors)
+            if manifest is None:
+                return ImportValidationResponse(valid=False, errors=errors, warnings=warnings)
 
-                # Test archive integrity
-                try:
-                    with py7zr.SevenZipFile(archive_path, "r") as archive:
-                        # Just read the manifest, don't extract everything
-                        archive.extract(path=temp_path, targets=["manifest.json"])
-                except py7zr.exceptions.Bad7zFile:
-                    errors.append("Invalid or corrupted 7z archive")
-                    return ImportValidationResponse(valid=False, errors=errors, warnings=warnings)
+            # Check version compatibility
+            if manifest.version > MANIFEST_VERSION:
+                warnings.append(
+                    f"Archive was created with a newer version ({manifest.version}) "
+                    f"than current ({MANIFEST_VERSION}). Some features may not import correctly."
+                )
 
-                # Read manifest
-                manifest_path = temp_path / "manifest.json"
-                if not manifest_path.exists():
-                    errors.append("Archive does not contain manifest.json")
-                    return ImportValidationResponse(valid=False, errors=errors, warnings=warnings)
-
-                with open(manifest_path) as f:
-                    manifest_data = json.load(f)
-
-                try:
-                    manifest = ExportManifest(**manifest_data)
-                except Exception as e:
-                    errors.append(f"Invalid manifest format: {e}")
-                    return ImportValidationResponse(valid=False, errors=errors, warnings=warnings)
-
-                # Check version compatibility
-                if manifest.version > MANIFEST_VERSION:
-                    warnings.append(
-                        f"Archive was created with a newer version ({manifest.version}) "
-                        f"than current ({MANIFEST_VERSION}). Some features may not import correctly."
-                    )
-
-                # Check for name conflicts
-                existing_workspaces = self.storage.list_workspaces()
-                for ws in existing_workspaces:
-                    if ws.name.lower() == manifest.workspace_name.lower():
-                        conflict = ImportConflict(
-                            existing_workspace_id=ws.id,
-                            existing_workspace_name=ws.name,
-                            suggested_name=self._generate_unique_name(manifest.workspace_name, existing_workspaces),
-                        )
-                        break
+            conflict = self._check_name_conflicts(manifest.workspace_name)
 
         except Exception as e:
             logger.exception("Error validating archive")
@@ -286,6 +251,66 @@ class ExportService:
             warnings=warnings,
             errors=errors,
         )
+
+    def _extract_and_validate_manifest(
+        self,
+        archive_path: Path,
+        errors: List[str],
+    ) -> Optional[ExportManifest]:
+        """Extract manifest from archive and validate its format.
+
+        Args:
+            archive_path: Path to 7z archive file
+            errors: List to append error messages to
+
+        Returns:
+            Parsed ExportManifest, or None if extraction/validation failed
+        """
+        with tempfile.TemporaryDirectory() as temp_dir:
+            temp_path = Path(temp_dir)
+
+            try:
+                with py7zr.SevenZipFile(archive_path, "r") as archive:
+                    archive.extract(path=temp_path, targets=["manifest.json"])
+            except py7zr.exceptions.Bad7zFile:
+                errors.append("Invalid or corrupted 7z archive")
+                return None
+
+            manifest_path = temp_path / "manifest.json"
+            if not manifest_path.exists():
+                errors.append("Archive does not contain manifest.json")
+                return None
+
+            with open(manifest_path) as f:
+                manifest_data = json.load(f)
+
+            try:
+                return ExportManifest(**manifest_data)
+            except Exception as e:
+                errors.append(f"Invalid manifest format: {e}")
+                return None
+
+    def _check_name_conflicts(
+        self,
+        workspace_name: str,
+    ) -> Optional[ImportConflict]:
+        """Check if a workspace name conflicts with existing workspaces.
+
+        Args:
+            workspace_name: Name to check for conflicts
+
+        Returns:
+            ImportConflict if a conflict exists, None otherwise
+        """
+        existing_workspaces = self.storage.list_workspaces()
+        for ws in existing_workspaces:
+            if ws.name.lower() == workspace_name.lower():
+                return ImportConflict(
+                    existing_workspace_id=ws.id,
+                    existing_workspace_name=ws.name,
+                    suggested_name=self._generate_unique_name(workspace_name, existing_workspaces),
+                )
+        return None
 
     def _generate_unique_name(self, base_name: str, existing_workspaces: List[Any]) -> str:
         """Generate a unique workspace name by appending (N).
@@ -409,21 +434,65 @@ class ExportService:
 
         warnings.extend(validation.warnings)
 
-        # Handle name conflict
-        final_name = manifest.workspace_name
-        if validation.conflict:
-            if conflict_resolution == ConflictResolution.RENAME:
-                final_name = new_name or validation.conflict.suggested_name
-            elif conflict_resolution == ConflictResolution.REPLACE:
-                # Delete existing workspace
-                self.storage.delete_workspace(validation.conflict.existing_workspace_id)
-            elif conflict_resolution is None:
-                raise ValueError(
-                    f"Workspace name '{manifest.workspace_name}' already exists. "
-                    f"Specify conflict_resolution: 'rename' or 'replace'"
-                )
+        # Resolve name conflict
+        final_name = self._resolve_conflict(
+            manifest.workspace_name, validation.conflict, conflict_resolution, new_name
+        )
 
-        # Extract to temp directory
+        return self._create_workspace_from_archive(archive_path, final_name, warnings)
+
+    def _resolve_conflict(
+        self,
+        workspace_name: str,
+        conflict: Optional[ImportConflict],
+        conflict_resolution: Optional[ConflictResolution],
+        new_name: Optional[str],
+    ) -> str:
+        """Resolve a workspace name conflict.
+
+        Args:
+            workspace_name: Original workspace name from manifest
+            conflict: Detected conflict, if any
+            conflict_resolution: How to handle the conflict
+            new_name: Custom name if renaming
+
+        Returns:
+            Final workspace name to use
+
+        Raises:
+            ValueError: If conflict exists but no resolution specified
+        """
+        if not conflict:
+            return workspace_name
+
+        if conflict_resolution == ConflictResolution.RENAME:
+            return new_name or conflict.suggested_name
+
+        if conflict_resolution == ConflictResolution.REPLACE:
+            self.storage.delete_workspace(conflict.existing_workspace_id)
+            return workspace_name
+
+        raise ValueError(
+            f"Workspace name '{workspace_name}' already exists. "
+            f"Specify conflict_resolution: 'rename' or 'replace'"
+        )
+
+    def _create_workspace_from_archive(
+        self,
+        archive_path: Path,
+        final_name: str,
+        warnings: List[str],
+    ) -> ImportResponse:
+        """Extract archive and create a new workspace from its contents.
+
+        Args:
+            archive_path: Path to 7z archive file
+            final_name: Name to assign to the new workspace
+            warnings: List to append warning messages to
+
+        Returns:
+            ImportResponse with import results
+        """
         with tempfile.TemporaryDirectory() as temp_dir:
             temp_path = Path(temp_dir)
 
@@ -445,12 +514,13 @@ class ExportService:
 
             # Copy extracted files (excluding manifest)
             for item in temp_path.iterdir():
-                if item.name != "manifest.json":
-                    dest = new_workspace_path / item.name
-                    if item.is_dir():
-                        shutil.copytree(item, dest)
-                    else:
-                        shutil.copy2(item, dest)
+                if item.name == "manifest.json":
+                    continue
+                dest = new_workspace_path / item.name
+                if item.is_dir():
+                    shutil.copytree(item, dest)
+                else:
+                    shutil.copy2(item, dest)
 
             # Update workspace.json with new ID and name
             workspace_json_path = new_workspace_path / "workspace.json"
@@ -468,12 +538,7 @@ class ExportService:
                 json.dump(workspace_data, f, indent=2)
 
             # Count scenarios
-            scenarios_path = new_workspace_path / "scenarios"
-            scenario_count = 0
-            if scenarios_path.exists():
-                for scenario_dir in scenarios_path.iterdir():
-                    if scenario_dir.is_dir() and (scenario_dir / "scenario.json").exists():
-                        scenario_count += 1
+            scenario_count = self._count_scenarios(new_workspace_path)
 
             logger.info(f"Imported workspace '{final_name}' as {new_workspace_id}")
 
@@ -484,6 +549,23 @@ class ExportService:
                 status=ImportStatus.SUCCESS if not warnings else ImportStatus.PARTIAL,
                 warnings=warnings,
             )
+
+    def _count_scenarios(self, workspace_path: Path) -> int:
+        """Count valid scenarios in a workspace directory.
+
+        Args:
+            workspace_path: Path to workspace directory
+
+        Returns:
+            Number of valid scenario directories found
+        """
+        scenarios_path = workspace_path / "scenarios"
+        if not scenarios_path.exists():
+            return 0
+        return sum(
+            1 for d in scenarios_path.iterdir()
+            if d.is_dir() and (d / "scenario.json").exists()
+        )
 
     # ==================== Bulk Operations ====================
 
