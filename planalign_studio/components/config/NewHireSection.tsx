@@ -148,15 +148,15 @@ export function NewHireSection() {
       <div className="space-y-4">
         {/* Strategy Selector */}
         <div className="flex items-center space-x-4 mb-6">
-          <label className={`flex items-center p-4 border rounded-lg cursor-pointer transition-colors w-1/2 ${formData.newHireStrategy === 'percentile' ? 'bg-green-50 border-fidelity-green ring-1 ring-fidelity-green' : 'bg-white border-gray-200 hover:bg-gray-50'}`}>
-            <input type="radio" name="newHireStrategy" value="percentile" checked={formData.newHireStrategy === 'percentile'} onChange={handleChange} className="h-4 w-4 text-fidelity-green focus:ring-fidelity-green border-gray-300" />
+          <label htmlFor="newhire-strategy-percentile" className={`flex items-center p-4 border rounded-lg cursor-pointer transition-colors w-1/2 ${formData.newHireStrategy === 'percentile' ? 'bg-green-50 border-fidelity-green ring-1 ring-fidelity-green' : 'bg-white border-gray-200 hover:bg-gray-50'}`}>
+            <input id="newhire-strategy-percentile" type="radio" name="newHireStrategy" value="percentile" checked={formData.newHireStrategy === 'percentile'} onChange={handleChange} className="h-4 w-4 text-fidelity-green focus:ring-fidelity-green border-gray-300" />
             <div className="ml-3">
               <span className="block text-sm font-medium text-gray-900">Percentile Based</span>
               <span className="block text-xs text-gray-500">Offers target market percentiles (e.g., P50)</span>
             </div>
           </label>
-          <label className={`flex items-center p-4 border rounded-lg cursor-pointer transition-colors w-1/2 ${formData.newHireStrategy === 'fixed' ? 'bg-green-50 border-fidelity-green ring-1 ring-fidelity-green' : 'bg-white border-gray-200 hover:bg-gray-50'}`}>
-            <input type="radio" name="newHireStrategy" value="fixed" checked={formData.newHireStrategy === 'fixed'} onChange={handleChange} className="h-4 w-4 text-fidelity-green focus:ring-fidelity-green border-gray-300" />
+          <label htmlFor="newhire-strategy-fixed" className={`flex items-center p-4 border rounded-lg cursor-pointer transition-colors w-1/2 ${formData.newHireStrategy === 'fixed' ? 'bg-green-50 border-fidelity-green ring-1 ring-fidelity-green' : 'bg-white border-gray-200 hover:bg-gray-50'}`}>
+            <input id="newhire-strategy-fixed" type="radio" name="newHireStrategy" value="fixed" checked={formData.newHireStrategy === 'fixed'} onChange={handleChange} className="h-4 w-4 text-fidelity-green focus:ring-fidelity-green border-gray-300" />
             <div className="ml-3">
               <span className="block text-sm font-medium text-gray-900">Fixed Bands</span>
               <span className="block text-xs text-gray-500">Offers use rigid salary structures</span>
@@ -168,18 +168,18 @@ export function NewHireSection() {
         {formData.newHireStrategy === 'percentile' && (
           <div className="bg-blue-50 p-6 rounded-lg border border-blue-100 space-y-4">
             <div>
-              <label className="block text-sm font-medium text-blue-900 mb-2">Target Market Percentile</label>
+              <label htmlFor="newhire-target-percentile" className="block text-sm font-medium text-blue-900 mb-2">Target Market Percentile</label>
               <div className="flex items-center">
-                <input type="range" min="0" max="100" value={formData.targetPercentile} onChange={(e) => setFormData({...formData, targetPercentile: parseInt(e.target.value)})} className="w-full h-2 bg-blue-200 rounded-lg appearance-none cursor-pointer" />
+                <input id="newhire-target-percentile" type="range" min="0" max="100" value={formData.targetPercentile} onChange={(e) => setFormData({...formData, targetPercentile: parseInt(e.target.value)})} className="w-full h-2 bg-blue-200 rounded-lg appearance-none cursor-pointer" />
                 <span className="ml-4 font-bold text-blue-700 w-12">P{formData.targetPercentile}</span>
               </div>
               <p className="text-xs text-blue-600 mt-2">New hires will be offered salaries at the {formData.targetPercentile}th percentile.</p>
             </div>
             <div className="grid grid-cols-2 gap-4 pt-2">
               <div>
-                <label className="block text-sm font-medium text-blue-900 mb-1">Offer Variance</label>
+                <label htmlFor="newhire-offer-variance" className="block text-sm font-medium text-blue-900 mb-1">Offer Variance</label>
                 <div className="relative rounded-md shadow-sm">
-                  <input type="number" step="0.5" value={formData.newHireCompVariance} onChange={(e) => setFormData({...formData, newHireCompVariance: parseFloat(e.target.value)})} className="focus:ring-blue-500 focus:border-blue-500 block w-full sm:text-sm border-blue-300 rounded-md p-2" />
+                  <input id="newhire-offer-variance" type="number" step="0.5" value={formData.newHireCompVariance} onChange={(e) => setFormData({...formData, newHireCompVariance: parseFloat(e.target.value)})} className="focus:ring-blue-500 focus:border-blue-500 block w-full sm:text-sm border-blue-300 rounded-md p-2" />
                   <div className="absolute inset-y-0 right-0 pr-3 flex items-center pointer-events-none">
                     <span className="text-blue-500 sm:text-sm">± %</span>
                   </div>
@@ -268,15 +268,15 @@ export function NewHireSection() {
           <h3 className="text-sm font-semibold text-gray-900 mb-2">New Hire Level Distribution</h3>
           <p className="text-xs text-gray-500 mb-4">Choose how new hires are distributed across job levels.</p>
           <div className="flex items-center space-x-4 mb-4">
-            <label className={`flex items-center p-3 border rounded-lg cursor-pointer transition-colors ${formData.levelDistributionMode === 'adaptive' ? 'bg-green-50 border-fidelity-green ring-1 ring-fidelity-green' : 'bg-white border-gray-200 hover:bg-gray-50'}`}>
-              <input type="radio" name="levelDistributionMode" value="adaptive" checked={formData.levelDistributionMode === 'adaptive'} onChange={(e) => setFormData({...formData, levelDistributionMode: e.target.value as 'adaptive' | 'fixed'})} className="h-4 w-4 text-fidelity-green focus:ring-fidelity-green border-gray-300" />
+            <label htmlFor="newhire-level-dist-adaptive" className={`flex items-center p-3 border rounded-lg cursor-pointer transition-colors ${formData.levelDistributionMode === 'adaptive' ? 'bg-green-50 border-fidelity-green ring-1 ring-fidelity-green' : 'bg-white border-gray-200 hover:bg-gray-50'}`}>
+              <input id="newhire-level-dist-adaptive" type="radio" name="levelDistributionMode" value="adaptive" checked={formData.levelDistributionMode === 'adaptive'} onChange={(e) => setFormData({...formData, levelDistributionMode: e.target.value as 'adaptive' | 'fixed'})} className="h-4 w-4 text-fidelity-green focus:ring-fidelity-green border-gray-300" />
               <div className="ml-2">
                 <span className="block text-sm font-medium text-gray-900">Adaptive</span>
                 <span className="block text-xs text-gray-500">Maintain current workforce composition</span>
               </div>
             </label>
-            <label className={`flex items-center p-3 border rounded-lg cursor-pointer transition-colors ${formData.levelDistributionMode === 'fixed' ? 'bg-green-50 border-fidelity-green ring-1 ring-fidelity-green' : 'bg-white border-gray-200 hover:bg-gray-50'}`}>
-              <input type="radio" name="levelDistributionMode" value="fixed" checked={formData.levelDistributionMode === 'fixed'} onChange={(e) => setFormData({...formData, levelDistributionMode: e.target.value as 'adaptive' | 'fixed'})} className="h-4 w-4 text-fidelity-green focus:ring-fidelity-green border-gray-300" />
+            <label htmlFor="newhire-level-dist-fixed" className={`flex items-center p-3 border rounded-lg cursor-pointer transition-colors ${formData.levelDistributionMode === 'fixed' ? 'bg-green-50 border-fidelity-green ring-1 ring-fidelity-green' : 'bg-white border-gray-200 hover:bg-gray-50'}`}>
+              <input id="newhire-level-dist-fixed" type="radio" name="levelDistributionMode" value="fixed" checked={formData.levelDistributionMode === 'fixed'} onChange={(e) => setFormData({...formData, levelDistributionMode: e.target.value as 'adaptive' | 'fixed'})} className="h-4 w-4 text-fidelity-green focus:ring-fidelity-green border-gray-300" />
               <div className="ml-2">
                 <span className="block text-sm font-medium text-gray-900">Fixed Percentages</span>
                 <span className="block text-xs text-gray-500">Specify exact distribution below</span>
@@ -337,8 +337,8 @@ export function NewHireSection() {
             <h3 className="text-sm font-semibold text-gray-900">Job Level Compensation Ranges</h3>
             <div className="flex items-center gap-2">
               <div className="flex items-center gap-1">
-                <label className="text-xs text-gray-500">Source:</label>
-                <select value={compLookbackYears} onChange={(e) => setCompLookbackYears(parseInt(e.target.value))} className="text-xs border border-gray-300 rounded px-1.5 py-1 bg-white focus:ring-blue-500 focus:border-blue-500">
+                <label htmlFor="newhire-comp-source" className="text-xs text-gray-500">Source:</label>
+                <select id="newhire-comp-source" value={compLookbackYears} onChange={(e) => setCompLookbackYears(parseInt(e.target.value))} className="text-xs border border-gray-300 rounded px-1.5 py-1 bg-white focus:ring-blue-500 focus:border-blue-500">
                   <option value={0}>All employees</option>
                   <option value={1}>Last 1 year</option>
                   <option value={2}>Last 2 years</option>
@@ -348,8 +348,9 @@ export function NewHireSection() {
                 </select>
               </div>
               <div className="flex items-center gap-1">
-                <label className="text-xs text-gray-500">Scale:</label>
+                <label htmlFor="newhire-comp-scale" className="text-xs text-gray-500">Scale:</label>
                 <input
+                  id="newhire-comp-scale"
                   type="number"
                   value={compScaleLocal}
                   onChange={(e) => setCompScaleLocal(e.target.value)}
@@ -472,9 +473,9 @@ export function NewHireSection() {
             <div className="grid grid-cols-5 gap-2">
               {(formData.levelMarketAdjustments || []).map((row, idx) => (
                 <div key={row.level} className="bg-white p-2 rounded border border-gray-200">
-                  <label className="block text-xs text-gray-500 mb-1 text-center">Level {row.level}</label>
+                  <label htmlFor={`newhire-level-adj-${row.level}`} className="block text-xs text-gray-500 mb-1 text-center">Level {row.level}</label>
                   <div className="relative">
-                    <input type="number" step="1" value={row.adjustment} onChange={(e) => handleLevelAdjustmentChange(idx, e.target.value)} className="w-full shadow-sm focus:ring-fidelity-green focus:border-fidelity-green text-xs border-gray-300 rounded-md p-1 border text-center" />
+                    <input id={`newhire-level-adj-${row.level}`} type="number" step="1" value={row.adjustment} onChange={(e) => handleLevelAdjustmentChange(idx, e.target.value)} className="w-full shadow-sm focus:ring-fidelity-green focus:border-fidelity-green text-xs border-gray-300 rounded-md p-1 border text-center" />
                     <span className="absolute right-2 top-1/2 -translate-y-1/2 text-gray-400 text-xs">%</span>
                   </div>
                 </div>

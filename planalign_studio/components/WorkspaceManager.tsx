@@ -346,8 +346,9 @@ export default function WorkspaceManager() {
             </div>
             <form onSubmit={handleCreate} className="p-6 space-y-4">
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Workspace Name</label>
+                <label htmlFor="workspace-create-name" className="block text-sm font-medium text-gray-700 mb-1">Workspace Name</label>
                 <input
+                  id="workspace-create-name"
                   type="text"
                   value={newName}
                   onChange={(e) => setNewName(e.target.value)}
@@ -357,8 +358,9 @@ export default function WorkspaceManager() {
                 />
               </div>
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Description</label>
+                <label htmlFor="workspace-create-description" className="block text-sm font-medium text-gray-700 mb-1">Description</label>
                 <textarea
+                  id="workspace-create-description"
                   value={newDesc}
                   onChange={(e) => setNewDesc(e.target.value)}
                   placeholder="Brief description of this workspace's purpose..."
@@ -401,10 +403,11 @@ export default function WorkspaceManager() {
             <div className="p-6 space-y-4">
               {/* File Selection */}
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
+                <label htmlFor="workspace-import-file" className="block text-sm font-medium text-gray-700 mb-2">
                   Select Archive File (.7z)
                 </label>
                 <input
+                  id="workspace-import-file"
                   ref={fileInputRef}
                   type="file"
                   accept=".7z"
@@ -473,8 +476,9 @@ export default function WorkspaceManager() {
                         A workspace named "{importValidation.conflict.existing_workspace_name}" already exists.
                       </p>
                       <div className="space-y-2">
-                        <label className="flex items-center">
+                        <label htmlFor="workspace-conflict-rename" className="flex items-center">
                           <input
+                            id="workspace-conflict-rename"
                             type="radio"
                             name="conflict"
                             value="rename"
@@ -492,8 +496,9 @@ export default function WorkspaceManager() {
                             className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-fidelity-green focus:border-fidelity-green text-sm"
                           />
                         )}
-                        <label className="flex items-center">
+                        <label htmlFor="workspace-conflict-replace" className="flex items-center">
                           <input
+                            id="workspace-conflict-replace"
                             type="radio"
                             name="conflict"
                             value="replace"

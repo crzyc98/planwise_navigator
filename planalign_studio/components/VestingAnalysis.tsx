@@ -386,9 +386,10 @@ export default function VestingAnalysis() {
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
           {/* Workspace Selector */}
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Workspace</label>
+            <label htmlFor="vesting-workspace" className="block text-sm font-medium text-gray-700 mb-1">Workspace</label>
             <div className="relative">
               <select
+                id="vesting-workspace"
                 value={selectedWorkspaceId}
                 onChange={(e) => {
                   setSelectedWorkspaceId(e.target.value);
@@ -408,9 +409,10 @@ export default function VestingAnalysis() {
 
           {/* Scenario Selector */}
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Scenario</label>
+            <label htmlFor="vesting-scenario" className="block text-sm font-medium text-gray-700 mb-1">Scenario</label>
             <div className="relative">
               <select
+                id="vesting-scenario"
                 value={selectedScenarioId}
                 onChange={(e) => {
                   setSelectedScenarioId(e.target.value);
@@ -438,9 +440,10 @@ export default function VestingAnalysis() {
 
           {/* Current Schedule Selector */}
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Current Schedule</label>
+            <label htmlFor="vesting-current-schedule" className="block text-sm font-medium text-gray-700 mb-1">Current Schedule</label>
             <div className="relative">
               <select
+                id="vesting-current-schedule"
                 value={currentSchedule?.schedule_type || ''}
                 onChange={(e) => handleScheduleChange('current', e.target.value)}
                 className="appearance-none w-full bg-white border border-gray-300 rounded-lg pl-3 pr-10 py-2 text-sm focus:ring-fidelity-green focus:border-fidelity-green shadow-sm"
@@ -456,8 +459,9 @@ export default function VestingAnalysis() {
             </div>
             {/* T007/T008: Hours Requirement Toggle for Current Schedule (FR-001, FR-002, FR-003, FR-007) */}
             <div className="mt-2">
-              <label className="flex items-center text-sm text-gray-600">
+              <label htmlFor="vesting-current-hours-toggle" className="flex items-center text-sm text-gray-600">
                 <input
+                  id="vesting-current-hours-toggle"
                   type="checkbox"
                   checked={currentSchedule?.require_hours_credit ?? false}
                   onChange={(e) => handleHoursToggle('current', e.target.checked)}
@@ -486,9 +490,10 @@ export default function VestingAnalysis() {
 
           {/* Proposed Schedule Selector */}
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Proposed Schedule</label>
+            <label htmlFor="vesting-proposed-schedule" className="block text-sm font-medium text-gray-700 mb-1">Proposed Schedule</label>
             <div className="relative">
               <select
+                id="vesting-proposed-schedule"
                 value={proposedSchedule?.schedule_type || ''}
                 onChange={(e) => handleScheduleChange('proposed', e.target.value)}
                 className="appearance-none w-full bg-white border border-gray-300 rounded-lg pl-3 pr-10 py-2 text-sm focus:ring-fidelity-green focus:border-fidelity-green shadow-sm"
@@ -504,8 +509,9 @@ export default function VestingAnalysis() {
             </div>
             {/* T009/T010: Hours Requirement Toggle for Proposed Schedule (FR-001, FR-002, FR-003, FR-007) */}
             <div className="mt-2">
-              <label className="flex items-center text-sm text-gray-600">
+              <label htmlFor="vesting-proposed-hours-toggle" className="flex items-center text-sm text-gray-600">
                 <input
+                  id="vesting-proposed-hours-toggle"
                   type="checkbox"
                   checked={proposedSchedule?.require_hours_credit ?? false}
                   onChange={(e) => handleHoursToggle('proposed', e.target.checked)}
@@ -536,12 +542,13 @@ export default function VestingAnalysis() {
         {/* Analysis Year Selector */}
         <div className="mt-4 flex items-end gap-4">
           <div className="w-48">
-            <label className="block text-sm font-medium text-gray-700 mb-1 flex items-center">
+            <label htmlFor="vesting-analysis-year" className="block text-sm font-medium text-gray-700 mb-1 flex items-center">
               <Calendar size={14} className="mr-1.5 text-gray-400" />
               Analysis Year
             </label>
             <div className="relative">
               <select
+                id="vesting-analysis-year"
                 value={selectedYear ?? ''}
                 onChange={(e) => {
                   setSelectedYear(e.target.value ? Number(e.target.value) : undefined);

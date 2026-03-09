@@ -200,8 +200,9 @@ export default function WinnersLosersTab() {
         <div className="flex space-x-2">
           {/* Plan A Selector */}
           <div className="relative">
-            <label className="absolute -top-5 left-0 text-xs font-medium text-gray-500">Plan A</label>
+            <label htmlFor="wl-plan-a" className="absolute -top-5 left-0 text-xs font-medium text-gray-500">Plan A</label>
             <select
+              id="wl-plan-a"
               value={planA}
               onChange={(e) => setPlanA(e.target.value)}
               disabled={loadingScenarios}
@@ -217,8 +218,9 @@ export default function WinnersLosersTab() {
 
           {/* Plan B Selector */}
           <div className="relative">
-            <label className="absolute -top-5 left-0 text-xs font-medium text-gray-500">Plan B</label>
+            <label htmlFor="wl-plan-b" className="absolute -top-5 left-0 text-xs font-medium text-gray-500">Plan B</label>
             <select
+              id="wl-plan-b"
               value={planB}
               onChange={(e) => setPlanB(e.target.value)}
               disabled={loadingScenarios}

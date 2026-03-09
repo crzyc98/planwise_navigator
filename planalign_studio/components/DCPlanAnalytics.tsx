@@ -278,8 +278,9 @@ export default function DCPlanAnalytics() {
           </button>
 
           {/* Active Employees Only Toggle */}
-          <label className="flex items-center gap-2 px-3 py-2 bg-white border border-gray-300 rounded-lg text-sm cursor-pointer hover:bg-gray-50 transition-colors">
+          <label htmlFor="dc-active-only" className="flex items-center gap-2 px-3 py-2 bg-white border border-gray-300 rounded-lg text-sm cursor-pointer hover:bg-gray-50 transition-colors">
             <input
+              id="dc-active-only"
               type="checkbox"
               checked={activeOnly}
               onChange={(e) => setActiveOnly(e.target.checked)}
