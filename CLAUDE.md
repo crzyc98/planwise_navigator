@@ -431,6 +431,38 @@ WHERE simulation_year = {{ var('simulation_year') }}
   * **SQL (dbt)**: Use 2-space indents, uppercase keywords, one clause per line. Avoid `SELECT *`. Use `{{ ref() }}` and CTEs for readability.
   * **Python**: Keep functions under 40 lines. Raise explicit exceptions. Use Pydantic v2 for data modeling.
 
+### **Code Quality Standards (SonarQube)**
+
+This repo is scanned by SonarQube. All code MUST comply with these rules:
+
+**Cognitive Complexity (max 15)**:
+- **Early returns over nesting.** Use guard clauses at the top of functions. Never nest more than 3 levels deep.
+- **Extract helper functions.** If a block of logic inside a loop or conditional could be named, extract it.
+- **Dictionary dispatch over elif chains.** Replace long if/elif/else blocks with a dictionary mapping.
+- **Named booleans for complex conditions.** Instead of `if a and (b or c) and not d`, assign each check to a descriptive variable.
+- **No nested try/except inside loops or conditionals.** Extract error handling into its own function.
+
+**Parameter Limits**:
+- Functions MUST NOT exceed 13 parameters. Use dataclasses or config objects to group related parameters (e.g., `AutoEnrollmentOptions` groups 7 auto-enrollment fields into one parameter).
+
+**Exception Handling**:
+- Never use bare `except:` or empty `except Exception: pass`. Always catch specific exceptions and either log or re-raise.
+- If an exception is intentionally non-fatal, add a meaningful log message explaining why.
+
+**Dead Code & Duplication**:
+- Remove all commented-out code. Track future work in GitHub issues, not TODO comments.
+- Never leave empty code blocks (`pass` after `yield`, empty `if TYPE_CHECKING` blocks).
+- Merge conditional branches with identical implementations into a single branch.
+
+**Type Hints**:
+- Return type hints MUST match all code paths. Use `Union[A, B]` or `A | B` when a function can return different types.
+- Remove unused imports (including `TYPE_CHECKING` if the block is empty).
+
+**Other**:
+- Use concise regex character classes (`\w` instead of `[a-zA-Z0-9_]`).
+- No mutable default arguments.
+- No duplicate code blocks across branches.
+
 **Do/Don't (DuckDB/dbt)**:
 - ✅ Filter heavy models by `{{ var('simulation_year') }}`
 - ✅ Join on `(scenario_id, plan_design_id, employee_id)` and year when relevant
@@ -762,6 +794,8 @@ See `/docs/VERSIONING_GUIDE.md` for detailed versioning workflow.
 - DuckDB (`dbt/simulation.duckdb`) (063-1000-hr-eligibility)
 - TypeScript (React/Vite frontend), Python 3.11 (FastAPI backend) + React, FastAPI, Pydantic v2 (064-fix-comp-growth-persist)
 - Scenario config stored as flexible `Dict[str, Any]` (config_overrides) — no migration needed (064-fix-comp-growth-persist)
+- Python 3.11 + Rich (Live, Progress, Layout, Console), Typer, subprocess (stdlib) (065-async-progress-streaming)
+- N/A (no data persistence changes) (065-async-progress-streaming)
 
 ## Recent Changes
 - 063-1000-hr-eligibility: Added Python 3.11, SQL (dbt-core 1.8.8) + dbt-duckdb 1.8.1, DuckDB 1.0.0, Pydantic 2.7.4

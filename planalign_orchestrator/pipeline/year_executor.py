@@ -89,6 +89,7 @@ class YearExecutor:
         parallel_execution_engine: Optional[Any] = None,
         model_parallelization_enabled: bool = False,
         parallelization_config: Optional[Any] = None,
+        progress_callback: Optional[Any] = None,
     ):
         """Initialize the year executor.
 
@@ -104,6 +105,7 @@ class YearExecutor:
             parallel_execution_engine: Optional ParallelExecutionEngine for advanced parallelization
             model_parallelization_enabled: Whether model-level parallelization is enabled
             parallelization_config: Configuration object for parallelization settings
+            progress_callback: Optional callback for progress updates (LiveProgressTracker or similar)
         """
         self.config = config
         self.dbt_runner = dbt_runner
@@ -116,6 +118,7 @@ class YearExecutor:
         self.parallel_execution_engine = parallel_execution_engine
         self.model_parallelization_enabled = model_parallelization_enabled
         self.parallelization_config = parallelization_config
+        self.progress_callback = progress_callback
 
         # Initialize year dependency validator for temporal state accumulator validation
         self._year_validator = YearDependencyValidator(db_manager, start_year=start_year)
@@ -158,11 +161,19 @@ class YearExecutor:
             if self.verbose:
                 print(f"   📋 Starting {stage.name.value} with {self.dbt_threads} threads")
 
+            # Signal stage start to progress callback
+            if self.progress_callback and hasattr(self.progress_callback, 'update_stage'):
+                self.progress_callback.update_stage(stage.name.value)
+
             results = self._dispatch_stage_execution(stage, year)
 
             execution_time = time.time() - start_time
             if self.verbose:
                 print(f"   ✅ Completed {stage.name.value} in {execution_time:.1f}s")
+
+            # Signal stage completion to progress callback
+            if self.progress_callback and hasattr(self.progress_callback, 'stage_completed'):
+                self.progress_callback.stage_completed(stage.name.value, execution_time)
 
             return {
                 "stage": stage.name.value,

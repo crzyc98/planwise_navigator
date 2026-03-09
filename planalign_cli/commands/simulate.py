@@ -6,6 +6,7 @@ Multi-year workforce simulation with Rich progress bars and enhanced user experi
 
 from __future__ import annotations
 
+import sys
 from pathlib import Path
 from typing import Optional, Dict, Any, Callable
 import re
@@ -128,14 +129,19 @@ def run_simulation(
         if growth:
             console.print(f"📈 [blue]Growth Rate: {growth} (parameter shortcut)[/blue]")
 
-        # Create orchestrator (live progress disabled temporarily to avoid stdout conflicts)
-        progress_tracker = LiveProgressTracker(total_years, actual_start_year, end_year, verbose)
+        # Create progress tracker — use Rich Live display for TTY, plain text for pipes
+        from ..ui.output_capture import PlainTextProgressFallback, is_tty
+
+        if is_tty():
+            progress_tracker = LiveProgressTracker(total_years, actual_start_year, end_year, verbose)
+        else:
+            progress_tracker = PlainTextProgressFallback(total_years, actual_start_year, end_year, verbose)
 
         orchestrator = wrapper.create_orchestrator(
             threads=threads,
             dry_run=dry_run,
             verbose=verbose,
-            progress_callback=None  # Disabled temporarily to prevent freezing
+            progress_callback=progress_tracker,
         )
 
         try:
@@ -478,6 +484,20 @@ class LiveProgressTracker:
             if hasattr(self, '_update_layout'):
                 self._update_layout()
 
+    def on_dbt_line(self, line: str) -> None:
+        """Route a dbt output line through Rich Console for safe Live display rendering.
+
+        When verbose mode is active, shows dbt subprocess output above the Live
+        progress display without corruption. Falls back to print() if Live is not active.
+        """
+        if not self.verbose or not line.strip():
+            return
+
+        if self._live is not None:
+            self._live.console.print(line, highlight=False)
+        else:
+            print(line)
+
     def _build_status_table(self) -> Table:
         """Build the live metrics status table for the progress display."""
         status_table = Table(title="📊 Live Simulation Metrics", show_header=False, box=None)
@@ -490,7 +510,13 @@ class LiveProgressTracker:
 
         if self.current_stage:
             stage_display = self.current_stage.replace('_', ' ').title()
-            status_table.add_row("🔄 Current Stage", stage_display)
+            stage_order = [
+                "initialization", "foundation", "event_generation",
+                "state_accumulation", "validation", "reporting",
+            ]
+            stage_idx = stage_order.index(self.current_stage) + 1 if self.current_stage in stage_order else 0
+            stage_label = f"{stage_display} ({stage_idx}/{len(stage_order)})" if stage_idx else stage_display
+            status_table.add_row("🔄 Current Stage", stage_label)
 
         # Completion progress
         status_table.add_row("✅ Years Completed", f"{self.years_completed}/{self.total_years}")
