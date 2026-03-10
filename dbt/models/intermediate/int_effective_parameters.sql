@@ -3,9 +3,11 @@
     tags=['FOUNDATION']
 ) }}
 
+{% set comp_levers = 'stg_comp_levers' %}
 {% set merit_base_param = 'merit_base' %}
 {% set cola_rate_param = 'cola_rate' %}
-{% set has_overrides = var(cola_rate_param, none) is not none or var('merit_budget', none) is not none %}
+{% set merit_budget_var = 'merit_budget' %}
+{% set has_overrides = var(cola_rate_param, none) is not none or var(merit_budget_var, none) is not none %}
 
 -- Parameter resolution model that determines effective parameters per scenario, year, level, and event type
 
@@ -29,7 +31,7 @@ parameter_hierarchy AS (
   FROM (
     -- cola_rate: flat override (uniform across levels, same value for all)
     {% set has_cola = var(cola_rate_param, none) is not none %}
-    {% set has_merit = var('merit_budget', none) is not none %}
+    {% set has_merit = var(merit_budget_var, none) is not none %}
     {% if has_cola %}
     SELECT DISTINCT
       fiscal_year,
@@ -37,7 +39,7 @@ parameter_hierarchy AS (
       {{ EVT_RAISE() }} AS event_type,
       '{{ cola_rate_param }}' AS parameter_name,
       CAST({{ var(cola_rate_param) }} AS DOUBLE) AS parameter_value
-    FROM {{ ref('stg_comp_levers') }}
+    FROM {{ ref(comp_levers) }}
     {% endif %}
 
     -- merit_budget: proportional scaling — preserves level differentials, shifts the average
@@ -49,11 +51,11 @@ parameter_hierarchy AS (
       cl.job_level,
       {{ EVT_RAISE() }} AS event_type,
       '{{ merit_base_param }}' AS parameter_name,
-      cl.parameter_value * (CAST({{ var('merit_budget') }} AS DOUBLE) / yr_avg.avg_value) AS parameter_value
-    FROM {{ ref('stg_comp_levers') }} cl
+      cl.parameter_value * (CAST({{ var(merit_budget_var) }} AS DOUBLE) / NULLIF(yr_avg.avg_value, 0)) AS parameter_value
+    FROM {{ ref(comp_levers) }} cl
     JOIN (
       SELECT fiscal_year, AVG(parameter_value) AS avg_value
-      FROM {{ ref('stg_comp_levers') }}
+      FROM {{ ref(comp_levers) }}
       WHERE parameter_name = '{{ merit_base_param }}'
         AND scenario_id = {{ default_scenario() }}
       GROUP BY fiscal_year
@@ -78,7 +80,7 @@ parameter_hierarchy AS (
     cl.is_locked,
     'scenario' AS parameter_source,
     {% if has_overrides %}2{% else %}1{% endif %} AS priority_rank
-  FROM {{ ref('stg_comp_levers') }} cl
+  FROM {{ ref(comp_levers) }} cl
   CROSS JOIN scenario_selection ss
   WHERE cl.scenario_id = ss.selected_scenario_id
 
@@ -95,7 +97,7 @@ parameter_hierarchy AS (
     cl.is_locked,
     {{ default_scenario() }} AS parameter_source,
     {% if has_overrides %}3{% else %}2{% endif %} AS priority_rank
-  FROM {{ ref('stg_comp_levers') }} cl
+  FROM {{ ref(comp_levers) }} cl
   WHERE cl.scenario_id = {{ default_scenario() }}
 ),
 
