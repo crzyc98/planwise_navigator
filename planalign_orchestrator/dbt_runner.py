@@ -209,16 +209,6 @@ class DbtRunner:
             vars_dict.update(dbt_vars)
         if vars_dict:
             vars_json = json.dumps(vars_dict)
-            if self.verbose:
-                try:
-                    year_label = (
-                        f" year={simulation_year}"
-                        if simulation_year is not None
-                        else ""
-                    )
-                    print(f"🧩 DbtRunner --vars{year_label}: {vars_json}")
-                except Exception:
-                    pass
             cmd.extend(["--vars", vars_json])
         # Attach threads if supported and not already present
         if "--threads" not in cmd and self.executable == "dbt":
@@ -240,10 +230,6 @@ class DbtRunner:
                 effective_threads = threads or (self.threads if self.threading_enabled else 1)
                 cmd.extend(["--threads", str(effective_threads)])
 
-                # Log threading performance information
-                if self.verbose and effective_threads > 1:
-                    threading_info = self.get_thread_utilization_info()
-                    print(f"🧩 dbt threading: {effective_threads} threads (mode: {threading_info['threading_mode']})")
         return cmd
 
     def execute_command(
@@ -262,12 +248,6 @@ class DbtRunner:
     ) -> DbtResult:
         """Execute a dbt command with enhanced error handling and optional retry."""
 
-        # Pre-execution thread utilization logging
-        if log_performance and self.verbose:
-            threading_info = self.get_thread_utilization_info()
-            if threading_info["thread_count"] > 1:
-                print(f"🔄 Executing with {threading_info['thread_count']} threads (mode: {threading_info['threading_mode']})")
-
         def _run_once() -> DbtResult:
             return self._execute_once(
                 command_args,
@@ -279,12 +259,7 @@ class DbtRunner:
                 on_line=on_line,
             )
 
-        result = self._execute_with_retry(_run_once, retry=retry, max_attempts=max_attempts)
-
-        if log_performance and self.verbose and result.success:
-            self._log_post_execution_performance(result)
-
-        return result
+        return self._execute_with_retry(_run_once, retry=retry, max_attempts=max_attempts)
 
     def _execute_with_retry(
         self,
@@ -304,21 +279,6 @@ class DbtRunner:
             return res
 
         return retry_with_backoff(_wrapped, max_attempts=max_attempts)
-
-    def _log_post_execution_performance(self, result: DbtResult) -> None:
-        """Log post-execution performance metrics with thread utilization info."""
-        threading_info = self.get_thread_utilization_info()
-        execution_time = result.execution_time
-
-        if threading_info["thread_count"] <= 1:
-            print(f"⚡ Performance: {execution_time:.1f}s (single-threaded)")
-            return
-
-        # Calculate rough thread utilization efficiency
-        # This is a rough estimate - actual efficiency depends on dbt model dependencies
-        theoretical_single_thread_time = execution_time * threading_info["thread_count"]
-        efficiency_pct = min(100.0, (theoretical_single_thread_time / execution_time) / threading_info["thread_count"] * 100)
-        print(f"⚡ Performance: {execution_time:.1f}s with {threading_info['thread_count']} threads (est. efficiency: {efficiency_pct:.0f}%)")
 
     def _execute_once(
         self,

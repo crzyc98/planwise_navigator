@@ -98,8 +98,8 @@ def _create_mock_config(config: Dict[str, Any]) -> Any:
         target_growth_rate = config.get("simulation", {}).get("growth_target", 0.05)
 
     class MockCompensation:
-        cola_rate = config.get("compensation", {}).get("cola_rate", 0.03)
-        merit_budget = config.get("compensation", {}).get("merit_budget", 0.03)
+        cola_rate = config.get("compensation", {}).get("cola_rate", 0.02)
+        merit_budget = config.get("compensation", {}).get("merit_budget", 0.035)
 
     class MockConfig:
         simulation = MockSimulation()

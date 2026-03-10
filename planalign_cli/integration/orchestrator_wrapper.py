@@ -363,23 +363,31 @@ class ProgressAwareOrchestrator:
                 self.original_stdout = original_stdout
                 self.current_year = None
                 self.buffer = ""
+                self._writing = False
 
             def write(self, text):
-                # Do NOT write to original stdout — Rich Live is controlling the terminal.
-                # Raw stdout writes cause display corruption.
-                # Instead, route visible output through the callback's on_dbt_line().
-                self.original_stdout.flush()
+                if self._writing:
+                    self.original_stdout.write(text)
+                    return
+                self._writing = True
+                try:
+                    # Do NOT write to original stdout — Rich Live is controlling the terminal.
+                    # Raw stdout writes cause display corruption.
+                    # Instead, route visible output through the callback's on_dbt_line().
+                    self.original_stdout.flush()
 
-                # Add to buffer for pattern matching
-                self.buffer += text
+                    # Add to buffer for pattern matching
+                    self.buffer += text
 
-                # Process complete lines
-                while '\n' in self.buffer:
-                    line, self.buffer = self.buffer.split('\n', 1)
-                    self._process_line(line)
-                    # Route line to callback for safe Rich Console rendering
-                    if hasattr(self.callback, 'on_dbt_line'):
-                        self.callback.on_dbt_line(line)
+                    # Process complete lines
+                    while '\n' in self.buffer:
+                        line, self.buffer = self.buffer.split('\n', 1)
+                        self._process_line(line)
+                        # Route line to callback for safe Rich Console rendering
+                        if hasattr(self.callback, 'on_dbt_line'):
+                            self.callback.on_dbt_line(line)
+                finally:
+                    self._writing = False
 
             def _process_line(self, line):
                 """Process a complete line for progress indicators."""

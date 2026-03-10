@@ -24,14 +24,18 @@
 
   COALESCE(
     {{ resolve_parameter(job_level, event_type, parameter_name, fiscal_year) }},
-    -- Fallback to hardcoded defaults if parameter not found
+    -- WARNING: Fallback defaults must match comp_levers.csv seed values.
+    -- These SQL fallbacks (e.g. cola_rate=0.015) are intentionally conservative
+    -- last-resort values from the seed layer. The Python/API layer uses higher
+    -- defaults (cola_rate=0.02) as "typical client" defaults. If int_effective_parameters
+    -- resolves correctly, neither fallback is used.
     CASE
       WHEN '{{ parameter_name }}' = 'merit_base' AND {{ job_level }} = 1 THEN 0.035
       WHEN '{{ parameter_name }}' = 'merit_base' AND {{ job_level }} = 2 THEN 0.040
       WHEN '{{ parameter_name }}' = 'merit_base' AND {{ job_level }} = 3 THEN 0.045
       WHEN '{{ parameter_name }}' = 'merit_base' AND {{ job_level }} = 4 THEN 0.050
       WHEN '{{ parameter_name }}' = 'merit_base' AND {{ job_level }} = 5 THEN 0.055
-      WHEN '{{ parameter_name }}' = 'cola_rate' THEN 0.005
+      WHEN '{{ parameter_name }}' = 'cola_rate' THEN 0.015
       WHEN '{{ parameter_name }}' = 'promotion_raise' THEN 0.12
       WHEN '{{ parameter_name }}' = 'new_hire_salary_adjustment' THEN 1.1489720153602505
       -- Epic E035: Deferral escalation defaults

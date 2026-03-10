@@ -23,19 +23,40 @@ parameter_hierarchy AS (
     'config_override' AS parameter_source,
     1 AS priority_rank
   FROM (
-    -- Generate parameter rows for all fiscal years and job levels when config overrides are provided
-    SELECT DISTINCT fiscal_year, job_level FROM {{ ref('stg_comp_levers') }}
-  ) base_combinations
-  CROSS JOIN scenario_selection ss
-  CROSS JOIN (
+    -- cola_rate: flat override (uniform across levels, same value for all)
     {% if var('cola_rate', none) is not none %}
-    SELECT 'raise' AS event_type, 'cola_rate' AS parameter_name, {{ var('cola_rate') }} AS parameter_value
+    SELECT DISTINCT
+      fiscal_year,
+      job_level,
+      'RAISE' AS event_type,
+      'cola_rate' AS parameter_name,
+      CAST({{ var('cola_rate') }} AS DOUBLE) AS parameter_value
+    FROM {{ ref('stg_comp_levers') }}
     {% endif %}
+
+    -- merit_budget: proportional scaling — preserves level differentials, shifts the average
+    -- e.g. seed avg=4.5%, budget=4.92% → scale factor=1.093, L1=3.8%, L2=4.4%, L3=4.9%...
     {% if var('merit_budget', none) is not none %}
-      {% if var('cola_rate', none) is not none %}UNION ALL{% endif %}
-    SELECT 'raise' AS event_type, 'merit_base' AS parameter_name, {{ var('merit_budget') }} AS parameter_value
+    {% if var('cola_rate', none) is not none %}UNION ALL{% endif %}
+    SELECT
+      cl.fiscal_year,
+      cl.job_level,
+      'RAISE' AS event_type,
+      'merit_base' AS parameter_name,
+      cl.parameter_value * (CAST({{ var('merit_budget') }} AS DOUBLE) / yr_avg.avg_value) AS parameter_value
+    FROM {{ ref('stg_comp_levers') }} cl
+    JOIN (
+      SELECT fiscal_year, AVG(parameter_value) AS avg_value
+      FROM {{ ref('stg_comp_levers') }}
+      WHERE parameter_name = 'merit_base'
+        AND scenario_id = 'default'
+      GROUP BY fiscal_year
+    ) yr_avg ON cl.fiscal_year = yr_avg.fiscal_year
+    WHERE cl.parameter_name = 'merit_base'
+      AND cl.scenario_id = 'default'
     {% endif %}
-  ) config_params
+  ) overrides
+  CROSS JOIN scenario_selection ss
 
   UNION ALL
   {% endif %}

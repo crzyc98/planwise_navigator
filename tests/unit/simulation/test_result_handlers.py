@@ -21,8 +21,8 @@ class TestCreateMockConfig:
         assert mock.simulation.start_year == 2025
         assert mock.simulation.end_year == 2027
         assert mock.simulation.target_growth_rate == 0.05
-        assert mock.compensation.cola_rate == 0.03
-        assert mock.compensation.merit_budget == 0.03
+        assert mock.compensation.cola_rate == 0.02
+        assert mock.compensation.merit_budget == 0.035
 
     def test_creates_mock_with_custom_values(self):
         """Should create mock config with custom values."""

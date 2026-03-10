@@ -298,9 +298,9 @@ compensation_planning AS (
      (1 + {{ var('market_scenario_adjustment', 0) }} / 100.0)
     ) AS DOUBLE) AS new_hire_avg_compensation,
     -- Merit increase planning - use variable-based parameters for consistency
-    CAST(wbl.total_compensation * {{ var('merit_budget', 0.03) }} AS DOUBLE) AS merit_increase_cost,
+    CAST(wbl.total_compensation * {{ var('merit_budget', 0.035) }} AS DOUBLE) AS merit_increase_cost,
     -- COLA planning - use variable-based parameters for consistency
-    CAST(wbl.total_compensation * {{ var('cola_rate', 0.025) }} AS DOUBLE) AS cola_cost,
+    CAST(wbl.total_compensation * {{ var('cola_rate', 0.02) }} AS DOUBLE) AS cola_cost,
     -- Promotion cost estimate - use safe defaults temporarily
     CAST(wbl.current_headcount * 0.05 AS DOUBLE) AS expected_promotions,
     CAST(wbl.avg_compensation * 0.12 * (wbl.current_headcount * 0.05) AS DOUBLE) AS promotion_cost

@@ -109,7 +109,7 @@ def golden_config() -> SimulationConfig:
     config.simulation.random_seed = 42
     config.simulation.target_growth_rate = 0.03
     config.compensation.cola_rate = 0.02
-    config.compensation.merit_budget = 0.03
+    config.compensation.merit_budget = 0.035
     return config
 
 

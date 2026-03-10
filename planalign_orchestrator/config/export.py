@@ -5,8 +5,11 @@ E073: Config Module Refactoring - export module.
 
 from __future__ import annotations
 
+import logging
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, Dict
+
+logger = logging.getLogger(__name__)
 
 if TYPE_CHECKING:
     from .loader import SimulationConfig
@@ -39,6 +42,9 @@ def _export_simulation_vars(cfg: "SimulationConfig") -> Dict[str, Any]:
         dbt_vars["cola_rate"] = cfg.compensation.cola_rate
     if cfg.compensation.merit_budget is not None:
         dbt_vars["merit_budget"] = cfg.compensation.merit_budget
+
+    logger.info("Compensation dbt vars: cola_rate=%s, merit_budget=%s",
+                dbt_vars.get("cola_rate"), dbt_vars.get("merit_budget"))
 
     # Eligibility and plan eligibility
     if cfg.eligibility.waiting_period_days is not None:

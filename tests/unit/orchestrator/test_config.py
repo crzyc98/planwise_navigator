@@ -115,7 +115,7 @@ def test_to_dbt_vars_golden_output(golden_config):
     assert result["random_seed"] == 42
     assert result["target_growth_rate"] == 0.03
     assert result["cola_rate"] == 0.02
-    assert result["merit_budget"] == 0.03
+    assert result["merit_budget"] == 0.035
 
     # Enrollment settings from production config
     assert result["auto_enrollment_enabled"] is True

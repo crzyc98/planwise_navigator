@@ -242,6 +242,11 @@ pip install --upgrade pip
 pip install -e ".[dev]"
 ```
 
+# Create venv and install in one shot
+uv venv --python 3.12
+source .venv/bin/activate
+uv pip install -e ".[dev]"
+
 #### Post-Installation Configuration
 
 5. **Configure dbt profile**:

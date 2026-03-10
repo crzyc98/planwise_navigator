@@ -23,6 +23,7 @@ from rich.live import Live
 from rich.layout import Layout
 
 from ..integration.orchestrator_wrapper import OrchestratorWrapper
+from ..ui.output_capture import _is_signal_line
 from ..ui.progress import (
     create_simulation_progress,
     show_error_message,
@@ -485,12 +486,13 @@ class LiveProgressTracker:
                 self._update_layout()
 
     def on_dbt_line(self, line: str) -> None:
-        """Route a dbt output line through Rich Console for safe Live display rendering.
+        """Route a signal dbt output line through Rich Console for safe Live display rendering.
 
         When verbose mode is active, shows dbt subprocess output above the Live
         progress display without corruption. Falls back to print() if Live is not active.
+        Noise lines (SQL compilation, debug, separators) are filtered out.
         """
-        if not self.verbose or not line.strip():
+        if not self.verbose or not _is_signal_line(line):
             return
 
         if self._live is not None:

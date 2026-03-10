@@ -629,7 +629,7 @@ export default function DCPlanComparisonSection({
                     radius={[4, 4, 0, 0]}
                     barSize={barWidth}
                   />);
-                ))}
+                })}
               </BarChart>
             </ResponsiveContainer>
           ) : (

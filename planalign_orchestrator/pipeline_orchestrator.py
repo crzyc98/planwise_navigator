@@ -111,15 +111,6 @@ class PipelineOrchestrator:
         self._log_compensation_parameters()
         self._validate_compensation_parameters()
 
-        # Debug (optional): show dbt vars derived from config
-        if self.verbose:
-            try:
-                import json as _json
-
-                print("\n🔎 Navigator Orchestrator dbt_vars (from config):")
-                print(_json.dumps(self._dbt_vars, indent=2, sort_keys=True))
-            except Exception:
-                pass
         self.reports_dir = Path(reports_dir)
         self.checkpoints_dir = Path(checkpoints_dir)
         self.checkpoints_dir.mkdir(exist_ok=True)
