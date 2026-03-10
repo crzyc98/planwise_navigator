@@ -86,6 +86,153 @@ const tooltipStyle = {
   boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1)',
 };
 
+// --- Reusable chart card with empty-state fallback ---
+
+function ChartCard({
+  title, subtitle, emptyMessage, hasData, height = 'h-80', children, headerRight,
+}: {
+  title: string;
+  subtitle: string;
+  emptyMessage: string;
+  hasData: boolean;
+  height?: string;
+  children: React.ReactNode;
+  headerRight?: React.ReactNode;
+}) {
+  return (
+    <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
+      <div className="flex items-center justify-between mb-4">
+        <div>
+          <h3 className="text-lg font-semibold text-gray-800">{title}</h3>
+          <p className="text-sm text-gray-500">{subtitle}</p>
+        </div>
+        {headerRight}
+      </div>
+      <div className={height}>
+        {hasData ? children : (
+          <div className="h-full flex items-center justify-center text-gray-400">
+            <p>{emptyMessage}</p>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+// --- Trend line chart shared across Employer Cost, Participation, Deferral ---
+
+function TrendLineChart({
+  data, scenarioNames, scenarioColors, yDomain, yDecimals = 1,
+}: {
+  data: TrendDataPoint[];
+  scenarioNames: string[];
+  scenarioColors: Record<string, string>;
+  yDomain?: [number, number];
+  yDecimals?: number;
+}) {
+  return (
+    <ResponsiveContainer width="100%" height="100%">
+      <LineChart data={data}>
+        <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#E5E7EB" />
+        <XAxis dataKey="year" stroke="#9CA3AF" />
+        <YAxis stroke="#9CA3AF" domain={yDomain} tickFormatter={v => formatPercent(v, 0)} />
+        <Tooltip
+          contentStyle={tooltipStyle}
+          formatter={(value: number) => [formatPercent(value, yDecimals), '']}
+        />
+        <Legend verticalAlign="top" height={36} />
+        {scenarioNames.map(name => (
+          <Line
+            key={name}
+            type="monotone"
+            dataKey={name}
+            stroke={scenarioColors[name]}
+            strokeWidth={3}
+            dot={{ r: 4 }}
+            activeDot={{ r: 6 }}
+          />
+        ))}
+      </LineChart>
+    </ResponsiveContainer>
+  );
+}
+
+// --- Summary comparison table sub-component ---
+
+function SummaryComparisonTable({
+  summaryRows, scenarioNames, scenarioColors,
+}: {
+  summaryRows: SummaryMetricRow[];
+  scenarioNames: string[];
+  scenarioColors: Record<string, string>;
+}) {
+  if (summaryRows.length === 0) return null;
+
+  const isFavorable = (row: SummaryMetricRow, delta: number): boolean =>
+    row.favorableDirection === 'higher' ? delta > 0 : delta < 0;
+
+  const formatDelta = (row: SummaryMetricRow, delta: number): string => {
+    const sign = delta >= 0 ? '+' : '';
+    return row.unit === 'percent'
+      ? `${sign}${delta.toFixed(1)}%`
+      : `${sign}${formatCurrency(delta)}`;
+  };
+
+  const formatValue = (row: SummaryMetricRow, value: number): string =>
+    row.unit === 'percent' ? formatPercent(value) : formatCurrency(value);
+
+  return (
+    <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
+      <h3 className="text-lg font-semibold text-gray-800 mb-4">DC Plan Summary Comparison</h3>
+      <div className="overflow-x-auto">
+        <table className="w-full text-sm">
+          <thead>
+            <tr className="border-b border-gray-200">
+              <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                Metric
+              </th>
+              {scenarioNames.map((name, idx) => (
+                <th
+                  key={name}
+                  className="px-4 py-3 text-left text-xs font-medium uppercase tracking-wider"
+                  style={{ color: scenarioColors[name] }}
+                >
+                  {name}{idx === 0 ? ' (Baseline)' : ''}
+                </th>
+              ))}
+            </tr>
+          </thead>
+          <tbody className="divide-y divide-gray-100">
+            {summaryRows.map(row => (
+              <tr key={row.metric} className="hover:bg-gray-50">
+                <td className="px-4 py-3 font-medium text-gray-900">{row.metric}</td>
+                {scenarioNames.map((name, idx) => {
+                  const value = row.values[name];
+                  const delta = row.deltas[name];
+                  const isBaseline = idx === 0;
+                  const favorable = !isBaseline && delta !== undefined && isFavorable(row, delta);
+                  const colorClass = favorable ? 'bg-green-50 text-green-700' : 'bg-red-50 text-red-700';
+
+                  return (
+                    <td key={name} className="px-4 py-3">
+                      <div className="text-gray-800 font-semibold">{formatValue(row, value)}</div>
+                      {!isBaseline && delta !== undefined && (
+                        <span className={`inline-block mt-1 px-2 py-0.5 rounded text-xs font-medium ${colorClass}`}>
+                          {formatDelta(row, delta)}
+                        </span>
+                      )}
+                    </td>
+                  );
+                })}
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  );
+}
+
 // --- Component ---
 
 export default function DCPlanComparisonSection({
@@ -390,360 +537,144 @@ export default function DCPlanComparisonSection({
     );
   }
 
-  // --- Helpers ---
-
-  const isFavorable = (row: SummaryMetricRow, delta: number): boolean => {
-    if (row.favorableDirection === 'higher') return delta > 0;
-    return delta < 0;
-  };
-
-  const formatDelta = (row: SummaryMetricRow, delta: number): string => {
-    const sign = delta >= 0 ? '+' : '';
-    if (row.unit === 'percent') {
-      return `${sign}${delta.toFixed(1)}%`;
-    }
-    return `${sign}${formatCurrency(delta)}`;
-  };
-
-  const formatValue = (row: SummaryMetricRow, value: number): string => {
-    if (row.unit === 'percent') {
-      return formatPercent(value);
-    }
-    return formatCurrency(value);
-  };
-
-  const baselineName = scenarioNames[0];
-
   // --- Render ---
+
+  const barWidth = scenarioNames.length > 4 ? 12 : scenarioNames.length > 2 ? 20 : 30;
+  const contributionBarSize = scenarioNames.length > 4 ? 16 : 30;
+
+  const distributionYearSelector = availableDistributionYears.length > 1 ? (
+    <select
+      value={selectedDistributionYear ?? ''}
+      onChange={e => setSelectedDistributionYear(Number(e.target.value))}
+      className="px-3 py-1.5 text-sm border border-gray-300 rounded-lg bg-white text-gray-700 focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-green-500"
+    >
+      {availableDistributionYears.map(y => (
+        <option key={y} value={y}>
+          {y}{y === availableDistributionYears[availableDistributionYears.length - 1] ? ' (Final)' : ''}
+        </option>
+      ))}
+    </select>
+  ) : availableDistributionYears.length === 1 && selectedDistributionYear !== null ? (
+    <span className="text-sm text-gray-500">Year {selectedDistributionYear}</span>
+  ) : undefined;
 
   return (
     <div className="space-y-6">
-      {/* Employer Cost Rate Trends — Full Width */}
-      <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
-        <h3 className="text-lg font-semibold text-gray-800">Employer Cost Rate Trends</h3>
-        <p className="text-sm text-gray-500 mb-4">Employer cost as % of total compensation</p>
-        <div className="h-80">
-          {employerCostTrendData.length > 0 ? (
-            <ResponsiveContainer width="100%" height="100%">
-              <LineChart data={employerCostTrendData}>
-                <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#E5E7EB" />
-                <XAxis dataKey="year" stroke="#9CA3AF" />
-                <YAxis stroke="#9CA3AF" tickFormatter={v => formatPercent(v)} />
-                <Tooltip
-                  contentStyle={tooltipStyle}
-                  formatter={(value: number) => [formatPercent(value, 2), '']}
-                />
-                <Legend verticalAlign="top" height={36} />
-                {scenarioNames.map(name => (
-                  <Line
-                    key={name}
-                    type="monotone"
-                    dataKey={name}
-                    stroke={scenarioColors[name]}
-                    strokeWidth={3}
-                    dot={{ r: 4 }}
-                    activeDot={{ r: 6 }}
-                  />
-                ))}
-              </LineChart>
-            </ResponsiveContainer>
-          ) : (
-            <div className="h-full flex items-center justify-center text-gray-400">
-              <p>No employer cost data available</p>
-            </div>
-          )}
-        </div>
-      </div>
+      {/* Employer Cost Rate Trends */}
+      <ChartCard
+        title="Employer Cost Rate Trends"
+        subtitle="Employer cost as % of total compensation"
+        emptyMessage="No employer cost data available"
+        hasData={employerCostTrendData.length > 0}
+      >
+        <TrendLineChart data={employerCostTrendData} scenarioNames={scenarioNames} scenarioColors={scenarioColors} yDecimals={2} />
+      </ChartCard>
 
-      {/* E066: Contribution Rate Trends — Full Width */}
-      <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
-        <h3 className="text-lg font-semibold text-gray-800">Contribution Rate Trends</h3>
-        <p className="text-sm text-gray-500 mb-4">Employee, match, core, and total contributions as % of compensation</p>
-        <div className="h-80">
-          {contributionRateTrendData.length > 0 ? (
-            <ResponsiveContainer width="100%" height="100%">
-              <LineChart data={contributionRateTrendData}>
-                <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#E5E7EB" />
-                <XAxis dataKey="year" stroke="#9CA3AF" />
-                <YAxis stroke="#9CA3AF" tickFormatter={v => formatPercent(v)} />
-                <Tooltip
-                  contentStyle={tooltipStyle}
-                  formatter={(value: number) => [formatPercent(value, 2), '']}
-                />
-                <Legend verticalAlign="top" height={36} />
-                {comparisonData && comparisonData.analytics.map(a => {
-                  const scenarioName = comparisonData.scenario_names[a.scenario_id] || a.scenario_id;
-                  const isSingleScenario = comparisonData.analytics.length === 1;
-                  return RATE_SERIES.map(series => {
-                    const label = isSingleScenario
-                      ? series.label
-                      : `${scenarioName} - ${series.label}`;
-                    return (
-                      <Line
-                        key={label}
-                        type="monotone"
-                        dataKey={label}
-                        stroke={series.color}
-                        strokeWidth={series.key === 'total_contribution_rate' ? 3 : 2}
-                        strokeDasharray={isSingleScenario ? undefined : (
-                          a === comparisonData.analytics[0] ? undefined : '5 5'
-                        )}
-                        dot={{ r: 3 }}
-                        activeDot={{ r: 5 }}
-                      />
-                    );
-                  });
-                })}
-              </LineChart>
-            </ResponsiveContainer>
-          ) : (
-            <div className="h-full flex items-center justify-center text-gray-400">
-              <p>No contribution rate data available</p>
-            </div>
-          )}
-        </div>
-      </div>
+      {/* E066: Contribution Rate Trends */}
+      <ChartCard
+        title="Contribution Rate Trends"
+        subtitle="Employee, match, core, and total contributions as % of compensation"
+        emptyMessage="No contribution rate data available"
+        hasData={contributionRateTrendData.length > 0}
+      >
+        <ResponsiveContainer width="100%" height="100%">
+          <LineChart data={contributionRateTrendData}>
+            <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#E5E7EB" />
+            <XAxis dataKey="year" stroke="#9CA3AF" />
+            <YAxis stroke="#9CA3AF" tickFormatter={v => formatPercent(v)} />
+            <Tooltip contentStyle={tooltipStyle} formatter={(value: number) => [formatPercent(value, 2), '']} />
+            <Legend verticalAlign="top" height={36} />
+            {comparisonData?.analytics.map((a, idx) => {
+              const scenarioName = comparisonData.scenario_names[a.scenario_id] || a.scenario_id;
+              const isSingleScenario = comparisonData.analytics.length === 1;
+              const isBaseline = idx === 0;
+              const dashArray = isSingleScenario || isBaseline ? undefined : '5 5';
+              return RATE_SERIES.map(series => {
+                const label = isSingleScenario ? series.label : `${scenarioName} - ${series.label}`;
+                return (
+                  <Line
+                    key={label} type="monotone" dataKey={label} stroke={series.color}
+                    strokeWidth={series.key === 'total_contribution_rate' ? 3 : 2}
+                    strokeDasharray={dashArray}
+                    dot={{ r: 3 }} activeDot={{ r: 5 }}
+                  />
+                );
+              });
+            })}
+          </LineChart>
+        </ResponsiveContainer>
+      </ChartCard>
 
       {/* Participation & Deferral Rate Trends — Side by Side */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        {/* Participation Rate */}
-        <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
-          <h3 className="text-lg font-semibold text-gray-800">Participation Rate Trends</h3>
-          <p className="text-sm text-gray-500 mb-4">Percentage of eligible employees enrolled</p>
-          <div className="h-80">
-            {participationTrendData.length > 0 ? (
-              <ResponsiveContainer width="100%" height="100%">
-                <LineChart data={participationTrendData}>
-                  <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#E5E7EB" />
-                  <XAxis dataKey="year" stroke="#9CA3AF" />
-                  <YAxis stroke="#9CA3AF" domain={[0, 100]} tickFormatter={v => formatPercent(v, 0)} />
-                  <Tooltip
-                    contentStyle={tooltipStyle}
-                    formatter={(value: number) => [formatPercent(value, 1), '']}
-                  />
-                  <Legend verticalAlign="top" height={36} />
-                  {scenarioNames.map(name => (
-                    <Line
-                      key={name}
-                      type="monotone"
-                      dataKey={name}
-                      stroke={scenarioColors[name]}
-                      strokeWidth={3}
-                      dot={{ r: 4 }}
-                      activeDot={{ r: 6 }}
-                    />
-                  ))}
-                </LineChart>
-              </ResponsiveContainer>
-            ) : (
-              <div className="h-full flex items-center justify-center text-gray-400">
-                <p>No participation data available</p>
-              </div>
-            )}
-          </div>
-        </div>
+        <ChartCard
+          title="Participation Rate Trends"
+          subtitle="Percentage of eligible employees enrolled"
+          emptyMessage="No participation data available"
+          hasData={participationTrendData.length > 0}
+        >
+          <TrendLineChart data={participationTrendData} scenarioNames={scenarioNames} scenarioColors={scenarioColors} yDomain={[0, 100]} yDecimals={1} />
+        </ChartCard>
 
-        {/* Deferral Rate */}
-        <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
-          <h3 className="text-lg font-semibold text-gray-800">Average Deferral Rate Trends</h3>
-          <p className="text-sm text-gray-500 mb-4">Average employee deferral rate</p>
-          <div className="h-80">
-            {deferralTrendData.length > 0 ? (
-              <ResponsiveContainer width="100%" height="100%">
-                <LineChart data={deferralTrendData}>
-                  <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#E5E7EB" />
-                  <XAxis dataKey="year" stroke="#9CA3AF" />
-                  <YAxis stroke="#9CA3AF" tickFormatter={v => formatPercent(v)} />
-                  <Tooltip
-                    contentStyle={tooltipStyle}
-                    formatter={(value: number) => [formatPercent(value, 2), '']}
-                  />
-                  <Legend verticalAlign="top" height={36} />
-                  {scenarioNames.map(name => (
-                    <Line
-                      key={name}
-                      type="monotone"
-                      dataKey={name}
-                      stroke={scenarioColors[name]}
-                      strokeWidth={3}
-                      dot={{ r: 4 }}
-                      activeDot={{ r: 6 }}
-                    />
-                  ))}
-                </LineChart>
-              </ResponsiveContainer>
-            ) : (
-              <div className="h-full flex items-center justify-center text-gray-400">
-                <p>No deferral rate data available</p>
-              </div>
-            )}
-          </div>
-        </div>
+        <ChartCard
+          title="Average Deferral Rate Trends"
+          subtitle="Average employee deferral rate"
+          emptyMessage="No deferral rate data available"
+          hasData={deferralTrendData.length > 0}
+        >
+          <TrendLineChart data={deferralTrendData} scenarioNames={scenarioNames} scenarioColors={scenarioColors} yDecimals={2} />
+        </ChartCard>
       </div>
 
-      {/* Deferral Rate Distribution Comparison — Full Width */}
-      <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
-        <div className="flex items-center justify-between mb-4">
-          <div>
-            <h3 className="text-lg font-semibold text-gray-800">Deferral Rate Distribution</h3>
-            <p className="text-sm text-gray-500">
-              Percentage of enrolled employees by deferral rate bucket
-            </p>
-          </div>
-          {availableDistributionYears.length > 1 && (
-            <select
-              value={selectedDistributionYear ?? ''}
-              onChange={e => setSelectedDistributionYear(Number(e.target.value))}
-              className="px-3 py-1.5 text-sm border border-gray-300 rounded-lg bg-white text-gray-700 focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-green-500"
-            >
-              {availableDistributionYears.map(y => (
-                <option key={y} value={y}>
-                  {y}{y === availableDistributionYears[availableDistributionYears.length - 1] ? ' (Final)' : ''}
-                </option>
-              ))}
-            </select>
-          )}
-          {availableDistributionYears.length === 1 && selectedDistributionYear !== null && (
-            <span className="text-sm text-gray-500">Year {selectedDistributionYear}</span>
-          )}
-        </div>
-        <div className="h-80">
-          {distributionChartData.length > 0 ? (
-            <ResponsiveContainer width="100%" height="100%">
-              <BarChart data={distributionChartData}>
-                <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#E5E7EB" />
-                <XAxis dataKey="bucket" stroke="#9CA3AF" />
-                <YAxis stroke="#9CA3AF" tickFormatter={v => formatPercent(v, 0)} />
-                <Tooltip
-                  contentStyle={tooltipStyle}
-                  formatter={(value: number, name: string) => [formatPercent(value, 1), name]}
-                />
-                <Legend verticalAlign="top" height={36} />
-                {scenarioNames.map(name => {
-                  const barWidth = scenarioNames.length > 4 ? 12 : scenarioNames.length > 2 ? 20 : 30;
-                  return (
-                  <Bar
-                    key={name}
-                    dataKey={name}
-                    fill={scenarioColors[name]}
-                    radius={[4, 4, 0, 0]}
-                    barSize={barWidth}
-                  />);
-                })}
-              </BarChart>
-            </ResponsiveContainer>
-          ) : (
-            <div className="h-full flex items-center justify-center text-gray-400">
-              <p>No deferral distribution data available</p>
-            </div>
-          )}
-        </div>
-      </div>
+      {/* Deferral Rate Distribution */}
+      <ChartCard
+        title="Deferral Rate Distribution"
+        subtitle="Percentage of enrolled employees by deferral rate bucket"
+        emptyMessage="No deferral distribution data available"
+        hasData={distributionChartData.length > 0}
+        headerRight={distributionYearSelector}
+      >
+        <ResponsiveContainer width="100%" height="100%">
+          <BarChart data={distributionChartData}>
+            <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#E5E7EB" />
+            <XAxis dataKey="bucket" stroke="#9CA3AF" />
+            <YAxis stroke="#9CA3AF" tickFormatter={v => formatPercent(v, 0)} />
+            <Tooltip contentStyle={tooltipStyle} formatter={(value: number, name: string) => [formatPercent(value, 1), name]} />
+            <Legend verticalAlign="top" height={36} />
+            {scenarioNames.map(name => (
+              <Bar key={name} dataKey={name} fill={scenarioColors[name]} radius={[4, 4, 0, 0]} barSize={barWidth} />
+            ))}
+          </BarChart>
+        </ResponsiveContainer>
+      </ChartCard>
 
-      {/* Contribution Breakdown — Full Width */}
-      <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
-        <h3 className="text-lg font-semibold text-gray-800">Contribution Breakdown</h3>
-        <p className="text-sm text-gray-500 mb-4">
-          {finalYear ? `Final year (${finalYear})` : 'Final year'} — Employee, Employer Match, and Employer Core
-        </p>
-        <div className="h-80">
-          {contributionBreakdownData.length > 0 ? (
-            <ResponsiveContainer width="100%" height="100%">
-              <BarChart data={contributionBreakdownData}>
-                <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#E5E7EB" />
-                <XAxis dataKey="name" stroke="#9CA3AF" />
-                <YAxis stroke="#9CA3AF" tickFormatter={v => formatCurrency(v)} />
-                <Tooltip
-                  contentStyle={tooltipStyle}
-                  formatter={(value: number) => [formatCurrency(value), '']}
-                />
-                <Legend verticalAlign="top" height={36} />
-                <Bar
-                  dataKey="employee"
-                  name="Employee Contributions"
-                  fill={CONTRIBUTION_COLORS.employee}
-                  radius={[4, 4, 0, 0]}
-                  barSize={scenarioNames.length > 4 ? 16 : 30}
-                />
-                <Bar
-                  dataKey="match"
-                  name="Employer Match"
-                  fill={CONTRIBUTION_COLORS.match}
-                  radius={[4, 4, 0, 0]}
-                  barSize={scenarioNames.length > 4 ? 16 : 30}
-                />
-                <Bar
-                  dataKey="core"
-                  name="Employer Core"
-                  fill={CONTRIBUTION_COLORS.core}
-                  radius={[4, 4, 0, 0]}
-                  barSize={scenarioNames.length > 4 ? 16 : 30}
-                />
-              </BarChart>
-            </ResponsiveContainer>
-          ) : (
-            <div className="h-full flex items-center justify-center text-gray-400">
-              <p>No contribution data available</p>
-            </div>
-          )}
-        </div>
-      </div>
+      {/* Contribution Breakdown */}
+      <ChartCard
+        title="Contribution Breakdown"
+        subtitle={`${finalYear ? `Final year (${finalYear})` : 'Final year'} — Employee, Employer Match, and Employer Core`}
+        emptyMessage="No contribution data available"
+        hasData={contributionBreakdownData.length > 0}
+      >
+        <ResponsiveContainer width="100%" height="100%">
+          <BarChart data={contributionBreakdownData}>
+            <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#E5E7EB" />
+            <XAxis dataKey="name" stroke="#9CA3AF" />
+            <YAxis stroke="#9CA3AF" tickFormatter={v => formatCurrency(v)} />
+            <Tooltip contentStyle={tooltipStyle} formatter={(value: number) => [formatCurrency(value), '']} />
+            <Legend verticalAlign="top" height={36} />
+            <Bar dataKey="employee" name="Employee Contributions" fill={CONTRIBUTION_COLORS.employee} radius={[4, 4, 0, 0]} barSize={contributionBarSize} />
+            <Bar dataKey="match" name="Employer Match" fill={CONTRIBUTION_COLORS.match} radius={[4, 4, 0, 0]} barSize={contributionBarSize} />
+            <Bar dataKey="core" name="Employer Core" fill={CONTRIBUTION_COLORS.core} radius={[4, 4, 0, 0]} barSize={contributionBarSize} />
+          </BarChart>
+        </ResponsiveContainer>
+      </ChartCard>
 
-      {/* Summary Comparison Table — Full Width */}
-      {summaryRows.length > 0 && (
-        <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
-          <h3 className="text-lg font-semibold text-gray-800 mb-4">DC Plan Summary Comparison</h3>
-          <div className="overflow-x-auto">
-            <table className="w-full text-sm">
-              <thead>
-                <tr className="border-b border-gray-200">
-                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Metric
-                  </th>
-                  {scenarioNames.map((name, idx) => (
-                    <th
-                      key={name}
-                      className="px-4 py-3 text-left text-xs font-medium uppercase tracking-wider"
-                      style={{ color: scenarioColors[name] }}
-                    >
-                      {name}{idx === 0 ? ' (Baseline)' : ''}
-                    </th>
-                  ))}
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-gray-100">
-                {summaryRows.map(row => (
-                  <tr key={row.metric} className="hover:bg-gray-50">
-                    <td className="px-4 py-3 font-medium text-gray-900">
-                      {row.metric}
-                    </td>
-                    {scenarioNames.map((name, idx) => {
-                      const value = row.values[name];
-                      const delta = row.deltas[name];
-                      const isBaseline = idx === 0;
-
-                      return (
-                        <td key={name} className="px-4 py-3">
-                          <div className="text-gray-800 font-semibold">
-                            {formatValue(row, value)}
-                          </div>
-                          {!isBaseline && delta !== undefined && (
-                            <span
-                              className={`inline-block mt-1 px-2 py-0.5 rounded text-xs font-medium ${isFavorable(row, delta) ? 'bg-green-50 text-green-700' : 'bg-red-50 text-red-700'}`}
-                            >
-                              {formatDelta(row, delta)}
-                            </span>
-                          )}
-                        </td>
-                      );
-                    })}
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        </div>
-      )}
+      {/* Summary Comparison Table */}
+      <SummaryComparisonTable
+        summaryRows={summaryRows}
+        scenarioNames={scenarioNames}
+        scenarioColors={scenarioColors}
+      />
     </div>
   );
 }

@@ -118,8 +118,8 @@ class TestLiveProgressTrackerOnDbtLine:
         tracker = LiveProgressTracker(1, 2025, 2025, verbose=True)
         # _live is None by default, should fall back to print
         with patch("builtins.print") as mock_print:
-            tracker.on_dbt_line("some dbt output")
-            mock_print.assert_called_once_with("some dbt output")
+            tracker.on_dbt_line("12 of 30 OK created")
+            mock_print.assert_called_once_with("12 of 30 OK created")
 
     def test_on_dbt_line_uses_console_when_live_active(self):
         tracker = LiveProgressTracker(1, 2025, 2025, verbose=True)
@@ -128,8 +128,8 @@ class TestLiveProgressTrackerOnDbtLine:
         mock_live.console = mock_console
         tracker._live = mock_live
 
-        tracker.on_dbt_line("model compiled")
-        mock_console.print.assert_called_once_with("model compiled", highlight=False)
+        tracker.on_dbt_line("12 of 30 OK created")
+        mock_console.print.assert_called_once_with("12 of 30 OK created", highlight=False)
 
     def test_on_dbt_line_ignores_empty_lines(self):
         tracker = LiveProgressTracker(1, 2025, 2025, verbose=True)

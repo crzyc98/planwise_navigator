@@ -8,6 +8,7 @@ progress reporting, and user-friendly interfaces.
 from __future__ import annotations
 
 import os
+import re
 from datetime import datetime
 from pathlib import Path
 from typing import Any, Dict, Optional, Union
@@ -315,6 +316,90 @@ class OrchestratorWrapper:
             }
 
 
+# Maximum line length to process — truncate before regex to prevent
+# polynomial-time backtracking on adversarial input (ReDoS / SonarQube S5852).
+_MAX_LINE_LENGTH = 1000
+
+# Progress indicator patterns (non-overlapping quantifiers to avoid ReDoS)
+_YEAR_PATTERN = re.compile(r'🔄 Starting simulation year (\d+)')
+_STAGE_PATTERN = re.compile(r'📋 Starting (\w+)')
+_EVENT_PATTERN = re.compile(r'📊 Generated (\d+(?:,\d+)*) events')
+_COMPLETED_STAGE_PATTERN = re.compile(r'✅ Completed (\w+) in (\d+\.\d+)s')
+_FOUNDATION_VALIDATION_PATTERN = re.compile(r'📊 Foundation model validation for year (\d+):')
+
+
+class _ProgressMonitor:
+    """Intercepts stdout to extract progress indicators and route output safely."""
+
+    def __init__(self, callback, original_stdout):
+        self.callback = callback
+        self.original_stdout = original_stdout
+        self.current_year = None
+        self.buffer = ""
+        self._writing = False
+
+    def write(self, text):
+        if self._writing:
+            self.original_stdout.write(text)
+            return
+        self._writing = True
+        try:
+            self.original_stdout.flush()
+            self.buffer += text
+            while '\n' in self.buffer:
+                line, self.buffer = self.buffer.split('\n', 1)
+                self._process_line(line)
+                if hasattr(self.callback, 'on_dbt_line'):
+                    self.callback.on_dbt_line(line)
+        finally:
+            self._writing = False
+
+    def _process_line(self, line):
+        """Process a complete line for progress indicators."""
+        line = line[:_MAX_LINE_LENGTH]
+        self._check_year(line)
+        self._check_stage(line)
+        self._check_events(line)
+        self._check_completed_stage(line)
+        self._check_foundation_validation(line)
+
+    def _check_year(self, line):
+        match = _YEAR_PATTERN.search(line)
+        if match:
+            self.current_year = int(match.group(1))
+            if hasattr(self.callback, 'update_year'):
+                self.callback.update_year(self.current_year)
+
+    def _check_stage(self, line):
+        match = _STAGE_PATTERN.search(line)
+        if match and hasattr(self.callback, 'update_stage'):
+            self.callback.update_stage(match.group(1))
+
+    def _check_events(self, line):
+        match = _EVENT_PATTERN.search(line)
+        if not match:
+            return
+        try:
+            event_count = int(match.group(1).replace(',', ''))
+            if hasattr(self.callback, 'update_events'):
+                self.callback.update_events(event_count)
+        except ValueError:
+            pass
+
+    def _check_completed_stage(self, line):
+        match = _COMPLETED_STAGE_PATTERN.search(line)
+        if match and hasattr(self.callback, 'stage_completed'):
+            self.callback.stage_completed(match.group(1), float(match.group(2)))
+
+    def _check_foundation_validation(self, line):
+        match = _FOUNDATION_VALIDATION_PATTERN.search(line)
+        if match and hasattr(self.callback, 'year_validation'):
+            self.callback.year_validation(int(match.group(1)))
+
+    def flush(self):
+        self.original_stdout.flush()
+
+
 class ProgressAwareOrchestrator:
     """
     Wrapper around PipelineOrchestrator that monitors output for progress updates.
@@ -340,116 +425,15 @@ class ProgressAwareOrchestrator:
     def execute_multi_year_simulation(self, **kwargs):
         """Execute multi-year simulation with enhanced progress monitoring."""
         import sys
-        import io
-        from contextlib import redirect_stdout
-        import re
 
-        # Maximum line length to process — truncate before regex to prevent
-        # polynomial-time backtracking on adversarial input (ReDoS / SonarQube S5852).
-        max_line_length = 1000
-
-        # Pattern matching for various progress indicators.
-        # Patterns use non-overlapping quantifiers to avoid ReDoS.
-        year_pattern = re.compile(r'🔄 Starting simulation year (\d+)')
-        stage_pattern = re.compile(r'📋 Starting (\w+)')
-        # Use \d+(?:,\d+)* instead of \d+,?\d* to avoid overlapping quantifiers
-        event_pattern = re.compile(r'📊 Generated (\d+(?:,\d+)*) events')
-        completed_stage_pattern = re.compile(r'✅ Completed (\w+) in (\d+\.\d+)s')
-        foundation_validation_pattern = re.compile(r'📊 Foundation model validation for year (\d+):')
-
-        class EnhancedProgressMonitor:
-            def __init__(self, callback, original_stdout):
-                self.callback = callback
-                self.original_stdout = original_stdout
-                self.current_year = None
-                self.buffer = ""
-                self._writing = False
-
-            def write(self, text):
-                if self._writing:
-                    self.original_stdout.write(text)
-                    return
-                self._writing = True
-                try:
-                    # Do NOT write to original stdout — Rich Live is controlling the terminal.
-                    # Raw stdout writes cause display corruption.
-                    # Instead, route visible output through the callback's on_dbt_line().
-                    self.original_stdout.flush()
-
-                    # Add to buffer for pattern matching
-                    self.buffer += text
-
-                    # Process complete lines
-                    while '\n' in self.buffer:
-                        line, self.buffer = self.buffer.split('\n', 1)
-                        self._process_line(line)
-                        # Route line to callback for safe Rich Console rendering
-                        if hasattr(self.callback, 'on_dbt_line'):
-                            self.callback.on_dbt_line(line)
-                finally:
-                    self._writing = False
-
-            def _process_line(self, line):
-                """Process a complete line for progress indicators."""
-                # Truncate to prevent ReDoS on adversarial input
-                line = line[:max_line_length]
-
-                # Check for year start
-                year_match = year_pattern.search(line)
-                if year_match:
-                    year = int(year_match.group(1))
-                    self.current_year = year
-                    if hasattr(self.callback, 'update_year'):
-                        self.callback.update_year(year)
-
-                # Check for stage start
-                stage_match = stage_pattern.search(line)
-                if stage_match:
-                    stage = stage_match.group(1)
-                    if hasattr(self.callback, 'update_stage'):
-                        self.callback.update_stage(stage)
-
-                # Check for event generation
-                event_match = event_pattern.search(line)
-                if event_match:
-                    event_count_str = event_match.group(1).replace(',', '')
-                    try:
-                        event_count = int(event_count_str)
-                        if hasattr(self.callback, 'update_events'):
-                            self.callback.update_events(event_count)
-                    except ValueError:
-                        pass
-
-                # Check for completed stage
-                completed_match = completed_stage_pattern.search(line)
-                if completed_match:
-                    stage = completed_match.group(1)
-                    duration = float(completed_match.group(2))
-                    if hasattr(self.callback, 'stage_completed'):
-                        self.callback.stage_completed(stage, duration)
-
-                # Check for foundation validation (indicates year completion)
-                foundation_match = foundation_validation_pattern.search(line)
-                if foundation_match:
-                    year = int(foundation_match.group(1))
-                    if hasattr(self.callback, 'year_validation'):
-                        self.callback.year_validation(year)
-
-            def flush(self):
-                self.original_stdout.flush()
-
-        # Replace stdout with enhanced progress monitor
         original_stdout = sys.stdout
-        progress_monitor = EnhancedProgressMonitor(self.progress_callback, original_stdout)
+        progress_monitor = _ProgressMonitor(self.progress_callback, original_stdout)
 
         try:
             sys.stdout = progress_monitor
-            # Execute the actual simulation
             result = self.orchestrator.execute_multi_year_simulation(**kwargs)
-            # Process any remaining buffer
             if progress_monitor.buffer.strip():
                 progress_monitor._process_line(progress_monitor.buffer)
             return result
         finally:
-            # Always restore original stdout
             sys.stdout = original_stdout

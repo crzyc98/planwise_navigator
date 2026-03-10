@@ -16,6 +16,9 @@
 
 {% set simulation_year = var('simulation_year', 2025) %}
 {% set event_mode = var('event_generation_mode', 'sql') %}
+{% set default_scenario = 'default' %}
+{% set sid = var('scenario_id', default_scenario) %}
+{% set pid = var('plan_design_id', default_scenario) %}
 
 {% if event_mode == 'polars' %}
 
@@ -40,8 +43,8 @@ WITH polars_raw_events AS (
       ))
     ) AS event_id,
     -- Cast IDs to VARCHAR (Polars may output as INT)
-    COALESCE(CAST(scenario_id AS VARCHAR), '{{ var("scenario_id", "default") }}') AS scenario_id,
-    COALESCE(CAST(plan_design_id AS VARCHAR), '{{ var("plan_design_id", "default") }}') AS plan_design_id,
+    COALESCE(CAST(scenario_id AS VARCHAR), '{{ sid }}') AS scenario_id,
+    COALESCE(CAST(plan_design_id AS VARCHAR), '{{ pid }}') AS plan_design_id,
     employee_id,
     -- Read demographic fields from Polars output (now included)
     employee_ssn,
@@ -105,7 +108,7 @@ WITH polars_raw_events AS (
     ) AS event_category,
 
     created_at,
-    '{{ var("scenario_id", "default") }}' AS parameter_scenario_id,
+    '{{ sid }}' AS parameter_scenario_id,
     COALESCE(generation_method, 'polars_factory') AS parameter_source,
     'VALID' AS data_quality_flag  -- Polars events are pre-validated
 
@@ -176,8 +179,8 @@ SELECT * FROM final_events
 
 WITH all_events AS (
   SELECT
-    '{{ var('scenario_id', 'default') }}' AS scenario_id,
-    '{{ var('plan_design_id', 'default') }}' AS plan_design_id,
+    '{{ sid }}' AS scenario_id,
+    '{{ pid }}' AS plan_design_id,
     employee_id,
     employee_ssn,
     event_type,
@@ -201,8 +204,8 @@ WITH all_events AS (
   UNION ALL
 
   SELECT
-    '{{ var('scenario_id', 'default') }}' AS scenario_id,
-    '{{ var('plan_design_id', 'default') }}' AS plan_design_id,
+    '{{ sid }}' AS scenario_id,
+    '{{ pid }}' AS plan_design_id,
     employee_id,
     employee_ssn,
     event_type,
@@ -227,8 +230,8 @@ WITH all_events AS (
 
   -- E068A: Include new-hire termination events (ephemeral) in fused output
   SELECT
-    '{{ var('scenario_id', 'default') }}' AS scenario_id,
-    '{{ var('plan_design_id', 'default') }}' AS plan_design_id,
+    '{{ sid }}' AS scenario_id,
+    '{{ pid }}' AS plan_design_id,
     nht.employee_id,
     nht.employee_ssn,
     nht.event_type,
@@ -252,8 +255,8 @@ WITH all_events AS (
   UNION ALL
 
   SELECT
-    '{{ var('scenario_id', 'default') }}' AS scenario_id,
-    '{{ var('plan_design_id', 'default') }}' AS plan_design_id,
+    '{{ sid }}' AS scenario_id,
+    '{{ pid }}' AS plan_design_id,
     employee_id,
     employee_ssn,
     event_type,
@@ -277,8 +280,8 @@ WITH all_events AS (
   UNION ALL
 
   SELECT
-    '{{ var('scenario_id', 'default') }}' AS scenario_id,
-    '{{ var('plan_design_id', 'default') }}' AS plan_design_id,
+    '{{ sid }}' AS scenario_id,
+    '{{ pid }}' AS plan_design_id,
     employee_id,
     employee_ssn,
     event_type,
@@ -302,8 +305,8 @@ WITH all_events AS (
   UNION ALL
 
   SELECT
-    '{{ var('scenario_id', 'default') }}' AS scenario_id,
-    '{{ var('plan_design_id', 'default') }}' AS plan_design_id,
+    '{{ sid }}' AS scenario_id,
+    '{{ pid }}' AS plan_design_id,
     employee_id,
     employee_ssn,
     event_type,
@@ -327,8 +330,8 @@ WITH all_events AS (
   UNION ALL
 
   SELECT
-    '{{ var('scenario_id', 'default') }}' AS scenario_id,
-    '{{ var('plan_design_id', 'default') }}' AS plan_design_id,
+    '{{ sid }}' AS scenario_id,
+    '{{ pid }}' AS plan_design_id,
     employee_id,
     employee_ssn,
     event_type,
@@ -353,8 +356,8 @@ WITH all_events AS (
 
   -- E058: Match-responsive deferral adjustment events
   SELECT
-    '{{ var('scenario_id', 'default') }}' AS scenario_id,
-    '{{ var('plan_design_id', 'default') }}' AS plan_design_id,
+    '{{ sid }}' AS scenario_id,
+    '{{ pid }}' AS plan_design_id,
     employee_id,
     employee_ssn,
     event_type,
@@ -433,7 +436,7 @@ final_events AS (
     -- Add metadata for audit trail
     CURRENT_TIMESTAMP AS created_at,
     -- Add parameter tracking for dynamic compensation system
-    '{{ var("scenario_id", "default") }}' AS parameter_scenario_id,
+    '{{ sid }}' AS parameter_scenario_id,
     'fused_event_generation' AS parameter_source,  -- E068A tracking
     -- Add data validation flags
     CASE
