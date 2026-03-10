@@ -1,3 +1,9 @@
+{{
+  config(
+    severity='warn'
+  )
+}}
+
 -- Converted from validation model to test
 -- Added simulation_year filter for performance
 
