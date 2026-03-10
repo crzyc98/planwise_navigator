@@ -43,7 +43,7 @@ initial_state_events AS (
         employment_status,
         simulation_year,
         initial_state_date AS effective_date,
-        'initial_state' AS event_type,
+        {{ evt_initial_state() }} AS event_type,
         'INITIAL' AS event_category,
         employee_source AS event_details,
         9 AS event_priority, -- Lowest priority for initial states
@@ -59,27 +59,27 @@ simulation_events AS (
         employee_ssn,
         -- Birth date calculation for hire events, NULL for others
         CASE
-            WHEN UPPER(event_type) = 'HIRE' AND employee_age IS NOT NULL THEN
+            WHEN UPPER(event_type) = {{ EVT_HIRE() }} AND employee_age IS NOT NULL THEN
                 -- More accurate birth date calculation accounting for leap years
                 effective_date - INTERVAL (employee_age * 365.25) DAY
             ELSE NULL
         END AS employee_birth_date,
         -- Hire date for hire events, NULL for others
         CASE
-            WHEN UPPER(event_type) = 'HIRE' THEN effective_date
+            WHEN UPPER(event_type) = {{ EVT_HIRE() }} THEN effective_date
             ELSE NULL
         END AS employee_hire_date,
         compensation_amount,
         level_id,
         -- Termination date for termination events only
         CASE
-            WHEN UPPER(event_type) = 'TERMINATION' THEN effective_date
+            WHEN UPPER(event_type) = {{ EVT_TERMINATION() }} THEN effective_date
             ELSE NULL
         END AS termination_date,
         -- Employment status based on event type
         CASE
-            WHEN UPPER(event_type) = 'TERMINATION' THEN 'terminated'
-            WHEN UPPER(event_type) = 'HIRE' THEN 'active'
+            WHEN UPPER(event_type) = {{ EVT_TERMINATION() }} THEN {{ status_terminated() }}
+            WHEN UPPER(event_type) = {{ EVT_HIRE() }} THEN {{ status_active() }}
             ELSE NULL -- Let final state calculation determine this
         END AS employment_status,
         simulation_year,
@@ -89,10 +89,10 @@ simulation_events AS (
         event_details,
         -- Event priority for same-day ordering
         CASE
-            WHEN UPPER(event_type) = 'TERMINATION' THEN 1  -- Highest priority
-            WHEN UPPER(event_type) = 'PROMOTION' THEN 2
-            WHEN UPPER(event_type) = 'RAISE' THEN 3
-            WHEN UPPER(event_type) = 'HIRE' THEN 4
+            WHEN UPPER(event_type) = {{ EVT_TERMINATION() }} THEN 1  -- Highest priority
+            WHEN UPPER(event_type) = {{ EVT_PROMOTION() }} THEN 2
+            WHEN UPPER(event_type) = {{ EVT_RAISE() }} THEN 3
+            WHEN UPPER(event_type) = {{ EVT_HIRE() }} THEN 4
             ELSE 5
         END AS event_priority,
         CONCAT(UPPER(event_type), ' event for employee ', employee_id) AS event_description
@@ -184,7 +184,7 @@ date_and_status_propagated_stream AS (
                 ORDER BY effective_date ASC, event_priority ASC
                 ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW
             ),
-            'active'
+            {{ status_active() }}
         ) AS employment_status
     FROM combined_event_stream
 ),
@@ -201,7 +201,7 @@ temporal_calculations AS (
         END AS calculated_age,
         -- Calculate tenure at the time of each event (E020 FIX: day-based calculation)
         CASE
-            WHEN event_type = 'hire' THEN 0  -- New hires start with 0 tenure
+            WHEN event_type = {{ evt_hire() }} THEN 0  -- New hires start with 0 tenure
             WHEN employee_hire_date IS NOT NULL AND employee_hire_date <= effective_date THEN
                 FLOOR((effective_date - employee_hire_date) / 365.25)::INTEGER
             ELSE NULL

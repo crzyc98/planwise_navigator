@@ -50,23 +50,23 @@ WITH current_year_enrollment_events AS (
         event_category,  -- Added to track enrollment method
         -- Parse enrollment-related information from events
         CASE
-            WHEN event_type = 'enrollment' THEN effective_date
+            WHEN event_type = {{ evt_enrollment() }} THEN effective_date
             ELSE NULL
         END AS new_enrollment_date,
         CASE
-            WHEN event_type = 'enrollment' THEN true
-            WHEN event_type = 'enrollment_change' AND LOWER(event_details) LIKE '%opt-out%' THEN false
+            WHEN event_type = {{ evt_enrollment() }} THEN true
+            WHEN event_type = {{ evt_enrollment_change() }} AND LOWER(event_details) LIKE '%opt-out%' THEN false
             ELSE NULL
         END AS enrollment_status_change,
         -- Track enrollment method from event_category
         CASE
-            WHEN event_type = 'enrollment' AND event_category = 'auto_enrollment' THEN 'auto'
-            WHEN event_type = 'enrollment' AND event_category IN ('voluntary_enrollment', 'proactive_enrollment', 'executive_enrollment') THEN 'voluntary'
+            WHEN event_type = {{ evt_enrollment() }} AND event_category = 'auto_enrollment' THEN 'auto'
+            WHEN event_type = {{ evt_enrollment() }} AND event_category IN ('voluntary_enrollment', 'proactive_enrollment', 'executive_enrollment') THEN 'voluntary'
             ELSE NULL
         END AS enrollment_method,
         -- Track opt-out events
         CASE
-            WHEN event_type = 'enrollment_change' AND LOWER(event_details) LIKE '%opt-out%' THEN true
+            WHEN event_type = {{ evt_enrollment_change() }} AND LOWER(event_details) LIKE '%opt-out%' THEN true
             ELSE false
         END AS is_opt_out_event,
         -- Add event priority for handling multiple events per employee
@@ -76,7 +76,7 @@ WITH current_year_enrollment_events AS (
         ) AS event_priority
     FROM {{ ref('fct_yearly_events') }}
     WHERE simulation_year = {{ simulation_year }}
-        AND event_type IN ('enrollment', 'enrollment_change')
+        AND {{ is_enrollment_event('event_type') }}
         AND employee_id IS NOT NULL
 ),
 
@@ -86,16 +86,16 @@ current_year_enrollment_summary AS (
         employee_id,
         simulation_year,
         -- Get the latest enrollment event date
-        MAX(CASE WHEN event_type = 'enrollment' AND event_priority = 1 THEN new_enrollment_date END) AS enrollment_event_date,
+        MAX(CASE WHEN event_type = {{ evt_enrollment() }} AND event_priority = 1 THEN new_enrollment_date END) AS enrollment_event_date,
         -- Get enrollment method if enrolled this year
-        MAX(CASE WHEN event_type = 'enrollment' AND event_priority = 1 THEN enrollment_method END) AS enrollment_method_this_year,
+        MAX(CASE WHEN event_type = {{ evt_enrollment() }} AND event_priority = 1 THEN enrollment_method END) AS enrollment_method_this_year,
         -- Determine final enrollment status after all events this year
         CASE
             -- If there's an opt-out event, status is false regardless of enrollment events
-            WHEN MAX(CASE WHEN event_type = 'enrollment_change' AND enrollment_status_change = false THEN 1 ELSE 0 END) = 1
+            WHEN MAX(CASE WHEN event_type = {{ evt_enrollment_change() }} AND enrollment_status_change = false THEN 1 ELSE 0 END) = 1
                 THEN false
             -- If there's an enrollment event and no opt-out, status is true
-            WHEN MAX(CASE WHEN event_type = 'enrollment' THEN 1 ELSE 0 END) = 1
+            WHEN MAX(CASE WHEN event_type = {{ evt_enrollment() }} THEN 1 ELSE 0 END) = 1
                 THEN true
             -- No enrollment events this year
             ELSE NULL
@@ -103,8 +103,8 @@ current_year_enrollment_summary AS (
         -- Track if there was an opt-out this year
         MAX(CASE WHEN is_opt_out_event = true THEN 1 ELSE 0 END) = 1 AS had_opt_out_this_year,
         -- Count of enrollment events for tracking
-        COUNT(CASE WHEN event_type = 'enrollment' THEN 1 END) AS enrollment_events_count,
-        COUNT(CASE WHEN event_type = 'enrollment_change' THEN 1 END) AS enrollment_change_events_count
+        COUNT(CASE WHEN event_type = {{ evt_enrollment() }} THEN 1 END) AS enrollment_events_count,
+        COUNT(CASE WHEN event_type = {{ evt_enrollment_change() }} THEN 1 END) AS enrollment_change_events_count
     FROM current_year_enrollment_events
     WHERE event_priority = 1  -- Only use the latest event of each type
     GROUP BY employee_id, simulation_year
@@ -121,7 +121,7 @@ baseline_enrollment_state AS (
         0 AS years_since_first_enrollment,
         'baseline' AS enrollment_source
     FROM {{ ref('int_baseline_workforce') }}
-    WHERE employment_status = 'active'
+    WHERE employment_status = {{ status_active() }}
         AND employee_id IS NOT NULL
 ),
 
@@ -287,7 +287,7 @@ SELECT
         WHEN employee_id IS NULL THEN 'INVALID_EMPLOYEE_ID'
         WHEN simulation_year IS NULL THEN 'INVALID_SIMULATION_YEAR'
         WHEN enrollment_status IS NULL THEN 'INVALID_ENROLLMENT_STATUS'
-        ELSE 'VALID'
+        ELSE {{ dq_valid() }}
     END AS data_quality_flag
 FROM
 {% if simulation_year == start_year %}
