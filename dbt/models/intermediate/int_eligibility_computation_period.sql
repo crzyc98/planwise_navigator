@@ -23,6 +23,7 @@
   - int_new_hire_termination_events: Employment status (terminated flag + termination date)
 */
 
+{% set default_scenario = 'default' %}
 {% set simulation_year = var('simulation_year', 2025) | int %}
 {% set start_year = var('start_year', 2025) | int %}
 
@@ -43,8 +44,8 @@ census_employees AS (
     employee_id,
     employee_hire_date AS hire_date,
     'active' AS employment_status,
-    '{{ var("scenario_id", "default") }}' AS scenario_id,
-    '{{ var("plan_design_id", "default") }}' AS plan_design_id
+    '{{ var("scenario_id", default_scenario) }}' AS scenario_id,
+    '{{ var("plan_design_id", default_scenario) }}' AS plan_design_id
   FROM {{ ref('int_baseline_workforce') }}
   WHERE simulation_year = {{ simulation_year }}
     AND employment_status = 'active'
@@ -57,8 +58,8 @@ new_hires AS (
     employee_id,
     effective_date AS hire_date,
     'active' AS employment_status,
-    '{{ var("scenario_id", "default") }}' AS scenario_id,
-    '{{ var("plan_design_id", "default") }}' AS plan_design_id
+    '{{ var("scenario_id", default_scenario) }}' AS scenario_id,
+    '{{ var("plan_design_id", default_scenario) }}' AS plan_design_id
   FROM {{ ref('int_hiring_events') }}
   WHERE simulation_year = {{ simulation_year }}
     AND employee_id IS NOT NULL
