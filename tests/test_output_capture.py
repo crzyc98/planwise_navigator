@@ -14,6 +14,7 @@ from rich.console import Console
 from planalign_cli.ui.output_capture import (
     OutputCapture,
     PlainTextProgressFallback,
+    _is_signal_line,
     is_tty,
 )
 
@@ -87,13 +88,13 @@ class TestPlainTextProgressFallback:
 
     def test_on_dbt_line_verbose(self, capsys):
         fb = self._make_fallback(verbose=True)
-        fb.on_dbt_line("model compiled")
+        fb.on_dbt_line("12 of 30 OK created")
         captured = capsys.readouterr()
-        assert "[dbt] model compiled" in captured.out
+        assert "[dbt] 12 of 30 OK created" in captured.out
 
     def test_on_dbt_line_not_verbose(self, capsys):
         fb = self._make_fallback(verbose=False)
-        fb.on_dbt_line("model compiled")
+        fb.on_dbt_line("12 of 30 OK created")
         captured = capsys.readouterr()
         assert captured.out == ""
 
@@ -102,6 +103,162 @@ class TestPlainTextProgressFallback:
         fb.update_year(2025)
         fb.update_year(2026)
         assert fb.years_completed == 1
+
+
+@pytest.mark.fast
+class TestIsSignalLine:
+    """Tests for _is_signal_line regex-based filtering."""
+
+    # --- Signal lines that SHOULD be detected ---
+
+    @pytest.mark.parametrize("line", [
+        "ERROR: compilation error",
+        "  error in model int_foo",
+        "WARNING: unused config",
+        "warn: deprecated feature",
+        "3 of 5 OK created fct_yearly_events",
+        "Running with dbt=1.8.8",
+        "Finished running 12 table models",
+        "Done.",
+        "OK created int_baseline_workforce",
+        "FAIL 1 stg_census",
+        "PASS 42 not_null_employee_id",
+    ])
+    def test_signal_lines_detected(self, line: str):
+        assert _is_signal_line(line) is True
+
+    @pytest.mark.parametrize("line", [
+        "ERROR: something",
+        "error: something",
+        "Error: something",
+    ])
+    def test_signal_case_insensitive(self, line: str):
+        assert _is_signal_line(line) is True
+
+    # --- Noise lines that SHOULD be filtered ---
+
+    @pytest.mark.parametrize("line", [
+        "select employee_id, hire_date",
+        "  SELECT count(*) FROM employees",
+        "from stg_census",
+        "  FROM int_baseline_workforce",
+        "where simulation_year = 2025",
+        "  WHERE employee_id IS NOT NULL",
+        "with base AS (",
+        "  WITH cte AS (",
+        "join int_termination_events",
+        "  JOIN stg_census ON ...",
+        "group by employee_id",
+        "order by hire_date",
+        "---",
+        "------",
+        "=====",
+        "=========",
+        "[debug] some message",
+        "  [debug] another message",
+        "Concurrency: 1 thread",
+        "registered in project",
+    ])
+    def test_noise_lines_filtered(self, line: str):
+        assert _is_signal_line(line) is False
+
+    # --- The -‐{2,} change: two dashes now match noise ---
+
+    def test_two_dashes_matched_as_noise(self):
+        """Two dashes should be filtered as noise after -‐{2,} change."""
+        assert _is_signal_line("--") is False
+
+    def test_three_dashes_matched_as_noise(self):
+        assert _is_signal_line("---") is False
+
+    def test_single_dash_not_noise(self):
+        """A single dash is not noise (doesn't match -{2,}) and not a signal either."""
+        assert _is_signal_line("-") is False
+
+    # --- Edge cases ---
+
+    def test_empty_string(self):
+        assert _is_signal_line("") is False
+
+    def test_whitespace_only(self):
+        assert _is_signal_line("   ") is False
+
+    def test_tab_only(self):
+        assert _is_signal_line("\t") is False
+
+    def test_newline_only(self):
+        assert _is_signal_line("\n") is False
+
+    def test_plain_text_no_signal(self):
+        """A line with no signal keywords is not a signal."""
+        assert _is_signal_line("loading seeds") is False
+
+    def test_noise_keyword_with_signal_not_filtered(self):
+        """A line starting with a noise keyword but also having a signal
+        should still be filtered because noise check runs first."""
+        assert _is_signal_line("select error count") is False
+
+    # --- Non-capturing group verification ---
+    # These verify that the regex doesn't create unwanted capture groups
+    # that could cause match.group() issues in downstream code.
+
+    def test_signal_search_returns_match_without_groups(self):
+        """Non-capturing groups should not produce numbered groups."""
+        from planalign_cli.ui.output_capture import _SIGNAL_PATTERNS
+        m = _SIGNAL_PATTERNS.search("3 of 5 OK")
+        assert m is not None
+        assert m.groups() == ()
+
+    def test_noise_match_returns_match_without_groups(self):
+        """Non-capturing groups should not produce numbered groups."""
+        from planalign_cli.ui.output_capture import _NOISE_PATTERNS
+        m = _NOISE_PATTERNS.match("select foo")
+        assert m is not None
+        assert m.groups() == ()
+
+
+@pytest.mark.fast
+class TestPlainTextProgressFallbackDbtLine:
+    """Tests for on_dbt_line signal filtering integration."""
+
+    def _make_fallback(self, verbose: bool = True):
+        return PlainTextProgressFallback(3, 2025, 2027, verbose=verbose)
+
+    def test_on_dbt_line_prints_signal(self, capsys):
+        fb = self._make_fallback(verbose=True)
+        fb.on_dbt_line("ERROR: compilation failed")
+        captured = capsys.readouterr()
+        assert "[dbt] ERROR: compilation failed" in captured.out
+
+    def test_on_dbt_line_filters_noise(self, capsys):
+        fb = self._make_fallback(verbose=True)
+        fb.on_dbt_line("select employee_id from census")
+        captured = capsys.readouterr()
+        assert captured.out == ""
+
+    def test_on_dbt_line_filters_dashes(self, capsys):
+        fb = self._make_fallback(verbose=True)
+        fb.on_dbt_line("--")
+        captured = capsys.readouterr()
+        assert captured.out == ""
+
+    def test_on_dbt_line_filters_empty(self, capsys):
+        fb = self._make_fallback(verbose=True)
+        fb.on_dbt_line("")
+        captured = capsys.readouterr()
+        assert captured.out == ""
+
+    def test_on_dbt_line_not_verbose_skips_signal(self, capsys):
+        fb = self._make_fallback(verbose=False)
+        fb.on_dbt_line("ERROR: something bad")
+        captured = capsys.readouterr()
+        assert captured.out == ""
+
+    def test_on_dbt_line_progress_pattern(self, capsys):
+        fb = self._make_fallback(verbose=True)
+        fb.on_dbt_line("12 of 30 OK created int_foo")
+        captured = capsys.readouterr()
+        assert "[dbt] 12 of 30 OK created int_foo" in captured.out
 
 
 class TestIsTty:

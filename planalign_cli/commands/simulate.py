@@ -103,12 +103,7 @@ def run_simulation(
         )
 
         # Check system health before starting
-        health = wrapper.check_system_health()
-        if not health["healthy"]:
-            show_error_message("System health check failed")
-            for issue in health["issues"]:
-                console.print(f"  • [red]{issue}[/red]")
-            raise typer.Exit(1)
+        _check_system_health(wrapper)
 
         # Handle resume/restart logic
         actual_start_year = _resolve_start_year(
@@ -218,6 +213,16 @@ def simulation_status(
     except Exception as e:
         show_error_message(f"Status check failed: {e}")
         raise typer.Exit(1)
+
+def _check_system_health(wrapper: OrchestratorWrapper) -> None:
+    """Verify system health and abort if unhealthy."""
+    health = wrapper.check_system_health()
+    if not health["healthy"]:
+        show_error_message("System health check failed")
+        for issue in health["issues"]:
+            console.print(f"  • [red]{issue}[/red]")
+        raise typer.Exit(1)
+
 
 def _resolve_start_year(
     wrapper: OrchestratorWrapper,

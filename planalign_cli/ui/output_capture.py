@@ -16,11 +16,11 @@ from typing import Optional
 from rich.console import Console
 
 _SIGNAL_PATTERNS = re.compile(
-    r'(error|warn|\d+ of \d+|^Running with dbt|^Finished running|^Done\.|OK created|FAIL|PASS)',
+    r'(?:error|warn|\d+ of \d+|^Running with dbt|^Finished running|^Done\.|OK created|FAIL|PASS)',
     re.IGNORECASE,
 )
 _NOISE_PATTERNS = re.compile(
-    r'^\s*(select|from|where|with\s+\w|join|group by|order by|--|\[debug\]|={3,}|-{3,}|Concurrency:|registered in)',
+    r'^\s*(?:select|from|where|with\s+\w|join|group by|order by|-{2,}|\[debug\]|={3,}|Concurrency:|registered in)',
     re.IGNORECASE,
 )
 
