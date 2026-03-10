@@ -9,7 +9,8 @@
   Data Quality Test: Employee ID Format Validation
 
   Validates employee_id format across all data sources:
-  - Baseline employees: EMP_XXXXXX (6 digits)
+  - Baseline/census employees: EMP_YYYY_NNNNNNN (year-stamped, 7 digits)
+  - Legacy baseline employees: EMP_NNNNNN (6 digits, no year)
   - New hires (with UUID): NH_YYYY_XXXXXXXX_NNNNNN
   - New hires (legacy): NH_YYYY_NNNNNN
 
@@ -30,7 +31,7 @@ WITH all_employee_ids AS (
     'new_hire' AS source,
     simulation_year AS year
   FROM {{ ref('fct_yearly_events') }}
-  WHERE event_type = 'hire'
+  WHERE event_type = {{ evt_hire() }}
 
   UNION ALL
 
@@ -47,12 +48,14 @@ format_violations AS (
     source,
     year,
     CASE
-      WHEN employee_id LIKE 'EMP_%' AND LENGTH(employee_id) = 10
-        AND REGEXP_MATCHES(employee_id, '^EMP_[0-9]{6}$') THEN 'VALID'
-      WHEN employee_id LIKE 'NH_%'
-        AND REGEXP_MATCHES(employee_id, '^NH_[0-9]{4}_[a-f0-9]{8}_[0-9]{6}$') THEN 'VALID'
-      WHEN employee_id LIKE 'NH_%'
-        AND REGEXP_MATCHES(employee_id, '^NH_[0-9]{4}_[0-9]{6}$') THEN 'LEGACY_VALID'
+      -- Year-stamped format: EMP_YYYY_NNNNNNN
+      WHEN REGEXP_MATCHES(employee_id, '^EMP_\d{4}_\d{7}$') THEN 'VALID'
+      -- Legacy format: EMP_NNNNNN
+      WHEN REGEXP_MATCHES(employee_id, '^EMP_\d{6}$') THEN 'VALID'
+      -- New hire with UUID: NH_YYYY_XXXXXXXX_NNNNNN
+      WHEN REGEXP_MATCHES(employee_id, '^NH_\d{4}_[a-f0-9]{8}_\d{6}$') THEN 'VALID'
+      -- Legacy new hire: NH_YYYY_NNNNNN
+      WHEN REGEXP_MATCHES(employee_id, '^NH_\d{4}_\d{6}$') THEN 'VALID'
       ELSE 'INVALID'
     END AS format_status
   FROM all_employee_ids

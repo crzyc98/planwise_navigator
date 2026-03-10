@@ -138,7 +138,7 @@ workforce_after_terminations AS (
             ELSE CAST(b.termination_date AS TIMESTAMP)
         END AS termination_date,
         CASE
-            WHEN ec.has_termination THEN 'terminated'
+            WHEN ec.has_termination THEN {{ status_terminated() }}
             ELSE b.employment_status
         END AS employment_status,
         ec.termination_reason
@@ -218,9 +218,9 @@ new_hires AS (
             ELSE NULL
         END AS termination_date,
         CASE
-            WHEN ec.is_new_hire_termination THEN 'terminated'
-            WHEN ec.has_termination THEN 'terminated'
-            ELSE 'active'
+            WHEN ec.is_new_hire_termination THEN {{ status_terminated() }}
+            WHEN ec.has_termination THEN {{ status_terminated() }}
+            ELSE {{ status_active() }}
         END AS employment_status,
         ec.termination_reason
     FROM {{ ref('fct_yearly_events') }} ye
@@ -385,7 +385,7 @@ employee_eligibility AS (
     ) accumulator ON baseline.employee_id = accumulator.employee_id
     LEFT JOIN employee_events_consolidated ec ON baseline.employee_id = ec.employee_id
     -- **E028 PERFORMANCE FIX**: Add simulation_year filter to reduce full table scan
-    WHERE baseline.employment_status = 'active'
+    WHERE baseline.employment_status = {{ status_active() }}
       AND baseline.simulation_year = {{ simulation_year }}
 
     UNION ALL
@@ -427,7 +427,7 @@ employee_eligibility AS (
     -- **E028 PERFORMANCE FIX**: Add simulation_year filter to reduce full table scan
     WHERE he.employee_id NOT IN (
         SELECT employee_id FROM {{ ref('int_baseline_workforce') }}
-        WHERE employment_status = 'active'
+        WHERE employment_status = {{ status_active() }}
           AND simulation_year = {{ simulation_year }}
     )
     {% else %}
@@ -479,7 +479,7 @@ employee_eligibility AS (
     LEFT JOIN (
         SELECT employee_id, employee_eligibility_date, waiting_period_days, current_eligibility_status, employee_enrollment_date
         FROM {{ ref('int_baseline_workforce') }}
-        WHERE employment_status = 'active'
+        WHERE employment_status = {{ status_active() }}
           AND simulation_year = {{ simulation_year }}
     ) baseline ON fwc.employee_id = baseline.employee_id
     -- Enrollment status from state accumulator for current year
@@ -506,7 +506,7 @@ comp_events_for_periods AS (
             ORDER BY effective_date, event_type
         ) AS event_sequence_in_year
     FROM current_year_events
-    WHERE event_type IN ('hire', 'promotion', 'raise', 'termination')
+    WHERE event_type IN ({{ evt_hire() }}, {{ evt_promotion() }}, {{ evt_raise() }}, {{ evt_termination() }})
 ),
 
 -- **EPIC E030 FIX**: Sequential event-based periods to eliminate overlapping compensation
@@ -523,14 +523,14 @@ employee_compensation_timeline AS (
             PARTITION BY employee_id
             ORDER BY effective_date,
             CASE event_type
-                WHEN 'hire' THEN 1
-                WHEN 'promotion' THEN 2
-                WHEN 'raise' THEN 3
-                WHEN 'termination' THEN 4
+                WHEN {{ evt_hire() }} THEN 1
+                WHEN {{ evt_promotion() }} THEN 2
+                WHEN {{ evt_raise() }} THEN 3
+                WHEN {{ evt_termination() }} THEN 4
             END
         ) AS event_sequence
     FROM comp_events_for_periods
-    WHERE event_type IN ('hire', 'promotion', 'raise', 'termination')
+    WHERE event_type IN ({{ evt_hire() }}, {{ evt_promotion() }}, {{ evt_raise() }}, {{ evt_termination() }})
 ),
 
 -- Step 2: Create timeline with period boundaries using LEAD for next event
@@ -570,7 +570,7 @@ all_compensation_periods AS (
             WHEN t.event_type = 'termination' AND NOT EXISTS (
                 SELECT 1 FROM employee_compensation_timeline et
                 WHERE et.employee_id = t.employee_id
-                  AND et.event_type IN ('hire', 'promotion', 'raise')
+                  AND {{ is_compensation_event('et.event_type') }}
             ) THEN t.event_date
             -- Otherwise, exclude next event to avoid overlap (existing logic)
             ELSE t.event_date - INTERVAL 1 DAY
@@ -604,7 +604,7 @@ all_compensation_periods AS (
         END AS period_end,
         new_compensation AS period_salary
     FROM employee_timeline_with_boundaries
-    WHERE event_type IN ('hire', 'promotion', 'raise')  -- Only compensation-affecting events
+    WHERE {{ is_compensation_event('event_type') }}  -- Only compensation-affecting events
       AND new_compensation IS NOT NULL
       AND new_compensation > 0
 ),
@@ -656,7 +656,7 @@ employees_without_events_prorated AS (
                 THEN fwc.employee_gross_compensation * (DATE_DIFF('day', fwc.employee_hire_date, COALESCE(fwc.termination_date, '{{ simulation_year }}-12-31'::DATE)) + 1) / 365.0
 
             -- Experienced employee terminated this year
-            WHEN fwc.employment_status = 'terminated' AND fwc.termination_date IS NOT NULL AND EXTRACT(YEAR FROM fwc.termination_date) = {{ simulation_year }}
+            WHEN fwc.employment_status = {{ status_terminated() }} AND fwc.termination_date IS NOT NULL AND EXTRACT(YEAR FROM fwc.termination_date) = {{ simulation_year }}
                 THEN fwc.employee_gross_compensation * (DATE_DIFF('day', '{{ simulation_year }}-01-01'::DATE, fwc.termination_date) + 1) / 365.0
 
             -- Continuous active employee (full year)
@@ -664,7 +664,7 @@ employees_without_events_prorated AS (
         END AS prorated_annual_compensation
     FROM final_workforce_corrected fwc
     WHERE fwc.employee_id NOT IN (SELECT employee_id FROM comp_events_for_periods)
-      AND fwc.employment_status = 'active' -- Only calculate for active employees without events
+      AND fwc.employment_status = {{ status_active() }} -- Only calculate for active employees without events
 ),
 
 -- Combine prorated compensation for all employees
@@ -692,7 +692,7 @@ final_workforce AS (
         -- Active employees: tenure to year-end (Dec 31)
         -- Terminated employees: tenure to termination_date (Anniversary Year Method)
         CASE
-            WHEN fwc.employment_status = 'terminated' AND fwc.termination_date IS NOT NULL THEN
+            WHEN fwc.employment_status = {{ status_terminated() }} AND fwc.termination_date IS NOT NULL THEN
                 {{ calculate_tenure('fwc.employee_hire_date', "MAKE_DATE(" ~ var('simulation_year') ~ ", 12, 31)", 'fwc.termination_date') }}
             ELSE
                 fwc.current_tenure
@@ -768,25 +768,25 @@ final_workforce AS (
         CASE
             -- Active new hires: must have is_new_hire flag AND hire_date in current year
             WHEN COALESCE(ec.is_new_hire, false) = true
-                 AND fwc.employment_status = 'active'
+                 AND fwc.employment_status = {{ status_active() }}
                  AND fwc.employee_hire_date IS NOT NULL
                  AND EXTRACT(YEAR FROM fwc.employee_hire_date) = sp.current_year
             THEN 'new_hire_active'
 
             -- Terminated new hires: must have is_new_hire flag AND hire_date in current year
             WHEN COALESCE(ec.is_new_hire, false) = true
-                 AND fwc.employment_status = 'terminated'
+                 AND fwc.employment_status = {{ status_terminated() }}
                  AND fwc.employee_hire_date IS NOT NULL
                  AND EXTRACT(YEAR FROM fwc.employee_hire_date) = sp.current_year
             THEN 'new_hire_termination'
 
             -- Active existing employees (hired before current year, still active)
-            WHEN fwc.employment_status = 'active' AND
+            WHEN fwc.employment_status = {{ status_active() }} AND
                  EXTRACT(YEAR FROM fwc.employee_hire_date) < sp.current_year
             THEN 'continuous_active'
 
             -- Terminated existing employees (hired before current year, terminated this year)
-            WHEN fwc.employment_status = 'terminated' AND
+            WHEN fwc.employment_status = {{ status_terminated() }} AND
                  EXTRACT(YEAR FROM fwc.employee_hire_date) < sp.current_year
             THEN 'experienced_termination'
 
@@ -989,7 +989,7 @@ final_output AS (
                     ELSE 'WARNING_OVER_2M'  -- Standard high compensation flag
                 END
 
-            WHEN current_compensation < 10000 AND employment_status = 'active' THEN 'WARNING_UNDER_10K'
+            WHEN current_compensation < 10000 AND employment_status = {{ status_active() }} THEN 'WARNING_UNDER_10K'
 
             -- **E028 PERFORMANCE FIX**: Inflation detection with pre-joined baseline (O(n) vs O(n²))
             -- Uses baseline_comp_for_quality CTE joined once instead of 4 scalar subqueries
