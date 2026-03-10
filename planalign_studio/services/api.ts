@@ -903,6 +903,11 @@ export interface ContributionYearSummary {
   // E013: Employer cost ratio metrics
   total_compensation: number;
   employer_cost_rate: number;
+  // E066: Contribution rate percentages
+  employee_contribution_rate: number;
+  match_contribution_rate: number;
+  core_contribution_rate: number;
+  total_contribution_rate: number;
 }
 
 export interface DeferralRateBucket {
@@ -955,6 +960,11 @@ export interface DCPlanAnalytics {
   // E013: Employer cost ratio metrics
   total_compensation: number;
   employer_cost_rate: number;
+  // E066: Contribution rate percentages
+  employee_contribution_rate: number;
+  match_contribution_rate: number;
+  core_contribution_rate: number;
+  total_contribution_rate: number;
 }
 
 export interface DCPlanComparisonResponse {

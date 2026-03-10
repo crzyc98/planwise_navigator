@@ -69,6 +69,14 @@ const CONTRIBUTION_COLORS = {
   core: '#FFBB28',
 };
 
+// E066: Contribution rate series colors
+const RATE_SERIES = [
+  { key: 'employee_contribution_rate', label: 'Employee Contribution Rate', color: '#0088FE' },
+  { key: 'match_contribution_rate', label: 'Employer Match Rate', color: '#00C49F' },
+  { key: 'core_contribution_rate', label: 'Employer Core Rate', color: '#FFBB28' },
+  { key: 'total_contribution_rate', label: 'Total Contribution Rate', color: '#FF8042' },
+] as const;
+
 // --- Tooltip style ---
 
 const tooltipStyle = {
@@ -130,6 +138,42 @@ export default function DCPlanComparisonSection({
     () => buildTrendData('average_deferral_rate', 100),
     [comparisonData]
   );
+
+  // E066: Contribution Rate Trends — multi-series (4 rates per year)
+  interface RateTrendDataPoint {
+    year: number;
+    [seriesLabel: string]: number | undefined;
+  }
+
+  const contributionRateTrendData = useMemo((): RateTrendDataPoint[] => {
+    if (!comparisonData || comparisonData.analytics.length === 0) return [];
+
+    const allYears = new Set<number>();
+    comparisonData.analytics.forEach(a => {
+      a.contribution_by_year?.forEach(c => allYears.add(c.year));
+    });
+
+    const isSingleScenario = comparisonData.analytics.length === 1;
+
+    return Array.from(allYears).sort((a, b) => a - b).map(year => {
+      const point: RateTrendDataPoint = { year };
+
+      comparisonData.analytics.forEach(a => {
+        const scenarioName = comparisonData.scenario_names[a.scenario_id] || a.scenario_id;
+        const yearData = a.contribution_by_year?.find(c => c.year === year);
+        if (yearData) {
+          RATE_SERIES.forEach(series => {
+            const label = isSingleScenario
+              ? series.label
+              : `${scenarioName} - ${series.label}`;
+            point[label] = (yearData as any)[series.key] ?? 0;
+          });
+        }
+      });
+
+      return point;
+    });
+  }, [comparisonData]);
 
   // --- Deferral Distribution Chart Data ---
 
@@ -243,6 +287,30 @@ export default function DCPlanComparisonSection({
         unit: 'percent',
         favorableDirection: 'lower',
         getValue: a => a.employer_cost_rate || 0,
+      },
+      {
+        metric: 'Employee Contribution Rate',
+        unit: 'percent',
+        favorableDirection: 'higher',
+        getValue: a => a.employee_contribution_rate || 0,
+      },
+      {
+        metric: 'Employer Match Rate',
+        unit: 'percent',
+        favorableDirection: 'lower',
+        getValue: a => a.match_contribution_rate || 0,
+      },
+      {
+        metric: 'Employer Core Rate',
+        unit: 'percent',
+        favorableDirection: 'lower',
+        getValue: a => a.core_contribution_rate || 0,
+      },
+      {
+        metric: 'Total Contribution Rate',
+        unit: 'percent',
+        favorableDirection: 'higher',
+        getValue: a => a.total_contribution_rate || 0,
       },
       {
         metric: 'Total Contributions',
@@ -382,6 +450,55 @@ export default function DCPlanComparisonSection({
           ) : (
             <div className="h-full flex items-center justify-center text-gray-400">
               <p>No employer cost data available</p>
+            </div>
+          )}
+        </div>
+      </div>
+
+      {/* E066: Contribution Rate Trends — Full Width */}
+      <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
+        <h3 className="text-lg font-semibold text-gray-800">Contribution Rate Trends</h3>
+        <p className="text-sm text-gray-500 mb-4">Employee, match, core, and total contributions as % of compensation</p>
+        <div className="h-80">
+          {contributionRateTrendData.length > 0 ? (
+            <ResponsiveContainer width="100%" height="100%">
+              <LineChart data={contributionRateTrendData}>
+                <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#E5E7EB" />
+                <XAxis dataKey="year" stroke="#9CA3AF" />
+                <YAxis stroke="#9CA3AF" tickFormatter={v => formatPercent(v)} />
+                <Tooltip
+                  contentStyle={tooltipStyle}
+                  formatter={(value: number) => [formatPercent(value, 2), '']}
+                />
+                <Legend verticalAlign="top" height={36} />
+                {comparisonData && comparisonData.analytics.map(a => {
+                  const scenarioName = comparisonData.scenario_names[a.scenario_id] || a.scenario_id;
+                  const isSingleScenario = comparisonData.analytics.length === 1;
+                  return RATE_SERIES.map(series => {
+                    const label = isSingleScenario
+                      ? series.label
+                      : `${scenarioName} - ${series.label}`;
+                    return (
+                      <Line
+                        key={label}
+                        type="monotone"
+                        dataKey={label}
+                        stroke={series.color}
+                        strokeWidth={series.key === 'total_contribution_rate' ? 3 : 2}
+                        strokeDasharray={isSingleScenario ? undefined : (
+                          a === comparisonData.analytics[0] ? undefined : '5 5'
+                        )}
+                        dot={{ r: 3 }}
+                        activeDot={{ r: 5 }}
+                      />
+                    );
+                  });
+                })}
+              </LineChart>
+            </ResponsiveContainer>
+          ) : (
+            <div className="h-full flex items-center justify-center text-gray-400">
+              <p>No contribution rate data available</p>
             </div>
           )}
         </div>

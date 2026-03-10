@@ -58,6 +58,26 @@ class AnalyticsService:
             else 0.0
         )
 
+        # E066: Aggregate contribution rate percentages
+        employee_contribution_rate = (
+            (total_employee / total_compensation * 100)
+            if total_compensation > 0
+            else 0.0
+        )
+        match_contribution_rate = (
+            (total_match / total_compensation * 100)
+            if total_compensation > 0
+            else 0.0
+        )
+        core_contribution_rate = (
+            (total_core / total_compensation * 100)
+            if total_compensation > 0
+            else 0.0
+        )
+        total_contribution_rate = (
+            employee_contribution_rate + match_contribution_rate + core_contribution_rate
+        )
+
         return {
             "total_employee": total_employee,
             "total_match": total_match,
@@ -67,6 +87,10 @@ class AnalyticsService:
             "avg_deferral_rate": avg_deferral_rate,
             "total_compensation": total_compensation,
             "employer_cost_rate": employer_cost_rate,
+            "employee_contribution_rate": employee_contribution_rate,
+            "match_contribution_rate": match_contribution_rate,
+            "core_contribution_rate": core_contribution_rate,
+            "total_contribution_rate": total_contribution_rate,
         }
 
     def get_dc_plan_analytics(
@@ -121,6 +145,11 @@ class AnalyticsService:
                 total_employer_cost=totals["total_employer_cost"],
                 total_compensation=totals["total_compensation"],
                 employer_cost_rate=round(totals["employer_cost_rate"], 2),
+                # E066: Contribution rate percentages
+                employee_contribution_rate=round(totals["employee_contribution_rate"], 2),
+                match_contribution_rate=round(totals["match_contribution_rate"], 2),
+                core_contribution_rate=round(totals["core_contribution_rate"], 2),
+                total_contribution_rate=round(totals["total_contribution_rate"], 2),
             )
 
         except Exception as e:
@@ -243,12 +272,34 @@ class AnalyticsService:
                     if total_compensation > 0
                     else 0.0
                 )
+                # E066: Calculate contribution rate percentages
+                total_employee = float(row["total_employee"])
+                total_match = float(row["total_match"])
+                total_core = float(row["total_core"])
+                employee_contribution_rate = (
+                    round(total_employee / total_compensation * 100, 2)
+                    if total_compensation > 0
+                    else 0.0
+                )
+                match_contribution_rate = (
+                    round(total_match / total_compensation * 100, 2)
+                    if total_compensation > 0
+                    else 0.0
+                )
+                core_contribution_rate = (
+                    round(total_core / total_compensation * 100, 2)
+                    if total_compensation > 0
+                    else 0.0
+                )
+                total_contribution_rate = round(
+                    employee_contribution_rate + match_contribution_rate + core_contribution_rate, 2
+                )
                 results.append(
                     ContributionYearSummary(
                         year=int(row["year"]),
-                        total_employee_contributions=float(row["total_employee"]),
-                        total_employer_match=float(row["total_match"]),
-                        total_employer_core=float(row["total_core"]),
+                        total_employee_contributions=total_employee,
+                        total_employer_match=total_match,
+                        total_employer_core=total_core,
                         total_all_contributions=float(row["total_all"]),
                         participant_count=int(row["participant_count"]),
                         # E104: New fields
@@ -258,6 +309,11 @@ class AnalyticsService:
                         # E013: Employer cost ratio metrics
                         total_compensation=total_compensation,
                         employer_cost_rate=round(employer_cost_rate, 2),
+                        # E066: Contribution rate percentages
+                        employee_contribution_rate=employee_contribution_rate,
+                        match_contribution_rate=match_contribution_rate,
+                        core_contribution_rate=core_contribution_rate,
+                        total_contribution_rate=total_contribution_rate,
                     )
                 )
             return results
