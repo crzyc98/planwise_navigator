@@ -158,6 +158,20 @@ async def get_default_config(
             "auto_enrollment": {
                 "enabled": True,
                 "default_deferral_rate": 0.06,
+                "opt_out_rates": {
+                    "by_age": {
+                        "young": 0.35,
+                        "mid_career": 0.20,
+                        "mature": 0.15,
+                        "senior": 0.10,
+                    },
+                    "by_income": {
+                        "low_income": 0.40,
+                        "moderate": 0.25,
+                        "high": 0.15,
+                        "executive": 0.05,
+                    },
+                },
             },
         },
         "employer_match": {

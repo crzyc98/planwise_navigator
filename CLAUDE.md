@@ -798,6 +798,8 @@ See `/docs/VERSIONING_GUIDE.md` for detailed versioning workflow.
 - N/A (no data persistence changes) (065-async-progress-streaming)
 - Python 3.11 (backend), TypeScript (frontend React/Vite) + FastAPI, Pydantic v2 (backend); React, Recharts 3.5.0 (frontend) (066-dc-contribution-rates)
 - DuckDB via `fct_workforce_snapshot` (read-only for this feature) (066-dc-contribution-rates)
+- TypeScript (React/Vite frontend), Python 3.11 (FastAPI backend) + React, FastAPI, Pydantic v2, dbt-duckdb 1.8.1 (068-optout-rate-config)
+- DuckDB (`dbt/simulation.duckdb`) — no schema changes needed (068-optout-rate-config)
 
 ## Recent Changes
 - 063-1000-hr-eligibility: Added Python 3.11, SQL (dbt-core 1.8.8) + dbt-duckdb 1.8.1, DuckDB 1.0.0, Pydantic 2.7.4

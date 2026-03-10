@@ -120,6 +120,16 @@ export interface FormData {
   dcAutoEnrollScope: string;
   dcAutoEnrollHireDateCutoff: string;
 
+  // DC Plan - Auto-Enrollment Opt-Out Rates
+  dcOptOutRateYoung: number;
+  dcOptOutRateMid: number;
+  dcOptOutRateMature: number;
+  dcOptOutRateSenior: number;
+  dcOptOutRateLowIncome: number;
+  dcOptOutRateModerate: number;
+  dcOptOutRateHigh: number;
+  dcOptOutRateExecutive: number;
+
   // DC Plan - Match Enable/Disable
   dcMatchEnabled: boolean;
 

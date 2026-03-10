@@ -165,6 +165,24 @@ def _export_enrollment_vars(cfg: "SimulationConfig") -> Dict[str, Any]:
             if dc_plan_dict.get("auto_enroll_opt_out_grace_period") is not None:
                 dbt_vars["auto_enrollment_opt_out_grace_period"] = int(dc_plan_dict["auto_enroll_opt_out_grace_period"])
 
+            # Auto-enrollment opt-out rates from dc_plan
+            if dc_plan_dict.get("opt_out_rate_young") is not None:
+                dbt_vars["opt_out_rate_young"] = float(dc_plan_dict["opt_out_rate_young"])
+            if dc_plan_dict.get("opt_out_rate_mid") is not None:
+                dbt_vars["opt_out_rate_mid"] = float(dc_plan_dict["opt_out_rate_mid"])
+            if dc_plan_dict.get("opt_out_rate_mature") is not None:
+                dbt_vars["opt_out_rate_mature"] = float(dc_plan_dict["opt_out_rate_mature"])
+            if dc_plan_dict.get("opt_out_rate_senior") is not None:
+                dbt_vars["opt_out_rate_senior"] = float(dc_plan_dict["opt_out_rate_senior"])
+            if dc_plan_dict.get("opt_out_rate_low_income") is not None:
+                dbt_vars["opt_out_rate_low_income"] = float(dc_plan_dict["opt_out_rate_low_income"])
+            if dc_plan_dict.get("opt_out_rate_moderate") is not None:
+                dbt_vars["opt_out_rate_moderate"] = float(dc_plan_dict["opt_out_rate_moderate"])
+            if dc_plan_dict.get("opt_out_rate_high") is not None:
+                dbt_vars["opt_out_rate_high"] = float(dc_plan_dict["opt_out_rate_high"])
+            if dc_plan_dict.get("opt_out_rate_executive") is not None:
+                dbt_vars["opt_out_rate_executive"] = float(dc_plan_dict["opt_out_rate_executive"])
+
             # Auto-escalation settings from dc_plan
             if dc_plan_dict.get("auto_escalation") is not None:
                 dbt_vars["deferral_escalation_enabled"] = bool(dc_plan_dict["auto_escalation"])
