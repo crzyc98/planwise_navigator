@@ -71,6 +71,146 @@ def _export_simulation_vars(cfg: "SimulationConfig") -> Dict[str, Any]:
     return dbt_vars
 
 
+def _resolve_dc_plan_dict(cfg: "SimulationConfig") -> Dict[str, Any]:
+    """Resolve dc_plan config to a plain dict, regardless of source format."""
+    dc_plan = getattr(cfg, "dc_plan", None)
+    if dc_plan is None and hasattr(cfg, "__dict__"):
+        raw_config = cfg.__dict__.get("_raw_config", {})
+        dc_plan = raw_config.get("dc_plan", {})
+
+    if not dc_plan:
+        return {}
+    if isinstance(dc_plan, dict):
+        return dc_plan
+    if hasattr(dc_plan, 'model_dump'):
+        return dc_plan.model_dump()
+    return {}
+
+
+def _set_if_not_none(dbt_vars: Dict[str, Any], key: str, value: Any, cast: type) -> None:
+    """Set a dbt var if the value is not None, applying the given cast."""
+    if value is not None:
+        dbt_vars[key] = cast(value)
+
+
+def _export_auto_enrollment_fields(auto: Any, dbt_vars: Dict[str, Any]) -> None:
+    """Export typed auto-enrollment config fields to dbt vars."""
+    _set_if_not_none(dbt_vars, "auto_enrollment_enabled", auto.enabled, bool)
+    _set_if_not_none(dbt_vars, "auto_enrollment_scope", auto.scope, str)
+    if auto.hire_date_cutoff:
+        dbt_vars["auto_enrollment_hire_date_cutoff"] = str(auto.hire_date_cutoff)
+    _set_if_not_none(dbt_vars, "auto_enrollment_window_days", auto.window_days, int)
+    _set_if_not_none(dbt_vars, "auto_enrollment_default_deferral_rate", auto.default_deferral_rate, float)
+    _set_if_not_none(dbt_vars, "auto_enrollment_opt_out_grace_period", auto.opt_out_grace_period, int)
+
+
+def _export_opt_out_rates(auto: Any, dbt_vars: Dict[str, Any]) -> None:
+    """Export opt-out rates by age and income to dbt vars."""
+    age_rates = auto.opt_out_rates.by_age
+    dbt_vars["opt_out_rate_young"] = float(age_rates.young)
+    dbt_vars["opt_out_rate_mid"] = float(age_rates.mid_career)
+    dbt_vars["opt_out_rate_mature"] = float(age_rates.mature)
+    dbt_vars["opt_out_rate_senior"] = float(age_rates.senior)
+
+    income_rates = auto.opt_out_rates.by_income
+    base_rate = float(age_rates.young)
+    dbt_vars["opt_out_rate_low_income"] = base_rate * float(income_rates.low_income)
+    dbt_vars["opt_out_rate_moderate"] = base_rate * float(income_rates.moderate)
+    dbt_vars["opt_out_rate_high"] = base_rate * float(income_rates.high)
+    dbt_vars["opt_out_rate_executive"] = base_rate * float(income_rates.executive)
+
+
+def _export_proactive_enrollment(cfg: "SimulationConfig", dbt_vars: Dict[str, Any]) -> None:
+    """Export proactive enrollment and timing settings to dbt vars."""
+    pro = cfg.enrollment.proactive_enrollment
+    _set_if_not_none(dbt_vars, "proactive_enrollment_enabled", pro.enabled, bool)
+    _set_if_not_none(dbt_vars, "proactive_enrollment_min_days", pro.timing_window.min_days, int)
+    _set_if_not_none(dbt_vars, "proactive_enrollment_max_days", pro.timing_window.max_days, int)
+    probs = pro.probability_by_demographics or {}
+    for key in ("young", "mid_career", "mature", "senior"):
+        if key in probs:
+            dbt_vars[f"proactive_enrollment_rate_{key}"] = float(probs[key])
+
+    _set_if_not_none(
+        dbt_vars, "enrollment_business_day_adjustment",
+        cfg.enrollment.timing.business_day_adjustment, bool,
+    )
+
+
+# Mapping: dc_plan source key -> (dbt_vars target key, cast function)
+_DC_PLAN_AUTO_ENROLL_FIELDS: Dict[str, tuple] = {
+    "auto_enroll": ("auto_enrollment_enabled", bool),
+    "auto_enroll_hire_date_cutoff": ("auto_enrollment_hire_date_cutoff", str),
+    "auto_enroll_window_days": ("auto_enrollment_window_days", int),
+    "auto_enroll_opt_out_grace_period": ("auto_enrollment_opt_out_grace_period", int),
+}
+
+_DC_PLAN_OPT_OUT_FIELDS = (
+    "opt_out_rate_young", "opt_out_rate_mid", "opt_out_rate_mature",
+    "opt_out_rate_senior", "opt_out_rate_low_income", "opt_out_rate_moderate",
+    "opt_out_rate_high", "opt_out_rate_executive",
+)
+
+# Escalation fields: dc_plan source key -> (dbt_vars target key, cast, percent_divide)
+_DC_PLAN_ESCALATION_FIELDS: Dict[str, tuple] = {
+    "auto_escalation": ("deferral_escalation_enabled", bool, False),
+    "escalation_rate_percent": ("deferral_escalation_increment", float, True),
+    "escalation_cap_percent": ("deferral_escalation_cap", float, True),
+    "escalation_effective_day": ("deferral_escalation_effective_mmdd", str, False),
+    "escalation_delay_years": ("deferral_escalation_first_delay_years", int, False),
+}
+
+_SCOPE_MAP = {
+    'new_hires_only': 'new_hires_only',
+    'all_eligible': 'all_eligible_employees',
+}
+
+
+def _apply_dc_plan_enrollment_overrides(
+    dc_plan_dict: Dict[str, Any], dbt_vars: Dict[str, Any],
+) -> None:
+    """Apply dc_plan (UI) enrollment overrides to dbt vars."""
+    # Simple field mappings
+    for src_key, (tgt_key, cast) in _DC_PLAN_AUTO_ENROLL_FIELDS.items():
+        _set_if_not_none(dbt_vars, tgt_key, dc_plan_dict.get(src_key), cast)
+
+    # Deferral percent: UI sends percentage, convert to decimal
+    if dc_plan_dict.get("default_deferral_percent") is not None:
+        dbt_vars["auto_enrollment_default_deferral_rate"] = (
+            float(dc_plan_dict["default_deferral_percent"]) / 100.0
+        )
+
+    # Scope mapping with fallback passthrough
+    scope = dc_plan_dict.get("auto_enroll_scope")
+    if scope is not None:
+        dbt_vars["auto_enrollment_scope"] = _SCOPE_MAP.get(scope, scope)
+
+    # Opt-out rate overrides (direct float passthrough)
+    for field in _DC_PLAN_OPT_OUT_FIELDS:
+        _set_if_not_none(dbt_vars, field, dc_plan_dict.get(field), float)
+
+    # Escalation settings
+    for src_key, (tgt_key, cast, pct_divide) in _DC_PLAN_ESCALATION_FIELDS.items():
+        val = dc_plan_dict.get(src_key)
+        if val is not None:
+            converted = cast(val)
+            dbt_vars[tgt_key] = converted / 100.0 if pct_divide else converted
+
+    # Escalation hire date cutoff: empty/None means "remove legacy value"
+    if "escalation_hire_date_cutoff" in dc_plan_dict:
+        cutoff_value = dc_plan_dict["escalation_hire_date_cutoff"]
+        if cutoff_value and str(cutoff_value).strip():
+            dbt_vars["deferral_escalation_hire_date_cutoff"] = str(cutoff_value)
+        else:
+            dbt_vars["deferral_escalation_hire_date_cutoff"] = _REMOVE_KEY
+
+    # Plan eligibility waiting period (UI sends months, dbt expects days)
+    if dc_plan_dict.get("eligibility_months") is not None:
+        days = int(dc_plan_dict["eligibility_months"]) * 30
+        dbt_vars["eligibility_waiting_period_days"] = days
+        dbt_vars["plan_eligibility_waiting_period_days"] = days
+
+
 def _export_enrollment_vars(cfg: "SimulationConfig") -> Dict[str, Any]:
     """Export enrollment settings to dbt vars.
 
@@ -78,143 +218,15 @@ def _export_enrollment_vars(cfg: "SimulationConfig") -> Dict[str, Any]:
     """
     dbt_vars: Dict[str, Any] = {}
 
-    # Auto-enrollment
     auto = cfg.enrollment.auto_enrollment
-    if auto.enabled is not None:
-        dbt_vars["auto_enrollment_enabled"] = bool(auto.enabled)
-    if auto.scope is not None:
-        dbt_vars["auto_enrollment_scope"] = str(auto.scope)
-    if auto.hire_date_cutoff:
-        dbt_vars["auto_enrollment_hire_date_cutoff"] = str(auto.hire_date_cutoff)
-    if auto.window_days is not None:
-        dbt_vars["auto_enrollment_window_days"] = int(auto.window_days)
-    if auto.default_deferral_rate is not None:
-        dbt_vars["auto_enrollment_default_deferral_rate"] = float(auto.default_deferral_rate)
-    if auto.opt_out_grace_period is not None:
-        dbt_vars["auto_enrollment_opt_out_grace_period"] = int(auto.opt_out_grace_period)
+    _export_auto_enrollment_fields(auto, dbt_vars)
+    _export_opt_out_rates(auto, dbt_vars)
+    _export_proactive_enrollment(cfg, dbt_vars)
 
-    # Opt-out rates by age
-    age_rates = auto.opt_out_rates.by_age
-    dbt_vars["opt_out_rate_young"] = float(age_rates.young)
-    dbt_vars["opt_out_rate_mid"] = float(age_rates.mid_career)
-    dbt_vars["opt_out_rate_mature"] = float(age_rates.mature)
-    dbt_vars["opt_out_rate_senior"] = float(age_rates.senior)
-
-    # Opt-out rates by income (calculate absolute rates from base + multipliers)
-    income_rates = auto.opt_out_rates.by_income
-    base_rate = float(age_rates.young)  # Use young as typical base case
-    dbt_vars["opt_out_rate_low_income"] = base_rate * float(income_rates.low_income)
-    dbt_vars["opt_out_rate_moderate"] = base_rate * float(income_rates.moderate)
-    dbt_vars["opt_out_rate_high"] = base_rate * float(income_rates.high)
-    dbt_vars["opt_out_rate_executive"] = base_rate * float(income_rates.executive)
-
-    # Proactive enrollment
-    pro = cfg.enrollment.proactive_enrollment
-    if pro.enabled is not None:
-        dbt_vars["proactive_enrollment_enabled"] = bool(pro.enabled)
-    tw = pro.timing_window
-    if tw.min_days is not None:
-        dbt_vars["proactive_enrollment_min_days"] = int(tw.min_days)
-    if tw.max_days is not None:
-        dbt_vars["proactive_enrollment_max_days"] = int(tw.max_days)
-    probs = pro.probability_by_demographics or {}
-    for key in ("young", "mid_career", "mature", "senior"):
-        if key in probs:
-            dbt_vars[f"proactive_enrollment_rate_{key}"] = float(probs[key])
-
-    # Timing
-    if cfg.enrollment.timing.business_day_adjustment is not None:
-        dbt_vars["enrollment_business_day_adjustment"] = bool(
-            cfg.enrollment.timing.business_day_adjustment
-        )
-
-    # E095: Export enrollment settings from dc_plan (UI format)
-    # The UI sends enrollment settings under dc_plan, we need to merge them
     try:
-        dc_plan = getattr(cfg, "dc_plan", None)
-        if dc_plan is None and hasattr(cfg, "__dict__"):
-            raw_config = cfg.__dict__.get("_raw_config", {})
-            dc_plan = raw_config.get("dc_plan", {})
-
-        if dc_plan:
-            if isinstance(dc_plan, dict):
-                dc_plan_dict = dc_plan
-            elif hasattr(dc_plan, 'model_dump'):
-                dc_plan_dict = dc_plan.model_dump()
-            else:
-                dc_plan_dict = {}
-
-            # Auto-enrollment settings from dc_plan
-            if dc_plan_dict.get("auto_enroll") is not None:
-                dbt_vars["auto_enrollment_enabled"] = bool(dc_plan_dict["auto_enroll"])
-            if dc_plan_dict.get("default_deferral_percent") is not None:
-                # UI sends as percentage (e.g., 3.0 for 3%), convert to decimal
-                dbt_vars["auto_enrollment_default_deferral_rate"] = float(dc_plan_dict["default_deferral_percent"]) / 100.0
-            if dc_plan_dict.get("auto_enroll_scope") is not None:
-                # Map UI values to dbt var values
-                scope_map = {
-                    'new_hires_only': 'new_hires_only',
-                    'all_eligible': 'all_eligible_employees',
-                }
-                scope = dc_plan_dict["auto_enroll_scope"]
-                dbt_vars["auto_enrollment_scope"] = scope_map.get(scope, scope)
-            if dc_plan_dict.get("auto_enroll_hire_date_cutoff") is not None:
-                dbt_vars["auto_enrollment_hire_date_cutoff"] = str(dc_plan_dict["auto_enroll_hire_date_cutoff"])
-            if dc_plan_dict.get("auto_enroll_window_days") is not None:
-                dbt_vars["auto_enrollment_window_days"] = int(dc_plan_dict["auto_enroll_window_days"])
-            if dc_plan_dict.get("auto_enroll_opt_out_grace_period") is not None:
-                dbt_vars["auto_enrollment_opt_out_grace_period"] = int(dc_plan_dict["auto_enroll_opt_out_grace_period"])
-
-            # Auto-enrollment opt-out rates from dc_plan
-            if dc_plan_dict.get("opt_out_rate_young") is not None:
-                dbt_vars["opt_out_rate_young"] = float(dc_plan_dict["opt_out_rate_young"])
-            if dc_plan_dict.get("opt_out_rate_mid") is not None:
-                dbt_vars["opt_out_rate_mid"] = float(dc_plan_dict["opt_out_rate_mid"])
-            if dc_plan_dict.get("opt_out_rate_mature") is not None:
-                dbt_vars["opt_out_rate_mature"] = float(dc_plan_dict["opt_out_rate_mature"])
-            if dc_plan_dict.get("opt_out_rate_senior") is not None:
-                dbt_vars["opt_out_rate_senior"] = float(dc_plan_dict["opt_out_rate_senior"])
-            if dc_plan_dict.get("opt_out_rate_low_income") is not None:
-                dbt_vars["opt_out_rate_low_income"] = float(dc_plan_dict["opt_out_rate_low_income"])
-            if dc_plan_dict.get("opt_out_rate_moderate") is not None:
-                dbt_vars["opt_out_rate_moderate"] = float(dc_plan_dict["opt_out_rate_moderate"])
-            if dc_plan_dict.get("opt_out_rate_high") is not None:
-                dbt_vars["opt_out_rate_high"] = float(dc_plan_dict["opt_out_rate_high"])
-            if dc_plan_dict.get("opt_out_rate_executive") is not None:
-                dbt_vars["opt_out_rate_executive"] = float(dc_plan_dict["opt_out_rate_executive"])
-
-            # Auto-escalation settings from dc_plan
-            if dc_plan_dict.get("auto_escalation") is not None:
-                dbt_vars["deferral_escalation_enabled"] = bool(dc_plan_dict["auto_escalation"])
-            if dc_plan_dict.get("escalation_rate_percent") is not None:
-                # UI sends as percentage (e.g., 1.0 for 1%), convert to decimal
-                dbt_vars["deferral_escalation_increment"] = float(dc_plan_dict["escalation_rate_percent"]) / 100.0
-            if dc_plan_dict.get("escalation_cap_percent") is not None:
-                # UI sends as percentage (e.g., 10.0 for 10%), convert to decimal
-                dbt_vars["deferral_escalation_cap"] = float(dc_plan_dict["escalation_cap_percent"]) / 100.0
-            if dc_plan_dict.get("escalation_effective_day") is not None:
-                dbt_vars["deferral_escalation_effective_mmdd"] = str(dc_plan_dict["escalation_effective_day"])
-            if dc_plan_dict.get("escalation_delay_years") is not None:
-                dbt_vars["deferral_escalation_first_delay_years"] = int(dc_plan_dict["escalation_delay_years"])
-            # Handle escalation_hire_date_cutoff: if present in dc_plan, always apply (even if empty/None)
-            # Empty/None means "no cutoff" - apply to all employees regardless of hire date
-            if "escalation_hire_date_cutoff" in dc_plan_dict:
-                cutoff_value = dc_plan_dict["escalation_hire_date_cutoff"]
-                if cutoff_value and str(cutoff_value).strip():
-                    dbt_vars["deferral_escalation_hire_date_cutoff"] = str(cutoff_value)
-                else:
-                    # Use sentinel to indicate this key should be removed from final dbt_vars
-                    # This overrides any legacy YAML value when user clears the cutoff
-                    dbt_vars["deferral_escalation_hire_date_cutoff"] = _REMOVE_KEY
-
-            # Plan eligibility waiting period (UI sends months, dbt expects days)
-            if dc_plan_dict.get("eligibility_months") is not None:
-                months = int(dc_plan_dict["eligibility_months"])
-                # Convert months to days (approximate: 30 days per month)
-                days = months * 30
-                dbt_vars["eligibility_waiting_period_days"] = days
-                dbt_vars["plan_eligibility_waiting_period_days"] = days
-
+        dc_plan_dict = _resolve_dc_plan_dict(cfg)
+        if dc_plan_dict:
+            _apply_dc_plan_enrollment_overrides(dc_plan_dict, dbt_vars)
     except Exception as e:
         import traceback
         print(f"Warning: Error processing dc_plan enrollment/escalation configuration: {e}")

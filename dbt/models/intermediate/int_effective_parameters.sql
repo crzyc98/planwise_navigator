@@ -3,13 +3,14 @@
     tags=['FOUNDATION']
 ) }}
 
-{% set default_scenario = 'default' %}
-{% set has_overrides = var('cola_rate', none) is not none or var('merit_budget', none) is not none %}
+{% set merit_base_param = 'merit_base' %}
+{% set cola_rate_param = 'cola_rate' %}
+{% set has_overrides = var(cola_rate_param, none) is not none or var('merit_budget', none) is not none %}
 
 -- Parameter resolution model that determines effective parameters per scenario, year, level, and event type
 
 WITH scenario_selection AS (
-  SELECT '{{ var("scenario_id", default_scenario) }}' AS selected_scenario_id
+  SELECT '{{ var("scenario_id", "default") }}' AS selected_scenario_id
 ),
 
 parameter_hierarchy AS (
@@ -27,15 +28,15 @@ parameter_hierarchy AS (
     1 AS priority_rank
   FROM (
     -- cola_rate: flat override (uniform across levels, same value for all)
-    {% set has_cola = var('cola_rate', none) is not none %}
+    {% set has_cola = var(cola_rate_param, none) is not none %}
     {% set has_merit = var('merit_budget', none) is not none %}
     {% if has_cola %}
     SELECT DISTINCT
       fiscal_year,
       job_level,
-      'RAISE' AS event_type,
-      'cola_rate' AS parameter_name,
-      CAST({{ var('cola_rate') }} AS DOUBLE) AS parameter_value
+      {{ EVT_RAISE() }} AS event_type,
+      '{{ cola_rate_param }}' AS parameter_name,
+      CAST({{ var(cola_rate_param) }} AS DOUBLE) AS parameter_value
     FROM {{ ref('stg_comp_levers') }}
     {% endif %}
 
@@ -46,19 +47,19 @@ parameter_hierarchy AS (
     SELECT
       cl.fiscal_year,
       cl.job_level,
-      'RAISE' AS event_type,
-      'merit_base' AS parameter_name,
+      {{ EVT_RAISE() }} AS event_type,
+      '{{ merit_base_param }}' AS parameter_name,
       cl.parameter_value * (CAST({{ var('merit_budget') }} AS DOUBLE) / yr_avg.avg_value) AS parameter_value
     FROM {{ ref('stg_comp_levers') }} cl
     JOIN (
       SELECT fiscal_year, AVG(parameter_value) AS avg_value
       FROM {{ ref('stg_comp_levers') }}
-      WHERE parameter_name = 'merit_base'
-        AND scenario_id = '{{ default_scenario }}'
+      WHERE parameter_name = '{{ merit_base_param }}'
+        AND scenario_id = {{ default_scenario() }}
       GROUP BY fiscal_year
     ) yr_avg ON cl.fiscal_year = yr_avg.fiscal_year
-    WHERE cl.parameter_name = 'merit_base'
-      AND cl.scenario_id = '{{ default_scenario }}'
+    WHERE cl.parameter_name = '{{ merit_base_param }}'
+      AND cl.scenario_id = {{ default_scenario() }}
     {% endif %}
   ) overrides
   CROSS JOIN scenario_selection ss
@@ -85,17 +86,17 @@ parameter_hierarchy AS (
 
   -- PRIORITY 3: Get default parameters as fallback
   SELECT
-    '{{ default_scenario }}' AS scenario_id,
+    {{ default_scenario() }} AS scenario_id,
     cl.fiscal_year,
     cl.job_level,
     cl.event_type,
     cl.parameter_name,
     cl.parameter_value,
     cl.is_locked,
-    '{{ default_scenario }}' AS parameter_source,
+    {{ default_scenario() }} AS parameter_source,
     {% if has_overrides %}3{% else %}2{% endif %} AS priority_rank
   FROM {{ ref('stg_comp_levers') }} cl
-  WHERE cl.scenario_id = '{{ default_scenario }}'
+  WHERE cl.scenario_id = {{ default_scenario() }}
 ),
 
 resolved_parameters AS (

@@ -16,9 +16,8 @@
 
 {% set simulation_year = var('simulation_year', 2025) %}
 {% set event_mode = var('event_generation_mode', 'sql') %}
-{% set default_scenario = 'default' %}
-{% set sid = var('scenario_id', default_scenario) %}
-{% set pid = var('plan_design_id', default_scenario) %}
+{% set sid = var('scenario_id', 'default') %}
+{% set pid = var('plan_design_id', 'default') %}
 
 {% if event_mode == 'polars' %}
 
@@ -98,19 +97,13 @@ WITH polars_raw_events AS (
     -- Use event_category if available, otherwise infer from event_type
     COALESCE(
       event_category,
-      CASE
-        WHEN event_type IN ('hire', 'termination') THEN 'workforce'
-        WHEN event_type IN ('promotion', 'merit') THEN 'compensation'
-        WHEN event_type LIKE '%enrollment%' THEN 'benefits'
-        WHEN event_type LIKE 'deferral%' THEN 'benefits'
-        ELSE 'other'
-      END
+      {{ event_category_from_type('event_type') }}
     ) AS event_category,
 
     created_at,
     '{{ sid }}' AS parameter_scenario_id,
     COALESCE(generation_method, 'polars_factory') AS parameter_source,
-    'VALID' AS data_quality_flag  -- Polars events are pre-validated
+    {{ dq_valid() }} AS data_quality_flag  -- Polars events are pre-validated
 
   FROM read_parquet('{{ var("polars_events_path", "../data/parquet/events") }}/simulation_year={{ simulation_year }}/*.parquet')
 ),
@@ -139,23 +132,10 @@ final_events AS (
     event_probability,
     event_category,
     -- Add event sequencing for conflict resolution
-    -- Priority: termination(1) > hire(2) > eligibility(3) > enrollment(4) > enrollment_change(5) > deferral_match_response(6) > deferral_escalation(7) > promotion(8) > raise(9) > merit(10)
     ROW_NUMBER() OVER (
       PARTITION BY scenario_id, plan_design_id, employee_id, simulation_year
       ORDER BY
-        CASE event_type
-          WHEN 'termination' THEN 1
-          WHEN 'hire' THEN 2
-          WHEN 'eligibility' THEN 3
-          WHEN 'enrollment' THEN 4
-          WHEN 'enrollment_change' THEN 5
-          WHEN 'deferral_match_response' THEN 6
-          WHEN 'deferral_escalation' THEN 7
-          WHEN 'promotion' THEN 8
-          WHEN 'raise' THEN 9
-          WHEN 'merit' THEN 10
-          ELSE 11
-        END,
+        {{ event_priority('event_type') }},
         effective_date,
         event_type
     ) AS event_sequence,
@@ -413,23 +393,10 @@ final_events AS (
     event_probability,
     event_category,
     -- Add event sequencing for conflict resolution
-    -- Priority: termination(1) > hire(2) > eligibility(3) > enrollment(4) > enrollment_change(5) > deferral_match_response(6) > deferral_escalation(7) > promotion(8) > raise(9) > merit(10)
     ROW_NUMBER() OVER (
       PARTITION BY scenario_id, plan_design_id, employee_id, simulation_year
       ORDER BY
-        CASE event_type
-          WHEN 'termination' THEN 1
-          WHEN 'hire' THEN 2
-          WHEN 'eligibility' THEN 3
-          WHEN 'enrollment' THEN 4
-          WHEN 'enrollment_change' THEN 5
-          WHEN 'deferral_match_response' THEN 6
-          WHEN 'deferral_escalation' THEN 7
-          WHEN 'promotion' THEN 8
-          WHEN 'raise' THEN 9
-          WHEN 'merit' THEN 10
-          ELSE 11
-        END,
+        {{ event_priority('event_type') }},
         effective_date,
         event_type
     ) AS event_sequence,
@@ -439,28 +406,14 @@ final_events AS (
     '{{ sid }}' AS parameter_scenario_id,
     'fused_event_generation' AS parameter_source,  -- E068A tracking
     -- Add data validation flags
-    CASE
-      WHEN employee_id IS NULL THEN 'INVALID_EMPLOYEE_ID'
-      WHEN simulation_year IS NULL THEN 'INVALID_SIMULATION_YEAR'
-      WHEN effective_date IS NULL THEN 'INVALID_EFFECTIVE_DATE'
-      WHEN compensation_amount IS NULL AND event_type NOT IN ('termination','enrollment','enrollment_change','deferral_escalation') THEN 'INVALID_COMPENSATION'
-      ELSE 'VALID'
-    END AS data_quality_flag
+    {{ data_quality_flag() }} AS data_quality_flag
   FROM all_events
   WHERE 1=1
   {%- if simulation_year %}
     AND simulation_year = {{ simulation_year }}
   {%- endif %}
     -- Exclude records with data quality issues
-    AND (
-      CASE
-        WHEN employee_id IS NULL THEN 'INVALID_EMPLOYEE_ID'
-        WHEN simulation_year IS NULL THEN 'INVALID_SIMULATION_YEAR'
-        WHEN effective_date IS NULL THEN 'INVALID_EFFECTIVE_DATE'
-        WHEN compensation_amount IS NULL AND event_type NOT IN ('termination','enrollment','enrollment_change','deferral_escalation') THEN 'INVALID_COMPENSATION'
-        ELSE 'VALID'
-      END
-    ) = 'VALID'
+    AND {{ data_quality_flag() }} = {{ dq_valid() }}
 )
 
 -- Insert-overwrite by simulation_year with deterministic ordering for stable diffs
