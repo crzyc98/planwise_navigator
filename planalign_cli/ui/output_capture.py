@@ -9,10 +9,29 @@ and a plain-text fallback for non-interactive terminals.
 from __future__ import annotations
 
 import os
+import re
 import sys
 from typing import Optional
 
 from rich.console import Console
+
+_SIGNAL_PATTERNS = re.compile(
+    r'(error|warn|\d+ of \d+|^Running with dbt|^Finished running|^Done\.|OK created|FAIL|PASS)',
+    re.IGNORECASE,
+)
+_NOISE_PATTERNS = re.compile(
+    r'^\s*(select|from|where|with\s+\w|join|group by|order by|--|\[debug\]|={3,}|-{3,}|Concurrency:|registered in)',
+    re.IGNORECASE,
+)
+
+
+def _is_signal_line(line: str) -> bool:
+    stripped = line.strip()
+    if not stripped:
+        return False
+    if _NOISE_PATTERNS.match(stripped):
+        return False
+    return bool(_SIGNAL_PATTERNS.search(stripped))
 
 
 class OutputCapture:
@@ -76,8 +95,8 @@ class PlainTextProgressFallback:
         print(f"[Progress] Year {year} validation complete")
 
     def on_dbt_line(self, line: str) -> None:
-        """Print dbt output line in verbose mode."""
-        if self.verbose and line.strip():
+        """Print dbt output line in verbose mode (signal lines only)."""
+        if self.verbose and _is_signal_line(line):
             print(f"[dbt] {line}")
 
 
