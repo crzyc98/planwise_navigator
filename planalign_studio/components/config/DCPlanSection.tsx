@@ -1,7 +1,7 @@
 import { Info, X } from 'lucide-react';
 import { useConfigContext } from './ConfigContext';
 import { InputField } from './InputField';
-import { MATCH_TEMPLATES, calculateMatchCap } from './constants';
+import { MATCH_TEMPLATES, calculateMatchCap, DEFAULT_FORM_DATA } from './constants';
 
 function validateMatchTiers(
   tiers: Array<{ min: number; max: number | null }>,
@@ -94,6 +94,49 @@ export function DCPlanSection() {
                  className="mt-1 block w-full pl-3 pr-3 py-2 text-base border-gray-300 focus:outline-none focus:ring-fidelity-green focus:border-fidelity-green sm:text-sm rounded-md border shadow-sm"
                />
                <p className="mt-1 text-xs text-gray-500">Auto-enroll employees hired on/after this date</p>
+             </div>
+
+             {/* Opt-Out Assumptions Section */}
+             <div className="sm:col-span-6 mt-4">
+               <div className="flex items-center justify-between mb-3">
+                 <h4 className="text-sm font-semibold text-gray-900">Opt-Out Assumptions</h4>
+                 <button
+                   type="button"
+                   onClick={() => setFormData(prev => ({
+                     ...prev,
+                     dcOptOutRateYoung: DEFAULT_FORM_DATA.dcOptOutRateYoung,
+                     dcOptOutRateMid: DEFAULT_FORM_DATA.dcOptOutRateMid,
+                     dcOptOutRateMature: DEFAULT_FORM_DATA.dcOptOutRateMature,
+                     dcOptOutRateSenior: DEFAULT_FORM_DATA.dcOptOutRateSenior,
+                     dcOptOutRateLowIncome: DEFAULT_FORM_DATA.dcOptOutRateLowIncome,
+                     dcOptOutRateModerate: DEFAULT_FORM_DATA.dcOptOutRateModerate,
+                     dcOptOutRateHigh: DEFAULT_FORM_DATA.dcOptOutRateHigh,
+                     dcOptOutRateExecutive: DEFAULT_FORM_DATA.dcOptOutRateExecutive,
+                   }))}
+                   className="text-xs text-fidelity-green hover:text-green-700 font-medium"
+                 >
+                   Reset to Defaults
+                 </button>
+               </div>
+               <p className="text-xs text-gray-500 mb-3">Percentage of auto-enrolled employees expected to opt out, segmented by demographics.</p>
+
+               {/* By Age Group */}
+               <p className="text-xs font-medium text-gray-700 mb-2">By Age</p>
+               <div className="grid grid-cols-1 gap-y-4 gap-x-4 sm:grid-cols-6 mb-4">
+                 <InputField label="Young (18-25)" {...inputProps('dcOptOutRateYoung')} type="number" step="1" suffix="%" helper="Youngest workers opt-out rate" min={0} />
+                 <InputField label="Mid-Career (26-35)" {...inputProps('dcOptOutRateMid')} type="number" step="1" suffix="%" helper="Early career opt-out rate" min={0} />
+                 <InputField label="Mature (36-50)" {...inputProps('dcOptOutRateMature')} type="number" step="1" suffix="%" helper="Mid-career opt-out rate" min={0} />
+                 <InputField label="Senior (51+)" {...inputProps('dcOptOutRateSenior')} type="number" step="1" suffix="%" helper="Near-retirement opt-out rate" min={0} />
+               </div>
+
+               {/* By Income Group */}
+               <p className="text-xs font-medium text-gray-700 mb-2">By Income</p>
+               <div className="grid grid-cols-1 gap-y-4 gap-x-4 sm:grid-cols-6">
+                 <InputField label="Low Income (<$30k)" {...inputProps('dcOptOutRateLowIncome')} type="number" step="1" suffix="%" helper="Low earners opt-out rate" min={0} />
+                 <InputField label="Moderate ($30k-$50k)" {...inputProps('dcOptOutRateModerate')} type="number" step="1" suffix="%" helper="Moderate earners opt-out rate" min={0} />
+                 <InputField label="High ($50k-$100k)" {...inputProps('dcOptOutRateHigh')} type="number" step="1" suffix="%" helper="Higher earners opt-out rate" min={0} />
+                 <InputField label="Executive (>$100k)" {...inputProps('dcOptOutRateExecutive')} type="number" step="1" suffix="%" helper="Top earners opt-out rate" min={0} />
+               </div>
              </div>
            </>
          )}
