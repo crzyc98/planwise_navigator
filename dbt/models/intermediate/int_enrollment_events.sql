@@ -253,7 +253,11 @@ enrollment_events AS (
     efo.employee_ssn,
     'enrollment' as event_type,
     efo.simulation_year,
-    CAST((efo.simulation_year || '-01-15 08:00:00') AS TIMESTAMP) as effective_date, -- Fixed enrollment date
+    CASE
+      WHEN EXTRACT(YEAR FROM efo.employee_hire_date) = efo.simulation_year
+        THEN CAST(efo.employee_hire_date + INTERVAL '{{ var("auto_enrollment_window_days", 45) }}' DAY AS TIMESTAMP)
+      ELSE CAST((efo.simulation_year || '-01-15 08:00:00') AS TIMESTAMP)
+    END as effective_date,
 
     -- Event details based on enrollment type (Phase 2: E062 Fix)
     CASE
@@ -378,7 +382,11 @@ opt_out_events AS (
     efo.employee_ssn,
     'enrollment_change' as event_type,
     efo.simulation_year,
-    CAST((efo.simulation_year || '-06-15 14:00:00') AS TIMESTAMP) as effective_date, -- Mid-year opt-out
+    CASE
+      WHEN EXTRACT(YEAR FROM efo.employee_hire_date) = efo.simulation_year
+        THEN CAST(efo.employee_hire_date + INTERVAL '{{ var("auto_enrollment_window_days", 45) }}' DAY + INTERVAL '{{ var("auto_enrollment_opt_out_grace_period", 30) }}' DAY AS TIMESTAMP)
+      ELSE CAST((efo.simulation_year || '-06-15 14:00:00') AS TIMESTAMP)
+    END as effective_date,
 
     -- Opt-out event details
     'Auto-enrollment opt-out - reduced deferral from default to 0%' as event_details,

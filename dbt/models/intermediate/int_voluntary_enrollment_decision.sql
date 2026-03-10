@@ -252,7 +252,11 @@ enrollment_decisions AS (
 
     -- Event details for integration
     'voluntary_enrollment' as event_category,
-    CAST((simulation_year || '-01-15 10:00:00') AS TIMESTAMP) as proposed_effective_date,
+    CASE
+      WHEN EXTRACT(YEAR FROM employee_hire_date) = simulation_year
+        THEN CAST(employee_hire_date + INTERVAL '{{ var("auto_enrollment_window_days", 45) }}' DAY AS TIMESTAMP)
+      ELSE CAST((simulation_year || '-01-15 10:00:00') AS TIMESTAMP)
+    END as proposed_effective_date,
 
     -- Audit and tracking fields
     base_enrollment_rate,
