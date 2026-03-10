@@ -31,6 +31,19 @@ class ContributionYearSummary(BaseModel):
     employer_cost_rate: float = Field(
         default=0.0, description="Employer cost as percentage of total compensation"
     )
+    # E066: Contribution rate percentages
+    employee_contribution_rate: float = Field(
+        default=0.0, description="Employee deferrals as percentage of total compensation"
+    )
+    match_contribution_rate: float = Field(
+        default=0.0, description="Employer match as percentage of total compensation"
+    )
+    core_contribution_rate: float = Field(
+        default=0.0, description="Employer core as percentage of total compensation"
+    )
+    total_contribution_rate: float = Field(
+        default=0.0, description="All contributions as percentage of total compensation"
+    )
 
 
 class DeferralRateBucket(BaseModel):
@@ -130,6 +143,19 @@ class DCPlanAnalytics(BaseModel):
     )
     employer_cost_rate: float = Field(
         default=0.0, description="Aggregate employer cost as percentage of total compensation"
+    )
+    # E066: Aggregate contribution rate percentages
+    employee_contribution_rate: float = Field(
+        default=0.0, description="Aggregate employee deferrals as percentage of total compensation"
+    )
+    match_contribution_rate: float = Field(
+        default=0.0, description="Aggregate employer match as percentage of total compensation"
+    )
+    core_contribution_rate: float = Field(
+        default=0.0, description="Aggregate employer core as percentage of total compensation"
+    )
+    total_contribution_rate: float = Field(
+        default=0.0, description="Aggregate all contributions as percentage of total compensation"
     )
 
 

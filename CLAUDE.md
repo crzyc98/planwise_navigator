@@ -796,6 +796,8 @@ See `/docs/VERSIONING_GUIDE.md` for detailed versioning workflow.
 - Scenario config stored as flexible `Dict[str, Any]` (config_overrides) — no migration needed (064-fix-comp-growth-persist)
 - Python 3.11 + Rich (Live, Progress, Layout, Console), Typer, subprocess (stdlib) (065-async-progress-streaming)
 - N/A (no data persistence changes) (065-async-progress-streaming)
+- Python 3.11 (backend), TypeScript (frontend React/Vite) + FastAPI, Pydantic v2 (backend); React, Recharts 3.5.0 (frontend) (066-dc-contribution-rates)
+- DuckDB via `fct_workforce_snapshot` (read-only for this feature) (066-dc-contribution-rates)
 
 ## Recent Changes
 - 063-1000-hr-eligibility: Added Python 3.11, SQL (dbt-core 1.8.8) + dbt-duckdb 1.8.1, DuckDB 1.0.0, Pydantic 2.7.4
