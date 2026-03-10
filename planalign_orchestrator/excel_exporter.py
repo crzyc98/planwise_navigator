@@ -197,8 +197,16 @@ class ExcelExporter:
         df_summary = self._calculate_summary_metrics(conn)
         df_summary.to_csv(output_dir / f"{scenario_name}_summary_metrics.csv", index=False)
 
-        # Export events summary if table exists
+        # Export events if table exists
         if self._check_table_exists(conn, TABLE_FCT_YEARLY_EVENTS):
+            # Full event-level detail
+            df_events_detail = self._query_to_df(
+                conn,
+                f"SELECT * FROM {TABLE_FCT_YEARLY_EVENTS} ORDER BY {COL_SIMULATION_YEAR}, {COL_EMPLOYEE_ID}, {COL_EVENT_TYPE}",
+            )
+            df_events_detail.to_csv(output_dir / f"{scenario_name}_events_detail.csv", index=False)
+
+            # Aggregated summary
             df_events = self._calculate_events_summary(conn)
             df_events.to_csv(output_dir / f"{scenario_name}_events_summary.csv", index=False)
 
@@ -235,8 +243,12 @@ class ExcelExporter:
             df_summary.to_excel(writer, sheet_name="Summary_Metrics", index=False)
             self._format_worksheet(writer.book["Summary_Metrics"])
 
-            # Events Summary (if events table exists)
+            # Events Detail and Summary (if events table exists)
             if self._check_table_exists(conn, TABLE_FCT_YEARLY_EVENTS):
+                # Full event-level detail for auditing
+                self._write_events_detail_sheets(writer, conn)
+
+                # Aggregated summary
                 df_events = self._calculate_events_summary(conn)
                 df_events = self._sanitize_for_excel(df_events)
                 df_events.to_excel(writer, sheet_name="Events_Summary", index=False)
@@ -284,6 +296,21 @@ class ExcelExporter:
             df_workforce = self._sanitize_for_excel(df_workforce)
             df_workforce.to_excel(writer, sheet_name="Workforce_Snapshot", index=False)
             self._format_worksheet(writer.book["Workforce_Snapshot"])
+
+    def _write_events_detail_sheets(self, writer, conn) -> None:
+        """Write event-level detail from fct_yearly_events to Excel sheets.
+
+        Args:
+            writer: Excel writer object
+            conn: Database connection
+        """
+        df_events = self._query_to_df(
+            conn,
+            f"SELECT * FROM {TABLE_FCT_YEARLY_EVENTS} ORDER BY {COL_SIMULATION_YEAR}, {COL_EMPLOYEE_ID}, {COL_EVENT_TYPE}",
+        )
+        df_events = self._sanitize_for_excel(df_events)
+        df_events.to_excel(writer, sheet_name="Events_Detail", index=False)
+        self._format_worksheet(writer.book["Events_Detail"])
 
     def _sanitize_for_excel(self, df: pd.DataFrame) -> pd.DataFrame:
         """Ensure DataFrame is compatible with Excel writer.
