@@ -136,6 +136,16 @@ export const DEFAULT_FORM_DATA: FormData = {
   dcAutoEnrollScope: 'new_hires_only',
   dcAutoEnrollHireDateCutoff: '2020-01-01',
 
+  // DC Plan - Auto-Enrollment Opt-Out Rates (as percentages)
+  dcOptOutRateYoung: 35,
+  dcOptOutRateMid: 20,
+  dcOptOutRateMature: 15,
+  dcOptOutRateSenior: 10,
+  dcOptOutRateLowIncome: 40,
+  dcOptOutRateModerate: 25,
+  dcOptOutRateHigh: 15,
+  dcOptOutRateExecutive: 5,
+
   // DC Plan - Match Enable/Disable
   dcMatchEnabled: true,
 
