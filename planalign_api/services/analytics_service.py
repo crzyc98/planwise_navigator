@@ -33,6 +33,27 @@ class AnalyticsService:
         self.db_resolver = db_resolver or DatabasePathResolver(storage)
 
     @staticmethod
+    def _contribution_rates(
+        total_employee: float,
+        total_match: float,
+        total_core: float,
+        total_compensation: float,
+    ) -> dict:
+        """Compute contribution rate percentages with division-by-zero safety."""
+        if total_compensation > 0:
+            emp = round(total_employee / total_compensation * 100, 2)
+            match = round(total_match / total_compensation * 100, 2)
+            core = round(total_core / total_compensation * 100, 2)
+        else:
+            emp = match = core = 0.0
+        return {
+            "employee_contribution_rate": emp,
+            "match_contribution_rate": match,
+            "core_contribution_rate": core,
+            "total_contribution_rate": round(emp + match + core, 2),
+        }
+
+    @staticmethod
     def _compute_grand_totals(
         contribution_by_year: List[ContributionYearSummary],
     ) -> dict:
@@ -59,23 +80,8 @@ class AnalyticsService:
         )
 
         # E066: Aggregate contribution rate percentages
-        employee_contribution_rate = (
-            (total_employee / total_compensation * 100)
-            if total_compensation > 0
-            else 0.0
-        )
-        match_contribution_rate = (
-            (total_match / total_compensation * 100)
-            if total_compensation > 0
-            else 0.0
-        )
-        core_contribution_rate = (
-            (total_core / total_compensation * 100)
-            if total_compensation > 0
-            else 0.0
-        )
-        total_contribution_rate = (
-            employee_contribution_rate + match_contribution_rate + core_contribution_rate
+        rates = AnalyticsService._contribution_rates(
+            total_employee, total_match, total_core, total_compensation,
         )
 
         return {
@@ -87,10 +93,7 @@ class AnalyticsService:
             "avg_deferral_rate": avg_deferral_rate,
             "total_compensation": total_compensation,
             "employer_cost_rate": employer_cost_rate,
-            "employee_contribution_rate": employee_contribution_rate,
-            "match_contribution_rate": match_contribution_rate,
-            "core_contribution_rate": core_contribution_rate,
-            "total_contribution_rate": total_contribution_rate,
+            **rates,
         }
 
     def get_dc_plan_analytics(
@@ -276,23 +279,8 @@ class AnalyticsService:
                 total_employee = float(row["total_employee"])
                 total_match = float(row["total_match"])
                 total_core = float(row["total_core"])
-                employee_contribution_rate = (
-                    round(total_employee / total_compensation * 100, 2)
-                    if total_compensation > 0
-                    else 0.0
-                )
-                match_contribution_rate = (
-                    round(total_match / total_compensation * 100, 2)
-                    if total_compensation > 0
-                    else 0.0
-                )
-                core_contribution_rate = (
-                    round(total_core / total_compensation * 100, 2)
-                    if total_compensation > 0
-                    else 0.0
-                )
-                total_contribution_rate = round(
-                    employee_contribution_rate + match_contribution_rate + core_contribution_rate, 2
+                rates = self._contribution_rates(
+                    total_employee, total_match, total_core, total_compensation,
                 )
                 results.append(
                     ContributionYearSummary(
@@ -310,10 +298,10 @@ class AnalyticsService:
                         total_compensation=total_compensation,
                         employer_cost_rate=round(employer_cost_rate, 2),
                         # E066: Contribution rate percentages
-                        employee_contribution_rate=employee_contribution_rate,
-                        match_contribution_rate=match_contribution_rate,
-                        core_contribution_rate=core_contribution_rate,
-                        total_contribution_rate=total_contribution_rate,
+                        employee_contribution_rate=rates["employee_contribution_rate"],
+                        match_contribution_rate=rates["match_contribution_rate"],
+                        core_contribution_rate=rates["core_contribution_rate"],
+                        total_contribution_rate=rates["total_contribution_rate"],
                     )
                 )
             return results

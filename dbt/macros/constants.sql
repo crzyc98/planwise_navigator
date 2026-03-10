@@ -57,6 +57,26 @@
 
 {% macro dq_valid() %}'VALID'{% endmacro %}
 
+{# ── Computation period types ────────────────────────── #}
+
+{% macro period_iecp() %}'iecp'{% endmacro %}
+{% macro period_plan_year() %}'plan_year'{% endmacro %}
+
+{# ── Parameter names (comp_levers / resolve_parameter) ── #}
+
+{% macro param_merit_base() %}'merit_base'{% endmacro %}
+{% macro param_cola_rate() %}'cola_rate'{% endmacro %}
+{% macro param_promotion_raise() %}'promotion_raise'{% endmacro %}
+{% macro param_promotion_probability() %}'promotion_probability'{% endmacro %}
+{% macro param_new_hire_salary_adjustment() %}'new_hire_salary_adjustment'{% endmacro %}
+{% macro param_escalation_rate() %}'escalation_rate'{% endmacro %}
+{% macro param_max_escalation_rate() %}'max_escalation_rate'{% endmacro %}
+{% macro param_tenure_threshold() %}'tenure_threshold'{% endmacro %}
+{% macro param_age_threshold() %}'age_threshold'{% endmacro %}
+{% macro param_max_escalations() %}'max_escalations'{% endmacro %}
+{% macro param_compensation_percentile() %}'compensation_percentile'{% endmacro %}
+{% macro param_market_adjustment_multiplier() %}'market_adjustment_multiplier'{% endmacro %}
+
 {# ── Defaults ─────────────────────────────────────────── #}
 
 {% macro default_scenario() %}'default'{% endmacro %}

@@ -233,6 +233,39 @@ function SummaryComparisonTable({
   );
 }
 
+// --- Contribution rate lines for multi-scenario chart ---
+
+function ContributionRateLines({
+  analytics,
+  scenarioNames: nameMap,
+}: {
+  analytics: DCPlanComparisonResponse['analytics'];
+  scenarioNames: Record<string, string>;
+}) {
+  const isSingleScenario = analytics.length === 1;
+  const lines: React.ReactElement[] = [];
+
+  analytics.forEach((a, idx) => {
+    const scenarioName = nameMap[a.scenario_id] || a.scenario_id;
+    const isBaseline = idx === 0;
+    const dashArray = isSingleScenario || isBaseline ? undefined : '5 5';
+
+    RATE_SERIES.forEach(series => {
+      const label = isSingleScenario ? series.label : `${scenarioName} - ${series.label}`;
+      lines.push(
+        <Line
+          key={label} type="monotone" dataKey={label} stroke={series.color}
+          strokeWidth={series.key === 'total_contribution_rate' ? 3 : 2}
+          strokeDasharray={dashArray}
+          dot={{ r: 3 }} activeDot={{ r: 5 }}
+        />
+      );
+    });
+  });
+
+  return <>{lines}</>;
+}
+
 // --- Component ---
 
 export default function DCPlanComparisonSection({
@@ -539,7 +572,9 @@ export default function DCPlanComparisonSection({
 
   // --- Render ---
 
-  const barWidth = scenarioNames.length > 4 ? 12 : scenarioNames.length > 2 ? 20 : 30;
+  let barWidth = 30;
+  if (scenarioNames.length > 4) barWidth = 12;
+  else if (scenarioNames.length > 2) barWidth = 20;
   const contributionBarSize = scenarioNames.length > 4 ? 16 : 30;
 
   const distributionYearSelector = availableDistributionYears.length > 1 ? (
@@ -548,11 +583,11 @@ export default function DCPlanComparisonSection({
       onChange={e => setSelectedDistributionYear(Number(e.target.value))}
       className="px-3 py-1.5 text-sm border border-gray-300 rounded-lg bg-white text-gray-700 focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-green-500"
     >
-      {availableDistributionYears.map(y => (
-        <option key={y} value={y}>
-          {y}{y === availableDistributionYears[availableDistributionYears.length - 1] ? ' (Final)' : ''}
-        </option>
-      ))}
+      {availableDistributionYears.map(y => {
+        const isFinal = y === availableDistributionYears[availableDistributionYears.length - 1];
+        const label = isFinal ? `${y} (Final)` : String(y);
+        return <option key={y} value={y}>{label}</option>;
+      })}
     </select>
   ) : availableDistributionYears.length === 1 && selectedDistributionYear !== null ? (
     <span className="text-sm text-gray-500">Year {selectedDistributionYear}</span>
@@ -584,23 +619,7 @@ export default function DCPlanComparisonSection({
             <YAxis stroke="#9CA3AF" tickFormatter={v => formatPercent(v)} />
             <Tooltip contentStyle={tooltipStyle} formatter={(value: number) => [formatPercent(value, 2), '']} />
             <Legend verticalAlign="top" height={36} />
-            {comparisonData?.analytics.map((a, idx) => {
-              const scenarioName = comparisonData.scenario_names[a.scenario_id] || a.scenario_id;
-              const isSingleScenario = comparisonData.analytics.length === 1;
-              const isBaseline = idx === 0;
-              const dashArray = isSingleScenario || isBaseline ? undefined : '5 5';
-              return RATE_SERIES.map(series => {
-                const label = isSingleScenario ? series.label : `${scenarioName} - ${series.label}`;
-                return (
-                  <Line
-                    key={label} type="monotone" dataKey={label} stroke={series.color}
-                    strokeWidth={series.key === 'total_contribution_rate' ? 3 : 2}
-                    strokeDasharray={dashArray}
-                    dot={{ r: 3 }} activeDot={{ r: 5 }}
-                  />
-                );
-              });
-            })}
+            <ContributionRateLines analytics={comparisonData.analytics} scenarioNames={comparisonData.scenario_names} />
           </LineChart>
         </ResponsiveContainer>
       </ChartCard>
@@ -651,7 +670,7 @@ export default function DCPlanComparisonSection({
       {/* Contribution Breakdown */}
       <ChartCard
         title="Contribution Breakdown"
-        subtitle={`${finalYear ? `Final year (${finalYear})` : 'Final year'} — Employee, Employer Match, and Employer Core`}
+        subtitle={`${finalYear ? 'Final year (' + finalYear + ')' : 'Final year'} — Employee, Employer Match, and Employer Core`}
         emptyMessage="No contribution data available"
         hasData={contributionBreakdownData.length > 0}
       >

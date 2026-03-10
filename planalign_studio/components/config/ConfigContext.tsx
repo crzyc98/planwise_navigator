@@ -62,6 +62,211 @@ export function useConfigContext(): ConfigContextType {
   return ctx;
 }
 
+// --- Config-to-FormData mapping helpers ---
+// Extracted to reduce cognitive complexity in useEffect hooks.
+
+/** Map simulation, workforce, and data-source config fields to FormData. */
+function mapSimulationFields(cfg: any, prev: FormData): Partial<FormData> {
+  return {
+    name: cfg.simulation?.name || prev.name,
+    startYear: cfg.simulation?.start_year || prev.startYear,
+    endYear: cfg.simulation?.end_year || prev.endYear,
+    seed: cfg.simulation?.random_seed || prev.seed,
+    targetGrowthRate: cfg.simulation?.target_growth_rate != null
+      ? cfg.simulation.target_growth_rate * 100
+      : prev.targetGrowthRate,
+    totalTerminationRate: cfg.workforce?.total_termination_rate != null
+      ? cfg.workforce.total_termination_rate * 100
+      : prev.totalTerminationRate,
+    newHireTerminationRate: cfg.workforce?.new_hire_termination_rate != null
+      ? cfg.workforce.new_hire_termination_rate * 100
+      : prev.newHireTerminationRate,
+    censusDataPath: cfg.data_sources?.census_parquet_path || prev.censusDataPath,
+    censusDataStatus: cfg.data_sources?.census_parquet_path ? 'validating' as const : prev.censusDataStatus,
+  };
+}
+
+/** Map compensation config fields to FormData. */
+function mapCompensationFields(cfg: any, prev: FormData): Partial<FormData> {
+  return {
+    targetCompensationGrowth: cfg.compensation?.target_compensation_growth_percent ?? prev.targetCompensationGrowth,
+    meritBudget: cfg.compensation?.merit_budget_percent ?? prev.meritBudget,
+    colaRate: cfg.compensation?.cola_rate_percent ?? prev.colaRate,
+    promoIncrease: cfg.compensation?.promotion_increase_percent ?? prev.promoIncrease,
+    promoDistributionRange: cfg.compensation?.promotion_distribution_range_percent ?? prev.promoDistributionRange,
+    promoBudget: cfg.compensation?.promotion_budget_percent ?? prev.promoBudget,
+    promoRateMultiplier: cfg.compensation?.promotion_rate_multiplier ?? prev.promoRateMultiplier,
+  };
+}
+
+/** Map new-hire config fields to FormData. */
+function mapNewHireFields(cfg: any, prev: FormData): Partial<FormData> {
+  return {
+    newHireStrategy: cfg.new_hire?.strategy || prev.newHireStrategy,
+    targetPercentile: cfg.new_hire?.target_percentile ?? prev.targetPercentile,
+    newHireCompVariance: cfg.new_hire?.compensation_variance_percent ?? prev.newHireCompVariance,
+    newHireAgeDistribution: cfg.new_hire?.age_distribution
+      ? cfg.new_hire.age_distribution.map((d: any, idx: number) => ({
+          age: d.age, weight: d.weight,
+          description: prev.newHireAgeDistribution[idx]?.description || '',
+        }))
+      : prev.newHireAgeDistribution,
+    levelDistributionMode: cfg.new_hire?.level_distribution_mode || prev.levelDistributionMode,
+    newHireLevelDistribution: cfg.new_hire?.level_distribution
+      ? cfg.new_hire.level_distribution.map((d: any, idx: number) => ({
+          level: d.level, name: prev.newHireLevelDistribution[idx]?.name || `Level ${d.level}`,
+          percentage: d.percentage * 100,
+        }))
+      : prev.newHireLevelDistribution,
+    jobLevelCompensation: cfg.new_hire?.job_level_compensation
+      ? cfg.new_hire.job_level_compensation.map((d: any) => ({
+          level: d.level, name: d.name, minComp: d.min_compensation, maxComp: d.max_compensation,
+        }))
+      : prev.jobLevelCompensation,
+    marketScenario: (['conservative', 'baseline', 'competitive', 'aggressive'].includes(cfg.new_hire?.market_scenario)
+      ? cfg.new_hire.market_scenario : prev.marketScenario),
+    levelMarketAdjustments: cfg.new_hire?.level_market_adjustments
+      ? cfg.new_hire.level_market_adjustments.map((d: any) => ({ level: d.level, adjustment: d.adjustment_percent }))
+      : prev.levelMarketAdjustments,
+  };
+}
+
+/** Map DC plan match tier config fields to FormData. */
+function mapDCPlanMatchFields(cfg: any, prev: FormData): Partial<FormData> {
+  return {
+    dcMatchTemplate: cfg.dc_plan?.match_template || prev.dcMatchTemplate,
+    dcMatchTiers: cfg.dc_plan?.match_tiers
+      ? cfg.dc_plan.match_tiers.map((t: any) => ({
+          deferralMin: (t.employee_min ?? 0) * 100,
+          deferralMax: (t.employee_max ?? 0) * 100,
+          matchRate: (t.match_rate ?? 0) * 100,
+        }))
+      : prev.dcMatchTiers,
+    dcMatchMode: cfg.dc_plan?.match_status || prev.dcMatchMode,
+    dcTenureMatchTiers: cfg.dc_plan?.tenure_match_tiers
+      ? cfg.dc_plan.tenure_match_tiers.map((t: any) => ({
+          minYears: t.min_years ?? 0, maxYears: t.max_years ?? null,
+          matchRate: convertRateToPercent(t.match_rate, 0),
+          maxDeferralPct: convertRateToPercent(t.max_deferral_pct, 6),
+        }))
+      : prev.dcTenureMatchTiers,
+    dcPointsMatchTiers: cfg.dc_plan?.points_match_tiers
+      ? cfg.dc_plan.points_match_tiers.map((t: any) => ({
+          minPoints: t.min_points ?? 0, maxPoints: t.max_points ?? null,
+          matchRate: convertRateToPercent(t.match_rate, 0),
+          maxDeferralPct: convertRateToPercent(t.max_deferral_pct, 6),
+        }))
+      : prev.dcPointsMatchTiers,
+    dcMatchEnabled: cfg.dc_plan?.match_enabled ?? prev.dcMatchEnabled,
+    dcMatchMinTenureYears: cfg.dc_plan?.match_min_tenure_years ?? prev.dcMatchMinTenureYears,
+    dcMatchRequireYearEndActive: cfg.dc_plan?.match_require_year_end_active ?? prev.dcMatchRequireYearEndActive,
+    dcMatchMinHoursAnnual: cfg.dc_plan?.match_min_hours_annual ?? prev.dcMatchMinHoursAnnual,
+    dcMatchAllowTerminatedNewHires: cfg.dc_plan?.match_allow_terminated_new_hires ?? prev.dcMatchAllowTerminatedNewHires,
+    dcMatchAllowExperiencedTerminations: cfg.dc_plan?.match_allow_experienced_terminations ?? prev.dcMatchAllowExperiencedTerminations,
+  };
+}
+
+/** Map DC plan enrollment and opt-out config fields to FormData. */
+function mapDCPlanEnrollmentFields(cfg: any, prev: FormData): Partial<FormData> {
+  return {
+    dcEligibilityMonths: cfg.dc_plan?.eligibility_months ?? prev.dcEligibilityMonths,
+    dcAutoEnroll: cfg.dc_plan?.auto_enroll ?? prev.dcAutoEnroll,
+    dcDefaultDeferral: cfg.dc_plan?.default_deferral_percent ?? prev.dcDefaultDeferral,
+    dcAutoEnrollWindowDays: cfg.dc_plan?.auto_enroll_window_days ?? prev.dcAutoEnrollWindowDays,
+    dcAutoEnrollOptOutGracePeriod: cfg.dc_plan?.auto_enroll_opt_out_grace_period ?? prev.dcAutoEnrollOptOutGracePeriod,
+    dcAutoEnrollScope: cfg.dc_plan?.auto_enroll_scope || prev.dcAutoEnrollScope,
+    dcAutoEnrollHireDateCutoff: cfg.dc_plan?.auto_enroll_hire_date_cutoff || prev.dcAutoEnrollHireDateCutoff,
+    dcOptOutRateYoung: cfg.dc_plan?.opt_out_rate_young != null
+      ? cfg.dc_plan.opt_out_rate_young * 100 : prev.dcOptOutRateYoung,
+    dcOptOutRateMid: cfg.dc_plan?.opt_out_rate_mid != null
+      ? cfg.dc_plan.opt_out_rate_mid * 100 : prev.dcOptOutRateMid,
+    dcOptOutRateMature: cfg.dc_plan?.opt_out_rate_mature != null
+      ? cfg.dc_plan.opt_out_rate_mature * 100 : prev.dcOptOutRateMature,
+    dcOptOutRateSenior: cfg.dc_plan?.opt_out_rate_senior != null
+      ? cfg.dc_plan.opt_out_rate_senior * 100 : prev.dcOptOutRateSenior,
+    dcOptOutRateLowIncome: cfg.dc_plan?.opt_out_rate_low_income != null
+      ? cfg.dc_plan.opt_out_rate_low_income * 100 : prev.dcOptOutRateLowIncome,
+    dcOptOutRateModerate: cfg.dc_plan?.opt_out_rate_moderate != null
+      ? cfg.dc_plan.opt_out_rate_moderate * 100 : prev.dcOptOutRateModerate,
+    dcOptOutRateHigh: cfg.dc_plan?.opt_out_rate_high != null
+      ? cfg.dc_plan.opt_out_rate_high * 100 : prev.dcOptOutRateHigh,
+    dcOptOutRateExecutive: cfg.dc_plan?.opt_out_rate_executive != null
+      ? cfg.dc_plan.opt_out_rate_executive * 100 : prev.dcOptOutRateExecutive,
+  };
+}
+
+/** Map DC plan core contribution config fields to FormData. */
+function mapDCPlanCoreFields(cfg: any, prev: FormData): Partial<FormData> {
+  return {
+    dcCoreEnabled: cfg.dc_plan?.core_enabled ?? prev.dcCoreEnabled,
+    dcCoreStatus: cfg.dc_plan?.core_status || prev.dcCoreStatus,
+    dcCoreContributionRate: cfg.dc_plan?.core_contribution_rate_percent ?? prev.dcCoreContributionRate,
+    dcCoreGradedSchedule: cfg.dc_plan?.core_graded_schedule
+      ? cfg.dc_plan.core_graded_schedule.map((tier: any) => ({
+          serviceYearsMin: tier.service_years_min,
+          serviceYearsMax: tier.service_years_max,
+          rate: tier.contribution_rate * 100,
+        }))
+      : prev.dcCoreGradedSchedule,
+    dcCorePointsSchedule: cfg.dc_plan?.core_points_schedule
+      ? cfg.dc_plan.core_points_schedule.map((tier: any) => ({
+          minPoints: tier.min_points ?? 0, maxPoints: tier.max_points ?? null,
+          rate: convertRateToPercent(tier.contribution_rate, 0),
+        }))
+      : prev.dcCorePointsSchedule,
+    dcCoreMinTenureYears: cfg.dc_plan?.core_min_tenure_years ?? prev.dcCoreMinTenureYears,
+    dcCoreRequireYearEndActive: cfg.dc_plan?.core_require_year_end_active ?? prev.dcCoreRequireYearEndActive,
+    dcCoreMinHoursAnnual: cfg.dc_plan?.core_min_hours_annual ?? prev.dcCoreMinHoursAnnual,
+    dcCoreAllowTerminatedNewHires: cfg.dc_plan?.core_allow_terminated_new_hires ?? prev.dcCoreAllowTerminatedNewHires,
+    dcCoreAllowExperiencedTerminations: cfg.dc_plan?.core_allow_experienced_terminations ?? prev.dcCoreAllowExperiencedTerminations,
+  };
+}
+
+/** Map DC plan escalation config fields to FormData. */
+function mapDCPlanEscalationFields(cfg: any, prev: FormData): Partial<FormData> {
+  const cutoff = cfg.dc_plan?.escalation_hire_date_cutoff || prev.dcEscalationHireDateCutoff;
+  let resolvedCutoff = cutoff;
+  if (!resolvedCutoff) {
+    const escalationOn = cfg.dc_plan?.auto_escalation ?? prev.dcAutoEscalation;
+    resolvedCutoff = escalationOn ? `${cfg.simulation?.start_year || prev.startYear}-01-01` : '';
+  }
+  return {
+    dcAutoEscalation: cfg.dc_plan?.auto_escalation ?? prev.dcAutoEscalation,
+    dcEscalationRate: cfg.dc_plan?.escalation_rate_percent ?? prev.dcEscalationRate,
+    dcEscalationCap: cfg.dc_plan?.escalation_cap_percent ?? prev.dcEscalationCap,
+    dcEscalationEffectiveDay: cfg.dc_plan?.escalation_effective_day || prev.dcEscalationEffectiveDay,
+    dcEscalationDelayYears: cfg.dc_plan?.escalation_delay_years ?? prev.dcEscalationDelayYears,
+    dcEscalationHireDateCutoff: resolvedCutoff,
+  };
+}
+
+/** Map advanced config fields to FormData. */
+function mapAdvancedFields(cfg: any, prev: FormData): Partial<FormData> {
+  return {
+    engine: cfg.advanced?.engine || prev.engine,
+    enableMultithreading: cfg.advanced?.enable_multithreading ?? prev.enableMultithreading,
+    checkpointFrequency: cfg.advanced?.checkpoint_frequency || prev.checkpointFrequency,
+    memoryLimitGB: cfg.advanced?.memory_limit_gb ?? prev.memoryLimitGB,
+    logLevel: cfg.advanced?.log_level || prev.logLevel,
+    strictValidation: cfg.advanced?.strict_validation ?? prev.strictValidation,
+  };
+}
+
+/** Apply all config sections to produce updated FormData. */
+function applyConfigToFormData(cfg: any, prev: FormData): FormData {
+  return {
+    ...prev,
+    ...mapSimulationFields(cfg, prev),
+    ...mapCompensationFields(cfg, prev),
+    ...mapNewHireFields(cfg, prev),
+    ...mapDCPlanEnrollmentFields(cfg, prev),
+    ...mapDCPlanMatchFields(cfg, prev),
+    ...mapDCPlanCoreFields(cfg, prev),
+    ...mapDCPlanEscalationFields(cfg, prev),
+    ...mapAdvancedFields(cfg, prev),
+  };
+}
+
 // --- Validation helpers (used by save handler) ---
 
 function convertRateToPercent(value: number | null | undefined, fallback: number): number {
@@ -155,166 +360,7 @@ export function ConfigProvider({ activeWorkspace, scenarioId, children }: Config
 
         if (scenario.config_overrides) {
           const cfg = scenario.config_overrides;
-          setFormData(prev => ({
-            ...prev,
-            // Simulation
-            name: cfg.simulation?.name || prev.name,
-            startYear: cfg.simulation?.start_year || prev.startYear,
-            endYear: cfg.simulation?.end_year || prev.endYear,
-            seed: cfg.simulation?.random_seed || prev.seed,
-            targetGrowthRate: cfg.simulation?.target_growth_rate != null
-              ? cfg.simulation.target_growth_rate * 100
-              : prev.targetGrowthRate,
-
-            // Workforce
-            totalTerminationRate: cfg.workforce?.total_termination_rate != null
-              ? cfg.workforce.total_termination_rate * 100
-              : prev.totalTerminationRate,
-            newHireTerminationRate: cfg.workforce?.new_hire_termination_rate != null
-              ? cfg.workforce.new_hire_termination_rate * 100
-              : prev.newHireTerminationRate,
-
-            // Data Sources
-            censusDataPath: cfg.data_sources?.census_parquet_path || prev.censusDataPath,
-            censusDataStatus: cfg.data_sources?.census_parquet_path ? 'validating' : prev.censusDataStatus,
-
-            // Compensation
-            targetCompensationGrowth: cfg.compensation?.target_compensation_growth_percent ?? prev.targetCompensationGrowth,
-            meritBudget: cfg.compensation?.merit_budget_percent ?? prev.meritBudget,
-            colaRate: cfg.compensation?.cola_rate_percent ?? prev.colaRate,
-            promoIncrease: cfg.compensation?.promotion_increase_percent ?? prev.promoIncrease,
-            promoDistributionRange: cfg.compensation?.promotion_distribution_range_percent ?? prev.promoDistributionRange,
-            promoBudget: cfg.compensation?.promotion_budget_percent ?? prev.promoBudget,
-            promoRateMultiplier: cfg.compensation?.promotion_rate_multiplier ?? prev.promoRateMultiplier,
-
-            // New Hire
-            newHireStrategy: cfg.new_hire?.strategy || prev.newHireStrategy,
-            targetPercentile: cfg.new_hire?.target_percentile ?? prev.targetPercentile,
-            newHireCompVariance: cfg.new_hire?.compensation_variance_percent ?? prev.newHireCompVariance,
-            newHireAgeDistribution: cfg.new_hire?.age_distribution
-              ? cfg.new_hire.age_distribution.map((d: any, idx: number) => ({
-                  age: d.age,
-                  weight: d.weight,
-                  description: prev.newHireAgeDistribution[idx]?.description || '',
-                }))
-              : prev.newHireAgeDistribution,
-            levelDistributionMode: cfg.new_hire?.level_distribution_mode || prev.levelDistributionMode,
-            newHireLevelDistribution: cfg.new_hire?.level_distribution
-              ? cfg.new_hire.level_distribution.map((d: any, idx: number) => ({
-                  level: d.level,
-                  name: prev.newHireLevelDistribution[idx]?.name || `Level ${d.level}`,
-                  percentage: d.percentage * 100,
-                }))
-              : prev.newHireLevelDistribution,
-            jobLevelCompensation: cfg.new_hire?.job_level_compensation
-              ? cfg.new_hire.job_level_compensation.map((d: any) => ({
-                  level: d.level, name: d.name, minComp: d.min_compensation, maxComp: d.max_compensation,
-                }))
-              : prev.jobLevelCompensation,
-            marketScenario: (['conservative', 'baseline', 'competitive', 'aggressive'].includes(cfg.new_hire?.market_scenario)
-              ? cfg.new_hire.market_scenario : prev.marketScenario),
-            levelMarketAdjustments: cfg.new_hire?.level_market_adjustments
-              ? cfg.new_hire.level_market_adjustments.map((d: any) => ({ level: d.level, adjustment: d.adjustment_percent }))
-              : prev.levelMarketAdjustments,
-
-            // DC Plan - Basic
-            dcEligibilityMonths: cfg.dc_plan?.eligibility_months ?? prev.dcEligibilityMonths,
-            dcAutoEnroll: cfg.dc_plan?.auto_enroll ?? prev.dcAutoEnroll,
-            dcDefaultDeferral: cfg.dc_plan?.default_deferral_percent ?? prev.dcDefaultDeferral,
-            dcAutoEnrollWindowDays: cfg.dc_plan?.auto_enroll_window_days ?? prev.dcAutoEnrollWindowDays,
-            dcAutoEnrollOptOutGracePeriod: cfg.dc_plan?.auto_enroll_opt_out_grace_period ?? prev.dcAutoEnrollOptOutGracePeriod,
-            dcAutoEnrollScope: cfg.dc_plan?.auto_enroll_scope || prev.dcAutoEnrollScope,
-            dcAutoEnrollHireDateCutoff: cfg.dc_plan?.auto_enroll_hire_date_cutoff || prev.dcAutoEnrollHireDateCutoff,
-            // Opt-out rates: API stores as decimals (0.00-1.00), UI displays as percentages (0-100)
-            dcOptOutRateYoung: cfg.dc_plan?.opt_out_rate_young != null
-              ? cfg.dc_plan.opt_out_rate_young * 100 : prev.dcOptOutRateYoung,
-            dcOptOutRateMid: cfg.dc_plan?.opt_out_rate_mid != null
-              ? cfg.dc_plan.opt_out_rate_mid * 100 : prev.dcOptOutRateMid,
-            dcOptOutRateMature: cfg.dc_plan?.opt_out_rate_mature != null
-              ? cfg.dc_plan.opt_out_rate_mature * 100 : prev.dcOptOutRateMature,
-            dcOptOutRateSenior: cfg.dc_plan?.opt_out_rate_senior != null
-              ? cfg.dc_plan.opt_out_rate_senior * 100 : prev.dcOptOutRateSenior,
-            dcOptOutRateLowIncome: cfg.dc_plan?.opt_out_rate_low_income != null
-              ? cfg.dc_plan.opt_out_rate_low_income * 100 : prev.dcOptOutRateLowIncome,
-            dcOptOutRateModerate: cfg.dc_plan?.opt_out_rate_moderate != null
-              ? cfg.dc_plan.opt_out_rate_moderate * 100 : prev.dcOptOutRateModerate,
-            dcOptOutRateHigh: cfg.dc_plan?.opt_out_rate_high != null
-              ? cfg.dc_plan.opt_out_rate_high * 100 : prev.dcOptOutRateHigh,
-            dcOptOutRateExecutive: cfg.dc_plan?.opt_out_rate_executive != null
-              ? cfg.dc_plan.opt_out_rate_executive * 100 : prev.dcOptOutRateExecutive,
-            dcMatchTemplate: cfg.dc_plan?.match_template || prev.dcMatchTemplate,
-            dcMatchTiers: cfg.dc_plan?.match_tiers
-              ? cfg.dc_plan.match_tiers.map((t: any) => ({
-                  deferralMin: (t.employee_min ?? 0) * 100,
-                  deferralMax: (t.employee_max ?? 0) * 100,
-                  matchRate: (t.match_rate ?? 0) * 100,
-                }))
-              : prev.dcMatchTiers,
-            dcMatchMode: cfg.dc_plan?.match_status || prev.dcMatchMode,
-            dcTenureMatchTiers: cfg.dc_plan?.tenure_match_tiers
-              ? cfg.dc_plan.tenure_match_tiers.map((t: any) => ({
-                  minYears: t.min_years ?? 0,
-                  maxYears: t.max_years ?? null,
-                  matchRate: convertRateToPercent(t.match_rate, 0),
-                  maxDeferralPct: convertRateToPercent(t.max_deferral_pct, 6),
-                }))
-              : prev.dcTenureMatchTiers,
-            dcPointsMatchTiers: cfg.dc_plan?.points_match_tiers
-              ? cfg.dc_plan.points_match_tiers.map((t: any) => ({
-                  minPoints: t.min_points ?? 0,
-                  maxPoints: t.max_points ?? null,
-                  matchRate: convertRateToPercent(t.match_rate, 0),
-                  maxDeferralPct: convertRateToPercent(t.max_deferral_pct, 6),
-                }))
-              : prev.dcPointsMatchTiers,
-            dcMatchEnabled: cfg.dc_plan?.match_enabled ?? prev.dcMatchEnabled,
-            dcMatchMinTenureYears: cfg.dc_plan?.match_min_tenure_years ?? prev.dcMatchMinTenureYears,
-            dcMatchRequireYearEndActive: cfg.dc_plan?.match_require_year_end_active ?? prev.dcMatchRequireYearEndActive,
-            dcMatchMinHoursAnnual: cfg.dc_plan?.match_min_hours_annual ?? prev.dcMatchMinHoursAnnual,
-            dcMatchAllowTerminatedNewHires: cfg.dc_plan?.match_allow_terminated_new_hires ?? prev.dcMatchAllowTerminatedNewHires,
-            dcMatchAllowExperiencedTerminations: cfg.dc_plan?.match_allow_experienced_terminations ?? prev.dcMatchAllowExperiencedTerminations,
-            dcCoreEnabled: cfg.dc_plan?.core_enabled ?? prev.dcCoreEnabled,
-            dcCoreStatus: cfg.dc_plan?.core_status || prev.dcCoreStatus,
-            dcCoreContributionRate: cfg.dc_plan?.core_contribution_rate_percent ?? prev.dcCoreContributionRate,
-            dcCoreGradedSchedule: cfg.dc_plan?.core_graded_schedule
-              ? cfg.dc_plan.core_graded_schedule.map((tier: any) => ({
-                  serviceYearsMin: tier.service_years_min,
-                  serviceYearsMax: tier.service_years_max,
-                  rate: tier.contribution_rate * 100,
-                }))
-              : prev.dcCoreGradedSchedule,
-            dcCorePointsSchedule: cfg.dc_plan?.core_points_schedule
-              ? cfg.dc_plan.core_points_schedule.map((tier: any) => ({
-                  minPoints: tier.min_points ?? 0,
-                  maxPoints: tier.max_points ?? null,
-                  rate: convertRateToPercent(tier.contribution_rate, 0),
-                }))
-              : prev.dcCorePointsSchedule,
-            dcCoreMinTenureYears: cfg.dc_plan?.core_min_tenure_years ?? prev.dcCoreMinTenureYears,
-            dcCoreRequireYearEndActive: cfg.dc_plan?.core_require_year_end_active ?? prev.dcCoreRequireYearEndActive,
-            dcCoreMinHoursAnnual: cfg.dc_plan?.core_min_hours_annual ?? prev.dcCoreMinHoursAnnual,
-            dcCoreAllowTerminatedNewHires: cfg.dc_plan?.core_allow_terminated_new_hires ?? prev.dcCoreAllowTerminatedNewHires,
-            dcCoreAllowExperiencedTerminations: cfg.dc_plan?.core_allow_experienced_terminations ?? prev.dcCoreAllowExperiencedTerminations,
-            dcAutoEscalation: cfg.dc_plan?.auto_escalation ?? prev.dcAutoEscalation,
-            dcEscalationRate: cfg.dc_plan?.escalation_rate_percent ?? prev.dcEscalationRate,
-            dcEscalationCap: cfg.dc_plan?.escalation_cap_percent ?? prev.dcEscalationCap,
-            dcEscalationEffectiveDay: cfg.dc_plan?.escalation_effective_day || prev.dcEscalationEffectiveDay,
-            dcEscalationDelayYears: cfg.dc_plan?.escalation_delay_years ?? prev.dcEscalationDelayYears,
-            dcEscalationHireDateCutoff: (() => {
-              const cutoff = cfg.dc_plan?.escalation_hire_date_cutoff || prev.dcEscalationHireDateCutoff;
-              if (cutoff) return cutoff;
-              const escalationOn = cfg.dc_plan?.auto_escalation ?? prev.dcAutoEscalation;
-              return escalationOn ? `${cfg.simulation?.start_year || prev.startYear}-01-01` : '';
-            })(),
-
-            // Advanced
-            engine: cfg.advanced?.engine || prev.engine,
-            enableMultithreading: cfg.advanced?.enable_multithreading ?? prev.enableMultithreading,
-            checkpointFrequency: cfg.advanced?.checkpoint_frequency || prev.checkpointFrequency,
-            memoryLimitGB: cfg.advanced?.memory_limit_gb ?? prev.memoryLimitGB,
-            logLevel: cfg.advanced?.log_level || prev.logLevel,
-            strictValidation: cfg.advanced?.strict_validation ?? prev.strictValidation,
-          }));
+          setFormData(prev => applyConfigToFormData(cfg, prev));
 
           // E089: Validate census file
           const censusPath = cfg.data_sources?.census_parquet_path;
@@ -351,89 +397,7 @@ export function ConfigProvider({ activeWorkspace, scenarioId, children }: Config
   useEffect(() => {
     if (!activeWorkspace?.base_config) return;
     const cfg = activeWorkspace.base_config;
-    setFormData(prev => ({
-      ...prev,
-      // Simulation
-      name: cfg.simulation?.name || prev.name,
-      startYear: cfg.simulation?.start_year || prev.startYear,
-      endYear: cfg.simulation?.end_year || prev.endYear,
-      seed: cfg.simulation?.random_seed || prev.seed,
-      targetGrowthRate: (cfg.simulation?.target_growth_rate || 0.03) * 100,
-      // Workforce
-      totalTerminationRate: (cfg.workforce?.total_termination_rate || 0.12) * 100,
-      newHireTerminationRate: (cfg.workforce?.new_hire_termination_rate || 0.25) * 100,
-      // Compensation
-      targetCompensationGrowth: cfg.compensation?.target_compensation_growth_percent ?? prev.targetCompensationGrowth,
-      meritBudget: cfg.compensation?.merit_budget_percent || prev.meritBudget,
-      colaRate: cfg.compensation?.cola_rate_percent || prev.colaRate,
-      promoIncrease: cfg.compensation?.promotion_increase_percent || prev.promoIncrease,
-      promoDistributionRange: cfg.compensation?.promotion_distribution_range_percent ?? prev.promoDistributionRange,
-      promoBudget: cfg.compensation?.promotion_budget_percent || prev.promoBudget,
-      promoRateMultiplier: cfg.compensation?.promotion_rate_multiplier ?? prev.promoRateMultiplier,
-      // New Hire
-      newHireStrategy: cfg.new_hire?.strategy || prev.newHireStrategy,
-      targetPercentile: cfg.new_hire?.target_percentile || prev.targetPercentile,
-      newHireCompVariance: cfg.new_hire?.compensation_variance_percent || prev.newHireCompVariance,
-      newHireAgeDistribution: cfg.new_hire?.age_distribution
-        ? cfg.new_hire.age_distribution.map((d: any, idx: number) => ({
-            age: d.age, weight: d.weight, description: prev.newHireAgeDistribution[idx]?.description || '',
-          }))
-        : prev.newHireAgeDistribution,
-      levelDistributionMode: cfg.new_hire?.level_distribution_mode || prev.levelDistributionMode,
-      newHireLevelDistribution: cfg.new_hire?.level_distribution
-        ? cfg.new_hire.level_distribution.map((d: any, idx: number) => ({
-            level: d.level, name: prev.newHireLevelDistribution[idx]?.name || `Level ${d.level}`,
-            percentage: d.percentage * 100,
-          }))
-        : prev.newHireLevelDistribution,
-      jobLevelCompensation: cfg.new_hire?.job_level_compensation
-        ? cfg.new_hire.job_level_compensation.map((d: any) => ({
-            level: d.level, name: d.name, minComp: d.min_compensation, maxComp: d.max_compensation,
-          }))
-        : prev.jobLevelCompensation,
-      marketScenario: (['conservative', 'baseline', 'competitive', 'aggressive'].includes(cfg.new_hire?.market_scenario)
-        ? cfg.new_hire.market_scenario : prev.marketScenario),
-      levelMarketAdjustments: cfg.new_hire?.level_market_adjustments
-        ? cfg.new_hire.level_market_adjustments.map((d: any) => ({ level: d.level, adjustment: d.adjustment_percent }))
-        : prev.levelMarketAdjustments,
-      // DC Plan
-      dcEligibilityMonths: cfg.dc_plan?.eligibility_months || prev.dcEligibilityMonths,
-      dcAutoEnroll: cfg.dc_plan?.auto_enroll ?? prev.dcAutoEnroll,
-      dcDefaultDeferral: cfg.dc_plan?.default_deferral_percent || prev.dcDefaultDeferral,
-      dcMatchTemplate: cfg.dc_plan?.match_template || prev.dcMatchTemplate,
-      dcMatchTiers: cfg.dc_plan?.match_tiers
-        ? cfg.dc_plan.match_tiers.map((t: any) => ({
-            deferralMin: (t.employee_min ?? 0) * 100,
-            deferralMax: (t.employee_max ?? 0) * 100,
-            matchRate: (t.match_rate ?? 0) * 100,
-          }))
-        : prev.dcMatchTiers,
-      dcMatchMode: cfg.dc_plan?.match_status || prev.dcMatchMode,
-      dcTenureMatchTiers: cfg.dc_plan?.tenure_match_tiers
-        ? cfg.dc_plan.tenure_match_tiers.map((t: any) => ({
-            minYears: t.min_years ?? 0, maxYears: t.max_years ?? null,
-            matchRate: convertRateToPercent(t.match_rate, 0),
-            maxDeferralPct: convertRateToPercent(t.max_deferral_pct, 6),
-          }))
-        : prev.dcTenureMatchTiers,
-      dcPointsMatchTiers: cfg.dc_plan?.points_match_tiers
-        ? cfg.dc_plan.points_match_tiers.map((t: any) => ({
-            minPoints: t.min_points ?? 0, maxPoints: t.max_points ?? null,
-            matchRate: convertRateToPercent(t.match_rate, 0),
-            maxDeferralPct: convertRateToPercent(t.max_deferral_pct, 6),
-          }))
-        : prev.dcPointsMatchTiers,
-      dcAutoEscalation: cfg.dc_plan?.auto_escalation ?? prev.dcAutoEscalation,
-      dcEscalationRate: cfg.dc_plan?.escalation_rate_percent || prev.dcEscalationRate,
-      dcEscalationCap: cfg.dc_plan?.escalation_cap_percent || prev.dcEscalationCap,
-      // Advanced
-      engine: cfg.advanced?.engine || prev.engine,
-      enableMultithreading: cfg.advanced?.enable_multithreading ?? prev.enableMultithreading,
-      checkpointFrequency: cfg.advanced?.checkpoint_frequency || prev.checkpointFrequency,
-      memoryLimitGB: cfg.advanced?.memory_limit_gb || prev.memoryLimitGB,
-      logLevel: cfg.advanced?.log_level || prev.logLevel,
-      strictValidation: cfg.advanced?.strict_validation ?? prev.strictValidation,
-    }));
+    setFormData(prev => applyConfigToFormData(cfg, prev));
   }, [activeWorkspace?.base_config]);
 
   // --- useEffect 3: Load seed configs (bands + promotion hazard) ---

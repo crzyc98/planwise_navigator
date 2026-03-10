@@ -528,6 +528,18 @@ class TestExecuteCommand:
         assert mock_exec.call_count == 1
 
     @pytest.mark.fast
+    @patch.object(DbtRunner, "_execute_once")
+    def test_execute_command_retry_success_first_try(self, mock_exec):
+        """retry=True with immediate success still returns via _execute_with_retry."""
+        mock_exec.return_value = _ok_result()
+        runner = DbtRunner()
+        result = runner.execute_command(
+            ["run"], retry=True, max_attempts=3,
+        )
+        assert result.success
+        mock_exec.assert_called_once()
+
+    @pytest.mark.fast
     def test_execute_once_closes_db_connections(self):
         """db_manager.close_all() is called before subprocess."""
         db_mgr = Mock()
