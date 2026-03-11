@@ -122,7 +122,7 @@ class TestComputeCagrMetrics:
 
 @pytest.mark.fast
 class TestWorkforceProgressionQuery:
-    """Test that _query_workforce_progression filters active employees only."""
+    """Test _query_workforce_progression respects the pop_filter."""
 
     def _make_db(self) -> duckdb.DuckDBPyConnection:
         conn = duckdb.connect()
@@ -151,20 +151,30 @@ class TestWorkforceProgressionQuery:
         """)
         return conn
 
-    def test_counts_only_active_employees(self):
+    def test_active_filter_counts_only_active_employees(self):
         conn = self._make_db()
-        result = _query_workforce_progression(conn, 2025, 2026)
+        active_filter = " AND LOWER(employment_status) = 'active'"
+        result = _query_workforce_progression(conn, 2025, 2026, active_filter)
         conn.close()
 
         assert len(result) == 2
         row_2025 = next(r for r in result if r["simulation_year"] == 2025)
         row_2026 = next(r for r in result if r["simulation_year"] == 2026)
-        assert row_2025["headcount"] == 3, "2025 should count 3 active, not 5 total"
-        assert row_2026["headcount"] == 4, "2026 should count 4 active, not 5 total"
+        assert row_2025["headcount"] == 3, "active filter: 2025 should count 3"
+        assert row_2026["headcount"] == 4, "active filter: 2026 should count 4"
 
-    def test_compensation_uses_active_employees_only(self):
+    def test_no_filter_counts_all_employees(self):
         conn = self._make_db()
-        result = _query_workforce_progression(conn, 2025, 2025)
+        result = _query_workforce_progression(conn, 2025, 2026, pop_filter="")
+        conn.close()
+
+        row_2025 = next(r for r in result if r["simulation_year"] == 2025)
+        assert row_2025["headcount"] == 5, "no filter: 2025 should count all 5"
+
+    def test_active_filter_compensation_excludes_terminated(self):
+        conn = self._make_db()
+        active_filter = " AND LOWER(employment_status) = 'active'"
+        result = _query_workforce_progression(conn, 2025, 2025, active_filter)
         conn.close()
 
         row = result[0]
@@ -174,7 +184,7 @@ class TestWorkforceProgressionQuery:
 
 @pytest.mark.fast
 class TestParticipationRateQuery:
-    """Test that _query_participation_rate counts active employees only."""
+    """Test that _query_participation_rate respects the pop_filter."""
 
     def _make_db(self) -> duckdb.DuckDBPyConnection:
         conn = duckdb.connect()
@@ -197,9 +207,10 @@ class TestParticipationRateQuery:
         """)
         return conn
 
-    def test_excludes_terminated_from_denominator(self):
+    def test_active_filter_excludes_terminated_from_denominator(self):
+        active_filter = " AND LOWER(employment_status) = 'active'"
         conn = self._make_db()
-        rate = _query_participation_rate(conn, 2026)
+        rate = _query_participation_rate(conn, 2026, active_filter)
         conn.close()
 
         # 2 participating active / 3 active = 66.7%, not 2/5 = 40%

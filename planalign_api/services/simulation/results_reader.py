@@ -33,7 +33,7 @@ def read_results(
     scenario_id: str,
     storage: WorkspaceStorage,
     db_resolver: DatabasePathResolver,
-    population: str = "all",
+    population: str = "active",
 ) -> Optional[SimulationResults]:
     """Query DuckDB for workforce progression, events, and compensation.
 
@@ -144,7 +144,7 @@ def _query_workforce_progression(
             FROM {TABLE_FCT_WORKFORCE_SNAPSHOT}
             WHERE simulation_year >= ?
               AND simulation_year <= ?
-              AND LOWER(employment_status) = 'active'
+              {pop_filter}
             GROUP BY simulation_year
             ORDER BY simulation_year
         """,
@@ -227,7 +227,7 @@ def _query_participation_rate(
                 COUNT(DISTINCT employee_id) as total_eligible
             FROM {TABLE_FCT_WORKFORCE_SNAPSHOT}
             WHERE simulation_year = ?
-              AND LOWER(employment_status) = 'active'
+              {pop_filter}
         """,
             [end_year],
         ).fetchdf()

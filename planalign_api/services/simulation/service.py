@@ -331,7 +331,7 @@ class SimulationService:
         return True
 
     def get_results(
-        self, workspace_id: str, scenario_id: str, population: str = "all"
+        self, workspace_id: str, scenario_id: str, population: str = "active"
     ) -> Optional[SimulationResults]:
         """Get simulation results for a completed scenario."""
         return read_results(
