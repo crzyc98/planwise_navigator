@@ -30,23 +30,23 @@
     -- defaults (cola_rate=0.02) as "typical client" defaults. If int_effective_parameters
     -- resolves correctly, neither fallback is used.
     CASE
-      WHEN '{{ parameter_name }}' = 'merit_base' AND {{ job_level }} = 1 THEN 0.035
-      WHEN '{{ parameter_name }}' = 'merit_base' AND {{ job_level }} = 2 THEN 0.040
-      WHEN '{{ parameter_name }}' = 'merit_base' AND {{ job_level }} = 3 THEN 0.045
-      WHEN '{{ parameter_name }}' = 'merit_base' AND {{ job_level }} = 4 THEN 0.050
-      WHEN '{{ parameter_name }}' = 'merit_base' AND {{ job_level }} = 5 THEN 0.055
-      WHEN '{{ parameter_name }}' = 'cola_rate' THEN 0.015
-      WHEN '{{ parameter_name }}' = 'promotion_raise' THEN 0.12
-      WHEN '{{ parameter_name }}' = 'new_hire_salary_adjustment' THEN 1.1489720153602505
+      WHEN '{{ parameter_name }}' = {{ param_merit_base() }} AND {{ job_level }} = 1 THEN 0.035
+      WHEN '{{ parameter_name }}' = {{ param_merit_base() }} AND {{ job_level }} = 2 THEN 0.040
+      WHEN '{{ parameter_name }}' = {{ param_merit_base() }} AND {{ job_level }} = 3 THEN 0.045
+      WHEN '{{ parameter_name }}' = {{ param_merit_base() }} AND {{ job_level }} = 4 THEN 0.050
+      WHEN '{{ parameter_name }}' = {{ param_merit_base() }} AND {{ job_level }} = 5 THEN 0.055
+      WHEN '{{ parameter_name }}' = {{ param_cola_rate() }} THEN 0.015
+      WHEN '{{ parameter_name }}' = {{ param_promotion_raise() }} THEN 0.12
+      WHEN '{{ parameter_name }}' = {{ param_new_hire_salary_adjustment() }} THEN 1.1489720153602505
       -- Epic E035: Deferral escalation defaults
-      WHEN '{{ parameter_name }}' = 'escalation_rate' THEN 0.01  -- 1% default increment
-      WHEN '{{ parameter_name }}' = 'max_escalation_rate' THEN 0.10  -- 10% maximum rate cap
-      WHEN '{{ parameter_name }}' = 'tenure_threshold' THEN 1  -- 1 year minimum tenure
-      WHEN '{{ parameter_name }}' = 'age_threshold' THEN 21  -- 21 minimum age
-      WHEN '{{ parameter_name }}' = 'max_escalations' THEN 10  -- Maximum 10 escalations
+      WHEN '{{ parameter_name }}' = {{ param_escalation_rate() }} THEN 0.01  -- 1% default increment
+      WHEN '{{ parameter_name }}' = {{ param_max_escalation_rate() }} THEN 0.10  -- 10% maximum rate cap
+      WHEN '{{ parameter_name }}' = {{ param_tenure_threshold() }} THEN 1  -- 1 year minimum tenure
+      WHEN '{{ parameter_name }}' = {{ param_age_threshold() }} THEN 21  -- 21 minimum age
+      WHEN '{{ parameter_name }}' = {{ param_max_escalations() }} THEN 10  -- Maximum 10 escalations
       -- Epic E056: New hire compensation defaults
-      WHEN '{{ parameter_name }}' = 'compensation_percentile' THEN 0.50  -- 50th percentile default
-      WHEN '{{ parameter_name }}' = 'market_adjustment_multiplier' THEN 1.0  -- No adjustment
+      WHEN '{{ parameter_name }}' = {{ param_compensation_percentile() }} THEN 0.50  -- 50th percentile default
+      WHEN '{{ parameter_name }}' = {{ param_market_adjustment_multiplier() }} THEN 1.0  -- No adjustment
       ELSE 1.0
     END
   )
@@ -57,23 +57,23 @@
 {% macro validate_parameter_ranges(parameter_name, parameter_value) %}
 
   CASE
-    WHEN '{{ parameter_name }}' = 'merit_base' AND ({{ parameter_value }} < 0 OR {{ parameter_value }} > 0.5)
+    WHEN '{{ parameter_name }}' = {{ param_merit_base() }} AND ({{ parameter_value }} < 0 OR {{ parameter_value }} > 0.5)
       THEN FALSE
-    WHEN '{{ parameter_name }}' = 'cola_rate' AND ({{ parameter_value }} < 0 OR {{ parameter_value }} > 0.1)
+    WHEN '{{ parameter_name }}' = {{ param_cola_rate() }} AND ({{ parameter_value }} < 0 OR {{ parameter_value }} > 0.1)
       THEN FALSE
-    WHEN '{{ parameter_name }}' = 'promotion_raise' AND ({{ parameter_value }} < 0 OR {{ parameter_value }} > 1.0)
+    WHEN '{{ parameter_name }}' = {{ param_promotion_raise() }} AND ({{ parameter_value }} < 0 OR {{ parameter_value }} > 1.0)
       THEN FALSE
-    WHEN '{{ parameter_name }}' = 'promotion_probability' AND ({{ parameter_value }} < 0 OR {{ parameter_value }} > 1.0)
+    WHEN '{{ parameter_name }}' = {{ param_promotion_probability() }} AND ({{ parameter_value }} < 0 OR {{ parameter_value }} > 1.0)
       THEN FALSE
-    WHEN '{{ parameter_name }}' = 'escalation_rate' AND ({{ parameter_value }} < 0 OR {{ parameter_value }} > 0.1)
+    WHEN '{{ parameter_name }}' = {{ param_escalation_rate() }} AND ({{ parameter_value }} < 0 OR {{ parameter_value }} > 0.1)
       THEN FALSE
-    WHEN '{{ parameter_name }}' = 'max_escalation_rate' AND ({{ parameter_value }} < 0 OR {{ parameter_value }} > 1.0)
+    WHEN '{{ parameter_name }}' = {{ param_max_escalation_rate() }} AND ({{ parameter_value }} < 0 OR {{ parameter_value }} > 1.0)
       THEN FALSE
-    WHEN '{{ parameter_name }}' = 'tenure_threshold' AND ({{ parameter_value }} < 0 OR {{ parameter_value }} > 30)
+    WHEN '{{ parameter_name }}' = {{ param_tenure_threshold() }} AND ({{ parameter_value }} < 0 OR {{ parameter_value }} > 30)
       THEN FALSE
-    WHEN '{{ parameter_name }}' = 'age_threshold' AND ({{ parameter_value }} < 18 OR {{ parameter_value }} > 70)
+    WHEN '{{ parameter_name }}' = {{ param_age_threshold() }} AND ({{ parameter_value }} < 18 OR {{ parameter_value }} > 70)
       THEN FALSE
-    WHEN '{{ parameter_name }}' = 'max_escalations' AND ({{ parameter_value }} < 0 OR {{ parameter_value }} > 20)
+    WHEN '{{ parameter_name }}' = {{ param_max_escalations() }} AND ({{ parameter_value }} < 0 OR {{ parameter_value }} > 20)
       THEN FALSE
     ELSE TRUE
   END

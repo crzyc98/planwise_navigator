@@ -88,9 +88,9 @@ vesting_hours AS (
     ecp.employee_id,
     CASE
       -- Plan year records: use same hours
-      WHEN ecp.period_type = 'plan_year' THEN ecp.eligibility_hours
+      WHEN ecp.period_type = {{ period_plan_year() }} THEN ecp.eligibility_hours
       -- IECP records in hire year: compute plan-year-aligned vesting hours
-      WHEN ecp.period_type = 'iecp' THEN
+      WHEN ecp.period_type = {{ period_iecp() }} THEN
         GREATEST(0.0,
           DATEDIFF('day',
             GREATEST(ecp.hire_date::DATE, MAKE_DATE({{ simulation_year }}, {{ plan_year_start_month }}, {{ plan_year_start_day }})),
@@ -107,11 +107,14 @@ SELECT
   {{ simulation_year }} AS simulation_year,
 
   -- Eligibility years: seed from census tenure + current year credit
-  -- Census employees get FLOOR(tenure) as historical credit, plus current year's computation
+  -- FLOOR(tenure) gives completed prior years only; eligibility_years_this_period
+  -- evaluates only the current computation period's hours, so no double-counting.
+  -- New hires (not in baseline) fall through to 0 via COALESCE.
   COALESCE(FLOOR(bl.current_tenure)::INT, 0) + COALESCE(ecp.eligibility_years_this_period, 0)
     AS eligibility_years_credited,
 
-  -- Vesting years: seed from census tenure + current year plan-year hours
+  -- Vesting years: same FLOOR(tenure) seed + current year plan-year hours
+  -- (see eligibility comment above for rationale on the split)
   COALESCE(FLOOR(bl.current_tenure)::INT, 0) +
     CASE
       WHEN {{ classify_service_hours('COALESCE(vh.vesting_hours_this_year, 0)', eligibility_threshold_hours) }} = 'year_of_service' THEN 1
@@ -208,8 +211,8 @@ vesting_hours AS (
   SELECT
     ecp.employee_id,
     CASE
-      WHEN ecp.period_type = 'plan_year' THEN ecp.eligibility_hours
-      WHEN ecp.period_type = 'iecp' THEN
+      WHEN ecp.period_type = {{ period_plan_year() }} THEN ecp.eligibility_hours
+      WHEN ecp.period_type = {{ period_iecp() }} THEN
         GREATEST(0.0,
           DATEDIFF('day',
             GREATEST(ecp.hire_date, MAKE_DATE({{ simulation_year }}, {{ plan_year_start_month }}, {{ plan_year_start_day }})),

@@ -166,6 +166,25 @@ _SCOPE_MAP = {
 }
 
 
+def _apply_escalation_overrides(
+    dc_plan_dict: Dict[str, Any], dbt_vars: Dict[str, Any],
+) -> None:
+    """Apply escalation settings and hire date cutoff from dc_plan to dbt vars."""
+    for src_key, (tgt_key, cast, pct_divide) in _DC_PLAN_ESCALATION_FIELDS.items():
+        val = dc_plan_dict.get(src_key)
+        if val is not None:
+            converted = cast(val)
+            dbt_vars[tgt_key] = converted / 100.0 if pct_divide else converted
+
+    # Escalation hire date cutoff: empty/None means "remove legacy value"
+    if "escalation_hire_date_cutoff" in dc_plan_dict:
+        cutoff_value = dc_plan_dict["escalation_hire_date_cutoff"]
+        if cutoff_value and str(cutoff_value).strip():
+            dbt_vars["deferral_escalation_hire_date_cutoff"] = str(cutoff_value)
+        else:
+            dbt_vars["deferral_escalation_hire_date_cutoff"] = _REMOVE_KEY
+
+
 def _apply_dc_plan_enrollment_overrides(
     dc_plan_dict: Dict[str, Any], dbt_vars: Dict[str, Any],
 ) -> None:
@@ -189,20 +208,7 @@ def _apply_dc_plan_enrollment_overrides(
     for field in _DC_PLAN_OPT_OUT_FIELDS:
         _set_if_not_none(dbt_vars, field, dc_plan_dict.get(field), float)
 
-    # Escalation settings
-    for src_key, (tgt_key, cast, pct_divide) in _DC_PLAN_ESCALATION_FIELDS.items():
-        val = dc_plan_dict.get(src_key)
-        if val is not None:
-            converted = cast(val)
-            dbt_vars[tgt_key] = converted / 100.0 if pct_divide else converted
-
-    # Escalation hire date cutoff: empty/None means "remove legacy value"
-    if "escalation_hire_date_cutoff" in dc_plan_dict:
-        cutoff_value = dc_plan_dict["escalation_hire_date_cutoff"]
-        if cutoff_value and str(cutoff_value).strip():
-            dbt_vars["deferral_escalation_hire_date_cutoff"] = str(cutoff_value)
-        else:
-            dbt_vars["deferral_escalation_hire_date_cutoff"] = _REMOVE_KEY
+    _apply_escalation_overrides(dc_plan_dict, dbt_vars)
 
     # Plan eligibility waiting period (UI sends months, dbt expects days)
     if dc_plan_dict.get("eligibility_months") is not None:

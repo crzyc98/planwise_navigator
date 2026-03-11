@@ -289,3 +289,36 @@ class TestIsTty:
                     mock_console_cls.return_value.is_terminal = False
                     result = is_tty()
                     assert result is False
+
+    @patch("sys.stdout")
+    @patch("os.name", "nt")
+    def test_returns_true_on_windows_with_term_env(self, mock_stdout):
+        """Windows with TERM env var set returns True without Rich fallback."""
+        mock_stdout.isatty.return_value = True
+        with patch.dict("os.environ", {"TERM": "xterm-256color", "WT_SESSION": ""}, clear=False):
+            assert is_tty() is True
+
+    @patch("os.name", "nt")
+    def test_rich_console_exception_returns_false(self):
+        """Windows Rich Console detection failure returns False."""
+        with patch.object(sys.stdout, 'isatty', return_value=True):
+            with patch.dict("os.environ", {}, clear=True):
+                with patch("planalign_cli.ui.output_capture.Console", side_effect=Exception("boom")):
+                    assert is_tty() is False
+
+    def test_update_year_same_year_no_increment(self, capsys):
+        """Calling update_year with same year doesn't increment counter."""
+        fb = PlainTextProgressFallback(3, 2025, 2027)
+        fb.update_year(2025)
+        fb.update_year(2025)
+        assert fb.years_completed == 0
+
+    def test_update_year_multiple_transitions(self, capsys):
+        """Multiple year transitions track completed count correctly."""
+        fb = PlainTextProgressFallback(3, 2025, 2027)
+        fb.update_year(2025)
+        fb.update_year(2026)
+        fb.update_year(2027)
+        assert fb.years_completed == 2
+        captured = capsys.readouterr()
+        assert "2/3 completed" in captured.out
