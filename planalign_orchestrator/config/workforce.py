@@ -24,26 +24,15 @@ class WorkforceSettings(BaseModel):
 # Opt-Out Rate Settings
 # =============================================================================
 
-class OptOutRatesByAge(BaseModel):
-    """Opt-out rates by age demographic."""
-    young: float = Field(default=0.10, ge=0, le=1)
-    mid_career: float = Field(default=0.07, ge=0, le=1)
-    mature: float = Field(default=0.05, ge=0, le=1)
-    senior: float = Field(default=0.03, ge=0, le=1)
-
-
-class OptOutRatesByIncome(BaseModel):
-    """Opt-out rate multipliers by income level."""
-    low_income: float = Field(default=1.20, ge=0, le=5)
-    moderate: float = Field(default=1.00, ge=0, le=5)
-    high: float = Field(default=0.70, ge=0, le=5)
-    executive: float = Field(default=0.50, ge=0, le=5)
+# Demographic sensitivity multipliers applied to the target opt-out rate.
+# Calibrated so a weighted average across a typical workforce ≈ 1.0.
+OPT_OUT_AGE_MULTIPLIERS = {"young": 1.8, "mid_career": 1.1, "mature": 0.7, "senior": 0.4}
+OPT_OUT_INCOME_MULTIPLIERS = {"low_income": 1.3, "moderate": 1.0, "high": 0.8, "executive": 0.5}
 
 
 class OptOutRatesSettings(BaseModel):
-    """Combined opt-out rate settings."""
-    by_age: OptOutRatesByAge = Field(default_factory=OptOutRatesByAge)
-    by_income: OptOutRatesByIncome = Field(default_factory=OptOutRatesByIncome)
+    """Opt-out rate settings: analyst sets a single target, demographic rates derived."""
+    target: float = Field(default=0.09, ge=0, le=1, description="Overall target opt-out rate")
 
 
 # =============================================================================
