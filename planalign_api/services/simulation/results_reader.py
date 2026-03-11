@@ -144,7 +144,7 @@ def _query_workforce_progression(
             FROM {TABLE_FCT_WORKFORCE_SNAPSHOT}
             WHERE simulation_year >= ?
               AND simulation_year <= ?
-              {pop_filter}
+              AND LOWER(employment_status) = 'active'
             GROUP BY simulation_year
             ORDER BY simulation_year
         """,
@@ -227,7 +227,7 @@ def _query_participation_rate(
                 COUNT(DISTINCT employee_id) as total_eligible
             FROM {TABLE_FCT_WORKFORCE_SNAPSHOT}
             WHERE simulation_year = ?
-              {pop_filter}
+              AND LOWER(employment_status) = 'active'
         """,
             [end_year],
         ).fetchdf()
