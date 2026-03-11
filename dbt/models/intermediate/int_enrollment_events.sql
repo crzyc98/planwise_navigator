@@ -408,18 +408,18 @@ opt_out_events AS (
     efo.age_band,
     efo.tenure_band,
 
-    -- Opt-out probability based on demographics (using configurable rates)
+    -- Opt-out probability based on demographics (9% target × sensitivity multipliers)
     CASE efo.age_segment
-      WHEN 'young' THEN {{ var('opt_out_rate_young', 0.10) }}
-      WHEN 'mid_career' THEN {{ var('opt_out_rate_mid', 0.07) }}
-      WHEN 'mature' THEN {{ var('opt_out_rate_mature', 0.05) }}
-      ELSE {{ var('opt_out_rate_senior', 0.03) }}
+      WHEN 'young' THEN {{ var('opt_out_rate_young', 0.162) }}
+      WHEN 'mid_career' THEN {{ var('opt_out_rate_mid', 0.099) }}
+      WHEN 'mature' THEN {{ var('opt_out_rate_mature', 0.063) }}
+      ELSE {{ var('opt_out_rate_senior', 0.036) }}
     END *
     CASE efo.income_segment
-      WHEN 'low_income' THEN {{ var('opt_out_rate_low_income', 0.12) }} / {{ var('opt_out_rate_moderate', 0.10) }}
+      WHEN 'low_income' THEN {{ var('opt_out_rate_low_income', 0.117) }} / {{ var('opt_out_rate_moderate', 0.09) }}
       WHEN 'moderate' THEN 1.0  -- Base rate
-      WHEN 'high' THEN {{ var('opt_out_rate_high', 0.07) }} / {{ var('opt_out_rate_moderate', 0.10) }}
-      ELSE {{ var('opt_out_rate_executive', 0.05) }} / {{ var('opt_out_rate_moderate', 0.10) }}
+      WHEN 'high' THEN {{ var('opt_out_rate_high', 0.072) }} / {{ var('opt_out_rate_moderate', 0.09) }}
+      ELSE {{ var('opt_out_rate_executive', 0.045) }} / {{ var('opt_out_rate_moderate', 0.09) }}
     END as event_probability,
 
     'enrollment_opt_out' as event_category
@@ -442,19 +442,19 @@ opt_out_events AS (
       SELECT employee_id FROM year_over_year_enrollment_events
     )
     AND efo.employment_status = 'active'
-    -- Apply probabilistic opt-out based on demographics (using configurable rates)
+    -- Apply probabilistic opt-out based on demographics (9% target × sensitivity multipliers)
     AND efo.optout_random < (
       CASE efo.age_segment
-        WHEN 'young' THEN {{ var('opt_out_rate_young', 0.10) }}
-        WHEN 'mid_career' THEN {{ var('opt_out_rate_mid', 0.07) }}
-        WHEN 'mature' THEN {{ var('opt_out_rate_mature', 0.05) }}
-        ELSE {{ var('opt_out_rate_senior', 0.03) }}
+        WHEN 'young' THEN {{ var('opt_out_rate_young', 0.162) }}
+        WHEN 'mid_career' THEN {{ var('opt_out_rate_mid', 0.099) }}
+        WHEN 'mature' THEN {{ var('opt_out_rate_mature', 0.063) }}
+        ELSE {{ var('opt_out_rate_senior', 0.036) }}
       END *
       CASE efo.income_segment
-        WHEN 'low_income' THEN {{ var('opt_out_rate_low_income', 0.12) }} / {{ var('opt_out_rate_moderate', 0.10) }}
+        WHEN 'low_income' THEN {{ var('opt_out_rate_low_income', 0.117) }} / {{ var('opt_out_rate_moderate', 0.09) }}
         WHEN 'moderate' THEN 1.0
-        WHEN 'high' THEN {{ var('opt_out_rate_high', 0.07) }} / {{ var('opt_out_rate_moderate', 0.10) }}
-        ELSE {{ var('opt_out_rate_executive', 0.05) }} / {{ var('opt_out_rate_moderate', 0.10) }}
+        WHEN 'high' THEN {{ var('opt_out_rate_high', 0.072) }} / {{ var('opt_out_rate_moderate', 0.09) }}
+        ELSE {{ var('opt_out_rate_executive', 0.045) }} / {{ var('opt_out_rate_moderate', 0.09) }}
       END
     )
 ),

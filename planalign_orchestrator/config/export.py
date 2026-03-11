@@ -105,19 +105,15 @@ def _export_auto_enrollment_fields(auto: Any, dbt_vars: Dict[str, Any]) -> None:
 
 
 def _export_opt_out_rates(auto: Any, dbt_vars: Dict[str, Any]) -> None:
-    """Export opt-out rates by age and income to dbt vars."""
-    age_rates = auto.opt_out_rates.by_age
-    dbt_vars["opt_out_rate_young"] = float(age_rates.young)
-    dbt_vars["opt_out_rate_mid"] = float(age_rates.mid_career)
-    dbt_vars["opt_out_rate_mature"] = float(age_rates.mature)
-    dbt_vars["opt_out_rate_senior"] = float(age_rates.senior)
+    """Derive demographic opt-out rates from the single target rate."""
+    from .workforce import OPT_OUT_AGE_MULTIPLIERS, OPT_OUT_INCOME_MULTIPLIERS
 
-    income_rates = auto.opt_out_rates.by_income
-    base_rate = float(age_rates.young)
-    dbt_vars["opt_out_rate_low_income"] = base_rate * float(income_rates.low_income)
-    dbt_vars["opt_out_rate_moderate"] = base_rate * float(income_rates.moderate)
-    dbt_vars["opt_out_rate_high"] = base_rate * float(income_rates.high)
-    dbt_vars["opt_out_rate_executive"] = base_rate * float(income_rates.executive)
+    target = float(auto.opt_out_rates.target)
+    for key, mult in OPT_OUT_AGE_MULTIPLIERS.items():
+        dbt_key = f"opt_out_rate_{key}" if key != "mid_career" else "opt_out_rate_mid"
+        dbt_vars[dbt_key] = target * mult
+    for key, mult in OPT_OUT_INCOME_MULTIPLIERS.items():
+        dbt_vars[f"opt_out_rate_{key}"] = target * mult
 
 
 def _export_proactive_enrollment(cfg: "SimulationConfig", dbt_vars: Dict[str, Any]) -> None:
@@ -145,7 +141,7 @@ _DC_PLAN_AUTO_ENROLL_FIELDS: Dict[str, tuple] = {
     "auto_enroll_opt_out_grace_period": ("auto_enrollment_opt_out_grace_period", int),
 }
 
-_DC_PLAN_OPT_OUT_FIELDS = (
+_DC_PLAN_OPT_OUT_DEMOGRAPHIC_FIELDS = (
     "opt_out_rate_young", "opt_out_rate_mid", "opt_out_rate_mature",
     "opt_out_rate_senior", "opt_out_rate_low_income", "opt_out_rate_moderate",
     "opt_out_rate_high", "opt_out_rate_executive",
@@ -204,8 +200,9 @@ def _apply_dc_plan_enrollment_overrides(
     if scope is not None:
         dbt_vars["auto_enrollment_scope"] = _SCOPE_MAP.get(scope, scope)
 
-    # Opt-out rate overrides (direct float passthrough)
-    for field in _DC_PLAN_OPT_OUT_FIELDS:
+    # Opt-out rates: if UI sends a target, derive all demographic rates from it.
+    # Also accept pre-derived demographic rates (sent alongside target by frontend).
+    for field in _DC_PLAN_OPT_OUT_DEMOGRAPHIC_FIELDS:
         _set_if_not_none(dbt_vars, field, dc_plan_dict.get(field), float)
 
     _apply_escalation_overrides(dc_plan_dict, dbt_vars)
