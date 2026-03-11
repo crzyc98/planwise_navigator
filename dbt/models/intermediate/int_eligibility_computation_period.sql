@@ -26,9 +26,7 @@
 {% set default_scenario = 'default' %}
 {% set simulation_year = var('simulation_year', 2025) | int %}
 {% set start_year = var('start_year', 2025) | int %}
-{% set active_status = 'active' %}
-{% set iecp_period = 'iecp' %}
-{% set plan_year_period = 'plan_year' %}
+{% set one_day = "INTERVAL '1 day'" %}
 
 -- Plan year boundaries from existing UI-controlled config (setup.plan_year_start_date)
 {% set pysd = var('plan_year_start_date', '2025-01-01') | string %}
@@ -46,12 +44,12 @@ census_employees AS (
   SELECT
     employee_id,
     employee_hire_date AS hire_date,
-    '{{ active_status }}' AS employment_status,
+    {{ status_active() }} AS employment_status,
     '{{ var("scenario_id", default_scenario) }}' AS scenario_id,
     '{{ var("plan_design_id", default_scenario) }}' AS plan_design_id
   FROM {{ ref('int_baseline_workforce') }}
   WHERE simulation_year = {{ simulation_year }}
-    AND employment_status = '{{ active_status }}'
+    AND employment_status = {{ status_active() }}
     AND employee_id IS NOT NULL
 ),
 
@@ -60,7 +58,7 @@ new_hires AS (
   SELECT
     employee_id,
     effective_date AS hire_date,
-    '{{ active_status }}' AS employment_status,
+    {{ status_active() }} AS employment_status,
     '{{ var("scenario_id", default_scenario) }}' AS scenario_id,
     '{{ var("plan_design_id", default_scenario) }}' AS plan_design_id
   FROM {{ ref('int_hiring_events') }}
@@ -90,8 +88,8 @@ employee_base AS (
     ae.scenario_id,
     ae.plan_design_id,
     CASE
-      WHEN tnr.employee_id IS NOT NULL THEN 'terminated'
-      ELSE 'active'
+      WHEN tnr.employee_id IS NOT NULL THEN {{ status_terminated() }}
+      ELSE {{ status_active() }}
     END AS employment_status,
 
     -- Termination date for hours proration (NULL if still active)
@@ -102,7 +100,7 @@ employee_base AS (
 
     -- Plan year boundaries for current simulation year
     MAKE_DATE({{ simulation_year }}, {{ plan_year_start_month }}, {{ plan_year_start_day }}) AS plan_year_start,
-    (MAKE_DATE({{ simulation_year }} + 1, {{ plan_year_start_month }}, {{ plan_year_start_day }}) - INTERVAL '1 day')::DATE AS plan_year_end,
+    (MAKE_DATE({{ simulation_year }} + 1, {{ plan_year_start_month }}, {{ plan_year_start_day }}) - {{ one_day }})::DATE AS plan_year_end,
 
     -- Next plan year start (for entry date calculation)
     MAKE_DATE({{ simulation_year }} + 1, {{ plan_year_start_month }}, {{ plan_year_start_day }}) AS next_plan_year_start,
@@ -110,14 +108,14 @@ employee_base AS (
     -- End of plan year containing the hire date (for retroactive IECP Year 1)
     CASE
       WHEN ae.hire_date >= MAKE_DATE(EXTRACT(YEAR FROM ae.hire_date)::INT, {{ plan_year_start_month }}, {{ plan_year_start_day }})
-      THEN (MAKE_DATE(EXTRACT(YEAR FROM ae.hire_date)::INT + 1, {{ plan_year_start_month }}, {{ plan_year_start_day }}) - INTERVAL '1 day')::DATE
-      ELSE (MAKE_DATE(EXTRACT(YEAR FROM ae.hire_date)::INT, {{ plan_year_start_month }}, {{ plan_year_start_day }}) - INTERVAL '1 day')::DATE
+      THEN (MAKE_DATE(EXTRACT(YEAR FROM ae.hire_date)::INT + 1, {{ plan_year_start_month }}, {{ plan_year_start_day }}) - {{ one_day }})::DATE
+      ELSE (MAKE_DATE(EXTRACT(YEAR FROM ae.hire_date)::INT, {{ plan_year_start_month }}, {{ plan_year_start_day }}) - {{ one_day }})::DATE
     END AS hire_plan_year_end,
 
     -- Is the hire date within the current plan year?
     CASE
       WHEN ae.hire_date >= MAKE_DATE({{ simulation_year }}, {{ plan_year_start_month }}, {{ plan_year_start_day }})
-           AND ae.hire_date <= (MAKE_DATE({{ simulation_year }} + 1, {{ plan_year_start_month }}, {{ plan_year_start_day }}) - INTERVAL '1 day')::DATE
+           AND ae.hire_date <= (MAKE_DATE({{ simulation_year }} + 1, {{ plan_year_start_month }}, {{ plan_year_start_day }}) - {{ one_day }})::DATE
         THEN TRUE
       ELSE FALSE
     END AS is_hire_year,
@@ -125,7 +123,7 @@ employee_base AS (
     -- Is the IECP complete by end of this plan year?
     CASE
       WHEN (ae.hire_date + INTERVAL '1 year')::DATE
-           <= (MAKE_DATE({{ simulation_year }} + 1, {{ plan_year_start_month }}, {{ plan_year_start_day }}) - INTERVAL '1 day')::DATE
+           <= (MAKE_DATE({{ simulation_year }} + 1, {{ plan_year_start_month }}, {{ plan_year_start_day }}) - {{ one_day }})::DATE
         THEN TRUE
       ELSE FALSE
     END AS is_iecp_complete_this_year
@@ -158,14 +156,14 @@ computation_periods AS (
     -- Determine period type
     CASE
       -- Hire plan year: always IECP
-      WHEN eb.is_hire_year THEN '{{ iecp_period }}'
+      WHEN eb.is_hire_year THEN {{ period_iecp() }}
       -- Plan year where IECP completes: still evaluating IECP
       WHEN NOT eb.is_hire_year
            AND eb.hire_date_anniversary > eb.plan_year_start
            AND eb.hire_date_anniversary <= eb.plan_year_end
-        THEN '{{ iecp_period }}'
+        THEN {{ period_iecp() }}
       -- All other plan years
-      ELSE '{{ plan_year_period }}'
+      ELSE {{ period_plan_year() }}
     END AS period_type,
 
     -- Period start/end dates (capped at termination date for terminated employees)
@@ -266,32 +264,32 @@ classified_periods AS (
 
     -- Total IECP hours (sum of year 1 + year 2 if this is the IECP completion year)
     CASE
-      WHEN cp.period_type = '{{ iecp_period }}' AND cp.is_hire_year THEN cp.iecp_year1_hours
-      WHEN cp.period_type = '{{ iecp_period }}' AND NOT cp.is_hire_year THEN cp.iecp_year1_hours + cp.iecp_year2_hours
+      WHEN cp.period_type = {{ period_iecp() }} AND cp.is_hire_year THEN cp.iecp_year1_hours
+      WHEN cp.period_type = {{ period_iecp() }} AND NOT cp.is_hire_year THEN cp.iecp_year1_hours + cp.iecp_year2_hours
       ELSE 0.0
     END AS iecp_total_hours,
 
     -- Annual hours prorated for this period
     CASE
-      WHEN cp.period_type = '{{ iecp_period }}' AND cp.is_hire_year THEN cp.iecp_year1_hours
-      WHEN cp.period_type = '{{ iecp_period }}' AND NOT cp.is_hire_year THEN cp.iecp_year1_hours + cp.iecp_year2_hours
+      WHEN cp.period_type = {{ period_iecp() }} AND cp.is_hire_year THEN cp.iecp_year1_hours
+      WHEN cp.period_type = {{ period_iecp() }} AND NOT cp.is_hire_year THEN cp.iecp_year1_hours + cp.iecp_year2_hours
       ELSE cp.plan_year_hours
     END AS annual_hours_prorated,
 
     -- IECP threshold met?
     CASE
-      WHEN cp.period_type = '{{ iecp_period }}' AND cp.is_hire_year
+      WHEN cp.period_type = {{ period_iecp() }} AND cp.is_hire_year
         THEN cp.iecp_year1_hours >= {{ eligibility_threshold_hours }}
-      WHEN cp.period_type = '{{ iecp_period }}' AND NOT cp.is_hire_year
+      WHEN cp.period_type = {{ period_iecp() }} AND NOT cp.is_hire_year
         THEN (cp.iecp_year1_hours + cp.iecp_year2_hours) >= {{ eligibility_threshold_hours }}
       ELSE FALSE
     END AS iecp_eligible,
 
     -- Plan year threshold met? (only relevant when IECP is complete or plan_year period)
     CASE
-      WHEN cp.period_type = '{{ plan_year_period }}' THEN cp.plan_year_hours >= {{ eligibility_threshold_hours }}
+      WHEN cp.period_type = {{ period_plan_year() }} THEN cp.plan_year_hours >= {{ eligibility_threshold_hours }}
       -- In IECP completion year, also check the plan year portion for overlap
-      WHEN cp.period_type = '{{ iecp_period }}' AND NOT cp.is_hire_year
+      WHEN cp.period_type = {{ period_iecp() }} AND NOT cp.is_hire_year
            AND cp.is_iecp_complete_this_year
         THEN cp.plan_year_hours >= {{ eligibility_threshold_hours }}
       ELSE FALSE
@@ -299,13 +297,13 @@ classified_periods AS (
 
     -- Overlap/double-credit: both IECP and plan year meet threshold
     CASE
-      WHEN cp.period_type = '{{ iecp_period }}' AND NOT cp.is_hire_year
+      WHEN cp.period_type = {{ period_iecp() }} AND NOT cp.is_hire_year
            AND cp.is_iecp_complete_this_year
            AND (cp.iecp_year1_hours + cp.iecp_year2_hours) >= {{ eligibility_threshold_hours }}
            AND cp.plan_year_hours >= {{ eligibility_threshold_hours }}
         THEN TRUE
       -- Plan year start hires: IECP = plan year, no double credit
-      WHEN cp.period_type = '{{ iecp_period }}' AND cp.is_hire_year
+      WHEN cp.period_type = {{ period_iecp() }} AND cp.is_hire_year
            AND EXTRACT(MONTH FROM cp.hire_date) = {{ plan_year_start_month }}
            AND EXTRACT(DAY FROM cp.hire_date) = {{ plan_year_start_day }}
         THEN FALSE
@@ -365,15 +363,15 @@ final AS (
     -- Eligibility reason codes
     CASE
       WHEN cp.overlap_double_credit THEN 'eligible_double_credit'
-      WHEN cp.iecp_eligible AND cp.period_type = '{{ iecp_period }}' THEN 'eligible_iecp'
-      WHEN cp.is_plan_year_eligible AND cp.period_type = '{{ plan_year_period }}' THEN 'eligible_plan_year'
+      WHEN cp.iecp_eligible AND cp.period_type = {{ period_iecp() }} THEN 'eligible_iecp'
+      WHEN cp.is_plan_year_eligible AND cp.period_type = {{ period_plan_year() }} THEN 'eligible_plan_year'
       -- IECP completion year: IECP failed but plan year passed
-      WHEN cp.is_plan_year_eligible AND cp.period_type = '{{ iecp_period }}'
+      WHEN cp.is_plan_year_eligible AND cp.period_type = {{ period_iecp() }}
            AND cp.is_iecp_complete_this_year AND NOT cp.iecp_eligible THEN 'eligible_plan_year'
-      WHEN cp.period_type = '{{ iecp_period }}' AND NOT cp.is_iecp_complete_this_year THEN 'pending_iecp'
-      WHEN cp.period_type = '{{ iecp_period }}' AND cp.is_iecp_complete_this_year
+      WHEN cp.period_type = {{ period_iecp() }} AND NOT cp.is_iecp_complete_this_year THEN 'pending_iecp'
+      WHEN cp.period_type = {{ period_iecp() }} AND cp.is_iecp_complete_this_year
            AND NOT cp.iecp_eligible AND NOT cp.is_plan_year_eligible THEN 'insufficient_hours_iecp'
-      WHEN cp.period_type = '{{ plan_year_period }}' AND NOT cp.is_plan_year_eligible THEN 'insufficient_hours_plan_year'
+      WHEN cp.period_type = {{ period_plan_year() }} AND NOT cp.is_plan_year_eligible THEN 'insufficient_hours_plan_year'
       ELSE 'pending_iecp'
     END AS eligibility_reason,
 

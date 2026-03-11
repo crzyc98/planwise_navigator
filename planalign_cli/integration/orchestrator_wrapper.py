@@ -341,6 +341,7 @@ class _ProgressMonitor:
     def write(self, text):
         if self._writing:
             self.original_stdout.write(text)
+            self.original_stdout.flush()
             return
         self._writing = True
         try:

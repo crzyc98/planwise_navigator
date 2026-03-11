@@ -509,6 +509,124 @@ class TestComputeGrandTotals:
 
 
 # =============================================================================
+# _contribution_rates (static helper)
+# =============================================================================
+
+
+class TestContributionRates:
+    """Test _contribution_rates static helper for rate calculations."""
+
+    @pytest.mark.fast
+    def test_contribution_rates_normal(self):
+        """Rates computed as percentage of total compensation."""
+        rates = AnalyticsService._contribution_rates(
+            total_employee=6000.0,
+            total_match=3000.0,
+            total_core=1000.0,
+            total_compensation=100000.0,
+        )
+        assert rates["employee_contribution_rate"] == 6.0
+        assert rates["match_contribution_rate"] == 3.0
+        assert rates["core_contribution_rate"] == 1.0
+        assert rates["total_contribution_rate"] == 10.0
+
+    @pytest.mark.fast
+    def test_contribution_rates_zero_compensation(self):
+        """Zero compensation yields all-zero rates without division error."""
+        rates = AnalyticsService._contribution_rates(
+            total_employee=5000.0,
+            total_match=2000.0,
+            total_core=500.0,
+            total_compensation=0.0,
+        )
+        assert rates["employee_contribution_rate"] == 0.0
+        assert rates["match_contribution_rate"] == 0.0
+        assert rates["core_contribution_rate"] == 0.0
+        assert rates["total_contribution_rate"] == 0.0
+
+    @pytest.mark.fast
+    def test_contribution_rates_rounding(self):
+        """Rates are rounded to 2 decimal places."""
+        rates = AnalyticsService._contribution_rates(
+            total_employee=3333.0,
+            total_match=1111.0,
+            total_core=777.0,
+            total_compensation=100000.0,
+        )
+        assert rates["employee_contribution_rate"] == 3.33
+        assert rates["match_contribution_rate"] == 1.11
+        assert rates["core_contribution_rate"] == 0.78
+        # Total also rounded independently
+        assert rates["total_contribution_rate"] == round(3.33 + 1.11 + 0.78, 2)
+
+    @pytest.mark.fast
+    def test_contribution_rates_all_zero_amounts(self):
+        """Zero contributions with positive compensation yields zero rates."""
+        rates = AnalyticsService._contribution_rates(
+            total_employee=0.0,
+            total_match=0.0,
+            total_core=0.0,
+            total_compensation=500000.0,
+        )
+        assert rates["employee_contribution_rate"] == 0.0
+        assert rates["match_contribution_rate"] == 0.0
+        assert rates["core_contribution_rate"] == 0.0
+        assert rates["total_contribution_rate"] == 0.0
+
+    @pytest.mark.fast
+    def test_grand_totals_delegates_to_contribution_rates(self):
+        """_compute_grand_totals uses _contribution_rates for rate fields."""
+        years = [
+            ContributionYearSummary(
+                year=2025,
+                total_employee_contributions=8000.0,
+                total_employer_match=4000.0,
+                total_employer_core=2000.0,
+                total_all_contributions=14000.0,
+                participant_count=20,
+                average_deferral_rate=0.05,
+                total_compensation=200000.0,
+            ),
+            ContributionYearSummary(
+                year=2026,
+                total_employee_contributions=10000.0,
+                total_employer_match=5000.0,
+                total_employer_core=3000.0,
+                total_all_contributions=18000.0,
+                participant_count=25,
+                average_deferral_rate=0.06,
+                total_compensation=300000.0,
+            ),
+        ]
+        totals = AnalyticsService._compute_grand_totals(years)
+
+        # Verify aggregation (lines 61-65)
+        assert totals["total_employee"] == 18000.0
+        assert totals["total_match"] == 9000.0
+        assert totals["total_core"] == 5000.0
+        assert totals["total_all"] == 32000.0
+        assert totals["total_employer_cost"] == 14000.0
+
+        # Verify weighted avg deferral (lines 67-73)
+        # (0.05*20 + 0.06*25) / 45 = (1.0 + 1.5) / 45 ≈ 0.05556
+        expected_avg = (0.05 * 20 + 0.06 * 25) / 45
+        assert abs(totals["avg_deferral_rate"] - expected_avg) < 1e-9
+
+        # Verify employer cost rate (lines 75-80)
+        # 14000 / 500000 * 100 = 2.8
+        assert totals["employer_cost_rate"] == pytest.approx(2.8)
+
+        # Verify rates match _contribution_rates output
+        expected_rates = AnalyticsService._contribution_rates(
+            18000.0, 9000.0, 5000.0, 500000.0,
+        )
+        assert totals["employee_contribution_rate"] == expected_rates["employee_contribution_rate"]
+        assert totals["match_contribution_rate"] == expected_rates["match_contribution_rate"]
+        assert totals["core_contribution_rate"] == expected_rates["core_contribution_rate"]
+        assert totals["total_contribution_rate"] == expected_rates["total_contribution_rate"]
+
+
+# =============================================================================
 # _get_participation_summary
 # =============================================================================
 

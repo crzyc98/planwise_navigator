@@ -58,9 +58,9 @@ WITH polars_raw_events AS (
     COALESCE(
       compensation_amount,
       CASE
-        WHEN event_type IN ('promotion', 'merit') THEN
+        WHEN event_type IN ({{ evt_promotion() }}, {{ evt_merit() }}) THEN
           TRY_CAST(json_extract_string(event_payload, '$.new_salary') AS DECIMAL(10,2))
-        WHEN event_type = 'hire' THEN
+        WHEN event_type = {{ evt_hire() }} THEN
           TRY_CAST(json_extract_string(event_payload, '$.starting_salary') AS DECIMAL(10,2))
         ELSE NULL
       END
@@ -69,7 +69,7 @@ WITH polars_raw_events AS (
     COALESCE(
       previous_compensation,
       CASE
-        WHEN event_type IN ('promotion', 'merit') THEN
+        WHEN event_type IN ({{ evt_promotion() }}, {{ evt_merit() }}) THEN
           TRY_CAST(json_extract_string(event_payload, '$.old_salary') AS DECIMAL(10,2))
         ELSE NULL
       END
