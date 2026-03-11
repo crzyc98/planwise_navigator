@@ -25,6 +25,7 @@ This playbook tells Claude exactly how to turn high-level feature requests into 
 | **Orchestration** | planalign_orchestrator | Modular | PipelineOrchestrator with staged workflow execution |
 | **CLI Interface** | planalign_cli (Rich + Typer) | 1.0.0 | Beautiful terminal interface with progress tracking |
 | **Web Studio** | FastAPI + React/Vite | 0.1.0 | Modern web-based scenario management |
+| **Frontend Styling** | Tailwind CSS | 4.x | Utility-first CSS bundled via `@tailwindcss/vite` (NOT CDN) |
 | **Configuration** | Pydantic | 2.7.4 | Type-safe config management with validation |
 | **Python** | CPython | 3.11.x | Long-term support version |
 | **Package Manager** | uv | Latest | 10-100× faster than pip |
@@ -220,7 +221,11 @@ planalign_engine/
 │  ├─ services/                      # Business logic services
 │  └─ websocket/                     # Real-time telemetry handlers
 ├─ planalign_studio/                  # React/Vite frontend
-│  ├─ components/                    # React components
+│  ├─ index.html                    # HTML entry point (no CDN scripts)
+│  ├─ index.css                     # Tailwind CSS v4 entry + Fidelity @theme
+│  ├─ index.tsx                     # React entry (imports index.css)
+│  ├─ vite.config.ts                # Vite config with @tailwindcss/vite plugin
+│  ├─ components/                    # React components (Tailwind utility classes)
 │  ├─ services/                      # API client services
 │  └─ package.json                   # Frontend dependencies
 ├─ dbt/                              # dbt project
@@ -641,6 +646,35 @@ planalign studio --verbose              # Show detailed server output
   - Scenario comparison tools
 
 **Stopping**: Press `Ctrl+C` to gracefully stop all services.
+
+### **Frontend Styling (Tailwind CSS v4)**
+
+Styles are bundled locally by Vite — **never use CDN scripts for CSS frameworks**.
+
+**Architecture:**
+- `planalign_studio/index.css` — Tailwind entry point with Fidelity theme:
+  ```css
+  @import "tailwindcss";
+  @theme {
+    --color-fidelity-green: #00853F;
+    --color-fidelity-dark: #004D25;
+    --color-fidelity-light: #4CAF50;
+    --font-sans: 'Roboto', sans-serif;
+  }
+  ```
+- `planalign_studio/index.tsx` — Imports `./index.css` so Vite processes it
+- `planalign_studio/vite.config.ts` — `@tailwindcss/vite` plugin registered before `react()`
+
+**Do/Don't:**
+- ✅ Add theme tokens (colors, fonts) in `index.css` under `@theme`
+- ✅ Use Tailwind utility classes in JSX (`className="bg-fidelity-green text-white"`)
+- ✅ Keep all dependencies in `package.json` — Vite bundles everything
+- ❌ **NEVER** add `<script src="https://cdn.tailwindcss.com">` or any CSS CDN to `index.html`
+- ❌ **NEVER** add `<link rel="stylesheet" href="...">` for files that don't exist
+- ❌ **NEVER** use `<script type="importmap">` to load deps from external CDNs
+- ❌ **NEVER** inline Tailwind config in `<script>` tags — use `@theme` in `index.css`
+
+**Why:** Corporate firewalls block CDNs, causing the UI to render with zero styling.
 
 -----
 

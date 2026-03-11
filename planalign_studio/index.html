@@ -4,62 +4,11 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>PlanAlign Engine</title>
-    <!-- TODO(security/S5725): Pin Tailwind to an exact version and add SRI integrity hash.
-         The play CDN is not recommended for production — migrate to a PostCSS build step.
-         See: https://tailwindcss.com/docs/installation -->
-    <script src="https://cdn.tailwindcss.com" crossorigin="anonymous"></script>
-    <script>
-      tailwind.config = {
-        theme: {
-          extend: {
-            colors: {
-              fidelity: {
-                green: '#00853F',
-                dark: '#004D25',
-                light: '#4CAF50',
-              },
-              gray: {
-                50: '#FAFAFA',
-                100: '#F5F5F5',
-                200: '#EEEEEE',
-                800: '#424242',
-                900: '#212121',
-              }
-            },
-            fontFamily: {
-              sans: ['Roboto', 'sans-serif'],
-            }
-          }
-        }
-      }
-    </script>
     <!-- Google Fonts: SRI not applicable (response varies by user-agent) -->
-    <style>
-      body {
-        font-family: 'Roboto', sans-serif;
-        background-color: #f3f4f6;
-      }
-    </style>
     <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@300;400;500;700&display=swap" rel="stylesheet" crossorigin="anonymous">
-  <!-- TODO(security/S5725): Pin importmap dependencies to exact versions and self-host
-       for production. Semver ranges (^) prevent SRI integrity verification.
-       Consider bundling with Vite for production builds. -->
-  <script type="importmap">
-{
-  "imports": {
-    "lucide-react": "https://aistudiocdn.com/lucide-react@^0.554.0",
-    "react-dom/": "https://aistudiocdn.com/react-dom@^19.2.0/",
-    "react/": "https://aistudiocdn.com/react@^19.2.0/",
-    "react": "https://aistudiocdn.com/react@^19.2.0",
-    "react-router-dom": "https://aistudiocdn.com/react-router-dom@^7.9.6",
-    "recharts": "https://aistudiocdn.com/recharts@^3.5.0"
-  }
-}
-</script>
-<link rel="stylesheet" href="/index.css">
-</head>
+  </head>
   <body>
     <div id="root"></div>
-  <script type="module" src="/index.tsx"></script>
-</body>
+    <script type="module" src="/index.tsx"></script>
+  </body>
 </html>
