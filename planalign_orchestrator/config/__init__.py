@@ -31,8 +31,6 @@ from .simulation import (
 # Workforce settings
 from .workforce import (
     WorkforceSettings,
-    OptOutRatesByAge,
-    OptOutRatesByIncome,
     OptOutRatesSettings,
     AutoEnrollmentSettings,
     ProactiveEnrollmentSettings,
@@ -98,8 +96,6 @@ __all__ = [
     "PromotionCompensationSettings",
     # Workforce
     "WorkforceSettings",
-    "OptOutRatesByAge",
-    "OptOutRatesByIncome",
     "OptOutRatesSettings",
     "AutoEnrollmentSettings",
     "ProactiveEnrollmentSettings",

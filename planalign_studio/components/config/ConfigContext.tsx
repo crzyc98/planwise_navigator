@@ -176,22 +176,8 @@ function mapDCPlanEnrollmentFields(cfg: any, prev: FormData): Partial<FormData> 
     dcAutoEnrollOptOutGracePeriod: cfg.dc_plan?.auto_enroll_opt_out_grace_period ?? prev.dcAutoEnrollOptOutGracePeriod,
     dcAutoEnrollScope: cfg.dc_plan?.auto_enroll_scope || prev.dcAutoEnrollScope,
     dcAutoEnrollHireDateCutoff: cfg.dc_plan?.auto_enroll_hire_date_cutoff || prev.dcAutoEnrollHireDateCutoff,
-    dcOptOutRateYoung: cfg.dc_plan?.opt_out_rate_young != null
-      ? cfg.dc_plan.opt_out_rate_young * 100 : prev.dcOptOutRateYoung,
-    dcOptOutRateMid: cfg.dc_plan?.opt_out_rate_mid != null
-      ? cfg.dc_plan.opt_out_rate_mid * 100 : prev.dcOptOutRateMid,
-    dcOptOutRateMature: cfg.dc_plan?.opt_out_rate_mature != null
-      ? cfg.dc_plan.opt_out_rate_mature * 100 : prev.dcOptOutRateMature,
-    dcOptOutRateSenior: cfg.dc_plan?.opt_out_rate_senior != null
-      ? cfg.dc_plan.opt_out_rate_senior * 100 : prev.dcOptOutRateSenior,
-    dcOptOutRateLowIncome: cfg.dc_plan?.opt_out_rate_low_income != null
-      ? cfg.dc_plan.opt_out_rate_low_income * 100 : prev.dcOptOutRateLowIncome,
-    dcOptOutRateModerate: cfg.dc_plan?.opt_out_rate_moderate != null
-      ? cfg.dc_plan.opt_out_rate_moderate * 100 : prev.dcOptOutRateModerate,
-    dcOptOutRateHigh: cfg.dc_plan?.opt_out_rate_high != null
-      ? cfg.dc_plan.opt_out_rate_high * 100 : prev.dcOptOutRateHigh,
-    dcOptOutRateExecutive: cfg.dc_plan?.opt_out_rate_executive != null
-      ? cfg.dc_plan.opt_out_rate_executive * 100 : prev.dcOptOutRateExecutive,
+    dcOptOutRateTarget: cfg.dc_plan?.opt_out_rate_target != null
+      ? cfg.dc_plan.opt_out_rate_target * 100 : prev.dcOptOutRateTarget,
   };
 }
 

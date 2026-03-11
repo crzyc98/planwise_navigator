@@ -104,39 +104,35 @@ export function DCPlanSection() {
                    type="button"
                    onClick={() => setFormData(prev => ({
                      ...prev,
-                     dcOptOutRateYoung: DEFAULT_FORM_DATA.dcOptOutRateYoung,
-                     dcOptOutRateMid: DEFAULT_FORM_DATA.dcOptOutRateMid,
-                     dcOptOutRateMature: DEFAULT_FORM_DATA.dcOptOutRateMature,
-                     dcOptOutRateSenior: DEFAULT_FORM_DATA.dcOptOutRateSenior,
-                     dcOptOutRateLowIncome: DEFAULT_FORM_DATA.dcOptOutRateLowIncome,
-                     dcOptOutRateModerate: DEFAULT_FORM_DATA.dcOptOutRateModerate,
-                     dcOptOutRateHigh: DEFAULT_FORM_DATA.dcOptOutRateHigh,
-                     dcOptOutRateExecutive: DEFAULT_FORM_DATA.dcOptOutRateExecutive,
+                     dcOptOutRateTarget: DEFAULT_FORM_DATA.dcOptOutRateTarget,
                    }))}
                    className="text-xs text-fidelity-green hover:text-green-700 font-medium"
                  >
-                   Reset to Defaults
+                   Reset to Default
                  </button>
                </div>
-               <p className="text-xs text-gray-500 mb-3">Percentage of auto-enrolled employees expected to opt out, segmented by demographics.</p>
+               <p className="text-xs text-gray-500 mb-3">Set the overall target opt-out rate. Demographic sensitivity is applied automatically behind the scenes.</p>
 
-               {/* By Age Group */}
-               <p className="text-xs font-medium text-gray-700 mb-2">By Age</p>
                <div className="grid grid-cols-1 gap-y-4 gap-x-4 sm:grid-cols-6 mb-4">
-                 <InputField label="Young (18-25)" {...inputProps('dcOptOutRateYoung')} type="number" step="1" suffix="%" helper="Youngest workers opt-out rate" min={0} />
-                 <InputField label="Mid-Career (26-35)" {...inputProps('dcOptOutRateMid')} type="number" step="1" suffix="%" helper="Early career opt-out rate" min={0} />
-                 <InputField label="Mature (36-50)" {...inputProps('dcOptOutRateMature')} type="number" step="1" suffix="%" helper="Mid-career opt-out rate" min={0} />
-                 <InputField label="Senior (51+)" {...inputProps('dcOptOutRateSenior')} type="number" step="1" suffix="%" helper="Near-retirement opt-out rate" min={0} />
+                 <InputField label="Target Opt-Out Rate" {...inputProps('dcOptOutRateTarget')} type="number" step="0.5" suffix="%" helper="Overall average opt-out rate across all demographics" min={0} max={100} />
                </div>
 
-               {/* By Income Group */}
-               <p className="text-xs font-medium text-gray-700 mb-2">By Income</p>
-               <div className="grid grid-cols-1 gap-y-4 gap-x-4 sm:grid-cols-6">
-                 <InputField label="Low Income (<$30k)" {...inputProps('dcOptOutRateLowIncome')} type="number" step="1" suffix="%" helper="Low earners opt-out rate" min={0} />
-                 <InputField label="Moderate ($30k-$50k)" {...inputProps('dcOptOutRateModerate')} type="number" step="1" suffix="%" helper="Moderate earners opt-out rate" min={0} />
-                 <InputField label="High ($50k-$100k)" {...inputProps('dcOptOutRateHigh')} type="number" step="1" suffix="%" helper="Higher earners opt-out rate" min={0} />
-                 <InputField label="Executive (>$100k)" {...inputProps('dcOptOutRateExecutive')} type="number" step="1" suffix="%" helper="Top earners opt-out rate" min={0} />
-               </div>
+               {/* Derived rates preview */}
+               <details className="text-xs text-gray-500">
+                 <summary className="cursor-pointer hover:text-gray-700 font-medium">View derived demographic rates</summary>
+                 <div className="mt-2 grid grid-cols-2 gap-x-8 gap-y-1 pl-2">
+                   <p className="font-medium text-gray-600 col-span-2 mt-1">By Age</p>
+                   <span>Young (18-30): {(Number(formData.dcOptOutRateTarget) * 1.8).toFixed(1)}%</span>
+                   <span>Mid-Career (31-45): {(Number(formData.dcOptOutRateTarget) * 1.1).toFixed(1)}%</span>
+                   <span>Mature (46-55): {(Number(formData.dcOptOutRateTarget) * 0.7).toFixed(1)}%</span>
+                   <span>Senior (55+): {(Number(formData.dcOptOutRateTarget) * 0.4).toFixed(1)}%</span>
+                   <p className="font-medium text-gray-600 col-span-2 mt-1">By Income</p>
+                   <span>Low Income: {(Number(formData.dcOptOutRateTarget) * 1.3).toFixed(1)}%</span>
+                   <span>Moderate: {(Number(formData.dcOptOutRateTarget) * 1.0).toFixed(1)}%</span>
+                   <span>High: {(Number(formData.dcOptOutRateTarget) * 0.8).toFixed(1)}%</span>
+                   <span>Executive: {(Number(formData.dcOptOutRateTarget) * 0.5).toFixed(1)}%</span>
+                 </div>
+               </details>
              </div>
            </>
          )}
