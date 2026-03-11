@@ -432,7 +432,7 @@ async def get_run(
 @router.get("/{scenario_id}/results", response_model=SimulationResults)
 async def get_results(
     scenario_id: str,
-    population: str = Query("all"),
+    population: str = Query("active"),
     storage: WorkspaceStorage = Depends(get_storage),
     simulation_service: SimulationService = Depends(get_simulation_service),
 ) -> SimulationResults:
