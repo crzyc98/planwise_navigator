@@ -100,45 +100,75 @@ _processes: list[subprocess.Popen] = []
 def _kill_port(port: int) -> None:
     """Kill processes using the specified port that belong to the current user.
 
-    Safety: Only sends signals to processes owned by the current OS user
-    (SonarQube S4507 — restrict signal sending to own processes).
+    Safety: Only sends signals to processes owned by the current OS user.
     Uses SIGTERM first for graceful shutdown, escalating to SIGKILL only
     if the process does not exit within the timeout.
+    Cross-platform: works on both Unix (lsof) and Windows (netstat/taskkill).
     """
-    current_uid = os.getuid()
     try:
-        # Find PIDs using the port
-        result = subprocess.run(
-            ["lsof", "-ti", f":{port}"],
-            capture_output=True,
-            text=True,
-        )
-        pids = result.stdout.strip().split("\n")
-        killed_any = False
-        for pid_str in pids:
-            if not pid_str:
-                continue
-            try:
-                pid = int(pid_str)
-                # Only kill processes owned by the current user
-                proc_stat = Path(f"/proc/{pid}/status").read_text()
-                proc_uid = None
-                for line in proc_stat.splitlines():
-                    if line.startswith("Uid:"):
-                        proc_uid = int(line.split()[1])
-                        break
-                if proc_uid is not None and proc_uid != current_uid:
-                    continue  # Skip processes owned by other users
-
-                # Graceful shutdown first (SIGTERM), then escalate
-                os.kill(pid, signal.SIGTERM)
-                killed_any = True
-            except (ProcessLookupError, ValueError, FileNotFoundError, PermissionError):
-                pass
-        if killed_any:
-            time.sleep(0.5)  # Brief pause after signalling
+        if sys.platform == "win32":
+            _kill_port_windows(port)
+        else:
+            _kill_port_unix(port)
     except Exception:
-        pass  # lsof not available or other error, continue anyway
+        pass  # Port cleanup is best-effort
+
+
+def _kill_port_windows(port: int) -> None:
+    """Kill processes using the specified port on Windows."""
+    result = subprocess.run(
+        ["netstat", "-ano", "-p", "TCP"],
+        capture_output=True,
+        text=True,
+    )
+    pids_to_kill: set[int] = set()
+    for line in result.stdout.splitlines():
+        if f":{port}" in line and "LISTENING" in line:
+            parts = line.split()
+            try:
+                pids_to_kill.add(int(parts[-1]))
+            except (ValueError, IndexError):
+                continue
+    for pid in pids_to_kill:
+        subprocess.run(
+            ["taskkill", "/F", "/PID", str(pid)],
+            capture_output=True,
+        )
+    if pids_to_kill:
+        time.sleep(0.5)
+
+
+def _kill_port_unix(port: int) -> None:
+    """Kill processes using the specified port on Unix/macOS."""
+    current_uid = os.getuid()
+    result = subprocess.run(
+        ["lsof", "-ti", f":{port}"],
+        capture_output=True,
+        text=True,
+    )
+    pids = result.stdout.strip().split("\n")
+    killed_any = False
+    for pid_str in pids:
+        if not pid_str:
+            continue
+        try:
+            pid = int(pid_str)
+            # Only kill processes owned by the current user
+            proc_stat = Path(f"/proc/{pid}/status").read_text()
+            proc_uid = None
+            for line in proc_stat.splitlines():
+                if line.startswith("Uid:"):
+                    proc_uid = int(line.split()[1])
+                    break
+            if proc_uid is not None and proc_uid != current_uid:
+                continue
+
+            os.kill(pid, signal.SIGTERM)
+            killed_any = True
+        except (ProcessLookupError, ValueError, FileNotFoundError, PermissionError):
+            pass
+    if killed_any:
+        time.sleep(0.5)
 
 
 def _cleanup_processes(signum=None, frame=None):
