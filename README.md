@@ -63,6 +63,7 @@ Enterprise-grade orchestration engine with modular architecture:
 | **Orchestration** | planalign_orchestrator | Custom | Multi-year pipeline orchestration with checkpoints |
 | **CLI Interface** | planwise (Rich + Typer) | 1.0.0 | Beautiful terminal interface with progress tracking |
 | **Web Studio** | FastAPI + React/Vite | 0.1.0 | Modern web-based scenario management |
+| **Frontend Styling** | Tailwind CSS | 4.x | Utility-first CSS bundled via `@tailwindcss/vite` |
 | **Configuration** | Pydantic | 2.7.4 | Type-safe parameter management |
 | **Git Sync** | GitPython | 3.1.0+ | Workspace cloud synchronization |
 | **Python** | CPython | 3.11.x | Long-term support version |
@@ -131,7 +132,11 @@ planalign_engine/
 │   │   └── sync_service.py          # Git-based sync service (E083)
 │   └── websocket/                    # Real-time telemetry handlers
 ├── planalign_studio/                  # React/Vite frontend
-│   ├── components/                   # React components
+│   ├── index.html                   # HTML entry point (no CDN scripts)
+│   ├── index.css                    # Tailwind CSS v4 entry point + Fidelity theme
+│   ├── index.tsx                    # React entry point (imports index.css)
+│   ├── vite.config.ts               # Vite config with @tailwindcss/vite plugin
+│   ├── components/                   # React components (Tailwind utility classes)
 │   ├── services/                     # API client services
 │   └── package.json                  # Frontend dependencies
 ├── dbt/                              # dbt project
@@ -378,6 +383,22 @@ planalign studio --frontend-only      # Frontend at http://localhost:5173
   - Scenario comparison tools
 
 **Note**: Press `Ctrl+C` to stop all services gracefully.
+
+#### Frontend Styling Architecture
+
+The frontend uses **Tailwind CSS v4** bundled locally via Vite — **not** a CDN.
+
+**Key files:**
+- `planalign_studio/index.css` — Tailwind entry point (`@import "tailwindcss"`) with Fidelity theme via `@theme`
+- `planalign_studio/index.tsx` — Imports `index.css` so Vite processes it
+- `planalign_studio/vite.config.ts` — Includes `@tailwindcss/vite` plugin
+
+**Do/Don't:**
+- **DO** add all styles via Tailwind utility classes in JSX (`className="..."`)
+- **DO** add custom theme tokens (colors, fonts) in `index.css` under `@theme`
+- **DON'T** add CDN `<script>` tags for Tailwind or other CSS frameworks in `index.html`
+- **DON'T** use `<link rel="stylesheet">` for CSS files that don't exist
+- **DON'T** use importmaps to load dependencies from external CDNs — Vite bundles everything
 
 #### Option 3: Using Python API directly
 
