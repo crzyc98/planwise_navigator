@@ -442,6 +442,11 @@ def _export_employer_match_vars(cfg: "SimulationConfig") -> Dict[str, Any]:
             else:
                 dc_plan_dict = {}
 
+            # Export match_enabled flag (mirrors employer_core_enabled pattern)
+            match_enabled = dc_plan_dict.get("match_enabled")
+            if match_enabled is not None:
+                dbt_vars["employer_match_enabled"] = bool(match_enabled)
+
             # Export match_template (e.g., 'simple', 'tiered', 'safe_harbor', 'qaca')
             match_template = dc_plan_dict.get("match_template")
             if match_template:
