@@ -486,6 +486,24 @@ class TestExportEmployerMatchVars:
         assert tiers[0]["rate"] == 25
         assert tiers[1]["rate"] == 75
 
+    def test_dc_plan_match_enabled_false(self):
+        cfg = _make_config()
+        cfg.dc_plan = {"match_enabled": False}
+        result = _export_employer_match_vars(cfg)
+        assert result["employer_match_enabled"] is False
+
+    def test_dc_plan_match_enabled_true(self):
+        cfg = _make_config()
+        cfg.dc_plan = {"match_enabled": True}
+        result = _export_employer_match_vars(cfg)
+        assert result["employer_match_enabled"] is True
+
+    def test_dc_plan_match_enabled_not_set(self):
+        cfg = _make_config()
+        cfg.dc_plan = {"match_template": "tiered"}
+        result = _export_employer_match_vars(cfg)
+        assert "employer_match_enabled" not in result
+
     def test_dc_plan_match_template(self):
         cfg = _make_config()
         cfg.dc_plan = {"match_template": "safe_harbor"}

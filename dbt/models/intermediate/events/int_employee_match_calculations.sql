@@ -72,6 +72,9 @@
 {% set tenure_match_tiers = var('tenure_match_tiers', []) %}
 {% set points_match_tiers = var('points_match_tiers', []) %}
 
+-- E069: Master match enable/disable flag (mirrors employer_core_enabled pattern)
+{% set employer_match_enabled = var('employer_match_enabled', true) %}
+
 -- Debug: Current match configuration
 -- Match Status: {{ employer_match_status }}
 -- Template: {{ match_template }}
@@ -348,7 +351,14 @@ final_match AS (
         ec.is_eligible_for_match,
         ec.match_eligibility_reason,
         ec.eligibility_config_applied,
-        {% if employer_match_status in ('graded_by_service', 'tenure_based', 'points_based') %}
+        {% if not employer_match_enabled %}
+        -- E069: Match disabled — all amounts zeroed, status = 'disabled'
+        0 AS capped_match_amount,
+        0 AS employer_match_amount,
+        FALSE AS match_cap_applied,
+        'disabled' AS match_status,
+        0 AS uncapped_match_amount
+        {% elif employer_match_status in ('graded_by_service', 'tenure_based', 'points_based') %}
         -- E010/E046: Tier-based modes - no match cap, tier already includes max_deferral_pct
         -- E026: 401(a)(17) cap already applied in match_amount calculation
         am.match_amount AS capped_match_amount,
@@ -357,6 +367,15 @@ final_match AS (
             ELSE 0
         END AS employer_match_amount,
         FALSE AS match_cap_applied,
+        -- Epic E058 Phase 2: Match status tracking field
+        CASE
+            WHEN NOT ec.is_eligible_for_match THEN 'ineligible'
+            WHEN ec.is_eligible_for_match AND am.annual_deferrals = 0 THEN 'no_deferrals'
+            WHEN ec.is_eligible_for_match AND am.annual_deferrals > 0 THEN 'calculated'
+            ELSE 'calculated'  -- Default fallback
+        END AS match_status,
+        -- Calculate uncapped match for analysis
+        am.match_amount AS uncapped_match_amount
         {% else %}
         -- E084 Phase B: Apply maximum match cap using match_cap_percent variable
         -- E026: Match cap is already based on 401(a)(17)-capped compensation from match_amount
@@ -376,7 +395,6 @@ final_match AS (
         END AS employer_match_amount,
         -- Track if cap was applied (before eligibility filtering)
         am.match_amount > LEAST(am.eligible_compensation, am.irs_401a17_limit) * {{ match_cap_percent }} AS match_cap_applied,
-        {% endif %}
         -- Epic E058 Phase 2: Match status tracking field
         CASE
             WHEN NOT ec.is_eligible_for_match THEN 'ineligible'
@@ -386,6 +404,7 @@ final_match AS (
         END AS match_status,
         -- Calculate uncapped match for analysis
         am.match_amount AS uncapped_match_amount
+        {% endif %}
     FROM all_matches am
     -- Join back to get eligibility information
     JOIN employee_contributions ec ON am.employee_id = ec.employee_id AND am.simulation_year = ec.simulation_year
