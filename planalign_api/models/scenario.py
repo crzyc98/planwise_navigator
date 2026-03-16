@@ -3,7 +3,7 @@
 from datetime import datetime
 from typing import Any, Dict, List, Literal, Optional
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
 
 
 class ScenarioCreate(BaseModel):
@@ -59,6 +59,34 @@ class Scenario(BaseModel):
         json_encoders = {
             datetime: lambda v: v.isoformat(),
         }
+
+
+class WorkforceParamsApplyRequest(BaseModel):
+    """Request model for applying workforce parameters to target scenarios."""
+
+    target_scenario_ids: List[str] = Field(
+        ..., min_length=1, description="IDs of scenarios to receive workforce parameters"
+    )
+
+
+class ScenarioApplyOutcome(BaseModel):
+    """Per-scenario result within a bulk apply operation."""
+
+    scenario_id: str = Field(..., description="Target scenario ID")
+    scenario_name: Optional[str] = Field(None, description="Target scenario name")
+    success: bool = Field(..., description="Whether the apply succeeded")
+    error: Optional[str] = Field(None, description="Error message if failed")
+
+
+class WorkforceParamsApplyResult(BaseModel):
+    """Response model for bulk workforce parameter apply operation."""
+
+    source_scenario_id: str = Field(..., description="Source scenario ID")
+    results: List[ScenarioApplyOutcome] = Field(
+        default_factory=list, description="Per-target results"
+    )
+    total_applied: int = Field(0, description="Count of successfully updated scenarios")
+    total_failed: int = Field(0, description="Count of failed scenarios")
 
 
 class ScenarioConfig(BaseModel):
