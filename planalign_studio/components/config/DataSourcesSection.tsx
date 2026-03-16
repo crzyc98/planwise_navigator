@@ -119,11 +119,15 @@ export function DataSourcesSection() {
                 setUploadStatus('success');
                 const savedMsg = autoSaved ? ' and saved' : '';
                 setUploadMessage(`File uploaded${savedMsg}! ${result.row_count.toLocaleString()} rows, ${result.columns.length} columns`);
+                // Reset file input so re-selecting the same file triggers onChange
+                if (fileInputRef.current) fileInputRef.current.value = '';
               } catch (error) {
                 setUploadStatus('error');
                 setUploadMessage(error instanceof Error ? error.message : 'Upload failed');
                 setStructuredWarnings([]);
                 setDataQualityWarnings([]);
+                // Reset file input so re-selecting the same file triggers onChange
+                if (fileInputRef.current) fileInputRef.current.value = '';
               }
             }}
           />
