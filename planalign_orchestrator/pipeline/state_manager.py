@@ -2,15 +2,12 @@
 """
 State Management Module for Pipeline Orchestration
 
-Handles database state management, checkpointing, and data cleanup operations.
+Handles database state management and data cleanup operations.
 Extracted from PipelineOrchestrator to improve modularity and maintainability.
 """
 
 from __future__ import annotations
 
-import hashlib
-import json
-from datetime import datetime, timezone
 from pathlib import Path
 from typing import Optional
 
@@ -22,7 +19,6 @@ from config.constants import (
 from planalign_orchestrator.config import SimulationConfig
 from planalign_orchestrator.dbt_runner import DbtRunner
 from planalign_orchestrator.utils import DatabaseConnectionManager
-from planalign_orchestrator.pipeline.workflow import WorkflowCheckpoint, WorkflowStage
 
 
 class StateManager:
@@ -31,9 +27,7 @@ class StateManager:
     Responsibilities:
     - Clearing year-specific data for idempotent re-runs
     - Full database resets based on configuration
-    - Checkpoint persistence and recovery
     - State verification and validation
-    - Configuration hashing for change detection
 
     This class encapsulates all state management logic previously embedded in
     PipelineOrchestrator, enabling cleaner separation of concerns and easier testing.
@@ -44,7 +38,6 @@ class StateManager:
         db_manager: DatabaseConnectionManager,
         dbt_runner: DbtRunner,
         config: SimulationConfig,
-        checkpoints_dir: Path,
         verbose: bool = False,
     ):
         """Initialize StateManager with required dependencies.
@@ -53,17 +46,12 @@ class StateManager:
             db_manager: Database connection manager for executing queries
             dbt_runner: dbt command runner for model execution
             config: Simulation configuration containing setup options
-            checkpoints_dir: Directory for storing checkpoint files
             verbose: Enable verbose logging output
         """
         self.db_manager = db_manager
         self.dbt_runner = dbt_runner
         self.config = config
-        self.checkpoints_dir = Path(checkpoints_dir)
         self.verbose = verbose
-
-        # Ensure checkpoints directory exists
-        self.checkpoints_dir.mkdir(parents=True, exist_ok=True)
 
     def maybe_clear_year_data(self, year: int) -> None:
         """Clear year-scoped data for idempotent re-runs when configured.
@@ -225,27 +213,6 @@ class StateManager:
         except Exception:
             pass
 
-    def state_hash(self, year: int) -> str:
-        """Generate a lightweight state hash combining year and timestamp.
-
-        Used for checkpoint validation to detect if state has changed since
-        the checkpoint was created. Currently uses a simple timestamp-based
-        approach; could be enhanced with actual data hashing for stronger
-        guarantees.
-
-        Args:
-            year: Simulation year to generate hash for
-
-        Returns:
-            Hash string in format "year:ISO8601_timestamp"
-
-        Example:
-            >>> sm.state_hash(2025)
-            '2025:2025-01-15T14:30:00.123456'
-        """
-        # Lightweight placeholder hash combining year and timestamp
-        return f"{year}:{datetime.now(timezone.utc).isoformat()}"
-
     def verify_year_population(
         self, year: int, dbt_vars: Optional[dict] = None
     ) -> None:
@@ -308,104 +275,3 @@ class StateManager:
             print(
                 f"⚠️ {TABLE_FCT_WORKFORCE_SNAPSHOT} has 0 rows for {year}; verify upstream models and vars"
             )
-
-    def write_checkpoint(self, ckpt: WorkflowCheckpoint) -> None:
-        """Persist a workflow checkpoint to disk for recovery.
-
-        Checkpoints enable resuming multi-year simulations from the last completed
-        stage, avoiding expensive recomputation. Stored as JSON files in the
-        checkpoints directory.
-
-        Args:
-            ckpt: WorkflowCheckpoint containing year, stage, timestamp, and state hash
-
-        File format:
-            {
-                "year": 2025,
-                "stage": "foundation",
-                "timestamp": "2025-01-15T14:30:00.123456",
-                "state_hash": "2025:2025-01-15T14:30:00.123456"
-            }
-
-        File naming:
-            year_{year}.json (e.g., year_2025.json)
-        """
-        path = self.checkpoints_dir / f"year_{ckpt.year}.json"
-        with open(path, "w") as fh:
-            json.dump(
-                {
-                    "year": ckpt.year,
-                    "stage": ckpt.stage.value,
-                    "timestamp": ckpt.timestamp,
-                    "state_hash": ckpt.state_hash,
-                },
-                fh,
-            )
-
-    def find_last_checkpoint(self) -> Optional[WorkflowCheckpoint]:
-        """Find and load the most recent checkpoint from disk.
-
-        Scans the checkpoints directory for year_*.json files and returns the
-        checkpoint with the highest year number. Used for resume functionality.
-
-        Returns:
-            WorkflowCheckpoint if any checkpoint exists, None otherwise
-
-        File naming convention:
-            Expects files named year_{year}.json where year is an integer
-
-        Example:
-            If checkpoints directory contains:
-            - year_2025.json
-            - year_2026.json
-            - year_2027.json
-
-            Returns: WorkflowCheckpoint for year 2027
-        """
-        files = sorted(self.checkpoints_dir.glob("year_*.json"))
-        if not files:
-            return None
-        latest = files[-1]
-        data = json.loads(latest.read_text())
-        return WorkflowCheckpoint(
-            year=int(data["year"]),
-            stage=WorkflowStage(data["stage"]),
-            timestamp=data["timestamp"],
-            state_hash=data.get("state_hash", ""),
-        )
-
-    def calculate_config_hash(self) -> str:
-        """Calculate hash of current configuration for checkpoint validation.
-
-        Generates a SHA256 hash of the simulation configuration to detect changes
-        between runs. Used to invalidate checkpoints when configuration changes.
-
-        Returns:
-            SHA256 hash string of configuration, or "unknown" on error
-
-        Algorithm:
-            1. Try to hash config/simulation_config.yaml file contents
-            2. If file missing or unreadable, hash the config object's model_dump()
-            3. If both fail, return "unknown"
-
-        Use cases:
-            - Checkpoint validation (reject resume if config changed)
-            - Change detection for deterministic execution
-            - Audit trail for reproducibility
-        """
-        # Try to hash the configuration file
-        config_path = Path("config/simulation_config.yaml")
-        if config_path.exists():
-            try:
-                config_content = config_path.read_text()
-                return hashlib.sha256(config_content.encode("utf-8")).hexdigest()
-            except Exception:
-                pass
-
-        # Fallback: hash the config object's dump
-        try:
-            config_dict = self.config.model_dump()
-            config_str = json.dumps(config_dict, sort_keys=True)
-            return hashlib.sha256(config_str.encode("utf-8")).hexdigest()
-        except Exception:
-            return "unknown"

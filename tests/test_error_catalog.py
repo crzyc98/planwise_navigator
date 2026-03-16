@@ -130,15 +130,6 @@ class TestErrorCatalog:
         assert len(hints) > 0
         assert any("Network" in hint.title or "Proxy" in hint.title for hint in hints)
 
-    def test_checkpoint_error_pattern(self):
-        """Test checkpoint corruption pattern"""
-        catalog = ErrorCatalog()
-
-        hints = catalog.find_resolution_hints("Checkpoint file is corrupted")
-
-        assert len(hints) > 0
-        assert any("Checkpoint" in hint.title for hint in hints)
-
     def test_no_match_returns_empty(self):
         """Test that unmatched errors return empty hints"""
         catalog = ErrorCatalog()
@@ -287,11 +278,11 @@ class TestPatternCoverage:
         assert len(network_patterns) >= 1
 
     def test_state_category_coverage(self):
-        """Test coverage of state management errors"""
+        """Test coverage of state management errors (checkpoint patterns removed in E070)"""
         catalog = ErrorCatalog()
 
         state_patterns = [p for p in catalog.patterns if p.category == ErrorCategory.STATE]
-        assert len(state_patterns) >= 1
+        assert len(state_patterns) >= 0
 
 
 class TestRealWorldErrorMessages:

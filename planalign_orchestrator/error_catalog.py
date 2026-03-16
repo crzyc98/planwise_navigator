@@ -153,21 +153,6 @@ class ErrorCatalog:
                 ],
                 "time": "15 minutes",
             },
-            {
-                "regex": rf"(checkpoint{_W}corrupt|checkpoint{_W}invalid|checkpoint{_W}version)",
-                "category": ErrorCategory.STATE,
-                "title": "Checkpoint Corruption",
-                "description": "Checkpoint file is corrupted or incompatible",
-                "hint_title": "Reset Checkpoint State",
-                "hint_description": "Clean corrupted checkpoints and restart",
-                "steps": [
-                    "List checkpoints: planwise checkpoints list",
-                    "Clean checkpoints: planwise checkpoints cleanup",
-                    "Delete checkpoint dir: rm -rf .planalign_checkpoints/",
-                    "Restart simulation without --resume flag",
-                ],
-                "time": "5 minutes",
-            },
         ]
 
         for defn in pattern_definitions:

@@ -224,42 +224,6 @@ class TestYearDependencyValidatorGetMissing:
         assert "int_deferral_rate_state_accumulator" in missing
 
 
-class TestYearDependencyValidatorCheckpoint:
-    """Tests for checkpoint dependency validation (US3)."""
-
-    def test_validate_checkpoint_dependencies_full_chain(self, sample_contracts):
-        """Test checkpoint validation for a full dependency chain."""
-        from planalign_orchestrator.state_accumulator.validator import (
-            YearDependencyValidator,
-        )
-
-        db_manager = MockDatabaseConnectionManager({
-            "int_enrollment_state_accumulator": {2025: 100, 2026: 100},
-            "int_deferral_rate_state_accumulator": {2025: 100, 2026: 100},
-        })
-        validator = YearDependencyValidator(db_manager, start_year=2025)
-
-        # Checkpoint at 2027 requires 2025 and 2026 data
-        validator.validate_checkpoint_dependencies(checkpoint_year=2027)
-
-    def test_validate_checkpoint_dependencies_broken_chain(self, sample_contracts):
-        """Test checkpoint validation fails for broken chain."""
-        from planalign_orchestrator.state_accumulator.validator import (
-            YearDependencyValidator,
-        )
-
-        # 2025 exists but 2026 is missing
-        db_manager = MockDatabaseConnectionManager({
-            "int_enrollment_state_accumulator": {2025: 100, 2026: 0},
-            "int_deferral_rate_state_accumulator": {2025: 100, 2026: 0},
-        })
-        validator = YearDependencyValidator(db_manager, start_year=2025)
-
-        # Checkpoint at 2028 should fail - 2026 data missing (year 2027 check fails)
-        with pytest.raises(YearDependencyError):
-            validator.validate_checkpoint_dependencies(checkpoint_year=2028)
-
-
 class TestYearDependencyValidatorEdgeCases:
     """Edge case tests."""
 
