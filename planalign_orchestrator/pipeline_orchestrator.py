@@ -3,7 +3,7 @@
 Pipeline Orchestration Engine
 
 Coordinates config, dbt execution, registries, validation, and reporting for
-multi-year simulations with basic checkpoint/restart support.
+multi-year simulations.
 
 Refactored to use modular pipeline components (Story S072-06).
 """
@@ -18,7 +18,6 @@ from pathlib import Path
 from typing import Any, Dict, List, Optional
 import time
 
-from .checkpoint_manager import CheckpointManager
 from .config import SimulationConfig, to_dbt_vars, get_database_path
 from .orchestrator_setup import (
     setup_memory_manager,
@@ -27,7 +26,6 @@ from .orchestrator_setup import (
     setup_performance_monitor,
 )
 from .dbt_runner import DbtResult, DbtRunner
-from .recovery_orchestrator import RecoveryOrchestrator
 from .registries import RegistryManager
 from .reports.data_models import MultiYearSummary
 from .reports.multi_year_reporter import MultiYearReporter
@@ -78,9 +76,7 @@ class PipelineOrchestrator:
         validator: DataValidator,
         *,
         reports_dir: Path | str = Path("reports"),
-        checkpoints_dir: Path | str = Path(".planalign_checkpoints"),
         verbose: bool = False,
-        enhanced_checkpoints: bool = True,
     ):
         self.config = config
         self.db_manager = db_manager
@@ -112,8 +108,6 @@ class PipelineOrchestrator:
         self._validate_compensation_parameters()
 
         self.reports_dir = Path(reports_dir)
-        self.checkpoints_dir = Path(checkpoints_dir)
-        self.checkpoints_dir.mkdir(exist_ok=True)
         self._seeded = False
 
         # Initialize observability (structured logs + performance metrics + run summary)
@@ -164,28 +158,12 @@ class PipelineOrchestrator:
             verbose=self.verbose
         )
 
-        # Enhanced checkpoint system
-        self.enhanced_checkpoints = enhanced_checkpoints
-        if enhanced_checkpoints:
-            # Determine database path from db_manager
-            db_path = getattr(db_manager, "db_path", str(get_database_path()))
-            self.checkpoint_manager = CheckpointManager(
-                checkpoint_dir=str(checkpoints_dir), db_path=str(db_path)
-            )
-            self.recovery_orchestrator = RecoveryOrchestrator(self.checkpoint_manager)
-            self.config_hash = self._calculate_config_hash()
-        else:
-            self.checkpoint_manager = None
-            self.recovery_orchestrator = None
-            self.config_hash = None
-
         # Initialize modular pipeline components (Story S072-06)
         self.workflow_builder = WorkflowBuilder()
         self.state_manager = StateManager(
             db_manager=db_manager,
             dbt_runner=dbt_runner,
             config=config,
-            checkpoints_dir=checkpoints_dir,
             verbose=verbose
         )
         self.cleanup_manager = DataCleanupManager(db_manager=db_manager, verbose=verbose)
@@ -280,7 +258,6 @@ class PipelineOrchestrator:
         *,
         start_year: Optional[int] = None,
         end_year: Optional[int] = None,
-        resume_from_checkpoint: bool = False,
         fail_on_validation_error: bool = False,
         dry_run: bool = False,
     ) -> MultiYearSummary:
@@ -296,11 +273,6 @@ class PipelineOrchestrator:
         # Enhanced multi-year simulation startup logging
         self._log_simulation_startup_summary(start, end)
 
-        if resume_from_checkpoint:
-            ckpt = self.state_manager.find_last_checkpoint()
-            if ckpt:
-                start = max(start, ckpt.year)
-
         self._setup_monitoring()
         _run_ctx = self._create_observability_context(start, end)
 
@@ -311,7 +283,7 @@ class PipelineOrchestrator:
                 print(f"🔒 Acquiring execution lock: {lock_name} (db: {db_path})")
             with ExecutionMutex(lock_name):
                 self.state_manager.maybe_full_reset()
-                self._initialize_registries(resume_from_checkpoint, start)
+                self._initialize_registries(start)
                 completed_years: List[int] = []
 
                 try:
@@ -319,7 +291,6 @@ class PipelineOrchestrator:
                         self._execute_year_with_monitoring(
                             year, fail_on_validation_error=fail_on_validation_error, dry_run=dry_run
                         )
-                        self._save_year_checkpoint(year)
                         completed_years.append(year)
 
                 except Exception as e:
@@ -356,10 +327,8 @@ class PipelineOrchestrator:
         from contextlib import nullcontext
         return nullcontext()
 
-    def _initialize_registries(self, resume_from_checkpoint: bool, start: int) -> None:
+    def _initialize_registries(self, start: int) -> None:
         """Ensure orchestrator-managed registries start clean for a new run."""
-        if resume_from_checkpoint:
-            return
         try:
             er = self.registry_manager.get_enrollment_registry()
             dr = self.registry_manager.get_deferral_registry()
@@ -400,32 +369,6 @@ class PipelineOrchestrator:
             post_year_snapshot = self.memory_manager.force_memory_check(f"year_{year}_complete")
             if self.verbose:
                 print(f"🧠 Memory after year {year}: {post_year_snapshot.rss_mb:.1f}MB")
-
-    def _save_year_checkpoint(self, year: int) -> None:
-        """Create checkpoint using enhanced system if available, with legacy fallback."""
-        if not (self.enhanced_checkpoints and self.checkpoint_manager and self.config_hash):
-            self._write_legacy_checkpoint(year)
-            return
-
-        try:
-            run_id = f"multiyear_{datetime.now(timezone.utc).strftime('%Y%m%d_%H%M%S')}"
-            self.checkpoint_manager.save_checkpoint(year, run_id, self.config_hash)
-            if self.verbose:
-                print(f"   ✅ Enhanced checkpoint saved for year {year}")
-        except Exception as e:
-            print(f"   ⚠️ Enhanced checkpoint failed for year {year}: {e}")
-            self._write_legacy_checkpoint(year)
-
-    def _write_legacy_checkpoint(self, year: int) -> None:
-        """Write a legacy workflow checkpoint."""
-        self.state_manager.write_checkpoint(
-            WorkflowCheckpoint(
-                year,
-                WorkflowStage.CLEANUP,
-                datetime.now(timezone.utc).isoformat(),
-                self.state_manager.state_hash(year),
-            )
-        )
 
     def _finalize_monitoring(self) -> None:
         """Stop memory monitoring and generate final report."""
@@ -754,26 +697,6 @@ class PipelineOrchestrator:
         if hasattr(self, 'memory_manager') and self.memory_manager:
             return self.memory_manager.get_memory_statistics()
         return {}
-
-    def _calculate_config_hash(self) -> str:
-        """Calculate hash of current configuration for checkpoint validation"""
-        import hashlib
-
-        # Try to hash the configuration file
-        config_path = Path("config/simulation_config.yaml")
-        if config_path.exists():
-            try:
-                content = config_path.read_bytes()
-                return hashlib.sha256(content).hexdigest()[:16]
-            except Exception:
-                pass
-
-        # Fallback: hash the config object
-        try:
-            config_str = json.dumps(self.config.model_dump(), sort_keys=True)
-            return hashlib.sha256(config_str.encode()).hexdigest()[:16]
-        except Exception:
-            return "unknown"
 
     def _log_compensation_parameters(self) -> None:
         """Log compensation parameters for enhanced visibility"""

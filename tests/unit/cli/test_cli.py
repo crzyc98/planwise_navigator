@@ -75,16 +75,3 @@ def test_cli_run_dry_run(tmp_path: Path, capsys):
     assert rc == 0
     out = capsys.readouterr().out
     assert "Simulation completed" in out
-
-
-def test_cli_checkpoint_listing(tmp_path: Path, capsys):
-    cfg = _write_config(tmp_path)
-    dbp = tmp_path / "db.duckdb"
-    _seed_minimal(dbp)
-    # First, run once to create a checkpoint
-    rc = main(["run", "--config", str(cfg), "--database", str(dbp), "--dry-run"])
-    assert rc == 0
-    rc = main(["checkpoint", "--config", str(cfg), "--database", str(dbp)])
-    assert rc == 0
-    out = capsys.readouterr().out
-    assert "Last checkpoint:" in out or "No checkpoints" in out

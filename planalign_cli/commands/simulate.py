@@ -53,12 +53,6 @@ def run_simulation(
     threads: Optional[int] = typer.Option(
         None, "--threads", help="Number of dbt threads"
     ),
-    resume: bool = typer.Option(
-        False, "--resume", help="Resume from last checkpoint"
-    ),
-    force_restart: bool = typer.Option(
-        False, "--force-restart", help="Ignore checkpoints and start fresh"
-    ),
     dry_run: bool = typer.Option(
         False, "--dry-run", help="Show what would be executed without running"
     ),
@@ -105,12 +99,7 @@ def run_simulation(
         # Check system health before starting
         _check_system_health(wrapper)
 
-        # Handle resume/restart logic
-        actual_start_year = _resolve_start_year(
-            wrapper, config_path, start_year, end_year, resume, force_restart
-        )
-        if actual_start_year is None:
-            return
+        actual_start_year = start_year
 
         if dry_run:
             _show_dry_run_preview(wrapper, actual_start_year, end_year, threads)
@@ -146,7 +135,6 @@ def run_simulation(
             summary = orchestrator.execute_multi_year_simulation(
                 start_year=actual_start_year,
                 end_year=end_year,
-                resume_from_checkpoint=False,  # We handle resume logic above
                 fail_on_validation_error=fail_on_validation_error,
             )
 
@@ -166,54 +154,6 @@ def run_simulation(
         show_error_message(f"Simulation error: {e}")
         raise typer.Exit(1)
 
-@simulate_command.command("status")
-def simulation_status(
-    config: Optional[str] = typer.Option(
-        None, "--config", "-c", help="Path to simulation config YAML"
-    ),
-    database: Optional[str] = typer.Option(
-        None, "--database", help="Path to DuckDB database file"
-    ),
-):
-    """Show current simulation status and progress."""
-    try:
-        config_path = Path(config) if config else find_default_config()
-        db_path = Path(database) if database else Path("dbt") / DATABASE_FILENAME
-
-        wrapper = OrchestratorWrapper(config_path, db_path)
-        checkpoint_info = wrapper.get_checkpoint_info()
-
-        if checkpoint_info["success"]:
-            recovery_status = checkpoint_info["recovery_status"]
-            console.print("🎯 [bold blue]Simulation Status[/bold blue]")
-
-            if checkpoint_info["total_count"] > 0:
-                console.print(f"✅ [green]{checkpoint_info['total_count']} checkpoint(s) available[/green]")
-
-                if recovery_status.get("latest_checkpoint_year"):
-                    console.print(f"📅 Latest: Year {recovery_status['latest_checkpoint_year']}")
-
-                if recovery_status.get("resumable_year"):
-                    console.print(f"🔄 Resumable from: Year {recovery_status['resumable_year']}")
-                    console.print("💡 [dim]Use --resume to continue from last checkpoint[/dim]")
-
-                if recovery_status.get("config_compatible"):
-                    console.print("✅ [green]Configuration compatible[/green]")
-                else:
-                    show_warning_message("Configuration has changed since last run")
-
-            else:
-                console.print("❌ [yellow]No checkpoints found[/yellow]")
-                console.print("💡 [dim]Run a simulation to create checkpoints[/dim]")
-
-        else:
-            show_error_message(f"Failed to get status: {checkpoint_info['error']}")
-            raise typer.Exit(1)
-
-    except Exception as e:
-        show_error_message(f"Status check failed: {e}")
-        raise typer.Exit(1)
-
 def _check_system_health(wrapper: OrchestratorWrapper) -> None:
     """Verify system health and abort if unhealthy."""
     health = wrapper.check_system_health()
@@ -222,40 +162,6 @@ def _check_system_health(wrapper: OrchestratorWrapper) -> None:
         for issue in health["issues"]:
             console.print(f"  • [red]{issue}[/red]")
         raise typer.Exit(1)
-
-
-def _resolve_start_year(
-    wrapper: OrchestratorWrapper,
-    config_path: Path,
-    start_year: int,
-    end_year: int,
-    resume: bool,
-    force_restart: bool,
-) -> Optional[int]:
-    """Resolve the actual start year based on resume/restart flags.
-
-    Returns the resolved start year, or None if the simulation is already complete.
-    """
-    if force_restart:
-        console.print("🔄 [yellow]Force restart: ignoring checkpoints[/yellow]")
-        return start_year
-
-    if not resume:
-        return start_year
-
-    config_hash = wrapper.recovery_orchestrator.calculate_config_hash(str(config_path))
-    resume_year = wrapper.recovery_orchestrator.resume_simulation(end_year, config_hash)
-
-    if not resume_year:
-        console.print("🔄 [yellow]No valid checkpoint found, starting from beginning[/yellow]")
-        return start_year
-
-    console.print(f"🔄 [green]Resume mode: starting from year {resume_year}[/green]")
-    if resume_year > end_year:
-        show_success_message(f"Simulation already complete through year {resume_year - 1}")
-        return None
-
-    return resume_year
 
 
 def _apply_growth_override(growth: Optional[str], verbose: bool) -> None:
@@ -349,8 +255,6 @@ def default(
     config: Optional[str] = typer.Option(None, "--config", "-c"),
     database: Optional[str] = typer.Option(None, "--database"),
     threads: Optional[int] = typer.Option(None, "--threads"),
-    resume: bool = typer.Option(False, "--resume"),
-    force_restart: bool = typer.Option(False, "--force-restart"),
     dry_run: bool = typer.Option(False, "--dry-run"),
     fail_on_validation_error: bool = typer.Option(False, "--fail-on-validation-error"),
     verbose: bool = typer.Option(False, "--verbose", "-v"),
@@ -362,8 +266,6 @@ def default(
         config=config,
         database=database,
         threads=threads,
-        resume=resume,
-        force_restart=force_restart,
         dry_run=dry_run,
         fail_on_validation_error=fail_on_validation_error,
         verbose=verbose,
