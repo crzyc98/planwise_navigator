@@ -1867,3 +1867,42 @@ export async function run415Test(
   );
   return handleResponse<Section415TestResponse>(response);
 }
+
+// ============================================================================
+// Apply Workforce Parameters (Feature 072)
+// ============================================================================
+
+export interface ScenarioApplyOutcome {
+  scenario_id: string;
+  scenario_name: string | null;
+  success: boolean;
+  error: string | null;
+}
+
+export interface WorkforceParamsApplyResult {
+  source_scenario_id: string;
+  results: ScenarioApplyOutcome[];
+  total_applied: number;
+  total_failed: number;
+}
+
+/**
+ * Apply workforce parameters from a source scenario to multiple target scenarios.
+ * Copies workforce assumptions (compensation, turnover, hiring, demographics, seed configs)
+ * while preserving DC plan parameters in each target.
+ */
+export async function applyWorkforceParams(
+  workspaceId: string,
+  sourceScenarioId: string,
+  targetScenarioIds: string[]
+): Promise<WorkforceParamsApplyResult> {
+  const response = await fetch(
+    `${API_BASE}/api/workspaces/${workspaceId}/scenarios/${sourceScenarioId}/apply-workforce-params`,
+    {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ target_scenario_ids: targetScenarioIds }),
+    }
+  );
+  return handleResponse<WorkforceParamsApplyResult>(response);
+}
