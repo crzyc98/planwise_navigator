@@ -21,7 +21,6 @@ from .commands.status import status_command
 from .commands.simulate import simulate_command
 from .commands.batch import batch_command
 from .commands.validate import validate_command
-from .commands.checkpoint import checkpoint_command
 from .commands.analyze import analyze_command
 from .commands.studio import launch_studio
 from .commands.sync import (
@@ -81,8 +80,6 @@ from .commands.simulate import run_simulation
 from .commands.status import show_status, health_check
 from .commands.batch import run_batch
 from .commands.validate import validate_config
-from .commands.checkpoint import list_checkpoints, checkpoint_status, cleanup_checkpoints, validate_recovery
-
 # Main simulate command - direct access
 @app.command("simulate")
 def simulate(
@@ -90,8 +87,6 @@ def simulate(
     config: Optional[str] = typer.Option(None, "--config", "-c", help="Path to simulation config YAML"),
     database: Optional[str] = typer.Option(None, "--database", help="Path to DuckDB database file"),
     threads: Optional[int] = typer.Option(None, "--threads", help="Number of dbt threads"),
-    resume: bool = typer.Option(False, "--resume", help="Resume from last checkpoint"),
-    force_restart: bool = typer.Option(False, "--force-restart", help="Ignore checkpoints and start fresh"),
     dry_run: bool = typer.Option(False, "--dry-run", help="Show what would be executed without running"),
     fail_on_validation_error: bool = typer.Option(False, "--fail-on-validation-error", help="Fail simulation on validation errors"),
     verbose: bool = typer.Option(False, "--verbose", "-v", help="Show detailed output"),
@@ -103,8 +98,6 @@ def simulate(
         config=config,
         database=database,
         threads=threads,
-        resume=resume,
-        force_restart=force_restart,
         dry_run=dry_run,
         fail_on_validation_error=fail_on_validation_error,
         verbose=verbose,
@@ -217,28 +210,6 @@ def analyze(
     else:
         console.print(f"[yellow]Unknown analysis target: {target}[/yellow]")
         console.print("Available targets: workforce, events, scenario")
-        raise typer.Exit(1)
-
-# Checkpoint commands
-@app.command("checkpoints")
-def checkpoints(
-    action: str = typer.Argument("status", help="Action: list, status, cleanup, validate"),
-    config: Optional[str] = typer.Option(None, "--config", "-c", help="Path to simulation config YAML"),
-    database: Optional[str] = typer.Option(None, "--database", help="Path to DuckDB database file"),
-    keep: int = typer.Option(5, "--keep", help="Number of checkpoints to keep when cleaning up"),
-):
-    """💾 Checkpoint management and recovery operations."""
-    if action == "list":
-        list_checkpoints(config=config, database=database)
-    elif action == "status":
-        checkpoint_status(config=config, database=database)
-    elif action == "cleanup":
-        cleanup_checkpoints(keep=keep, config=config, database=database)
-    elif action == "validate":
-        validate_recovery(config=config, database=database)
-    else:
-        console.print(f"❌ Unknown action: {action}")
-        console.print("Valid actions: list, status, cleanup, validate")
         raise typer.Exit(1)
 
 

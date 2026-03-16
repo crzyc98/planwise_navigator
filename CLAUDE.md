@@ -49,7 +49,6 @@ planalign status --detailed                      # Full system diagnostic
 # Development workflow
 planalign simulate 2025 --dry-run               # Preview execution plan
 planalign simulate 2025 --verbose               # Detailed logging
-planalign checkpoints list                      # View recovery points
 
 # Launch PlanAlign Studio (web interface)
 planalign studio                                 # Start API + frontend, opens browser
@@ -187,7 +186,7 @@ planalign_engine/
 ├─ planalign_orchestrator/           # Production orchestration engine
 │  ├─ pipeline/                      # Modular pipeline components (E072)
 │  │  ├─ workflow.py                # Stage definitions and workflow building
-│  │  ├─ state_manager.py           # Checkpoint and state management
+│  │  ├─ state_manager.py           # Database state management
 │  │  ├─ year_executor.py           # Stage-by-stage execution orchestration
 │  │  ├─ event_generation_executor.py # SQL-based event generation
 │  │  ├─ hooks.py                   # Extensible callback system
@@ -212,7 +211,6 @@ planalign_engine/
 │  │  ├─ simulate.py                # Multi-year simulation
 │  │  ├─ batch.py                   # Batch scenario processing
 │  │  ├─ status.py                  # System health and status
-│  │  ├─ checkpoint.py              # Checkpoint management
 │  │  └─ studio.py                  # Launch API + frontend servers
 │  └─ main.py                       # CLI entry point
 ├─ planalign_api/                     # FastAPI backend for PlanAlign Studio
@@ -263,7 +261,7 @@ The pipeline was refactored from a 2,478-line monolith into 6 focused modules:
 ```python
 from planalign_orchestrator.pipeline import (
     WorkflowBuilder,      # Stage definitions and workflow building
-    StateManager,         # Checkpoint and state management
+    StateManager,         # Database state management
     YearExecutor,         # Stage-by-stage execution orchestration
     EventGenerationExecutor,  # SQL-based event generation
     HookManager,          # Extensible callback system
@@ -747,9 +745,6 @@ planalign health                      # Quick diagnostic
 # Detailed system status
 planalign status --detailed           # Full system information
 
-# View checkpoints for recovery
-planalign checkpoints list            # Available recovery points
-planalign checkpoints status          # Recovery recommendations
 ```
 
 -----
@@ -835,6 +830,8 @@ See `/docs/VERSIONING_GUIDE.md` for detailed versioning workflow.
 - TypeScript (React/Vite frontend), Python 3.11 (FastAPI backend) + React, FastAPI, Pydantic v2, dbt-duckdb 1.8.1 (068-optout-rate-config)
 - DuckDB (`dbt/simulation.duckdb`) — no schema changes needed (068-optout-rate-config)
 - Python 3.11, SQL (dbt-core 1.8.8, dbt-duckdb 1.8.1) + Pydantic v2, DuckDB 1.0.0, FastAPI, React/Vite (069-fix-match-core-disabled)
+- Python 3.11 + Typer (CLI), Rich (display), Pydantic v2 (config) (070-remove-checkpoint-system)
+- DuckDB (unchanged — no schema modifications) (070-remove-checkpoint-system)
 
 ## Recent Changes
 - 063-1000-hr-eligibility: Added Python 3.11, SQL (dbt-core 1.8.8) + dbt-duckdb 1.8.1, DuckDB 1.0.0, Pydantic 2.7.4
