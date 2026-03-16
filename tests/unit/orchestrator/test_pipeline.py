@@ -113,7 +113,6 @@ def test_multi_year_workflow_coordination(tmp_path: Path):
         registries,
         dv,
         reports_dir=tmp_path / "reports",
-        checkpoints_dir=tmp_path / "ckpt",
     )
     # Use dry_run=True since DummyRunner echoes commands instead of running dbt
     summary = orchestrator.execute_multi_year_simulation(dry_run=True)
@@ -122,7 +121,3 @@ def test_multi_year_workflow_coordination(tmp_path: Path):
     assert summary.start_year == 2025 and summary.end_year == 2026
     csv_path = tmp_path / "reports" / "multi_year_summary_2025_2026.csv"
     assert csv_path.exists()
-
-    # Checkpoints exist for both years
-    assert (tmp_path / "ckpt" / "year_2025.json").exists()
-    assert (tmp_path / "ckpt" / "year_2026.json").exists()

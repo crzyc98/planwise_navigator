@@ -13,11 +13,9 @@ from datetime import datetime
 from pathlib import Path
 from typing import Any, Dict, Optional, Union
 
-from planalign_orchestrator.checkpoint_manager import CheckpointManager
 from planalign_orchestrator.config import load_simulation_config
 from planalign_orchestrator.dbt_runner import DbtRunner
 from planalign_orchestrator.pipeline_orchestrator import PipelineOrchestrator
-from planalign_orchestrator.recovery_orchestrator import RecoveryOrchestrator
 from planalign_orchestrator.registries import RegistryManager
 from planalign_orchestrator.scenario_batch_runner import ScenarioBatchRunner
 from planalign_orchestrator.utils import DatabaseConnectionManager
@@ -39,8 +37,6 @@ class OrchestratorWrapper:
         # Lazy initialization
         self._config = None
         self._db = None
-        self._checkpoint_manager = None
-        self._recovery_orchestrator = None
 
     @property
     def config(self):
@@ -66,20 +62,6 @@ class OrchestratorWrapper:
         if self._db is None:
             self._db = DatabaseConnectionManager(self.db_path)
         return self._db
-
-    @property
-    def checkpoint_manager(self):
-        """Lazy load checkpoint manager."""
-        if self._checkpoint_manager is None:
-            self._checkpoint_manager = CheckpointManager(db_path=str(self.db_path))
-        return self._checkpoint_manager
-
-    @property
-    def recovery_orchestrator(self):
-        """Lazy load recovery orchestrator."""
-        if self._recovery_orchestrator is None:
-            self._recovery_orchestrator = RecoveryOrchestrator(self.checkpoint_manager)
-        return self._recovery_orchestrator
 
     def get_system_status(self) -> Dict[str, Any]:
         """Get comprehensive system status information."""
@@ -140,22 +122,6 @@ class OrchestratorWrapper:
             status["database"] = {"connected": False, "error": str(e)}
             status["system_ready"] = False
 
-        # Checkpoint status
-        try:
-            checkpoints = self.checkpoint_manager.list_checkpoints()
-            config_hash = self.recovery_orchestrator.calculate_config_hash(str(self.config_path))
-            recovery_status = self.recovery_orchestrator.get_recovery_status(config_hash)
-
-            status["checkpoints"] = {
-                "count": len(checkpoints),
-                "latest_year": recovery_status.get("latest_checkpoint_year"),
-                "resumable_year": recovery_status.get("resumable_year"),
-                "config_compatible": recovery_status.get("config_compatible", False),
-                "recommendations": recovery_status.get("recommendations", [])
-            }
-        except Exception as e:
-            status["checkpoints"] = {"error": str(e)}
-
         # Performance information
         if hasattr(self, "config") and self.config:
             thread_count = self.config.get_thread_count() if hasattr(self.config, "get_thread_count") else 1
@@ -167,8 +133,6 @@ class OrchestratorWrapper:
         recommendations = []
         if not status["database"]["connected"]:
             recommendations.append("Run a simulation to create the database")
-        if status["checkpoints"].get("count", 0) == 0:
-            recommendations.append("No checkpoints found - consider running a simulation")
         if not status["config"].get("valid"):
             recommendations.append("Fix configuration errors before running simulations")
 
@@ -296,24 +260,6 @@ class OrchestratorWrapper:
                 "recommendations": ["Fix configuration errors before proceeding"]
             }
 
-    def get_checkpoint_info(self) -> Dict[str, Any]:
-        """Get detailed checkpoint information."""
-        try:
-            checkpoints = self.checkpoint_manager.list_checkpoints()
-            config_hash = self.recovery_orchestrator.calculate_config_hash(str(self.config_path))
-            recovery_status = self.recovery_orchestrator.get_recovery_status(config_hash)
-
-            return {
-                "success": True,
-                "checkpoints": checkpoints,
-                "recovery_status": recovery_status,
-                "total_count": len(checkpoints),
-            }
-        except Exception as e:
-            return {
-                "success": False,
-                "error": str(e)
-            }
 
 
 # Maximum line length to process — truncate before regex to prevent

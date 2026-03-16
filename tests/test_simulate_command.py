@@ -18,7 +18,6 @@ from planalign_cli.commands.simulate import (
     _apply_growth_override,
     _check_system_health,
     _parse_growth_rate,
-    _resolve_start_year,
     _show_dry_run_preview,
     _show_enhanced_simulation_summary,
     _show_simulation_summary,
@@ -95,55 +94,6 @@ class TestCheckSystemHealth:
 
         with pytest.raises(Exit):
             _check_system_health(wrapper)
-
-
-# =============================================================================
-# _resolve_start_year
-# =============================================================================
-
-
-@pytest.mark.fast
-class TestResolveStartYear:
-    def test_force_restart_returns_start_year(self):
-        wrapper = MagicMock()
-        result = _resolve_start_year(
-            wrapper, Path("config.yaml"), 2025, 2027, resume=False, force_restart=True
-        )
-        assert result == 2025
-
-    def test_no_resume_returns_start_year(self):
-        wrapper = MagicMock()
-        result = _resolve_start_year(
-            wrapper, Path("config.yaml"), 2025, 2027, resume=False, force_restart=False
-        )
-        assert result == 2025
-
-    def test_resume_no_checkpoint_returns_start_year(self):
-        wrapper = MagicMock()
-        wrapper.recovery_orchestrator.calculate_config_hash.return_value = "hash123"
-        wrapper.recovery_orchestrator.resume_simulation.return_value = None
-        result = _resolve_start_year(
-            wrapper, Path("config.yaml"), 2025, 2027, resume=True, force_restart=False
-        )
-        assert result == 2025
-
-    def test_resume_with_checkpoint_returns_resume_year(self):
-        wrapper = MagicMock()
-        wrapper.recovery_orchestrator.calculate_config_hash.return_value = "hash123"
-        wrapper.recovery_orchestrator.resume_simulation.return_value = 2026
-        result = _resolve_start_year(
-            wrapper, Path("config.yaml"), 2025, 2027, resume=True, force_restart=False
-        )
-        assert result == 2026
-
-    def test_resume_past_end_returns_none(self):
-        wrapper = MagicMock()
-        wrapper.recovery_orchestrator.calculate_config_hash.return_value = "hash123"
-        wrapper.recovery_orchestrator.resume_simulation.return_value = 2028
-        result = _resolve_start_year(
-            wrapper, Path("config.yaml"), 2025, 2027, resume=True, force_restart=False
-        )
-        assert result is None
 
 
 # =============================================================================

@@ -322,25 +322,6 @@ class TestOrchestratorWrapper:
         _ = wrapper.db
         mock_db_cls.assert_called_once()
 
-    @patch("planalign_cli.integration.orchestrator_wrapper.CheckpointManager")
-    def test_checkpoint_manager_lazy_loads(self, mock_cp_cls):
-        wrapper = OrchestratorWrapper(
-            config_path=Path("config.yaml"),
-            db_path=Path("dbt/simulation.duckdb"),
-        )
-        _ = wrapper.checkpoint_manager
-        mock_cp_cls.assert_called_once()
-
-    @patch("planalign_cli.integration.orchestrator_wrapper.RecoveryOrchestrator")
-    @patch("planalign_cli.integration.orchestrator_wrapper.CheckpointManager")
-    def test_recovery_orchestrator_lazy_loads(self, mock_cp_cls, mock_ro_cls):
-        wrapper = OrchestratorWrapper(
-            config_path=Path("config.yaml"),
-            db_path=Path("dbt/simulation.duckdb"),
-        )
-        _ = wrapper.recovery_orchestrator
-        mock_ro_cls.assert_called_once()
-
     @patch("planalign_cli.integration.orchestrator_wrapper.ScenarioBatchRunner")
     def test_create_batch_runner(self, mock_runner_cls):
         wrapper = OrchestratorWrapper(
@@ -389,16 +370,6 @@ class TestOrchestratorWrapper:
         result = wrapper.validate_configuration()
         assert not result["valid"]
         assert "error" in result
-
-    @patch("planalign_cli.integration.orchestrator_wrapper.CheckpointManager")
-    def test_get_checkpoint_info_error(self, mock_cp_cls):
-        mock_cp_cls.side_effect = RuntimeError("no db")
-        wrapper = OrchestratorWrapper(
-            config_path=Path("config.yaml"),
-            db_path=Path("nonexistent.duckdb"),
-        )
-        result = wrapper.get_checkpoint_info()
-        assert not result["success"]
 
     @patch("planalign_cli.integration.orchestrator_wrapper.load_simulation_config")
     def test_check_system_health_healthy(self, mock_load):
