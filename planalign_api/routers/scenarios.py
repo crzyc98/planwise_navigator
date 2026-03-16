@@ -12,7 +12,10 @@ from ..models.scenario import (
     ScenarioConfig,
     ScenarioCreate,
     ScenarioUpdate,
+    WorkforceParamsApplyRequest,
+    WorkforceParamsApplyResult,
 )
+from ..services.scenario_service import ScenarioService
 from ..services.seed_config_validator import validate_seed_configs
 from ..storage.workspace_storage import WorkspaceStorage
 
@@ -152,6 +155,52 @@ async def update_scenario(
             detail=f"Scenario {scenario_id} not found in workspace {workspace_id}",
         )
     return scenario
+
+
+@router.post(
+    "/{workspace_id}/scenarios/{scenario_id}/apply-workforce-params",
+    response_model=WorkforceParamsApplyResult,
+)
+async def apply_workforce_params(
+    workspace_id: str,
+    scenario_id: str,
+    request: WorkforceParamsApplyRequest,
+    storage: WorkspaceStorage = Depends(get_storage),
+) -> WorkforceParamsApplyResult:
+    """
+    Apply workforce parameters from this scenario to target scenarios.
+
+    Copies workforce assumptions (compensation, turnover, hiring,
+    demographics, seed configs) while preserving DC plan parameters
+    in each target scenario.
+    """
+    # Validate source scenario in target list
+    if scenario_id in request.target_scenario_ids:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail="Source scenario cannot be in the target list",
+        )
+
+    # Verify workspace exists
+    workspace = storage.get_workspace(workspace_id)
+    if not workspace:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Workspace {workspace_id} not found",
+        )
+
+    service = ScenarioService(storage)
+    result = service.apply_workforce_params(
+        workspace_id, scenario_id, request.target_scenario_ids
+    )
+
+    if result is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Source scenario {scenario_id} not found in workspace {workspace_id}",
+        )
+
+    return result
 
 
 @router.delete("/{workspace_id}/scenarios/{scenario_id}")

@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Save, AlertTriangle, FileText, Settings, TrendingUp, Users, DollarSign, PieChart, Database, Check, ArrowLeft, Play, Copy, Layers } from 'lucide-react';
+import { Save, AlertTriangle, FileText, Settings, TrendingUp, Users, DollarSign, PieChart, Database, Check, ArrowLeft, Play, Copy, Layers, Share2 } from 'lucide-react';
 import { useNavigate, useOutletContext, useParams } from 'react-router-dom';
 import { LayoutContextType } from './Layout';
 import { listTemplates, Template, listScenarios, Scenario } from '../services/api';
@@ -14,6 +14,7 @@ import { DCPlanSection } from './config/DCPlanSection';
 import { AdvancedSection } from './config/AdvancedSection';
 import { TemplateModal } from './config/TemplateModal';
 import { CopyScenarioModal } from './config/CopyScenarioModal';
+import { ApplyWorkforceParamsModal } from './config/ApplyWorkforceParamsModal';
 
 const NAV_ITEMS = [
   { id: 'simulation', label: 'Simulation Settings', icon: TrendingUp },
@@ -46,6 +47,11 @@ function ConfigShell() {
   const [showCopyScenarioModal, setShowCopyScenarioModal] = useState(false);
   const [availableScenarios, setAvailableScenarios] = useState<Scenario[]>([]);
   const [copyingScenariosLoading, setCopyingScenariosLoading] = useState(false);
+
+  // Apply workforce params modal state
+  const [showApplyWorkforceModal, setShowApplyWorkforceModal] = useState(false);
+  const [applyWorkforceScenarios, setApplyWorkforceScenarios] = useState<Scenario[]>([]);
+  const [applyWorkforceLoading, setApplyWorkforceLoading] = useState(false);
 
   if (scenarioLoading) {
     return (
@@ -109,6 +115,32 @@ function ConfigShell() {
                 <Copy size={18} className="mr-2" />
               )}
               Copy from Scenario
+            </button>
+          )}
+          {scenarioId && (
+            <button
+              onClick={async () => {
+                setApplyWorkforceLoading(true);
+                try {
+                  const scenarios = await listScenarios(activeWorkspace.id);
+                  const others = scenarios.filter(s => s.id !== scenarioId);
+                  setApplyWorkforceScenarios(others);
+                  setShowApplyWorkforceModal(true);
+                } catch (error) {
+                  console.error('Failed to load scenarios:', error);
+                } finally {
+                  setApplyWorkforceLoading(false);
+                }
+              }}
+              disabled={applyWorkforceLoading}
+              className="px-4 py-2 bg-white border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-50 flex items-center font-medium shadow-sm transition-colors"
+            >
+              {applyWorkforceLoading ? (
+                <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-gray-700 mr-2" />
+              ) : (
+                <Share2 size={18} className="mr-2" />
+              )}
+              Apply Workforce Params
             </button>
           )}
           <button
@@ -228,6 +260,14 @@ function ConfigShell() {
         <CopyScenarioModal
           availableScenarios={availableScenarios}
           onClose={() => setShowCopyScenarioModal(false)}
+        />
+      )}
+      {showApplyWorkforceModal && scenarioId && (
+        <ApplyWorkforceParamsModal
+          availableScenarios={applyWorkforceScenarios}
+          sourceScenarioId={scenarioId}
+          workspaceId={activeWorkspace.id}
+          onClose={() => setShowApplyWorkforceModal(false)}
         />
       )}
     </div>

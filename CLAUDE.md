@@ -834,6 +834,8 @@ See `/docs/VERSIONING_GUIDE.md` for detailed versioning workflow.
 - DuckDB (unchanged — no schema modifications) (070-remove-checkpoint-system)
 - TypeScript (React/Vite frontend) + React 18, Lucide React (icons) (071-fix-census-validation-persist)
 - N/A — transient React component state only (071-fix-census-validation-persist)
+- Python 3.11 (backend), TypeScript (frontend React/Vite) + FastAPI, Pydantic v2 (backend); React 18, Lucide React (frontend) (072-apply-workforce-params)
+- File-based JSON/YAML per scenario (`workspaces/{id}/scenarios/{id}/scenario.json`) (072-apply-workforce-params)
 
 ## Recent Changes
 - 063-1000-hr-eligibility: Added Python 3.11, SQL (dbt-core 1.8.8) + dbt-duckdb 1.8.1, DuckDB 1.0.0, Pydantic 2.7.4
