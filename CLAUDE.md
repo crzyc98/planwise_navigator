@@ -832,6 +832,8 @@ See `/docs/VERSIONING_GUIDE.md` for detailed versioning workflow.
 - Python 3.11, SQL (dbt-core 1.8.8, dbt-duckdb 1.8.1) + Pydantic v2, DuckDB 1.0.0, FastAPI, React/Vite (069-fix-match-core-disabled)
 - Python 3.11 + Typer (CLI), Rich (display), Pydantic v2 (config) (070-remove-checkpoint-system)
 - DuckDB (unchanged — no schema modifications) (070-remove-checkpoint-system)
+- TypeScript (React/Vite frontend) + React 18, Lucide React (icons) (071-fix-census-validation-persist)
+- N/A — transient React component state only (071-fix-census-validation-persist)
 
 ## Recent Changes
 - 063-1000-hr-eligibility: Added Python 3.11, SQL (dbt-core 1.8.8) + dbt-duckdb 1.8.1, DuckDB 1.0.0, Pydantic 2.7.4
