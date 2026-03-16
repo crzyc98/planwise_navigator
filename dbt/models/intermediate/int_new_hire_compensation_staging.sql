@@ -150,18 +150,9 @@ SELECT
     0 AS current_tenure,
     nha.level_id,
 
-    -- Calculate age band based on employee_age
-    CASE
-        WHEN nha.employee_age < 25 THEN '< 25'
-        WHEN nha.employee_age < 35 THEN '25-34'
-        WHEN nha.employee_age < 45 THEN '35-44'
-        WHEN nha.employee_age < 55 THEN '45-54'
-        WHEN nha.employee_age < 65 THEN '55-64'
-        ELSE '65+'
-    END AS age_band,
-
-    -- Tenure band is always '< 2' for new hires
-    '< 2' AS tenure_band,
+    -- Calculate age and tenure bands using centralized macros
+    {{ assign_age_band('nha.employee_age') }} AS age_band,
+    {{ assign_tenure_band('0') }} AS tenure_band,
 
     'active' AS employment_status,
 

@@ -55,9 +55,9 @@ hazard_calculations AS (
     LEAST(1.0,
       CASE
         -- New hires have lower initial enrollment (opt-in burden)
-        WHEN tb.tenure_band = '0-1' THEN dr.default_rate * 2.0
+        WHEN tb.tenure_band = '< 2' THEN dr.default_rate * 2.0
         -- Tenured employees more likely to participate
-        WHEN tb.tenure_band IN ('1-3', '3-5') THEN dr.default_rate * 3.0
+        WHEN tb.tenure_band IN ('2-4', '5-9') THEN dr.default_rate * 3.0
         -- Long tenure employees very likely enrolled
         ELSE dr.default_rate * 4.0
       END * COALESCE(ep.enrollment_adjustment, 1.0)
@@ -65,8 +65,8 @@ hazard_calculations AS (
 
     -- Auto-enrollment eligibility probability
     CASE
-      WHEN tb.tenure_band = '0-1' THEN 0.95  -- Most new hires eligible
-      WHEN tb.tenure_band IN ('1-3', '3-5') THEN 0.80  -- Some already enrolled
+      WHEN tb.tenure_band = '< 2' THEN 0.95  -- Most new hires eligible
+      WHEN tb.tenure_band IN ('2-4', '5-9') THEN 0.80  -- Some already enrolled
       ELSE 0.30  -- Long tenure likely already enrolled
     END AS auto_enrollment_eligibility_probability,
 
@@ -96,7 +96,7 @@ hazard_calculations AS (
 
     -- Expected months to enrollment for eligible non-enrolled employees
     CASE
-      WHEN dr.default_rate > 0 AND tb.tenure_band != '0-1'
+      WHEN dr.default_rate > 0 AND tb.tenure_band != '< 2'
       THEN 12.0 / (dr.default_rate * 2.0)  -- Simplified model
       ELSE 24.0  -- Longer for new hires
     END AS expected_months_to_voluntary_enrollment

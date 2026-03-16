@@ -251,22 +251,9 @@ escalation_events AS (
         e.current_age AS employee_age,
         e.current_tenure AS employee_tenure,
         e.level_id,
-        -- Age and tenure bands for analysis
-        CASE
-            WHEN e.current_age < 25 THEN '< 25'
-            WHEN e.current_age < 35 THEN '25-34'
-            WHEN e.current_age < 45 THEN '35-44'
-            WHEN e.current_age < 55 THEN '45-54'
-            WHEN e.current_age < 65 THEN '55-64'
-            ELSE '65+'
-        END as age_band,
-        CASE
-            WHEN e.current_tenure < 2 THEN '< 2'
-            WHEN e.current_tenure < 5 THEN '2-4'
-            WHEN e.current_tenure < 10 THEN '5-9'
-            WHEN e.current_tenure < 20 THEN '10-19'
-            ELSE '20+'
-        END as tenure_band,
+        -- Age and tenure bands using centralized macros
+        {{ assign_age_band('e.current_age') }} as age_band,
+        {{ assign_tenure_band('e.current_tenure') }} as tenure_band,
         e.escalation_rate AS event_probability,
         'deferral_escalation' AS event_category
 

@@ -58,22 +58,9 @@ WITH active_workforce AS (
       WHEN employee_compensation < 200000 THEN 'high'
       ELSE 'executive'
     END AS income_segment,
-    -- Age/tenure bands for event output
-    CASE
-      WHEN current_age < 25 THEN '< 25'
-      WHEN current_age < 35 THEN '25-34'
-      WHEN current_age < 45 THEN '35-44'
-      WHEN current_age < 55 THEN '45-54'
-      WHEN current_age < 65 THEN '55-64'
-      ELSE '65+'
-    END AS age_band,
-    CASE
-      WHEN current_tenure < 2 THEN '< 2'
-      WHEN current_tenure < 5 THEN '2-4'
-      WHEN current_tenure < 10 THEN '5-9'
-      WHEN current_tenure < 20 THEN '10-19'
-      ELSE '20+'
-    END AS tenure_band
+    -- Age/tenure bands using centralized macros
+    {{ assign_age_band('current_age') }} AS age_band,
+    {{ assign_tenure_band('current_tenure') }} AS tenure_band
   FROM {{ ref('int_employee_compensation_by_year') }}
   WHERE simulation_year = {{ simulation_year }}
     AND employment_status = 'active'
@@ -103,16 +90,9 @@ WITH active_workforce AS (
       WHEN he.compensation_amount < 200000 THEN 'high'
       ELSE 'executive'
     END AS income_segment,
-    -- Age/tenure bands
-    CASE
-      WHEN he.employee_age < 25 THEN '< 25'
-      WHEN he.employee_age < 35 THEN '25-34'
-      WHEN he.employee_age < 45 THEN '35-44'
-      WHEN he.employee_age < 55 THEN '45-54'
-      WHEN he.employee_age < 65 THEN '55-64'
-      ELSE '65+'
-    END AS age_band,
-    '< 2' AS tenure_band
+    -- Age/tenure bands using centralized macros
+    {{ assign_age_band('he.employee_age') }} AS age_band,
+    {{ assign_tenure_band('0') }} AS tenure_band
   FROM {{ ref('int_hiring_events') }} he
   WHERE he.simulation_year = {{ simulation_year }}
 ),
@@ -374,18 +354,8 @@ all_enrollment_events AS (
     ved.current_age as employee_age,
     ved.current_tenure as employee_tenure,
     ved.level_id,
-    CASE
-      WHEN ved.current_age < 30 THEN '< 30'
-      WHEN ved.current_age < 40 THEN '30-39'
-      WHEN ved.current_age < 50 THEN '40-49'
-      ELSE '50+'
-    END as age_band,
-    CASE
-      WHEN ved.current_tenure < 24 THEN '< 2 years'
-      WHEN ved.current_tenure < 60 THEN '2-5 years'
-      WHEN ved.current_tenure < 120 THEN '5-10 years'
-      ELSE '10+ years'
-    END as tenure_band,
+    {{ assign_age_band('ved.current_age') }} as age_band,
+    {{ assign_tenure_band('ved.current_tenure') }} as tenure_band,
     ved.final_enrollment_probability as event_probability,
     ved.event_category
   FROM {{ ref('int_voluntary_enrollment_decision') }} ved
