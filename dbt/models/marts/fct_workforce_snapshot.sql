@@ -746,22 +746,9 @@ final_workforce AS (
         COALESCE(dsa.has_escalations, false) AS has_deferral_escalations,
         COALESCE(dsa.original_deferral_rate, 0.00) AS original_deferral_rate,
         COALESCE(dsa.total_escalation_amount, 0.00) AS total_escalation_amount,
-        -- Recalculate bands with updated age/tenure (these are indeed static for a given year here)
-        CASE
-            WHEN fwc.current_age < 25 THEN '< 25'
-            WHEN fwc.current_age < 35 THEN '25-34'
-            WHEN fwc.current_age < 45 THEN '35-44'
-            WHEN fwc.current_age < 55 THEN '45-54'
-            WHEN fwc.current_age < 65 THEN '55-64'
-            ELSE '65+'
-        END AS age_band,
-        CASE
-            WHEN fwc.current_tenure < 2 THEN '< 2'
-            WHEN fwc.current_tenure < 5 THEN '2-4'
-            WHEN fwc.current_tenure < 10 THEN '5-9'
-            WHEN fwc.current_tenure < 20 THEN '10-19'
-            ELSE '20+'
-        END AS tenure_band,
+        -- Recalculate bands using centralized macros
+        {{ assign_age_band('fwc.current_age') }} AS age_band,
+        {{ assign_tenure_band('fwc.current_tenure') }} AS tenure_band,
         -- **FIX 1**: Enhanced detailed_status_code logic to handle all edge cases
         -- E021 FIX: Tighten classification - require BOTH is_new_hire flag AND current-year hire_date
         -- This prevents employees from baseline census being misclassified as new hires

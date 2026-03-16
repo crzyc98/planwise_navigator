@@ -303,22 +303,9 @@ SELECT
     employee_age,
     employee_tenure,
     level_id,
-    -- Age and tenure bands for analysis
-    CASE
-        WHEN employee_age < 25 THEN '< 25'
-        WHEN employee_age < 35 THEN '25-34'
-        WHEN employee_age < 45 THEN '35-44'
-        WHEN employee_age < 55 THEN '45-54'
-        WHEN employee_age < 65 THEN '55-64'
-        ELSE '65+'
-    END AS age_band,
-    CASE
-        WHEN employee_tenure < 2 THEN '< 2'
-        WHEN employee_tenure < 5 THEN '2-4'
-        WHEN employee_tenure < 10 THEN '5-9'
-        WHEN employee_tenure < 20 THEN '10-19'
-        ELSE '20+'
-    END AS tenure_band,
+    -- Age and tenure bands using centralized macros
+    {{ assign_age_band('employee_age') }} AS age_band,
+    {{ assign_tenure_band('employee_tenure') }} AS tenure_band,
     event_probability,
     'match_response'::VARCHAR AS event_category
 FROM combined_events

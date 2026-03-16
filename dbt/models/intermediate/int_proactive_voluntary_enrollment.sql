@@ -326,24 +326,9 @@ SELECT
   event_category,
   final_enrollment_probability,
 
-  -- Age band for consistency with existing models
-  CASE
-    WHEN current_age < 25 THEN '< 25'
-    WHEN current_age < 35 THEN '25-34'
-    WHEN current_age < 45 THEN '35-44'
-    WHEN current_age < 55 THEN '45-54'
-    WHEN current_age < 65 THEN '55-64'
-    ELSE '65+'
-  END as age_band,
-
-  -- Tenure band for consistency
-  CASE
-    WHEN current_tenure < 2 THEN '< 2'
-    WHEN current_tenure < 5 THEN '2-4'
-    WHEN current_tenure < 10 THEN '5-9'
-    WHEN current_tenure < 20 THEN '10-19'
-    ELSE '20+'
-  END as tenure_band,
+  -- Age and tenure bands using centralized macros
+  {{ assign_age_band('current_age') }} as age_band,
+  {{ assign_tenure_band('current_tenure') }} as tenure_band,
 
   -- Event sourcing metadata
   current_timestamp as created_at,

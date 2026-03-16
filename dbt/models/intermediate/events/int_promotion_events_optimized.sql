@@ -13,12 +13,12 @@
 {% set previous_year = simulation_year - 1 %}
 
 -- **OPTIMIZED PROMOTION EVENTS WITH CURRENT COMPENSATION**
--- 
+--
 -- **PERFORMANCE IMPROVEMENT**: Uses fct_workforce_snapshot from previous year-end
 -- instead of stale int_active_employees_prev_year_snapshot to get accurate
 -- post-merit compensation for promotion calculations.
 --
--- **BUSINESS LOGIC**: 
+-- **BUSINESS LOGIC**:
 -- - Promotions occur February 1st using compensation updated from July 15th merit/COLA
 -- - Merit increases occur July 15th (previous year)
 -- - This ensures promotions use current salary, not 4-year-old baseline data
@@ -30,7 +30,7 @@
 -- - Optimized age/tenure band calculations using CASE expressions
 
 WITH simulation_params AS (
-    SELECT 
+    SELECT
         {{ simulation_year }} AS current_year,
         {{ previous_year }} AS previous_year
 ),
@@ -47,7 +47,7 @@ current_workforce AS (
         current_age + 1 AS current_age, -- Age for the new simulation year
         current_tenure + 1 AS current_tenure, -- Tenure for the new simulation year
         level_id
-    FROM {{ ref('fct_workforce_snapshot') }} 
+    FROM {{ ref('fct_workforce_snapshot') }}
     WHERE simulation_year = (SELECT previous_year FROM simulation_params)
       AND employment_status = 'active'
       -- **PERFORMANCE FILTER**: Pre-filter promotion-eligible employees
@@ -66,22 +66,9 @@ eligible_workforce AS (
         current_age,
         current_tenure,
         level_id,
-        -- **DuckDB OPTIMIZATION**: Vectorized CASE expressions for band calculation
-        CASE
-            WHEN current_age < 25 THEN '< 25'
-            WHEN current_age < 35 THEN '25-34'
-            WHEN current_age < 45 THEN '35-44'
-            WHEN current_age < 55 THEN '45-54'
-            WHEN current_age < 65 THEN '55-64'
-            ELSE '65+'
-        END AS age_band,
-        CASE
-            WHEN current_tenure < 2 THEN '< 2'
-            WHEN current_tenure < 5 THEN '2-4'
-            WHEN current_tenure < 10 THEN '5-9'
-            WHEN current_tenure < 20 THEN '10-19'
-            ELSE '20+'
-        END AS tenure_band,
+        -- Band calculations using centralized macros
+        {{ assign_age_band('current_age') }} AS age_band,
+        {{ assign_tenure_band('current_tenure') }} AS tenure_band,
         -- **DETERMINISTIC RANDOM**: Consistent hash-based probability
         (ABS(HASH(employee_id || '{{ simulation_year }}' || 'promotion')) % 1000) / 1000.0 AS random_value
     FROM current_workforce
@@ -120,7 +107,7 @@ promoted_employees AS (
             LEAST(
                 -- 30% increase cap
                 employee_gross_compensation * 1.30,
-                -- $500K absolute increase cap  
+                -- $500K absolute increase cap
                 employee_gross_compensation + 500000,
                 -- Base 15-25% increase (deterministic)
                 employee_gross_compensation * (1.15 + ((ABS(HASH(employee_id || 'promo_pct')) % 100) / 1000.0))

@@ -1566,13 +1566,13 @@ models:
         data_tests:
           - not_null
           - accepted_values:
-              values: ['Under 25', '25-34', '35-44', '45-54', '55-64', '65+']
+              values: ['< 25', '25-34', '35-44', '45-54', '55-64', '65+']
       - name: tenure_band
         description: Tenure band for analysis
         data_tests:
           - not_null
           - accepted_values:
-              values: ['Less than 1 year', '1-2 years', '3-4 years', '5-9 years', '10-19 years', '20+ years']
+              values: ['< 2', '2-4', '5-9', '10-19', '20+']
       - name: simulation_year
         description: Current simulation year
         data_tests:
@@ -1663,13 +1663,13 @@ models:
         data_tests:
           - not_null
           - accepted_values:
-              values: ['Under 25', '25-34', '35-44', '45-54', '55-64', '65+']
+              values: ['< 25', '25-34', '35-44', '45-54', '55-64', '65+']
       - name: tenure_band
         description: Tenure band for analysis
         data_tests:
           - not_null
           - accepted_values:
-              values: ['Less than 1 year', '1-2 years', '3-4 years', '5-9 years', '10-19 years', '20+ years']
+              values: ['< 2', '2-4', '5-9', '10-19', '20+']
       - name: simulation_year
         description: Current simulation year
         data_tests:

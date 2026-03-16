@@ -35,24 +35,9 @@ with baseline_employees as (
     employment_status,
     termination_date,
 
-    -- Calculate age and tenure bands
-    case
-      when current_age < 25 then 'Under 25'
-      when current_age < 35 then '25-34'
-      when current_age < 45 then '35-44'
-      when current_age < 55 then '45-54'
-      when current_age < 65 then '55-64'
-      else '65+'
-    end as age_band,
-
-    case
-      when current_tenure < 1 then 'Less than 1 year'
-      when current_tenure < 3 then '1-2 years'
-      when current_tenure < 5 then '3-4 years'
-      when current_tenure < 10 then '5-9 years'
-      when current_tenure < 20 then '10-19 years'
-      else '20+ years'
-    end as tenure_band,
+    -- Calculate age and tenure bands using centralized macros
+    {{ assign_age_band('current_age') }} as age_band,
+    {{ assign_tenure_band('current_tenure') }} as tenure_band,
 
     {{ var('simulation_year') }} as simulation_year,
     'baseline' as data_source,

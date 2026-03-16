@@ -80,24 +80,9 @@
       se.current_age AS employee_age,
       se.current_tenure AS employee_tenure,
       se.level_id,
-      -- Calculate age_band from current_age for consistency
-      CASE
-        WHEN se.current_age < 25 THEN '< 25'
-        WHEN se.current_age < 35 THEN '25-34'
-        WHEN se.current_age < 45 THEN '35-44'
-        WHEN se.current_age < 55 THEN '45-54'
-        WHEN se.current_age < 65 THEN '55-64'
-        ELSE '65+'
-      END AS age_band,
-      -- Calculate tenure_band from current_tenure for consistency
-      CASE
-        WHEN se.current_tenure < 2 THEN '< 2'
-        WHEN se.current_tenure < 5 THEN '2-4'
-        WHEN se.current_tenure < 10 THEN '5-9'
-        WHEN se.current_tenure < 15 THEN '10-14'
-        WHEN se.current_tenure < 20 THEN '15-19'
-        ELSE '20+'
-      END AS tenure_band,
+      -- Calculate age_band and tenure_band using centralized macros
+      {{ assign_age_band('se.current_age') }} AS age_band,
+      {{ assign_tenure_band('se.current_tenure') }} AS tenure_band,
       CAST(NULL AS DECIMAL(10,4)) AS event_probability,
       'census_baseline' AS event_category
     FROM {{ ref('int_synthetic_baseline_enrollment_events') }} se
