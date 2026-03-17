@@ -685,7 +685,6 @@ All commands above write to the same `coverage.xml` in the project root.
 | `-m "not slow"` | Skip slow tests for faster feedback |
 
 - **Report location**: `coverage.xml` (project root)
-- **SonarQube config**: `sonar-project.properties` with `sonar.python.coverage.reportPaths=**/coverage.xml`
 - **Coverage sources**: `planalign_orchestrator`, `planalign_cli`, `planalign_api`, `config`
 - **Configuration**: `[tool.coverage.*]` sections in `pyproject.toml`
 
