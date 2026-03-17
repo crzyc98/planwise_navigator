@@ -9,9 +9,10 @@ WITH age_band_mismatches AS (
     ws.age_band AS band_value
   FROM {{ ref('fct_workforce_snapshot') }} ws
   WHERE ws.age_band IS NOT NULL
-    AND ws.age_band NOT IN (
-      SELECT band_label
-      FROM {{ ref('config_age_bands') }}
+    AND NOT EXISTS (
+      SELECT 1
+      FROM {{ ref('config_age_bands') }} cab
+      WHERE cab.band_label = ws.age_band
     )
 ),
 
@@ -21,9 +22,10 @@ tenure_band_mismatches AS (
     ws.tenure_band AS band_value
   FROM {{ ref('fct_workforce_snapshot') }} ws
   WHERE ws.tenure_band IS NOT NULL
-    AND ws.tenure_band NOT IN (
-      SELECT band_label
-      FROM {{ ref('config_tenure_bands') }}
+    AND NOT EXISTS (
+      SELECT 1
+      FROM {{ ref('config_tenure_bands') }} ctb
+      WHERE ctb.band_label = ws.tenure_band
     )
 )
 
