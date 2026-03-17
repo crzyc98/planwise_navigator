@@ -68,25 +68,9 @@ enriched_snapshot as (
     null::date as termination_date, -- Reset termination date for the new year
     employee_enrollment_date, -- Preserve enrollment status from previous year
 
-    -- Recalculate age band for the new, incremented age
-    case
-      when current_age + 1 < 25 then 'Under 25'
-      when current_age + 1 < 35 then '25-34'
-      when current_age + 1 < 45 then '35-44'
-      when current_age + 1 < 55 then '45-54'
-      when current_age + 1 < 65 then '55-64'
-      else '65+'
-    end as age_band,
-
-    -- Recalculate tenure band for the new, incremented tenure
-    case
-      when current_tenure + 1 < 1 then 'Less than 1 year'
-      when current_tenure + 1 < 3 then '1-2 years'
-      when current_tenure + 1 < 5 then '3-4 years'
-      when current_tenure + 1 < 10 then '5-9 years'
-      when current_tenure + 1 < 20 then '10-19 years'
-      else '20+ years'
-    end as tenure_band,
+    -- Recalculate age and tenure bands for the new, incremented values using centralized macros
+    {{ assign_age_band('current_age + 1') }} as age_band,
+    {{ assign_tenure_band('current_tenure + 1') }} as tenure_band,
 
     -- Enrollment status tracking (backup flag for more reliable enrollment detection)
     case

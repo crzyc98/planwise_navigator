@@ -46,23 +46,9 @@ WITH workforce_data AS (
         current_age + 1 AS current_age,
         current_tenure + 1 AS current_tenure,
         level_id,
-        -- Recalculate age band
-        CASE
-            WHEN (current_age + 1) < 25 THEN '< 25'
-            WHEN (current_age + 1) < 35 THEN '25-34'
-            WHEN (current_age + 1) < 45 THEN '35-44'
-            WHEN (current_age + 1) < 55 THEN '45-54'
-            WHEN (current_age + 1) < 65 THEN '55-64'
-            ELSE '65+'
-        END AS age_band,
-        -- Recalculate tenure band
-        CASE
-            WHEN (current_tenure + 1) < 2 THEN '< 2'
-            WHEN (current_tenure + 1) < 5 THEN '2-4'
-            WHEN (current_tenure + 1) < 10 THEN '5-9'
-            WHEN (current_tenure + 1) < 20 THEN '10-19'
-            ELSE '20+'
-        END AS tenure_band,
+        -- Recalculate age and tenure bands using centralized macros
+        {{ assign_age_band('(current_age + 1)') }} AS age_band,
+        {{ assign_tenure_band('(current_tenure + 1)') }} AS tenure_band,
         employment_status,
         termination_date,
         termination_reason,

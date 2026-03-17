@@ -389,22 +389,9 @@ employee_prorated_compensation_batch AS (
 final_workforce_with_bands AS (
     SELECT
         wlc.*,
-        -- **VECTORIZED BAND CALCULATIONS**: Single-pass CASE expressions
-        CASE
-            WHEN wlc.current_age < 25 THEN '< 25'
-            WHEN wlc.current_age < 35 THEN '25-34'
-            WHEN wlc.current_age < 45 THEN '35-44'
-            WHEN wlc.current_age < 55 THEN '45-54'
-            WHEN wlc.current_age < 65 THEN '55-64'
-            ELSE '65+'
-        END AS age_band,
-        CASE
-            WHEN wlc.current_tenure < 2 THEN '< 2'
-            WHEN wlc.current_tenure < 5 THEN '2-4'
-            WHEN wlc.current_tenure < 10 THEN '5-9'
-            WHEN wlc.current_tenure < 20 THEN '10-19'
-            ELSE '20+'
-        END AS tenure_band,
+        -- Band calculations using centralized macros
+        {{ assign_age_band('wlc.current_age') }} AS age_band,
+        {{ assign_tenure_band('wlc.current_tenure') }} AS tenure_band,
         -- **PRESERVED STATUS CODE LOGIC**: Identical detailed status calculation
         CASE
             WHEN wlc.employment_status = 'active' AND

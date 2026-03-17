@@ -11,6 +11,7 @@ from ..models.scenario import (
     ScenarioUpdate,
     WorkforceParamsApplyResult,
 )
+from ..services.seed_config_validator import validate_seed_configs
 from ..storage.workspace_storage import WorkspaceStorage
 
 logger = logging.getLogger(__name__)
@@ -98,7 +99,7 @@ class ScenarioService:
         workspace_id: str,
         source_scenario_id: str,
         target_scenario_ids: list[str],
-    ) -> WorkforceParamsApplyResult:
+    ) -> Optional[WorkforceParamsApplyResult]:
         """Apply workforce parameters from source scenario to target scenarios.
 
         Copies workforce sections (compensation, workforce, new_hire,
@@ -167,6 +168,17 @@ class ScenarioService:
                     merged[key] = copy.deepcopy(workforce_params[key])
                 elif key in merged:
                     del merged[key]
+
+            # Validate seed configs before writing
+            validation_errors = validate_seed_configs(merged)
+            if validation_errors:
+                messages = [f"{e.section}.{e.field}: {e.message}" for e in validation_errors]
+                return ScenarioApplyOutcome(
+                    scenario_id=target_id,
+                    scenario_name=target.name,
+                    success=False,
+                    error=f"Validation failed: {'; '.join(messages)}",
+                )
 
             updated = self.storage.update_scenario(
                 workspace_id,

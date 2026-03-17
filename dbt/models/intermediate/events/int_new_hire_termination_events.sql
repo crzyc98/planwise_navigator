@@ -142,16 +142,9 @@ SELECT
     st.employee_age AS current_age,
     0 AS current_tenure, -- New hires have minimal tenure
     st.level_id,
-    -- Age/tenure bands for new hires
-    CASE
-        WHEN st.employee_age < 25 THEN '< 25'
-        WHEN st.employee_age < 35 THEN '25-34'
-        WHEN st.employee_age < 45 THEN '35-44'
-        WHEN st.employee_age < 55 THEN '45-54'
-        WHEN st.employee_age < 65 THEN '55-64'
-        ELSE '65+'
-    END AS age_band,
-    '< 2' AS tenure_band, -- All new hires are in lowest tenure band
+    -- Age/tenure bands using centralized macros
+    {{ assign_age_band('st.employee_age') }} AS age_band,
+    {{ assign_tenure_band('0') }} AS tenure_band, -- All new hires are in lowest tenure band
     st.termination_rate,
     st.random_value,
     'new_hire_termination' AS event_category,  -- E021 FIX: Renamed from termination_type for consistency
