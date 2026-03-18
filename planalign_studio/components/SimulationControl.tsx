@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useOutletContext, useNavigate, useSearchParams } from 'react-router-dom';
-import { Play, Pause, Square, Activity, Cpu, Server, Clock, Database, AlertCircle, History, CheckCircle, XCircle, CircleDot, ExternalLink, RefreshCw, Loader2 } from 'lucide-react';
+import { Play, Square, Activity, Cpu, Server, Clock, Database, AlertCircle, History, CheckCircle, XCircle, CircleDot, ExternalLink, RefreshCw, Loader2 } from 'lucide-react';
 import { useSimulationSocket } from '../services/websocket';
 import { listScenarios, startSimulation, cancelSimulation, resetSimulation, Scenario } from '../services/api';
 import { LayoutContextType } from './Layout';
@@ -178,9 +178,6 @@ export default function SimulationControl() {
               </button>
             ) : (
               <div className="flex space-x-2">
-                 <button className="flex items-center px-4 py-2 bg-yellow-100 text-yellow-700 rounded-lg hover:bg-yellow-200 font-medium">
-                   <Pause size={18} className="mr-2" /> Pause
-                 </button>
                  <button
                    onClick={handleStop}
                    className="flex items-center px-4 py-2 bg-red-100 text-red-700 rounded-lg hover:bg-red-200 font-medium"
