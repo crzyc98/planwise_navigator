@@ -48,6 +48,10 @@ class AutoEnrollmentSettings(BaseModel):
     default_deferral_rate: float = Field(default=0.06, ge=0, le=1)
     opt_out_grace_period: int = 30
     opt_out_rates: OptOutRatesSettings = Field(default_factory=OptOutRatesSettings)
+    voluntary_enrollment_rate: Optional[float] = Field(
+        default=None, ge=0, le=1,
+        description="Multiplier on demographic enrollment probabilities (0.0-1.0). None = use defaults."
+    )
 
 
 class ProactiveEnrollmentSettings(BaseModel):

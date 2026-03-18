@@ -123,6 +123,9 @@ export interface FormData {
   // DC Plan - Auto-Enrollment Opt-Out Rate
   dcOptOutRateTarget: number;
 
+  // DC Plan - Voluntary Enrollment Rate
+  dcVoluntaryEnrollmentRate: string;
+
   // DC Plan - Match Enable/Disable
   dcMatchEnabled: boolean;
 

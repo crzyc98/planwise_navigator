@@ -83,6 +83,7 @@ export function buildConfigPayload(
       auto_enroll_scope: formData.dcAutoEnrollScope,
       auto_enroll_hire_date_cutoff: formData.dcAutoEnrollHireDateCutoff,
       opt_out_rate_target: Number(formData.dcOptOutRateTarget) / 100,
+      ...(formData.dcVoluntaryEnrollmentRate !== '' ? { voluntary_enrollment_rate: Number(formData.dcVoluntaryEnrollmentRate) / 100 } : {}),
       opt_out_rate_young: Number(formData.dcOptOutRateTarget) / 100 * OPT_OUT_AGE_MULTIPLIERS.young,
       opt_out_rate_mid: Number(formData.dcOptOutRateTarget) / 100 * OPT_OUT_AGE_MULTIPLIERS.mid,
       opt_out_rate_mature: Number(formData.dcOptOutRateTarget) / 100 * OPT_OUT_AGE_MULTIPLIERS.mature,

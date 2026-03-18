@@ -215,7 +215,7 @@ deferral_rate_selection AS (
   -- Select demographic-based deferral rates for voluntary enrollees
   SELECT
     *,
-    (base_enrollment_rate * income_multiplier * job_level_multiplier) as final_enrollment_probability,
+    (base_enrollment_rate * income_multiplier * job_level_multiplier * COALESCE({{ var('voluntary_enrollment_rate', none) }}, 1.0)) as final_enrollment_probability,
 
     -- Demographic-based deferral rates (Epic E053 logic)
     CASE

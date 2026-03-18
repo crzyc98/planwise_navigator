@@ -102,6 +102,7 @@ def _export_auto_enrollment_fields(auto: Any, dbt_vars: Dict[str, Any]) -> None:
     _set_if_not_none(dbt_vars, "auto_enrollment_window_days", auto.window_days, int)
     _set_if_not_none(dbt_vars, "auto_enrollment_default_deferral_rate", auto.default_deferral_rate, float)
     _set_if_not_none(dbt_vars, "auto_enrollment_opt_out_grace_period", auto.opt_out_grace_period, int)
+    _set_if_not_none(dbt_vars, "voluntary_enrollment_rate", auto.voluntary_enrollment_rate, float)
 
 
 def _export_opt_out_rates(auto: Any, dbt_vars: Dict[str, Any]) -> None:
@@ -206,6 +207,9 @@ def _apply_dc_plan_enrollment_overrides(
         _set_if_not_none(dbt_vars, field, dc_plan_dict.get(field), float)
 
     _apply_escalation_overrides(dc_plan_dict, dbt_vars)
+
+    # Voluntary enrollment rate: UI sends decimal (0.0-1.0), pass through directly
+    _set_if_not_none(dbt_vars, "voluntary_enrollment_rate", dc_plan_dict.get("voluntary_enrollment_rate"), float)
 
     # Plan eligibility waiting period (UI sends months, dbt expects days)
     if dc_plan_dict.get("eligibility_months") is not None:

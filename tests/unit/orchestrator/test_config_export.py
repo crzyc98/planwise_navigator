@@ -296,6 +296,70 @@ class TestExportEnrollmentVars:
         # Should still have base enrollment vars from the typed config
         assert "opt_out_rate_young" in result
 
+    def test_voluntary_enrollment_rate_exported_when_set(self):
+        """voluntary_enrollment_rate is exported to dbt vars when configured."""
+        cfg = _make_config()
+        cfg.enrollment.auto_enrollment.voluntary_enrollment_rate = 0.4
+        result = _export_enrollment_vars(cfg)
+        assert result["voluntary_enrollment_rate"] == pytest.approx(0.4)
+
+    def test_voluntary_enrollment_rate_omitted_when_none(self):
+        """voluntary_enrollment_rate is NOT exported when None (default)."""
+        cfg = _make_config()
+        cfg.enrollment.auto_enrollment.voluntary_enrollment_rate = None
+        result = _export_enrollment_vars(cfg)
+        assert "voluntary_enrollment_rate" not in result
+
+    def test_voluntary_enrollment_rate_zero(self):
+        """voluntary_enrollment_rate=0.0 is exported (not treated as None)."""
+        cfg = _make_config()
+        cfg.enrollment.auto_enrollment.voluntary_enrollment_rate = 0.0
+        result = _export_enrollment_vars(cfg)
+        assert result["voluntary_enrollment_rate"] == pytest.approx(0.0)
+
+    def test_voluntary_enrollment_rate_one(self):
+        """voluntary_enrollment_rate=1.0 is exported."""
+        cfg = _make_config()
+        cfg.enrollment.auto_enrollment.voluntary_enrollment_rate = 1.0
+        result = _export_enrollment_vars(cfg)
+        assert result["voluntary_enrollment_rate"] == pytest.approx(1.0)
+
+    def test_voluntary_enrollment_rate_dc_plan_override(self):
+        """dc_plan dict overrides voluntary_enrollment_rate from UI path."""
+        cfg = _make_config()
+        cfg.dc_plan = {"voluntary_enrollment_rate": 0.5}
+        result = _export_enrollment_vars(cfg)
+        assert result["voluntary_enrollment_rate"] == pytest.approx(0.5)
+
+
+# ===========================================================================
+# AutoEnrollmentSettings voluntary_enrollment_rate validation
+# ===========================================================================
+
+class TestVoluntaryEnrollmentRateValidation:
+    """T003: Verify Pydantic field accepts valid values and rejects invalid ones."""
+
+    def test_accepts_none_default(self):
+        from planalign_orchestrator.config.workforce import AutoEnrollmentSettings
+        settings = AutoEnrollmentSettings()
+        assert settings.voluntary_enrollment_rate is None
+
+    def test_accepts_valid_values(self):
+        from planalign_orchestrator.config.workforce import AutoEnrollmentSettings
+        for val in [0.0, 0.25, 0.5, 0.75, 1.0]:
+            settings = AutoEnrollmentSettings(voluntary_enrollment_rate=val)
+            assert settings.voluntary_enrollment_rate == pytest.approx(val)
+
+    def test_rejects_negative(self):
+        from planalign_orchestrator.config.workforce import AutoEnrollmentSettings
+        with pytest.raises(Exception):
+            AutoEnrollmentSettings(voluntary_enrollment_rate=-0.1)
+
+    def test_rejects_above_one(self):
+        from planalign_orchestrator.config.workforce import AutoEnrollmentSettings
+        with pytest.raises(Exception):
+            AutoEnrollmentSettings(voluntary_enrollment_rate=1.5)
+
 
 # ===========================================================================
 # _export_legacy_vars
