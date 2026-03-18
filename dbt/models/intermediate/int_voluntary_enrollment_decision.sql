@@ -156,7 +156,7 @@ deferral_rate_selection AS (
   -- Select deferral rates with demographic influences and match optimization
   SELECT
     *,
-    (base_enrollment_rate * income_multiplier * job_level_multiplier) as final_enrollment_probability,
+    (base_enrollment_rate * income_multiplier * job_level_multiplier * COALESCE({{ var('voluntary_enrollment_rate', none) }}, 1.0)) as final_enrollment_probability,
 
     -- Select deferral rate based on demographics
     CASE

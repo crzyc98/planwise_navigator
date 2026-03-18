@@ -11,6 +11,8 @@ export interface InputFieldProps {
   readonly helper?: string;
   readonly step?: string;
   readonly min?: number;
+  readonly max?: number;
+  readonly placeholder?: string;
 }
 
 export const InputField: React.FC<InputFieldProps> = ({
@@ -23,7 +25,9 @@ export const InputField: React.FC<InputFieldProps> = ({
   suffix = "",
   helper = "",
   step = "1",
-  min
+  min,
+  max,
+  placeholder
 }) => {
   const generatedId = useId();
   const inputId = `input-${name}-${generatedId}`;
@@ -39,6 +43,8 @@ export const InputField: React.FC<InputFieldProps> = ({
         onChange={onChange}
         step={step}
         min={min}
+        max={max}
+        placeholder={placeholder}
         className="shadow-sm focus:ring-fidelity-green focus:border-fidelity-green block w-full sm:text-sm border-gray-300 rounded-md p-2 border"
       />
       {suffix && (

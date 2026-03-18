@@ -178,6 +178,8 @@ function mapDCPlanEnrollmentFields(cfg: any, prev: FormData): Partial<FormData> 
     dcAutoEnrollHireDateCutoff: cfg.dc_plan?.auto_enroll_hire_date_cutoff || prev.dcAutoEnrollHireDateCutoff,
     dcOptOutRateTarget: cfg.dc_plan?.opt_out_rate_target != null
       ? cfg.dc_plan.opt_out_rate_target * 100 : prev.dcOptOutRateTarget,
+    dcVoluntaryEnrollmentRate: cfg.dc_plan?.voluntary_enrollment_rate != null
+      ? String(cfg.dc_plan.voluntary_enrollment_rate * 100) : prev.dcVoluntaryEnrollmentRate,
   };
 }
 

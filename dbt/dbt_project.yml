@@ -268,6 +268,9 @@ vars:
   enrollment_adjustment_high: 1.15            # Multiplier for $50k-$100k (increased enrollment)
   enrollment_adjustment_executive: 1.30       # Multiplier for >$100k (highest enrollment)
 
+  # Voluntary enrollment rate multiplier (0.0-1.0, null = use demographic defaults)
+  voluntary_enrollment_rate: null
+
   # Voluntary-only enrollment (for plans without auto-enrollment)
   voluntary_enrollment_enabled: true
   voluntary_enrollment_base_probability: 0.60 # Base probability of voluntary enrollment per year

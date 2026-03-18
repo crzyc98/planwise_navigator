@@ -137,6 +137,30 @@ export function DCPlanSection() {
            </>
          )}
 
+         {/* Voluntary Enrollment Rate */}
+         <div className="sm:col-span-6 mt-4">
+           <h4 className="text-sm font-semibold text-gray-900 mb-1">Voluntary Enrollment Rate</h4>
+           <p className="text-xs text-gray-500 mb-3">Set the overall voluntary enrollment rate. This scales demographic-based enrollment probabilities. Leave empty to use default demographic rates.</p>
+           <div className="grid grid-cols-1 gap-y-4 gap-x-4 sm:grid-cols-6">
+             <InputField
+               label="Voluntary Enrollment Rate"
+               name="dcVoluntaryEnrollmentRate"
+               value={formData.dcVoluntaryEnrollmentRate}
+               onChange={handleChange}
+               type="number"
+               step="1"
+               suffix="%"
+               helper="Percentage of eligible employees who enroll voluntarily (0–100%). Empty = default demographic rates."
+               min={0}
+               max={100}
+               placeholder="Default"
+             />
+           </div>
+           {formData.dcVoluntaryEnrollmentRate !== '' && (Number(formData.dcVoluntaryEnrollmentRate) < 0 || Number(formData.dcVoluntaryEnrollmentRate) > 100) && (
+             <p className="mt-1 text-xs text-red-600">Voluntary enrollment rate must be between 0% and 100%.</p>
+           )}
+         </div>
+
          <div className="col-span-6 h-px bg-gray-200 my-2"></div>
          <div className="sm:col-span-6 flex items-center justify-between mb-2">
            <h4 className="text-sm font-semibold text-gray-900">Employer Match Formula</h4>
