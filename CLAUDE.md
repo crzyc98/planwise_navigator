@@ -843,6 +843,8 @@ See `/docs/VERSIONING_GUIDE.md` for detailed versioning workflow.
 - DuckDB (simulation), filesystem JSON/YAML (scenario config) (075-voluntary-enrollment-config)
 - Python 3.11 + FastAPI (backend), React/Vite (frontend), Pydantic v2, DuckDB 1.0.0 (076-fix-termination-rate)
 - DuckDB (`dbt/simulation.duckdb`) for census data and audit trails (076-fix-termination-rate)
+- TypeScript/React (frontend), Python 3.11 (backend) + React 18, Vite (frontend); FastAPI, Pydantic v2 (backend) (077-remove-pause-button)
+- DuckDB (backend data persistence); React state (UI state) (077-remove-pause-button)
 
 ## Recent Changes
 - 063-1000-hr-eligibility: Added Python 3.11, SQL (dbt-core 1.8.8) + dbt-duckdb 1.8.1, DuckDB 1.0.0, Pydantic 2.7.4
