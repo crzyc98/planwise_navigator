@@ -211,7 +211,9 @@ eligible_for_enrollment AS (
     COALESCE(pe.was_enrolled_previously, false) as is_already_enrolled,
 
     -- Explicit auto-enrollment row flag to drive default rate usage and categories
+    -- Gate on auto_enrollment_enabled (Issue #246: flag was previously ignored)
     CASE
+      WHEN NOT {{ var('auto_enrollment_enabled', true) }} THEN false
       WHEN '{{ var("auto_enrollment_scope", "all_eligible_employees") }}' = 'all_eligible_employees' THEN true
       WHEN '{{ var("auto_enrollment_scope", "all_eligible_employees") }}' = 'new_hires_only'
            AND ({{ is_eligible_for_auto_enrollment('aw.employee_hire_date', 'aw.simulation_year') }})

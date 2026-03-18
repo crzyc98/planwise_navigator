@@ -53,6 +53,8 @@ WITH new_hire_population AS (
     AND he.employee_id IS NOT NULL
     -- Only include employees eligible for auto-enrollment
     AND {{ is_eligible_for_auto_enrollment('he.effective_date::DATE', 'he.simulation_year') }}
+    -- Gate on auto_enrollment_enabled (Issue #246: flag was previously ignored)
+    AND {{ var('auto_enrollment_enabled', true) }}
   {% else %}
   -- SQL mode: Use intermediate event model
   SELECT DISTINCT
@@ -70,6 +72,8 @@ WITH new_hire_population AS (
     AND he.employee_id IS NOT NULL
     -- Only include employees eligible for auto-enrollment
     AND {{ is_eligible_for_auto_enrollment('he.effective_date::DATE', 'he.simulation_year') }}
+    -- Gate on auto_enrollment_enabled (Issue #246: flag was previously ignored)
+    AND {{ var('auto_enrollment_enabled', true) }}
   {% endif %}
 ),
 

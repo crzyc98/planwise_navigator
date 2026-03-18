@@ -838,6 +838,7 @@ See `/docs/VERSIONING_GUIDE.md` for detailed versioning workflow.
 - File-based JSON/YAML per scenario (`workspaces/{id}/scenarios/{id}/scenario.json`) (072-apply-workforce-params)
 - SQL (dbt-core 1.8.8, dbt-duckdb 1.8.1) + dbt macros (`assign_age_band`, `assign_tenure_band`), seed CSVs (073-fix-band-label-mismatch)
 - DuckDB 1.0.0 (`dbt/simulation.duckdb`) (073-fix-band-label-mismatch)
+- SQL (dbt-core 1.8.8, dbt-duckdb 1.8.1), Python 3.11 + dbt-core 1.8.8, dbt-duckdb 1.8.1, DuckDB 1.0.0, Pydantic 2.7.4 (074-fix-auto-enroll-disabled)
 
 ## Recent Changes
 - 063-1000-hr-eligibility: Added Python 3.11, SQL (dbt-core 1.8.8) + dbt-duckdb 1.8.1, DuckDB 1.0.0, Pydantic 2.7.4
