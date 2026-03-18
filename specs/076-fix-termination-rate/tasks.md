@@ -1,6 +1,6 @@
 # Tasks: Fix Termination Rate Suggestion Bug
 
-**Feature**: 001-fix-termination-rate | **Branch**: `001-fix-termination-rate`
+**Feature**: 076-fix-termination-rate | **Branch**: `076-fix-termination-rate`
 **Spec**: [spec.md](spec.md) | **Plan**: [plan.md](plan.md) | **Data Model**: [data-model.md](data-model.md)
 
 **Feature Goal**: Fix the termination rate suggestion feature that incorrectly returns 100% for all scenarios, making it return realistic rates based on actual census data.
@@ -291,7 +291,7 @@ After all tasks complete, verify against spec.md success criteria:
 
 **Documentation to Update**:
 - `CHANGELOG.md` - Record fix details (T047)
-- `specs/001-fix-termination-rate/quickstart.md` - Add test examples (T048)
+- `specs/076-fix-termination-rate/quickstart.md` - Add test examples (T048)
 
 ---
 

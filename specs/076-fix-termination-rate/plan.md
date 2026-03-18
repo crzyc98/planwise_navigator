@@ -1,6 +1,6 @@
 # Implementation Plan: Fix Termination Rate Suggestion Bug
 
-**Branch**: `001-fix-termination-rate` | **Date**: 2026-03-18 | **Spec**: [spec.md](spec.md)
+**Branch**: `076-fix-termination-rate` | **Date**: 2026-03-18 | **Spec**: [spec.md](spec.md)
 **Input**: Feature specification from GitHub issue #245
 
 **Note**: This implementation plan addresses the bug where termination rate suggestions always return 100% regardless of input census data.

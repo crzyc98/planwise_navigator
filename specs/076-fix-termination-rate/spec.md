@@ -1,6 +1,6 @@
 # Feature Specification: Fix Termination Rate Suggestion Bug
 
-**Feature Branch**: `001-fix-termination-rate`
+**Feature Branch**: `076-fix-termination-rate`
 **Created**: 2026-03-18
 **Status**: Draft
 **Input**: Fix GitHub issue #245 - Suggested termination rate always shows 100%
