@@ -134,3 +134,25 @@ GOLDEN_DBT_VARS_KEYS = [
     "proactive_enrollment_rate_mature",
     "proactive_enrollment_rate_senior",
 ]
+
+
+@pytest.fixture
+def config_with_decimal_fields(minimal_config) -> SimulationConfig:
+    """
+    Configuration fixture for testing Decimal serialization.
+
+    Returns a valid SimulationConfig where Decimal fields (salary, rates, etc.)
+    are guaranteed to exist. Used for testing model_dump(mode='json') conversion.
+
+    Usage:
+        @pytest.mark.fast
+        def test_decimal_serialization(config_with_decimal_fields):
+            import json
+            # Verify that model_dump(mode='json') converts Decimals
+            config_dict = config_with_decimal_fields.model_dump(mode='json')
+            json_str = json.dumps(config_dict)
+            assert isinstance(json_str, str)
+    """
+    # Use minimal_config which has compensation settings with Decimal fields
+    # (salary, rates, etc.)
+    return minimal_config

@@ -114,8 +114,10 @@ class PipelineOrchestrator:
         try:
             self.observability = ObservabilityManager(log_level="INFO")
             # Record configuration for audit trail
+            # BUG FIX #235: Use mode='json' to convert Decimal values to floats for JSON serialization
+            # Without this, json.dumps() fails with: TypeError: Object of type Decimal is not JSON serializable
             try:
-                self.observability.set_configuration(self.config.model_dump())
+                self.observability.set_configuration(self.config.model_dump(mode='json'))
             except Exception:
                 pass
             if self.verbose:
