@@ -53,20 +53,17 @@ models:
         description: "Number of employees processed in this simulation"
         data_tests:
           - not_null
-          # Temporarily disabled to isolate DuckDBRelation serialization issue
-          # - dbt_utils.accepted_range:
-          #     min_value: 0
+          - dbt_utils.accepted_range:
+              min_value: 0
       - name: run_duration_minutes
         description: "Total runtime in minutes"
         data_tests:
           - not_null
-          # Temporarily disabled to isolate DuckDBRelation serialization issue
-          # - dbt_utils.accepted_range:
-          #     min_value: 0
-          #     max_value: 1440  # Max 24 hours
+          - dbt_utils.accepted_range:
+              min_value: 0
+              max_value: 1440
       - name: employees_per_minute
         description: "Processing throughput in employees per minute"
-        # tests temporarily disabled to isolate DuckDBRelation serialization issue
       - name: overall_performance_category
         description: "Performance categorization"
         data_tests:
@@ -77,11 +74,10 @@ models:
         description: "Overall data quality score percentage"
         data_tests:
           - not_null
-          # Temporarily disabled to isolate DuckDBRelation serialization issue
-          # - dbt_utils.accepted_range:
-          #     min_value: 0
-          #     max_value: 100
-          #     inclusive: true
+          - dbt_utils.accepted_range:
+              min_value: 0
+              max_value: 100
+              inclusive: true
       - name: sla_status
         description: "SLA compliance status"
         data_tests:
@@ -102,20 +98,20 @@ models:
   - name: data_quality_promotion_compensation
     description: |
       Comprehensive data quality validation for promotion compensation integrity.
-      
-      Validates that promotion events use correct previous compensation from the 
+
+      Validates that promotion events use correct previous compensation from the
       end-of-year workforce snapshot instead of stale baseline data. Identifies
       violations where merit increases have not properly propagated to subsequent
       promotion calculations.
-      
+
       **Critical Business Rules Validated:**
       - Promotion previous_salary must equal workforce_snapshot.current_compensation
       - Merit events must propagate to next year's promotion baseline
       - Compensation gaps indicate data lineage breaks requiring remediation
-      
+
       **Data Quality Statuses:**
       - CRITICAL_VIOLATION: >$5,000 compensation gap (systematic stale data)
-      - MAJOR_VIOLATION: >$1,000 compensation gap (significant data issues)  
+      - MAJOR_VIOLATION: >$1,000 compensation gap (significant data issues)
       - MINOR_VIOLATION: >$100 compensation gap (minor discrepancies)
       - WARNING: >$10 compensation gap (investigate)
       - PASS: Acceptable compensation continuity (<$10 gap)
@@ -152,14 +148,14 @@ models:
         data_tests:
           - not_null
 
-  - name: data_quality_summary  
+  - name: data_quality_summary
     description: |
       Executive dashboard summary of promotion compensation data quality metrics.
-      
+
       Provides aggregated KPIs and trend analysis for data quality monitoring.
       Used by Dagster asset checks and Streamlit dashboards for real-time
       data quality monitoring and compliance reporting.
-      
+
       **Key Metrics:**
       - Data Quality Score: 0-100 score based on violation severity
       - Compliance Status: COMPLIANT, MINOR_ISSUES, MODERATE_ISSUES, CRITICAL_ISSUES

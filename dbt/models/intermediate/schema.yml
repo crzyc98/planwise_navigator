@@ -79,10 +79,8 @@ models:
         description: Unique employee identifier
         data_tests:
           - not_null
-          # Epic E058 Phase 4: Disabled - eligibility includes new hires not in baseline workforce
-          # - relationships:
-          #     to: ref('int_baseline_workforce')
-          #     field: employee_id
+          # No relationship test to int_baseline_workforce by design:
+          # eligibility includes new hires generated during simulation who are not in the baseline
       - name: simulation_year
         description: Simulation year for eligibility determination
         data_tests:
@@ -195,19 +193,8 @@ models:
           expression: "annual_hours_worked >= 1000 OR NOT eligible_for_contributions"
           config:
             severity: error
-      # Epic E058 Phase 4: Business logic validation tests
-      # Temporarily disabled due to YAML parsing issue
-      # - dbt_utils.expression_is_true:
-      #     name: "e058_match_eligibility_reason_consistency"
-      #     expression: >
-      #       -- In backward compatibility mode, reason is always 'backward_compatibility_simple_rule'
-      #       (match_eligibility_reason = 'backward_compatibility_simple_rule') OR
-      #       -- In configured mode, 'eligible' means eligible_for_match=true, others mean false
-      #       (match_eligibility_reason = 'eligible' AND eligible_for_match = true) OR
-      #       (match_eligibility_reason IN ('insufficient_hours', 'insufficient_tenure', 'inactive_eoy') AND eligible_for_match = false)
-      #     config:
-      #       severity: error
-      #       error_if: ">= 1"
+      # Epic E058 Phase 4: Match eligibility reason consistency validated via
+      # singular test: tests/data_quality/test_e058_match_eligibility_consistency.sql
       - dbt_utils.expression_is_true:
           name: "e058_backward_compatibility_logic"
           expression: >
@@ -334,10 +321,11 @@ models:
         description: Unique employee identifier
         data_tests:
           - not_null
-          # Temporarily disabled - failing due to data inconsistency
-          # - relationships:
-          #     to: ref('int_employee_compensation_by_year')
-          #     field: employee_id
+          - relationships:
+              to: ref('int_employee_compensation_by_year')
+              field: employee_id
+              config:
+                severity: warn
       - name: simulation_year
         description: Simulation year for state accumulation
         data_tests:
@@ -378,18 +366,18 @@ models:
           - accepted_values:
               values: ['VALID', 'INVALID_EMPLOYEE_ID', 'INVALID_RATE', 'INVALID_ESCALATION_COUNT']
     data_tests:
-      # Temporarily disabled - failing due to duplicate records
-      # - unique:
-      #     column_name: "employee_id || '_' || simulation_year"
+      - unique:
+          column_name: "employee_id || '_' || simulation_year"
+          config:
+            severity: warn
       - dbt_utils.expression_is_true:
           expression: "escalations_received >= 0"
           config:
             severity: error
-      # Temporarily disabled - failing due to data inconsistency
-      # - dbt_utils.expression_is_true:
-      #     expression: "current_deferral_rate >= original_deferral_rate OR original_deferral_rate IS NULL"
-      #     config:
-      #       severity: warn
+      - dbt_utils.expression_is_true:
+          expression: "current_deferral_rate >= original_deferral_rate OR original_deferral_rate IS NULL"
+          config:
+            severity: warn
       - dbt_utils.expression_is_true:
           expression: "(has_escalations = true AND escalations_received > 0) OR (has_escalations = false AND escalations_received = 0)"
           config:

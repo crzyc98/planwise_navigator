@@ -26,33 +26,28 @@ models:
         description: "Annual termination probability"
         data_tests:
           - not_null
-          # Temporarily disabled to isolate DuckDBRelation serialization issue
-          # - dbt_utils.accepted_range:
-          #     min_value: 0
-          #     max_value: 1
+          - dbt_utils.accepted_range:
+              min_value: 0
+              max_value: 1
       - name: promotion_rate
         description: "Annual promotion probability"
         data_tests:
           - not_null
-          # Temporarily disabled to isolate DuckDBRelation serialization issue
-          # - dbt_utils.accepted_range:
-          #     min_value: 0
-          #     max_value: 1
+          - dbt_utils.accepted_range:
+              min_value: 0
+              max_value: 1
       - name: merit_raise
         description: "Annual merit increase percentage"
         data_tests:
           - not_null
-          # Temporarily disabled to isolate DuckDBRelation serialization issue
-          # - dbt_utils.accepted_range:
-          #     min_value: 0
-          #     max_value: 0.5
+          - dbt_utils.accepted_range:
+              min_value: 0
+              max_value: 0.5
 
   - name: fct_yearly_events
     description: "Consolidated fact table of all workforce events by simulation year"
     config:
       tags: ["critical", "locked", "event_sourcing", "contract"]
-    # Note: Removed dbt_utils.expression_is_true tests to prevent DuckDBRelation serialization issues
-    # Basic data quality is validated through column-level tests below
     columns:
       - name: employee_id
         description: "Unique employee identifier"
@@ -96,10 +91,9 @@ models:
         data_type: bigint
         data_tests:
           - not_null
-          # Temporarily disabled to isolate DuckDBRelation serialization issue
-          # - dbt_utils.accepted_range:
-          #     min_value: 18
-          #     max_value: 75
+          - dbt_utils.accepted_range:
+              min_value: 18
+              max_value: 75
       - name: employee_tenure
         description: "Employee tenure at time of event"
         data_type: decimal(21,2)
@@ -145,21 +139,16 @@ models:
       - name: prev_employee_deferral_rate
         description: "Previous deferral rate before change"
         data_type: decimal(5,4)
-    # data_tests disabled for dbt 1.8.8 compatibility
 
 
   - name: fct_workforce_snapshot
     description: "Year-end workforce snapshot showing current state after all events"
     config:
       tags: ["critical", "foundation", "contract"]
-    # Note: Removed dbt_utils.expression_is_true tests to prevent DuckDBRelation serialization issues
-    # Basic data quality is validated through column-level tests below
     data_tests:
-      # Test composite uniqueness: employee appears once per simulation year
       - unique:
           column_name: "employee_id || '_' || simulation_year"
           name: "unique_employee_per_simulation_year"
-      # Other data quality tests disabled for dbt 1.8.8 compatibility
     columns:
       - name: employee_id
         description: "Unique employee identifier within simulation year"
@@ -216,19 +205,17 @@ models:
         data_type: bigint
         data_tests:
           - not_null
-          # Temporarily disabled to isolate DuckDBRelation serialization issue
-          # - dbt_utils.accepted_range:
-          #     min_value: 18
-          #     max_value: 75
+          - dbt_utils.accepted_range:
+              min_value: 18
+              max_value: 75
       - name: current_tenure
         description: "Current years of service"
         data_type: bigint
         data_tests:
           - not_null
-          # Temporarily disabled to isolate DuckDBRelation serialization issue
-          # - dbt_utils.accepted_range:
-          #     min_value: 0
-          #     max_value: 50
+          - dbt_utils.accepted_range:
+              min_value: 0
+              max_value: 50
       - name: level_id
         description: "Current job level"
         data_type: integer
@@ -355,12 +342,10 @@ models:
 
 
 
-  # Cross-model relationship tests
   - name: fct_compensation_growth
     description: "Compensation growth fact table validation"
     config:
       tags: ["critical"]
-    # data_tests disabled for dbt 1.8.8 compatibility
 
 # Note: Cross-table consistency tests are implemented in separate analysis models
 # See data_quality_new_hire_termination_audit.sql and data_quality_event_sourcing_integrity.sql
