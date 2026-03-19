@@ -59,7 +59,7 @@ def _seed_minimal(db_path: Path, years):
     )
     conn.execute(
         """
-        CREATE TABLE int_deferral_rate_state_accumulator_v2(
+        CREATE TABLE int_deferral_rate_state_accumulator(
             employee_id VARCHAR,
             simulation_year INTEGER,
             deferral_rate DECIMAL(10,4)
@@ -85,7 +85,7 @@ def _seed_minimal(db_path: Path, years):
             [(f"E{y}0", y, f"{y}-01-15")],
         )
         conn.executemany(
-            "INSERT INTO int_deferral_rate_state_accumulator_v2 VALUES (?,?,?)",
+            "INSERT INTO int_deferral_rate_state_accumulator VALUES (?,?,?)",
             [(f"E{y}0", y, 0.06)],
         )
     conn.close()

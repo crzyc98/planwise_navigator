@@ -84,19 +84,19 @@ stage_4_enrollment_events AS (
       AND LOWER(event_type) IN ('enrollment', 'benefit_enrollment', 'enrollment_change')
 ),
 
--- Stage 5: Deferral Rate Accumulator V2 (int_deferral_rate_state_accumulator_v2)
+-- Stage 5: Deferral Rate Accumulator V2 (int_deferral_rate_state_accumulator)
 stage_5_deferral_accumulator AS (
     SELECT
         5 AS stage_order,
         'Stage 5: Deferral Rate Accumulator V2' AS stage_name,
-        'int_deferral_rate_state_accumulator_v2' AS source_model,
+        'int_deferral_rate_state_accumulator' AS source_model,
         COUNT(*) AS total_employees,
         COUNT(CASE WHEN current_deferral_rate > 0 THEN 1 END) AS with_deferral_rate,
         COUNT(CASE WHEN is_enrolled_flag = true THEN 1 END) AS with_enrollment_date,
         COUNT(CASE WHEN current_deferral_rate > 0 AND is_enrolled_flag = true THEN 1 END) AS fully_participating,
         ROUND(AVG(CASE WHEN current_deferral_rate > 0 THEN current_deferral_rate END) * 100, 2) AS avg_deferral_rate_pct,
         'This is the source of truth for contributions. If 0 here, no participation!' AS notes
-    FROM {{ ref('int_deferral_rate_state_accumulator_v2') }}
+    FROM {{ ref('int_deferral_rate_state_accumulator') }}
     WHERE simulation_year = {{ simulation_year }}
 ),
 

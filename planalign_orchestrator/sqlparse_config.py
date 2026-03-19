@@ -12,9 +12,12 @@ to ensure subprocess dbt execution is configured.
 See: https://discourse.getdbt.com/t/dbt-run-error-maximum-number-of-tokens-exceeded/20495
 """
 
+import logging
 import site
 import sys
 from pathlib import Path
+
+logger = logging.getLogger(__name__)
 
 # Default limit that works for our complex SQL models
 # 50,000 tokens is 5x the default 10,000 limit, sufficient for Year 2+ models
@@ -164,10 +167,10 @@ def ensure_sitecustomize_installed(silent: bool = False) -> bool:
                     sc_path.write_text(_SITECUSTOMIZE_CONTENT.lstrip())
 
                 if not silent:
-                    print(
-                        f"✓ Auto-installed sqlparse fix to {sc_path}\n"
-                        f"  Restart your Python interpreter for subprocess dbt to use the fix.",
-                        file=sys.stderr,
+                    logger.info(
+                        "Auto-installed sqlparse fix to %s. "
+                        "Restart your Python interpreter for subprocess dbt to use the fix.",
+                        sc_path,
                     )
                 return True
             except OSError:
@@ -205,10 +208,10 @@ def ensure_pth_installed(silent: bool = False) -> bool:
                 pth_path.write_text(_PTH_FILE_CONTENT)
 
                 if not silent:
-                    print(
-                        f"✓ Auto-installed sqlparse fix to {sp_path}\n"
-                        f"  Restart your Python interpreter for subprocess dbt to use the fix.",
-                        file=sys.stderr,
+                    logger.info(
+                        "Auto-installed sqlparse fix to %s. "
+                        "Restart your Python interpreter for subprocess dbt to use the fix.",
+                        sp_path,
                     )
                 return True
             except OSError:

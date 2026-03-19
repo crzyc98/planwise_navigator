@@ -117,7 +117,7 @@ previous_year_rates AS (
         employee_id,
         current_deferral_rate,
         employee_enrollment_date
-    FROM {{ target.schema }}.int_deferral_rate_state_accumulator_v2
+    FROM {{ target.schema }}.int_deferral_rate_state_accumulator
     WHERE simulation_year = {{ prev_year }}
       AND employee_id IS NOT NULL
 ),

@@ -63,7 +63,7 @@ WITH
 
             'Employees with deferral rate escalations but no valid enrollment records' AS issue_description
 
-        FROM {{ ref('int_deferral_rate_state_accumulator_v2') }} acc
+        FROM {{ ref('int_deferral_rate_state_accumulator') }} acc
         LEFT JOIN {{ ref('fct_workforce_snapshot') }} ws
             ON acc.employee_id = ws.employee_id
             AND acc.simulation_year = ws.simulation_year
@@ -115,7 +115,7 @@ WITH
 
             'Employees with deferral rate increases not supported by escalation event history' AS issue_description
 
-        FROM {{ ref('int_deferral_rate_state_accumulator_v2') }} acc
+        FROM {{ ref('int_deferral_rate_state_accumulator') }} acc
         LEFT JOIN {{ ref('fct_workforce_snapshot') }} ws
             ON acc.employee_id = ws.employee_id
             AND acc.simulation_year = ws.simulation_year
@@ -164,7 +164,7 @@ WITH
 
             'Terminated employees should not have active deferral rate escalations' AS issue_description
 
-        FROM {{ ref('int_deferral_rate_state_accumulator_v2') }} acc
+        FROM {{ ref('int_deferral_rate_state_accumulator') }} acc
         INNER JOIN {{ ref('fct_workforce_snapshot') }} ws
             ON acc.employee_id = ws.employee_id
             AND acc.simulation_year = ws.simulation_year
@@ -209,7 +209,7 @@ WITH
 
             'New hires should not have pre-existing deferral rate escalation history' AS issue_description
 
-        FROM {{ ref('int_deferral_rate_state_accumulator_v2') }} acc
+        FROM {{ ref('int_deferral_rate_state_accumulator') }} acc
         INNER JOIN {{ ref('fct_workforce_snapshot') }} ws
             ON acc.employee_id = ws.employee_id
             AND acc.simulation_year = ws.simulation_year
@@ -262,7 +262,7 @@ WITH
 
             'Escalation amounts in accumulator do not match supporting event records' AS issue_description
 
-        FROM {{ ref('int_deferral_rate_state_accumulator_v2') }} acc
+        FROM {{ ref('int_deferral_rate_state_accumulator') }} acc
         LEFT JOIN {{ ref('fct_workforce_snapshot') }} ws
             ON acc.employee_id = ws.employee_id
             AND acc.simulation_year = ws.simulation_year

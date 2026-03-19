@@ -157,7 +157,7 @@ previous_year_rates AS (
         -- For employees with no prior escalations, use enrollment date as baseline for timing
         -- This ensures the 365-day check measures from when they first enrolled, not end of previous year
         COALESCE(last_escalation_date, employee_enrollment_date) as last_rate_change_date
-    FROM {{ target.schema }}.int_deferral_rate_state_accumulator_v2
+    FROM {{ target.schema }}.int_deferral_rate_state_accumulator
     WHERE simulation_year = {{ prev_year }}
       AND employee_id IS NOT NULL
 ),

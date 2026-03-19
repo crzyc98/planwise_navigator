@@ -15,10 +15,13 @@ import json
 import secrets
 import subprocess
 import time
+import logging
 from dataclasses import dataclass
 from pathlib import Path
 from typing import (Any, Callable, Dict, Generator, Iterable, List, Optional,
                     Sequence, Tuple)
+
+logger = logging.getLogger(__name__)
 
 # Import parallel execution components (lazy import to avoid circular dependencies)
 try:
@@ -138,27 +141,25 @@ class DbtRunner:
                     memory_limit_mb=model_parallelization_memory_limit_mb,
                     verbose=verbose
                 )
-                if verbose:
-                    print("🔧 Model-level parallelization engine initialized")
+                logger.debug("Model-level parallelization engine initialized")
             except Exception as e:
-                if verbose:
-                    print(f"⚠️ Failed to initialize parallel execution engine: {e}")
-                    print("   Falling back to standard dbt threading")
+                logger.warning("Failed to initialize parallel execution engine: %s. "
+                               "Falling back to standard dbt threading", e)
                 self._parallel_engine = None
                 self._dependency_analyzer = None
 
         # Validate thread count on initialization
         self._validate_thread_count(threads)
 
-        if self.verbose:
-            threading_status = "enabled" if threading_enabled else "disabled"
-            parallel_status = "enabled" if self._parallel_engine else "disabled"
-            print("🧩 DbtRunner initialized:")
-            print(f"   dbt threads: {threads} ({threading_status}, mode: {threading_mode})")
-            print(f"   Model parallelization: {parallel_status}")
-            if self._parallel_engine:
-                print(f"   Max parallel workers: {model_parallelization_max_workers}")
-                print(f"   Memory limit: {model_parallelization_memory_limit_mb}MB")
+        threading_status = "enabled" if threading_enabled else "disabled"
+        parallel_status = "enabled" if self._parallel_engine else "disabled"
+        logger.debug("DbtRunner initialized: dbt threads=%d (%s, mode=%s), "
+                     "model parallelization=%s",
+                     threads, threading_status, threading_mode, parallel_status)
+        if self._parallel_engine:
+            logger.debug("Parallel engine config: max_workers=%d, memory_limit=%sMB",
+                         model_parallelization_max_workers,
+                         model_parallelization_memory_limit_mb)
 
     def _validate_thread_count(self, thread_count: int) -> None:
         """Validate thread count with appropriate error messages"""
@@ -168,11 +169,12 @@ class DbtRunner:
             raise ValueError("thread_count cannot exceed 16 (hardware limitation)")
 
         # Log performance guidance
-        if self.verbose:
-            if thread_count > 8:
-                print(f"⚠️ High thread count ({thread_count}): Monitor memory usage and consider reducing if experiencing stability issues")
-            elif thread_count > 4:
-                print(f"ℹ️ Multi-threading enabled ({thread_count} threads): Expected 20-30% performance improvement")
+        if thread_count > 8:
+            logger.warning("High thread count (%d): Monitor memory usage and consider "
+                           "reducing if experiencing stability issues", thread_count)
+        elif thread_count > 4:
+            logger.debug("Multi-threading enabled (%d threads): Expected 20-30%% "
+                         "performance improvement", thread_count)
 
     def update_thread_count(self, new_thread_count: int) -> None:
         """Update thread count dynamically with validation"""
@@ -180,8 +182,7 @@ class DbtRunner:
         old_threads = self.threads
         self.threads = new_thread_count
 
-        if self.verbose:
-            print(f"🔧 Thread count updated: {old_threads} → {new_thread_count}")
+        logger.debug("Thread count updated: %d -> %d", old_threads, new_thread_count)
 
     def get_thread_utilization_info(self) -> Dict[str, Any]:
         """Get current thread configuration and utilization info"""
@@ -306,8 +307,7 @@ class DbtRunner:
             try:
                 self.db_manager.close_all()
             except Exception as e:
-                if self.verbose:
-                    print(f"⚠️ Non-fatal: failed to close DB connections before dbt subprocess: {e}")
+                logger.warning("Non-fatal: failed to close DB connections before dbt subprocess: %s", e)
 
         if stream_output:
             return self._execute_with_streaming(cmd, on_line=on_line, start_ts=start)
@@ -507,9 +507,8 @@ class DbtRunner:
         try:
             self._dependency_analyzer.analyze_dependencies(refresh_cache=False)
         except Exception as e:
-            if self.verbose:
-                print(f"⚠️ Failed to analyze dependencies: {e}")
-                print("   Falling back to sequential execution")
+            logger.warning("Failed to analyze dependencies: %s. "
+                           "Falling back to sequential execution", e)
             return self._run_models_sequential_fallback(
                 models, stage_name, simulation_year, dbt_vars or {}
             )
@@ -543,8 +542,7 @@ class DbtRunner:
         model_results = {}
         errors = []
 
-        if self.verbose:
-            print(f"🔄 Sequential execution fallback for stage {stage_name}")
+        logger.debug("Sequential execution fallback for stage %s", stage_name)
 
         for model in models:
             try:
@@ -641,8 +639,7 @@ class DbtRunner:
         """Enable model-level parallelization with optional parameter updates."""
 
         if not PARALLEL_EXECUTION_AVAILABLE:
-            if self.verbose:
-                print("⚠️ Cannot enable parallelization: parallel execution components not available")
+            logger.warning("Cannot enable parallelization: parallel execution components not available")
             return False
 
         # Update parameters if provided
@@ -666,16 +663,14 @@ class DbtRunner:
 
             self.enable_model_parallelization = True
 
-            if self.verbose:
-                print("✅ Model-level parallelization enabled:")
-                print(f"   Max workers: {self.model_parallelization_max_workers}")
-                print(f"   Memory limit: {self.model_parallelization_memory_limit_mb}MB")
+            logger.info("Model-level parallelization enabled: max_workers=%d, memory_limit=%sMB",
+                        self.model_parallelization_max_workers,
+                        self.model_parallelization_memory_limit_mb)
 
             return True
 
         except Exception as e:
-            if self.verbose:
-                print(f"❌ Failed to enable parallelization: {e}")
+            logger.error("Failed to enable parallelization: %s", e)
             return False
 
     def disable_parallelization(self) -> None:
@@ -683,8 +678,7 @@ class DbtRunner:
         self.enable_model_parallelization = False
         self._parallel_engine = None
 
-        if self.verbose:
-            print("🔄 Model-level parallelization disabled")
+        logger.debug("Model-level parallelization disabled")
 
 
     def execute_command_with_threads(
@@ -724,8 +718,8 @@ class DbtRunner:
         """
         effective_threads = threads or self.threads
 
-        if self.verbose:
-            print(f"🏷️ Running models with tag '{tag}' for year {simulation_year} (threads={effective_threads})")
+        logger.debug("Running models with tag '%s' for year %d (threads=%d)",
+                     tag, simulation_year, effective_threads)
 
         return self.execute_command(
             ["run", "--select", f"tag:{tag}"],
@@ -754,8 +748,8 @@ class DbtRunner:
         results = []
         effective_threads = threads or self.threads
 
-        if self.verbose:
-            print(f"🎭 Running stage '{stage}' for year {simulation_year} (threads={effective_threads})")
+        logger.debug("Running stage '%s' for year %d (threads=%d)",
+                     stage, simulation_year, effective_threads)
 
         # Map stage names to their execution strategy
         if stage in ["EVENT_GENERATION", "STATE_ACCUMULATION", "VALIDATION", "FOUNDATION"]:
@@ -783,8 +777,7 @@ class DbtRunner:
 
         else:
             # Legacy support: if stage is not recognized, try as tag
-            if self.verbose:
-                print(f"⚠️ Unknown stage '{stage}', attempting as tag")
+            logger.warning("Unknown stage '%s', attempting as tag", stage)
             result = self.run_models_by_tag(stage, simulation_year, threads=effective_threads, **kwargs)
             results.append(result)
 

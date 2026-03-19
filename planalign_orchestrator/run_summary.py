@@ -6,6 +6,7 @@ and audit trail generation for production observability.
 """
 
 import json
+import logging
 from dataclasses import dataclass, field
 from datetime import datetime, timedelta
 from pathlib import Path
@@ -18,6 +19,8 @@ from config.constants import (
 )
 from .logger import ProductionLogger
 from .performance_monitor import PerformanceMonitor
+
+logger = logging.getLogger(__name__)
 
 
 @dataclass
@@ -95,7 +98,7 @@ class RunSummaryGenerator:
             performance_monitor: Optional PerformanceMonitor for metrics
         """
         self.run_id = run_id
-        self.logger = logger
+        self.prod_logger = logger
         self.performance_monitor = performance_monitor
         self.metadata = RunMetadata(run_id=run_id, start_time=datetime.now())
         self.errors: List[RunIssue] = []
@@ -106,7 +109,7 @@ class RunSummaryGenerator:
         self._capture_environment()
 
         # Log run start
-        self.logger.info("Simulation run started", run_id=run_id)
+        self.prod_logger.info("Simulation run started", run_id=run_id)
 
     def _capture_environment(self) -> None:
         """Capture environment information for audit trail"""
@@ -126,7 +129,7 @@ class RunSummaryGenerator:
     def set_configuration(self, config: Dict[str, Any]) -> None:
         """Set run configuration for audit trail"""
         self.metadata.configuration = config
-        self.logger.info("Run configuration set", configuration=config)
+        self.prod_logger.info("Run configuration set", configuration=config)
 
     def add_error(self, error: str, context: Dict[str, Any] = None) -> None:
         """
@@ -147,7 +150,7 @@ class RunSummaryGenerator:
         safe_context = {
             k: v for k, v in issue.context.items() if k not in ["level", "message"]
         }
-        self.logger.error(f"Run error: {error}", **safe_context)
+        self.prod_logger.error(f"Run error: {error}", **safe_context)
 
     def add_warning(self, warning: str, context: Dict[str, Any] = None) -> None:
         """
@@ -168,7 +171,7 @@ class RunSummaryGenerator:
         safe_context = {
             k: v for k, v in issue.context.items() if k not in ["level", "message"]
         }
-        self.logger.log_event("WARNING", f"Run warning: {warning}", **safe_context)
+        self.prod_logger.log_event("WARNING", f"Run warning: {warning}", **safe_context)
 
     def add_metric(self, name: str, value: Any, description: str = None) -> None:
         """
@@ -184,12 +187,12 @@ class RunSummaryGenerator:
             "description": description,
             "timestamp": datetime.now().isoformat(),
         }
-        self.logger.info(f"Custom metric: {name}", metric=name, value=value)
+        self.prod_logger.info(f"Custom metric: {name}", metric=name, value=value)
 
     def set_backup_path(self, backup_path: str) -> None:
         """Set backup path for audit trail"""
         self.metadata.backup_path = backup_path
-        self.logger.info("Backup created", backup_path=backup_path)
+        self.prod_logger.info("Backup created", backup_path=backup_path)
 
     def generate_summary(self, final_status: str = "success") -> Dict[str, Any]:
         """
@@ -319,7 +322,7 @@ class RunSummaryGenerator:
         self._save_summary_artifacts(summary)
 
         # Log final summary
-        self.logger.info("Run completed", **summary["run_metadata"])
+        self.prod_logger.info("Run completed", **summary["run_metadata"])
 
         # Print human-readable summary to console
         self._print_console_summary(summary)
@@ -351,7 +354,7 @@ class RunSummaryGenerator:
             with open(artifacts_dir / "performance.json", "w") as f:
                 json.dump(self.performance_monitor.get_metrics(), f, indent=2)
 
-        self.logger.info(
+        self.prod_logger.info(
             "Summary artifacts saved", artifacts_directory=str(artifacts_dir)
         )
 
@@ -361,58 +364,60 @@ class RunSummaryGenerator:
         exec_summary = summary["execution_summary"]
         perf_summary = summary["performance_metrics"]
 
-        print(f"\n{'='*60}")
-        print(f"  Run {self.run_id} Complete")
-        print(f"{'='*60}")
-
         # Basic run info
-        print(f"Status: {metadata['status'].upper()}")
+        lines = ["Run %s Complete" % self.run_id]
+        lines.append("Status: %s" % metadata["status"].upper())
         if metadata["duration_seconds"]:
             duration = timedelta(seconds=metadata["duration_seconds"])
-            print(f"Duration: {duration}")
+            lines.append("Duration: %s" % duration)
 
         # Issue summary
         if exec_summary["total_errors"] > 0:
-            print(f"❌ Errors: {exec_summary['total_errors']}")
+            lines.append("Errors: %d" % exec_summary["total_errors"])
         if exec_summary["total_warnings"] > 0:
-            print(f"⚠️  Warnings: {exec_summary['total_warnings']}")
+            lines.append("Warnings: %d" % exec_summary["total_warnings"])
         if exec_summary["total_errors"] == 0 and exec_summary["total_warnings"] == 0:
-            print("✅ No issues detected")
+            lines.append("No issues detected")
 
         # Performance summary
         if perf_summary.get("total_operations", 0) > 0:
-            print("\nPerformance:")
-            print(f"  Operations: {perf_summary['total_operations']}")
-            print(f"  Total Duration: {perf_summary['total_duration_seconds']}s")
+            lines.append("")
+            lines.append("Performance:")
+            lines.append("  Operations: %s" % perf_summary["total_operations"])
+            lines.append("  Total Duration: %ss" % perf_summary["total_duration_seconds"])
             if perf_summary.get("slowest_operation"):
                 slowest = perf_summary["slowest_operation"]
-                print(f"  Slowest: {slowest['name']} ({slowest['duration']}s)")
+                lines.append("  Slowest: %s (%ss)" % (slowest["name"], slowest["duration"]))
 
         # Compact per-year breakdown (if available)
         breakdown = summary.get("performance_breakdown", {}).get("by_year", [])
         if breakdown:
-            print("\nPerformance Breakdown (seconds):")
+            lines.append("")
+            lines.append("Performance Breakdown (seconds):")
             # Header (short labels)
-            print("  Year  Found  Events  State  Valid  Report  Total")
+            lines.append("  Year  Found  Events  State  Valid  Report  Total")
             for row in breakdown:
                 year = row.get("year")
-                # Use get with default of None; print blanks if missing
                 found = row.get("FOUNDATION")
                 events = row.get("EVENT_GENERATION")
                 state = row.get("STATE_ACCUMULATION")
                 valid = row.get("VALIDATION")
                 report = row.get("REPORTING")
                 total = row.get("total")
+
                 def fmt(v):
                     return f"{v:.3f}" if isinstance(v, (int, float)) else "   -  "
-                print(
-                    f"  {year}  {fmt(found):>6} {fmt(events):>7} {fmt(state):>6} {fmt(valid):>6} {fmt(report):>7} {fmt(total):>7}"
+
+                lines.append(
+                    "  %s  %6s %7s %6s %6s %7s %7s"
+                    % (year, fmt(found), fmt(events), fmt(state), fmt(valid), fmt(report), fmt(total))
                 )
 
         # Top contributors (if available)
         top = summary.get("performance_top_contributors", [])
         if top:
-            print("\nTop Contributors:")
+            lines.append("")
+            lines.append("Top Contributors:")
             for item in top:
                 name = item.get("name", "unknown")
                 duration = item.get("duration_seconds", 0)
@@ -420,16 +425,19 @@ class RunSummaryGenerator:
                 year = item.get("year")
                 label = name
                 if stage and year:
-                    label = f"{stage} {year}"
-                print(f"  • {label}: {duration:.3f}s")
+                    label = "%s %s" % (stage, year)
+                lines.append("  - %s: %.3fs" % (label, duration))
 
         # Backup info
         if metadata["backup_path"]:
-            print(f"\n💾 Backup: {metadata['backup_path']}")
+            lines.append("")
+            lines.append("Backup: %s" % metadata["backup_path"])
 
         # Artifacts location
-        print(f"\n📁 Artifacts: artifacts/runs/{self.run_id}/")
-        print(f"{'='*60}\n")
+        lines.append("")
+        lines.append("Artifacts: artifacts/runs/%s/" % self.run_id)
+
+        logger.info("\n".join(lines))
 
     def get_issue_summary(self) -> Dict[str, Any]:
         """Get summary of issues for quick status check"""

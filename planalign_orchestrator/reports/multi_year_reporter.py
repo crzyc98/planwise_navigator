@@ -7,10 +7,13 @@ with workforce progression, participation trends, and growth analysis.
 
 from __future__ import annotations
 
+import logging
 from datetime import datetime, timezone
 from typing import Any, Dict, List, TYPE_CHECKING
 
 from .data_models import WorkforceBreakdown, MultiYearSummary
+
+logger = logging.getLogger(__name__)
 
 if TYPE_CHECKING:
     from ..utils import DatabaseConnectionManager
@@ -53,9 +56,7 @@ class MultiYearReporter:
         if len(completed_years) < 2:
             return  # Skip summary if less than 2 years completed
 
-        print("\n" + "=" * 60)
-        print("📊 MULTI-YEAR SIMULATION SUMMARY")
-        print("=" * 60)
+        logger.info("MULTI-YEAR SIMULATION SUMMARY")
 
         try:
             with self.db_manager.get_connection() as conn:
@@ -75,7 +76,7 @@ class MultiYearReporter:
                 self._display_multi_year_events(conn, completed_years)
 
         except Exception as e:
-            print(f"❌ Error generating multi-year summary: {e}")
+            logger.error("Error generating multi-year summary: %s", e, exc_info=True)
 
     def _display_workforce_progression(
         self, conn, completed_years: List[int]
@@ -100,24 +101,30 @@ class MultiYearReporter:
         results = conn.execute(progression_query, completed_years).fetchall()
 
         if results:
-            print("📈 Workforce Progression:")
-            print("   Year  | Total Emp | Active | New Hires | Exp Terms | NH Terms")
-            print("   ------|-----------|--------|-----------|-----------|----------")
-
+            lines = [
+                "Workforce Progression:",
+                "   Year  | Total Emp | Active | New Hires | Exp Terms | NH Terms",
+                "   ------|-----------|--------|-----------|-----------|----------",
+            ]
             for row in results:
                 year, total, active, nh_active, exp_terms, nh_terms = row
-                print(
-                    f"   {year} | {total:9,} | {active:6,} | {nh_active:9,} | {exp_terms:9,} | {nh_terms:8,}"
+                lines.append(
+                    "   %d | %9s | %6s | %9s | %9s | %8s"
+                    % (
+                        year,
+                        f"{total:,}",
+                        f"{active:,}",
+                        f"{nh_active:,}",
+                        f"{exp_terms:,}",
+                        f"{nh_terms:,}",
+                    )
                 )
+            logger.info("\n".join(lines))
 
     def _display_participation_analysis(
         self, conn, completed_years: List[int]
     ) -> None:
         """Display active employee deferral participation analysis."""
-        print("\n💰 Deferral Participation (Active EOY):")
-        print("   Year  | Active EEs | Participating (Active EOY) | Participation %")
-        print("   ------|------------|---------------|----------------")
-
         participation_query = """
         SELECT
             simulation_year,
@@ -134,26 +141,25 @@ class MultiYearReporter:
         results = conn.execute(participation_query, completed_years).fetchall()
 
         if results:
+            lines = [
+                "Deferral Participation (Active EOY):",
+                "   Year  | Active EEs | Participating (Active EOY) | Participation %",
+                "   ------|------------|---------------|----------------",
+            ]
             for year, active_count, participating in results:
                 participation_pct = (
                     (participating / active_count * 100) if active_count > 0 else 0
                 )
-                print(
-                    f"   {year} | {active_count:10,} | {participating:13,} | {participation_pct:14.1f}%"
+                lines.append(
+                    "   %d | %10s | %13s | %14.1f%%"
+                    % (year, f"{active_count:,}", f"{participating:,}", participation_pct)
                 )
+            logger.info("\n".join(lines))
 
     def _display_participation_breakdown(
         self, conn, completed_years: List[int]
     ) -> None:
         """Display participation breakdown by enrollment method."""
-        print("\n📋 Participation Breakdown by Method (Active EOY):")
-        print(
-            "   Year  | Auto Enroll | Voluntary  | Census     | Opted Out  | Not Auto   | Unenrolled"
-        )
-        print(
-            "   ------|-------------|------------|------------|------------|------------|------------"
-        )
-
         detail_query = """
         SELECT
             simulation_year,
@@ -174,6 +180,11 @@ class MultiYearReporter:
         results = conn.execute(detail_query, completed_years).fetchall()
 
         if results:
+            lines = [
+                "Participation Breakdown by Method (Active EOY):",
+                "   Year  | Auto Enroll | Voluntary  | Census     | Opted Out  | Not Auto   | Unenrolled",
+                "   ------|-------------|------------|------------|------------|------------|------------",
+            ]
             for (
                 year,
                 auto,
@@ -183,9 +194,19 @@ class MultiYearReporter:
                 not_auto,
                 unenrolled,
             ) in results:
-                print(
-                    f"   {year} | {auto:11,} | {voluntary:10,} | {census:10,} | {opted_out:10,} | {not_auto:10,} | {unenrolled:10,}"
+                lines.append(
+                    "   %d | %11s | %10s | %10s | %10s | %10s | %10s"
+                    % (
+                        year,
+                        f"{auto:,}",
+                        f"{voluntary:,}",
+                        f"{census:,}",
+                        f"{opted_out:,}",
+                        f"{not_auto:,}",
+                        f"{unenrolled:,}",
+                    )
                 )
+            logger.info("\n".join(lines))
 
     def _display_overall_growth_analysis(
         self, conn, completed_years: List[int]
@@ -217,13 +238,18 @@ class MultiYearReporter:
                     (final_active / baseline_active) ** (1 / (years_elapsed - 1)) - 1
                 ) * 100
 
-                print("\n📊 Overall Growth Analysis:")
-                print(f"   Starting active workforce    : {baseline_active:6,}")
-                print(f"   Ending active workforce      : {final_active:6,}")
-                print(
-                    f"   Total net growth             : {total_growth:+6,} ({growth_pct:+5.1f}%)"
+                logger.info(
+                    "Overall Growth Analysis:\n"
+                    "   Starting active workforce    : %6s\n"
+                    "   Ending active workforce      : %6s\n"
+                    "   Total net growth             : %+d (%+5.1f%%)\n"
+                    "   Compound Annual Growth Rate  : %5.1f%%",
+                    f"{baseline_active:,}",
+                    f"{final_active:,}",
+                    total_growth,
+                    growth_pct,
+                    cagr,
                 )
-                print(f"   Compound Annual Growth Rate  : {cagr:5.1f}%")
 
     def _display_multi_year_events(self, conn, completed_years: List[int]) -> None:
         """Display multi-year event summary."""
@@ -243,9 +269,9 @@ class MultiYearReporter:
         results = conn.execute(events_summary_query, completed_years).fetchall()
 
         if results:
-            print("\n📋 Multi-Year Event Summary:")
+            lines = ["Multi-Year Event Summary:"]
             # Group by event type
-            events_by_type = {}
+            events_by_type: Dict[str, list] = {}
             for event_type, year, count in results:
                 if event_type not in events_by_type:
                     events_by_type[event_type] = []
@@ -254,9 +280,13 @@ class MultiYearReporter:
             for event_type, year_counts in events_by_type.items():
                 total_events = sum(count for _, count in year_counts)
                 years_list = ", ".join(
-                    f"{year}: {count:,}" for year, count in year_counts
+                    "%d: %s" % (year, f"{count:,}") for year, count in year_counts
                 )
-                print(f"   {event_type:15}: {total_events:5,} total ({years_list})")
+                lines.append(
+                    "   %s: %5s total (%s)"
+                    % (event_type.ljust(15), f"{total_events:,}", years_list)
+                )
+            logger.info("\n".join(lines))
 
     def _workforce_breakdown(self, conn, year: int) -> WorkforceBreakdown:
         """Generate workforce breakdown for a single year."""

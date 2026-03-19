@@ -103,7 +103,7 @@ class DataCleanupManager:
                     if hasattr(result, 'fetchone'):
                         row_count = result.fetchone()
                         if row_count and self.verbose:
-                            print(f"  ✓ Cleared {row_count[0]} rows from {table}")
+                            logger.info("Cleared %s rows from %s", row_count[0], table)
                     cleared_count += 1
                 except Exception:
                     # Table may not exist yet; silently continue
@@ -113,11 +113,11 @@ class DataCleanupManager:
         try:
             cleared = self.db_manager.execute_with_retry(_run)
             if cleared and self.verbose:
-                print(f"🧹 Cleared year {year} rows from {cleared} fact table(s)")
+                logger.info("Cleared year %d rows from %d fact table(s)", year, cleared)
         except Exception as e:
             # Non-fatal error; log but continue
             if self.verbose:
-                print(f"⚠️  Warning: Error clearing year {year} fact rows: {e}")
+                logger.warning("Error clearing year %d fact rows: %s", year, e)
 
     def clear_year_data(
         self,
@@ -181,15 +181,15 @@ class DataCleanupManager:
                     ).fetchone()
                     cleared += 1
                     if self.verbose and rows_deleted:
-                        print(f"  ✓ Cleared {rows_deleted[0]} rows from {table}")
+                        logger.info("Cleared %s rows from %s", rows_deleted[0], table)
 
             return cleared
 
         cleared = self.db_manager.execute_with_retry(_run)
         if cleared and self.verbose:
-            print(
-                f"🧹 Cleared year {year} data from {cleared} table(s) "
-                f"matching patterns: {patterns}"
+            logger.info(
+                "Cleared year %d data from %d table(s) matching patterns: %s",
+                year, cleared, patterns
             )
 
     def full_reset(
@@ -240,20 +240,20 @@ class DataCleanupManager:
                     if hasattr(result, 'fetchone'):
                         row_count = result.fetchone()
                         if row_count and self.verbose:
-                            print(f"  ✓ Cleared all rows from {table}")
+                            logger.info("Cleared all rows from %s", table)
                     cleared += 1
                 except Exception as e:
                     # Log error but continue with other tables
                     if self.verbose:
-                        print(f"⚠️  Warning: Could not clear {table}: {e}")
+                        logger.warning("Could not clear %s: %s", table, e)
 
             return cleared
 
         cleared = self.db_manager.execute_with_retry(_run)
         if cleared and self.verbose:
-            print(
-                f"🧹 Full reset: cleared all rows from {cleared} table(s) "
-                f"matching patterns: {patterns}"
+            logger.info(
+                "Full reset: cleared all rows from %d table(s) matching patterns: %s",
+                cleared, patterns
             )
 
     def should_clear_table(
@@ -391,9 +391,9 @@ class DataCleanupManager:
             f"CSV has columns {missing_columns} not in table. Dropping table."
         )
         if self.verbose:
-            print(
-                f"  🔄 Dropping {table_name} - schema mismatch "
-                f"(missing: {', '.join(sorted(missing_columns))})"
+            logger.debug(
+                "Dropping %s - schema mismatch (missing: %s)",
+                table_name, ", ".join(sorted(missing_columns))
             )
 
         try:
@@ -460,9 +460,9 @@ class DataCleanupManager:
         self.db_manager.execute_with_retry(_run)
 
         if dropped_tables and self.verbose:
-            print(
-                f"🧹 Dropped {len(dropped_tables)} seed table(s) with schema mismatch: "
-                f"{', '.join(dropped_tables)}"
+            logger.info(
+                "Dropped %d seed table(s) with schema mismatch: %s",
+                len(dropped_tables), ", ".join(dropped_tables)
             )
 
         return dropped_tables

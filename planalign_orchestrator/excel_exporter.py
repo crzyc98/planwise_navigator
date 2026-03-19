@@ -17,6 +17,7 @@ Features:
 from __future__ import annotations
 
 import json
+import logging
 import re
 import subprocess
 from pathlib import Path
@@ -32,6 +33,8 @@ from config.constants import (
     TABLE_FCT_YEARLY_EVENTS,
 )
 from .utils import DatabaseConnectionManager
+
+logger = logging.getLogger(__name__)
 
 # Regex for validating SQL identifiers (table names) that can't be parameterized
 _VALID_IDENTIFIER_RE = re.compile(r'^[a-zA-Z_]\w*$')
@@ -79,7 +82,7 @@ class ExcelExporter:
             # Check if workforce snapshot table exists
             table_exists = self._check_table_exists(conn, TABLE_FCT_WORKFORCE_SNAPSHOT)
             if not table_exists:
-                print("   ⚠️  Warning: fct_workforce_snapshot table not found, creating minimal export")
+                logger.warning("fct_workforce_snapshot table not found, creating minimal export")
                 return self._create_minimal_export(scenario_name, output_dir, export_format)
 
             # Determine total rows and whether to split by year
@@ -716,10 +719,10 @@ class ExcelExporter:
                     summary_stats = self._sanitize_for_excel(summary_stats)
                     summary_stats.to_excel(writer, sheet_name="Scenario_Summary")
 
-                print(f"   📊 Comparison workbook created with {len(comparison_data)} data points")
+                logger.info("Comparison workbook created with %d data points", len(comparison_data))
             else:
-                print("   ⚠️  No comparison data found for scenarios")
+                logger.warning("No comparison data found for scenarios")
 
         except Exception as e:
-            print(f"   ❌ Error creating comparison workbook: {e}")
+            logger.error("Error creating comparison workbook: %s", e)
             raise

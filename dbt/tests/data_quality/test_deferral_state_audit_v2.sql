@@ -30,7 +30,7 @@ WITH deferral_state_data AS (
         NULL::VARCHAR AS precision_status,
         NULL::VARCHAR AS record_immutability_status,
         NULL::VARCHAR AS event_sourcing_metadata
-    FROM {{ ref('int_deferral_rate_state_accumulator_v2') }}
+    FROM {{ ref('int_deferral_rate_state_accumulator') }}
     WHERE simulation_year = {{ simulation_year }}
 ),
 
@@ -80,7 +80,7 @@ SELECT
     CASE WHEN validation_severity IN ('CRITICAL', 'ERROR') THEN true ELSE false END AS regulatory_impact,
     CURRENT_TIMESTAMP AS validation_timestamp,
     'dq_deferral_rate_state_audit_validation_v2' AS validation_source,
-    'int_deferral_rate_state_accumulator_v2' AS validated_model,
+    'int_deferral_rate_state_accumulator' AS validated_model,
     'SOX_COMPLIANT_VALIDATION' AS regulatory_framework,
     'IMMUTABLE_VALIDATION_RECORD' AS audit_record_type
 FROM all_validations

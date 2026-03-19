@@ -235,9 +235,8 @@ def _export_enrollment_vars(cfg: "SimulationConfig") -> Dict[str, Any]:
         if dc_plan_dict:
             _apply_dc_plan_enrollment_overrides(dc_plan_dict, dbt_vars)
     except Exception as e:
-        import traceback
-        print(f"Warning: Error processing dc_plan enrollment/escalation configuration: {e}")
-        print(f"Traceback: {traceback.format_exc()}")
+        logger.warning("Error processing dc_plan enrollment/escalation configuration: %s", e,
+                       exc_info=True)
 
     return dbt_vars
 
@@ -425,9 +424,8 @@ def _export_employer_match_vars(cfg: "SimulationConfig") -> Dict[str, Any]:
                 dbt_vars["employer_match"] = employer_match_defaults
 
     except Exception as e:
-        import traceback
-        print(f"Warning: Error processing employer_match configuration: {e}")
-        print(f"Traceback: {traceback.format_exc()}")
+        logger.warning("Error processing employer_match configuration: %s", e,
+                       exc_info=True)
         dbt_vars["employer_match"] = employer_match_defaults
 
     # E084 Phase B: Export custom match tiers from dc_plan config
@@ -571,9 +569,8 @@ def _export_employer_match_vars(cfg: "SimulationConfig") -> Dict[str, Any]:
                 dbt_vars["employer_match"]["apply_eligibility"] = True
 
     except Exception as e:
-        import traceback
-        print(f"Warning: Error processing dc_plan match configuration: {e}")
-        print(f"Traceback: {traceback.format_exc()}")
+        logger.warning("Error processing dc_plan match configuration: %s", e,
+                       exc_info=True)
 
     return dbt_vars
 
@@ -637,9 +634,8 @@ def _export_compensation_vars(cfg: "SimulationConfig") -> Dict[str, Any]:
             if level_adjustments:
                 dbt_vars["level_market_adjustments"] = level_adjustments
     except Exception as e:
-        import traceback
-        print(f"Warning: Error processing new_hire configuration: {e}")
-        print(f"Traceback: {traceback.format_exc()}")
+        logger.warning("Error processing new_hire configuration: %s", e,
+                       exc_info=True)
 
     return dbt_vars
 
@@ -882,9 +878,8 @@ def _export_core_contribution_vars(cfg: "SimulationConfig") -> Dict[str, Any]:
                     dbt_vars["employer_core_contribution"]["eligibility"] = current_eligibility
 
     except Exception as e:
-        import traceback
-        print(f"Warning: Error processing dc_plan core configuration: {e}")
-        print(f"Traceback: {traceback.format_exc()}")
+        logger.warning("Error processing dc_plan core configuration: %s", e,
+                       exc_info=True)
 
     return dbt_vars
 

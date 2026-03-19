@@ -264,9 +264,9 @@ class DatabaseInitializer:
             )
         """)
 
-        # int_deferral_rate_state_accumulator_v2 - Deferral rate state management
+        # int_deferral_rate_state_accumulator - Deferral rate state management
         conn.execute("""
-            CREATE TABLE IF NOT EXISTS int_deferral_rate_state_accumulator_v2 (
+            CREATE TABLE IF NOT EXISTS int_deferral_rate_state_accumulator (
                 scenario_id VARCHAR,
                 plan_design_id VARCHAR,
                 employee_id VARCHAR,

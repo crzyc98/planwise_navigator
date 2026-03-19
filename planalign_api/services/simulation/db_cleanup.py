@@ -12,7 +12,7 @@ TABLES_WITH_YEAR = [
     "fct_workforce_snapshot",
     "fct_yearly_events",
     "int_enrollment_state_accumulator",
-    "int_deferral_rate_state_accumulator_v2",
+    "int_deferral_rate_state_accumulator",
     "int_deferral_escalation_state_accumulator",
     "int_baseline_workforce",
     "int_employee_compensation_by_year",

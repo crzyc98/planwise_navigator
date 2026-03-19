@@ -27,7 +27,7 @@
 
   Dependencies:
   - int_employee_compensation_by_year for compensation and age data
-  - int_deferral_rate_state_accumulator_v2 for deferral rates (S042-01: Source of Truth Architecture Fix)
+  - int_deferral_rate_state_accumulator for deferral rates (S042-01: Source of Truth Architecture Fix)
   - config_irs_limits for IRS limit configuration
 */
 
@@ -80,7 +80,7 @@ deferral_rates_ranked AS (
         is_enrolled_flag,
         data_quality_flag,
         ROW_NUMBER() OVER (PARTITION BY employee_id ORDER BY simulation_year DESC) as rn
-    FROM {{ ref('int_deferral_rate_state_accumulator_v2') }}
+    FROM {{ ref('int_deferral_rate_state_accumulator') }}
     WHERE simulation_year <= (SELECT current_year FROM simulation_parameters)
 ),
 

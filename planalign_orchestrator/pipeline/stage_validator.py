@@ -11,9 +11,12 @@ EVENT_GENERATION, and STATE_ACCUMULATION stages with detailed row count reportin
 
 from __future__ import annotations
 
+import logging
 from typing import TYPE_CHECKING
 
 from .workflow import WorkflowStage, StageDefinition
+
+logger = logging.getLogger(__name__)
 from .year_executor import PipelineStageError
 
 if TYPE_CHECKING:
@@ -135,25 +138,26 @@ class StageValidator:
             level_hires_needed,
         ) = self.db_manager.execute_with_retry(_chk)
 
-        print(f"   📊 Foundation model validation for year {year}:")
+        logger.info("Foundation model validation for year %d:", year)
         if year == start_year:
-            print(f"      int_baseline_workforce: {baseline_cnt} rows")
+            logger.info("  int_baseline_workforce: %d rows", baseline_cnt)
         else:
             # Baseline is only populated in start_year; show preserved baseline for clarity
-            print(
-                f"      int_baseline_workforce: {baseline_cnt} rows (current year); preserved baseline {preserved_baseline_cnt} rows (start_year={start_year})"
+            logger.info(
+                "  int_baseline_workforce: %d rows (current year); preserved baseline %d rows (start_year=%d)",
+                baseline_cnt, preserved_baseline_cnt, start_year
             )
-        print(f"      int_employee_compensation_by_year: {comp_cnt} rows")
-        print(f"      int_workforce_needs: {wn_cnt} rows")
-        print(f"      int_workforce_needs_by_level: {wnbl_cnt} rows")
-        print(
-            f"      int_employer_eligibility: {employer_elig_cnt} rows (not built in FOUNDATION)"
+        logger.info("  int_employee_compensation_by_year: %d rows", comp_cnt)
+        logger.info("  int_workforce_needs: %d rows", wn_cnt)
+        logger.info("  int_workforce_needs_by_level: %d rows", wnbl_cnt)
+        logger.info(
+            "  int_employer_eligibility: %d rows (not built in FOUNDATION)", employer_elig_cnt
         )
-        print(
-            f"      int_employer_core_contributions: {employer_core_cnt} rows (built later in STATE_ACCUMULATION)"
+        logger.info(
+            "  int_employer_core_contributions: %d rows (built later in STATE_ACCUMULATION)", employer_core_cnt
         )
-        print(f"      hiring_demand.total_hires_needed: {total_hires_needed}")
-        print(f"      hiring_demand.sum_by_level: {level_hires_needed}")
+        logger.info("  hiring_demand.total_hires_needed: %d", total_hires_needed)
+        logger.info("  hiring_demand.sum_by_level: %d", level_hires_needed)
 
         # Epic E042 Fix: Only validate baseline workforce for first year
         if baseline_cnt == 0 and year == self.config.simulation.start_year:
@@ -161,8 +165,9 @@ class StageValidator:
                 f"CRITICAL: int_baseline_workforce has 0 rows for year {year}. Check census data processing."
             )
         elif baseline_cnt == 0 and year > self.config.simulation.start_year:
-            print(
-                f"ℹ️ int_baseline_workforce has 0 rows for year {year} (expected). Baseline is preserved in start_year={start_year} with {preserved_baseline_cnt} rows."
+            logger.info(
+                "int_baseline_workforce has 0 rows for year %d (expected). Baseline is preserved in start_year=%d with %d rows.",
+                year, start_year, preserved_baseline_cnt
             )
         if comp_cnt == 0:
             raise PipelineStageError(
@@ -173,16 +178,16 @@ class StageValidator:
                 f"CRITICAL: workforce_needs rows={wn_cnt}, by_level rows={wnbl_cnt} for {year}. Hiring will fail."
             )
         if employer_elig_cnt == 0:
-            print(
-                f"ℹ️ int_employer_eligibility has 0 rows for year {year} (expected before EVENT_GENERATION)."
+            logger.info(
+                "int_employer_eligibility has 0 rows for year %d (expected before EVENT_GENERATION).", year
             )
         if employer_core_cnt == 0:
-            print(
-                f"ℹ️ int_employer_core_contributions has 0 rows for year {year} (expected; built during STATE_ACCUMULATION)."
+            logger.info(
+                "int_employer_core_contributions has 0 rows for year %d (expected; built during STATE_ACCUMULATION).", year
             )
         if total_hires_needed == 0 or level_hires_needed == 0:
-            print(
-                "⚠️ Hiring demand calculated as 0; new hire events will not be generated. Verify target_growth_rate and termination rates."
+            logger.warning(
+                "Hiring demand calculated as 0; new hire events will not be generated. Verify target_growth_rate and termination rates."
             )
 
     def _validate_event_generation(self, year: int) -> None:
@@ -199,9 +204,9 @@ class StageValidator:
             return int(hires), int(demand)
 
         hires_cnt, demand_cnt = self.db_manager.execute_with_retry(_ev_chk)
-        print(f"   📊 Event generation validation for year {year}:")
-        print(f"      int_hiring_events: {hires_cnt} rows")
-        print(f"      hiring_demand (sum_by_level): {demand_cnt}")
+        logger.info("Event generation validation for year %d:", year)
+        logger.info("  int_hiring_events: %d rows", hires_cnt)
+        logger.info("  hiring_demand (sum_by_level): %d", demand_cnt)
         if hires_cnt == 0 and demand_cnt > 0:
             raise PipelineStageError(
                 f"CRITICAL: Hiring demand={demand_cnt} but 0 int_hiring_events rows for {year}. Check hiring logic."

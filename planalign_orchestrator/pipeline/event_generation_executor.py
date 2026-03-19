@@ -197,7 +197,7 @@ class EventGenerationExecutor:
         start_time = time.time()
 
         if self.verbose:
-            print(f"🔄 Executing event generation in SQL mode for years {years}")
+            logger.debug("Executing event generation in SQL mode for years %s", years)
 
         return self._execute_sql_event_generation(years, start_time)
 
@@ -253,14 +253,12 @@ class EventGenerationExecutor:
                     # Single execution per stage using tags
                     # Exclude STATE_ACCUMULATION models that were incorrectly tagged EVENT_GENERATION via directory-level config
                     # These models depend on STATE_ACCUMULATION outputs that don't exist yet during EVENT_GENERATION:
-                    # - int_employee_contributions: depends on int_deferral_rate_state_accumulator_v2
+                    # - int_employee_contributions: depends on int_deferral_rate_state_accumulator
                     # - int_employee_match_calculations: depends on int_employee_contributions
-                    # - int_promotion_events_optimized: depends on fct_workforce_snapshot
                     result = self.dbt_runner.execute_command(
                         ["run", "--select", "tag:EVENT_GENERATION",
                          "--exclude", "int_employee_contributions",
-                         "--exclude", "int_employee_match_calculations",
-                         "--exclude", "int_promotion_events_optimized"],
+                         "--exclude", "int_employee_match_calculations"],
                         simulation_year=year,
                         dbt_vars=self.dbt_vars,
                         stream_output=True
@@ -289,10 +287,10 @@ class EventGenerationExecutor:
         sql_duration = time.time() - start_time
 
         if self.verbose:
-            print(f"✅ SQL event generation completed in {sql_duration:.1f}s")
-            print(f"📊 Generated {total_events:,} events across {len(successful_years)} years")
+            logger.info("SQL event generation completed in %.1fs", sql_duration)
+            logger.info("Generated %s events across %d years", f"{total_events:,}", len(successful_years))
             if sql_duration > 0:
-                print(f"⚡ Performance: {total_events/sql_duration:.0f} events/second")
+                logger.info("Performance: %.0f events/second", total_events / sql_duration)
 
         return {
             'mode': 'sql',
@@ -330,7 +328,7 @@ class EventGenerationExecutor:
         results = []
 
         if self.verbose:
-            print(f"   🔀 Executing event generation with {self.event_shards} shards")
+            logger.debug("Executing event generation with %d shards", self.event_shards)
 
         # Execute sharded event generation in parallel
         for shard_id in range(self.event_shards):

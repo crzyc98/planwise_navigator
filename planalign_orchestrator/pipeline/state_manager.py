@@ -8,8 +8,11 @@ Extracted from PipelineOrchestrator to improve modularity and maintainability.
 
 from __future__ import annotations
 
+import logging
 from pathlib import Path
 from typing import Optional
+
+logger = logging.getLogger(__name__)
 
 from config.constants import (
     MODEL_FCT_WORKFORCE_SNAPSHOT,
@@ -116,8 +119,9 @@ class StateManager:
 
         cleared = self.db_manager.execute_with_retry(_run)
         if cleared:
-            print(
-                f"🧹 Cleared year {year} rows in {cleared} table(s) per setup.clear_table_patterns"
+            logger.info(
+                "Cleared year %d rows in %d table(s) per setup.clear_table_patterns",
+                year, cleared
             )
 
     def maybe_full_reset(self) -> None:
@@ -170,8 +174,9 @@ class StateManager:
 
         cleared = self.db_manager.execute_with_retry(_run)
         if cleared:
-            print(
-                f"🧹 Full reset: cleared all rows in {cleared} table(s) per setup.clear_table_patterns"
+            logger.info(
+                "Full reset: cleared all rows in %d table(s) per setup.clear_table_patterns",
+                cleared
             )
 
     def clear_year_fact_rows(self, year: int) -> None:
@@ -268,10 +273,11 @@ class StateManager:
                 stream_output=True,
             )
             if not res.success:
-                print(f"⚠️ Retry build of {TABLE_FCT_WORKFORCE_SNAPSHOT} failed for {year}")
+                logger.warning("Retry build of %s failed for %d", TABLE_FCT_WORKFORCE_SNAPSHOT, year)
             else:
                 snap_count, _ = self.db_manager.execute_with_retry(_counts)
         if snap_count == 0:
-            print(
-                f"⚠️ {TABLE_FCT_WORKFORCE_SNAPSHOT} has 0 rows for {year}; verify upstream models and vars"
+            logger.warning(
+                "%s has 0 rows for %d; verify upstream models and vars",
+                TABLE_FCT_WORKFORCE_SNAPSHOT, year
             )

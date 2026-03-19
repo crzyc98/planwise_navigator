@@ -5,8 +5,11 @@ Simple database setup script for PlanWise Navigator
 Quick wrapper around init_database.py for common use cases.
 """
 
+import logging
 import sys
 from pathlib import Path
+
+logger = logging.getLogger(__name__)
 
 # Add project root to path for imports
 project_root = Path(__file__).parent.parent
@@ -17,25 +20,25 @@ from planalign_orchestrator.init_database import DatabaseInitializer
 
 def setup_fresh_database():
     """Set up a fresh database with all tables and sample data."""
-    print("🚀 Setting up fresh PlanWise Navigator database...")
+    logger.info("Setting up fresh PlanWise Navigator database...")
 
     initializer = DatabaseInitializer()
     success = initializer.initialize_database(fresh=True)
 
     if success:
-        print("✅ Database setup completed successfully!")
-        print(f"📍 Database location: {initializer.db_path}")
-        print("\nNext steps:")
-        print("1. Run a simulation: python run_multi_year.py")
-        print("2. Check data: python -c \"import duckdb; print(duckdb.connect('dbt/simulation.duckdb').execute('SHOW TABLES').fetchall())\"")
+        logger.info("Database setup completed successfully!")
+        logger.info("Database location: %s", initializer.db_path)
+        logger.info("Next steps:")
+        logger.info("1. Run a simulation: python run_multi_year.py")
+        logger.info("2. Check data: python -c \"import duckdb; print(duckdb.connect('dbt/simulation.duckdb').execute('SHOW TABLES').fetchall())\"")
     else:
-        print("❌ Database setup failed. Check logs above.")
+        logger.error("Database setup failed. Check logs above.")
         sys.exit(1)
 
 
 def validate_database():
     """Validate existing database structure."""
-    print("🔍 Validating database structure...")
+    logger.info("Validating database structure...")
 
     initializer = DatabaseInitializer()
 
@@ -44,13 +47,13 @@ def validate_database():
             success = initializer.validate_database_structure(conn)
 
         if success:
-            print("✅ Database validation passed!")
+            logger.info("Database validation passed!")
         else:
-            print("❌ Database validation failed!")
+            logger.error("Database validation failed!")
             sys.exit(1)
 
     except Exception as e:
-        print(f"❌ Validation error: {e}")
+        logger.error("Validation error: %s", e, exc_info=True)
         sys.exit(1)
 
 

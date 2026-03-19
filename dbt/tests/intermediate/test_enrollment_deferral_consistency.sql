@@ -28,7 +28,7 @@ WITH enrolled_employees_from_accumulator AS (
         original_deferral_rate,
         is_enrolled_flag,
         employee_enrollment_date
-    FROM {{ ref('int_deferral_rate_state_accumulator_v2') }}
+    FROM {{ ref('int_deferral_rate_state_accumulator') }}
     WHERE simulation_year = {{ var('simulation_year') }}
 ),
 

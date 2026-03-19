@@ -197,7 +197,7 @@ class WorkflowBuilder:
                     # Build proration snapshot before contributions so all bases are prorated
                     "int_workforce_snapshot_optimized",
                     MODEL_INT_ENROLLMENT_STATE_ACCUMULATOR,
-                    "int_deferral_rate_state_accumulator_v2",
+                    "int_deferral_rate_state_accumulator",
                     "int_deferral_escalation_state_accumulator",
                     # Build employer contributions after contributions are computed to ensure proration
                     "int_employee_contributions",

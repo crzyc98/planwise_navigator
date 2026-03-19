@@ -7,6 +7,7 @@ with workforce breakdown, event summary, and data quality validation.
 
 from __future__ import annotations
 
+import logging
 from datetime import datetime, timezone
 from typing import Any, Dict, Optional, TYPE_CHECKING
 
@@ -23,6 +24,8 @@ from .data_models import (
     EventSummary,
     YearAuditReport,
 )
+
+logger = logging.getLogger(__name__)
 
 if TYPE_CHECKING:
     from ..utils import DatabaseConnectionManager
@@ -63,8 +66,7 @@ class YearAuditor:
 
     def generate_detailed_year_audit(self, year: int) -> None:
         """Generate and display comprehensive year audit matching monolithic script format."""
-        print(f"\n📊 YEAR {year} AUDIT RESULTS")
-        print("=" * 50)
+        logger.info("YEAR %d AUDIT RESULTS", year)
 
         try:
             with self.db_manager.get_connection() as conn:
@@ -83,10 +85,8 @@ class YearAuditor:
                 # Data quality checks
                 self._display_data_quality_checks(conn, year)
 
-                print()  # Extra spacing
-
         except Exception as e:
-            print(f"❌ Error during year audit: {e}")
+            logger.error("Error during year audit: %s", e, exc_info=True)
 
     def _display_workforce_breakdown(self, conn, year: int) -> None:
         """Display detailed workforce breakdown by status."""
@@ -104,11 +104,18 @@ class YearAuditor:
         results = conn.execute(workforce_query, [year]).fetchall()
 
         if results:
-            print("📋 Year-end Employment Makeup by Status:")
             total_employees = sum(row[1] for row in results)
+            lines = ["Year-end Employment Makeup by Status:"]
             for status, count, pct in results:
-                print(f"   {status:25}: {count:4,} ({pct:4.1f}%)")
-            print(f"   {'TOTAL':25}: {total_employees:4,} (100.0%)")
+                lines.append(
+                    "   %s: %4s (%4.1f%%)"
+                    % (status.ljust(25), f"{count:,}", pct)
+                )
+            lines.append(
+                "   %s: %4s (100.0%%)"
+                % ("TOTAL".ljust(25), f"{total_employees:,}")
+            )
+            logger.info("\n".join(lines))
 
     def _display_event_summary(self, conn, year: int) -> None:
         """Display event summary for the year."""
@@ -133,16 +140,17 @@ class YearAuditor:
         """
         hires, terminations = conn.execute(derived_query, [year]).fetchone()
 
-        # Print summary
-        print(f"\n📈 Year {year} Event Summary:")
+        # Log summary
         total_events = (
             (hires or 0) + (terminations or 0) + sum(row[1] for row in results)
         )
-        print(f"   {'hire':15}: {(hires or 0):4,}")
-        print(f"   {'termination':15}: {(terminations or 0):4,}")
+        lines = ["Year %d Event Summary:" % year]
+        lines.append("   %s: %4s" % ("hire".ljust(15), f"{(hires or 0):,}"))
+        lines.append("   %s: %4s" % ("termination".ljust(15), f"{(terminations or 0):,}"))
         for event_type, count in results:
-            print(f"   {event_type:15}: {count:4,}")
-        print(f"   {'TOTAL':15}: {total_events:4,}")
+            lines.append("   %s: %4s" % (event_type.ljust(15), f"{count:,}"))
+        lines.append("   %s: %4s" % ("TOTAL".ljust(15), f"{total_events:,}"))
+        logger.info("\n".join(lines))
 
     def _display_growth_analysis(self, conn, year: int) -> None:
         """Display growth analysis - baseline comparison for year 1, YoY for others."""
@@ -165,16 +173,18 @@ class YearAuditor:
             active_result = conn.execute(active_query, [year]).fetchone()
             active_count = active_result[0] if active_result else 0
 
-            print("\n📊 Growth from Baseline:")
-            print(f"   Baseline active employees  : {baseline_count:4,}")
-            print(f"   Year-end active employees  : {active_count:4,}")
+            lines = ["Growth from Baseline:"]
+            lines.append("   Baseline active employees  : %4s" % f"{baseline_count:,}")
+            lines.append("   Year-end active employees  : %4s" % f"{active_count:,}")
 
             if baseline_count > 0:
                 growth = active_count - baseline_count
                 growth_pct = (growth / baseline_count) * 100
-                print(
-                    f"   Net growth                 : {growth:+4,} ({growth_pct:+5.1f}%)"
+                lines.append(
+                    "   Net growth                 : %+d (%+5.1f%%)"
+                    % (growth, growth_pct)
                 )
+            logger.info("\n".join(lines))
         else:
             # Year-over-year comparison
             prev_year_query = f"""
@@ -193,16 +203,18 @@ class YearAuditor:
             current_result = conn.execute(current_query, [year]).fetchone()
             current_count = current_result[0] if current_result else 0
 
-            print("\n📊 Year-over-Year Growth:")
-            print(f"   Year {year-1} active employees: {prev_count:4,}")
-            print(f"   Year {year} active employees  : {current_count:4,}")
+            lines = ["Year-over-Year Growth:"]
+            lines.append("   Year %d active employees: %4s" % (year - 1, f"{prev_count:,}"))
+            lines.append("   Year %d active employees  : %4s" % (year, f"{current_count:,}"))
 
             if prev_count > 0:
                 growth = current_count - prev_count
                 growth_pct = (growth / prev_count) * 100
-                print(
-                    f"   Net growth                   : {growth:+4,} ({growth_pct:+5.1f}%)"
+                lines.append(
+                    "   Net growth                   : %+d (%+5.1f%%)"
+                    % (growth, growth_pct)
                 )
+            logger.info("\n".join(lines))
 
     def _display_contribution_summary(self, conn, year: int) -> None:
         """Display employee contributions summary."""
@@ -224,11 +236,17 @@ class YearAuditor:
 
             if result and result[0] > 0:
                 enrolled, total_contrib, avg_contrib, avg_rate = result
-                print("\n💰 Employee Contributions Summary:")
-                print(f"   Enrolled employees (active EOY)  : {enrolled:4,}")
-                print(f"   Total annual contributions   : ${total_contrib:10,.0f}")
-                print(f"   Average contribution         : ${avg_contrib:6,.0f}")
-                print(f"   Average deferral rate        : {avg_rate:4.1f}%")
+                logger.info(
+                    "Employee Contributions Summary:\n"
+                    "   Enrolled employees (active EOY)  : %4s\n"
+                    "   Total annual contributions   : $%s\n"
+                    "   Average contribution         : $%s\n"
+                    "   Average deferral rate        : %4.1f%%",
+                    f"{enrolled:,}",
+                    f"{total_contrib:,.0f}",
+                    f"{avg_contrib:,.0f}",
+                    avg_rate,
+                )
 
             # Check for contribution data quality issues
             dq_query = """
@@ -239,18 +257,22 @@ class YearAuditor:
             dq_result = conn.execute(dq_query, [year]).fetchone()
             if dq_result and dq_result[0] > 0:
                 failures = dq_result[0]
-                print(
-                    f"   ⚠️  Data quality issues      : {failures:4,} validation failures"
+                logger.warning(
+                    "Data quality issues: %d validation failures", failures
                 )
             else:
-                print("   ✅ Data quality              : All validations passed")
+                logger.info("Data quality: All validations passed")
 
         except Exception as contrib_error:
-            print(f"   ⚠️  Contribution summary unavailable: {contrib_error}")
+            logger.warning(
+                "Contribution summary unavailable: %s",
+                contrib_error,
+                exc_info=True,
+            )
 
     def _display_data_quality_checks(self, conn, year: int) -> None:
         """Display data quality checks and validation."""
-        print("\n🔍 Data Quality Checks:")
+        logger.info("Data Quality Checks:")
 
         # Get events for analysis
         events_query = f"""
@@ -277,18 +299,23 @@ class YearAuditor:
 
             if hire_count > 0 and term_count > 0:
                 turnover_ratio = term_count / hire_count
-                print(
-                    f"   Hire/Termination ratio       : {hire_count:,} hires, {term_count:,} terms (ratio: {turnover_ratio:.2f})"
+                logger.info(
+                    "   Hire/Termination ratio       : %s hires, %s terms (ratio: %.2f)",
+                    f"{hire_count:,}",
+                    f"{term_count:,}",
+                    turnover_ratio,
                 )
 
                 # Flag unusual ratios
                 if hire_count > 2000:
-                    print(
-                        f"   ⚠️  HIGH HIRE COUNT: {hire_count:,} hires may be excessive for one year"
+                    logger.warning(
+                        "HIGH HIRE COUNT: %s hires may be excessive for one year",
+                        f"{hire_count:,}",
                     )
                 if term_count > 1000:
-                    print(
-                        f"   ⚠️  HIGH TERMINATION COUNT: {term_count:,} terminations may be excessive"
+                    logger.warning(
+                        "HIGH TERMINATION COUNT: %s terminations may be excessive",
+                        f"{term_count:,}",
                     )
 
             # Check for employer match events
@@ -310,10 +337,15 @@ class YearAuditor:
                 match_result = conn.execute(match_query, [year]).fetchone()
                 if match_result:
                     match_cnt, total_cost, avg_match = match_result
-                    print("\n💰 Employer Match Summary:")
-                    print(f"   Employees receiving match    : {match_cnt:,}")
-                    print(f"   Total match cost             : ${total_cost:,.2f}")
-                    print(f"   Average match per employee   : ${avg_match:,.2f}")
+                    logger.info(
+                        "Employer Match Summary:\n"
+                        "   Employees receiving match    : %s\n"
+                        "   Total match cost             : $%s\n"
+                        "   Average match per employee   : $%s",
+                        f"{match_cnt:,}",
+                        f"{total_cost:,.2f}",
+                        f"{avg_match:,.2f}",
+                    )
 
     def _generate_workforce_breakdown(self, conn, year: int) -> WorkforceBreakdown:
         """Generate workforce breakdown data structure."""

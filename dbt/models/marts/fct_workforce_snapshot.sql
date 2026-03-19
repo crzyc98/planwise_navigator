@@ -814,7 +814,7 @@ final_workforce AS (
     -- Add eligibility information
     LEFT JOIN employee_eligibility ee ON fwc.employee_id = ee.employee_id
     -- Epic E035: Add deferral rate state tracking (ENABLED - Fix for consistent deferral rate display)
-    LEFT JOIN {{ ref('int_deferral_rate_state_accumulator_v2') }} dsa
+    LEFT JOIN {{ ref('int_deferral_rate_state_accumulator') }} dsa
         ON fwc.employee_id = dsa.employee_id
         AND dsa.simulation_year = sp.current_year
     -- Add enrollment state accumulator for participation status tracking

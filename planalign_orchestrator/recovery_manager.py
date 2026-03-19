@@ -16,6 +16,7 @@ Features:
 
 from __future__ import annotations
 
+import logging
 import os
 import shutil
 import time
@@ -33,6 +34,8 @@ from config.constants import (
     TABLE_FCT_YEARLY_EVENTS,
 )
 from .backup_manager import BackupConfiguration, BackupManager, BackupMetadata
+
+logger = logging.getLogger(__name__)
 
 
 class RecoveryPoint(BaseModel):
@@ -107,7 +110,8 @@ class RecoveryManager:
         with open(self.audit_log, "a", encoding="utf-8") as f:
             f.write(log_entry)
 
-        print(f"RECOVERY [{level}]: {message}")
+        log_method = getattr(logger, level.lower(), logger.info)
+        log_method("RECOVERY: %s", message)
 
     def _generate_operation_id(self) -> str:
         """Generate unique operation ID"""

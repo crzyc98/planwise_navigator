@@ -308,91 +308,6 @@ models:
           config:
             severity: warn
 
-  - name: int_deferral_rate_state_accumulator
-    description: >
-      Temporal state accumulator for employee deferral rates across simulation years.
-      Eliminates circular dependency between int_employee_contributions and fct_yearly_events
-      by providing deterministic deferral rate state tracking using the Epic E023 proven pattern.
-      CRITICAL: Missing temporal accumulation pattern - requires validation framework.
-    config:
-      tags: ["state_accumulator", "critical", "e036_fix", "validation_required"]
-    columns:
-      - name: employee_id
-        description: Unique employee identifier
-        data_tests:
-          - not_null
-          - relationships:
-              to: ref('int_employee_compensation_by_year')
-              field: employee_id
-              config:
-                severity: warn
-      - name: simulation_year
-        description: Simulation year for state accumulation
-        data_tests:
-          - not_null
-          - dbt_utils.accepted_range:
-              min_value: "{{ var('simulation_start_year', 2025) }}"
-              max_value: "{{ var('simulation_end_year', 2029) }}"
-      - name: current_deferral_rate
-        description: Current effective deferral rate for the employee
-        data_tests:
-          - not_null
-          - dbt_utils.accepted_range:
-              min_value: 0
-              max_value: 1.0
-      - name: escalations_received
-        description: Total count of escalations received to date
-        data_tests:
-          - not_null
-          - dbt_utils.accepted_range:
-              min_value: 0
-              max_value: 10
-      - name: has_escalations
-        description: Flag indicating if employee has received any escalations
-        data_tests:
-          - not_null
-          - accepted_values:
-              values: [true, false]
-      - name: is_enrolled_flag
-        description: Current enrollment status in DC plan
-        data_tests:
-          - not_null
-          - accepted_values:
-              values: [true, false]
-      - name: data_quality_flag
-        description: Data quality validation status
-        data_tests:
-          - not_null
-          - accepted_values:
-              values: ['VALID', 'INVALID_EMPLOYEE_ID', 'INVALID_RATE', 'INVALID_ESCALATION_COUNT']
-    data_tests:
-      - unique:
-          column_name: "employee_id || '_' || simulation_year"
-          config:
-            severity: warn
-      - dbt_utils.expression_is_true:
-          expression: "escalations_received >= 0"
-          config:
-            severity: error
-      - dbt_utils.expression_is_true:
-          expression: "current_deferral_rate >= original_deferral_rate OR original_deferral_rate IS NULL"
-          config:
-            severity: warn
-      - dbt_utils.expression_is_true:
-          expression: "(has_escalations = true AND escalations_received > 0) OR (has_escalations = false AND escalations_received = 0)"
-          config:
-            severity: error
-      - dbt_utils.expression_is_true:
-          expression: "is_enrolled_flag = true OR (is_enrolled_flag = false AND escalations_received = 0)"
-          config:
-            severity: error
-      # Cross-year continuity validation - fixed invalid SQL expression
-      - dbt_utils.accepted_range:
-          column_name: current_deferral_rate
-          min_value: 0
-          max_value: 1
-          config:
-            severity: error
   - name: int_employee_match_calculations
     description: >
       Employer match calculation model supporting configurable formulas including
@@ -583,7 +498,7 @@ models:
       - name: contribution_periods_count
         description: Number of contribution periods calculated for this employee
 
-  - name: int_deferral_rate_state_accumulator_v2
+  - name: int_deferral_rate_state_accumulator
     description: >
       Enhanced temporal state accumulator (v2) for employee deferral rates across years.
       Replaces legacy int_deferral_escalation_state_accumulator and is the canonical source for contributions.
@@ -606,7 +521,7 @@ models:
                 simulation_year,
                 escalations_received,
                 LAG(escalations_received) OVER (PARTITION BY employee_id ORDER BY simulation_year) as prev_escalations
-              FROM int_deferral_rate_state_accumulator_v2
+              FROM int_deferral_rate_state_accumulator
             ) t
             WHERE escalations_received < COALESCE(prev_escalations, 0)) = 0
           config:
@@ -620,7 +535,7 @@ models:
                 simulation_year,
                 current_deferral_rate,
                 LAG(current_deferral_rate) OVER (PARTITION BY employee_id ORDER BY simulation_year) as prev_rate
-              FROM int_deferral_rate_state_accumulator_v2
+              FROM int_deferral_rate_state_accumulator
             ) t
             WHERE current_deferral_rate < COALESCE(prev_rate, 0) - 0.001) = 0
           config:
@@ -629,7 +544,7 @@ models:
       # No escalations recorded for terminated employees in the same year
       - dbt_utils.expression_is_true:
           expression: >
-            (SELECT COUNT(*) FROM int_deferral_rate_state_accumulator_v2 acc
+            (SELECT COUNT(*) FROM int_deferral_rate_state_accumulator acc
              LEFT JOIN int_employee_compensation_by_year comp
              ON acc.employee_id = comp.employee_id AND acc.simulation_year = comp.simulation_year
              WHERE comp.employment_status = 'terminated'
@@ -640,7 +555,7 @@ models:
       # Sanity: no rates above 50%
       - dbt_utils.expression_is_true:
           expression: >
-            (SELECT COUNT(*) FROM int_deferral_rate_state_accumulator_v2
+            (SELECT COUNT(*) FROM int_deferral_rate_state_accumulator
              WHERE current_deferral_rate > 0.5) = 0
           config:
             severity: error
@@ -1258,43 +1173,6 @@ models:
 
       - name: employee_enrollment_date
         description: Date when employee enrolled in DC plan (from census)
-
-  - name: int_workforce_previous_year
-    description: >
-      Enhanced previous year workforce model with fallback handling.
-      Gracefully handles missing prior year data without errors.
-    config:
-      tags: ["foundation", "critical"]
-    columns:
-      - name: employee_id
-        description: Unique identifier for each employee
-        data_tests:
-          - unique
-          - not_null
-      - name: employment_status
-        description: Employment status (active/terminated)
-        data_tests:
-          - not_null
-      - name: simulation_year
-        description: Simulation year this workforce represents
-        data_tests:
-          - not_null
-      - name: is_from_census
-        description: Boolean flag indicating if this employee originated from census data
-        data_tests:
-          - not_null
-      - name: is_cold_start
-        description: Boolean flag indicating if this is a cold start scenario
-        data_tests:
-          - not_null
-      - name: active_employees
-        description: Total number of active employees in this workforce
-        data_tests:
-          - not_null
-      - name: total_employees
-        description: Total number of employees in this workforce
-        data_tests:
-          - not_null
 
   # int_termination_events and int_hiring_events are ephemeral models (E068A optimization)
   # and cannot be tested directly. Data quality validation occurs at fct_yearly_events level.
@@ -2137,7 +2015,7 @@ models:
       Generate annual deferral rate escalation events for eligible enrolled employees.
       Epic E035: Automatic Annual Deferral Rate Escalation.
       This model uses a dependency-safe pattern (direct table reference to
-      int_deferral_rate_state_accumulator_v2) to avoid circular dependencies with
+      int_deferral_rate_state_accumulator) to avoid circular dependencies with
       fct_workforce_snapshot. Implements configurable increment amounts (default 1%),
       maximum rate caps (default 10%), and demographic-based eligibility rules.
       Integrates with existing parameter system for job-level configuration.

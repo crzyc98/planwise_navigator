@@ -40,16 +40,6 @@ enrollment_event_counts AS (
   WHERE simulation_year = {{ var('simulation_year') }}
 ),
 
-optimized_event_counts AS (
-  SELECT
-    COUNT(*) as optimized_total_events,
-    COUNT(CASE WHEN event_type = 'enrollment' THEN 1 END) as optimized_enrollment_events,
-    COUNT(CASE WHEN event_type = 'enrollment_change' THEN 1 END) as optimized_opt_out_events,
-    COUNT(DISTINCT employee_id) as optimized_unique_employees
-  FROM {{ ref('int_enrollment_events_optimized') }}
-  WHERE simulation_year = {{ var('simulation_year') }}
-),
-
 demographic_breakdown AS (
   SELECT
     age_segment,
@@ -90,7 +80,6 @@ validation_summary AS (
     b.tenure_eligible,
     b.not_enrolled_eligible,
     COALESCE(e.total_enrollment_events, 0) as actual_events_generated,
-    COALESCE(o.optimized_total_events, 0) as optimized_events_generated,
     b.config_scope,
     b.config_cutoff,
 
@@ -113,7 +102,6 @@ validation_summary AS (
     e.latest_event_date
   FROM baseline_counts b
   FULL OUTER JOIN enrollment_event_counts e ON true
-  FULL OUTER JOIN optimized_event_counts o ON true
 )
 
 -- Final comprehensive report
@@ -124,7 +112,6 @@ SELECT
   tenure_eligible,
   not_enrolled_eligible,
   actual_events_generated,
-  optimized_events_generated,
   config_scope,
   config_cutoff,
   validation_status,
@@ -145,7 +132,6 @@ SELECT
   enrolled_count as tenure_eligible,
   NULL as not_enrolled_eligible,
   NULL as actual_events_generated,
-  NULL as optimized_events_generated,
   age_segment as config_scope,
   income_segment as config_cutoff,
   CONCAT('Enrollment Rate: ', ROUND(enrolled_count::FLOAT / NULLIF(employee_count, 0) * 100, 1), '%') as validation_status,

@@ -11,6 +11,7 @@ Includes:
 from __future__ import annotations
 
 import atexit
+import logging
 import os
 import time
 from contextlib import contextmanager
@@ -20,6 +21,8 @@ from threading import Lock
 from typing import Callable, Dict, Generator, Optional, Set, TypeVar
 
 import duckdb
+
+logger = logging.getLogger(__name__)
 
 T = TypeVar("T")
 
@@ -48,15 +51,15 @@ class ExecutionMutex:
                     return True
                 # Remove stale lock older than 1 hour
                 if time.time() - self.lock_file.stat().st_mtime > 3600:
-                    print("⚠️  Removing stale lock file")
+                    logger.warning("Removing stale lock file")
                     self.lock_file.unlink()
                     continue
                 # Otherwise wait and retry
                 time.sleep(2)
             except Exception as e:  # pragma: no cover - defensive
-                print(f"❌ Error acquiring lock: {e}")
+                logger.error("Error acquiring lock: %s", e)
                 return False
-        print(f"❌ Failed to acquire execution lock after {timeout} seconds")
+        logger.error("Failed to acquire execution lock after %d seconds", timeout)
         return False
 
     def release(self) -> None:
@@ -64,7 +67,7 @@ class ExecutionMutex:
             try:
                 self.lock_file.unlink()
             except Exception as e:  # pragma: no cover - defensive
-                print(f"⚠️  Warning: Could not remove lock file: {e}")
+                logger.warning("Could not remove lock file: %s", e)
             finally:
                 self.acquired = False
 
@@ -135,7 +138,7 @@ class DatabaseConnectionPool:
 
             except Exception as e:
                 # Pragma settings may not be available in all DuckDB versions
-                print(f"⚠️ Warning: Could not set deterministic database settings: {e}")
+                logger.warning("Could not set deterministic database settings: %s", e)
 
         return conn
 
@@ -198,7 +201,7 @@ class DatabaseConnectionPool:
                 try:
                     conn.close()
                 except Exception as e:
-                    print(f"⚠️ Warning: Error closing connection: {e}")
+                    logger.warning("Error closing connection: %s", e)
             self._pool.clear()
             self._in_use.clear()
 
@@ -337,4 +340,4 @@ def time_block(label: str) -> Generator[None, None, None]:
         yield
     finally:
         dur = (time.perf_counter() - start) * 1000
-        print(f"⏱️  {label}: {dur:.1f} ms")
+        logger.debug("%s: %.1f ms", label, dur)

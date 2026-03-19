@@ -86,7 +86,7 @@ production_safety:
 #    - Data quality: dq_* models
 #
 # 2. SEQUENTIAL Models (execute in order):
-#    - State accumulators: int_enrollment_state_accumulator, int_deferral_rate_state_accumulator_v2
+#    - State accumulators: int_enrollment_state_accumulator, int_deferral_rate_state_accumulator
 #    - Fact tables: fct_yearly_events, fct_workforce_snapshot
 #    - Previous year models: int_workforce_previous_year
 #
