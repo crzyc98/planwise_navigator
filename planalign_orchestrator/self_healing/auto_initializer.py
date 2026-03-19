@@ -136,9 +136,6 @@ class AutoInitializer:
 
         # Check if already initialized
         if self._checker.is_initialized():
-            if self.verbose:
-                print("✅ Database already initialized - skipping initialization")
-
             logger.info("Database already initialized, skipping initialization")
             return InitializationResult(
                 state=InitializationState.COMPLETED,
@@ -152,11 +149,6 @@ class AutoInitializer:
         # Get missing tables
         missing_tables = self._checker.get_missing_tables()
         missing_names = [t.name for t in missing_tables]
-
-        if self.verbose:
-            print(f"⚠️  Missing {len(missing_tables)} required tables")
-            for t in missing_tables:
-                print(f"   - {t.name} ({t.tier.value})")
 
         logger.info(
             "Database needs initialization",
@@ -173,8 +165,7 @@ class AutoInitializer:
             if not self._lock.acquire(timeout=5):
                 # Another initialization is in progress
                 raise ConcurrentInitializationError(lock_file=lock_file)
-            if self.verbose:
-                print(f"🔒 Acquired initialization lock: {lock_file}")
+            logger.debug("Acquired initialization lock: %s", lock_file)
 
         try:
             # Run full initialization
@@ -183,8 +174,7 @@ class AutoInitializer:
             # Release lock
             if self._lock:
                 self._lock.release()
-                if self.verbose:
-                    print("🔓 Released initialization lock")
+                logger.debug("Released initialization lock")
 
     def run_initialization(
         self,
@@ -273,10 +263,6 @@ class AutoInitializer:
             # Success!
             completed_at = datetime.now()
 
-            if self.verbose:
-                duration = (completed_at - started_at).total_seconds()
-                print(f"✅ Initialization complete ({duration:.1f}s)")
-
             logger.info(
                 "Initialization completed successfully",
                 extra={
@@ -298,7 +284,7 @@ class AutoInitializer:
             raise
         except Exception as e:
             error_msg = str(e)
-            logger.error(f"Initialization failed: {error_msg}")
+            logger.error("Initialization failed: %s", error_msg)
             return self._create_failed_result(
                 started_at, steps, missing_names, tables_created, error_msg
             )
@@ -318,9 +304,6 @@ class AutoInitializer:
             Updated InitializationStep with timing and result
         """
         started_at = datetime.now()
-
-        if self.verbose:
-            print(f"🔄 {step.display_name}...")
 
         logger.info(
             "initialization_step_start",
@@ -348,9 +331,6 @@ class AutoInitializer:
                 }
             )
 
-            if self.verbose:
-                print(f"   ✓ {step.display_name} ({duration:.1f}s)")
-
             return InitializationStep(
                 name=step.name,
                 display_name=step.display_name,
@@ -376,9 +356,6 @@ class AutoInitializer:
                 }
             )
 
-            if self.verbose:
-                print(f"   ✗ {step.display_name} failed: {error_msg}")
-
             return InitializationStep(
                 name=step.name,
                 display_name=step.display_name,
@@ -401,7 +378,7 @@ class AutoInitializer:
         cleanup_manager = DataCleanupManager(self.db_manager, verbose=self.verbose)
         dropped = cleanup_manager.drop_seed_tables_with_schema_mismatch()
         if dropped:
-            logger.info(f"Dropped {len(dropped)} seed tables with schema mismatch: {dropped}")
+            logger.info("Dropped %d seed tables with schema mismatch: %s", len(dropped), dropped)
 
         result = self.dbt_runner.execute_command(
             ["seed", "--full-refresh", "--threads", "1"],
