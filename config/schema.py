@@ -65,6 +65,36 @@ class SimulationConfig(BaseModel):
             )
         return v
 
+    @classmethod
+    def from_dict(cls, data: dict) -> "SimulationConfig":
+        """Create SimulationConfig from dict, filtering unknown keys.
+
+        This classmethod robustly handles config dicts that may contain unknown keys
+        from scenario overrides (Studio) or config merging. Unknown keys are silently
+        filtered before model construction.
+
+        Args:
+            data: Dictionary that may contain known SimulationConfig fields plus
+                  extra keys from scenario overrides or config merging
+
+        Returns:
+            Reconstructed SimulationConfig instance with validation applied
+
+        Raises:
+            ValidationError: If required fields are missing or values are invalid
+
+        Example:
+            >>> config_dict = {"start_year": 2025, "end_year": 2026, "extra_key": "ignored"}
+            >>> config = SimulationConfig.from_dict(config_dict)
+            >>> config.start_year
+            2025
+        """
+        # Filter to known fields only - silently drop unknown keys
+        known_fields = cls.model_fields.keys()
+        filtered_data = {k: v for k, v in data.items() if k in known_fields}
+        # Construct with Pydantic validation
+        return cls(**filtered_data)
+
     class Config:
         json_encoders = {
             date: lambda v: v.isoformat(),

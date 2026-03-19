@@ -846,6 +846,7 @@ See `/docs/VERSIONING_GUIDE.md` for detailed versioning workflow.
 - TypeScript/React (frontend), Python 3.11 (backend) + React 18, Vite (frontend); FastAPI, Pydantic v2 (backend) (077-remove-pause-button)
 - DuckDB (backend data persistence); React state (UI state) (077-remove-pause-button)
 - Python 3.11 + Pydantic v2 (model serialization), DuckDB 1.0.0 (database), dbt-core 1.8.8 + dbt-duckdb 1.8.1, Rich (CLI) (078-fix-json-serializer)
+- Python 3.11 + Pydantic v2, FastAPI, dbt-core 1.8.8, DuckDB 1.0.0 (079-fix-config-deser)
 
 ## Recent Changes
 - 063-1000-hr-eligibility: Added Python 3.11, SQL (dbt-core 1.8.8) + dbt-duckdb 1.8.1, DuckDB 1.0.0, Pydantic 2.7.4
