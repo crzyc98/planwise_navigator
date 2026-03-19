@@ -148,7 +148,7 @@ class PipelineOrchestrator:
 
         # E068D: Initialize hazard cache manager for automatic change detection
         self.hazard_cache_manager = setup_hazard_cache(
-            db_manager=self.db_manager,
+            config=self.config,
             dbt_runner=self.dbt_runner,
             verbose=self.verbose
         )

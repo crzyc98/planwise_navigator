@@ -275,7 +275,7 @@ def _create_resource_manager(config: Any, verbose: bool = False) -> Optional[Any
 
 
 def setup_hazard_cache(
-    db_manager: "DatabaseConnectionManager",
+    config: "SimulationConfig",
     dbt_runner: "DbtRunner",
     verbose: bool = False
 ) -> Optional[Any]:
@@ -283,8 +283,8 @@ def setup_hazard_cache(
     Initialize hazard cache manager for automatic change detection.
 
     Args:
-        db_manager: Database connection manager
-        dbt_runner: DbtRunner for project path
+        config: Simulation configuration containing hazard parameters
+        dbt_runner: DbtRunner for executing dbt commands
         verbose: Enable verbose output
 
     Returns:
@@ -293,19 +293,14 @@ def setup_hazard_cache(
     Behavior:
         - On success: Returns configured manager, prints status if verbose
         - On failure: Returns None, prints warning if verbose
-        - Never raises exceptions
+        - Never raises exceptions (except TypeError for constructor mismatches)
     """
     try:
         from .hazard_cache_manager import HazardCacheManager
 
-        # Extract dbt project path from runner
-        dbt_project_path = getattr(dbt_runner, 'project_dir', Path('dbt'))
-
         hazard_cache_manager = HazardCacheManager(
-            db_manager=db_manager,
+            config=config,
             dbt_runner=dbt_runner,
-            dbt_project_path=dbt_project_path,
-            verbose=verbose
         )
 
         if verbose:
@@ -319,6 +314,10 @@ def setup_hazard_cache(
         if verbose:
             print("ℹ️ E068D Hazard Cache Manager not available (module not found)")
         return None
+    except TypeError:
+        # Re-raise TypeError (e.g. wrong kwargs) so constructor mismatches
+        # surface immediately instead of silently disabling the cache.
+        raise
     except Exception as e:
         if verbose:
             print(f"⚠️ Failed to initialize Hazard Cache Manager: {e}")
