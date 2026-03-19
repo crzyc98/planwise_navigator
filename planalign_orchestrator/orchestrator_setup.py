@@ -13,6 +13,7 @@ original implementation for user consistency.
 
 from __future__ import annotations
 
+import logging
 from pathlib import Path
 from typing import Any, Optional, TYPE_CHECKING
 
@@ -37,6 +38,9 @@ except ImportError:
     ModelDependencyAnalyzer = None
     ResourceManager = None
     ProductionLogger = None
+
+
+logger = logging.getLogger(__name__)
 
 
 def setup_memory_manager(
@@ -114,11 +118,15 @@ def setup_memory_manager(
                 reports_dir=reports_dir / "memory"
             )
 
-            if verbose:
-                print("🧠 Adaptive Memory Manager initialized")
-                print(f"   Thresholds: {adaptive_config.thresholds.moderate_mb}MB / {adaptive_config.thresholds.high_mb}MB / {adaptive_config.thresholds.critical_mb}MB")
-                print(f"   Batch sizes: {adaptive_config.batch_sizes.fallback}-{adaptive_config.batch_sizes.high}")
-                print(f"   Auto-GC: {adaptive_config.auto_gc_enabled}, Fallback: {adaptive_config.fallback_enabled}")
+            logger.debug("Adaptive Memory Manager initialized: Thresholds=%sMB/%sMB/%sMB, "
+                         "Batch=%s-%s, Auto-GC=%s, Fallback=%s",
+                         adaptive_config.thresholds.moderate_mb,
+                         adaptive_config.thresholds.high_mb,
+                         adaptive_config.thresholds.critical_mb,
+                         adaptive_config.batch_sizes.fallback,
+                         adaptive_config.batch_sizes.high,
+                         adaptive_config.auto_gc_enabled,
+                         adaptive_config.fallback_enabled)
 
             return memory_manager
         else:
@@ -127,16 +135,14 @@ def setup_memory_manager(
                 optimization_level=OptimizationLevel.MEDIUM,
                 memory_limit_gb=4.0  # Default for work laptops
             )
-            if verbose:
-                print("🧠 Adaptive Memory Manager initialized (default configuration)")
+            logger.debug("Adaptive Memory Manager initialized (default configuration)")
 
             return memory_manager
 
     except Exception as e:
         # Fallback to None - orchestrator will work without adaptive memory management
-        if verbose:
-            print(f"⚠️ Failed to initialize Adaptive Memory Manager: {e}")
-            print("   Continuing without adaptive memory management")
+        logger.warning("Failed to initialize Adaptive Memory Manager: %s", e)
+        logger.warning("Continuing without adaptive memory management")
         return None
 
 
@@ -188,9 +194,8 @@ def setup_parallelization(
 
             manifest_path = Path("dbt/target/manifest.json")
             if not manifest_path.exists():
-                if verbose:
-                    print("⚠️ dbt manifest not found - run 'dbt compile' first")
-                    print("   Model parallelization will not be available")
+                logger.warning("dbt manifest not found - run 'dbt compile' first")
+                logger.warning("Model parallelization will not be available")
                 return None, None, None, None, False
 
             # Initialize dependency analyzer
@@ -211,12 +216,11 @@ def setup_parallelization(
                 resource_manager=resource_manager
             )
 
-            if verbose:
-                print("⚡ Model-level parallelization enabled")
-                print(f"   Max parallel models: {parallelization_config.max_parallel_models}")
-                print(f"   Dependency-aware scheduling: {parallelization_config.dependency_aware_scheduling}")
-                if resource_manager:
-                    print("   Advanced resource management: enabled")
+            logger.debug("Model-level parallelization enabled: max_parallel=%d, "
+                         "dependency_aware=%s, advanced_rm=%s",
+                         parallelization_config.max_parallel_models,
+                         parallelization_config.dependency_aware_scheduling,
+                         'enabled' if resource_manager else 'disabled')
 
             return parallel_execution_engine, parallelization_config, resource_manager, dependency_analyzer, True
         else:
@@ -224,9 +228,8 @@ def setup_parallelization(
 
     except Exception as e:
         # Fallback to sequential execution
-        if verbose:
-            print(f"⚠️ Failed to initialize model parallelization: {e}")
-            print("   Falling back to sequential execution")
+        logger.warning("Failed to initialize model parallelization: %s", e)
+        logger.warning("Falling back to sequential execution")
         return None, None, None, None, False
 
 
@@ -259,18 +262,16 @@ def _create_resource_manager(config: Any, verbose: bool = False) -> Optional[Any
             logger=logger
         )
 
-        if verbose:
-            print("📊 Resource Manager initialized:")
-            print(f"   Memory limit: {config.memory_limit_mb}MB")
-            print(f"   CPU limit: {config.cpu_limit_percent}%")
-            print(f"   Auto GC on pressure: {config.enable_gc_on_pressure}")
-            print(f"   Connection pooling: {config.enable_connection_pooling} (pool size: {config.connection_pool_size})")
+        logger.info("Resource Manager initialized: memory_limit=%.0fMB, cpu_limit=%.0f%%, "
+                    "gc_on_pressure=%s, connection_pooling=%s (pool=%d)",
+                    config.memory_limit_mb, config.cpu_limit_percent,
+                    config.enable_gc_on_pressure, config.enable_connection_pooling,
+                    config.connection_pool_size)
 
         return resource_manager
 
     except Exception as e:
-        if verbose:
-            print(f"⚠️ Failed to create resource manager: {e}")
+        logger.warning("Failed to create resource manager: %s", e)
         return None
 
 
@@ -303,24 +304,19 @@ def setup_hazard_cache(
             dbt_runner=dbt_runner,
         )
 
-        if verbose:
-            print("🗄️ E068D Hazard Cache Manager initialized")
-            print("   SHA256 parameter fingerprinting enabled")
-            print("   Automatic cache invalidation on parameter changes")
+        logger.debug("E068D Hazard Cache Manager initialized: SHA256 fingerprinting, auto-invalidation")
 
         return hazard_cache_manager
 
     except ImportError:
-        if verbose:
-            print("ℹ️ E068D Hazard Cache Manager not available (module not found)")
+        logger.debug("E068D Hazard Cache Manager not available (module not found)")
         return None
     except TypeError:
         # Re-raise TypeError (e.g. wrong kwargs) so constructor mismatches
         # surface immediately instead of silently disabling the cache.
         raise
     except Exception as e:
-        if verbose:
-            print(f"⚠️ Failed to initialize Hazard Cache Manager: {e}")
+        logger.warning("Failed to initialize Hazard Cache Manager: %s", e)
         return None
 
 
@@ -354,18 +350,14 @@ def setup_performance_monitor(
             verbose=verbose
         )
 
-        if verbose:
-            print("📊 E068E DuckDB Performance Monitor initialized")
-            print(f"   Query profiling enabled")
-            print(f"   Reports directory: {reports_dir / 'duckdb_performance'}")
+        logger.debug("E068E DuckDB Performance Monitor initialized: reports=%s",
+                     reports_dir / 'duckdb_performance')
 
         return duckdb_performance_monitor
 
     except ImportError:
-        if verbose:
-            print("ℹ️ E068E DuckDB Performance Monitor not available (module not found)")
+        logger.debug("E068E DuckDB Performance Monitor not available (module not found)")
         return None
     except Exception as e:
-        if verbose:
-            print(f"⚠️ Failed to initialize DuckDB Performance Monitor: {e}")
+        logger.warning("Failed to initialize DuckDB Performance Monitor: %s", e)
         return None

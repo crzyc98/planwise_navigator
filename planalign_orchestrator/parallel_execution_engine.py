@@ -9,6 +9,7 @@ and deterministic results. Supports dependency-aware scheduling with resource ma
 from __future__ import annotations
 
 import asyncio
+import logging
 import time
 import threading
 from concurrent.futures import ThreadPoolExecutor, as_completed, Future
@@ -66,6 +67,9 @@ class LegacyResourceMonitor:
         }
 
 
+logger = logging.getLogger(__name__)
+
+
 class ParallelExecutionEngine:
     """Engine for executing dbt models with sophisticated parallelization and advanced resource management."""
 
@@ -111,14 +115,12 @@ class ParallelExecutionEngine:
         self._current_thread_count = max_workers
         self._scaling_history: List[Dict[str, Any]] = []
 
-        if verbose:
-            print("🔧 ParallelExecutionEngine initialized:")
-            print(f"   Max workers: {max_workers}")
-            print(f"   Resource monitoring: {resource_monitoring}")
-            print(f"   Deterministic execution: {deterministic_execution}")
-            print(f"   Memory limit: {memory_limit_mb}MB")
-            print(f"   Advanced resource management: {'enabled' if resource_manager else 'disabled'}")
-            print(f"   Adaptive scaling: {'enabled' if enable_adaptive_scaling else 'disabled'}")
+        logger.debug("ParallelExecutionEngine initialized: workers=%d, resource_monitoring=%s, "
+                     "deterministic=%s, memory_limit=%.0fMB, advanced_rm=%s, adaptive_scaling=%s",
+                     max_workers, resource_monitoring, deterministic_execution,
+                     memory_limit_mb,
+                     'enabled' if resource_manager else 'disabled',
+                     'enabled' if enable_adaptive_scaling else 'disabled')
 
     def _determine_effective_workers(
         self,
@@ -132,8 +134,7 @@ class ParallelExecutionEngine:
         # Advanced resource management integration (S067-03)
         if self.resource_manager:
             if not self.resource_manager.check_resource_health():
-                if self.verbose:
-                    print("⚠️ Critical resource pressure detected, falling back to sequential execution")
+                logger.warning("Critical resource pressure detected, falling back to sequential execution")
                 return None
 
             # Adaptive thread count optimization
@@ -144,8 +145,8 @@ class ParallelExecutionEngine:
                 )
 
                 if optimal_threads != self._current_thread_count:
-                    if self.verbose:
-                        print(f"📊 Adjusting thread count: {self._current_thread_count} → {optimal_threads} ({reason})")
+                    logger.info("Adjusting thread count: %d -> %d (%s)",
+                                self._current_thread_count, optimal_threads, reason)
                     self._current_thread_count = optimal_threads
 
                     # Record scaling decision
@@ -162,8 +163,7 @@ class ParallelExecutionEngine:
         if self.legacy_resource_monitor and self.resource_monitoring:
             initial_resources = self.legacy_resource_monitor.check_resources()
             if not initial_resources["safe_for_parallelization"]:
-                if self.verbose:
-                    print("⚠️ Resource pressure detected, falling back to sequential execution")
+                logger.warning("Resource pressure detected, falling back to sequential execution")
                 return None
             return self.max_workers
 
@@ -201,8 +201,7 @@ class ParallelExecutionEngine:
     ) -> ExecutionResult:
         """Execute a stage with intelligent parallelization and advanced resource management."""
 
-        if self.verbose:
-            print(f"🚀 Executing stage {context.stage_name} with {len(stage_models)} models")
+        logger.info("Executing stage %s with %d models", context.stage_name, len(stage_models))
 
         start_time = time.perf_counter()
 
@@ -260,13 +259,11 @@ class ParallelExecutionEngine:
         )
 
         # Log execution summary with resource metrics
-        if self.verbose and self.resource_manager:
-            resource_status = final_resources
-            print(f"📈 Stage execution complete: {context.stage_name}")
-            print(f"   Duration: {execution_time:.1f}s")
-            print(f"   Parallelism: {total_parallelism} threads")
-            print(f"   Memory: {resource_status.get('memory', {}).get('usage_mb', 0):.0f}MB")
-            print(f"   Success: {execution_result.success}")
+        if self.resource_manager:
+            logger.info("Stage execution complete: %s (%.1fs, %d threads, %.0fMB, success=%s)",
+                        context.stage_name, execution_time, total_parallelism,
+                        final_resources.get('memory', {}).get('usage_mb', 0),
+                        execution_result.success)
 
         return execution_result
 
@@ -280,19 +277,17 @@ class ParallelExecutionEngine:
         models = phase["models"]
         max_parallel = min(len(models), self.max_workers)
 
-        if self.verbose:
-            print(f"   🔄 Parallel phase: {len(models)} models, {max_parallel} threads")
-            print(f"      Models: {', '.join(models)}")
-            print(f"      Group: {phase.get('group', 'unknown')}")
-            print(f"      Estimated speedup: {phase.get('estimated_speedup', 1.0):.1f}x")
+        logger.debug("Parallel phase: %d models, %d threads, group=%s, est speedup=%.1fx",
+                     len(models), max_parallel, phase.get('group', 'unknown'),
+                     phase.get('estimated_speedup', 1.0))
+        logger.debug("Models: %s", ', '.join(models))
 
         # Validate execution safety
         safety_check = self.dependency_analyzer.validate_execution_safety(models)
         if not safety_check["safe"]:
-            if self.verbose:
-                print("   ⚠️ Safety issues detected, falling back to sequential:")
-                for issue in safety_check["issues"]:
-                    print(f"      - {issue}")
+            logger.warning("Safety issues detected, falling back to sequential:")
+            for issue in safety_check["issues"]:
+                logger.warning("  - %s", issue)
 
             return self._execute_sequential_phase(
                 {"type": "sequential", "models": models}, context
@@ -326,21 +321,19 @@ class ParallelExecutionEngine:
 
                     if not result.success:
                         errors.append(f"Model {model} failed with code {result.return_code}")
-                        if self.verbose:
-                            print(f"   ❌ {model}: failed")
-                    elif self.verbose:
-                        print(f"   ✅ {model}: {result.execution_time:.1f}s")
+                        logger.error("%s: failed", model)
+                    else:
+                        logger.info("%s: %.1fs", model, result.execution_time)
 
                 except Exception as e:
                     errors.append(f"Model {model} raised exception: {str(e)}")
-                    if self.verbose:
-                        print(f"   💥 {model}: {str(e)}")
+                    logger.error("%s: %s", model, e)
 
         execution_time = time.perf_counter() - start_time
 
-        if self.verbose:
-            success_count = sum(1 for r in model_results.values() if r.success)
-            print(f"   📊 Parallel phase complete: {success_count}/{len(models)} succeeded in {execution_time:.1f}s")
+        success_count = sum(1 for r in model_results.values() if r.success)
+        logger.info("Parallel phase complete: %d/%d succeeded in %.1fs",
+                     success_count, len(models), execution_time)
 
         return ExecutionResult(
             success=len(errors) == 0,
@@ -370,15 +363,13 @@ class ParallelExecutionEngine:
 
                 if not result.success:
                     errors.append(f"Model {model} failed with code {result.return_code}")
-                    if self.verbose:
-                        print(f"   ❌ {model}: failed (order: {order_idx})")
-                elif self.verbose:
-                    print(f"   ✅ {model}: {result.execution_time:.1f}s (order: {order_idx})")
+                    logger.error("%s: failed (order: %d)", model, order_idx)
+                else:
+                    logger.info("%s: %.1fs (order: %d)", model, result.execution_time, order_idx)
 
             except Exception as e:
                 errors.append(f"Model {model} raised exception: {str(e)}")
-                if self.verbose:
-                    print(f"   💥 {model}: {str(e)} (order: {order_idx})")
+                logger.error("%s: %s (order: %d)", model, e, order_idx)
 
         # Process results in deterministic order
         model_results: Dict[str, DbtResult] = {}
@@ -397,8 +388,7 @@ class ParallelExecutionEngine:
     ) -> ExecutionResult:
         """Execute parallel phase with deterministic result collection for reproducible results."""
 
-        if self.verbose:
-            print(f"   🔐 Deterministic parallel execution: {len(models)} models")
+        logger.debug("Deterministic parallel execution: %d models", len(models))
 
         with ThreadPoolExecutor(max_workers=max_parallel, thread_name_prefix="dbt-model-det") as executor:
             # Submit models in sorted order for deterministic execution
@@ -420,9 +410,9 @@ class ParallelExecutionEngine:
 
         execution_time = time.perf_counter() - start_time
 
-        if self.verbose:
-            success_count = sum(1 for r in model_results.values() if r.success)
-            print(f"   🔐 Deterministic phase complete: {success_count}/{len(models)} succeeded in {execution_time:.1f}s")
+        success_count = sum(1 for r in model_results.values() if r.success)
+        logger.debug("Deterministic phase complete: %d/%d succeeded in %.1fs",
+                      success_count, len(models), execution_time)
 
         return ExecutionResult(
             success=len(errors) == 0,
@@ -469,26 +459,23 @@ class ParallelExecutionEngine:
 
                     if not result.success:
                         errors.append(f"Model {model} failed with code {result.return_code}")
-                        if self.verbose:
-                            print(f"   ❌ {model}: failed")
-                    elif self.verbose:
-                        print(f"   ✅ {model}: {result.execution_time:.1f}s")
+                        logger.error("%s: failed", model)
+                    else:
+                        logger.info("%s: %.1fs", model, result.execution_time)
 
                     # Check for resource pressure after each model completion
                     if not resource_manager.check_resource_health():
-                        if self.verbose:
-                            print("   ⚠️ Resource pressure detected, may affect remaining models")
+                        logger.warning("Resource pressure detected, may affect remaining models")
 
                 except Exception as e:
                     errors.append(f"Model {model} raised exception: {str(e)}")
-                    if self.verbose:
-                        print(f"   💥 {model}: {str(e)}")
+                    logger.error("%s: %s", model, e)
 
         execution_time = time.perf_counter() - start_time
 
-        if self.verbose:
-            success_count = sum(1 for r in model_results.values() if r.success)
-            print(f"   📈 Parallel phase complete: {success_count}/{len(models)} succeeded in {execution_time:.1f}s")
+        success_count = sum(1 for r in model_results.values() if r.success)
+        logger.info("Parallel phase complete: %d/%d succeeded in %.1fs",
+                     success_count, len(models), execution_time)
 
         return ExecutionResult(
             success=len(errors) == 0,
@@ -531,21 +518,19 @@ class ParallelExecutionEngine:
 
                     if not result.success:
                         errors.append(f"Model {model} failed with code {result.return_code}")
-                        if self.verbose:
-                            print(f"   ❌ {model}: failed")
-                    elif self.verbose:
-                        print(f"   ✅ {model}: {result.execution_time:.1f}s")
+                        logger.error("%s: failed", model)
+                    else:
+                        logger.info("%s: %.1fs", model, result.execution_time)
 
                 except Exception as e:
                     errors.append(f"Model {model} raised exception: {str(e)}")
-                    if self.verbose:
-                        print(f"   💥 {model}: {str(e)}")
+                    logger.error("%s: %s", model, e)
 
         execution_time = time.perf_counter() - start_time
 
-        if self.verbose:
-            success_count = sum(1 for r in model_results.values() if r.success)
-            print(f"   📈 Parallel phase complete: {success_count}/{len(models)} succeeded in {execution_time:.1f}s")
+        success_count = sum(1 for r in model_results.values() if r.success)
+        logger.info("Parallel phase complete: %d/%d succeeded in %.1fs",
+                     success_count, len(models), execution_time)
 
         return ExecutionResult(
             success=len(errors) == 0,
@@ -565,10 +550,9 @@ class ParallelExecutionEngine:
 
         models = phase["models"]
 
-        if self.verbose:
-            print(f"   📋 Sequential phase: {len(models)} models")
-            if "reason" in phase:
-                print(f"      Reason: {phase['reason']}")
+        logger.info("Sequential phase: %d models", len(models))
+        if "reason" in phase:
+            logger.info("Reason: %s", phase['reason'])
 
         start_time = time.perf_counter()
         model_results = {}
@@ -581,16 +565,14 @@ class ParallelExecutionEngine:
 
                 if not result.success:
                     errors.append(f"Model {model} failed with code {result.return_code}")
-                    if self.verbose:
-                        print(f"   ❌ {model}: failed")
+                    logger.error("%s: failed", model)
                     break  # Stop on first failure in sequential phase
-                elif self.verbose:
-                    print(f"   ✅ {model}: {result.execution_time:.1f}s")
+                else:
+                    logger.info("%s: %.1fs", model, result.execution_time)
 
             except Exception as e:
                 errors.append(f"Model {model} raised exception: {str(e)}")
-                if self.verbose:
-                    print(f"   💥 {model}: {str(e)}")
+                logger.error("%s: %s", model, e)
                 break
 
         execution_time = time.perf_counter() - start_time
@@ -621,8 +603,8 @@ class ParallelExecutionEngine:
             # Resource check before execution if monitoring enabled (legacy)
             if self.legacy_resource_monitor and self.resource_monitoring:
                 resources = self.legacy_resource_monitor.check_resources()
-                if resources["memory_pressure"] and self.verbose:
-                    print(f"   ⚠️ Memory pressure during {model} execution: {resources['memory_mb']:.0f}MB")
+                if resources["memory_pressure"]:
+                    logger.warning("Memory pressure during %s execution: %.0fMB", model, resources['memory_mb'])
 
             # DETERMINISM FIX: Create deterministic dbt_vars with thread-local seed
             deterministic_vars = context.dbt_vars.copy()
@@ -672,8 +654,8 @@ class ParallelExecutionEngine:
             # Resource check before execution if monitoring enabled (legacy)
             if self.legacy_resource_monitor and self.resource_monitoring:
                 resources = self.legacy_resource_monitor.check_resources()
-                if resources["memory_pressure"] and self.verbose:
-                    print(f"   ⚠️ Memory pressure during {model} execution: {resources['memory_mb']:.0f}MB")
+                if resources["memory_pressure"]:
+                    logger.warning("Memory pressure during %s execution: %.0fMB", model, resources['memory_mb'])
 
             # DETERMINISM FIX: Create completely isolated deterministic execution context
             deterministic_vars = context.dbt_vars.copy()
@@ -692,8 +674,7 @@ class ParallelExecutionEngine:
                 'deterministic_execution': True
             })
 
-            if self.verbose:
-                print(f"   🔐 {model} (order: {execution_order:03d}, seed: {model_seed})")
+            logger.debug("%s (order: %03d, seed: %d)", model, execution_order, model_seed)
 
             # Execute the model with isolated state
             result = self.dbt_runner.execute_command(
@@ -733,8 +714,7 @@ class ParallelExecutionEngine:
 
             # Resource health check before execution
             if not resource_manager.check_resource_health():
-                if self.verbose:
-                    print(f"   ⚠️ Resource pressure during {model} execution")
+                logger.warning("Resource pressure during %s execution", model)
 
                 # Trigger resource cleanup if needed
                 cleanup_result = resource_manager.trigger_resource_cleanup()
@@ -765,8 +745,7 @@ class ParallelExecutionEngine:
     ) -> ExecutionResult:
         """Fallback to sequential execution when parallelization isn't safe."""
 
-        if self.verbose:
-            print("   🔄 Sequential fallback execution")
+        logger.debug("Sequential fallback execution")
 
         start_time = time.perf_counter()
         model_results = {}
@@ -798,17 +777,16 @@ class ParallelExecutionEngine:
 
     def _log_execution_plan(self, plan: Dict[str, Any]) -> None:
         """Log the execution plan for transparency."""
-        print("   📋 Execution plan:")
-        print(f"      Total models: {plan['total_models']}")
-        print(f"      Parallelizable: {plan['parallelizable_models']}")
-        print(f"      Estimated speedup: {plan['estimated_total_speedup']:.1f}x")
-        print(f"      Phases: {len(plan['execution_phases'])}")
+        logger.info("Execution plan: total=%d, parallelizable=%d, speedup=%.1fx, phases=%d",
+                    plan['total_models'], plan['parallelizable_models'],
+                    plan['estimated_total_speedup'], len(plan['execution_phases']))
 
         for i, phase in enumerate(plan["execution_phases"], 1):
             if phase["type"] == "parallel":
-                print(f"         Phase {i} (Parallel): {len(phase['models'])} models, {phase.get('group', 'mixed')} group")
+                logger.info("Phase %d (Parallel): %d models, %s group",
+                            i, len(phase['models']), phase.get('group', 'mixed'))
             else:
-                print(f"         Phase {i} (Sequential): {len(phase['models'])} models")
+                logger.info("Phase %d (Sequential): %d models", i, len(phase['models']))
 
     def get_parallelization_statistics(self) -> Dict[str, Any]:
         """Get statistics about parallelization capabilities."""
