@@ -10,8 +10,6 @@ import gc
 
 import pytest
 
-# Import shared utilities
-from tests.utils import *
 
 # Import config fixtures for pytest discovery
 from tests.fixtures.config import (
