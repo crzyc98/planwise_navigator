@@ -87,8 +87,9 @@ models:
         description: Simulation year for eligibility determination
         data_tests:
           - not_null
-          - accepted_values:
-              values: [2025, 2026, 2027, 2028, 2029]
+          - dbt_utils.accepted_range:
+              min_value: "{{ var('simulation_start_year', 2025) }}"
+              max_value: "{{ var('simulation_end_year', 2029) }}"
       - name: employment_status
         description: Current employment status
         data_tests:
@@ -263,8 +264,9 @@ models:
         description: Simulation year for contribution calculation
         data_tests:
           - not_null
-          - accepted_values:
-              values: [2025, 2026, 2027, 2028, 2029]
+          - dbt_utils.accepted_range:
+              min_value: "{{ var('simulation_start_year', 2025) }}"
+              max_value: "{{ var('simulation_end_year', 2029) }}"
       - name: eligible_compensation
         description: Compensation used for contribution calculation
         data_tests:
@@ -340,8 +342,9 @@ models:
         description: Simulation year for state accumulation
         data_tests:
           - not_null
-          - accepted_values:
-              values: [2025, 2026, 2027, 2028, 2029]
+          - dbt_utils.accepted_range:
+              min_value: "{{ var('simulation_start_year', 2025) }}"
+              max_value: "{{ var('simulation_end_year', 2029) }}"
       - name: current_deferral_rate
         description: Current effective deferral rate for the employee
         data_tests:
@@ -663,8 +666,9 @@ models:
         description: Simulation year for state accumulation
         data_tests:
           - not_null
-          - accepted_values:
-              values: [2025, 2026, 2027, 2028, 2029]
+          - dbt_utils.accepted_range:
+              min_value: "{{ var('simulation_start_year', 2025) }}"
+              max_value: "{{ var('simulation_end_year', 2029) }}"
               config:
                 severity: error
       - name: current_deferral_rate
@@ -1746,8 +1750,8 @@ models:
         data_tests:
           - not_null
           - dbt_utils.accepted_range:
-              min_value: 2025
-              max_value: 2029
+              min_value: "{{ var('simulation_start_year', 2025) }}"
+              max_value: "{{ var('simulation_end_year', 2029) }}"
       - name: days_since_hire
         description: Number of days from hire date to start of simulation year
         data_tests:
@@ -1891,8 +1895,8 @@ models:
         data_tests:
           - not_null
           - dbt_utils.accepted_range:
-              min_value: 2025
-              max_value: 2035
+              min_value: "{{ var('simulation_start_year', 2025) }}"
+              max_value: "{{ var('simulation_end_year', 2029) }}"
       - name: effective_date
         description: Date when enrollment event becomes effective
         data_tests:
@@ -2075,8 +2079,8 @@ models:
         data_tests:
           - not_null
           - dbt_utils.accepted_range:
-              min_value: 2025
-              max_value: 2035
+              min_value: "{{ var('simulation_start_year', 2025) }}"
+              max_value: "{{ var('simulation_end_year', 2029) }}"
       - name: enrollment_date
         description: Date when employee first enrolled (NULL if never enrolled)
       - name: enrollment_status
