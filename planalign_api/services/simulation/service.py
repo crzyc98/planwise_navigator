@@ -144,7 +144,7 @@ class SimulationService:
         scenario_path = self.storage._scenario_path(workspace_id, scenario_id)
         config_path = scenario_path / "config.yaml"
 
-        self._validate_census(config)
+        self._validate_census(config, scenario_id=scenario_id, workspace_id=workspace_id)
         self._write_config(config, config_path)
         self._write_seeds(config, scenario_path)
 
@@ -402,14 +402,49 @@ class SimulationService:
     # ------------------------------------------------------------------
 
     @staticmethod
-    def _validate_census(config: Dict[str, Any]) -> None:
+    def _validate_census(
+        config: Dict[str, Any],
+        scenario_id: str = "",
+        workspace_id: str = "",
+    ) -> None:
+        from planalign_orchestrator.exceptions import (
+            ConfigurationError,
+            ErrorSeverity,
+            ExecutionContext,
+        )
+
         census_path = config.get("setup", {}).get("census_parquet_path")
-        if census_path:
-            if not Path(census_path).exists():
-                raise ValueError(f"Census file not found: {census_path}")
-            logger.info(f"Using census file: {census_path}")
-        else:
-            logger.warning("No census_parquet_path in config - using default")
+
+        if not census_path or not str(census_path).strip():
+            raise ConfigurationError(
+                "census_parquet_path is required but was not found in the "
+                "scenario config. Ensure a census file has been uploaded to "
+                "the scenario folder before running.",
+                context=ExecutionContext(
+                    scenario_id=scenario_id,
+                    metadata={
+                        "missing_field": "setup.census_parquet_path",
+                        "workspace_id": workspace_id,
+                    },
+                ),
+                severity=ErrorSeverity.ERROR,
+            )
+
+        if not Path(census_path).exists():
+            raise ConfigurationError(
+                f"Census file not found at '{census_path}'. Upload a valid "
+                "census parquet file to the scenario folder and retry.",
+                context=ExecutionContext(
+                    scenario_id=scenario_id,
+                    metadata={
+                        "expected_path": str(census_path),
+                        "workspace_id": workspace_id,
+                    },
+                ),
+                severity=ErrorSeverity.ERROR,
+            )
+
+        logger.info(f"Using census file: {census_path}")
 
     @staticmethod
     def _write_config(config: Dict[str, Any], config_path: Path) -> None:

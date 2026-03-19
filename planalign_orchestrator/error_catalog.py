@@ -153,6 +153,38 @@ class ErrorCatalog:
                 ],
                 "time": "15 minutes",
             },
+            {
+                "regex": rf"census_parquet_path is required{_W}not found{_W}scenario config",
+                "category": ErrorCategory.CONFIGURATION,
+                "title": "Census File Not Configured",
+                "description": "The census parquet file path is required for simulations but was not found in the scenario configuration.",
+                "hint_title": "Upload Census File to Scenario",
+                "hint_description": "Add a census parquet file to your scenario before running a simulation.",
+                "steps": [
+                    "1. Open PlanAlign Studio",
+                    "2. Go to your scenario",
+                    "3. Click 'Upload Files' and select your census.parquet file",
+                    "4. Verify the file appears in the scenario folder",
+                    "5. Retry the simulation",
+                ],
+                "time": "2-3 minutes",
+            },
+            {
+                "regex": rf"Census file not found at{_W}Upload a valid census parquet",
+                "category": ErrorCategory.CONFIGURATION,
+                "title": "Census File Missing or Moved",
+                "description": "The census parquet file referenced in the config does not exist at the expected path.",
+                "hint_title": "Verify Census File Location",
+                "hint_description": "Check that the census parquet file exists at the configured path.",
+                "steps": [
+                    "1. Check the error message for the expected file path",
+                    "2. Verify the census.parquet file exists at that location",
+                    "3. If the file was moved or deleted, re-upload it via Studio",
+                    "4. If the path is incorrect, update it in scenario settings",
+                    "5. Retry the simulation",
+                ],
+                "time": "1-2 minutes",
+            },
         ]
 
         for defn in pattern_definitions:
