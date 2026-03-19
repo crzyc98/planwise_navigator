@@ -15,6 +15,7 @@ Features:
 from __future__ import annotations
 
 import json
+import logging
 import subprocess
 import traceback
 from datetime import datetime
@@ -27,6 +28,8 @@ from .config import SimulationConfig, load_simulation_config
 from .excel_exporter import ExcelExporter
 from .pipeline_orchestrator import PipelineOrchestrator
 from .utils import DatabaseConnectionManager, ExecutionMutex
+
+logger = logging.getLogger(__name__)
 
 
 class ScenarioBatchRunner:
@@ -71,7 +74,7 @@ class ScenarioBatchRunner:
         scenarios = self._discover_scenarios(scenario_names)
 
         if not scenarios:
-            print(f"❌ No scenarios found in {self.scenarios_dir}")
+            logger.error("No scenarios found in %s", self.scenarios_dir)
             return {}
 
         # Clean up any stale lock files before starting
@@ -82,23 +85,22 @@ class ScenarioBatchRunner:
             self._clean_scenario_databases(list(scenarios.keys()))
 
         results = {}
-        print(f"🎯 Starting batch execution: {len(scenarios)} scenarios")
-        print(f"📂 Output directory: {self.batch_output_dir}")
-        print(f"🔧 Configuration: {threads} threads, {optimization} optimization")
+        logger.info("Starting batch execution: %d scenarios", len(scenarios))
+        logger.info("Output directory: %s", self.batch_output_dir)
+        logger.info("Configuration: %d threads, %s optimization", threads, optimization)
 
         for i, (name, config_path) in enumerate(scenarios.items(), 1):
-            print(f"\n[{i}/{len(scenarios)}] Processing scenario: {name}")
+            logger.info("[%d/%d] Processing scenario: %s", i, len(scenarios), name)
 
             # Use ExecutionMutex to prevent concurrent database access
             with ExecutionMutex(f"scenario_{name}"):
                 try:
                     result = self._run_isolated_scenario(name, config_path, export_format, threads, optimization)
                     results[name] = result
-                    print(f"✅ Scenario {name} completed successfully")
+                    logger.info("Scenario %s completed successfully", name)
 
                 except Exception as e:
-                    print(f"❌ Scenario {name} failed: {e}")
-                    print(f"   Traceback: {traceback.format_exc()}")
+                    logger.error("Scenario %s failed: %s", name, e, exc_info=True)
                     results[name] = {"status": "failed", "error": str(e), "traceback": traceback.format_exc()}
 
         # Generate batch summary report
@@ -162,7 +164,7 @@ class ScenarioBatchRunner:
                 # Remove locks older than 1 hour
                 if time.time() - lock_file.stat().st_mtime > 3600:
                     lock_file.unlink()
-                    print(f"   🧹 Cleaned up stale lock file: {lock_file}")
+                    logger.debug("Cleaned up stale lock file: %s", lock_file)
             except Exception:
                 pass  # Best effort cleanup
 
@@ -175,7 +177,7 @@ class ScenarioBatchRunner:
         dbt_dir = Path("dbt").absolute()
         deleted_count = 0
 
-        print(f"🧹 Cleaning databases for {len(scenario_names)} scenario(s)...")
+        logger.info("Cleaning databases for %d scenario(s)...", len(scenario_names))
 
         for scenario_name in scenario_names:
             scenario_db = dbt_dir / f"{scenario_name}.duckdb"
@@ -184,14 +186,14 @@ class ScenarioBatchRunner:
                 try:
                     scenario_db.unlink()
                     deleted_count += 1
-                    print(f"   ✅ Deleted: {scenario_db}")
+                    logger.info("Deleted: %s", scenario_db)
                 except Exception as e:
-                    print(f"   ⚠️  Failed to delete {scenario_db}: {e}")
+                    logger.warning("Failed to delete %s: %s", scenario_db, e)
 
         if deleted_count > 0:
-            print(f"🧹 Deleted {deleted_count} database file(s)")
+            logger.info("Deleted %d database file(s)", deleted_count)
         else:
-            print("ℹ️  No existing databases found to clean")
+            logger.info("No existing databases found to clean")
 
     def _run_isolated_scenario(self, scenario_name: str, config_path: Path, export_format: str, threads: int = 1, optimization: str = "medium") -> Dict[str, Any]:
         """Run single scenario with isolated database.
@@ -216,15 +218,15 @@ class ScenarioBatchRunner:
 
         # Ensure database file exists and is valid (DuckDB requires this)
         if not scenario_db.exists():
-            print(f"   📂 Creating database file: {scenario_db}")
+            logger.debug("Creating database file: %s", scenario_db)
             # Create a proper DuckDB database file
             import duckdb
             conn = duckdb.connect(str(scenario_db))
             conn.close()
-            print("   ✅ Database file created successfully")
+            logger.debug("Database file created successfully")
 
-        print(f"   💽 Database path: {scenario_db}")
-        print(f"   📁 Database exists: {scenario_db.exists()}")
+        logger.debug("Database path: %s", scenario_db)
+        logger.debug("Database exists: %s", scenario_db.exists())
 
         # Load and merge scenario configuration with base config
         config = self._load_merged_config(config_path)
@@ -234,11 +236,11 @@ class ScenarioBatchRunner:
         seed_path = scenario_dir / "seed.txt"
         if seed_path.exists():
             seed = int(seed_path.read_text().strip())
-            print(f"   📌 Using existing seed: {seed}")
+            logger.debug("Using existing seed: %d", seed)
         else:
             seed = getattr(config.simulation, 'random_seed', None) or int(datetime.now().timestamp())
             seed_path.write_text(str(seed))
-            print(f"   📌 Generated new seed: {seed}")
+            logger.debug("Generated new seed: %d", seed)
 
         # Update config with determined seed
         config.simulation.random_seed = seed
@@ -253,7 +255,11 @@ class ScenarioBatchRunner:
             orchestrator = create_orchestrator(config, db_manager, threads=threads)
 
             # Execute multi-year simulation
-            print(f"   🔄 Running simulation: {config.simulation.start_year}-{config.simulation.end_year}")
+            logger.info(
+                "Running simulation: %d-%d",
+                config.simulation.start_year,
+                config.simulation.end_year,
+            )
             start_time = datetime.now()
 
             summary = orchestrator.execute_multi_year_simulation(
@@ -263,10 +269,10 @@ class ScenarioBatchRunner:
             )
 
             execution_time = (datetime.now() - start_time).total_seconds()
-            print(f"   ⏱️  Execution time: {execution_time:.1f} seconds")
+            logger.debug("Execution time: %.1f seconds", execution_time)
 
             # Export results
-            print(f"   📊 Exporting results ({export_format})")
+            logger.info("Exporting results (%s)", export_format)
             excel_exporter = ExcelExporter(db_manager)
             export_path = excel_exporter.export_scenario_results(
                 scenario_name=scenario_name,
@@ -382,7 +388,7 @@ class ScenarioBatchRunner:
             with open(output_path, "w", encoding="utf-8") as f:
                 yaml.dump(config_dict, f, default_flow_style=False, sort_keys=False)
         except Exception as e:
-            print(f"   ⚠️  Warning: Could not save config copy: {e}")
+            logger.warning("Could not save config copy: %s", e)
 
     def _generate_batch_summary(self, results: Dict[str, Any]) -> None:
         """Generate batch execution summary.
@@ -418,12 +424,19 @@ class ScenarioBatchRunner:
         with open(summary_path, "w", encoding="utf-8") as f:
             json.dump(summary, f, indent=2, default=str)
 
-        print("\n📋 Batch Summary:")
-        print(f"   ✅ Successful: {len(successful)} scenarios")
-        print(f"   ❌ Failed: {len(failed)} scenarios")
-        print(f"   🎯 Success Rate: {summary['success_rate']:.1%}")
-        print(f"   ⏱️  Total Time: {total_time:.1f} seconds")
-        print(f"   📄 Summary saved: {summary_path}")
+        logger.info(
+            "Batch Summary:\n"
+            "   Successful: %d scenarios\n"
+            "   Failed: %d scenarios\n"
+            "   Success Rate: %.1f%%\n"
+            "   Total Time: %.1f seconds\n"
+            "   Summary saved: %s",
+            len(successful),
+            len(failed),
+            summary["success_rate"] * 100,
+            total_time,
+            summary_path,
+        )
 
     def _generate_comparison_report(self, successful_scenarios: Dict[str, Any]) -> None:
         """Generate comparison report across successful scenarios.
@@ -446,10 +459,10 @@ class ScenarioBatchRunner:
                 output_path=comparison_path
             )
 
-            print(f"   📊 Comparison report saved: {comparison_path}")
+            logger.info("Comparison report saved: %s", comparison_path)
 
         except Exception as e:
-            print(f"   ⚠️  Warning: Could not generate comparison report: {e}")
+            logger.warning("Could not generate comparison report: %s", e)
 
     def get_git_metadata(self) -> Dict[str, Any]:
         """Get git metadata for the current repository state.
