@@ -151,24 +151,34 @@ class ProductionLogger:
         # Handle the record
         self.logger.handle(record)
 
-    def debug(self, message: str, **kwargs) -> None:
+    def debug(self, message: str, *args, **kwargs) -> None:
         """Log debug message"""
+        if args:
+            message = message % args
         self.log_event("DEBUG", message, **kwargs)
 
-    def info(self, message: str, **kwargs) -> None:
+    def info(self, message: str, *args, **kwargs) -> None:
         """Log info message"""
+        if args:
+            message = message % args
         self.log_event("INFO", message, **kwargs)
 
-    def warning(self, message: str, **kwargs) -> None:
+    def warning(self, message: str, *args, **kwargs) -> None:
         """Log warning message"""
+        if args:
+            message = message % args
         self.log_event("WARNING", message, **kwargs)
 
-    def error(self, message: str, **kwargs) -> None:
+    def error(self, message: str, *args, **kwargs) -> None:
         """Log error message"""
+        if args:
+            message = message % args
         self.log_event("ERROR", message, **kwargs)
 
-    def critical(self, message: str, **kwargs) -> None:
+    def critical(self, message: str, *args, **kwargs) -> None:
         """Log critical message"""
+        if args:
+            message = message % args
         self.log_event("CRITICAL", message, **kwargs)
 
     def exception(self, message: str, **kwargs) -> None:
