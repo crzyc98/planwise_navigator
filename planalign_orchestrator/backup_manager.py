@@ -16,6 +16,7 @@ Features:
 
 from __future__ import annotations
 
+import logging
 import os
 import shutil
 import sqlite3
@@ -25,6 +26,9 @@ from typing import List, Optional
 
 import duckdb
 from pydantic import BaseModel, Field
+
+
+logger = logging.getLogger(__name__)
 
 
 class BackupConfiguration(BaseModel):
@@ -94,7 +98,7 @@ class BackupManager:
         with open(self.log_file, "a", encoding="utf-8") as f:
             f.write(log_entry)
 
-        print(f"BACKUP: {message}")
+        logger.info("BACKUP: %s", message)
 
     def create_backup(self) -> BackupMetadata:
         """

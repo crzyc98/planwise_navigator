@@ -15,6 +15,7 @@ Epic E063 - Story S063-07: Corporate Network and Proxy Support
 from __future__ import annotations
 
 import json
+import logging
 import secrets
 import socket
 import subprocess
@@ -30,6 +31,8 @@ from urllib.error import HTTPError, URLError
 
 import os
 import sys
+
+logger = logging.getLogger(__name__)
 
 # Add config directory to path for imports
 sys.path.append(str(Path(__file__).parent.parent / "config"))
@@ -368,7 +371,7 @@ class CorporateNetworkClient:
             return True
 
         except Exception as e:
-            print(f"Download failed: {e}")
+            logger.error("Download failed: %s", e)
             return False
 
 

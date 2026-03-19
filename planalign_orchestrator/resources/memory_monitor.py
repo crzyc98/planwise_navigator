@@ -12,6 +12,7 @@ Features:
 from __future__ import annotations
 
 import gc
+import logging
 import threading
 import time
 from collections import deque
@@ -21,6 +22,8 @@ from typing import Any, Dict, Optional
 import psutil
 
 from .data_models import MemoryUsageSnapshot, ResourcePressure
+
+logger = logging.getLogger(__name__)
 
 
 class MemoryMonitor:
@@ -278,6 +281,7 @@ class MemoryMonitor:
 
             # Log significant memory usage
             if abs(memory_delta) > 50:  # More than 50MB change
-                print(
-                    f"Operation {operation_name}: {memory_delta:+.1f}MB memory change in {duration:.1f}s"
+                logger.info(
+                    "Operation %s: %+.1fMB memory change in %.1fs",
+                    operation_name, memory_delta, duration,
                 )
