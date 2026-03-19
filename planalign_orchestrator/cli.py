@@ -8,9 +8,12 @@ Provides subcommands to run simulations, validate config, and run batch scenario
 from __future__ import annotations
 
 import argparse
+import logging
 import sys
 from pathlib import Path
 from typing import Optional
+
+logger = logging.getLogger(__name__)
 
 from .config import load_simulation_config
 from .dbt_runner import DbtRunner
@@ -84,9 +87,8 @@ def cmd_run(args: argparse.Namespace) -> int:
         fail_on_validation_error=args.fail_on_validation_error,
         dry_run=args.dry_run,
     )
-    if args.verbose:
-        print("Summary:", summary.growth_analysis)
-    print("✅ Simulation completed")
+    logger.debug("Summary: %s", summary.growth_analysis)
+    logger.info("Simulation completed")
     return 0
 
 
@@ -97,10 +99,10 @@ def cmd_validate(args: argparse.Namespace) -> int:
     if getattr(args, "enforce_identifiers", False):
         cfg.require_identifiers()
     cfg_dict = cfg.model_dump()
-    print("✅ Configuration parsed successfully")
+    logger.info("Configuration parsed successfully")
     # Basic identifier hints
     if not (cfg.scenario_id and cfg.plan_design_id):
-        print("ℹ️  Tip: Add scenario_id and plan_design_id for full traceability")
+        logger.info("Tip: Add scenario_id and plan_design_id for full traceability")
     return 0
 
 
@@ -111,12 +113,12 @@ def cmd_batch(args: argparse.Namespace) -> int:
     base_config_path = Path(args.config) if args.config else Path("config/simulation_config.yaml")
 
     if not scenarios_dir.exists():
-        print(f"❌ Scenarios directory not found: {scenarios_dir}")
+        logger.error("Scenarios directory not found: %s", scenarios_dir)
         return 1
 
     # Validate base configuration exists
     if not base_config_path.exists():
-        print(f"❌ Base configuration not found: {base_config_path}")
+        logger.error("Base configuration not found: %s", base_config_path)
         return 1
 
     runner = ScenarioBatchRunner(scenarios_dir, output_dir, base_config_path)
@@ -129,23 +131,23 @@ def cmd_batch(args: argparse.Namespace) -> int:
     )
 
     if not results:
-        print("❌ No scenarios were processed")
+        logger.error("No scenarios were processed")
         return 1
 
     # Report results
     successful = [name for name, result in results.items() if result.get("status") == "completed"]
     failed = [name for name, result in results.items() if result.get("status") == "failed"]
 
-    print("\n🎯 Batch execution completed:")
-    print(f"  ✅ Successful: {len(successful)} scenarios")
+    logger.info("Batch execution completed:")
+    logger.info("  Successful: %d scenarios", len(successful))
     if successful:
-        print(f"     {', '.join(successful)}")
-    print(f"  ❌ Failed: {len(failed)} scenarios")
+        logger.info("     %s", ", ".join(successful))
+    logger.error("  Failed: %d scenarios", len(failed))
     if failed:
-        print(f"     {', '.join(failed)}")
+        logger.error("     %s", ", ".join(failed))
 
     if successful:
-        print(f"  📊 Outputs: {runner.batch_output_dir}")
+        logger.info("  Outputs: %s", runner.batch_output_dir)
 
     return 0 if not failed else 1
 
