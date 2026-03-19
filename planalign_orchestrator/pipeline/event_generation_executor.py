@@ -253,14 +253,12 @@ class EventGenerationExecutor:
                     # Single execution per stage using tags
                     # Exclude STATE_ACCUMULATION models that were incorrectly tagged EVENT_GENERATION via directory-level config
                     # These models depend on STATE_ACCUMULATION outputs that don't exist yet during EVENT_GENERATION:
-                    # - int_employee_contributions: depends on int_deferral_rate_state_accumulator_v2
+                    # - int_employee_contributions: depends on int_deferral_rate_state_accumulator
                     # - int_employee_match_calculations: depends on int_employee_contributions
-                    # - int_promotion_events_optimized: depends on fct_workforce_snapshot
                     result = self.dbt_runner.execute_command(
                         ["run", "--select", "tag:EVENT_GENERATION",
                          "--exclude", "int_employee_contributions",
-                         "--exclude", "int_employee_match_calculations",
-                         "--exclude", "int_promotion_events_optimized"],
+                         "--exclude", "int_employee_match_calculations"],
                         simulation_year=year,
                         dbt_vars=self.dbt_vars,
                         stream_output=True

@@ -42,7 +42,7 @@ models:
         +tags: ["EVENT_GENERATION"]
 
         # Override: int_employee_contributions belongs to STATE_ACCUMULATION, not EVENT_GENERATION
-        # It depends on int_deferral_rate_state_accumulator_v2 which hasn't been built yet during EVENT_GENERATION
+        # It depends on int_deferral_rate_state_accumulator which hasn't been built yet during EVENT_GENERATION
         int_employee_contributions:
           +materialized: incremental
           +tags: ["STATE_ACCUMULATION"]

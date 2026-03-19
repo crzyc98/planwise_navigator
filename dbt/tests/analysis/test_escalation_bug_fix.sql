@@ -11,7 +11,7 @@ Bug Description:
 - Their rates were being reduced (e.g., 15% → 6%)
 
 Fix:
-- Use int_deferral_rate_state_accumulator_v2 for current deferral rates instead of calculating demographic baseline
+- Use int_deferral_rate_state_accumulator for current deferral rates instead of calculating demographic baseline
 - Enhanced eligibility check: (w.current_deferral_rate > 0 AND w.current_deferral_rate < maximum_rate)
 
 Expected Results After Fix:

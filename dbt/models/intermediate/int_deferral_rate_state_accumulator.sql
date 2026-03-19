@@ -2,339 +2,546 @@
     materialized='incremental',
     incremental_strategy='delete+insert',
     unique_key=['employee_id', 'simulation_year'],
-    on_schema_change='sync_all_columns'
+    on_schema_change='sync_all_columns',
+    tags=['STATE_ACCUMULATION']
 ) }}
 
 /*
-  Deferral Rate State Accumulator - OPTIMIZED for DuckDB Performance
+  Deferral Rate State Accumulator V2 - TEMPORAL ACCUMULATION IMPLEMENTATION
 
-  Epic E036 Story S036-03: Temporal State Tracking Implementation
-  Target: <2 seconds execution per year (improved from <5s baseline)
+  Story S042-02: Implement Proper Temporal Accumulation
 
-  PERFORMANCE OPTIMIZATIONS:
-  - Early filtering by simulation_year using DuckDB column-store advantages
-  - Efficient temporal JOIN patterns with proper column ordering
-  - Vectorized processing for multi-year state transitions
-  - Optimized data types for analytical workloads (DECIMAL precision, proper casting)
-  - Incremental strategy: delete+insert keyed by year for idempotent re-runs
-  - Removed physical indexes (unsupported by dbt-duckdb) in favor of logical partitioning
+  CRITICAL ARCHITECTURE FIX:
+  - IMPLEMENTS: Year N-1 → Year N state accumulation pattern (Epic E023)
+  - PRIMARY SOURCE: int_enrollment_events for initial deferral rates
+  - TEMPORAL LOGIC: Previous year state + current year escalations
+  - MAINTAINS: Same output schema for backward compatibility
 
-  ARCHITECTURE:
-  - Uses only int_employee_compensation_by_year and int_deferral_rate_escalation_events
-  - Eliminates circular dependency: int_employee_contributions → this model (no circular dependency)
-  - Temporal accumulation pattern: Year N uses Year N-1 state + Year N events
+  BUSINESS PROCESS FLOW (Real-world):
+  1. Year N: Read Year N-1 deferral state from this same model
+  2. Apply Year N escalation events to carried-forward rates
+  3. Handle new enrollments in Year N with fresh rates
+  4. Accumulate state across simulation years
+
+  TEMPORAL BUG FIXED:
+  - Before: Employee NH_2025_000007 disappears in 2026+ (no state continuity)
+  - After: Employee NH_2025_000007 carries 6% → 7% → 8% across years
+
+  PERFORMANCE: Optimized for DuckDB with early filtering and vectorized processing
 */
 
 {% set simulation_year = var('simulation_year', 2025) | int %}
 {% set start_year = var('start_year', 2025) | int %}
 
--- Performance optimization: Early year filtering for DuckDB columnar processing
-
-WITH enrolled_employees AS (
-    -- Employees enrolled as of this year
-    -- Source 1: Baseline/prev-year enrollment flag from compensation table (existing behavior)
-    SELECT DISTINCT
+WITH
+-- Get current year's new enrollment events from fct_yearly_events
+-- (supports both SQL and Polars event generation modes)
+current_year_new_enrollments AS (
+    SELECT
         employee_id,
-        employee_enrollment_date as enrollment_date
-    FROM {{ ref('int_employee_compensation_by_year') }}
-    WHERE simulation_year = {{ simulation_year }}
-      AND employment_status = 'active'
-      AND is_enrolled_flag = true
+        effective_date as enrollment_date,
+        -- Use employee_deferral_rate if available, otherwise extract from event_details
+        COALESCE(
+            employee_deferral_rate,
+            CASE
+                WHEN REGEXP_EXTRACT(event_details, '([0-9]+\.?[0-9]*)%\s*deferral', 1) IS NOT NULL
+                     AND REGEXP_EXTRACT(event_details, '([0-9]+\.?[0-9]*)%\s*deferral', 1) != ''
+                THEN CAST(REGEXP_EXTRACT(event_details, '([0-9]+\.?[0-9]*)%\s*deferral', 1) AS DECIMAL(6,4)) / 100.0
+                ELSE 0.06
+            END
+        ) as initial_deferral_rate,
+        simulation_year,
+        'fct_yearly_events' as source,
+        ROW_NUMBER() OVER (
+            PARTITION BY employee_id
+            ORDER BY effective_date
+        ) as rn
+    FROM {{ ref('fct_yearly_events') }}
+    -- E096 FIX: Match both 'enrollment' (from int_enrollment_events) and 'benefit_enrollment' (legacy)
+    WHERE LOWER(event_type) IN ('enrollment', 'benefit_enrollment')
       AND employee_id IS NOT NULL
+      AND simulation_year = {{ simulation_year }}
+),
 
-    UNION
+-- Get current year's escalation events
+-- Epic E078: Mode-aware query - uses fct_yearly_events in Polars mode, int_deferral_rate_escalation_events in SQL mode
+current_year_escalations AS (
+    {% if var('event_generation_mode', 'sql') == 'polars' %}
+    -- Polars mode: Read from fct_yearly_events
+    SELECT
+        employee_id,
+        effective_date,
+        employee_deferral_rate as new_deferral_rate,
+        CAST(NULL AS DECIMAL(5,4)) as escalation_rate,
+        ROW_NUMBER() OVER (
+            PARTITION BY employee_id
+            ORDER BY effective_date DESC
+        ) as rn
+    FROM {{ ref('fct_yearly_events') }}
+    WHERE simulation_year = {{ simulation_year }}
+        AND event_type IN ('enrollment_change', 'deferral_escalation')
+        AND employee_id IS NOT NULL
+        AND employee_deferral_rate IS NOT NULL
+    {% else %}
+    -- SQL mode: Use intermediate event model
+    SELECT
+        employee_id,
+        effective_date,
+        new_deferral_rate,
+        escalation_rate,
+        ROW_NUMBER() OVER (
+            PARTITION BY employee_id
+            ORDER BY effective_date DESC
+        ) as rn
+    FROM {{ ref('int_deferral_rate_escalation_events') }}
+    WHERE simulation_year = {{ simulation_year }}
+        AND employee_id IS NOT NULL
+        AND new_deferral_rate IS NOT NULL
+    {% endif %}
+),
 
-    -- Source 2 (CRITICAL FIX): Current-year enrollment events via enrollment state accumulator
-    -- Ensures first-year (e.g., 2025) auto-enrolled and voluntary new enrollees are included
+-- E058: Get current year's match-response events
+current_year_match_response AS (
+    SELECT
+        employee_id,
+        effective_date,
+        employee_deferral_rate AS match_responsive_rate,
+        prev_employee_deferral_rate,
+        ROW_NUMBER() OVER (
+            PARTITION BY employee_id
+            ORDER BY effective_date DESC
+        ) AS rn
+    FROM {{ ref('int_deferral_match_response_events') }}
+    WHERE simulation_year = {{ simulation_year }}
+        AND employee_id IS NOT NULL
+        AND employee_deferral_rate IS NOT NULL
+),
+
+-- Capture current year's opt-out events (set deferral to 0 and unenroll)
+-- (supports both SQL and Polars event generation modes)
+current_year_opt_outs AS (
     SELECT DISTINCT
         employee_id,
-        effective_enrollment_date AS enrollment_date
-    FROM {{ ref('int_enrollment_state_accumulator') }}
+        effective_date
+    FROM {{ ref('fct_yearly_events') }}
     WHERE simulation_year = {{ simulation_year }}
-      AND enrollment_status = true
+      AND LOWER(event_type) = 'enrollment_change'
+      AND COALESCE(employee_deferral_rate, 0) = 0
       AND employee_id IS NOT NULL
 ),
 
-base_active AS (
-    -- Active employees from compensation table (may exclude current-year hires in first year)
+{% if simulation_year == start_year %}
+-- BASE CASE: First simulation year - get enrollments from fct_yearly_events
+-- (supports both SQL and Polars event generation modes)
+historical_enrollments AS (
     SELECT
+        employee_id,
+        effective_date as enrollment_date,
+        -- Use employee_deferral_rate if available, otherwise extract from event_details
+        COALESCE(
+            employee_deferral_rate,
+            CASE
+                WHEN REGEXP_EXTRACT(event_details, '([0-9]+\.?[0-9]*)%\s*deferral', 1) IS NOT NULL
+                     AND REGEXP_EXTRACT(event_details, '([0-9]+\.?[0-9]*)%\s*deferral', 1) != ''
+                THEN CAST(REGEXP_EXTRACT(event_details, '([0-9]+\.?[0-9]*)%\s*deferral', 1) AS DECIMAL(6,4)) / 100.0
+                ELSE 0.06
+            END
+        ) as initial_deferral_rate,
+        simulation_year as enrollment_year,
+        'fct_yearly_events' as source,
+        ROW_NUMBER() OVER (
+            PARTITION BY employee_id
+            ORDER BY simulation_year, effective_date
+        ) as rn
+    FROM {{ ref('fct_yearly_events') }}
+    -- E096 FIX: Match both 'enrollment' (from int_enrollment_events) and 'benefit_enrollment' (legacy)
+    WHERE LOWER(event_type) IN ('enrollment', 'benefit_enrollment')
+      AND employee_id IS NOT NULL
+      AND simulation_year <= {{ simulation_year }}
+),
+
+-- EPIC E049: Get pre-enrolled employees directly from baseline workforce
+-- Pull baseline enrollment data from int_baseline_workforce (census data)
+-- (supports both SQL and Polars event generation modes)
+synthetic_baseline_enrollments AS (
+    SELECT
+        employee_id,
+        employee_enrollment_date as enrollment_date,
+        employee_deferral_rate as initial_deferral_rate,  -- Use actual census rates
+        EXTRACT(YEAR FROM COALESCE(employee_enrollment_date, '{{ simulation_year }}-01-01'::DATE)) as enrollment_year,
+        'synthetic_baseline' as source,
+        1 as rn  -- Baseline data is primary source for existing employees
+    FROM {{ ref('int_baseline_workforce') }}
+    WHERE employee_id IS NOT NULL
+        AND employee_deferral_rate > 0
+        AND employee_enrollment_date IS NOT NULL
+        -- Only include if not already in event-based enrollments
+        AND employee_id NOT IN (
+            SELECT employee_id
+            FROM historical_enrollments
+            WHERE rn = 1
+        )
+),
+
+-- Combine event-based and baseline pre-enrolled employees
+first_year_enrolled_employees AS (
+    SELECT
+        employee_id,
+        enrollment_date,
+        initial_deferral_rate,
+        enrollment_year,
+        source
+    FROM historical_enrollments
+    WHERE rn = 1  -- First enrollment event per employee
+
+    UNION ALL
+
+    SELECT
+        employee_id,
+        enrollment_date,
+        initial_deferral_rate,
+        enrollment_year,
+        source
+    FROM synthetic_baseline_enrollments
+),
+
+{% else %}
+-- TEMPORAL CASE: Subsequent years - get previous year's state
+previous_year_state AS (
+    SELECT
+        employee_id,
+        current_deferral_rate as previous_deferral_rate,
+        escalations_received as previous_escalations_received,
+        original_deferral_rate,
+        employee_enrollment_date,
+        is_enrolled_flag
+    FROM {{ this }}
+    WHERE simulation_year = {{ simulation_year - 1 }}
+        AND employee_id IS NOT NULL
+),
+
+{% endif %}
+
+-- Get employee demographics for current year (fallback to events data if workforce tables empty)
+current_year_workforce AS (
+    SELECT DISTINCT
         employee_id::VARCHAR as employee_id,
         employee_ssn::VARCHAR as employee_ssn,
         employee_compensation::DECIMAL(12,2) as employee_compensation,
         current_age::SMALLINT as current_age,
-        level_id::SMALLINT as level_id,
-        {{ simulation_year }}::INTEGER as simulation_year,
-        is_enrolled_flag::BOOLEAN as baseline_is_enrolled,
-        employee_enrollment_date as baseline_enrollment_date
+        level_id::SMALLINT as level_id
     FROM {{ ref('int_employee_compensation_by_year') }}
     WHERE simulation_year = {{ simulation_year }}
       AND employment_status = 'active'
       AND employee_id IS NOT NULL
-),
 
--- Epic E078: Mode-aware query - uses fct_yearly_events in Polars mode, int_hiring_events in SQL mode
-new_hires_current_year AS (
-    -- Attributes for current-year hires (fills gap for first-year where base_active lacks NH_YYYY)
-    {% if var('event_generation_mode', 'sql') == 'polars' %}
-    -- Polars mode: Read from fct_yearly_events
-    SELECT
-        he.employee_id::VARCHAR as employee_id,
-        he.employee_ssn::VARCHAR as employee_ssn,
-        he.compensation_amount::DECIMAL(12,2) as employee_compensation,
-        he.employee_age::SMALLINT as current_age,
-        he.level_id::SMALLINT as level_id
-    FROM {{ ref('fct_yearly_events') }} he
-    WHERE he.simulation_year = {{ simulation_year }}
-      AND he.event_type = 'hire'
-    {% else %}
-    -- SQL mode: Use intermediate event model
-    SELECT
-        he.employee_id::VARCHAR as employee_id,
-        he.employee_ssn::VARCHAR as employee_ssn,
-        he.compensation_amount::DECIMAL(12,2) as employee_compensation,
-        he.employee_age::SMALLINT as current_age,
-        he.level_id::SMALLINT as level_id
-    FROM {{ ref('int_hiring_events') }} he
-    WHERE he.simulation_year = {{ simulation_year }}
-    {% endif %}
-),
+    UNION
 
-current_workforce AS (
-    -- Union attributes for all enrolled employees this year, preferring base_active attrs
-    -- FIXED: Only include employees that exist in compensation table to fix relationship test
-    SELECT
-        e.employee_id,
-        COALESCE(b.employee_ssn, nh.employee_ssn) as employee_ssn,
-        COALESCE(b.employee_compensation, nh.employee_compensation) as employee_compensation,
-        COALESCE(b.current_age, nh.current_age) as current_age,
-        COALESCE(b.level_id, nh.level_id) as level_id,
-        {{ simulation_year }}::INTEGER as simulation_year,
-        true as is_enrolled_flag,
-        COALESCE(e.enrollment_date, b.baseline_enrollment_date) as employee_enrollment_date
-    FROM enrolled_employees e
-    LEFT JOIN base_active b ON e.employee_id = b.employee_id
-    LEFT JOIN new_hires_current_year nh ON e.employee_id = nh.employee_id
-    -- CRITICAL FIX: Ensure all employees exist in compensation table
-    WHERE (b.employee_id IS NOT NULL OR nh.employee_id IS NOT NULL)
-),
-
--- OPTIMIZED: Pre-filter escalation events by year range for better JOIN performance
--- Epic E078: Mode-aware query - uses fct_yearly_events in Polars mode, int_deferral_rate_escalation_events in SQL mode
-escalation_events_filtered AS (
-    {% if var('event_generation_mode', 'sql') == 'polars' %}
-    -- Polars mode: Read from fct_yearly_events
-    SELECT
-        employee_id::VARCHAR as employee_id,
-        simulation_year::INTEGER as simulation_year,
-        effective_date::DATE as effective_date,
-        employee_deferral_rate::DECIMAL(5,4) as new_deferral_rate,
-        CAST(NULL AS DECIMAL(5,4)) as escalation_rate,
-        CAST(NULL AS INTEGER) as new_escalation_count,
-        event_details::VARCHAR as event_details
-    FROM {{ ref('fct_yearly_events') }}
-    WHERE simulation_year <= {{ simulation_year }}
-      AND event_type IN ('enrollment_change', 'deferral_escalation')
-      AND employee_id IS NOT NULL
-    {% else %}
-    -- SQL mode: Use intermediate event model
-    SELECT
-        employee_id::VARCHAR as employee_id,
-        simulation_year::INTEGER as simulation_year,
-        effective_date::DATE as effective_date,
-        new_deferral_rate::DECIMAL(5,4) as new_deferral_rate,
-        escalation_rate::DECIMAL(5,4) as escalation_rate,
-        new_escalation_count::INTEGER as new_escalation_count,
-        event_details::VARCHAR as event_details
-    FROM {{ ref('int_deferral_rate_escalation_events') }}
-    WHERE simulation_year <= {{ simulation_year }}
-        AND employee_id IS NOT NULL  -- Prevent NULL joins
-    {% endif %}
-),
-
--- CRITICAL FIX: Add enrollment events to capture initial deferral rates
--- Epic E078: Mode-aware query - uses fct_yearly_events in Polars mode, int_enrollment_events in SQL mode
-enrollment_events AS (
-    {% if var('event_generation_mode', 'sql') == 'polars' %}
-    -- Polars mode: Read from fct_yearly_events
+    -- FALLBACK: Extract new hire employee list from fct_yearly_events
+    -- (supports both SQL and Polars event generation modes)
     SELECT DISTINCT
         employee_id::VARCHAR as employee_id,
-        simulation_year::INTEGER as simulation_year,
-        employee_deferral_rate::DECIMAL(5,4) as enrollment_deferral_rate,
-        effective_date::DATE as enrollment_date
+        employee_ssn::VARCHAR as employee_ssn,
+        COALESCE(compensation_amount, 50000.00)::DECIMAL(12,2) as employee_compensation,
+        COALESCE(employee_age, 35)::SMALLINT as current_age,
+        COALESCE(level_id, 2)::SMALLINT as level_id
     FROM {{ ref('fct_yearly_events') }}
-    WHERE simulation_year <= {{ simulation_year }}
-      AND event_type IN ('enrollment', 'enrollment_change')
-    {% else %}
-    -- SQL mode: Use intermediate event model
-    SELECT DISTINCT
-        employee_id::VARCHAR as employee_id,
-        simulation_year::INTEGER as simulation_year,
-        employee_deferral_rate::DECIMAL(5,4) as enrollment_deferral_rate,
-        effective_date::DATE as enrollment_date
-    FROM {{ ref('int_enrollment_events') }}
-    WHERE simulation_year <= {{ simulation_year }}
-      AND LOWER(event_type) = 'enrollment'
+    WHERE simulation_year = {{ simulation_year }}
+      AND event_type = 'hire'
       AND employee_id IS NOT NULL
-      AND employee_deferral_rate IS NOT NULL
-    {% endif %}
+      -- Only include if not already in workforce compensation table
+      AND employee_id NOT IN (
+          SELECT employee_id
+          FROM {{ ref('int_employee_compensation_by_year') }}
+          WHERE simulation_year = {{ simulation_year }}
+      )
 ),
 
--- OPTIMIZED: Vectorized age/income segmentation for better DuckDB performance
-employee_deferral_rate_mapping AS (
+-- Get baseline deferral rates for fallback
+baseline_deferral_rates AS (
     SELECT
-        w.employee_id,
-        w.current_age,
-        w.employee_compensation,
-        -- OPTIMIZED: Use CASE expressions for vectorized processing
+        employee_id,
         CASE
-            WHEN w.current_age < 30 THEN 'young'::VARCHAR
-            WHEN w.current_age < 45 THEN 'mid_career'::VARCHAR
-            WHEN w.current_age < 55 THEN 'senior'::VARCHAR
+            WHEN current_age < 30 THEN 'young'::VARCHAR
+            WHEN current_age < 45 THEN 'mid_career'::VARCHAR
+            WHEN current_age < 55 THEN 'senior'::VARCHAR
             ELSE 'mature'::VARCHAR
         END as age_segment,
         CASE
-            WHEN w.level_id >= 5 OR w.employee_compensation >= 250000 THEN 'executive'::VARCHAR
-            WHEN w.level_id >= 4 OR w.employee_compensation >= 150000 THEN 'high'::VARCHAR
-            WHEN w.level_id >= 3 OR w.employee_compensation >= 100000 THEN 'moderate'::VARCHAR
+            WHEN level_id >= 5 OR employee_compensation >= 250000 THEN 'executive'::VARCHAR
+            WHEN level_id >= 4 OR employee_compensation >= 150000 THEN 'high'::VARCHAR
+            WHEN level_id >= 3 OR employee_compensation >= 100000 THEN 'moderate'::VARCHAR
             ELSE 'low_income'::VARCHAR
-        END as income_segment
-    FROM current_workforce w
+        END as income_segment,
+        0.03::DECIMAL(5,4) as fallback_rate
+    FROM current_year_workforce
 ),
 
--- OPTIMIZED: Efficient baseline rate lookup with proper JOIN ordering
-employee_baseline_rates AS (
+{% if simulation_year == start_year %}
+-- FIRST YEAR: Combine historical enrollments with current escalations
+first_year_state AS (
     SELECT
-        m.employee_id,
-        m.age_segment,
-        m.income_segment,
-        COALESCE(d.default_rate, 0.03::DECIMAL(5,4)) as baseline_deferral_rate,
-        COALESCE(d.auto_escalate, false) as auto_escalate,
-        COALESCE(d.auto_escalate_rate, 0.01::DECIMAL(5,4)) as auto_escalate_rate,
-        COALESCE(d.max_rate, 0.50::DECIMAL(5,4)) as max_rate
-    FROM employee_deferral_rate_mapping m
-    LEFT JOIN (
-        -- Pre-filter default rates for better JOIN performance
-        SELECT age_segment, income_segment, default_rate, auto_escalate, auto_escalate_rate, max_rate,
-               ROW_NUMBER() OVER (PARTITION BY age_segment, income_segment ORDER BY effective_date DESC) as rn
-        FROM default_deferral_rates
-        WHERE scenario_id = 'default'
-          AND effective_date <= '{{ simulation_year }}-01-01'::DATE
-    ) d ON m.age_segment = d.age_segment
-        AND m.income_segment = d.income_segment
-        AND d.rn = 1
-),
+        COALESCE(w.employee_id, he.employee_id, ce.employee_id, mr.employee_id, oo.employee_id) as employee_id,
+        {{ simulation_year }} as simulation_year,
 
--- OPTIMIZED: Vectorized escalation summary with efficient aggregations
-employee_escalation_summary AS (
-    SELECT
-        employee_id,
-        COUNT(*)::INTEGER as total_escalations,
-        MAX(effective_date) as last_escalation_date,
-        SUM(escalation_rate)::DECIMAL(5,4) as total_escalation_amount,
-        MAX(new_deferral_rate)::DECIMAL(5,4) as latest_deferral_rate,
-        MIN(effective_date) as first_escalation_date,
-        -- OPTIMIZED: Use boolean aggregation for better performance
-        BOOL_OR(simulation_year = {{ simulation_year }}) as had_escalation_this_year,
-        MAX(CASE WHEN simulation_year = {{ simulation_year }} THEN event_details END) as latest_escalation_details
-    FROM escalation_events_filtered
-    GROUP BY employee_id
-),
+        -- E058+E096: Calculate current deferral rate with match-response + escalation additive logic
+        -- Priority: opt-out > (match-response + escalation additive) > escalation > match-response > enrollment
+        CASE
+            WHEN oo.employee_id IS NOT NULL THEN 0.00::DECIMAL(5,4)  -- Opted out
+            WHEN he.employee_id IS NULL THEN 0.00::DECIMAL(5,4)      -- Not enrolled (no enrollment event)
+            -- E058 D2: Additive case - both match-response and escalation in same year
+            -- Only apply additive logic when compensation > 0 (IRS limit requires real comp)
+            WHEN mr.match_responsive_rate IS NOT NULL AND ce.new_deferral_rate IS NOT NULL
+                 AND COALESCE(cyw.employee_compensation, 0) > 0
+                THEN LEAST(
+                    mr.match_responsive_rate + ce.escalation_rate,
+                    {{ var('deferral_escalation_cap', 0.10) }},
+                    ({{ var('irs_402g_limit', 23500) }}::DECIMAL / cyw.employee_compensation)
+                )::DECIMAL(5,4)
+            -- Only escalation
+            WHEN ce.new_deferral_rate IS NOT NULL THEN ce.new_deferral_rate
+            -- Only match-response
+            WHEN mr.match_responsive_rate IS NOT NULL THEN mr.match_responsive_rate
+            ELSE COALESCE(
+                he.initial_deferral_rate,  -- Initial enrollment rate
+                br.fallback_rate,          -- Demographic fallback (only for enrolled)
+                0.03::DECIMAL(5,4)         -- Hard fallback (only for enrolled)
+            )
+        END as current_deferral_rate,
 
--- OPTIMIZED: Final state with efficient JOINs and proper data types
--- FIX: Ensure ALL enrolled employees get proper baseline deferral rates
-final_state AS (
-    SELECT
-        w.employee_id,
-        w.simulation_year,
-
-        -- FIX: Current deferral rate with proper baseline mapping for ALL enrolled employees
-        COALESCE(
-            e.latest_deferral_rate,  -- First: any escalation rate
-            enr.enrollment_deferral_rate,  -- Second: enrollment event deferral rate
-            b.baseline_deferral_rate,
-            -- Fallback based on age/income segmentation if no baseline rate mapped
-            CASE
-                WHEN w.current_age < 30 AND w.level_id <= 2 THEN 0.03::DECIMAL(5,4)  -- young, low_income
-                WHEN w.current_age < 30 AND w.level_id <= 3 THEN 0.03::DECIMAL(5,4)  -- young, moderate
-                WHEN w.current_age < 30 AND w.level_id <= 4 THEN 0.04::DECIMAL(5,4)  -- young, high
-                WHEN w.current_age < 30 THEN 0.06::DECIMAL(5,4)                     -- young, executive
-                WHEN w.current_age < 45 AND w.level_id <= 2 THEN 0.04::DECIMAL(5,4)  -- mid_career, low_income
-                WHEN w.current_age < 45 AND w.level_id <= 3 THEN 0.06::DECIMAL(5,4)  -- mid_career, moderate
-                WHEN w.current_age < 45 AND w.level_id <= 4 THEN 0.08::DECIMAL(5,4)  -- mid_career, high
-                WHEN w.current_age < 45 THEN 0.10::DECIMAL(5,4)                     -- mid_career, executive
-                WHEN w.current_age < 55 AND w.level_id <= 2 THEN 0.05::DECIMAL(5,4)  -- mature, low_income
-                WHEN w.current_age < 55 AND w.level_id <= 3 THEN 0.08::DECIMAL(5,4)  -- mature, moderate
-                WHEN w.current_age < 55 AND w.level_id <= 4 THEN 0.10::DECIMAL(5,4)  -- mature, high
-                WHEN w.current_age < 55 THEN 0.12::DECIMAL(5,4)                     -- mature, executive
-                WHEN w.level_id <= 2 THEN 0.06::DECIMAL(5,4)                        -- senior, low_income
-                WHEN w.level_id <= 3 THEN 0.10::DECIMAL(5,4)                        -- senior, moderate
-                WHEN w.level_id <= 4 THEN 0.12::DECIMAL(5,4)                        -- senior, high
-                ELSE 0.15::DECIMAL(5,4)                                             -- senior, executive
-            END
-        ) as current_deferral_rate,
-
-        -- OPTIMIZED: Escalation tracking with proper data types
-        COALESCE(e.total_escalations, 0::INTEGER) as escalations_received,
-        e.last_escalation_date,
-        (COALESCE(e.total_escalations, 0) > 0) as has_escalations,
+        -- Track escalations
+        CASE WHEN ce.employee_id IS NOT NULL THEN 1 ELSE 0 END as escalations_received,
+        ce.effective_date as last_escalation_date,
+        (ce.employee_id IS NOT NULL) as has_escalations,
         'int_deferral_rate_escalation_events'::VARCHAR as escalation_source,
 
-        -- OPTIMIZED: Current year activity flags
-        COALESCE(e.had_escalation_this_year, false) as had_escalation_this_year,
-        CASE WHEN COALESCE(e.had_escalation_this_year, false) THEN 1 ELSE 0 END as escalation_events_this_year,
-        e.latest_escalation_details,
+        -- Current year activity
+        (ce.employee_id IS NOT NULL) as had_escalation_this_year,
+        CASE WHEN ce.employee_id IS NOT NULL THEN 1 ELSE 0 END as escalation_events_this_year,
+        NULL::VARCHAR as latest_escalation_details,
 
-        -- OPTIMIZED: Rate analysis with safe division - use actual baseline rate for comparison
-        COALESCE(b.baseline_deferral_rate, 0.05::DECIMAL(5,4)) as original_deferral_rate,
+        -- Original enrollment rate (before any escalations)
+        -- E096 FIX: Non-enrolled employees should have original_deferral_rate = 0
         CASE
-            WHEN COALESCE(b.baseline_deferral_rate, 0.05) > 0.0001  -- Avoid division by very small numbers
-            THEN ((COALESCE(e.latest_deferral_rate, b.baseline_deferral_rate, 0.05) - COALESCE(b.baseline_deferral_rate, 0.05)) / COALESCE(b.baseline_deferral_rate, 0.05))::DECIMAL(8,4)
+            WHEN he.employee_id IS NULL THEN 0.00::DECIMAL(5,4)  -- Not enrolled
+            ELSE COALESCE(he.initial_deferral_rate, br.fallback_rate, 0.03::DECIMAL(5,4))
+        END as original_deferral_rate,
+
+        -- Rate change calculation
+        CASE
+            WHEN COALESCE(he.initial_deferral_rate, br.fallback_rate, 0.03) > 0.0001 AND ce.new_deferral_rate IS NOT NULL
+            THEN ((ce.new_deferral_rate - COALESCE(he.initial_deferral_rate, br.fallback_rate, 0.03)) / COALESCE(he.initial_deferral_rate, br.fallback_rate, 0.03))::DECIMAL(8,4)
             ELSE NULL
         END as escalation_rate_change_pct,
-        COALESCE(e.total_escalation_amount, 0.0000::DECIMAL(5,4)) as total_escalation_amount,
+        COALESCE(ce.escalation_rate, 0.0000::DECIMAL(5,4)) as total_escalation_amount,
 
-        -- OPTIMIZED: Time-based metrics with efficient date arithmetic
+        -- Time metrics
+        NULL::INTEGER as years_since_first_escalation,
         CASE
-            WHEN e.first_escalation_date IS NOT NULL
-            THEN ({{ simulation_year }} - EXTRACT('year' FROM e.first_escalation_date))::INTEGER
-            ELSE NULL
-        END as years_since_first_escalation,
-        CASE
-            WHEN e.last_escalation_date IS NOT NULL
-            THEN (DATE '{{ simulation_year }}-12-31' - e.last_escalation_date)::INTEGER
+            WHEN ce.effective_date IS NOT NULL
+            THEN DATEDIFF('day', ce.effective_date, DATE '{{ simulation_year }}-12-31')
             ELSE NULL
         END as days_since_last_escalation,
 
-        -- Enrollment status (already filtered in workforce CTE)
-        w.is_enrolled_flag,
-        w.employee_enrollment_date,
+        -- Enrollment information
+        CASE
+            WHEN oo.employee_id IS NOT NULL THEN false
+            ELSE (he.employee_id IS NOT NULL)
+        END as is_enrolled_flag,
+        he.enrollment_date as employee_enrollment_date,
 
-        -- OPTIMIZED: Metadata with proper types
+        -- Metadata
         CURRENT_TIMESTAMP as created_at,
         'default'::VARCHAR as scenario_id,
         CASE
-            WHEN w.employee_id IS NULL THEN 'INVALID_EMPLOYEE_ID'
-            WHEN COALESCE(e.latest_deferral_rate, b.baseline_deferral_rate, 0.05) < 0 OR COALESCE(e.latest_deferral_rate, b.baseline_deferral_rate, 0.05) > 1 THEN 'INVALID_RATE'
-            WHEN COALESCE(e.total_escalations, 0) < 0 THEN 'INVALID_ESCALATION_COUNT'
+            WHEN COALESCE(w.employee_id, he.employee_id, ce.employee_id, mr.employee_id) IS NULL THEN 'INVALID_EMPLOYEE_ID'
+            WHEN COALESCE(ce.new_deferral_rate, mr.match_responsive_rate, he.initial_deferral_rate, br.fallback_rate, 0.03) < 0
+                OR COALESCE(ce.new_deferral_rate, mr.match_responsive_rate, he.initial_deferral_rate, br.fallback_rate, 0.03) > 1
+                THEN 'INVALID_RATE'
             ELSE 'VALID'
-        END as data_quality_flag
+        END as data_quality_flag,
 
-    FROM current_workforce w
-    LEFT JOIN employee_baseline_rates b
-        ON w.employee_id = b.employee_id
-    LEFT JOIN employee_escalation_summary e
-        ON w.employee_id = e.employee_id
-    -- CRITICAL FIX: Add enrollment events to get initial deferral rates
-    LEFT JOIN enrollment_events enr
-        ON w.employee_id = enr.employee_id
-        AND enr.simulation_year = {{ simulation_year }}
-    -- FIX: Now ALL enrolled employees will have a deferral rate, not just those with escalation events
+        -- E058: Rate source tracking with match-response
+        CASE
+            WHEN oo.employee_id IS NOT NULL THEN 'opt_out'
+            WHEN he.employee_id IS NULL THEN 'not_enrolled'
+            WHEN mr.employee_id IS NOT NULL AND ce.employee_id IS NOT NULL THEN 'match_response_plus_escalation'
+            WHEN mr.employee_id IS NOT NULL THEN 'match_response'
+            WHEN ce.employee_id IS NOT NULL THEN 'escalation_event'
+            WHEN he.source = 'synthetic_baseline' THEN 'census_rate'
+            WHEN he.source = 'fct_yearly_events' THEN 'enrollment_event'
+            WHEN br.employee_id IS NOT NULL THEN 'demographic_fallback'
+            ELSE 'hard_fallback'
+        END as rate_source
+
+    FROM current_year_workforce w
+    FULL OUTER JOIN first_year_enrolled_employees he ON w.employee_id = he.employee_id
+    LEFT JOIN current_year_escalations ce ON COALESCE(w.employee_id, he.employee_id) = ce.employee_id AND ce.rn = 1
+    LEFT JOIN current_year_match_response mr ON COALESCE(w.employee_id, he.employee_id) = mr.employee_id AND mr.rn = 1
+    LEFT JOIN current_year_opt_outs oo ON COALESCE(w.employee_id, he.employee_id) = oo.employee_id
+    LEFT JOIN baseline_deferral_rates br ON COALESCE(w.employee_id, he.employee_id) = br.employee_id
+    -- E058: Join workforce for compensation (needed for IRS limit calculation in additive case)
+    LEFT JOIN current_year_workforce cyw ON COALESCE(w.employee_id, he.employee_id) = cyw.employee_id
+    -- E096 FIX: Include ALL workforce employees, not just those with enrollment events
+    -- Non-enrolled employees get deferral_rate = 0 and is_enrolled_flag = false
+    -- This ensures census employees without explicit enrollment data still appear
+    WHERE COALESCE(w.employee_id, he.employee_id) IS NOT NULL
 )
 
--- OPTIMIZED: Final output with incremental strategy
-SELECT * FROM final_state
+{% else %}
+-- SUBSEQUENT YEARS: Temporal accumulation pattern
+subsequent_year_state AS (
+    SELECT
+        COALESCE(w.employee_id, ps.employee_id, ne.employee_id, ce.employee_id, mr.employee_id, oo.employee_id) as employee_id,
+        {{ simulation_year }} as simulation_year,
+
+        -- E058: TEMPORAL LOGIC with match-response + escalation additive handling
+        CASE
+            WHEN oo.employee_id IS NOT NULL THEN 0.00::DECIMAL(5,4)
+            -- E058 D2: Additive case - both match-response and escalation in same year
+            -- Only apply additive logic when compensation > 0 (IRS limit requires real comp)
+            WHEN mr.match_responsive_rate IS NOT NULL AND ce.new_deferral_rate IS NOT NULL
+                 AND COALESCE(cyw.employee_compensation, 0) > 0
+                THEN LEAST(
+                    mr.match_responsive_rate + ce.escalation_rate,
+                    {{ var('deferral_escalation_cap', 0.10) }},
+                    ({{ var('irs_402g_limit', 23500) }}::DECIMAL / cyw.employee_compensation)
+                )::DECIMAL(5,4)
+            ELSE COALESCE(
+                ce.new_deferral_rate,                    -- Current year escalation overwrites all
+                mr.match_responsive_rate,                -- Match-response rate
+                ne.initial_deferral_rate,                -- New enrollment this year
+                ps.previous_deferral_rate,               -- Carry forward from previous year
+                br.fallback_rate,                        -- Demographic fallback
+                0.03::DECIMAL(5,4)                       -- Hard fallback
+            )
+        END as current_deferral_rate,
+
+        -- Track escalations cumulatively
+        CASE
+            WHEN ce.employee_id IS NOT NULL THEN (COALESCE(ps.previous_escalations_received, 0) + 1)
+            ELSE COALESCE(ps.previous_escalations_received, 0)
+        END as escalations_received,
+
+        COALESCE(ce.effective_date, ps.employee_enrollment_date) as last_escalation_date,
+        (COALESCE(ps.previous_escalations_received, 0) > 0 OR ce.employee_id IS NOT NULL) as has_escalations,
+        'int_deferral_rate_escalation_events'::VARCHAR as escalation_source,
+
+        -- Current year activity
+        (ce.employee_id IS NOT NULL) as had_escalation_this_year,
+        CASE WHEN ce.employee_id IS NOT NULL THEN 1 ELSE 0 END as escalation_events_this_year,
+        NULL::VARCHAR as latest_escalation_details,
+
+        -- Original enrollment rate (carry forward or new)
+        COALESCE(ne.initial_deferral_rate, ps.original_deferral_rate, br.fallback_rate, 0.03::DECIMAL(5,4)) as original_deferral_rate,
+
+        -- Rate change calculation
+        CASE
+            WHEN COALESCE(ps.original_deferral_rate, ne.initial_deferral_rate, br.fallback_rate, 0.03) > 0.0001
+            THEN ((COALESCE(ce.new_deferral_rate, mr.match_responsive_rate, ne.initial_deferral_rate, ps.previous_deferral_rate, br.fallback_rate, 0.03) -
+                   COALESCE(ps.original_deferral_rate, ne.initial_deferral_rate, br.fallback_rate, 0.03)) /
+                   COALESCE(ps.original_deferral_rate, ne.initial_deferral_rate, br.fallback_rate, 0.03))::DECIMAL(8,4)
+            ELSE NULL
+        END as escalation_rate_change_pct,
+
+        -- Total escalation amount calculation
+        CASE
+            WHEN ce.employee_id IS NOT NULL AND ps.original_deferral_rate IS NOT NULL
+            THEN (ce.new_deferral_rate - ps.original_deferral_rate)::DECIMAL(5,4)
+            WHEN ps.previous_deferral_rate IS NOT NULL AND ps.original_deferral_rate IS NOT NULL
+            THEN (ps.previous_deferral_rate - ps.original_deferral_rate)::DECIMAL(5,4)
+            ELSE 0.0000::DECIMAL(5,4)
+        END as total_escalation_amount,
+
+        -- Time metrics (simplified for now)
+        NULL::INTEGER as years_since_first_escalation,
+        CASE
+            WHEN ce.effective_date IS NOT NULL
+            THEN DATEDIFF('day', ce.effective_date, DATE '{{ simulation_year }}-12-31')
+            ELSE NULL
+        END as days_since_last_escalation,
+
+        -- Enrollment information (carry forward or new)
+        CASE
+            WHEN oo.employee_id IS NOT NULL THEN false
+            ELSE COALESCE(ps.is_enrolled_flag, ne.employee_id IS NOT NULL, false)
+        END as is_enrolled_flag,
+        COALESCE(ne.enrollment_date, ps.employee_enrollment_date) as employee_enrollment_date,
+
+        -- Metadata
+        CURRENT_TIMESTAMP as created_at,
+        'default'::VARCHAR as scenario_id,
+        CASE
+            WHEN COALESCE(w.employee_id, ps.employee_id, ne.employee_id, ce.employee_id, mr.employee_id) IS NULL THEN 'INVALID_EMPLOYEE_ID'
+            WHEN COALESCE(ce.new_deferral_rate, mr.match_responsive_rate, ne.initial_deferral_rate, ps.previous_deferral_rate, br.fallback_rate, 0.03) < 0
+                OR COALESCE(ce.new_deferral_rate, mr.match_responsive_rate, ne.initial_deferral_rate, ps.previous_deferral_rate, br.fallback_rate, 0.03) > 1
+                THEN 'INVALID_RATE'
+            ELSE 'VALID'
+        END as data_quality_flag,
+
+        -- E058: Rate source tracking with match-response (subsequent years)
+        CASE
+            WHEN oo.employee_id IS NOT NULL THEN 'opt_out'
+            WHEN mr.employee_id IS NOT NULL AND ce.employee_id IS NOT NULL THEN 'match_response_plus_escalation'
+            WHEN mr.employee_id IS NOT NULL THEN 'match_response'
+            WHEN ce.employee_id IS NOT NULL THEN 'escalation_event'
+            WHEN ne.source = 'synthetic_baseline' THEN 'census_rate'
+            WHEN ne.source = 'fct_yearly_events' THEN 'enrollment_event'
+            WHEN ps.employee_id IS NOT NULL THEN 'carried_forward'
+            WHEN br.employee_id IS NOT NULL THEN 'demographic_fallback'
+            ELSE 'hard_fallback'
+        END as rate_source
+
+    FROM current_year_workforce w
+    FULL OUTER JOIN previous_year_state ps ON w.employee_id = ps.employee_id
+    LEFT JOIN current_year_new_enrollments ne ON COALESCE(w.employee_id, ps.employee_id) = ne.employee_id AND ne.rn = 1
+    LEFT JOIN current_year_escalations ce ON COALESCE(w.employee_id, ps.employee_id) = ce.employee_id AND ce.rn = 1
+    LEFT JOIN current_year_match_response mr ON COALESCE(w.employee_id, ps.employee_id) = mr.employee_id AND mr.rn = 1
+    LEFT JOIN current_year_opt_outs oo ON COALESCE(w.employee_id, ps.employee_id) = oo.employee_id
+    LEFT JOIN baseline_deferral_rates br ON COALESCE(w.employee_id, ps.employee_id) = br.employee_id
+    -- E058: Join workforce for compensation (needed for IRS limit calculation in additive case)
+    LEFT JOIN current_year_workforce cyw ON COALESCE(w.employee_id, ps.employee_id) = cyw.employee_id
+    -- Include employees who are enrolled (new enrollments, carry-forward, have escalations, or match-response)
+    WHERE (ps.employee_id IS NOT NULL OR ne.employee_id IS NOT NULL OR ce.employee_id IS NOT NULL OR mr.employee_id IS NOT NULL)
+      AND COALESCE(ps.is_enrolled_flag, ne.employee_id IS NOT NULL, false) = true
+)
+
+{% endif %}
+
+-- Final selection with temporal logic
+SELECT *
+FROM
+{% if simulation_year == start_year %}
+    first_year_state
+{% else %}
+    subsequent_year_state
+{% endif %}
+WHERE employee_id IS NOT NULL
 
 {% if is_incremental() %}
-    -- OPTIMIZED: Incremental processing - delete+insert strategy keyed by year
-    WHERE simulation_year = {{ simulation_year }}
+    -- Incremental processing - delete+insert strategy keyed by year
+    AND simulation_year = {{ simulation_year }}
 {% endif %}
+
+/*
+  STORY S042-02 IMPLEMENTATION SUMMARY:
+
+  1. ✅ IMPLEMENTS Year N-1 → Year N temporal accumulation pattern (Epic E023)
+  2. ✅ FIXES "disappearing employee" bug by carrying forward previous year's state
+  3. ✅ APPLIES escalations to carried-forward rates correctly
+  4. ✅ MAINTAINS same output schema for backward compatibility
+
+  TEMPORAL LOGIC FLOW:
+  - Year 2025: Employee NH_2025_000007 gets 6% from enrollment event
+  - Year 2026: Employee NH_2025_000007 carries 6% + 1% escalation = 7%
+  - Year 2027: Employee NH_2025_000007 carries 7% + 1% escalation = 8%
+
+  KEY FIXES:
+  - Uses {{ this }} to read previous year's state (temporal dependency)
+  - Handles first year base case with historical enrollment data
+  - Applies current year escalations to previous year rates
+  - Maintains enrollment state continuity across simulation years
+
+  EXPECTED OUTCOME:
+  Employee NH_2025_000007 will now appear in all simulation years with correct escalated rates.
+*/

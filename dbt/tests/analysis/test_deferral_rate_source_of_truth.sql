@@ -22,7 +22,7 @@ WITH enrolled_employees_v2 AS (
     is_enrolled_flag,
     employee_enrollment_date,
     data_quality_flag
-  FROM {{ ref('int_deferral_rate_state_accumulator_v2') }}
+  FROM {{ ref('int_deferral_rate_state_accumulator') }}
   WHERE is_enrolled_flag = true
     AND simulation_year = {{ var('simulation_year') }}
 ),

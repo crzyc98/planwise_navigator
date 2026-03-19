@@ -277,7 +277,7 @@ The PipelineOrchestrator executes models in optimized sequence:
 1. **INITIALIZATION**: `staging.*`, `int_baseline_workforce` (Year 1 only)
 2. **FOUNDATION**: `int_employee_compensation_by_year`, `int_workforce_needs`, `int_workforce_needs_by_level`
 3. **EVENT_GENERATION**: `int_termination_events`, `int_hiring_events`, `int_promotion_events`, `int_merit_events`, `int_enrollment_events`
-4. **STATE_ACCUMULATION**: `fct_yearly_events`, `int_enrollment_state_accumulator`, `int_deferral_rate_state_accumulator_v2`, `fct_workforce_snapshot`
+4. **STATE_ACCUMULATION**: `fct_yearly_events`, `int_enrollment_state_accumulator`, `int_deferral_rate_state_accumulator`, `fct_workforce_snapshot`
 5. **VALIDATION**: `dq_employee_contributions_validation`
 6. **REPORTING**: Audit and performance reports
 
