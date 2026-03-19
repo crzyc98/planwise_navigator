@@ -5,6 +5,7 @@ import logging
 from typing import Dict, List, Set
 
 from fastapi import WebSocket
+from starlette.websockets import WebSocketDisconnect
 
 logger = logging.getLogger(__name__)
 
@@ -94,8 +95,10 @@ class ConnectionManager:
             for websocket in list(self._connections[run_id]):
                 try:
                     await websocket.close()
-                except Exception:
+                except (WebSocketDisconnect, ConnectionError):
                     pass
+                except Exception as e:
+                    logger.warning(f"Unexpected error closing WebSocket for run {run_id}: {e}")
 
             del self._connections[run_id]
 
