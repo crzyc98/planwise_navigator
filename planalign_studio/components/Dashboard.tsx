@@ -8,26 +8,36 @@ interface LayoutContext {
   activeWorkspace: Workspace;
 }
 
-const StatCard = ({ title, value, subtext, icon, color, onClick }: Readonly<{ title: string; value: string | number; subtext: string; icon: React.ReactNode; color: string; onClick?: () => void }>) => (
-  <div
-    role="button"
-    tabIndex={0}
-    onClick={onClick}
-    onKeyDown={(e: React.KeyboardEvent) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onClick?.(); } }}
-    className={`bg-white rounded-xl shadow-sm border border-gray-100 p-6 flex items-start justify-between cursor-pointer transition-all hover:shadow-md hover:border-${color}-200 group`}
-  >
-    <div>
-      <p className="text-sm font-medium text-gray-500 group-hover:text-gray-700 transition-colors">{title}</p>
-      <h3 className="text-2xl font-bold text-gray-900 mt-1">{value}</h3>
-      <p className={`text-xs mt-2 font-medium ${subtext.includes('+') ? 'text-green-600' : 'text-gray-500'}`}>
-        {subtext}
-      </p>
+const colorClasses: Record<string, { hoverBorder: string; bg: string; text: string; hoverBg: string }> = {
+  green:  { hoverBorder: 'hover:border-green-200',  bg: 'bg-green-50',  text: 'text-green-600',  hoverBg: 'group-hover:bg-green-100' },
+  blue:   { hoverBorder: 'hover:border-blue-200',   bg: 'bg-blue-50',   text: 'text-blue-600',   hoverBg: 'group-hover:bg-blue-100' },
+  purple: { hoverBorder: 'hover:border-purple-200', bg: 'bg-purple-50', text: 'text-purple-600', hoverBg: 'group-hover:bg-purple-100' },
+  orange: { hoverBorder: 'hover:border-orange-200', bg: 'bg-orange-50', text: 'text-orange-600', hoverBg: 'group-hover:bg-orange-100' },
+};
+
+const StatCard = ({ title, value, subtext, icon, color, onClick }: Readonly<{ title: string; value: string | number; subtext: string; icon: React.ReactNode; color: string; onClick?: () => void }>) => {
+  const c = colorClasses[color] ?? colorClasses.green;
+  return (
+    <div
+      role="button"
+      tabIndex={0}
+      onClick={onClick}
+      onKeyDown={(e: React.KeyboardEvent) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onClick?.(); } }}
+      className={`bg-white rounded-xl shadow-sm border border-gray-100 p-6 flex items-start justify-between cursor-pointer transition-all hover:shadow-md ${c.hoverBorder} group`}
+    >
+      <div>
+        <p className="text-sm font-medium text-gray-500 group-hover:text-gray-700 transition-colors">{title}</p>
+        <h3 className="text-2xl font-bold text-gray-900 mt-1">{value}</h3>
+        <p className={`text-xs mt-2 font-medium ${subtext.includes('+') ? 'text-green-600' : 'text-gray-500'}`}>
+          {subtext}
+        </p>
+      </div>
+      <div className={`p-3 rounded-lg ${c.bg} ${c.text} ${c.hoverBg} transition-colors`}>
+        {icon}
+      </div>
     </div>
-    <div className={`p-3 rounded-lg bg-${color}-50 text-${color}-600 group-hover:bg-${color}-100 transition-colors`}>
-      {icon}
-    </div>
-  </div>
-);
+  );
+};
 
 export default function Dashboard() {
   const navigate = useNavigate();
