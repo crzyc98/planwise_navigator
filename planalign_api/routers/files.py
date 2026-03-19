@@ -21,6 +21,8 @@ from ..storage.workspace_storage import WorkspaceStorage
 
 logger = logging.getLogger(__name__)
 
+MAX_UPLOAD_SIZE = 50 * 1024 * 1024  # 50 MB — router-level limit (tighter than service limit)
+
 
 def get_workspace_storage() -> WorkspaceStorage:
     """Get workspace storage instance."""
@@ -70,21 +72,33 @@ async def upload_census_file(
             detail=f"File must be .parquet or .csv, got: .{suffix}",
         )
 
-    # Read file content
+    # Fast-reject via Content-Length header (can be missing or spoofed)
+    if file.size and file.size > MAX_UPLOAD_SIZE:
+        raise HTTPException(
+            status_code=status.HTTP_413_REQUEST_ENTITY_TOO_LARGE,
+            detail=f"File exceeds {MAX_UPLOAD_SIZE // (1024 * 1024)}MB limit",
+        )
+
+    # Stream file in chunks to cap memory usage
     try:
-        content = await file.read()
+        chunks: list[bytes] = []
+        total_size = 0
+        while chunk := await file.read(1024 * 1024):  # 1 MB chunks
+            total_size += len(chunk)
+            if total_size > MAX_UPLOAD_SIZE:
+                raise HTTPException(
+                    status_code=status.HTTP_413_REQUEST_ENTITY_TOO_LARGE,
+                    detail=f"File exceeds {MAX_UPLOAD_SIZE // (1024 * 1024)}MB limit",
+                )
+            chunks.append(chunk)
+        content = b"".join(chunks)
+    except HTTPException:
+        raise
     except Exception as e:
         logger.error(f"Failed to read uploaded file: {e}")
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail=f"Failed to read file: {e}",
-        )
-
-    # Check file size
-    if len(content) > service.MAX_FILE_SIZE_BYTES:
-        raise HTTPException(
-            status_code=status.HTTP_413_REQUEST_ENTITY_TOO_LARGE,
-            detail=f"File exceeds {service.MAX_FILE_SIZE_BYTES // (1024 * 1024)}MB limit",
         )
 
     # Save and validate file
