@@ -46,7 +46,6 @@ tests/
 │   └── cli/                  # CLI interface
 │       └── test_cli.py
 ├── integration/              # Integration tests (1-10s each)
-│   ├── test_multi_year_coordination.py
 │   ├── test_dbt_integration.py
 │   ├── test_hybrid_pipeline.py
 │   └── test_end_to_end_workflow.py
@@ -56,11 +55,14 @@ tests/
 │   └── test_threading_comprehensive.py
 ├── stress/                   # Stress tests (>60s each)
 │   └── test_threading_stress.py
+├── fixtures/                  # Centralized fixture library
+│   ├── config.py             # Test configurations
+│   ├── database.py           # In-memory and populated databases
+│   ├── mock_dbt.py           # Mock dbt runners
+│   └── workforce_data.py     # Sample employees and events
 └── utils/                    # Shared test utilities
     ├── __init__.py
-    ├── fixtures.py           # Shared fixtures
-    ├── factories.py          # Test data factories
-    └── assertions.py         # Custom assertions
+    └── json_validators.py    # JSON schema validation
 ```
 
 ## Test Markers
@@ -88,27 +90,30 @@ Use markers for selective test execution:
 - Event models (S072): `SimulationEvent`, DC plan events, plan administration events
 - Orchestrator: `PipelineOrchestrator`, registries, configuration management
 - CLI interface: `planwise` command-line tool
-- Utilities: parameter validation, data factories, custom assertions
 
 **Key Test Scenarios**:
 ```python
 import pytest
-from tests.utils import EventFactory, assert_event_valid
+from config.events import WorkforceEventFactory
+from decimal import Decimal
+from datetime import date
 
 
 @pytest.mark.unit
 def test_hire_event_creation():
     """Test hire event creation with valid payload."""
-    event = EventFactory.create_hire(
+    event = WorkforceEventFactory.create_hire_event(
         employee_id="EMP_001",
+        scenario_id="test",
+        plan_design_id="default",
+        hire_date=date(2025, 1, 15),
+        department="Engineering",
         job_level=3,
-        starting_salary=75000.0
+        annual_compensation=Decimal("75000.00"),
     )
 
-    assert_event_valid(event)
-    assert event.event_type == "hire"
-    assert event.payload.job_level == 3
-    assert event.payload.starting_salary == 75000.0
+    assert event.event_type == "HIRE"
+    assert event.employee_id == "EMP_001"
 ```
 
 ### 2. Integration Tests
@@ -116,7 +121,6 @@ def test_hire_event_creation():
 **Purpose**: Validate complete workflows across components.
 
 **Workflows Tested**:
-- Multi-year simulation coordination
 - dbt model integration
 - Hybrid pipeline execution (E068G)
 - End-to-end workforce simulation
@@ -124,20 +128,15 @@ def test_hire_event_creation():
 **Key Integration Scenarios**:
 ```python
 import pytest
-from tests.utils import test_database, ConfigFactory
+from tests.fixtures.config import minimal_config
+from planalign_orchestrator.pipeline_orchestrator import PipelineOrchestrator
 
 
 @pytest.mark.integration
 @pytest.mark.database
-def test_multi_year_simulation(test_database):
+def test_multi_year_simulation(minimal_config):
     """Test multi-year simulation completes successfully."""
-    config = ConfigFactory.create_simulation_config(
-        start_year=2025,
-        end_year=2026,
-    )
-
-    # Run simulation
-    orchestrator = create_orchestrator(config)
+    orchestrator = PipelineOrchestrator(minimal_config)
     summary = orchestrator.execute_multi_year_simulation(2025, 2026)
 
     # Verify results
@@ -172,42 +171,29 @@ PERFORMANCE_BENCHMARKS = {
 
 ```python
 import pytest
-from tests.utils import EventFactory, assert_event_valid
+from tests.fixtures.config import minimal_config
 
 
 @pytest.mark.unit
-def test_hire_event_creation():
-    """Test hire event creation with valid payload."""
-    event = EventFactory.create_hire(
-        employee_id="EMP_001",
-        job_level=3,
-        starting_salary=75000.0
-    )
-
-    assert_event_valid(event)
-    assert event.event_type == "hire"
-    assert event.payload.job_level == 3
-    assert event.payload.starting_salary == 75000.0
+def test_simulation_config(minimal_config):
+    """Test simulation config loads correctly."""
+    assert minimal_config is not None
+    assert minimal_config.scenario_id is not None
 ```
 
 ### Integration Test Example
 
 ```python
 import pytest
-from tests.utils import test_database, ConfigFactory
+from tests.fixtures.config import minimal_config
+from planalign_orchestrator.pipeline_orchestrator import PipelineOrchestrator
 
 
 @pytest.mark.integration
 @pytest.mark.database
-def test_multi_year_simulation(test_database):
+def test_multi_year_simulation(minimal_config):
     """Test multi-year simulation completes successfully."""
-    config = ConfigFactory.create_simulation_config(
-        start_year=2025,
-        end_year=2026,
-    )
-
-    # Run simulation
-    orchestrator = create_orchestrator(config)
+    orchestrator = PipelineOrchestrator(minimal_config)
     summary = orchestrator.execute_multi_year_simulation(2025, 2026)
 
     # Verify results
@@ -223,48 +209,47 @@ import pytest
 
 @pytest.mark.performance
 @pytest.mark.slow
-def test_event_generation_performance(performance_tracker, benchmark_baseline):
+def test_event_generation_performance():
     """Benchmark event generation performance."""
-    performance_tracker.start()
+    import time
+    start = time.perf_counter()
 
-    # Generate 10,000 events
-    events = [EventFactory.create_hire() for _ in range(10_000)]
+    # Generate events using the event factory
+    from config.events import WorkforceEventFactory
+    from decimal import Decimal
+    from datetime import date
 
-    metrics = performance_tracker.stop()
-    performance_tracker.assert_performance(
-        max_time=benchmark_baseline["event_creation"]["max_time"] * 10_000,
-        max_memory=benchmark_baseline["event_creation"]["max_memory"]
-    )
+    for i in range(1000):
+        WorkforceEventFactory.create_hire_event(
+            employee_id=f"EMP_{i:04d}",
+            scenario_id="perf_test",
+            plan_design_id="default",
+            hire_date=date(2025, 1, 15),
+            department="Engineering",
+            job_level=3,
+            annual_compensation=Decimal("75000.00"),
+        )
+
+    elapsed = time.perf_counter() - start
+    assert elapsed < 5.0, f"Event generation took {elapsed:.2f}s, expected <5s"
 ```
 
 ## Test Utilities
 
 ### Fixtures
 
-Located in `tests/utils/fixtures.py`:
+Located in `tests/fixtures/`:
 
-- `test_database`: Isolated test database with backup/restore
-- `temp_directory`: Temporary directory for test files
-- `sample_workforce_data`: 1000-row workforce DataFrame
-- `performance_tracker`: Performance monitoring utility
-- `benchmark_baseline`: Performance baseline expectations
+- `tests/fixtures/config.py`: Test configurations (`minimal_config`, `single_threaded_config`, etc.)
+- `tests/fixtures/database.py`: In-memory and populated database fixtures
+- `tests/fixtures/mock_dbt.py`: Mock dbt runners
+- `tests/fixtures/workforce_data.py`: Sample employees and events
 
-### Factories
+### JSON Validators
 
-Located in `tests/utils/factories.py`:
+Located in `tests/utils/json_validators.py`:
 
-- `EventFactory`: Create test simulation events
-- `WorkforceFactory`: Create test employee records
-- `ConfigFactory`: Create test configurations
-
-### Custom Assertions
-
-Located in `tests/utils/assertions.py`:
-
-- `assert_parameter_validity()`: Validate parameters
-- `assert_optimization_convergence()`: Check optimization results
-- `assert_performance_acceptable()`: Verify performance metrics
-- `assert_event_valid()`: Validate event structure
+- JSON schema validation utilities for API response testing
 
 ## CI/CD Integration
 
