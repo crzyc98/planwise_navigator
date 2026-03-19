@@ -35,8 +35,9 @@ models:
         description: Simulation year (should match start_year for baseline events)
         data_tests:
           - not_null
-          - accepted_values:
-              values: [2025, 2026, 2027, 2028, 2029]
+          - dbt_utils.accepted_range:
+              min_value: "{{ var('simulation_start_year', 2025) }}"
+              max_value: "{{ var('simulation_end_year', 2029) }}"
       - name: effective_date
         description: Historical enrollment date from census data
         data_tests:
