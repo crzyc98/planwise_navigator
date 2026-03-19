@@ -9,7 +9,6 @@ on:
 
 env:
   PYTHON_VERSION: '3.11'
-  DAGSTER_HOME: .dagster
   DATABASE_PATH: 'dbt/simulation.duckdb'
 
 jobs:
@@ -42,7 +41,7 @@ jobs:
         run: |
           black --check .
           ruff check .
-          mypy planalign_engine/ --ignore-missing-imports
+          mypy planalign_orchestrator/ planalign_cli/ config/ --ignore-missing-imports
 
   test:
     runs-on: ubuntu-latest
@@ -72,7 +71,7 @@ jobs:
 
       - name: Run Python tests
         run: |
-          pytest tests/ -v --cov=planalign_engine --cov-report=xml
+          pytest tests/ -v --cov=planalign_orchestrator --cov=planalign_cli --cov=planalign_api --cov=config --cov-fail-under=80 --cov-report=xml
 
       - name: Run dbt tests
         run: |
