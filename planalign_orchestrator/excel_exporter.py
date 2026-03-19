@@ -17,6 +17,7 @@ Features:
 from __future__ import annotations
 
 import json
+import re
 import subprocess
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Sequence
@@ -31,6 +32,9 @@ from config.constants import (
     TABLE_FCT_YEARLY_EVENTS,
 )
 from .utils import DatabaseConnectionManager
+
+# Regex for validating SQL identifiers (table names) that can't be parameterized
+_VALID_IDENTIFIER_RE = re.compile(r'^[a-zA-Z_]\w*$')
 
 
 class ExcelExporter:
@@ -101,11 +105,16 @@ class ExcelExporter:
             True if table exists, False otherwise
         """
         try:
-            result = conn.execute(f"SELECT COUNT(*) FROM information_schema.tables WHERE table_name = '{table_name}'").fetchone()
+            result = conn.execute(
+                "SELECT COUNT(*) FROM information_schema.tables WHERE table_name = ?",
+                [table_name],
+            ).fetchone()
             return result[0] > 0 if result else False
         except Exception:
-            # Try direct query as fallback
+            # Try direct query as fallback — validate identifier since it can't be parameterized
             try:
+                if not _VALID_IDENTIFIER_RE.match(table_name):
+                    return False
                 conn.execute(f"SELECT COUNT(*) FROM {table_name} LIMIT 1").fetchone()
                 return True
             except Exception:
@@ -576,7 +585,9 @@ class ExcelExporter:
         return metadata
 
     def _get_table_columns(self, conn, table_name: str) -> List[str]:
-        """Return list of column names for a given table using DuckDB PRAGMA table_info.
+        """Return list of column names for a given table.
+
+        Uses information_schema (parameterized) as primary, with validated PRAGMA as fallback.
 
         Args:
             conn: Database connection
@@ -586,18 +597,18 @@ class ExcelExporter:
             List of column names (lowercase)
         """
         try:
-            rows = conn.execute(f"PRAGMA table_info('{table_name}')").fetchall()
-            # DuckDB returns: cid, name, type, notnull, dflt_value, pk (varies by version)
-            cols = [str(r[1]).lower() for r in rows]
-            return cols
+            rows = conn.execute(
+                "SELECT LOWER(column_name) AS name FROM information_schema.columns WHERE table_name = ?",
+                [table_name],
+            ).fetchall()
+            return [str(r[0]) for r in rows]
         except Exception:
             try:
-                # Fallback to information_schema
-                df = self._query_to_df(
-                    conn,
-                    f"SELECT LOWER(column_name) AS name FROM information_schema.columns WHERE table_name = '{table_name}'",
-                )
-                return df["name"].tolist()
+                # Fallback to PRAGMA — validate identifier since it can't be parameterized
+                if not _VALID_IDENTIFIER_RE.match(table_name):
+                    return []
+                rows = conn.execute(f"PRAGMA table_info('{table_name}')").fetchall()
+                return [str(r[1]).lower() for r in rows]
             except Exception:
                 return []
 
