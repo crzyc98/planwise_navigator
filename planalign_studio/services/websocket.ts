@@ -82,6 +82,7 @@ export function useSimulationSocket(runId: string | null): UseSimulationSocketRe
 
   const wsRef = useRef<WebSocket | null>(null);
   const reconnectTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const reconnectAttemptsRef = useRef(0);
   const maxReconnectAttempts = 5;
   const reconnectDelay = 2000;
 
@@ -104,6 +105,7 @@ export function useSimulationSocket(runId: string | null): UseSimulationSocketRe
 
     ws.onopen = () => {
       console.log('[WebSocket] Connected successfully');
+      reconnectAttemptsRef.current = 0;
       setStatus({
         isConnected: true,
         isConnecting: false,
@@ -155,17 +157,19 @@ export function useSimulationSocket(runId: string | null): UseSimulationSocketRe
       }));
 
       // Attempt reconnect if not intentionally closed
-      if (event.code !== 1000 && status.reconnectAttempts < maxReconnectAttempts) {
+      if (event.code !== 1000 && reconnectAttemptsRef.current < maxReconnectAttempts) {
+        const delay = reconnectDelay * Math.pow(2, reconnectAttemptsRef.current);
+        reconnectAttemptsRef.current += 1;
+        setStatus(prev => ({
+          ...prev,
+          reconnectAttempts: reconnectAttemptsRef.current,
+        }));
         reconnectTimeoutRef.current = setTimeout(() => {
-          setStatus(prev => ({
-            ...prev,
-            reconnectAttempts: prev.reconnectAttempts + 1,
-          }));
           connect();
-        }, reconnectDelay * Math.pow(2, status.reconnectAttempts));
+        }, delay);
       }
     };
-  }, [runId, status.reconnectAttempts]);
+  }, [runId]);
 
   const disconnect = useCallback(() => {
     if (reconnectTimeoutRef.current) {
@@ -178,6 +182,7 @@ export function useSimulationSocket(runId: string | null): UseSimulationSocketRe
       wsRef.current = null;
     }
 
+    reconnectAttemptsRef.current = 0;
     setStatus({
       isConnected: false,
       isConnecting: false,
@@ -225,6 +230,7 @@ export function useBatchSocket(batchId: string | null): UseBatchSocketResult {
 
   const wsRef = useRef<WebSocket | null>(null);
   const reconnectTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const reconnectAttemptsRef = useRef(0);
   const maxReconnectAttempts = 5;
   const reconnectDelay = 2000;
 
@@ -243,6 +249,7 @@ export function useBatchSocket(batchId: string | null): UseBatchSocketResult {
     wsRef.current = ws;
 
     ws.onopen = () => {
+      reconnectAttemptsRef.current = 0;
       setStatus({
         isConnected: true,
         isConnecting: false,
@@ -279,17 +286,19 @@ export function useBatchSocket(batchId: string | null): UseBatchSocketResult {
         isConnecting: false,
       }));
 
-      if (event.code !== 1000 && status.reconnectAttempts < maxReconnectAttempts) {
+      if (event.code !== 1000 && reconnectAttemptsRef.current < maxReconnectAttempts) {
+        const delay = reconnectDelay * Math.pow(2, reconnectAttemptsRef.current);
+        reconnectAttemptsRef.current += 1;
+        setStatus(prev => ({
+          ...prev,
+          reconnectAttempts: reconnectAttemptsRef.current,
+        }));
         reconnectTimeoutRef.current = setTimeout(() => {
-          setStatus(prev => ({
-            ...prev,
-            reconnectAttempts: prev.reconnectAttempts + 1,
-          }));
           connect();
-        }, reconnectDelay * Math.pow(2, status.reconnectAttempts));
+        }, delay);
       }
     };
-  }, [batchId, status.reconnectAttempts]);
+  }, [batchId]);
 
   const disconnect = useCallback(() => {
     if (reconnectTimeoutRef.current) {
@@ -302,6 +311,7 @@ export function useBatchSocket(batchId: string | null): UseBatchSocketResult {
       wsRef.current = null;
     }
 
+    reconnectAttemptsRef.current = 0;
     setStatus({
       isConnected: false,
       isConnecting: false,
