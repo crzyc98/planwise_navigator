@@ -12,11 +12,14 @@ logic, supporting use cases like custom logging, monitoring, validation, and cle
 
 from __future__ import annotations
 
+import logging
 from dataclasses import dataclass
 from enum import Enum
 from typing import Any, Callable, Dict, List
 
 from planalign_orchestrator.pipeline.workflow import WorkflowStage
+
+logger = logging.getLogger(__name__)
 
 
 class HookType(Enum):
@@ -115,8 +118,8 @@ class HookManager:
         """
         self._hooks[hook.hook_type].append(hook)
         if self.verbose:
-            stage_info = f" [stage={hook.stage_filter.value}]" if hook.stage_filter else ""
-            print(f"📌 Registered hook: {hook.name} ({hook.hook_type.value}){stage_info}")
+            stage_info = " [stage=%s]" % hook.stage_filter.value if hook.stage_filter else ""
+            logger.debug("Registered hook: %s (%s)%s", hook.name, hook.hook_type.value, stage_info)
 
     def execute_hooks(
         self,
@@ -150,21 +153,17 @@ class HookManager:
             return
 
         if self.verbose:
-            stage_info = f" [stage={current_stage.value}]" if current_stage else ""
-            print(f"🔗 Executing {len(applicable_hooks)} hook(s): {hook_type.value}{stage_info}")
+            stage_info = " [stage=%s]" % current_stage.value if current_stage else ""
+            logger.debug("Executing %d hook(s): %s%s", len(applicable_hooks), hook_type.value, stage_info)
 
         for hook in applicable_hooks:
             try:
                 if self.verbose:
-                    print(f"  ▶ Running hook: {hook.name}")
+                    logger.debug("Running hook: %s", hook.name)
                 hook.callback(context)
             except Exception as e:
                 # Error isolation: Log error but continue pipeline execution
-                error_msg = f"❌ Hook '{hook.name}' failed: {e}"
-                print(error_msg)
-                if self.verbose:
-                    import traceback
-                    traceback.print_exc()
+                logger.error("Hook '%s' failed: %s", hook.name, e, exc_info=True)
 
     def clear_hooks(self, hook_type: HookType | None = None) -> None:
         """Clear registered hooks for specified type or all hooks.
@@ -181,11 +180,11 @@ class HookManager:
             for ht in HookType:
                 self._hooks[ht] = []
             if self.verbose:
-                print("🧹 Cleared all hooks")
+                logger.debug("Cleared all hooks")
         else:
             self._hooks[hook_type] = []
             if self.verbose:
-                print(f"🧹 Cleared hooks: {hook_type.value}")
+                logger.debug("Cleared hooks: %s", hook_type.value)
 
     def get_hook_count(self, hook_type: HookType) -> int:
         """Get count of registered hooks for a specific type.

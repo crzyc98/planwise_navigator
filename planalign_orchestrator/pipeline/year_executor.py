@@ -159,7 +159,7 @@ class YearExecutor:
 
         try:
             if self.verbose:
-                print(f"   📋 Starting {stage.name.value} with {self.dbt_threads} threads")
+                logger.debug("Starting %s with %d threads", stage.name.value, self.dbt_threads)
 
             # Signal stage start to progress callback
             if self.progress_callback and hasattr(self.progress_callback, 'update_stage'):
@@ -169,7 +169,7 @@ class YearExecutor:
 
             execution_time = time.time() - start_time
             if self.verbose:
-                print(f"   ✅ Completed {stage.name.value} in {execution_time:.1f}s")
+                logger.info("Completed %s in %.1fs", stage.name.value, execution_time)
 
             # Signal stage completion to progress callback
             if self.progress_callback and hasattr(self.progress_callback, 'stage_completed'):
@@ -186,7 +186,7 @@ class YearExecutor:
         except Exception as e:
             execution_time = time.time() - start_time
             if self.verbose:
-                print(f"   ❌ Failed {stage.name.value} after {execution_time:.1f}s: {e}")
+                logger.error("Failed %s after %.1fs: %s", stage.name.value, execution_time, e)
 
             return {
                 "stage": stage.name.value,
@@ -214,7 +214,7 @@ class YearExecutor:
             # This prevents silent data corruption from out-of-order year execution
             self._year_validator.validate_year_dependencies(year)
             if self.verbose:
-                print("   🔒 Running STATE_ACCUMULATION with dbt (sequential)")
+                logger.debug("Running STATE_ACCUMULATION with dbt (sequential)")
 
         self._run_stage_models(stage, year)
         return []
@@ -252,7 +252,7 @@ class YearExecutor:
             tag_name = stage.name.value.upper()
 
             if self.verbose:
-                print(f"   🚀 Executing tag:{tag_name} with {self.dbt_threads} threads")
+                logger.info("Executing tag:%s with %d threads", tag_name, self.dbt_threads)
 
             result = self.dbt_runner.execute_command(
                 ["run", "--select", f"tag:{tag_name}"],
@@ -292,7 +292,7 @@ class YearExecutor:
         results = []
 
         if self.verbose:
-            print(f"   🔀 Executing event generation with {self.event_shards} shards")
+            logger.debug("Executing event generation with %d shards", self.event_shards)
 
         # Execute sharded event generation in parallel
         for shard_id in range(self.event_shards):
@@ -428,7 +428,7 @@ class YearExecutor:
             - Supports conditional parallelization based on resource availability
         """
         if self.verbose:
-            print(f"   🚀 Using model-level parallelization for stage {stage.name.value}")
+            logger.info("Using model-level parallelization for stage %s", stage.name.value)
 
         # Create execution context
         context = ExecutionContext(
@@ -446,16 +446,16 @@ class YearExecutor:
         )
 
         if self.verbose:
-            print("   📊 Parallelization results:")
-            print(f"      Success: {result.success}")
-            print(f"      Models executed: {len(result.model_results)}")
-            print(f"      Execution time: {result.execution_time:.1f}s")
-            print(f"      Parallelism achieved: {result.parallelism_achieved}x")
+            logger.info("Parallelization results:")
+            logger.info("  Success: %s", result.success)
+            logger.info("  Models executed: %d", len(result.model_results))
+            logger.info("  Execution time: %.1fs", result.execution_time)
+            logger.info("  Parallelism achieved: %sx", result.parallelism_achieved)
 
             if result.errors:
-                print(f"      Errors: {len(result.errors)}")
+                logger.error("  Errors: %d", len(result.errors))
                 for error in result.errors[:3]:  # Show first 3 errors
-                    print(f"        - {error}")
+                    logger.error("    - %s", error)
 
         if not result.success:
             if result.errors:
@@ -555,8 +555,9 @@ class YearExecutor:
 
             self.db_manager.execute_with_retry(_clear)
             if self.verbose:
-                print(
-                    f"   🧹 Cleared {TABLE_FCT_WORKFORCE_SNAPSHOT} for simulation_year={year} before rebuild"
+                logger.debug(
+                    "Cleared %s for simulation_year=%d before rebuild",
+                    TABLE_FCT_WORKFORCE_SNAPSHOT, year
                 )
         except Exception:
             # Non-fatal; proceed with dbt incremental upsert
@@ -586,8 +587,9 @@ class YearExecutor:
         selection.append("--full-refresh")
         if self.verbose:
             reason = self._get_full_refresh_reason(model)
-            print(
-                f"   🔄 Rebuilding {model} with --full-refresh ({reason}) for year {year}"
+            logger.debug(
+                "Rebuilding %s with --full-refresh (%s) for year %d",
+                model, reason, year
             )
 
     def _get_full_refresh_reason(self, model: str) -> str:
@@ -666,8 +668,9 @@ class YearExecutor:
         should_refresh = year == self.config.simulation.start_year or clear_mode == "all"
 
         if should_refresh and self.verbose:
-            print(
-                f"   🔄 Running {stage.name.value} with --full-refresh (year={year}, clear_mode={clear_mode})"
+            logger.debug(
+                "Running %s with --full-refresh (year=%d, clear_mode=%s)",
+                stage.name.value, year, clear_mode
             )
 
         return should_refresh

@@ -197,7 +197,7 @@ class EventGenerationExecutor:
         start_time = time.time()
 
         if self.verbose:
-            print(f"🔄 Executing event generation in SQL mode for years {years}")
+            logger.debug("Executing event generation in SQL mode for years %s", years)
 
         return self._execute_sql_event_generation(years, start_time)
 
@@ -289,10 +289,10 @@ class EventGenerationExecutor:
         sql_duration = time.time() - start_time
 
         if self.verbose:
-            print(f"✅ SQL event generation completed in {sql_duration:.1f}s")
-            print(f"📊 Generated {total_events:,} events across {len(successful_years)} years")
+            logger.info("SQL event generation completed in %.1fs", sql_duration)
+            logger.info("Generated %s events across %d years", f"{total_events:,}", len(successful_years))
             if sql_duration > 0:
-                print(f"⚡ Performance: {total_events/sql_duration:.0f} events/second")
+                logger.info("Performance: %.0f events/second", total_events / sql_duration)
 
         return {
             'mode': 'sql',
@@ -330,7 +330,7 @@ class EventGenerationExecutor:
         results = []
 
         if self.verbose:
-            print(f"   🔀 Executing event generation with {self.event_shards} shards")
+            logger.debug("Executing event generation with %d shards", self.event_shards)
 
         # Execute sharded event generation in parallel
         for shard_id in range(self.event_shards):
