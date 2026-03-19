@@ -65,7 +65,11 @@ def export_results_to_excel(
         try:
             sim_config = SimulationConfig.from_dict(config)
         except Exception as e:
-            logger.warning(f"Could not create SimulationConfig from dict: {e}")
+            # Improved error logging: include exception type for diagnostics
+            logger.warning(
+                f"Could not create SimulationConfig from dict: "
+                f"{type(e).__name__}: {e}"
+            )
             # Create a minimal mock config object
             sim_config = _create_mock_config(config)
 
