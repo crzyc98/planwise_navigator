@@ -4,7 +4,6 @@ import asyncio
 import logging
 import os
 import shutil
-import sys
 from datetime import datetime
 from pathlib import Path
 from typing import Any, Dict, List, Optional
@@ -489,9 +488,7 @@ class SimulationService:
             f"{start_year}-{end_year}" if start_year != end_year else str(start_year)
         )
         return [
-            sys.executable,
-            "-m",
-            "planalign_cli.main",
+            "planalign",
             "simulate",
             year_range,
             "--config",

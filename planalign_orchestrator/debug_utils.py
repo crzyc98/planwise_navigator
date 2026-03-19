@@ -70,7 +70,8 @@ class DatabaseInspector:
         Returns:
             Dictionary with table counts, event statistics, and health metrics.
         """
-        year_filter = f"WHERE simulation_year = {year}" if year else ""
+        year_filter = f"WHERE {COL_SIMULATION_YEAR} = ?" if year else ""
+        params = [year] if year else []
 
         query = f"""
         SELECT
@@ -88,7 +89,7 @@ class DatabaseInspector:
         {year_filter}
         """
 
-        result = self.conn.execute(query).fetchone()
+        result = self.conn.execute(query, params).fetchone()
 
         return {
             "total_events": result[0],
@@ -118,9 +119,9 @@ class DatabaseInspector:
             COUNT(CASE WHEN {COL_EVENT_TYPE} = '{EVENT_ENROLLMENT}' THEN 1 END) as enrollments,
             COUNT(*) as total_events
         FROM {TABLE_FCT_YEARLY_EVENTS}
-        WHERE {COL_SIMULATION_YEAR} = {year}
+        WHERE {COL_SIMULATION_YEAR} = ?
         """
-        events = self.conn.execute(event_query).fetchone()
+        events = self.conn.execute(event_query, [year]).fetchone()
 
         # Workforce metrics
         workforce_query = f"""
@@ -129,9 +130,9 @@ class DatabaseInspector:
             AVG(current_compensation) as avg_salary,
             SUM(current_compensation) as total_comp_cost
         FROM {TABLE_FCT_WORKFORCE_SNAPSHOT}
-        WHERE {COL_SIMULATION_YEAR} = {year} AND employment_status = 'active'
+        WHERE {COL_SIMULATION_YEAR} = ? AND employment_status = 'active'
         """
-        workforce = self.conn.execute(workforce_query).fetchone()
+        workforce = self.conn.execute(workforce_query, [year]).fetchone()
 
         # Data quality checks
         dq_issues = self._check_data_quality(year)
@@ -159,12 +160,12 @@ class DatabaseInspector:
         SELECT COUNT(*) FROM (
             SELECT {COL_EMPLOYEE_ID}, COUNT(*) as cnt
             FROM {TABLE_FCT_YEARLY_EVENTS}
-            WHERE {COL_SIMULATION_YEAR} = {year} AND {COL_EVENT_TYPE} = '{EVENT_ENROLLMENT}'
+            WHERE {COL_SIMULATION_YEAR} = ? AND {COL_EVENT_TYPE} = '{EVENT_ENROLLMENT}'
             GROUP BY {COL_EMPLOYEE_ID}
             HAVING COUNT(*) > 1
         )
         """
-        dup_count = self.conn.execute(dup_check).fetchone()[0]
+        dup_count = self.conn.execute(dup_check, [year]).fetchone()[0]
         if dup_count > 0:
             issues.append(f"⚠️  {dup_count} employees with duplicate enrollment events")
 
@@ -176,17 +177,17 @@ class DatabaseInspector:
             LEFT JOIN {TABLE_FCT_WORKFORCE_SNAPSHOT} w
                 ON e.{COL_EMPLOYEE_ID} = w.{COL_EMPLOYEE_ID}
                 AND e.{COL_SIMULATION_YEAR} = w.{COL_SIMULATION_YEAR}
-            WHERE e.{COL_SIMULATION_YEAR} = {year}
+            WHERE e.{COL_SIMULATION_YEAR} = ?
                 AND e.{COL_EVENT_TYPE} = '{EVENT_ENROLLMENT}'
                 AND w.employee_enrollment_date IS NULL
         )
         """
-        missing_count = self.conn.execute(missing_dates).fetchone()[0]
+        missing_count = self.conn.execute(missing_dates, [year]).fetchone()[0]
         if missing_count > 0:
             issues.append(f"❌ {missing_count} enrollment events missing employee_enrollment_date in snapshot")
 
         # Check for zero workforce
-        if self.conn.execute(f"SELECT COUNT(*) FROM {TABLE_FCT_WORKFORCE_SNAPSHOT} WHERE {COL_SIMULATION_YEAR} = {year}").fetchone()[0] == 0:
+        if self.conn.execute(f"SELECT COUNT(*) FROM {TABLE_FCT_WORKFORCE_SNAPSHOT} WHERE {COL_SIMULATION_YEAR} = ?", [year]).fetchone()[0] == 0:
             issues.append(f"🚨 Zero workforce records for year {year}")
 
         return issues
@@ -200,10 +201,10 @@ class DatabaseInspector:
             {COL_EFFECTIVE_DATE},
             event_details
         FROM {TABLE_FCT_YEARLY_EVENTS}
-        WHERE {COL_EMPLOYEE_ID} = '{employee_id}'
+        WHERE {COL_EMPLOYEE_ID} = ?
         ORDER BY {COL_SIMULATION_YEAR}, {COL_EFFECTIVE_DATE}
         """
-        return self.conn.execute(query).df()
+        return self.conn.execute(query, [employee_id]).df()
 
     def print_year_report(self, year: int) -> None:
         """Print beautiful terminal report for a year."""
