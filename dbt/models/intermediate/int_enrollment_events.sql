@@ -3,6 +3,9 @@
   incremental_strategy='delete+insert',
   unique_key=['employee_id', 'simulation_year', 'event_type', 'effective_date'],
   on_schema_change='sync_all_columns',
+  pre_hook=[
+    "{% if is_incremental() %}DELETE FROM {{ this }} WHERE simulation_year = {{ var('simulation_year') }}{% endif %}"
+  ],
   tags=['EVENT_GENERATION']
 ) }}
 
