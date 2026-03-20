@@ -848,6 +848,7 @@ See `/docs/VERSIONING_GUIDE.md` for detailed versioning workflow.
 - Python 3.11 + Pydantic v2 (model serialization), DuckDB 1.0.0 (database), dbt-core 1.8.8 + dbt-duckdb 1.8.1, Rich (CLI) (078-fix-json-serializer)
 - Python 3.11 + Pydantic v2, FastAPI, dbt-core 1.8.8, DuckDB 1.0.0 (079-fix-config-deser)
 - SQL (dbt-core 1.8.8), Python 3.11 + dbt-duckdb 1.8.1, DuckDB 1.0.0 (081-remove-duplicate-dbt-models)
+- SQL (dbt-core 1.8.8, dbt-duckdb 1.8.1), Python 3.11 + dbt-core 1.8.8, DuckDB 1.0.0 (082-fix-yoy-enrollment-rate)
 
 ## Recent Changes
 - 063-1000-hr-eligibility: Added Python 3.11, SQL (dbt-core 1.8.8) + dbt-duckdb 1.8.1, DuckDB 1.0.0, Pydantic 2.7.4

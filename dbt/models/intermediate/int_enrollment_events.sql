@@ -566,7 +566,8 @@ year_over_year_enrollment_events AS (
       WHEN aw.current_tenure < 2 THEN {{ var('year_over_year_conversion_tenure_multipliers_new_employee', 0.7) }}
       WHEN aw.current_tenure < 5 THEN {{ var('year_over_year_conversion_tenure_multipliers_established', 1.0) }}
       ELSE {{ var('year_over_year_conversion_tenure_multipliers_veteran', 1.1) }}
-    END) as event_probability,
+    END *
+    COALESCE({{ var('voluntary_enrollment_rate', 1.0) }}, 1.0)) as event_probability,
 
     'year_over_year_voluntary' as event_category
 
@@ -598,7 +599,8 @@ year_over_year_enrollment_events AS (
         WHEN aw.current_tenure < 2 THEN {{ var('year_over_year_conversion_tenure_multipliers_new_employee', 0.7) }}
         WHEN aw.current_tenure < 5 THEN {{ var('year_over_year_conversion_tenure_multipliers_established', 1.0) }}
         ELSE {{ var('year_over_year_conversion_tenure_multipliers_veteran', 1.1) }}
-      END
+      END *
+      COALESCE({{ var('voluntary_enrollment_rate', 1.0) }}, 1.0)
     )
 ),
 
