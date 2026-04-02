@@ -21,15 +21,8 @@ class APISettings(BaseSettings):
     )
     storage_limit_gb: float = 10.0
 
-    # CORS (for React dev server)
-    cors_origins: List[str] = [
-        "http://localhost:3000",
-        "http://localhost:3003",
-        "http://localhost:5173",  # Vite dev server
-        "http://127.0.0.1:3000",
-        "http://127.0.0.1:3003",
-        "http://127.0.0.1:5173",
-    ]
+    # CORS (for React dev server and remote access)
+    cors_origins: List[str] = ["*"]
 
     # WebSocket
     telemetry_interval_ms: int = 500

@@ -9,6 +9,7 @@ from __future__ import annotations
 import os
 import shutil
 import signal
+import socket
 import subprocess
 import sys
 import time
@@ -294,7 +295,16 @@ def launch_studio(
                 stderr=stderr,
             )
             _processes.append(api_process)
-            started_services.append(("API Backend", f"http://localhost:{api_port}"))
+            # Detect LAN IP for remote access display
+            try:
+                s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+                s.connect(("8.8.8.8", 80))
+                lan_ip = s.getsockname()[0]
+                s.close()
+            except OSError:
+                lan_ip = "localhost"
+
+            started_services.append(("API Backend", f"http://{lan_ip}:{api_port}"))
 
             # Wait for API to start
             time.sleep(2)
@@ -302,8 +312,8 @@ def launch_studio(
                 console.print("[red]API backend failed to start[/red]")
                 raise SystemExit(1)
 
-            console.print(f"[green]  API running at http://localhost:{api_port}[/green]")
-            console.print(f"[dim]    Docs: http://localhost:{api_port}/api/docs[/dim]")
+            console.print(f"[green]  API running at http://{lan_ip}:{api_port}[/green]")
+            console.print(f"[dim]    Docs: http://{lan_ip}:{api_port}/api/docs[/dim]")
 
         # Start frontend
         if not api_only:
@@ -329,11 +339,12 @@ def launch_studio(
             stderr = None if verbose else subprocess.DEVNULL
 
             frontend_env = os.environ.copy()
-            frontend_env["VITE_API_URL"] = f"http://localhost:{api_port}"
+            frontend_env.pop("VITE_API_URL", None)
+            frontend_env.pop("VITE_WS_URL", None)
 
             npm_cmd = _get_npm_command()
             frontend_process = subprocess.Popen(
-                [npm_cmd, "run", "dev", "--", "--port", str(frontend_port)],
+                [npm_cmd, "run", "dev", "--", "--port", str(frontend_port), "--host", "0.0.0.0"],
                 cwd=str(frontend_dir),
                 env=frontend_env,
                 stdout=stdout,
@@ -341,7 +352,7 @@ def launch_studio(
                 shell=(sys.platform == "win32"),  # Use shell on Windows for .cmd files
             )
             _processes.append(frontend_process)
-            started_services.append(("Frontend", f"http://localhost:{frontend_port}"))
+            started_services.append(("Frontend", f"http://{lan_ip}:{frontend_port}"))
 
             # Wait for frontend to start
             time.sleep(3)
@@ -350,7 +361,7 @@ def launch_studio(
                 _cleanup_processes()
                 raise SystemExit(1)
 
-            console.print(f"[green]  Frontend running at http://localhost:{frontend_port}[/green]")
+            console.print(f"[green]  Frontend running at http://{lan_ip}:{frontend_port}[/green]")
 
         # Display summary
         console.print()
@@ -369,7 +380,7 @@ def launch_studio(
             try:
                 import webbrowser
 
-                webbrowser.open(f"http://localhost:{frontend_port}")
+                webbrowser.open(f"http://{lan_ip}:{frontend_port}")
                 console.print("[dim]Opening browser...[/dim]")
             except Exception:
                 pass

@@ -9,6 +9,11 @@ export default defineConfig(({ mode }) => {
       server: {
         port: 3000,
         host: '0.0.0.0',
+        allowedHosts: true,
+        proxy: {
+          '/api': 'http://localhost:8000',
+          '/ws': { target: 'ws://localhost:8000', ws: true },
+        },
       },
       plugins: [tailwindcss(), react()],
       define: {

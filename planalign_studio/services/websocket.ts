@@ -5,24 +5,12 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { SimulationTelemetry } from './api';
 
-// Dynamically determine WebSocket URL based on current page location
-// This handles Codespaces, remote servers, and local development
 function getWebSocketBase(): string {
-  // Check for explicit environment variable first
   if (import.meta.env.VITE_WS_URL) {
     return import.meta.env.VITE_WS_URL;
   }
-
-  // Auto-detect based on window location
   const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-  const host = window.location.hostname;
-
-  // In development, API is on port 8000
-  // In production or same-origin deployment, use same port
-  const port = window.location.port === '5173' || window.location.port === '3000' ? '8000' : window.location.port || '';
-  const portSuffix = port ? `:${port}` : '';
-
-  return `${protocol}//${host}${portSuffix}`;
+  return `${protocol}//${window.location.host}`;
 }
 
 const WS_BASE = getWebSocketBase();
