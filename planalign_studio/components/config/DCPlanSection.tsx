@@ -227,16 +227,7 @@ export function DCPlanSection() {
                      }}
                      className="w-16 shadow-sm focus:ring-fidelity-green focus:border-fidelity-green sm:text-sm border-gray-300 rounded-md p-1 border text-center"
                    />
-                   <span className="text-sm text-gray-600">yrs &#8594;</span>
-                   <input type="number" step="5" min={0} max={200} value={tier.matchRate}
-                     onChange={(e) => {
-                       const newTiers = [...formData.dcTenureMatchTiers];
-                       newTiers[idx] = { ...newTiers[idx], matchRate: parseFloat(e.target.value) || 0 };
-                       setFormData(prev => ({ ...prev, dcTenureMatchTiers: newTiers }));
-                     }}
-                     className="w-16 shadow-sm focus:ring-fidelity-green focus:border-fidelity-green sm:text-sm border-gray-300 rounded-md p-1 border text-center"
-                   />
-                   <span className="text-sm text-gray-600">% match, max</span>
+                   <span className="text-sm text-gray-600">yrs | 0% to</span>
                    <input type="number" step="1" min={0} max={100} value={tier.maxDeferralPct}
                      onChange={(e) => {
                        const newTiers = [...formData.dcTenureMatchTiers];
@@ -245,7 +236,16 @@ export function DCPlanSection() {
                      }}
                      className="w-14 shadow-sm focus:ring-fidelity-green focus:border-fidelity-green sm:text-sm border-gray-300 rounded-md p-1 border text-center"
                    />
-                   <span className="text-sm text-gray-600">% def</span>
+                   <span className="text-sm text-gray-600">% deferrals &#8594;</span>
+                   <input type="number" step="5" min={0} max={200} value={tier.matchRate}
+                     onChange={(e) => {
+                       const newTiers = [...formData.dcTenureMatchTiers];
+                       newTiers[idx] = { ...newTiers[idx], matchRate: parseFloat(e.target.value) || 0 };
+                       setFormData(prev => ({ ...prev, dcTenureMatchTiers: newTiers }));
+                     }}
+                     className="w-16 shadow-sm focus:ring-fidelity-green focus:border-fidelity-green sm:text-sm border-gray-300 rounded-md p-1 border text-center"
+                   />
+                   <span className="text-sm text-gray-600">% match</span>
                    {formData.dcTenureMatchTiers.length > 1 && (
                      <button type="button"
                        onClick={() => {
@@ -323,16 +323,7 @@ export function DCPlanSection() {
                      }}
                      className="w-16 shadow-sm focus:ring-fidelity-green focus:border-fidelity-green sm:text-sm border-gray-300 rounded-md p-1 border text-center"
                    />
-                   <span className="text-sm text-gray-600">pts &#8594;</span>
-                   <input type="number" step="5" min={0} max={200} value={tier.matchRate}
-                     onChange={(e) => {
-                       const newTiers = [...formData.dcPointsMatchTiers];
-                       newTiers[idx] = { ...newTiers[idx], matchRate: parseFloat(e.target.value) || 0 };
-                       setFormData(prev => ({ ...prev, dcPointsMatchTiers: newTiers }));
-                     }}
-                     className="w-16 shadow-sm focus:ring-fidelity-green focus:border-fidelity-green sm:text-sm border-gray-300 rounded-md p-1 border text-center"
-                   />
-                   <span className="text-sm text-gray-600">% match, max</span>
+                   <span className="text-sm text-gray-600">pts | 0% to</span>
                    <input type="number" step="1" min={0} max={100} value={tier.maxDeferralPct}
                      onChange={(e) => {
                        const newTiers = [...formData.dcPointsMatchTiers];
@@ -341,7 +332,16 @@ export function DCPlanSection() {
                      }}
                      className="w-14 shadow-sm focus:ring-fidelity-green focus:border-fidelity-green sm:text-sm border-gray-300 rounded-md p-1 border text-center"
                    />
-                   <span className="text-sm text-gray-600">% def</span>
+                   <span className="text-sm text-gray-600">% deferrals &#8594;</span>
+                   <input type="number" step="5" min={0} max={200} value={tier.matchRate}
+                     onChange={(e) => {
+                       const newTiers = [...formData.dcPointsMatchTiers];
+                       newTiers[idx] = { ...newTiers[idx], matchRate: parseFloat(e.target.value) || 0 };
+                       setFormData(prev => ({ ...prev, dcPointsMatchTiers: newTiers }));
+                     }}
+                     className="w-16 shadow-sm focus:ring-fidelity-green focus:border-fidelity-green sm:text-sm border-gray-300 rounded-md p-1 border text-center"
+                   />
+                   <span className="text-sm text-gray-600">% match</span>
                    {formData.dcPointsMatchTiers.length > 1 && (
                      <button type="button"
                        onClick={() => {

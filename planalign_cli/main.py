@@ -218,6 +218,7 @@ def analyze(
 def studio(
     api_port: int = typer.Option(8000, "--api-port", help="Port for the API backend"),
     frontend_port: int = typer.Option(5173, "--frontend-port", help="Port for the frontend dev server"),
+    host: str = typer.Option("localhost", "--host", help="Hostname for display URLs. Use 'auto' to detect LAN IP for server deployments."),
     api_only: bool = typer.Option(False, "--api-only", help="Only start the API backend"),
     frontend_only: bool = typer.Option(False, "--frontend-only", help="Only start the frontend"),
     no_browser: bool = typer.Option(False, "--no-browser", help="Don't open browser automatically"),
@@ -227,6 +228,7 @@ def studio(
     launch_studio(
         api_port=api_port,
         frontend_port=frontend_port,
+        host=host,
         api_only=api_only,
         frontend_only=frontend_only,
         no_browser=no_browser,
