@@ -3,6 +3,32 @@
   tags=['EVENT_GENERATION']
 ) }}
 
+{# Match magnet: compute match-maximizing deferral rate from configured tiers #}
+{% set employer_match_status = var('employer_match_status', 'deferral_based') %}
+{% set precomputed_match_max = var('deferral_match_response_match_max_rate', none) %}
+{% set match_tiers = var('match_tiers', [
+    {'employee_min': 0.00, 'employee_max': 0.03, 'match_rate': 1.00},
+    {'employee_min': 0.03, 'employee_max': 0.05, 'match_rate': 0.50}
+]) %}
+{% set enrollment_match_magnet_enabled = var('enrollment_match_magnet_enabled', true) %}
+{% set enrollment_match_magnet_probability = var('enrollment_match_magnet_probability', 0.45) %}
+
+{% if employer_match_status == 'deferral_based' %}
+  {% if precomputed_match_max is not none %}
+    {% set match_max_rate = precomputed_match_max %}
+  {% else %}
+    {% set ns = namespace(match_max_rate=0.0) %}
+    {% for tier in match_tiers %}
+      {% if tier.employee_max is not none and tier.employee_max > ns.match_max_rate %}
+        {% set ns.match_max_rate = tier.employee_max %}
+      {% endif %}
+    {% endfor %}
+    {% set match_max_rate = ns.match_max_rate %}
+  {% endif %}
+{% else %}
+  {% set match_max_rate = 0.0 %}
+{% endif %}
+
 /*
   Proactive Voluntary Enrollment Model - Epic E053 Integration with Auto-Enrollment Windows
 
@@ -254,6 +280,21 @@ deferral_rate_selection AS (
   FROM voluntary_enrollment_probability
 ),
 
+match_optimization AS (
+  SELECT
+    *,
+    CASE
+      WHEN {{ enrollment_match_magnet_enabled }}
+        AND {{ match_max_rate }} > 0
+        AND selected_deferral_rate < {{ match_max_rate }}
+        AND (ABS(HASH(employee_id || '-match-magnet-' || CAST(simulation_year AS VARCHAR))) % 1000) / 1000.0
+            < {{ enrollment_match_magnet_probability }}
+      THEN {{ match_max_rate }}::DECIMAL(5,4)
+      ELSE selected_deferral_rate
+    END AS optimized_deferral_rate
+  FROM deferral_rate_selection
+),
+
 proactive_enrollment_decisions AS (
   -- Final enrollment decisions for proactive voluntary enrollment
   SELECT
@@ -292,7 +333,7 @@ proactive_enrollment_decisions AS (
     END as proactive_enrollment_date,
 
     -- Deferral rate for voluntary enrollees (capped between 1% and 10%)
-    GREATEST(0.01, LEAST(0.10, selected_deferral_rate)) as proactive_deferral_rate,
+    GREATEST(0.01, LEAST(0.10, optimized_deferral_rate)) as proactive_deferral_rate,
 
     -- Event category
     'proactive_voluntary' as event_category,
@@ -301,8 +342,9 @@ proactive_enrollment_decisions AS (
     final_enrollment_probability,
     enrollment_random,
     timing_random,
-    selected_deferral_rate as raw_deferral_rate
-  FROM deferral_rate_selection
+    selected_deferral_rate as raw_deferral_rate,
+    optimized_deferral_rate as match_optimized_rate
+  FROM match_optimization
 )
 
 -- Return proactive voluntary enrollment decisions
@@ -329,6 +371,8 @@ SELECT
   proactive_deferral_rate,
   event_category,
   final_enrollment_probability,
+  raw_deferral_rate,
+  match_optimized_rate,
 
   -- Age and tenure bands using centralized macros
   {{ assign_age_band('current_age') }} as age_band,
