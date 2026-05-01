@@ -185,9 +185,22 @@ def _cleanup_processes(signum=None, frame=None):
         sys.exit(0)
 
 
+def _detect_lan_ip() -> str:
+    """Detect the LAN IP address for server deployments."""
+    try:
+        s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+        s.connect(("8.8.8.8", 80))
+        ip = s.getsockname()[0]
+        s.close()
+        return ip
+    except OSError:
+        return "localhost"
+
+
 def launch_studio(
     api_port: int = 8000,
     frontend_port: int = 5173,
+    host: str = "localhost",
     api_only: bool = False,
     frontend_only: bool = False,
     no_browser: bool = False,
@@ -199,11 +212,13 @@ def launch_studio(
     Args:
         api_port: Port for the FastAPI backend (default: 8000)
         frontend_port: Port for the Vite dev server (default: 5173)
+        host: Hostname for display URLs (default: localhost). Use 'auto' to detect LAN IP.
         api_only: Only start the API backend
         frontend_only: Only start the frontend
         no_browser: Don't open browser automatically
         verbose: Show detailed output from both servers
     """
+    display_host = _detect_lan_ip() if host == "auto" else host
     # studio.py is at planalign_cli/commands/studio.py
     # Go up 3 levels: commands/ -> planalign_cli/ -> project_root/
     project_root = Path(__file__).parent.parent.parent
@@ -295,16 +310,7 @@ def launch_studio(
                 stderr=stderr,
             )
             _processes.append(api_process)
-            # Detect LAN IP for remote access display
-            try:
-                s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-                s.connect(("8.8.8.8", 80))
-                lan_ip = s.getsockname()[0]
-                s.close()
-            except OSError:
-                lan_ip = "localhost"
-
-            started_services.append(("API Backend", f"http://{lan_ip}:{api_port}"))
+            started_services.append(("API Backend", f"http://{display_host}:{api_port}"))
 
             # Wait for API to start
             time.sleep(2)
@@ -312,8 +318,8 @@ def launch_studio(
                 console.print("[red]API backend failed to start[/red]")
                 raise SystemExit(1)
 
-            console.print(f"[green]  API running at http://{lan_ip}:{api_port}[/green]")
-            console.print(f"[dim]    Docs: http://{lan_ip}:{api_port}/api/docs[/dim]")
+            console.print(f"[green]  API running at http://localhost:{api_port}[/green]")
+            console.print(f"[dim]    Docs: http://localhost:{api_port}/api/docs[/dim]")
 
         # Start frontend
         if not api_only:
@@ -352,7 +358,7 @@ def launch_studio(
                 shell=(sys.platform == "win32"),  # Use shell on Windows for .cmd files
             )
             _processes.append(frontend_process)
-            started_services.append(("Frontend", f"http://{lan_ip}:{frontend_port}"))
+            started_services.append(("Frontend", f"http://{display_host}:{frontend_port}"))
 
             # Wait for frontend to start
             time.sleep(3)
@@ -361,7 +367,7 @@ def launch_studio(
                 _cleanup_processes()
                 raise SystemExit(1)
 
-            console.print(f"[green]  Frontend running at http://{lan_ip}:{frontend_port}[/green]")
+            console.print(f"[green]  Frontend running at http://localhost:{frontend_port}[/green]")
 
         # Display summary
         console.print()
@@ -380,7 +386,7 @@ def launch_studio(
             try:
                 import webbrowser
 
-                webbrowser.open(f"http://{lan_ip}:{frontend_port}")
+                webbrowser.open(f"http://{display_host}:{frontend_port}")
                 console.print("[dim]Opening browser...[/dim]")
             except Exception:
                 pass

@@ -483,9 +483,9 @@ def _export_employer_match_vars(cfg: "SimulationConfig") -> Dict[str, Any]:
                         transformed_tier = {
                             "min_years": tier.get("service_years_min", tier.get("min_years", 0)),
                             "max_years": tier.get("service_years_max", tier.get("max_years")),
-                            # Convert decimal rate (0.50) to percentage (50.0) for macro if needed
+                            # Convert decimal rate (0.50 or 2.0 for 200%) to percentage (50.0, 200.0) for macro if needed
                             "rate": (tier.get("match_rate", tier.get("rate", 0)) * 100)
-                            if tier.get("match_rate") is not None and tier.get("match_rate") <= 1
+                            if tier.get("match_rate") is not None and tier.get("match_rate") <= 2
                             else tier.get("rate", tier.get("match_rate", 0)),
                             # Convert decimal max_deferral_pct (0.06) to percentage (6.0) for macro if needed
                             "max_deferral_pct": (tier.get("max_deferral_pct", 0) * 100)
@@ -504,9 +504,9 @@ def _export_employer_match_vars(cfg: "SimulationConfig") -> Dict[str, Any]:
                         transformed_tier = {
                             "min_years": tier.get("min_years", 0),
                             "max_years": tier.get("max_years"),
-                            # Convert decimal rate (0.50) to percentage (50.0) if needed
+                            # Convert decimal rate (0.50 or 2.0 for 200%) to percentage (50.0, 200.0) if needed
                             "rate": (tier.get("match_rate", tier.get("rate", 0)) * 100)
-                            if tier.get("match_rate") is not None and tier.get("match_rate") <= 1
+                            if tier.get("match_rate") is not None and tier.get("match_rate") <= 2
                             else tier.get("rate", tier.get("match_rate", 0)),
                             "max_deferral_pct": (tier.get("max_deferral_pct", 0) * 100)
                             if tier.get("max_deferral_pct") is not None and tier.get("max_deferral_pct") <= 1
@@ -524,9 +524,9 @@ def _export_employer_match_vars(cfg: "SimulationConfig") -> Dict[str, Any]:
                         transformed_tier = {
                             "min_points": tier.get("min_points", 0),
                             "max_points": tier.get("max_points"),
-                            # Convert decimal rate (0.50) to percentage (50.0) if needed
+                            # Convert decimal rate (0.50 or 2.0 for 200%) to percentage (50.0, 200.0) if needed
                             "rate": (tier.get("match_rate", tier.get("rate", 0)) * 100)
-                            if tier.get("match_rate") is not None and tier.get("match_rate") <= 1
+                            if tier.get("match_rate") is not None and tier.get("match_rate") <= 2
                             else tier.get("rate", tier.get("match_rate", 0)),
                             "max_deferral_pct": (tier.get("max_deferral_pct", 0) * 100)
                             if tier.get("max_deferral_pct") is not None and tier.get("max_deferral_pct") <= 1

@@ -146,14 +146,14 @@ function mapDCPlanMatchFields(cfg: any, prev: FormData): Partial<FormData> {
     dcTenureMatchTiers: cfg.dc_plan?.tenure_match_tiers
       ? cfg.dc_plan.tenure_match_tiers.map((t: any) => ({
           minYears: t.min_years ?? 0, maxYears: t.max_years ?? null,
-          matchRate: convertRateToPercent(t.match_rate, 0),
+          matchRate: (t.match_rate ?? 0) * 100,
           maxDeferralPct: convertRateToPercent(t.max_deferral_pct, 6),
         }))
       : prev.dcTenureMatchTiers,
     dcPointsMatchTiers: cfg.dc_plan?.points_match_tiers
       ? cfg.dc_plan.points_match_tiers.map((t: any) => ({
           minPoints: t.min_points ?? 0, maxPoints: t.max_points ?? null,
-          matchRate: convertRateToPercent(t.match_rate, 0),
+          matchRate: (t.match_rate ?? 0) * 100,
           maxDeferralPct: convertRateToPercent(t.max_deferral_pct, 6),
         }))
       : prev.dcPointsMatchTiers,
