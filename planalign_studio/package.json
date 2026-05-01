@@ -18,7 +18,8 @@
     "tailwindcss": "^4.2.1"
   },
   "overrides": {
-    "enhanced-resolve": "5.20.0"
+    "enhanced-resolve": "5.20.0",
+    "es-toolkit": "1.45.1"
   },
   "devDependencies": {
     "@types/node": "^25.1.0",

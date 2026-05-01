@@ -45,9 +45,7 @@ const SectionHeader = ({ icon: Icon, title, children }: Readonly<{ icon: React.E
 function toPercent(val: number | null | undefined, alreadyPercent = false): string {
   if (val == null) return '--';
   if (alreadyPercent) return `${val}`;
-  // If value is <= 1, treat as decimal fraction
-  if (val <= 1 && val >= 0) return `${(val * 100).toFixed(1)}`;
-  return `${val.toFixed(1)}`;
+  return `${(val * 100).toFixed(1)}`;
 }
 
 function formatMatchMode(mode: string | undefined): string {
