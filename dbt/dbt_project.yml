@@ -309,6 +309,10 @@ vars:
   enrollment_cache_demographic_calculations: true # Cache demographic-based probability calculations
   enrollment_materialization_strategy: "table" # dbt materialization strategy for enrollment models
 
+  # Match magnet: attract enrollees toward match-maximizing deferral threshold
+  enrollment_match_magnet_enabled: true         # Toggle match-threshold attraction at enrollment
+  enrollment_match_magnet_probability: 0.45     # Fraction of sub-threshold enrollees who snap to match max
+
   # Plan-specific overrides (future enhancement)
   emergency_plan_auto_enrollment_enabled: false # Disable auto-enrollment for emergency plans
   emergency_plan_window_days: 30                 # Shorter window for emergency plans

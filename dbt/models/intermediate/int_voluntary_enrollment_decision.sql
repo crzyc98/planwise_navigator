@@ -3,6 +3,32 @@
   tags=['EVENT_GENERATION']
 ) }}
 
+{# Match magnet: compute match-maximizing deferral rate from configured tiers #}
+{% set employer_match_status = var('employer_match_status', 'deferral_based') %}
+{% set precomputed_match_max = var('deferral_match_response_match_max_rate', none) %}
+{% set match_tiers = var('match_tiers', [
+    {'employee_min': 0.00, 'employee_max': 0.03, 'match_rate': 1.00},
+    {'employee_min': 0.03, 'employee_max': 0.05, 'match_rate': 0.50}
+]) %}
+{% set enrollment_match_magnet_enabled = var('enrollment_match_magnet_enabled', true) %}
+{% set enrollment_match_magnet_probability = var('enrollment_match_magnet_probability', 0.45) %}
+
+{% if employer_match_status == 'deferral_based' %}
+  {% if precomputed_match_max is not none %}
+    {% set match_max_rate = precomputed_match_max %}
+  {% else %}
+    {% set ns = namespace(match_max_rate=0.0) %}
+    {% for tier in match_tiers %}
+      {% if tier.employee_max is not none and tier.employee_max > ns.match_max_rate %}
+        {% set ns.match_max_rate = tier.employee_max %}
+      {% endif %}
+    {% endfor %}
+    {% set match_max_rate = ns.match_max_rate %}
+  {% endif %}
+{% else %}
+  {% set match_max_rate = 0.0 %}
+{% endif %}
+
 /*
   Voluntary Enrollment Decision Engine - Epic E053
 
@@ -197,31 +223,16 @@ deferral_rate_selection AS (
 ),
 
 match_optimization AS (
-  -- Apply match optimization behavior (cluster around match thresholds)
   SELECT
     *,
-    -- Apply match optimization if enabled
     CASE
-      WHEN {{ var('voluntary_enrollment_deferral_rates_match_optimization', true) }}
-        AND '{{ var('employer_match_active_formula', 'simple_match') }}' = 'tiered_match'
-      THEN
-        -- For tiered match, cluster around 3% and 5% (common thresholds)
-        CASE
-          WHEN deferral_random < 0.3 AND selected_deferral_rate >= 0.025 THEN 0.03  -- 30% cluster at 3%
-          WHEN deferral_random < 0.6 AND selected_deferral_rate >= 0.045 THEN 0.05  -- 30% cluster at 5%
-          ELSE selected_deferral_rate  -- Keep original rate
-        END
-      WHEN {{ var('voluntary_enrollment_deferral_rates_match_optimization', true) }}
-        AND '{{ var('employer_match_active_formula', 'simple_match') }}' = 'simple_match'
-      THEN
-        -- For simple match, cluster around match cap (6%)
-        CASE
-          WHEN deferral_random < 0.4 AND selected_deferral_rate >= 0.05 THEN 0.06  -- 40% cluster at match cap
-          ELSE selected_deferral_rate
-        END
-      ELSE selected_deferral_rate  -- No match optimization
-    END as optimized_deferral_rate
-
+      WHEN {{ enrollment_match_magnet_enabled }}
+        AND {{ match_max_rate }} > 0
+        AND selected_deferral_rate < {{ match_max_rate }}
+        AND deferral_random < {{ enrollment_match_magnet_probability }}
+      THEN {{ match_max_rate }}::DECIMAL(5,4)
+      ELSE selected_deferral_rate
+    END AS optimized_deferral_rate
   FROM deferral_rate_selection
 ),
 
@@ -264,7 +275,8 @@ enrollment_decisions AS (
     job_level_multiplier,
     enrollment_random,
     deferral_random,
-    optimized_deferral_rate as raw_deferral_rate
+    selected_deferral_rate as raw_deferral_rate,
+    optimized_deferral_rate as match_optimized_rate
 
   FROM match_optimization
 ),
@@ -306,7 +318,8 @@ SELECT
   job_level_multiplier,
   enrollment_random,
   deferral_random,
-  raw_deferral_rate
+  raw_deferral_rate,
+  match_optimized_rate
 
 FROM enrollment_decisions
 WHERE will_enroll = true  -- Only return employees who will enroll

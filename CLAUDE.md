@@ -851,6 +851,8 @@ See `/docs/VERSIONING_GUIDE.md` for detailed versioning workflow.
 - SQL (dbt-core 1.8.8, dbt-duckdb 1.8.1), Python 3.11 + dbt-core 1.8.8, DuckDB 1.0.0 (082-fix-yoy-enrollment-rate)
 - TypeScript (React 18 / Vite frontend) + React 18, Tailwind CSS v4 (083-fix-dc-match-ui)
 - N/A (UI-only changes; scenario config persisted via existing API) (083-fix-dc-match-ui)
+- SQL (dbt-core 1.8.8 / dbt-duckdb 1.8.1), Jinja2 templating + dbt-core 1.8.8, dbt-duckdb 1.8.1, DuckDB 1.0.0 (084-fix-match-magnet)
+- DuckDB (`dbt/simulation.duckdb`) — no schema changes; new audit column only (084-fix-match-magnet)
 
 ## Recent Changes
 - 063-1000-hr-eligibility: Added Python 3.11, SQL (dbt-core 1.8.8) + dbt-duckdb 1.8.1, DuckDB 1.0.0, Pydantic 2.7.4
