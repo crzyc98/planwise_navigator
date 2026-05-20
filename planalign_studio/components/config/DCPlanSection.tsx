@@ -1,7 +1,9 @@
-import { Info, X } from 'lucide-react';
+import { useEffect, useState } from 'react';
+import { AlertTriangle, BarChart3, Info, X } from 'lucide-react';
 import { useConfigContext } from './ConfigContext';
 import { InputField } from './InputField';
 import { MATCH_TEMPLATES, calculateMatchCap, DEFAULT_FORM_DATA } from './constants';
+import { analyzeOptOutRate, OptOutRateAnalysisResult } from '../../services/api';
 
 function validateMatchTiers(
   tiers: Array<{ min: number; max: number | null }>,
@@ -36,7 +38,49 @@ function validateMatchTiers(
 }
 
 export function DCPlanSection() {
-  const { formData, setFormData, handleChange, inputProps } = useConfigContext();
+  const { formData, setFormData, handleChange, inputProps, activeWorkspace } = useConfigContext();
+
+  const [analyzing, setAnalyzing] = useState(false);
+  const [analysis, setAnalysis] = useState<OptOutRateAnalysisResult | null>(null);
+  const [analysisError, setAnalysisError] = useState<string | null>(null);
+  const [lookbackYears, setLookbackYears] = useState(3);
+
+  const handleMatchCensus = async (years = lookbackYears) => {
+    if (!formData.censusDataPath) {
+      setAnalysisError('Upload a census file first to use Match Census');
+      return;
+    }
+    if (!activeWorkspace?.id) return;
+    setAnalyzing(true);
+    setAnalysis(null);
+    setAnalysisError(null);
+    try {
+      const result = await analyzeOptOutRate(activeWorkspace.id, {
+        file_path: formData.censusDataPath,
+        lookback_years: years,
+      });
+      setAnalysis(result);
+    } catch (err) {
+      setAnalysisError(err instanceof Error ? err.message : 'Failed to analyze census for opt-out rate');
+    } finally {
+      setAnalyzing(false);
+    }
+  };
+
+  const handleApply = () => {
+    if (!analysis || analysis.suggested_rate === null) return;
+    const pct = parseFloat((analysis.suggested_rate * 100).toFixed(1));
+    setFormData(prev => ({ ...prev, dcOptOutRateTarget: pct }));
+    setAnalysis(null);
+  };
+
+  // Re-fetch when lookback changes while preview is open
+  useEffect(() => {
+    if (analysis !== null) {
+      const timer = setTimeout(() => handleMatchCensus(lookbackYears), 500);
+      return () => clearTimeout(timer);
+    }
+  }, [lookbackYears]); // eslint-disable-line react-hooks/exhaustive-deps
 
   return (
     <div className="space-y-8 animate-fadeIn">
@@ -100,18 +144,104 @@ export function DCPlanSection() {
              <div className="sm:col-span-6 mt-4">
                <div className="flex items-center justify-between mb-3">
                  <h4 className="text-sm font-semibold text-gray-900">Opt-Out Assumptions</h4>
-                 <button
-                   type="button"
-                   onClick={() => setFormData(prev => ({
-                     ...prev,
-                     dcOptOutRateTarget: DEFAULT_FORM_DATA.dcOptOutRateTarget,
-                   }))}
-                   className="text-xs text-fidelity-green hover:text-green-700 font-medium"
-                 >
-                   Reset to Default
-                 </button>
+                 <div className="flex items-center gap-2">
+                   <button
+                     type="button"
+                     onClick={() => handleMatchCensus()}
+                     disabled={analyzing || !formData.censusDataPath}
+                     title={!formData.censusDataPath ? 'Upload a census file first' : 'Analyze census to suggest opt-out rate'}
+                     className="flex items-center gap-1 px-2 py-1 text-xs bg-fidelity-green text-white rounded hover:bg-green-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                   >
+                     <BarChart3 size={12} />
+                     {analyzing ? 'Analyzing…' : 'Match Census'}
+                   </button>
+                   <button
+                     type="button"
+                     onClick={() => setFormData(prev => ({
+                       ...prev,
+                       dcOptOutRateTarget: DEFAULT_FORM_DATA.dcOptOutRateTarget,
+                     }))}
+                     className="text-xs text-fidelity-green hover:text-green-700 font-medium"
+                   >
+                     Reset to Default
+                   </button>
+                 </div>
                </div>
                <p className="text-xs text-gray-500 mb-3">Set the overall target opt-out rate. Demographic sensitivity is applied automatically behind the scenes.</p>
+
+               {/* Match Census error */}
+               {analysisError && (
+                 <div className="mb-3 flex items-start gap-2 p-2 rounded bg-red-50 border border-red-200 text-xs text-red-700">
+                   <X size={12} className="mt-0.5 shrink-0" />
+                   <span>{analysisError}</span>
+                   <button type="button" onClick={() => setAnalysisError(null)} className="ml-auto text-red-400 hover:text-red-600"><X size={12} /></button>
+                 </div>
+               )}
+
+               {/* Match Census preview panel */}
+               {analysis && (
+                 <div className="mb-4 p-3 rounded-lg border border-green-200 bg-green-50 text-xs">
+                   <div className="flex items-center justify-between mb-2">
+                     <span className="font-semibold text-green-900">Census Match Preview</span>
+                     <button type="button" onClick={() => setAnalysis(null)} className="text-green-600 hover:text-green-800"><X size={12} /></button>
+                   </div>
+
+                   {/* Lookback input (US2) */}
+                   <div className="flex items-center gap-2 mb-3">
+                     <label className="text-green-800 font-medium whitespace-nowrap">Lookback (years):</label>
+                     <input
+                       type="number"
+                       min={1}
+                       max={50}
+                       step={1}
+                       value={lookbackYears}
+                       onChange={e => setLookbackYears(Math.max(1, parseInt(e.target.value) || 1))}
+                       className="w-16 px-2 py-0.5 border border-green-300 rounded text-xs focus:outline-none focus:ring-1 focus:ring-fidelity-green"
+                     />
+                   </div>
+
+                   {/* Low-confidence warning (T025) */}
+                   {analysis.eligible_count > 0 && analysis.eligible_count < 20 && (
+                     <div className="flex items-center gap-1 mb-2 text-amber-700 bg-amber-50 border border-amber-200 rounded px-2 py-1">
+                       <AlertTriangle size={11} />
+                       <span>Small sample — only {analysis.eligible_count} employee(s) in window. Consider a longer lookback.</span>
+                     </div>
+                   )}
+
+                   {/* Excluded null tenure note (T026) */}
+                   {analysis.excluded_null_tenure > 0 && (
+                     <p className="text-gray-500 mb-2">{analysis.excluded_null_tenure} employee(s) excluded (missing hire date)</p>
+                   )}
+
+                   {analysis.suggested_rate !== null ? (
+                     <>
+                       <div className="grid grid-cols-2 gap-x-4 gap-y-1 mb-3 text-green-800">
+                         <span>Employees in window:</span><span className="font-medium">{analysis.eligible_count}</span>
+                         <span>Non-participants:</span><span className="font-medium">{analysis.non_participant_count}</span>
+                         <span>Suggested rate:</span><span className="font-semibold text-base text-green-900">{(analysis.suggested_rate * 100).toFixed(1)}%</span>
+                       </div>
+                       <div className="flex gap-2">
+                         <button
+                           type="button"
+                           onClick={handleApply}
+                           className="px-3 py-1 text-xs bg-fidelity-green text-white rounded hover:bg-green-700 transition-colors font-medium"
+                         >
+                           Apply {(analysis.suggested_rate * 100).toFixed(1)}%
+                         </button>
+                         <button
+                           type="button"
+                           onClick={() => setAnalysis(null)}
+                           className="px-3 py-1 text-xs border border-green-300 text-green-700 rounded hover:bg-green-100 transition-colors"
+                         >
+                           Dismiss
+                         </button>
+                       </div>
+                     </>
+                   ) : (
+                     <p className="text-green-700">{analysis.message ?? 'No eligible employees found in the lookback window.'}</p>
+                   )}
+                 </div>
+               )}
 
                <div className="grid grid-cols-1 gap-y-4 gap-x-4 sm:grid-cols-6 mb-4">
                  <InputField label="Target Opt-Out Rate" {...inputProps('dcOptOutRateTarget')} type="number" step="0.5" suffix="%" helper="Overall average opt-out rate across all demographics" min={0} max={100} />

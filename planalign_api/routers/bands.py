@@ -15,8 +15,10 @@ from ..models.bands import (
     BandAnalysisResult,
     BandConfig,
 )
+from ..models.opt_out import OptOutRateAnalysisRequest, OptOutRateAnalysisResult
 from ..models.turnover import TurnoverAnalysisRequest, TurnoverAnalysisResult
 from ..services.band_service import BandService
+from ..services.opt_out_service import OptOutAnalysisService
 from ..services.turnover_service import TurnoverAnalysisService
 from ..storage.workspace_storage import WorkspaceStorage
 
@@ -286,4 +288,59 @@ async def analyze_turnover(
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Failed to analyze census for turnover rates: {e}",
+        )
+
+
+# POST /analyze-opt-out-rate - Analyze Census for Opt-Out Rate Suggestion
+# ============================================================================
+
+
+def get_opt_out_service() -> OptOutAnalysisService:
+    """Get opt-out analysis service instance."""
+    settings = get_settings()
+    return OptOutAnalysisService(settings.workspaces_root)
+
+
+@router.post(
+    "/{workspace_id}/analyze-opt-out-rate",
+    response_model=OptOutRateAnalysisResult,
+    summary="Analyze census for opt-out rate suggestion",
+    description="""
+Analyzes census data to suggest a target opt-out rate based on the non-participant
+rate among employees hired within a configurable tenure lookback window.
+""",
+)
+async def analyze_opt_out_rate(
+    workspace_id: str,
+    request: OptOutRateAnalysisRequest,
+) -> OptOutRateAnalysisResult:
+    """
+    Analyze census data and suggest a target opt-out rate.
+
+    Args:
+        workspace_id: Workspace ID
+        request: Request with file_path and optional lookback_years
+
+    Returns:
+        OptOutRateAnalysisResult with suggested rate and supporting statistics
+    """
+    service = get_opt_out_service()
+
+    try:
+        result = service.analyze_opt_out_rate(
+            workspace_id=workspace_id,
+            file_path=request.file_path,
+            lookback_years=request.lookback_years,
+        )
+        return result
+    except ValueError as e:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=str(e),
+        )
+    except Exception as e:
+        logger.error(f"Failed to analyze opt-out rate: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to analyze census for opt-out rate: {e}",
         )

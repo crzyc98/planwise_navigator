@@ -297,6 +297,11 @@ CENSUS_STATUS_COLUMNS = frozenset({
     "employment_status",
 })
 
+CENSUS_DEFERRAL_COLUMNS = frozenset({
+    "employee_deferral_rate",
+    "deferral_rate",
+})
+
 # All known safe census columns
 ALL_CENSUS_COLUMNS = (
     CENSUS_BIRTH_DATE_COLUMNS
@@ -305,5 +310,6 @@ ALL_CENSUS_COLUMNS = (
     | CENSUS_COMPENSATION_COLUMNS
     | CENSUS_JOB_LEVEL_COLUMNS
     | CENSUS_STATUS_COLUMNS
+    | CENSUS_DEFERRAL_COLUMNS
     | frozenset({"employee_id", "department", "location"})
 )
