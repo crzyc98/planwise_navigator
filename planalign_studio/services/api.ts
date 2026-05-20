@@ -1137,6 +1137,50 @@ export async function analyzeTurnoverRates(
 }
 
 // ============================================================================
+// Opt-Out Rate Census Analysis (Feature 085)
+// ============================================================================
+
+export interface OptOutRateAnalysisRequest {
+  file_path: string;
+  lookback_years?: number;
+}
+
+export interface OptOutRateAnalysisResult {
+  suggested_rate: number | null;
+  eligible_count: number;
+  non_participant_count: number;
+  total_eligible_in_census: number;
+  excluded_null_tenure: number;
+  lookback_years: number;
+  hire_date_column_used: string;
+  analysis_type: string;
+  source_file: string;
+  message: string | null;
+}
+
+/**
+ * Analyze census data for opt-out rate suggestion.
+ * Calculates non-participant rate among employees hired within a tenure lookback window.
+ */
+export async function analyzeOptOutRate(
+  workspaceId: string,
+  request: OptOutRateAnalysisRequest
+): Promise<OptOutRateAnalysisResult> {
+  const response = await fetch(
+    `${API_BASE}/api/workspaces/${workspaceId}/analyze-opt-out-rate`,
+    {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        file_path: request.file_path,
+        lookback_years: request.lookback_years ?? 3,
+      }),
+    }
+  );
+  return handleResponse<OptOutRateAnalysisResult>(response);
+}
+
+// ============================================================================
 // Promotion Hazard Configuration Endpoints (Feature 038)
 // ============================================================================
 
