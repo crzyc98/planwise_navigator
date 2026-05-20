@@ -140,7 +140,7 @@ export const DEFAULT_FORM_DATA: FormData = {
   dcOptOutRateTarget: 9,
 
   // DC Plan - Voluntary Enrollment Rate (percentage, empty = use demographic defaults)
-  dcVoluntaryEnrollmentRate: '',
+  dcVoluntaryEnrollmentRate: '30',
 
   // DC Plan - Match Enable/Disable
   dcMatchEnabled: true,
