@@ -1,6 +1,55 @@
 version: 2
 
 models:
+  - name: int_eligibility_events
+    description: >
+      DC plan eligibility events (Feature 086). Generates one eligibility event per
+      employee per simulation when they first satisfy all plan participation requirements
+      (minimum age AND waiting period). Covers both census employees and new hires.
+      Uses incremental self-reference to emit only new eligibility transitions — no
+      duplicate events across multi-year simulations.
+    config:
+      tags: ["EVENT_GENERATION", "eligibility"]
+    data_tests:
+      - dbt_utils.unique_combination_of_columns:
+          combination_of_columns:
+            - employee_id
+            - simulation_year
+          config:
+            severity: error
+            error_if: ">= 1"
+    columns:
+      - name: employee_id
+        description: Unique employee identifier
+        data_tests:
+          - not_null
+      - name: event_type
+        description: Event type (always 'eligibility')
+        data_tests:
+          - not_null
+          - accepted_values:
+              values: ['eligibility']
+      - name: simulation_year
+        description: Simulation year in which eligibility was first achieved
+        data_tests:
+          - not_null
+      - name: effective_date
+        description: >
+          Exact computed eligibility date: GREATEST(hire_date + waiting_period_days,
+          age_threshold_jan1). Never NULL for eligible employees.
+        data_tests:
+          - not_null
+      - name: event_category
+        description: Event category (always 'eligibility')
+        data_tests:
+          - not_null
+          - accepted_values:
+              values: ['eligibility']
+      - name: event_probability
+        description: Always 1.0 — eligibility determination is deterministic
+        data_tests:
+          - not_null
+
   - name: int_synthetic_baseline_enrollment_events
     description: >
       Synthetic baseline enrollment events generated from census data for Epic E049.

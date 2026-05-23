@@ -70,6 +70,7 @@ EVENT_TERMINATION = "termination"
 EVENT_PROMOTION = "promotion"
 EVENT_MERIT = "merit"
 EVENT_ENROLLMENT = "enrollment"
+EVENT_ELIGIBILITY = "eligibility"
 EVENT_SABBATICAL = "sabbatical"
 EVENT_DEFERRAL_ESCALATION = "deferral_escalation"
 

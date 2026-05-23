@@ -52,6 +52,7 @@
 {% macro cat_workforce() %}'workforce'{% endmacro %}
 {% macro cat_compensation() %}'compensation'{% endmacro %}
 {% macro cat_benefits() %}'benefits'{% endmacro %}
+{% macro cat_eligibility() %}'eligibility'{% endmacro %}
 
 {# ── Data quality ─────────────────────────────────────── #}
 
@@ -108,6 +109,7 @@ END
 CASE
   WHEN {{ col }} IN ({{ evt_hire() }}, {{ evt_termination() }}) THEN {{ cat_workforce() }}
   WHEN {{ col }} IN ({{ evt_promotion() }}, {{ evt_merit() }}) THEN {{ cat_compensation() }}
+  WHEN {{ col }} = {{ evt_eligibility() }} THEN {{ cat_eligibility() }}
   WHEN {{ col }} LIKE '%enrollment%' THEN {{ cat_benefits() }}
   WHEN {{ col }} LIKE 'deferral%' THEN {{ cat_benefits() }}
   ELSE 'other'
