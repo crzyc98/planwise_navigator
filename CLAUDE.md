@@ -855,6 +855,8 @@ See `/docs/VERSIONING_GUIDE.md` for detailed versioning workflow.
 - DuckDB (`dbt/simulation.duckdb`) — no schema changes; new audit column only (084-fix-match-magnet)
 - Python 3.11 (backend), TypeScript/React 18 (frontend) + FastAPI + Pydantic v2 (backend), React 18 + Tailwind CSS v4 (frontend), DuckDB in-memory (census analysis) (085-optout-match-census)
 - No new storage; census analysis reads files in-memory; opt-out rate value persisted via existing scenario config JSON (085-optout-match-census)
+- Python 3.11, SQL (dbt-core 1.8.8) + dbt-duckdb 1.8.1, DuckDB 1.0.0, Pydantic v2 (086-dc-eligibility-events)
+- `dbt/simulation.duckdb` (incremental model, self-referencing for prior-year deduplication) (086-dc-eligibility-events)
 
 ## Recent Changes
 - 063-1000-hr-eligibility: Added Python 3.11, SQL (dbt-core 1.8.8) + dbt-duckdb 1.8.1, DuckDB 1.0.0, Pydantic 2.7.4

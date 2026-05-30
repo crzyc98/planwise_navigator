@@ -44,6 +44,7 @@ from planalign_orchestrator.generators.hire import HireEventGenerator
 from planalign_orchestrator.generators.promotion import PromotionEventGenerator
 from planalign_orchestrator.generators.merit import MeritEventGenerator
 from planalign_orchestrator.generators.enrollment import EnrollmentEventGenerator
+from planalign_orchestrator.generators.eligibility import EligibilityEventGenerator
 # Example new event type (US1 - E004)
 from planalign_orchestrator.generators.sabbatical import SabbaticalEventGenerator
 
@@ -61,6 +62,7 @@ __all__ = [
     "PromotionEventGenerator",
     "MeritEventGenerator",
     "EnrollmentEventGenerator",
+    "EligibilityEventGenerator",
     # Extended event types
     "SabbaticalEventGenerator",
 ]

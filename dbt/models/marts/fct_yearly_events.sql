@@ -183,6 +183,32 @@ WITH all_events AS (
 
   UNION ALL
 
+  -- Feature 086: DC plan eligibility events (priority 3, after hire=2, before enrollment=4)
+  SELECT
+    '{{ sid }}' AS scenario_id,
+    '{{ pid }}' AS plan_design_id,
+    employee_id,
+    employee_ssn,
+    event_type,
+    simulation_year,
+    effective_date,
+    event_details,
+    compensation_amount,
+    previous_compensation,
+    employee_deferral_rate,
+    prev_employee_deferral_rate,
+    employee_age,
+    employee_tenure,
+    level_id,
+    age_band,
+    tenure_band,
+    event_probability,
+    event_category
+  FROM {{ ref('int_eligibility_events') }}
+  WHERE simulation_year = {{ simulation_year }}
+
+  UNION ALL
+
   SELECT
     '{{ sid }}' AS scenario_id,
     '{{ pid }}' AS plan_design_id,
