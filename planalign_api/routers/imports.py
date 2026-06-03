@@ -117,7 +117,7 @@ def _parse_dataframe(content: bytes, filename: str, sheet_name: str | None = Non
 
     if suffix == "xlsx":
         import io
-        df = pd.read_excel(io.BytesIO(content), sheet_name=sheet_name or 0, dtype=str)
+        df = pd.read_excel(io.BytesIO(content), sheet_name=sheet_name or 0, dtype=object)
         available_sheets: list[str] = []
         if sheet_name is None:
             xf = pd.ExcelFile(io.BytesIO(content))
@@ -127,9 +127,9 @@ def _parse_dataframe(content: bytes, filename: str, sheet_name: str | None = Non
     # CSV — try UTF-8, fall back to latin-1
     import io
     try:
-        df = pd.read_csv(io.BytesIO(content), dtype=str)
+        df = pd.read_csv(io.BytesIO(content), dtype=object)
     except UnicodeDecodeError:
-        df = pd.read_csv(io.BytesIO(content), encoding="latin-1", dtype=str)
+        df = pd.read_csv(io.BytesIO(content), encoding="latin-1", dtype=object)
         encoding_used = "latin-1"
         null_like = df.select_dtypes(include="object").apply(lambda s: s.str.contains("Ã", na=False).sum()).sum()
         if null_like:
@@ -156,7 +156,7 @@ def _build_detected_columns(df: pd.DataFrame) -> list[DetectedColumn]:
             except (ValueError, TypeError):
                 pass
         columns.append(DetectedColumn(
-            name=col,
+            name=str(col),
             inferred_type=inferred,  # type: ignore[arg-type]
             null_count=null_count,
             sample_values=sample,
