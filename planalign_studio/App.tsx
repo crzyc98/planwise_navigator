@@ -15,6 +15,7 @@ import ScenarioCostComparison from './components/ScenarioCostComparison';
 import VestingAnalysis from './components/VestingAnalysis';
 import NDTTesting from './components/NDTTesting';
 import WinnersLosersTab from './components/WinnersLosersTab';
+import DataImportWizard from './components/DataImportWizard';
 
 // Error boundary to catch and display React errors
 interface ErrorBoundaryProps {
@@ -94,6 +95,7 @@ export default function App() {
             <Route path="compare" element={<ScenarioCostComparison />} />
             <Route path="batch" element={<BatchProcessing />} />
             <Route path="workspaces" element={<WorkspaceManager />} />
+            <Route path="import" element={<DataImportWizard />} />
             <Route path="*" element={<Navigate to="/" replace />} />
           </Route>
         </Routes>

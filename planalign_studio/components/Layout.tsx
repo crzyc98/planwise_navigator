@@ -4,7 +4,7 @@ import {
   LayoutDashboard, PlayCircle, BarChart3, Settings, Database,
   Activity, Bell, ChevronDown, Check, Search, Briefcase,
   X, Info, AlertTriangle, AlertCircle, CheckCircle, Moon, Sun, HelpCircle,
-  Plus, Loader2, Layers, PieChart, Scale, Shield, Menu, PanelLeftClose, PanelLeftOpen, ArrowLeftRight
+  Plus, Loader2, Layers, PieChart, Scale, Shield, Menu, PanelLeftClose, PanelLeftOpen, ArrowLeftRight, FileUp
 } from 'lucide-react';
 import { APP_NAME, MOCK_NOTIFICATIONS, APP_VERSION } from '../constants';
 import { Workspace, Notification } from '../types';
@@ -567,6 +567,7 @@ export default function Layout() {
           <NavItem to="/analytics/winners-losers" icon={<ArrowLeftRight size={20} />} label="Winners & Losers" collapsed={sidebarCollapsed} />
           <NavItem to="/compare" icon={<BarChart3 size={20} />} label="Compare Costs" collapsed={sidebarCollapsed} />
           <NavItem to="/batch" icon={<Database size={20} />} label="Batch Processing" collapsed={sidebarCollapsed} />
+          <NavItem to="/import" icon={<FileUp size={20} />} label="Import Data" collapsed={sidebarCollapsed} />
         </nav>
       </aside>
 
