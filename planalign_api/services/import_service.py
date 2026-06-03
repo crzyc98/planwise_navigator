@@ -237,6 +237,15 @@ class ImportService:
         if not mappings:
             raise ValueError("No mapping saved; cannot generate parquet")
 
+        from .census_schema import get_required_fields
+        mapped_outputs = {m.output_column for m in mappings if not m.is_excluded}
+        missing = [f for f in get_required_fields() if f not in mapped_outputs]
+        if missing:
+            raise ValueError(
+                f"Required census fields not mapped: {', '.join(missing)}. "
+                "All required fields must be mapped before generating parquet."
+            )
+
         source_path = self._source_parquet_path(workspace_id, import_id)
         conn = duckdb.connect(":memory:")
         df = conn.execute(f"SELECT * FROM read_parquet('{source_path}')").df()
@@ -295,6 +304,16 @@ class ImportService:
             row_count=len(transformed),
             user=user,
             mapping_config={"field_count": len(mappings)},
+        )
+        # Persist auto-fingerprint for repeat-upload detection (T024)
+        from .suggestion_engine import SuggestionEngine
+        fingerprint = SuggestionEngine.get_auto_fingerprint(
+            [c.name for c in session.detected_columns]
+        )
+        auto_path = self._templates_path(workspace_id) / f"_auto_{fingerprint}.json"
+        auto_path.parent.mkdir(parents=True, exist_ok=True)
+        auto_path.write_text(
+            json.dumps([m.model_dump(mode="json") for m in mappings], indent=2)
         )
         # Cleanup source parquet to reclaim disk space (retain metadata + mapping)
         if source_path.exists():

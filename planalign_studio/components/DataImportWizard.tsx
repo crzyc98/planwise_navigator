@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { Upload, Map, Eye, CheckCircle2, ArrowLeft } from 'lucide-react';
 import { useOutletContext } from 'react-router-dom';
 import { LayoutContextType } from './Layout';
-import { ImportSession, FieldMapping, ParquetFile } from '../services/importService';
+import { ImportSession, FieldMapping, ParquetFile, SuggestionsResponse } from '../services/importService';
 import FileUploadStep from './imports/FileUploadStep';
 import FieldMappingStep from './imports/FieldMappingStep';
 import PreviewStep from './imports/PreviewStep';
@@ -47,6 +47,7 @@ export default function DataImportWizard() {
   const [step, setStep] = useState<WizardStep>('upload');
   const [session, setSession] = useState<ImportSession | null>(null);
   const [mappings, setMappings] = useState<FieldMapping[]>([]);
+  const [suggestionsData, setSuggestionsData] = useState<SuggestionsResponse | null>(null);
   const [generatedFile, setGeneratedFile] = useState<ParquetFile | null>(null);
   const [mappingDirty, setMappingDirty] = useState(false);
   const [showLeaveWarning, setShowLeaveWarning] = useState(false);
@@ -67,8 +68,9 @@ export default function DataImportWizard() {
     setStep('mapping');
   };
 
-  const handleMappingSaved = (m: FieldMapping[]) => {
+  const handleMappingSaved = (m: FieldMapping[], sd: SuggestionsResponse | null) => {
     setMappings(m);
+    setSuggestionsData(sd);
     setMappingDirty(false);
     setStep('preview');
   };
@@ -133,6 +135,7 @@ export default function DataImportWizard() {
             workspaceId={workspaceId}
             session={session}
             onGenerated={handleGenerated}
+            dataQuality={suggestionsData?.data_quality ?? null}
           />
         )}
         {step === 'done' && generatedFile && (

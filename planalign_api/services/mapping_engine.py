@@ -19,6 +19,8 @@ logger = logging.getLogger(__name__)
 _FORBIDDEN_PATTERNS = re.compile(
     r"(__import__|__builtins__|exec\s*\(|eval\s*\(|open\s*\(|os\.|import\s)"
 )
+_CURRENCY_STRIP_RE = re.compile(r"[$€£,\s]")
+_PAREN_NEG_RE = re.compile(r"^\((.+)\)$")
 
 
 def _eval_expression(expr: str, df: pd.DataFrame) -> pd.Series:
@@ -73,6 +75,17 @@ def _apply_transform(series: pd.Series, transform_type: str, params: dict) -> pd
     return series
 
 
+def _strip_currency(series: pd.Series) -> pd.Series:
+    """Strip currency symbols, commas, and parenthetical negatives from string values."""
+    def _clean(v: object) -> object:
+        if v is None or (isinstance(v, float) and pd.isna(v)):
+            return v
+        s = _CURRENCY_STRIP_RE.sub("", str(v))
+        m = _PAREN_NEG_RE.match(s)
+        return f"-{m.group(1)}" if m else s
+    return series.apply(_clean)
+
+
 class MappingEngine:
     """Applies field mappings (rename + ordered transforms) to a DataFrame."""
 
@@ -91,6 +104,10 @@ class MappingEngine:
                 continue
 
             col = result[mapping.input_column].copy()
+
+            # Auto-strip currency formatting for decimal fields with string source values
+            if mapping.output_type == "decimal" and col.dtype == object:
+                col = _strip_currency(col)
 
             for transform in mapping.transformations:
                 t = transform.transform_type

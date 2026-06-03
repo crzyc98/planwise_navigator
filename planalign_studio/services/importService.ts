@@ -129,6 +129,55 @@ export interface ParquetFilesResponse {
   total_count: number;
 }
 
+// ---------------------------------------------------------------------------
+// Schema-mapping types (089-import-schema-mapping)
+// ---------------------------------------------------------------------------
+
+export type ConfidenceLevel = 'high' | 'medium' | 'low';
+
+export type SuggestionReason =
+  | 'name_match'
+  | 'alias_match'
+  | 'value_pattern'
+  | 'prior_mapping'
+  | 'no_match';
+
+export interface CensusField {
+  field_name: string;
+  required: boolean;
+  data_type: 'string' | 'date' | 'decimal' | 'boolean';
+  description: string;
+}
+
+export interface FormatDetectionResult {
+  detected_format: string | null;
+  parsed_sample_values: string[];
+  is_ambiguous: boolean;
+  format_options: string[] | null;
+}
+
+export interface ColumnSuggestion {
+  input_column: string;
+  suggested_canonical_field: string | null;
+  confidence: ConfidenceLevel;
+  confidence_score: number;
+  reason: SuggestionReason;
+  format_detection: FormatDetectionResult | null;
+}
+
+export interface DataQualityResult {
+  duplicate_employee_id_count: number;
+  null_required_field_counts: Record<string, number>;
+  compensation_outlier_count: number;
+}
+
+export interface SuggestionsResponse {
+  import_id: string;
+  suggestions: ColumnSuggestion[];
+  data_quality: DataQualityResult;
+  canonical_schema: CensusField[];
+}
+
 export interface MappingTemplateSummary {
   template_id: string;
   name: string;
@@ -232,6 +281,11 @@ export async function deleteParquetFile(workspaceId: string, fileId: string): Pr
   if (res.status === 204) return;
   const text = await res.text().catch(() => res.statusText);
   throw new Error(`HTTP ${res.status}: ${text}`);
+}
+
+export async function getSuggestions(workspaceId: string, importId: string): Promise<SuggestionsResponse> {
+  const res = await fetch(`${API_BASE}/api/workspaces/${workspaceId}/imports/${importId}/suggestions`);
+  return handleResponse<SuggestionsResponse>(res);
 }
 
 export async function listTemplates(workspaceId: string): Promise<MappingTemplatesResponse> {

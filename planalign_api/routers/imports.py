@@ -14,6 +14,7 @@ from fastapi.responses import FileResponse
 from ..config import APISettings, get_settings
 from ..models.imports import (
     ApplyTemplateRequest,
+    DataQualityResult,
     DetectedColumn,
     GenerateResponse,
     ImportErrorResponse,
@@ -30,8 +31,11 @@ from ..models.imports import (
     SaveTemplateRequest,
     SaveTemplateResponse,
     SheetSelectRequest,
+    SuggestionsResponse,
 )
+from ..services.census_schema import CANONICAL_NAMES, FIELDS, get_field, is_canonical
 from ..services.import_service import ImportService
+from ..services.suggestion_engine import SuggestionEngine
 from ..storage.workspace_storage import WorkspaceStorage
 
 logger = logging.getLogger(__name__)
@@ -84,6 +88,7 @@ def _check_session(workspace_id: str, import_id: str, service: ImportService) ->
 def _validate_mapping(mappings, detected_names: set[str]) -> List[MappingValidationError]:
     errors: List[MappingValidationError] = []
     seen_output: dict[str, str] = {}
+    valid_names = ", ".join(sorted(CANONICAL_NAMES))
     for m in mappings:
         if m.is_excluded:
             continue
@@ -93,11 +98,14 @@ def _validate_mapping(mappings, detected_names: set[str]) -> List[MappingValidat
                 input_column=m.input_column,
                 message=f"Column {m.input_column!r} not found in detected columns",
             ))
-        if not OUTPUT_COLUMN_RE.match(m.output_column):
+        if not is_canonical(m.output_column):
             errors.append(MappingValidationError(
                 field="output_column",
                 input_column=m.input_column,
-                message=f"Output column name {m.output_column!r} must match ^[a-z][a-z0-9_]{{0,127}}$",
+                message=(
+                    f"Output column {m.output_column!r} is not a recognized census field. "
+                    f"Valid fields: {valid_names}"
+                ),
             ))
         if m.output_column in seen_output:
             errors.append(MappingValidationError(
@@ -321,7 +329,7 @@ async def save_mapping(
     detected_names = {c.name for c in session.detected_columns}
     validation_errors = _validate_mapping(body.field_mappings, detected_names)
 
-    if any(e.field == "input_column" for e in validation_errors):
+    if validation_errors:
         raise HTTPException(
             status_code=422,
             detail=[e.model_dump() for e in validation_errors],
@@ -365,6 +373,75 @@ def get_preview(
         rows=rows,
         total_row_count=session.row_count,
         preview_row_count=len(rows),
+    )
+
+
+# ---------------------------------------------------------------------------
+# Suggestions (schema-aware auto-mapping)
+# ---------------------------------------------------------------------------
+
+@router.get(
+    "/{workspace_id}/imports/{import_id}/suggestions",
+    response_model=SuggestionsResponse,
+    summary="Auto-suggest canonical field mappings for uploaded columns",
+)
+def get_suggestions(
+    workspace_id: str,
+    import_id: str,
+    service: ImportService = Depends(get_import_service),
+) -> SuggestionsResponse:
+    session = _check_session(workspace_id, import_id, service)
+
+    engine = SuggestionEngine()
+    suggestions = engine.suggest(session.detected_columns)
+
+    # Attach format detection for each suggestion with a known canonical field
+    for suggestion in suggestions:
+        if suggestion.suggested_canonical_field is None:
+            continue
+        field_def = get_field(suggestion.suggested_canonical_field)
+        if field_def is None:
+            continue
+        input_col = next(
+            (c for c in session.detected_columns if c.name == suggestion.input_column), None
+        )
+        if input_col is None:
+            continue
+        suggestion.format_detection = engine.detect_format(input_col, field_def)
+
+    # Check for auto-fingerprint from prior successful imports
+    fingerprint = SuggestionEngine.get_auto_fingerprint(
+        [c.name for c in session.detected_columns]
+    )
+    auto_path = service._templates_path(workspace_id) / f"_auto_{fingerprint}.json"
+    if auto_path.exists():
+        import json as _json
+        stored_mappings = _json.loads(auto_path.read_text())
+        stored_map = {m["input_column"]: m["output_column"] for m in stored_mappings}
+        for suggestion in suggestions:
+            if suggestion.input_column in stored_map:
+                suggestion.suggested_canonical_field = stored_map[suggestion.input_column]
+                suggestion.confidence = "high"
+                suggestion.confidence_score = 1.0
+                suggestion.reason = "prior_mapping"
+
+    data_quality = engine.scan_data_quality(session, suggestions)
+
+    schema_payload = [
+        {
+            "field_name": f.field_name,
+            "required": f.required,
+            "data_type": f.data_type,
+            "description": f.description,
+        }
+        for f in FIELDS
+    ]
+
+    return SuggestionsResponse(
+        import_id=import_id,
+        suggestions=suggestions,
+        data_quality=data_quality,
+        canonical_schema=schema_payload,
     )
 
 

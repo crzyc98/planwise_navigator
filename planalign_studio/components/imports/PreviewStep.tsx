@@ -1,9 +1,10 @@
 import React, { useEffect, useState } from 'react';
-import { AlertTriangle, Loader2, CheckCircle2 } from 'lucide-react';
+import { AlertTriangle, Loader2, CheckCircle2, X } from 'lucide-react';
 import {
   ImportSession,
   MappedPreviewResponse,
   ParquetFile,
+  DataQualityResult,
   getMappedPreview,
   generateParquet,
   getImportStatus,
@@ -13,9 +14,11 @@ interface Props {
   workspaceId: string;
   session: ImportSession;
   onGenerated: (file: ParquetFile) => void;
+  dataQuality?: DataQualityResult | null;
 }
 
-export default function PreviewStep({ workspaceId, session, onGenerated }: Props) {
+export default function PreviewStep({ workspaceId, session, onGenerated, dataQuality }: Props) {
+  const [dqDismissed, setDqDismissed] = useState(false);
   const [preview, setPreview] = useState<MappedPreviewResponse | null>(null);
   const [isLoadingPreview, setIsLoadingPreview] = useState(true);
   const [isGenerating, setIsGenerating] = useState(false);
@@ -63,8 +66,45 @@ export default function PreviewStep({ workspaceId, session, onGenerated }: Props
     }
   };
 
+  const hasDqIssues = dataQuality && !dqDismissed && (
+    dataQuality.duplicate_employee_id_count > 0 ||
+    dataQuality.compensation_outlier_count > 0 ||
+    Object.values(dataQuality.null_required_field_counts).some((n) => n > 0)
+  );
+
   return (
     <div className="space-y-5">
+      {hasDqIssues && dataQuality && (
+        <div className="flex items-start gap-3 text-amber-800 text-sm bg-amber-50 border border-amber-200 rounded-lg p-3">
+          <AlertTriangle size={16} className="shrink-0 mt-0.5 text-amber-600" />
+          <div className="flex-1 space-y-1">
+            <div className="font-medium">Data quality notice — review before generating:</div>
+            {dataQuality.duplicate_employee_id_count > 0 && (
+              <div>
+                {dataQuality.duplicate_employee_id_count} duplicate employee ID(s) detected —
+                the simulation engine will automatically keep the row with the most recent hire date.
+              </div>
+            )}
+            {Object.entries(dataQuality.null_required_field_counts).map(([field, count]) =>
+              count > 0 ? (
+                <div key={field}>
+                  {count} row(s) have null <span className="font-mono">{field}</span> (required field).
+                </div>
+              ) : null
+            )}
+            {dataQuality.compensation_outlier_count > 0 && (
+              <div>
+                {dataQuality.compensation_outlier_count} row(s) have unusual compensation values
+                (&lt;$1,000 or &gt;$10M) — please verify.
+              </div>
+            )}
+          </div>
+          <button onClick={() => setDqDismissed(true)} className="text-amber-500 hover:text-amber-700 shrink-0">
+            <X size={14} />
+          </button>
+        </div>
+      )}
+
       {isLoadingPreview ? (
         <div className="flex items-center gap-2 text-sm text-gray-500">
           <Loader2 size={16} className="animate-spin" />
