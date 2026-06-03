@@ -13,9 +13,11 @@ from fastapi.responses import FileResponse
 from ..config import APISettings, get_settings
 from ..models.simulation import (
     Artifact,
+    LogPage,
     RunDetails,
     RunRequest,
     RunSummary,
+    SimulationLogLine,
     SimulationResults,
     SimulationRun,
 )
@@ -427,6 +429,100 @@ async def get_run(
         artifacts=sorted(artifacts, key=lambda a: a.name),
         error_message=metadata.get("error_message"),
     )
+
+
+@router.get("/{scenario_id}/runs/{run_id}/logs", response_model=LogPage)
+async def get_run_logs(
+    scenario_id: str,
+    run_id: str,
+    page: int = Query(default=1, ge=1),
+    page_size: int = Query(default=200, ge=1, le=500),
+    severity: Optional[str] = Query(default=None),
+    storage: WorkspaceStorage = Depends(get_storage),
+) -> LogPage:
+    """Get paginated log lines for a simulation run."""
+    workspace, scenario = _find_scenario_and_workspace(storage, scenario_id)
+    if not scenario or not workspace:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Scenario {scenario_id} not found",
+        )
+
+    scenario_path = storage._scenario_path(workspace.id, scenario_id)
+    log_file = scenario_path / "runs" / run_id / "simulation.log"
+
+    is_active = (
+        run_id in _active_runs and _active_runs[run_id].status == "running"
+    )
+
+    if not log_file.exists():
+        return LogPage(
+            run_id=run_id,
+            lines=[],
+            total_lines=0,
+            page=page,
+            page_size=page_size,
+            has_more=False,
+            is_running=is_active,
+            log_available=False,
+        )
+
+    lines = _parse_log_file(log_file)
+
+    if severity:
+        severity_upper = severity.upper()
+        lines = [ln for ln in lines if ln.severity == severity_upper]
+
+    total = len(lines)
+    offset = (page - 1) * page_size
+    page_lines = lines[offset: offset + page_size]
+
+    return LogPage(
+        run_id=run_id,
+        lines=page_lines,
+        total_lines=total,
+        page=page,
+        page_size=page_size,
+        has_more=(offset + page_size) < total,
+        is_running=is_active,
+        log_available=True,
+    )
+
+
+def _parse_log_file(log_file: Path) -> List[SimulationLogLine]:
+    """Read simulation.log and return a list of SimulationLogLine objects."""
+    from datetime import datetime, timezone
+
+    lines: List[SimulationLogLine] = []
+    try:
+        raw = log_file.read_text(encoding="utf-8", errors="replace")
+    except OSError:
+        return lines
+
+    for seq, raw_line in enumerate(raw.splitlines(), start=1):
+        raw_line = raw_line.strip()
+        if not raw_line:
+            continue
+        try:
+            # Format: 2025-01-15T10:30:00.123456Z [SEVERITY] message
+            bracket_open = raw_line.index(" [")
+            bracket_close = raw_line.index("] ", bracket_open)
+            ts_str = raw_line[:bracket_open]
+            sev = raw_line[bracket_open + 2: bracket_close]
+            msg = raw_line[bracket_close + 2:]
+            # Parse timestamp — strip trailing Z and add UTC
+            ts_str_clean = ts_str.rstrip("Z")
+            ts = datetime.fromisoformat(ts_str_clean).replace(tzinfo=timezone.utc)
+            if sev not in ("INFO", "WARNING", "ERROR"):
+                sev = "INFO"
+        except (ValueError, IndexError):
+            ts = datetime.now(timezone.utc)
+            sev = "INFO"
+            msg = raw_line
+
+        lines.append(SimulationLogLine(sequence=seq, timestamp=ts, severity=sev, message=msg))
+
+    return lines
 
 
 @router.get("/{scenario_id}/results", response_model=SimulationResults)

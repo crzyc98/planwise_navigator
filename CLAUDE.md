@@ -859,6 +859,8 @@ See `/docs/VERSIONING_GUIDE.md` for detailed versioning workflow.
 - `dbt/simulation.duckdb` (incremental model, self-referencing for prior-year deduplication) (086-dc-eligibility-events)
 - Python 3.11 (backend), TypeScript/React 18 (frontend) + FastAPI + Pydantic v2 (backend); React 18 + Tailwind CSS v4 (frontend); pandas ≥2.0, openpyxl ≥3.1, DuckDB 1.0.0 (data processing — all already in `pyproject.toml`) (087-data-import)
 - Filesystem JSON (session state + metadata) + Parquet files in `workspaces/{id}/` directories (087-data-import)
+- Python 3.11 (backend), TypeScript with React 18 (frontend) + FastAPI (backend API), Pydantic v2 (models), asyncio (subprocess streaming), React 18 + Tailwind CSS v4 (frontend) (088-sim-job-logs)
+- Filesystem — `simulation.log` in run directory; no DuckDB changes (088-sim-job-logs)
 
 ## Recent Changes
 - 063-1000-hr-eligibility: Added Python 3.11, SQL (dbt-core 1.8.8) + dbt-duckdb 1.8.1, DuckDB 1.0.0, Pydantic 2.7.4

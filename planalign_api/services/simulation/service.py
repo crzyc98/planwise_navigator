@@ -4,15 +4,17 @@ import asyncio
 import logging
 import os
 import shutil
-from datetime import datetime
+from collections import deque
+from datetime import datetime, timezone
 from pathlib import Path
-from typing import Any, Dict, List, Optional
+from typing import Any, Deque, Dict, List, Optional
 
 import psutil
 import yaml
 
 from ...models.simulation import (
     PerformanceMetrics,
+    SimulationLogLine,
     SimulationResults,
     SimulationTelemetry,
 )
@@ -21,6 +23,7 @@ from ..telemetry_service import get_telemetry_service
 from ..database_path_resolver import DatabasePathResolver
 
 from .db_cleanup import cleanup_years_outside_range
+from .log_writer import SimulationLogWriter
 from .output_parser import SimulationOutputParser
 from .results_reader import read_results
 from .run_archiver import archive_run, prune_old_runs
@@ -89,6 +92,7 @@ class SimulationService:
         # Defaults for error-handler fallback (overwritten below on success)
         start_year = 2025
         total_years = 3
+        log_writer: Optional[SimulationLogWriter] = None
 
         try:
             # Mark as running
@@ -102,10 +106,15 @@ class SimulationService:
                 self._prepare_simulation(workspace_id, scenario_id, config)
             )
 
+            # Create run dir early so partial logs survive failures (T005)
+            run_dir = scenario_path / "runs" / run_id
+            run_dir.mkdir(parents=True, exist_ok=True)
+            log_writer = SimulationLogWriter(run_dir)
+
             # Run the simulation subprocess loop
             parser, start_time, final_elapsed = await self._run_simulation_loop(
                 scenario_path, start_year, end_year, total_years,
-                run_id, config, update_run_status,
+                run_id, config, update_run_status, log_writer,
             )
 
             # Handle successful completion
@@ -113,6 +122,7 @@ class SimulationService:
                 workspace_id, scenario_id, run_id, config,
                 scenario_path, start_year, end_year, total_years,
                 parser, start_time, final_elapsed, update_run_status,
+                run_dir=run_dir,
             )
 
         except Exception as e:
@@ -120,6 +130,9 @@ class SimulationService:
                 e, workspace_id, scenario_id, run_id,
                 start_year, total_years, update_run_status,
             )
+        finally:
+            if log_writer is not None:
+                log_writer.close()
 
     def _prepare_simulation(
         self,
@@ -163,6 +176,7 @@ class SimulationService:
         run_id: str,
         config: Dict[str, Any],
         update_run_status,
+        log_writer: Optional["SimulationLogWriter"] = None,
     ) -> tuple:
         """Launch subprocess, stream output, and await completion.
 
@@ -196,6 +210,7 @@ class SimulationService:
         output_buffer = await self._stream_output(
             process, line_iterator, run_id, parser,
             total_years, start_time, telemetry_service, update_run_status,
+            log_writer,
         )
 
         # Await exit code
@@ -222,6 +237,7 @@ class SimulationService:
         start_time: datetime,
         final_elapsed: float,
         update_run_status,
+        run_dir: Optional[Path] = None,
     ) -> None:
         """Mark simulation completed, send final telemetry, archive artifacts."""
         update_run_status(
@@ -275,6 +291,7 @@ class SimulationService:
             end_year=end_year,
             events_generated=parser.events_generated,
             seed=seed,
+            run_dir=run_dir,
         )
 
         # Prune old runs
@@ -569,6 +586,7 @@ class SimulationService:
         start_time: datetime,
         telemetry_service,
         update_run_status,
+        log_writer: Optional["SimulationLogWriter"] = None,
     ) -> List[str]:
         """Read subprocess output, parse progress, broadcast telemetry.
 
@@ -576,6 +594,8 @@ class SimulationService:
         """
         output_buffer: List[str] = []
         MAX_OUTPUT_BUFFER = 50
+        log_line_window: Deque[SimulationLogLine] = deque(maxlen=50)
+        sequence = 0
 
         async for line in line_iterator:
             if run_id in self._cancelled_runs:
@@ -592,9 +612,26 @@ class SimulationService:
             if len(output_buffer) > MAX_OUTPUT_BUFFER:
                 output_buffer.pop(0)
 
+            # Classify severity once; reuse for log writer and telemetry
+            severity = SimulationOutputParser.classify_line(line_text)
+
+            # Persist line to simulation.log
+            if log_writer is not None:
+                log_writer.write_line(severity, line_text)
+
+            # Add to rolling window for WebSocket telemetry
+            sequence += 1
+            log_line_window.append(SimulationLogLine(
+                sequence=sequence,
+                timestamp=datetime.now(timezone.utc),
+                severity=severity.upper() if severity != "debug" else "INFO",
+                message=line_text,
+            ))
+
             self._process_output_line(
                 line_text, run_id, parser, total_years,
                 start_time, telemetry_service, update_run_status,
+                list(log_line_window),
             )
 
         return output_buffer
@@ -608,6 +645,7 @@ class SimulationService:
         start_time: datetime,
         telemetry_service,
         update_run_status,
+        recent_log_lines: Optional[List["SimulationLogLine"]] = None,
     ) -> None:
         """Classify, parse, and broadcast a single output line."""
         # Route to appropriate log level
@@ -646,6 +684,7 @@ class SimulationService:
             elapsed_seconds=elapsed_seconds,
             events_per_second=events_per_second,
             recent_events=parser.recent_events,
+            recent_log_lines=recent_log_lines or [],
         )
 
     @staticmethod

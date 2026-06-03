@@ -32,6 +32,7 @@ def archive_run(
     end_year: int,
     events_generated: int,
     seed: int,
+    run_dir: Optional[Path] = None,
 ) -> Optional[Path]:
     """Persist run artifacts (config, metadata, database copy, Excel export).
 
@@ -48,11 +49,14 @@ def archive_run(
         end_year: Last simulation year.
         events_generated: Total events generated.
         seed: Random seed used.
+        run_dir: Pre-created run directory (created early for log persistence).
+            If omitted, computed as scenario_path/runs/run_id.
 
     Returns:
         Path to the Excel export if created, else None.
     """
-    run_dir = scenario_path / "runs" / run_id
+    if run_dir is None:
+        run_dir = scenario_path / "runs" / run_id
     run_dir.mkdir(parents=True, exist_ok=True)
 
     # Save config YAML
