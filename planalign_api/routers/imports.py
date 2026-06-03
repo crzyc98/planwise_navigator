@@ -237,6 +237,11 @@ async def upload_file(
         column_renames=column_renames or None,
     )
 
+    # Retain original bytes so sheet re-selection can re-parse
+    session_dir = service._session_path(workspace_id, session.import_id)
+    orig_path = session_dir / f"_orig_{file.filename}"
+    orig_path.write_bytes(content)
+
     # Persist source as parquet for downstream use
     source_path = service._source_parquet_path(workspace_id, session.import_id)
     import duckdb
