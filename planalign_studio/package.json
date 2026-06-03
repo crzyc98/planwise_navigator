@@ -19,7 +19,8 @@
   },
   "overrides": {
     "enhanced-resolve": "5.20.0",
-    "es-toolkit": "1.45.1"
+    "es-toolkit": "1.45.1",
+    "electron-to-chromium": "1.5.331"
   },
   "devDependencies": {
     "@types/node": "^25.1.0",
