@@ -77,6 +77,7 @@ export interface SimulationTelemetry {
     timestamp: string;
     details: string | null;
   }>;
+  recent_log_lines: SimulationLogLine[];
   timestamp: string;
 }
 
@@ -578,6 +579,50 @@ export async function listRuns(scenarioId: string): Promise<RunSummary[]> {
 export async function getRunById(scenarioId: string, runId: string): Promise<RunDetails> {
   const response = await fetch(`${API_BASE}/api/scenarios/${scenarioId}/runs/${runId}`);
   return handleResponse<RunDetails>(response);
+}
+
+// ============================================================================
+// Simulation Log Endpoints (001-sim-job-logs)
+// ============================================================================
+
+export interface SimulationLogLine {
+  sequence: number;
+  timestamp: string;
+  severity: 'INFO' | 'WARNING' | 'ERROR';
+  message: string;
+}
+
+export interface LogPage {
+  run_id: string;
+  lines: SimulationLogLine[];
+  total_lines: number;
+  page: number;
+  page_size: number;
+  has_more: boolean;
+  is_running: boolean;
+  log_available: boolean;
+}
+
+export async function fetchRunLogs(
+  scenarioId: string,
+  runId: string,
+  page: number = 1,
+  pageSize: number = 200,
+  severity?: 'INFO' | 'WARNING' | 'ERROR'
+): Promise<LogPage> {
+  const params = new URLSearchParams({
+    page: page.toString(),
+    page_size: pageSize.toString(),
+  });
+  if (severity) params.set('severity', severity);
+  const response = await fetch(
+    `${API_BASE}/api/scenarios/${scenarioId}/runs/${runId}/logs?${params}`
+  );
+  return handleResponse<LogPage>(response);
+}
+
+export function getRunLogDownloadUrl(scenarioId: string, runId: string): string {
+  return getArtifactDownloadUrl(scenarioId, `runs/${runId}/simulation.log`);
 }
 
 // ============================================================================

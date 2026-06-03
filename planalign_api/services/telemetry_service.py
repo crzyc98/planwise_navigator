@@ -8,6 +8,7 @@ from typing import Any, Dict, Optional, Set
 from ..models.simulation import (
     PerformanceMetrics,
     RecentEvent,
+    SimulationLogLine,
     SimulationTelemetry,
 )
 
@@ -33,6 +34,7 @@ class TelemetryService:
         events_per_second: float = 0.0,
         elapsed_seconds: float = 0.0,
         recent_events: Optional[list] = None,
+        recent_log_lines: Optional[list] = None,
     ) -> None:
         """Update telemetry data for a run."""
         memory_pressure = self._calculate_memory_pressure(memory_mb)
@@ -52,6 +54,10 @@ class TelemetryService:
             ),
             recent_events=[
                 RecentEvent(**e) for e in (recent_events or [])
+            ],
+            recent_log_lines=[
+                ll if isinstance(ll, SimulationLogLine) else SimulationLogLine(**ll)
+                for ll in (recent_log_lines or [])
             ],
             timestamp=datetime.now(timezone.utc),
         )

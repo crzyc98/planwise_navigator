@@ -6,6 +6,28 @@ from typing import Any, Dict, List, Literal, Optional
 from pydantic import BaseModel, Field
 
 
+class SimulationLogLine(BaseModel):
+    """A single parsed log entry from a simulation run."""
+
+    sequence: int = Field(..., ge=1, description="1-based line number within the log file")
+    timestamp: datetime = Field(..., description="UTC timestamp when the line was produced")
+    severity: Literal["INFO", "WARNING", "ERROR"] = Field(..., description="Severity level")
+    message: str = Field(..., description="Log message text")
+
+
+class LogPage(BaseModel):
+    """Paginated log lines for the log viewer endpoint."""
+
+    run_id: str = Field(..., description="The run these log lines belong to")
+    lines: List[SimulationLogLine] = Field(default_factory=list)
+    total_lines: int = Field(..., description="Total lines in the log file")
+    page: int = Field(..., ge=1, description="Current page number (1-based)")
+    page_size: int = Field(..., ge=1, description="Lines per page requested")
+    has_more: bool = Field(..., description="True if additional pages exist")
+    is_running: bool = Field(..., description="True if simulation is still in progress")
+    log_available: bool = Field(..., description="False if no log file exists yet")
+
+
 class PerformanceMetrics(BaseModel):
     """Real-time performance metrics during simulation."""
 
@@ -63,6 +85,9 @@ class SimulationTelemetry(BaseModel):
     performance_metrics: PerformanceMetrics = Field(description="Performance metrics")
     recent_events: List[RecentEvent] = Field(
         default_factory=list, description="Recent events (last 20)"
+    )
+    recent_log_lines: List[SimulationLogLine] = Field(
+        default_factory=list, description="Recent log lines (rolling window of 50)"
     )
     timestamp: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
 

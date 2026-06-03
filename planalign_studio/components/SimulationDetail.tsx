@@ -22,8 +22,10 @@ import {
   History,
   Play,
   FolderOpen,
+  ScrollText,
 } from 'lucide-react';
 import { getRunDetails, getArtifactDownloadUrl, getResultsExportUrl, listRuns, getRunById, RunDetails, Artifact, RunSummary } from '../services/api';
+import LogViewer from './simulation/LogViewer';
 
 const formatBytes = (bytes: number): string => {
   if (bytes === 0) return '0 B';
@@ -98,6 +100,7 @@ export default function SimulationDetail() {
   const [runs, setRuns] = useState<RunSummary[]>([]);
   const [expandedRuns, setExpandedRuns] = useState<Set<string>>(new Set());
   const [runArtifacts, setRunArtifacts] = useState<Record<string, Artifact[]>>({});
+  const [activeRunTab, setActiveRunTab] = useState<Record<string, 'artifacts' | 'logs'>>({});
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [configExpanded, setConfigExpanded] = useState(false);
@@ -395,46 +398,84 @@ export default function SimulationDetail() {
                   </div>
                 </button>
 
-                {/* Expanded Artifacts */}
+                {/* Expanded Run Panel */}
                 {expandedRuns.has(run.id) && (
-                  <div className="border-t border-gray-200 bg-gray-50 p-4">
-                    {runArtifacts[run.id] ? (
-                      runArtifacts[run.id].length > 0 ? (
-                        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-2">
-                          {runArtifacts[run.id].map((artifact) => (
-                            <a
-                              key={artifact.path}
-                              href={getArtifactDownloadUrl(details.scenario_id, artifact.path)}
-                              className="flex items-center p-3 bg-white hover:bg-gray-100 rounded-lg border border-gray-200 transition-colors group"
-                            >
-                              {getArtifactIcon(artifact.type)}
-                              <div className="ml-3 flex-1 min-w-0">
-                                <p className="font-medium text-sm text-gray-900 group-hover:text-fidelity-green truncate">
-                                  {artifact.name}
-                                </p>
-                                <p className="text-xs text-gray-500">
-                                  {formatBytes(artifact.size_bytes)}
-                                </p>
-                              </div>
-                              <ExternalLink size={14} className="text-gray-400 group-hover:text-fidelity-green ml-2" />
-                            </a>
-                          ))}
-                        </div>
-                      ) : (
-                        <p className="text-sm text-gray-500 text-center py-2">No artifacts found for this run.</p>
-                      )
-                    ) : (
-                      <div className="flex items-center justify-center py-2">
-                        <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-fidelity-green"></div>
-                        <span className="ml-2 text-sm text-gray-500">Loading artifacts...</span>
-                      </div>
-                    )}
+                  <div className="border-t border-gray-200 bg-gray-50">
+                    {/* Tab bar */}
+                    <div className="flex border-b border-gray-200 bg-white">
+                      <button
+                        onClick={() => setActiveRunTab(t => ({ ...t, [run.id]: 'artifacts' }))}
+                        className={`flex items-center px-4 py-2.5 text-sm font-medium border-b-2 transition-colors ${
+                          (activeRunTab[run.id] ?? 'artifacts') === 'artifacts'
+                            ? 'border-fidelity-green text-fidelity-green'
+                            : 'border-transparent text-gray-500 hover:text-gray-700'
+                        }`}
+                      >
+                        <Download size={14} className="mr-1.5" />
+                        Artifacts
+                      </button>
+                      <button
+                        onClick={() => setActiveRunTab(t => ({ ...t, [run.id]: 'logs' }))}
+                        className={`flex items-center px-4 py-2.5 text-sm font-medium border-b-2 transition-colors ${
+                          activeRunTab[run.id] === 'logs'
+                            ? 'border-fidelity-green text-fidelity-green'
+                            : 'border-transparent text-gray-500 hover:text-gray-700'
+                        }`}
+                      >
+                        <ScrollText size={14} className="mr-1.5" />
+                        Logs
+                      </button>
+                    </div>
 
-                    {/* Run ID */}
-                    <div className="mt-3 pt-3 border-t border-gray-200">
-                      <code className="text-xs text-gray-400 font-mono">
-                        Run ID: {run.id}
-                      </code>
+                    <div className="p-4">
+                      {(activeRunTab[run.id] ?? 'artifacts') === 'artifacts' ? (
+                        <>
+                          {runArtifacts[run.id] ? (
+                            runArtifacts[run.id].length > 0 ? (
+                              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-2">
+                                {runArtifacts[run.id].map((artifact) => (
+                                  <a
+                                    key={artifact.path}
+                                    href={getArtifactDownloadUrl(details.scenario_id, artifact.path)}
+                                    className="flex items-center p-3 bg-white hover:bg-gray-100 rounded-lg border border-gray-200 transition-colors group"
+                                  >
+                                    {getArtifactIcon(artifact.type)}
+                                    <div className="ml-3 flex-1 min-w-0">
+                                      <p className="font-medium text-sm text-gray-900 group-hover:text-fidelity-green truncate">
+                                        {artifact.name}
+                                      </p>
+                                      <p className="text-xs text-gray-500">
+                                        {formatBytes(artifact.size_bytes)}
+                                      </p>
+                                    </div>
+                                    <ExternalLink size={14} className="text-gray-400 group-hover:text-fidelity-green ml-2" />
+                                  </a>
+                                ))}
+                              </div>
+                            ) : (
+                              <p className="text-sm text-gray-500 text-center py-2">No artifacts found for this run.</p>
+                            )
+                          ) : (
+                            <div className="flex items-center justify-center py-2">
+                              <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-fidelity-green"></div>
+                              <span className="ml-2 text-sm text-gray-500">Loading artifacts...</span>
+                            </div>
+                          )}
+                        </>
+                      ) : (
+                        <LogViewer
+                          scenarioId={details.scenario_id}
+                          runId={run.id}
+                          isRunning={run.status === 'running'}
+                        />
+                      )}
+
+                      {/* Run ID */}
+                      <div className="mt-3 pt-3 border-t border-gray-200">
+                        <code className="text-xs text-gray-400 font-mono">
+                          Run ID: {run.id}
+                        </code>
+                      </div>
                     </div>
                   </div>
                 )}
