@@ -17,7 +17,7 @@ class APISettings(BaseSettings):
 
     # Storage
     workspaces_root: Path = Field(
-        default_factory=lambda: Path.home() / ".planalign" / "workspaces"
+        default_factory=lambda: Path(__file__).parent.parent / "workspaces"
     )
     storage_limit_gb: float = 10.0
 
