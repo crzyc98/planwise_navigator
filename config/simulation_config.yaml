@@ -544,14 +544,14 @@ optimization:
 orchestrator:
   # Epic E067: Multi-Threading Support - dbt Threading Configuration
   threading:
-    enabled: true  # Enable configurable threading support
-    thread_count: 4  # Number of threads for dbt execution (1-16)
+    enabled: false  # Enable configurable threading support
+    thread_count: 1  # Number of threads for dbt execution (1-16)
     mode: "selective"  # Threading mode: selective, aggressive, sequential
     memory_per_thread_gb: 2.0  # Memory allocation per thread in GB
 
     # Epic E067 Story S067-02: Model-Level Parallelization Configuration
     parallelization:
-      enabled: true   # Enable model-level parallelization for performance
+      enabled: false  # Enable model-level parallelization for performance
       max_workers: 4  # Maximum parallel workers for model execution
       memory_limit_mb: 6000.0  # Memory limit for parallel execution (6GB)
       deterministic_execution: true  # Ensure reproducible results (CRITICAL for financial simulations)
@@ -654,8 +654,8 @@ multi_year:
 
   # State management
   state:
-    enable_checkpointing: true  # Enable simulation checkpointing for resume
-    checkpoint_frequency: 1  # Checkpoint every N years
+    enable_checkpointing: false  # Enable simulation checkpointing for resume
+    checkpoint_frequency: 0  # Checkpoint every N years (0 = disabled)
     preserve_intermediate_states: false  # Keep intermediate year states
     compression_level: 6  # State compression level (1-9)
 
