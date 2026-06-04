@@ -8,6 +8,45 @@ from uuid import uuid4
 
 from pydantic import BaseModel, Field
 
+# ---------------------------------------------------------------------------
+# Schema-mapping types (089-import-schema-mapping)
+# ---------------------------------------------------------------------------
+
+ConfidenceLevel = Literal["high", "medium", "low"]
+
+SuggestionReason = Literal[
+    "name_match", "alias_match", "value_pattern", "prior_mapping", "no_match"
+]
+
+
+class FormatDetectionResult(BaseModel):
+    detected_format: Optional[str] = None
+    parsed_sample_values: List[str] = Field(default_factory=list)
+    is_ambiguous: bool = False
+    format_options: Optional[List[str]] = None
+
+
+class ColumnSuggestion(BaseModel):
+    input_column: str
+    suggested_canonical_field: Optional[str] = None
+    confidence: ConfidenceLevel = "low"
+    confidence_score: float = 0.0
+    reason: SuggestionReason = "no_match"
+    format_detection: Optional[FormatDetectionResult] = None
+
+
+class DataQualityResult(BaseModel):
+    duplicate_employee_id_count: int = 0
+    null_required_field_counts: Dict[str, int] = Field(default_factory=dict)
+    compensation_outlier_count: int = 0
+
+
+class SuggestionsResponse(BaseModel):
+    import_id: str
+    suggestions: List[ColumnSuggestion]
+    data_quality: DataQualityResult
+    canonical_schema: List[Dict[str, Any]] = Field(default_factory=list)
+
 
 class ImportStatus:
     uploaded = "uploaded"

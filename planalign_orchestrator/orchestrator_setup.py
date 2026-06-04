@@ -211,15 +211,15 @@ def setup_parallelization(
             parallel_execution_engine = ParallelExecutionEngine(
                 dbt_runner=dbt_runner,
                 dependency_analyzer=dependency_analyzer,
-                max_workers=parallelization_config.max_parallel_models,
+                max_workers=parallelization_config.max_workers,
                 logger=logger,
                 resource_manager=resource_manager
             )
 
-            logger.debug("Model-level parallelization enabled: max_parallel=%d, "
-                         "dependency_aware=%s, advanced_rm=%s",
-                         parallelization_config.max_parallel_models,
-                         parallelization_config.dependency_aware_scheduling,
+            logger.debug("Model-level parallelization enabled: max_workers=%d, "
+                         "deterministic=%s, advanced_rm=%s",
+                         parallelization_config.max_workers,
+                         parallelization_config.deterministic_execution,
                          'enabled' if resource_manager else 'disabled')
 
             return parallel_execution_engine, parallelization_config, resource_manager, dependency_analyzer, True
@@ -251,22 +251,36 @@ def _create_resource_manager(config: Any, verbose: bool = False) -> Optional[Any
         from .logger import ProductionLogger
         logger = ProductionLogger("ResourceManager")
 
-        # Create resource manager with config
-        resource_manager = ResourceManager(
-            memory_limit_mb=config.memory_limit_mb,
-            cpu_limit_percent=config.cpu_limit_percent,
-            enable_gc_on_pressure=config.enable_gc_on_pressure,
-            enable_connection_pooling=config.enable_connection_pooling,
-            connection_pool_size=config.connection_pool_size,
-            enable_memory_profiling=config.enable_memory_profiling,
-            logger=logger
-        )
+        resource_config = {
+            "memory": {
+                "monitoring_interval": config.memory_monitoring.monitoring_interval_seconds,
+                "history_size": config.memory_monitoring.history_size,
+                "thresholds": {
+                    "moderate_mb": config.memory_monitoring.thresholds.moderate_mb,
+                    "high_mb": config.memory_monitoring.thresholds.high_mb,
+                    "critical_mb": config.memory_monitoring.thresholds.critical_mb,
+                    "gc_trigger_mb": config.memory_monitoring.thresholds.gc_trigger_mb,
+                    "fallback_trigger_mb": config.memory_monitoring.thresholds.fallback_trigger_mb,
+                },
+            },
+            "cpu": {
+                "monitoring_interval": config.cpu_monitoring.monitoring_interval_seconds,
+                "history_size": config.cpu_monitoring.history_size,
+                "thresholds": {
+                    "moderate_percent": config.cpu_monitoring.thresholds.moderate_percent,
+                    "high_percent": config.cpu_monitoring.thresholds.high_percent,
+                    "critical_percent": config.cpu_monitoring.thresholds.critical_percent,
+                },
+            },
+        }
+        resource_manager = ResourceManager(config=resource_config, logger=logger)
 
-        logger.info("Resource Manager initialized: memory_limit=%.0fMB, cpu_limit=%.0f%%, "
-                    "gc_on_pressure=%s, connection_pooling=%s (pool=%d)",
-                    config.memory_limit_mb, config.cpu_limit_percent,
-                    config.enable_gc_on_pressure, config.enable_connection_pooling,
-                    config.connection_pool_size)
+        logger.info("Resource Manager initialized: cleanup_threshold=%.0fMB, "
+                    "cpu_high=%.0f%%, adaptive_scaling=%s, threads=%d-%d",
+                    config.cleanup_threshold_mb,
+                    config.cpu_monitoring.thresholds.high_percent,
+                    config.adaptive_scaling_enabled,
+                    config.min_threads, config.max_threads)
 
         return resource_manager
 

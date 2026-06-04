@@ -292,3 +292,6 @@ pnpm-lock.yaml
 # Vite
 .vite/
 .specify/
+
+# PlanAlign Studio workspace data (user scenarios, imports, databases)
+workspaces/
