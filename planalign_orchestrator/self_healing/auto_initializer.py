@@ -391,11 +391,23 @@ class AutoInitializer:
             )
 
     def _run_dbt_foundation(self) -> None:
-        """Run dbt to build foundation models."""
+        """Run dbt to build staging then foundation models."""
+        # Staging models (stg_config_job_levels etc.) must exist before FOUNDATION models
+        # can run — they wrap seed tables that were just loaded by _run_dbt_seed.
+        staging_result = self.dbt_runner.execute_command(
+            ["run", "--select", "staging.*", "--threads", "1"],
+            stream_output=self.verbose,
+            simulation_year=self.start_year,
+        )
+        if not staging_result.success:
+            raise InitializationError(
+                f"dbt run staging.* failed: {staging_result.stderr or staging_result.stdout}",
+                step="build_foundation",
+            )
         result = self.dbt_runner.execute_command(
             ["run", "--select", "tag:FOUNDATION", "--threads", "1"],
             stream_output=self.verbose,
-            simulation_year=self.start_year,  # FIX: Pass start_year to avoid default 2025
+            simulation_year=self.start_year,
         )
         if not result.success:
             raise InitializationError(
