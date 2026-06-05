@@ -861,6 +861,8 @@ See `/docs/VERSIONING_GUIDE.md` for detailed versioning workflow.
 - Filesystem JSON (session state + metadata) + Parquet files in `workspaces/{id}/` directories (087-data-import)
 - Python 3.11 (backend), TypeScript with React 18 (frontend) + FastAPI (backend API), Pydantic v2 (models), asyncio (subprocess streaming), React 18 + Tailwind CSS v4 (frontend) (088-sim-job-logs)
 - Filesystem — `simulation.log` in run directory; no DuckDB changes (088-sim-job-logs)
+- Python 3.11 + FastAPI, pandas ≥2.0, DuckDB 1.0.0, Pydantic v2 (090-fix-import-str-type)
+- Filesystem (Parquet files per import session, no DuckDB state changes) (090-fix-import-str-type)
 
 ## Recent Changes
 - 063-1000-hr-eligibility: Added Python 3.11, SQL (dbt-core 1.8.8) + dbt-duckdb 1.8.1, DuckDB 1.0.0, Pydantic 2.7.4
