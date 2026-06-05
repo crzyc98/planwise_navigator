@@ -250,6 +250,7 @@ class ImportService:
         conn = duckdb.connect(":memory:")
         df = conn.execute(f"SELECT * FROM read_parquet('{source_path}')").df()
         conn.close()
+        df = _normalize_dtypes_for_duckdb(df)
 
         try:
             transformed = self._engine.apply(df, mappings)
@@ -274,6 +275,7 @@ class ImportService:
         output_dir.mkdir(parents=True, exist_ok=True)
         output_path = output_dir / filename
 
+        transformed = _normalize_dtypes_for_duckdb(transformed)
         conn = duckdb.connect(":memory:")
         conn.register("_transformed", transformed)
         conn.execute(f"COPY _transformed TO '{output_path}' (FORMAT PARQUET)")
@@ -472,6 +474,15 @@ class ImportService:
 # ------------------------------------------------------------------
 # Internal helpers
 # ------------------------------------------------------------------
+
+def _normalize_dtypes_for_duckdb(df: pd.DataFrame) -> pd.DataFrame:
+    """Cast pandas StringDtype columns to object so DuckDB 1.0.0 can register the DataFrame.
+
+    DuckDB's read_parquet().df() returns StringDtype columns; DuckDB cannot re-register those.
+    """
+    str_cols = [c for c in df.columns if isinstance(df[c].dtype, pd.StringDtype)]
+    return df.astype({c: object for c in str_cols}) if str_cols else df
+
 
 def _infer_output_type(series: pd.Series) -> str:
     dtype = series.dtype

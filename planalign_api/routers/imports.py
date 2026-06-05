@@ -519,6 +519,7 @@ def generate_parquet(
     try:
         service.generate_parquet(import_id, workspace_id, user=x_user_id)
     except Exception as exc:
+        # detail=str(exc) exposes internal errors — future: map exceptions to user-facing messages
         raise HTTPException(status_code=422, detail=str(exc)) from exc
 
     return GenerateResponse(
