@@ -14,6 +14,8 @@ from ..models.files import (
     FileValidationRequest,
     FileValidationResponse,
     LevelDistributionResponse,
+    SetCensusPathRequest,
+    SetCensusPathResponse,
 )
 from ..services.compensation_solver import CompensationSolver, WorkforceDynamics
 from ..services.file_service import FileService
@@ -173,6 +175,40 @@ async def validate_file_path(
     return FileValidationResponse(
         file_path=request.file_path,
         **result,
+    )
+
+
+@router.post(
+    "/{workspace_id}/set-census-path",
+    response_model=SetCensusPathResponse,
+    summary="Set census path",
+    description="Assign an existing Parquet file as the workspace census data source",
+)
+async def set_census_path(
+    workspace_id: str,
+    request: SetCensusPathRequest,
+) -> SetCensusPathResponse:
+    """Validate an existing file path and write it to the workspace census config."""
+    service = get_file_service()
+    result = service.validate_path(workspace_id=workspace_id, file_path=request.file_path)
+
+    if not result.get("valid"):
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail=result.get("error_message", "Invalid or unreadable file path"),
+        )
+
+    storage = get_workspace_storage()
+    storage.update_base_config_key(
+        workspace_id=workspace_id,
+        key_path="setup.census_parquet_path",
+        value=request.file_path,
+    )
+
+    return SetCensusPathResponse(
+        success=True,
+        file_path=request.file_path,
+        row_count=result.get("row_count") or 0,
     )
 
 

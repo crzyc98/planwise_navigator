@@ -50,11 +50,11 @@ raw_data AS (
       TRY_CAST(employee_birth_date AS DATE) AS employee_birth_date,
       TRY_CAST(employee_hire_date AS DATE) AS employee_hire_date,
       TRY_CAST(employee_termination_date AS DATE) AS employee_termination_date,
-      employee_gross_compensation,
+      CAST(employee_gross_compensation AS DOUBLE) AS employee_gross_compensation,
       active,
 
       -- Use gross compensation as plan year compensation when specific column missing
-      employee_gross_compensation AS raw_plan_year_compensation,
+      CAST(employee_gross_compensation AS DOUBLE) AS raw_plan_year_compensation,
 
       -- DC plan fields (now safely available via schema scaffold)
       CAST(employee_capped_compensation AS DECIMAL(12,2)) AS employee_capped_compensation,

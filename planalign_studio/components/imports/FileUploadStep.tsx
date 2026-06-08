@@ -1,10 +1,12 @@
 import React, { useRef, useState } from 'react';
-import { Upload, AlertCircle, Loader2 } from 'lucide-react';
+import { Upload, AlertCircle, Loader2, Check } from 'lucide-react';
 import { ImportSession, DetectedColumn, uploadFile, selectSheet } from '../../services/importService';
+import { uploadCensusFile, FileUploadResponse } from '../../services/api';
 
 interface Props {
   workspaceId: string;
   onDone: (session: ImportSession) => void;
+  onParquetDone?: (result: FileUploadResponse) => void;
 }
 
 function InferredTypeBadge({ type }: { type: string }) {
@@ -24,13 +26,16 @@ function InferredTypeBadge({ type }: { type: string }) {
   );
 }
 
-export default function FileUploadStep({ workspaceId, onDone }: Props) {
+export default function FileUploadStep({ workspaceId, onDone, onParquetDone }: Props) {
   const [session, setSession] = useState<ImportSession | null>(null);
   const [isDragging, setIsDragging] = useState(false);
   const [isUploading, setIsUploading] = useState(false);
   const [isSelectingSheet, setIsSelectingSheet] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [isParquetUploading, setIsParquetUploading] = useState(false);
+  const [parquetError, setParquetError] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const parquetInputRef = useRef<HTMLInputElement>(null);
 
   const handleFile = async (file: File) => {
     setError(null);
@@ -45,6 +50,20 @@ export default function FileUploadStep({ workspaceId, onDone }: Props) {
       setError(err instanceof Error ? err.message : 'Upload failed');
     } finally {
       setIsUploading(false);
+    }
+  };
+
+  const handleParquetFile = async (file: File) => {
+    setParquetError(null);
+    setIsParquetUploading(true);
+    try {
+      const result = await uploadCensusFile(workspaceId, file);
+      onParquetDone?.(result);
+    } catch (err) {
+      setParquetError(err instanceof Error ? err.message : 'Upload failed');
+    } finally {
+      setIsParquetUploading(false);
+      if (parquetInputRef.current) parquetInputRef.current.value = '';
     }
   };
 
@@ -102,6 +121,7 @@ export default function FileUploadStep({ workspaceId, onDone }: Props) {
 
   return (
     <div className="space-y-6">
+      {/* CSV / Excel drop zone */}
       <div
         onDragOver={(e) => { e.preventDefault(); setIsDragging(true); }}
         onDragLeave={() => setIsDragging(false)}
@@ -176,6 +196,52 @@ export default function FileUploadStep({ workspaceId, onDone }: Props) {
             </table>
           </div>
         </div>
+      )}
+
+      {/* Parquet direct upload */}
+      {onParquetDone && (
+        <>
+          <div className="flex items-center gap-3 text-xs text-gray-400">
+            <div className="flex-1 border-t border-gray-200" />
+            or upload a Parquet directly
+            <div className="flex-1 border-t border-gray-200" />
+          </div>
+
+          <div
+            onClick={() => parquetInputRef.current?.click()}
+            className="border-2 border-dashed border-gray-200 rounded-xl p-6 text-center cursor-pointer hover:border-fidelity-green hover:bg-gray-50 transition-colors"
+          >
+            <input
+              ref={parquetInputRef}
+              type="file"
+              accept=".parquet"
+              className="hidden"
+              onChange={(e) => {
+                const file = e.target.files?.[0];
+                if (file) handleParquetFile(file);
+              }}
+            />
+            {isParquetUploading ? (
+              <div className="flex flex-col items-center gap-2">
+                <Loader2 size={28} className="text-fidelity-green animate-spin" />
+                <p className="text-sm text-gray-600">Validating and saving Parquet…</p>
+              </div>
+            ) : (
+              <div className="flex flex-col items-center gap-2">
+                <Check size={28} className="text-gray-300" />
+                <p className="text-sm font-medium text-gray-600">Already have a Parquet?</p>
+                <p className="text-xs text-gray-400">Drop or click to upload a .parquet file — no mapping needed</p>
+              </div>
+            )}
+          </div>
+
+          {parquetError && (
+            <div className="flex items-start gap-2 text-red-600 text-sm bg-red-50 border border-red-200 rounded-lg p-3">
+              <AlertCircle size={16} className="shrink-0 mt-0.5" />
+              <span>{parquetError}</span>
+            </div>
+          )}
+        </>
       )}
     </div>
   );

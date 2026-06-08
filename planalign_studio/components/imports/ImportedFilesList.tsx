@@ -1,11 +1,12 @@
 import React, { useEffect, useState } from 'react';
-import { Download, Trash2, Loader2, AlertCircle } from 'lucide-react';
+import { Download, Trash2, Loader2, AlertCircle, Check } from 'lucide-react';
 import {
   ParquetFile,
   listParquetFiles,
   downloadParquetFileUrl,
   deleteParquetFile,
 } from '../../services/importService';
+import { setCensusPath } from '../../services/api';
 
 interface Props {
   workspaceId: string;
@@ -24,6 +25,8 @@ export default function ImportedFilesList({ workspaceId, currentUserId = 'system
   const [error, setError] = useState<string | null>(null);
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const [confirmDelete, setConfirmDelete] = useState<string | null>(null);
+  const [settingCensus, setSettingCensus] = useState<string | null>(null);
+  const [censusSuccess, setCensusSuccess] = useState<string | null>(null);
 
   const load = () => {
     setIsLoading(true);
@@ -34,6 +37,19 @@ export default function ImportedFilesList({ workspaceId, currentUserId = 'system
   };
 
   useEffect(load, [workspaceId]);
+
+  const handleSetCensus = async (fileId: string, storagePath: string) => {
+    setSettingCensus(fileId);
+    try {
+      await setCensusPath(workspaceId, storagePath);
+      setCensusSuccess(fileId);
+      setTimeout(() => setCensusSuccess(null), 3000);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to set census path');
+    } finally {
+      setSettingCensus(null);
+    }
+  };
 
   const handleDelete = async (fileId: string) => {
     setDeletingId(fileId);
@@ -103,7 +119,22 @@ export default function ImportedFilesList({ workspaceId, currentUserId = 'system
                 </td>
                 <td className="px-4 py-2 text-xs text-gray-500">{f.created_by}</td>
                 <td className="px-4 py-2">
-                  <div className="flex items-center gap-2 justify-end">
+                  <div className="flex items-center gap-3 justify-end">
+                    {settingCensus === f.file_id ? (
+                      <Loader2 size={14} className="animate-spin text-fidelity-green" />
+                    ) : censusSuccess === f.file_id ? (
+                      <span className="flex items-center gap-1 text-xs text-green-600 font-medium">
+                        <Check size={12} /> Set
+                      </span>
+                    ) : (
+                      <button
+                        onClick={() => handleSetCensus(f.file_id, f.storage_path)}
+                        className="text-xs text-fidelity-green font-medium hover:underline whitespace-nowrap"
+                        title="Use this file as the workspace census data source"
+                      >
+                        Use as Census
+                      </button>
+                    )}
                     <a
                       href={downloadParquetFileUrl(workspaceId, f.file_id)}
                       download={f.filename}

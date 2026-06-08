@@ -863,6 +863,8 @@ See `/docs/VERSIONING_GUIDE.md` for detailed versioning workflow.
 - Filesystem — `simulation.log` in run directory; no DuckDB changes (088-sim-job-logs)
 - Python 3.11 + FastAPI, pandas ≥2.0, DuckDB 1.0.0, Pydantic v2 (090-fix-import-str-type)
 - Filesystem (Parquet files per import session, no DuckDB state changes) (090-fix-import-str-type)
+- Python 3.11 + DuckDB 1.0.0 (in-process read test), FastAPI, Pydantic v2, concurrent.futures (stdlib timeout) (091-census-file-errors)
+- No persistent schema changes; `error_message` string content improved (091-census-file-errors)
 
 ## Recent Changes
 - 063-1000-hr-eligibility: Added Python 3.11, SQL (dbt-core 1.8.8) + dbt-duckdb 1.8.1, DuckDB 1.0.0, Pydantic 2.7.4
