@@ -96,10 +96,8 @@ models:
         description: "Employer match contribution amount."
         data_type: decimal(12,2)
       - name: eligibility_entry_date
-        description: "Benefit eligibility entry date."
+        description: "Optional override for plan eligibility entry date. NULL when not provided."
         data_type: date
-        constraints:
-          - type: not_null
       - name: employee_eligibility_date
         description: "Date when employee becomes eligible for DC plan participation (hire date + waiting period)."
         data_type: date

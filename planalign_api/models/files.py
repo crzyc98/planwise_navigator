@@ -127,6 +127,20 @@ class FileValidationResponse(BaseModel):
     )
 
 
+class SetCensusPathRequest(BaseModel):
+    """Request to set an existing file as the workspace census data source."""
+
+    file_path: str = Field(..., description="Path to a previously generated Parquet file")
+
+
+class SetCensusPathResponse(BaseModel):
+    """Response after setting census path."""
+
+    success: bool
+    file_path: str
+    row_count: int
+
+
 class CompensationSolverRequest(BaseModel):
     """Request to solve for compensation parameters."""
 

@@ -1,8 +1,9 @@
 import React, { useState } from 'react';
 import { Upload, Map, Eye, CheckCircle2, ArrowLeft } from 'lucide-react';
-import { useOutletContext } from 'react-router-dom';
+import { Link, useOutletContext } from 'react-router-dom';
 import { LayoutContextType } from './Layout';
 import { ImportSession, FieldMapping, ParquetFile, SuggestionsResponse } from '../services/importService';
+import { FileUploadResponse } from '../services/api';
 import FileUploadStep from './imports/FileUploadStep';
 import FieldMappingStep from './imports/FieldMappingStep';
 import PreviewStep from './imports/PreviewStep';
@@ -49,6 +50,7 @@ export default function DataImportWizard() {
   const [mappings, setMappings] = useState<FieldMapping[]>([]);
   const [suggestionsData, setSuggestionsData] = useState<SuggestionsResponse | null>(null);
   const [generatedFile, setGeneratedFile] = useState<ParquetFile | null>(null);
+  const [parquetResult, setParquetResult] = useState<FileUploadResponse | null>(null);
   const [mappingDirty, setMappingDirty] = useState(false);
   const [showLeaveWarning, setShowLeaveWarning] = useState(false);
   const [showFilesView, setShowFilesView] = useState(false);
@@ -80,11 +82,17 @@ export default function DataImportWizard() {
     setStep('done');
   };
 
+  const handleParquetDone = (result: FileUploadResponse) => {
+    setParquetResult(result);
+    setStep('done');
+  };
+
   const handleStartNew = () => {
     setStep('upload');
     setSession(null);
     setMappings([]);
     setGeneratedFile(null);
+    setParquetResult(null);
     setMappingDirty(false);
   };
 
@@ -107,7 +115,7 @@ export default function DataImportWizard() {
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-xl font-bold text-gray-800">Import Data</h1>
-          <p className="text-sm text-gray-500 mt-0.5">Upload CSV or Excel files and convert them to Parquet</p>
+          <p className="text-sm text-gray-500 mt-0.5">Import census data from CSV, Excel, or Parquet</p>
         </div>
         <button
           onClick={() => setShowFilesView(true)}
@@ -121,7 +129,7 @@ export default function DataImportWizard() {
 
       <div className="border border-gray-200 rounded-xl p-6 bg-white shadow-sm">
         {step === 'upload' && (
-          <FileUploadStep workspaceId={workspaceId} onDone={handleUploadDone} />
+          <FileUploadStep workspaceId={workspaceId} onDone={handleUploadDone} onParquetDone={handleParquetDone} />
         )}
         {step === 'mapping' && session && (
           <FieldMappingStep
@@ -137,6 +145,30 @@ export default function DataImportWizard() {
             onGenerated={handleGenerated}
             dataQuality={suggestionsData?.data_quality ?? null}
           />
+        )}
+        {step === 'done' && parquetResult && (
+          <div className="text-center space-y-4 py-6">
+            <CheckCircle2 size={48} className="mx-auto text-fidelity-green" />
+            <h2 className="text-lg font-semibold text-gray-800">Census Data Ready</h2>
+            <p className="text-sm text-gray-500">
+              <span className="font-mono">{parquetResult.file_name}</span> — {parquetResult.row_count.toLocaleString()} rows
+            </p>
+            <p className="text-xs text-gray-400">Your workspace census has been updated.</p>
+            <div className="flex items-center justify-center gap-3">
+              <button
+                onClick={handleStartNew}
+                className="px-4 py-2 text-sm border border-gray-200 rounded-lg hover:bg-gray-50"
+              >
+                Import Another File
+              </button>
+              <Link
+                to="/config"
+                className="px-4 py-2 text-sm bg-fidelity-green text-white rounded-lg hover:bg-fidelity-dark"
+              >
+                View in Configure
+              </Link>
+            </div>
+          </div>
         )}
         {step === 'done' && generatedFile && (
           <div className="text-center space-y-4 py-6">

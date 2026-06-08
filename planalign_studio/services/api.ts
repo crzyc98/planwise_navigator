@@ -717,6 +717,21 @@ export async function validateFilePath(
   return handleResponse<FileValidationResponse>(response);
 }
 
+export async function setCensusPath(
+  workspaceId: string,
+  filePath: string
+): Promise<{ success: boolean; file_path: string; row_count: number }> {
+  const response = await fetch(
+    `${API_BASE}/api/workspaces/${workspaceId}/set-census-path`,
+    {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ file_path: filePath }),
+    }
+  );
+  return handleResponse<{ success: boolean; file_path: string; row_count: number }>(response);
+}
+
 // E082: Analyze age distribution from census data
 export interface AgeDistributionAnalysis {
   total_employees: number;
