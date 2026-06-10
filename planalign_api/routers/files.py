@@ -138,6 +138,22 @@ async def upload_census_file(
         # Don't fail the upload if config update fails - log warning and continue
         logger.warning(f"Failed to update workspace config with census path: {e}")
 
+    # Register the uploaded census in the imports index so it appears in the
+    # "Imported Files" list alongside wizard-generated parquets.
+    try:
+        from ..services.import_service import ImportService
+        ImportService(workspaces_root=get_settings().workspaces_root).register_external_parquet(
+            workspace_id=workspace_id,
+            storage_path=absolute_path,
+            original_filename=metadata.get("original_filename") or file.filename,
+            row_count=metadata["row_count"],
+            columns=metadata["columns"],
+            file_size_bytes=metadata["file_size_bytes"],
+        )
+    except Exception as e:
+        # Don't fail the upload if index registration fails - log warning and continue
+        logger.warning(f"Failed to register uploaded census in imports index: {e}")
+
     return FileUploadResponse(
         success=True,
         file_path=relative_path,

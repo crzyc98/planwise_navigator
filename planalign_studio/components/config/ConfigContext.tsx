@@ -81,8 +81,10 @@ function mapSimulationFields(cfg: any, prev: FormData): Partial<FormData> {
     newHireTerminationRate: cfg.workforce?.new_hire_termination_rate != null
       ? cfg.workforce.new_hire_termination_rate * 100
       : prev.newHireTerminationRate,
-    censusDataPath: cfg.data_sources?.census_parquet_path || prev.censusDataPath,
-    censusDataStatus: cfg.data_sources?.census_parquet_path ? 'validating' as const : prev.censusDataStatus,
+    // Canonical location is setup.census_parquet_path (used by the upload flow and
+    // simulation engine); fall back to legacy data_sources for older scenarios.
+    censusDataPath: cfg.setup?.census_parquet_path || cfg.data_sources?.census_parquet_path || prev.censusDataPath,
+    censusDataStatus: (cfg.setup?.census_parquet_path || cfg.data_sources?.census_parquet_path) ? 'validating' as const : prev.censusDataStatus,
   };
 }
 
@@ -351,7 +353,7 @@ export function ConfigProvider({ activeWorkspace, scenarioId, children }: Config
           setFormData(prev => applyConfigToFormData(cfg, prev));
 
           // E089: Validate census file
-          const censusPath = cfg.data_sources?.census_parquet_path;
+          const censusPath = cfg.setup?.census_parquet_path || cfg.data_sources?.census_parquet_path;
           if (censusPath && activeWorkspace?.id) {
             try {
               const validation = await validateFilePath(activeWorkspace.id, censusPath);

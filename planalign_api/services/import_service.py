@@ -335,6 +335,44 @@ class ImportService:
         files.append(json.loads(pf.model_dump_json()))
         index_path.write_text(json.dumps(files, indent=2))
 
+    def register_external_parquet(
+        self,
+        workspace_id: str,
+        storage_path: str,
+        original_filename: str,
+        row_count: int,
+        columns: List[str],
+        file_size_bytes: int,
+        user: str = "system",
+    ) -> ParquetFile:
+        """Register a parquet that was produced outside the import wizard.
+
+        Used by the direct census-upload path so the file appears in the
+        Imported Files list. Existing index entries pointing at the same
+        ``storage_path`` are replaced (the census file is overwritten in place).
+        """
+        index_path = self._index_path(workspace_id)
+        index_path.parent.mkdir(parents=True, exist_ok=True)
+        existing: List[Dict[str, Any]] = []
+        if index_path.exists():
+            existing = json.loads(index_path.read_text())
+        existing = [f for f in existing if f.get("storage_path") != storage_path]
+
+        pf = ParquetFile(
+            workspace_id=workspace_id,
+            import_id="direct-upload",
+            filename=Path(storage_path).name,
+            storage_path=storage_path,
+            original_filename=original_filename,
+            row_count=row_count,
+            file_size_bytes=file_size_bytes,
+            schema=[ParquetColumn(name=c, type="string") for c in columns],
+            created_by=user,
+        )
+        existing.append(json.loads(pf.model_dump_json()))
+        index_path.write_text(json.dumps(existing, indent=2))
+        return pf
+
     def list_parquet_files(self, workspace_id: str) -> List[ParquetFile]:
         index_path = self._index_path(workspace_id)
         if not index_path.exists():
