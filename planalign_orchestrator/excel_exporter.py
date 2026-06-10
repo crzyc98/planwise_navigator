@@ -673,7 +673,7 @@ class ExcelExporter:
                     # Get summary metrics for this scenario
                     summary_df = self._calculate_summary_metrics(conn)
 
-                    for _, row in summary_df.iterrows():
+                    for row in summary_df.to_dict("records"):
                         comparison_record = {
                             "scenario": scenario_name,
                             "simulation_year": row["simulation_year"],

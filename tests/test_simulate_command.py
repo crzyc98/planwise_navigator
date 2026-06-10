@@ -90,9 +90,9 @@ class TestCheckSystemHealth:
             "healthy": False,
             "issues": ["Database missing", "Config invalid"],
         }
-        from click.exceptions import Exit
+        import typer
 
-        with pytest.raises(Exit):
+        with pytest.raises(typer.Exit):
             _check_system_health(wrapper)
 
 

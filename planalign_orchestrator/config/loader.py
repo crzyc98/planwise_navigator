@@ -11,7 +11,6 @@ from typing import Any, Dict, Optional
 import yaml
 from pydantic import BaseModel, ConfigDict, Field, ValidationError
 
-from .paths import get_project_root
 from .simulation import SimulationSettings, CompensationSettings
 from .workforce import (
     WorkforceSettings,
@@ -24,7 +23,6 @@ from .workforce import (
 from .performance import (
     OptimizationSettings,
     OrchestratorSettings,
-    PolarsEventSettings,
     E068CThreadingSettings,
 )
 
@@ -90,40 +88,6 @@ class SimulationConfig(BaseModel):
         if self.optimization and self.optimization.e068c_threading:
             return self.optimization.e068c_threading.max_parallel_years
         return 1
-
-    def get_event_generation_mode(self) -> str:
-        """Get event generation mode - always 'sql'."""
-        return "sql"
-
-    def get_polars_settings(self) -> PolarsEventSettings:
-        """Get Polars settings for backward compatibility."""
-        if self.optimization and self.optimization.event_generation:
-            return self.optimization.event_generation.polars
-        return PolarsEventSettings()
-
-    def is_polars_mode_enabled(self) -> bool:
-        """Check if Polars mode is enabled - always False."""
-        return False
-
-    def is_cohort_engine_enabled(self) -> bool:
-        """Check if cohort generation engine is enabled - always False."""
-        return False
-
-    def get_cohort_output_dir(self) -> Path:
-        """Get configured cohort output directory."""
-        return get_project_root() / "outputs/cohorts"
-
-    def is_polars_state_accumulation_enabled(self) -> bool:
-        """Check if Polars state accumulation is enabled - always False."""
-        return False
-
-    def get_polars_state_accumulation_settings(self) -> dict:
-        """Get state accumulation configuration for backward compatibility."""
-        return {
-            "enabled": False,
-            "fallback_on_error": True,
-            "validate_results": False,
-        }
 
     def validate_eligibility_configuration(self) -> None:
         """Validate eligibility configuration and warn about contradictory settings.

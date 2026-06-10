@@ -21,6 +21,7 @@ Covers:
 
 from __future__ import annotations
 
+import logging
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Dict, List, Optional
@@ -210,18 +211,18 @@ class TestExecuteWorkflowStage:
         result = executor.execute_workflow_stage(_foundation_stage(), 2025)
         assert result["success"] is True
 
-    def test_verbose_prints(self, capsys):
+    def test_verbose_prints(self, caplog):
+        caplog.set_level(logging.DEBUG)
         executor = _make_executor(verbose=True)
         executor.execute_workflow_stage(_foundation_stage(), 2025)
-        captured = capsys.readouterr()
-        assert "foundation" in captured.out.lower() or "FOUNDATION" in captured.out
+        assert "foundation" in caplog.text.lower()
 
-    def test_verbose_failure_prints(self, capsys):
+    def test_verbose_failure_prints(self, caplog):
+        caplog.set_level(logging.DEBUG)
         executor = _make_executor(verbose=True)
         executor.dbt_runner.execute_command.return_value = _fail_result()
         executor.execute_workflow_stage(_foundation_stage(["m1"]), 2025)
-        captured = capsys.readouterr()
-        assert "Failed" in captured.out or "failed" in captured.out.lower()
+        assert "failed" in caplog.text.lower()
 
 
 # ---------------------------------------------------------------------------
@@ -291,11 +292,11 @@ class TestExecuteParallelStage:
         cmd_call = executor.dbt_runner.execute_command.call_args
         assert "tag:VALIDATION" in cmd_call[0][0]
 
-    def test_verbose_prints_tag_info(self, capsys):
+    def test_verbose_prints_tag_info(self, caplog):
+        caplog.set_level(logging.DEBUG)
         executor = _make_executor(event_shards=1, verbose=True)
         executor._execute_parallel_stage(_event_stage(), 2025)
-        captured = capsys.readouterr()
-        assert "EVENT_GENERATION" in captured.out
+        assert "EVENT_GENERATION" in caplog.text
 
 
 # ---------------------------------------------------------------------------
@@ -342,11 +343,11 @@ class TestExecuteShardedEventGeneration:
         with pytest.raises(PipelineStageError, match="Event union writer failed"):
             executor._execute_sharded_event_generation(2025)
 
-    def test_verbose_prints_shard_info(self, capsys):
+    def test_verbose_prints_shard_info(self, caplog):
+        caplog.set_level(logging.DEBUG)
         executor = _make_executor(event_shards=2, verbose=True)
         executor._execute_sharded_event_generation(2025)
-        captured = capsys.readouterr()
-        assert "2 shards" in captured.out
+        assert "2 shards" in caplog.text
 
 
 # ---------------------------------------------------------------------------
@@ -538,7 +539,8 @@ class TestRunStageWithModelParallelization:
         with pytest.raises(PipelineStageError, match="Model-level parallelization failed"):
             executor._run_stage_with_model_parallelization(_foundation_stage(), 2025)
 
-    def test_verbose_prints_details(self, capsys):
+    def test_verbose_prints_details(self, caplog):
+        caplog.set_level(logging.DEBUG)
         engine = MagicMock()
         engine.execute_stage_with_parallelization.return_value = self._make_engine_result()
         p_config = MagicMock()
@@ -550,10 +552,10 @@ class TestRunStageWithModelParallelization:
             parallelization_config=p_config,
         )
         executor._run_stage_with_model_parallelization(_foundation_stage(), 2025)
-        captured = capsys.readouterr()
-        assert "parallelization" in captured.out.lower() or "Parallelization" in captured.out
+        assert "parallelization" in caplog.text.lower()
 
-    def test_verbose_failure_shows_errors(self, capsys):
+    def test_verbose_failure_shows_errors(self, caplog):
+        caplog.set_level(logging.DEBUG)
         engine = MagicMock()
         engine.execute_stage_with_parallelization.return_value = self._make_engine_result(
             success=False, errors=["oops"]
@@ -568,8 +570,7 @@ class TestRunStageWithModelParallelization:
         )
         with pytest.raises(PipelineStageError):
             executor._run_stage_with_model_parallelization(_foundation_stage(), 2025)
-        captured = capsys.readouterr()
-        assert "Errors" in captured.out or "oops" in captured.out
+        assert "oops" in caplog.text or "Errors" in caplog.text
 
 
 # ---------------------------------------------------------------------------
@@ -604,23 +605,39 @@ class TestRunStageModelsLegacy:
 # ---------------------------------------------------------------------------
 
 class TestRunSequentialEventModels:
-    def test_runs_each_model_sequentially(self):
+    def test_runs_models_in_single_batched_invocation(self):
         executor = _make_executor()
         stage = _event_stage(models=["m1", "m2", "m3"])
 
         executor._run_sequential_event_models(stage, 2025)
 
-        assert executor.dbt_runner.execute_command.call_count == 3
+        assert executor.dbt_runner.execute_command.call_count == 1
+        cmd_args = executor.dbt_runner.execute_command.call_args[0][0]
+        assert cmd_args == ["run", "--select", "m1", "m2", "m3"]
+
+    def test_full_refresh_model_splits_batch(self):
+        executor = _make_executor()
+        stage = _event_stage(
+            models=["m1", "int_workforce_snapshot_optimized", "m2", "m3"]
+        )
+
+        executor._run_sequential_event_models(stage, 2025)
+
+        calls = [c[0][0] for c in executor.dbt_runner.execute_command.call_args_list]
+        assert calls == [
+            ["run", "--select", "m1"],
+            ["run", "--select", "int_workforce_snapshot_optimized", "--full-refresh"],
+            ["run", "--select", "m2", "m3"],
+        ]
 
     def test_model_failure_raises(self):
         executor = _make_executor()
         executor.dbt_runner.execute_command.side_effect = [
-            _ok_result(),
             _fail_result(return_code=2),
         ]
         stage = _event_stage(models=["m1", "m2"])
 
-        with pytest.raises(PipelineStageError, match="m2"):
+        with pytest.raises(PipelineStageError, match="m1, m2"):
             executor._run_sequential_event_models(stage, 2025)
 
     def test_clears_snapshot_for_fct_workforce_snapshot(self):
@@ -711,56 +728,61 @@ class TestClearSnapshotRowsIfNeeded:
         # Should not raise
         executor._clear_snapshot_rows_if_needed("fct_workforce_snapshot", 2025)
 
-    def test_verbose_prints_on_success(self, capsys):
+    def test_verbose_prints_on_success(self, caplog):
+        caplog.set_level(logging.DEBUG)
         executor = _make_executor(verbose=True)
         executor._clear_snapshot_rows_if_needed("fct_workforce_snapshot", 2025)
-        captured = capsys.readouterr()
-        assert "fct_workforce_snapshot" in captured.out
+        assert "fct_workforce_snapshot" in caplog.text
 
 
 # ---------------------------------------------------------------------------
-# _append_full_refresh_if_needed / _get_full_refresh_reason
+# _model_needs_full_refresh / _group_models_by_full_refresh / _get_full_refresh_reason
 # ---------------------------------------------------------------------------
 
-class TestAppendFullRefreshIfNeeded:
-    def test_appends_for_snapshot_optimized(self):
+class TestModelNeedsFullRefresh:
+    def test_true_for_snapshot_optimized(self):
         executor = _make_executor()
-        selection = ["run", "--select", "int_workforce_snapshot_optimized"]
-        executor._append_full_refresh_if_needed(
-            selection, "int_workforce_snapshot_optimized", False, 2025
-        )
-        assert "--full-refresh" in selection
+        assert executor._model_needs_full_refresh(
+            "int_workforce_snapshot_optimized", False
+        ) is True
 
-    def test_appends_for_deferral_escalation(self):
+    def test_true_for_deferral_escalation(self):
         executor = _make_executor()
-        selection = ["run", "--select", "int_deferral_rate_escalation_events"]
-        executor._append_full_refresh_if_needed(
-            selection, "int_deferral_rate_escalation_events", False, 2025
-        )
-        assert "--full-refresh" in selection
+        assert executor._model_needs_full_refresh(
+            "int_deferral_rate_escalation_events", False
+        ) is True
 
-    def test_appends_when_force_full_refresh(self):
+    def test_true_when_force_full_refresh(self):
         executor = _make_executor()
-        selection = ["run", "--select", "any_model"]
-        executor._append_full_refresh_if_needed(selection, "any_model", True, 2025)
-        assert "--full-refresh" in selection
+        assert executor._model_needs_full_refresh("any_model", True) is True
 
-    def test_no_append_for_normal_model(self):
+    def test_false_for_normal_model(self):
         executor = _make_executor()
-        selection = ["run", "--select", "int_termination_events"]
-        executor._append_full_refresh_if_needed(
-            selection, "int_termination_events", False, 2025
-        )
-        assert "--full-refresh" not in selection
+        assert executor._model_needs_full_refresh(
+            "int_termination_events", False
+        ) is False
 
-    def test_verbose_prints_reason(self, capsys):
-        executor = _make_executor(verbose=True)
-        selection = ["run", "--select", "int_workforce_snapshot_optimized"]
-        executor._append_full_refresh_if_needed(
-            selection, "int_workforce_snapshot_optimized", False, 2025
+
+class TestGroupModelsByFullRefresh:
+    def test_groups_consecutive_models_by_flag(self):
+        executor = _make_executor()
+        groups = executor._group_models_by_full_refresh(
+            ["m1", "m2", "int_workforce_snapshot_optimized", "m3"], False, 2025
         )
-        captured = capsys.readouterr()
-        assert "schema compatibility" in captured.out
+        assert groups == [
+            (["m1", "m2"], False),
+            (["int_workforce_snapshot_optimized"], True),
+            (["m3"], False),
+        ]
+
+    def test_force_full_refresh_yields_single_group(self):
+        executor = _make_executor()
+        groups = executor._group_models_by_full_refresh(["m1", "m2", "m3"], True, 2025)
+        assert groups == [(["m1", "m2", "m3"], True)]
+
+    def test_empty_models(self):
+        executor = _make_executor()
+        assert executor._group_models_by_full_refresh([], False, 2025) == []
 
 
 class TestGetFullRefreshReason:
@@ -910,15 +932,15 @@ class TestShouldFullRefreshFoundation:
         # No setup -> clear_mode defaults to "all"
         assert executor._should_full_refresh_foundation(stage, 2026) is True
 
-    def test_verbose_prints_reason(self, capsys):
+    def test_verbose_prints_reason(self, caplog):
+        caplog.set_level(logging.DEBUG)
         executor = _make_executor(simulation_start_year=2025, verbose=True)
         stage = StageDefinition(
             name=WorkflowStage.FOUNDATION,
             dependencies=[], models=["m1"], validation_rules=[],
         )
         executor._should_full_refresh_foundation(stage, 2025)
-        captured = capsys.readouterr()
-        assert "full-refresh" in captured.out.lower() or "FOUNDATION" in captured.out
+        assert "full-refresh" in caplog.text.lower() or "FOUNDATION" in caplog.text
 
 
 # ---------------------------------------------------------------------------

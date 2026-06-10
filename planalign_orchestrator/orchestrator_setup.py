@@ -108,13 +108,14 @@ def setup_memory_manager(
                 leak_window_minutes=adaptive_config.leak_window_minutes
             )
 
-            # Import logger
+            # Local name so the module-level logger isn't shadowed (which would
+            # raise UnboundLocalError in the else/except paths below)
             from .logger import ProductionLogger
-            logger = ProductionLogger("AdaptiveMemoryManager")
+            amm_logger = ProductionLogger("AdaptiveMemoryManager")
 
             memory_manager = AdaptiveMemoryManager(
                 amm_config,
-                logger,
+                amm_logger,
                 reports_dir=reports_dir / "memory"
             )
 
@@ -188,14 +189,15 @@ def setup_parallelization(
             parallelization_config.enabled and
             MODEL_PARALLELIZATION_AVAILABLE):
 
-            # Initialize dependency analyzer
+            # Local name so the module-level logger isn't shadowed (which would
+            # raise UnboundLocalError in the except fallback below)
             from .logger import ProductionLogger
-            logger = ProductionLogger("ModelParallelization")
+            mp_logger = ProductionLogger("ModelParallelization")
 
             manifest_path = Path("dbt/target/manifest.json")
             if not manifest_path.exists():
-                logger.warning("dbt manifest not found - run 'dbt compile' first")
-                logger.warning("Model parallelization will not be available")
+                mp_logger.warning("dbt manifest not found - run 'dbt compile' first")
+                mp_logger.warning("Model parallelization will not be available")
                 return None, None, None, None, False
 
             # Initialize dependency analyzer
@@ -212,11 +214,11 @@ def setup_parallelization(
                 dbt_runner=dbt_runner,
                 dependency_analyzer=dependency_analyzer,
                 max_workers=parallelization_config.max_workers,
-                logger=logger,
+                logger=mp_logger,
                 resource_manager=resource_manager
             )
 
-            logger.debug("Model-level parallelization enabled: max_workers=%d, "
+            mp_logger.debug("Model-level parallelization enabled: max_workers=%d, "
                          "deterministic=%s, advanced_rm=%s",
                          parallelization_config.max_workers,
                          parallelization_config.deterministic_execution,
@@ -248,8 +250,10 @@ def _create_resource_manager(config: Any, verbose: bool = False) -> Optional[Any
         if not RESOURCE_MANAGEMENT_AVAILABLE:
             return None
 
+        # Local name so the module-level logger isn't shadowed (which would
+        # raise UnboundLocalError in the except fallback below)
         from .logger import ProductionLogger
-        logger = ProductionLogger("ResourceManager")
+        rm_logger = ProductionLogger("ResourceManager")
 
         resource_config = {
             "memory": {
@@ -273,9 +277,9 @@ def _create_resource_manager(config: Any, verbose: bool = False) -> Optional[Any
                 },
             },
         }
-        resource_manager = ResourceManager(config=resource_config, logger=logger)
+        resource_manager = ResourceManager(config=resource_config, logger=rm_logger)
 
-        logger.info("Resource Manager initialized: cleanup_threshold=%.0fMB, "
+        rm_logger.info("Resource Manager initialized: cleanup_threshold=%.0fMB, "
                     "cpu_high=%.0f%%, adaptive_scaling=%s, threads=%d-%d",
                     config.cleanup_threshold_mb,
                     config.cpu_monitoring.thresholds.high_percent,

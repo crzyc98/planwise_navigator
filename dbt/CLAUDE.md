@@ -4,13 +4,12 @@ A dbt project for workforce simulation and event sourcing with DuckDB as the ana
 
 ## Overview
 
-This dbt project implements a comprehensive workforce simulation system with:
+This dbt project implements a workforce simulation system with:
 
 - **Event-sourced architecture** with immutable audit trails
-- **Multi-year simulation** capability (2025-2029)
+- **Multi-year simulation** capability
 - **Hazard-based modeling** for promotions, raises, and terminations
 - **Parameter-driven configuration** via seeds and variables
-- **Performance optimization** for 100K+ employee datasets
 - **Data quality monitoring** and validation
 
 ## Project Structure
@@ -19,17 +18,16 @@ This dbt project implements a comprehensive workforce simulation system with:
 dbt/
 ├── dbt_project.yml            # dbt configuration and variables
 ├── profiles.yml               # DuckDB connection settings
-├── models/                    # SQL transformation models
+├── simulation.duckdb          # DuckDB database (standardized location)
+├── models/
 │   ├── staging/               # Raw data cleaning (stg_*)
 │   ├── intermediate/          # Business logic (int_*)
 │   ├── marts/                 # Final outputs (fct_*, dim_*)
-│   ├── analysis/              # Ad-hoc analysis queries
+│   ├── analysis/              # Ad-hoc analysis and debug models
 │   └── monitoring/            # Data quality and performance monitoring
 ├── seeds/                     # Configuration data (CSV files)
 ├── macros/                    # Reusable SQL functions
 └── snapshots/                 # Slowly changing dimensions (SCD)
-
-Note: `simulation.duckdb` lives at the project root (e.g., `/planalign_engine/simulation.duckdb`), not under `dbt/`.
 ```
 
 ## Naming Conventions
@@ -39,8 +37,9 @@ Note: `simulation.duckdb` lives at the project root (e.g., `/planalign_engine/si
 - `int_*` - **Intermediate**: Business logic and calculations
 - `fct_*` - **Facts**: Event tables and metrics
 - `dim_*` - **Dimensions**: Reference and lookup tables
-- `dq_*` - **Data Quality**: Validation and monitoring
+- `dq_*` / `data_quality_*` - **Data Quality**: Validation and monitoring
 - `mon_*` - **Monitoring**: Performance and operational metrics
+- `debug_*` - **Debug**: Development-only models gated by `enable_debug_models`
 
 ### Examples
 - `stg_census_data.sql` - Clean raw employee census
@@ -51,36 +50,18 @@ Note: `simulation.duckdb` lives at the project root (e.g., `/planalign_engine/si
 ## Core Architecture Patterns
 
 ### 1. Event Sourcing
-All workforce changes are captured as immutable events:
-
-```sql
--- fct_yearly_events.sql
-SELECT
-    employee_id,
-    event_type,           -- hire, termination, promotion, raise
-    simulation_year,
-    effective_date,
-    event_details,
-    compensation_amount,
-    event_sequence,       -- Processing order within year
-    created_at,
-    -- Audit fields
-    parameter_scenario_id,
-    parameter_source,
-    data_quality_flag
-FROM {{ ref('int_employee_event_stream') }}
-```
+All workforce changes are captured as immutable events in `fct_yearly_events`, which unions the per-type `int_*_events` models. Events carry audit fields (`parameter_scenario_id`, `parameter_source`, `created_at`, `event_sequence`).
 
 ### 2. Hazard-Based Modeling
 Risk probabilities drive stochastic events:
 
 ```sql
--- int_hazard_promotion.sql
+-- int_hazard_promotion.sql (pattern)
 SELECT
     employee_id,
-    base_rate * age_multiplier * tenure_multiplier * level_dampener as promotion_rate,
+    base_rate * age_multiplier * tenure_multiplier * level_dampener AS promotion_rate,
     random_value,
-    CASE WHEN random_value < promotion_rate THEN true ELSE false END as is_promoted
+    random_value < promotion_rate AS is_promoted
 FROM workforce_with_multipliers
 ```
 
@@ -88,7 +69,6 @@ FROM workforce_with_multipliers
 Analysts control simulation via seed files:
 
 ```sql
--- Resolve parameter macro
 {{ resolve_parameter('merit_base', var('simulation_year'), var('scenario_id')) }}
 
 -- Uses comp_levers.csv seed:
@@ -97,71 +77,100 @@ Analysts control simulation via seed files:
 ```
 
 ### 4. Multi-Year State Management
-Workforce transitions between simulation years:
 
-```sql
--- int_workforce_previous_year.sql
-SELECT *
-FROM {{ ref('fct_workforce_snapshot') }}
-WHERE simulation_year = {{ var('simulation_year') }} - 1
-  AND employment_status = 'active'
-```
+Year N reads Year N-1 state plus Year N events. Two mechanisms:
 
-Guidance:
-- Avoid circular dependencies: intermediate (`int_*`) models must not read from marts (`fct_*`).
-- Use temporal accumulators (e.g., `int_enrollment_state_accumulator`, `int_deferral_rate_state_accumulator`) to carry state across years.
+- **Temporal accumulators** (`int_enrollment_state_accumulator`, `int_deferral_rate_state_accumulator`, `int_deferral_escalation_state_accumulator`): incremental models that read their own prior-year rows via `{{ this }}` — **never `--full-refresh` these mid-simulation or prior-year state is destroyed**.
+- **Prior-year snapshot reads** (e.g., `int_active_employees_prev_year_snapshot`): read `fct_workforce_snapshot` at `simulation_year - 1`.
+
+**Layering rule and its one sanctioned exception:** `int_*` models must not read from `fct_*` tables, **except `fct_yearly_events`**. The orchestrator builds `fct_yearly_events` at the start of STATE_ACCUMULATION, and 20+ downstream `int_*` state models legitimately `ref()` it within the same year. Reading any other `fct_*` table from an `int_*` model (other than prior-year `fct_workforce_snapshot` reads) is a circular-dependency bug.
 
 ## Key Models by Layer
 
 ### Staging Layer (stg_*)
 - `stg_census_data.sql` - Employee master data with validation
-- `stg_comp_levers.csv` - Analyst-adjustable parameters
-- `stg_config_*.sql` - Configuration tables from seeds
+- `stg_config_*.sql` - Configuration tables from seeds (job levels, age/tenure bands)
 
 ### Intermediate Layer (int_*)
 - `int_baseline_workforce.sql` - Starting workforce state
-- `int_effective_parameters.sql` - Parameter resolution with defaults
 - `int_employee_compensation_by_year.sql` - Year-aware compensation
 - `int_hazard_*.sql` - Risk probability calculations
 - `int_*_events.sql` - Event generation by type
+- `int_*_state_accumulator.sql` - Cross-year temporal state
 
 ### Marts Layer (fct_*, dim_*)
 - `fct_yearly_events.sql` - **Core event stream** (immutable)
 - `fct_workforce_snapshot.sql` - **Point-in-time workforce state**
+- `fct_employer_match_events.sql` - Employer match events
 - `dim_hazard_table.sql` - Risk multiplier lookup
-- `fct_compensation_growth.sql` - Compensation analytics
 
 ## Critical Macros
 
-### Parameter Resolution
-```sql
--- macros/resolve_parameter.sql
--- Resolves parameters with fallback hierarchy:
--- 1. Scenario-specific value
--- 2. Default scenario value
--- 3. Hard-coded fallback
+- `resolve_parameter.sql` — parameter resolution with fallback hierarchy (scenario-specific → default scenario → hard-coded)
+- `get_salary_as_of_date.sql` — time-aware salary calculation across raise/promotion events
+- `assign_age_band` / `assign_tenure_band` — centralized band assignment from `config_age_bands.csv` / `config_tenure_bands.csv` ([min, max) convention)
+- `optimize_duckdb_scd.sql` — SCD performance optimization
 
-{{ resolve_parameter('cola_rate', 2025, 'scenario_a') }}
--- Returns: 0.025 (from comp_levers.csv)
+## Orchestrator Workflow Stages
+
+The PipelineOrchestrator executes models per year in this sequence (see `planalign_orchestrator/pipeline/workflow.py` for the authoritative list):
+
+1. **INITIALIZATION**: `staging.*` (Year 1 only)
+2. **FOUNDATION**: `int_baseline_workforce`, `int_employee_compensation_by_year`, workforce needs
+3. **EVENT_GENERATION**: termination → hiring → new-hire termination → promotion → merit → eligibility → enrollment → deferral events
+4. **STATE_ACCUMULATION**: `fct_yearly_events` → state accumulators → contributions/match → `fct_workforce_snapshot` (batched dbt invocations; ordering comes from the dbt DAG)
+5. **VALIDATION**: `dq_employee_contributions_validation`
+6. **REPORTING**: Audit reports
+
+`int_workforce_snapshot_optimized` and `int_deferral_rate_escalation_events` always run with `--full-refresh`; the orchestrator isolates them so the flag never touches the temporal accumulators.
+
+## Performance Guidance
+
+### Threading
+
+**Default and recommended: `--threads 1`.** Multi-threaded dbt execution was benchmarked (E067/E068C) and reverted — it added overhead for this workload because most invocations select few models and DuckDB already parallelizes individual queries across all CPU cores regardless of dbt's thread count. Threading config lives in `config/simulation_config.yaml` under `optimization.e068c_threading.dbt_threads`.
+
+```bash
+cd dbt
+dbt build --threads 1 --fail-fast
 ```
 
-### Performance Optimization
+### What actually matters for speed
+- **Subprocess count, not threads**: each `dbt run` invocation pays Python startup + project parse (~4-5s even on fast hardware). Batch model selections; don't loop one `dbt run` per model.
+- **Partial parsing**: keep `target/partial_parse.msgpack` — never delete `dbt/target/` between runs.
+- **Year filtering**: filter every heavy model by `{{ var('simulation_year') }}` to avoid full scans.
+- **Memory**: `memory_limit` is set to 4GB in `profiles.yml` (laptop-conservative); raise it on machines with more RAM.
+
+### Incremental Models (DuckDB)
 ```sql
--- macros/optimize_duckdb_scd.sql
--- SCD performance optimization for large datasets
--- Uses efficient MERGE operations
+{{ config(
+  materialized='incremental',
+  incremental_strategy='delete+insert',
+  unique_key=['scenario_id','plan_design_id','employee_id','simulation_year']
+) }}
+
+SELECT ...
+FROM {{ ref('upstream_model') }}
+WHERE simulation_year = {{ var('simulation_year') }}
 ```
 
-### Compensation Calculations
-```sql
--- macros/get_salary_as_of_date.sql
--- Time-aware salary calculation considering all raise events
--- Handles promotion timing and merit raise sequencing
+### Query Optimization
+- Avoid `SELECT *`; project only required columns.
+- Join on `(scenario_id, plan_design_id, employee_id, simulation_year)` when relevant, with consistent types.
+- Push filters early (especially year filters); DuckDB's vectorized engine rewards this.
+- Don't use adapter-unsupported configs (`partition_by`, physical indexes) — DuckDB/dbt-duckdb ignores or rejects them.
+
+### Debug Models (fast development)
+```bash
+# Run a debug model against a small employee subset
+dbt run --select debug_hire_events --threads 1 \
+  --vars '{"enable_debug_models": true, "dev_employee_limit": 100}'
 ```
+Gated by `enable_debug_models` (default `false` in `dbt_project.yml`).
 
 ## Variable Configuration
 
-Set in `dbt_project.yml`:
+Set in `dbt_project.yml` (overridable via `--vars`):
 
 ```yaml
 vars:
@@ -169,12 +178,8 @@ vars:
   scenario_id: "default"
   target_growth_rate: 0.03
   random_seed: 42
-
-# Performance tuning
-flags:
-  # Configure threads via CLI or profiles; keep deterministic across runs
-  # Example runtime flag: dbt build --threads 4
-  send_anonymous_usage_stats: false
+  enable_debug_models: false
+  dev_employee_limit: null
 ```
 
 ## Seeds Configuration
@@ -187,511 +192,134 @@ default,2025,RAISE,merit_base,2,0.035
 default,2025,RAISE,cola_rate,,0.025
 ```
 
-### Hazard Configuration
+### Hazard & Band Configuration
 - `config_promotion_hazard_*.csv` - Promotion probability factors
 - `config_termination_hazard_*.csv` - Turnover risk factors
 - `config_job_levels.csv` - Compensation bands by level
+- `config_age_bands.csv` / `config_tenure_bands.csv` - Band boundaries (rebuild with `dbt seed --threads 1` after edits)
 
 ## Data Quality Framework
 
-### Validation Models
-- `dq_employee_id_validation.sql` - Unique identifier checks
-- `data_quality_summary.sql` - Comprehensive validation dashboard
-
-### Built-in Tests
-```yaml
-# models/schema.yml
-models:
-  - name: fct_yearly_events
-    tests:
-      - unique:
-          column_name: "concat(employee_id, event_type, simulation_year, effective_date)"
-      - not_null:
-          column_name: employee_id
-  - name: int_deferral_rate_state_accumulator
-    tests:
-      - dbt_utils.unique_combination_of_columns:
-          combination_of_columns:
-            - scenario_id
-            - plan_design_id
-            - employee_id
-            - simulation_year
-            - as_of_month
-      - not_null:
-          column_name: current_deferral_rate
-```
-
-## Performance Optimization
-
-### Multi-Threading Support (Epic E067) ✅
-
-**🎉 Threading is now fully functional and working!**
-
-For optimal performance with threading:
-
-```bash
-# Multi-threaded execution (recommended)
-dbt build --threads 4  # Shows "Concurrency: 4 threads"
-dbt run --threads 4 --select staging.*
-dbt test --threads 4
-
-# Expected performance improvement: 20-30% faster execution
-# Example: fct_yearly_events + 13 tests completed in 0.69s with 4 threads
-```
-
-### Work Laptop Optimizations
-
-Choose threading level based on your environment:
-
-```bash
-# High-performance systems (recommended)
-dbt build --threads 4  # 20-30% performance improvement
-
-# Work laptops with resource constraints
-dbt run --threads 2 --select staging.* --fail-fast  # Balanced performance/stability
-
-# Very constrained environments (fallback)
-dbt run --threads 1 --select staging.* --fail-fast  # Single-threaded for maximum stability
-
-# Memory-efficient model execution in dependency order
-dbt run --threads 2 --select int_baseline_workforce
-dbt run --threads 2 --select int_employee_compensation_by_year
-dbt run --threads 2 --select int_workforce_needs+
-
-# Incremental builds for large tables
-dbt run --threads 4 --select fct_yearly_events --vars '{simulation_year: 2025}'
-
-# Multi-threaded multi-year processing
-for year in 2025 2026 2027; do
-  echo "Processing year $year with threading"
-  dbt run --threads 4 --select foundation --vars "{simulation_year: $year}"
-  dbt run --threads 4 --select events --vars "{simulation_year: $year}"
-  dbt run --threads 4 --select marts --vars "{simulation_year: $year}"
-done
-```
-
-### PlanAlign Orchestrator Workflow Stages
-
-The PipelineOrchestrator executes models in optimized sequence:
-
-1. **INITIALIZATION**: `staging.*`, `int_baseline_workforce` (Year 1 only)
-2. **FOUNDATION**: `int_employee_compensation_by_year`, `int_workforce_needs`, `int_workforce_needs_by_level`
-3. **EVENT_GENERATION**: `int_termination_events`, `int_hiring_events`, `int_promotion_events`, `int_merit_events`, `int_enrollment_events`
-4. **STATE_ACCUMULATION**: `fct_yearly_events`, `int_enrollment_state_accumulator`, `int_deferral_rate_state_accumulator`, `fct_workforce_snapshot`
-5. **VALIDATION**: `dq_employee_contributions_validation`
-6. **REPORTING**: Audit and performance reports
-
-### Memory-Efficient Configuration
-
-```yaml
-# dbt_project.yml - Work laptop optimizations
-flags:
-  send_anonymous_usage_stats: false
-
-vars:
-  # Threading configuration (Epic E067)
-  dbt_threads: 4  # Use 4 threads for optimal performance, reduce to 2 or 1 for constrained systems
-
-  # Memory management
-  max_batch_size: 1000  # Increased for multi-threaded performance
-  enable_caching: true   # Can enable with sufficient memory
-
-models:
-  planalign_engine:
-    # Incremental models for large tables
-    intermediate:
-      events:
-        +materialized: incremental
-        +incremental_strategy: delete+insert
-        +on_schema_change: sync_all_columns
-
-    marts:
-      +materialized: incremental
-      +incremental_strategy: delete+insert
-      +unique_key: ['scenario_id', 'plan_design_id', 'employee_id', 'simulation_year']
-```
-
-### Incremental Models (DuckDB)
-```sql
--- Scope by simulation_year and use delete+insert for idempotent re-runs
-{{ config(
-  materialized='incremental',
-  incremental_strategy='delete+insert',
-  unique_key=['scenario_id','plan_design_id','employee_id','simulation_year']
-) }}
-
-SELECT ...
-FROM {{ ref('upstream_model') }}
-WHERE simulation_year = {{ var('simulation_year') }}
-```
-
-### Logical Partitioning
-- Filter every heavy model by `{{ var('simulation_year') }}` to avoid full scans.
-- Prefer `incremental_strategy='delete+insert'` keyed by year; DuckDB does not use table partitions/indexes.
-- For large persistent tables, consider output ordering on `(scenario_id, plan_design_id, employee_id, simulation_year)` for scan locality.
-
-### Query Optimization
-- Avoid `SELECT *`; project only required columns.
-- Keep JOIN keys minimal and typed consistently; join on `(scenario_id, plan_design_id, employee_id, simulation_year)` when relevant.
-- Leverage DuckDB’s vectorized execution; push filters early (especially year filters).
-- Avoid adapter-unsupported configs (e.g., `partition_by`, physical indexes).
-
-### Contracts & Tags
-- Enable contracts on critical models; enforce schemas for stability.
-- Tag pipelines (e.g., `tags: ['deferral_pipeline']`) and use selectors for targeted builds.
-
-## Integration Points
-
-### PlanAlign Orchestrator Integration
-```python
-# Integration with planalign_orchestrator.pipeline.PipelineOrchestrator
-from planalign_orchestrator import create_orchestrator
-from planalign_orchestrator.config import load_simulation_config
-
-# Load configuration and create orchestrator
-config = load_simulation_config('config/simulation_config.yaml')
-orchestrator = create_orchestrator(config)
-
-# Execute multi-year simulation with staged workflow
-summary = orchestrator.execute_multi_year_simulation(
-    start_year=2025, end_year=2027, fail_on_validation_error=False
-)
-
-# Individual model execution via DbtRunner
-from planalign_orchestrator.dbt_runner import DbtRunner
-dbt_runner = DbtRunner(project_dir="dbt", profiles_dir="dbt")
-result = dbt_runner.execute_command(
-    ["run", "--select", "int_baseline_workforce", "--threads", "1"],
-    simulation_year=2025,
-    stream_output=True
-)
-```
-
-### Eligibility Engine Integration
-For E022 Eligibility Engine, add:
-
-```sql
--- models/intermediate/int_eligibility_determination.sql
-{{ config(materialized='table') }}
-
-WITH eligibility_checks AS (
-    SELECT
-        employee_id,
-        current_age >= {{ var('minimum_age', 21) }} as is_age_eligible,
-        current_tenure >= {{ var('minimum_service_months', 12) }} as is_service_eligible,
-        annual_hours >= {{ var('minimum_hours_annual', 1000) }} as is_hours_eligible,
-        lower(trim(employee_type)) NOT IN ('intern', 'contractor') as is_classification_eligible
-    FROM {{ ref('int_baseline_workforce') }}
-    WHERE employment_status = 'active'
-)
-
-SELECT
-    *,
-    (is_age_eligible AND is_service_eligible AND is_hours_eligible AND is_classification_eligible) as is_eligible
-FROM eligibility_checks
-```
+- `dq_*` models and `data_quality_*` analysis models for validation
+- Schema tests in `schema.yml` files (uniqueness on event grain, not-null on keys, `dbt_utils.unique_combination_of_columns` on accumulator grain)
+- Band validation tests: `test_age_band_no_gaps`, `test_age_band_no_overlaps`, and tenure equivalents
 
 ## Development Workflow
 
 ### Model Development
 ```bash
-# Develop single model
-dbt run --select stg_census_data
+cd dbt   # always run dbt from this directory
 
-# Test model
-dbt test --select stg_census_data
+dbt run --select stg_census_data --threads 1
+dbt test --select stg_census_data --threads 1
+dbt run --select +fct_workforce_snapshot --threads 1   # with upstream deps
 
-# Build with dependencies
-dbt run --select +fct_workforce_snapshot
-
-# Full refresh
-dbt run --full-refresh --select fct_yearly_events
+# Full refresh — safe for non-accumulator models only
+dbt run --full-refresh --select fct_yearly_events --threads 1
 ```
 
 ### Multi-Year Simulation
 ```bash
-# Run full simulation for single year (work laptop optimized)
-dbt run --threads 1 --vars "simulation_year: 2025"
+# Primary interface
+planalign simulate 2025-2027
 
-# Multi-year via PlanAlign Orchestrator (with threading!)
-python -m planalign_orchestrator run --years 2025 2026 2027 --threads 4 --verbose
+# Orchestrator CLI
+python -m planalign_orchestrator run --years 2025 2026 2027 --verbose
 
-# Direct orchestrator execution
+# Programmatic
 python -c "
 from planalign_orchestrator import create_orchestrator
 from planalign_orchestrator.config import load_simulation_config
 config = load_simulation_config('config/simulation_config.yaml')
 orchestrator = create_orchestrator(config)
 summary = orchestrator.execute_multi_year_simulation(start_year=2025, end_year=2027)
-print(f'Completed {len(summary.completed_years)} years')
 "
 ```
 
 ### Database Interaction (Claude Capabilities)
 
-Claude can directly interact with your DuckDB simulation database:
+Claude can directly query the simulation database at `dbt/simulation.duckdb`:
 
-#### **Direct DuckDB Queries**
 ```bash
-# Query simulation database (located at dbt/simulation.duckdb)
 duckdb dbt/simulation.duckdb "SELECT COUNT(*) FROM fct_yearly_events"
 duckdb dbt/simulation.duckdb "SELECT * FROM fct_workforce_snapshot WHERE simulation_year = 2025 LIMIT 5"
 
-# From dbt directory
-cd dbt
-duckdb simulation.duckdb "SELECT COUNT(*) FROM fct_yearly_events"
+# Event distribution check
+duckdb dbt/simulation.duckdb "
+SELECT simulation_year, event_type, COUNT(*) AS event_count
+FROM fct_yearly_events
+GROUP BY ALL ORDER BY 1, 2"
 ```
 
-#### **Python Database Access**
-```bash
-# Python scripts for data validation using PlanAlign Orchestrator
-python -c "
+```python
+# Python access — always via get_database_path()
 from planalign_orchestrator.config import get_database_path
 import duckdb
-conn = duckdb.connect(str(get_database_path()))
-tables = conn.execute('SHOW TABLES').fetchall()
-print('Available tables:', [t[0] for t in tables])
+conn = duckdb.connect(str(get_database_path()), read_only=True)
+print(conn.execute('SHOW TABLES').fetchall())
 conn.close()
-"
-
-# Direct database access
-python -c "
-import duckdb
-conn = duckdb.connect('dbt/simulation.duckdb')
-tables = conn.execute('SHOW TABLES').fetchall()
-print('Available tables:', [t[0] for t in tables])
-conn.close()
-"
 ```
 
-#### **Model Validation Queries**
-```bash
-# Validate dbt model results
-duckdb dbt/simulation.duckdb "
-SELECT
-    model_name,
-    COUNT(*) as row_count
-FROM (
-    SELECT 'fct_yearly_events' as model_name FROM fct_yearly_events
-    UNION ALL
-    SELECT 'fct_workforce_snapshot' as model_name FROM fct_workforce_snapshot
-)
-GROUP BY model_name
-"
-```
+Note: DuckDB allows one writer at a time — close IDE/DBeaver connections before running simulations (`planalign health` detects locks).
 
 ### Documentation
 ```bash
-# Generate docs
 dbt docs generate
-
-# Serve docs locally
 dbt docs serve --port 8080
 ```
 
 ## Common Patterns
 
-### Year-Aware Models
-```sql
--- Template for multi-year models
-{% set simulation_year = var('simulation_year') %}
-
-SELECT *
-FROM source_table
-WHERE fiscal_year = {{ simulation_year }}
-```
-
 ### Event Generation Pattern
 ```sql
--- Template for event models
 SELECT
     employee_id,
-    '{{ event_type }}' as event_type,
-    {{ var('simulation_year') }} as simulation_year,
-    event_date as effective_date,
+    '{{ event_type }}' AS event_type,
+    {{ var('simulation_year') }} AS simulation_year,
+    event_date AS effective_date,
     event_sequence,
-    -- Standard audit fields
-    current_timestamp as created_at,
-    '{{ var('scenario_id') }}' as parameter_scenario_id
+    current_timestamp AS created_at,
+    '{{ var('scenario_id') }}' AS parameter_scenario_id
 FROM event_calculation_cte
 ```
 
 ### Hazard Calculation Pattern
 ```sql
--- Template for risk-based events
 WITH hazard_calculation AS (
     SELECT
         employee_id,
         base_rate *
         {{ get_age_multiplier('age_band') }} *
-        {{ get_tenure_multiplier('tenure_band') }} as event_rate,
-        {{ get_random_value('employee_id', var('simulation_year'), var('random_seed')) }} as random_value
+        {{ get_tenure_multiplier('tenure_band') }} AS event_rate,
+        {{ get_random_value('employee_id', var('simulation_year'), var('random_seed')) }} AS random_value
     FROM workforce
 )
-
-SELECT *,
-    CASE WHEN random_value < event_rate THEN true ELSE false END as event_occurs
+SELECT *, random_value < event_rate AS event_occurs
 FROM hazard_calculation
 ```
 
 ## Best Practices
 
-### Model Design
-- **Single responsibility**: Each model should have one clear purpose
-- **Idempotent**: Models should produce same results on re-run
-- **Testable**: Include data quality tests for all models
-- **Documented**: Use `description` fields in schema.yml
-
-### Performance
-- **Incremental where appropriate**: Large fact tables should be incremental
-- **Efficient JOINs**: JOIN on indexed columns when possible
-- **Minimize data movement**: Filter early in CTEs
-- **Use variables**: Parameterize for different scenarios
-
-### Data Quality
-- **Validate inputs**: Test source data assumptions
-- **Monitor outputs**: Track row counts and key metrics
-- **Handle nulls**: Explicit null handling in all calculations
-- **Audit trail**: Track data lineage and transformations
+- **Single responsibility**: one clear purpose per model
+- **Idempotent**: re-runs produce identical results (delete+insert keyed by year)
+- **Deterministic**: same `random_seed` → same events
+- **Tested and documented**: schema tests + `description` fields for all models
+- **Explicit null handling** in all calculations
 
 ## Troubleshooting
 
-### Common Issues
-1. **Memory errors**: Reduce batch size or use incremental models
-2. **Performance**: Check query plans and optimize JOINs
-3. **Data quality**: Add tests for edge cases and null handling
-4. **Variable errors**: Ensure all required variables are set
-
-### Debug Mode
-```bash
-# Enable debug logging
-dbt --debug run --select problematic_model
-
-# Profile query performance
-dbt run --select model_name --profiles-dir profiles/
-```
-
-### Claude-Assisted Debugging
-
-Claude can help debug dbt models by directly querying the database:
-
-```bash
-# Check model output after dbt run (using correct database path)
-duckdb dbt/simulation.duckdb "SELECT COUNT(*), MIN(simulation_year), MAX(simulation_year) FROM fct_yearly_events"
-
-# Investigate data quality issues
-duckdb dbt/simulation.duckdb "
-SELECT
-    simulation_year,
-    event_type,
-    COUNT(*) as event_count
-FROM fct_yearly_events
-GROUP BY simulation_year, event_type
-ORDER BY simulation_year, event_type
-"
-
-# Check for missing data
-duckdb dbt/simulation.duckdb "
-SELECT
-    COUNT(*) as total_employees,
-    COUNT(enrollment_date) as employees_with_enrollment,
-    COUNT(*) - COUNT(enrollment_date) as missing_enrollment_dates
-FROM fct_workforce_snapshot
-WHERE simulation_year = 2025
-"
-```
-
-Claude can also run Python scripts to perform advanced diagnostics:
-```python
-python -c "
-import duckdb
-import os
-os.chdir('..')  # Navigate to project root
-conn = duckdb.connect('simulation.duckdb')
-
-# Check data consistency across tables
-events_count = conn.execute('SELECT COUNT(DISTINCT employee_id) FROM fct_yearly_events WHERE simulation_year = 2025').fetchone()[0]
-snapshot_count = conn.execute('SELECT COUNT(DISTINCT employee_id) FROM fct_workforce_snapshot WHERE simulation_year = 2025').fetchone()[0]
-
-print(f'Unique employees in events: {events_count}')
-print(f'Unique employees in snapshot: {snapshot_count}')
-print(f'Difference: {abs(events_count - snapshot_count)}')
-
-conn.close()
-"
-```
-
----
-
-## Epic E067 & E068: Performance Optimization Success ✅
-
-**Status**: 🟢 **Production Ready with E068 Foundation** (September 2025)
-
-Epic E067 Multi-Threading Support and Epic E068 Phase 1 Performance Optimization have been successfully implemented and integrated:
-
-### **✅ E067 Multi-Threading Capabilities:**
-- **dbt Threading**: `--threads 4` support with 20-30% performance improvement
-- **Model Parallelization**: Independent models execute concurrently
-- **Resource Management**: Memory and CPU monitoring with adaptive scaling
-- **Deterministic Execution**: Reproducible results across all thread configurations
-
-### **🚀 E068 Performance Foundation:**
-- **2× Performance Improvement**: Complete foundation for 285s → 150s optimization target achieved
-- **Polars Alternative Mode**: 375× performance improvement (0.16s vs 60s target)
-- **Storage Optimization**: Parquet format with 60% I/O overhead reduction and automated conversion
-- **Hazard Caching System**: 40% speedup on repeated calculations with SHA256 parameter fingerprinting
-- **Comprehensive Testing**: 99.99% parity validation and linear scaling confirmation across 5 test scenarios
-- **Production CI/CD**: Automated performance regression detection and deployment safety gates
-
-### **📊 Combined Performance Results:**
-- **Threading**: `Concurrency: 4 threads (target='dev')` with 100% efficiency confirmed
-- **Event Generation**: 50%+ performance improvement through fused event generation
-- **State Accumulation**: 60%+ performance improvement through O(n) linear scaling
-- **Developer Productivity**: 50-1000× improvement through debug models and subset controls
-- **Memory Optimization**: Consistent 233.2 MB baseline with intelligent resource management
-
-### **📋 Enhanced Production Usage:**
-```bash
-# E068 optimized threading for production workloads
-cd dbt && dbt build --threads 4 --vars "optimization_level: high"
-
-# PlanAlign Orchestrator with E068 foundation and threading
-python -m planalign_orchestrator run --years 2025-2026 --threads 4 --optimization high --verbose
-
-# E068 Polars mode for extreme performance scenarios
-python scripts/run_hybrid_pipeline.py --mode polars --years 2025-2026 --verbose
-
-# E068 debug mode for rapid development (50-1000× faster)
-cd dbt && dbt run --select debug_hire_events --threads 1 --vars '{"enable_debug_models": true, "dev_employee_limit": 100}'
-
-# E068 storage optimization
-./scripts/optimize_storage.sh --enable-compression --convert-all
-
-# E068 performance benchmarking
-python scripts/scale_testing_framework.py --quick
-python scripts/parity_testing_framework.py --validate-production
-```
-
-### **🎯 E068 Production Infrastructure:**
-- **CI/CD Pipelines**: GitHub Actions workflows for automated validation (`e068h-validation.yml`, `performance-benchmark.yml`)
-- **Enterprise Deployment**: Jenkins pipeline (`Jenkinsfile.e068h`) for production deployment
-- **Benchmarking Framework**: Automated performance regression detection with statistical analysis
-- **Storage Management**: Automated Parquet conversion and optimization scripts
-- **Comprehensive Documentation**: Implementation guides, troubleshooting procedures, and performance tuning recommendations
+1. **Memory errors**: lower selection scope or check `memory_limit` in `profiles.yml`
+2. **Database locks**: close other DuckDB connections (`planalign health` detects them)
+3. **Duplicate/missing enrollment state**: rebuild via the accumulator pattern, never by full-refreshing accumulators mid-simulation
+4. **Variable errors**: ensure `simulation_year` / `scenario_id` are passed via `--vars`
+5. **Debug logging**: `dbt --debug run --select problematic_model`
 
 ---
 
 **Key Reminders**:
-- Always run from `/dbt` directory for dbt commands
-- Database file `simulation.duckdb` is in `/dbt` directory (standardized location)
-- Use variables for parameterization
-- Test data quality assumptions
-- Document complex business logic
-- Optimize for DuckDB's columnar engine
-- Use PlanAlign Orchestrator for production multi-year simulations
-- **E067**: Use `--threads 4` for optimal performance (reduce to 2 or 1 for constrained systems)
-- **E068**: Use debug models with `dev_employee_limit` for 50-1000× faster development
-- **E068**: Enable Polars mode for extreme performance scenarios (375× faster)
-- **E068**: Use storage optimization scripts for automated Parquet conversion
-- **E068**: Run parity testing before production deployment to ensure 99.99% accuracy
-- Enable checkpointing for long-running simulations
+- Always run dbt commands from the `dbt/` directory
+- Database file is `dbt/simulation.duckdb` (standardized location)
+- Default to `--threads 1`; DuckDB parallelizes queries internally regardless
+- Never `--full-refresh` the temporal state accumulators mid-simulation
+- `int_*` models may read `fct_yearly_events` (sanctioned exception) but no other `fct_*` tables in the same year
+- Use the PlanAlign Orchestrator (`planalign simulate`) for production multi-year runs
