@@ -23,13 +23,16 @@ from ..storage.workspace_storage import WorkspaceStorage
 
 logger = logging.getLogger(__name__)
 
-MAX_UPLOAD_SIZE = 50 * 1024 * 1024  # 50 MB — router-level limit (tighter than service limit)
+MAX_UPLOAD_SIZE = (
+    50 * 1024 * 1024
+)  # 50 MB — router-level limit (tighter than service limit)
 
 
 def get_workspace_storage() -> WorkspaceStorage:
     """Get workspace storage instance."""
     settings = get_settings()
     return WorkspaceStorage(settings.workspaces_root)
+
 
 router = APIRouter()
 
@@ -131,12 +134,35 @@ async def upload_census_file(
             value=absolute_path,
         )
         if config_updated:
-            logger.info(f"Updated workspace {workspace_id} census path to: {absolute_path}")
+            logger.info(
+                f"Updated workspace {workspace_id} census path to: {absolute_path}"
+            )
         else:
-            logger.warning(f"Failed to update workspace config - workspace may not exist: {workspace_id}")
+            logger.warning(
+                f"Failed to update workspace config - workspace may not exist: {workspace_id}"
+            )
     except Exception as e:
         # Don't fail the upload if config update fails - log warning and continue
         logger.warning(f"Failed to update workspace config with census path: {e}")
+
+    # Register the uploaded census in the imports index so it appears in the
+    # "Imported Files" list alongside wizard-generated parquets.
+    try:
+        from ..services.import_service import ImportService
+
+        ImportService(
+            workspaces_root=get_settings().workspaces_root
+        ).register_external_parquet(
+            workspace_id=workspace_id,
+            storage_path=absolute_path,
+            original_filename=metadata.get("original_filename") or file.filename,
+            row_count=metadata["row_count"],
+            columns=metadata["columns"],
+            file_size_bytes=metadata["file_size_bytes"],
+        )
+    except Exception as e:
+        # Don't fail the upload if index registration fails - log warning and continue
+        logger.warning(f"Failed to register uploaded census in imports index: {e}")
 
     return FileUploadResponse(
         success=True,
@@ -190,7 +216,9 @@ async def set_census_path(
 ) -> SetCensusPathResponse:
     """Validate an existing file path and write it to the workspace census config."""
     service = get_file_service()
-    result = service.validate_path(workspace_id=workspace_id, file_path=request.file_path)
+    result = service.validate_path(
+        workspace_id=workspace_id, file_path=request.file_path
+    )
 
     if not result.get("valid"):
         raise HTTPException(
@@ -314,15 +342,23 @@ async def solve_compensation_growth(
 
     # Build workforce dynamics from request parameters
     dynamics = None
-    if any([
-        request.turnover_rate is not None,
-        request.workforce_growth_rate is not None,
-        request.new_hire_comp_ratio is not None,
-    ]):
+    if any(
+        [
+            request.turnover_rate is not None,
+            request.workforce_growth_rate is not None,
+            request.new_hire_comp_ratio is not None,
+        ]
+    ):
         dynamics = WorkforceDynamics(
-            turnover_rate=request.turnover_rate if request.turnover_rate is not None else 0.15,
-            workforce_growth_rate=request.workforce_growth_rate if request.workforce_growth_rate is not None else 0.03,
-            new_hire_comp_ratio=request.new_hire_comp_ratio if request.new_hire_comp_ratio is not None else 0.85,
+            turnover_rate=request.turnover_rate
+            if request.turnover_rate is not None
+            else 0.15,
+            workforce_growth_rate=request.workforce_growth_rate
+            if request.workforce_growth_rate is not None
+            else 0.03,
+            new_hire_comp_ratio=request.new_hire_comp_ratio
+            if request.new_hire_comp_ratio is not None
+            else 0.85,
         )
 
     try:

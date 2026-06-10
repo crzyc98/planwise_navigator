@@ -37,6 +37,12 @@ export function buildConfigPayload(
       total_termination_rate: Number(formData.totalTerminationRate) / 100,
       new_hire_termination_rate: Number(formData.newHireTerminationRate) / 100,
     },
+    // Census path is canonically stored under setup.census_parquet_path — that is
+    // where the simulation engine and the upload flow read it. data_sources is kept
+    // for backward compatibility with older scenarios/readers.
+    setup: {
+      census_parquet_path: formData.censusDataPath,
+    },
     data_sources: {
       census_parquet_path: formData.censusDataPath,
     },

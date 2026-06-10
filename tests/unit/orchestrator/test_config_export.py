@@ -132,33 +132,25 @@ class TestExportEnrollmentVars:
         assert result["auto_enrollment_default_deferral_rate"] == 0.05
         assert result["auto_enrollment_opt_out_grace_period"] == 15
 
-    def test_opt_out_rates_by_age(self):
-        cfg = _make_config()
-        age_rates = cfg.enrollment.auto_enrollment.opt_out_rates.by_age
-        age_rates.young = 0.12
-        age_rates.mid_career = 0.08
-        age_rates.mature = 0.06
-        age_rates.senior = 0.04
-        result = _export_enrollment_vars(cfg)
-        assert result["opt_out_rate_young"] == 0.12
-        assert result["opt_out_rate_mid"] == 0.08
-        assert result["opt_out_rate_mature"] == 0.06
-        assert result["opt_out_rate_senior"] == 0.04
+    def test_opt_out_rates_derived_from_target_by_age(self):
+        from planalign_orchestrator.config.workforce import OPT_OUT_AGE_MULTIPLIERS
 
-    def test_opt_out_rates_by_income_computed(self):
         cfg = _make_config()
-        age_rates = cfg.enrollment.auto_enrollment.opt_out_rates.by_age
-        age_rates.young = 0.10
-        income = cfg.enrollment.auto_enrollment.opt_out_rates.by_income
-        income.low_income = 1.5
-        income.moderate = 1.0
-        income.high = 0.8
-        income.executive = 0.5
+        cfg.enrollment.auto_enrollment.opt_out_rates.target = 0.10
         result = _export_enrollment_vars(cfg)
-        assert result["opt_out_rate_low_income"] == pytest.approx(0.15)
-        assert result["opt_out_rate_moderate"] == pytest.approx(0.10)
-        assert result["opt_out_rate_high"] == pytest.approx(0.08)
-        assert result["opt_out_rate_executive"] == pytest.approx(0.05)
+        assert result["opt_out_rate_young"] == pytest.approx(0.10 * OPT_OUT_AGE_MULTIPLIERS["young"])
+        assert result["opt_out_rate_mid"] == pytest.approx(0.10 * OPT_OUT_AGE_MULTIPLIERS["mid_career"])
+        assert result["opt_out_rate_mature"] == pytest.approx(0.10 * OPT_OUT_AGE_MULTIPLIERS["mature"])
+        assert result["opt_out_rate_senior"] == pytest.approx(0.10 * OPT_OUT_AGE_MULTIPLIERS["senior"])
+
+    def test_opt_out_rates_derived_from_target_by_income(self):
+        from planalign_orchestrator.config.workforce import OPT_OUT_INCOME_MULTIPLIERS
+
+        cfg = _make_config()
+        cfg.enrollment.auto_enrollment.opt_out_rates.target = 0.10
+        result = _export_enrollment_vars(cfg)
+        for key, mult in OPT_OUT_INCOME_MULTIPLIERS.items():
+            assert result[f"opt_out_rate_{key}"] == pytest.approx(0.10 * mult)
 
     def test_proactive_enrollment(self):
         cfg = _make_config()

@@ -14,6 +14,8 @@ from pathlib import Path
 from typing import Any, Dict, List, Optional
 from unittest.mock import MagicMock, Mock, patch
 
+import logging
+
 import pytest
 
 from planalign_orchestrator.dbt_runner import (
@@ -237,16 +239,16 @@ class TestDbtRunnerInit:
             DbtRunner(threads=17)
 
     @pytest.mark.fast
-    def test_verbose_high_thread_warning(self, capsys):
+    def test_verbose_high_thread_warning(self, caplog):
+        caplog.set_level(logging.DEBUG)
         DbtRunner(threads=10, verbose=True)
-        captured = capsys.readouterr()
-        assert "High thread count" in captured.out or "10" in captured.out
+        assert "High thread count" in caplog.text
 
     @pytest.mark.fast
-    def test_verbose_moderate_thread_info(self, capsys):
+    def test_verbose_moderate_thread_info(self, caplog):
+        caplog.set_level(logging.DEBUG)
         DbtRunner(threads=5, verbose=True)
-        captured = capsys.readouterr()
-        assert "Multi-threading enabled" in captured.out or "5 threads" in captured.out
+        assert "Multi-threading enabled" in caplog.text
 
     @pytest.mark.fast
     def test_parallelization_disabled_by_default(self):
@@ -287,12 +289,11 @@ class TestThreadManagement:
             runner.update_thread_count(0)
 
     @pytest.mark.fast
-    def test_update_thread_count_verbose(self, capsys):
+    def test_update_thread_count_verbose(self, caplog):
         runner = DbtRunner(threads=1, verbose=True)
-        _ = capsys.readouterr()  # discard init output
+        caplog.set_level(logging.DEBUG)
         runner.update_thread_count(4)
-        captured = capsys.readouterr()
-        assert "4" in captured.out
+        assert "4" in caplog.text
 
     @pytest.mark.fast
     def test_get_thread_utilization_info(self):
@@ -560,12 +561,12 @@ class TestExecuteCommand:
             db_mgr.close_all.assert_called_once()
 
     @pytest.mark.fast
-    def test_execute_once_db_close_failure_non_fatal(self, capsys):
+    def test_execute_once_db_close_failure_non_fatal(self, caplog):
         """If db_manager.close_all() fails, execution continues."""
         db_mgr = Mock()
         db_mgr.close_all.side_effect = RuntimeError("connection gone")
         runner = DbtRunner(db_manager=db_mgr, verbose=True)
-        _ = capsys.readouterr()  # discard init output
+        caplog.set_level(logging.DEBUG)
 
         with patch("subprocess.Popen") as mock_popen:
             mock_popen.return_value = _mock_popen_process(returncode=0)
@@ -722,16 +723,15 @@ class TestSmartParallelization:
 
     @pytest.mark.fast
     @patch.object(DbtRunner, "execute_command", return_value=_ok_result())
-    def test_sequential_fallback_verbose(self, mock_exec, capsys):
+    def test_sequential_fallback_verbose(self, mock_exec, caplog):
         runner = DbtRunner(verbose=True)
-        _ = capsys.readouterr()
+        caplog.set_level(logging.DEBUG)
         runner.run_models_with_smart_parallelization(
             ["model_a"],
             stage_name="EVENT_GEN",
             simulation_year=2025,
         )
-        captured = capsys.readouterr()
-        assert "Sequential" in captured.out or "fallback" in captured.out
+        assert "Sequential" in caplog.text or "fallback" in caplog.text
 
     @pytest.mark.fast
     @patch.object(DbtRunner, "execute_command")
@@ -833,12 +833,11 @@ class TestParallelizationManagement:
         assert runner._parallel_engine is None
 
     @pytest.mark.fast
-    def test_disable_parallelization_verbose(self, capsys):
+    def test_disable_parallelization_verbose(self, caplog):
         runner = DbtRunner(verbose=True)
-        _ = capsys.readouterr()
+        caplog.set_level(logging.DEBUG)
         runner.disable_parallelization()
-        captured = capsys.readouterr()
-        assert "disabled" in captured.out
+        assert "disabled" in caplog.text
 
     @pytest.mark.fast
     def test_enable_parallelization_not_available(self):
@@ -889,12 +888,11 @@ class TestTagAndStageExecution:
 
     @pytest.mark.fast
     @patch.object(DbtRunner, "execute_command", return_value=_ok_result())
-    def test_run_models_by_tag_verbose(self, mock_exec, capsys):
+    def test_run_models_by_tag_verbose(self, mock_exec, caplog):
         runner = DbtRunner(threads=2, verbose=True)
-        _ = capsys.readouterr()
+        caplog.set_level(logging.DEBUG)
         runner.run_models_by_tag("FOUNDATION", simulation_year=2026)
-        captured = capsys.readouterr()
-        assert "FOUNDATION" in captured.out
+        assert "FOUNDATION" in caplog.text
 
     @pytest.mark.fast
     @patch.object(DbtRunner, "execute_command", return_value=_ok_result())
@@ -931,12 +929,11 @@ class TestTagAndStageExecution:
 
     @pytest.mark.fast
     @patch.object(DbtRunner, "execute_command", return_value=_ok_result())
-    def test_run_stage_models_unknown_verbose(self, mock_exec, capsys):
+    def test_run_stage_models_unknown_verbose(self, mock_exec, caplog):
         runner = DbtRunner(verbose=True)
-        _ = capsys.readouterr()
+        caplog.set_level(logging.DEBUG)
         runner.run_stage_models("MYSTERY", simulation_year=2025)
-        captured = capsys.readouterr()
-        assert "Unknown stage" in captured.out
+        assert "Unknown stage" in caplog.text
 
     @pytest.mark.fast
     @patch.object(DbtRunner, "execute_command", return_value=_ok_result())

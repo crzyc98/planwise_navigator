@@ -217,7 +217,9 @@ class ImportService:
         )
         return session
 
-    def get_mapping(self, workspace_id: str, import_id: str) -> Optional[List[FieldMapping]]:
+    def get_mapping(
+        self, workspace_id: str, import_id: str
+    ) -> Optional[List[FieldMapping]]:
         mapping_path = self._mapping_path(workspace_id, import_id)
         if not mapping_path.exists():
             return None
@@ -228,7 +230,9 @@ class ImportService:
     # Parquet generation
     # ------------------------------------------------------------------
 
-    def generate_parquet(self, import_id: str, workspace_id: str, user: str = "system") -> ParquetFile:
+    def generate_parquet(
+        self, import_id: str, workspace_id: str, user: str = "system"
+    ) -> ParquetFile:
         session = self.get_session(workspace_id, import_id)
         if session is None:
             raise FileNotFoundError(f"Import session {import_id!r} not found")
@@ -238,6 +242,7 @@ class ImportService:
             raise ValueError("No mapping saved; cannot generate parquet")
 
         from .census_schema import get_required_fields
+
         mapped_outputs = {m.output_column for m in mappings if not m.is_excluded}
         missing = [f for f in get_required_fields() if f not in mapped_outputs]
         if missing:
@@ -255,7 +260,9 @@ class ImportService:
         try:
             transformed = self._engine.apply(df, mappings)
         except Exception as exc:
-            self.update_status(workspace_id, import_id, "failed", error_message=str(exc))
+            self.update_status(
+                workspace_id, import_id, "failed", error_message=str(exc)
+            )
             self._write_audit_log(
                 workspace_id=workspace_id,
                 action="generate_failure",
@@ -269,7 +276,9 @@ class ImportService:
             raise
 
         timestamp = _utcnow().strftime("%Y%m%d_%H%M%S")
-        safe_name = "".join(c if c.isalnum() or c in "-_." else "_" for c in session.original_filename)
+        safe_name = "".join(
+            c if c.isalnum() or c in "-_." else "_" for c in session.original_filename
+        )
         filename = f"{timestamp}_{safe_name}.parquet"
         output_dir = self._data_imports_path(workspace_id)
         output_dir.mkdir(parents=True, exist_ok=True)
@@ -297,7 +306,9 @@ class ImportService:
             created_by=user,
         )
         self.save_parquet_record(workspace_id, pf)
-        self.update_status(workspace_id, import_id, "completed", parquet_file_id=pf.file_id)
+        self.update_status(
+            workspace_id, import_id, "completed", parquet_file_id=pf.file_id
+        )
         self._write_audit_log(
             workspace_id=workspace_id,
             action="generate_success",
@@ -309,6 +320,7 @@ class ImportService:
         )
         # Persist auto-fingerprint for repeat-upload detection (T024)
         from .suggestion_engine import SuggestionEngine
+
         fingerprint = SuggestionEngine.get_auto_fingerprint(
             [c.name for c in session.detected_columns]
         )
@@ -335,6 +347,44 @@ class ImportService:
         files.append(json.loads(pf.model_dump_json()))
         index_path.write_text(json.dumps(files, indent=2))
 
+    def register_external_parquet(
+        self,
+        workspace_id: str,
+        storage_path: str,
+        original_filename: str,
+        row_count: int,
+        columns: List[str],
+        file_size_bytes: int,
+        user: str = "system",
+    ) -> ParquetFile:
+        """Register a parquet that was produced outside the import wizard.
+
+        Used by the direct census-upload path so the file appears in the
+        Imported Files list. Existing index entries pointing at the same
+        ``storage_path`` are replaced (the census file is overwritten in place).
+        """
+        index_path = self._index_path(workspace_id)
+        index_path.parent.mkdir(parents=True, exist_ok=True)
+        existing: List[Dict[str, Any]] = []
+        if index_path.exists():
+            existing = json.loads(index_path.read_text())
+        existing = [f for f in existing if f.get("storage_path") != storage_path]
+
+        pf = ParquetFile(
+            workspace_id=workspace_id,
+            import_id="direct-upload",
+            filename=Path(storage_path).name,
+            storage_path=storage_path,
+            original_filename=original_filename,
+            row_count=row_count,
+            file_size_bytes=file_size_bytes,
+            schema=[ParquetColumn(name=c, type="string") for c in columns],
+            created_by=user,
+        )
+        existing.append(json.loads(pf.model_dump_json()))
+        index_path.write_text(json.dumps(existing, indent=2))
+        return pf
+
     def list_parquet_files(self, workspace_id: str) -> List[ParquetFile]:
         index_path = self._index_path(workspace_id)
         if not index_path.exists():
@@ -342,13 +392,17 @@ class ImportService:
         files = json.loads(index_path.read_text())
         return [ParquetFile.model_validate(f) for f in files]
 
-    def get_parquet_file(self, workspace_id: str, file_id: str) -> Optional[ParquetFile]:
+    def get_parquet_file(
+        self, workspace_id: str, file_id: str
+    ) -> Optional[ParquetFile]:
         for pf in self.list_parquet_files(workspace_id):
             if pf.file_id == file_id:
                 return pf
         return None
 
-    def delete_parquet_file(self, workspace_id: str, file_id: str, user: str = "system") -> bool:
+    def delete_parquet_file(
+        self, workspace_id: str, file_id: str, user: str = "system"
+    ) -> bool:
         files = self.list_parquet_files(workspace_id)
         target = next((f for f in files if f.file_id == file_id), None)
         if target is None:
@@ -356,7 +410,9 @@ class ImportService:
         storage = Path(target.storage_path)
         if storage.exists():
             storage.unlink()
-        remaining = [json.loads(f.model_dump_json()) for f in files if f.file_id != file_id]
+        remaining = [
+            json.loads(f.model_dump_json()) for f in files if f.file_id != file_id
+        ]
         self._index_path(workspace_id).write_text(json.dumps(remaining, indent=2))
         self._write_audit_log(
             workspace_id=workspace_id,
@@ -420,7 +476,9 @@ class ImportService:
             )
         return summaries
 
-    def get_template(self, workspace_id: str, template_id: str) -> Optional[MappingTemplate]:
+    def get_template(
+        self, workspace_id: str, template_id: str
+    ) -> Optional[MappingTemplate]:
         fp = self._templates_path(workspace_id) / f"{template_id}.json"
         if not fp.exists():
             return None
@@ -451,10 +509,14 @@ class ImportService:
     # Preview helpers
     # ------------------------------------------------------------------
 
-    def get_raw_preview(self, workspace_id: str, import_id: str, limit: int = 100) -> pd.DataFrame:
+    def get_raw_preview(
+        self, workspace_id: str, import_id: str, limit: int = 100
+    ) -> pd.DataFrame:
         source_path = self._source_parquet_path(workspace_id, import_id)
         conn = duckdb.connect(":memory:")
-        df = conn.execute(f"SELECT * FROM read_parquet('{source_path}') LIMIT {limit}").df()
+        df = conn.execute(
+            f"SELECT * FROM read_parquet('{source_path}') LIMIT {limit}"
+        ).df()
         conn.close()
         return df
 
@@ -463,7 +525,9 @@ class ImportService:
     ) -> tuple[pd.DataFrame, List[TransformationWarning]]:
         source_path = self._source_parquet_path(workspace_id, import_id)
         conn = duckdb.connect(":memory:")
-        df = conn.execute(f"SELECT * FROM read_parquet('{source_path}') LIMIT {limit}").df()
+        df = conn.execute(
+            f"SELECT * FROM read_parquet('{source_path}') LIMIT {limit}"
+        ).df()
         conn.close()
         mappings = self.get_mapping(workspace_id, import_id)
         if not mappings:
@@ -474,6 +538,7 @@ class ImportService:
 # ------------------------------------------------------------------
 # Internal helpers
 # ------------------------------------------------------------------
+
 
 def _normalize_dtypes_for_duckdb(df: pd.DataFrame) -> pd.DataFrame:
     """Cast pandas StringDtype columns to object so DuckDB 1.0.0 can register the DataFrame.

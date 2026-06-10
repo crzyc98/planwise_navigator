@@ -19,7 +19,7 @@ import logging
 import time
 import uuid
 from pathlib import Path
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, Tuple
 
 from config.constants import (
     MODEL_FCT_YEARLY_EVENTS,
@@ -512,8 +512,17 @@ class YearExecutor:
 
         for model in stage.models:
             self._clear_snapshot_rows_if_needed(model, year)
-            selection = ["run", "--select", model]
-            self._append_full_refresh_if_needed(selection, model, force_full_refresh, year)
+
+        # Batch consecutive models sharing the same --full-refresh requirement into a
+        # single dbt invocation: dbt resolves intra-selection ordering from the DAG
+        # (all cross-model dependencies in these stages use ref()), and one invocation
+        # avoids repeated subprocess startup and project parsing per model.
+        for group, full_refresh in self._group_models_by_full_refresh(
+            stage.models, force_full_refresh, year
+        ):
+            selection = ["run", "--select", *group]
+            if full_refresh:
+                selection.append("--full-refresh")
             res = self.dbt_runner.execute_command(
                 selection,
                 simulation_year=year,
@@ -522,8 +531,40 @@ class YearExecutor:
             )
             if not res.success:
                 raise PipelineStageError(
-                    f"Dbt failed on model {model} in stage {stage.name.value} with code {res.return_code}"
+                    f"Dbt failed on models [{', '.join(group)}] in stage "
+                    f"{stage.name.value} with code {res.return_code}"
                 )
+
+    def _group_models_by_full_refresh(
+        self, models: List[str], force_full_refresh: bool, year: int
+    ) -> List[Tuple[List[str], bool]]:
+        """Group consecutive models by whether they require --full-refresh.
+
+        --full-refresh applies to an entire dbt invocation, so models that must be
+        rebuilt from scratch cannot share an invocation with incremental accumulators
+        whose prior-year state must be preserved.
+
+        Args:
+            models: Stage models in execution order
+            force_full_refresh: Whether config forces full refresh for all models
+            year: Simulation year (for verbose logging)
+
+        Returns:
+            List of (model group, full_refresh flag) tuples in execution order
+        """
+        groups: List[Tuple[List[str], bool]] = []
+        for model in models:
+            needs_refresh = self._model_needs_full_refresh(model, force_full_refresh)
+            if needs_refresh and self.verbose:
+                logger.debug(
+                    "Rebuilding %s with --full-refresh (%s) for year %d",
+                    model, self._get_full_refresh_reason(model), year
+                )
+            if groups and groups[-1][1] == needs_refresh:
+                groups[-1][0].append(model)
+            else:
+                groups.append(([model], needs_refresh))
+        return groups
 
     def _is_force_full_refresh(self) -> bool:
         """Check if setup config requires forced full refresh for all models."""
@@ -563,34 +604,20 @@ class YearExecutor:
             # Non-fatal; proceed with dbt incremental upsert
             pass
 
-    def _append_full_refresh_if_needed(
-        self, selection: List[str], model: str, force_full_refresh: bool, year: int
-    ) -> None:
-        """Append --full-refresh flag for models that require it.
+    def _model_needs_full_refresh(self, model: str, force_full_refresh: bool) -> bool:
+        """Check whether a model must be rebuilt with --full-refresh.
 
         Args:
-            selection: dbt command list to potentially modify in place
             model: Current model name
             force_full_refresh: Whether config forces full refresh for all models
-            year: Simulation year (for verbose logging)
-        """
-        needs_refresh = (
-            model in [
-                "int_workforce_snapshot_optimized",
-                "int_deferral_rate_escalation_events",
-            ]
-            or force_full_refresh
-        )
-        if not needs_refresh:
-            return
 
-        selection.append("--full-refresh")
-        if self.verbose:
-            reason = self._get_full_refresh_reason(model)
-            logger.debug(
-                "Rebuilding %s with --full-refresh (%s) for year %d",
-                model, reason, year
-            )
+        Returns:
+            True if the model requires --full-refresh
+        """
+        return force_full_refresh or model in (
+            "int_workforce_snapshot_optimized",
+            "int_deferral_rate_escalation_events",
+        )
 
     def _get_full_refresh_reason(self, model: str) -> str:
         """Return a human-readable reason for full refresh based on model name.

@@ -4,7 +4,9 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 import typer
-from click.exceptions import Exit as ClickExit
+
+# typer vendors its own click, so typer.Exit is the class actually raised
+ClickExit = typer.Exit
 
 from planalign_cli.commands.simulate import _check_system_health
 

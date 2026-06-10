@@ -471,7 +471,7 @@ This repo is scanned by SonarQube. All code MUST comply with these rules:
 - ✅ Join on `(scenario_id, plan_design_id, employee_id)` and year when relevant
 - ✅ Use incremental models with `incremental_strategy='delete+insert'`
 - ❌ Don't use adapter-unsupported configs like physical `partition_by`/indexes
-- ❌ Don't read from `fct_*` tables in `int_*` models (circular dependencies)
+- ❌ Don't read from `fct_*` tables in `int_*` models (circular dependencies) — sanctioned exceptions: `fct_yearly_events` (built first in STATE_ACCUMULATION) and prior-year reads of `fct_workforce_snapshot`
 
 **Python Type-Safe Example**:
 

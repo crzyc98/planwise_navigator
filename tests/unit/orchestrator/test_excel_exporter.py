@@ -91,7 +91,7 @@ class TestCheckTableExists:
         conn = MagicMock()
 
         call_count = [0]
-        def _side_effect(query):
+        def _side_effect(query, *args):
             call_count[0] += 1
             if call_count[0] == 1:
                 raise Exception("information_schema not available")
@@ -175,28 +175,31 @@ class TestSanitizeForExcel:
 class TestGetTableColumns:
 
     @pytest.mark.fast
-    def test_pragma_path(self):
+    def test_information_schema_path(self):
         conn = MagicMock()
         conn.execute.return_value.fetchall.return_value = [
-            (0, "Employee_Id", "VARCHAR", False, None, False),
-            (1, "Simulation_Year", "INTEGER", False, None, False),
+            ("employee_id",),
+            ("simulation_year",),
         ]
         exporter = ExcelExporter(_make_db_manager(conn))
         cols = exporter._get_table_columns(conn, "fct_workforce_snapshot")
         assert cols == ["employee_id", "simulation_year"]
 
     @pytest.mark.fast
-    def test_fallback_information_schema(self):
-        """When PRAGMA fails, fallback to information_schema."""
+    def test_fallback_pragma(self):
+        """When information_schema fails, fall back to PRAGMA table_info."""
         conn = MagicMock()
 
         call_count = [0]
         def _side_effect(query, *args):
             call_count[0] += 1
             if call_count[0] == 1:
-                raise Exception("PRAGMA not supported")
+                raise Exception("information_schema not available")
             result = MagicMock()
-            result.df.return_value = pd.DataFrame({"name": ["col_a", "col_b"]})
+            result.fetchall.return_value = [
+                (0, "Col_A", "VARCHAR", False, None, False),
+                (1, "Col_B", "INTEGER", False, None, False),
+            ]
             return result
 
         conn.execute.side_effect = _side_effect

@@ -1,3 +1,4 @@
+import logging
 from pathlib import Path
 
 import duckdb
@@ -57,21 +58,21 @@ def _seed_minimal(db_path: Path):
     conn.close()
 
 
-def test_cli_validate_config(tmp_path: Path, capsys):
+def test_cli_validate_config(tmp_path: Path, caplog):
     cfg = _write_config(tmp_path)
-    rc = main(["validate", "--config", str(cfg)])
+    with caplog.at_level(logging.INFO, logger="planalign_orchestrator.cli"):
+        rc = main(["validate", "--config", str(cfg)])
     assert rc == 0
-    out = capsys.readouterr().out
-    assert "Configuration" in out
+    assert "Configuration" in caplog.text
 
 
-def test_cli_run_dry_run(tmp_path: Path, capsys):
+def test_cli_run_dry_run(tmp_path: Path, caplog):
     cfg = _write_config(tmp_path)
     dbp = tmp_path / "db.duckdb"
     _seed_minimal(dbp)
-    rc = main(
-        ["run", "--config", str(cfg), "--database", str(dbp), "--dry-run", "--verbose"]
-    )
+    with caplog.at_level(logging.INFO, logger="planalign_orchestrator.cli"):
+        rc = main(
+            ["run", "--config", str(cfg), "--database", str(dbp), "--dry-run", "--verbose"]
+        )
     assert rc == 0
-    out = capsys.readouterr().out
-    assert "Simulation completed" in out
+    assert "Simulation completed" in caplog.text

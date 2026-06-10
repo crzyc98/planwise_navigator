@@ -59,7 +59,14 @@ class DatabaseInspector:
 
     def __init__(self, db_path: Optional[Path] = None):
         self.db_path = db_path or get_database_path()
-        self.conn = duckdb.connect(str(self.db_path), read_only=True)
+        self._conn: Optional[duckdb.DuckDBPyConnection] = None
+
+    @property
+    def conn(self) -> duckdb.DuckDBPyConnection:
+        """Lazily open the read-only connection on first use."""
+        if self._conn is None:
+            self._conn = duckdb.connect(str(self.db_path), read_only=True)
+        return self._conn
 
     def quick_stats(self, year: Optional[int] = None) -> dict:
         """Get instant database statistics.
@@ -239,8 +246,10 @@ class DatabaseInspector:
             console.print("\n[bold green]✓ No data quality issues detected[/bold green]")
 
     def close(self) -> None:
-        """Close database connection."""
-        self.conn.close()
+        """Close database connection if one was opened."""
+        if self._conn is not None:
+            self._conn.close()
+            self._conn = None
 
     def __enter__(self):
         return self

@@ -58,7 +58,7 @@ class TerminationRateSuggestion(BaseModel):
         if isinstance(v, str) and v:
             try:
                 return Decimal(v)
-            except:
+            except (ValueError, TypeError, ArithmeticError):
                 return v
         return v
 
