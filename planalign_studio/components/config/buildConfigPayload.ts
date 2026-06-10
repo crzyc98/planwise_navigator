@@ -39,13 +39,15 @@ export function buildConfigPayload(
     },
     // Census path is canonically stored under setup.census_parquet_path — that is
     // where the simulation engine and the upload flow read it. data_sources is kept
-    // for backward compatibility with older scenarios/readers.
-    setup: {
-      census_parquet_path: formData.censusDataPath,
-    },
-    data_sources: {
-      census_parquet_path: formData.censusDataPath,
-    },
+    // for backward compatibility with older scenarios/readers. Omitted entirely when
+    // the form has no census path, so the scenario override never shadows the
+    // workspace base config with an empty or placeholder value.
+    ...(formData.censusDataPath
+      ? {
+          setup: { census_parquet_path: formData.censusDataPath },
+          data_sources: { census_parquet_path: formData.censusDataPath },
+        }
+      : {}),
     compensation: {
       target_compensation_growth_percent: Number(formData.targetCompensationGrowth),
       merit_budget_percent: Number(formData.meritBudget),

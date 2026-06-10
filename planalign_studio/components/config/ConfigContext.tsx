@@ -65,6 +65,16 @@ export function useConfigContext(): ConfigContextType {
 // --- Config-to-FormData mapping helpers ---
 // Extracted to reduce cognitive complexity in useEffect hooks.
 
+// Old builds shipped this placeholder as the form default and persisted it into
+// scenario overrides; treat it as "no census configured" when reading back.
+const LEGACY_CENSUS_PLACEHOLDER = 'data/census_preprocessed.parquet';
+
+/** Extract the census path from a config, ignoring the legacy placeholder. */
+export function extractCensusPath(cfg: any): string | undefined {
+  const path = cfg?.setup?.census_parquet_path || cfg?.data_sources?.census_parquet_path;
+  return path && path !== LEGACY_CENSUS_PLACEHOLDER ? path : undefined;
+}
+
 /** Map simulation, workforce, and data-source config fields to FormData. */
 function mapSimulationFields(cfg: any, prev: FormData): Partial<FormData> {
   return {
@@ -83,8 +93,8 @@ function mapSimulationFields(cfg: any, prev: FormData): Partial<FormData> {
       : prev.newHireTerminationRate,
     // Canonical location is setup.census_parquet_path (used by the upload flow and
     // simulation engine); fall back to legacy data_sources for older scenarios.
-    censusDataPath: cfg.setup?.census_parquet_path || cfg.data_sources?.census_parquet_path || prev.censusDataPath,
-    censusDataStatus: (cfg.setup?.census_parquet_path || cfg.data_sources?.census_parquet_path) ? 'validating' as const : prev.censusDataStatus,
+    censusDataPath: extractCensusPath(cfg) || prev.censusDataPath,
+    censusDataStatus: extractCensusPath(cfg) ? 'validating' as const : prev.censusDataStatus,
   };
 }
 
@@ -353,7 +363,7 @@ export function ConfigProvider({ activeWorkspace, scenarioId, children }: Config
           setFormData(prev => applyConfigToFormData(cfg, prev));
 
           // E089: Validate census file
-          const censusPath = cfg.setup?.census_parquet_path || cfg.data_sources?.census_parquet_path;
+          const censusPath = extractCensusPath(cfg);
           if (censusPath && activeWorkspace?.id) {
             try {
               const validation = await validateFilePath(activeWorkspace.id, censusPath);

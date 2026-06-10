@@ -1,4 +1,4 @@
-import { useConfigContext } from './ConfigContext';
+import { useConfigContext, extractCensusPath } from './ConfigContext';
 import { getScenario, validateFilePath, Scenario } from '../../services/api';
 
 interface CopyScenarioModalProps {
@@ -46,8 +46,8 @@ export function CopyScenarioModal({ availableScenarios, onClose }: CopyScenarioM
                         ? cfg.workforce.new_hire_termination_rate * 100
                         : prev.newHireTerminationRate,
                       // Data Sources - E100
-                      censusDataPath: cfg.setup?.census_parquet_path || cfg.data_sources?.census_parquet_path || prev.censusDataPath,
-                      censusDataStatus: (cfg.setup?.census_parquet_path || cfg.data_sources?.census_parquet_path) ? 'validating' : prev.censusDataStatus,
+                      censusDataPath: extractCensusPath(cfg) || prev.censusDataPath,
+                      censusDataStatus: extractCensusPath(cfg) ? 'validating' : prev.censusDataStatus,
                       // Compensation
                       meritBudget: cfg.compensation?.merit_budget_percent ?? prev.meritBudget,
                       colaRate: cfg.compensation?.cola_rate_percent ?? prev.colaRate,
@@ -175,7 +175,7 @@ export function CopyScenarioModal({ availableScenarios, onClose }: CopyScenarioM
                     }));
 
                     // E100: Validate census file
-                    const censusPath = cfg.setup?.census_parquet_path || cfg.data_sources?.census_parquet_path;
+                    const censusPath = extractCensusPath(cfg);
                     if (censusPath && activeWorkspace?.id) {
                       try {
                         const validation = await validateFilePath(activeWorkspace.id, censusPath);

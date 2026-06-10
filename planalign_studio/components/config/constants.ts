@@ -50,11 +50,13 @@ export const MATCH_TEMPLATES: Record<string, MatchTemplate> = {
 };
 
 export const DEFAULT_FORM_DATA: FormData = {
-  // Data Sources
-  censusDataPath: 'data/census_preprocessed.parquet',
-  censusDataStatus: 'loaded',
-  censusRowCount: 1000,
-  censusLastModified: '2025-01-15',
+  // Data Sources — empty until a real census path loads from workspace/scenario
+  // config. A placeholder path here gets persisted into scenario overrides and
+  // shadows the workspace census, breaking simulations.
+  censusDataPath: '',
+  censusDataStatus: 'missing',
+  censusRowCount: 0,
+  censusLastModified: '',
 
   // Simulation
   name: 'Baseline 2025-2027',
