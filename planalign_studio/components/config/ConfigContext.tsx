@@ -4,6 +4,7 @@ import { DEFAULT_FORM_DATA } from './constants';
 import { buildConfigPayload } from './buildConfigPayload';
 import {
   updateWorkspace as apiUpdateWorkspace,
+  getWorkspace,
   getScenario,
   getScenarioConfig,
   updateScenario,
@@ -344,9 +345,33 @@ export function ConfigProvider({ activeWorkspace, scenarioId, children }: Config
   const [saveStatus, setSaveStatus] = useState<'idle' | 'saving' | 'success' | 'error'>('idle');
   const [saveMessage, setSaveMessage] = useState('');
 
+  // Fresh workspace base_config fetched from the API. The activeWorkspace prop is
+  // cached in Layout state from app startup, so changes made after the workspace
+  // loaded (e.g. importing a census file) would otherwise be invisible here — and a
+  // subsequent Save would clobber them with stale values.
+  const [freshBaseConfig, setFreshBaseConfig] = useState<Record<string, any> | null>(null);
+
+  // --- useEffect 0: Refetch workspace base_config so the form reflects current state ---
+  useEffect(() => {
+    if (!activeWorkspace?.id) return;
+    let cancelled = false;
+    getWorkspace(activeWorkspace.id)
+      .then((ws) => {
+        if (!cancelled) setFreshBaseConfig(ws.base_config ?? activeWorkspace.base_config ?? {});
+      })
+      .catch((err) => {
+        console.error('Failed to refresh workspace config; falling back to cached copy:', err);
+        if (!cancelled) setFreshBaseConfig(activeWorkspace.base_config ?? {});
+      });
+    return () => { cancelled = true; };
+  }, [activeWorkspace?.id]);
+
   // --- useEffect 1: Load scenario config overlay ---
   useEffect(() => {
     const loadScenario = async () => {
+      // Wait until the fresh base config has been applied (useEffect 2) so the
+      // scenario overlay lands on top of current workspace values, not under them.
+      if (freshBaseConfig === null) return;
       if (!scenarioId || !activeWorkspace?.id) {
         setCurrentScenario(null);
         setScenarioLoading(false);
@@ -391,14 +416,13 @@ export function ConfigProvider({ activeWorkspace, scenarioId, children }: Config
       }
     };
     loadScenario();
-  }, [scenarioId, activeWorkspace?.id]);
+  }, [scenarioId, activeWorkspace?.id, freshBaseConfig]);
 
-  // --- useEffect 2: Load config from workspace base_config ---
+  // --- useEffect 2: Load config from freshly fetched workspace base_config ---
   useEffect(() => {
-    if (!activeWorkspace?.base_config) return;
-    const cfg = activeWorkspace.base_config;
-    setFormData(prev => applyConfigToFormData(cfg, prev));
-  }, [activeWorkspace?.base_config]);
+    if (!freshBaseConfig) return;
+    setFormData(prev => applyConfigToFormData(freshBaseConfig, prev));
+  }, [freshBaseConfig]);
 
   // --- useEffect 3: Load seed configs (bands + promotion hazard) ---
   useEffect(() => {
@@ -441,10 +465,10 @@ export function ConfigProvider({ activeWorkspace, scenarioId, children }: Config
 
   // --- useEffect 4: savedFormData snapshot ---
   useEffect(() => {
-    if (savedFormData === null && (activeWorkspace?.base_config || currentScenario?.config_overrides)) {
+    if (savedFormData === null && (freshBaseConfig || currentScenario?.config_overrides)) {
       setSavedFormData({ ...formData });
     }
-  }, [formData, activeWorkspace?.base_config, currentScenario?.config_overrides, savedFormData]);
+  }, [formData, freshBaseConfig, currentScenario?.config_overrides, savedFormData]);
 
   // --- useEffect 5: beforeunload warning ---
   const isDirty = useMemo(() => {
