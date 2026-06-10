@@ -479,6 +479,19 @@ class SimulationService:
         # otherwise be resolved against the process CWD and reported as missing.
         resolved = self._resolve_census_path(str(census_path), workspace_id)
 
+        if resolved is None:
+            # Scenario overrides may carry a stale or placeholder path (older
+            # studio builds persisted "data/census_preprocessed.parquet" as a
+            # form default). Fall back to the workspace-level census if one is
+            # configured and exists, rather than failing the run.
+            fallback = self._workspace_census_fallback(workspace_id)
+            if fallback is not None:
+                logger.warning(
+                    f"Census file not found at '{census_path}'; falling back "
+                    f"to workspace census: {fallback}"
+                )
+                resolved = fallback
+
         if resolved is None or not resolved.exists():
             raise ConfigurationError(
                 f"Census file not found at '{census_path}'. Upload a valid "
@@ -507,12 +520,25 @@ class SimulationService:
         if candidate.is_absolute():
             return candidate if candidate.exists() else None
 
-        workspace_dir = self.storage._workspace_path(workspace_id)
-        for base in (workspace_dir, Path.cwd()):
-            resolved = base / census_path
-            if resolved.exists():
-                return resolved
-        return None
+        # Studio runs only ever reference files inside the workspace; resolving
+        # against the process CWD could silently pick up the repo's bundled
+        # sample data (data/census_preprocessed.parquet) instead.
+        resolved = self.storage._workspace_path(workspace_id) / census_path
+        return resolved if resolved.exists() else None
+
+    def _workspace_census_fallback(self, workspace_id: str) -> Optional[Path]:
+        """Return the workspace base-config census path if it exists on disk."""
+        try:
+            workspace = self.storage.get_workspace(workspace_id)
+        except Exception as e:
+            logger.warning(f"Could not load workspace for census fallback: {e}")
+            return None
+        if workspace is None:
+            return None
+        base_path = workspace.base_config.get("setup", {}).get("census_parquet_path")
+        if not base_path or not str(base_path).strip():
+            return None
+        return self._resolve_census_path(str(base_path), workspace_id)
 
     @staticmethod
     def _write_config(config: Dict[str, Any], config_path: Path) -> None:
