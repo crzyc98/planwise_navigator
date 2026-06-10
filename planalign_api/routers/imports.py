@@ -505,6 +505,7 @@ def generate_parquet(
     workspace_id: str,
     import_id: str,
     service: ImportService = Depends(get_import_service),
+    storage: WorkspaceStorage = Depends(get_workspace_storage),
     x_user_id: str = Header(default="system"),
 ) -> GenerateResponse:
     session = _check_session(workspace_id, import_id, service)
@@ -517,16 +518,37 @@ def generate_parquet(
     from datetime import datetime, timezone
     started_at = datetime.now(timezone.utc)
     try:
-        service.generate_parquet(import_id, workspace_id, user=x_user_id)
+        parquet_file = service.generate_parquet(import_id, workspace_id, user=x_user_id)
     except Exception as exc:
         # detail=str(exc) exposes internal errors — future: map exceptions to user-facing messages
         raise HTTPException(status_code=422, detail=str(exc)) from exc
+
+    # Point the workspace census at the freshly generated parquet so scenarios
+    # pick it up without a separate "Use as Census" step (mirrors the upload flow).
+    census_path_set = False
+    try:
+        census_path_set = storage.update_base_config_key(
+            workspace_id=workspace_id,
+            key_path="setup.census_parquet_path",
+            value=parquet_file.storage_path,
+        )
+        if not census_path_set:
+            logger.warning(
+                "Generated parquet but could not update census path for workspace %s",
+                workspace_id,
+            )
+    except Exception as exc:
+        # Don't fail the import if the config update fails — the file is generated
+        # and can still be assigned via "Use as Census".
+        logger.warning("Failed to set census path after parquet generation: %s", exc)
 
     return GenerateResponse(
         import_id=import_id,
         correlation_id=session.correlation_id,
         status="completed",
         started_at=started_at,
+        storage_path=parquet_file.storage_path,
+        census_path_set=census_path_set,
     )
 
 

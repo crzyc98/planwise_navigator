@@ -209,6 +209,8 @@ class GenerateResponse(BaseModel):
     correlation_id: str
     status: ImportStatusLiteral
     started_at: datetime
+    storage_path: Optional[str] = None
+    census_path_set: bool = False
 
 
 class ParquetFilesResponse(BaseModel):

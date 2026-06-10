@@ -122,6 +122,8 @@ export interface GenerateResponse {
   correlation_id: string;
   status: ImportStatus;
   started_at: string;
+  storage_path?: string | null;
+  census_path_set?: boolean;
 }
 
 export interface ParquetFilesResponse {
