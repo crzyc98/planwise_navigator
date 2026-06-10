@@ -75,6 +75,7 @@ def valid_import_archive():
 
         # Calculate checksum
         import hashlib
+
         workspace_json_bytes = json.dumps(workspace_data).encode()
         checksum = hashlib.sha256(workspace_json_bytes).hexdigest()
 
@@ -185,7 +186,9 @@ class TestExportEndpointIntegration:
 class TestImportEndpointIntegration:
     """T022: Integration test for import endpoint."""
 
-    def test_import_validate_endpoint(self, mock_workspace_storage, valid_import_archive):
+    def test_import_validate_endpoint(
+        self, mock_workspace_storage, valid_import_archive
+    ):
         """Test import validation endpoint returns manifest and conflict info."""
         export_service = ExportService(mock_workspace_storage)
 
@@ -195,7 +198,9 @@ class TestImportEndpointIntegration:
             archive_path = Path(f.name)
 
         try:
-            result = export_service.validate_archive(archive_path, len(valid_import_archive))
+            result = export_service.validate_archive(
+                archive_path, len(valid_import_archive)
+            )
 
             assert result.valid is True
             assert result.manifest is not None
@@ -221,7 +226,9 @@ class TestImportEndpointIntegration:
             archive_path = Path(f.name)
 
         try:
-            result = export_service.validate_archive(archive_path, len(valid_import_archive))
+            result = export_service.validate_archive(
+                archive_path, len(valid_import_archive)
+            )
 
             assert result.valid is True
             assert result.conflict is not None
@@ -345,7 +352,9 @@ class TestBulkImportEndpointIntegration:
 class TestFileSizeLimits:
     """Tests for file size limit enforcement."""
 
-    def test_import_rejects_oversized_file(self, mock_workspace_storage, valid_import_archive):
+    def test_import_rejects_oversized_file(
+        self, mock_workspace_storage, valid_import_archive
+    ):
         """Test import validation rejects files over 1GB."""
         export_service = ExportService(mock_workspace_storage)
 

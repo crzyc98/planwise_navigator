@@ -33,7 +33,8 @@ from planalign_api.services.database_path_resolver import ResolvedDatabasePath
 
 def _create_snapshot_table(conn: duckdb.DuckDBPyConnection) -> None:
     """Create fct_workforce_snapshot table with required columns."""
-    conn.execute("""
+    conn.execute(
+        """
         CREATE TABLE fct_workforce_snapshot (
             employee_id VARCHAR,
             scenario_id VARCHAR DEFAULT 'baseline',
@@ -52,7 +53,8 @@ def _create_snapshot_table(conn: duckdb.DuckDBPyConnection) -> None:
             total_escalation_amount DECIMAL(8,4) DEFAULT 0,
             irs_limit_reached BOOLEAN DEFAULT FALSE
         )
-    """)
+    """
+    )
 
 
 def _seed_employees(
@@ -128,22 +130,75 @@ class TestParticipationRateDefaultAll:
 
     def test_participation_rate_includes_terminated_by_default(self, in_memory_conn):
         """8 active (6 enrolled) + 2 terminated (1 enrolled) => default rate = 70.0 (7/10)."""
-        _seed_employees(in_memory_conn, [
-            # Active enrolled (6)
-            {"employee_id": "A1", "year": 2025, "status": "ACTIVE", "enrolled": True},
-            {"employee_id": "A2", "year": 2025, "status": "ACTIVE", "enrolled": True},
-            {"employee_id": "A3", "year": 2025, "status": "ACTIVE", "enrolled": True},
-            {"employee_id": "A4", "year": 2025, "status": "ACTIVE", "enrolled": True},
-            {"employee_id": "A5", "year": 2025, "status": "ACTIVE", "enrolled": True},
-            {"employee_id": "A6", "year": 2025, "status": "ACTIVE", "enrolled": True},
-            # Active not enrolled (2)
-            {"employee_id": "A7", "year": 2025, "status": "ACTIVE", "enrolled": False},
-            {"employee_id": "A8", "year": 2025, "status": "ACTIVE", "enrolled": False},
-            # Terminated enrolled (1)
-            {"employee_id": "T1", "year": 2025, "status": "TERMINATED", "enrolled": True},
-            # Terminated not enrolled (1)
-            {"employee_id": "T2", "year": 2025, "status": "TERMINATED", "enrolled": False},
-        ])
+        _seed_employees(
+            in_memory_conn,
+            [
+                # Active enrolled (6)
+                {
+                    "employee_id": "A1",
+                    "year": 2025,
+                    "status": "ACTIVE",
+                    "enrolled": True,
+                },
+                {
+                    "employee_id": "A2",
+                    "year": 2025,
+                    "status": "ACTIVE",
+                    "enrolled": True,
+                },
+                {
+                    "employee_id": "A3",
+                    "year": 2025,
+                    "status": "ACTIVE",
+                    "enrolled": True,
+                },
+                {
+                    "employee_id": "A4",
+                    "year": 2025,
+                    "status": "ACTIVE",
+                    "enrolled": True,
+                },
+                {
+                    "employee_id": "A5",
+                    "year": 2025,
+                    "status": "ACTIVE",
+                    "enrolled": True,
+                },
+                {
+                    "employee_id": "A6",
+                    "year": 2025,
+                    "status": "ACTIVE",
+                    "enrolled": True,
+                },
+                # Active not enrolled (2)
+                {
+                    "employee_id": "A7",
+                    "year": 2025,
+                    "status": "ACTIVE",
+                    "enrolled": False,
+                },
+                {
+                    "employee_id": "A8",
+                    "year": 2025,
+                    "status": "ACTIVE",
+                    "enrolled": False,
+                },
+                # Terminated enrolled (1)
+                {
+                    "employee_id": "T1",
+                    "year": 2025,
+                    "status": "TERMINATED",
+                    "enrolled": True,
+                },
+                # Terminated not enrolled (1)
+                {
+                    "employee_id": "T2",
+                    "year": 2025,
+                    "status": "TERMINATED",
+                    "enrolled": False,
+                },
+            ],
+        )
 
         service = AnalyticsService(storage=MagicMock(), db_resolver=MagicMock())
         results = service._get_contribution_by_year(in_memory_conn)
@@ -154,18 +209,71 @@ class TestParticipationRateDefaultAll:
 
     def test_participation_rate_active_only(self, in_memory_conn):
         """Same data with active_only=True => rate = 75.0 (6/8)."""
-        _seed_employees(in_memory_conn, [
-            {"employee_id": "A1", "year": 2025, "status": "ACTIVE", "enrolled": True},
-            {"employee_id": "A2", "year": 2025, "status": "ACTIVE", "enrolled": True},
-            {"employee_id": "A3", "year": 2025, "status": "ACTIVE", "enrolled": True},
-            {"employee_id": "A4", "year": 2025, "status": "ACTIVE", "enrolled": True},
-            {"employee_id": "A5", "year": 2025, "status": "ACTIVE", "enrolled": True},
-            {"employee_id": "A6", "year": 2025, "status": "ACTIVE", "enrolled": True},
-            {"employee_id": "A7", "year": 2025, "status": "ACTIVE", "enrolled": False},
-            {"employee_id": "A8", "year": 2025, "status": "ACTIVE", "enrolled": False},
-            {"employee_id": "T1", "year": 2025, "status": "TERMINATED", "enrolled": True},
-            {"employee_id": "T2", "year": 2025, "status": "TERMINATED", "enrolled": False},
-        ])
+        _seed_employees(
+            in_memory_conn,
+            [
+                {
+                    "employee_id": "A1",
+                    "year": 2025,
+                    "status": "ACTIVE",
+                    "enrolled": True,
+                },
+                {
+                    "employee_id": "A2",
+                    "year": 2025,
+                    "status": "ACTIVE",
+                    "enrolled": True,
+                },
+                {
+                    "employee_id": "A3",
+                    "year": 2025,
+                    "status": "ACTIVE",
+                    "enrolled": True,
+                },
+                {
+                    "employee_id": "A4",
+                    "year": 2025,
+                    "status": "ACTIVE",
+                    "enrolled": True,
+                },
+                {
+                    "employee_id": "A5",
+                    "year": 2025,
+                    "status": "ACTIVE",
+                    "enrolled": True,
+                },
+                {
+                    "employee_id": "A6",
+                    "year": 2025,
+                    "status": "ACTIVE",
+                    "enrolled": True,
+                },
+                {
+                    "employee_id": "A7",
+                    "year": 2025,
+                    "status": "ACTIVE",
+                    "enrolled": False,
+                },
+                {
+                    "employee_id": "A8",
+                    "year": 2025,
+                    "status": "ACTIVE",
+                    "enrolled": False,
+                },
+                {
+                    "employee_id": "T1",
+                    "year": 2025,
+                    "status": "TERMINATED",
+                    "enrolled": True,
+                },
+                {
+                    "employee_id": "T2",
+                    "year": 2025,
+                    "status": "TERMINATED",
+                    "enrolled": False,
+                },
+            ],
+        )
 
         service = AnalyticsService(storage=MagicMock(), db_resolver=MagicMock())
         results = service._get_contribution_by_year(in_memory_conn, active_only=True)
@@ -185,11 +293,29 @@ class TestZeroActiveEmployees:
 
     def test_all_terminated_default_includes_them(self, in_memory_conn):
         """All terminated, default (all participants) => 2/3 = 66.67%."""
-        _seed_employees(in_memory_conn, [
-            {"employee_id": "T1", "year": 2025, "status": "TERMINATED", "enrolled": True},
-            {"employee_id": "T2", "year": 2025, "status": "TERMINATED", "enrolled": True},
-            {"employee_id": "T3", "year": 2025, "status": "TERMINATED", "enrolled": False},
-        ])
+        _seed_employees(
+            in_memory_conn,
+            [
+                {
+                    "employee_id": "T1",
+                    "year": 2025,
+                    "status": "TERMINATED",
+                    "enrolled": True,
+                },
+                {
+                    "employee_id": "T2",
+                    "year": 2025,
+                    "status": "TERMINATED",
+                    "enrolled": True,
+                },
+                {
+                    "employee_id": "T3",
+                    "year": 2025,
+                    "status": "TERMINATED",
+                    "enrolled": False,
+                },
+            ],
+        )
 
         service = AnalyticsService(storage=MagicMock(), db_resolver=MagicMock())
         results = service._get_contribution_by_year(in_memory_conn)
@@ -199,11 +325,29 @@ class TestZeroActiveEmployees:
 
     def test_all_terminated_active_only_returns_zero(self, in_memory_conn):
         """All terminated with active_only=True => 0.0, no division error."""
-        _seed_employees(in_memory_conn, [
-            {"employee_id": "T1", "year": 2025, "status": "TERMINATED", "enrolled": True},
-            {"employee_id": "T2", "year": 2025, "status": "TERMINATED", "enrolled": True},
-            {"employee_id": "T3", "year": 2025, "status": "TERMINATED", "enrolled": False},
-        ])
+        _seed_employees(
+            in_memory_conn,
+            [
+                {
+                    "employee_id": "T1",
+                    "year": 2025,
+                    "status": "TERMINATED",
+                    "enrolled": True,
+                },
+                {
+                    "employee_id": "T2",
+                    "year": 2025,
+                    "status": "TERMINATED",
+                    "enrolled": True,
+                },
+                {
+                    "employee_id": "T3",
+                    "year": 2025,
+                    "status": "TERMINATED",
+                    "enrolled": False,
+                },
+            ],
+        )
 
         service = AnalyticsService(storage=MagicMock(), db_resolver=MagicMock())
         results = service._get_contribution_by_year(in_memory_conn, active_only=True)
@@ -221,15 +365,53 @@ class TestAllActiveEnrolled:
 
     def test_all_active_enrolled_default(self, in_memory_conn):
         """5 active enrolled + 2 terminated not enrolled => default rate = 71.43 (5/7)."""
-        _seed_employees(in_memory_conn, [
-            {"employee_id": "A1", "year": 2025, "status": "ACTIVE", "enrolled": True},
-            {"employee_id": "A2", "year": 2025, "status": "ACTIVE", "enrolled": True},
-            {"employee_id": "A3", "year": 2025, "status": "ACTIVE", "enrolled": True},
-            {"employee_id": "A4", "year": 2025, "status": "ACTIVE", "enrolled": True},
-            {"employee_id": "A5", "year": 2025, "status": "ACTIVE", "enrolled": True},
-            {"employee_id": "T1", "year": 2025, "status": "TERMINATED", "enrolled": False},
-            {"employee_id": "T2", "year": 2025, "status": "TERMINATED", "enrolled": False},
-        ])
+        _seed_employees(
+            in_memory_conn,
+            [
+                {
+                    "employee_id": "A1",
+                    "year": 2025,
+                    "status": "ACTIVE",
+                    "enrolled": True,
+                },
+                {
+                    "employee_id": "A2",
+                    "year": 2025,
+                    "status": "ACTIVE",
+                    "enrolled": True,
+                },
+                {
+                    "employee_id": "A3",
+                    "year": 2025,
+                    "status": "ACTIVE",
+                    "enrolled": True,
+                },
+                {
+                    "employee_id": "A4",
+                    "year": 2025,
+                    "status": "ACTIVE",
+                    "enrolled": True,
+                },
+                {
+                    "employee_id": "A5",
+                    "year": 2025,
+                    "status": "ACTIVE",
+                    "enrolled": True,
+                },
+                {
+                    "employee_id": "T1",
+                    "year": 2025,
+                    "status": "TERMINATED",
+                    "enrolled": False,
+                },
+                {
+                    "employee_id": "T2",
+                    "year": 2025,
+                    "status": "TERMINATED",
+                    "enrolled": False,
+                },
+            ],
+        )
 
         service = AnalyticsService(storage=MagicMock(), db_resolver=MagicMock())
         results = service._get_contribution_by_year(in_memory_conn)
@@ -240,15 +422,53 @@ class TestAllActiveEnrolled:
 
     def test_all_active_enrolled_active_only(self, in_memory_conn):
         """Same data with active_only=True => rate = 100.0 (5/5)."""
-        _seed_employees(in_memory_conn, [
-            {"employee_id": "A1", "year": 2025, "status": "ACTIVE", "enrolled": True},
-            {"employee_id": "A2", "year": 2025, "status": "ACTIVE", "enrolled": True},
-            {"employee_id": "A3", "year": 2025, "status": "ACTIVE", "enrolled": True},
-            {"employee_id": "A4", "year": 2025, "status": "ACTIVE", "enrolled": True},
-            {"employee_id": "A5", "year": 2025, "status": "ACTIVE", "enrolled": True},
-            {"employee_id": "T1", "year": 2025, "status": "TERMINATED", "enrolled": False},
-            {"employee_id": "T2", "year": 2025, "status": "TERMINATED", "enrolled": False},
-        ])
+        _seed_employees(
+            in_memory_conn,
+            [
+                {
+                    "employee_id": "A1",
+                    "year": 2025,
+                    "status": "ACTIVE",
+                    "enrolled": True,
+                },
+                {
+                    "employee_id": "A2",
+                    "year": 2025,
+                    "status": "ACTIVE",
+                    "enrolled": True,
+                },
+                {
+                    "employee_id": "A3",
+                    "year": 2025,
+                    "status": "ACTIVE",
+                    "enrolled": True,
+                },
+                {
+                    "employee_id": "A4",
+                    "year": 2025,
+                    "status": "ACTIVE",
+                    "enrolled": True,
+                },
+                {
+                    "employee_id": "A5",
+                    "year": 2025,
+                    "status": "ACTIVE",
+                    "enrolled": True,
+                },
+                {
+                    "employee_id": "T1",
+                    "year": 2025,
+                    "status": "TERMINATED",
+                    "enrolled": False,
+                },
+                {
+                    "employee_id": "T2",
+                    "year": 2025,
+                    "status": "TERMINATED",
+                    "enrolled": False,
+                },
+            ],
+        )
 
         service = AnalyticsService(storage=MagicMock(), db_resolver=MagicMock())
         results = service._get_contribution_by_year(in_memory_conn, active_only=True)
@@ -267,16 +487,29 @@ class TestContributionTotalsIncludeAll:
 
     def test_contributions_include_terminated(self, in_memory_conn):
         """Contribution sums must include terminated employee amounts."""
-        _seed_employees(in_memory_conn, [
-            {
-                "employee_id": "A1", "year": 2025, "status": "ACTIVE",
-                "enrolled": True, "contributions": 5000, "match": 2500, "core": 1000,
-            },
-            {
-                "employee_id": "T1", "year": 2025, "status": "TERMINATED",
-                "enrolled": True, "contributions": 3000, "match": 1500, "core": 500,
-            },
-        ])
+        _seed_employees(
+            in_memory_conn,
+            [
+                {
+                    "employee_id": "A1",
+                    "year": 2025,
+                    "status": "ACTIVE",
+                    "enrolled": True,
+                    "contributions": 5000,
+                    "match": 2500,
+                    "core": 1000,
+                },
+                {
+                    "employee_id": "T1",
+                    "year": 2025,
+                    "status": "TERMINATED",
+                    "enrolled": True,
+                    "contributions": 3000,
+                    "match": 1500,
+                    "core": 500,
+                },
+            ],
+        )
 
         service = AnalyticsService(storage=MagicMock(), db_resolver=MagicMock())
         results = service._get_contribution_by_year(in_memory_conn)
@@ -302,20 +535,71 @@ class TestFinalYearMatchesTopLevel:
 
         conn = duckdb.connect(str(db_path))
         # Year 2025 data
-        _seed_employees(conn, [
-            {"employee_id": "A1", "year": 2025, "status": "ACTIVE", "enrolled": True},
-            {"employee_id": "A2", "year": 2025, "status": "ACTIVE", "enrolled": True},
-            {"employee_id": "A3", "year": 2025, "status": "ACTIVE", "enrolled": False},
-            {"employee_id": "T1", "year": 2025, "status": "TERMINATED", "enrolled": True},
-        ])
+        _seed_employees(
+            conn,
+            [
+                {
+                    "employee_id": "A1",
+                    "year": 2025,
+                    "status": "ACTIVE",
+                    "enrolled": True,
+                },
+                {
+                    "employee_id": "A2",
+                    "year": 2025,
+                    "status": "ACTIVE",
+                    "enrolled": True,
+                },
+                {
+                    "employee_id": "A3",
+                    "year": 2025,
+                    "status": "ACTIVE",
+                    "enrolled": False,
+                },
+                {
+                    "employee_id": "T1",
+                    "year": 2025,
+                    "status": "TERMINATED",
+                    "enrolled": True,
+                },
+            ],
+        )
         # Year 2026 data (final year)
-        _seed_employees(conn, [
-            {"employee_id": "A1", "year": 2026, "status": "ACTIVE", "enrolled": True},
-            {"employee_id": "A2", "year": 2026, "status": "ACTIVE", "enrolled": True},
-            {"employee_id": "A3", "year": 2026, "status": "ACTIVE", "enrolled": True},
-            {"employee_id": "A4", "year": 2026, "status": "ACTIVE", "enrolled": False},
-            {"employee_id": "T1", "year": 2026, "status": "TERMINATED", "enrolled": True},
-        ])
+        _seed_employees(
+            conn,
+            [
+                {
+                    "employee_id": "A1",
+                    "year": 2026,
+                    "status": "ACTIVE",
+                    "enrolled": True,
+                },
+                {
+                    "employee_id": "A2",
+                    "year": 2026,
+                    "status": "ACTIVE",
+                    "enrolled": True,
+                },
+                {
+                    "employee_id": "A3",
+                    "year": 2026,
+                    "status": "ACTIVE",
+                    "enrolled": True,
+                },
+                {
+                    "employee_id": "A4",
+                    "year": 2026,
+                    "status": "ACTIVE",
+                    "enrolled": False,
+                },
+                {
+                    "employee_id": "T1",
+                    "year": 2026,
+                    "status": "TERMINATED",
+                    "enrolled": True,
+                },
+            ],
+        )
         conn.close()
 
         result = service.get_dc_plan_analytics("ws", "sc", "test")
@@ -344,12 +628,35 @@ class TestSingleYearMatchesTopLevel:
         service, db_path = analytics_service
 
         conn = duckdb.connect(str(db_path))
-        _seed_employees(conn, [
-            {"employee_id": "A1", "year": 2025, "status": "ACTIVE", "enrolled": True},
-            {"employee_id": "A2", "year": 2025, "status": "ACTIVE", "enrolled": True},
-            {"employee_id": "A3", "year": 2025, "status": "ACTIVE", "enrolled": False},
-            {"employee_id": "T1", "year": 2025, "status": "TERMINATED", "enrolled": True},
-        ])
+        _seed_employees(
+            conn,
+            [
+                {
+                    "employee_id": "A1",
+                    "year": 2025,
+                    "status": "ACTIVE",
+                    "enrolled": True,
+                },
+                {
+                    "employee_id": "A2",
+                    "year": 2025,
+                    "status": "ACTIVE",
+                    "enrolled": True,
+                },
+                {
+                    "employee_id": "A3",
+                    "year": 2025,
+                    "status": "ACTIVE",
+                    "enrolled": False,
+                },
+                {
+                    "employee_id": "T1",
+                    "year": 2025,
+                    "status": "TERMINATED",
+                    "enrolled": True,
+                },
+            ],
+        )
         conn.close()
 
         result = service.get_dc_plan_analytics("ws", "sc", "test")
@@ -618,12 +925,26 @@ class TestContributionRates:
 
         # Verify rates match _contribution_rates output
         expected_rates = AnalyticsService._contribution_rates(
-            18000.0, 9000.0, 5000.0, 500000.0,
+            18000.0,
+            9000.0,
+            5000.0,
+            500000.0,
         )
-        assert totals["employee_contribution_rate"] == expected_rates["employee_contribution_rate"]
-        assert totals["match_contribution_rate"] == expected_rates["match_contribution_rate"]
-        assert totals["core_contribution_rate"] == expected_rates["core_contribution_rate"]
-        assert totals["total_contribution_rate"] == expected_rates["total_contribution_rate"]
+        assert (
+            totals["employee_contribution_rate"]
+            == expected_rates["employee_contribution_rate"]
+        )
+        assert (
+            totals["match_contribution_rate"]
+            == expected_rates["match_contribution_rate"]
+        )
+        assert (
+            totals["core_contribution_rate"] == expected_rates["core_contribution_rate"]
+        )
+        assert (
+            totals["total_contribution_rate"]
+            == expected_rates["total_contribution_rate"]
+        )
 
 
 # =============================================================================
@@ -637,16 +958,39 @@ class TestGetParticipationSummary:
     @pytest.mark.fast
     def test_participation_summary_default_all(self, in_memory_conn):
         """Default includes all employees (active + terminated)."""
-        _seed_employees(in_memory_conn, [
-            {"employee_id": "A1", "year": 2025, "status": "ACTIVE", "enrolled": True,
-             "participation_detail": "auto_enrolled"},
-            {"employee_id": "A2", "year": 2025, "status": "ACTIVE", "enrolled": True,
-             "participation_detail": "voluntary"},
-            {"employee_id": "A3", "year": 2025, "status": "ACTIVE", "enrolled": False,
-             "participation_detail": "not_enrolled"},
-            {"employee_id": "T1", "year": 2025, "status": "TERMINATED", "enrolled": True,
-             "participation_detail": "census_baseline"},
-        ])
+        _seed_employees(
+            in_memory_conn,
+            [
+                {
+                    "employee_id": "A1",
+                    "year": 2025,
+                    "status": "ACTIVE",
+                    "enrolled": True,
+                    "participation_detail": "auto_enrolled",
+                },
+                {
+                    "employee_id": "A2",
+                    "year": 2025,
+                    "status": "ACTIVE",
+                    "enrolled": True,
+                    "participation_detail": "voluntary",
+                },
+                {
+                    "employee_id": "A3",
+                    "year": 2025,
+                    "status": "ACTIVE",
+                    "enrolled": False,
+                    "participation_detail": "not_enrolled",
+                },
+                {
+                    "employee_id": "T1",
+                    "year": 2025,
+                    "status": "TERMINATED",
+                    "enrolled": True,
+                    "participation_detail": "census_baseline",
+                },
+            ],
+        )
 
         service = AnalyticsService(storage=MagicMock(), db_resolver=MagicMock())
         result = service._get_participation_summary(in_memory_conn, active_only=False)
@@ -661,11 +1005,29 @@ class TestGetParticipationSummary:
     @pytest.mark.fast
     def test_participation_summary_active_only(self, in_memory_conn):
         """active_only=True filters out terminated employees."""
-        _seed_employees(in_memory_conn, [
-            {"employee_id": "A1", "year": 2025, "status": "ACTIVE", "enrolled": True},
-            {"employee_id": "A2", "year": 2025, "status": "ACTIVE", "enrolled": False},
-            {"employee_id": "T1", "year": 2025, "status": "TERMINATED", "enrolled": True},
-        ])
+        _seed_employees(
+            in_memory_conn,
+            [
+                {
+                    "employee_id": "A1",
+                    "year": 2025,
+                    "status": "ACTIVE",
+                    "enrolled": True,
+                },
+                {
+                    "employee_id": "A2",
+                    "year": 2025,
+                    "status": "ACTIVE",
+                    "enrolled": False,
+                },
+                {
+                    "employee_id": "T1",
+                    "year": 2025,
+                    "status": "TERMINATED",
+                    "enrolled": True,
+                },
+            ],
+        )
 
         service = AnalyticsService(storage=MagicMock(), db_resolver=MagicMock())
         result = service._get_participation_summary(in_memory_conn, active_only=True)
@@ -702,15 +1064,43 @@ class TestGetParticipationSummary:
     @pytest.mark.fast
     def test_participation_summary_uses_final_year(self, in_memory_conn):
         """Summary is computed from the final (max) simulation year only."""
-        _seed_employees(in_memory_conn, [
-            # Year 2025: 2 enrolled / 3 total
-            {"employee_id": "A1", "year": 2025, "status": "ACTIVE", "enrolled": True},
-            {"employee_id": "A2", "year": 2025, "status": "ACTIVE", "enrolled": True},
-            {"employee_id": "A3", "year": 2025, "status": "ACTIVE", "enrolled": False},
-            # Year 2026: 1 enrolled / 2 total
-            {"employee_id": "A1", "year": 2026, "status": "ACTIVE", "enrolled": True},
-            {"employee_id": "A3", "year": 2026, "status": "ACTIVE", "enrolled": False},
-        ])
+        _seed_employees(
+            in_memory_conn,
+            [
+                # Year 2025: 2 enrolled / 3 total
+                {
+                    "employee_id": "A1",
+                    "year": 2025,
+                    "status": "ACTIVE",
+                    "enrolled": True,
+                },
+                {
+                    "employee_id": "A2",
+                    "year": 2025,
+                    "status": "ACTIVE",
+                    "enrolled": True,
+                },
+                {
+                    "employee_id": "A3",
+                    "year": 2025,
+                    "status": "ACTIVE",
+                    "enrolled": False,
+                },
+                # Year 2026: 1 enrolled / 2 total
+                {
+                    "employee_id": "A1",
+                    "year": 2026,
+                    "status": "ACTIVE",
+                    "enrolled": True,
+                },
+                {
+                    "employee_id": "A3",
+                    "year": 2026,
+                    "status": "ACTIVE",
+                    "enrolled": False,
+                },
+            ],
+        )
 
         service = AnalyticsService(storage=MagicMock(), db_resolver=MagicMock())
         result = service._get_participation_summary(in_memory_conn)
@@ -732,13 +1122,21 @@ class TestContributionByYearRates:
     @pytest.mark.fast
     def test_contribution_rate_percentages(self, in_memory_conn):
         """Contribution rates are computed as percentage of total compensation."""
-        _seed_employees(in_memory_conn, [
-            {
-                "employee_id": "A1", "year": 2025, "status": "ACTIVE",
-                "enrolled": True, "contributions": 6000, "match": 3000,
-                "core": 1000, "compensation": 100000,
-            },
-        ])
+        _seed_employees(
+            in_memory_conn,
+            [
+                {
+                    "employee_id": "A1",
+                    "year": 2025,
+                    "status": "ACTIVE",
+                    "enrolled": True,
+                    "contributions": 6000,
+                    "match": 3000,
+                    "core": 1000,
+                    "compensation": 100000,
+                },
+            ],
+        )
 
         service = AnalyticsService(storage=MagicMock(), db_resolver=MagicMock())
         results = service._get_contribution_by_year(in_memory_conn)
@@ -754,13 +1152,21 @@ class TestContributionByYearRates:
     @pytest.mark.fast
     def test_contribution_rates_zero_compensation(self, in_memory_conn):
         """Zero compensation yields 0 rates without division error."""
-        _seed_employees(in_memory_conn, [
-            {
-                "employee_id": "A1", "year": 2025, "status": "ACTIVE",
-                "enrolled": True, "contributions": 500, "match": 200,
-                "core": 100, "compensation": 0,
-            },
-        ])
+        _seed_employees(
+            in_memory_conn,
+            [
+                {
+                    "employee_id": "A1",
+                    "year": 2025,
+                    "status": "ACTIVE",
+                    "enrolled": True,
+                    "contributions": 500,
+                    "match": 200,
+                    "core": 100,
+                    "compensation": 0,
+                },
+            ],
+        )
 
         service = AnalyticsService(storage=MagicMock(), db_resolver=MagicMock())
         results = service._get_contribution_by_year(in_memory_conn)
@@ -776,12 +1182,27 @@ class TestContributionByYearRates:
     @pytest.mark.fast
     def test_contribution_by_year_multi_year(self, in_memory_conn):
         """Multi-year returns one ContributionYearSummary per year, ordered."""
-        _seed_employees(in_memory_conn, [
-            {"employee_id": "A1", "year": 2025, "status": "ACTIVE",
-             "enrolled": True, "contributions": 5000, "compensation": 100000},
-            {"employee_id": "A1", "year": 2026, "status": "ACTIVE",
-             "enrolled": True, "contributions": 6000, "compensation": 120000},
-        ])
+        _seed_employees(
+            in_memory_conn,
+            [
+                {
+                    "employee_id": "A1",
+                    "year": 2025,
+                    "status": "ACTIVE",
+                    "enrolled": True,
+                    "contributions": 5000,
+                    "compensation": 100000,
+                },
+                {
+                    "employee_id": "A1",
+                    "year": 2026,
+                    "status": "ACTIVE",
+                    "enrolled": True,
+                    "contributions": 6000,
+                    "compensation": 120000,
+                },
+            ],
+        )
 
         service = AnalyticsService(storage=MagicMock(), db_resolver=MagicMock())
         results = service._get_contribution_by_year(in_memory_conn)
@@ -815,22 +1236,50 @@ class TestDeferralDistribution:
     @pytest.mark.fast
     def test_deferral_distribution_buckets(self, in_memory_conn):
         """Deferral rates are bucketed correctly (11 buckets)."""
-        _seed_employees(in_memory_conn, [
-            # 0% bucket
-            {"employee_id": "A1", "year": 2025, "status": "ACTIVE",
-             "enrolled": True, "deferral_rate": 0.0},
-            # 3% bucket (0.025 <= rate < 0.035)
-            {"employee_id": "A2", "year": 2025, "status": "ACTIVE",
-             "enrolled": True, "deferral_rate": 0.03},
-            # 6% bucket (0.055 <= rate < 0.065)
-            {"employee_id": "A3", "year": 2025, "status": "ACTIVE",
-             "enrolled": True, "deferral_rate": 0.06},
-            {"employee_id": "A4", "year": 2025, "status": "ACTIVE",
-             "enrolled": True, "deferral_rate": 0.06},
-            # 10%+ bucket (>= 0.095)
-            {"employee_id": "A5", "year": 2025, "status": "ACTIVE",
-             "enrolled": True, "deferral_rate": 0.15},
-        ])
+        _seed_employees(
+            in_memory_conn,
+            [
+                # 0% bucket
+                {
+                    "employee_id": "A1",
+                    "year": 2025,
+                    "status": "ACTIVE",
+                    "enrolled": True,
+                    "deferral_rate": 0.0,
+                },
+                # 3% bucket (0.025 <= rate < 0.035)
+                {
+                    "employee_id": "A2",
+                    "year": 2025,
+                    "status": "ACTIVE",
+                    "enrolled": True,
+                    "deferral_rate": 0.03,
+                },
+                # 6% bucket (0.055 <= rate < 0.065)
+                {
+                    "employee_id": "A3",
+                    "year": 2025,
+                    "status": "ACTIVE",
+                    "enrolled": True,
+                    "deferral_rate": 0.06,
+                },
+                {
+                    "employee_id": "A4",
+                    "year": 2025,
+                    "status": "ACTIVE",
+                    "enrolled": True,
+                    "deferral_rate": 0.06,
+                },
+                # 10%+ bucket (>= 0.095)
+                {
+                    "employee_id": "A5",
+                    "year": 2025,
+                    "status": "ACTIVE",
+                    "enrolled": True,
+                    "deferral_rate": 0.15,
+                },
+            ],
+        )
 
         service = AnalyticsService(storage=MagicMock(), db_resolver=MagicMock())
         dist = service._get_deferral_distribution(in_memory_conn)
@@ -856,14 +1305,32 @@ class TestDeferralDistribution:
     @pytest.mark.fast
     def test_deferral_distribution_excludes_terminated(self, in_memory_conn):
         """Only active enrolled employees appear in deferral distribution."""
-        _seed_employees(in_memory_conn, [
-            {"employee_id": "A1", "year": 2025, "status": "ACTIVE",
-             "enrolled": True, "deferral_rate": 0.06},
-            {"employee_id": "T1", "year": 2025, "status": "TERMINATED",
-             "enrolled": True, "deferral_rate": 0.06},
-            {"employee_id": "A2", "year": 2025, "status": "ACTIVE",
-             "enrolled": False, "deferral_rate": 0.06},
-        ])
+        _seed_employees(
+            in_memory_conn,
+            [
+                {
+                    "employee_id": "A1",
+                    "year": 2025,
+                    "status": "ACTIVE",
+                    "enrolled": True,
+                    "deferral_rate": 0.06,
+                },
+                {
+                    "employee_id": "T1",
+                    "year": 2025,
+                    "status": "TERMINATED",
+                    "enrolled": True,
+                    "deferral_rate": 0.06,
+                },
+                {
+                    "employee_id": "A2",
+                    "year": 2025,
+                    "status": "ACTIVE",
+                    "enrolled": False,
+                    "deferral_rate": 0.06,
+                },
+            ],
+        )
 
         service = AnalyticsService(storage=MagicMock(), db_resolver=MagicMock())
         dist = service._get_deferral_distribution(in_memory_conn)
@@ -896,14 +1363,32 @@ class TestDeferralDistributionAllYears:
     @pytest.mark.fast
     def test_deferral_distribution_all_years(self, in_memory_conn):
         """Returns one DeferralDistributionYear per year with 11 buckets each."""
-        _seed_employees(in_memory_conn, [
-            {"employee_id": "A1", "year": 2025, "status": "ACTIVE",
-             "enrolled": True, "deferral_rate": 0.03},
-            {"employee_id": "A2", "year": 2025, "status": "ACTIVE",
-             "enrolled": True, "deferral_rate": 0.06},
-            {"employee_id": "A1", "year": 2026, "status": "ACTIVE",
-             "enrolled": True, "deferral_rate": 0.08},
-        ])
+        _seed_employees(
+            in_memory_conn,
+            [
+                {
+                    "employee_id": "A1",
+                    "year": 2025,
+                    "status": "ACTIVE",
+                    "enrolled": True,
+                    "deferral_rate": 0.03,
+                },
+                {
+                    "employee_id": "A2",
+                    "year": 2025,
+                    "status": "ACTIVE",
+                    "enrolled": True,
+                    "deferral_rate": 0.06,
+                },
+                {
+                    "employee_id": "A1",
+                    "year": 2026,
+                    "status": "ACTIVE",
+                    "enrolled": True,
+                    "deferral_rate": 0.08,
+                },
+            ],
+        )
 
         service = AnalyticsService(storage=MagicMock(), db_resolver=MagicMock())
         result = service._get_deferral_distribution_all_years(in_memory_conn)
@@ -946,17 +1431,38 @@ class TestEscalationMetrics:
     @pytest.mark.fast
     def test_escalation_metrics_basic(self, in_memory_conn):
         """Escalation metrics computed from final year active enrolled employees."""
-        _seed_employees(in_memory_conn, [
-            {"employee_id": "A1", "year": 2025, "status": "ACTIVE",
-             "enrolled": True, "has_escalations": True,
-             "escalation_count": 2, "escalation_amount": 0.02},
-            {"employee_id": "A2", "year": 2025, "status": "ACTIVE",
-             "enrolled": True, "has_escalations": True,
-             "escalation_count": 1, "escalation_amount": 0.01},
-            {"employee_id": "A3", "year": 2025, "status": "ACTIVE",
-             "enrolled": True, "has_escalations": False,
-             "escalation_count": 0, "escalation_amount": 0},
-        ])
+        _seed_employees(
+            in_memory_conn,
+            [
+                {
+                    "employee_id": "A1",
+                    "year": 2025,
+                    "status": "ACTIVE",
+                    "enrolled": True,
+                    "has_escalations": True,
+                    "escalation_count": 2,
+                    "escalation_amount": 0.02,
+                },
+                {
+                    "employee_id": "A2",
+                    "year": 2025,
+                    "status": "ACTIVE",
+                    "enrolled": True,
+                    "has_escalations": True,
+                    "escalation_count": 1,
+                    "escalation_amount": 0.01,
+                },
+                {
+                    "employee_id": "A3",
+                    "year": 2025,
+                    "status": "ACTIVE",
+                    "enrolled": True,
+                    "has_escalations": False,
+                    "escalation_count": 0,
+                    "escalation_amount": 0,
+                },
+            ],
+        )
 
         service = AnalyticsService(storage=MagicMock(), db_resolver=MagicMock())
         metrics = service._get_escalation_metrics(in_memory_conn)
@@ -969,11 +1475,20 @@ class TestEscalationMetrics:
     @pytest.mark.fast
     def test_escalation_metrics_no_escalations(self, in_memory_conn):
         """No escalations yields zeros."""
-        _seed_employees(in_memory_conn, [
-            {"employee_id": "A1", "year": 2025, "status": "ACTIVE",
-             "enrolled": True, "has_escalations": False,
-             "escalation_count": 0, "escalation_amount": 0},
-        ])
+        _seed_employees(
+            in_memory_conn,
+            [
+                {
+                    "employee_id": "A1",
+                    "year": 2025,
+                    "status": "ACTIVE",
+                    "enrolled": True,
+                    "has_escalations": False,
+                    "escalation_count": 0,
+                    "escalation_amount": 0,
+                },
+            ],
+        )
 
         service = AnalyticsService(storage=MagicMock(), db_resolver=MagicMock())
         metrics = service._get_escalation_metrics(in_memory_conn)
@@ -1007,16 +1522,39 @@ class TestIRSLimitMetrics:
     @pytest.mark.fast
     def test_irs_limit_metrics_basic(self, in_memory_conn):
         """IRS limit metrics from final year active enrolled employees."""
-        _seed_employees(in_memory_conn, [
-            {"employee_id": "A1", "year": 2025, "status": "ACTIVE",
-             "enrolled": True, "irs_limit_reached": True},
-            {"employee_id": "A2", "year": 2025, "status": "ACTIVE",
-             "enrolled": True, "irs_limit_reached": False},
-            {"employee_id": "A3", "year": 2025, "status": "ACTIVE",
-             "enrolled": True, "irs_limit_reached": True},
-            {"employee_id": "A4", "year": 2025, "status": "ACTIVE",
-             "enrolled": True, "irs_limit_reached": False},
-        ])
+        _seed_employees(
+            in_memory_conn,
+            [
+                {
+                    "employee_id": "A1",
+                    "year": 2025,
+                    "status": "ACTIVE",
+                    "enrolled": True,
+                    "irs_limit_reached": True,
+                },
+                {
+                    "employee_id": "A2",
+                    "year": 2025,
+                    "status": "ACTIVE",
+                    "enrolled": True,
+                    "irs_limit_reached": False,
+                },
+                {
+                    "employee_id": "A3",
+                    "year": 2025,
+                    "status": "ACTIVE",
+                    "enrolled": True,
+                    "irs_limit_reached": True,
+                },
+                {
+                    "employee_id": "A4",
+                    "year": 2025,
+                    "status": "ACTIVE",
+                    "enrolled": True,
+                    "irs_limit_reached": False,
+                },
+            ],
+        )
 
         service = AnalyticsService(storage=MagicMock(), db_resolver=MagicMock())
         metrics = service._get_irs_limit_metrics(in_memory_conn)
@@ -1027,10 +1565,18 @@ class TestIRSLimitMetrics:
     @pytest.mark.fast
     def test_irs_limit_metrics_none_at_limit(self, in_memory_conn):
         """No employees at IRS limit."""
-        _seed_employees(in_memory_conn, [
-            {"employee_id": "A1", "year": 2025, "status": "ACTIVE",
-             "enrolled": True, "irs_limit_reached": False},
-        ])
+        _seed_employees(
+            in_memory_conn,
+            [
+                {
+                    "employee_id": "A1",
+                    "year": 2025,
+                    "status": "ACTIVE",
+                    "enrolled": True,
+                    "irs_limit_reached": False,
+                },
+            ],
+        )
 
         service = AnalyticsService(storage=MagicMock(), db_resolver=MagicMock())
         metrics = service._get_irs_limit_metrics(in_memory_conn)
@@ -1065,28 +1611,50 @@ class TestGetDCPlanAnalyticsFull:
         service, db_path = analytics_service
 
         conn = duckdb.connect(str(db_path))
-        _seed_employees(conn, [
-            {
-                "employee_id": "A1", "year": 2025, "status": "ACTIVE",
-                "enrolled": True, "contributions": 6000, "match": 3000,
-                "core": 1000, "compensation": 100000, "deferral_rate": 0.06,
-                "participation_detail": "auto_enrolled",
-                "has_escalations": True, "escalation_count": 1,
-                "escalation_amount": 0.01, "irs_limit_reached": False,
-            },
-            {
-                "employee_id": "A2", "year": 2025, "status": "ACTIVE",
-                "enrolled": True, "contributions": 8000, "match": 4000,
-                "core": 1500, "compensation": 150000, "deferral_rate": 0.05,
-                "participation_detail": "voluntary",
-                "has_escalations": False, "escalation_count": 0,
-                "escalation_amount": 0, "irs_limit_reached": True,
-            },
-            {
-                "employee_id": "A3", "year": 2025, "status": "ACTIVE",
-                "enrolled": False, "compensation": 80000,
-            },
-        ])
+        _seed_employees(
+            conn,
+            [
+                {
+                    "employee_id": "A1",
+                    "year": 2025,
+                    "status": "ACTIVE",
+                    "enrolled": True,
+                    "contributions": 6000,
+                    "match": 3000,
+                    "core": 1000,
+                    "compensation": 100000,
+                    "deferral_rate": 0.06,
+                    "participation_detail": "auto_enrolled",
+                    "has_escalations": True,
+                    "escalation_count": 1,
+                    "escalation_amount": 0.01,
+                    "irs_limit_reached": False,
+                },
+                {
+                    "employee_id": "A2",
+                    "year": 2025,
+                    "status": "ACTIVE",
+                    "enrolled": True,
+                    "contributions": 8000,
+                    "match": 4000,
+                    "core": 1500,
+                    "compensation": 150000,
+                    "deferral_rate": 0.05,
+                    "participation_detail": "voluntary",
+                    "has_escalations": False,
+                    "escalation_count": 0,
+                    "escalation_amount": 0,
+                    "irs_limit_reached": True,
+                },
+                {
+                    "employee_id": "A3",
+                    "year": 2025,
+                    "status": "ACTIVE",
+                    "enrolled": False,
+                    "compensation": 80000,
+                },
+            ],
+        )
         conn.close()
 
         result = service.get_dc_plan_analytics("ws", "sc", "Test Scenario")
@@ -1152,18 +1720,39 @@ class TestGetDCPlanAnalyticsFull:
         service, db_path = analytics_service
 
         conn = duckdb.connect(str(db_path))
-        _seed_employees(conn, [
-            {"employee_id": "A1", "year": 2025, "status": "ACTIVE",
-             "enrolled": True, "contributions": 5000, "match": 2000,
-             "core": 500, "compensation": 100000},
-            {"employee_id": "T1", "year": 2025, "status": "TERMINATED",
-             "enrolled": True, "contributions": 3000, "match": 1000,
-             "core": 300, "compensation": 80000},
-        ])
+        _seed_employees(
+            conn,
+            [
+                {
+                    "employee_id": "A1",
+                    "year": 2025,
+                    "status": "ACTIVE",
+                    "enrolled": True,
+                    "contributions": 5000,
+                    "match": 2000,
+                    "core": 500,
+                    "compensation": 100000,
+                },
+                {
+                    "employee_id": "T1",
+                    "year": 2025,
+                    "status": "TERMINATED",
+                    "enrolled": True,
+                    "contributions": 3000,
+                    "match": 1000,
+                    "core": 300,
+                    "compensation": 80000,
+                },
+            ],
+        )
         conn.close()
 
-        result_all = service.get_dc_plan_analytics("ws", "sc", "test", active_only=False)
-        result_active = service.get_dc_plan_analytics("ws", "sc", "test", active_only=True)
+        result_all = service.get_dc_plan_analytics(
+            "ws", "sc", "test", active_only=False
+        )
+        result_active = service.get_dc_plan_analytics(
+            "ws", "sc", "test", active_only=True
+        )
 
         assert result_all is not None
         assert result_active is not None
@@ -1182,14 +1771,31 @@ class TestGetDCPlanAnalyticsFull:
         service, db_path = analytics_service
 
         conn = duckdb.connect(str(db_path))
-        _seed_employees(conn, [
-            {"employee_id": "A1", "year": 2025, "status": "ACTIVE",
-             "enrolled": True, "contributions": 5000, "match": 2000,
-             "core": 1000, "compensation": 100000},
-            {"employee_id": "A1", "year": 2026, "status": "ACTIVE",
-             "enrolled": True, "contributions": 6000, "match": 2500,
-             "core": 1200, "compensation": 110000},
-        ])
+        _seed_employees(
+            conn,
+            [
+                {
+                    "employee_id": "A1",
+                    "year": 2025,
+                    "status": "ACTIVE",
+                    "enrolled": True,
+                    "contributions": 5000,
+                    "match": 2000,
+                    "core": 1000,
+                    "compensation": 100000,
+                },
+                {
+                    "employee_id": "A1",
+                    "year": 2026,
+                    "status": "ACTIVE",
+                    "enrolled": True,
+                    "contributions": 6000,
+                    "match": 2500,
+                    "core": 1200,
+                    "compensation": 110000,
+                },
+            ],
+        )
         conn.close()
 
         result = service.get_dc_plan_analytics("ws", "sc", "test")

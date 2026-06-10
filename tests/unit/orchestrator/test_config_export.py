@@ -25,6 +25,7 @@ from planalign_orchestrator.config.export import (
 # Helpers
 # ---------------------------------------------------------------------------
 
+
 def _make_config(**overrides):
     """Load the real config and apply overrides for test isolation."""
     cfg = load_simulation_config("config/simulation_config.yaml")
@@ -42,8 +43,8 @@ def _make_config(**overrides):
 # _export_simulation_vars
 # ===========================================================================
 
-class TestExportSimulationVars:
 
+class TestExportSimulationVars:
     def test_enterprise_identifiers_present(self):
         cfg = _make_config(scenario_id="sc1", plan_design_id="pd1")
         result = _export_simulation_vars(cfg)
@@ -113,8 +114,8 @@ class TestExportSimulationVars:
 # _export_enrollment_vars
 # ===========================================================================
 
-class TestExportEnrollmentVars:
 
+class TestExportEnrollmentVars:
     def test_auto_enrollment_basics(self):
         cfg = _make_config()
         auto = cfg.enrollment.auto_enrollment
@@ -138,10 +139,18 @@ class TestExportEnrollmentVars:
         cfg = _make_config()
         cfg.enrollment.auto_enrollment.opt_out_rates.target = 0.10
         result = _export_enrollment_vars(cfg)
-        assert result["opt_out_rate_young"] == pytest.approx(0.10 * OPT_OUT_AGE_MULTIPLIERS["young"])
-        assert result["opt_out_rate_mid"] == pytest.approx(0.10 * OPT_OUT_AGE_MULTIPLIERS["mid_career"])
-        assert result["opt_out_rate_mature"] == pytest.approx(0.10 * OPT_OUT_AGE_MULTIPLIERS["mature"])
-        assert result["opt_out_rate_senior"] == pytest.approx(0.10 * OPT_OUT_AGE_MULTIPLIERS["senior"])
+        assert result["opt_out_rate_young"] == pytest.approx(
+            0.10 * OPT_OUT_AGE_MULTIPLIERS["young"]
+        )
+        assert result["opt_out_rate_mid"] == pytest.approx(
+            0.10 * OPT_OUT_AGE_MULTIPLIERS["mid_career"]
+        )
+        assert result["opt_out_rate_mature"] == pytest.approx(
+            0.10 * OPT_OUT_AGE_MULTIPLIERS["mature"]
+        )
+        assert result["opt_out_rate_senior"] == pytest.approx(
+            0.10 * OPT_OUT_AGE_MULTIPLIERS["senior"]
+        )
 
     def test_opt_out_rates_derived_from_target_by_income(self):
         from planalign_orchestrator.config.workforce import OPT_OUT_INCOME_MULTIPLIERS
@@ -272,9 +281,11 @@ class TestExportEnrollmentVars:
 
     def test_dc_plan_model_dump_path(self):
         """When dc_plan has model_dump method (Pydantic model)."""
+
         class FakeDCPlan:
             def model_dump(self):
                 return {"auto_enroll": False}
+
         cfg = _make_config()
         cfg.dc_plan = FakeDCPlan()
         result = _export_enrollment_vars(cfg)
@@ -328,27 +339,32 @@ class TestExportEnrollmentVars:
 # AutoEnrollmentSettings voluntary_enrollment_rate validation
 # ===========================================================================
 
+
 class TestVoluntaryEnrollmentRateValidation:
     """T003: Verify Pydantic field accepts valid values and rejects invalid ones."""
 
     def test_accepts_none_default(self):
         from planalign_orchestrator.config.workforce import AutoEnrollmentSettings
+
         settings = AutoEnrollmentSettings()
         assert settings.voluntary_enrollment_rate is None
 
     def test_accepts_valid_values(self):
         from planalign_orchestrator.config.workforce import AutoEnrollmentSettings
+
         for val in [0.0, 0.25, 0.5, 0.75, 1.0]:
             settings = AutoEnrollmentSettings(voluntary_enrollment_rate=val)
             assert settings.voluntary_enrollment_rate == pytest.approx(val)
 
     def test_rejects_negative(self):
         from planalign_orchestrator.config.workforce import AutoEnrollmentSettings
+
         with pytest.raises(Exception):
             AutoEnrollmentSettings(voluntary_enrollment_rate=-0.1)
 
     def test_rejects_above_one(self):
         from planalign_orchestrator.config.workforce import AutoEnrollmentSettings
+
         with pytest.raises(Exception):
             AutoEnrollmentSettings(voluntary_enrollment_rate=1.5)
 
@@ -357,8 +373,8 @@ class TestVoluntaryEnrollmentRateValidation:
 # _export_legacy_vars
 # ===========================================================================
 
-class TestExportLegacyVars:
 
+class TestExportLegacyVars:
     def test_deferral_auto_escalation_full(self):
         cfg = _make_config()
         cfg.deferral_auto_escalation = {
@@ -468,8 +484,8 @@ class TestExportLegacyVars:
 # _export_employer_match_vars
 # ===========================================================================
 
-class TestExportEmployerMatchVars:
 
+class TestExportEmployerMatchVars:
     def test_employer_match_none_uses_defaults(self):
         cfg = _make_config()
         cfg.employer_match = None
@@ -481,6 +497,7 @@ class TestExportEmployerMatchVars:
 
     def test_employer_match_pydantic_model(self):
         from planalign_orchestrator.config.workforce import EmployerMatchSettings
+
         cfg = _make_config()
         cfg.employer_match = EmployerMatchSettings(
             apply_eligibility=True,
@@ -495,6 +512,7 @@ class TestExportEmployerMatchVars:
 
     def test_employer_match_status_exported(self):
         from planalign_orchestrator.config.workforce import EmployerMatchSettings
+
         cfg = _make_config()
         cfg.employer_match = EmployerMatchSettings(
             employer_match_status="graded_by_service",
@@ -507,12 +525,17 @@ class TestExportEmployerMatchVars:
             EmployerMatchSettings,
             TenureMatchTier,
         )
+
         cfg = _make_config()
         cfg.employer_match = EmployerMatchSettings(
             employer_match_status="tenure_based",
             tenure_match_tiers=[
-                TenureMatchTier(min_years=0, max_years=5, match_rate=50, max_deferral_pct=6),
-                TenureMatchTier(min_years=5, max_years=None, match_rate=100, max_deferral_pct=6),
+                TenureMatchTier(
+                    min_years=0, max_years=5, match_rate=50, max_deferral_pct=6
+                ),
+                TenureMatchTier(
+                    min_years=5, max_years=None, match_rate=100, max_deferral_pct=6
+                ),
             ],
         )
         result = _export_employer_match_vars(cfg)
@@ -527,12 +550,17 @@ class TestExportEmployerMatchVars:
             EmployerMatchSettings,
             PointsMatchTier,
         )
+
         cfg = _make_config()
         cfg.employer_match = EmployerMatchSettings(
             employer_match_status="points_based",
             points_match_tiers=[
-                PointsMatchTier(min_points=0, max_points=50, match_rate=25, max_deferral_pct=4),
-                PointsMatchTier(min_points=50, max_points=None, match_rate=75, max_deferral_pct=6),
+                PointsMatchTier(
+                    min_points=0, max_points=50, match_rate=25, max_deferral_pct=4
+                ),
+                PointsMatchTier(
+                    min_points=50, max_points=None, match_rate=75, max_deferral_pct=6
+                ),
             ],
         )
         result = _export_employer_match_vars(cfg)
@@ -633,7 +661,12 @@ class TestExportEmployerMatchVars:
         cfg = _make_config()
         cfg.dc_plan = {
             "tenure_match_tiers": [
-                {"min_years": 0, "max_years": None, "match_rate": 0.50, "max_deferral_pct": 0.06},
+                {
+                    "min_years": 0,
+                    "max_years": None,
+                    "match_rate": 0.50,
+                    "max_deferral_pct": 0.06,
+                },
             ]
         }
         result = _export_employer_match_vars(cfg)
@@ -645,7 +678,12 @@ class TestExportEmployerMatchVars:
         cfg = _make_config()
         cfg.dc_plan = {
             "points_match_tiers": [
-                {"min_points": 0, "max_points": None, "match_rate": 0.75, "max_deferral_pct": 0.08},
+                {
+                    "min_points": 0,
+                    "max_points": None,
+                    "match_rate": 0.75,
+                    "max_deferral_pct": 0.08,
+                },
             ]
         }
         result = _export_employer_match_vars(cfg)
@@ -705,8 +743,8 @@ class TestExportEmployerMatchVars:
 # _export_compensation_vars
 # ===========================================================================
 
-class TestExportCompensationVars:
 
+class TestExportCompensationVars:
     def test_promotion_compensation_defaults(self):
         cfg = _make_config()
         result = _export_compensation_vars(cfg)
@@ -733,7 +771,11 @@ class TestExportCompensationVars:
     def test_promotion_level_overrides_empty(self):
         cfg = _make_config()
         result = _export_compensation_vars(cfg)
-        assert result["promotion_level_overrides"] == {} or result["promotion_level_overrides"] is None or isinstance(result["promotion_level_overrides"], dict)
+        assert (
+            result["promotion_level_overrides"] == {}
+            or result["promotion_level_overrides"] is None
+            or isinstance(result["promotion_level_overrides"], dict)
+        )
 
     def test_market_adjustments(self):
         cfg = _make_config()
@@ -775,9 +817,7 @@ class TestExportCompensationVars:
 
     def test_new_hire_level_market_adjustments(self):
         cfg = _make_config()
-        cfg.new_hire = {
-            "level_market_adjustments": {"1": 5, "2": 10}
-        }
+        cfg.new_hire = {"level_market_adjustments": {"1": 5, "2": 10}}
         result = _export_compensation_vars(cfg)
         assert result["level_market_adjustments"] == {"1": 5, "2": 10}
 
@@ -786,8 +826,8 @@ class TestExportCompensationVars:
 # _export_threading_vars
 # ===========================================================================
 
-class TestExportThreadingVars:
 
+class TestExportThreadingVars:
     def test_threading_defaults(self):
         cfg = _make_config()
         result = _export_threading_vars(cfg)
@@ -801,8 +841,8 @@ class TestExportThreadingVars:
 # _export_core_contribution_vars
 # ===========================================================================
 
-class TestExportCoreContributionVars:
 
+class TestExportCoreContributionVars:
     def test_core_contribution_basic(self):
         cfg = _make_config()
         cfg.employer_core_contribution = {
@@ -858,8 +898,16 @@ class TestExportCoreContributionVars:
             "contribution_rate": 0.03,
             "status": "graded_by_service",
             "graded_schedule": [
-                {"service_years_min": 0, "service_years_max": 5, "contribution_rate": 0.02},
-                {"service_years_min": 5, "service_years_max": None, "contribution_rate": 0.04},
+                {
+                    "service_years_min": 0,
+                    "service_years_max": 5,
+                    "contribution_rate": 0.02,
+                },
+                {
+                    "service_years_min": 5,
+                    "service_years_max": None,
+                    "contribution_rate": 0.04,
+                },
             ],
             "eligibility": {},
         }
@@ -917,8 +965,16 @@ class TestExportCoreContributionVars:
         cfg.dc_plan = {
             "core_status": "graded_by_service",
             "core_graded_schedule": [
-                {"service_years_min": 0, "service_years_max": 3, "contribution_rate": 0.01},
-                {"service_years_min": 3, "service_years_max": None, "contribution_rate": 0.03},
+                {
+                    "service_years_min": 0,
+                    "service_years_max": 3,
+                    "contribution_rate": 0.01,
+                },
+                {
+                    "service_years_min": 3,
+                    "service_years_max": None,
+                    "contribution_rate": 0.03,
+                },
             ],
         }
         result = _export_core_contribution_vars(cfg)
@@ -980,8 +1036,8 @@ class TestExportCoreContributionVars:
 # _export_deferral_match_response_vars
 # ===========================================================================
 
-class TestExportDeferralMatchResponseVars:
 
+class TestExportDeferralMatchResponseVars:
     def test_defaults_when_disabled(self):
         cfg = _make_config()
         cfg.deferral_match_response.enabled = False
@@ -1014,8 +1070,8 @@ class TestExportDeferralMatchResponseVars:
 # to_dbt_vars - composer function
 # ===========================================================================
 
-class TestToDbtVars:
 
+class TestToDbtVars:
     def test_remove_key_sentinel_cleanup(self):
         """Keys marked with _REMOVE_KEY sentinel are removed from final output."""
         cfg = _make_config()

@@ -17,10 +17,12 @@ sys.path.insert(0, str(Path(__file__).parent.parent))
 
 try:
     from planalign_orchestrator.config import get_database_path
+
     database_path = get_database_path()
 except ImportError:
     # Fallback to standard location
     database_path = Path(__file__).parent.parent / "dbt" / "simulation.duckdb"
+
 
 def verify_performance_config():
     """Verify DuckDB performance configuration is working."""
@@ -58,7 +60,8 @@ def verify_performance_config():
 
         # Create a test table with some data to verify performance
         conn.execute("DROP TABLE IF EXISTS perf_test")
-        conn.execute("""
+        conn.execute(
+            """
             CREATE TABLE perf_test AS
             SELECT
                 i as id,
@@ -66,20 +69,24 @@ def verify_performance_config():
                 random() as value,
                 date '2025-01-01' + interval (random() * 365) day as test_date
             FROM range(100000) t(i)
-        """)
+        """
+        )
 
         # Run an aggregation query to test performance
         import time
+
         start_time = time.time()
 
-        result = conn.execute("""
+        result = conn.execute(
+            """
             SELECT
                 COUNT(*) as total_records,
                 AVG(value) as avg_value,
                 MIN(test_date) as min_date,
                 MAX(test_date) as max_date
             FROM perf_test
-        """).fetchone()
+        """
+        ).fetchone()
 
         end_time = time.time()
         execution_time = end_time - start_time
@@ -102,10 +109,7 @@ def verify_performance_config():
 
     try:
         # Check if key tables exist with expected structure
-        tables = [
-            'fct_yearly_events',
-            'fct_workforce_snapshot'
-        ]
+        tables = ["fct_yearly_events", "fct_workforce_snapshot"]
 
         for table in tables:
             try:
@@ -126,6 +130,7 @@ def verify_performance_config():
 
     try:
         import psutil
+
         process = psutil.Process()
         memory_info = process.memory_info()
         memory_mb = memory_info.rss / 1024 / 1024
@@ -155,6 +160,7 @@ def verify_performance_config():
     print("\n🚀 System is ready for high-performance simulation runs!")
 
     return True
+
 
 if __name__ == "__main__":
     success = verify_performance_config()

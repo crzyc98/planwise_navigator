@@ -31,7 +31,7 @@ class TestConfigSerializationRoundtrip:
         )
 
         # Serialize using model_dump(mode='json') - converts Decimals/complex types to JSON-safe
-        serialized_dict = original_config.model_dump(mode='json')
+        serialized_dict = original_config.model_dump(mode="json")
 
         # Verify serialized dict contains JSON-safe types
         assert isinstance(serialized_dict["start_year"], int)
@@ -61,7 +61,7 @@ class TestConfigSerializationRoundtrip:
         )
 
         # Serialize original
-        serialized = original_config.model_dump(mode='json')
+        serialized = original_config.model_dump(mode="json")
 
         # Simulate Studio scenario override
         scenario_override = {
@@ -106,7 +106,7 @@ class TestConfigSerializationRoundtrip:
         assert isinstance(standard_dump, dict)
 
         # JSON mode model_dump()
-        json_dump = config.model_dump(mode='json')
+        json_dump = config.model_dump(mode="json")
         # Should contain only JSON-serializable types
         assert isinstance(json_dump, dict)
         assert all(
@@ -132,7 +132,7 @@ class TestConfigSerializationRoundtrip:
         )
 
         # Roundtrip
-        serialized = config.model_dump(mode='json')
+        serialized = config.model_dump(mode="json")
         reconstructed = SimulationConfig.from_dict(serialized)
 
         # All scalar fields preserved
@@ -160,7 +160,7 @@ class TestConfigSerializationRoundtrip:
         )
 
         # Roundtrip
-        serialized = config.model_dump(mode='json')
+        serialized = config.model_dump(mode="json")
         reconstructed = SimulationConfig.from_dict(serialized)
 
         # Default values preserved
@@ -189,7 +189,7 @@ class TestConfigSerializationRoundtrip:
         )
 
         # Simulate archiver: serialize config for storage
-        archived_config_dict = simulation_config.model_dump(mode='json')
+        archived_config_dict = simulation_config.model_dump(mode="json")
 
         # Simulate result handler: load archived config
         loaded_config = SimulationConfig.from_dict(archived_config_dict)

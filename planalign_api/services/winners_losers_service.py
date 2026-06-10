@@ -41,12 +41,8 @@ class WinnersLosersService:
         winner, loser, or neutral based on total employer contributions.
         """
         try:
-            df_a, year_a = self._query_scenario_contributions(
-                workspace_id, plan_a
-            )
-            df_b, year_b = self._query_scenario_contributions(
-                workspace_id, plan_b
-            )
+            df_a, year_a = self._query_scenario_contributions(workspace_id, plan_a)
+            df_b, year_b = self._query_scenario_contributions(workspace_id, plan_b)
 
             if df_a is None or df_b is None:
                 return None
@@ -54,9 +50,7 @@ class WinnersLosersService:
             final_year = max(year_a, year_b)
 
             merged, total_excluded = self._classify_employees(df_a, df_b)
-            age_results, tenure_results, heatmap = self._aggregate_results(
-                merged
-            )
+            age_results, tenure_results, heatmap = self._aggregate_results(merged)
 
             total = len(merged)
             total_winners = int((merged["status"] == "winner").sum())
@@ -93,9 +87,7 @@ class WinnersLosersService:
         """
         resolved = self.db_resolver.resolve(workspace_id, scenario_id)
         if not resolved.exists:
-            logger.error(
-                f"Database not found for scenario {scenario_id}"
-            )
+            logger.error(f"Database not found for scenario {scenario_id}")
             return None, 0
 
         conn = duckdb.connect(str(resolved.path), read_only=True)
@@ -118,9 +110,7 @@ class WinnersLosersService:
             ).fetchdf()
 
             if df.empty:
-                logger.warning(
-                    f"No active employees found for scenario {scenario_id}"
-                )
+                logger.warning(f"No active employees found for scenario {scenario_id}")
                 return None, 0
 
             final_year = int(df["simulation_year"].iloc[0])
@@ -129,15 +119,29 @@ class WinnersLosersService:
             conn.close()
 
     @staticmethod
-    def _classify_employees(
-        df_a: pd.DataFrame, df_b: pd.DataFrame
-    ) -> tuple:
+    def _classify_employees(df_a: pd.DataFrame, df_b: pd.DataFrame) -> tuple:
         """INNER JOIN on employee_id, compute delta, classify.
 
         Returns (merged_df, total_excluded).
         """
-        if df_a.empty or df_b.empty or "employee_id" not in df_a.columns or "employee_id" not in df_b.columns:
-            return pd.DataFrame(columns=["employee_id", "age_band", "tenure_band", "delta", "status"]), 0
+        if (
+            df_a.empty
+            or df_b.empty
+            or "employee_id" not in df_a.columns
+            or "employee_id" not in df_b.columns
+        ):
+            return (
+                pd.DataFrame(
+                    columns=[
+                        "employee_id",
+                        "age_band",
+                        "tenure_band",
+                        "delta",
+                        "status",
+                    ]
+                ),
+                0,
+            )
 
         all_a = set(df_a["employee_id"])
         all_b = set(df_b["employee_id"])
@@ -168,7 +172,11 @@ class WinnersLosersService:
             results = []
             if group_df.empty:
                 return results
-            grouped = group_df.groupby(label_col)["status"].value_counts().unstack(fill_value=0)
+            grouped = (
+                group_df.groupby(label_col)["status"]
+                .value_counts()
+                .unstack(fill_value=0)
+            )
             for label in grouped.index:
                 row = grouped.loc[label]
                 winners = int(row.get("winner", 0))
@@ -196,7 +204,7 @@ class WinnersLosersService:
                 .value_counts()
                 .unstack(fill_value=0)
             )
-            for (age, tenure) in grouped.index:
+            for age, tenure in grouped.index:
                 row = grouped.loc[(age, tenure)]
                 w = int(row.get("winner", 0))
                 l = int(row.get("loser", 0))
@@ -210,9 +218,7 @@ class WinnersLosersService:
                         losers=l,
                         neutral=n,
                         total=total,
-                        net_pct=round((w - l) / total * 100, 2)
-                        if total > 0
-                        else 0.0,
+                        net_pct=round((w - l) / total * 100, 2) if total > 0 else 0.0,
                     )
                 )
 

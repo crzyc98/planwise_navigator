@@ -30,7 +30,9 @@ import logging
 from typing import Dict, List, TYPE_CHECKING
 
 if TYPE_CHECKING:
-    from planalign_orchestrator.state_accumulator.contract import StateAccumulatorContract
+    from planalign_orchestrator.state_accumulator.contract import (
+        StateAccumulatorContract,
+    )
 
 logger = logging.getLogger(__name__)
 

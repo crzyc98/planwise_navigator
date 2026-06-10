@@ -43,7 +43,7 @@ class TestExecutionContext:
             random_seed=42,
             thread_count=4,
             memory_mb=256.5,
-            metadata={"custom": "value"}
+            metadata={"custom": "value"},
         )
 
         assert context.simulation_year == 2025
@@ -56,7 +56,7 @@ class TestExecutionContext:
         context = ExecutionContext(
             simulation_year=2025,
             workflow_stage="FOUNDATION",
-            model_name="int_baseline_workforce"
+            model_name="int_baseline_workforce",
         )
 
         ctx_dict = context.to_dict()
@@ -70,7 +70,7 @@ class TestExecutionContext:
         context = ExecutionContext(
             simulation_year=2026,
             workflow_stage="STATE_ACCUMULATION",
-            model_name="fct_workforce_snapshot"
+            model_name="fct_workforce_snapshot",
         )
 
         summary = context.format_summary()
@@ -89,7 +89,7 @@ class TestResolutionHint:
             title="Fix Database Lock",
             description="Close IDE connections",
             steps=["Close VS Code", "Retry simulation"],
-            estimated_resolution_time="2 minutes"
+            estimated_resolution_time="2 minutes",
         )
 
         assert hint.title == "Fix Database Lock"
@@ -110,15 +110,14 @@ class TestNavigatorError:
     def test_error_with_context(self):
         """Test error with execution context"""
         context = ExecutionContext(
-            simulation_year=2025,
-            workflow_stage="EVENT_GENERATION"
+            simulation_year=2025, workflow_stage="EVENT_GENERATION"
         )
 
         error = NavigatorError(
             "Database query failed",
             context=context,
             category=ErrorCategory.DATABASE,
-            severity=ErrorSeverity.RECOVERABLE
+            severity=ErrorSeverity.RECOVERABLE,
         )
 
         assert error.context.simulation_year == 2025
@@ -130,7 +129,7 @@ class TestNavigatorError:
             ResolutionHint(
                 title="Solution 1",
                 description="First approach",
-                steps=["Step 1", "Step 2"]
+                steps=["Step 1", "Step 2"],
             )
         ]
 
@@ -142,9 +141,7 @@ class TestNavigatorError:
         """Test error to_dict serialization"""
         context = ExecutionContext(simulation_year=2025)
         error = NavigatorError(
-            "Test error",
-            context=context,
-            category=ErrorCategory.CONFIGURATION
+            "Test error", context=context, category=ErrorCategory.CONFIGURATION
         )
 
         error_dict = error.to_dict()
@@ -159,7 +156,7 @@ class TestNavigatorError:
         context = ExecutionContext(
             simulation_year=2025,
             workflow_stage="EVENT_GENERATION",
-            model_name="int_termination_events"
+            model_name="int_termination_events",
         )
 
         hints = [
@@ -167,7 +164,7 @@ class TestNavigatorError:
                 title="Check Database Lock",
                 description="Close IDE connections",
                 steps=["Close VS Code", "Retry"],
-                estimated_resolution_time="2 minutes"
+                estimated_resolution_time="2 minutes",
             )
         ]
 
@@ -176,7 +173,7 @@ class TestNavigatorError:
             context=context,
             resolution_hints=hints,
             category=ErrorCategory.DATABASE,
-            severity=ErrorSeverity.RECOVERABLE
+            severity=ErrorSeverity.RECOVERABLE,
         )
 
         diagnostic = error.format_diagnostic_message()
@@ -208,14 +205,10 @@ class TestDatabaseErrors:
 
     def test_database_lock_custom_message(self):
         """Test DatabaseLockError with custom message"""
-        context = ExecutionContext(
-            simulation_year=2025,
-            model_name="fct_yearly_events"
-        )
+        context = ExecutionContext(simulation_year=2025, model_name="fct_yearly_events")
 
         error = DatabaseLockError(
-            message="Lock detected during event generation",
-            context=context
+            message="Lock detected during event generation", context=context
         )
 
         assert "Lock detected" in error.message
@@ -228,14 +221,10 @@ class TestDbtErrors:
     def test_dbt_compilation_error(self):
         """Test DbtCompilationError"""
         context = ExecutionContext(
-            simulation_year=2025,
-            model_name="int_baseline_workforce"
+            simulation_year=2025, model_name="int_baseline_workforce"
         )
 
-        error = DbtCompilationError(
-            "SQL syntax error in model",
-            context=context
-        )
+        error = DbtCompilationError("SQL syntax error in model", context=context)
 
         assert error.category == ErrorCategory.DATABASE
         assert error.severity == ErrorSeverity.ERROR
@@ -265,10 +254,7 @@ class TestConfigurationErrors:
     def test_missing_config_with_context(self):
         """Test MissingConfigurationError with execution context"""
         context = ExecutionContext(simulation_year=2025)
-        error = MissingConfigurationError(
-            "target_growth_rate",
-            context=context
-        )
+        error = MissingConfigurationError("target_growth_rate", context=context)
 
         assert error.context.simulation_year == 2025
 
@@ -279,8 +265,7 @@ class TestResourceErrors:
     def test_memory_exhausted_error(self):
         """Test MemoryExhaustedError"""
         error = MemoryExhaustedError(
-            "Simulation ran out of memory",
-            memory_used_mb=4096.5
+            "Simulation ran out of memory", memory_used_mb=4096.5
         )
 
         assert error.category == ErrorCategory.RESOURCE
@@ -296,21 +281,22 @@ class TestPipelineErrors:
     def test_pipeline_stage_error(self):
         """Test PipelineStageError"""
         context = ExecutionContext(
-            simulation_year=2025,
-            workflow_stage="EVENT_GENERATION"
+            simulation_year=2025, workflow_stage="EVENT_GENERATION"
         )
 
         error = PipelineStageError(
             "Event generation failed",
             stage_name="EVENT_GENERATION",
             failed_models=["int_termination_events", "int_hiring_events"],
-            context=context
+            context=context,
         )
 
         assert error.category == ErrorCategory.DEPENDENCY
         assert error.severity == ErrorSeverity.ERROR
         assert "EVENT_GENERATION" in error.message
-        assert len(error.additional_data.get("metadata", {}).get("failed_models", [])) == 2
+        assert (
+            len(error.additional_data.get("metadata", {}).get("failed_models", [])) == 2
+        )
 
 
 class TestErrorWithOriginalException:
@@ -320,10 +306,7 @@ class TestErrorWithOriginalException:
         """Test NavigatorError wrapping original exception"""
         original = ValueError("Original error message")
 
-        error = NavigatorError(
-            "Wrapper error",
-            original_exception=original
-        )
+        error = NavigatorError("Wrapper error", original_exception=original)
 
         assert error.original_exception is original
         assert isinstance(error.original_exception, ValueError)
@@ -334,9 +317,7 @@ class TestErrorWithOriginalException:
         context = ExecutionContext(simulation_year=2025)
 
         error = DatabaseLockError(
-            "Failed to acquire lock",
-            context=context,
-            original_exception=original
+            "Failed to acquire lock", context=context, original_exception=original
         )
 
         diagnostic = error.format_diagnostic_message()
@@ -355,7 +336,7 @@ class TestErrorSerialization:
             workflow_stage="STATE_ACCUMULATION",
             model_name="fct_workforce_snapshot",
             scenario_id="baseline",
-            metadata={"retry_count": 3}
+            metadata={"retry_count": 3},
         )
 
         hints = [
@@ -363,7 +344,7 @@ class TestErrorSerialization:
                 title="Retry Operation",
                 description="Transient failure",
                 steps=["Wait 30 seconds", "Retry"],
-                estimated_resolution_time="1 minute"
+                estimated_resolution_time="1 minute",
             )
         ]
 
@@ -375,7 +356,7 @@ class TestErrorSerialization:
             category=ErrorCategory.NETWORK,
             severity=ErrorSeverity.RECOVERABLE,
             resolution_hints=hints,
-            original_exception=original
+            original_exception=original,
         )
 
         serialized = error.to_dict()

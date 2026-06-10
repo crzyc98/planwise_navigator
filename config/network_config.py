@@ -32,28 +32,36 @@ class ProxyConfig(BaseModel):
     """Corporate proxy configuration with authentication support."""
 
     # Proxy server configuration
-    http_proxy: Optional[str] = Field(None, description="HTTP proxy URL (e.g., http://proxy.company.com:8080)")
-    https_proxy: Optional[str] = Field(None, description="HTTPS proxy URL (e.g., http://proxy.company.com:8080)")
+    http_proxy: Optional[str] = Field(
+        None, description="HTTP proxy URL (e.g., http://proxy.company.com:8080)"
+    )
+    https_proxy: Optional[str] = Field(
+        None, description="HTTPS proxy URL (e.g., http://proxy.company.com:8080)"
+    )
     ftp_proxy: Optional[str] = Field(None, description="FTP proxy URL (optional)")
-    no_proxy: List[str] = Field(default_factory=lambda: ["localhost", "127.0.0.1", "*.local"],
-                               description="List of hosts to bypass proxy")
+    no_proxy: List[str] = Field(
+        default_factory=lambda: ["localhost", "127.0.0.1", "*.local"],
+        description="List of hosts to bypass proxy",
+    )
 
     # Authentication configuration
     username: Optional[str] = Field(None, description="Proxy authentication username")
     password: Optional[str] = Field(None, description="Proxy authentication password")
-    use_system_auth: bool = Field(True, description="Use system authentication (NTLM/Kerberos)")
+    use_system_auth: bool = Field(
+        True, description="Use system authentication (NTLM/Kerberos)"
+    )
 
     # Advanced proxy configuration
     proxy_timeout: int = Field(30, description="Proxy connection timeout in seconds")
     proxy_retries: int = Field(3, description="Number of proxy connection retries")
 
-    @validator('http_proxy', 'https_proxy', 'ftp_proxy')
+    @validator("http_proxy", "https_proxy", "ftp_proxy")
     def validate_proxy_url(cls, v):
-        if v and not v.startswith(('http://', 'https://')):
+        if v and not v.startswith(("http://", "https://")):
             raise ValueError("Proxy URL must start with http:// or https://")
         return v
 
-    @validator('proxy_timeout')
+    @validator("proxy_timeout")
     def validate_timeout(cls, v):
         if v <= 0 or v > 300:
             raise ValueError("Proxy timeout must be between 1 and 300 seconds")
@@ -64,19 +72,29 @@ class CertificateConfig(BaseModel):
     """Corporate certificate configuration for security compliance."""
 
     # Certificate bundle configuration
-    ca_bundle_path: Optional[str] = Field(None, description="Path to corporate CA certificate bundle")
+    ca_bundle_path: Optional[str] = Field(
+        None, description="Path to corporate CA certificate bundle"
+    )
     verify_ssl: bool = Field(True, description="Enable SSL certificate verification")
-    custom_cert_dir: Optional[str] = Field(None, description="Custom certificate directory")
+    custom_cert_dir: Optional[str] = Field(
+        None, description="Custom certificate directory"
+    )
 
     # Certificate validation settings
-    allow_self_signed: bool = Field(False, description="Allow self-signed certificates (dev environments only)")
-    hostname_verification: bool = Field(True, description="Enable hostname verification")
+    allow_self_signed: bool = Field(
+        False, description="Allow self-signed certificates (dev environments only)"
+    )
+    hostname_verification: bool = Field(
+        True, description="Enable hostname verification"
+    )
 
     # Certificate chain validation
-    check_certificate_chain: bool = Field(True, description="Validate complete certificate chain")
+    check_certificate_chain: bool = Field(
+        True, description="Validate complete certificate chain"
+    )
     max_chain_depth: int = Field(10, description="Maximum certificate chain depth")
 
-    @validator('ca_bundle_path', 'custom_cert_dir')
+    @validator("ca_bundle_path", "custom_cert_dir")
     def validate_paths(cls, v):
         if v and not Path(v).exists():
             raise ValueError(f"Certificate path does not exist: {v}")
@@ -93,7 +111,9 @@ class NetworkTimeoutConfig(BaseModel):
 
     # Service-specific timeouts
     dagster_health_timeout: int = Field(5, description="Dagster health check timeout")
-    dbt_command_timeout: int = Field(1800, description="dbt command execution timeout (30 minutes)")
+    dbt_command_timeout: int = Field(
+        1800, description="dbt command execution timeout (30 minutes)"
+    )
     database_timeout: int = Field(60, description="Database connection timeout")
 
     # Retry configuration
@@ -102,7 +122,7 @@ class NetworkTimeoutConfig(BaseModel):
     retry_backoff: float = Field(2.0, description="Exponential backoff multiplier")
     max_retry_delay: float = Field(30.0, description="Maximum retry delay")
 
-    @validator('connection_timeout', 'read_timeout', 'total_timeout')
+    @validator("connection_timeout", "read_timeout", "total_timeout")
     def validate_timeouts(cls, v):
         if v <= 0 or v > 3600:  # Max 1 hour
             raise ValueError("Timeout must be between 1 and 3600 seconds")
@@ -113,7 +133,9 @@ class NetworkPerformanceConfig(BaseModel):
     """Network performance optimization for restricted corporate environments."""
 
     # Connection pooling
-    enable_connection_pooling: bool = Field(True, description="Enable HTTP connection pooling")
+    enable_connection_pooling: bool = Field(
+        True, description="Enable HTTP connection pooling"
+    )
     max_pool_connections: int = Field(10, description="Maximum connections per pool")
     pool_timeout: int = Field(30, description="Connection pool timeout")
 
@@ -124,13 +146,15 @@ class NetworkPerformanceConfig(BaseModel):
 
     # Bandwidth optimization
     rate_limiting: bool = Field(False, description="Enable bandwidth rate limiting")
-    max_bandwidth_mbps: Optional[float] = Field(None, description="Maximum bandwidth in Mbps")
+    max_bandwidth_mbps: Optional[float] = Field(
+        None, description="Maximum bandwidth in Mbps"
+    )
 
     # Keep-alive settings
     keep_alive: bool = Field(True, description="Enable HTTP keep-alive")
     keep_alive_timeout: int = Field(30, description="Keep-alive timeout in seconds")
 
-    @validator('max_pool_connections')
+    @validator("max_pool_connections")
     def validate_pool_connections(cls, v):
         if v <= 0 or v > 100:
             raise ValueError("Max pool connections must be between 1 and 100")
@@ -142,31 +166,40 @@ class CorporateNetworkConfig(BaseModel):
 
     # Core configuration sections
     enabled: bool = Field(True, description="Enable corporate network support")
-    auto_detect_proxy: bool = Field(True, description="Auto-detect system proxy settings")
+    auto_detect_proxy: bool = Field(
+        True, description="Auto-detect system proxy settings"
+    )
 
     proxy: ProxyConfig = Field(default_factory=ProxyConfig)
     certificates: CertificateConfig = Field(default_factory=CertificateConfig)
     timeouts: NetworkTimeoutConfig = Field(default_factory=NetworkTimeoutConfig)
-    performance: NetworkPerformanceConfig = Field(default_factory=NetworkPerformanceConfig)
+    performance: NetworkPerformanceConfig = Field(
+        default_factory=NetworkPerformanceConfig
+    )
 
     # Corporate environment detection
-    corporate_domains: List[str] = Field(default_factory=lambda: ["company.com", "corp.local"],
-                                       description="Corporate domain suffixes for detection")
+    corporate_domains: List[str] = Field(
+        default_factory=lambda: ["company.com", "corp.local"],
+        description="Corporate domain suffixes for detection",
+    )
     vpn_detection: bool = Field(True, description="Detect VPN connections")
 
     # Validation and testing
-    connectivity_check: bool = Field(True, description="Perform connectivity checks on startup")
+    connectivity_check: bool = Field(
+        True, description="Perform connectivity checks on startup"
+    )
     test_endpoints: List[str] = Field(
         default_factory=lambda: [
             "https://httpbin.org/get",
             "https://www.google.com",
-            "https://github.com"
+            "https://github.com",
         ],
-        description="Test endpoints for connectivity validation"
+        description="Test endpoints for connectivity validation",
     )
 
     class Config:
         """Pydantic configuration."""
+
         validate_assignment = True
         use_enum_values = True
 
@@ -195,16 +228,16 @@ def detect_system_proxy() -> Optional[ProxyConfig]:
     proxy_config = ProxyConfig()
 
     # Check environment variables (common in corporate environments)
-    http_proxy = os.environ.get('HTTP_PROXY') or os.environ.get('http_proxy')
-    https_proxy = os.environ.get('HTTPS_PROXY') or os.environ.get('https_proxy')
-    no_proxy = os.environ.get('NO_PROXY') or os.environ.get('no_proxy')
+    http_proxy = os.environ.get("HTTP_PROXY") or os.environ.get("http_proxy")
+    https_proxy = os.environ.get("HTTPS_PROXY") or os.environ.get("https_proxy")
+    no_proxy = os.environ.get("NO_PROXY") or os.environ.get("no_proxy")
 
     if http_proxy:
         proxy_config.http_proxy = http_proxy
     if https_proxy:
         proxy_config.https_proxy = https_proxy
     if no_proxy:
-        proxy_config.no_proxy = [host.strip() for host in no_proxy.split(',')]
+        proxy_config.no_proxy = [host.strip() for host in no_proxy.split(",")]
 
     # Return config only if at least one proxy is configured
     if proxy_config.http_proxy or proxy_config.https_proxy:
@@ -263,11 +296,11 @@ def build_proxy_handler(proxy_config: ProxyConfig) -> urllib.request.ProxyHandle
     proxy_dict = {}
 
     if proxy_config.http_proxy:
-        proxy_dict['http'] = proxy_config.http_proxy
+        proxy_dict["http"] = proxy_config.http_proxy
     if proxy_config.https_proxy:
-        proxy_dict['https'] = proxy_config.https_proxy
+        proxy_dict["https"] = proxy_config.https_proxy
     if proxy_config.ftp_proxy:
-        proxy_dict['ftp'] = proxy_config.ftp_proxy
+        proxy_dict["ftp"] = proxy_config.ftp_proxy
 
     # Add authentication if provided
     if proxy_config.username and proxy_config.password:
@@ -306,7 +339,7 @@ def should_bypass_proxy(url: str, no_proxy_list: List[str]) -> bool:
             continue
 
         # Handle wildcard patterns
-        if pattern.startswith('*.'):
+        if pattern.startswith("*."):
             domain = pattern[2:]
             if hostname.endswith(domain):
                 return True
@@ -402,12 +435,20 @@ def validate_network_connectivity(config: CorporateNetworkConfig) -> NetworkDiag
 
     # Generate recommendations
     if not any(diagnostics.connectivity_tests.values()):
-        diagnostics.recommendations.append("No network connectivity detected. Check proxy configuration.")
+        diagnostics.recommendations.append(
+            "No network connectivity detected. Check proxy configuration."
+        )
     elif diagnostics.proxy_detected and not diagnostics.proxy_working:
-        diagnostics.recommendations.append("Proxy detected but not working. Verify proxy settings.")
+        diagnostics.recommendations.append(
+            "Proxy detected but not working. Verify proxy settings."
+        )
     elif diagnostics.errors:
-        diagnostics.recommendations.append("Some connectivity issues detected. Review error details.")
+        diagnostics.recommendations.append(
+            "Some connectivity issues detected. Review error details."
+        )
     else:
-        diagnostics.recommendations.append("Network connectivity appears to be working correctly.")
+        diagnostics.recommendations.append(
+            "Network connectivity appears to be working correctly."
+        )
 
     return diagnostics

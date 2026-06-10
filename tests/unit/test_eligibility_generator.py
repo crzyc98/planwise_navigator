@@ -28,6 +28,7 @@ def clean_registry():
 def generator():
     """Fresh EligibilityEventGenerator instance with clean registry."""
     from planalign_orchestrator.generators.eligibility import EligibilityEventGenerator
+
     EventRegistry.register(EVENT_ELIGIBILITY)(EligibilityEventGenerator)
     return EligibilityEventGenerator()
 
@@ -83,9 +84,9 @@ class TestEligibilityGeneratorAttributes:
         assert generator.execution_order == 25
 
     def test_execution_order_between_hire_and_promotion(self, generator):
-        assert generator.execution_order > 20   # after hire
-        assert generator.execution_order < 30   # before promotion
-        assert generator.execution_order < 50   # before enrollment
+        assert generator.execution_order > 20  # after hire
+        assert generator.execution_order < 30  # before promotion
+        assert generator.execution_order < 50  # before enrollment
 
     def test_supports_sql(self, generator):
         assert generator.supports_sql is True
@@ -134,6 +135,9 @@ class TestRegistryIntegration:
         assert EVENT_ELIGIBILITY in registered
 
     def test_registry_lookup_returns_generator(self, generator):
-        from planalign_orchestrator.generators.eligibility import EligibilityEventGenerator
+        from planalign_orchestrator.generators.eligibility import (
+            EligibilityEventGenerator,
+        )
+
         gen = EventRegistry.get(EVENT_ELIGIBILITY)
         assert isinstance(gen, EligibilityEventGenerator)

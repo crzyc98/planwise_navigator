@@ -43,9 +43,7 @@ class YearDependencyValidator:
     """
 
     def __init__(
-        self,
-        db_manager: "DatabaseConnectionManager",
-        start_year: int
+        self, db_manager: "DatabaseConnectionManager", start_year: int
     ) -> None:
         """Initialize the validator.
 
@@ -55,7 +53,9 @@ class YearDependencyValidator:
         """
         self.db_manager = db_manager
         self.start_year = start_year
-        logger.debug(f"YearDependencyValidator initialized with start_year={start_year}")
+        logger.debug(
+            f"YearDependencyValidator initialized with start_year={start_year}"
+        )
 
     def validate_year_dependencies(self, year: int) -> None:
         """Validate that prior year data exists for all registered accumulators.
@@ -76,7 +76,9 @@ class YearDependencyValidator:
         """
         # Start year has no prior dependency
         if year == self.start_year:
-            logger.debug(f"Year {year} is start year - no prior dependency validation needed")
+            logger.debug(
+                f"Year {year} is start year - no prior dependency validation needed"
+            )
             return
 
         # Check for missing prior year data
@@ -88,9 +90,7 @@ class YearDependencyValidator:
                 f"missing data in {len(missing)} accumulators"
             )
             raise YearDependencyError(
-                year=year,
-                missing_tables=missing,
-                start_year=self.start_year
+                year=year, missing_tables=missing, start_year=self.start_year
             )
 
         logger.debug(f"Year dependency validation passed for year {year}")
@@ -127,7 +127,7 @@ class YearDependencyValidator:
             count = self._check_table_year_count(
                 table_name=contract.table_name,
                 year_column=contract.prior_year_column,
-                year=prior_year
+                year=prior_year,
             )
 
             if count == 0:
@@ -151,10 +151,7 @@ class YearDependencyValidator:
         return missing
 
     def _check_table_year_count(
-        self,
-        table_name: str,
-        year_column: str,
-        year: int
+        self, table_name: str, year_column: str, year: int
     ) -> int:
         """Query the count of rows for a specific year in a table.
 
@@ -166,11 +163,11 @@ class YearDependencyValidator:
         Returns:
             Number of rows matching the year filter.
         """
+
         def _query(conn):
             try:
                 result = conn.execute(
-                    f"SELECT COUNT(*) FROM {table_name} WHERE {year_column} = ?",
-                    [year]
+                    f"SELECT COUNT(*) FROM {table_name} WHERE {year_column} = ?", [year]
                 ).fetchone()[0]
                 return int(result)
             except Exception as e:
@@ -210,9 +207,7 @@ class YearDependencyValidator:
                     f"missing data in {list(missing.keys())}"
                 )
                 raise YearDependencyError(
-                    year=year,
-                    missing_tables=missing,
-                    start_year=self.start_year
+                    year=year, missing_tables=missing, start_year=self.start_year
                 )
 
         logger.info("Checkpoint dependency chain validated successfully")

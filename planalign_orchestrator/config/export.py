@@ -43,8 +43,11 @@ def _export_simulation_vars(cfg: "SimulationConfig") -> Dict[str, Any]:
     if cfg.compensation.merit_budget is not None:
         dbt_vars["merit_budget"] = cfg.compensation.merit_budget
 
-    logger.info("Compensation dbt vars: cola_rate=%s, merit_budget=%s",
-                dbt_vars.get("cola_rate"), dbt_vars.get("merit_budget"))
+    logger.info(
+        "Compensation dbt vars: cola_rate=%s, merit_budget=%s",
+        dbt_vars.get("cola_rate"),
+        dbt_vars.get("merit_budget"),
+    )
 
     # Eligibility and plan eligibility
     if cfg.eligibility.waiting_period_days is not None:
@@ -66,7 +69,9 @@ def _export_simulation_vars(cfg: "SimulationConfig") -> Dict[str, Any]:
         if cfg.workforce.total_termination_rate is not None:
             dbt_vars["total_termination_rate"] = cfg.workforce.total_termination_rate
         if cfg.workforce.new_hire_termination_rate is not None:
-            dbt_vars["new_hire_termination_rate"] = cfg.workforce.new_hire_termination_rate
+            dbt_vars[
+                "new_hire_termination_rate"
+            ] = cfg.workforce.new_hire_termination_rate
 
     return dbt_vars
 
@@ -82,12 +87,14 @@ def _resolve_dc_plan_dict(cfg: "SimulationConfig") -> Dict[str, Any]:
         return {}
     if isinstance(dc_plan, dict):
         return dc_plan
-    if hasattr(dc_plan, 'model_dump'):
+    if hasattr(dc_plan, "model_dump"):
         return dc_plan.model_dump()
     return {}
 
 
-def _set_if_not_none(dbt_vars: Dict[str, Any], key: str, value: Any, cast: type) -> None:
+def _set_if_not_none(
+    dbt_vars: Dict[str, Any], key: str, value: Any, cast: type
+) -> None:
     """Set a dbt var if the value is not None, applying the given cast."""
     if value is not None:
         dbt_vars[key] = cast(value)
@@ -100,9 +107,18 @@ def _export_auto_enrollment_fields(auto: Any, dbt_vars: Dict[str, Any]) -> None:
     if auto.hire_date_cutoff:
         dbt_vars["auto_enrollment_hire_date_cutoff"] = str(auto.hire_date_cutoff)
     _set_if_not_none(dbt_vars, "auto_enrollment_window_days", auto.window_days, int)
-    _set_if_not_none(dbt_vars, "auto_enrollment_default_deferral_rate", auto.default_deferral_rate, float)
-    _set_if_not_none(dbt_vars, "auto_enrollment_opt_out_grace_period", auto.opt_out_grace_period, int)
-    _set_if_not_none(dbt_vars, "voluntary_enrollment_rate", auto.voluntary_enrollment_rate, float)
+    _set_if_not_none(
+        dbt_vars,
+        "auto_enrollment_default_deferral_rate",
+        auto.default_deferral_rate,
+        float,
+    )
+    _set_if_not_none(
+        dbt_vars, "auto_enrollment_opt_out_grace_period", auto.opt_out_grace_period, int
+    )
+    _set_if_not_none(
+        dbt_vars, "voluntary_enrollment_rate", auto.voluntary_enrollment_rate, float
+    )
 
 
 def _export_opt_out_rates(auto: Any, dbt_vars: Dict[str, Any]) -> None:
@@ -117,20 +133,28 @@ def _export_opt_out_rates(auto: Any, dbt_vars: Dict[str, Any]) -> None:
         dbt_vars[f"opt_out_rate_{key}"] = target * mult
 
 
-def _export_proactive_enrollment(cfg: "SimulationConfig", dbt_vars: Dict[str, Any]) -> None:
+def _export_proactive_enrollment(
+    cfg: "SimulationConfig", dbt_vars: Dict[str, Any]
+) -> None:
     """Export proactive enrollment and timing settings to dbt vars."""
     pro = cfg.enrollment.proactive_enrollment
     _set_if_not_none(dbt_vars, "proactive_enrollment_enabled", pro.enabled, bool)
-    _set_if_not_none(dbt_vars, "proactive_enrollment_min_days", pro.timing_window.min_days, int)
-    _set_if_not_none(dbt_vars, "proactive_enrollment_max_days", pro.timing_window.max_days, int)
+    _set_if_not_none(
+        dbt_vars, "proactive_enrollment_min_days", pro.timing_window.min_days, int
+    )
+    _set_if_not_none(
+        dbt_vars, "proactive_enrollment_max_days", pro.timing_window.max_days, int
+    )
     probs = pro.probability_by_demographics or {}
     for key in ("young", "mid_career", "mature", "senior"):
         if key in probs:
             dbt_vars[f"proactive_enrollment_rate_{key}"] = float(probs[key])
 
     _set_if_not_none(
-        dbt_vars, "enrollment_business_day_adjustment",
-        cfg.enrollment.timing.business_day_adjustment, bool,
+        dbt_vars,
+        "enrollment_business_day_adjustment",
+        cfg.enrollment.timing.business_day_adjustment,
+        bool,
     )
 
 
@@ -143,9 +167,14 @@ _DC_PLAN_AUTO_ENROLL_FIELDS: Dict[str, tuple] = {
 }
 
 _DC_PLAN_OPT_OUT_DEMOGRAPHIC_FIELDS = (
-    "opt_out_rate_young", "opt_out_rate_mid", "opt_out_rate_mature",
-    "opt_out_rate_senior", "opt_out_rate_low_income", "opt_out_rate_moderate",
-    "opt_out_rate_high", "opt_out_rate_executive",
+    "opt_out_rate_young",
+    "opt_out_rate_mid",
+    "opt_out_rate_mature",
+    "opt_out_rate_senior",
+    "opt_out_rate_low_income",
+    "opt_out_rate_moderate",
+    "opt_out_rate_high",
+    "opt_out_rate_executive",
 )
 
 # Escalation fields: dc_plan source key -> (dbt_vars target key, cast, percent_divide)
@@ -158,13 +187,14 @@ _DC_PLAN_ESCALATION_FIELDS: Dict[str, tuple] = {
 }
 
 _SCOPE_MAP = {
-    'new_hires_only': 'new_hires_only',
-    'all_eligible': 'all_eligible_employees',
+    "new_hires_only": "new_hires_only",
+    "all_eligible": "all_eligible_employees",
 }
 
 
 def _apply_escalation_overrides(
-    dc_plan_dict: Dict[str, Any], dbt_vars: Dict[str, Any],
+    dc_plan_dict: Dict[str, Any],
+    dbt_vars: Dict[str, Any],
 ) -> None:
     """Apply escalation settings and hire date cutoff from dc_plan to dbt vars."""
     for src_key, (tgt_key, cast, pct_divide) in _DC_PLAN_ESCALATION_FIELDS.items():
@@ -183,7 +213,8 @@ def _apply_escalation_overrides(
 
 
 def _apply_dc_plan_enrollment_overrides(
-    dc_plan_dict: Dict[str, Any], dbt_vars: Dict[str, Any],
+    dc_plan_dict: Dict[str, Any],
+    dbt_vars: Dict[str, Any],
 ) -> None:
     """Apply dc_plan (UI) enrollment overrides to dbt vars."""
     # Simple field mappings
@@ -209,7 +240,12 @@ def _apply_dc_plan_enrollment_overrides(
     _apply_escalation_overrides(dc_plan_dict, dbt_vars)
 
     # Voluntary enrollment rate: UI sends decimal (0.0-1.0), pass through directly
-    _set_if_not_none(dbt_vars, "voluntary_enrollment_rate", dc_plan_dict.get("voluntary_enrollment_rate"), float)
+    _set_if_not_none(
+        dbt_vars,
+        "voluntary_enrollment_rate",
+        dc_plan_dict.get("voluntary_enrollment_rate"),
+        float,
+    )
 
     # Plan eligibility waiting period (UI sends months, dbt expects days)
     if dc_plan_dict.get("eligibility_months") is not None:
@@ -235,8 +271,11 @@ def _export_enrollment_vars(cfg: "SimulationConfig") -> Dict[str, Any]:
         if dc_plan_dict:
             _apply_dc_plan_enrollment_overrides(dc_plan_dict, dbt_vars)
     except Exception as e:
-        logger.warning("Error processing dc_plan enrollment/escalation configuration: %s", e,
-                       exc_info=True)
+        logger.warning(
+            "Error processing dc_plan enrollment/escalation configuration: %s",
+            e,
+            exc_info=True,
+        )
 
     return dbt_vars
 
@@ -256,17 +295,30 @@ def _export_legacy_vars(cfg: "SimulationConfig") -> Dict[str, Any]:
             if "enabled" in dae:
                 dbt_vars["deferral_escalation_enabled"] = bool(dae["enabled"])
             if "effective_day" in dae and dae["effective_day"]:
-                dbt_vars["deferral_escalation_effective_mmdd"] = str(dae["effective_day"])
+                dbt_vars["deferral_escalation_effective_mmdd"] = str(
+                    dae["effective_day"]
+                )
             if "increment_amount" in dae and dae["increment_amount"] is not None:
-                dbt_vars["deferral_escalation_increment"] = float(dae["increment_amount"])
+                dbt_vars["deferral_escalation_increment"] = float(
+                    dae["increment_amount"]
+                )
             if "maximum_rate" in dae and dae["maximum_rate"] is not None:
                 dbt_vars["deferral_escalation_cap"] = float(dae["maximum_rate"])
             if "hire_date_cutoff" in dae and dae["hire_date_cutoff"]:
-                dbt_vars["deferral_escalation_hire_date_cutoff"] = str(dae["hire_date_cutoff"])
+                dbt_vars["deferral_escalation_hire_date_cutoff"] = str(
+                    dae["hire_date_cutoff"]
+                )
             if "require_active_enrollment" in dae:
-                dbt_vars["deferral_escalation_require_enrollment"] = bool(dae["require_active_enrollment"])
-            if "first_escalation_delay_years" in dae and dae["first_escalation_delay_years"] is not None:
-                dbt_vars["deferral_escalation_first_delay_years"] = int(dae["first_escalation_delay_years"])
+                dbt_vars["deferral_escalation_require_enrollment"] = bool(
+                    dae["require_active_enrollment"]
+                )
+            if (
+                "first_escalation_delay_years" in dae
+                and dae["first_escalation_delay_years"] is not None
+            ):
+                dbt_vars["deferral_escalation_first_delay_years"] = int(
+                    dae["first_escalation_delay_years"]
+                )
     except Exception:
         pass
 
@@ -323,39 +375,47 @@ def _export_employer_match_vars(cfg: "SimulationConfig") -> Dict[str, Any]:
     dbt_vars: Dict[str, Any] = {}
 
     employer_match_defaults = {
-        'apply_eligibility': False,
-        'eligibility': {
-            'minimum_tenure_years': 0,
-            'require_active_at_year_end': True,
-            'minimum_hours_annual': 1000,
-            'allow_new_hires': True,  # Safe: minimum_tenure_years is 0
-            'allow_terminated_new_hires': False,
-            'allow_experienced_terminations': False
-        }
+        "apply_eligibility": False,
+        "eligibility": {
+            "minimum_tenure_years": 0,
+            "require_active_at_year_end": True,
+            "minimum_hours_annual": 1000,
+            "allow_new_hires": True,  # Safe: minimum_tenure_years is 0
+            "allow_terminated_new_hires": False,
+            "allow_experienced_terminations": False,
+        },
     }
 
     try:
         employer_match = cfg.employer_match
         if employer_match is not None:
             # Convert Pydantic model to dict if needed
-            if hasattr(employer_match, 'model_dump'):
+            if hasattr(employer_match, "model_dump"):
                 employer_data = employer_match.model_dump()
             else:
-                employer_data = employer_match if isinstance(employer_match, dict) else {}
+                employer_data = (
+                    employer_match if isinstance(employer_match, dict) else {}
+                )
 
             # Generate nested employer_match variable structure
-            elig = employer_data.get('eligibility', {})
-            min_tenure = elig.get('minimum_tenure_years', 0)
+            elig = employer_data.get("eligibility", {})
+            min_tenure = elig.get("minimum_tenure_years", 0)
             dbt_employer_match = {
-                'apply_eligibility': employer_data.get('apply_eligibility', False),
-                'eligibility': {
-                    'minimum_tenure_years': min_tenure,
-                    'require_active_at_year_end': elig.get('require_active_at_year_end', True),
-                    'minimum_hours_annual': elig.get('minimum_hours_annual', 1000),
-                    'allow_new_hires': elig.get('allow_new_hires', min_tenure == 0),
-                    'allow_terminated_new_hires': elig.get('allow_terminated_new_hires', False),
-                    'allow_experienced_terminations': elig.get('allow_experienced_terminations', False)
-                }
+                "apply_eligibility": employer_data.get("apply_eligibility", False),
+                "eligibility": {
+                    "minimum_tenure_years": min_tenure,
+                    "require_active_at_year_end": elig.get(
+                        "require_active_at_year_end", True
+                    ),
+                    "minimum_hours_annual": elig.get("minimum_hours_annual", 1000),
+                    "allow_new_hires": elig.get("allow_new_hires", min_tenure == 0),
+                    "allow_terminated_new_hires": elig.get(
+                        "allow_terminated_new_hires", False
+                    ),
+                    "allow_experienced_terminations": elig.get(
+                        "allow_experienced_terminations", False
+                    ),
+                },
             }
             dbt_vars["employer_match"] = dbt_employer_match
 
@@ -401,31 +461,46 @@ def _export_employer_match_vars(cfg: "SimulationConfig") -> Dict[str, Any]:
             # Try legacy configuration from extra fields
             employer_legacy = getattr(cfg, "employer_match", None)
             if employer_legacy and isinstance(employer_legacy, dict):
-                legacy_elig = employer_legacy.get('eligibility', {})
-                legacy_min_tenure = legacy_elig.get('minimum_tenure_years', 0)
+                legacy_elig = employer_legacy.get("eligibility", {})
+                legacy_min_tenure = legacy_elig.get("minimum_tenure_years", 0)
                 dbt_employer_match = {
-                    'apply_eligibility': employer_legacy.get('apply_eligibility', False),
-                    'eligibility': {
-                        'minimum_tenure_years': legacy_min_tenure,
-                        'require_active_at_year_end': legacy_elig.get('require_active_at_year_end', True),
-                        'minimum_hours_annual': legacy_elig.get('minimum_hours_annual', 1000),
-                        'allow_new_hires': legacy_elig.get('allow_new_hires', legacy_min_tenure == 0),
-                        'allow_terminated_new_hires': legacy_elig.get('allow_terminated_new_hires', False),
-                        'allow_experienced_terminations': legacy_elig.get('allow_experienced_terminations', False)
-                    }
+                    "apply_eligibility": employer_legacy.get(
+                        "apply_eligibility", False
+                    ),
+                    "eligibility": {
+                        "minimum_tenure_years": legacy_min_tenure,
+                        "require_active_at_year_end": legacy_elig.get(
+                            "require_active_at_year_end", True
+                        ),
+                        "minimum_hours_annual": legacy_elig.get(
+                            "minimum_hours_annual", 1000
+                        ),
+                        "allow_new_hires": legacy_elig.get(
+                            "allow_new_hires", legacy_min_tenure == 0
+                        ),
+                        "allow_terminated_new_hires": legacy_elig.get(
+                            "allow_terminated_new_hires", False
+                        ),
+                        "allow_experienced_terminations": legacy_elig.get(
+                            "allow_experienced_terminations", False
+                        ),
+                    },
                 }
                 dbt_vars["employer_match"] = dbt_employer_match
 
                 if "active_formula" in employer_legacy:
-                    dbt_vars["active_match_formula"] = str(employer_legacy["active_formula"])
+                    dbt_vars["active_match_formula"] = str(
+                        employer_legacy["active_formula"]
+                    )
                 if "formulas" in employer_legacy:
                     dbt_vars["match_formulas"] = employer_legacy["formulas"]
             else:
                 dbt_vars["employer_match"] = employer_match_defaults
 
     except Exception as e:
-        logger.warning("Error processing employer_match configuration: %s", e,
-                       exc_info=True)
+        logger.warning(
+            "Error processing employer_match configuration: %s", e, exc_info=True
+        )
         dbt_vars["employer_match"] = employer_match_defaults
 
     # E084 Phase B: Export custom match tiers from dc_plan config
@@ -439,7 +514,7 @@ def _export_employer_match_vars(cfg: "SimulationConfig") -> Dict[str, Any]:
         if dc_plan:
             if isinstance(dc_plan, dict):
                 dc_plan_dict = dc_plan
-            elif hasattr(dc_plan, 'model_dump'):
+            elif hasattr(dc_plan, "model_dump"):
                 dc_plan_dict = dc_plan.model_dump()
             else:
                 dc_plan_dict = {}
@@ -474,22 +549,31 @@ def _export_employer_match_vars(cfg: "SimulationConfig") -> Dict[str, Any]:
             # Each tier: {min_years, max_years (null for infinity), rate (percentage), max_deferral_pct (percentage)}
             match_graded_schedule = dc_plan_dict.get("match_graded_schedule")
             if match_graded_schedule is not None:
-                if isinstance(match_graded_schedule, list) and len(match_graded_schedule) > 0:
+                if (
+                    isinstance(match_graded_schedule, list)
+                    and len(match_graded_schedule) > 0
+                ):
                     # Transform field names for dbt macro compatibility:
                     # UI uses: service_years_min, service_years_max, match_rate, max_deferral_pct
                     # Macro expects: min_years, max_years, rate (as percentage), max_deferral_pct (as percentage)
                     transformed_schedule = []
                     for tier in match_graded_schedule:
                         transformed_tier = {
-                            "min_years": tier.get("service_years_min", tier.get("min_years", 0)),
-                            "max_years": tier.get("service_years_max", tier.get("max_years")),
+                            "min_years": tier.get(
+                                "service_years_min", tier.get("min_years", 0)
+                            ),
+                            "max_years": tier.get(
+                                "service_years_max", tier.get("max_years")
+                            ),
                             # Convert decimal rate (0.50 or 2.0 for 200%) to percentage (50.0, 200.0) for macro if needed
                             "rate": (tier.get("match_rate", tier.get("rate", 0)) * 100)
-                            if tier.get("match_rate") is not None and tier.get("match_rate") <= 2
+                            if tier.get("match_rate") is not None
+                            and tier.get("match_rate") <= 2
                             else tier.get("rate", tier.get("match_rate", 0)),
                             # Convert decimal max_deferral_pct (0.06) to percentage (6.0) for macro if needed
                             "max_deferral_pct": (tier.get("max_deferral_pct", 0) * 100)
-                            if tier.get("max_deferral_pct") is not None and tier.get("max_deferral_pct") <= 1
+                            if tier.get("max_deferral_pct") is not None
+                            and tier.get("max_deferral_pct") <= 1
                             else tier.get("max_deferral_pct", 6),
                         }
                         transformed_schedule.append(transformed_tier)
@@ -506,10 +590,12 @@ def _export_employer_match_vars(cfg: "SimulationConfig") -> Dict[str, Any]:
                             "max_years": tier.get("max_years"),
                             # Convert decimal rate (0.50 or 2.0 for 200%) to percentage (50.0, 200.0) if needed
                             "rate": (tier.get("match_rate", tier.get("rate", 0)) * 100)
-                            if tier.get("match_rate") is not None and tier.get("match_rate") <= 2
+                            if tier.get("match_rate") is not None
+                            and tier.get("match_rate") <= 2
                             else tier.get("rate", tier.get("match_rate", 0)),
                             "max_deferral_pct": (tier.get("max_deferral_pct", 0) * 100)
-                            if tier.get("max_deferral_pct") is not None and tier.get("max_deferral_pct") <= 1
+                            if tier.get("max_deferral_pct") is not None
+                            and tier.get("max_deferral_pct") <= 1
                             else tier.get("max_deferral_pct", 6),
                         }
                         transformed_tiers.append(transformed_tier)
@@ -526,10 +612,12 @@ def _export_employer_match_vars(cfg: "SimulationConfig") -> Dict[str, Any]:
                             "max_points": tier.get("max_points"),
                             # Convert decimal rate (0.50 or 2.0 for 200%) to percentage (50.0, 200.0) if needed
                             "rate": (tier.get("match_rate", tier.get("rate", 0)) * 100)
-                            if tier.get("match_rate") is not None and tier.get("match_rate") <= 2
+                            if tier.get("match_rate") is not None
+                            and tier.get("match_rate") <= 2
                             else tier.get("rate", tier.get("match_rate", 0)),
                             "max_deferral_pct": (tier.get("max_deferral_pct", 0) * 100)
-                            if tier.get("max_deferral_pct") is not None and tier.get("max_deferral_pct") <= 1
+                            if tier.get("max_deferral_pct") is not None
+                            and tier.get("max_deferral_pct") <= 1
                             else tier.get("max_deferral_pct", 6),
                         }
                         transformed_tiers.append(transformed_tier)
@@ -539,38 +627,58 @@ def _export_employer_match_vars(cfg: "SimulationConfig") -> Dict[str, Any]:
             # The UI sends flat fields like match_min_hours_annual, we need to merge into employer_match
             match_eligibility_overrides = {}
             if dc_plan_dict.get("match_min_tenure_years") is not None:
-                match_eligibility_overrides["minimum_tenure_years"] = int(dc_plan_dict["match_min_tenure_years"])
+                match_eligibility_overrides["minimum_tenure_years"] = int(
+                    dc_plan_dict["match_min_tenure_years"]
+                )
             if dc_plan_dict.get("match_require_year_end_active") is not None:
-                match_eligibility_overrides["require_active_at_year_end"] = bool(dc_plan_dict["match_require_year_end_active"])
+                match_eligibility_overrides["require_active_at_year_end"] = bool(
+                    dc_plan_dict["match_require_year_end_active"]
+                )
             if dc_plan_dict.get("match_min_hours_annual") is not None:
-                match_eligibility_overrides["minimum_hours_annual"] = int(dc_plan_dict["match_min_hours_annual"])
+                match_eligibility_overrides["minimum_hours_annual"] = int(
+                    dc_plan_dict["match_min_hours_annual"]
+                )
             if dc_plan_dict.get("match_allow_terminated_new_hires") is not None:
-                match_eligibility_overrides["allow_terminated_new_hires"] = bool(dc_plan_dict["match_allow_terminated_new_hires"])
+                match_eligibility_overrides["allow_terminated_new_hires"] = bool(
+                    dc_plan_dict["match_allow_terminated_new_hires"]
+                )
             if dc_plan_dict.get("match_allow_experienced_terminations") is not None:
-                match_eligibility_overrides["allow_experienced_terminations"] = bool(dc_plan_dict["match_allow_experienced_terminations"])
+                match_eligibility_overrides["allow_experienced_terminations"] = bool(
+                    dc_plan_dict["match_allow_experienced_terminations"]
+                )
             # E047: Export match_allow_new_hires from dc_plan (UI path)
             if dc_plan_dict.get("match_allow_new_hires") is not None:
-                match_eligibility_overrides["allow_new_hires"] = bool(dc_plan_dict["match_allow_new_hires"])
+                match_eligibility_overrides["allow_new_hires"] = bool(
+                    dc_plan_dict["match_allow_new_hires"]
+                )
 
             # Merge dc_plan eligibility overrides into employer_match
             if match_eligibility_overrides:
                 if "employer_match" not in dbt_vars:
                     dbt_vars["employer_match"] = employer_match_defaults.copy()
                 # Deep merge eligibility
-                current_eligibility = dbt_vars["employer_match"].get("eligibility", {}).copy()
+                current_eligibility = (
+                    dbt_vars["employer_match"].get("eligibility", {}).copy()
+                )
                 current_eligibility.update(match_eligibility_overrides)
                 # If UI changed minimum_tenure_years but didn't explicitly set
                 # allow_new_hires, re-derive it from the new tenure value to
                 # avoid a stale True surviving from the original config
-                if "minimum_tenure_years" in match_eligibility_overrides and "allow_new_hires" not in match_eligibility_overrides:
-                    current_eligibility["allow_new_hires"] = (current_eligibility["minimum_tenure_years"] == 0)
+                if (
+                    "minimum_tenure_years" in match_eligibility_overrides
+                    and "allow_new_hires" not in match_eligibility_overrides
+                ):
+                    current_eligibility["allow_new_hires"] = (
+                        current_eligibility["minimum_tenure_years"] == 0
+                    )
                 dbt_vars["employer_match"]["eligibility"] = current_eligibility
                 # Enable eligibility when UI sets values
                 dbt_vars["employer_match"]["apply_eligibility"] = True
 
     except Exception as e:
-        logger.warning("Error processing dc_plan match configuration: %s", e,
-                       exc_info=True)
+        logger.warning(
+            "Error processing dc_plan match configuration: %s", e, exc_info=True
+        )
 
     return dbt_vars
 
@@ -591,7 +699,9 @@ def _export_compensation_vars(cfg: "SimulationConfig") -> Dict[str, Any]:
         dbt_vars["promotion_base_increase_pct"] = promotion.base_increase_pct
 
     if cfg.compensation.promotion_distribution_range != 0.05:  # Not default
-        dbt_vars["promotion_distribution_range"] = cfg.compensation.promotion_distribution_range
+        dbt_vars[
+            "promotion_distribution_range"
+        ] = cfg.compensation.promotion_distribution_range
     else:
         dbt_vars["promotion_distribution_range"] = promotion.distribution_range
 
@@ -616,11 +726,19 @@ def _export_compensation_vars(cfg: "SimulationConfig") -> Dict[str, Any]:
             new_hire_config = raw_config.get("new_hire", {})
 
         if new_hire_config:
-            job_level_comp = new_hire_config.get("job_level_compensation") if isinstance(new_hire_config, dict) else getattr(new_hire_config, "job_level_compensation", None)
+            job_level_comp = (
+                new_hire_config.get("job_level_compensation")
+                if isinstance(new_hire_config, dict)
+                else getattr(new_hire_config, "job_level_compensation", None)
+            )
             if job_level_comp and len(job_level_comp) > 0:
                 dbt_vars["job_level_compensation"] = job_level_comp
 
-            market_scenario = new_hire_config.get("market_scenario") if isinstance(new_hire_config, dict) else getattr(new_hire_config, "market_scenario", None)
+            market_scenario = (
+                new_hire_config.get("market_scenario")
+                if isinstance(new_hire_config, dict)
+                else getattr(new_hire_config, "market_scenario", None)
+            )
             if market_scenario:
                 market_adjustments = {
                     "conservative": -5,
@@ -628,14 +746,19 @@ def _export_compensation_vars(cfg: "SimulationConfig") -> Dict[str, Any]:
                     "competitive": 5,
                     "aggressive": 10,
                 }
-                dbt_vars["market_scenario_adjustment"] = market_adjustments.get(market_scenario, 0)
+                dbt_vars["market_scenario_adjustment"] = market_adjustments.get(
+                    market_scenario, 0
+                )
 
-            level_adjustments = new_hire_config.get("level_market_adjustments") if isinstance(new_hire_config, dict) else getattr(new_hire_config, "level_market_adjustments", None)
+            level_adjustments = (
+                new_hire_config.get("level_market_adjustments")
+                if isinstance(new_hire_config, dict)
+                else getattr(new_hire_config, "level_market_adjustments", None)
+            )
             if level_adjustments:
                 dbt_vars["level_market_adjustments"] = level_adjustments
     except Exception as e:
-        logger.warning("Error processing new_hire configuration: %s", e,
-                       exc_info=True)
+        logger.warning("Error processing new_hire configuration: %s", e, exc_info=True)
 
     return dbt_vars
 
@@ -690,10 +813,16 @@ def _export_core_contribution_vars(cfg: "SimulationConfig") -> Dict[str, Any]:
                 transformed_schedule = []
                 for tier in graded_schedule:
                     transformed_tier = {
-                        "min_years": tier.get("service_years_min", tier.get("min_years", 0)),
-                        "max_years": tier.get("service_years_max", tier.get("max_years")),
+                        "min_years": tier.get(
+                            "service_years_min", tier.get("min_years", 0)
+                        ),
+                        "max_years": tier.get(
+                            "service_years_max", tier.get("max_years")
+                        ),
                         # Convert decimal rate (0.06) to percentage (6.0) for macro
-                        "rate": (tier.get("contribution_rate", tier.get("rate", 0)) * 100)
+                        "rate": (
+                            tier.get("contribution_rate", tier.get("rate", 0)) * 100
+                        )
                         if tier.get("contribution_rate") is not None
                         else tier.get("rate", 0),
                     }
@@ -707,7 +836,9 @@ def _export_core_contribution_vars(cfg: "SimulationConfig") -> Dict[str, Any]:
                     transformed_tier = {
                         "min_points": tier.get("min_points", 0),
                         "max_points": tier.get("max_points"),
-                        "rate": (tier.get("contribution_rate", tier.get("rate", 0)) * 100)
+                        "rate": (
+                            tier.get("contribution_rate", tier.get("rate", 0)) * 100
+                        )
                         if tier.get("contribution_rate") is not None
                         else tier.get("rate", 0),
                     }
@@ -719,8 +850,12 @@ def _export_core_contribution_vars(cfg: "SimulationConfig") -> Dict[str, Any]:
                 require_active = eligibility.get("require_active_at_year_end")
                 min_hours = eligibility.get("minimum_hours_annual")
                 allow_new_hires = eligibility.get("allow_new_hires")
-                allow_terminated_new_hires = eligibility.get("allow_terminated_new_hires")
-                allow_experienced_terminations = eligibility.get("allow_experienced_terminations")
+                allow_terminated_new_hires = eligibility.get(
+                    "allow_terminated_new_hires"
+                )
+                allow_experienced_terminations = eligibility.get(
+                    "allow_experienced_terminations"
+                )
 
                 if min_tenure is not None:
                     dbt_vars["core_minimum_tenure_years"] = int(min_tenure)
@@ -731,9 +866,13 @@ def _export_core_contribution_vars(cfg: "SimulationConfig") -> Dict[str, Any]:
                 if allow_new_hires is not None:
                     dbt_vars["core_allow_new_hires"] = bool(allow_new_hires)
                 if allow_terminated_new_hires is not None:
-                    dbt_vars["core_allow_terminated_new_hires"] = bool(allow_terminated_new_hires)
+                    dbt_vars["core_allow_terminated_new_hires"] = bool(
+                        allow_terminated_new_hires
+                    )
                 if allow_experienced_terminations is not None:
-                    dbt_vars["core_allow_experienced_terminations"] = bool(allow_experienced_terminations)
+                    dbt_vars["core_allow_experienced_terminations"] = bool(
+                        allow_experienced_terminations
+                    )
 
             # Nested var (required by int_employer_eligibility.sql)
             dbt_core_nested: Dict[str, Any] = {}
@@ -758,7 +897,7 @@ def _export_core_contribution_vars(cfg: "SimulationConfig") -> Dict[str, Any]:
             # Default tenure to 1 to match dbt's int_employer_eligibility.sql default
             if "allow_new_hires" not in nested_elig:
                 core_min_tenure = nested_elig.get("minimum_tenure_years", 1)
-                nested_elig["allow_new_hires"] = (core_min_tenure == 0)
+                nested_elig["allow_new_hires"] = core_min_tenure == 0
 
             if nested_elig:
                 dbt_core_nested["eligibility"] = nested_elig
@@ -779,25 +918,37 @@ def _export_core_contribution_vars(cfg: "SimulationConfig") -> Dict[str, Any]:
         if dc_plan:
             if isinstance(dc_plan, dict):
                 dc_plan_dict = dc_plan
-            elif hasattr(dc_plan, 'model_dump'):
+            elif hasattr(dc_plan, "model_dump"):
                 dc_plan_dict = dc_plan.model_dump()
             else:
                 dc_plan_dict = {}
 
             core_eligibility_overrides = {}
             if dc_plan_dict.get("core_min_tenure_years") is not None:
-                core_eligibility_overrides["minimum_tenure_years"] = int(dc_plan_dict["core_min_tenure_years"])
+                core_eligibility_overrides["minimum_tenure_years"] = int(
+                    dc_plan_dict["core_min_tenure_years"]
+                )
             if dc_plan_dict.get("core_require_year_end_active") is not None:
-                core_eligibility_overrides["require_active_at_year_end"] = bool(dc_plan_dict["core_require_year_end_active"])
+                core_eligibility_overrides["require_active_at_year_end"] = bool(
+                    dc_plan_dict["core_require_year_end_active"]
+                )
             if dc_plan_dict.get("core_min_hours_annual") is not None:
-                core_eligibility_overrides["minimum_hours_annual"] = int(dc_plan_dict["core_min_hours_annual"])
+                core_eligibility_overrides["minimum_hours_annual"] = int(
+                    dc_plan_dict["core_min_hours_annual"]
+                )
             if dc_plan_dict.get("core_allow_terminated_new_hires") is not None:
-                core_eligibility_overrides["allow_terminated_new_hires"] = bool(dc_plan_dict["core_allow_terminated_new_hires"])
+                core_eligibility_overrides["allow_terminated_new_hires"] = bool(
+                    dc_plan_dict["core_allow_terminated_new_hires"]
+                )
             if dc_plan_dict.get("core_allow_experienced_terminations") is not None:
-                core_eligibility_overrides["allow_experienced_terminations"] = bool(dc_plan_dict["core_allow_experienced_terminations"])
+                core_eligibility_overrides["allow_experienced_terminations"] = bool(
+                    dc_plan_dict["core_allow_experienced_terminations"]
+                )
             # E047: Export core_allow_new_hires from dc_plan (UI path)
             if dc_plan_dict.get("core_allow_new_hires") is not None:
-                core_eligibility_overrides["allow_new_hires"] = bool(dc_plan_dict["core_allow_new_hires"])
+                core_eligibility_overrides["allow_new_hires"] = bool(
+                    dc_plan_dict["core_allow_new_hires"]
+                )
 
             # Also handle core enabled, contribution rate, status and graded schedule from dc_plan
             core_top_level = {}
@@ -806,7 +957,9 @@ def _export_core_contribution_vars(cfg: "SimulationConfig") -> Dict[str, Any]:
                 dbt_vars["employer_core_enabled"] = bool(dc_plan_dict["core_enabled"])
             if dc_plan_dict.get("core_contribution_rate_percent") is not None:
                 # UI sends as percentage (e.g., 1.0 for 1%), convert to decimal (0.01)
-                rate_decimal = float(dc_plan_dict["core_contribution_rate_percent"]) / 100.0
+                rate_decimal = (
+                    float(dc_plan_dict["core_contribution_rate_percent"]) / 100.0
+                )
                 core_top_level["contribution_rate"] = rate_decimal
                 dbt_vars["employer_core_contribution_rate"] = rate_decimal
 
@@ -826,10 +979,16 @@ def _export_core_contribution_vars(cfg: "SimulationConfig") -> Dict[str, Any]:
                     transformed_schedule = []
                     for tier in graded_schedule:
                         transformed_tier = {
-                            "min_years": tier.get("service_years_min", tier.get("min_years", 0)),
-                            "max_years": tier.get("service_years_max", tier.get("max_years")),
+                            "min_years": tier.get(
+                                "service_years_min", tier.get("min_years", 0)
+                            ),
+                            "max_years": tier.get(
+                                "service_years_max", tier.get("max_years")
+                            ),
                             # Convert decimal rate (0.06) to percentage (6.0) for macro
-                            "rate": (tier.get("contribution_rate", tier.get("rate", 0)) * 100)
+                            "rate": (
+                                tier.get("contribution_rate", tier.get("rate", 0)) * 100
+                            )
                             if tier.get("contribution_rate") is not None
                             else tier.get("rate", 0),
                         }
@@ -850,7 +1009,9 @@ def _export_core_contribution_vars(cfg: "SimulationConfig") -> Dict[str, Any]:
                             "min_points": tier.get("min_points", 0),
                             "max_points": tier.get("max_points"),
                             # Convert decimal rate (0.03) to percentage (3.0) for macro
-                            "rate": (tier.get("contribution_rate", tier.get("rate", 0)) * 100)
+                            "rate": (
+                                tier.get("contribution_rate", tier.get("rate", 0)) * 100
+                            )
                             if tier.get("contribution_rate") is not None
                             else tier.get("rate", 0),
                         }
@@ -865,7 +1026,9 @@ def _export_core_contribution_vars(cfg: "SimulationConfig") -> Dict[str, Any]:
                 dbt_vars["employer_core_contribution"].update(core_top_level)
                 # Deep merge eligibility
                 if core_eligibility_overrides:
-                    current_eligibility = dbt_vars["employer_core_contribution"].get("eligibility", {})
+                    current_eligibility = dbt_vars["employer_core_contribution"].get(
+                        "eligibility", {}
+                    )
                     if isinstance(current_eligibility, dict):
                         current_eligibility = current_eligibility.copy()
                     else:
@@ -873,13 +1036,21 @@ def _export_core_contribution_vars(cfg: "SimulationConfig") -> Dict[str, Any]:
                     current_eligibility.update(core_eligibility_overrides)
                     # If UI changed minimum_tenure_years but didn't explicitly set
                     # allow_new_hires, re-derive it from the new tenure value
-                    if "minimum_tenure_years" in core_eligibility_overrides and "allow_new_hires" not in core_eligibility_overrides:
-                        current_eligibility["allow_new_hires"] = (current_eligibility["minimum_tenure_years"] == 0)
-                    dbt_vars["employer_core_contribution"]["eligibility"] = current_eligibility
+                    if (
+                        "minimum_tenure_years" in core_eligibility_overrides
+                        and "allow_new_hires" not in core_eligibility_overrides
+                    ):
+                        current_eligibility["allow_new_hires"] = (
+                            current_eligibility["minimum_tenure_years"] == 0
+                        )
+                    dbt_vars["employer_core_contribution"][
+                        "eligibility"
+                    ] = current_eligibility
 
     except Exception as e:
-        logger.warning("Error processing dc_plan core configuration: %s", e,
-                       exc_info=True)
+        logger.warning(
+            "Error processing dc_plan core configuration: %s", e, exc_info=True
+        )
 
     return dbt_vars
 
@@ -896,13 +1067,27 @@ def _export_deferral_match_response_vars(cfg: "SimulationConfig") -> Dict[str, A
     try:
         dmr = cfg.deferral_match_response
         dbt_vars["deferral_match_response_enabled"] = bool(dmr.enabled)
-        dbt_vars["deferral_match_response_upward_participation_rate"] = float(dmr.upward_participation_rate)
-        dbt_vars["deferral_match_response_upward_maximize_rate"] = float(dmr.upward_maximize_rate)
-        dbt_vars["deferral_match_response_upward_partial_factor"] = float(dmr.upward_partial_increase_factor)
-        dbt_vars["deferral_match_response_downward_enabled"] = bool(dmr.downward_enabled)
-        dbt_vars["deferral_match_response_downward_participation_rate"] = float(dmr.downward_participation_rate)
-        dbt_vars["deferral_match_response_downward_reduce_to_max_rate"] = float(dmr.downward_reduce_to_max_rate)
-        dbt_vars["deferral_match_response_downward_partial_factor"] = float(dmr.downward_partial_decrease_factor)
+        dbt_vars["deferral_match_response_upward_participation_rate"] = float(
+            dmr.upward_participation_rate
+        )
+        dbt_vars["deferral_match_response_upward_maximize_rate"] = float(
+            dmr.upward_maximize_rate
+        )
+        dbt_vars["deferral_match_response_upward_partial_factor"] = float(
+            dmr.upward_partial_increase_factor
+        )
+        dbt_vars["deferral_match_response_downward_enabled"] = bool(
+            dmr.downward_enabled
+        )
+        dbt_vars["deferral_match_response_downward_participation_rate"] = float(
+            dmr.downward_participation_rate
+        )
+        dbt_vars["deferral_match_response_downward_reduce_to_max_rate"] = float(
+            dmr.downward_reduce_to_max_rate
+        )
+        dbt_vars["deferral_match_response_downward_partial_factor"] = float(
+            dmr.downward_partial_decrease_factor
+        )
 
         # Pre-compute match-maximizing deferral rate from active formula
         # This avoids Jinja2 scoping issues when iterating tiers in SQL
@@ -951,8 +1136,10 @@ def to_dbt_vars(cfg: "SimulationConfig") -> Dict[str, Any]:
     # override via _export_enrollment_vars, ensuring UI takes precedence.
     dbt_vars: Dict[str, Any] = {}
     dbt_vars.update(_export_simulation_vars(cfg))
-    dbt_vars.update(_export_legacy_vars(cfg))        # Legacy YAML settings (lowest priority)
-    dbt_vars.update(_export_enrollment_vars(cfg))    # UI dc_plan settings (override legacy)
+    dbt_vars.update(_export_legacy_vars(cfg))  # Legacy YAML settings (lowest priority)
+    dbt_vars.update(
+        _export_enrollment_vars(cfg)
+    )  # UI dc_plan settings (override legacy)
     dbt_vars.update(_export_employer_match_vars(cfg))
     dbt_vars.update(_export_compensation_vars(cfg))
     dbt_vars.update(_export_threading_vars(cfg))

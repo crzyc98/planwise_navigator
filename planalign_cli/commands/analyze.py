@@ -28,10 +28,12 @@ from planalign_orchestrator.excel_exporter import ExcelExporter
 console = Console()
 analyze_command = typer.Typer()
 
+
 @analyze_command.callback()
 def analyze_main():
     """📊 Analyze simulation results with Rich tables and terminal-based visualizations."""
     pass
+
 
 @analyze_command.command("workforce")
 def analyze_workforce(
@@ -47,15 +49,11 @@ def analyze_workforce(
     end_year: Optional[int] = typer.Option(
         None, "--end-year", help="End year for analysis"
     ),
-    trend: bool = typer.Option(
-        False, "--trend", help="Show detailed trend analysis"
-    ),
+    trend: bool = typer.Option(False, "--trend", help="Show detailed trend analysis"),
     export: Optional[str] = typer.Option(
         None, "--export", help="Export format (excel, csv)"
     ),
-    verbose: bool = typer.Option(
-        False, "--verbose", "-v", help="Show detailed output"
-    ),
+    verbose: bool = typer.Option(False, "--verbose", "-v", help="Show detailed output"),
 ):
     """
     Analyze workforce trends and metrics with Rich terminal visualizations.
@@ -111,8 +109,10 @@ def analyze_workforce(
         show_error_message(f"Analysis failed: {e}")
         if verbose:
             import traceback
+
             console.print(f"[dim]{traceback.format_exc()}[/dim]")
         raise typer.Exit(1)
+
 
 @analyze_command.command("events")
 def analyze_events(
@@ -122,15 +122,13 @@ def analyze_events(
     database: Optional[str] = typer.Option(
         None, "--database", help="Path to DuckDB database file"
     ),
-    year: Optional[int] = typer.Option(
-        None, "--year", help="Specific year to analyze"
-    ),
+    year: Optional[int] = typer.Option(None, "--year", help="Specific year to analyze"),
     event_type: Optional[str] = typer.Option(
-        None, "--type", help="Event type to analyze (hire, termination, promotion, raise)"
+        None,
+        "--type",
+        help="Event type to analyze (hire, termination, promotion, raise)",
     ),
-    verbose: bool = typer.Option(
-        False, "--verbose", "-v", help="Show detailed output"
-    ),
+    verbose: bool = typer.Option(False, "--verbose", "-v", help="Show detailed output"),
 ):
     """
     Analyze workforce events with Rich formatted tables and statistics.
@@ -168,6 +166,7 @@ def analyze_events(
         show_error_message(f"Event analysis failed: {e}")
         raise typer.Exit(1)
 
+
 @analyze_command.command("scenario")
 def analyze_scenario(
     scenario_name: str = typer.Argument(..., help="Scenario name to analyze"),
@@ -180,9 +179,7 @@ def analyze_scenario(
     export: Optional[str] = typer.Option(
         None, "--export", help="Export format (excel, csv)"
     ),
-    verbose: bool = typer.Option(
-        False, "--verbose", "-v", help="Show detailed output"
-    ),
+    verbose: bool = typer.Option(False, "--verbose", "-v", help="Show detailed output"),
 ):
     """
     Analyze specific scenario results with executive summary dashboard.
@@ -203,7 +200,13 @@ def analyze_scenario(
         show_error_message(f"Scenario analysis failed: {e}")
         raise typer.Exit(1)
 
-def _get_workforce_data(wrapper: OrchestratorWrapper, start_year: Optional[int], end_year: Optional[int], verbose: bool = False) -> List[Dict[str, Any]]:
+
+def _get_workforce_data(
+    wrapper: OrchestratorWrapper,
+    start_year: Optional[int],
+    end_year: Optional[int],
+    verbose: bool = False,
+) -> List[Dict[str, Any]]:
     """Query workforce snapshot data from database."""
     try:
         with wrapper.db.get_connection() as conn:
@@ -240,8 +243,17 @@ def _get_workforce_data(wrapper: OrchestratorWrapper, start_year: Optional[int],
             result = conn.execute(query).fetchall()
 
             # Convert to list of dictionaries
-            columns = ['simulation_year', 'total_employees', 'active_employees', 'terminated_employees',
-                      'enrolled_employees', 'avg_compensation', 'total_compensation', 'avg_age', 'avg_tenure']
+            columns = [
+                "simulation_year",
+                "total_employees",
+                "active_employees",
+                "terminated_employees",
+                "enrolled_employees",
+                "avg_compensation",
+                "total_compensation",
+                "avg_age",
+                "avg_tenure",
+            ]
 
             return [dict(zip(columns, row)) for row in result]
 
@@ -249,7 +261,10 @@ def _get_workforce_data(wrapper: OrchestratorWrapper, start_year: Optional[int],
         console.print(f"[red]Error querying workforce data: {e}[/red]")
         return []
 
-def _get_event_data(wrapper: OrchestratorWrapper, year: Optional[int], event_type: Optional[str]) -> List[Dict[str, Any]]:
+
+def _get_event_data(
+    wrapper: OrchestratorWrapper, year: Optional[int], event_type: Optional[str]
+) -> List[Dict[str, Any]]:
     """Query event data from database."""
     try:
         with wrapper.db.get_connection() as conn:
@@ -276,12 +291,18 @@ def _get_event_data(wrapper: OrchestratorWrapper, year: Optional[int], event_typ
 
             result = conn.execute(query).fetchall()
 
-            columns = ['simulation_year', 'event_type', 'event_count', 'unique_employees']
+            columns = [
+                "simulation_year",
+                "event_type",
+                "event_count",
+                "unique_employees",
+            ]
             return [dict(zip(columns, row)) for row in result]
 
     except Exception as e:
         console.print(f"[red]Error querying event data: {e}[/red]")
         return []
+
 
 def _display_workforce_overview(workforce_data: List[Dict[str, Any]], verbose: bool):
     """Display workforce overview with Rich tables."""
@@ -301,25 +322,30 @@ def _display_workforce_overview(workforce_data: List[Dict[str, Any]], verbose: b
 
     previous_count = None
     for data in workforce_data:
-        year = str(data['simulation_year'])
+        year = str(data["simulation_year"])
         total = f"{data['total_employees']:,}"
         active = f"{data['active_employees']:,}"
         enrolled = f"{data['enrolled_employees']:,}"
 
         # Calculate growth
         if previous_count:
-            growth = data['total_employees'] - previous_count
+            growth = data["total_employees"] - previous_count
             growth_pct = (growth / previous_count) * 100
-            growth_str = f"+{growth} (+{growth_pct:.1f}%)" if growth > 0 else f"{growth} ({growth_pct:.1f}%)"
+            growth_str = (
+                f"+{growth} (+{growth_pct:.1f}%)"
+                if growth > 0
+                else f"{growth} ({growth_pct:.1f}%)"
+            )
         else:
             growth_str = "Baseline"
 
         avg_comp = f"${data['avg_compensation']:,}"
 
         table.add_row(year, total, active, enrolled, growth_str, avg_comp)
-        previous_count = data['total_employees']
+        previous_count = data["total_employees"]
 
     console.print(table)
+
 
 def _display_workforce_trends(workforce_data: List[Dict[str, Any]], verbose: bool):
     """Display workforce trends with terminal-based visualization."""
@@ -331,14 +357,16 @@ def _display_workforce_trends(workforce_data: List[Dict[str, Any]], verbose: boo
     # Calculate growth rates
     growth_rates = []
     for i in range(1, len(workforce_data)):
-        current = workforce_data[i]['total_employees']
-        previous = workforce_data[i-1]['total_employees']
+        current = workforce_data[i]["total_employees"]
+        previous = workforce_data[i - 1]["total_employees"]
         growth_rate = ((current - previous) / previous) * 100
-        growth_rates.append({
-            'year': workforce_data[i]['simulation_year'],
-            'growth_rate': growth_rate,
-            'absolute_growth': current - previous
-        })
+        growth_rates.append(
+            {
+                "year": workforce_data[i]["simulation_year"],
+                "growth_rate": growth_rate,
+                "absolute_growth": current - previous,
+            }
+        )
 
     # Create trend visualization using Rich progress bars
     console.print("\n🎯 [bold]Annual Growth Rates[/bold]")
@@ -350,19 +378,19 @@ def _display_workforce_trends(workforce_data: List[Dict[str, Any]], verbose: boo
         console=console,
         transient=False,
     ) as progress:
-
         # Normalize growth rates for visualization (0-100 scale)
-        max_rate = max(abs(g['growth_rate']) for g in growth_rates)
+        max_rate = max(abs(g["growth_rate"]) for g in growth_rates)
         if max_rate > 0:
             for growth in growth_rates:
-                rate = growth['growth_rate']
+                rate = growth["growth_rate"]
                 normalized_rate = abs(rate) / max_rate * 100
 
                 task = progress.add_task(
                     f"Year {growth['year']}: {growth['absolute_growth']:+,} employees",
-                    total=100
+                    total=100,
                 )
                 progress.update(task, completed=normalized_rate)
+
 
 def _display_department_analysis(workforce_data: List[Dict[str, Any]], verbose: bool):
     """Display employment status and enrollment analysis."""
@@ -375,18 +403,21 @@ def _display_department_analysis(workforce_data: List[Dict[str, Any]], verbose: 
     latest_data = workforce_data[-1]
 
     # Create employment status breakdown
-    status_table = Table(title=f"Employment Status - Year {latest_data['simulation_year']}", show_header=True)
+    status_table = Table(
+        title=f"Employment Status - Year {latest_data['simulation_year']}",
+        show_header=True,
+    )
     status_table.add_column("Category", style="bold")
     status_table.add_column("Count", style="green")
     status_table.add_column("% of Total", style="blue")
     status_table.add_column("Visual", style="cyan")
 
-    total_employees = latest_data['total_employees']
+    total_employees = latest_data["total_employees"]
 
     categories = [
-        ('Active Employees', latest_data['active_employees']),
-        ('Terminated Employees', latest_data['terminated_employees']),
-        ('Enrolled in DC Plan', latest_data['enrolled_employees']),
+        ("Active Employees", latest_data["active_employees"]),
+        ("Terminated Employees", latest_data["terminated_employees"]),
+        ("Enrolled in DC Plan", latest_data["enrolled_employees"]),
     ]
 
     for category_name, count in categories:
@@ -400,13 +431,15 @@ def _display_department_analysis(workforce_data: List[Dict[str, Any]], verbose: 
                 category_name,
                 f"{count:,}",
                 f"{percentage:.1f}%",
-                bar[:25]  # Truncate for display
+                bar[:25],  # Truncate for display
             )
 
     console.print(status_table)
 
     # Add workforce demographics
-    console.print(f"\n📊 [bold]Workforce Demographics - Year {latest_data['simulation_year']}[/bold]")
+    console.print(
+        f"\n📊 [bold]Workforce Demographics - Year {latest_data['simulation_year']}[/bold]"
+    )
     demo_table = Table(show_header=True)
     demo_table.add_column("Metric", style="bold cyan")
     demo_table.add_column("Value", style="green")
@@ -414,14 +447,19 @@ def _display_department_analysis(workforce_data: List[Dict[str, Any]], verbose: 
     demo_table.add_row("Average Age", f"{latest_data['avg_age']:.1f} years")
     demo_table.add_row("Average Tenure", f"{latest_data['avg_tenure']:.1f} years")
     demo_table.add_row("Average Compensation", f"${latest_data['avg_compensation']:,}")
-    demo_table.add_row("Total Compensation", f"${latest_data['total_compensation'] / 1_000_000:.1f}M")
+    demo_table.add_row(
+        "Total Compensation", f"${latest_data['total_compensation'] / 1_000_000:.1f}M"
+    )
 
     # Calculate enrollment rate
-    if latest_data['active_employees'] > 0:
-        enrollment_rate = (latest_data['enrolled_employees'] / latest_data['active_employees']) * 100
+    if latest_data["active_employees"] > 0:
+        enrollment_rate = (
+            latest_data["enrolled_employees"] / latest_data["active_employees"]
+        ) * 100
         demo_table.add_row("DC Plan Enrollment Rate", f"{enrollment_rate:.1f}%")
 
     console.print(demo_table)
+
 
 def _display_event_summary(event_data: List[Dict[str, Any]], verbose: bool):
     """Display event summary with Rich formatting."""
@@ -439,20 +477,21 @@ def _display_event_summary(event_data: List[Dict[str, Any]], verbose: bool):
 
     for data in event_data:
         table.add_row(
-            str(data['simulation_year']),
-            data['event_type'].title(),
+            str(data["simulation_year"]),
+            data["event_type"].title(),
             f"{data['event_count']:,}",
-            f"{data['unique_employees']:,}"
+            f"{data['unique_employees']:,}",
         )
 
     console.print(table)
+
 
 def _display_event_trends(event_data: List[Dict[str, Any]], verbose: bool):
     """Display event trends visualization."""
     # Group by event type for trend analysis
     event_types = {}
     for data in event_data:
-        event_type = data['event_type']
+        event_type = data["event_type"]
         if event_type not in event_types:
             event_types[event_type] = []
         event_types[event_type].append(data)
@@ -464,8 +503,8 @@ def _display_event_trends(event_data: List[Dict[str, Any]], verbose: bool):
             console.print(f"\n🔍 [cyan]{event_type.title()} Events[/cyan]")
 
             # Simple trend indicator
-            first_count = events[0]['event_count']
-            last_count = events[-1]['event_count']
+            first_count = events[0]["event_count"]
+            last_count = events[-1]["event_count"]
 
             if last_count > first_count:
                 trend = "📈 Increasing"
@@ -476,13 +515,21 @@ def _display_event_trends(event_data: List[Dict[str, Any]], verbose: bool):
 
             console.print(f"   Trend: {trend} ({first_count:,} → {last_count:,})")
 
-def _export_workforce_analysis(workforce_data: List[Dict[str, Any]], format: str, wrapper: OrchestratorWrapper):
+
+def _export_workforce_analysis(
+    workforce_data: List[Dict[str, Any]], format: str, wrapper: OrchestratorWrapper
+):
     """Export workforce analysis to specified format."""
     try:
-        console.print(f"\n📁 [bold blue]Exporting workforce analysis to {format.upper()}[/bold blue]")
+        console.print(
+            f"\n📁 [bold blue]Exporting workforce analysis to {format.upper()}[/bold blue]"
+        )
 
         # Create output directory
-        output_dir = Path("outputs") / f"workforce_analysis_{datetime.now().strftime('%Y%m%d_%H%M%S')}"
+        output_dir = (
+            Path("outputs")
+            / f"workforce_analysis_{datetime.now().strftime('%Y%m%d_%H%M%S')}"
+        )
         output_dir.mkdir(parents=True, exist_ok=True)
 
         # Initialize ExcelExporter
@@ -500,8 +547,16 @@ def _export_workforce_analysis(workforce_data: List[Dict[str, Any]], format: str
 
         class MockConfig:
             def __init__(self):
-                self.start_year = min(data['simulation_year'] for data in workforce_data) if workforce_data else 2025
-                self.end_year = max(data['simulation_year'] for data in workforce_data) if workforce_data else 2025
+                self.start_year = (
+                    min(data["simulation_year"] for data in workforce_data)
+                    if workforce_data
+                    else 2025
+                )
+                self.end_year = (
+                    max(data["simulation_year"] for data in workforce_data)
+                    if workforce_data
+                    else 2025
+                )
                 self.scenario_id = "workforce_analysis"
                 self.simulation = MockSimulation()
                 self.compensation = MockCompensation()
@@ -514,7 +569,7 @@ def _export_workforce_analysis(workforce_data: List[Dict[str, Any]], format: str
             output_dir=output_dir,
             config=config,
             seed=12345,  # Mock seed for analysis export
-            export_format=format.lower()
+            export_format=format.lower(),
         )
 
         console.print(f"   ✅ Analysis exported to: [green]{export_path}[/green]")
@@ -522,13 +577,16 @@ def _export_workforce_analysis(workforce_data: List[Dict[str, Any]], format: str
 
     except Exception as e:
         show_error_message(f"Export failed: {e}")
-        if hasattr(console, 'print_exception'):
+        if hasattr(console, "print_exception"):
             console.print_exception()
+
 
 # Default command
 @analyze_command.command(name="", hidden=True)
 def default(
-    target: str = typer.Argument("workforce", help="Analysis target (workforce, events, scenario)"),
+    target: str = typer.Argument(
+        "workforce", help="Analysis target (workforce, events, scenario)"
+    ),
     config: Optional[str] = typer.Option(None, "--config", "-c"),
     database: Optional[str] = typer.Option(None, "--database"),
     trend: bool = typer.Option(False, "--trend"),
@@ -542,7 +600,7 @@ def default(
             database=database,
             trend=trend,
             export=export,
-            verbose=verbose
+            verbose=verbose,
         )
     else:
         console.print(f"[yellow]Unknown analysis target: {target}[/yellow]")

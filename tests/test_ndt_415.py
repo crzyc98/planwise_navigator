@@ -22,7 +22,8 @@ from planalign_api.services.database_path_resolver import (
 
 def _create_test_db(conn: duckdb.DuckDBPyConnection):
     """Populate an in-memory DuckDB connection with test tables for 415 test."""
-    conn.execute("""
+    conn.execute(
+        """
         CREATE TABLE IF NOT EXISTS config_irs_limits (
             limit_year INTEGER,
             base_limit INTEGER,
@@ -36,14 +37,18 @@ def _create_test_db(conn: duckdb.DuckDBPyConnection):
             is_estimated BOOLEAN,
             annual_additions_limit INTEGER
         )
-    """)
-    conn.execute("""
+    """
+    )
+    conn.execute(
+        """
         INSERT INTO config_irs_limits VALUES
         (2024, 23000, 30500, 50, 345000, 155000, 30500, 60, 63, false, 69000),
         (2025, 23500, 31000, 50, 350000, 160000, 34750, 60, 63, false, 70000)
-    """)
+    """
+    )
 
-    conn.execute("""
+    conn.execute(
+        """
         CREATE TABLE IF NOT EXISTS fct_workforce_snapshot (
             employee_id VARCHAR,
             simulation_year INTEGER,
@@ -57,7 +62,8 @@ def _create_test_db(conn: duckdb.DuckDBPyConnection):
             employment_status VARCHAR,
             current_tenure DOUBLE
         )
-    """)
+    """
+    )
 
 
 def _insert_employee(
@@ -76,8 +82,19 @@ def _insert_employee(
 ):
     conn.execute(
         """INSERT INTO fct_workforce_snapshot VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
-        [employee_id, year, compensation, prorated_comp, contributions,
-         match_amount, core_amount, eligibility, enrolled, status, tenure],
+        [
+            employee_id,
+            year,
+            compensation,
+            prorated_comp,
+            contributions,
+            match_amount,
+            core_amount,
+            eligibility,
+            enrolled,
+            status,
+            tenure,
+        ],
     )
 
 
@@ -119,14 +136,32 @@ class TestNoBreaches:
         # Employee with total additions well under $70K limit
         # base deferrals = min(20000, 23500) = 20000
         # total = 20000 + 5000 (match) + 3000 (nec) = 28000
-        _insert_employee(conn, "EMP1", 2025, 150000.0, 150000.0,
-                         contributions=20000.0, match_amount=5000.0,
-                         core_amount=3000.0, tenure=5.0)
-        _insert_employee(conn, "EMP2", 2025, 100000.0, 100000.0,
-                         contributions=15000.0, match_amount=3000.0,
-                         core_amount=2000.0, tenure=3.0)
+        _insert_employee(
+            conn,
+            "EMP1",
+            2025,
+            150000.0,
+            150000.0,
+            contributions=20000.0,
+            match_amount=5000.0,
+            core_amount=3000.0,
+            tenure=5.0,
+        )
+        _insert_employee(
+            conn,
+            "EMP2",
+            2025,
+            100000.0,
+            100000.0,
+            contributions=15000.0,
+            match_amount=3000.0,
+            core_amount=2000.0,
+            tenure=3.0,
+        )
 
-        mock_resolver.resolve.return_value = ResolvedDatabasePath(path=Path(":memory:"), source="scenario")
+        mock_resolver.resolve.return_value = ResolvedDatabasePath(
+            path=Path(":memory:"), source="scenario"
+        )
 
         with patch("duckdb.connect", return_value=conn):
             result = service.run_415_test("ws1", "sc1", "Test", 2025)
@@ -150,11 +185,21 @@ class TestBreachDollarLimit:
         # Use 2024 limits: annual_additions_limit = $69,000
         # base deferrals = min(23000, 23000) = 23000
         # match = 30000, nec = 20000 -> total = 73000 > 69000
-        _insert_employee(conn, "BREACH1", 2024, 250000.0, 250000.0,
-                         contributions=23000.0, match_amount=30000.0,
-                         core_amount=20000.0, tenure=10.0)
+        _insert_employee(
+            conn,
+            "BREACH1",
+            2024,
+            250000.0,
+            250000.0,
+            contributions=23000.0,
+            match_amount=30000.0,
+            core_amount=20000.0,
+            tenure=10.0,
+        )
 
-        mock_resolver.resolve.return_value = ResolvedDatabasePath(path=Path(":memory:"), source="scenario")
+        mock_resolver.resolve.return_value = ResolvedDatabasePath(
+            path=Path(":memory:"), source="scenario"
+        )
 
         with patch("duckdb.connect", return_value=conn):
             result = service.run_415_test("ws1", "sc1", "Test", 2024)
@@ -177,15 +222,26 @@ class TestBreachCompRule:
         # Employee earns $60K (< $70K IRS limit), so applicable limit = $60K
         # base deferrals = min(23500, 23500) = 23500
         # match = 20000, nec = 21500 -> total = 65000 > 60000
-        _insert_employee(conn, "LOW_COMP1", 2025, 60000.0, 60000.0,
-                         contributions=23500.0, match_amount=20000.0,
-                         core_amount=21500.0, tenure=8.0)
+        _insert_employee(
+            conn,
+            "LOW_COMP1",
+            2025,
+            60000.0,
+            60000.0,
+            contributions=23500.0,
+            match_amount=20000.0,
+            core_amount=21500.0,
+            tenure=8.0,
+        )
 
-        mock_resolver.resolve.return_value = ResolvedDatabasePath(path=Path(":memory:"), source="scenario")
+        mock_resolver.resolve.return_value = ResolvedDatabasePath(
+            path=Path(":memory:"), source="scenario"
+        )
 
         with patch("duckdb.connect", return_value=conn):
-            result = service.run_415_test("ws1", "sc1", "Test", 2025,
-                                          include_employees=True)
+            result = service.run_415_test(
+                "ws1", "sc1", "Test", 2025, include_employees=True
+            )
 
         assert result.test_result == "fail"
         assert result.breach_count == 1
@@ -209,15 +265,26 @@ class TestAtRiskFlagging:
         # 96% of $70K = $67,200
         # base deferrals = min(23500, 23500) = 23500
         # match = 23700, nec = 20000 -> total = 67200
-        _insert_employee(conn, "ATRISK1", 2025, 200000.0, 200000.0,
-                         contributions=23500.0, match_amount=23700.0,
-                         core_amount=20000.0, tenure=10.0)
+        _insert_employee(
+            conn,
+            "ATRISK1",
+            2025,
+            200000.0,
+            200000.0,
+            contributions=23500.0,
+            match_amount=23700.0,
+            core_amount=20000.0,
+            tenure=10.0,
+        )
 
-        mock_resolver.resolve.return_value = ResolvedDatabasePath(path=Path(":memory:"), source="scenario")
+        mock_resolver.resolve.return_value = ResolvedDatabasePath(
+            path=Path(":memory:"), source="scenario"
+        )
 
         with patch("duckdb.connect", return_value=conn):
-            result = service.run_415_test("ws1", "sc1", "Test", 2025,
-                                          include_employees=True)
+            result = service.run_415_test(
+                "ws1", "sc1", "Test", 2025, include_employees=True
+            )
 
         assert result.test_result == "pass"  # Not a breach
         assert result.at_risk_count == 1
@@ -240,16 +307,31 @@ class TestCustomThreshold:
         # 91% of $70K = $63,700
         # base deferrals = min(23500, 23500) = 23500
         # match = 20200, nec = 20000 -> total = 63700
-        _insert_employee(conn, "ATRISK_90", 2025, 200000.0, 200000.0,
-                         contributions=23500.0, match_amount=20200.0,
-                         core_amount=20000.0, tenure=10.0)
+        _insert_employee(
+            conn,
+            "ATRISK_90",
+            2025,
+            200000.0,
+            200000.0,
+            contributions=23500.0,
+            match_amount=20200.0,
+            core_amount=20000.0,
+            tenure=10.0,
+        )
 
-        mock_resolver.resolve.return_value = ResolvedDatabasePath(path=Path(":memory:"), source="scenario")
+        mock_resolver.resolve.return_value = ResolvedDatabasePath(
+            path=Path(":memory:"), source="scenario"
+        )
 
         with patch("duckdb.connect", return_value=conn):
-            result = service.run_415_test("ws1", "sc1", "Test", 2025,
-                                          warning_threshold=0.90,
-                                          include_employees=True)
+            result = service.run_415_test(
+                "ws1",
+                "sc1",
+                "Test",
+                2025,
+                warning_threshold=0.90,
+                include_employees=True,
+            )
 
         assert result.at_risk_count == 1
         assert result.warning_threshold_pct == 0.90
@@ -269,16 +351,31 @@ class TestThresholdAt100:
         service, conn, mock_resolver = service_with_db
 
         # 96% utilization - should be "pass" not "at_risk" with 100% threshold
-        _insert_employee(conn, "HIGH_UTIL", 2025, 200000.0, 200000.0,
-                         contributions=23500.0, match_amount=23700.0,
-                         core_amount=20000.0, tenure=10.0)
+        _insert_employee(
+            conn,
+            "HIGH_UTIL",
+            2025,
+            200000.0,
+            200000.0,
+            contributions=23500.0,
+            match_amount=23700.0,
+            core_amount=20000.0,
+            tenure=10.0,
+        )
 
-        mock_resolver.resolve.return_value = ResolvedDatabasePath(path=Path(":memory:"), source="scenario")
+        mock_resolver.resolve.return_value = ResolvedDatabasePath(
+            path=Path(":memory:"), source="scenario"
+        )
 
         with patch("duckdb.connect", return_value=conn):
-            result = service.run_415_test("ws1", "sc1", "Test", 2025,
-                                          warning_threshold=1.0,
-                                          include_employees=True)
+            result = service.run_415_test(
+                "ws1",
+                "sc1",
+                "Test",
+                2025,
+                warning_threshold=1.0,
+                include_employees=True,
+            )
 
         assert result.at_risk_count == 0
         emp = result.employees[0]
@@ -300,15 +397,26 @@ class TestCatchUpExclusion:
         # base_limit for 2025 = $23500
         # base deferrals = min(31000, 23500) = 23500
         # total = 23500 + 5000 + 3000 = 31500
-        _insert_employee(conn, "CATCHUP1", 2025, 200000.0, 200000.0,
-                         contributions=31000.0, match_amount=5000.0,
-                         core_amount=3000.0, tenure=10.0)
+        _insert_employee(
+            conn,
+            "CATCHUP1",
+            2025,
+            200000.0,
+            200000.0,
+            contributions=31000.0,
+            match_amount=5000.0,
+            core_amount=3000.0,
+            tenure=10.0,
+        )
 
-        mock_resolver.resolve.return_value = ResolvedDatabasePath(path=Path(":memory:"), source="scenario")
+        mock_resolver.resolve.return_value = ResolvedDatabasePath(
+            path=Path(":memory:"), source="scenario"
+        )
 
         with patch("duckdb.connect", return_value=conn):
-            result = service.run_415_test("ws1", "sc1", "Test", 2025,
-                                          include_employees=True)
+            result = service.run_415_test(
+                "ws1", "sc1", "Test", 2025, include_employees=True
+            )
 
         emp = result.employees[0]
         # Base deferrals should be capped at 23500, not 31000
@@ -328,19 +436,45 @@ class TestPlanLevelSummary:
         service, conn, mock_resolver = service_with_db
 
         # One passing employee
-        _insert_employee(conn, "PASS1", 2025, 200000.0, 200000.0,
-                         contributions=10000.0, match_amount=5000.0,
-                         core_amount=3000.0, tenure=5.0)
+        _insert_employee(
+            conn,
+            "PASS1",
+            2025,
+            200000.0,
+            200000.0,
+            contributions=10000.0,
+            match_amount=5000.0,
+            core_amount=3000.0,
+            tenure=5.0,
+        )
         # One breaching employee (total > 70K)
-        _insert_employee(conn, "BREACH1", 2025, 250000.0, 250000.0,
-                         contributions=23500.0, match_amount=30000.0,
-                         core_amount=20000.0, tenure=10.0)
+        _insert_employee(
+            conn,
+            "BREACH1",
+            2025,
+            250000.0,
+            250000.0,
+            contributions=23500.0,
+            match_amount=30000.0,
+            core_amount=20000.0,
+            tenure=10.0,
+        )
         # One at-risk employee (96% util)
-        _insert_employee(conn, "ATRISK1", 2025, 200000.0, 200000.0,
-                         contributions=23500.0, match_amount=23700.0,
-                         core_amount=20000.0, tenure=8.0)
+        _insert_employee(
+            conn,
+            "ATRISK1",
+            2025,
+            200000.0,
+            200000.0,
+            contributions=23500.0,
+            match_amount=23700.0,
+            core_amount=20000.0,
+            tenure=8.0,
+        )
 
-        mock_resolver.resolve.return_value = ResolvedDatabasePath(path=Path(":memory:"), source="scenario")
+        mock_resolver.resolve.return_value = ResolvedDatabasePath(
+            path=Path(":memory:"), source="scenario"
+        )
 
         with patch("duckdb.connect", return_value=conn):
             result = service.run_415_test("ws1", "sc1", "Test", 2025)
@@ -363,15 +497,33 @@ class TestZeroCompExcluded415:
     def test_zero_comp_excluded(self, service_with_db):
         service, conn, mock_resolver = service_with_db
 
-        _insert_employee(conn, "NORMAL1", 2025, 100000.0, 100000.0,
-                         contributions=10000.0, match_amount=5000.0,
-                         core_amount=3000.0, tenure=5.0)
+        _insert_employee(
+            conn,
+            "NORMAL1",
+            2025,
+            100000.0,
+            100000.0,
+            contributions=10000.0,
+            match_amount=5000.0,
+            core_amount=3000.0,
+            tenure=5.0,
+        )
         # Zero comp employee
-        _insert_employee(conn, "ZERO1", 2025, 0.0, 0.0,
-                         contributions=0.0, match_amount=0.0,
-                         core_amount=0.0, tenure=1.0)
+        _insert_employee(
+            conn,
+            "ZERO1",
+            2025,
+            0.0,
+            0.0,
+            contributions=0.0,
+            match_amount=0.0,
+            core_amount=0.0,
+            tenure=1.0,
+        )
 
-        mock_resolver.resolve.return_value = ResolvedDatabasePath(path=Path(":memory:"), source="scenario")
+        mock_resolver.resolve.return_value = ResolvedDatabasePath(
+            path=Path(":memory:"), source="scenario"
+        )
 
         with patch("duckdb.connect", return_value=conn):
             result = service.run_415_test("ws1", "sc1", "Test", 2025)
@@ -391,14 +543,24 @@ class TestMissingIRSLimits:
     def test_missing_limits_year(self, service_with_db):
         service, conn, mock_resolver = service_with_db
 
-        _insert_employee(conn, "EMP1", 2030, 100000.0, 100000.0,
-                         contributions=10000.0, match_amount=5000.0,
-                         core_amount=3000.0, tenure=5.0)
+        _insert_employee(
+            conn,
+            "EMP1",
+            2030,
+            100000.0,
+            100000.0,
+            contributions=10000.0,
+            match_amount=5000.0,
+            core_amount=3000.0,
+            tenure=5.0,
+        )
 
         # Remove all limits
         conn.execute("DELETE FROM config_irs_limits")
 
-        mock_resolver.resolve.return_value = ResolvedDatabasePath(path=Path(":memory:"), source="scenario")
+        mock_resolver.resolve.return_value = ResolvedDatabasePath(
+            path=Path(":memory:"), source="scenario"
+        )
 
         with patch("duckdb.connect", return_value=conn):
             result = service.run_415_test("ws1", "sc1", "Test", 2030)

@@ -13,7 +13,10 @@ from pathlib import Path
 
 import pytest
 
-from planalign_orchestrator.utils import DatabaseConnectionPool, DatabaseConnectionManager
+from planalign_orchestrator.utils import (
+    DatabaseConnectionPool,
+    DatabaseConnectionManager,
+)
 
 
 class TestDatabaseConnectionPool:
@@ -47,23 +50,23 @@ class TestDatabaseConnectionPool:
 
     def test_connection_checkout_checkin(self, connection_pool):
         """Test basic connection checkout and checkin."""
-        with connection_pool.get_connection(thread_id='test1') as conn:
+        with connection_pool.get_connection(thread_id="test1") as conn:
             assert conn is not None
             # Verify we can execute a query
             result = conn.execute("SELECT 1 AS value").fetchall()
             assert result == [(1,)]
 
         # Connection should be returned to pool
-        assert 'test1' not in connection_pool._in_use
+        assert "test1" not in connection_pool._in_use
 
     def test_connection_reuse(self, connection_pool):
         """Test that connections are reused from pool."""
         # First checkout
-        with connection_pool.get_connection(thread_id='test1') as conn1:
+        with connection_pool.get_connection(thread_id="test1") as conn1:
             conn1_id = id(conn1)
 
         # Second checkout with same thread_id should reuse connection
-        with connection_pool.get_connection(thread_id='test1') as conn2:
+        with connection_pool.get_connection(thread_id="test1") as conn2:
             conn2_id = id(conn2)
 
         assert conn1_id == conn2_id, "Connection should be reused from pool"
@@ -73,11 +76,11 @@ class TestDatabaseConnectionPool:
         conn_ids = []
 
         # Checkout 3 different connections (pool size is 3)
-        with connection_pool.get_connection(thread_id='thread1') as conn1:
+        with connection_pool.get_connection(thread_id="thread1") as conn1:
             conn_ids.append(id(conn1))
-            with connection_pool.get_connection(thread_id='thread2') as conn2:
+            with connection_pool.get_connection(thread_id="thread2") as conn2:
                 conn_ids.append(id(conn2))
-                with connection_pool.get_connection(thread_id='thread3') as conn3:
+                with connection_pool.get_connection(thread_id="thread3") as conn3:
                     conn_ids.append(id(conn3))
                     # All connections should be different
                     assert len(set(conn_ids)) == 3
@@ -85,19 +88,19 @@ class TestDatabaseConnectionPool:
     def test_pool_exhaustion(self, connection_pool):
         """Test that pool raises error when exhausted."""
         # Hold all 3 connections
-        with connection_pool.get_connection(thread_id='t1') as conn1:
-            with connection_pool.get_connection(thread_id='t2') as conn2:
-                with connection_pool.get_connection(thread_id='t3') as conn3:
+        with connection_pool.get_connection(thread_id="t1") as conn1:
+            with connection_pool.get_connection(thread_id="t2") as conn2:
+                with connection_pool.get_connection(thread_id="t3") as conn3:
                     # Try to get a 4th connection (pool size is 3)
                     with pytest.raises(RuntimeError, match="Connection pool exhausted"):
-                        with connection_pool.get_connection(thread_id='t4') as conn4:
+                        with connection_pool.get_connection(thread_id="t4") as conn4:
                             pass
 
     def test_deterministic_mode(self, temp_db_path):
         """Test that deterministic mode sets correct pragmas."""
         pool = DatabaseConnectionPool(temp_db_path, pool_size=1, deterministic=True)
 
-        with pool.get_connection(thread_id='test') as conn:
+        with pool.get_connection(thread_id="test") as conn:
             # Check that PRAGMA threads=1 is set
             # Note: DuckDB doesn't provide easy way to query pragma settings,
             # so we just verify connection works
@@ -111,9 +114,9 @@ class TestDatabaseConnectionPool:
         pool = DatabaseConnectionPool(temp_db_path, pool_size=2, deterministic=True)
 
         # Create some connections
-        with pool.get_connection(thread_id='t1') as conn1:
+        with pool.get_connection(thread_id="t1") as conn1:
             pass
-        with pool.get_connection(thread_id='t2') as conn2:
+        with pool.get_connection(thread_id="t2") as conn2:
             pass
 
         # Verify pool has connections
@@ -133,7 +136,9 @@ class TestDatabaseConnectionPool:
 
         def worker(thread_id):
             try:
-                with connection_pool.get_connection(thread_id=f'worker_{thread_id}') as conn:
+                with connection_pool.get_connection(
+                    thread_id=f"worker_{thread_id}"
+                ) as conn:
                     result = conn.execute(f"SELECT {thread_id} AS value").fetchall()
                     results.append(result[0][0])
                     time.sleep(0.01)  # Hold connection briefly
@@ -202,7 +207,7 @@ class TestDatabaseConnectionManager:
         # Verify data persists after transaction
         with db_manager.get_connection() as conn:
             result = conn.execute("SELECT * FROM test_table").fetchall()
-            assert result == [(1, 'test')]
+            assert result == [(1, "test")]
 
     def test_transaction_rollback(self, db_manager):
         """Test that transaction rolls back on error."""
@@ -214,7 +219,9 @@ class TestDatabaseConnectionManager:
         try:
             with db_manager.transaction() as conn:
                 conn.execute("INSERT INTO rollback_test VALUES (1)")
-                conn.execute("INSERT INTO rollback_test VALUES (1)")  # Duplicate, will fail
+                conn.execute(
+                    "INSERT INTO rollback_test VALUES (1)"
+                )  # Duplicate, will fail
         except Exception:
             pass  # Expected
 
@@ -225,15 +232,13 @@ class TestDatabaseConnectionManager:
 
     def test_execute_with_retry(self, db_manager):
         """Test execute_with_retry functionality."""
+
         def query_func(conn):
             result = conn.execute("SELECT 100 AS value").fetchall()
             return result[0][0]
 
         result = db_manager.execute_with_retry(
-            query_func,
-            retries=3,
-            backoff_seconds=0.1,
-            deterministic=True
+            query_func, retries=3, backoff_seconds=0.1, deterministic=True
         )
         assert result == 100
 

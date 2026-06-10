@@ -16,9 +16,7 @@ class StructuredWarning(BaseModel):
     warning_type: Literal["missing", "alias_found", "auto_mapped"] = Field(
         ..., description="Type of warning"
     )
-    impact_description: str = Field(
-        ..., description="Human-readable simulation impact"
-    )
+    impact_description: str = Field(..., description="Human-readable simulation impact")
     detected_alias: Optional[str] = Field(
         None, description="Alias column name found in file"
     )
@@ -58,7 +56,9 @@ class FileUploadResponse(BaseModel):
     """Response after successful file upload."""
 
     success: bool = Field(..., description="Whether upload was successful")
-    file_path: str = Field(..., description="Relative path to uploaded file within workspace")
+    file_path: str = Field(
+        ..., description="Relative path to uploaded file within workspace"
+    )
     file_name: str = Field(..., description="Original filename")
     file_size_bytes: int = Field(..., description="File size in bytes")
     row_count: int = Field(..., description="Number of rows in the file")
@@ -87,18 +87,22 @@ class FileUploadResponse(BaseModel):
 class FileValidationRequest(BaseModel):
     """Request to validate a file path."""
 
-    file_path: str = Field(..., description="File path to validate (relative or absolute)")
+    file_path: str = Field(
+        ..., description="File path to validate (relative or absolute)"
+    )
 
 
 class CompensationAnalysisRequest(BaseModel):
     """Request for compensation analysis with lookback option."""
 
-    file_path: str = Field(..., description="File path to census file (relative or absolute)")
+    file_path: str = Field(
+        ..., description="File path to census file (relative or absolute)"
+    )
     lookback_years: int = Field(
         default=4,
         ge=0,
         le=20,
-        description="Number of years to look back for recent hires (0 = all employees). Default: 4 years"
+        description="Number of years to look back for recent hires (0 = all employees). Default: 4 years",
     )
 
 
@@ -112,8 +116,12 @@ class FileValidationResponse(BaseModel):
     file_size_bytes: Optional[int] = Field(None, description="File size in bytes")
     row_count: Optional[int] = Field(None, description="Number of rows in the file")
     columns: Optional[List[str]] = Field(None, description="List of column names")
-    last_modified: Optional[datetime] = Field(None, description="Last modification timestamp")
-    error_message: Optional[str] = Field(None, description="Error message if validation failed")
+    last_modified: Optional[datetime] = Field(
+        None, description="Last modification timestamp"
+    )
+    error_message: Optional[str] = Field(
+        None, description="Error message if validation failed"
+    )
     validation_warnings: List[str] = Field(
         default_factory=list, description="Non-fatal validation warnings"
     )
@@ -130,7 +138,9 @@ class FileValidationResponse(BaseModel):
 class SetCensusPathRequest(BaseModel):
     """Request to set an existing file as the workspace census data source."""
 
-    file_path: str = Field(..., description="Path to a previously generated Parquet file")
+    file_path: str = Field(
+        ..., description="Path to a previously generated Parquet file"
+    )
 
 
 class SetCensusPathResponse(BaseModel):
@@ -194,7 +204,9 @@ class LevelDistributionResponse(BaseModel):
     name: str = Field(..., description="Level name")
     headcount: int = Field(..., description="Number of employees at this level")
     percentage: float = Field(..., description="Percentage of workforce")
-    avg_compensation: float = Field(..., description="Average compensation at this level")
+    avg_compensation: float = Field(
+        ..., description="Average compensation at this level"
+    )
     promotion_rate: float = Field(..., description="Expected annual promotion rate")
 
 
@@ -202,45 +214,67 @@ class CompensationSolverResponse(BaseModel):
     """Response from compensation solver."""
 
     # Target
-    target_growth_rate: float = Field(..., description="Target growth rate as percentage (e.g., 2.0)")
+    target_growth_rate: float = Field(
+        ..., description="Target growth rate as percentage (e.g., 2.0)"
+    )
 
     # Solved parameters (as percentages)
-    cola_rate: float = Field(..., description="COLA rate as percentage (e.g., 2.0 for 2%)")
+    cola_rate: float = Field(
+        ..., description="COLA rate as percentage (e.g., 2.0 for 2%)"
+    )
     merit_budget: float = Field(..., description="Merit budget as percentage")
-    promotion_increase: float = Field(..., description="Promotion increase as percentage")
+    promotion_increase: float = Field(
+        ..., description="Promotion increase as percentage"
+    )
     promotion_budget: float = Field(..., description="Promotion budget as percentage")
 
     # Validation
-    achieved_growth_rate: float = Field(..., description="Actual achieved growth rate as percentage")
+    achieved_growth_rate: float = Field(
+        ..., description="Actual achieved growth rate as percentage"
+    )
     growth_gap: float = Field(..., description="Difference from target as percentage")
 
     # Breakdown - how each factor contributes to average comp growth
-    cola_contribution: float = Field(..., description="Growth contribution from COLA (stayer raises)")
-    merit_contribution: float = Field(..., description="Growth contribution from merit (stayer raises)")
-    promo_contribution: float = Field(..., description="Growth contribution from promotions (stayer raises)")
+    cola_contribution: float = Field(
+        ..., description="Growth contribution from COLA (stayer raises)"
+    )
+    merit_contribution: float = Field(
+        ..., description="Growth contribution from merit (stayer raises)"
+    )
+    promo_contribution: float = Field(
+        ..., description="Growth contribution from promotions (stayer raises)"
+    )
     turnover_contribution: float = Field(
         default=0.0,
-        description="Growth contribution from turnover/new hires (usually negative if new hires paid less)"
+        description="Growth contribution from turnover/new hires (usually negative if new hires paid less)",
     )
 
     # Context
     total_headcount: int = Field(..., description="Total workforce size")
     avg_compensation: float = Field(..., description="Average compensation")
-    weighted_promotion_rate: float = Field(..., description="Weighted promotion rate as percentage")
+    weighted_promotion_rate: float = Field(
+        ..., description="Weighted promotion rate as percentage"
+    )
 
     # Workforce dynamics used in calculation
-    turnover_rate: float = Field(default=0.0, description="Annual turnover rate as percentage")
-    workforce_growth_rate: float = Field(default=0.0, description="Annual workforce growth rate as percentage")
-    new_hire_comp_ratio: float = Field(default=0.0, description="New hire comp as percentage of avg")
+    turnover_rate: float = Field(
+        default=0.0, description="Annual turnover rate as percentage"
+    )
+    workforce_growth_rate: float = Field(
+        default=0.0, description="Annual workforce growth rate as percentage"
+    )
+    new_hire_comp_ratio: float = Field(
+        default=0.0, description="New hire comp as percentage of avg"
+    )
 
     # Recommendation for new hire compensation
     recommended_new_hire_ratio: float = Field(
         default=0.0,
-        description="Recommended new hire comp as % of avg to achieve target with standard raises"
+        description="Recommended new hire comp as % of avg to achieve target with standard raises",
     )
     recommended_scale_factor: float = Field(
         default=0.0,
-        description="Scale factor to apply to census-derived ranges (e.g., 1.5 = 1.5x)"
+        description="Scale factor to apply to census-derived ranges (e.g., 1.5 = 1.5x)",
     )
 
     # Level distribution (optional, if census was analyzed)

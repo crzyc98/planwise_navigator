@@ -196,7 +196,9 @@ class TestArchiveCreation:
 
             assert extracted_manifest["workspace_id"] == "test-workspace-123"
 
-    def test_create_archive_contains_workspace_files(self, export_service, temp_workspace):
+    def test_create_archive_contains_workspace_files(
+        self, export_service, temp_workspace
+    ):
         """Test archive contains all workspace files."""
         import py7zr
 
@@ -229,7 +231,9 @@ class TestArchiveCreation:
 class TestExportWorkspace:
     """Tests for export_workspace method."""
 
-    def test_export_workspace_success(self, export_service, mock_storage, temp_workspace):
+    def test_export_workspace_success(
+        self, export_service, mock_storage, temp_workspace
+    ):
         """Test successful workspace export."""
         mock_workspace = MagicMock(spec=Workspace)
         mock_workspace.id = "test-workspace-123"
@@ -259,7 +263,9 @@ class TestExportWorkspace:
         with pytest.raises(ValueError, match="Workspace not found"):
             export_service.export_workspace(workspace_id="nonexistent")
 
-    def test_export_workspace_simulation_running(self, export_service, mock_storage, temp_workspace):
+    def test_export_workspace_simulation_running(
+        self, export_service, mock_storage, temp_workspace
+    ):
         """Test export fails when simulation is running."""
         mock_workspace = MagicMock(spec=Workspace)
         mock_workspace.id = "test-workspace-123"
@@ -272,7 +278,9 @@ class TestExportWorkspace:
         with pytest.raises(ValueError, match="simulation is running"):
             export_service.export_workspace(workspace_id="test-workspace-123")
 
-    def test_export_workspace_filename_format(self, export_service, mock_storage, temp_workspace):
+    def test_export_workspace_filename_format(
+        self, export_service, mock_storage, temp_workspace
+    ):
         """Test exported file has correct naming format."""
         mock_workspace = MagicMock(spec=Workspace)
         mock_workspace.id = "test-workspace-123"

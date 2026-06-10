@@ -17,7 +17,14 @@ import typer
 from rich.console import Console
 from rich.panel import Panel
 from rich.text import Text
-from rich.progress import Progress, SpinnerColumn, TextColumn, TimeElapsedColumn, BarColumn, MofNCompleteColumn
+from rich.progress import (
+    Progress,
+    SpinnerColumn,
+    TextColumn,
+    TimeElapsedColumn,
+    BarColumn,
+    MofNCompleteColumn,
+)
 from rich.table import Table
 from rich.live import Live
 from rich.layout import Layout
@@ -36,10 +43,12 @@ from config.constants import DATABASE_FILENAME
 console = Console()
 simulate_command = typer.Typer()
 
+
 @simulate_command.callback()
 def simulate_main():
     """🎯 Run workforce simulation with enhanced progress tracking."""
     pass
+
 
 @simulate_command.command("run")
 def run_simulation(
@@ -59,9 +68,7 @@ def run_simulation(
     fail_on_validation_error: bool = typer.Option(
         False, "--fail-on-validation-error", help="Fail simulation on validation errors"
     ),
-    verbose: bool = typer.Option(
-        False, "--verbose", "-v", help="Show detailed output"
-    ),
+    verbose: bool = typer.Option(False, "--verbose", "-v", help="Show detailed output"),
     growth: Optional[str] = typer.Option(
         None, "--growth", help="Target growth rate (e.g., '3.5%' or '0.035')"
     ),
@@ -80,7 +87,9 @@ def run_simulation(
         validate_year_range(start_year, end_year)
 
         if verbose:
-            console.print(f"🎯 [bold blue]Starting simulation: {start_year}-{end_year}[/bold blue]")
+            console.print(
+                f"🎯 [bold blue]Starting simulation: {start_year}-{end_year}[/bold blue]"
+            )
 
         # Initialize wrapper
         config_path = Path(config) if config else find_default_config()
@@ -110,7 +119,9 @@ def run_simulation(
 
         # Run simulation with enhanced progress tracking
         total_years = end_year - actual_start_year + 1
-        console.print(f"\n🚀 [bold blue]Running {total_years}-year simulation[/bold blue]")
+        console.print(
+            f"\n🚀 [bold blue]Running {total_years}-year simulation[/bold blue]"
+        )
         if growth:
             console.print(f"📈 [blue]Growth Rate: {growth} (parameter shortcut)[/blue]")
 
@@ -118,9 +129,13 @@ def run_simulation(
         from ..ui.output_capture import PlainTextProgressFallback, is_tty
 
         if is_tty():
-            progress_tracker = LiveProgressTracker(total_years, actual_start_year, end_year, verbose)
+            progress_tracker = LiveProgressTracker(
+                total_years, actual_start_year, end_year, verbose
+            )
         else:
-            progress_tracker = PlainTextProgressFallback(total_years, actual_start_year, end_year, verbose)
+            progress_tracker = PlainTextProgressFallback(
+                total_years, actual_start_year, end_year, verbose
+            )
 
         orchestrator = wrapper.create_orchestrator(
             threads=threads,
@@ -130,7 +145,9 @@ def run_simulation(
         )
 
         try:
-            console.print("⏳ [blue]Executing simulation with progress monitoring...[/blue]")
+            console.print(
+                "⏳ [blue]Executing simulation with progress monitoring...[/blue]"
+            )
 
             summary = orchestrator.execute_multi_year_simulation(
                 start_year=actual_start_year,
@@ -142,6 +159,7 @@ def run_simulation(
             show_error_message(f"Simulation failed: {e}")
             if verbose:
                 import traceback
+
                 console.print(f"[dim]{traceback.format_exc()}[/dim]")
             raise typer.Exit(1)
 
@@ -153,6 +171,7 @@ def run_simulation(
     except Exception as e:
         show_error_message(f"Simulation error: {e}")
         raise typer.Exit(1)
+
 
 def _check_system_health(wrapper: OrchestratorWrapper) -> None:
     """Verify system health and abort if unhealthy."""
@@ -171,12 +190,16 @@ def _apply_growth_override(growth: Optional[str], verbose: bool) -> None:
 
     growth_rate = _parse_growth_rate(growth)
     if verbose:
-        console.print(f"📈 [blue]Growth rate override: {growth} → {growth_rate:.3f}[/blue]")
+        console.print(
+            f"📈 [blue]Growth rate override: {growth} → {growth_rate:.3f}[/blue]"
+        )
     # Note: Growth rate application would require config modification
     # For now, we show the user-friendly parameter but delegate to existing logic
 
 
-def _show_dry_run_preview(wrapper: OrchestratorWrapper, start_year: int, end_year: int, threads: Optional[int]):
+def _show_dry_run_preview(
+    wrapper: OrchestratorWrapper, start_year: int, end_year: int, threads: Optional[int]
+):
     """Show what would be executed in dry run mode."""
     console.print("🔍 [bold blue]Dry Run Preview[/bold blue]")
 
@@ -184,28 +207,39 @@ def _show_dry_run_preview(wrapper: OrchestratorWrapper, start_year: int, end_yea
     config_info = []
     config_info.append(f"📁 Configuration: {wrapper.config_path}")
     config_info.append(f"🗄️ Database: {wrapper.db_path}")
-    config_info.append(f"📅 Years: {start_year}-{end_year} ({end_year - start_year + 1} years)")
+    config_info.append(
+        f"📅 Years: {start_year}-{end_year} ({end_year - start_year + 1} years)"
+    )
 
     if threads:
         config_info.append(f"🔧 Threads: {threads}")
 
-    console.print(Panel("\n".join(config_info), title="Configuration", border_style="blue"))
+    console.print(
+        Panel("\n".join(config_info), title="Configuration", border_style="blue")
+    )
 
     # Show execution plan
     execution_steps = []
     for year in range(start_year, end_year + 1):
         execution_steps.append(f"📅 Year {year}:")
         execution_steps.append("  • INITIALIZATION: Load seeds and staging data")
-        execution_steps.append("  • FOUNDATION: Build baseline workforce and compensation")
+        execution_steps.append(
+            "  • FOUNDATION: Build baseline workforce and compensation"
+        )
         execution_steps.append("  • EVENT_GENERATION: Generate workforce events")
-        execution_steps.append("  • STATE_ACCUMULATION: Build snapshots and accumulators")
+        execution_steps.append(
+            "  • STATE_ACCUMULATION: Build snapshots and accumulators"
+        )
         execution_steps.append("  • VALIDATION: Run data quality checks")
         execution_steps.append("  • REPORTING: Generate audit reports")
         execution_steps.append("")
 
-    console.print(Panel("\n".join(execution_steps), title="Execution Plan", border_style="green"))
+    console.print(
+        Panel("\n".join(execution_steps), title="Execution Plan", border_style="green")
+    )
 
     console.print("💡 [dim]Add --verbose for detailed dbt command preview[/dim]")
+
 
 def _show_simulation_summary(summary, start_year: int, end_year: int, verbose: bool):
     """Display simulation completion summary."""
@@ -219,34 +253,35 @@ def _show_simulation_summary(summary, start_year: int, end_year: int, verbose: b
     summary_info.append(f"✅ Completed years: {completed_years_count}")
 
     # Try to extract event count if available
-    if hasattr(summary, 'total_events'):
+    if hasattr(summary, "total_events"):
         summary_info.append(f"📈 Total events: {summary.total_events:,}")
-    elif hasattr(summary, 'summary') and hasattr(summary.summary, 'total_events'):
+    elif hasattr(summary, "summary") and hasattr(summary.summary, "total_events"):
         summary_info.append(f"📈 Total events: {summary.summary.total_events:,}")
 
     # Try to extract performance metrics if available
-    if hasattr(summary, 'performance_metrics'):
+    if hasattr(summary, "performance_metrics"):
         metrics = summary.performance_metrics
-        if 'total_duration' in metrics:
+        if "total_duration" in metrics:
             summary_info.append(f"⏱️ Total time: {metrics['total_duration']}")
 
     # Add workforce progression if available
-    if hasattr(summary, 'growth_analysis'):
+    if hasattr(summary, "growth_analysis"):
         summary_info.append(f"📊 Net growth: {summary.growth_analysis}")
 
     console.print(Panel("\n".join(summary_info), title="Results", border_style="green"))
 
     if verbose:
         # Show additional details if available
-        if hasattr(summary, 'growth_analysis'):
+        if hasattr(summary, "growth_analysis"):
             console.print("📈 [bold]Growth Analysis:[/bold]")
             console.print(f"   {summary.growth_analysis}")
 
         # Show any performance details if available
-        if hasattr(summary, 'performance_metrics'):
+        if hasattr(summary, "performance_metrics"):
             console.print("⚡ [bold]Performance Details:[/bold]")
             for key, value in summary.performance_metrics.items():
                 console.print(f"   {key}: {value}")
+
 
 # Default command (required for `planwise simulate 2025` syntax)
 @simulate_command.command(name="", hidden=True)
@@ -258,7 +293,9 @@ def default(
     dry_run: bool = typer.Option(False, "--dry-run"),
     fail_on_validation_error: bool = typer.Option(False, "--fail-on-validation-error"),
     verbose: bool = typer.Option(False, "--verbose", "-v"),
-    growth: Optional[str] = typer.Option(None, "--growth", help="Target growth rate (e.g., '3.5%' or '0.035')"),
+    growth: Optional[str] = typer.Option(
+        None, "--growth", help="Target growth rate (e.g., '3.5%' or '0.035')"
+    ),
 ):
     """Default simulate command."""
     run_simulation(
@@ -278,7 +315,7 @@ def _parse_growth_rate(growth_str: str) -> float:
     growth_str = growth_str.strip()
 
     # Handle percentage format (e.g., "3.5%")
-    if growth_str.endswith('%'):
+    if growth_str.endswith("%"):
         return float(growth_str[:-1]) / 100.0
 
     # Handle decimal format (e.g., "0.035")
@@ -288,7 +325,9 @@ def _parse_growth_rate(growth_str: str) -> float:
 class LiveProgressTracker:
     """Live progress tracker for simulation execution with Rich displays."""
 
-    def __init__(self, total_years: int, start_year: int, end_year: int, verbose: bool = False):
+    def __init__(
+        self, total_years: int, start_year: int, end_year: int, verbose: bool = False
+    ):
         self.total_years = total_years
         self.start_year = start_year
         self.end_year = end_year
@@ -326,11 +365,11 @@ class LiveProgressTracker:
                 self.progress.update(
                     self.year_task,
                     completed=completed_years,
-                    description=f"🗓️ Processing Year {year}"
+                    description=f"🗓️ Processing Year {year}",
                 )
 
             # Trigger layout update
-            if hasattr(self, '_update_layout'):
+            if hasattr(self, "_update_layout"):
                 self._update_layout()
 
     def update_stage(self, stage: str):
@@ -346,14 +385,11 @@ class LiveProgressTracker:
             self.stage_start_time = datetime.now()
 
             if self.progress and self.stage_task is not None:
-                stage_display = stage.replace('_', ' ').title()
-                self.progress.update(
-                    self.stage_task,
-                    description=f"🔄 {stage_display}"
-                )
+                stage_display = stage.replace("_", " ").title()
+                self.progress.update(self.stage_task, description=f"🔄 {stage_display}")
 
             # Trigger layout update
-            if hasattr(self, '_update_layout'):
+            if hasattr(self, "_update_layout"):
                 self._update_layout()
 
     def update_events(self, event_count: int):
@@ -363,7 +399,7 @@ class LiveProgressTracker:
             self.total_events += event_count
 
             # Trigger layout update for event updates
-            if hasattr(self, '_update_layout'):
+            if hasattr(self, "_update_layout"):
                 self._update_layout()
 
     def stage_completed(self, stage: str, duration: float):
@@ -373,7 +409,7 @@ class LiveProgressTracker:
             self.stage_durations[stage_key] = duration
 
             # Trigger layout update
-            if hasattr(self, '_update_layout'):
+            if hasattr(self, "_update_layout"):
                 self._update_layout()
 
     def year_validation(self, year: int):
@@ -385,11 +421,11 @@ class LiveProgressTracker:
                 self.progress.update(
                     self.year_task,
                     completed=completed_years,
-                    description=f"✅ Year {year} Complete"
+                    description=f"✅ Year {year} Complete",
                 )
 
             # Trigger layout update
-            if hasattr(self, '_update_layout'):
+            if hasattr(self, "_update_layout"):
                 self._update_layout()
 
     def on_dbt_line(self, line: str) -> None:
@@ -409,7 +445,9 @@ class LiveProgressTracker:
 
     def _build_status_table(self) -> Table:
         """Build the live metrics status table for the progress display."""
-        status_table = Table(title="📊 Live Simulation Metrics", show_header=False, box=None)
+        status_table = Table(
+            title="📊 Live Simulation Metrics", show_header=False, box=None
+        )
         status_table.add_column("Metric", style="bold cyan", width=18)
         status_table.add_column("Value", style="green bold")
 
@@ -418,17 +456,31 @@ class LiveProgressTracker:
             status_table.add_row("🗓️ Current Year", str(self.current_year))
 
         if self.current_stage:
-            stage_display = self.current_stage.replace('_', ' ').title()
+            stage_display = self.current_stage.replace("_", " ").title()
             stage_order = [
-                "initialization", "foundation", "event_generation",
-                "state_accumulation", "validation", "reporting",
+                "initialization",
+                "foundation",
+                "event_generation",
+                "state_accumulation",
+                "validation",
+                "reporting",
             ]
-            stage_idx = stage_order.index(self.current_stage) + 1 if self.current_stage in stage_order else 0
-            stage_label = f"{stage_display} ({stage_idx}/{len(stage_order)})" if stage_idx else stage_display
+            stage_idx = (
+                stage_order.index(self.current_stage) + 1
+                if self.current_stage in stage_order
+                else 0
+            )
+            stage_label = (
+                f"{stage_display} ({stage_idx}/{len(stage_order)})"
+                if stage_idx
+                else stage_display
+            )
             status_table.add_row("🔄 Current Stage", stage_label)
 
         # Completion progress
-        status_table.add_row("✅ Years Completed", f"{self.years_completed}/{self.total_years}")
+        status_table.add_row(
+            "✅ Years Completed", f"{self.years_completed}/{self.total_years}"
+        )
 
         # Event statistics
         if self.total_events > 0:
@@ -437,11 +489,15 @@ class LiveProgressTracker:
         if self.current_year and self.current_year in self.year_events:
             current_year_events = self.year_events[self.current_year]
             if current_year_events > 0:
-                status_table.add_row(f"📊 Year {self.current_year} Events", f"{current_year_events:,}")
+                status_table.add_row(
+                    f"📊 Year {self.current_year} Events", f"{current_year_events:,}"
+                )
 
         # Performance metrics
         if len(self.stage_durations) > 0:
-            avg_stage_time = sum(self.stage_durations.values()) / len(self.stage_durations)
+            avg_stage_time = sum(self.stage_durations.values()) / len(
+                self.stage_durations
+            )
             status_table.add_row("⚡ Avg Stage Time", f"{avg_stage_time:.1f}s")
 
         # Estimated completion time (rough calculation)
@@ -454,14 +510,18 @@ class LiveProgressTracker:
         if not (self.years_completed > 0 and self.stage_durations):
             return
 
-        avg_time_per_year = sum(self.stage_durations.values()) / max(1, self.years_completed)
+        avg_time_per_year = sum(self.stage_durations.values()) / max(
+            1, self.years_completed
+        )
         remaining_years = self.total_years - self.years_completed
         if remaining_years <= 0:
             return
 
         est_remaining_time = remaining_years * avg_time_per_year
         if est_remaining_time > 60:
-            est_display = f"~{int(est_remaining_time // 60)}m {int(est_remaining_time % 60)}s"
+            est_display = (
+                f"~{int(est_remaining_time // 60)}m {int(est_remaining_time % 60)}s"
+            )
         else:
             est_display = f"~{int(est_remaining_time)}s"
         status_table.add_row("⏱️ Est. Remaining", est_display)
@@ -481,14 +541,10 @@ class LiveProgressTracker:
 
         # Add progress tasks
         self.year_task = self.progress.add_task(
-            "🗓️ Starting simulation...",
-            total=self.total_years
+            "🗓️ Starting simulation...", total=self.total_years
         )
 
-        self.stage_task = self.progress.add_task(
-            "⏳ Preparing...",
-            total=None
-        )
+        self.stage_task = self.progress.add_task("⏳ Preparing...", total=None)
 
         # Create dynamic live display with progress and metrics
         def create_live_layout():
@@ -497,7 +553,7 @@ class LiveProgressTracker:
             layout = Layout()
             layout.split_column(
                 Layout(self.progress, name="progress", size=5),
-                Layout(status_table, name="status")
+                Layout(status_table, name="status"),
             )
             return layout
 
@@ -530,7 +586,7 @@ class LiveProgressTracker:
             table.add_row("Current Year", str(self.current_year))
 
         if self.current_stage:
-            stage_display = self.current_stage.replace('_', ' ').title()
+            stage_display = self.current_stage.replace("_", " ").title()
             table.add_row("Current Stage", stage_display)
 
         # Completion progress
@@ -543,12 +599,16 @@ class LiveProgressTracker:
         if self.current_year and self.current_year in self.year_events:
             current_year_events = self.year_events[self.current_year]
             if current_year_events > 0:
-                table.add_row(f"Year {self.current_year} Events", f"{current_year_events:,}")
+                table.add_row(
+                    f"Year {self.current_year} Events", f"{current_year_events:,}"
+                )
 
         return table
 
 
-def _show_enhanced_simulation_summary(summary, start_year: int, end_year: int, verbose: bool):
+def _show_enhanced_simulation_summary(
+    summary, start_year: int, end_year: int, verbose: bool
+):
     """Display enhanced simulation completion summary with insights."""
     console.print("\n📊 [bold blue]Enhanced Simulation Summary[/bold blue]")
 
@@ -563,48 +623,42 @@ def _show_enhanced_simulation_summary(summary, start_year: int, end_year: int, v
     summary_table.add_row(
         "📅 Years Processed",
         f"{start_year}-{end_year}",
-        f"{completed_years_count} years total"
+        f"{completed_years_count} years total",
     )
 
     # Event statistics from summary if available
-    if hasattr(summary, 'total_events') and summary.total_events > 0:
+    if hasattr(summary, "total_events") and summary.total_events > 0:
         summary_table.add_row(
-            "📈 Total Events",
-            f"{summary.total_events:,}",
-            "All event types combined"
+            "📈 Total Events", f"{summary.total_events:,}", "All event types combined"
         )
 
         # Average events per year
         avg_events = summary.total_events / completed_years_count
         summary_table.add_row(
-            "📊 Average Events/Year",
-            f"{avg_events:,.0f}",
-            "Consistent simulation scale"
+            "📊 Average Events/Year", f"{avg_events:,.0f}", "Consistent simulation scale"
         )
 
     # Completed years information
     summary_table.add_row(
         "✅ Simulation Status",
         "Complete",
-        f"All {completed_years_count} years processed"
+        f"All {completed_years_count} years processed",
     )
 
     # Performance metrics from summary if available
-    if hasattr(summary, 'performance_metrics'):
+    if hasattr(summary, "performance_metrics"):
         metrics = summary.performance_metrics
-        if 'total_duration' in metrics:
+        if "total_duration" in metrics:
             summary_table.add_row(
                 "⏱️ Total Duration",
-                str(metrics['total_duration']),
-                "End-to-end execution time"
+                str(metrics["total_duration"]),
+                "End-to-end execution time",
             )
 
     # Growth analysis if available
-    if hasattr(summary, 'growth_analysis'):
+    if hasattr(summary, "growth_analysis"):
         summary_table.add_row(
-            "📊 Growth Analysis",
-            str(summary.growth_analysis),
-            "Net workforce change"
+            "📊 Growth Analysis", str(summary.growth_analysis), "Net workforce change"
         )
 
     console.print(summary_table)
@@ -613,16 +667,20 @@ def _show_enhanced_simulation_summary(summary, start_year: int, end_year: int, v
     recommendations = [
         "📈 Run `planwise analyze workforce --trend` to review detailed trends",
         "📊 Use `planwise batch --compare baseline` for scenario comparison",
-        "📁 Export results with `planwise batch --export-format excel`"
+        "📁 Export results with `planwise batch --export-format excel`",
     ]
 
     # Add event-based recommendations if data is available
-    if hasattr(summary, 'total_events') and summary.total_events > 0:
+    if hasattr(summary, "total_events") and summary.total_events > 0:
         event_rate = summary.total_events / completed_years_count
         if event_rate > 5000:
-            recommendations.insert(0, "🔥 High event volume detected - consider performance monitoring")
+            recommendations.insert(
+                0, "🔥 High event volume detected - consider performance monitoring"
+            )
         elif event_rate < 1000:
-            recommendations.insert(0, "🔍 Low event volume - verify growth parameters and population")
+            recommendations.insert(
+                0, "🔍 Low event volume - verify growth parameters and population"
+            )
 
     if recommendations:
         console.print("\n💡 [bold]Next Steps & Recommendations[/bold]")

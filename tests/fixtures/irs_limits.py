@@ -24,6 +24,7 @@ class IRSLimitConfig(BaseModel):
 
     Mirrors the structure of config_irs_limits seed file.
     """
+
     limit_year: int = Field(..., ge=2020, le=2050)
     base_limit: int = Field(..., ge=0, le=100000)
     catch_up_limit: int = Field(..., ge=0, le=150000)
@@ -32,27 +33,60 @@ class IRSLimitConfig(BaseModel):
     @property
     def effective_limit_for_age(self) -> callable:
         """Returns a function to get the applicable limit for an age."""
+
         def get_limit(age: int) -> int:
-            return self.catch_up_limit if age >= self.catch_up_age_threshold else self.base_limit
+            return (
+                self.catch_up_limit
+                if age >= self.catch_up_age_threshold
+                else self.base_limit
+            )
+
         return get_limit
 
 
 # Default IRS limits for testing (2025 values)
 DEFAULT_IRS_LIMITS_2025 = IRSLimitConfig(
-    limit_year=2025,
-    base_limit=23500,
-    catch_up_limit=31000,
-    catch_up_age_threshold=50
+    limit_year=2025, base_limit=23500, catch_up_limit=31000, catch_up_age_threshold=50
 )
 
 # IRS limits for projection years (based on historical growth patterns)
 IRS_LIMITS_BY_YEAR = {
-    2025: IRSLimitConfig(limit_year=2025, base_limit=23500, catch_up_limit=31000, catch_up_age_threshold=50),
-    2026: IRSLimitConfig(limit_year=2026, base_limit=24000, catch_up_limit=32000, catch_up_age_threshold=50),
-    2027: IRSLimitConfig(limit_year=2027, base_limit=24500, catch_up_limit=32500, catch_up_age_threshold=50),
-    2028: IRSLimitConfig(limit_year=2028, base_limit=25000, catch_up_limit=33000, catch_up_age_threshold=50),
-    2029: IRSLimitConfig(limit_year=2029, base_limit=25500, catch_up_limit=33500, catch_up_age_threshold=50),
-    2030: IRSLimitConfig(limit_year=2030, base_limit=26000, catch_up_limit=34000, catch_up_age_threshold=50),
+    2025: IRSLimitConfig(
+        limit_year=2025,
+        base_limit=23500,
+        catch_up_limit=31000,
+        catch_up_age_threshold=50,
+    ),
+    2026: IRSLimitConfig(
+        limit_year=2026,
+        base_limit=24000,
+        catch_up_limit=32000,
+        catch_up_age_threshold=50,
+    ),
+    2027: IRSLimitConfig(
+        limit_year=2027,
+        base_limit=24500,
+        catch_up_limit=32500,
+        catch_up_age_threshold=50,
+    ),
+    2028: IRSLimitConfig(
+        limit_year=2028,
+        base_limit=25000,
+        catch_up_limit=33000,
+        catch_up_age_threshold=50,
+    ),
+    2029: IRSLimitConfig(
+        limit_year=2029,
+        base_limit=25500,
+        catch_up_limit=33500,
+        catch_up_age_threshold=50,
+    ),
+    2030: IRSLimitConfig(
+        limit_year=2030,
+        base_limit=26000,
+        catch_up_limit=34000,
+        catch_up_age_threshold=50,
+    ),
 }
 
 
@@ -63,6 +97,7 @@ class EmployeeContributionScenario:
     Represents a single employee's contribution scenario for testing
     IRS limit compliance.
     """
+
     employee_id: str
     age: int
     annual_compensation: Decimal
@@ -76,7 +111,9 @@ class EmployeeContributionScenario:
     irs_limit_applied: Optional[bool] = None
     amount_capped: Optional[Decimal] = None
 
-    def calculate_contributions(self, irs_limits: IRSLimitConfig) -> 'EmployeeContributionScenario':
+    def calculate_contributions(
+        self, irs_limits: IRSLimitConfig
+    ) -> "EmployeeContributionScenario":
         """Calculate contribution amounts and IRS limit application.
 
         This mirrors the logic in int_employee_contributions.sql:
@@ -96,17 +133,17 @@ class EmployeeContributionScenario:
 
         # Apply IRS limit using LEAST pattern
         self.actual_contribution = min(
-            self.requested_contribution,
-            Decimal(self.applicable_irs_limit)
+            self.requested_contribution, Decimal(self.applicable_irs_limit)
         )
 
         # Set limit applied flag
-        self.irs_limit_applied = self.requested_contribution > Decimal(self.applicable_irs_limit)
+        self.irs_limit_applied = self.requested_contribution > Decimal(
+            self.applicable_irs_limit
+        )
 
         # Calculate amount capped off
         self.amount_capped = max(
-            Decimal(0),
-            self.requested_contribution - self.actual_contribution
+            Decimal(0), self.requested_contribution - self.actual_contribution
         )
 
         return self
@@ -127,10 +164,7 @@ def get_irs_limits_for_year(year: int) -> IRSLimitConfig:
 
 
 def calculate_max_contribution(
-    age: int,
-    compensation: Decimal,
-    deferral_rate: Decimal,
-    irs_limits: IRSLimitConfig
+    age: int, compensation: Decimal, deferral_rate: Decimal, irs_limits: IRSLimitConfig
 ) -> Decimal:
     """Calculate the maximum allowed contribution for an employee.
 
@@ -158,9 +192,7 @@ def calculate_max_contribution(
 
 
 def is_contribution_compliant(
-    contribution_amount: Decimal,
-    age: int,
-    irs_limits: IRSLimitConfig
+    contribution_amount: Decimal, age: int, irs_limits: IRSLimitConfig
 ) -> bool:
     """Check if a contribution amount is IRS 402(g) compliant.
 

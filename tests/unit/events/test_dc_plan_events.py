@@ -8,10 +8,15 @@ from typing import Dict
 import pytest
 from pydantic import ValidationError
 
-from config.events import (AutoEnrollmentOptions, ContributionPayload,
-                           DCPlanEventFactory, EligibilityPayload,
-                           EnrollmentPayload, SimulationEvent,
-                           VestingPayload)
+from config.events import (
+    AutoEnrollmentOptions,
+    ContributionPayload,
+    DCPlanEventFactory,
+    EligibilityPayload,
+    EnrollmentPayload,
+    SimulationEvent,
+    VestingPayload,
+)
 
 
 class TestEligibilityPayload:

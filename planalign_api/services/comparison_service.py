@@ -108,7 +108,8 @@ class ComparisonService:
     def _query_workforce(conn) -> List[Dict[str, Any]]:
         """Query workforce snapshots grouped by simulation year."""
         try:
-            df = conn.execute(f"""
+            df = conn.execute(
+                f"""
                 SELECT
                     simulation_year,
                     COUNT(DISTINCT employee_id) as headcount,
@@ -117,7 +118,8 @@ class ComparisonService:
                 FROM {TABLE_FCT_WORKFORCE_SNAPSHOT}
                 GROUP BY simulation_year
                 ORDER BY simulation_year
-            """).fetchdf()
+            """
+            ).fetchdf()
             return df.to_dict("records")
         except Exception:
             return []
@@ -126,7 +128,8 @@ class ComparisonService:
     def _query_events(conn) -> List[Dict[str, Any]]:
         """Query event counts grouped by simulation year and event type."""
         try:
-            df = conn.execute(f"""
+            df = conn.execute(
+                f"""
                 SELECT
                     simulation_year,
                     event_type,
@@ -134,7 +137,8 @@ class ComparisonService:
                 FROM {TABLE_FCT_YEARLY_EVENTS}
                 GROUP BY simulation_year, event_type
                 ORDER BY simulation_year, event_type
-            """).fetchdf()
+            """
+            ).fetchdf()
             return df.to_dict("records")
         except Exception:
             return []
@@ -143,7 +147,8 @@ class ComparisonService:
     def _query_hires_by_year(conn) -> Dict[int, int]:
         """Query hire counts grouped by simulation year."""
         try:
-            df = conn.execute(f"""
+            df = conn.execute(
+                f"""
                 SELECT
                     simulation_year,
                     COUNT(*) as hires
@@ -151,10 +156,10 @@ class ComparisonService:
                 WHERE event_type = '{EVENT_TYPE_HIRE}'
                 GROUP BY simulation_year
                 ORDER BY simulation_year
-            """).fetchdf()
+            """
+            ).fetchdf()
             return {
-                row["simulation_year"]: row["hires"]
-                for row in df.to_dict("records")
+                row["simulation_year"]: row["hires"] for row in df.to_dict("records")
             }
         except Exception:
             return {}
@@ -163,7 +168,8 @@ class ComparisonService:
     def _query_dc_plan(conn) -> List[Dict[str, Any]]:
         """Query DC plan metrics grouped by simulation year."""
         try:
-            df = conn.execute(f"""
+            df = conn.execute(
+                f"""
                 SELECT
                     simulation_year,
                     COALESCE(
@@ -192,7 +198,8 @@ class ComparisonService:
                 FROM {TABLE_FCT_WORKFORCE_SNAPSHOT}
                 GROUP BY simulation_year
                 ORDER BY simulation_year
-            """).fetchdf()
+            """
+            ).fetchdf()
             dc_plan = df.to_dict("records")
             for row in dc_plan:
                 total_comp = row.get("total_compensation", 0) or 0
@@ -201,7 +208,9 @@ class ComparisonService:
                     (total_cost / total_comp * 100) if total_comp > 0 else 0.0
                 )
                 avg_def = row.get("avg_deferral_rate")
-                if avg_def is None or (isinstance(avg_def, float) and avg_def != avg_def):
+                if avg_def is None or (
+                    isinstance(avg_def, float) and avg_def != avg_def
+                ):
                     row["avg_deferral_rate"] = 0.0
             return dc_plan
         except Exception:
@@ -256,7 +265,11 @@ class ComparisonService:
 
             # Get baseline values for this year
             baseline_workforce = next(
-                (w for w in baseline_data.get("workforce", []) if w["simulation_year"] == year),
+                (
+                    w
+                    for w in baseline_data.get("workforce", [])
+                    if w["simulation_year"] == year
+                ),
                 None,
             )
             baseline_hires = baseline_data.get("hires_by_year", {}).get(year, 0)
@@ -296,7 +309,11 @@ class ComparisonService:
                     continue
 
                 workforce = next(
-                    (w for w in data.get("workforce", []) if w["simulation_year"] == year),
+                    (
+                        w
+                        for w in data.get("workforce", [])
+                        if w["simulation_year"] == year
+                    ),
                     None,
                 )
                 hires = data.get("hires_by_year", {}).get(year, 0)
@@ -308,11 +325,7 @@ class ComparisonService:
                 active = workforce.get("active", 0)
                 terminated = workforce.get("terminated", 0)
                 prev = prev_headcounts.get(scenario_id, headcount)
-                growth = (
-                    ((headcount - prev) / prev * 100)
-                    if prev > 0
-                    else 0
-                )
+                growth = ((headcount - prev) / prev * 100) if prev > 0 else 0
 
                 values[scenario_id] = WorkforceMetrics(
                     headcount=headcount,
@@ -351,7 +364,12 @@ class ComparisonService:
         baseline_id: str,
     ) -> List[EventComparisonMetric]:
         """Build event comparison across scenarios."""
-        event_types = [EVENT_TYPE_HIRE, EVENT_TYPE_TERMINATION, EVENT_TYPE_PROMOTION, EVENT_TYPE_RAISE]
+        event_types = [
+            EVENT_TYPE_HIRE,
+            EVENT_TYPE_TERMINATION,
+            EVENT_TYPE_PROMOTION,
+            EVENT_TYPE_RAISE,
+        ]
         comparison = []
 
         # Get all years
@@ -365,8 +383,12 @@ class ComparisonService:
                 # Get baseline value
                 baseline_events = baseline_data.get("events", [])
                 baseline_value = next(
-                    (e["count"] for e in baseline_events
-                     if e["simulation_year"] == year and e["event_type"] == event_type),
+                    (
+                        e["count"]
+                        for e in baseline_events
+                        if e["simulation_year"] == year
+                        and e["event_type"] == event_type
+                    ),
                     0,
                 )
 
@@ -383,8 +405,12 @@ class ComparisonService:
 
                     events = data.get("events", [])
                     value = next(
-                        (e["count"] for e in events
-                         if e["simulation_year"] == year and e["event_type"] == event_type),
+                        (
+                            e["count"]
+                            for e in events
+                            if e["simulation_year"] == year
+                            and e["event_type"] == event_type
+                        ),
                         0,
                     )
 
@@ -430,8 +456,11 @@ class ComparisonService:
 
             # Get baseline DC plan row for this year
             baseline_row = next(
-                (r for r in baseline_data.get("dc_plan", [])
-                 if r["simulation_year"] == year),
+                (
+                    r
+                    for r in baseline_data.get("dc_plan", [])
+                    if r["simulation_year"] == year
+                ),
                 None,
             )
 
@@ -441,7 +470,9 @@ class ComparisonService:
             baseline_metrics = DCPlanMetrics(
                 participation_rate=baseline_row.get("participation_rate", 0.0),
                 avg_deferral_rate=baseline_row.get("avg_deferral_rate", 0.0),
-                total_employee_contributions=baseline_row.get("total_employee_contributions", 0.0),
+                total_employee_contributions=baseline_row.get(
+                    "total_employee_contributions", 0.0
+                ),
                 total_employer_match=baseline_row.get("total_employer_match", 0.0),
                 total_employer_core=baseline_row.get("total_employer_core", 0.0),
                 total_employer_cost=baseline_row.get("total_employer_cost", 0.0),
@@ -457,8 +488,11 @@ class ComparisonService:
                     continue
 
                 scenario_row = next(
-                    (r for r in data.get("dc_plan", [])
-                     if r["simulation_year"] == year),
+                    (
+                        r
+                        for r in data.get("dc_plan", [])
+                        if r["simulation_year"] == year
+                    ),
                     None,
                 )
 
@@ -468,7 +502,9 @@ class ComparisonService:
                 scenario_metrics = DCPlanMetrics(
                     participation_rate=scenario_row.get("participation_rate", 0.0),
                     avg_deferral_rate=scenario_row.get("avg_deferral_rate", 0.0),
-                    total_employee_contributions=scenario_row.get("total_employee_contributions", 0.0),
+                    total_employee_contributions=scenario_row.get(
+                        "total_employee_contributions", 0.0
+                    ),
                     total_employer_match=scenario_row.get("total_employer_match", 0.0),
                     total_employer_core=scenario_row.get("total_employer_core", 0.0),
                     total_employer_cost=scenario_row.get("total_employer_cost", 0.0),
@@ -478,14 +514,22 @@ class ComparisonService:
                 values[scenario_id] = scenario_metrics
 
                 deltas[scenario_id] = DCPlanMetrics(
-                    participation_rate=scenario_metrics.participation_rate - baseline_metrics.participation_rate,
-                    avg_deferral_rate=scenario_metrics.avg_deferral_rate - baseline_metrics.avg_deferral_rate,
-                    total_employee_contributions=scenario_metrics.total_employee_contributions - baseline_metrics.total_employee_contributions,
-                    total_employer_match=scenario_metrics.total_employer_match - baseline_metrics.total_employer_match,
-                    total_employer_core=scenario_metrics.total_employer_core - baseline_metrics.total_employer_core,
-                    total_employer_cost=scenario_metrics.total_employer_cost - baseline_metrics.total_employer_cost,
-                    employer_cost_rate=scenario_metrics.employer_cost_rate - baseline_metrics.employer_cost_rate,
-                    participant_count=scenario_metrics.participant_count - baseline_metrics.participant_count,
+                    participation_rate=scenario_metrics.participation_rate
+                    - baseline_metrics.participation_rate,
+                    avg_deferral_rate=scenario_metrics.avg_deferral_rate
+                    - baseline_metrics.avg_deferral_rate,
+                    total_employee_contributions=scenario_metrics.total_employee_contributions
+                    - baseline_metrics.total_employee_contributions,
+                    total_employer_match=scenario_metrics.total_employer_match
+                    - baseline_metrics.total_employer_match,
+                    total_employer_core=scenario_metrics.total_employer_core
+                    - baseline_metrics.total_employer_core,
+                    total_employer_cost=scenario_metrics.total_employer_cost
+                    - baseline_metrics.total_employer_cost,
+                    employer_cost_rate=scenario_metrics.employer_cost_rate
+                    - baseline_metrics.employer_cost_rate,
+                    participant_count=scenario_metrics.participant_count
+                    - baseline_metrics.participant_count,
                 )
 
             comparison.append(
@@ -506,14 +550,10 @@ class ComparisonService:
         # Final headcount
         baseline_workforce = baseline_data.get("workforce", [])
         baseline_final = (
-            baseline_workforce[-1].get("headcount", 0)
-            if baseline_workforce
-            else 0
+            baseline_workforce[-1].get("headcount", 0) if baseline_workforce else 0
         )
         baseline_initial = (
-            baseline_workforce[0].get("headcount", 0)
-            if baseline_workforce
-            else 0
+            baseline_workforce[0].get("headcount", 0) if baseline_workforce else 0
         )
 
         headcount_scenarios = {}
@@ -552,16 +592,14 @@ class ComparisonService:
             workforce = data.get("workforce", [])
             initial = workforce[0].get("headcount", 0) if workforce else 0
             final = workforce[-1].get("headcount", 0) if workforce else 0
-            growth = (
-                ((final - initial) / initial * 100)
-                if initial > 0
-                else 0.0
-            )
+            growth = ((final - initial) / initial * 100) if initial > 0 else 0.0
             growth_scenarios[scenario_id] = growth
             delta = growth - baseline_growth
             growth_deltas[scenario_id] = delta
             growth_delta_pcts[scenario_id] = (
-                (delta / abs(baseline_growth) * 100) if abs(baseline_growth) > 1e-9 else 0.0
+                (delta / abs(baseline_growth) * 100)
+                if abs(baseline_growth) > 1e-9
+                else 0.0
             )
 
         summary["total_growth_pct"] = DeltaValue(
@@ -574,9 +612,7 @@ class ComparisonService:
         # Final participation rate (from DC plan data)
         baseline_dc = baseline_data.get("dc_plan", [])
         baseline_pr = (
-            baseline_dc[-1].get("participation_rate", 0.0)
-            if baseline_dc
-            else 0.0
+            baseline_dc[-1].get("participation_rate", 0.0) if baseline_dc else 0.0
         )
 
         pr_scenarios: Dict[str, float] = {}
@@ -602,9 +638,7 @@ class ComparisonService:
 
         # Final employer cost (from DC plan data)
         baseline_ec = (
-            baseline_dc[-1].get("total_employer_cost", 0.0)
-            if baseline_dc
-            else 0.0
+            baseline_dc[-1].get("total_employer_cost", 0.0) if baseline_dc else 0.0
         )
 
         ec_scenarios: Dict[str, float] = {}

@@ -20,10 +20,12 @@ from ..utils.config_helpers import find_default_config
 console = Console()
 validate_command = typer.Typer()
 
+
 @validate_command.callback()
 def validate_main():
     """✅ Validate configuration files and system setup."""
     pass
+
 
 @validate_command.command("config")
 def validate_config(
@@ -37,14 +39,18 @@ def validate_config(
     """Validate simulation configuration."""
     try:
         config_path = Path(config) if config else find_default_config()
-        console.print(f"✅ [bold blue]Validating configuration: {config_path}[/bold blue]")
+        console.print(
+            f"✅ [bold blue]Validating configuration: {config_path}[/bold blue]"
+        )
 
         if not config_path.exists():
             show_error_message(f"Configuration file not found: {config_path}")
             raise typer.Exit(1)
 
         wrapper = OrchestratorWrapper(config_path, Path("dbt/simulation.duckdb"))
-        validation_result = wrapper.validate_configuration(enforce_identifiers=enforce_identifiers)
+        validation_result = wrapper.validate_configuration(
+            enforce_identifiers=enforce_identifiers
+        )
 
         if validation_result["valid"]:
             show_success_message("Configuration is valid")
@@ -56,7 +62,9 @@ def validate_config(
                 if "scenario_id" in config_dict and config_dict["scenario_id"]:
                     summary_info.append(f"📊 Scenario ID: {config_dict['scenario_id']}")
                 if "plan_design_id" in config_dict and config_dict["plan_design_id"]:
-                    summary_info.append(f"📋 Plan Design ID: {config_dict['plan_design_id']}")
+                    summary_info.append(
+                        f"📋 Plan Design ID: {config_dict['plan_design_id']}"
+                    )
 
                 # Show simulation years if available
                 simulation = config_dict.get("simulation", {})
@@ -67,7 +75,13 @@ def validate_config(
                         summary_info.append(f"📅 Years: {start_year}-{end_year}")
 
                 if summary_info:
-                    console.print(Panel("\n".join(summary_info), title="Configuration Summary", border_style="green"))
+                    console.print(
+                        Panel(
+                            "\n".join(summary_info),
+                            title="Configuration Summary",
+                            border_style="green",
+                        )
+                    )
 
             # Show warnings
             warnings = validation_result.get("warnings", [])
@@ -84,12 +98,15 @@ def validate_config(
             return 0
 
         else:
-            show_error_message(f"Configuration is invalid: {validation_result['error']}")
+            show_error_message(
+                f"Configuration is invalid: {validation_result['error']}"
+            )
             raise typer.Exit(1)
 
     except Exception as e:
         show_error_message(f"Validation failed: {e}")
         raise typer.Exit(1)
+
 
 # Default command
 @validate_command.command(name="", hidden=True)

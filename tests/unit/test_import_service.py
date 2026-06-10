@@ -22,6 +22,7 @@ from planalign_api.models.imports import (
 # Fixture: temp workspace root
 # ---------------------------------------------------------------------------
 
+
 @pytest.fixture()
 def tmp_workspaces(tmp_path: Path) -> Path:
     root = tmp_path / "workspaces"
@@ -32,6 +33,7 @@ def tmp_workspaces(tmp_path: Path) -> Path:
 @pytest.fixture()
 def service(tmp_workspaces: Path):
     from planalign_api.services.import_service import ImportService
+
     return ImportService(workspaces_root=tmp_workspaces)
 
 
@@ -45,6 +47,7 @@ def workspace_id(tmp_workspaces: Path) -> str:
 # ---------------------------------------------------------------------------
 # Session create — correlation_id present
 # ---------------------------------------------------------------------------
+
 
 def test_create_session_returns_correlation_id(service, workspace_id):
     session = service.create_session(
@@ -78,6 +81,7 @@ def test_create_session_writes_metadata_json(service, workspace_id):
 # Status transitions
 # ---------------------------------------------------------------------------
 
+
 def test_status_transition_uploaded_to_mapping_in_progress(service, workspace_id):
     session = service.create_session(
         workspace_id=workspace_id,
@@ -88,7 +92,9 @@ def test_status_transition_uploaded_to_mapping_in_progress(service, workspace_id
         preview_rows=[],
     )
     assert session.status == "uploaded"
-    updated = service.update_status(workspace_id, session.import_id, "mapping_in_progress")
+    updated = service.update_status(
+        workspace_id, session.import_id, "mapping_in_progress"
+    )
     assert updated.status == "mapping_in_progress"
 
 
@@ -131,7 +137,9 @@ def test_status_transition_generating_to_failed(service, workspace_id):
         preview_rows=[],
     )
     service.update_status(workspace_id, session.import_id, "generating")
-    updated = service.update_status(workspace_id, session.import_id, "failed", error_message="boom")
+    updated = service.update_status(
+        workspace_id, session.import_id, "failed", error_message="boom"
+    )
     assert updated.status == "failed"
     assert updated.error_message == "boom"
 
@@ -139,6 +147,7 @@ def test_status_transition_generating_to_failed(service, workspace_id):
 # ---------------------------------------------------------------------------
 # Session metadata read/write
 # ---------------------------------------------------------------------------
+
 
 def test_get_session_returns_saved_session(service, workspace_id):
     created = service.create_session(
@@ -164,6 +173,7 @@ def test_get_session_returns_none_for_unknown(service, workspace_id):
 # Parquet index append
 # ---------------------------------------------------------------------------
 
+
 def test_parquet_index_appends_on_save(service, workspace_id, tmp_workspaces):
     from planalign_api.models.imports import ParquetFile
     from datetime import datetime
@@ -172,7 +182,9 @@ def test_parquet_index_appends_on_save(service, workspace_id, tmp_workspaces):
         workspace_id=workspace_id,
         import_id="imp-001",
         filename="20260530_test.parquet",
-        storage_path=str(tmp_workspaces / workspace_id / "data" / "imports" / "20260530_test.parquet"),
+        storage_path=str(
+            tmp_workspaces / workspace_id / "data" / "imports" / "20260530_test.parquet"
+        ),
         original_filename="test.csv",
         row_count=100,
         file_size_bytes=4096,
@@ -187,6 +199,7 @@ def test_parquet_index_appends_on_save(service, workspace_id, tmp_workspaces):
 # ---------------------------------------------------------------------------
 # Audit log written on create, generate, delete
 # ---------------------------------------------------------------------------
+
 
 def test_audit_log_written_on_create(service, workspace_id, tmp_workspaces):
     service.create_session(
@@ -236,7 +249,9 @@ def test_audit_log_written_on_delete(service, workspace_id, tmp_workspaces):
         workspace_id=workspace_id,
         import_id="imp-001",
         filename="20260530_test.parquet",
-        storage_path=str(tmp_workspaces / workspace_id / "data" / "imports" / "20260530_test.parquet"),
+        storage_path=str(
+            tmp_workspaces / workspace_id / "data" / "imports" / "20260530_test.parquet"
+        ),
         original_filename="test.csv",
         row_count=10,
         file_size_bytes=1024,

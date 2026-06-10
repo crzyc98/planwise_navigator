@@ -90,7 +90,9 @@ def create_app() -> FastAPI:
     app.include_router(system_router, prefix="/api", tags=["System"])
     app.include_router(workspaces_router, prefix="/api/workspaces", tags=["Workspaces"])
     app.include_router(scenarios_router, prefix="/api/workspaces", tags=["Scenarios"])
-    app.include_router(simulations_router, prefix="/api/scenarios", tags=["Simulations"])
+    app.include_router(
+        simulations_router, prefix="/api/scenarios", tags=["Simulations"]
+    )
     app.include_router(batch_router, prefix="/api", tags=["Batch Processing"])
     app.include_router(comparison_router, prefix="/api/workspaces", tags=["Comparison"])
     app.include_router(files_router, prefix="/api/workspaces", tags=["Files"])
@@ -98,7 +100,9 @@ def create_app() -> FastAPI:
     app.include_router(sync_router, prefix="/api", tags=["Sync"])
     app.include_router(analytics_router, prefix="/api/workspaces", tags=["Analytics"])
     app.include_router(bands_router, prefix="/api/workspaces", tags=["Bands"])
-    app.include_router(promotion_hazard_router, prefix="/api/workspaces", tags=["Promotion Hazard"])
+    app.include_router(
+        promotion_hazard_router, prefix="/api/workspaces", tags=["Promotion Hazard"]
+    )
     app.include_router(vesting_router, prefix="/api", tags=["Vesting"])
     app.include_router(ndt_router, prefix="/api/workspaces", tags=["NDT Testing"])
     app.include_router(imports_router, prefix="/api/workspaces", tags=["Data Import"])

@@ -9,9 +9,15 @@ from pydantic import BaseModel, Field
 class SimulationLogLine(BaseModel):
     """A single parsed log entry from a simulation run."""
 
-    sequence: int = Field(..., ge=1, description="1-based line number within the log file")
-    timestamp: datetime = Field(..., description="UTC timestamp when the line was produced")
-    severity: Literal["INFO", "WARNING", "ERROR"] = Field(..., description="Severity level")
+    sequence: int = Field(
+        ..., ge=1, description="1-based line number within the log file"
+    )
+    timestamp: datetime = Field(
+        ..., description="UTC timestamp when the line was produced"
+    )
+    severity: Literal["INFO", "WARNING", "ERROR"] = Field(
+        ..., description="Severity level"
+    )
     message: str = Field(..., description="Log message text")
 
 
@@ -65,7 +71,9 @@ class SimulationRun(BaseModel):
     current_year: Optional[int] = Field(None, description="Current simulation year")
     total_years: Optional[int] = Field(None, description="Total years to simulate")
     started_at: datetime = Field(..., description="Run start timestamp")
-    completed_at: Optional[datetime] = Field(None, description="Run completion timestamp")
+    completed_at: Optional[datetime] = Field(
+        None, description="Run completion timestamp"
+    )
     error_message: Optional[str] = Field(None, description="Error message if failed")
 
     class Config:
@@ -122,13 +130,13 @@ class SimulationResults(BaseModel):
     # E093: Compensation breakdown by employment status
     compensation_by_status: List[Dict[str, Any]] = Field(
         default_factory=list,
-        description="Compensation breakdown by year and employment status"
+        description="Compensation breakdown by year and employment status",
     )
 
     # CAGR metrics for key workforce measures
     cagr_metrics: List[Dict[str, Any]] = Field(
         default_factory=list,
-        description="CAGR calculations for headcount, total compensation, and average compensation"
+        description="CAGR calculations for headcount, total compensation, and average compensation",
     )
 
 
@@ -161,8 +169,12 @@ class RunSummary(BaseModel):
         description="Run status"
     )
     started_at: datetime = Field(..., description="Run start timestamp")
-    completed_at: Optional[datetime] = Field(None, description="Run completion timestamp")
-    duration_seconds: Optional[float] = Field(None, description="Total duration in seconds")
+    completed_at: Optional[datetime] = Field(
+        None, description="Run completion timestamp"
+    )
+    duration_seconds: Optional[float] = Field(
+        None, description="Total duration in seconds"
+    )
 
     # Summary metrics
     start_year: Optional[int] = Field(None, description="Simulation start year")
@@ -187,14 +199,18 @@ class RunDetails(BaseModel):
     scenario_name: str = Field(..., description="Scenario name")
     workspace_id: str = Field(..., description="Workspace ID")
     workspace_name: str = Field(..., description="Workspace name")
-    status: Literal["pending", "running", "completed", "failed", "cancelled", "not_run"] = Field(
-        description="Run status"
-    )
+    status: Literal[
+        "pending", "running", "completed", "failed", "cancelled", "not_run"
+    ] = Field(description="Run status")
 
     # Timing
     started_at: Optional[datetime] = Field(None, description="Run start timestamp")
-    completed_at: Optional[datetime] = Field(None, description="Run completion timestamp")
-    duration_seconds: Optional[float] = Field(None, description="Total duration in seconds")
+    completed_at: Optional[datetime] = Field(
+        None, description="Run completion timestamp"
+    )
+    duration_seconds: Optional[float] = Field(
+        None, description="Total duration in seconds"
+    )
 
     # Simulation info
     start_year: Optional[int] = Field(None, description="Simulation start year")
@@ -204,19 +220,27 @@ class RunDetails(BaseModel):
     # Results summary
     final_headcount: Optional[int] = Field(None, description="Final headcount")
     total_events: Optional[int] = Field(None, description="Total events generated")
-    participation_rate: Optional[float] = Field(None, description="DC plan participation rate")
+    participation_rate: Optional[float] = Field(
+        None, description="DC plan participation rate"
+    )
 
     # Configuration snapshot
-    config: Optional[Dict[str, Any]] = Field(None, description="Configuration used for run")
+    config: Optional[Dict[str, Any]] = Field(
+        None, description="Configuration used for run"
+    )
 
     # Artifacts
-    artifacts: List[Artifact] = Field(default_factory=list, description="Output artifacts")
+    artifacts: List[Artifact] = Field(
+        default_factory=list, description="Output artifacts"
+    )
 
     # Error info
     error_message: Optional[str] = Field(None, description="Error message if failed")
 
     # E087: Storage location info
-    storage_path: Optional[str] = Field(None, description="Scenario storage directory path")
+    storage_path: Optional[str] = Field(
+        None, description="Scenario storage directory path"
+    )
 
     class Config:
         json_encoders = {

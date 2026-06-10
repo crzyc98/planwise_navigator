@@ -62,7 +62,9 @@ def _register_default_accumulators() -> None:
     duplicate check.
     """
     # Register enrollment state accumulator
-    if not StateAccumulatorRegistry.is_registered(MODEL_INT_ENROLLMENT_STATE_ACCUMULATOR):
+    if not StateAccumulatorRegistry.is_registered(
+        MODEL_INT_ENROLLMENT_STATE_ACCUMULATOR
+    ):
         StateAccumulatorRegistry.register(
             StateAccumulatorContract(
                 model_name=MODEL_INT_ENROLLMENT_STATE_ACCUMULATOR,
@@ -70,12 +72,14 @@ def _register_default_accumulators() -> None:
                 prior_year_column=COL_SIMULATION_YEAR,
                 start_year_source=MODEL_INT_BASELINE_WORKFORCE,
                 description="Tracks employee enrollment state across simulation years. "
-                           "Consolidates latest enrollment event per employee.",
+                "Consolidates latest enrollment event per employee.",
             )
         )
 
     # Register deferral rate state accumulator
-    if not StateAccumulatorRegistry.is_registered("int_deferral_rate_state_accumulator"):
+    if not StateAccumulatorRegistry.is_registered(
+        "int_deferral_rate_state_accumulator"
+    ):
         StateAccumulatorRegistry.register(
             StateAccumulatorContract(
                 model_name="int_deferral_rate_state_accumulator",
@@ -83,7 +87,7 @@ def _register_default_accumulators() -> None:
                 prior_year_column=COL_SIMULATION_YEAR,
                 start_year_source=MODEL_INT_EMPLOYEE_COMPENSATION,
                 description="Tracks employee deferral rate state across simulation years. "
-                           "Reads previous year deferral rates for continuity.",
+                "Reads previous year deferral rates for continuity.",
             )
         )
 

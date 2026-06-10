@@ -141,7 +141,10 @@ class TestYearDependencyValidationIntegration:
 
         # Should fail due to missing 2025 data
         assert result["success"] is False
-        assert "YearDependencyError" in result.get("error", "") or "missing" in result.get("error", "").lower()
+        assert (
+            "YearDependencyError" in result.get("error", "")
+            or "missing" in result.get("error", "").lower()
+        )
 
         # dbt should NOT have been called (fail-fast behavior)
         mock_dbt_runner.execute_command.assert_not_called()
@@ -183,10 +186,12 @@ class TestYearDependencyValidationIntegration:
     ):
         """Test that validation passes when prior year data exists."""
         # Setup: Data exists for 2025
-        db_manager = MockDatabaseConnectionManager({
-            "int_enrollment_state_accumulator": {2025: 100},
-            "int_deferral_rate_state_accumulator": {2025: 100},
-        })
+        db_manager = MockDatabaseConnectionManager(
+            {
+                "int_enrollment_state_accumulator": {2025: 100},
+                "int_deferral_rate_state_accumulator": {2025: 100},
+            }
+        )
 
         executor = YearExecutor(
             config=mock_config,
@@ -280,17 +285,23 @@ class TestYearDependencyErrorMessages:
         error_msg = result.get("error", "")
         assert len(error_msg) > 0
         # Should mention the year or dependency issue
-        assert "2026" in error_msg or "2025" in error_msg or "dependency" in error_msg.lower()
+        assert (
+            "2026" in error_msg
+            or "2025" in error_msg
+            or "dependency" in error_msg.lower()
+        )
 
     def test_error_lists_missing_tables(
         self, sample_contracts, mock_config, mock_dbt_runner
     ):
         """Test that error message lists which tables are missing data."""
         # Setup: Only enrollment has data, deferral does not
-        db_manager = MockDatabaseConnectionManager({
-            "int_enrollment_state_accumulator": {2025: 100},
-            "int_deferral_rate_state_accumulator": {2025: 0},
-        })
+        db_manager = MockDatabaseConnectionManager(
+            {
+                "int_enrollment_state_accumulator": {2025: 100},
+                "int_deferral_rate_state_accumulator": {2025: 0},
+            }
+        )
 
         executor = YearExecutor(
             config=mock_config,
@@ -306,7 +317,10 @@ class TestYearDependencyErrorMessages:
         stage = StageDefinition(
             name=WorkflowStage.STATE_ACCUMULATION,
             dependencies=[WorkflowStage.EVENT_GENERATION],
-            models=["int_enrollment_state_accumulator", "int_deferral_rate_state_accumulator"],
+            models=[
+                "int_enrollment_state_accumulator",
+                "int_deferral_rate_state_accumulator",
+            ],
             validation_rules=[],
         )
 

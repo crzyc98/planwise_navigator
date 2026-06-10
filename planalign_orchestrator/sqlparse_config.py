@@ -39,13 +39,13 @@ except (ImportError, AttributeError):
     pass  # Older sqlparse versions don't have this setting
 '''
 
-_PTH_FILE_CONTENT = '''# Configure sqlparse token limits for large dbt models
+_PTH_FILE_CONTENT = """# Configure sqlparse token limits for large dbt models
 # Auto-installed by planalign_orchestrator
 import _sqlparse_config
-'''
+"""
 
 # Content for sitecustomize.py (more reliable on Windows than .pth files)
-_SITECUSTOMIZE_CONTENT = '''
+_SITECUSTOMIZE_CONTENT = """
 # sqlparse token limit fix (auto-installed by planalign_orchestrator)
 # See: https://discourse.getdbt.com/t/dbt-run-error-maximum-number-of-tokens-exceeded/20495
 try:
@@ -53,7 +53,7 @@ try:
     sqlparse.engine.grouping.MAX_GROUPING_TOKENS = 50000
 except (ImportError, AttributeError):
     pass
-'''
+"""
 
 
 def configure_sqlparse(max_tokens: int = DEFAULT_MAX_GROUPING_TOKENS) -> bool:

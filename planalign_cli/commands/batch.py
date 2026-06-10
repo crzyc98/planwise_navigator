@@ -13,17 +13,23 @@ import typer
 from rich.console import Console
 
 from ..integration.orchestrator_wrapper import OrchestratorWrapper
-from ..ui.progress import create_batch_progress, show_error_message, show_success_message
+from ..ui.progress import (
+    create_batch_progress,
+    show_error_message,
+    show_success_message,
+)
 from ..utils.config_helpers import find_default_config, find_scenarios_directory
 from config.constants import DATABASE_FILENAME, STATUS_COMPLETED, STATUS_FAILED
 
 console = Console()
 batch_command = typer.Typer()
 
+
 @batch_command.callback()
 def batch_main():
     """📊 Run multiple scenarios with Excel export."""
     pass
+
 
 @batch_command.command("run")
 def run_batch(
@@ -42,18 +48,16 @@ def run_batch(
     export_format: str = typer.Option(
         "excel", "--export-format", help="Export format (excel, csv)"
     ),
-    threads: int = typer.Option(
-        1, "--threads", help="Number of dbt threads"
-    ),
+    threads: int = typer.Option(1, "--threads", help="Number of dbt threads"),
     optimization: str = typer.Option(
         "medium", "--optimization", help="Optimization level (low, medium, high)"
     ),
     clean: bool = typer.Option(
-        False, "--clean", help="Delete DuckDB databases before running for a clean start"
+        False,
+        "--clean",
+        help="Delete DuckDB databases before running for a clean start",
     ),
-    verbose: bool = typer.Option(
-        False, "--verbose", "-v", help="Show detailed output"
-    ),
+    verbose: bool = typer.Option(False, "--verbose", "-v", help="Show detailed output"),
 ):
     """Run multiple scenarios with Excel export."""
     try:
@@ -65,7 +69,9 @@ def run_batch(
 
         # Setup paths
         base_config_path = Path(config) if config else find_default_config()
-        scenarios_path = Path(scenarios_dir) if scenarios_dir else find_scenarios_directory()
+        scenarios_path = (
+            Path(scenarios_dir) if scenarios_dir else find_scenarios_directory()
+        )
         output_path = Path(output_dir) if output_dir else Path("outputs")
 
         if not scenarios_path.exists():
@@ -73,17 +79,23 @@ def run_batch(
             raise typer.Exit(1)
 
         # Create wrapper and batch runner
-        wrapper = OrchestratorWrapper(base_config_path, Path("dbt") / DATABASE_FILENAME, verbose=verbose)
+        wrapper = OrchestratorWrapper(
+            base_config_path, Path("dbt") / DATABASE_FILENAME, verbose=verbose
+        )
         batch_runner = wrapper.create_batch_runner(scenarios_path, output_path)
 
         # Determine scenario count for progress tracking
         available_scenario_files = list(scenarios_path.glob("*.yaml"))
         if scenarios:
             scenario_count = len(scenarios)
-            console.print(f"🎯 [blue]Running {scenario_count} specified scenarios: {', '.join(scenarios)}[/blue]")
+            console.print(
+                f"🎯 [blue]Running {scenario_count} specified scenarios: {', '.join(scenarios)}[/blue]"
+            )
         else:
             scenario_count = len(available_scenario_files)
-            console.print(f"🎯 [blue]Running all {scenario_count} available scenarios[/blue]")
+            console.print(
+                f"🎯 [blue]Running all {scenario_count} available scenarios[/blue]"
+            )
 
         # Execute batch processing with enhanced progress tracking
         with create_batch_progress(scenario_count) as (progress, main_task):
@@ -102,9 +114,13 @@ def run_batch(
                     export_format=export_format,
                     threads=threads,
                     optimization=optimization,
-                    clean_databases=clean
+                    clean_databases=clean,
                 )
-                progress.update(main_task, completed=scenario_count, description="✅ Batch processing complete")
+                progress.update(
+                    main_task,
+                    completed=scenario_count,
+                    description="✅ Batch processing complete",
+                )
             except Exception as e:
                 progress.update(main_task, description="❌ Batch processing failed")
                 raise
@@ -119,10 +135,19 @@ def run_batch(
         show_error_message(f"Batch processing failed: {e}")
         raise typer.Exit(1)
 
+
 def _report_batch_results(results: dict, batch_runner) -> int:
     """Report batch processing results and return exit code."""
-    successful = [name for name, result in results.items() if result.get("status") == STATUS_COMPLETED]
-    failed = [name for name, result in results.items() if result.get("status") == STATUS_FAILED]
+    successful = [
+        name
+        for name, result in results.items()
+        if result.get("status") == STATUS_COMPLETED
+    ]
+    failed = [
+        name
+        for name, result in results.items()
+        if result.get("status") == STATUS_FAILED
+    ]
 
     console.print("\n🎯 [bold blue]Batch execution completed[/bold blue]")
     console.print(f"  ✅ Successful: {len(successful)} scenarios")

@@ -19,7 +19,12 @@ from planalign_orchestrator.pipeline_orchestrator import PipelineOrchestrator
 from planalign_orchestrator.registries import RegistryManager
 from planalign_orchestrator.scenario_batch_runner import ScenarioBatchRunner
 from planalign_orchestrator.utils import DatabaseConnectionManager
-from planalign_orchestrator.validation import DataValidator, EventSequenceRule, HireTerminationRatioRule
+from planalign_orchestrator.validation import (
+    DataValidator,
+    EventSequenceRule,
+    HireTerminationRatioRule,
+)
+
 
 class OrchestratorWrapper:
     """Wrapper for planalign_orchestrator components with CLI enhancements."""
@@ -43,12 +48,15 @@ class OrchestratorWrapper:
         """Lazy load configuration."""
         if self._config is None:
             if not self.config_path.exists():
-                raise FileNotFoundError(f"Configuration file not found: {self.config_path}")
+                raise FileNotFoundError(
+                    f"Configuration file not found: {self.config_path}"
+                )
             self._config = load_simulation_config(self.config_path)
 
             # Ensure optimization settings exist
             if not self._config.optimization:
                 from planalign_orchestrator.config import OptimizationSettings
+
                 self._config.optimization = OptimizationSettings()
 
             # All simulations use SQL mode
@@ -79,8 +87,12 @@ class OrchestratorWrapper:
                 "path": str(self.config_path),
                 "scenario_id": getattr(config, "scenario_id", None),
                 "plan_design_id": getattr(config, "plan_design_id", None),
-                "start_year": getattr(config.simulation, "start_year", None) if hasattr(config, "simulation") else None,
-                "end_year": getattr(config.simulation, "end_year", None) if hasattr(config, "simulation") else None,
+                "start_year": getattr(config.simulation, "start_year", None)
+                if hasattr(config, "simulation")
+                else None,
+                "end_year": getattr(config.simulation, "end_year", None)
+                if hasattr(config, "simulation")
+                else None,
             }
         except Exception as e:
             status["config"] = {"valid": False, "error": str(e)}
@@ -91,7 +103,9 @@ class OrchestratorWrapper:
             db_exists = self.db_path.exists()
             if db_exists:
                 db_size = self.db_path.stat().st_size / (1024 * 1024)  # MB
-                last_modified = datetime.fromtimestamp(self.db_path.stat().st_mtime).strftime("%Y-%m-%d %H:%M")
+                last_modified = datetime.fromtimestamp(
+                    self.db_path.stat().st_mtime
+                ).strftime("%Y-%m-%d %H:%M")
 
                 # Try to get table count
                 try:
@@ -114,7 +128,7 @@ class OrchestratorWrapper:
                 status["database"] = {
                     "connected": False,
                     "path": str(self.db_path),
-                    "error": "Database file does not exist"
+                    "error": "Database file does not exist",
                 }
                 status["system_ready"] = False
 
@@ -124,7 +138,11 @@ class OrchestratorWrapper:
 
         # Performance information
         if hasattr(self, "config") and self.config:
-            thread_count = self.config.get_thread_count() if hasattr(self.config, "get_thread_count") else 1
+            thread_count = (
+                self.config.get_thread_count()
+                if hasattr(self.config, "get_thread_count")
+                else 1
+            )
             status["performance"] = {
                 "thread_count": thread_count,
             }
@@ -134,7 +152,9 @@ class OrchestratorWrapper:
         if not status["database"]["connected"]:
             recommendations.append("Run a simulation to create the database")
         if not status["config"].get("valid"):
-            recommendations.append("Fix configuration errors before running simulations")
+            recommendations.append(
+                "Fix configuration errors before running simulations"
+            )
 
         status["recommendations"] = recommendations
 
@@ -142,11 +162,7 @@ class OrchestratorWrapper:
 
     def check_system_health(self) -> Dict[str, Any]:
         """Quick health check for system readiness."""
-        health = {
-            "healthy": True,
-            "issues": [],
-            "warnings": []
-        }
+        health = {"healthy": True, "issues": [], "warnings": []}
 
         # Check configuration
         try:
@@ -157,7 +173,9 @@ class OrchestratorWrapper:
 
         # Check database accessibility
         if not self.db_path.exists():
-            health["warnings"].append("Database file does not exist - will be created on first run")
+            health["warnings"].append(
+                "Database file does not exist - will be created on first run"
+            )
         else:
             try:
                 with self.db.get_connection() as conn:
@@ -175,7 +193,13 @@ class OrchestratorWrapper:
 
         return health
 
-    def create_orchestrator(self, threads: Optional[int] = None, dry_run: bool = False, verbose: bool = None, progress_callback=None) -> Union[PipelineOrchestrator, "ProgressAwareOrchestrator"]:
+    def create_orchestrator(
+        self,
+        threads: Optional[int] = None,
+        dry_run: bool = False,
+        verbose: bool = None,
+        progress_callback=None,
+    ) -> Union[PipelineOrchestrator, "ProgressAwareOrchestrator"]:
         """Create a configured PipelineOrchestrator instance."""
         if verbose is None:
             verbose = self.verbose
@@ -185,7 +209,9 @@ class OrchestratorWrapper:
             self.config.validate_threading_configuration()
         self.config.validate_eligibility_configuration()
 
-        thread_count = threads if threads is not None else self.config.get_thread_count()
+        thread_count = (
+            threads if threads is not None else self.config.get_thread_count()
+        )
         threading_enabled = True
         threading_mode = "selective"
 
@@ -212,12 +238,7 @@ class OrchestratorWrapper:
         validator.register_rule(EventSequenceRule())
 
         orchestrator = PipelineOrchestrator(
-            self.config,
-            self.db,
-            runner,
-            registries,
-            validator,
-            verbose=verbose
+            self.config, self.db, runner, registries, validator, verbose=verbose
         )
 
         # If progress callback provided, wrap with progress monitoring
@@ -226,11 +247,15 @@ class OrchestratorWrapper:
 
         return orchestrator
 
-    def create_batch_runner(self, scenarios_dir: Path, output_dir: Path) -> ScenarioBatchRunner:
+    def create_batch_runner(
+        self, scenarios_dir: Path, output_dir: Path
+    ) -> ScenarioBatchRunner:
         """Create a configured ScenarioBatchRunner instance."""
         return ScenarioBatchRunner(scenarios_dir, output_dir, self.config_path)
 
-    def validate_configuration(self, enforce_identifiers: bool = False) -> Dict[str, Any]:
+    def validate_configuration(
+        self, enforce_identifiers: bool = False
+    ) -> Dict[str, Any]:
         """Validate configuration and return detailed results."""
         try:
             config = self.config
@@ -242,13 +267,15 @@ class OrchestratorWrapper:
                 "valid": True,
                 "config_dict": config.model_dump(),
                 "warnings": [],
-                "recommendations": []
+                "recommendations": [],
             }
 
             # Check for identifier presence
             if not (config.scenario_id and config.plan_design_id):
                 result["warnings"].append("Missing scenario_id and/or plan_design_id")
-                result["recommendations"].append("Add scenario_id and plan_design_id for full traceability")
+                result["recommendations"].append(
+                    "Add scenario_id and plan_design_id for full traceability"
+                )
 
             return result
 
@@ -257,9 +284,8 @@ class OrchestratorWrapper:
                 "valid": False,
                 "error": str(e),
                 "warnings": [],
-                "recommendations": ["Fix configuration errors before proceeding"]
+                "recommendations": ["Fix configuration errors before proceeding"],
             }
-
 
 
 # Maximum line length to process — truncate before regex to prevent
@@ -267,11 +293,13 @@ class OrchestratorWrapper:
 _MAX_LINE_LENGTH = 1000
 
 # Progress indicator patterns (non-overlapping quantifiers to avoid ReDoS)
-_YEAR_PATTERN = re.compile(r'🔄 Starting simulation year (\d+)')
-_STAGE_PATTERN = re.compile(r'📋 Starting (\w+)')
-_EVENT_PATTERN = re.compile(r'📊 Generated (\d+(?:,\d+)*) events')
-_COMPLETED_STAGE_PATTERN = re.compile(r'✅ Completed (\w+) in (\d+\.\d+)s')
-_FOUNDATION_VALIDATION_PATTERN = re.compile(r'📊 Foundation model validation for year (\d+):')
+_YEAR_PATTERN = re.compile(r"🔄 Starting simulation year (\d+)")
+_STAGE_PATTERN = re.compile(r"📋 Starting (\w+)")
+_EVENT_PATTERN = re.compile(r"📊 Generated (\d+(?:,\d+)*) events")
+_COMPLETED_STAGE_PATTERN = re.compile(r"✅ Completed (\w+) in (\d+\.\d+)s")
+_FOUNDATION_VALIDATION_PATTERN = re.compile(
+    r"📊 Foundation model validation for year (\d+):"
+)
 
 
 class _ProgressMonitor:
@@ -293,10 +321,10 @@ class _ProgressMonitor:
         try:
             self.original_stdout.flush()
             self.buffer += text
-            while '\n' in self.buffer:
-                line, self.buffer = self.buffer.split('\n', 1)
+            while "\n" in self.buffer:
+                line, self.buffer = self.buffer.split("\n", 1)
                 self._process_line(line)
-                if hasattr(self.callback, 'on_dbt_line'):
+                if hasattr(self.callback, "on_dbt_line"):
                     self.callback.on_dbt_line(line)
         finally:
             self._writing = False
@@ -314,12 +342,12 @@ class _ProgressMonitor:
         match = _YEAR_PATTERN.search(line)
         if match:
             self.current_year = int(match.group(1))
-            if hasattr(self.callback, 'update_year'):
+            if hasattr(self.callback, "update_year"):
                 self.callback.update_year(self.current_year)
 
     def _check_stage(self, line):
         match = _STAGE_PATTERN.search(line)
-        if match and hasattr(self.callback, 'update_stage'):
+        if match and hasattr(self.callback, "update_stage"):
             self.callback.update_stage(match.group(1))
 
     def _check_events(self, line):
@@ -327,20 +355,20 @@ class _ProgressMonitor:
         if not match:
             return
         try:
-            event_count = int(match.group(1).replace(',', ''))
-            if hasattr(self.callback, 'update_events'):
+            event_count = int(match.group(1).replace(",", ""))
+            if hasattr(self.callback, "update_events"):
                 self.callback.update_events(event_count)
         except ValueError:
             pass
 
     def _check_completed_stage(self, line):
         match = _COMPLETED_STAGE_PATTERN.search(line)
-        if match and hasattr(self.callback, 'stage_completed'):
+        if match and hasattr(self.callback, "stage_completed"):
             self.callback.stage_completed(match.group(1), float(match.group(2)))
 
     def _check_foundation_validation(self, line):
         match = _FOUNDATION_VALIDATION_PATTERN.search(line)
-        if match and hasattr(self.callback, 'year_validation'):
+        if match and hasattr(self.callback, "year_validation"):
             self.callback.year_validation(int(match.group(1)))
 
     def flush(self):
@@ -362,7 +390,7 @@ class ProgressAwareOrchestrator:
         self._current_stage = None
 
         # Wire progress callback directly to YearExecutor for direct stage signaling
-        if hasattr(orchestrator, 'year_executor'):
+        if hasattr(orchestrator, "year_executor"):
             orchestrator.year_executor.progress_callback = progress_callback
 
     def __getattr__(self, name):

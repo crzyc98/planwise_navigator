@@ -283,5 +283,7 @@ class MemoryMonitor:
             if abs(memory_delta) > 50:  # More than 50MB change
                 logger.info(
                     "Operation %s: %+.1fMB memory change in %.1fs",
-                    operation_name, memory_delta, duration,
+                    operation_name,
+                    memory_delta,
+                    duration,
                 )

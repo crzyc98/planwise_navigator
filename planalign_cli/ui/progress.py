@@ -25,8 +25,11 @@ from rich.status import Status
 
 console = Console()
 
+
 @contextmanager
-def create_progress_bar(description: str = "Processing...") -> Generator[Progress, None, None]:
+def create_progress_bar(
+    description: str = "Processing...",
+) -> Generator[Progress, None, None]:
     """Create a Rich progress bar for multi-step operations."""
     with Progress(
         SpinnerColumn(),
@@ -40,11 +43,13 @@ def create_progress_bar(description: str = "Processing...") -> Generator[Progres
     ) as progress:
         yield progress
 
+
 @contextmanager
 def create_status_spinner(message: str = "Working...") -> Generator[Status, None, None]:
     """Create a spinner for indeterminate operations."""
     with Status(message, console=console, spinner="dots") as status:
         yield status
+
 
 @contextmanager
 def create_simulation_progress() -> Generator[tuple[Progress, dict], None, None]:
@@ -60,7 +65,6 @@ def create_simulation_progress() -> Generator[tuple[Progress, dict], None, None]
         console=console,
         transient=False,
     ) as progress:
-
         # Task trackers
         tasks = {
             "overall": progress.add_task("🎯 Multi-year simulation", total=100),
@@ -70,6 +74,7 @@ def create_simulation_progress() -> Generator[tuple[Progress, dict], None, None]
 
         yield progress, tasks
 
+
 def update_simulation_progress(
     progress: Progress,
     tasks: dict,
@@ -77,7 +82,7 @@ def update_simulation_progress(
     stage: str,
     stage_progress: float = 0,
     year_progress: float = 0,
-    overall_progress: float = 0
+    overall_progress: float = 0,
 ):
     """Update simulation progress with current year and stage information."""
 
@@ -90,7 +95,9 @@ def update_simulation_progress(
         tasks["_current_year"] = year
 
     # Update current stage task
-    if tasks["current_stage"] is None or stage != getattr(tasks, "_current_stage", None):
+    if tasks["current_stage"] is None or stage != getattr(
+        tasks, "_current_stage", None
+    ):
         if tasks["current_stage"] is not None:
             progress.update(tasks["current_stage"], completed=100)
 
@@ -102,8 +109,11 @@ def update_simulation_progress(
     progress.update(tasks["current_year"], completed=year_progress)
     progress.update(tasks["overall"], completed=overall_progress)
 
+
 @contextmanager
-def create_batch_progress(scenario_count: int) -> Generator[tuple[Progress, TaskID], None, None]:
+def create_batch_progress(
+    scenario_count: int,
+) -> Generator[tuple[Progress, TaskID], None, None]:
     """Create progress tracker for batch scenario processing."""
     with Progress(
         SpinnerColumn(),
@@ -114,9 +124,9 @@ def create_batch_progress(scenario_count: int) -> Generator[tuple[Progress, Task
         console=console,
         transient=False,
     ) as progress:
-
         main_task = progress.add_task("📊 Processing scenarios", total=scenario_count)
         yield progress, main_task
+
 
 def create_dbt_progress() -> Progress:
     """Create progress indicator specifically for dbt operations."""
@@ -128,6 +138,7 @@ def create_dbt_progress() -> Progress:
         console=console,
         transient=False,
     )
+
 
 class ProgressReporter:
     """Progress reporter for wrapping existing operations."""
@@ -147,7 +158,9 @@ class ProgressReporter:
         self._tasks[name] = task_id
         return task_id
 
-    def update_operation(self, name: str, advance: int = 1, completed: Optional[float] = None):
+    def update_operation(
+        self, name: str, advance: int = 1, completed: Optional[float] = None
+    ):
         """Update operation progress."""
         if name in self._tasks and self._progress:
             if completed is not None:
@@ -167,11 +180,13 @@ class ProgressReporter:
             self._progress = None
         self._tasks.clear()
 
+
 def show_success_message(message: str, details: Optional[str] = None):
     """Show a formatted success message."""
     console.print(f"✅ [bold green]{message}[/bold green]")
     if details:
         console.print(f"   [dim]{details}[/dim]")
+
 
 def show_warning_message(message: str, details: Optional[str] = None):
     """Show a formatted warning message."""
@@ -179,11 +194,13 @@ def show_warning_message(message: str, details: Optional[str] = None):
     if details:
         console.print(f"   [dim]{details}[/dim]")
 
+
 def show_error_message(message: str, details: Optional[str] = None):
     """Show a formatted error message."""
     console.print(f"❌ [bold red]{message}[/bold red]")
     if details:
         console.print(f"   [dim]{details}[/dim]")
+
 
 class SimulationProgressTracker:
     """
@@ -210,7 +227,7 @@ class SimulationProgressTracker:
             "event_generation": 35,
             "state_accumulation": 20,
             "validation": 5,
-            "reporting": 5
+            "reporting": 5,
         }
         self.total_stage_weight = sum(self.stage_weights.values())
 
@@ -231,10 +248,7 @@ class SimulationProgressTracker:
         self.progress.start()
 
         # Main simulation task
-        self.main_task = self.progress.add_task(
-            "🎯 Multi-year simulation",
-            total=100
-        )
+        self.main_task = self.progress.add_task("🎯 Multi-year simulation", total=100)
 
         return self
 
@@ -256,10 +270,7 @@ class SimulationProgressTracker:
         if self.current_year_task is not None:
             self.progress.update(self.current_year_task, completed=100)
 
-        self.current_year_task = self.progress.add_task(
-            f"📅 Year {year}",
-            total=100
-        )
+        self.current_year_task = self.progress.add_task(f"📅 Year {year}", total=100)
 
     def update_stage(self, stage: str):
         """Update progress when starting a new stage."""
@@ -276,12 +287,11 @@ class SimulationProgressTracker:
             "event_generation": "⚡",
             "state_accumulation": "📊",
             "validation": "✅",
-            "reporting": "📋"
+            "reporting": "📋",
         }.get(stage_lower.replace(" ", "_"), "⚙️")
 
         self.current_stage_task = self.progress.add_task(
-            f"  {stage_emoji} {stage_lower.title()}",
-            total=100
+            f"  {stage_emoji} {stage_lower.title()}", total=100
         )
 
     def update_stage_progress(self, stage: str, progress_percent: float):
@@ -295,7 +305,9 @@ class SimulationProgressTracker:
             stage_weight = self.stage_weights.get(stage_lower, 10)
 
             # Calculate year progress (simplified - assumes equal stage distribution)
-            year_progress = min(100, progress_percent * (stage_weight / self.total_stage_weight))
+            year_progress = min(
+                100, progress_percent * (stage_weight / self.total_stage_weight)
+            )
             self.progress.update(self.current_year_task, completed=year_progress)
 
     def complete(self):

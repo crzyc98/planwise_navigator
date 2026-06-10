@@ -58,7 +58,9 @@ class AnalyticsService:
         contribution_by_year: List[ContributionYearSummary],
     ) -> dict:
         """Compute aggregate totals across all contribution years."""
-        total_employee = sum(c.total_employee_contributions for c in contribution_by_year)
+        total_employee = sum(
+            c.total_employee_contributions for c in contribution_by_year
+        )
         total_match = sum(c.total_employer_match for c in contribution_by_year)
         total_core = sum(c.total_employer_core for c in contribution_by_year)
         total_all = sum(c.total_all_contributions for c in contribution_by_year)
@@ -66,7 +68,10 @@ class AnalyticsService:
 
         total_participants = sum(c.participant_count for c in contribution_by_year)
         avg_deferral_rate = (
-            sum(c.average_deferral_rate * c.participant_count for c in contribution_by_year)
+            sum(
+                c.average_deferral_rate * c.participant_count
+                for c in contribution_by_year
+            )
             / total_participants
             if total_participants > 0
             else 0.0
@@ -81,7 +86,10 @@ class AnalyticsService:
 
         # E066: Aggregate contribution rate percentages
         rates = AnalyticsService._contribution_rates(
-            total_employee, total_match, total_core, total_compensation,
+            total_employee,
+            total_match,
+            total_core,
+            total_compensation,
         )
 
         return {
@@ -122,7 +130,9 @@ class AnalyticsService:
             contribution_by_year = self._get_contribution_by_year(conn, active_only)
             totals = self._compute_grand_totals(contribution_by_year)
             deferral_distribution = self._get_deferral_distribution(conn)
-            deferral_distribution_by_year = self._get_deferral_distribution_all_years(conn)
+            deferral_distribution_by_year = self._get_deferral_distribution_all_years(
+                conn
+            )
             escalation = self._get_escalation_metrics(conn)
             irs_limits = self._get_irs_limit_metrics(conn)
 
@@ -149,7 +159,9 @@ class AnalyticsService:
                 total_compensation=totals["total_compensation"],
                 employer_cost_rate=round(totals["employer_cost_rate"], 2),
                 # E066: Contribution rate percentages
-                employee_contribution_rate=round(totals["employee_contribution_rate"], 2),
+                employee_contribution_rate=round(
+                    totals["employee_contribution_rate"], 2
+                ),
                 match_contribution_rate=round(totals["match_contribution_rate"], 2),
                 core_contribution_rate=round(totals["core_contribution_rate"], 2),
                 total_contribution_rate=round(totals["total_contribution_rate"], 2),
@@ -168,11 +180,10 @@ class AnalyticsService:
         """
         try:
             status_filter = (
-                "AND UPPER(employment_status) = 'ACTIVE'"
-                if active_only
-                else ""
+                "AND UPPER(employment_status) = 'ACTIVE'" if active_only else ""
             )
-            result = conn.execute(f"""
+            result = conn.execute(
+                f"""
                 WITH final_year AS (
                     SELECT MAX(simulation_year) as max_year
                     FROM {TABLE_FCT_WORKFORCE_SNAPSHOT}
@@ -187,7 +198,8 @@ class AnalyticsService:
                 FROM {TABLE_FCT_WORKFORCE_SNAPSHOT}, final_year
                 WHERE simulation_year = final_year.max_year
                   {status_filter}
-            """).fetchone()
+            """
+            ).fetchone()
 
             total_eligible = result[0] or 0
             total_enrolled = result[1] or 0
@@ -196,9 +208,7 @@ class AnalyticsService:
             census_enrolled = result[4] or 0
 
             participation_rate = (
-                (total_enrolled / total_eligible * 100)
-                if total_eligible > 0
-                else 0.0
+                (total_enrolled / total_eligible * 100) if total_eligible > 0 else 0.0
             )
 
             return {
@@ -247,7 +257,8 @@ class AnalyticsService:
                     "/ NULLIF(COUNT(*), 0), 0)"
                 )
 
-            df = conn.execute(f"""
+            df = conn.execute(
+                f"""
                 SELECT
                     simulation_year as year,
                     COALESCE(SUM(prorated_annual_contributions), 0) as total_employee,
@@ -263,7 +274,8 @@ class AnalyticsService:
                 {status_filter}
                 GROUP BY simulation_year
                 ORDER BY simulation_year
-            """).fetchdf()
+            """
+            ).fetchdf()
 
             results = []
             for _, row in df.iterrows():
@@ -280,7 +292,10 @@ class AnalyticsService:
                 total_match = float(row["total_match"])
                 total_core = float(row["total_core"])
                 rates = self._contribution_rates(
-                    total_employee, total_match, total_core, total_compensation,
+                    total_employee,
+                    total_match,
+                    total_core,
+                    total_compensation,
                 )
                 results.append(
                     ContributionYearSummary(
@@ -292,7 +307,9 @@ class AnalyticsService:
                         participant_count=int(row["participant_count"]),
                         # E104: New fields
                         average_deferral_rate=float(row["avg_deferral_rate"] or 0.0),
-                        participation_rate=round(float(row["participation_rate"] or 0.0), 2),
+                        participation_rate=round(
+                            float(row["participation_rate"] or 0.0), 2
+                        ),
                         total_employer_cost=total_employer_cost,
                         # E013: Employer cost ratio metrics
                         total_compensation=total_compensation,
@@ -313,7 +330,8 @@ class AnalyticsService:
         """Get deferral rate distribution (11 buckets: 0%, 1%...9%, 10%+)."""
         try:
             # Query for distribution buckets
-            df = conn.execute(f"""
+            df = conn.execute(
+                f"""
                 WITH final_year AS (
                     SELECT MAX(simulation_year) as max_year
                     FROM {TABLE_FCT_WORKFORCE_SNAPSHOT}
@@ -343,11 +361,26 @@ class AnalyticsService:
                     COUNT(*) as count
                 FROM bucketed
                 GROUP BY bucket
-            """).fetchdf()
+            """
+            ).fetchdf()
 
             # Create a complete list with all buckets
-            bucket_order = ['0%', '1%', '2%', '3%', '4%', '5%', '6%', '7%', '8%', '9%', '10%+']
-            bucket_counts = {row["bucket"]: int(row["count"]) for _, row in df.iterrows()}
+            bucket_order = [
+                "0%",
+                "1%",
+                "2%",
+                "3%",
+                "4%",
+                "5%",
+                "6%",
+                "7%",
+                "8%",
+                "9%",
+                "10%+",
+            ]
+            bucket_counts = {
+                row["bucket"]: int(row["count"]) for _, row in df.iterrows()
+            }
 
             total_count = sum(bucket_counts.values())
 
@@ -367,16 +400,41 @@ class AnalyticsService:
             logger.warning(f"Failed to get deferral distribution: {e}")
             return [
                 DeferralRateBucket(bucket=b, count=0, percentage=0.0)
-                for b in ['0%', '1%', '2%', '3%', '4%', '5%', '6%', '7%', '8%', '9%', '10%+']
+                for b in [
+                    "0%",
+                    "1%",
+                    "2%",
+                    "3%",
+                    "4%",
+                    "5%",
+                    "6%",
+                    "7%",
+                    "8%",
+                    "9%",
+                    "10%+",
+                ]
             ]
 
     def _get_deferral_distribution_all_years(
         self, conn
     ) -> List[DeferralDistributionYear]:
         """Get deferral rate distribution for all simulation years (E059)."""
-        bucket_order = ['0%', '1%', '2%', '3%', '4%', '5%', '6%', '7%', '8%', '9%', '10%+']
+        bucket_order = [
+            "0%",
+            "1%",
+            "2%",
+            "3%",
+            "4%",
+            "5%",
+            "6%",
+            "7%",
+            "8%",
+            "9%",
+            "10%+",
+        ]
         try:
-            df = conn.execute(f"""
+            df = conn.execute(
+                f"""
                 WITH bucketed AS (
                     SELECT
                         simulation_year,
@@ -404,7 +462,8 @@ class AnalyticsService:
                 FROM bucketed
                 GROUP BY simulation_year, bucket
                 ORDER BY simulation_year, bucket
-            """).fetchdf()
+            """
+            ).fetchdf()
 
             # Group by year
             years_data: dict = {}
@@ -433,7 +492,9 @@ class AnalyticsService:
                     )
                     for b in bucket_order
                 ]
-                results.append(DeferralDistributionYear(year=year, distribution=distribution))
+                results.append(
+                    DeferralDistributionYear(year=year, distribution=distribution)
+                )
 
             return results
         except Exception as e:
@@ -443,7 +504,8 @@ class AnalyticsService:
     def _get_escalation_metrics(self, conn) -> EscalationMetrics:
         """Get deferral escalation metrics."""
         try:
-            result = conn.execute(f"""
+            result = conn.execute(
+                f"""
                 WITH final_year AS (
                     SELECT MAX(simulation_year) as max_year
                     FROM {TABLE_FCT_WORKFORCE_SNAPSHOT}
@@ -456,7 +518,8 @@ class AnalyticsService:
                 WHERE simulation_year = final_year.max_year
                   AND UPPER(employment_status) = 'ACTIVE'
                   AND is_enrolled_flag = true
-            """).fetchone()
+            """
+            ).fetchone()
 
             return EscalationMetrics(
                 employees_with_escalations=int(result[0] or 0),
@@ -474,7 +537,8 @@ class AnalyticsService:
     def _get_irs_limit_metrics(self, conn) -> IRSLimitMetrics:
         """Get IRS contribution limit metrics."""
         try:
-            result = conn.execute(f"""
+            result = conn.execute(
+                f"""
                 WITH final_year AS (
                     SELECT MAX(simulation_year) as max_year
                     FROM {TABLE_FCT_WORKFORCE_SNAPSHOT}
@@ -496,7 +560,8 @@ class AnalyticsService:
                         ELSE 0
                     END as limit_rate
                 FROM participants
-            """).fetchone()
+            """
+            ).fetchone()
 
             return IRSLimitMetrics(
                 employees_at_irs_limit=int(result[0] or 0),

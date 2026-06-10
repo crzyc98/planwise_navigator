@@ -23,7 +23,9 @@ class TestNormalizePathForDuckDB:
 
     def test_posix_path_unchanged(self):
         """T002: POSIX paths should remain as forward slashes."""
-        from planalign_orchestrator.pipeline.event_generation_executor import normalize_path_for_duckdb
+        from planalign_orchestrator.pipeline.event_generation_executor import (
+            normalize_path_for_duckdb,
+        )
 
         # Already POSIX format
         result = normalize_path_for_duckdb(Path("data/parquet/events"))
@@ -33,7 +35,9 @@ class TestNormalizePathForDuckDB:
 
     def test_windows_backslash_converted(self):
         """T002: Windows backslash paths should be converted to forward slashes."""
-        from planalign_orchestrator.pipeline.event_generation_executor import normalize_path_for_duckdb
+        from planalign_orchestrator.pipeline.event_generation_executor import (
+            normalize_path_for_duckdb,
+        )
 
         # Simulate Windows path by directly testing the conversion logic
         # On any platform, as_posix() should produce forward slashes
@@ -45,7 +49,9 @@ class TestNormalizePathForDuckDB:
 
     def test_absolute_path_conversion(self):
         """T003: Absolute paths should be converted to dbt-relative paths."""
-        from planalign_orchestrator.pipeline.event_generation_executor import normalize_path_for_duckdb
+        from planalign_orchestrator.pipeline.event_generation_executor import (
+            normalize_path_for_duckdb,
+        )
 
         # Create an absolute path within the project
         cwd = Path.cwd()
@@ -59,7 +65,9 @@ class TestNormalizePathForDuckDB:
 
     def test_path_with_spaces(self):
         """T004: Paths with spaces should be handled correctly."""
-        from planalign_orchestrator.pipeline.event_generation_executor import normalize_path_for_duckdb
+        from planalign_orchestrator.pipeline.event_generation_executor import (
+            normalize_path_for_duckdb,
+        )
 
         path = Path("data") / "my parquet folder" / "events"
         result = normalize_path_for_duckdb(path)
@@ -70,7 +78,9 @@ class TestNormalizePathForDuckDB:
 
     def test_already_relative_from_dbt(self):
         """Paths already starting with ../ should be preserved."""
-        from planalign_orchestrator.pipeline.event_generation_executor import normalize_path_for_duckdb
+        from planalign_orchestrator.pipeline.event_generation_executor import (
+            normalize_path_for_duckdb,
+        )
 
         path = Path("../data/parquet/events")
         result = normalize_path_for_duckdb(path)
@@ -81,7 +91,9 @@ class TestNormalizePathForDuckDB:
 
     def test_posix_format_always(self):
         """Result should always be in POSIX format regardless of input."""
-        from planalign_orchestrator.pipeline.event_generation_executor import normalize_path_for_duckdb
+        from planalign_orchestrator.pipeline.event_generation_executor import (
+            normalize_path_for_duckdb,
+        )
 
         test_paths = [
             Path("data/parquet/events"),
@@ -109,7 +121,15 @@ class TestWorkspacePathConstruction:
         parquet_output = base_path / "data" / "parquet" / "events"
 
         # Should produce the expected structure
-        expected_parts = ["workspaces", workspace_id, "scenarios", scenario_id, "data", "parquet", "events"]
+        expected_parts = [
+            "workspaces",
+            workspace_id,
+            "scenarios",
+            scenario_id,
+            "data",
+            "parquet",
+            "events",
+        ]
 
         # Verify structure (platform-independent check)
         path_str = parquet_output.as_posix()

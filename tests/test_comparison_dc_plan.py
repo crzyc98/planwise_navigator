@@ -18,9 +18,11 @@ from planalign_api.services.database_path_resolver import ResolvedDatabasePath
 # Helpers
 # ---------------------------------------------------------------------------
 
+
 def _create_snapshot_table(conn: duckdb.DuckDBPyConnection) -> None:
     """Create fct_workforce_snapshot table with required columns."""
-    conn.execute("""
+    conn.execute(
+        """
         CREATE TABLE IF NOT EXISTS fct_workforce_snapshot (
             employee_id VARCHAR,
             simulation_year INTEGER,
@@ -32,18 +34,21 @@ def _create_snapshot_table(conn: duckdb.DuckDBPyConnection) -> None:
             employer_core_amount DOUBLE,
             prorated_annual_compensation DOUBLE
         )
-    """)
+    """
+    )
 
 
 def _create_events_table(conn: duckdb.DuckDBPyConnection) -> None:
     """Create fct_yearly_events table (needed by _load_scenario_data)."""
-    conn.execute("""
+    conn.execute(
+        """
         CREATE TABLE IF NOT EXISTS fct_yearly_events (
             employee_id VARCHAR,
             simulation_year INTEGER,
             event_type VARCHAR
         )
-    """)
+    """
+    )
 
 
 def _seed_employees(
@@ -108,63 +113,176 @@ def _create_scenario_db(tmp_path, scenario_id: str, rows: list[dict]) -> str:
 # ---------------------------------------------------------------------------
 
 BASELINE_2025 = [
-    {"employee_id": "E001", "year": 2025, "status": "Active", "enrolled": True,
-     "deferral_rate": 0.06, "contributions": 6000, "match": 3000, "core": 1000,
-     "compensation": 100000},
-    {"employee_id": "E002", "year": 2025, "status": "Active", "enrolled": True,
-     "deferral_rate": 0.04, "contributions": 4000, "match": 2000, "core": 1000,
-     "compensation": 100000},
-    {"employee_id": "E003", "year": 2025, "status": "Active", "enrolled": False,
-     "deferral_rate": None, "contributions": 0, "match": 0, "core": 0,
-     "compensation": 100000},
-    {"employee_id": "E004", "year": 2025, "status": "Terminated", "enrolled": True,
-     "deferral_rate": 0.05, "contributions": 2500, "match": 1250, "core": 500,
-     "compensation": 50000},
+    {
+        "employee_id": "E001",
+        "year": 2025,
+        "status": "Active",
+        "enrolled": True,
+        "deferral_rate": 0.06,
+        "contributions": 6000,
+        "match": 3000,
+        "core": 1000,
+        "compensation": 100000,
+    },
+    {
+        "employee_id": "E002",
+        "year": 2025,
+        "status": "Active",
+        "enrolled": True,
+        "deferral_rate": 0.04,
+        "contributions": 4000,
+        "match": 2000,
+        "core": 1000,
+        "compensation": 100000,
+    },
+    {
+        "employee_id": "E003",
+        "year": 2025,
+        "status": "Active",
+        "enrolled": False,
+        "deferral_rate": None,
+        "contributions": 0,
+        "match": 0,
+        "core": 0,
+        "compensation": 100000,
+    },
+    {
+        "employee_id": "E004",
+        "year": 2025,
+        "status": "Terminated",
+        "enrolled": True,
+        "deferral_rate": 0.05,
+        "contributions": 2500,
+        "match": 1250,
+        "core": 500,
+        "compensation": 50000,
+    },
 ]
 
 BASELINE_2026 = [
-    {"employee_id": "E001", "year": 2026, "status": "Active", "enrolled": True,
-     "deferral_rate": 0.07, "contributions": 7000, "match": 3500, "core": 1200,
-     "compensation": 105000},
-    {"employee_id": "E002", "year": 2026, "status": "Active", "enrolled": True,
-     "deferral_rate": 0.05, "contributions": 5000, "match": 2500, "core": 1200,
-     "compensation": 105000},
-    {"employee_id": "E003", "year": 2026, "status": "Active", "enrolled": True,
-     "deferral_rate": 0.03, "contributions": 3000, "match": 1500, "core": 1200,
-     "compensation": 105000},
+    {
+        "employee_id": "E001",
+        "year": 2026,
+        "status": "Active",
+        "enrolled": True,
+        "deferral_rate": 0.07,
+        "contributions": 7000,
+        "match": 3500,
+        "core": 1200,
+        "compensation": 105000,
+    },
+    {
+        "employee_id": "E002",
+        "year": 2026,
+        "status": "Active",
+        "enrolled": True,
+        "deferral_rate": 0.05,
+        "contributions": 5000,
+        "match": 2500,
+        "core": 1200,
+        "compensation": 105000,
+    },
+    {
+        "employee_id": "E003",
+        "year": 2026,
+        "status": "Active",
+        "enrolled": True,
+        "deferral_rate": 0.03,
+        "contributions": 3000,
+        "match": 1500,
+        "core": 1200,
+        "compensation": 105000,
+    },
 ]
 
 ALT_2025 = [
-    {"employee_id": "E001", "year": 2025, "status": "Active", "enrolled": True,
-     "deferral_rate": 0.08, "contributions": 8000, "match": 5000, "core": 1500,
-     "compensation": 100000},
-    {"employee_id": "E002", "year": 2025, "status": "Active", "enrolled": True,
-     "deferral_rate": 0.06, "contributions": 6000, "match": 4000, "core": 1500,
-     "compensation": 100000},
-    {"employee_id": "E003", "year": 2025, "status": "Active", "enrolled": True,
-     "deferral_rate": 0.04, "contributions": 4000, "match": 2000, "core": 1500,
-     "compensation": 100000},
-    {"employee_id": "E004", "year": 2025, "status": "Terminated", "enrolled": True,
-     "deferral_rate": 0.05, "contributions": 2500, "match": 1250, "core": 750,
-     "compensation": 50000},
+    {
+        "employee_id": "E001",
+        "year": 2025,
+        "status": "Active",
+        "enrolled": True,
+        "deferral_rate": 0.08,
+        "contributions": 8000,
+        "match": 5000,
+        "core": 1500,
+        "compensation": 100000,
+    },
+    {
+        "employee_id": "E002",
+        "year": 2025,
+        "status": "Active",
+        "enrolled": True,
+        "deferral_rate": 0.06,
+        "contributions": 6000,
+        "match": 4000,
+        "core": 1500,
+        "compensation": 100000,
+    },
+    {
+        "employee_id": "E003",
+        "year": 2025,
+        "status": "Active",
+        "enrolled": True,
+        "deferral_rate": 0.04,
+        "contributions": 4000,
+        "match": 2000,
+        "core": 1500,
+        "compensation": 100000,
+    },
+    {
+        "employee_id": "E004",
+        "year": 2025,
+        "status": "Terminated",
+        "enrolled": True,
+        "deferral_rate": 0.05,
+        "contributions": 2500,
+        "match": 1250,
+        "core": 750,
+        "compensation": 50000,
+    },
 ]
 
 ALT_2026 = [
-    {"employee_id": "E001", "year": 2026, "status": "Active", "enrolled": True,
-     "deferral_rate": 0.09, "contributions": 9000, "match": 5500, "core": 1500,
-     "compensation": 105000},
-    {"employee_id": "E002", "year": 2026, "status": "Active", "enrolled": True,
-     "deferral_rate": 0.07, "contributions": 7000, "match": 4500, "core": 1500,
-     "compensation": 105000},
-    {"employee_id": "E003", "year": 2026, "status": "Active", "enrolled": True,
-     "deferral_rate": 0.05, "contributions": 5000, "match": 3000, "core": 1500,
-     "compensation": 105000},
+    {
+        "employee_id": "E001",
+        "year": 2026,
+        "status": "Active",
+        "enrolled": True,
+        "deferral_rate": 0.09,
+        "contributions": 9000,
+        "match": 5500,
+        "core": 1500,
+        "compensation": 105000,
+    },
+    {
+        "employee_id": "E002",
+        "year": 2026,
+        "status": "Active",
+        "enrolled": True,
+        "deferral_rate": 0.07,
+        "contributions": 7000,
+        "match": 4500,
+        "core": 1500,
+        "compensation": 105000,
+    },
+    {
+        "employee_id": "E003",
+        "year": 2026,
+        "status": "Active",
+        "enrolled": True,
+        "deferral_rate": 0.05,
+        "contributions": 5000,
+        "match": 3000,
+        "core": 1500,
+        "compensation": 105000,
+    },
 ]
 
 
 # ---------------------------------------------------------------------------
 # Tests: T004 - Happy path
 # ---------------------------------------------------------------------------
+
 
 @pytest.mark.fast
 class TestDCPlanMetricsHappyPath:
@@ -175,14 +293,14 @@ class TestDCPlanMetricsHappyPath:
         baseline_path = _create_scenario_db(
             tmp_path, "baseline", BASELINE_2025 + BASELINE_2026
         )
-        alt_path = _create_scenario_db(
-            tmp_path, "alternative", ALT_2025 + ALT_2026
-        )
+        alt_path = _create_scenario_db(tmp_path, "alternative", ALT_2025 + ALT_2026)
 
-        service = _build_service_with_dbs({
-            "baseline": baseline_path,
-            "alternative": alt_path,
-        })
+        service = _build_service_with_dbs(
+            {
+                "baseline": baseline_path,
+                "alternative": alt_path,
+            }
+        )
 
         result = service.compare_scenarios(
             workspace_id="ws1",
@@ -230,10 +348,12 @@ class TestDCPlanMetricsHappyPath:
         baseline_path = _create_scenario_db(tmp_path, "baseline", BASELINE_2025)
         alt_path = _create_scenario_db(tmp_path, "alternative", ALT_2025)
 
-        service = _build_service_with_dbs({
-            "baseline": baseline_path,
-            "alternative": alt_path,
-        })
+        service = _build_service_with_dbs(
+            {
+                "baseline": baseline_path,
+                "alternative": alt_path,
+            }
+        )
 
         result = service.compare_scenarios(
             workspace_id="ws1",
@@ -251,23 +371,22 @@ class TestDCPlanMetricsHappyPath:
 # Tests: T005 - Deltas and edge cases
 # ---------------------------------------------------------------------------
 
+
 @pytest.mark.fast
 class TestDCPlanDeltas:
     """T005: Verify delta calculations and edge case handling."""
 
     def test_dc_plan_deltas_vs_baseline(self, tmp_path):
         """Deltas = scenario - baseline; baseline deltas are all zero."""
-        baseline_path = _create_scenario_db(
-            tmp_path, "baseline", BASELINE_2025
-        )
-        alt_path = _create_scenario_db(
-            tmp_path, "alternative", ALT_2025
-        )
+        baseline_path = _create_scenario_db(tmp_path, "baseline", BASELINE_2025)
+        alt_path = _create_scenario_db(tmp_path, "alternative", ALT_2025)
 
-        service = _build_service_with_dbs({
-            "baseline": baseline_path,
-            "alternative": alt_path,
-        })
+        service = _build_service_with_dbs(
+            {
+                "baseline": baseline_path,
+                "alternative": alt_path,
+            }
+        )
 
         result = service.compare_scenarios(
             workspace_id="ws1",
@@ -306,23 +425,41 @@ class TestDCPlanDeltas:
     def test_dc_plan_deltas_zero_baseline(self, tmp_path):
         """When baseline has zero employer match, deltas don't error."""
         zero_match_rows = [
-            {"employee_id": "E001", "year": 2025, "status": "Active",
-             "enrolled": True, "deferral_rate": 0.06, "contributions": 6000,
-             "match": 0, "core": 0, "compensation": 100000},
+            {
+                "employee_id": "E001",
+                "year": 2025,
+                "status": "Active",
+                "enrolled": True,
+                "deferral_rate": 0.06,
+                "contributions": 6000,
+                "match": 0,
+                "core": 0,
+                "compensation": 100000,
+            },
         ]
         alt_rows = [
-            {"employee_id": "E001", "year": 2025, "status": "Active",
-             "enrolled": True, "deferral_rate": 0.06, "contributions": 6000,
-             "match": 3000, "core": 1000, "compensation": 100000},
+            {
+                "employee_id": "E001",
+                "year": 2025,
+                "status": "Active",
+                "enrolled": True,
+                "deferral_rate": 0.06,
+                "contributions": 6000,
+                "match": 3000,
+                "core": 1000,
+                "compensation": 100000,
+            },
         ]
 
         baseline_path = _create_scenario_db(tmp_path, "baseline", zero_match_rows)
         alt_path = _create_scenario_db(tmp_path, "alternative", alt_rows)
 
-        service = _build_service_with_dbs({
-            "baseline": baseline_path,
-            "alternative": alt_path,
-        })
+        service = _build_service_with_dbs(
+            {
+                "baseline": baseline_path,
+                "alternative": alt_path,
+            }
+        )
 
         result = service.compare_scenarios(
             workspace_id="ws1",
@@ -339,21 +476,39 @@ class TestDCPlanDeltas:
     def test_dc_plan_zero_enrollment(self, tmp_path):
         """Zero enrolled employees → 0% participation, 0 deferral rate."""
         rows = [
-            {"employee_id": "E001", "year": 2025, "status": "Active",
-             "enrolled": False, "deferral_rate": None, "contributions": 0,
-             "match": 0, "core": 0, "compensation": 100000},
-            {"employee_id": "E002", "year": 2025, "status": "Active",
-             "enrolled": False, "deferral_rate": None, "contributions": 0,
-             "match": 0, "core": 0, "compensation": 100000},
+            {
+                "employee_id": "E001",
+                "year": 2025,
+                "status": "Active",
+                "enrolled": False,
+                "deferral_rate": None,
+                "contributions": 0,
+                "match": 0,
+                "core": 0,
+                "compensation": 100000,
+            },
+            {
+                "employee_id": "E002",
+                "year": 2025,
+                "status": "Active",
+                "enrolled": False,
+                "deferral_rate": None,
+                "contributions": 0,
+                "match": 0,
+                "core": 0,
+                "compensation": 100000,
+            },
         ]
 
         bl_path = _create_scenario_db(tmp_path, "baseline", rows)
         alt_path = _create_scenario_db(tmp_path, "alternative", rows)
 
-        service = _build_service_with_dbs({
-            "baseline": bl_path,
-            "alternative": alt_path,
-        })
+        service = _build_service_with_dbs(
+            {
+                "baseline": bl_path,
+                "alternative": alt_path,
+            }
+        )
 
         result = service.compare_scenarios(
             workspace_id="ws1",
@@ -369,18 +524,28 @@ class TestDCPlanDeltas:
     def test_dc_plan_null_contributions(self, tmp_path):
         """NULL contribution columns treated as 0."""
         rows = [
-            {"employee_id": "E001", "year": 2025, "status": "Active",
-             "enrolled": True, "deferral_rate": 0.06, "contributions": None,
-             "match": None, "core": None, "compensation": 100000},
+            {
+                "employee_id": "E001",
+                "year": 2025,
+                "status": "Active",
+                "enrolled": True,
+                "deferral_rate": 0.06,
+                "contributions": None,
+                "match": None,
+                "core": None,
+                "compensation": 100000,
+            },
         ]
 
         bl_path = _create_scenario_db(tmp_path, "baseline", rows)
         alt_path = _create_scenario_db(tmp_path, "alternative", rows)
 
-        service = _build_service_with_dbs({
-            "baseline": bl_path,
-            "alternative": alt_path,
-        })
+        service = _build_service_with_dbs(
+            {
+                "baseline": bl_path,
+                "alternative": alt_path,
+            }
+        )
 
         result = service.compare_scenarios(
             workspace_id="ws1",
@@ -398,18 +563,28 @@ class TestDCPlanDeltas:
     def test_dc_plan_all_terminated(self, tmp_path):
         """All terminated employees → 0% participation, 0 rates."""
         rows = [
-            {"employee_id": "E001", "year": 2025, "status": "Terminated",
-             "enrolled": True, "deferral_rate": 0.06, "contributions": 6000,
-             "match": 3000, "core": 1000, "compensation": 100000},
+            {
+                "employee_id": "E001",
+                "year": 2025,
+                "status": "Terminated",
+                "enrolled": True,
+                "deferral_rate": 0.06,
+                "contributions": 6000,
+                "match": 3000,
+                "core": 1000,
+                "compensation": 100000,
+            },
         ]
 
         bl_path = _create_scenario_db(tmp_path, "baseline", rows)
         alt_path = _create_scenario_db(tmp_path, "alternative", rows)
 
-        service = _build_service_with_dbs({
-            "baseline": bl_path,
-            "alternative": alt_path,
-        })
+        service = _build_service_with_dbs(
+            {
+                "baseline": bl_path,
+                "alternative": alt_path,
+            }
+        )
 
         result = service.compare_scenarios(
             workspace_id="ws1",
@@ -427,6 +602,7 @@ class TestDCPlanDeltas:
 # Tests: T009 - Summary deltas
 # ---------------------------------------------------------------------------
 
+
 @pytest.mark.fast
 class TestDCPlanSummaryDeltas:
     """T009: Verify summary_deltas includes DC plan metrics."""
@@ -436,14 +612,14 @@ class TestDCPlanSummaryDeltas:
         baseline_path = _create_scenario_db(
             tmp_path, "baseline", BASELINE_2025 + BASELINE_2026
         )
-        alt_path = _create_scenario_db(
-            tmp_path, "alternative", ALT_2025 + ALT_2026
-        )
+        alt_path = _create_scenario_db(tmp_path, "alternative", ALT_2025 + ALT_2026)
 
-        service = _build_service_with_dbs({
-            "baseline": baseline_path,
-            "alternative": alt_path,
-        })
+        service = _build_service_with_dbs(
+            {
+                "baseline": baseline_path,
+                "alternative": alt_path,
+            }
+        )
 
         result = service.compare_scenarios(
             workspace_id="ws1",
@@ -483,10 +659,12 @@ class TestDCPlanSummaryDeltas:
         baseline_path = _create_scenario_db(tmp_path, "baseline", BASELINE_2025)
         alt_path = _create_scenario_db(tmp_path, "alternative", ALT_2025)
 
-        service = _build_service_with_dbs({
-            "baseline": baseline_path,
-            "alternative": alt_path,
-        })
+        service = _build_service_with_dbs(
+            {
+                "baseline": baseline_path,
+                "alternative": alt_path,
+            }
+        )
 
         result = service.compare_scenarios(
             workspace_id="ws1",
@@ -506,23 +684,41 @@ class TestDCPlanSummaryDeltas:
     def test_dc_plan_summary_zero_baseline(self, tmp_path):
         """Zero baseline employer cost → delta_pcts = 0% (no division by zero)."""
         zero_cost_rows = [
-            {"employee_id": "E001", "year": 2025, "status": "Active",
-             "enrolled": True, "deferral_rate": 0.06, "contributions": 6000,
-             "match": 0, "core": 0, "compensation": 100000},
+            {
+                "employee_id": "E001",
+                "year": 2025,
+                "status": "Active",
+                "enrolled": True,
+                "deferral_rate": 0.06,
+                "contributions": 6000,
+                "match": 0,
+                "core": 0,
+                "compensation": 100000,
+            },
         ]
         alt_rows = [
-            {"employee_id": "E001", "year": 2025, "status": "Active",
-             "enrolled": True, "deferral_rate": 0.06, "contributions": 6000,
-             "match": 3000, "core": 1000, "compensation": 100000},
+            {
+                "employee_id": "E001",
+                "year": 2025,
+                "status": "Active",
+                "enrolled": True,
+                "deferral_rate": 0.06,
+                "contributions": 6000,
+                "match": 3000,
+                "core": 1000,
+                "compensation": 100000,
+            },
         ]
 
         bl_path = _create_scenario_db(tmp_path, "baseline", zero_cost_rows)
         alt_path = _create_scenario_db(tmp_path, "alternative", alt_rows)
 
-        service = _build_service_with_dbs({
-            "baseline": bl_path,
-            "alternative": alt_path,
-        })
+        service = _build_service_with_dbs(
+            {
+                "baseline": bl_path,
+                "alternative": alt_path,
+            }
+        )
 
         result = service.compare_scenarios(
             workspace_id="ws1",

@@ -44,7 +44,7 @@ from network_config import (
     create_ssl_context,
     load_network_config,
     should_bypass_proxy,
-    validate_network_connectivity
+    validate_network_connectivity,
 )
 
 
@@ -123,13 +123,15 @@ class CorporateNetworkClient:
 
         # Set default headers
         self.opener.addheaders = [
-            ('User-Agent', 'PlanWise-Navigator/1.0 (Corporate-Environment)'),
-            ('Accept', 'application/json, text/plain, */*'),
-            ('Accept-Encoding', 'gzip, deflate'),
-            ('Connection', 'keep-alive')
+            ("User-Agent", "PlanWise-Navigator/1.0 (Corporate-Environment)"),
+            ("Accept", "application/json, text/plain, */*"),
+            ("Accept-Encoding", "gzip, deflate"),
+            ("Connection", "keep-alive"),
         ]
 
-    def get(self, url: str, params: Optional[Dict[str, Any]] = None, **kwargs) -> NetworkResponse:
+    def get(
+        self, url: str, params: Optional[Dict[str, Any]] = None, **kwargs
+    ) -> NetworkResponse:
         """
         Perform HTTP GET request with corporate network support.
 
@@ -145,10 +147,15 @@ class CorporateNetworkClient:
             query_string = urllib.parse.urlencode(params)
             url = f"{url}?{query_string}"
 
-        return self._request('GET', url, **kwargs)
+        return self._request("GET", url, **kwargs)
 
-    def post(self, url: str, data: Optional[Union[str, bytes, Dict]] = None,
-             json_data: Optional[Dict] = None, **kwargs) -> NetworkResponse:
+    def post(
+        self,
+        url: str,
+        data: Optional[Union[str, bytes, Dict]] = None,
+        json_data: Optional[Dict] = None,
+        **kwargs,
+    ) -> NetworkResponse:
         """
         Perform HTTP POST request with corporate network support.
 
@@ -162,14 +169,20 @@ class CorporateNetworkClient:
             Network response
         """
         if json_data:
-            data = json.dumps(json_data).encode('utf-8')
-            kwargs.setdefault('headers', {})['Content-Type'] = 'application/json'
+            data = json.dumps(json_data).encode("utf-8")
+            kwargs.setdefault("headers", {})["Content-Type"] = "application/json"
 
-        return self._request('POST', url, data=data, **kwargs)
+        return self._request("POST", url, data=data, **kwargs)
 
-    def _request(self, method: str, url: str, data: Optional[Union[str, bytes]] = None,
-                headers: Optional[Dict[str, str]] = None, timeout: Optional[int] = None,
-                max_retries: Optional[int] = None) -> NetworkResponse:
+    def _request(
+        self,
+        method: str,
+        url: str,
+        data: Optional[Union[str, bytes]] = None,
+        headers: Optional[Dict[str, str]] = None,
+        timeout: Optional[int] = None,
+        max_retries: Optional[int] = None,
+    ) -> NetworkResponse:
         """
         Perform HTTP request with retry logic and error handling.
 
@@ -219,7 +232,7 @@ class CorporateNetworkClient:
                     # Decode content if it's bytes
                     if isinstance(content, bytes):
                         try:
-                            content = content.decode('utf-8')
+                            content = content.decode("utf-8")
                         except UnicodeDecodeError:
                             pass  # Keep as bytes
 
@@ -231,7 +244,7 @@ class CorporateNetworkClient:
                         headers=dict(response.headers),
                         url=response.geturl(),
                         elapsed_time=elapsed_time,
-                        retries=attempt
+                        retries=attempt,
                     )
 
             except (URLError, socket.timeout) as e:
@@ -247,16 +260,21 @@ class CorporateNetworkClient:
 
                 # Calculate retry delay with exponential backoff and jitter
                 delay = min(
-                    self.config.timeouts.retry_delay * (self.config.timeouts.retry_backoff ** attempt),
-                    self.config.timeouts.max_retry_delay
+                    self.config.timeouts.retry_delay
+                    * (self.config.timeouts.retry_backoff**attempt),
+                    self.config.timeouts.max_retry_delay,
                 )
                 jitter = secrets.SystemRandom().uniform(0, 0.1) * delay
                 time.sleep(delay + jitter)
 
         # All retries exhausted, raise the last error
-        raise RuntimeError(f"Network request failed after {max_retries + 1} attempts: {last_error.message}")
+        raise RuntimeError(
+            f"Network request failed after {max_retries + 1} attempts: {last_error.message}"
+        )
 
-    def _create_network_error(self, error: Exception, url: str, retry_count: int) -> NetworkError:
+    def _create_network_error(
+        self, error: Exception, url: str, retry_count: int
+    ) -> NetworkError:
         """Create structured network error from exception."""
         if isinstance(error, HTTPError):
             return NetworkError(
@@ -264,28 +282,28 @@ class CorporateNetworkClient:
                 message=f"HTTP {error.code}: {error.reason}",
                 url=url,
                 status_code=error.code,
-                retry_count=retry_count
+                retry_count=retry_count,
             )
         elif isinstance(error, URLError):
             return NetworkError(
                 error_type="CONNECTION_ERROR",
                 message=f"Connection failed: {error.reason}",
                 url=url,
-                retry_count=retry_count
+                retry_count=retry_count,
             )
         elif isinstance(error, socket.timeout):
             return NetworkError(
                 error_type="TIMEOUT_ERROR",
                 message="Request timed out",
                 url=url,
-                retry_count=retry_count
+                retry_count=retry_count,
             )
         else:
             return NetworkError(
                 error_type="UNKNOWN_ERROR",
                 message=str(error),
                 url=url,
-                retry_count=retry_count
+                retry_count=retry_count,
             )
 
     @contextmanager
@@ -302,13 +320,17 @@ class CorporateNetworkClient:
         Returns:
             Network diagnostics results
         """
-        if not self._diagnostics or (time.time() - self._session_start) > 300:  # Refresh every 5 minutes
+        if (
+            not self._diagnostics or (time.time() - self._session_start) > 300
+        ):  # Refresh every 5 minutes
             self._diagnostics = validate_network_connectivity(self.config)
             self._session_start = time.time()
 
         return self._diagnostics
 
-    def test_dagster_connectivity(self, host: str = "localhost", port: int = 3000) -> Tuple[bool, Optional[str]]:
+    def test_dagster_connectivity(
+        self, host: str = "localhost", port: int = 3000
+    ) -> Tuple[bool, Optional[str]]:
         """
         Test connectivity to Dagster web server.
 
@@ -322,7 +344,9 @@ class CorporateNetworkClient:
         url = f"http://{host}:{port}/health"
 
         try:
-            response = self.get(url, timeout=self.config.timeouts.dagster_health_timeout)
+            response = self.get(
+                url, timeout=self.config.timeouts.dagster_health_timeout
+            )
             if response.status_code == 200:
                 return True, None
             else:
@@ -330,7 +354,9 @@ class CorporateNetworkClient:
         except Exception as e:
             return False, str(e)
 
-    def download_file(self, url: str, destination: Path, chunk_size: Optional[int] = None) -> bool:
+    def download_file(
+        self, url: str, destination: Path, chunk_size: Optional[int] = None
+    ) -> bool:
         """
         Download file with progress tracking and resume support.
 
@@ -351,16 +377,17 @@ class CorporateNetworkClient:
             resume_pos = 0
             if destination.exists():
                 resume_pos = destination.stat().st_size
-                request.add_header('Range', f'bytes={resume_pos}-')
+                request.add_header("Range", f"bytes={resume_pos}-")
 
-            response = self.opener.open(request,
-                                      timeout=self.config.timeouts.connection_timeout)
+            response = self.opener.open(
+                request, timeout=self.config.timeouts.connection_timeout
+            )
 
-            total_size = int(response.headers.get('Content-Length', 0))
+            total_size = int(response.headers.get("Content-Length", 0))
             if resume_pos > 0:
                 total_size += resume_pos
 
-            mode = 'ab' if resume_pos > 0 else 'wb'
+            mode = "ab" if resume_pos > 0 else "wb"
             with open(destination, mode) as f:
                 while True:
                     chunk = response.read(chunk_size)
@@ -411,25 +438,26 @@ def test_subprocess_with_proxy(
     # Prepare environment with proxy settings
     if env is None:
         import os
+
         env = os.environ.copy()
 
     if config.proxy.http_proxy:
-        env['HTTP_PROXY'] = config.proxy.http_proxy
-        env['http_proxy'] = config.proxy.http_proxy
+        env["HTTP_PROXY"] = config.proxy.http_proxy
+        env["http_proxy"] = config.proxy.http_proxy
 
     if config.proxy.https_proxy:
-        env['HTTPS_PROXY'] = config.proxy.https_proxy
-        env['https_proxy'] = config.proxy.https_proxy
+        env["HTTPS_PROXY"] = config.proxy.https_proxy
+        env["https_proxy"] = config.proxy.https_proxy
 
     if config.proxy.no_proxy:
-        env['NO_PROXY'] = ','.join(config.proxy.no_proxy)
-        env['no_proxy'] = ','.join(config.proxy.no_proxy)
+        env["NO_PROXY"] = ",".join(config.proxy.no_proxy)
+        env["no_proxy"] = ",".join(config.proxy.no_proxy)
 
     # Add certificate bundle if specified
     if config.certificates.ca_bundle_path:
-        env['REQUESTS_CA_BUNDLE'] = config.certificates.ca_bundle_path
-        env['SSL_CERT_FILE'] = config.certificates.ca_bundle_path
-        env['CURL_CA_BUNDLE'] = config.certificates.ca_bundle_path
+        env["REQUESTS_CA_BUNDLE"] = config.certificates.ca_bundle_path
+        env["SSL_CERT_FILE"] = config.certificates.ca_bundle_path
+        env["CURL_CA_BUNDLE"] = config.certificates.ca_bundle_path
 
     # Execute command with timeout
     timeout = timeout or config.timeouts.total_timeout
@@ -441,7 +469,7 @@ def test_subprocess_with_proxy(
             timeout=timeout,
             capture_output=True,
             text=True,
-            encoding='utf-8',
+            encoding="utf-8",
             check=False,
             cwd=str(cwd) if cwd is not None else None,
         )
@@ -451,7 +479,7 @@ def test_subprocess_with_proxy(
             args=command,
             returncode=124,  # Standard timeout exit code
             stdout=e.stdout or "",
-            stderr=f"Command timed out after {timeout} seconds"
+            stderr=f"Command timed out after {timeout} seconds",
         )
 
 
@@ -470,9 +498,9 @@ def diagnose_network_issues() -> Dict[str, Any]:
     # Additional system-level diagnostics
     system_info = {
         "proxy_env_vars": {
-            "HTTP_PROXY": os.environ.get('HTTP_PROXY'),
-            "HTTPS_PROXY": os.environ.get('HTTPS_PROXY'),
-            "NO_PROXY": os.environ.get('NO_PROXY'),
+            "HTTP_PROXY": os.environ.get("HTTP_PROXY"),
+            "HTTPS_PROXY": os.environ.get("HTTPS_PROXY"),
+            "NO_PROXY": os.environ.get("NO_PROXY"),
         },
         "dns_resolution": {},
         "port_connectivity": {},
@@ -490,9 +518,11 @@ def diagnose_network_issues() -> Dict[str, Any]:
             system_info["dns_resolution"][hostname] = False
 
     # Test port connectivity
-    test_ports = [(parsed.hostname, parsed.port or (443 if parsed.scheme == 'https' else 80))
-                  for parsed in [urllib.parse.urlparse(url) for url in config.test_endpoints]
-                  if parsed.hostname]
+    test_ports = [
+        (parsed.hostname, parsed.port or (443 if parsed.scheme == "https" else 80))
+        for parsed in [urllib.parse.urlparse(url) for url in config.test_endpoints]
+        if parsed.hostname
+    ]
 
     for host, port in test_ports:
         try:
@@ -508,28 +538,37 @@ def diagnose_network_issues() -> Dict[str, Any]:
         "network_diagnostics": diagnostics,
         "system_info": system_info,
         "configuration": config.dict(),
-        "recommendations": _generate_recommendations(diagnostics, system_info)
+        "recommendations": _generate_recommendations(diagnostics, system_info),
     }
 
 
-def _generate_recommendations(diagnostics: NetworkDiagnostics,
-                            system_info: Dict[str, Any]) -> List[str]:
+def _generate_recommendations(
+    diagnostics: NetworkDiagnostics, system_info: Dict[str, Any]
+) -> List[str]:
     """Generate troubleshooting recommendations based on diagnostics."""
     recommendations = []
 
     if not any(diagnostics.connectivity_tests.values()):
-        recommendations.append("No network connectivity detected. Check network connection and proxy settings.")
+        recommendations.append(
+            "No network connectivity detected. Check network connection and proxy settings."
+        )
 
         # Check DNS issues
         if not any(system_info["dns_resolution"].values()):
-            recommendations.append("DNS resolution failed. Check DNS server configuration.")
+            recommendations.append(
+                "DNS resolution failed. Check DNS server configuration."
+            )
 
         # Check port connectivity
         if not any(system_info["port_connectivity"].values()):
-            recommendations.append("Port connectivity failed. Check firewall and proxy configuration.")
+            recommendations.append(
+                "Port connectivity failed. Check firewall and proxy configuration."
+            )
 
     if diagnostics.proxy_detected and not diagnostics.proxy_working:
-        recommendations.append("Proxy configuration detected but not working. Verify proxy server settings and authentication.")
+        recommendations.append(
+            "Proxy configuration detected but not working. Verify proxy server settings and authentication."
+        )
 
     if diagnostics.errors:
         recommendations.append("Review error details for specific connectivity issues.")

@@ -283,9 +283,24 @@ class TestHazardSelection:
 
         # Create test workforce
         workforce = [
-            {"employee_id": "EMP_001", "age_band": "25-34", "tenure_band": "0-2", "level_id": 1},
-            {"employee_id": "EMP_002", "age_band": "35-44", "tenure_band": "2-5", "level_id": 2},
-            {"employee_id": "EMP_003", "age_band": "45-54", "tenure_band": "5-10", "level_id": 3},
+            {
+                "employee_id": "EMP_001",
+                "age_band": "25-34",
+                "tenure_band": "0-2",
+                "level_id": 1,
+            },
+            {
+                "employee_id": "EMP_002",
+                "age_band": "35-44",
+                "tenure_band": "2-5",
+                "level_id": 2,
+            },
+            {
+                "employee_id": "EMP_003",
+                "age_band": "45-54",
+                "tenure_band": "5-10",
+                "level_id": 3,
+            },
         ]
 
         # Mock hazard rate lookup to return 100% - all should be selected
@@ -301,7 +316,9 @@ class TestHazardSelection:
     def test_select_by_hazard_deterministic(self, mock_context):
         """Selection is deterministic with same seed."""
 
-        class DeterministicTestGenerator(HazardBasedEventGeneratorMixin, EventGenerator):
+        class DeterministicTestGenerator(
+            HazardBasedEventGeneratorMixin, EventGenerator
+        ):
             event_type = "deterministic_test"
             execution_order = 50
             hazard_table_name = "test_hazard"
@@ -315,7 +332,12 @@ class TestHazardSelection:
         gen = DeterministicTestGenerator()
 
         workforce = [
-            {"employee_id": f"EMP_{i:03d}", "age_band": "25-34", "tenure_band": "0-2", "level_id": 1}
+            {
+                "employee_id": f"EMP_{i:03d}",
+                "age_band": "25-34",
+                "tenure_band": "0-2",
+                "level_id": 1,
+            }
             for i in range(100)
         ]
 
@@ -325,7 +347,9 @@ class TestHazardSelection:
             selected2 = gen.select_by_hazard(workforce, mock_context)
 
         # Same seed should produce same selection
-        assert [e["employee_id"] for e in selected1] == [e["employee_id"] for e in selected2]
+        assert [e["employee_id"] for e in selected1] == [
+            e["employee_id"] for e in selected2
+        ]
 
     def test_select_by_hazard_probability_distribution(self, mock_context):
         """Selection rate roughly matches hazard rate over many samples."""
@@ -345,7 +369,12 @@ class TestHazardSelection:
 
         # Create large workforce
         workforce = [
-            {"employee_id": f"EMP_{i:04d}", "age_band": "25-34", "tenure_band": "0-2", "level_id": 1}
+            {
+                "employee_id": f"EMP_{i:04d}",
+                "age_band": "25-34",
+                "tenure_band": "0-2",
+                "level_id": 1,
+            }
             for i in range(1000)
         ]
 
@@ -355,4 +384,6 @@ class TestHazardSelection:
 
         # Should be roughly 30% (allow some variance)
         selection_rate = len(selected) / len(workforce)
-        assert 0.20 <= selection_rate <= 0.40, f"Selection rate {selection_rate} not near 30%"
+        assert (
+            0.20 <= selection_rate <= 0.40
+        ), f"Selection rate {selection_rate} not near 30%"

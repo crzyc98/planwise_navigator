@@ -14,9 +14,10 @@ class SyncConfig(BaseModel):
     remote: Optional[str] = Field(None, description="Git remote URL")
     branch: str = Field(default="main", description="Git branch to sync with")
     auto_sync: bool = Field(default=False, description="Auto-sync on changes")
-    conflict_strategy: Literal["last-write-wins", "ask-user", "keep-local", "keep-remote"] = Field(
-        default="last-write-wins",
-        description="Strategy for handling sync conflicts"
+    conflict_strategy: Literal[
+        "last-write-wins", "ask-user", "keep-local", "keep-remote"
+    ] = Field(
+        default="last-write-wins", description="Strategy for handling sync conflicts"
     )
 
 
@@ -29,8 +30,12 @@ class SyncStatus(BaseModel):
     local_changes: int = Field(default=0, description="Number of uncommitted changes")
     ahead: int = Field(default=0, description="Commits ahead of remote")
     behind: int = Field(default=0, description="Commits behind remote")
-    last_sync: Optional[datetime] = Field(None, description="Last successful sync timestamp")
-    conflicts: List[str] = Field(default_factory=list, description="List of conflicting files")
+    last_sync: Optional[datetime] = Field(
+        None, description="Last successful sync timestamp"
+    )
+    conflicts: List[str] = Field(
+        default_factory=list, description="List of conflicting files"
+    )
     error: Optional[str] = Field(None, description="Last error message if any")
 
 
@@ -41,8 +46,12 @@ class SyncLogEntry(BaseModel):
     operation: Literal["push", "pull", "init", "conflict", "disconnect"] = Field(
         ..., description="Type of sync operation"
     )
-    workspaces_affected: int = Field(default=0, description="Number of workspaces affected")
-    scenarios_affected: int = Field(default=0, description="Number of scenarios affected")
+    workspaces_affected: int = Field(
+        default=0, description="Number of workspaces affected"
+    )
+    scenarios_affected: int = Field(
+        default=0, description="Number of scenarios affected"
+    )
     message: str = Field(..., description="Human-readable description")
     commit_sha: Optional[str] = Field(None, description="Git commit SHA if applicable")
     success: bool = Field(default=True, description="Whether operation succeeded")
@@ -64,14 +73,18 @@ class SyncPullResult(BaseModel):
     files_updated: int = Field(default=0, description="Number of files updated")
     files_added: int = Field(default=0, description="Number of files added")
     files_removed: int = Field(default=0, description="Number of files removed")
-    conflicts: List[str] = Field(default_factory=list, description="Files with conflicts")
+    conflicts: List[str] = Field(
+        default_factory=list, description="Files with conflicts"
+    )
     message: str = Field(..., description="Status message")
 
 
 class SyncInitRequest(BaseModel):
     """Request to initialize sync."""
 
-    remote_url: str = Field(..., description="Git remote URL (e.g., git@github.com:user/repo.git)")
+    remote_url: str = Field(
+        ..., description="Git remote URL (e.g., git@github.com:user/repo.git)"
+    )
     branch: str = Field(default="main", description="Branch to use")
     auto_sync: bool = Field(default=False, description="Enable auto-sync")
 
@@ -82,5 +95,9 @@ class WorkspaceSyncInfo(BaseModel):
     workspace_id: str = Field(..., description="Workspace ID")
     workspace_name: str = Field(..., description="Workspace name")
     scenario_count: int = Field(default=0, description="Number of scenarios")
-    has_local_changes: bool = Field(default=False, description="Whether there are uncommitted changes")
-    last_synced: Optional[datetime] = Field(None, description="When this workspace was last synced")
+    has_local_changes: bool = Field(
+        default=False, description="Whether there are uncommitted changes"
+    )
+    last_synced: Optional[datetime] = Field(
+        None, description="When this workspace was last synced"
+    )

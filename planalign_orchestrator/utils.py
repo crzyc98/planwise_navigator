@@ -126,14 +126,19 @@ class DatabaseConnectionPool:
             try:
                 # Set deterministic threading and memory settings
                 conn.execute("PRAGMA threads=1")  # Force single-threaded execution
-                conn.execute("PRAGMA enable_external_access=false")  # Disable external access
+                conn.execute(
+                    "PRAGMA enable_external_access=false"
+                )  # Disable external access
                 conn.execute("PRAGMA preserve_insertion_order=true")  # Preserve order
                 conn.execute("PRAGMA memory_limit='1GB'")  # Conservative limit
 
                 if thread_id:
                     # Set a deterministic seed based on thread ID for any internal RNG
                     import hashlib
-                    thread_seed = int(hashlib.sha256(thread_id.encode()).hexdigest()[:8], 16) % (2**31)
+
+                    thread_seed = int(
+                        hashlib.sha256(thread_id.encode()).hexdigest()[:8], 16
+                    ) % (2**31)
                     # Note: DuckDB doesn't have a direct seed setting, but this prepares for future use
 
             except Exception as e:
@@ -143,7 +148,9 @@ class DatabaseConnectionPool:
         return conn
 
     @contextmanager
-    def get_connection(self, thread_id: Optional[str] = None) -> Generator[duckdb.DuckDBPyConnection, None, None]:
+    def get_connection(
+        self, thread_id: Optional[str] = None
+    ) -> Generator[duckdb.DuckDBPyConnection, None, None]:
         """Context manager for connection checkout/checkin.
 
         Usage:
@@ -159,7 +166,7 @@ class DatabaseConnectionPool:
         Raises:
             RuntimeError: If connection pool is exhausted
         """
-        thread_id = thread_id or 'main'
+        thread_id = thread_id or "main"
         conn = None
 
         # Checkout connection from pool
@@ -228,15 +235,15 @@ class DatabaseConnectionManager:
         self.db_path = db_path or Path("dbt/simulation.duckdb")
         self.deterministic = deterministic
         self._pool = DatabaseConnectionPool(
-            db_path=self.db_path,
-            pool_size=5,
-            deterministic=deterministic
+            db_path=self.db_path, pool_size=5, deterministic=deterministic
         )
         # Register cleanup at exit to ensure connections are closed
         atexit.register(self.close_all)
 
     @contextmanager
-    def get_connection(self, *, deterministic: Optional[bool] = None, thread_id: Optional[str] = None) -> Generator[duckdb.DuckDBPyConnection, None, None]:
+    def get_connection(
+        self, *, deterministic: Optional[bool] = None, thread_id: Optional[str] = None
+    ) -> Generator[duckdb.DuckDBPyConnection, None, None]:
         """Get a connection from the pool.
 
         Args:
@@ -252,7 +259,9 @@ class DatabaseConnectionManager:
             yield conn
 
     @contextmanager
-    def transaction(self, *, deterministic: bool = False, thread_id: Optional[str] = None) -> Generator[duckdb.DuckDBPyConnection, None, None]:
+    def transaction(
+        self, *, deterministic: bool = False, thread_id: Optional[str] = None
+    ) -> Generator[duckdb.DuckDBPyConnection, None, None]:
         """Create a database transaction context using pooled connection.
 
         Args:
@@ -300,7 +309,9 @@ class DatabaseConnectionManager:
         last_exc: Optional[Exception] = None
         while attempt <= retries:
             try:
-                with self.transaction(deterministic=deterministic, thread_id=thread_id) as conn:
+                with self.transaction(
+                    deterministic=deterministic, thread_id=thread_id
+                ) as conn:
                     return fn(conn)
             except Exception as e:  # pragma: no cover - external IO
                 last_exc = e
@@ -313,7 +324,12 @@ class DatabaseConnectionManager:
                 else:
                     # Add jitter for normal operation
                     import secrets
-                    sleep_time = backoff_seconds * (2**attempt) * (0.5 + secrets.SystemRandom().random() * 0.5)
+
+                    sleep_time = (
+                        backoff_seconds
+                        * (2**attempt)
+                        * (0.5 + secrets.SystemRandom().random() * 0.5)
+                    )
                 time.sleep(sleep_time)
                 attempt += 1
         assert last_exc is not None

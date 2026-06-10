@@ -105,7 +105,9 @@ class EventRegistry:
 
             # Register the generator class
             cls._generators[event_type] = generator_class
-            logger.debug(f"Registered event generator: {event_type} -> {generator_class.__name__}")
+            logger.debug(
+                f"Registered event generator: {event_type} -> {generator_class.__name__}"
+            )
 
             return generator_class
 
@@ -247,7 +249,9 @@ class EventRegistry:
         """
         if scenario_id in cls._disabled:
             cls._disabled[scenario_id].discard(event_type)
-            logger.info(f"Enabled event type '{event_type}' for scenario '{scenario_id}'")
+            logger.info(
+                f"Enabled event type '{event_type}' for scenario '{scenario_id}'"
+            )
 
     @classmethod
     def is_enabled(cls, event_type: str, scenario_id: str) -> bool:
@@ -342,6 +346,8 @@ class EventRegistry:
             order = getattr(gen_class, "execution_order", "?")
             sql = getattr(gen_class, "supports_sql", True)
             mode_str = "sql" if sql else "none"
-            lines.append(f"  - {event_type} (order={order}, mode={mode_str}): {gen_class.__name__}")
+            lines.append(
+                f"  - {event_type} (order={order}, mode={mode_str}): {gen_class.__name__}"
+            )
 
         return "\n".join(lines)

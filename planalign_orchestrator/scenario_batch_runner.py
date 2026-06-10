@@ -41,7 +41,12 @@ class ScenarioBatchRunner:
     - Graceful continuation on per-scenario failure
     """
 
-    def __init__(self, scenarios_dir: Path, output_dir: Path, base_config_path: Optional[Path] = None):
+    def __init__(
+        self,
+        scenarios_dir: Path,
+        output_dir: Path,
+        base_config_path: Optional[Path] = None,
+    ):
         """Initialize batch runner with scenario and output directories.
 
         Args:
@@ -51,14 +56,23 @@ class ScenarioBatchRunner:
         """
         self.scenarios_dir = Path(scenarios_dir)
         self.output_dir = Path(output_dir)
-        self.base_config_path = base_config_path or Path("config/simulation_config.yaml")
-        self.batch_timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
+        self.base_config_path = base_config_path or Path(
+            "config/simulation_config.yaml"
+        )
+        self.batch_timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
         self.batch_output_dir = self.output_dir / f"batch_{self.batch_timestamp}"
 
         # Create output directory
         self.batch_output_dir.mkdir(parents=True, exist_ok=True)
 
-    def run_batch(self, scenario_names: Optional[List[str]] = None, export_format: str = "excel", threads: int = 1, optimization: str = "medium", clean_databases: bool = False) -> Dict[str, Any]:
+    def run_batch(
+        self,
+        scenario_names: Optional[List[str]] = None,
+        export_format: str = "excel",
+        threads: int = 1,
+        optimization: str = "medium",
+        clean_databases: bool = False,
+    ) -> Dict[str, Any]:
         """Execute batch of scenarios with isolated databases.
 
         Args:
@@ -95,25 +109,35 @@ class ScenarioBatchRunner:
             # Use ExecutionMutex to prevent concurrent database access
             with ExecutionMutex(f"scenario_{name}"):
                 try:
-                    result = self._run_isolated_scenario(name, config_path, export_format, threads, optimization)
+                    result = self._run_isolated_scenario(
+                        name, config_path, export_format, threads, optimization
+                    )
                     results[name] = result
                     logger.info("Scenario %s completed successfully", name)
 
                 except Exception as e:
                     logger.error("Scenario %s failed: %s", name, e, exc_info=True)
-                    results[name] = {"status": "failed", "error": str(e), "traceback": traceback.format_exc()}
+                    results[name] = {
+                        "status": "failed",
+                        "error": str(e),
+                        "traceback": traceback.format_exc(),
+                    }
 
         # Generate batch summary report
         self._generate_batch_summary(results)
 
         # Generate comparison report if we have successful scenarios
-        successful_scenarios = {k: v for k, v in results.items() if v.get("status") == "completed"}
+        successful_scenarios = {
+            k: v for k, v in results.items() if v.get("status") == "completed"
+        }
         if len(successful_scenarios) > 1:
             self._generate_comparison_report(successful_scenarios)
 
         return results
 
-    def _discover_scenarios(self, scenario_names: Optional[List[str]] = None) -> Dict[str, Path]:
+    def _discover_scenarios(
+        self, scenario_names: Optional[List[str]] = None
+    ) -> Dict[str, Path]:
         """Discover scenario configuration files in the scenarios directory.
 
         Args:
@@ -195,7 +219,14 @@ class ScenarioBatchRunner:
         else:
             logger.info("No existing databases found to clean")
 
-    def _run_isolated_scenario(self, scenario_name: str, config_path: Path, export_format: str, threads: int = 1, optimization: str = "medium") -> Dict[str, Any]:
+    def _run_isolated_scenario(
+        self,
+        scenario_name: str,
+        config_path: Path,
+        export_format: str,
+        threads: int = 1,
+        optimization: str = "medium",
+    ) -> Dict[str, Any]:
         """Run single scenario with isolated database.
 
         Args:
@@ -221,6 +252,7 @@ class ScenarioBatchRunner:
             logger.debug("Creating database file: %s", scenario_db)
             # Create a proper DuckDB database file
             import duckdb
+
             conn = duckdb.connect(str(scenario_db))
             conn.close()
             logger.debug("Database file created successfully")
@@ -238,7 +270,9 @@ class ScenarioBatchRunner:
             seed = int(seed_path.read_text().strip())
             logger.debug("Using existing seed: %d", seed)
         else:
-            seed = getattr(config.simulation, 'random_seed', None) or int(datetime.now().timestamp())
+            seed = getattr(config.simulation, "random_seed", None) or int(
+                datetime.now().timestamp()
+            )
             seed_path.write_text(str(seed))
             logger.debug("Generated new seed: %d", seed)
 
@@ -265,7 +299,7 @@ class ScenarioBatchRunner:
             summary = orchestrator.execute_multi_year_simulation(
                 start_year=config.simulation.start_year,
                 end_year=config.simulation.end_year,
-                fail_on_validation_error=False  # Continue batch processing even with validation warnings
+                fail_on_validation_error=False,  # Continue batch processing even with validation warnings
             )
 
             execution_time = (datetime.now() - start_time).total_seconds()
@@ -279,7 +313,7 @@ class ScenarioBatchRunner:
                 output_dir=scenario_dir,
                 config=config,
                 seed=seed,
-                export_format=export_format
+                export_format=export_format,
             )
 
             # Save scenario configuration for reference
@@ -294,7 +328,7 @@ class ScenarioBatchRunner:
                 "scenario_dir": str(scenario_dir),
                 "execution_time_seconds": execution_time,
                 "seed": seed,
-                "config_path": str(config_copy_path)
+                "config_path": str(config_copy_path),
             }
 
         finally:
@@ -302,6 +336,7 @@ class ScenarioBatchRunner:
             try:
                 # Force close any remaining connections
                 import gc
+
                 gc.collect()  # Force garbage collection to close lingering connections
             except Exception:
                 pass  # Best effort cleanup
@@ -331,7 +366,9 @@ class ScenarioBatchRunner:
         # Create new SimulationConfig from merged dictionary
         return SimulationConfig(**merged_dict)
 
-    def _deep_merge(self, base: Dict[str, Any], overrides: Dict[str, Any]) -> Dict[str, Any]:
+    def _deep_merge(
+        self, base: Dict[str, Any], overrides: Dict[str, Any]
+    ) -> Dict[str, Any]:
         """Deep merge two dictionaries, with overrides taking precedence.
 
         Args:
@@ -344,7 +381,11 @@ class ScenarioBatchRunner:
         merged = base.copy()
 
         for key, value in overrides.items():
-            if key in merged and isinstance(merged[key], dict) and isinstance(value, dict):
+            if (
+                key in merged
+                and isinstance(merged[key], dict)
+                and isinstance(value, dict)
+            ):
                 merged[key] = self._deep_merge(merged[key], value)
             else:
                 merged[key] = value
@@ -398,8 +439,14 @@ class ScenarioBatchRunner:
         """
         summary_path = self.batch_output_dir / "batch_summary.json"
 
-        successful = [name for name, result in results.items() if result.get("status") == "completed"]
-        failed = [name for name, result in results.items() if result.get("status") == "failed"]
+        successful = [
+            name
+            for name, result in results.items()
+            if result.get("status") == "completed"
+        ]
+        failed = [
+            name for name, result in results.items() if result.get("status") == "failed"
+        ]
 
         total_time = sum(
             result.get("execution_time_seconds", 0)
@@ -414,11 +461,8 @@ class ScenarioBatchRunner:
             "failed_scenarios": len(failed),
             "success_rate": len(successful) / len(results) if results else 0,
             "total_execution_time_seconds": total_time,
-            "scenarios": {
-                "successful": successful,
-                "failed": failed
-            },
-            "detailed_results": results
+            "scenarios": {"successful": successful, "failed": failed},
+            "detailed_results": results,
         }
 
         with open(summary_path, "w", encoding="utf-8") as f:
@@ -455,8 +499,7 @@ class ScenarioBatchRunner:
 
             exporter = ExcelExporter(template_db_manager)
             exporter.create_comparison_workbook(
-                scenario_results=successful_scenarios,
-                output_path=comparison_path
+                scenario_results=successful_scenarios, output_path=comparison_path
             )
 
             logger.info("Comparison report saved: %s", comparison_path)
@@ -478,8 +521,8 @@ class ScenarioBatchRunner:
                 ["git", "rev-parse", "HEAD"],
                 capture_output=True,
                 text=True,
-                encoding='utf-8',
-                check=True
+                encoding="utf-8",
+                check=True,
             )
             metadata["git_sha"] = result.stdout.strip()
         except Exception:
@@ -491,8 +534,8 @@ class ScenarioBatchRunner:
                 ["git", "rev-parse", "--abbrev-ref", "HEAD"],
                 capture_output=True,
                 text=True,
-                encoding='utf-8',
-                check=True
+                encoding="utf-8",
+                check=True,
             )
             metadata["git_branch"] = result.stdout.strip()
         except Exception:
@@ -504,8 +547,8 @@ class ScenarioBatchRunner:
                 ["git", "status", "--porcelain"],
                 capture_output=True,
                 text=True,
-                encoding='utf-8',
-                check=True
+                encoding="utf-8",
+                check=True,
             )
             metadata["git_clean"] = len(result.stdout.strip()) == 0
         except Exception:

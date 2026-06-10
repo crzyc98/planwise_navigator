@@ -275,7 +275,9 @@ class RunSummaryGenerator:
                     duration = data.get("duration_seconds") or 0.0
                     if year is None:
                         # Try to extract year from operation name (e.g., year_simulation_2025)
-                        if isinstance(name, str) and name.startswith("year_simulation_"):
+                        if isinstance(name, str) and name.startswith(
+                            "year_simulation_"
+                        ):
                             try:
                                 y = int(name.rsplit("_", 1)[-1])
                                 totals[y] = duration
@@ -384,10 +386,14 @@ class RunSummaryGenerator:
             lines.append("")
             lines.append("Performance:")
             lines.append("  Operations: %s" % perf_summary["total_operations"])
-            lines.append("  Total Duration: %ss" % perf_summary["total_duration_seconds"])
+            lines.append(
+                "  Total Duration: %ss" % perf_summary["total_duration_seconds"]
+            )
             if perf_summary.get("slowest_operation"):
                 slowest = perf_summary["slowest_operation"]
-                lines.append("  Slowest: %s (%ss)" % (slowest["name"], slowest["duration"]))
+                lines.append(
+                    "  Slowest: %s (%ss)" % (slowest["name"], slowest["duration"])
+                )
 
         # Compact per-year breakdown (if available)
         breakdown = summary.get("performance_breakdown", {}).get("by_year", [])
@@ -410,7 +416,15 @@ class RunSummaryGenerator:
 
                 lines.append(
                     "  %s  %6s %7s %6s %6s %7s %7s"
-                    % (year, fmt(found), fmt(events), fmt(state), fmt(valid), fmt(report), fmt(total))
+                    % (
+                        year,
+                        fmt(found),
+                        fmt(events),
+                        fmt(state),
+                        fmt(valid),
+                        fmt(report),
+                        fmt(total),
+                    )
                 )
 
         # Top contributors (if available)

@@ -64,8 +64,7 @@ async def get_promotion_hazard_config(
                         level_dampener_factor=ph["level_dampener_factor"],
                     ),
                     age_multipliers=[
-                        PromotionHazardAgeMultiplier(**m)
-                        for m in ph["age_multipliers"]
+                        PromotionHazardAgeMultiplier(**m) for m in ph["age_multipliers"]
                     ],
                     tenure_multipliers=[
                         PromotionHazardTenureMultiplier(**m)

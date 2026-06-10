@@ -19,12 +19,14 @@ def _make_workspace(tmp_path: Path, workspace_id: str = "ws-1") -> Path:
     ws_dir = tmp_path / workspace_id
     ws_dir.mkdir()
     (ws_dir / "workspace.json").write_text(
-        json.dumps({
-            "id": workspace_id,
-            "name": "Test",
-            "created_at": datetime.now(timezone.utc).isoformat(),
-            "updated_at": datetime.now(timezone.utc).isoformat(),
-        })
+        json.dumps(
+            {
+                "id": workspace_id,
+                "name": "Test",
+                "created_at": datetime.now(timezone.utc).isoformat(),
+                "updated_at": datetime.now(timezone.utc).isoformat(),
+            }
+        )
     )
     (ws_dir / "scenarios").mkdir()
     return ws_dir
@@ -35,12 +37,14 @@ def _make_scenario(ws_dir: Path, scenario_id: str = "sc-1") -> Path:
     sc_dir = ws_dir / "scenarios" / scenario_id
     sc_dir.mkdir(parents=True)
     (sc_dir / "scenario.json").write_text(
-        json.dumps({
-            "id": scenario_id,
-            "workspace_id": ws_dir.name,
-            "name": "Test Scenario",
-            "created_at": datetime.now(timezone.utc).isoformat(),
-        })
+        json.dumps(
+            {
+                "id": scenario_id,
+                "workspace_id": ws_dir.name,
+                "name": "Test Scenario",
+                "created_at": datetime.now(timezone.utc).isoformat(),
+            }
+        )
     )
     (sc_dir / "runs").mkdir()
     return sc_dir
@@ -483,13 +487,15 @@ class TestIsSimulationRunning:
         sc_dir = ws / "scenarios" / "sc-running"
         sc_dir.mkdir(parents=True)
         (sc_dir / "scenario.json").write_text(
-            json.dumps({
-                "id": "sc-running",
-                "workspace_id": ws.name,
-                "name": "Running Scenario",
-                "created_at": datetime.now(timezone.utc).isoformat(),
-                "status": "running",
-            })
+            json.dumps(
+                {
+                    "id": "sc-running",
+                    "workspace_id": ws.name,
+                    "name": "Running Scenario",
+                    "created_at": datetime.now(timezone.utc).isoformat(),
+                    "status": "running",
+                }
+            )
         )
 
         assert storage.is_simulation_running(ws.name) is True

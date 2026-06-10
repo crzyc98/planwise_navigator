@@ -6,7 +6,11 @@ Tests the centralized event type registration and lookup functionality.
 
 import pytest
 from planalign_orchestrator.generators.registry import EventRegistry
-from planalign_orchestrator.generators.base import EventGenerator, EventContext, ValidationResult
+from planalign_orchestrator.generators.base import (
+    EventGenerator,
+    EventContext,
+    ValidationResult,
+)
 
 
 @pytest.fixture(autouse=True)

@@ -98,7 +98,9 @@ class ConnectionManager:
                 except (WebSocketDisconnect, ConnectionError):
                     pass
                 except Exception as e:
-                    logger.warning(f"Unexpected error closing WebSocket for run {run_id}: {e}")
+                    logger.warning(
+                        f"Unexpected error closing WebSocket for run {run_id}: {e}"
+                    )
 
             del self._connections[run_id]
 

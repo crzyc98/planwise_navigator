@@ -64,7 +64,7 @@ class DatabasePathUpdater:
     def _contains_legacy_patterns(self, file_path: Path) -> bool:
         """Check if file contains legacy database path patterns."""
         try:
-            with open(file_path, 'r', encoding='utf-8', errors='ignore') as f:
+            with open(file_path, "r", encoding="utf-8", errors="ignore") as f:
                 content = f.read()
 
             # Look for legacy patterns
@@ -82,7 +82,7 @@ class DatabasePathUpdater:
     def update_file(self, file_path: Path, dry_run: bool = False) -> bool:
         """Update a single file to use standardized database paths."""
         try:
-            with open(file_path, 'r', encoding='utf-8') as f:
+            with open(file_path, "r", encoding="utf-8") as f:
                 original_content = f.read()
 
             updated_content = self._apply_transformations(original_content, file_path)
@@ -97,7 +97,7 @@ class DatabasePathUpdater:
                 return True
 
             # Write updated content
-            with open(file_path, 'w', encoding='utf-8') as f:
+            with open(file_path, "w", encoding="utf-8") as f:
                 f.write(updated_content)
 
             self.updated_files.append(file_path)
@@ -115,81 +115,89 @@ class DatabasePathUpdater:
         updated_content = content
 
         # Check if file already has the import
-        has_import = 'from planalign_orchestrator.config import get_database_path' in content
+        has_import = (
+            "from planalign_orchestrator.config import get_database_path" in content
+        )
 
         # Transformation 1: Direct duckdb.connect calls
         pattern1 = r'duckdb\.connect\(\s*[\'"]simulation\.duckdb[\'\"]\s*\)'
         if re.search(pattern1, content):
             if not has_import:
                 # Add import at the top after other imports
-                import_line = "from planalign_orchestrator.config import get_database_path"
+                import_line = (
+                    "from planalign_orchestrator.config import get_database_path"
+                )
                 updated_content = self._add_import(updated_content, import_line)
                 has_import = True
 
             # Replace the connect call
             updated_content = re.sub(
-                pattern1,
-                'duckdb.connect(str(get_database_path()))',
-                updated_content
+                pattern1, "duckdb.connect(str(get_database_path()))", updated_content
             )
 
         # Transformation 2: Path construction
         pattern2 = r'Path\(\s*[\'"]simulation\.duckdb[\'\"]\s*\)'
         if re.search(pattern2, content):
             if not has_import:
-                import_line = "from planalign_orchestrator.config import get_database_path"
+                import_line = (
+                    "from planalign_orchestrator.config import get_database_path"
+                )
                 updated_content = self._add_import(updated_content, import_line)
                 has_import = True
 
-            updated_content = re.sub(pattern2, 'get_database_path()', updated_content)
+            updated_content = re.sub(pattern2, "get_database_path()", updated_content)
 
         # Transformation 3: String literals (more careful)
         pattern3 = r'([\'"])simulation\.duckdb\1(?!\s*#)'
         if re.search(pattern3, content):
             if not has_import:
-                import_line = "from planalign_orchestrator.config import get_database_path"
+                import_line = (
+                    "from planalign_orchestrator.config import get_database_path"
+                )
                 updated_content = self._add_import(updated_content, import_line)
                 has_import = True
 
             # This is trickier - need to replace with str(get_database_path())
             # but only in appropriate contexts
             updated_content = re.sub(
-                pattern3,
-                'str(get_database_path())',
-                updated_content
+                pattern3, "str(get_database_path())", updated_content
             )
 
         return updated_content
 
     def _add_import(self, content: str, import_line: str) -> str:
         """Add import line in the appropriate location."""
-        lines = content.split('\n')
+        lines = content.split("\n")
 
         # Find the best place to insert the import
         insert_index = 0
 
         # Skip shebang and docstring
         for i, line in enumerate(lines):
-            if line.startswith('#!') or line.startswith('"""') or line.startswith("'''"):
+            if (
+                line.startswith("#!")
+                or line.startswith('"""')
+                or line.startswith("'''")
+            ):
                 continue
-            if line.strip() == '':
+            if line.strip() == "":
                 continue
-            if line.startswith('import ') or line.startswith('from '):
+            if line.startswith("import ") or line.startswith("from "):
                 insert_index = i + 1
             else:
                 break
 
         # Insert the import
         lines.insert(insert_index, import_line)
-        return '\n'.join(lines)
+        return "\n".join(lines)
 
     def _show_diff(self, original: str, updated: str, file_path: Path) -> None:
         """Show differences between original and updated content."""
         print(f"\nChanges for {file_path}:")
         print("-" * 40)
 
-        original_lines = original.split('\n')
-        updated_lines = updated.split('\n')
+        original_lines = original.split("\n")
+        updated_lines = updated.split("\n")
 
         for i, (orig, upd) in enumerate(zip(original_lines, updated_lines)):
             if orig != upd:
@@ -232,40 +240,48 @@ class DatabasePathUpdater:
         ]
 
         if self.updated_files:
-            report_lines.extend([
-                "Updated Files:",
-                "-" * 20,
-            ])
+            report_lines.extend(
+                [
+                    "Updated Files:",
+                    "-" * 20,
+                ]
+            )
             for file_path in self.updated_files:
                 report_lines.append(f"  ✅ {file_path}")
             report_lines.append("")
 
         if self.skipped_files:
-            report_lines.extend([
-                "Skipped Files:",
-                "-" * 20,
-            ])
+            report_lines.extend(
+                [
+                    "Skipped Files:",
+                    "-" * 20,
+                ]
+            )
             for file_path, reason in self.skipped_files:
                 report_lines.append(f"  ⏭️  {file_path} ({reason})")
             report_lines.append("")
 
         if self.errors:
-            report_lines.extend([
-                "Errors:",
-                "-" * 20,
-            ])
+            report_lines.extend(
+                [
+                    "Errors:",
+                    "-" * 20,
+                ]
+            )
             for error in self.errors:
                 report_lines.append(f"  ❌ {error}")
             report_lines.append("")
 
-        report_lines.extend([
-            "Next Steps:",
-            "-" * 20,
-            "1. Run tests to verify all changes work correctly",
-            "2. Test applications with updated database paths",
-            "3. Commit changes to version control",
-            "=" * 60
-        ])
+        report_lines.extend(
+            [
+                "Next Steps:",
+                "-" * 20,
+                "1. Run tests to verify all changes work correctly",
+                "2. Test applications with updated database paths",
+                "3. Commit changes to version control",
+                "=" * 60,
+            ]
+        )
 
         return "\n".join(report_lines)
 
@@ -285,20 +301,24 @@ Examples:
 
     # Update specific files
     python scripts/update_database_paths.py --file "tests/*.py"
-        """
+        """,
     )
 
     parser.add_argument(
-        "--dry-run", action="store_true",
-        help="Show what would be updated without making changes"
+        "--dry-run",
+        action="store_true",
+        help="Show what would be updated without making changes",
     )
     parser.add_argument(
-        "--file", type=str, default="**/*.py",
-        help="File pattern to update (default: **/*.py)"
+        "--file",
+        type=str,
+        default="**/*.py",
+        help="File pattern to update (default: **/*.py)",
     )
     parser.add_argument(
-        "--project-root", type=Path,
-        help="Project root directory (default: current directory)"
+        "--project-root",
+        type=Path,
+        help="Project root directory (default: current directory)",
     )
 
     args = parser.parse_args()

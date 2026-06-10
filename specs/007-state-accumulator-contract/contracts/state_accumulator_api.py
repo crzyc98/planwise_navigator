@@ -16,6 +16,7 @@ from typing import Dict, List, Optional, Protocol, runtime_checkable
 # StateAccumulatorContract Interface
 # =============================================================================
 
+
 @runtime_checkable
 class StateAccumulatorContractProtocol(Protocol):
     """Protocol defining the required attributes of a state accumulator contract."""
@@ -39,6 +40,7 @@ class StateAccumulatorContractProtocol(Protocol):
 # =============================================================================
 # StateAccumulatorRegistry Interface
 # =============================================================================
+
 
 class StateAccumulatorRegistryInterface(ABC):
     """Abstract interface for the state accumulator registry."""
@@ -106,6 +108,7 @@ class StateAccumulatorRegistryInterface(ABC):
 # YearDependencyValidator Interface
 # =============================================================================
 
+
 class YearDependencyValidatorInterface(ABC):
     """Abstract interface for year dependency validation."""
 
@@ -166,6 +169,7 @@ class YearDependencyValidatorInterface(ABC):
 # YearDependencyError Interface
 # =============================================================================
 
+
 class YearDependencyErrorInterface(Exception):
     """Interface for year dependency validation errors."""
 
@@ -189,6 +193,7 @@ class YearDependencyErrorInterface(Exception):
 # Integration Points
 # =============================================================================
 
+
 class YearExecutorValidationHook(Protocol):
     """Protocol for the validation hook in YearExecutor.
 
@@ -197,9 +202,7 @@ class YearExecutorValidationHook(Protocol):
     """
 
     def validate_before_state_accumulation(
-        self,
-        year: int,
-        validator: YearDependencyValidatorInterface
+        self, year: int, validator: YearDependencyValidatorInterface
     ) -> None:
         """Called before STATE_ACCUMULATION stage execution.
 
@@ -221,9 +224,7 @@ class CheckpointRecoveryValidationHook(Protocol):
     """
 
     def validate_before_checkpoint_resume(
-        self,
-        checkpoint_year: int,
-        validator: YearDependencyValidatorInterface
+        self, checkpoint_year: int, validator: YearDependencyValidatorInterface
     ) -> None:
         """Called before resuming from a checkpoint.
 

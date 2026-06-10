@@ -18,7 +18,12 @@ from typing import Dict, Literal, Optional
 
 from pydantic import BaseModel, Field, field_validator
 
-from .validators import quantize_amount, quantize_rate, quantize_amount_dict, quantize_rate_optional
+from .validators import (
+    quantize_amount,
+    quantize_rate,
+    quantize_amount_dict,
+    quantize_rate_optional,
+)
 
 
 @dataclass

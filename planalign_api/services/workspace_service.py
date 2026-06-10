@@ -46,6 +46,5 @@ class WorkspaceService:
     ) -> Optional[Workspace]:
         """Update base configuration for a workspace."""
         return self.storage.update_workspace(
-            workspace_id,
-            WorkspaceUpdate(base_config=config)
+            workspace_id, WorkspaceUpdate(base_config=config)
         )

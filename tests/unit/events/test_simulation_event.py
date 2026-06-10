@@ -9,8 +9,12 @@ from uuid import UUID, uuid4
 import pytest
 from pydantic import ValidationError
 
-from config.events import (EventFactory, HirePayload, SimulationEvent,
-                           WorkforceEventFactory)
+from config.events import (
+    EventFactory,
+    HirePayload,
+    SimulationEvent,
+    WorkforceEventFactory,
+)
 
 
 class TestSimulationEvent:

@@ -38,7 +38,7 @@ class TestConfigSerializationForLogging:
         - Should succeed with JSON-compatible dict
         """
         # Simulate what run_summary.py line 129 should do AFTER the fix
-        config_dict = config_with_decimal_fields.model_dump(mode='json')
+        config_dict = config_with_decimal_fields.model_dump(mode="json")
 
         # This should NOT raise TypeError
         try:
@@ -83,7 +83,7 @@ class TestJSONLoggingPath:
         After fix: Both steps succeed because Decimals are converted to floats.
         """
         # Step 1: Convert config to JSON-compatible dict
-        config_dict = config_with_decimal_fields.model_dump(mode='json')
+        config_dict = config_with_decimal_fields.model_dump(mode="json")
 
         # Step 2: Logger serializes to JSON
         try:
@@ -92,7 +92,7 @@ class TestJSONLoggingPath:
             # Verify it's valid JSON
             parsed = json.loads(json_output)
             assert isinstance(parsed, dict)
-            assert 'scenario_id' in parsed
+            assert "scenario_id" in parsed
 
         except TypeError as e:
             if "Decimal" in str(e):
@@ -103,7 +103,9 @@ class TestJSONLoggingPath:
                 )
             raise
 
-    def test_config_dict_is_json_serializable_after_fix(self, config_with_decimal_fields):
+    def test_config_dict_is_json_serializable_after_fix(
+        self, config_with_decimal_fields
+    ):
         """
         Verify that after applying the fix, config can be serialized to JSON.
 
@@ -114,7 +116,7 @@ class TestJSONLoggingPath:
         Then: The resulting dict should be JSON-serializable
         """
         # This is what run_summary.py:129 should do AFTER the fix
-        config_dict = config_with_decimal_fields.model_dump(mode='json')
+        config_dict = config_with_decimal_fields.model_dump(mode="json")
 
         # After the fix, this should NOT raise TypeError
         try:
@@ -147,7 +149,7 @@ class TestDecimalSerializationInLoggingPath:
         This test verifies the correct approach is used.
         """
         # The serialization should happen at the source (run_summary)
-        config_dict = config_with_decimal_fields.model_dump(mode='json')
+        config_dict = config_with_decimal_fields.model_dump(mode="json")
 
         # After conversion, dict should be JSON-serializable
         try:
@@ -168,10 +170,11 @@ class TestDecimalSerializationInLoggingPath:
         Decimal values should already be converted to floats.
         """
         # Simulate what run_summary.py should do
-        config_dict = config_with_decimal_fields.model_dump(mode='json')
+        config_dict = config_with_decimal_fields.model_dump(mode="json")
 
         # Logger should receive a dict with no Decimals
         from tests.utils.json_validators import assert_no_decimals_in_structure
+
         assert_no_decimals_in_structure(config_dict, "config dict passed to logger")
 
         # Logger should be able to serialize it without custom encoding
@@ -208,7 +211,7 @@ class TestDecimalLoggingRoundtrip:
         assert config_with_decimal_fields is not None
 
         # Step 2: Convert to JSON-compatible dict
-        config_dict = config_with_decimal_fields.model_dump(mode='json')
+        config_dict = config_with_decimal_fields.model_dump(mode="json")
 
         # Verify no Decimals remain
         assert_no_decimals_in_structure(config_dict, "converted config dict")
@@ -222,9 +225,9 @@ class TestDecimalLoggingRoundtrip:
         assert isinstance(parsed, dict)
 
         # Step 5: Verify key fields are present
-        assert 'scenario_id' in parsed
-        assert 'plan_design_id' in parsed
-        assert parsed['scenario_id'] == config_with_decimal_fields.scenario_id
+        assert "scenario_id" in parsed
+        assert "plan_design_id" in parsed
+        assert parsed["scenario_id"] == config_with_decimal_fields.scenario_id
 
 
 # Pytest markers for test categorization

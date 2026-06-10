@@ -40,6 +40,7 @@ try:
         ParallelExecutionEngine,
         ExecutionContext,
     )
+
     MODEL_PARALLELIZATION_AVAILABLE = True
 except ImportError:
     MODEL_PARALLELIZATION_AVAILABLE = False
@@ -47,6 +48,7 @@ except ImportError:
 
 class PipelineStageError(RuntimeError):
     """Exception raised when a pipeline stage execution fails."""
+
     pass
 
 
@@ -121,12 +123,12 @@ class YearExecutor:
         self.progress_callback = progress_callback
 
         # Initialize year dependency validator for temporal state accumulator validation
-        self._year_validator = YearDependencyValidator(db_manager, start_year=start_year)
+        self._year_validator = YearDependencyValidator(
+            db_manager, start_year=start_year
+        )
 
     def execute_workflow_stage(
-        self,
-        stage: StageDefinition,
-        year: int
+        self, stage: StageDefinition, year: int
     ) -> Dict[str, Any]:
         """Execute a workflow stage with optimal threading (E068C).
 
@@ -159,10 +161,14 @@ class YearExecutor:
 
         try:
             if self.verbose:
-                logger.debug("Starting %s with %d threads", stage.name.value, self.dbt_threads)
+                logger.debug(
+                    "Starting %s with %d threads", stage.name.value, self.dbt_threads
+                )
 
             # Signal stage start to progress callback
-            if self.progress_callback and hasattr(self.progress_callback, 'update_stage'):
+            if self.progress_callback and hasattr(
+                self.progress_callback, "update_stage"
+            ):
                 self.progress_callback.update_stage(stage.name.value)
 
             results = self._dispatch_stage_execution(stage, year)
@@ -172,7 +178,9 @@ class YearExecutor:
                 logger.info("Completed %s in %.1fs", stage.name.value, execution_time)
 
             # Signal stage completion to progress callback
-            if self.progress_callback and hasattr(self.progress_callback, 'stage_completed'):
+            if self.progress_callback and hasattr(
+                self.progress_callback, "stage_completed"
+            ):
                 self.progress_callback.stage_completed(stage.name.value, execution_time)
 
             return {
@@ -180,23 +188,27 @@ class YearExecutor:
                 "year": year,
                 "success": True,
                 "execution_time": execution_time,
-                "results": results
+                "results": results,
             }
 
         except Exception as e:
             execution_time = time.time() - start_time
             if self.verbose:
-                logger.error("Failed %s after %.1fs: %s", stage.name.value, execution_time, e)
+                logger.error(
+                    "Failed %s after %.1fs: %s", stage.name.value, execution_time, e
+                )
 
             return {
                 "stage": stage.name.value,
                 "year": year,
                 "success": False,
                 "execution_time": execution_time,
-                "error": str(e)
+                "error": str(e),
             }
 
-    def _dispatch_stage_execution(self, stage: StageDefinition, year: int) -> List[DbtResult]:
+    def _dispatch_stage_execution(
+        self, stage: StageDefinition, year: int
+    ) -> List[DbtResult]:
         """Dispatch to the appropriate execution strategy for the stage.
 
         Args:
@@ -220,9 +232,7 @@ class YearExecutor:
         return []
 
     def _execute_parallel_stage(
-        self,
-        stage: StageDefinition,
-        year: int
+        self, stage: StageDefinition, year: int
     ) -> List[DbtResult]:
         """Execute stage with dbt parallelization using tag-based selection (E068C).
 
@@ -252,13 +262,15 @@ class YearExecutor:
             tag_name = stage.name.value.upper()
 
             if self.verbose:
-                logger.info("Executing tag:%s with %d threads", tag_name, self.dbt_threads)
+                logger.info(
+                    "Executing tag:%s with %d threads", tag_name, self.dbt_threads
+                )
 
             result = self.dbt_runner.execute_command(
                 ["run", "--select", f"tag:{tag_name}"],
                 simulation_year=year,
                 dbt_vars=self._dbt_vars,
-                stream_output=True
+                stream_output=True,
             )
 
             if not result.success:
@@ -297,16 +309,13 @@ class YearExecutor:
         # Execute sharded event generation in parallel
         for shard_id in range(self.event_shards):
             shard_vars = self._dbt_vars.copy()
-            shard_vars.update({
-                "shard_id": shard_id,
-                "total_shards": self.event_shards
-            })
+            shard_vars.update({"shard_id": shard_id, "total_shards": self.event_shards})
 
             result = self.dbt_runner.execute_command(
                 ["run", "--select", f"events_y{year}_shard{shard_id}"],
                 simulation_year=year,
                 dbt_vars=shard_vars,
-                stream_output=True
+                stream_output=True,
             )
             results.append(result)
 
@@ -320,7 +329,7 @@ class YearExecutor:
             ["run", "--select", MODEL_FCT_YEARLY_EVENTS],
             simulation_year=year,
             dbt_vars=self._dbt_vars,
-            stream_output=True
+            stream_output=True,
         )
         results.append(union_result)
 
@@ -351,10 +360,11 @@ class YearExecutor:
             return
 
         # Try to use model-level parallelization if enabled and appropriate
-        if (self.model_parallelization_enabled and
-            self.parallel_execution_engine and
-            self._should_use_model_parallelization(stage)):
-
+        if (
+            self.model_parallelization_enabled
+            and self.parallel_execution_engine
+            and self._should_use_model_parallelization(stage)
+        ):
             self._run_stage_with_model_parallelization(stage, year)
             return
 
@@ -394,22 +404,33 @@ class YearExecutor:
         # Don't use for stages that require strict sequencing
         sequential_stages = {
             WorkflowStage.EVENT_GENERATION,
-            WorkflowStage.STATE_ACCUMULATION
+            WorkflowStage.STATE_ACCUMULATION,
         }
 
         if stage.name in sequential_stages:
             # These stages may have some parallelizable models but need careful handling
-            if self.parallelization_config and hasattr(self.parallelization_config, 'safety'):
+            if self.parallelization_config and hasattr(
+                self.parallelization_config, "safety"
+            ):
                 if self.parallelization_config.safety.validate_execution_safety:
                     # Only use if validation passes
-                    validation = self.parallel_execution_engine.validate_stage_parallelization(stage.models)
-                    return validation.get("parallelizable", False) and validation.get("safety_score", 0) > 80
+                    validation = (
+                        self.parallel_execution_engine.validate_stage_parallelization(
+                            stage.models
+                        )
+                    )
+                    return (
+                        validation.get("parallelizable", False)
+                        and validation.get("safety_score", 0) > 80
+                    )
             return False
 
         # Use for other stages if they have multiple models
         return len(stage.models) > 1
 
-    def _run_stage_with_model_parallelization(self, stage: StageDefinition, year: int) -> None:
+    def _run_stage_with_model_parallelization(
+        self, stage: StageDefinition, year: int
+    ) -> None:
         """Run stage using sophisticated model-level parallelization.
 
         This method uses the ParallelExecutionEngine to execute stage models
@@ -428,21 +449,23 @@ class YearExecutor:
             - Supports conditional parallelization based on resource availability
         """
         if self.verbose:
-            logger.info("Using model-level parallelization for stage %s", stage.name.value)
+            logger.info(
+                "Using model-level parallelization for stage %s", stage.name.value
+            )
 
         # Create execution context
         context = ExecutionContext(
             simulation_year=year,
             dbt_vars=self._dbt_vars,
             stage_name=stage.name.value,
-            execution_id=str(uuid.uuid4())[:8]
+            execution_id=str(uuid.uuid4())[:8],
         )
 
         # Execute with parallelization engine
         result = self.parallel_execution_engine.execute_stage_with_parallelization(
             stage.models,
             context,
-            enable_conditional_parallelization=self.parallelization_config.enable_conditional_parallelization
+            enable_conditional_parallelization=self.parallelization_config.enable_conditional_parallelization,
         )
 
         if self.verbose:
@@ -558,7 +581,9 @@ class YearExecutor:
             if needs_refresh and self.verbose:
                 logger.debug(
                     "Rebuilding %s with --full-refresh (%s) for year %d",
-                    model, self._get_full_refresh_reason(model), year
+                    model,
+                    self._get_full_refresh_reason(model),
+                    year,
                 )
             if groups and groups[-1][1] == needs_refresh:
                 groups[-1][0].append(model)
@@ -587,6 +612,7 @@ class YearExecutor:
         if model != TABLE_FCT_WORKFORCE_SNAPSHOT:
             return
         try:
+
             def _clear(conn):
                 conn.execute(
                     f"DELETE FROM {TABLE_FCT_WORKFORCE_SNAPSHOT} WHERE simulation_year = ?",
@@ -598,7 +624,8 @@ class YearExecutor:
             if self.verbose:
                 logger.debug(
                     "Cleared %s for simulation_year=%d before rebuild",
-                    TABLE_FCT_WORKFORCE_SNAPSHOT, year
+                    TABLE_FCT_WORKFORCE_SNAPSHOT,
+                    year,
                 )
         except Exception:
             # Non-fatal; proceed with dbt incremental upsert
@@ -673,7 +700,9 @@ class YearExecutor:
                 f"Dbt failed in stage {stage.name.value} with code {res.return_code}"
             )
 
-    def _should_full_refresh_foundation(self, stage: StageDefinition, year: int) -> bool:
+    def _should_full_refresh_foundation(
+        self, stage: StageDefinition, year: int
+    ) -> bool:
         """Determine if the FOUNDATION stage should use --full-refresh.
 
         Full refresh is used on the first simulation year or when clear_mode is 'all'.
@@ -692,12 +721,16 @@ class YearExecutor:
         clear_mode = (
             isinstance(setup, dict) and setup.get("clear_mode", "all").lower()
         ) or "all"
-        should_refresh = year == self.config.simulation.start_year or clear_mode == "all"
+        should_refresh = (
+            year == self.config.simulation.start_year or clear_mode == "all"
+        )
 
         if should_refresh and self.verbose:
             logger.debug(
                 "Running %s with --full-refresh (year=%d, clear_mode=%s)",
-                stage.name.value, year, clear_mode
+                stage.name.value,
+                year,
+                clear_mode,
             )
 
         return should_refresh

@@ -74,4 +74,6 @@ class TerminationRateSuggestion(BaseModel):
         if self.suggested_rate is None and self.error_message is None:
             raise ValueError("error_message must be set when suggested_rate is None")
         if self.suggested_rate is not None and self.error_message is not None:
-            raise ValueError("error_message must be null when suggested_rate is not None")
+            raise ValueError(
+                "error_message must be null when suggested_rate is not None"
+            )

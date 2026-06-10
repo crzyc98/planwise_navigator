@@ -109,7 +109,9 @@ class HireEventGenerator(EventGenerator):
         # Validate job_level
         if hasattr(payload, "job_level"):
             if payload.job_level < 1 or payload.job_level > 10:
-                errors.append(f"job_level must be between 1 and 10, got {payload.job_level}")
+                errors.append(
+                    f"job_level must be between 1 and 10, got {payload.job_level}"
+                )
         else:
             errors.append("job_level is required")
 

@@ -41,7 +41,9 @@ class JSONFormatter(logging.Formatter):
         if record.exc_info:
             # Ensure exc_info is a tuple; logger.makeRecord may receive True if misused
             exc_info = (
-                record.exc_info if isinstance(record.exc_info, tuple) else sys.exc_info()
+                record.exc_info
+                if isinstance(record.exc_info, tuple)
+                else sys.exc_info()
             )
             if exc_info and isinstance(exc_info, tuple):
                 log_data["exception"] = {

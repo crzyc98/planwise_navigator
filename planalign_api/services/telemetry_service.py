@@ -52,9 +52,7 @@ class TelemetryService:
                 events_generated=events_generated,
                 events_per_second=events_per_second,
             ),
-            recent_events=[
-                RecentEvent(**e) for e in (recent_events or [])
-            ],
+            recent_events=[RecentEvent(**e) for e in (recent_events or [])],
             recent_log_lines=[
                 ll if isinstance(ll, SimulationLogLine) else SimulationLogLine(**ll)
                 for ll in (recent_log_lines or [])

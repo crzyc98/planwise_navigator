@@ -21,7 +21,7 @@ def test_database_initialization():
     print("🧪 Testing database initialization...")
 
     # Use temporary file for testing
-    with tempfile.NamedTemporaryFile(suffix='.duckdb', delete=False) as tmp:
+    with tempfile.NamedTemporaryFile(suffix=".duckdb", delete=False) as tmp:
         tmp_path = Path(tmp.name)
 
     try:
@@ -37,7 +37,9 @@ def test_database_initialization():
                 tables = conn.execute("SHOW TABLES").fetchall()
                 print(f"📊 Created {len(tables)} tables:")
                 for table in sorted(tables):
-                    count = conn.execute(f"SELECT COUNT(*) FROM {table[0]}").fetchone()[0]
+                    count = conn.execute(f"SELECT COUNT(*) FROM {table[0]}").fetchone()[
+                        0
+                    ]
                     print(f"   - {table[0]}: {count} rows")
 
             return True
@@ -68,12 +70,13 @@ def test_config_integration():
 
         # Test with environment variable
         import os
-        os.environ['DATABASE_PATH'] = 'test/custom.duckdb'
+
+        os.environ["DATABASE_PATH"] = "test/custom.duckdb"
         custom_path = get_database_path()
         print(f"📍 Custom database path: {custom_path}")
 
         # Clean up env var
-        del os.environ['DATABASE_PATH']
+        del os.environ["DATABASE_PATH"]
 
         print("✅ Config integration test passed!")
         return True

@@ -10,7 +10,9 @@ class ContributionYearSummary(BaseModel):
 
     year: int = Field(description="Simulation year")
     total_employee_contributions: float = Field(description="Total employee deferrals")
-    total_employer_match: float = Field(description="Total employer match contributions")
+    total_employer_match: float = Field(
+        description="Total employer match contributions"
+    )
     total_employer_core: float = Field(description="Total employer core contributions")
     total_all_contributions: float = Field(description="Total of all contributions")
     participant_count: int = Field(description="Number of enrolled participants")
@@ -26,14 +28,16 @@ class ContributionYearSummary(BaseModel):
     )
     # E013: Employer cost ratio metrics
     total_compensation: float = Field(
-        default=0.0, description="Sum of prorated_annual_compensation for all active employees"
+        default=0.0,
+        description="Sum of prorated_annual_compensation for all active employees",
     )
     employer_cost_rate: float = Field(
         default=0.0, description="Employer cost as percentage of total compensation"
     )
     # E066: Contribution rate percentages
     employee_contribution_rate: float = Field(
-        default=0.0, description="Employee deferrals as percentage of total compensation"
+        default=0.0,
+        description="Employee deferrals as percentage of total compensation",
     )
     match_contribution_rate: float = Field(
         default=0.0, description="Employer match as percentage of total compensation"
@@ -74,15 +78,23 @@ class ParticipationByMethod(BaseModel):
 class EscalationMetrics(BaseModel):
     """Deferral escalation metrics."""
 
-    employees_with_escalations: int = Field(description="Employees who received escalations")
-    avg_escalation_count: float = Field(description="Average number of escalations per employee")
-    total_escalation_amount: float = Field(description="Total rate increase from escalations")
+    employees_with_escalations: int = Field(
+        description="Employees who received escalations"
+    )
+    avg_escalation_count: float = Field(
+        description="Average number of escalations per employee"
+    )
+    total_escalation_amount: float = Field(
+        description="Total rate increase from escalations"
+    )
 
 
 class IRSLimitMetrics(BaseModel):
     """IRS contribution limit metrics."""
 
-    employees_at_irs_limit: int = Field(description="Employees who hit IRS 402(g) limit")
+    employees_at_irs_limit: int = Field(
+        description="Employees who hit IRS 402(g) limit"
+    )
     irs_limit_rate: float = Field(description="Percentage of participants at limit")
 
 
@@ -132,7 +144,8 @@ class DCPlanAnalytics(BaseModel):
 
     # E104: New fields for cost comparison
     average_deferral_rate: float = Field(
-        default=0.0, description="Average deferral rate across all enrolled participants"
+        default=0.0,
+        description="Average deferral rate across all enrolled participants",
     )
     total_employer_cost: float = Field(
         default=0.0, description="Grand total employer cost (match + core)"
@@ -142,20 +155,25 @@ class DCPlanAnalytics(BaseModel):
         default=0.0, description="Sum of prorated_annual_compensation across all years"
     )
     employer_cost_rate: float = Field(
-        default=0.0, description="Aggregate employer cost as percentage of total compensation"
+        default=0.0,
+        description="Aggregate employer cost as percentage of total compensation",
     )
     # E066: Aggregate contribution rate percentages
     employee_contribution_rate: float = Field(
-        default=0.0, description="Aggregate employee deferrals as percentage of total compensation"
+        default=0.0,
+        description="Aggregate employee deferrals as percentage of total compensation",
     )
     match_contribution_rate: float = Field(
-        default=0.0, description="Aggregate employer match as percentage of total compensation"
+        default=0.0,
+        description="Aggregate employer match as percentage of total compensation",
     )
     core_contribution_rate: float = Field(
-        default=0.0, description="Aggregate employer core as percentage of total compensation"
+        default=0.0,
+        description="Aggregate employer core as percentage of total compensation",
     )
     total_contribution_rate: float = Field(
-        default=0.0, description="Aggregate all contributions as percentage of total compensation"
+        default=0.0,
+        description="Aggregate all contributions as percentage of total compensation",
     )
 
 
@@ -164,6 +182,4 @@ class DCPlanComparisonResponse(BaseModel):
 
     scenarios: List[str] = Field(description="List of scenario IDs in comparison")
     scenario_names: Dict[str, str] = Field(description="Scenario ID to name mapping")
-    analytics: List[DCPlanAnalytics] = Field(
-        description="Analytics for each scenario"
-    )
+    analytics: List[DCPlanAnalytics] = Field(description="Analytics for each scenario")

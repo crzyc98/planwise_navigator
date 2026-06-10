@@ -46,9 +46,9 @@ class AdaptiveThreadAdjuster:
 
         # Adjustment history for learning
         self.adjustment_history: List[Dict[str, Any]] = []
-        self.performance_history: Dict[int, List[float]] = (
-            {}
-        )  # thread_count -> execution_times
+        self.performance_history: Dict[
+            int, List[float]
+        ] = {}  # thread_count -> execution_times
 
         # Configuration
         self.min_threads = 1
@@ -80,9 +80,7 @@ class AdaptiveThreadAdjuster:
         # Handle critical resource pressure immediately
         if memory_pressure.memory_pressure == "critical":
             new_count = max(1, current_threads - 3)
-            reason = (
-                f"critical_memory_pressure_{memory_pressure.memory_usage_mb:.0f}mb"
-            )
+            reason = f"critical_memory_pressure_{memory_pressure.memory_usage_mb:.0f}mb"
             return new_count, reason
 
         if cpu_pressure == "critical":

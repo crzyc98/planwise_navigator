@@ -37,8 +37,12 @@ _DATE_FORMATS = [
 ]
 
 # Boolean alias tables (lowercase)
-_TRUTHY = frozenset({"y", "yes", "true", "1", "active", "enrolled", "eligible", "employed"})
-_FALSY = frozenset({"n", "no", "false", "0", "inactive", "terminated", "separated", "ineligible"})
+_TRUTHY = frozenset(
+    {"y", "yes", "true", "1", "active", "enrolled", "eligible", "employed"}
+)
+_FALSY = frozenset(
+    {"n", "no", "false", "0", "inactive", "terminated", "separated", "ineligible"}
+)
 
 # Currency pattern for decimal stripping detection
 _CURRENCY_RE = re.compile(r"[$€£,\s]")
@@ -54,7 +58,9 @@ def _similarity(a: str, b: str) -> float:
     return SequenceMatcher(None, a, b).ratio()
 
 
-def _score_against_field(normalized_input: str, field: CensusFieldDefinition) -> tuple[float, str]:
+def _score_against_field(
+    normalized_input: str, field: CensusFieldDefinition
+) -> tuple[float, str]:
     """Return (best_score, reason) across field_name and all aliases."""
     best = _similarity(normalized_input, _normalize(field.field_name))
     reason = "name_match"
@@ -80,7 +86,9 @@ class SuggestionEngine:
     def suggest(self, detected_columns: list[DetectedColumn]) -> list[ColumnSuggestion]:
         """Auto-suggest canonical field for each detected input column."""
         # First pass: score all columns against all fields
-        raw: list[tuple[int, float, str, str, str]] = []  # (col_idx, score, canonical, reason, input)
+        raw: list[
+            tuple[int, float, str, str, str]
+        ] = []  # (col_idx, score, canonical, reason, input)
         for idx, col in enumerate(detected_columns):
             norm = _normalize(col.name)
             best_score = 0.0
@@ -104,22 +112,30 @@ class SuggestionEngine:
 
         suggestions: list[ColumnSuggestion] = []
         for idx, score, canonical, reason, input_col in raw:
-            if score < _MEDIUM_THRESHOLD or not canonical or claimed.get(canonical) != idx:
-                suggestions.append(ColumnSuggestion(
-                    input_column=input_col,
-                    suggested_canonical_field=None,
-                    confidence="low",
-                    confidence_score=round(score, 4),
-                    reason="no_match",
-                ))
+            if (
+                score < _MEDIUM_THRESHOLD
+                or not canonical
+                or claimed.get(canonical) != idx
+            ):
+                suggestions.append(
+                    ColumnSuggestion(
+                        input_column=input_col,
+                        suggested_canonical_field=None,
+                        confidence="low",
+                        confidence_score=round(score, 4),
+                        reason="no_match",
+                    )
+                )
             else:
-                suggestions.append(ColumnSuggestion(
-                    input_column=input_col,
-                    suggested_canonical_field=canonical,
-                    confidence=_confidence_from_score(score),  # type: ignore[arg-type]
-                    confidence_score=round(score, 4),
-                    reason=reason,  # type: ignore[arg-type]
-                ))
+                suggestions.append(
+                    ColumnSuggestion(
+                        input_column=input_col,
+                        suggested_canonical_field=canonical,
+                        confidence=_confidence_from_score(score),  # type: ignore[arg-type]
+                        confidence_score=round(score, 4),
+                        reason=reason,  # type: ignore[arg-type]
+                    )
+                )
 
         return suggestions
 
@@ -139,7 +155,9 @@ class SuggestionEngine:
             return self._detect_boolean(samples)
         return None
 
-    def _detect_date_format(self, samples: list[str]) -> Optional[FormatDetectionResult]:
+    def _detect_date_format(
+        self, samples: list[str]
+    ) -> Optional[FormatDetectionResult]:
         # Try each format; count how many samples parse successfully
         results: list[tuple[str, int, list[str]]] = []
         for fmt in _DATE_FORMATS:
@@ -223,14 +241,20 @@ class SuggestionEngine:
         suggestions: list[ColumnSuggestion],
     ) -> DataQualityResult:
         """Scan session preview rows and detected columns for data quality issues."""
-        suggestion_map = {s.input_column: s.suggested_canonical_field for s in suggestions}
+        suggestion_map = {
+            s.input_column: s.suggested_canonical_field for s in suggestions
+        }
         canonical_to_input = {v: k for k, v in suggestion_map.items() if v}
 
         # Duplicate employee_id count (from preview rows — sample of up to 100)
         duplicate_count = 0
         emp_id_col = canonical_to_input.get("employee_id")
         if emp_id_col and session.preview_rows:
-            ids = [row.get(emp_id_col) for row in session.preview_rows if row.get(emp_id_col)]
+            ids = [
+                row.get(emp_id_col)
+                for row in session.preview_rows
+                if row.get(emp_id_col)
+            ]
             seen: set = set()
             dupes: set = set()
             for v in ids:
