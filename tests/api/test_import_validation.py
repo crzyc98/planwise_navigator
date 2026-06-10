@@ -130,6 +130,7 @@ def archive_with_scenarios():
 
         # Calculate checksum
         import hashlib
+
         with open(staging_dir / "workspace.json", "rb") as f:
             checksum = hashlib.sha256(f.read()).hexdigest()
 
@@ -158,7 +159,7 @@ def archive_with_scenarios():
             archive.write(staging_dir / "workspace.json", "workspace.json")
             archive.write(
                 staging_dir / "scenarios" / "scenario-1" / "scenario.json",
-                "scenarios/scenario-1/scenario.json"
+                "scenarios/scenario-1/scenario.json",
             )
 
         yield archive_path
@@ -196,7 +197,9 @@ class TestArchiveValidation:
             archive_path = Path(f.name)
 
         try:
-            result = export_service.validate_archive(archive_path, archive_path.stat().st_size)
+            result = export_service.validate_archive(
+                archive_path, archive_path.stat().st_size
+            )
 
             assert result.valid is False
             assert any("Invalid" in err or "corrupted" in err for err in result.errors)
@@ -216,7 +219,9 @@ class TestArchiveValidation:
             with py7zr.SevenZipFile(archive_path, "w") as archive:
                 archive.write(dummy_file, "dummy.txt")
 
-            result = export_service.validate_archive(archive_path, archive_path.stat().st_size)
+            result = export_service.validate_archive(
+                archive_path, archive_path.stat().st_size
+            )
 
             assert result.valid is False
             assert any("manifest.json" in err for err in result.errors)
@@ -225,7 +230,9 @@ class TestArchiveValidation:
 class TestImportNameConflict:
     """T021: Unit test for import with name conflict."""
 
-    def test_validate_detects_name_conflict(self, export_service, mock_storage, valid_archive):
+    def test_validate_detects_name_conflict(
+        self, export_service, mock_storage, valid_archive
+    ):
         """Test validation detects name conflict with existing workspace."""
         # Set up existing workspace with same name
         existing_ws = MagicMock(spec=WorkspaceSummary)
@@ -234,7 +241,9 @@ class TestImportNameConflict:
 
         mock_storage.list_workspaces.return_value = [existing_ws]
 
-        result = export_service.validate_archive(valid_archive, valid_archive.stat().st_size)
+        result = export_service.validate_archive(
+            valid_archive, valid_archive.stat().st_size
+        )
 
         assert result.valid is True  # Still valid, just has conflict
         assert result.conflict is not None
@@ -242,7 +251,9 @@ class TestImportNameConflict:
         assert result.conflict.existing_workspace_name == "Imported Workspace"
         assert "Imported Workspace (2)" in result.conflict.suggested_name
 
-    def test_suggested_name_increments(self, export_service, mock_storage, valid_archive):
+    def test_suggested_name_increments(
+        self, export_service, mock_storage, valid_archive
+    ):
         """Test suggested name increments when conflicts exist."""
         # Set up multiple existing workspaces
         ws1 = MagicMock(spec=WorkspaceSummary)
@@ -255,12 +266,16 @@ class TestImportNameConflict:
 
         mock_storage.list_workspaces.return_value = [ws1, ws2]
 
-        result = export_service.validate_archive(valid_archive, valid_archive.stat().st_size)
+        result = export_service.validate_archive(
+            valid_archive, valid_archive.stat().st_size
+        )
 
         assert result.conflict is not None
         assert result.conflict.suggested_name == "Imported Workspace (3)"
 
-    def test_no_conflict_different_name(self, export_service, mock_storage, valid_archive):
+    def test_no_conflict_different_name(
+        self, export_service, mock_storage, valid_archive
+    ):
         """Test no conflict when names are different."""
         existing_ws = MagicMock(spec=WorkspaceSummary)
         existing_ws.id = "existing-ws-id"
@@ -268,12 +283,16 @@ class TestImportNameConflict:
 
         mock_storage.list_workspaces.return_value = [existing_ws]
 
-        result = export_service.validate_archive(valid_archive, valid_archive.stat().st_size)
+        result = export_service.validate_archive(
+            valid_archive, valid_archive.stat().st_size
+        )
 
         assert result.valid is True
         assert result.conflict is None
 
-    def test_conflict_case_insensitive(self, export_service, mock_storage, valid_archive):
+    def test_conflict_case_insensitive(
+        self, export_service, mock_storage, valid_archive
+    ):
         """Test name conflict detection is case-insensitive."""
         existing_ws = MagicMock(spec=WorkspaceSummary)
         existing_ws.id = "existing-ws-id"
@@ -281,7 +300,9 @@ class TestImportNameConflict:
 
         mock_storage.list_workspaces.return_value = [existing_ws]
 
-        result = export_service.validate_archive(valid_archive, valid_archive.stat().st_size)
+        result = export_service.validate_archive(
+            valid_archive, valid_archive.stat().st_size
+        )
 
         assert result.conflict is not None
 
@@ -289,7 +310,9 @@ class TestImportNameConflict:
 class TestImportWorkspace:
     """Tests for import_workspace method."""
 
-    def test_import_workspace_success(self, export_service, mock_storage, archive_with_scenarios):
+    def test_import_workspace_success(
+        self, export_service, mock_storage, archive_with_scenarios
+    ):
         """Test successful workspace import."""
         mock_storage.list_workspaces.return_value = []
 
@@ -304,7 +327,9 @@ class TestImportWorkspace:
             assert result.name == "Workspace With Scenarios"
             assert result.scenario_count == 1
 
-    def test_import_workspace_with_rename(self, export_service, mock_storage, valid_archive):
+    def test_import_workspace_with_rename(
+        self, export_service, mock_storage, valid_archive
+    ):
         """Test import with rename conflict resolution."""
         # Set up existing workspace with same name
         existing_ws = MagicMock(spec=WorkspaceSummary)
@@ -323,7 +348,9 @@ class TestImportWorkspace:
 
             assert result.name == "My Custom Name"
 
-    def test_import_workspace_with_replace(self, export_service, mock_storage, valid_archive):
+    def test_import_workspace_with_replace(
+        self, export_service, mock_storage, valid_archive
+    ):
         """Test import with replace conflict resolution."""
         # Set up existing workspace with same name
         existing_ws = MagicMock(spec=WorkspaceSummary)
@@ -344,7 +371,9 @@ class TestImportWorkspace:
             mock_storage.delete_workspace.assert_called_once_with("existing-ws-id")
             assert result.name == "Imported Workspace"
 
-    def test_import_workspace_conflict_not_resolved(self, export_service, mock_storage, valid_archive):
+    def test_import_workspace_conflict_not_resolved(
+        self, export_service, mock_storage, valid_archive
+    ):
         """Test import fails when conflict not resolved."""
         existing_ws = MagicMock(spec=WorkspaceSummary)
         existing_ws.id = "existing-ws-id"
@@ -438,7 +467,9 @@ class TestVersionCompatibility:
                 archive.write(staging_dir / "manifest.json", "manifest.json")
                 archive.write(staging_dir / "workspace.json", "workspace.json")
 
-            result = export_service.validate_archive(archive_path, archive_path.stat().st_size)
+            result = export_service.validate_archive(
+                archive_path, archive_path.stat().st_size
+            )
 
             assert result.valid is True
             assert any("newer version" in w for w in result.warnings)

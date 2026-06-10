@@ -24,6 +24,7 @@ from planalign_orchestrator.self_healing.initialization_state import (
 # T014: Integration test full initialization flow with mock dbt runner
 # ============================================================================
 
+
 @pytest.mark.integration
 class TestSelfHealingIntegration:
     """Integration tests for self-healing initialization."""
@@ -31,7 +32,9 @@ class TestSelfHealingIntegration:
     def test_full_initialization_flow_creates_all_tables(self, tmp_path):
         """T014: Full initialization should create all required tables."""
         from planalign_orchestrator.self_healing.auto_initializer import AutoInitializer
-        from planalign_orchestrator.self_healing.table_checker import TableExistenceChecker
+        from planalign_orchestrator.self_healing.table_checker import (
+            TableExistenceChecker,
+        )
         from planalign_orchestrator.dbt_runner import DbtResult
 
         # Setup: Create empty database
@@ -51,12 +54,16 @@ class TestSelfHealingIntegration:
                 # Simulate dbt seed
                 for table in REQUIRED_TABLES:
                     if table.tier.value == "seed":
-                        conn.execute(f"CREATE TABLE IF NOT EXISTS {table.name} (id INTEGER)")
+                        conn.execute(
+                            f"CREATE TABLE IF NOT EXISTS {table.name} (id INTEGER)"
+                        )
             elif "run" in command:
                 # Simulate dbt run
                 for table in REQUIRED_TABLES:
                     if table.tier.value == "foundation":
-                        conn.execute(f"CREATE TABLE IF NOT EXISTS {table.name} (id INTEGER)")
+                        conn.execute(
+                            f"CREATE TABLE IF NOT EXISTS {table.name} (id INTEGER)"
+                        )
             conn.close()
             return DbtResult(
                 success=True,
@@ -80,7 +87,9 @@ class TestSelfHealingIntegration:
         checker = TableExistenceChecker(db_manager)
         assert not checker.is_initialized(), "Database should start empty"
         missing_before = len(checker.get_missing_tables())
-        assert missing_before == len(REQUIRED_TABLES), "All tables should be missing initially"
+        assert missing_before == len(
+            REQUIRED_TABLES
+        ), "All tables should be missing initially"
 
         # Run initialization
         initializer = AutoInitializer(db_manager, dbt_runner, verbose=True)
@@ -97,12 +106,16 @@ class TestSelfHealingIntegration:
         checker = TableExistenceChecker(db_manager)
         assert checker.is_initialized(), "Database should be initialized after"
         missing_after = checker.get_missing_tables()
-        assert len(missing_after) == 0, f"No tables should be missing, but found: {[t.name for t in missing_after]}"
+        assert (
+            len(missing_after) == 0
+        ), f"No tables should be missing, but found: {[t.name for t in missing_after]}"
 
     def test_initialization_skipped_when_database_ready(self, tmp_path):
         """Already initialized database should skip initialization."""
         from planalign_orchestrator.self_healing.auto_initializer import AutoInitializer
-        from planalign_orchestrator.self_healing.table_checker import TableExistenceChecker
+        from planalign_orchestrator.self_healing.table_checker import (
+            TableExistenceChecker,
+        )
 
         # Setup: Create database with all tables
         db_path = tmp_path / "test.duckdb"
@@ -180,9 +193,7 @@ class TestSelfHealingIntegration:
 
         # Create a pre-simulation hook
         hook = Hook(
-            hook_type=HookType.PRE_SIMULATION,
-            callback=test_hook,
-            name="test_init_hook"
+            hook_type=HookType.PRE_SIMULATION, callback=test_hook, name="test_init_hook"
         )
         manager.register_hook(hook)
 
@@ -214,8 +225,9 @@ class TestSelfHealingIntegration:
         # Verify self-healing hook is registered
         hooks = orchestrator.hook_manager.list_hooks()
         assert "pre_simulation" in hooks, "PRE_SIMULATION hooks should be registered"
-        assert "self_healing_initializer" in hooks["pre_simulation"], \
-            "self_healing_initializer hook should be registered"
+        assert (
+            "self_healing_initializer" in hooks["pre_simulation"]
+        ), "self_healing_initializer hook should be registered"
 
     def test_create_orchestrator_skips_hook_when_disabled(self, tmp_path):
         """create_orchestrator should NOT register hook when auto_initialize=False."""
@@ -237,5 +249,7 @@ class TestSelfHealingIntegration:
 
         # Verify no hooks are registered
         hooks = orchestrator.hook_manager.list_hooks()
-        assert "pre_simulation" not in hooks or "self_healing_initializer" not in hooks.get("pre_simulation", []), \
-            "self_healing_initializer hook should NOT be registered when auto_initialize=False"
+        assert (
+            "pre_simulation" not in hooks
+            or "self_healing_initializer" not in hooks.get("pre_simulation", [])
+        ), "self_healing_initializer hook should NOT be registered when auto_initialize=False"

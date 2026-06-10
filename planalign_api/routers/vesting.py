@@ -19,6 +19,7 @@ router = APIRouter()
 def get_workspace_storage() -> WorkspaceStorage:
     """Get workspace storage instance."""
     from ..config import get_settings
+
     settings = get_settings()
     return WorkspaceStorage(settings.workspaces_root)
 
@@ -77,13 +78,13 @@ async def get_vesting_years(
 
 @router.post(
     "/workspaces/{workspace_id}/scenarios/{scenario_id}/analytics/vesting",
-    response_model=VestingAnalysisResponse
+    response_model=VestingAnalysisResponse,
 )
 async def analyze_vesting(
     workspace_id: str,
     scenario_id: str,
     request: VestingAnalysisRequest,
-    vesting_service: VestingService = Depends(get_vesting_service)
+    vesting_service: VestingService = Depends(get_vesting_service),
 ) -> VestingAnalysisResponse:
     """
     Run vesting analysis comparing two schedules (T031).
@@ -111,7 +112,7 @@ async def analyze_vesting(
     if result is None:
         raise HTTPException(
             status_code=404,
-            detail="Simulation data not found. Ensure the scenario has completed simulation."
+            detail="Simulation data not found. Ensure the scenario has completed simulation.",
         )
 
     return result

@@ -34,7 +34,7 @@ def get_database_path() -> Path:
     Returns:
         Path: Absolute path to the simulation database
     """
-    db_path = os.getenv('DATABASE_PATH', f'dbt/{DATABASE_FILENAME}')
+    db_path = os.getenv("DATABASE_PATH", f"dbt/{DATABASE_FILENAME}")
     path = Path(db_path)
 
     # Ensure directory exists

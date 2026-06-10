@@ -49,7 +49,9 @@ def _repair_workspaces_on_startup() -> None:
                 reason = repair.get("reason", "")
 
                 if action == "repaired":
-                    console.print(f"  [yellow]↳ Repaired:[/yellow] {Path(file_path).name}")
+                    console.print(
+                        f"  [yellow]↳ Repaired:[/yellow] {Path(file_path).name}"
+                    )
                     if repair.get("backup"):
                         console.print(f"    [dim]Backup: {repair['backup']}[/dim]")
                     if repair.get("salvaged_fields"):
@@ -57,9 +59,13 @@ def _repair_workspaces_on_startup() -> None:
                             f"    [dim]Salvaged: {', '.join(repair['salvaged_fields'])}[/dim]"
                         )
                 elif action == "created":
-                    console.print(f"  [yellow]↳ Created:[/yellow] {Path(file_path).name}")
+                    console.print(
+                        f"  [yellow]↳ Created:[/yellow] {Path(file_path).name}"
+                    )
                 elif action == "failed":
-                    console.print(f"  [red]↳ Failed:[/red] {Path(file_path).name} - {reason}")
+                    console.print(
+                        f"  [red]↳ Failed:[/red] {Path(file_path).name} - {reason}"
+                    )
 
             console.print()
         else:
@@ -93,6 +99,7 @@ def _get_npm_command() -> str:
 
     # Default fallback
     return "npm"
+
 
 # Track child processes for cleanup
 _processes: list[subprocess.Popen] = []
@@ -277,9 +284,12 @@ def launch_studio(
             # killing the subprocess with exit code 130 (SIGINT).
             reload_args = [
                 "--reload",
-                "--reload-dir", "planalign_api",
-                "--reload-dir", "planalign_orchestrator",
-                "--reload-dir", "config",
+                "--reload-dir",
+                "planalign_api",
+                "--reload-dir",
+                "planalign_orchestrator",
+                "--reload-dir",
+                "config",
             ]
 
             if sys.platform == "win32":
@@ -287,8 +297,10 @@ def launch_studio(
                     sys.executable,
                     "-m",
                     "planalign_api.run",
-                    "--host", "0.0.0.0",
-                    "--port", str(api_port),
+                    "--host",
+                    "0.0.0.0",
+                    "--port",
+                    str(api_port),
                     *reload_args,
                 ]
             else:
@@ -297,8 +309,10 @@ def launch_studio(
                     "-m",
                     "uvicorn",
                     "planalign_api.main:app",
-                    "--host", "0.0.0.0",
-                    "--port", str(api_port),
+                    "--host",
+                    "0.0.0.0",
+                    "--port",
+                    str(api_port),
                     *reload_args,
                 ]
 
@@ -310,7 +324,9 @@ def launch_studio(
                 stderr=stderr,
             )
             _processes.append(api_process)
-            started_services.append(("API Backend", f"http://{display_host}:{api_port}"))
+            started_services.append(
+                ("API Backend", f"http://{display_host}:{api_port}")
+            )
 
             # Wait for API to start
             time.sleep(2)
@@ -318,7 +334,9 @@ def launch_studio(
                 console.print("[red]API backend failed to start[/red]")
                 raise SystemExit(1)
 
-            console.print(f"[green]  API running at http://localhost:{api_port}[/green]")
+            console.print(
+                f"[green]  API running at http://localhost:{api_port}[/green]"
+            )
             console.print(f"[dim]    Docs: http://localhost:{api_port}/api/docs[/dim]")
 
         # Start frontend
@@ -334,10 +352,14 @@ def launch_studio(
                     [npm_cmd, "install"],
                     cwd=str(frontend_dir),
                     capture_output=not verbose,
-                    shell=(sys.platform == "win32"),  # Use shell on Windows for .cmd files
+                    shell=(
+                        sys.platform == "win32"
+                    ),  # Use shell on Windows for .cmd files
                 )
                 if install_result.returncode != 0:
-                    console.print("[red]  Failed to install frontend dependencies[/red]")
+                    console.print(
+                        "[red]  Failed to install frontend dependencies[/red]"
+                    )
                     _cleanup_processes()
                     raise SystemExit(1)
 
@@ -350,7 +372,16 @@ def launch_studio(
 
             npm_cmd = _get_npm_command()
             frontend_process = subprocess.Popen(
-                [npm_cmd, "run", "dev", "--", "--port", str(frontend_port), "--host", "0.0.0.0"],
+                [
+                    npm_cmd,
+                    "run",
+                    "dev",
+                    "--",
+                    "--port",
+                    str(frontend_port),
+                    "--host",
+                    "0.0.0.0",
+                ],
                 cwd=str(frontend_dir),
                 env=frontend_env,
                 stdout=stdout,
@@ -358,7 +389,9 @@ def launch_studio(
                 shell=(sys.platform == "win32"),  # Use shell on Windows for .cmd files
             )
             _processes.append(frontend_process)
-            started_services.append(("Frontend", f"http://{display_host}:{frontend_port}"))
+            started_services.append(
+                ("Frontend", f"http://{display_host}:{frontend_port}")
+            )
 
             # Wait for frontend to start
             time.sleep(3)
@@ -367,7 +400,9 @@ def launch_studio(
                 _cleanup_processes()
                 raise SystemExit(1)
 
-            console.print(f"[green]  Frontend running at http://localhost:{frontend_port}[/green]")
+            console.print(
+                f"[green]  Frontend running at http://localhost:{frontend_port}[/green]"
+            )
 
         # Display summary
         console.print()

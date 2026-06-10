@@ -11,7 +11,9 @@ class WorkspaceCreate(BaseModel):
     """Request model for creating a workspace."""
 
     name: str = Field(..., min_length=1, max_length=100, description="Workspace name")
-    description: Optional[str] = Field(None, max_length=500, description="Workspace description")
+    description: Optional[str] = Field(
+        None, max_length=500, description="Workspace description"
+    )
     base_config: Optional[Dict[str, Any]] = Field(
         None, description="Base configuration (uses defaults if not provided)"
     )
@@ -33,7 +35,9 @@ class Workspace(BaseModel):
     description: Optional[str] = Field(None, description="Workspace description")
     created_at: datetime = Field(..., description="Creation timestamp")
     updated_at: datetime = Field(..., description="Last update timestamp")
-    base_config: Dict[str, Any] = Field(..., description="Base simulation configuration")
+    base_config: Dict[str, Any] = Field(
+        ..., description="Base simulation configuration"
+    )
     storage_path: str = Field(..., description="Absolute path to workspace directory")
 
     class Config:
@@ -51,7 +55,9 @@ class WorkspaceSummary(BaseModel):
     description: Optional[str] = Field(None, description="Workspace description")
     created_at: datetime = Field(..., description="Creation timestamp")
     scenario_count: int = Field(default=0, description="Number of scenarios")
-    last_run_at: Optional[datetime] = Field(None, description="Last simulation run timestamp")
+    last_run_at: Optional[datetime] = Field(
+        None, description="Last simulation run timestamp"
+    )
     storage_used_mb: float = Field(default=0.0, description="Storage used in MB")
 
     class Config:

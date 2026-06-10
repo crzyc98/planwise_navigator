@@ -42,8 +42,7 @@ class TerminationRateSuggestionService:
             return 0
 
         active_count = sum(
-            1 for record in census_data
-            if record.get("employment_status") == "ACTIVE"
+            1 for record in census_data if record.get("employment_status") == "ACTIVE"
         )
         return active_count
 

@@ -30,7 +30,9 @@ def setup_fresh_database():
         logger.info("Database location: %s", initializer.db_path)
         logger.info("Next steps:")
         logger.info("1. Run a simulation: python run_multi_year.py")
-        logger.info("2. Check data: python -c \"import duckdb; print(duckdb.connect('dbt/simulation.duckdb').execute('SHOW TABLES').fetchall())\"")
+        logger.info(
+            "2. Check data: python -c \"import duckdb; print(duckdb.connect('dbt/simulation.duckdb').execute('SHOW TABLES').fetchall())\""
+        )
     else:
         logger.error("Database setup failed. Check logs above.")
         sys.exit(1)

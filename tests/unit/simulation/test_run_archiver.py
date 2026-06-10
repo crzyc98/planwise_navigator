@@ -139,17 +139,26 @@ class TestPruneOldRuns:
             "bytes_freed": 1024 * 1024 * 50,
         }
 
-        prune_old_runs(mock_storage, "ws-1", "sc-1", {"storage": {"max_runs_per_scenario": 3}})
+        prune_old_runs(
+            mock_storage, "ws-1", "sc-1", {"storage": {"max_runs_per_scenario": 3}}
+        )
 
-        mock_storage.cleanup_old_runs.assert_called_once_with("ws-1", "sc-1", max_runs=3)
+        mock_storage.cleanup_old_runs.assert_called_once_with(
+            "ws-1", "sc-1", max_runs=3
+        )
 
     def test_uses_default_max_runs(self):
         mock_storage = MagicMock()
-        mock_storage.cleanup_old_runs.return_value = {"removed_count": 0, "bytes_freed": 0}
+        mock_storage.cleanup_old_runs.return_value = {
+            "removed_count": 0,
+            "bytes_freed": 0,
+        }
 
         prune_old_runs(mock_storage, "ws-1", "sc-1", {})
 
-        mock_storage.cleanup_old_runs.assert_called_once_with("ws-1", "sc-1", max_runs=3)
+        mock_storage.cleanup_old_runs.assert_called_once_with(
+            "ws-1", "sc-1", max_runs=3
+        )
 
     def test_handles_cleanup_error(self):
         """Should not raise on cleanup failure."""

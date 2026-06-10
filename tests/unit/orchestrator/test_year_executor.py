@@ -41,17 +41,26 @@ from planalign_orchestrator.pipeline.year_executor import (
 # Helpers
 # ---------------------------------------------------------------------------
 
+
 def _ok_result(command=None) -> DbtResult:
     return DbtResult(
-        success=True, stdout="ok", stderr="", execution_time=0.1,
-        return_code=0, command=command or ["dbt", "run"],
+        success=True,
+        stdout="ok",
+        stderr="",
+        execution_time=0.1,
+        return_code=0,
+        command=command or ["dbt", "run"],
     )
 
 
 def _fail_result(return_code=1, command=None) -> DbtResult:
     return DbtResult(
-        success=False, stdout="", stderr="error", execution_time=0.1,
-        return_code=return_code, command=command or ["dbt", "run"],
+        success=False,
+        stdout="",
+        stderr="error",
+        execution_time=0.1,
+        return_code=return_code,
+        command=command or ["dbt", "run"],
     )
 
 
@@ -149,6 +158,7 @@ def _validation_stage(models=None, parallel_safe=True):
 # __init__
 # ---------------------------------------------------------------------------
 
+
 class TestYearExecutorInit:
     def test_attributes_wired(self):
         executor = _make_executor(
@@ -172,6 +182,7 @@ class TestYearExecutorInit:
 # ---------------------------------------------------------------------------
 # execute_workflow_stage
 # ---------------------------------------------------------------------------
+
 
 class TestExecuteWorkflowStage:
     def test_success_returns_result_dict(self):
@@ -229,19 +240,23 @@ class TestExecuteWorkflowStage:
 # _dispatch_stage_execution
 # ---------------------------------------------------------------------------
 
+
 class TestDispatchStageExecution:
     def test_event_generation_dispatches_to_parallel(self):
         executor = _make_executor()
         stage = _event_stage()
-        with patch.object(executor, "_execute_parallel_stage", return_value=[_ok_result()]) as mock:
+        with patch.object(
+            executor, "_execute_parallel_stage", return_value=[_ok_result()]
+        ) as mock:
             executor._dispatch_stage_execution(stage, 2025)
             mock.assert_called_once_with(stage, 2025)
 
     def test_state_accumulation_validates_then_runs(self):
         executor = _make_executor()
         stage = _state_accum_stage()
-        with patch.object(executor._year_validator, "validate_year_dependencies") as mock_val, \
-             patch.object(executor, "_run_stage_models") as mock_run:
+        with patch.object(
+            executor._year_validator, "validate_year_dependencies"
+        ) as mock_val, patch.object(executor, "_run_stage_models") as mock_run:
             executor._dispatch_stage_execution(stage, 2026)
             mock_val.assert_called_once_with(2026)
             mock_run.assert_called_once_with(stage, 2026)
@@ -259,6 +274,7 @@ class TestDispatchStageExecution:
 # _execute_parallel_stage
 # ---------------------------------------------------------------------------
 
+
 class TestExecuteParallelStage:
     def test_single_shard_uses_tag(self):
         executor = _make_executor(event_shards=1)
@@ -272,7 +288,9 @@ class TestExecuteParallelStage:
     def test_multi_shard_delegates(self):
         executor = _make_executor(event_shards=3)
         stage = _event_stage()
-        with patch.object(executor, "_execute_sharded_event_generation", return_value=[_ok_result()]) as mock:
+        with patch.object(
+            executor, "_execute_sharded_event_generation", return_value=[_ok_result()]
+        ) as mock:
             executor._execute_parallel_stage(stage, 2025)
             mock.assert_called_once_with(2025)
 
@@ -302,6 +320,7 @@ class TestExecuteParallelStage:
 # ---------------------------------------------------------------------------
 # _execute_sharded_event_generation
 # ---------------------------------------------------------------------------
+
 
 class TestExecuteShardedEventGeneration:
     def test_runs_all_shards_plus_union(self):
@@ -337,8 +356,8 @@ class TestExecuteShardedEventGeneration:
     def test_union_failure_raises(self):
         executor = _make_executor(event_shards=1)
         executor.dbt_runner.execute_command.side_effect = [
-            _ok_result(),   # shard 0
-            _fail_result(), # union fails
+            _ok_result(),  # shard 0
+            _fail_result(),  # union fails
         ]
         with pytest.raises(PipelineStageError, match="Event union writer failed"):
             executor._execute_sharded_event_generation(2025)
@@ -353,6 +372,7 @@ class TestExecuteShardedEventGeneration:
 # ---------------------------------------------------------------------------
 # _run_stage_models
 # ---------------------------------------------------------------------------
+
 
 class TestRunStageModels:
     def test_empty_models_returns_early(self):
@@ -386,8 +406,9 @@ class TestRunStageModels:
         )
         stage = _foundation_stage(models=["a", "b"])
 
-        with patch.object(executor, "_should_use_model_parallelization", return_value=True), \
-             patch.object(executor, "_run_stage_with_model_parallelization") as mock_par:
+        with patch.object(
+            executor, "_should_use_model_parallelization", return_value=True
+        ), patch.object(executor, "_run_stage_with_model_parallelization") as mock_par:
             executor._run_stage_models(stage, 2025)
             mock_par.assert_called_once_with(stage, 2025)
 
@@ -398,8 +419,9 @@ class TestRunStageModels:
             parallel_execution_engine=engine,
         )
         stage = _foundation_stage()
-        with patch.object(executor, "_should_use_model_parallelization", return_value=False), \
-             patch.object(executor, "_run_stage_models_legacy") as mock_leg:
+        with patch.object(
+            executor, "_should_use_model_parallelization", return_value=False
+        ), patch.object(executor, "_run_stage_models_legacy") as mock_leg:
             executor._run_stage_models(stage, 2025)
             mock_leg.assert_called_once()
 
@@ -407,6 +429,7 @@ class TestRunStageModels:
 # ---------------------------------------------------------------------------
 # _should_use_model_parallelization
 # ---------------------------------------------------------------------------
+
 
 class TestShouldUseModelParallelization:
     def test_duckdb_path_returns_false(self):
@@ -443,7 +466,8 @@ class TestShouldUseModelParallelization:
     def test_sequential_stage_with_safety_validation_passing(self):
         engine = MagicMock()
         engine.validate_stage_parallelization.return_value = {
-            "parallelizable": True, "safety_score": 95
+            "parallelizable": True,
+            "safety_score": 95,
         }
         p_config = MagicMock()
         p_config.safety.validate_execution_safety = True
@@ -458,7 +482,8 @@ class TestShouldUseModelParallelization:
     def test_sequential_stage_with_safety_validation_failing(self):
         engine = MagicMock()
         engine.validate_stage_parallelization.return_value = {
-            "parallelizable": False, "safety_score": 30
+            "parallelizable": False,
+            "safety_score": 30,
         }
         p_config = MagicMock()
         p_config.safety.validate_execution_safety = True
@@ -474,7 +499,9 @@ class TestShouldUseModelParallelization:
         """If db_path raises an exception, we fall through to other checks."""
         executor = _make_executor()
         # Make db_manager.db_path raise when accessed
-        type(executor.db_manager).db_path = property(lambda self: (_ for _ in ()).throw(RuntimeError("boom")))
+        type(executor.db_manager).db_path = property(
+            lambda self: (_ for _ in ()).throw(RuntimeError("boom"))
+        )
         stage = _foundation_stage(models=["a", "b"])
         # Should not raise, falls through
         result = executor._should_use_model_parallelization(stage)
@@ -484,6 +511,7 @@ class TestShouldUseModelParallelization:
 # ---------------------------------------------------------------------------
 # _run_stage_with_model_parallelization
 # ---------------------------------------------------------------------------
+
 
 class TestRunStageWithModelParallelization:
     def _make_engine_result(self, success=True, errors=None):
@@ -497,7 +525,9 @@ class TestRunStageWithModelParallelization:
 
     def test_success(self):
         engine = MagicMock()
-        engine.execute_stage_with_parallelization.return_value = self._make_engine_result()
+        engine.execute_stage_with_parallelization.return_value = (
+            self._make_engine_result()
+        )
         p_config = MagicMock()
         p_config.enable_conditional_parallelization = True
 
@@ -511,8 +541,11 @@ class TestRunStageWithModelParallelization:
 
     def test_failure_with_errors_raises(self):
         engine = MagicMock()
-        engine.execute_stage_with_parallelization.return_value = self._make_engine_result(
-            success=False, errors=["model_a failed", "model_b failed", "model_c failed"]
+        engine.execute_stage_with_parallelization.return_value = (
+            self._make_engine_result(
+                success=False,
+                errors=["model_a failed", "model_b failed", "model_c failed"],
+            )
         )
         p_config = MagicMock()
         p_config.enable_conditional_parallelization = True
@@ -526,8 +559,8 @@ class TestRunStageWithModelParallelization:
 
     def test_failure_without_errors_raises_generic(self):
         engine = MagicMock()
-        engine.execute_stage_with_parallelization.return_value = self._make_engine_result(
-            success=False, errors=[]
+        engine.execute_stage_with_parallelization.return_value = (
+            self._make_engine_result(success=False, errors=[])
         )
         p_config = MagicMock()
         p_config.enable_conditional_parallelization = True
@@ -536,13 +569,17 @@ class TestRunStageWithModelParallelization:
             parallel_execution_engine=engine,
             parallelization_config=p_config,
         )
-        with pytest.raises(PipelineStageError, match="Model-level parallelization failed"):
+        with pytest.raises(
+            PipelineStageError, match="Model-level parallelization failed"
+        ):
             executor._run_stage_with_model_parallelization(_foundation_stage(), 2025)
 
     def test_verbose_prints_details(self, caplog):
         caplog.set_level(logging.DEBUG)
         engine = MagicMock()
-        engine.execute_stage_with_parallelization.return_value = self._make_engine_result()
+        engine.execute_stage_with_parallelization.return_value = (
+            self._make_engine_result()
+        )
         p_config = MagicMock()
         p_config.enable_conditional_parallelization = True
 
@@ -557,8 +594,8 @@ class TestRunStageWithModelParallelization:
     def test_verbose_failure_shows_errors(self, caplog):
         caplog.set_level(logging.DEBUG)
         engine = MagicMock()
-        engine.execute_stage_with_parallelization.return_value = self._make_engine_result(
-            success=False, errors=["oops"]
+        engine.execute_stage_with_parallelization.return_value = (
+            self._make_engine_result(success=False, errors=["oops"])
         )
         p_config = MagicMock()
         p_config.enable_conditional_parallelization = True
@@ -576,6 +613,7 @@ class TestRunStageWithModelParallelization:
 # ---------------------------------------------------------------------------
 # _run_stage_models_legacy
 # ---------------------------------------------------------------------------
+
 
 class TestRunStageModelsLegacy:
     def test_event_generation_runs_sequential(self):
@@ -603,6 +641,7 @@ class TestRunStageModelsLegacy:
 # ---------------------------------------------------------------------------
 # _run_sequential_event_models
 # ---------------------------------------------------------------------------
+
 
 class TestRunSequentialEventModels:
     def test_runs_models_in_single_batched_invocation(self):
@@ -680,6 +719,7 @@ class TestRunSequentialEventModels:
 # _is_force_full_refresh
 # ---------------------------------------------------------------------------
 
+
 class TestIsForceFullRefresh:
     def test_true_when_clear_tables_and_clear_mode_all(self):
         executor = _make_executor(setup={"clear_tables": True, "clear_mode": "all"})
@@ -699,7 +739,9 @@ class TestIsForceFullRefresh:
         assert executor._is_force_full_refresh() is False
 
     def test_false_when_clear_mode_not_all(self):
-        executor = _make_executor(setup={"clear_tables": True, "clear_mode": "incremental"})
+        executor = _make_executor(
+            setup={"clear_tables": True, "clear_mode": "incremental"}
+        )
         assert executor._is_force_full_refresh() is False
 
     def test_true_with_uppercase_clear_mode(self):
@@ -710,6 +752,7 @@ class TestIsForceFullRefresh:
 # ---------------------------------------------------------------------------
 # _clear_snapshot_rows_if_needed
 # ---------------------------------------------------------------------------
+
 
 class TestClearSnapshotRowsIfNeeded:
     def test_skips_non_snapshot_model(self):
@@ -739,18 +782,25 @@ class TestClearSnapshotRowsIfNeeded:
 # _model_needs_full_refresh / _group_models_by_full_refresh / _get_full_refresh_reason
 # ---------------------------------------------------------------------------
 
+
 class TestModelNeedsFullRefresh:
     def test_true_for_snapshot_optimized(self):
         executor = _make_executor()
-        assert executor._model_needs_full_refresh(
-            "int_workforce_snapshot_optimized", False
-        ) is True
+        assert (
+            executor._model_needs_full_refresh(
+                "int_workforce_snapshot_optimized", False
+            )
+            is True
+        )
 
     def test_true_for_deferral_escalation(self):
         executor = _make_executor()
-        assert executor._model_needs_full_refresh(
-            "int_deferral_rate_escalation_events", False
-        ) is True
+        assert (
+            executor._model_needs_full_refresh(
+                "int_deferral_rate_escalation_events", False
+            )
+            is True
+        )
 
     def test_true_when_force_full_refresh(self):
         executor = _make_executor()
@@ -758,9 +808,9 @@ class TestModelNeedsFullRefresh:
 
     def test_false_for_normal_model(self):
         executor = _make_executor()
-        assert executor._model_needs_full_refresh(
-            "int_termination_events", False
-        ) is False
+        assert (
+            executor._model_needs_full_refresh("int_termination_events", False) is False
+        )
 
 
 class TestGroupModelsByFullRefresh:
@@ -788,11 +838,17 @@ class TestGroupModelsByFullRefresh:
 class TestGetFullRefreshReason:
     def test_known_model(self):
         executor = _make_executor()
-        assert executor._get_full_refresh_reason("int_workforce_snapshot_optimized") == "schema compatibility"
+        assert (
+            executor._get_full_refresh_reason("int_workforce_snapshot_optimized")
+            == "schema compatibility"
+        )
 
     def test_known_deferral_model(self):
         executor = _make_executor()
-        assert executor._get_full_refresh_reason("int_deferral_rate_escalation_events") == "self-reference incremental"
+        assert (
+            executor._get_full_refresh_reason("int_deferral_rate_escalation_events")
+            == "self-reference incremental"
+        )
 
     def test_unknown_model(self):
         executor = _make_executor()
@@ -802,6 +858,7 @@ class TestGetFullRefreshReason:
 # ---------------------------------------------------------------------------
 # _run_parallel_or_single
 # ---------------------------------------------------------------------------
+
 
 class TestRunParallelOrSingle:
     def test_parallel_safe_with_multiple_models(self):
@@ -887,6 +944,7 @@ class TestRunParallelOrSingle:
 # _should_full_refresh_foundation
 # ---------------------------------------------------------------------------
 
+
 class TestShouldFullRefreshFoundation:
     def test_non_foundation_stage_returns_false(self):
         executor = _make_executor()
@@ -897,7 +955,9 @@ class TestShouldFullRefreshFoundation:
         executor = _make_executor(simulation_start_year=2025)
         stage = StageDefinition(
             name=WorkflowStage.FOUNDATION,
-            dependencies=[], models=["m1"], validation_rules=[],
+            dependencies=[],
+            models=["m1"],
+            validation_rules=[],
         )
         assert executor._should_full_refresh_foundation(stage, 2025) is True
 
@@ -908,7 +968,9 @@ class TestShouldFullRefreshFoundation:
         )
         stage = StageDefinition(
             name=WorkflowStage.FOUNDATION,
-            dependencies=[], models=["m1"], validation_rules=[],
+            dependencies=[],
+            models=["m1"],
+            validation_rules=[],
         )
         assert executor._should_full_refresh_foundation(stage, 2026) is True
 
@@ -919,7 +981,9 @@ class TestShouldFullRefreshFoundation:
         )
         stage = StageDefinition(
             name=WorkflowStage.FOUNDATION,
-            dependencies=[], models=["m1"], validation_rules=[],
+            dependencies=[],
+            models=["m1"],
+            validation_rules=[],
         )
         assert executor._should_full_refresh_foundation(stage, 2026) is False
 
@@ -927,7 +991,9 @@ class TestShouldFullRefreshFoundation:
         executor = _make_executor(simulation_start_year=2025, setup=None)
         stage = StageDefinition(
             name=WorkflowStage.FOUNDATION,
-            dependencies=[], models=["m1"], validation_rules=[],
+            dependencies=[],
+            models=["m1"],
+            validation_rules=[],
         )
         # No setup -> clear_mode defaults to "all"
         assert executor._should_full_refresh_foundation(stage, 2026) is True
@@ -937,7 +1003,9 @@ class TestShouldFullRefreshFoundation:
         executor = _make_executor(simulation_start_year=2025, verbose=True)
         stage = StageDefinition(
             name=WorkflowStage.FOUNDATION,
-            dependencies=[], models=["m1"], validation_rules=[],
+            dependencies=[],
+            models=["m1"],
+            validation_rules=[],
         )
         executor._should_full_refresh_foundation(stage, 2025)
         assert "full-refresh" in caplog.text.lower() or "FOUNDATION" in caplog.text
@@ -946,6 +1014,7 @@ class TestShouldFullRefreshFoundation:
 # ---------------------------------------------------------------------------
 # PipelineStageError
 # ---------------------------------------------------------------------------
+
 
 class TestPipelineStageError:
     def test_is_runtime_error(self):

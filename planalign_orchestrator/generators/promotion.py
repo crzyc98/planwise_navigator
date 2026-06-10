@@ -94,7 +94,9 @@ class PromotionEventGenerator(HazardBasedEventGeneratorMixin, EventGenerator):
         # Check event type
         payload = event.payload
         if payload.event_type != EVENT_PROMOTION:
-            errors.append(f"Expected event_type 'promotion', got '{payload.event_type}'")
+            errors.append(
+                f"Expected event_type 'promotion', got '{payload.event_type}'"
+            )
             return ValidationResult(is_valid=False, errors=errors)
 
         # Validate new_job_level

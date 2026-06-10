@@ -29,8 +29,12 @@ class TestGetVestingPercentage:
 
     def test_cliff_2_year_before_cliff(self):
         """2-Year Cliff: 0% before 2 years."""
-        assert get_vesting_percentage(VestingScheduleType.CLIFF_2_YEAR, 0) == Decimal("0.0")
-        assert get_vesting_percentage(VestingScheduleType.CLIFF_2_YEAR, 1) == Decimal("0.0")
+        assert get_vesting_percentage(VestingScheduleType.CLIFF_2_YEAR, 0) == Decimal(
+            "0.0"
+        )
+        assert get_vesting_percentage(VestingScheduleType.CLIFF_2_YEAR, 1) == Decimal(
+            "0.0"
+        )
 
     def test_cliff_2_year_at_cliff(self):
         """2-Year Cliff: 100% at 2 years."""
@@ -39,53 +43,107 @@ class TestGetVestingPercentage:
 
     def test_cliff_3_year_progression(self):
         """3-Year Cliff: 0% until year 3, then 100%."""
-        assert get_vesting_percentage(VestingScheduleType.CLIFF_3_YEAR, 0) == Decimal("0.0")
-        assert get_vesting_percentage(VestingScheduleType.CLIFF_3_YEAR, 1) == Decimal("0.0")
-        assert get_vesting_percentage(VestingScheduleType.CLIFF_3_YEAR, 2) == Decimal("0.0")
-        assert get_vesting_percentage(VestingScheduleType.CLIFF_3_YEAR, 3) == Decimal("1.0")
+        assert get_vesting_percentage(VestingScheduleType.CLIFF_3_YEAR, 0) == Decimal(
+            "0.0"
+        )
+        assert get_vesting_percentage(VestingScheduleType.CLIFF_3_YEAR, 1) == Decimal(
+            "0.0"
+        )
+        assert get_vesting_percentage(VestingScheduleType.CLIFF_3_YEAR, 2) == Decimal(
+            "0.0"
+        )
+        assert get_vesting_percentage(VestingScheduleType.CLIFF_3_YEAR, 3) == Decimal(
+            "1.0"
+        )
 
     def test_cliff_4_year_progression(self):
         """4-Year Cliff: 0% until year 4, then 100%."""
-        assert get_vesting_percentage(VestingScheduleType.CLIFF_4_YEAR, 0) == Decimal("0.0")
-        assert get_vesting_percentage(VestingScheduleType.CLIFF_4_YEAR, 3) == Decimal("0.0")
-        assert get_vesting_percentage(VestingScheduleType.CLIFF_4_YEAR, 4) == Decimal("1.0")
+        assert get_vesting_percentage(VestingScheduleType.CLIFF_4_YEAR, 0) == Decimal(
+            "0.0"
+        )
+        assert get_vesting_percentage(VestingScheduleType.CLIFF_4_YEAR, 3) == Decimal(
+            "0.0"
+        )
+        assert get_vesting_percentage(VestingScheduleType.CLIFF_4_YEAR, 4) == Decimal(
+            "1.0"
+        )
 
     def test_qaca_2_year_progression(self):
         """QACA 2-Year: same as cliff 2."""
-        assert get_vesting_percentage(VestingScheduleType.QACA_2_YEAR, 0) == Decimal("0.0")
-        assert get_vesting_percentage(VestingScheduleType.QACA_2_YEAR, 1) == Decimal("0.0")
-        assert get_vesting_percentage(VestingScheduleType.QACA_2_YEAR, 2) == Decimal("1.0")
+        assert get_vesting_percentage(VestingScheduleType.QACA_2_YEAR, 0) == Decimal(
+            "0.0"
+        )
+        assert get_vesting_percentage(VestingScheduleType.QACA_2_YEAR, 1) == Decimal(
+            "0.0"
+        )
+        assert get_vesting_percentage(VestingScheduleType.QACA_2_YEAR, 2) == Decimal(
+            "1.0"
+        )
 
     def test_graded_3_year_progression(self):
         """3-Year Graded: 33.33% per year."""
-        assert get_vesting_percentage(VestingScheduleType.GRADED_3_YEAR, 0) == Decimal("0.0")
-        assert get_vesting_percentage(VestingScheduleType.GRADED_3_YEAR, 1) == Decimal("0.3333")
-        assert get_vesting_percentage(VestingScheduleType.GRADED_3_YEAR, 2) == Decimal("0.6667")
-        assert get_vesting_percentage(VestingScheduleType.GRADED_3_YEAR, 3) == Decimal("1.0")
+        assert get_vesting_percentage(VestingScheduleType.GRADED_3_YEAR, 0) == Decimal(
+            "0.0"
+        )
+        assert get_vesting_percentage(VestingScheduleType.GRADED_3_YEAR, 1) == Decimal(
+            "0.3333"
+        )
+        assert get_vesting_percentage(VestingScheduleType.GRADED_3_YEAR, 2) == Decimal(
+            "0.6667"
+        )
+        assert get_vesting_percentage(VestingScheduleType.GRADED_3_YEAR, 3) == Decimal(
+            "1.0"
+        )
 
     def test_graded_4_year_progression(self):
         """4-Year Graded: 25% per year."""
-        assert get_vesting_percentage(VestingScheduleType.GRADED_4_YEAR, 0) == Decimal("0.0")
-        assert get_vesting_percentage(VestingScheduleType.GRADED_4_YEAR, 1) == Decimal("0.25")
-        assert get_vesting_percentage(VestingScheduleType.GRADED_4_YEAR, 2) == Decimal("0.50")
-        assert get_vesting_percentage(VestingScheduleType.GRADED_4_YEAR, 3) == Decimal("0.75")
-        assert get_vesting_percentage(VestingScheduleType.GRADED_4_YEAR, 4) == Decimal("1.0")
+        assert get_vesting_percentage(VestingScheduleType.GRADED_4_YEAR, 0) == Decimal(
+            "0.0"
+        )
+        assert get_vesting_percentage(VestingScheduleType.GRADED_4_YEAR, 1) == Decimal(
+            "0.25"
+        )
+        assert get_vesting_percentage(VestingScheduleType.GRADED_4_YEAR, 2) == Decimal(
+            "0.50"
+        )
+        assert get_vesting_percentage(VestingScheduleType.GRADED_4_YEAR, 3) == Decimal(
+            "0.75"
+        )
+        assert get_vesting_percentage(VestingScheduleType.GRADED_4_YEAR, 4) == Decimal(
+            "1.0"
+        )
 
     def test_graded_5_year_progression(self):
         """5-Year Graded: 20% per year."""
-        assert get_vesting_percentage(VestingScheduleType.GRADED_5_YEAR, 0) == Decimal("0.0")
-        assert get_vesting_percentage(VestingScheduleType.GRADED_5_YEAR, 1) == Decimal("0.20")
-        assert get_vesting_percentage(VestingScheduleType.GRADED_5_YEAR, 2) == Decimal("0.40")
-        assert get_vesting_percentage(VestingScheduleType.GRADED_5_YEAR, 3) == Decimal("0.60")
-        assert get_vesting_percentage(VestingScheduleType.GRADED_5_YEAR, 4) == Decimal("0.80")
-        assert get_vesting_percentage(VestingScheduleType.GRADED_5_YEAR, 5) == Decimal("1.0")
+        assert get_vesting_percentage(VestingScheduleType.GRADED_5_YEAR, 0) == Decimal(
+            "0.0"
+        )
+        assert get_vesting_percentage(VestingScheduleType.GRADED_5_YEAR, 1) == Decimal(
+            "0.20"
+        )
+        assert get_vesting_percentage(VestingScheduleType.GRADED_5_YEAR, 2) == Decimal(
+            "0.40"
+        )
+        assert get_vesting_percentage(VestingScheduleType.GRADED_5_YEAR, 3) == Decimal(
+            "0.60"
+        )
+        assert get_vesting_percentage(VestingScheduleType.GRADED_5_YEAR, 4) == Decimal(
+            "0.80"
+        )
+        assert get_vesting_percentage(VestingScheduleType.GRADED_5_YEAR, 5) == Decimal(
+            "1.0"
+        )
 
     def test_tenure_beyond_max_capped_at_100(self):
         """Tenure beyond schedule max uses 100% vesting."""
         # 3-year cliff caps at year 3
-        assert get_vesting_percentage(VestingScheduleType.CLIFF_3_YEAR, 10) == Decimal("1.0")
+        assert get_vesting_percentage(VestingScheduleType.CLIFF_3_YEAR, 10) == Decimal(
+            "1.0"
+        )
         # 5-year graded caps at year 5
-        assert get_vesting_percentage(VestingScheduleType.GRADED_5_YEAR, 15) == Decimal("1.0")
+        assert get_vesting_percentage(VestingScheduleType.GRADED_5_YEAR, 15) == Decimal(
+            "1.0"
+        )
 
 
 class TestTenureTruncation:
@@ -149,7 +207,7 @@ class TestHoursBasedVestingCredit:
             tenure_years=3,
             annual_hours=800,
             require_hours=True,
-            hours_threshold=1000
+            hours_threshold=1000,
         )
         # Effective tenure = 2 years (40% vested)
         assert pct == Decimal("0.40")
@@ -161,7 +219,7 @@ class TestHoursBasedVestingCredit:
             tenure_years=3,
             annual_hours=1000,
             require_hours=True,
-            hours_threshold=1000
+            hours_threshold=1000,
         )
         # Effective tenure = 3 years (60% vested)
         assert pct == Decimal("0.60")
@@ -173,7 +231,7 @@ class TestHoursBasedVestingCredit:
             tenure_years=3,
             annual_hours=2000,
             require_hours=True,
-            hours_threshold=1000
+            hours_threshold=1000,
         )
         assert pct == Decimal("0.60")
 
@@ -184,7 +242,7 @@ class TestHoursBasedVestingCredit:
             tenure_years=3,
             annual_hours=100,  # Way below threshold
             require_hours=False,  # But hours credit is disabled
-            hours_threshold=1000
+            hours_threshold=1000,
         )
         # Full 3 years tenure = 60% vested
         assert pct == Decimal("0.60")
@@ -197,7 +255,7 @@ class TestHoursBasedVestingCredit:
             tenure_years=3,
             annual_hours=600,
             require_hours=True,
-            hours_threshold=500
+            hours_threshold=500,
         )
         # 600 hours, threshold 1000 = reduction
         pct_1000 = get_vesting_percentage(
@@ -205,7 +263,7 @@ class TestHoursBasedVestingCredit:
             tenure_years=3,
             annual_hours=600,
             require_hours=True,
-            hours_threshold=1000
+            hours_threshold=1000,
         )
         assert pct_500 == Decimal("0.60")  # 3 years
         assert pct_1000 == Decimal("0.40")  # 2 years
@@ -217,7 +275,7 @@ class TestHoursBasedVestingCredit:
             tenure_years=0,
             annual_hours=100,
             require_hours=True,
-            hours_threshold=1000
+            hours_threshold=1000,
         )
         # 0 - 1 = 0 (clamped at zero)
         assert pct == Decimal("0.0")
@@ -267,7 +325,7 @@ class TestEmployeeDetailsValidation:
             proposed_vesting_pct=Decimal("1.0"),
             proposed_vested_amount=Decimal("15000.00"),
             proposed_forfeiture=Decimal("0.00"),
-            forfeiture_variance=Decimal("-6000.00")
+            forfeiture_variance=Decimal("-6000.00"),
         )
 
         # All fields should be accessible

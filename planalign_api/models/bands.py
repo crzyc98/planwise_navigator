@@ -13,7 +13,9 @@ class Band(BaseModel):
     """A single band definition representing a range segment for age or tenure grouping."""
 
     band_id: int = Field(..., ge=1, description="Unique identifier for the band")
-    band_label: str = Field(..., max_length=50, description="Human-readable label (e.g., '25-34', '< 25')")
+    band_label: str = Field(
+        ..., max_length=50, description="Human-readable label (e.g., '25-34', '< 25')"
+    )
     min_value: int = Field(..., ge=0, description="Lower bound (inclusive)")
     max_value: int = Field(..., gt=0, description="Upper bound (exclusive)")
     display_order: int = Field(..., ge=1, description="Sort order for UI display")
@@ -37,12 +39,16 @@ class BandConfig(BaseModel):
 class BandValidationError(BaseModel):
     """A validation error for band configurations."""
 
-    band_type: Literal["age", "tenure"] = Field(..., description="Type of bands with the error")
+    band_type: Literal["age", "tenure"] = Field(
+        ..., description="Type of bands with the error"
+    )
     error_type: Literal["gap", "overlap", "invalid_range", "coverage"] = Field(
         ..., description="Type of validation error"
     )
     message: str = Field(..., description="Human-readable error message")
-    band_ids: List[int] = Field(default_factory=list, description="IDs of bands involved in the error")
+    band_ids: List[int] = Field(
+        default_factory=list, description="IDs of bands involved in the error"
+    )
 
 
 class BandSaveRequest(BaseModel):
@@ -65,7 +71,9 @@ class BandSaveResponse(BaseModel):
 class BandAnalysisRequest(BaseModel):
     """Request for census-based band analysis."""
 
-    file_path: str = Field(..., description="Path to census file (relative to workspace or absolute)")
+    file_path: str = Field(
+        ..., description="Path to census file (relative to workspace or absolute)"
+    )
 
 
 class DistributionStats(BaseModel):
@@ -85,7 +93,14 @@ class DistributionStats(BaseModel):
 class BandAnalysisResult(BaseModel):
     """Result from census-based band analysis."""
 
-    suggested_bands: List[Band] = Field(..., description="Suggested band definitions based on analysis")
-    distribution_stats: DistributionStats = Field(..., description="Statistics about the analyzed distribution")
-    analysis_type: str = Field(..., description="Description of analysis performed (e.g., 'Recent hires from 2024')")
+    suggested_bands: List[Band] = Field(
+        ..., description="Suggested band definitions based on analysis"
+    )
+    distribution_stats: DistributionStats = Field(
+        ..., description="Statistics about the analyzed distribution"
+    )
+    analysis_type: str = Field(
+        ...,
+        description="Description of analysis performed (e.g., 'Recent hires from 2024')",
+    )
     source_file: str = Field(..., description="Path to source census file")

@@ -86,21 +86,29 @@ class OptOutAnalysisService:
             raise ValueError(f"File not found: {file_path}")
         return resolved
 
-    def _load_file(self, conn: duckdb.DuckDBPyConnection, safe_path: str, suffix: str) -> None:
+    def _load_file(
+        self, conn: duckdb.DuckDBPyConnection, safe_path: str, suffix: str
+    ) -> None:
         if suffix == ".parquet":
-            conn.execute(f"CREATE TABLE census AS SELECT * FROM read_parquet('{safe_path}')")
+            conn.execute(
+                f"CREATE TABLE census AS SELECT * FROM read_parquet('{safe_path}')"
+            )
         elif suffix == ".csv":
             conn.execute(
                 f"CREATE TABLE census AS SELECT * FROM read_csv('{safe_path}', header=true, auto_detect=true)"
             )
         else:
-            raise ValueError(f"Unsupported file type: {suffix}. Expected .csv or .parquet")
+            raise ValueError(
+                f"Unsupported file type: {suffix}. Expected .csv or .parquet"
+            )
 
     def _detect_columns(self, conn: duckdb.DuckDBPyConnection) -> tuple[str, str]:
         """Return (hire_date_col, deferral_col) detected in the census table."""
         existing = {
             row[0].lower()
-            for row in conn.execute("SELECT column_name FROM information_schema.columns WHERE table_name = 'census'").fetchall()
+            for row in conn.execute(
+                "SELECT column_name FROM information_schema.columns WHERE table_name = 'census'"
+            ).fetchall()
         }
 
         hire_col = next(
@@ -122,8 +130,12 @@ class OptOutAnalysisService:
             )
 
         # Validate against the allowlist before use in SQL
-        validate_column_name_from_set(hire_col, CENSUS_HIRE_DATE_COLUMNS, "hire date column")
-        validate_column_name_from_set(deferral_col, CENSUS_DEFERRAL_COLUMNS, "deferral rate column")
+        validate_column_name_from_set(
+            hire_col, CENSUS_HIRE_DATE_COLUMNS, "hire date column"
+        )
+        validate_column_name_from_set(
+            deferral_col, CENSUS_DEFERRAL_COLUMNS, "deferral rate column"
+        )
 
         return hire_col, deferral_col
 
@@ -153,7 +165,9 @@ class OptOutAnalysisService:
             f"SELECT MAX(TRY_CAST({hire_col} AS DATE)) FROM census WHERE {active_filter} AND {hire_col} IS NOT NULL AND CAST({hire_col} AS VARCHAR) != ''"
         ).fetchone()
         if max_hire_row is None or max_hire_row[0] is None:
-            return self._empty_result(hire_col, lookback_years, source_file, excluded_null_tenure)
+            return self._empty_result(
+                hire_col, lookback_years, source_file, excluded_null_tenure
+            )
 
         cutoff_sql = f"(MAX(TRY_CAST({hire_col} AS DATE)) - INTERVAL {lookback_years * 365} DAYS)"
 

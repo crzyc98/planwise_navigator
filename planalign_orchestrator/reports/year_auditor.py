@@ -108,12 +108,10 @@ class YearAuditor:
             lines = ["Year-end Employment Makeup by Status:"]
             for status, count, pct in results:
                 lines.append(
-                    "   %s: %4s (%4.1f%%)"
-                    % (status.ljust(25), f"{count:,}", pct)
+                    "   %s: %4s (%4.1f%%)" % (status.ljust(25), f"{count:,}", pct)
                 )
             lines.append(
-                "   %s: %4s (100.0%%)"
-                % ("TOTAL".ljust(25), f"{total_employees:,}")
+                "   %s: %4s (100.0%%)" % ("TOTAL".ljust(25), f"{total_employees:,}")
             )
             logger.info("\n".join(lines))
 
@@ -146,7 +144,9 @@ class YearAuditor:
         )
         lines = ["Year %d Event Summary:" % year]
         lines.append("   %s: %4s" % ("hire".ljust(15), f"{(hires or 0):,}"))
-        lines.append("   %s: %4s" % ("termination".ljust(15), f"{(terminations or 0):,}"))
+        lines.append(
+            "   %s: %4s" % ("termination".ljust(15), f"{(terminations or 0):,}")
+        )
         for event_type, count in results:
             lines.append("   %s: %4s" % (event_type.ljust(15), f"{count:,}"))
         lines.append("   %s: %4s" % ("TOTAL".ljust(15), f"{total_events:,}"))
@@ -204,8 +204,12 @@ class YearAuditor:
             current_count = current_result[0] if current_result else 0
 
             lines = ["Year-over-Year Growth:"]
-            lines.append("   Year %d active employees: %4s" % (year - 1, f"{prev_count:,}"))
-            lines.append("   Year %d active employees  : %4s" % (year, f"{current_count:,}"))
+            lines.append(
+                "   Year %d active employees: %4s" % (year - 1, f"{prev_count:,}")
+            )
+            lines.append(
+                "   Year %d active employees  : %4s" % (year, f"{current_count:,}")
+            )
 
             if prev_count > 0:
                 growth = current_count - prev_count
@@ -257,9 +261,7 @@ class YearAuditor:
             dq_result = conn.execute(dq_query, [year]).fetchone()
             if dq_result and dq_result[0] > 0:
                 failures = dq_result[0]
-                logger.warning(
-                    "Data quality issues: %d validation failures", failures
-                )
+                logger.warning("Data quality issues: %d validation failures", failures)
             else:
                 logger.info("Data quality: All validations passed")
 
@@ -289,7 +291,9 @@ class YearAuditor:
         if events_results:
             # Check for reasonable hire/termination ratios
             hire_count = sum(
-                count for event_type, count in events_results if event_type == EVENT_HIRE
+                count
+                for event_type, count in events_results
+                if event_type == EVENT_HIRE
             )
             term_count = sum(
                 count

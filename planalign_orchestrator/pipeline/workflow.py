@@ -38,6 +38,7 @@ class WorkflowStage(Enum):
     Stages are executed in dependency order, with each stage completing before
     dependent stages begin. This ensures proper data flow and consistency.
     """
+
     INITIALIZATION = "initialization"
     FOUNDATION = "foundation"
     EVENT_GENERATION = "event_generation"
@@ -59,6 +60,7 @@ class StageDefinition:
         parallel_safe: Whether models in this stage can be executed in parallel
         checkpoint_enabled: Whether to create a checkpoint after stage completion
     """
+
     name: WorkflowStage
     dependencies: List[WorkflowStage]
     models: List[str]
@@ -77,6 +79,7 @@ class WorkflowCheckpoint:
         timestamp: ISO timestamp of checkpoint creation
         state_hash: Hash of the workflow state for validation
     """
+
     year: int
     stage: WorkflowStage
     timestamp: str

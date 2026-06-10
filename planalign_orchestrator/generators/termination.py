@@ -102,7 +102,13 @@ class TerminationEventGenerator(HazardBasedEventGeneratorMixin, EventGenerator):
             return ValidationResult(is_valid=False, errors=errors)
 
         # Validate termination reason
-        valid_reasons = {"voluntary", "involuntary", "retirement", "death", "disability"}
+        valid_reasons = {
+            "voluntary",
+            "involuntary",
+            "retirement",
+            "death",
+            "disability",
+        }
         if hasattr(payload, "termination_reason"):
             if payload.termination_reason not in valid_reasons:
                 errors.append(

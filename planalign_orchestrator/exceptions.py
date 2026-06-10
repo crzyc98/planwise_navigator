@@ -18,21 +18,23 @@ import uuid
 
 class ErrorSeverity(str, Enum):
     """Error severity levels for triage and alerting"""
-    CRITICAL = "critical"      # Data corruption, system-wide failure
-    ERROR = "error"            # Stage/year failure, requires intervention
+
+    CRITICAL = "critical"  # Data corruption, system-wide failure
+    ERROR = "error"  # Stage/year failure, requires intervention
     RECOVERABLE = "recoverable"  # Transient failure, retry possible
-    WARNING = "warning"        # Non-blocking issue, may degrade quality
+    WARNING = "warning"  # Non-blocking issue, may degrade quality
 
 
 class ErrorCategory(str, Enum):
     """Error categories for diagnostics and resolution routing"""
-    DATABASE = "database"              # DuckDB locks, query failures
-    CONFIGURATION = "configuration"    # Invalid config, missing parameters
-    DATA_QUALITY = "data_quality"      # Test failures, validation errors
-    RESOURCE = "resource"              # Memory, CPU, disk exhaustion
-    NETWORK = "network"                # Proxy, SSL, timeout issues
-    DEPENDENCY = "dependency"          # Missing models, circular dependencies
-    STATE = "state"                    # Checkpoint corruption, state inconsistency
+
+    DATABASE = "database"  # DuckDB locks, query failures
+    CONFIGURATION = "configuration"  # Invalid config, missing parameters
+    DATA_QUALITY = "data_quality"  # Test failures, validation errors
+    RESOURCE = "resource"  # Memory, CPU, disk exhaustion
+    NETWORK = "network"  # Proxy, SSL, timeout issues
+    DEPENDENCY = "dependency"  # Missing models, circular dependencies
+    STATE = "state"  # Checkpoint corruption, state inconsistency
 
 
 @dataclass
@@ -68,8 +70,9 @@ class ExecutionContext:
     def to_dict(self) -> Dict[str, Any]:
         """Serialize context for logging and storage"""
         return {
-            k: v for k, v in self.__dict__.items()
-            if v is not None and not k.startswith('_')
+            k: v
+            for k, v in self.__dict__.items()
+            if v is not None and not k.startswith("_")
         }
 
     def format_summary(self) -> str:
@@ -115,7 +118,7 @@ class NavigatorError(Exception):
         severity: ErrorSeverity = ErrorSeverity.ERROR,
         resolution_hints: Optional[List[ResolutionHint]] = None,
         original_exception: Optional[Exception] = None,
-        **kwargs
+        **kwargs,
     ):
         super().__init__(message)
         self.message = message
@@ -149,7 +152,7 @@ class NavigatorError(Exception):
         if self.context:
             context_dict = self.context.to_dict()
             for key, value in context_dict.items():
-                if key == 'metadata' and isinstance(value, dict):
+                if key == "metadata" and isinstance(value, dict):
                     for meta_key, meta_value in value.items():
                         lines.append(f"  {meta_key}: {meta_value}")
                 else:
@@ -177,7 +180,9 @@ class NavigatorError(Exception):
         if self.original_exception:
             lines.append("")
             lines.append("ORIGINAL EXCEPTION:")
-            lines.append(f"  {type(self.original_exception).__name__}: {str(self.original_exception)}")
+            lines.append(
+                f"  {type(self.original_exception).__name__}: {str(self.original_exception)}"
+            )
 
         lines.append("")
         lines.append(f"{'='*80}")
@@ -198,24 +203,28 @@ class NavigatorError(Exception):
                     "description": hint.description,
                     "steps": hint.steps,
                     "documentation_url": hint.documentation_url,
-                    "estimated_time": hint.estimated_resolution_time
+                    "estimated_time": hint.estimated_resolution_time,
                 }
                 for hint in self.resolution_hints
             ],
-            "original_exception": str(self.original_exception) if self.original_exception else None,
-            **self.additional_data
+            "original_exception": str(self.original_exception)
+            if self.original_exception
+            else None,
+            **self.additional_data,
         }
 
 
 # Database Errors
 class DatabaseError(NavigatorError):
     """Database-related errors (locks, queries, connections)"""
+
     def __init__(self, message: str, **kwargs):
         super().__init__(message, category=ErrorCategory.DATABASE, **kwargs)
 
 
 class DatabaseLockError(DatabaseError):
     """Database lock conflict (common with IDE connections)"""
+
     def __init__(self, message: str = "Database lock conflict detected", **kwargs):
         if "resolution_hints" not in kwargs:
             kwargs["resolution_hints"] = [
@@ -226,10 +235,10 @@ class DatabaseLockError(DatabaseError):
                         "Close database explorer in VS Code/Windsurf/DataGrip",
                         "Check for other Python processes: ps aux | grep duckdb",
                         "Kill stale connections: pkill -f 'duckdb.*simulation.duckdb'",
-                        "Retry simulation"
+                        "Retry simulation",
                     ],
                     documentation_url="docs/guides/troubleshooting.md#database-locks",
-                    estimated_resolution_time="1-2 minutes"
+                    estimated_resolution_time="1-2 minutes",
                 )
             ]
         super().__init__(message, severity=ErrorSeverity.RECOVERABLE, **kwargs)
@@ -237,6 +246,7 @@ class DatabaseLockError(DatabaseError):
 
 class QueryExecutionError(DatabaseError):
     """SQL query execution failure"""
+
     def __init__(self, message: str, query: Optional[str] = None, **kwargs):
         if query:
             kwargs["metadata"] = kwargs.get("metadata", {})
@@ -247,18 +257,20 @@ class QueryExecutionError(DatabaseError):
 # Configuration Errors
 class ConfigurationError(NavigatorError):
     """Configuration-related errors"""
+
     def __init__(self, message: str, **kwargs):
         super().__init__(message, category=ErrorCategory.CONFIGURATION, **kwargs)
 
 
 class InvalidConfigurationError(ConfigurationError):
     """Invalid configuration parameter or structure"""
+
     def __init__(
         self,
         message: str,
         config_path: Optional[str] = None,
         invalid_value: Optional[Any] = None,
-        **kwargs
+        **kwargs,
     ):
         if config_path:
             message = f"{message} (config_path: {config_path})"
@@ -269,6 +281,7 @@ class InvalidConfigurationError(ConfigurationError):
 
 class MissingConfigurationError(ConfigurationError):
     """Required configuration parameter not found"""
+
     def __init__(self, parameter_name: str, **kwargs):
         message = f"Required configuration parameter missing: {parameter_name}"
         if "resolution_hints" not in kwargs:
@@ -280,10 +293,10 @@ class MissingConfigurationError(ConfigurationError):
                         "Open config/simulation_config.yaml",
                         f"Add {parameter_name} with appropriate value",
                         "Validate config: planwise validate",
-                        "Retry simulation"
+                        "Retry simulation",
                     ],
                     documentation_url="docs/configuration.md",
-                    estimated_resolution_time="5 minutes"
+                    estimated_resolution_time="5 minutes",
                 )
             ]
         super().__init__(message, severity=ErrorSeverity.ERROR, **kwargs)
@@ -292,18 +305,20 @@ class MissingConfigurationError(ConfigurationError):
 # Data Quality Errors
 class DataQualityError(NavigatorError):
     """Data quality and validation errors"""
+
     def __init__(self, message: str, **kwargs):
         super().__init__(message, category=ErrorCategory.DATA_QUALITY, **kwargs)
 
 
 class ValidationFailureError(DataQualityError):
     """Data validation test failure"""
+
     def __init__(
         self,
         message: str,
         failed_test: Optional[str] = None,
         affected_records: Optional[int] = None,
-        **kwargs
+        **kwargs,
     ):
         if failed_test:
             message = f"{message} (test: {failed_test})"
@@ -315,12 +330,14 @@ class ValidationFailureError(DataQualityError):
 # dbt Errors (Enhanced from existing DbtError classes)
 class DbtError(NavigatorError):
     """Base class for dbt-related errors"""
+
     def __init__(self, message: str, **kwargs):
         super().__init__(message, category=ErrorCategory.DATABASE, **kwargs)
 
 
 class DbtCompilationError(DbtError):
     """dbt model compilation failure"""
+
     def __init__(self, message: str, **kwargs):
         if "resolution_hints" not in kwargs:
             kwargs["resolution_hints"] = [
@@ -331,10 +348,10 @@ class DbtCompilationError(DbtError):
                         "Review error message for specific syntax issue",
                         "Check model file for missing CTEs or incorrect Jinja",
                         "Test compilation: dbt compile --select <model>",
-                        "Verify dbt_vars are correct: dbt compile --vars '{...}'"
+                        "Verify dbt_vars are correct: dbt compile --vars '{...}'",
                     ],
                     documentation_url="docs/dbt/troubleshooting.md#compilation-errors",
-                    estimated_resolution_time="10-15 minutes"
+                    estimated_resolution_time="10-15 minutes",
                 )
             ]
         super().__init__(message, severity=ErrorSeverity.ERROR, **kwargs)
@@ -342,6 +359,7 @@ class DbtCompilationError(DbtError):
 
 class DbtExecutionError(DbtError):
     """dbt model execution failure"""
+
     def __init__(self, message: str, **kwargs):
         if "resolution_hints" not in kwargs:
             kwargs["resolution_hints"] = [
@@ -352,10 +370,10 @@ class DbtExecutionError(DbtError):
                         "Check if database is locked (close IDE connections)",
                         "Verify upstream models completed successfully",
                         "Check for memory pressure: df -h and free -m",
-                        "Review query plan: EXPLAIN <query>"
+                        "Review query plan: EXPLAIN <query>",
                     ],
                     documentation_url="docs/dbt/troubleshooting.md#execution-errors",
-                    estimated_resolution_time="5-10 minutes"
+                    estimated_resolution_time="5-10 minutes",
                 )
             ]
         super().__init__(message, severity=ErrorSeverity.RECOVERABLE, **kwargs)
@@ -363,28 +381,38 @@ class DbtExecutionError(DbtError):
 
 class DbtDataQualityError(DbtError):
     """dbt data quality test failure"""
-    def __init__(self, message: str, failed_tests: Optional[List[str]] = None, **kwargs):
+
+    def __init__(
+        self, message: str, failed_tests: Optional[List[str]] = None, **kwargs
+    ):
         if failed_tests:
             kwargs["metadata"] = kwargs.get("metadata", {})
             kwargs["metadata"]["failed_tests"] = failed_tests
-        super().__init__(message, category=ErrorCategory.DATA_QUALITY, severity=ErrorSeverity.WARNING, **kwargs)
+        super().__init__(
+            message,
+            category=ErrorCategory.DATA_QUALITY,
+            severity=ErrorSeverity.WARNING,
+            **kwargs,
+        )
 
 
 # Pipeline Errors (Enhanced from existing PipelineStageError)
 class PipelineError(NavigatorError):
     """Pipeline orchestration errors"""
+
     def __init__(self, message: str, **kwargs):
         super().__init__(message, category=ErrorCategory.DEPENDENCY, **kwargs)
 
 
 class PipelineStageError(PipelineError):
     """Workflow stage execution failure"""
+
     def __init__(
         self,
         message: str,
         stage_name: Optional[str] = None,
         failed_models: Optional[List[str]] = None,
-        **kwargs
+        **kwargs,
     ):
         if stage_name:
             message = f"{message} (stage: {stage_name})"
@@ -397,12 +425,14 @@ class PipelineStageError(PipelineError):
 # Resource Errors
 class ResourceError(NavigatorError):
     """Resource exhaustion errors (memory, CPU, disk)"""
+
     def __init__(self, message: str, **kwargs):
         super().__init__(message, category=ErrorCategory.RESOURCE, **kwargs)
 
 
 class MemoryExhaustedError(ResourceError):
     """Out of memory condition"""
+
     def __init__(self, message: str, memory_used_mb: Optional[float] = None, **kwargs):
         if memory_used_mb:
             message = f"{message} (memory_used: {memory_used_mb:.1f}MB)"
@@ -416,10 +446,10 @@ class MemoryExhaustedError(ResourceError):
                         "Enable adaptive memory: optimization.adaptive_memory.enabled: true",
                         "Reduce batch size: optimization.batch_size: 250",
                         "Close other memory-intensive applications",
-                        "Consider using subset mode: --vars '{dev_employee_limit: 1000}'"
+                        "Consider using subset mode: --vars '{dev_employee_limit: 1000}'",
                     ],
                     documentation_url="docs/troubleshooting.md#memory-issues",
-                    estimated_resolution_time="10 minutes"
+                    estimated_resolution_time="10 minutes",
                 )
             ]
         super().__init__(message, severity=ErrorSeverity.CRITICAL, **kwargs)
@@ -428,12 +458,14 @@ class MemoryExhaustedError(ResourceError):
 # Network Errors
 class NetworkError(NavigatorError):
     """Network-related errors (proxy, SSL, timeouts)"""
+
     def __init__(self, message: str, **kwargs):
         super().__init__(message, category=ErrorCategory.NETWORK, **kwargs)
 
 
 class ProxyConfigurationError(NetworkError):
     """Corporate proxy configuration error"""
+
     def __init__(self, message: str, **kwargs):
         if "resolution_hints" not in kwargs:
             kwargs["resolution_hints"] = [
@@ -444,10 +476,10 @@ class ProxyConfigurationError(NetworkError):
                         "Check proxy settings in config/network_config.yaml",
                         "Verify HTTP_PROXY and HTTPS_PROXY environment variables",
                         "Test connection: curl -x $HTTP_PROXY https://example.com",
-                        "Add CA bundle if needed: REQUESTS_CA_BUNDLE=/path/to/ca-bundle.crt"
+                        "Add CA bundle if needed: REQUESTS_CA_BUNDLE=/path/to/ca-bundle.crt",
                     ],
                     documentation_url="docs/deployment/corporate-network.md",
-                    estimated_resolution_time="15 minutes"
+                    estimated_resolution_time="15 minutes",
                 )
             ]
         super().__init__(message, severity=ErrorSeverity.RECOVERABLE, **kwargs)
@@ -456,12 +488,14 @@ class ProxyConfigurationError(NetworkError):
 # State Errors
 class StateError(NavigatorError):
     """State management and checkpoint errors"""
+
     def __init__(self, message: str, **kwargs):
         super().__init__(message, category=ErrorCategory.STATE, **kwargs)
 
 
 class CheckpointCorruptionError(StateError):
     """Checkpoint file corruption or version mismatch"""
+
     def __init__(self, message: str, checkpoint_path: Optional[str] = None, **kwargs):
         if checkpoint_path:
             kwargs["metadata"] = kwargs.get("metadata", {})
@@ -475,10 +509,10 @@ class CheckpointCorruptionError(StateError):
                         "List checkpoints: planwise checkpoints list",
                         "Clean corrupted checkpoints: planwise checkpoints cleanup",
                         "Restart simulation from scratch (no --resume flag)",
-                        "If persistent, delete .planalign_checkpoints/ directory"
+                        "If persistent, delete .planalign_checkpoints/ directory",
                     ],
                     documentation_url="docs/recovery.md#checkpoint-corruption",
-                    estimated_resolution_time="5 minutes"
+                    estimated_resolution_time="5 minutes",
                 )
             ]
         super().__init__(message, severity=ErrorSeverity.ERROR, **kwargs)
@@ -486,6 +520,7 @@ class CheckpointCorruptionError(StateError):
 
 class StateInconsistencyError(StateError):
     """Inconsistent state between database and checkpoints"""
+
     def __init__(self, message: str, **kwargs):
         super().__init__(message, severity=ErrorSeverity.CRITICAL, **kwargs)
 
@@ -505,11 +540,7 @@ class YearDependencyError(StateError):
     """
 
     def __init__(
-        self,
-        year: int,
-        missing_tables: Dict[str, int],
-        start_year: int,
-        **kwargs
+        self, year: int, missing_tables: Dict[str, int], start_year: int, **kwargs
     ):
         self.year = year
         self.missing_tables = missing_tables
@@ -537,17 +568,17 @@ class YearDependencyError(StateError):
             steps=[
                 f"Run simulation from start year: planalign simulate {start_year}-{year}",
                 "Or resume from checkpoint: planalign simulate --resume-from-checkpoint",
-                "Verify prior year data exists in state accumulator tables"
+                "Verify prior year data exists in state accumulator tables",
             ],
             documentation_url="docs/guides/year-dependency-validation.md",
-            estimated_resolution_time="2-5 minutes"
+            estimated_resolution_time="2-5 minutes",
         )
 
         super().__init__(
             message,
             severity=ErrorSeverity.ERROR,
             resolution_hints=[resolution_hint],
-            **kwargs
+            **kwargs,
         )
 
 
@@ -558,13 +589,14 @@ class InitializationError(NavigatorError):
     Raised when automatic database initialization fails during first-time
     simulation in a new workspace.
     """
+
     def __init__(
         self,
         message: str,
         *,
         step: str | None = None,
         missing_tables: list[str] | None = None,
-        **kwargs
+        **kwargs,
     ):
         if step:
             kwargs["metadata"] = kwargs.get("metadata", {})
@@ -581,12 +613,8 @@ class InitializationTimeoutError(InitializationError):
     Per SC-003, initialization must complete within 60 seconds for standard
     workspace configurations.
     """
-    def __init__(
-        self,
-        timeout_seconds: float,
-        elapsed_seconds: float,
-        **kwargs
-    ):
+
+    def __init__(self, timeout_seconds: float, elapsed_seconds: float, **kwargs):
         message = (
             f"Initialization exceeded {timeout_seconds}s timeout "
             f"(elapsed: {elapsed_seconds:.1f}s)"
@@ -600,10 +628,10 @@ class InitializationTimeoutError(InitializationError):
                         "Check disk I/O performance",
                         "Verify dbt-duckdb is working: dbt debug",
                         "Run manual initialization: dbt seed && dbt run --select tag:foundation",
-                        "Check for large seed files that may slow loading"
+                        "Check for large seed files that may slow loading",
                     ],
                     documentation_url="docs/troubleshooting.md#initialization-timeout",
-                    estimated_resolution_time="5-10 minutes"
+                    estimated_resolution_time="5-10 minutes",
                 )
             ]
         kwargs["metadata"] = kwargs.get("metadata", {})
@@ -617,6 +645,7 @@ class ConcurrentInitializationError(InitializationError):
 
     Uses file-based mutex to prevent concurrent database modifications.
     """
+
     def __init__(self, lock_file: str, **kwargs):
         message = f"Another initialization is already in progress (lock: {lock_file})"
         if "resolution_hints" not in kwargs:
@@ -628,10 +657,10 @@ class ConcurrentInitializationError(InitializationError):
                         "Wait for the other initialization to complete",
                         "Check if another simulation is running: ps aux | grep planalign",
                         "If no other process, remove stale lock: rm <lock_file>",
-                        "Retry the simulation"
+                        "Retry the simulation",
                     ],
                     documentation_url="docs/troubleshooting.md#concurrent-initialization",
-                    estimated_resolution_time="1-2 minutes"
+                    estimated_resolution_time="1-2 minutes",
                 )
             ]
         kwargs["metadata"] = kwargs.get("metadata", {})
@@ -644,12 +673,9 @@ class DatabaseCorruptionError(InitializationError):
 
     Detected when DuckDB cannot open or query the database file.
     """
+
     def __init__(
-        self,
-        db_path: str,
-        *,
-        original_exception: Exception | None = None,
-        **kwargs
+        self, db_path: str, *, original_exception: Exception | None = None, **kwargs
     ):
         message = f"Database file is corrupted: {db_path}"
         if "resolution_hints" not in kwargs:
@@ -661,10 +687,10 @@ class DatabaseCorruptionError(InitializationError):
                         "Back up the corrupted database file if needed",
                         "Delete or rename the corrupted database",
                         "Retry simulation - a new database will be created",
-                        "If issue persists, check disk health"
+                        "If issue persists, check disk health",
                     ],
                     documentation_url="docs/troubleshooting.md#database-corruption",
-                    estimated_resolution_time="2-5 minutes"
+                    estimated_resolution_time="2-5 minutes",
                 )
             ]
         kwargs["metadata"] = kwargs.get("metadata", {})

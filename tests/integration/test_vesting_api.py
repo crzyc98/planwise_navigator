@@ -8,6 +8,7 @@ from fastapi.testclient import TestClient
 def client():
     """Create test client for API tests."""
     from planalign_api.main import app
+
     return TestClient(app)
 
 
@@ -40,8 +41,14 @@ class TestVestingSchedulesEndpoint:
         schedules = response.json()["schedules"]
 
         valid_types = {
-            "immediate", "cliff_2_year", "cliff_3_year", "cliff_4_year",
-            "qaca_2_year", "graded_3_year", "graded_4_year", "graded_5_year"
+            "immediate",
+            "cliff_2_year",
+            "cliff_3_year",
+            "cliff_4_year",
+            "qaca_2_year",
+            "graded_3_year",
+            "graded_4_year",
+            "graded_5_year",
         }
         returned_types = {s["schedule_type"] for s in schedules}
         assert returned_types == valid_types
@@ -56,19 +63,19 @@ class TestVestingAnalysisEndpoint:
         return {
             "current_schedule": {
                 "schedule_type": "graded_5_year",
-                "name": "5-Year Graded"
+                "name": "5-Year Graded",
             },
             "proposed_schedule": {
                 "schedule_type": "cliff_3_year",
-                "name": "3-Year Cliff"
-            }
+                "name": "3-Year Cliff",
+            },
         }
 
     def test_invalid_workspace_returns_404(self, client, valid_request_body):
         """Non-existent workspace returns 404."""
         response = client.post(
             "/api/workspaces/nonexistent_ws/scenarios/baseline/analytics/vesting",
-            json=valid_request_body
+            json=valid_request_body,
         )
         # Should return 404 for non-existent workspace
         assert response.status_code in [404, 422]
@@ -78,16 +85,16 @@ class TestVestingAnalysisEndpoint:
         invalid_body = {
             "current_schedule": {
                 "schedule_type": "invalid_schedule",  # Not a valid type
-                "name": "Invalid"
+                "name": "Invalid",
             },
             "proposed_schedule": {
                 "schedule_type": "cliff_3_year",
-                "name": "3-Year Cliff"
-            }
+                "name": "3-Year Cliff",
+            },
         }
         response = client.post(
             "/api/workspaces/test_ws/scenarios/baseline/analytics/vesting",
-            json=invalid_body
+            json=invalid_body,
         )
         assert response.status_code == 422  # Validation error
 
@@ -98,16 +105,16 @@ class TestVestingAnalysisEndpoint:
                 "schedule_type": "graded_5_year",
                 "name": "5-Year Graded",
                 "require_hours_credit": True,
-                "hours_threshold": 5000  # Invalid: > 2080
+                "hours_threshold": 5000,  # Invalid: > 2080
             },
             "proposed_schedule": {
                 "schedule_type": "cliff_3_year",
-                "name": "3-Year Cliff"
-            }
+                "name": "3-Year Cliff",
+            },
         }
         response = client.post(
             "/api/workspaces/test_ws/scenarios/baseline/analytics/vesting",
-            json=invalid_body
+            json=invalid_body,
         )
         assert response.status_code == 422
 
@@ -116,17 +123,17 @@ class TestVestingAnalysisEndpoint:
         invalid_body = {
             "current_schedule": {
                 "schedule_type": "graded_5_year",
-                "name": "5-Year Graded"
+                "name": "5-Year Graded",
             },
             "proposed_schedule": {
                 "schedule_type": "cliff_3_year",
-                "name": "3-Year Cliff"
+                "name": "3-Year Cliff",
             },
-            "simulation_year": 1990  # Invalid: < 2020
+            "simulation_year": 1990,  # Invalid: < 2020
         }
         response = client.post(
             "/api/workspaces/test_ws/scenarios/baseline/analytics/vesting",
-            json=invalid_body
+            json=invalid_body,
         )
         assert response.status_code == 422
 
@@ -190,12 +197,10 @@ class TestVestingAnalysisResponseStructure:
             scenario_id="baseline",
             scenario_name="Baseline Scenario",
             current_schedule=VestingScheduleConfig(
-                schedule_type=VestingScheduleType.GRADED_5_YEAR,
-                name="5-Year Graded"
+                schedule_type=VestingScheduleType.GRADED_5_YEAR, name="5-Year Graded"
             ),
             proposed_schedule=VestingScheduleConfig(
-                schedule_type=VestingScheduleType.CLIFF_3_YEAR,
-                name="3-Year Cliff"
+                schedule_type=VestingScheduleType.CLIFF_3_YEAR, name="3-Year Cliff"
             ),
             summary=VestingAnalysisSummary(
                 analysis_year=2027,
@@ -206,10 +211,10 @@ class TestVestingAnalysisResponseStructure:
                 proposed_total_vested=Decimal("0"),
                 proposed_total_forfeited=Decimal("0"),
                 forfeiture_variance=Decimal("0"),
-                forfeiture_variance_pct=Decimal("0")
+                forfeiture_variance_pct=Decimal("0"),
             ),
             by_tenure_band=[],
-            employee_details=[]
+            employee_details=[],
         )
 
         assert response.scenario_id == "baseline"

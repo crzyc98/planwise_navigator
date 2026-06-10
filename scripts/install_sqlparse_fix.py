@@ -33,13 +33,13 @@ except (ImportError, AttributeError):
 '''
 
 # Content for the .pth file - this executes the import
-PTH_CONTENT = '''# Configure sqlparse token limits for large dbt models
+PTH_CONTENT = """# Configure sqlparse token limits for large dbt models
 # See: scripts/install_sqlparse_fix.py
 import _sqlparse_config
-'''
+"""
 
 # Content for sitecustomize.py (used on Windows)
-SITECUSTOMIZE_CONTENT = '''
+SITECUSTOMIZE_CONTENT = """
 # sqlparse token limit fix (installed by scripts/install_sqlparse_fix.py)
 # See: https://discourse.getdbt.com/t/dbt-run-error-maximum-number-of-tokens-exceeded/20495
 try:
@@ -47,7 +47,7 @@ try:
     sqlparse.engine.grouping.MAX_GROUPING_TOKENS = 50000
 except (ImportError, AttributeError):
     pass
-'''
+"""
 
 
 def get_site_packages_path() -> Path | None:
@@ -159,7 +159,9 @@ def verify_installation() -> bool:
             return True
         else:
             print(f"⚠ MAX_GROUPING_TOKENS is {current_limit} (expected 50000)")
-            print("  This is expected - .pth files are only processed at Python startup")
+            print(
+                "  This is expected - .pth files are only processed at Python startup"
+            )
             return False
     except ImportError:
         print("⚠ sqlparse is not installed")
@@ -202,7 +204,9 @@ def main() -> int:
     print("Installation complete!")
     print()
     print("To verify in a new Python process:")
-    print('  python -c "import sqlparse.engine.grouping; print(f\'MAX_GROUPING_TOKENS={sqlparse.engine.grouping.MAX_GROUPING_TOKENS}\')"')
+    print(
+        "  python -c \"import sqlparse.engine.grouping; print(f'MAX_GROUPING_TOKENS={sqlparse.engine.grouping.MAX_GROUPING_TOKENS}')\""
+    )
     print()
     return 0
 

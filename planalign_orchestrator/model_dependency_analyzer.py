@@ -15,14 +15,21 @@ from pathlib import Path
 from typing import Dict, List, Set, Optional, Any, Tuple
 from collections import defaultdict, deque
 
-from .model_execution_types import ModelClassifier, ModelExecutionType, ModelClassification
+from .model_execution_types import (
+    ModelClassifier,
+    ModelExecutionType,
+    ModelClassification,
+)
 
 
 @dataclass
 class DependencyGraph:
     """Represents the dependency graph of dbt models."""
+
     nodes: Dict[str, Set[str]] = field(default_factory=dict)  # model -> dependencies
-    reverse_nodes: Dict[str, Set[str]] = field(default_factory=dict)  # model -> dependents
+    reverse_nodes: Dict[str, Set[str]] = field(
+        default_factory=dict
+    )  # model -> dependents
 
     def add_dependency(self, model: str, dependency: str) -> None:
         """Add a dependency relationship."""
@@ -87,7 +94,9 @@ class DependencyGraph:
                         queue.append(dependent)
 
         if len(result) != len(models):
-            raise ValueError(f"Circular dependency detected in models: {set(models) - set(result)}")
+            raise ValueError(
+                f"Circular dependency detected in models: {set(models) - set(result)}"
+            )
 
         return result
 
@@ -95,6 +104,7 @@ class DependencyGraph:
 @dataclass
 class ParallelizationOpportunity:
     """Represents an opportunity for parallel execution."""
+
     parallel_models: List[str]
     execution_group: str
     estimated_speedup: float
@@ -134,13 +144,13 @@ class ModelDependencyAnalyzer:
                     check=True,
                     capture_output=True,
                     text=True,
-                    encoding='utf-8'
+                    encoding="utf-8",
                 )
             except subprocess.CalledProcessError as e:
                 raise RuntimeError(f"Failed to compile dbt project for manifest: {e}")
 
         try:
-            with open(manifest_path, 'r') as f:
+            with open(manifest_path, "r") as f:
                 self._manifest_cache = json.load(f)
         except Exception as e:
             raise RuntimeError(f"Failed to load dbt manifest: {e}")
@@ -173,12 +183,12 @@ class ModelDependencyAnalyzer:
         """Enrich model classifications with actual dependency information."""
         for model_name in self.dependency_graph.nodes.keys():
             classification = self.classifier.classify_model(model_name)
-            classification.dependencies = self.dependency_graph.get_dependencies(model_name)
+            classification.dependencies = self.dependency_graph.get_dependencies(
+                model_name
+            )
 
     def identify_parallelization_opportunities(
-        self,
-        stage_models: List[str],
-        max_parallelism: int = 4
+        self, stage_models: List[str], max_parallelism: int = 4
     ) -> List[ParallelizationOpportunity]:
         """Identify opportunities for parallel execution within a stage."""
         opportunities = []
@@ -210,55 +220,74 @@ class ModelDependencyAnalyzer:
                     )
 
                     if len(independent_models) > 1:
-                        opportunities.append(ParallelizationOpportunity(
-                            parallel_models=independent_models,
-                            execution_group=group_name,
-                            estimated_speedup=min(len(independent_models) * 0.7, 3.0),
-                            resource_requirements={
-                                "memory_mb": len(independent_models) * 256,
-                                "cpu_threads": min(len(independent_models), max_parallelism)
-                            },
-                            safety_level="high"
-                        ))
+                        opportunities.append(
+                            ParallelizationOpportunity(
+                                parallel_models=independent_models,
+                                execution_group=group_name,
+                                estimated_speedup=min(
+                                    len(independent_models) * 0.7, 3.0
+                                ),
+                                resource_requirements={
+                                    "memory_mb": len(independent_models) * 256,
+                                    "cpu_threads": min(
+                                        len(independent_models), max_parallelism
+                                    ),
+                                },
+                                safety_level="high",
+                            )
+                        )
 
             # Handle ungrouped parallel-safe models
-            ungrouped = [m for m in parallel_safe_models
-                        if not self.classifier.classify_model(m).parallel_group]
+            ungrouped = [
+                m
+                for m in parallel_safe_models
+                if not self.classifier.classify_model(m).parallel_group
+            ]
             if len(ungrouped) > 1:
-                independent_models = self._find_independent_models(ungrouped, max_parallelism)
+                independent_models = self._find_independent_models(
+                    ungrouped, max_parallelism
+                )
                 if len(independent_models) > 1:
-                    opportunities.append(ParallelizationOpportunity(
-                        parallel_models=independent_models,
-                        execution_group="independent_parallel",
-                        estimated_speedup=min(len(independent_models) * 0.6, 2.5),
-                        resource_requirements={
-                            "memory_mb": len(independent_models) * 512,
-                            "cpu_threads": min(len(independent_models), max_parallelism)
-                        },
-                        safety_level="high"
-                    ))
+                    opportunities.append(
+                        ParallelizationOpportunity(
+                            parallel_models=independent_models,
+                            execution_group="independent_parallel",
+                            estimated_speedup=min(len(independent_models) * 0.6, 2.5),
+                            resource_requirements={
+                                "memory_mb": len(independent_models) * 512,
+                                "cpu_threads": min(
+                                    len(independent_models), max_parallelism
+                                ),
+                            },
+                            safety_level="high",
+                        )
+                    )
 
         # Analyze conditional models for potential parallelization
         if len(conditional_models) > 1:
-            safe_conditional = self._analyze_conditional_parallelization(conditional_models)
+            safe_conditional = self._analyze_conditional_parallelization(
+                conditional_models
+            )
             if len(safe_conditional) > 1:
-                opportunities.append(ParallelizationOpportunity(
-                    parallel_models=safe_conditional,
-                    execution_group="conditional_parallel",
-                    estimated_speedup=min(len(safe_conditional) * 0.4, 2.0),
-                    resource_requirements={
-                        "memory_mb": len(safe_conditional) * 768,
-                        "cpu_threads": min(len(safe_conditional), max_parallelism // 2)
-                    },
-                    safety_level="medium"
-                ))
+                opportunities.append(
+                    ParallelizationOpportunity(
+                        parallel_models=safe_conditional,
+                        execution_group="conditional_parallel",
+                        estimated_speedup=min(len(safe_conditional) * 0.4, 2.0),
+                        resource_requirements={
+                            "memory_mb": len(safe_conditional) * 768,
+                            "cpu_threads": min(
+                                len(safe_conditional), max_parallelism // 2
+                            ),
+                        },
+                        safety_level="medium",
+                    )
+                )
 
         return opportunities
 
     def _find_independent_models(
-        self,
-        models: List[str],
-        max_parallel: int
+        self, models: List[str], max_parallel: int
     ) -> List[str]:
         """Find models that can run independently in parallel."""
         if len(models) <= 1:
@@ -277,7 +306,9 @@ class ModelDependencyAnalyzer:
             dependents = self.dependency_graph.get_dependents(model)
             internal_dependents = dependents.intersection(model_set)
 
-            if not internal_deps:  # No upstream deps in set; may have dependents (first in group)
+            if (
+                not internal_deps
+            ):  # No upstream deps in set; may have dependents (first in group)
                 independent.append(model)
 
         # Limit to max_parallel to avoid resource exhaustion
@@ -297,14 +328,20 @@ class ModelDependencyAnalyzer:
         # Remove models with interdependencies
         return self._find_independent_models(safe_models, len(safe_models))
 
-    def _is_conditionally_safe(self, model: str, classification: ModelClassification) -> bool:
+    def _is_conditionally_safe(
+        self, model: str, classification: ModelClassification
+    ) -> bool:
         """Determine if a conditional model is safe for parallelization."""
         # Models that only read from staging/config tables are generally safe
         deps = self.dependency_graph.get_dependencies(model)
 
         unsafe_patterns = {
-            "accumulator", "state", "snapshot", "previous_year",
-            "fct_yearly_events", "fct_workforce_snapshot"
+            "accumulator",
+            "state",
+            "snapshot",
+            "previous_year",
+            "fct_yearly_events",
+            "fct_workforce_snapshot",
         }
 
         for dep in deps:
@@ -313,8 +350,13 @@ class ModelDependencyAnalyzer:
 
         # Check if model name suggests independent operation
         safe_patterns = {
-            "hazard", "calculation", "eligibility", "determination",
-            "validation", "audit", "monitoring"
+            "hazard",
+            "calculation",
+            "eligibility",
+            "determination",
+            "validation",
+            "audit",
+            "monitoring",
         }
 
         return any(pattern in model.lower() for pattern in safe_patterns)
@@ -323,7 +365,7 @@ class ModelDependencyAnalyzer:
         self,
         stage_models: List[str],
         max_parallelism: int = 4,
-        enable_conditional_parallelization: bool = False
+        enable_conditional_parallelization: bool = False,
     ) -> Dict[str, Any]:
         """Create a detailed execution plan for a stage."""
         opportunities = self.identify_parallelization_opportunities(
@@ -341,14 +383,16 @@ class ModelDependencyAnalyzer:
         # Add parallel phases
         for opportunity in opportunities:
             if all(model in remaining_models for model in opportunity.parallel_models):
-                execution_phases.append({
-                    "type": "parallel",
-                    "models": opportunity.parallel_models,
-                    "group": opportunity.execution_group,
-                    "estimated_speedup": opportunity.estimated_speedup,
-                    "safety_level": opportunity.safety_level,
-                    "resource_requirements": opportunity.resource_requirements
-                })
+                execution_phases.append(
+                    {
+                        "type": "parallel",
+                        "models": opportunity.parallel_models,
+                        "group": opportunity.execution_group,
+                        "estimated_speedup": opportunity.estimated_speedup,
+                        "safety_level": opportunity.safety_level,
+                        "resource_requirements": opportunity.resource_requirements,
+                    }
+                )
 
                 for model in opportunity.parallel_models:
                     remaining_models.remove(model)
@@ -358,16 +402,20 @@ class ModelDependencyAnalyzer:
             # Sort remaining models topologically
             remaining_list = list(remaining_models)
             try:
-                sorted_remaining = self.dependency_graph.topological_sort(remaining_list)
+                sorted_remaining = self.dependency_graph.topological_sort(
+                    remaining_list
+                )
             except ValueError:
                 # Fallback to original order if circular dependencies
                 sorted_remaining = remaining_list
 
-            execution_phases.append({
-                "type": "sequential",
-                "models": sorted_remaining,
-                "reason": "Sequential execution required for data integrity"
-            })
+            execution_phases.append(
+                {
+                    "type": "sequential",
+                    "models": sorted_remaining,
+                    "reason": "Sequential execution required for data integrity",
+                }
+            )
 
         return {
             "total_models": len(stage_models),
@@ -380,12 +428,20 @@ class ModelDependencyAnalyzer:
             "execution_phases": execution_phases,
             "resource_requirements": {
                 "peak_memory_mb": max(
-                    [op.resource_requirements.get("memory_mb", 0) for op in opportunities] + [256]
+                    [
+                        op.resource_requirements.get("memory_mb", 0)
+                        for op in opportunities
+                    ]
+                    + [256]
                 ),
                 "peak_cpu_threads": max(
-                    [op.resource_requirements.get("cpu_threads", 1) for op in opportunities] + [1]
-                )
-            }
+                    [
+                        op.resource_requirements.get("cpu_threads", 1)
+                        for op in opportunities
+                    ]
+                    + [1]
+                ),
+            },
         }
 
     def validate_execution_safety(self, parallel_models: List[str]) -> Dict[str, Any]:
@@ -394,9 +450,11 @@ class ModelDependencyAnalyzer:
         warnings = []
 
         for i, model_a in enumerate(parallel_models):
-            for model_b in parallel_models[i+1:]:
+            for model_b in parallel_models[i + 1 :]:
                 if not self.classifier.can_run_in_parallel(model_a, model_b):
-                    issues.append(f"Models {model_a} and {model_b} cannot run in parallel")
+                    issues.append(
+                        f"Models {model_a} and {model_b} cannot run in parallel"
+                    )
 
                 # Check for dependency conflicts
                 if model_a in self.dependency_graph.get_dependencies(model_b):
@@ -406,35 +464,56 @@ class ModelDependencyAnalyzer:
 
         # Check for resource conflicts
         memory_intensive_count = sum(
-            1 for model in parallel_models
+            1
+            for model in parallel_models
             if self.classifier.classify_model(model).memory_intensive
         )
 
         if memory_intensive_count > 2:
-            warnings.append(f"{memory_intensive_count} memory-intensive models may cause resource contention")
+            warnings.append(
+                f"{memory_intensive_count} memory-intensive models may cause resource contention"
+            )
 
         return {
             "safe": len(issues) == 0,
             "issues": issues,
             "warnings": warnings,
-            "safety_score": max(0, 100 - len(issues) * 25 - len(warnings) * 5)
+            "safety_score": max(0, 100 - len(issues) * 25 - len(warnings) * 5),
         }
 
     def export_dependency_analysis(self) -> Dict[str, Any]:
         """Export comprehensive dependency analysis."""
         return {
             "dependency_graph": {
-                "nodes": {model: list(deps) for model, deps in self.dependency_graph.nodes.items()},
-                "reverse_nodes": {model: list(deps) for model, deps in self.dependency_graph.reverse_nodes.items()}
+                "nodes": {
+                    model: list(deps)
+                    for model, deps in self.dependency_graph.nodes.items()
+                },
+                "reverse_nodes": {
+                    model: list(deps)
+                    for model, deps in self.dependency_graph.reverse_nodes.items()
+                },
             },
             "model_classifications": self.classifier.export_classification_report(),
             "total_models": len(self.dependency_graph.nodes),
             "parallelization_summary": {
-                "parallel_safe": len(self.classifier.get_parallel_safe_models(list(self.dependency_graph.nodes.keys()))),
-                "sequential_required": len(self.classifier.get_sequential_models(list(self.dependency_graph.nodes.keys()))),
-                "conditional": len([
-                    m for m in self.dependency_graph.nodes.keys()
-                    if self.classifier.classify_model(m).execution_type == ModelExecutionType.CONDITIONAL
-                ])
-            }
+                "parallel_safe": len(
+                    self.classifier.get_parallel_safe_models(
+                        list(self.dependency_graph.nodes.keys())
+                    )
+                ),
+                "sequential_required": len(
+                    self.classifier.get_sequential_models(
+                        list(self.dependency_graph.nodes.keys())
+                    )
+                ),
+                "conditional": len(
+                    [
+                        m
+                        for m in self.dependency_graph.nodes.keys()
+                        if self.classifier.classify_model(m).execution_type
+                        == ModelExecutionType.CONDITIONAL
+                    ]
+                ),
+            },
         }

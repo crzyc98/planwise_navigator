@@ -20,6 +20,7 @@ def _get_sync_service():
     """Get sync service instance with error handling."""
     try:
         from planalign_api.services.sync_service import SyncService
+
         return SyncService()
     except ImportError as e:
         console.print("[red]GitPython is required for sync functionality.[/red]")
@@ -29,18 +30,11 @@ def _get_sync_service():
 
 def sync_init(
     remote_url: str = typer.Argument(
-        ...,
-        help="Git remote URL (e.g., git@github.com:user/planalign-workspaces.git)"
+        ..., help="Git remote URL (e.g., git@github.com:user/planalign-workspaces.git)"
     ),
-    branch: str = typer.Option(
-        "main",
-        "--branch", "-b",
-        help="Branch to use for sync"
-    ),
+    branch: str = typer.Option("main", "--branch", "-b", help="Branch to use for sync"),
     auto_sync: bool = typer.Option(
-        False,
-        "--auto-sync",
-        help="Enable automatic sync on changes"
+        False, "--auto-sync", help="Enable automatic sync on changes"
     ),
 ):
     """Initialize workspace sync with a Git remote.
@@ -66,16 +60,18 @@ def sync_init(
             )
 
             console.print()
-            console.print(Panel(
-                f"[green]Sync initialized successfully![/green]\n\n"
-                f"Remote: [cyan]{remote_url}[/cyan]\n"
-                f"Branch: [cyan]{branch}[/cyan]\n"
-                f"Auto-sync: [cyan]{'Enabled' if auto_sync else 'Disabled'}[/cyan]\n\n"
-                f"Use [bold]planalign sync push[/bold] to upload workspaces.\n"
-                f"Use [bold]planalign sync pull[/bold] to download changes.",
-                title="Sync Initialized",
-                border_style="green",
-            ))
+            console.print(
+                Panel(
+                    f"[green]Sync initialized successfully![/green]\n\n"
+                    f"Remote: [cyan]{remote_url}[/cyan]\n"
+                    f"Branch: [cyan]{branch}[/cyan]\n"
+                    f"Auto-sync: [cyan]{'Enabled' if auto_sync else 'Disabled'}[/cyan]\n\n"
+                    f"Use [bold]planalign sync push[/bold] to upload workspaces.\n"
+                    f"Use [bold]planalign sync pull[/bold] to download changes.",
+                    title="Sync Initialized",
+                    border_style="green",
+                )
+            )
 
         except SyncAuthError as e:
             console.print(f"\n[red]Authentication failed:[/red] {e}")
@@ -91,9 +87,7 @@ def sync_init(
 
 def sync_push(
     message: Optional[str] = typer.Option(
-        None,
-        "--message", "-m",
-        help="Custom commit message"
+        None, "--message", "-m", help="Custom commit message"
     ),
 ):
     """Push local workspace changes to remote.
@@ -124,16 +118,20 @@ def sync_push(
 
             if result.success:
                 if result.files_pushed == 0:
-                    console.print("[dim]Nothing to push. Workspaces are up to date.[/dim]")
+                    console.print(
+                        "[dim]Nothing to push. Workspaces are up to date.[/dim]"
+                    )
                 else:
                     console.print()
-                    console.print(Panel(
-                        f"[green]Push successful![/green]\n\n"
-                        f"Files pushed: [cyan]{result.files_pushed}[/cyan]\n"
-                        f"Commit: [cyan]{result.commit_sha}[/cyan]",
-                        title="Push Complete",
-                        border_style="green",
-                    ))
+                    console.print(
+                        Panel(
+                            f"[green]Push successful![/green]\n\n"
+                            f"Files pushed: [cyan]{result.files_pushed}[/cyan]\n"
+                            f"Commit: [cyan]{result.commit_sha}[/cyan]",
+                            title="Push Complete",
+                            border_style="green",
+                        )
+                    )
             else:
                 console.print(f"[red]Push failed:[/red] {result.message}")
                 raise typer.Exit(1)
@@ -178,22 +176,28 @@ def sync_pull():
                     console.print("[dim]Already up to date.[/dim]")
                 else:
                     console.print()
-                    console.print(Panel(
-                        f"[green]Pull successful![/green]\n\n"
-                        f"Files updated: [cyan]{result.files_updated}[/cyan]\n"
-                        f"Files added: [cyan]{result.files_added}[/cyan]\n"
-                        f"Files removed: [cyan]{result.files_removed}[/cyan]",
-                        title="Pull Complete",
-                        border_style="green",
-                    ))
+                    console.print(
+                        Panel(
+                            f"[green]Pull successful![/green]\n\n"
+                            f"Files updated: [cyan]{result.files_updated}[/cyan]\n"
+                            f"Files added: [cyan]{result.files_added}[/cyan]\n"
+                            f"Files removed: [cyan]{result.files_removed}[/cyan]",
+                            title="Pull Complete",
+                            border_style="green",
+                        )
+                    )
             else:
                 if result.conflicts:
-                    console.print(f"\n[yellow]Conflicts detected in {len(result.conflicts)} file(s):[/yellow]")
+                    console.print(
+                        f"\n[yellow]Conflicts detected in {len(result.conflicts)} file(s):[/yellow]"
+                    )
                     for conflict in result.conflicts[:10]:
                         console.print(f"  - {conflict}")
                     if len(result.conflicts) > 10:
                         console.print(f"  ... and {len(result.conflicts) - 10} more")
-                    console.print("\n[dim]Resolve conflicts manually or use --force to overwrite.[/dim]")
+                    console.print(
+                        "\n[dim]Resolve conflicts manually or use --force to overwrite.[/dim]"
+                    )
                 else:
                     console.print(f"[red]Pull failed:[/red] {result.message}")
                 raise typer.Exit(1)
@@ -225,16 +229,18 @@ def sync_status():
 
     if not status.is_initialized:
         console.print()
-        console.print(Panel(
-            "[yellow]Sync not initialized[/yellow]\n\n"
-            "Run [cyan]planalign sync init <remote-url>[/cyan] to enable workspace sync.\n\n"
-            "[dim]Syncing allows you to:[/dim]\n"
-            "  - Access workspaces from any device\n"
-            "  - Version control your scenario configurations\n"
-            "  - Share workspaces with teammates",
-            title="Sync Status",
-            border_style="yellow",
-        ))
+        console.print(
+            Panel(
+                "[yellow]Sync not initialized[/yellow]\n\n"
+                "Run [cyan]planalign sync init <remote-url>[/cyan] to enable workspace sync.\n\n"
+                "[dim]Syncing allows you to:[/dim]\n"
+                "  - Access workspaces from any device\n"
+                "  - Version control your scenario configurations\n"
+                "  - Share workspaces with teammates",
+                title="Sync Status",
+                border_style="yellow",
+            )
+        )
         return
 
     # Build status display
@@ -247,7 +253,9 @@ def sync_status():
 
     # Changes status
     if status.local_changes > 0:
-        lines.append(f"[yellow]Local changes:[/yellow] {status.local_changes} file(s) to push")
+        lines.append(
+            f"[yellow]Local changes:[/yellow] {status.local_changes} file(s) to push"
+        )
     else:
         lines.append("[green]Local:[/green] No uncommitted changes")
 
@@ -263,7 +271,9 @@ def sync_status():
     # Last sync
     if status.last_sync:
         lines.append("")
-        lines.append(f"Last sync: [dim]{status.last_sync.strftime('%Y-%m-%d %H:%M:%S')}[/dim]")
+        lines.append(
+            f"Last sync: [dim]{status.last_sync.strftime('%Y-%m-%d %H:%M:%S')}[/dim]"
+        )
 
     # Conflicts
     if status.conflicts:
@@ -276,11 +286,13 @@ def sync_status():
         lines.append(f"[red]Error:[/red] {status.error}")
 
     console.print()
-    console.print(Panel(
-        "\n".join(lines),
-        title="Sync Status",
-        border_style="blue",
-    ))
+    console.print(
+        Panel(
+            "\n".join(lines),
+            title="Sync Status",
+            border_style="blue",
+        )
+    )
 
     # Show workspace summary
     workspace_infos = sync_service.get_workspace_sync_info()
@@ -292,7 +304,11 @@ def sync_status():
         table.add_column("Status", justify="center")
 
         for info in workspace_infos:
-            status_icon = "[yellow]Modified[/yellow]" if info.has_local_changes else "[green]Synced[/green]"
+            status_icon = (
+                "[yellow]Modified[/yellow]"
+                if info.has_local_changes
+                else "[green]Synced[/green]"
+            )
             table.add_row(
                 info.workspace_name,
                 str(info.scenario_count),
@@ -304,9 +320,7 @@ def sync_status():
 
 def sync_log(
     limit: int = typer.Option(
-        20,
-        "--limit", "-n",
-        help="Number of log entries to show"
+        20, "--limit", "-n", help="Number of log entries to show"
     ),
 ):
     """Show sync operation history.
@@ -391,13 +405,15 @@ def sync_disconnect():
 
     if sync_service.disconnect():
         console.print()
-        console.print(Panel(
-            "[green]Sync disconnected.[/green]\n\n"
-            "Local workspaces have been preserved.\n"
-            "Run [cyan]planalign sync init <remote-url>[/cyan] to reconnect.",
-            title="Disconnected",
-            border_style="green",
-        ))
+        console.print(
+            Panel(
+                "[green]Sync disconnected.[/green]\n\n"
+                "Local workspaces have been preserved.\n"
+                "Run [cyan]planalign sync init <remote-url>[/cyan] to reconnect.",
+                title="Disconnected",
+                border_style="green",
+            )
+        )
     else:
         console.print("[red]Failed to disconnect sync.[/red]")
         raise typer.Exit(1)

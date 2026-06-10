@@ -16,6 +16,7 @@ from pydantic import BaseModel, Field, model_validator
 
 class WorkforceSettings(BaseModel):
     """Workforce termination rate settings."""
+
     total_termination_rate: float = Field(default=0.12, ge=0, le=1)
     new_hire_termination_rate: float = Field(default=0.25, ge=0, le=1)
 
@@ -26,21 +27,36 @@ class WorkforceSettings(BaseModel):
 
 # Demographic sensitivity multipliers applied to the target opt-out rate.
 # Calibrated so a weighted average across a typical workforce ≈ 1.0.
-OPT_OUT_AGE_MULTIPLIERS = {"young": 1.8, "mid_career": 1.1, "mature": 0.7, "senior": 0.4}
-OPT_OUT_INCOME_MULTIPLIERS = {"low_income": 1.3, "moderate": 1.0, "high": 0.8, "executive": 0.5}
+OPT_OUT_AGE_MULTIPLIERS = {
+    "young": 1.8,
+    "mid_career": 1.1,
+    "mature": 0.7,
+    "senior": 0.4,
+}
+OPT_OUT_INCOME_MULTIPLIERS = {
+    "low_income": 1.3,
+    "moderate": 1.0,
+    "high": 0.8,
+    "executive": 0.5,
+}
 
 
 class OptOutRatesSettings(BaseModel):
     """Opt-out rate settings: analyst sets a single target, demographic rates derived."""
-    target: float = Field(default=0.09, ge=0, le=1, description="Overall target opt-out rate")
+
+    target: float = Field(
+        default=0.09, ge=0, le=1, description="Overall target opt-out rate"
+    )
 
 
 # =============================================================================
 # Enrollment Settings
 # =============================================================================
 
+
 class AutoEnrollmentSettings(BaseModel):
     """Auto-enrollment configuration."""
+
     enabled: bool = True
     scope: Optional[str] = None
     hire_date_cutoff: Optional[str] = None
@@ -49,13 +65,16 @@ class AutoEnrollmentSettings(BaseModel):
     opt_out_grace_period: int = 30
     opt_out_rates: OptOutRatesSettings = Field(default_factory=OptOutRatesSettings)
     voluntary_enrollment_rate: Optional[float] = Field(
-        default=None, ge=0, le=1,
-        description="Multiplier on demographic enrollment probabilities (0.0-1.0). None = use defaults."
+        default=None,
+        ge=0,
+        le=1,
+        description="Multiplier on demographic enrollment probabilities (0.0-1.0). None = use defaults.",
     )
 
 
 class ProactiveEnrollmentSettings(BaseModel):
     """Proactive enrollment configuration."""
+
     enabled: bool = True
 
     class TimingWindow(BaseModel):
@@ -68,13 +87,19 @@ class ProactiveEnrollmentSettings(BaseModel):
 
 class EnrollmentTimingSettings(BaseModel):
     """Enrollment timing configuration."""
+
     business_day_adjustment: bool = True
 
 
 class EnrollmentSettings(BaseModel):
     """Combined enrollment settings."""
-    auto_enrollment: AutoEnrollmentSettings = Field(default_factory=AutoEnrollmentSettings)
-    proactive_enrollment: ProactiveEnrollmentSettings = Field(default_factory=ProactiveEnrollmentSettings)
+
+    auto_enrollment: AutoEnrollmentSettings = Field(
+        default_factory=AutoEnrollmentSettings
+    )
+    proactive_enrollment: ProactiveEnrollmentSettings = Field(
+        default_factory=ProactiveEnrollmentSettings
+    )
     timing: EnrollmentTimingSettings = Field(default_factory=EnrollmentTimingSettings)
 
 
@@ -82,13 +107,16 @@ class EnrollmentSettings(BaseModel):
 # Eligibility Settings
 # =============================================================================
 
+
 class EligibilitySettings(BaseModel):
     """Basic eligibility settings."""
+
     waiting_period_days: Optional[int] = None
 
 
 class PlanEligibilitySettings(BaseModel):
     """Plan eligibility settings."""
+
     minimum_age: Optional[int] = None
 
 
@@ -96,16 +124,30 @@ class PlanEligibilitySettings(BaseModel):
 # Employer Match Settings
 # =============================================================================
 
+
 class EmployerMatchEligibilitySettings(BaseModel):
     """Employer match eligibility requirements configuration."""
-    minimum_tenure_years: int = Field(default=0, ge=0, description="Minimum years of service")
-    require_active_at_year_end: bool = Field(default=True, description="Must be active on Dec 31")
-    minimum_hours_annual: int = Field(default=1000, ge=0, description="Minimum hours worked annually")
-    allow_new_hires: bool = Field(default=True, description="Allow new hires to qualify")
-    allow_terminated_new_hires: bool = Field(default=False, description="Allow new-hire terminations to qualify")
-    allow_experienced_terminations: bool = Field(default=False, description="Allow experienced terminations to qualify")
 
-    @model_validator(mode='before')
+    minimum_tenure_years: int = Field(
+        default=0, ge=0, description="Minimum years of service"
+    )
+    require_active_at_year_end: bool = Field(
+        default=True, description="Must be active on Dec 31"
+    )
+    minimum_hours_annual: int = Field(
+        default=1000, ge=0, description="Minimum hours worked annually"
+    )
+    allow_new_hires: bool = Field(
+        default=True, description="Allow new hires to qualify"
+    )
+    allow_terminated_new_hires: bool = Field(
+        default=False, description="Allow new-hire terminations to qualify"
+    )
+    allow_experienced_terminations: bool = Field(
+        default=False, description="Allow experienced terminations to qualify"
+    )
+
+    @model_validator(mode="before")
     @classmethod
     def resolve_allow_new_hires_default(cls, data: Any) -> Any:
         """Conditionally default allow_new_hires based on minimum_tenure_years.
@@ -118,10 +160,10 @@ class EmployerMatchEligibilitySettings(BaseModel):
         emits a warning about contradictory configuration.
         """
         if isinstance(data, dict):
-            min_tenure = data.get('minimum_tenure_years', 0)
-            if 'allow_new_hires' not in data:
-                data['allow_new_hires'] = (min_tenure == 0)
-            elif data['allow_new_hires'] is True and min_tenure > 0:
+            min_tenure = data.get("minimum_tenure_years", 0)
+            if "allow_new_hires" not in data:
+                data["allow_new_hires"] = min_tenure == 0
+            elif data["allow_new_hires"] is True and min_tenure > 0:
                 warnings.warn(
                     f"Contradictory eligibility configuration: allow_new_hires=True "
                     f"with minimum_tenure_years={min_tenure}. New hires (tenure=0) "
@@ -194,13 +236,18 @@ class TenureMatchTier(BaseModel):
 
     min_years: int = Field(ge=0, description="Lower bound of service years (inclusive)")
     max_years: Optional[int] = Field(
-        default=None, description="Upper bound of service years (exclusive); null = unbounded"
+        default=None,
+        description="Upper bound of service years (exclusive); null = unbounded",
     )
     match_rate: float = Field(
-        ge=0, le=200, description="Match rate as percentage (e.g., 50 = 50%, 200 = 200%)"
+        ge=0,
+        le=200,
+        description="Match rate as percentage (e.g., 50 = 50%, 200 = 200%)",
     )
     max_deferral_pct: float = Field(
-        ge=0, le=100, description="Maximum employee deferral % eligible for match (e.g., 6 = 6%)"
+        ge=0,
+        le=100,
+        description="Maximum employee deferral % eligible for match (e.g., 6 = 6%)",
     )
 
     @model_validator(mode="after")
@@ -224,10 +271,14 @@ class PointsMatchTier(BaseModel):
         default=None, description="Upper bound of points (exclusive); null = unbounded"
     )
     match_rate: float = Field(
-        ge=0, le=200, description="Match rate as percentage (e.g., 50 = 50%, 200 = 200%)"
+        ge=0,
+        le=200,
+        description="Match rate as percentage (e.g., 50 = 50%, 200 = 200%)",
     )
     max_deferral_pct: float = Field(
-        ge=0, le=100, description="Maximum employee deferral % eligible for match (e.g., 6 = 6%)"
+        ge=0,
+        le=100,
+        description="Maximum employee deferral % eligible for match (e.g., 6 = 6%)",
     )
 
     @model_validator(mode="after")
@@ -239,25 +290,41 @@ class PointsMatchTier(BaseModel):
         return self
 
 
-_VALID_MATCH_STATUSES = ("deferral_based", "graded_by_service", "tenure_based", "points_based")
+_VALID_MATCH_STATUSES = (
+    "deferral_based",
+    "graded_by_service",
+    "tenure_based",
+    "points_based",
+)
 
 
 class EmployerMatchSettings(BaseModel):
     """Employer match configuration with eligibility requirements."""
-    active_formula: str = Field(default="simple_match", description="Active match formula name")
-    apply_eligibility: bool = Field(default=False, description="Apply eligibility filtering to match calculations")
-    eligibility: EmployerMatchEligibilitySettings = Field(default_factory=EmployerMatchEligibilitySettings)
-    formulas: Optional[Dict[str, Any]] = Field(default=None, description="Match formula definitions")
+
+    active_formula: str = Field(
+        default="simple_match", description="Active match formula name"
+    )
+    apply_eligibility: bool = Field(
+        default=False, description="Apply eligibility filtering to match calculations"
+    )
+    eligibility: EmployerMatchEligibilitySettings = Field(
+        default_factory=EmployerMatchEligibilitySettings
+    )
+    formulas: Optional[Dict[str, Any]] = Field(
+        default=None, description="Match formula definitions"
+    )
     # E046: New match mode fields
     employer_match_status: str = Field(
         default="deferral_based",
         description="Match calculation mode: deferral_based, graded_by_service, tenure_based, or points_based",
     )
     tenure_match_tiers: List[TenureMatchTier] = Field(
-        default_factory=list, description="Tenure-based match tiers (used when status = tenure_based)"
+        default_factory=list,
+        description="Tenure-based match tiers (used when status = tenure_based)",
     )
     points_match_tiers: List[PointsMatchTier] = Field(
-        default_factory=list, description="Points-based match tiers (used when status = points_based)"
+        default_factory=list,
+        description="Points-based match tiers (used when status = points_based)",
     )
 
     @model_validator(mode="after")
@@ -276,7 +343,10 @@ class EmployerMatchSettings(BaseModel):
                     "At least one tenure tier is required when employer_match_status = 'tenure_based'"
                 )
             validate_tier_contiguity(
-                [{"min": t.min_years, "max": t.max_years} for t in self.tenure_match_tiers],
+                [
+                    {"min": t.min_years, "max": t.max_years}
+                    for t in self.tenure_match_tiers
+                ],
                 min_key="min",
                 max_key="max",
                 label="tenure",
@@ -289,7 +359,10 @@ class EmployerMatchSettings(BaseModel):
                     "At least one points tier is required when employer_match_status = 'points_based'"
                 )
             validate_tier_contiguity(
-                [{"min": t.min_points, "max": t.max_points} for t in self.points_match_tiers],
+                [
+                    {"min": t.min_points, "max": t.max_points}
+                    for t in self.points_match_tiers
+                ],
                 min_key="min",
                 max_key="max",
                 label="points",
@@ -302,6 +375,7 @@ class EmployerMatchSettings(BaseModel):
 # Deferral Match Response Settings (E058)
 # =============================================================================
 
+
 class DeferralMatchResponseSettings(BaseModel):
     """Configuration for match-responsive deferral adjustments.
 
@@ -311,42 +385,62 @@ class DeferralMatchResponseSettings(BaseModel):
     deferrals when match is reduced).
     """
 
-    enabled: bool = Field(default=False, description="Master toggle for match-responsive behavior")
+    enabled: bool = Field(
+        default=False, description="Master toggle for match-responsive behavior"
+    )
 
     # Upward response parameters
     upward_participation_rate: Decimal = Field(
-        default=Decimal("0.40"), ge=0, le=1,
+        default=Decimal("0.40"),
+        ge=0,
+        le=1,
         description="Fraction of below-max employees who respond upward",
     )
     upward_maximize_rate: Decimal = Field(
-        default=Decimal("0.60"), ge=0, le=1,
+        default=Decimal("0.60"),
+        ge=0,
+        le=1,
         description="Fraction of upward responders who jump to match-maximizing rate",
     )
     upward_partial_increase_rate: Decimal = Field(
-        default=Decimal("0.40"), ge=0, le=1,
+        default=Decimal("0.40"),
+        ge=0,
+        le=1,
         description="Fraction of upward responders who partially increase",
     )
     upward_partial_increase_factor: Decimal = Field(
-        default=Decimal("0.50"), ge=0, le=1,
+        default=Decimal("0.50"),
+        ge=0,
+        le=1,
         description="Gap-closing factor for partial upward responders",
     )
 
     # Downward response parameters
-    downward_enabled: bool = Field(default=True, description="Enable downward adjustments")
+    downward_enabled: bool = Field(
+        default=True, description="Enable downward adjustments"
+    )
     downward_participation_rate: Decimal = Field(
-        default=Decimal("0.15"), ge=0, le=1,
+        default=Decimal("0.15"),
+        ge=0,
+        le=1,
         description="Fraction of above-max employees who respond downward",
     )
     downward_reduce_to_max_rate: Decimal = Field(
-        default=Decimal("0.70"), ge=0, le=1,
+        default=Decimal("0.70"),
+        ge=0,
+        le=1,
         description="Fraction of downward responders who reduce to match-maximizing rate",
     )
     downward_partial_decrease_rate: Decimal = Field(
-        default=Decimal("0.30"), ge=0, le=1,
+        default=Decimal("0.30"),
+        ge=0,
+        le=1,
         description="Fraction of downward responders who partially decrease",
     )
     downward_partial_decrease_factor: Decimal = Field(
-        default=Decimal("0.50"), ge=0, le=1,
+        default=Decimal("0.50"),
+        ge=0,
+        le=1,
         description="Gap-closing factor for partial downward responders",
     )
 
@@ -367,7 +461,9 @@ class DeferralMatchResponseSettings(BaseModel):
                 f"must equal 1.0, got {upward_sum}"
             )
 
-        downward_sum = self.downward_reduce_to_max_rate + self.downward_partial_decrease_rate
+        downward_sum = (
+            self.downward_reduce_to_max_rate + self.downward_partial_decrease_rate
+        )
         if abs(float(downward_sum) - 1.0) > 0.001:
             raise ValueError(
                 f"downward_reduce_to_max_rate ({self.downward_reduce_to_max_rate}) + "

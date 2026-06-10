@@ -38,7 +38,9 @@ class SimulationLogWriter:
         try:
             self._file = open(self._log_path, "a", encoding="utf-8", buffering=1)
         except OSError as exc:
-            logger.error("SimulationLogWriter: cannot open %s — %s", self._log_path, exc)
+            logger.error(
+                "SimulationLogWriter: cannot open %s — %s", self._log_path, exc
+            )
 
     def write_line(self, severity: str, message: str) -> None:
         """Append one formatted log line and flush immediately."""

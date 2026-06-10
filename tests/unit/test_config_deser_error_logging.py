@@ -134,6 +134,8 @@ class TestResultHandlerErrorLoggingIntegration:
         # Verify improved logging
         if caplog.text:
             # Should contain exception type
-            assert any(exc_type in caplog.text for exc_type in ["TypeError", "ValidationError"])
+            assert any(
+                exc_type in caplog.text for exc_type in ["TypeError", "ValidationError"]
+            )
             # Should be descriptive (not just "from_dict")
             assert len(caplog.text) > 30

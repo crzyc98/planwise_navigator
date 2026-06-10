@@ -20,10 +20,13 @@ def client(tmp_path, monkeypatch):
     monkeypatch.setenv("PLANALIGN_API_WORKSPACES_ROOT", str(tmp_path / "workspaces"))
     from importlib import reload
     import planalign_api.config as api_config
+
     reload(api_config)
     import planalign_api.main as api_main
+
     reload(api_main)
     from planalign_api.main import app
+
     return TestClient(app)
 
 
@@ -50,20 +53,25 @@ def scenario_with_log(tmp_path, monkeypatch, client):
     # Write metadata so listRuns works
     import json as _json
     from datetime import datetime
-    (run_dir / "run_metadata.json").write_text(_json.dumps({
-        "run_id": run_id,
-        "scenario_id": sc_id,
-        "scenario_name": "test-scenario",
-        "workspace_id": ws_id,
-        "started_at": datetime.now().isoformat(),
-        "completed_at": datetime.now().isoformat(),
-        "duration_seconds": 5.0,
-        "start_year": 2025,
-        "end_year": 2026,
-        "events_generated": 100,
-        "seed": 42,
-        "status": "completed",
-    }))
+
+    (run_dir / "run_metadata.json").write_text(
+        _json.dumps(
+            {
+                "run_id": run_id,
+                "scenario_id": sc_id,
+                "scenario_name": "test-scenario",
+                "workspace_id": ws_id,
+                "started_at": datetime.now().isoformat(),
+                "completed_at": datetime.now().isoformat(),
+                "duration_seconds": 5.0,
+                "start_year": 2025,
+                "end_year": 2026,
+                "events_generated": 100,
+                "seed": 42,
+                "status": "completed",
+            }
+        )
+    )
 
     # Write simulation.log with known content
     writer = SimulationLogWriter(run_dir)

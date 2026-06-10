@@ -25,6 +25,7 @@ from planalign_orchestrator.excel_exporter import ExcelExporter
 # Helpers
 # ---------------------------------------------------------------------------
 
+
 def _make_db_manager(conn_mock):
     """Build a DatabaseConnectionManager mock whose get_connection() yields *conn_mock*."""
     db_manager = MagicMock()
@@ -62,8 +63,8 @@ def _make_config():
 # _check_table_exists
 # ---------------------------------------------------------------------------
 
-class TestCheckTableExists:
 
+class TestCheckTableExists:
     @pytest.mark.fast
     def test_table_exists_via_information_schema(self):
         conn = MagicMock()
@@ -91,6 +92,7 @@ class TestCheckTableExists:
         conn = MagicMock()
 
         call_count = [0]
+
         def _side_effect(query, *args):
             call_count[0] += 1
             if call_count[0] == 1:
@@ -116,8 +118,8 @@ class TestCheckTableExists:
 # _sanitize_for_excel
 # ---------------------------------------------------------------------------
 
-class TestSanitizeForExcel:
 
+class TestSanitizeForExcel:
     @pytest.mark.fast
     def test_plain_dataframe_unchanged(self):
         df = pd.DataFrame({"a": [1, 2], "b": ["x", "y"]})
@@ -172,8 +174,8 @@ class TestSanitizeForExcel:
 # _get_table_columns
 # ---------------------------------------------------------------------------
 
-class TestGetTableColumns:
 
+class TestGetTableColumns:
     @pytest.mark.fast
     def test_information_schema_path(self):
         conn = MagicMock()
@@ -191,6 +193,7 @@ class TestGetTableColumns:
         conn = MagicMock()
 
         call_count = [0]
+
         def _side_effect(query, *args):
             call_count[0] += 1
             if call_count[0] == 1:
@@ -220,8 +223,8 @@ class TestGetTableColumns:
 # _get_git_metadata
 # ---------------------------------------------------------------------------
 
-class TestGetGitMetadata:
 
+class TestGetGitMetadata:
     @pytest.mark.fast
     @patch("planalign_orchestrator.excel_exporter.subprocess.run")
     def test_success(self, mock_run):
@@ -265,8 +268,8 @@ class TestGetGitMetadata:
 # _calculate_summary_metrics – column availability variants
 # ---------------------------------------------------------------------------
 
-class TestCalculateSummaryMetrics:
 
+class TestCalculateSummaryMetrics:
     def _setup(self, columns, query_result_df):
         conn = MagicMock()
         exporter = ExcelExporter(_make_db_manager(conn))
@@ -277,9 +280,13 @@ class TestCalculateSummaryMetrics:
     @pytest.mark.fast
     def test_all_columns_present(self):
         cols = [
-            "simulation_year", "employment_status", "enrollment_date",
-            "current_salary", "employee_contribution_annual",
-            "employer_match_annual", "employee_deferral_rate",
+            "simulation_year",
+            "employment_status",
+            "enrollment_date",
+            "current_salary",
+            "employee_contribution_annual",
+            "employer_match_annual",
+            "employee_deferral_rate",
         ]
         result_df = pd.DataFrame({"simulation_year": [2025], "total_employees": [100]})
         exporter, conn = self._setup(cols, result_df)
@@ -370,15 +377,17 @@ class TestCalculateSummaryMetrics:
 # _calculate_events_summary
 # ---------------------------------------------------------------------------
 
-class TestCalculateEventsSummary:
 
+class TestCalculateEventsSummary:
     @pytest.mark.fast
     def test_returns_query_result(self):
-        expected = pd.DataFrame({
-            "simulation_year": [2025, 2025],
-            "event_type": ["hire", "termination"],
-            "event_count": [10, 5],
-        })
+        expected = pd.DataFrame(
+            {
+                "simulation_year": [2025, 2025],
+                "event_type": ["hire", "termination"],
+                "event_count": [10, 5],
+            }
+        )
         conn = MagicMock()
         exporter = ExcelExporter(_make_db_manager(conn))
         exporter._query_to_df = MagicMock(return_value=expected)
@@ -392,12 +401,14 @@ class TestCalculateEventsSummary:
 # _build_metadata_dataframe
 # ---------------------------------------------------------------------------
 
-class TestBuildMetadataDataframe:
 
+class TestBuildMetadataDataframe:
     @pytest.mark.fast
-    @patch.object(ExcelExporter, "_get_git_metadata", return_value={
-        "git_sha": "abc123", "git_branch": "main", "git_clean": True
-    })
+    @patch.object(
+        ExcelExporter,
+        "_get_git_metadata",
+        return_value={"git_sha": "abc123", "git_branch": "main", "git_clean": True},
+    )
     def test_basic_metadata(self, _mock_git):
         config = _make_config()
         conn = MagicMock()
@@ -406,7 +417,9 @@ class TestBuildMetadataDataframe:
         exporter = ExcelExporter(_make_db_manager(conn))
         exporter._query_to_df = MagicMock(return_value=years_df)
 
-        df = exporter._build_metadata_dataframe(config, seed=42, conn=conn, total_rows=500, split=False)
+        df = exporter._build_metadata_dataframe(
+            config, seed=42, conn=conn, total_rows=500, split=False
+        )
 
         params = dict(zip(df["Parameter"], df["Value"]))
         assert params["random_seed"] == "42"
@@ -417,14 +430,21 @@ class TestBuildMetadataDataframe:
         assert params["git_sha"] == "abc123"
 
     @pytest.mark.fast
-    @patch.object(ExcelExporter, "_get_git_metadata", return_value={
-        "git_sha": "unknown", "git_branch": "unknown", "git_clean": False
-    })
+    @patch.object(
+        ExcelExporter,
+        "_get_git_metadata",
+        return_value={
+            "git_sha": "unknown",
+            "git_branch": "unknown",
+            "git_clean": False,
+        },
+    )
     def test_total_rows_none_triggers_query(self, _mock_git):
         config = _make_config()
         conn = MagicMock()
 
         call_count = [0]
+
         def _query_side_effect(conn_arg, query, *args, **kwargs):
             call_count[0] += 1
             if "MIN" in query:
@@ -436,7 +456,9 @@ class TestBuildMetadataDataframe:
         exporter = ExcelExporter(_make_db_manager(conn))
         exporter._query_to_df = MagicMock(side_effect=_query_side_effect)
 
-        df = exporter._build_metadata_dataframe(config, seed=1, conn=conn, total_rows=None, split=True)
+        df = exporter._build_metadata_dataframe(
+            config, seed=1, conn=conn, total_rows=None, split=True
+        )
         params = dict(zip(df["Parameter"], df["Value"]))
         assert params["workforce_rows"] == "200"
 
@@ -449,7 +471,9 @@ class TestBuildMetadataDataframe:
         exporter = ExcelExporter(_make_db_manager(conn))
         exporter._query_to_df = MagicMock(side_effect=Exception("db error"))
 
-        df = exporter._build_metadata_dataframe(config, seed=1, conn=conn, total_rows=0, split=False)
+        df = exporter._build_metadata_dataframe(
+            config, seed=1, conn=conn, total_rows=0, split=False
+        )
         params = dict(zip(df["Parameter"], df["Value"]))
         assert params["start_year"] == "2025"
         assert params["end_year"] == "2027"
@@ -462,9 +486,13 @@ class TestBuildMetadataDataframe:
         conn = MagicMock()
 
         exporter = ExcelExporter(_make_db_manager(conn))
-        exporter._query_to_df = MagicMock(return_value=pd.DataFrame({"min_y": [2025], "max_y": [2025]}))
+        exporter._query_to_df = MagicMock(
+            return_value=pd.DataFrame({"min_y": [2025], "max_y": [2025]})
+        )
 
-        df = exporter._build_metadata_dataframe(config, seed=1, conn=conn, total_rows=0, split=False)
+        df = exporter._build_metadata_dataframe(
+            config, seed=1, conn=conn, total_rows=0, split=False
+        )
         # config_json lines should still be present (empty dict)
         assert any("config_json" in str(p) for p in df["Parameter"])
 
@@ -473,8 +501,8 @@ class TestBuildMetadataDataframe:
 # _format_worksheet
 # ---------------------------------------------------------------------------
 
-class TestFormatWorksheet:
 
+class TestFormatWorksheet:
     @pytest.mark.fast
     def test_formats_headers(self):
         """Verify formatting is applied without error on a real openpyxl worksheet."""
@@ -502,7 +530,9 @@ class TestFormatWorksheet:
         exporter = ExcelExporter(_make_db_manager(MagicMock()))
         ws = MagicMock()
         # Simulate openpyxl not available by passing a mock; should not raise
-        with patch("planalign_orchestrator.excel_exporter.ExcelExporter._format_worksheet") as mock_fmt:
+        with patch(
+            "planalign_orchestrator.excel_exporter.ExcelExporter._format_worksheet"
+        ) as mock_fmt:
             mock_fmt.return_value = None
             exporter._format_worksheet(ws)
 
@@ -511,8 +541,8 @@ class TestFormatWorksheet:
 # _create_minimal_export
 # ---------------------------------------------------------------------------
 
-class TestCreateMinimalExport:
 
+class TestCreateMinimalExport:
     @pytest.mark.fast
     def test_csv_format(self):
         with tempfile.TemporaryDirectory() as tmp:
@@ -538,15 +568,17 @@ class TestCreateMinimalExport:
 # _write_events_detail_sheets
 # ---------------------------------------------------------------------------
 
-class TestWriteEventsDetailSheets:
 
+class TestWriteEventsDetailSheets:
     @pytest.mark.fast
     def test_writes_events_sheet(self):
-        events_df = pd.DataFrame({
-            "simulation_year": [2025],
-            "employee_id": ["E001"],
-            "event_type": ["hire"],
-        })
+        events_df = pd.DataFrame(
+            {
+                "simulation_year": [2025],
+                "employee_id": ["E001"],
+                "event_type": ["hire"],
+            }
+        )
         conn = MagicMock()
         exporter = ExcelExporter(_make_db_manager(conn))
         exporter._query_to_df = MagicMock(return_value=events_df)
@@ -569,14 +601,16 @@ class TestWriteEventsDetailSheets:
 # _export_csv
 # ---------------------------------------------------------------------------
 
-class TestExportCsv:
 
+class TestExportCsv:
     @pytest.mark.fast
     def test_export_csv_no_split(self):
-        workforce_df = pd.DataFrame({
-            "simulation_year": [2025, 2025],
-            "employee_id": ["E001", "E002"],
-        })
+        workforce_df = pd.DataFrame(
+            {
+                "simulation_year": [2025, 2025],
+                "employee_id": ["E001", "E002"],
+            }
+        )
         summary_df = pd.DataFrame({"simulation_year": [2025], "total": [2]})
         metadata_df = pd.DataFrame({"Parameter": ["seed"], "Value": ["42"]})
 
@@ -590,7 +624,9 @@ class TestExportCsv:
         config = _make_config()
         with tempfile.TemporaryDirectory() as tmp:
             output_dir = Path(tmp)
-            result = exporter._export_csv("scenario1", output_dir, conn, config, 42, split=False)
+            result = exporter._export_csv(
+                "scenario1", output_dir, conn, config, 42, split=False
+            )
             assert result == output_dir
             assert (output_dir / "scenario1_workforce_snapshot.csv").exists()
             assert (output_dir / "scenario1_summary_metrics.csv").exists()
@@ -602,6 +638,7 @@ class TestExportCsv:
         year_data = pd.DataFrame({"simulation_year": [2025], "employee_id": ["E001"]})
 
         call_count = [0]
+
         def _query_side_effect(conn_arg, query, *args, **kwargs):
             call_count[0] += 1
             if "DISTINCT" in query:
@@ -628,13 +665,20 @@ class TestExportCsv:
 
     @pytest.mark.fast
     def test_export_csv_with_events(self):
-        workforce_df = pd.DataFrame({"simulation_year": [2025], "employee_id": ["E001"]})
-        events_detail_df = pd.DataFrame({"simulation_year": [2025], "event_type": ["hire"]})
-        events_summary_df = pd.DataFrame({"simulation_year": [2025], "event_type": ["hire"], "event_count": [1]})
+        workforce_df = pd.DataFrame(
+            {"simulation_year": [2025], "employee_id": ["E001"]}
+        )
+        events_detail_df = pd.DataFrame(
+            {"simulation_year": [2025], "event_type": ["hire"]}
+        )
+        events_summary_df = pd.DataFrame(
+            {"simulation_year": [2025], "event_type": ["hire"], "event_count": [1]}
+        )
         summary_df = pd.DataFrame({"simulation_year": [2025], "total": [1]})
         metadata_df = pd.DataFrame({"Parameter": ["seed"], "Value": ["1"]})
 
         call_count = [0]
+
         def _query_side_effect(conn_arg, query, *args, **kwargs):
             call_count[0] += 1
             if "fct_yearly_events" in query:
@@ -661,11 +705,13 @@ class TestExportCsv:
 # _export_excel
 # ---------------------------------------------------------------------------
 
-class TestExportExcel:
 
+class TestExportExcel:
     @pytest.mark.fast
     def test_export_excel_basic(self):
-        workforce_df = pd.DataFrame({"simulation_year": [2025], "employee_id": ["E001"]})
+        workforce_df = pd.DataFrame(
+            {"simulation_year": [2025], "employee_id": ["E001"]}
+        )
         summary_df = pd.DataFrame({"simulation_year": [2025], "total": [1]})
         metadata_df = pd.DataFrame({"Parameter": ["seed"], "Value": ["1"]})
 
@@ -679,7 +725,9 @@ class TestExportExcel:
         config = _make_config()
         with tempfile.TemporaryDirectory() as tmp:
             output_dir = Path(tmp)
-            path = exporter._export_excel("sc", output_dir, conn, config, 1, split=False, total_rows=1)
+            path = exporter._export_excel(
+                "sc", output_dir, conn, config, 1, split=False, total_rows=1
+            )
             assert path.exists()
             assert path.suffix == ".xlsx"
             xl = pd.ExcelFile(path)
@@ -689,10 +737,14 @@ class TestExportExcel:
 
     @pytest.mark.fast
     def test_export_excel_with_events(self):
-        workforce_df = pd.DataFrame({"simulation_year": [2025], "employee_id": ["E001"]})
+        workforce_df = pd.DataFrame(
+            {"simulation_year": [2025], "employee_id": ["E001"]}
+        )
         summary_df = pd.DataFrame({"simulation_year": [2025], "total": [1]})
         events_df = pd.DataFrame({"simulation_year": [2025], "event_type": ["hire"]})
-        events_summary = pd.DataFrame({"simulation_year": [2025], "event_type": ["hire"], "event_count": [1]})
+        events_summary = pd.DataFrame(
+            {"simulation_year": [2025], "event_type": ["hire"], "event_count": [1]}
+        )
         metadata_df = pd.DataFrame({"Parameter": ["seed"], "Value": ["1"]})
 
         conn = MagicMock()
@@ -707,7 +759,9 @@ class TestExportExcel:
         config = _make_config()
         with tempfile.TemporaryDirectory() as tmp:
             output_dir = Path(tmp)
-            path = exporter._export_excel("sc", output_dir, conn, config, 1, split=False, total_rows=1)
+            path = exporter._export_excel(
+                "sc", output_dir, conn, config, 1, split=False, total_rows=1
+            )
             xl = pd.ExcelFile(path)
             assert "Summary_Metrics" in xl.sheet_names
             assert "Metadata" in xl.sheet_names
@@ -721,6 +775,7 @@ class TestExportExcel:
         metadata_df = pd.DataFrame({"Parameter": ["seed"], "Value": ["1"]})
 
         call_count = [0]
+
         def _query_side_effect(conn_arg, query, *args, **kwargs):
             call_count[0] += 1
             if "DISTINCT" in query:
@@ -737,7 +792,9 @@ class TestExportExcel:
         config = _make_config()
         with tempfile.TemporaryDirectory() as tmp:
             output_dir = Path(tmp)
-            path = exporter._export_excel("sc", output_dir, conn, config, 1, split=True, total_rows=100)
+            path = exporter._export_excel(
+                "sc", output_dir, conn, config, 1, split=True, total_rows=100
+            )
             xl = pd.ExcelFile(path)
             assert "Workforce_2025" in xl.sheet_names
             assert "Workforce_2026" in xl.sheet_names
@@ -747,8 +804,8 @@ class TestExportExcel:
 # export_scenario_results (integration of sub-methods)
 # ---------------------------------------------------------------------------
 
-class TestExportScenarioResults:
 
+class TestExportScenarioResults:
     @pytest.mark.fast
     def test_table_not_found_creates_minimal(self):
         conn = MagicMock()
@@ -860,8 +917,8 @@ class TestExportScenarioResults:
 # create_comparison_workbook
 # ---------------------------------------------------------------------------
 
-class TestCreateComparisonWorkbook:
 
+class TestCreateComparisonWorkbook:
     @pytest.mark.fast
     def test_no_data_prints_warning(self, capsys):
         exporter = ExcelExporter(_make_db_manager(MagicMock()))
@@ -886,16 +943,18 @@ class TestCreateComparisonWorkbook:
     @pytest.mark.fast
     @patch("planalign_orchestrator.excel_exporter.DatabaseConnectionManager")
     def test_successful_comparison(self, MockDBManager):
-        summary_df = pd.DataFrame({
-            "simulation_year": [2025],
-            "total_employees": [100],
-            "active_employees": [90],
-            "enrolled_employees": [80],
-            "avg_salary": [50000.0],
-            "total_employee_contributions": [1000.0],
-            "total_employer_match": [500.0],
-            "avg_deferral_rate": [0.06],
-        })
+        summary_df = pd.DataFrame(
+            {
+                "simulation_year": [2025],
+                "total_employees": [100],
+                "active_employees": [90],
+                "enrolled_employees": [80],
+                "avg_salary": [50000.0],
+                "total_employee_contributions": [1000.0],
+                "total_employer_match": [500.0],
+                "avg_deferral_rate": [0.06],
+            }
+        )
 
         mock_conn = MagicMock()
         mock_ctx = MagicMock()
@@ -947,8 +1006,8 @@ class TestCreateComparisonWorkbook:
 # _query_to_df
 # ---------------------------------------------------------------------------
 
-class TestQueryToDf:
 
+class TestQueryToDf:
     @pytest.mark.fast
     def test_without_params(self):
         expected = pd.DataFrame({"a": [1]})

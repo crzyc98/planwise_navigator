@@ -46,6 +46,7 @@ MAX_UPLOAD_BYTES = 500 * 1024 * 1024  # 500 MB
 def _df_to_records(df: pd.DataFrame) -> list[dict]:
     """Convert DataFrame to JSON-safe list of dicts (handles NaT, Timestamp, NaN)."""
     import math
+
     records = []
     for row in df.to_dict(orient="records"):
         clean = {}
@@ -60,6 +61,8 @@ def _df_to_records(df: pd.DataFrame) -> list[dict]:
                 clean[k] = v
         records.append(clean)
     return records
+
+
 OUTPUT_COLUMN_RE = re.compile(r"^[a-z][a-z0-9_]{0,127}$")
 
 router = APIRouter()
@@ -69,23 +72,35 @@ def get_import_service(settings: APISettings = Depends(get_settings)) -> ImportS
     return ImportService(workspaces_root=settings.workspaces_root)
 
 
-def get_workspace_storage(settings: APISettings = Depends(get_settings)) -> WorkspaceStorage:
+def get_workspace_storage(
+    settings: APISettings = Depends(get_settings),
+) -> WorkspaceStorage:
     return WorkspaceStorage(settings.workspaces_root)
 
 
 def _check_workspace(workspace_id: str, storage: WorkspaceStorage) -> None:
     if storage.get_workspace(workspace_id) is None:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=f"Workspace {workspace_id!r} not found")
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Workspace {workspace_id!r} not found",
+        )
 
 
-def _check_session(workspace_id: str, import_id: str, service: ImportService) -> ImportSession:
+def _check_session(
+    workspace_id: str, import_id: str, service: ImportService
+) -> ImportSession:
     session = service.get_session(workspace_id, import_id)
     if session is None:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=f"Import session {import_id!r} not found")
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Import session {import_id!r} not found",
+        )
     return session
 
 
-def _validate_mapping(mappings, detected_names: set[str]) -> List[MappingValidationError]:
+def _validate_mapping(
+    mappings, detected_names: set[str]
+) -> List[MappingValidationError]:
     errors: List[MappingValidationError] = []
     seen_output: dict[str, str] = {}
     valid_names = ", ".join(sorted(CANONICAL_NAMES))
@@ -93,26 +108,32 @@ def _validate_mapping(mappings, detected_names: set[str]) -> List[MappingValidat
         if m.is_excluded:
             continue
         if m.input_column not in detected_names:
-            errors.append(MappingValidationError(
-                field="input_column",
-                input_column=m.input_column,
-                message=f"Column {m.input_column!r} not found in detected columns",
-            ))
+            errors.append(
+                MappingValidationError(
+                    field="input_column",
+                    input_column=m.input_column,
+                    message=f"Column {m.input_column!r} not found in detected columns",
+                )
+            )
         if not is_canonical(m.output_column):
-            errors.append(MappingValidationError(
-                field="output_column",
-                input_column=m.input_column,
-                message=(
-                    f"Output column {m.output_column!r} is not a recognized census field. "
-                    f"Valid fields: {valid_names}"
-                ),
-            ))
+            errors.append(
+                MappingValidationError(
+                    field="output_column",
+                    input_column=m.input_column,
+                    message=(
+                        f"Output column {m.output_column!r} is not a recognized census field. "
+                        f"Valid fields: {valid_names}"
+                    ),
+                )
+            )
         if m.output_column in seen_output:
-            errors.append(MappingValidationError(
-                field="output_column",
-                input_column=m.input_column,
-                message=f"Duplicate output column name {m.output_column!r}",
-            ))
+            errors.append(
+                MappingValidationError(
+                    field="output_column",
+                    input_column=m.input_column,
+                    message=f"Duplicate output column name {m.output_column!r}",
+                )
+            )
         seen_output[m.output_column] = m.input_column
     return errors
 
@@ -125,7 +146,10 @@ def _parse_dataframe(content: bytes, filename: str, sheet_name: str | None = Non
 
     if suffix == "xlsx":
         import io
-        df = pd.read_excel(io.BytesIO(content), sheet_name=sheet_name or 0, dtype=object)
+
+        df = pd.read_excel(
+            io.BytesIO(content), sheet_name=sheet_name or 0, dtype=object
+        )
         available_sheets: list[str] = []
         if sheet_name is None:
             xf = pd.ExcelFile(io.BytesIO(content))
@@ -134,14 +158,21 @@ def _parse_dataframe(content: bytes, filename: str, sheet_name: str | None = Non
 
     # CSV — try UTF-8, fall back to latin-1
     import io
+
     try:
         df = pd.read_csv(io.BytesIO(content), dtype=object)
     except UnicodeDecodeError:
         df = pd.read_csv(io.BytesIO(content), encoding="latin-1", dtype=object)
         encoding_used = "latin-1"
-        null_like = df.select_dtypes(include="object").apply(lambda s: s.str.contains("Ã", na=False).sum()).sum()
+        null_like = (
+            df.select_dtypes(include="object")
+            .apply(lambda s: s.str.contains("Ã", na=False).sum())
+            .sum()
+        )
         if null_like:
-            encoding_warnings.append(f"File decoded as latin-1; {int(null_like)} characters may render incorrectly")
+            encoding_warnings.append(
+                f"File decoded as latin-1; {int(null_like)} characters may render incorrectly"
+            )
     return df, [], encoding_used, encoding_warnings
 
 
@@ -163,12 +194,14 @@ def _build_detected_columns(df: pd.DataFrame) -> list[DetectedColumn]:
                     inferred = "integer"
             except (ValueError, TypeError):
                 pass
-        columns.append(DetectedColumn(
-            name=str(col),
-            inferred_type=inferred,  # type: ignore[arg-type]
-            null_count=null_count,
-            sample_values=sample,
-        ))
+        columns.append(
+            DetectedColumn(
+                name=str(col),
+                inferred_type=inferred,  # type: ignore[arg-type]
+                null_count=null_count,
+                sample_values=sample,
+            )
+        )
     return columns
 
 
@@ -194,6 +227,7 @@ def _dedup_columns(df: pd.DataFrame):
 # Upload
 # ---------------------------------------------------------------------------
 
+
 @router.post(
     "/{workspace_id}/imports/upload",
     status_code=status.HTTP_201_CREATED,
@@ -213,16 +247,23 @@ async def upload_file(
         raise HTTPException(status_code=400, detail="No filename provided")
     suffix = file.filename.rsplit(".", 1)[-1].lower() if "." in file.filename else ""
     if suffix not in ("csv", "xlsx"):
-        raise HTTPException(status_code=400, detail=f"Unsupported format: .{suffix}. Only .csv and .xlsx are accepted")
+        raise HTTPException(
+            status_code=400,
+            detail=f"Unsupported format: .{suffix}. Only .csv and .xlsx are accepted",
+        )
 
     content = await file.read()
     if len(content) > MAX_UPLOAD_BYTES:
         raise HTTPException(status_code=413, detail="File exceeds 500MB limit")
 
     try:
-        df, available_sheets, encoding_used, enc_warnings = _parse_dataframe(content, file.filename)
+        df, available_sheets, encoding_used, enc_warnings = _parse_dataframe(
+            content, file.filename
+        )
     except Exception as exc:
-        raise HTTPException(status_code=422, detail=f"Could not parse file: {exc}") from exc
+        raise HTTPException(
+            status_code=422, detail=f"Could not parse file: {exc}"
+        ) from exc
 
     if len(df) == 0:
         raise HTTPException(status_code=422, detail="File has 0 data rows")
@@ -253,6 +294,7 @@ async def upload_file(
     # Persist source as parquet for downstream use
     source_path = service._source_parquet_path(workspace_id, session.import_id)
     import duckdb
+
     conn = duckdb.connect(":memory:")
     conn.register("_src", df)
     conn.execute(f"COPY _src TO '{source_path}' (FORMAT PARQUET)")
@@ -264,6 +306,7 @@ async def upload_file(
 # ---------------------------------------------------------------------------
 # Sheet select (XLSX only)
 # ---------------------------------------------------------------------------
+
 
 @router.patch(
     "/{workspace_id}/imports/{import_id}/sheet",
@@ -278,20 +321,31 @@ async def select_sheet(
 ) -> ImportSession:
     session = _check_session(workspace_id, import_id, service)
     if body.sheet_name not in session.available_sheets:
-        raise HTTPException(status_code=422, detail=f"Sheet {body.sheet_name!r} not found in {session.available_sheets}")
+        raise HTTPException(
+            status_code=422,
+            detail=f"Sheet {body.sheet_name!r} not found in {session.available_sheets}",
+        )
 
     source_path = service._source_parquet_path(workspace_id, import_id)
-    orig_path = service._session_path(workspace_id, import_id) / f"_orig_{session.original_filename}"
+    orig_path = (
+        service._session_path(workspace_id, import_id)
+        / f"_orig_{session.original_filename}"
+    )
     if not orig_path.exists():
-        raise HTTPException(status_code=422, detail="Original file not retained; cannot re-parse sheet")
+        raise HTTPException(
+            status_code=422, detail="Original file not retained; cannot re-parse sheet"
+        )
 
     orig_bytes = orig_path.read_bytes()
-    df, _, encoding_used, enc_warnings = _parse_dataframe(orig_bytes, session.original_filename, sheet_name=body.sheet_name)
+    df, _, encoding_used, enc_warnings = _parse_dataframe(
+        orig_bytes, session.original_filename, sheet_name=body.sheet_name
+    )
     df, _ = _dedup_columns(df)
     detected = _build_detected_columns(df)
     preview = _df_to_records(df.head(100))
 
     import duckdb
+
     conn = duckdb.connect(":memory:")
     conn.register("_src", df)
     conn.execute(f"COPY _src TO '{source_path}' (FORMAT PARQUET)")
@@ -303,6 +357,7 @@ async def select_sheet(
     session.row_count = len(df)
     session.column_count = len(detected)
     from pathlib import Path as _Path
+
     service._metadata_path(workspace_id, import_id).write_text(
         session.model_dump_json(indent=2)
     )
@@ -312,6 +367,7 @@ async def select_sheet(
 # ---------------------------------------------------------------------------
 # Mapping save
 # ---------------------------------------------------------------------------
+
 
 @router.put(
     "/{workspace_id}/imports/{import_id}/mapping",
@@ -338,9 +394,12 @@ async def save_mapping(
     for m in body.field_mappings:
         m.import_id = import_id
 
-    updated = service.save_mapping(workspace_id, import_id, body.field_mappings, user=x_user_id)
+    updated = service.save_mapping(
+        workspace_id, import_id, body.field_mappings, user=x_user_id
+    )
     output_count = sum(1 for m in body.field_mappings if not m.is_excluded)
     from datetime import datetime, timezone
+
     return MappingSaveResponse(
         import_id=import_id,
         status=updated.status,
@@ -353,6 +412,7 @@ async def save_mapping(
 # ---------------------------------------------------------------------------
 # Preview (raw)
 # ---------------------------------------------------------------------------
+
 
 @router.get(
     "/{workspace_id}/imports/{import_id}/preview",
@@ -380,6 +440,7 @@ def get_preview(
 # Suggestions (schema-aware auto-mapping)
 # ---------------------------------------------------------------------------
 
+
 @router.get(
     "/{workspace_id}/imports/{import_id}/suggestions",
     response_model=SuggestionsResponse,
@@ -403,7 +464,8 @@ def get_suggestions(
         if field_def is None:
             continue
         input_col = next(
-            (c for c in session.detected_columns if c.name == suggestion.input_column), None
+            (c for c in session.detected_columns if c.name == suggestion.input_column),
+            None,
         )
         if input_col is None:
             continue
@@ -416,11 +478,14 @@ def get_suggestions(
     auto_path = service._templates_path(workspace_id) / f"_auto_{fingerprint}.json"
     if auto_path.exists():
         import json as _json
+
         stored_mappings = _json.loads(auto_path.read_text())
         stored_map = {m["input_column"]: m["output_column"] for m in stored_mappings}
         for suggestion in suggestions:
             if suggestion.input_column in stored_map:
-                suggestion.suggested_canonical_field = stored_map[suggestion.input_column]
+                suggestion.suggested_canonical_field = stored_map[
+                    suggestion.input_column
+                ]
                 suggestion.confidence = "high"
                 suggestion.confidence_score = 1.0
                 suggestion.reason = "prior_mapping"
@@ -449,6 +514,7 @@ def get_suggestions(
 # Preview (mapped)
 # ---------------------------------------------------------------------------
 
+
 @router.get(
     "/{workspace_id}/imports/{import_id}/mapped-preview",
     response_model=MappedPreviewResponse,
@@ -461,7 +527,9 @@ def get_mapped_preview(
 ) -> MappedPreviewResponse:
     session = _check_session(workspace_id, import_id, service)
     if service.get_mapping(workspace_id, import_id) is None:
-        raise HTTPException(status_code=409, detail="No mapping saved yet; save a mapping first")
+        raise HTTPException(
+            status_code=409, detail="No mapping saved yet; save a mapping first"
+        )
     df, warnings = service.get_mapped_preview(workspace_id, import_id)
     rows = _df_to_records(df)
     return MappedPreviewResponse(
@@ -477,6 +545,7 @@ def get_mapped_preview(
 # ---------------------------------------------------------------------------
 # Get session status
 # ---------------------------------------------------------------------------
+
 
 @router.get(
     "/{workspace_id}/imports/{import_id}",
@@ -495,6 +564,7 @@ def get_import_status(
 # Generate Parquet
 # ---------------------------------------------------------------------------
 
+
 @router.post(
     "/{workspace_id}/imports/{import_id}/generate",
     status_code=status.HTTP_202_ACCEPTED,
@@ -511,11 +581,14 @@ def generate_parquet(
     session = _check_session(workspace_id, import_id, service)
 
     if service.get_mapping(workspace_id, import_id) is None:
-        raise HTTPException(status_code=409, detail="No mapping saved; save a mapping before generating")
+        raise HTTPException(
+            status_code=409, detail="No mapping saved; save a mapping before generating"
+        )
 
     service.update_status(workspace_id, import_id, "generating")
 
     from datetime import datetime, timezone
+
     started_at = datetime.now(timezone.utc)
     try:
         parquet_file = service.generate_parquet(import_id, workspace_id, user=x_user_id)
@@ -556,6 +629,7 @@ def generate_parquet(
 # Parquet file management
 # ---------------------------------------------------------------------------
 
+
 @router.get(
     "/{workspace_id}/parquet-files",
     response_model=ParquetFilesResponse,
@@ -569,7 +643,9 @@ def list_parquet_files(
     _check_workspace(workspace_id, storage)
     files = service.list_parquet_files(workspace_id)
     files_sorted = sorted(files, key=lambda f: f.created_at, reverse=True)
-    return ParquetFilesResponse(parquet_files=files_sorted, total_count=len(files_sorted))
+    return ParquetFilesResponse(
+        parquet_files=files_sorted, total_count=len(files_sorted)
+    )
 
 
 @router.get(
@@ -609,13 +685,16 @@ def delete_parquet_file(
     if pf is None:
         raise HTTPException(status_code=404, detail="Parquet file not found")
     if pf.created_by != x_user_id:
-        raise HTTPException(status_code=403, detail="Only the file creator can delete it")
+        raise HTTPException(
+            status_code=403, detail="Only the file creator can delete it"
+        )
     service.delete_parquet_file(workspace_id, file_id, user=x_user_id)
 
 
 # ---------------------------------------------------------------------------
 # Mapping templates
 # ---------------------------------------------------------------------------
+
 
 @router.get(
     "/{workspace_id}/mapping-templates",
@@ -676,12 +755,15 @@ def apply_template(
 ) -> MappingSaveResponse:
     _check_session(workspace_id, import_id, service)
     try:
-        updated = service.apply_template(workspace_id, import_id, body.template_id, user=x_user_id)
+        updated = service.apply_template(
+            workspace_id, import_id, body.template_id, user=x_user_id
+        )
     except FileNotFoundError as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from exc
     mappings = service.get_mapping(workspace_id, import_id) or []
     output_count = sum(1 for m in mappings if not m.is_excluded)
     from datetime import datetime, timezone
+
     return MappingSaveResponse(
         import_id=import_id,
         status=updated.status,

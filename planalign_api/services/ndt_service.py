@@ -254,9 +254,9 @@ class NDTService:
                 return
 
             required_columns = (
-                'hce_compensation_threshold',
-                'super_catch_up_limit',
-                'annual_additions_limit',
+                "hce_compensation_threshold",
+                "super_catch_up_limit",
+                "annual_additions_limit",
             )
             conn = duckdb.connect(str(db_path))
             try:
@@ -385,10 +385,13 @@ class NDTService:
             hce_threshold = int(hce_threshold_row[0])
 
             # Check if prior year data exists
-            prior_year_exists = conn.execute(
-                "SELECT COUNT(*) FROM fct_workforce_snapshot WHERE simulation_year = ?",
-                [year - 1],
-            ).fetchone()[0] > 0
+            prior_year_exists = (
+                conn.execute(
+                    "SELECT COUNT(*) FROM fct_workforce_snapshot WHERE simulation_year = ?",
+                    [year - 1],
+                ).fetchone()[0]
+                > 0
+            )
 
             # Main ACP query with HCE determination
             query = """
@@ -431,7 +434,9 @@ class NDTService:
             """
 
             prior_year_param = year - 1 if prior_year_exists else year
-            rows = conn.execute(query, [prior_year_param, hce_threshold, year]).fetchall()
+            rows = conn.execute(
+                query, [prior_year_param, hce_threshold, year]
+            ).fetchall()
             conn.close()
 
             if not rows:
@@ -458,15 +463,19 @@ class NDTService:
                 if not is_enrolled:
                     eligible_not_enrolled += 1
                 if include_employees:
-                    employees.append(ACPEmployeeDetail(
-                        employee_id=str(emp_id),
-                        is_hce=bool(is_hce),
-                        is_enrolled=bool(is_enrolled),
-                        employer_match_amount=float(match_amt),
-                        eligible_compensation=float(comp),
-                        individual_acp=float(acp),
-                        prior_year_compensation=float(prior_comp) if prior_comp is not None else None,
-                    ))
+                    employees.append(
+                        ACPEmployeeDetail(
+                            employee_id=str(emp_id),
+                            is_hce=bool(is_hce),
+                            is_enrolled=bool(is_enrolled),
+                            employer_match_amount=float(match_amt),
+                            eligible_compensation=float(comp),
+                            individual_acp=float(acp),
+                            prior_year_compensation=float(prior_comp)
+                            if prior_comp is not None
+                            else None,
+                        )
+                    )
 
             # Edge case: no NHCE employees
             if not nhce_acps:
@@ -630,10 +639,13 @@ class NDTService:
             hce_threshold = int(hce_threshold_row[0])
 
             # Check prior year data
-            prior_year_exists = conn.execute(
-                "SELECT COUNT(*) FROM fct_workforce_snapshot WHERE simulation_year = ?",
-                [year - 1],
-            ).fetchone()[0] > 0
+            prior_year_exists = (
+                conn.execute(
+                    "SELECT COUNT(*) FROM fct_workforce_snapshot WHERE simulation_year = ?",
+                    [year - 1],
+                ).fetchone()[0]
+                > 0
+            )
 
             prior_year_param = year - 1 if prior_year_exists else year
 
@@ -672,7 +684,9 @@ class NDTService:
             ORDER BY is_hce DESC
             """
 
-            rows = conn.execute(query, [prior_year_param, hce_threshold, year]).fetchall()
+            rows = conn.execute(
+                query, [prior_year_param, hce_threshold, year]
+            ).fetchall()
             conn.close()
 
             if not rows:
@@ -715,16 +729,20 @@ class NDTService:
                     nhce_tenures.append(float(tenure or 0))
 
                 if include_employees:
-                    employees.append(Section401a4EmployeeDetail(
-                        employee_id=str(emp_id),
-                        is_hce=bool(is_hce),
-                        employer_nec_amount=float(core_amt),
-                        employer_match_amount=float(match_amt) if include_match else 0.0,
-                        total_employer_amount=float(total_employer),
-                        plan_compensation=float(plan_comp),
-                        contribution_rate=float(rate),
-                        years_of_service=float(tenure or 0),
-                    ))
+                    employees.append(
+                        Section401a4EmployeeDetail(
+                            employee_id=str(emp_id),
+                            is_hce=bool(is_hce),
+                            employer_nec_amount=float(core_amt),
+                            employer_match_amount=float(match_amt)
+                            if include_match
+                            else 0.0,
+                            total_employer_amount=float(total_employer),
+                            plan_compensation=float(plan_comp),
+                            contribution_rate=float(rate),
+                            years_of_service=float(tenure or 0),
+                        )
+                    )
 
             # Edge case: no NHCE employees
             if not nhce_rates:
@@ -759,7 +777,9 @@ class NDTService:
                 )
 
             # Edge case: no employer contributions at all
-            if all(abs(r) < 1e-9 for r in hce_rates) and all(abs(r) < 1e-9 for r in nhce_rates):
+            if all(abs(r) < 1e-9 for r in hce_rates) and all(
+                abs(r) < 1e-9 for r in nhce_rates
+            ):
                 return Section401a4ScenarioResult(
                     scenario_id=scenario_id,
                     scenario_name=scenario_name,
@@ -968,7 +988,14 @@ class NDTService:
             max_utilization = 0.0
 
             for row in rows:
-                emp_id, gross_comp, prorated_comp, contributions, match_amt, core_amt = row
+                (
+                    emp_id,
+                    gross_comp,
+                    prorated_comp,
+                    contributions,
+                    match_amt,
+                    core_amt,
+                ) = row
 
                 if gross_comp is None or gross_comp <= 0:
                     excluded_count += 1
@@ -984,7 +1011,9 @@ class NDTService:
                 applicable_limit = min(float(annual_additions_limit), float(gross_comp))
 
                 headroom = applicable_limit - total_additions
-                utilization = total_additions / applicable_limit if applicable_limit > 0 else 0.0
+                utilization = (
+                    total_additions / applicable_limit if applicable_limit > 0 else 0.0
+                )
                 max_utilization = max(max_utilization, utilization)
 
                 # Classify
@@ -999,18 +1028,20 @@ class NDTService:
                     passing_count += 1
 
                 if include_employees:
-                    employees.append(Section415EmployeeDetail(
-                        employee_id=str(emp_id),
-                        status=emp_status,
-                        employee_deferrals=base_deferrals,
-                        employer_match=float(match_amt),
-                        employer_nec=float(core_amt),
-                        total_annual_additions=total_additions,
-                        gross_compensation=float(gross_comp),
-                        applicable_limit=applicable_limit,
-                        headroom=headroom,
-                        utilization_pct=utilization,
-                    ))
+                    employees.append(
+                        Section415EmployeeDetail(
+                            employee_id=str(emp_id),
+                            status=emp_status,
+                            employee_deferrals=base_deferrals,
+                            employer_match=float(match_amt),
+                            employer_nec=float(core_amt),
+                            total_annual_additions=total_additions,
+                            gross_compensation=float(gross_comp),
+                            applicable_limit=applicable_limit,
+                            headroom=headroom,
+                            utilization_pct=utilization,
+                        )
+                    )
 
             total_participants = breach_count + at_risk_count + passing_count
             test_result = "fail" if breach_count > 0 else "pass"
@@ -1110,10 +1141,13 @@ class NDTService:
             hce_threshold = int(hce_threshold_row[0])
 
             # Check if prior year data exists
-            prior_year_exists = conn.execute(
-                "SELECT COUNT(*) FROM fct_workforce_snapshot WHERE simulation_year = ?",
-                [year - 1],
-            ).fetchone()[0] > 0
+            prior_year_exists = (
+                conn.execute(
+                    "SELECT COUNT(*) FROM fct_workforce_snapshot WHERE simulation_year = ?",
+                    [year - 1],
+                ).fetchone()[0]
+                > 0
+            )
 
             # Prior year testing method: get NHCE ADP from prior year
             prior_year_nhce_adp = None
@@ -1144,17 +1178,24 @@ class NDTService:
                     WHERE is_hce = FALSE
                     """
                     # For prior year NHCE baseline, use year-2 for HCE determination of year-1
-                    prior_hce_year = year - 2 if conn.execute(
-                        "SELECT COUNT(*) FROM fct_workforce_snapshot WHERE simulation_year = ?",
-                        [year - 2],
-                    ).fetchone()[0] > 0 else year - 1
+                    prior_hce_year = (
+                        year - 2
+                        if conn.execute(
+                            "SELECT COUNT(*) FROM fct_workforce_snapshot WHERE simulation_year = ?",
+                            [year - 2],
+                        ).fetchone()[0]
+                        > 0
+                        else year - 1
+                    )
 
                     prior_nhce_rows = conn.execute(
                         prior_nhce_query, [prior_hce_year, hce_threshold, year - 1]
                     ).fetchall()
 
                     if prior_nhce_rows:
-                        prior_year_nhce_adp = sum(r[0] for r in prior_nhce_rows) / len(prior_nhce_rows)
+                        prior_year_nhce_adp = sum(r[0] for r in prior_nhce_rows) / len(
+                            prior_nhce_rows
+                        )
                     else:
                         actual_testing_method = "current"
                 else:
@@ -1200,7 +1241,9 @@ class NDTService:
             """
 
             prior_year_param = year - 1 if prior_year_exists else year
-            rows = conn.execute(query, [prior_year_param, hce_threshold, year]).fetchall()
+            rows = conn.execute(
+                query, [prior_year_param, hce_threshold, year]
+            ).fetchall()
             conn.close()
 
             if not rows:
@@ -1234,14 +1277,18 @@ class NDTService:
                     nhce_adps.append(adp)
 
                 if include_employees:
-                    employees.append(ADPEmployeeDetail(
-                        employee_id=str(emp_id),
-                        is_hce=bool(is_hce),
-                        employee_deferrals=float(deferrals),
-                        plan_compensation=float(comp),
-                        individual_adp=float(adp),
-                        prior_year_compensation=float(prior_comp) if prior_comp is not None else None,
-                    ))
+                    employees.append(
+                        ADPEmployeeDetail(
+                            employee_id=str(emp_id),
+                            is_hce=bool(is_hce),
+                            employee_deferrals=float(deferrals),
+                            plan_compensation=float(comp),
+                            individual_adp=float(adp),
+                            prior_year_compensation=float(prior_comp)
+                            if prior_comp is not None
+                            else None,
+                        )
+                    )
 
             # Edge case: no NHCE
             if not nhce_adps:
@@ -1279,7 +1326,11 @@ class NDTService:
                 )
 
             # Compute pass/fail
-            nhce_baseline = prior_year_nhce_adp if actual_testing_method == "prior" and prior_year_nhce_adp is not None else None
+            nhce_baseline = (
+                prior_year_nhce_adp
+                if actual_testing_method == "prior" and prior_year_nhce_adp is not None
+                else None
+            )
             test_message = None
             if testing_method == "prior" and actual_testing_method == "current":
                 test_message = "Prior year data not available — fell back to current year testing method"

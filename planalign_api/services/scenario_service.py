@@ -66,9 +66,7 @@ class ScenarioService:
         """List all scenarios in a workspace."""
         return self.storage.list_scenarios(workspace_id)
 
-    def get_scenario(
-        self, workspace_id: str, scenario_id: str
-    ) -> Optional[Scenario]:
+    def get_scenario(self, workspace_id: str, scenario_id: str) -> Optional[Scenario]:
         """Get a scenario by ID."""
         return self.storage.get_scenario(workspace_id, scenario_id)
 
@@ -114,9 +112,7 @@ class ScenarioService:
         results: list[ScenarioApplyOutcome] = []
 
         for target_id in target_scenario_ids:
-            outcome = self._apply_to_target(
-                workspace_id, target_id, workforce_params
-            )
+            outcome = self._apply_to_target(workspace_id, target_id, workforce_params)
             results.append(outcome)
 
         total_applied = sum(1 for r in results if r.success)
@@ -172,7 +168,9 @@ class ScenarioService:
             # Validate seed configs before writing
             validation_errors = validate_seed_configs(merged)
             if validation_errors:
-                messages = [f"{e.section}.{e.field}: {e.message}" for e in validation_errors]
+                messages = [
+                    f"{e.section}.{e.field}: {e.message}" for e in validation_errors
+                ]
                 return ScenarioApplyOutcome(
                     scenario_id=target_id,
                     scenario_name=target.name,

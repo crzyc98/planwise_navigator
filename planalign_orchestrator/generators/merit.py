@@ -110,14 +110,10 @@ class MeritEventGenerator(HazardBasedEventGeneratorMixin, EventGenerator):
         if hasattr(payload, "merit_percentage"):
             pct = payload.merit_percentage
             if pct < Decimal("0") or pct > Decimal("1"):
-                errors.append(
-                    f"merit_percentage must be between 0 and 1, got {pct}"
-                )
+                errors.append(f"merit_percentage must be between 0 and 1, got {pct}")
             # Warn if unusually high
             if pct > Decimal("0.25"):
-                warnings.append(
-                    f"merit_percentage {pct} is unusually high (>25%)"
-                )
+                warnings.append(f"merit_percentage {pct} is unusually high (>25%)")
         else:
             errors.append("merit_percentage is required")
 

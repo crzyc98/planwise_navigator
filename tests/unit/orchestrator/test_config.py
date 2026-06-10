@@ -3,8 +3,11 @@ from pathlib import Path
 
 import pytest
 
-from planalign_orchestrator.config import (SimulationConfig,
-                                           load_simulation_config, to_dbt_vars)
+from planalign_orchestrator.config import (
+    SimulationConfig,
+    load_simulation_config,
+    to_dbt_vars,
+)
 from tests.fixtures.config import GOLDEN_DBT_VARS_KEYS
 
 
@@ -129,7 +132,9 @@ def test_to_dbt_vars_golden_output(golden_config):
         "proactive_enrollment_rate_mature",
         "proactive_enrollment_rate_senior",
     ]:
-        assert 0 <= result[rate_key] <= 1, f"{rate_key} out of range: {result[rate_key]}"
+        assert (
+            0 <= result[rate_key] <= 1
+        ), f"{rate_key} out of range: {result[rate_key]}"
 
 
 def test_to_dbt_vars_contains_all_required_keys(minimal_config):

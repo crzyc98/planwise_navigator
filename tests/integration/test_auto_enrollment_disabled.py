@@ -56,6 +56,6 @@ class TestAutoEnrollmentMultiYear:
         for year in [2025, 2026, 2027]:
             cfg.simulation.start_year = year
             result = to_dbt_vars(cfg)
-            assert result["auto_enrollment_enabled"] is False, (
-                f"auto_enrollment_enabled should be False for year {year}"
-            )
+            assert (
+                result["auto_enrollment_enabled"] is False
+            ), f"auto_enrollment_enabled should be False for year {year}"

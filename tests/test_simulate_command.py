@@ -129,7 +129,12 @@ class TestShowDryRunPreview:
 @pytest.mark.fast
 class TestLiveProgressTracker:
     def _make_tracker(self, **kwargs):
-        defaults = {"total_years": 3, "start_year": 2025, "end_year": 2027, "verbose": False}
+        defaults = {
+            "total_years": 3,
+            "start_year": 2025,
+            "end_year": 2027,
+            "verbose": False,
+        }
         defaults.update(kwargs)
         return LiveProgressTracker(**defaults)
 
@@ -225,7 +230,9 @@ class TestLiveProgressTracker:
         mock_live = MagicMock()
         tracker._live = mock_live
         tracker.on_dbt_line("ERROR: something bad")
-        mock_live.console.print.assert_called_once_with("ERROR: something bad", highlight=False)
+        mock_live.console.print.assert_called_once_with(
+            "ERROR: something bad", highlight=False
+        )
 
     def test_build_status_table_basic(self):
         tracker = self._make_tracker()

@@ -42,9 +42,7 @@ def generate_optimization_recommendations(
     db_growth = db_sizes[-1] - db_sizes[0] if len(db_sizes) > 1 else 0
 
     # Memory optimization recommendations (E068E focus)
-    recommendations.extend(
-        _generate_memory_recommendations(peak_memory, thresholds)
-    )
+    recommendations.extend(_generate_memory_recommendations(peak_memory, thresholds))
 
     # CPU optimization recommendations (E068E focus)
     cpu_cores = checkpoints[0].cpu_count if checkpoints else 1
@@ -53,19 +51,13 @@ def generate_optimization_recommendations(
     )
 
     # I/O optimization recommendations (E068E specific)
-    recommendations.extend(
-        _generate_io_recommendations(checkpoints, thresholds)
-    )
+    recommendations.extend(_generate_io_recommendations(checkpoints, thresholds))
 
     # Database growth optimization (E068E target: <1GB per year)
-    recommendations.extend(
-        _generate_storage_recommendations(db_growth, thresholds)
-    )
+    recommendations.extend(_generate_storage_recommendations(db_growth, thresholds))
 
     # Stage-specific recommendations
-    recommendations.extend(
-        _generate_stage_recommendations(checkpoints, thresholds)
-    )
+    recommendations.extend(_generate_stage_recommendations(checkpoints, thresholds))
 
     return sorted(recommendations, key=lambda x: x.priority)
 

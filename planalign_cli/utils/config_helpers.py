@@ -64,7 +64,9 @@ def parse_years(years_str: str) -> Tuple[int, int]:
             year = int(years_str)
             return year, year
     except (ValueError, TypeError) as e:
-        raise ValueError(f"Invalid year format: {years_str}. Expected 'YYYY' or 'YYYY-YYYY'") from e
+        raise ValueError(
+            f"Invalid year format: {years_str}. Expected 'YYYY' or 'YYYY-YYYY'"
+        ) from e
 
 
 def validate_year_range(start_year: int, end_year: int) -> None:
@@ -87,10 +89,14 @@ def validate_year_range(start_year: int, end_year: int) -> None:
         raise ValueError(f"Start year {start_year} cannot be before {current_year}")
 
     if end_year > current_year + 50:
-        raise ValueError(f"End year {end_year} is too far in the future (max: {current_year + 50})")
+        raise ValueError(
+            f"End year {end_year} is too far in the future (max: {current_year + 50})"
+        )
 
     if (end_year - start_year) > 20:
-        raise ValueError(f"Year range too large: {end_year - start_year + 1} years (max: 20)")
+        raise ValueError(
+            f"Year range too large: {end_year - start_year + 1} years (max: 20)"
+        )
 
 
 def find_scenarios_directory() -> Path:
@@ -185,11 +191,13 @@ def check_required_files() -> dict:
 
     # Overall readiness
     checks["ready_for_simulation"] = (
-        checks["config_exists"] and
-        checks["dbt_exists"] and
-        checks["dbt_project_exists"]
+        checks["config_exists"]
+        and checks["dbt_exists"]
+        and checks["dbt_project_exists"]
     )
 
-    checks["ready_for_batch"] = checks["ready_for_simulation"] and checks["scenarios_exists"]
+    checks["ready_for_batch"] = (
+        checks["ready_for_simulation"] and checks["scenarios_exists"]
+    )
 
     return checks

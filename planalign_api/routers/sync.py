@@ -29,7 +29,7 @@ def get_sync_service() -> SyncService:
     if not GIT_AVAILABLE:
         raise HTTPException(
             status_code=503,
-            detail="GitPython is required for sync functionality. Install with: pip install GitPython"
+            detail="GitPython is required for sync functionality. Install with: pip install GitPython",
         )
     return SyncService()
 
@@ -96,7 +96,7 @@ async def push_changes(_message: str = None):
         if not service.is_initialized():
             raise HTTPException(
                 status_code=400,
-                detail="Sync not initialized. Call POST /api/sync/init first."
+                detail="Sync not initialized. Call POST /api/sync/init first.",
             )
 
         return service.push(message=message)
@@ -121,7 +121,7 @@ async def pull_changes():
         if not service.is_initialized():
             raise HTTPException(
                 status_code=400,
-                detail="Sync not initialized. Call POST /api/sync/init first."
+                detail="Sync not initialized. Call POST /api/sync/init first.",
             )
 
         return service.pull()
@@ -133,7 +133,7 @@ async def pull_changes():
             detail={
                 "message": str(e),
                 "conflicts": e.conflicting_files,
-            }
+            },
         )
     except SyncError as e:
         raise HTTPException(status_code=400, detail=str(e))
@@ -182,7 +182,10 @@ async def disconnect_sync():
 
         success = service.disconnect()
         if success:
-            return {"success": True, "message": "Sync disconnected. Local files preserved."}
+            return {
+                "success": True,
+                "message": "Sync disconnected. Local files preserved.",
+            }
         else:
             raise HTTPException(status_code=500, detail="Failed to disconnect sync")
     except Exception as e:

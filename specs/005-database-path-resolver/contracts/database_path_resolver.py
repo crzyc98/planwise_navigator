@@ -178,7 +178,9 @@ class DatabasePathResolver:
     ) -> ResolvedDatabasePath:
         """Resolve database path using fallback chain."""
         # Implementation details in actual source file
-        raise NotImplementedError("See planalign_api/services/database_path_resolver.py")
+        raise NotImplementedError(
+            "See planalign_api/services/database_path_resolver.py"
+        )
 
     def _validate_identifier(self, value: str, name: str) -> bool:
         """

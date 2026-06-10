@@ -115,10 +115,12 @@ class TestYearDependencyValidatorBasic:
         )
 
         # Data exists for 2025
-        db_manager = MockDatabaseConnectionManager({
-            "int_enrollment_state_accumulator": {2025: 100},
-            "int_deferral_rate_state_accumulator": {2025: 100},
-        })
+        db_manager = MockDatabaseConnectionManager(
+            {
+                "int_enrollment_state_accumulator": {2025: 100},
+                "int_deferral_rate_state_accumulator": {2025: 100},
+            }
+        )
         validator = YearDependencyValidator(db_manager, start_year=2025)
 
         # Should NOT raise - 2025 data exists
@@ -131,10 +133,12 @@ class TestYearDependencyValidatorBasic:
         )
 
         # Only enrollment has 2025 data, deferral does not
-        db_manager = MockDatabaseConnectionManager({
-            "int_enrollment_state_accumulator": {2025: 100},
-            "int_deferral_rate_state_accumulator": {2025: 0},
-        })
+        db_manager = MockDatabaseConnectionManager(
+            {
+                "int_enrollment_state_accumulator": {2025: 100},
+                "int_deferral_rate_state_accumulator": {2025: 0},
+            }
+        )
         validator = YearDependencyValidator(db_manager, start_year=2025)
 
         with pytest.raises(YearDependencyError) as exc_info:
@@ -155,10 +159,12 @@ class TestYearDependencyValidatorMultiYear:
         )
 
         # Data for 2025 but not 2026
-        db_manager = MockDatabaseConnectionManager({
-            "int_enrollment_state_accumulator": {2025: 100, 2026: 0},
-            "int_deferral_rate_state_accumulator": {2025: 100, 2026: 0},
-        })
+        db_manager = MockDatabaseConnectionManager(
+            {
+                "int_enrollment_state_accumulator": {2025: 100, 2026: 0},
+                "int_deferral_rate_state_accumulator": {2025: 100, 2026: 0},
+            }
+        )
         validator = YearDependencyValidator(db_manager, start_year=2025)
 
         # 2026 should pass (2025 data exists)
@@ -177,10 +183,16 @@ class TestYearDependencyValidatorMultiYear:
         )
 
         # Full chain of data
-        db_manager = MockDatabaseConnectionManager({
-            "int_enrollment_state_accumulator": {2025: 100, 2026: 100, 2027: 100},
-            "int_deferral_rate_state_accumulator": {2025: 100, 2026: 100, 2027: 100},
-        })
+        db_manager = MockDatabaseConnectionManager(
+            {
+                "int_enrollment_state_accumulator": {2025: 100, 2026: 100, 2027: 100},
+                "int_deferral_rate_state_accumulator": {
+                    2025: 100,
+                    2026: 100,
+                    2027: 100,
+                },
+            }
+        )
         validator = YearDependencyValidator(db_manager, start_year=2025)
 
         # All should pass
@@ -199,10 +211,12 @@ class TestYearDependencyValidatorGetMissing:
             YearDependencyValidator,
         )
 
-        db_manager = MockDatabaseConnectionManager({
-            "int_enrollment_state_accumulator": {2025: 100},
-            "int_deferral_rate_state_accumulator": {2025: 100},
-        })
+        db_manager = MockDatabaseConnectionManager(
+            {
+                "int_enrollment_state_accumulator": {2025: 100},
+                "int_deferral_rate_state_accumulator": {2025: 100},
+            }
+        )
         validator = YearDependencyValidator(db_manager, start_year=2025)
 
         missing = validator.get_missing_years(year=2026)
@@ -245,10 +259,12 @@ class TestYearDependencyValidatorEdgeCases:
             YearDependencyValidator,
         )
 
-        db_manager = MockDatabaseConnectionManager({
-            "int_enrollment_state_accumulator": {2023: 100},
-            "int_deferral_rate_state_accumulator": {2023: 100},
-        })
+        db_manager = MockDatabaseConnectionManager(
+            {
+                "int_enrollment_state_accumulator": {2023: 100},
+                "int_deferral_rate_state_accumulator": {2023: 100},
+            }
+        )
 
         # Start year 2023
         validator = YearDependencyValidator(db_manager, start_year=2023)

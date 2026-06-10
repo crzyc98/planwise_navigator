@@ -34,17 +34,14 @@ __all__ = [
     "in_memory_db",
     "populated_test_db",
     "isolated_test_db",
-
     # Configuration fixtures
     "minimal_config",
     "single_threaded_config",
     "multi_threaded_config",
-
     # Mock dbt fixtures
     "mock_dbt_runner",
     "failing_dbt_runner",
     "mock_dbt_result",
-
     # Workforce data fixtures
     "sample_employees",
     "baseline_workforce_df",

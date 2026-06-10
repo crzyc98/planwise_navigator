@@ -209,7 +209,13 @@ class TestWrapperExecutionOrder:
         event_types = [g.event_type for g in ordered]
 
         # Verify execution order
-        assert event_types == ["termination", "hire", "promotion", "merit", "enrollment"]
+        assert event_types == [
+            "termination",
+            "hire",
+            "promotion",
+            "merit",
+            "enrollment",
+        ]
 
 
 class TestWrapperSQLModeDelegation:
@@ -278,7 +284,9 @@ class TestWrapperValidation:
                     "death",
                     "disability",
                 ]:
-                    errors.append(f"Invalid termination_reason: {event.termination_reason}")
+                    errors.append(
+                        f"Invalid termination_reason: {event.termination_reason}"
+                    )
 
                 return ValidationResult(is_valid=len(errors) == 0, errors=errors)
 

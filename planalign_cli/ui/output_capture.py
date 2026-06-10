@@ -16,11 +16,11 @@ from typing import Optional
 from rich.console import Console
 
 _SIGNAL_PATTERNS = re.compile(
-    r'(?:error|warn|\d+ of \d+|^Running with dbt|^Finished running|^Done\.|OK created|FAIL|PASS)',
+    r"(?:error|warn|\d+ of \d+|^Running with dbt|^Finished running|^Done\.|OK created|FAIL|PASS)",
     re.IGNORECASE,
 )
 _NOISE_PATTERNS = re.compile(
-    r'^\s*(?:select|from|where|with\s+\w|join|group by|order by|-{2,}|\[debug\]|={3,}|Concurrency:|registered in)',
+    r"^\s*(?:select|from|where|with\s+\w|join|group by|order by|-{2,}|\[debug\]|={3,}|Concurrency:|registered in)",
     re.IGNORECASE,
 )
 
@@ -58,7 +58,9 @@ class PlainTextProgressFallback:
     statements. Used when stdout is not a TTY (e.g., piped to a file).
     """
 
-    def __init__(self, total_years: int, start_year: int, end_year: int, verbose: bool = False):
+    def __init__(
+        self, total_years: int, start_year: int, end_year: int, verbose: bool = False
+    ):
         self.total_years = total_years
         self.start_year = start_year
         self.end_year = end_year
@@ -73,17 +75,19 @@ class PlainTextProgressFallback:
             if self.current_year is not None:
                 self.years_completed += 1
             self.current_year = year
-            print(f"[Progress] Starting year {year} ({self.years_completed}/{self.total_years} completed)")
+            print(
+                f"[Progress] Starting year {year} ({self.years_completed}/{self.total_years} completed)"
+            )
 
     def update_stage(self, stage: str) -> None:
         """Print stage transition."""
         self.current_stage = stage
-        stage_display = stage.replace('_', ' ').title()
+        stage_display = stage.replace("_", " ").title()
         print(f"[Progress] Stage: {stage_display}")
 
     def stage_completed(self, stage: str, duration: float) -> None:
         """Print stage completion."""
-        stage_display = stage.replace('_', ' ').title()
+        stage_display = stage.replace("_", " ").title()
         print(f"[Progress] Completed {stage_display} in {duration:.1f}s")
 
     def update_events(self, event_count: int) -> None:
@@ -109,10 +113,10 @@ def is_tty() -> bool:
     if not sys.stdout.isatty():
         return False
 
-    if os.name == 'nt':
+    if os.name == "nt":
         # On Windows, check for ANSI support via environment or Rich detection
-        term = os.environ.get('TERM', '')
-        wt_session = os.environ.get('WT_SESSION', '')
+        term = os.environ.get("TERM", "")
+        wt_session = os.environ.get("WT_SESSION", "")
         if term or wt_session:
             return True
         # Fall back to Rich's terminal detection

@@ -30,8 +30,7 @@ class VestingScheduleInfo(BaseModel):
     name: str = Field(..., min_length=1, max_length=50)
     description: str = Field(..., max_length=200)
     percentages: dict[int, float] = Field(
-        ...,
-        description="Year -> vesting percentage mapping"
+        ..., description="Year -> vesting percentage mapping"
     )
 
 
@@ -42,13 +41,13 @@ class VestingScheduleConfig(BaseModel):
     name: str = Field(..., min_length=1, max_length=50)
     require_hours_credit: bool = Field(
         default=False,
-        description="If true, employees must meet hours threshold for vesting credit"
+        description="If true, employees must meet hours threshold for vesting credit",
     )
     hours_threshold: int = Field(
         default=1000,
         ge=0,
         le=2080,
-        description="Minimum annual hours for vesting credit (default: 1000)"
+        description="Minimum annual hours for vesting credit (default: 1000)",
     )
 
 
@@ -56,18 +55,16 @@ class VestingAnalysisRequest(BaseModel):
     """Request to run vesting analysis comparing two schedules."""
 
     current_schedule: VestingScheduleConfig = Field(
-        ...,
-        description="Current vesting schedule to analyze"
+        ..., description="Current vesting schedule to analyze"
     )
     proposed_schedule: VestingScheduleConfig = Field(
-        ...,
-        description="Proposed vesting schedule to compare"
+        ..., description="Proposed vesting schedule to compare"
     )
     simulation_year: Optional[int] = Field(
         default=None,
         ge=2020,
         le=2050,
-        description="Simulation year to analyze (default: final year)"
+        description="Simulation year to analyze (default: final year)",
     )
 
 
@@ -94,14 +91,18 @@ class EmployeeVestingDetail(BaseModel):
 
     # Comparison
     forfeiture_variance: Decimal = Field(
-        ...,
-        description="Proposed - Current forfeiture (negative = less forfeiture)"
+        ..., description="Proposed - Current forfeiture (negative = less forfeiture)"
     )
 
     @field_serializer(
-        'total_employer_contributions', 'current_vesting_pct', 'current_vested_amount',
-        'current_forfeiture', 'proposed_vesting_pct', 'proposed_vested_amount',
-        'proposed_forfeiture', 'forfeiture_variance'
+        "total_employer_contributions",
+        "current_vesting_pct",
+        "current_vested_amount",
+        "current_forfeiture",
+        "proposed_vesting_pct",
+        "proposed_vested_amount",
+        "proposed_forfeiture",
+        "forfeiture_variance",
     )
     def serialize_decimal(self, v: Decimal) -> float:
         """Serialize Decimal as float for JSON responses."""
@@ -119,8 +120,10 @@ class TenureBandSummary(BaseModel):
     forfeiture_variance: Decimal
 
     @field_serializer(
-        'total_contributions', 'current_forfeitures', 'proposed_forfeitures',
-        'forfeiture_variance'
+        "total_contributions",
+        "current_forfeitures",
+        "proposed_forfeitures",
+        "forfeiture_variance",
     )
     def serialize_decimal(self, v: Decimal) -> float:
         """Serialize Decimal as float for JSON responses."""
@@ -144,18 +147,20 @@ class VestingAnalysisSummary(BaseModel):
 
     # Comparison
     forfeiture_variance: Decimal = Field(
-        ...,
-        description="Proposed - Current total forfeiture"
+        ..., description="Proposed - Current total forfeiture"
     )
     forfeiture_variance_pct: Decimal = Field(
-        ...,
-        description="Percentage change in forfeitures"
+        ..., description="Percentage change in forfeitures"
     )
 
     @field_serializer(
-        'total_employer_contributions', 'current_total_vested', 'current_total_forfeited',
-        'proposed_total_vested', 'proposed_total_forfeited', 'forfeiture_variance',
-        'forfeiture_variance_pct'
+        "total_employer_contributions",
+        "current_total_vested",
+        "current_total_forfeited",
+        "proposed_total_vested",
+        "proposed_total_forfeited",
+        "forfeiture_variance",
+        "forfeiture_variance_pct",
     )
     def serialize_decimal(self, v: Decimal) -> float:
         """Serialize Decimal as float for JSON responses."""
@@ -183,5 +188,7 @@ class VestingScheduleListResponse(BaseModel):
 class ScenarioYearsResponse(BaseModel):
     """Available simulation years for a scenario."""
 
-    years: List[int] = Field(..., description="Sorted ascending list of available simulation years")
+    years: List[int] = Field(
+        ..., description="Sorted ascending list of available simulation years"
+    )
     default_year: int = Field(..., description="The most recent (final) year")

@@ -13,29 +13,56 @@ from . import sqlparse_config  # noqa: F401
 
 from _version import __version__, get_full_version, get_version_dict
 
-from .config import (CompensationSettings, EnrollmentSettings,
-                     SimulationConfig, SimulationSettings,
-                     load_simulation_config, to_dbt_vars)
+from .config import (
+    CompensationSettings,
+    EnrollmentSettings,
+    SimulationConfig,
+    SimulationSettings,
+    load_simulation_config,
+    to_dbt_vars,
+)
 from .factory import OrchestratorBuilder, create_orchestrator
 from .logger import JSONFormatter, ProductionLogger, get_logger
 from .migration import MigrationManager, MigrationResult
-from .observability import (ObservabilityManager, create_observability_manager,
-                            observability_session)
+from .observability import (
+    ObservabilityManager,
+    create_observability_manager,
+    observability_session,
+)
 from .performance_monitor import PerformanceMetrics, PerformanceMonitor
-from .registries import (DeferralEscalationRegistry, EnrollmentRegistry,
-                         Registry, RegistryManager, RegistryValidationResult,
-                         SQLTemplateManager)
-from .reports.data_models import (EventSummary, MultiYearSummary,
-                                  WorkforceBreakdown, YearAuditReport)
-from .reports.formatters import (ConsoleReporter, DETAILED_AUDIT_TEMPLATE,
-                                 EXECUTIVE_SUMMARY_TEMPLATE, ReportTemplate)
+from .registries import (
+    DeferralEscalationRegistry,
+    EnrollmentRegistry,
+    Registry,
+    RegistryManager,
+    RegistryValidationResult,
+    SQLTemplateManager,
+)
+from .reports.data_models import (
+    EventSummary,
+    MultiYearSummary,
+    WorkforceBreakdown,
+    YearAuditReport,
+)
+from .reports.formatters import (
+    ConsoleReporter,
+    DETAILED_AUDIT_TEMPLATE,
+    EXECUTIVE_SUMMARY_TEMPLATE,
+    ReportTemplate,
+)
 from .reports.multi_year_reporter import MultiYearReporter
 from .reports.year_auditor import YearAuditor
 from .run_summary import RunIssue, RunMetadata, RunSummaryGenerator
 from .utils import DatabaseConnectionManager, ExecutionMutex, time_block
-from .validation import (DataValidator, EventSequenceRule, EventSpikeRule,
-                         HireTerminationRatioRule, RowCountDriftRule,
-                         ValidationResult, ValidationSeverity)
+from .validation import (
+    DataValidator,
+    EventSequenceRule,
+    EventSpikeRule,
+    HireTerminationRatioRule,
+    RowCountDriftRule,
+    ValidationResult,
+    ValidationSeverity,
+)
 
 __all__ = [
     # Version
