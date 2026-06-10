@@ -102,8 +102,8 @@ class SimulationService:
             )
 
             # Prepare simulation resources
-            scenario_path, start_year, end_year, total_years = (
-                self._prepare_simulation(workspace_id, scenario_id, config)
+            scenario_path, start_year, end_year, total_years = self._prepare_simulation(
+                workspace_id, scenario_id, config
             )
 
             # Create run dir early so partial logs survive failures (T005)
@@ -113,22 +113,42 @@ class SimulationService:
 
             # Run the simulation subprocess loop
             parser, start_time, final_elapsed = await self._run_simulation_loop(
-                scenario_path, start_year, end_year, total_years,
-                run_id, config, update_run_status, log_writer,
+                scenario_path,
+                start_year,
+                end_year,
+                total_years,
+                run_id,
+                config,
+                update_run_status,
+                log_writer,
             )
 
             # Handle successful completion
             self._finalize_successful_simulation(
-                workspace_id, scenario_id, run_id, config,
-                scenario_path, start_year, end_year, total_years,
-                parser, start_time, final_elapsed, update_run_status,
+                workspace_id,
+                scenario_id,
+                run_id,
+                config,
+                scenario_path,
+                start_year,
+                end_year,
+                total_years,
+                parser,
+                start_time,
+                final_elapsed,
+                update_run_status,
                 run_dir=run_dir,
             )
 
         except Exception as e:
             self._handle_simulation_failure(
-                e, workspace_id, scenario_id, run_id,
-                start_year, total_years, update_run_status,
+                e,
+                workspace_id,
+                scenario_id,
+                run_id,
+                start_year,
+                total_years,
+                update_run_status,
             )
         finally:
             if log_writer is not None:
@@ -156,7 +176,9 @@ class SimulationService:
         scenario_path = self.storage._scenario_path(workspace_id, scenario_id)
         config_path = scenario_path / "config.yaml"
 
-        self._validate_census(config, scenario_id=scenario_id, workspace_id=workspace_id)
+        self._validate_census(
+            config, scenario_id=scenario_id, workspace_id=workspace_id
+        )
         self._write_config(config, config_path)
         self._write_seeds(config, scenario_path)
 
@@ -208,8 +230,14 @@ class SimulationService:
 
         # Stream and parse subprocess output
         output_buffer = await self._stream_output(
-            process, line_iterator, run_id, parser,
-            total_years, start_time, telemetry_service, update_run_status,
+            process,
+            line_iterator,
+            run_id,
+            parser,
+            total_years,
+            start_time,
+            telemetry_service,
+            update_run_status,
             log_writer,
         )
 
@@ -417,8 +445,8 @@ class SimulationService:
     # Private helpers (config prep / subprocess orchestration)
     # ------------------------------------------------------------------
 
-    @staticmethod
     def _validate_census(
+        self,
         config: Dict[str, Any],
         scenario_id: str = "",
         workspace_id: str = "",
@@ -446,7 +474,12 @@ class SimulationService:
                 severity=ErrorSeverity.ERROR,
             )
 
-        if not Path(census_path).exists():
+        # Resolve relative census paths (e.g. "data/census.parquet") against the
+        # workspace directory. Legacy scenarios stored relative paths that would
+        # otherwise be resolved against the process CWD and reported as missing.
+        resolved = self._resolve_census_path(str(census_path), workspace_id)
+
+        if resolved is None or not resolved.exists():
             raise ConfigurationError(
                 f"Census file not found at '{census_path}'. Upload a valid "
                 "census parquet file to the scenario folder and retry.",
@@ -460,7 +493,26 @@ class SimulationService:
                 severity=ErrorSeverity.ERROR,
             )
 
-        logger.info(f"Using census file: {census_path}")
+        # Persist the resolved absolute path so the written config.yaml and the
+        # downstream dbt invocation read the file from an unambiguous location.
+        absolute = str(resolved.resolve())
+        config.setdefault("setup", {})["census_parquet_path"] = absolute
+        logger.info(f"Using census file: {absolute}")
+
+    def _resolve_census_path(
+        self, census_path: str, workspace_id: str
+    ) -> Optional[Path]:
+        """Return an existing Path for census_path, trying workspace-relative fallbacks."""
+        candidate = Path(census_path)
+        if candidate.is_absolute():
+            return candidate if candidate.exists() else None
+
+        workspace_dir = self.storage._workspace_path(workspace_id)
+        for base in (workspace_dir, Path.cwd()):
+            resolved = base / census_path
+            if resolved.exists():
+                return resolved
+        return None
 
     @staticmethod
     def _write_config(config: Dict[str, Any], config_path: Path) -> None:
@@ -621,16 +673,23 @@ class SimulationService:
 
             # Add to rolling window for WebSocket telemetry
             sequence += 1
-            log_line_window.append(SimulationLogLine(
-                sequence=sequence,
-                timestamp=datetime.now(timezone.utc),
-                severity=severity.upper() if severity != "debug" else "INFO",
-                message=line_text,
-            ))
+            log_line_window.append(
+                SimulationLogLine(
+                    sequence=sequence,
+                    timestamp=datetime.now(timezone.utc),
+                    severity=severity.upper() if severity != "debug" else "INFO",
+                    message=line_text,
+                )
+            )
 
             self._process_output_line(
-                line_text, run_id, parser, total_years,
-                start_time, telemetry_service, update_run_status,
+                line_text,
+                run_id,
+                parser,
+                total_years,
+                start_time,
+                telemetry_service,
+                update_run_status,
                 list(log_line_window),
             )
 
@@ -688,9 +747,7 @@ class SimulationService:
         )
 
     @staticmethod
-    def _raise_subprocess_error(
-        return_code: int, output_buffer: List[str]
-    ) -> None:
+    def _raise_subprocess_error(return_code: int, output_buffer: List[str]) -> None:
         logger.error(f"Simulation failed with exit code {return_code}")
         logger.error("Last output lines:")
         for line in output_buffer[-20:]:
