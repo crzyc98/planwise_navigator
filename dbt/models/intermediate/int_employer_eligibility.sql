@@ -235,6 +235,31 @@ all_employees AS (
     SELECT * FROM new_hires_data
 ),
 
+-- Scheduled weekly hours: census employees and simulation-generated part-time hires.
+-- NULL (no row) means full-time; downstream COALESCE assumes 40 hrs/wk.
+scheduled_hours AS (
+    SELECT employee_id, MAX(scheduled_hours_per_week) AS scheduled_hours_per_week
+    FROM (
+        SELECT employee_id, scheduled_hours_per_week
+        FROM {{ ref('stg_census_data') }}
+        WHERE scheduled_hours_per_week IS NOT NULL
+
+        UNION ALL
+
+        SELECT employee_id, scheduled_hours_per_week
+        FROM {{ ref('int_hiring_events') }}
+        WHERE scheduled_hours_per_week IS NOT NULL
+
+        UNION ALL
+
+        -- Prior-year carry-forward for simulation-generated hires from earlier years
+        SELECT employee_id, scheduled_hours_per_week
+        FROM {{ ref('int_active_employees_prev_year_snapshot') }}
+        WHERE scheduled_hours_per_week IS NOT NULL
+    )
+    GROUP BY employee_id
+),
+
 hours_calculation AS (
 SELECT
     ae.employee_id,
@@ -246,6 +271,7 @@ SELECT
     ed.event_termination_date,
     COALESCE(nht.has_new_hire_termination, FALSE) AS has_new_hire_termination,
     COALESCE(ext.has_experienced_termination, FALSE) AS has_experienced_termination,
+    sh.scheduled_hours_per_week,
 
     -- Identify new hires within the simulation year
     CASE
@@ -279,7 +305,7 @@ SELECT
                     COALESCE(ed.event_hire_date::DATE, ae.employee_hire_date::DATE),
                     '{{ simulation_year }}-12-31'::DATE
                 ) + 1
-            ) * (2080.0 / 365.0)
+            ) * (COALESCE(sh.scheduled_hours_per_week, 40.0) * 52.0 / 365.0)
 
         -- Terminated during simulation year
         WHEN COALESCE(ed.event_termination_date::DATE, ae.termination_date::DATE) IS NOT NULL
@@ -293,12 +319,13 @@ SELECT
                     ),
                     COALESCE(ed.event_termination_date::DATE, ae.termination_date::DATE)
                 ) + 1
-            ) * (2080.0 / 365.0)
+            ) * (COALESCE(sh.scheduled_hours_per_week, 40.0) * 52.0 / 365.0)
 
         -- Full year active employee
-        ELSE 2080
+        ELSE COALESCE(sh.scheduled_hours_per_week, 40.0) * 52.0
     END AS annual_hours_worked
 FROM all_employees ae
+LEFT JOIN scheduled_hours sh ON ae.employee_id = sh.employee_id
 LEFT JOIN events_data ed ON ae.employee_id = ed.employee_id
 LEFT JOIN new_hire_termination_flags nht ON ae.employee_id = nht.employee_id
 LEFT JOIN experienced_termination_flags ext ON ae.employee_id = ext.employee_id
@@ -309,6 +336,7 @@ SELECT
     simulation_year,
     employment_status_eoy AS employment_status,
     current_tenure,
+    scheduled_hours_per_week,
     ROUND(annual_hours_worked, 0)::INTEGER AS annual_hours_worked,
 
     -- Epic E058: Match eligibility with backward compatibility and sophisticated logic

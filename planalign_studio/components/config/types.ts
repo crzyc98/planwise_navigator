@@ -96,6 +96,7 @@ export interface FormData {
   jobLevelCompensation: JobLevelCompRow[];
   marketScenario: string;
   levelMarketAdjustments: LevelMarketAdjustmentRow[];
+  partTimeNewHirePct: number;
 
   // Turnover
   totalTerminationRate: number;

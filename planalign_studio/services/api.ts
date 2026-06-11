@@ -761,6 +761,29 @@ export async function analyzeAgeDistribution(
   return handleResponse<AgeDistributionAnalysis>(response);
 }
 
+// 093: Analyze part-time percentage from census data
+export interface PartTimePctAnalysis {
+  column_present: boolean;
+  headcount: number;
+  part_time_count: number;
+  part_time_pct: number;
+}
+
+export async function analyzePartTimePct(
+  workspaceId: string,
+  filePath: string
+): Promise<PartTimePctAnalysis> {
+  const response = await fetch(
+    `${API_BASE}/api/workspaces/${workspaceId}/analyze-part-time-pct`,
+    {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ file_path: filePath }),
+    }
+  );
+  return handleResponse<PartTimePctAnalysis>(response);
+}
+
 // E082: Analyze compensation distribution from census data
 export interface CompensationAnalysis {
   total_employees: number;

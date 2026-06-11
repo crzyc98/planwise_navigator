@@ -80,6 +80,31 @@ terminated_new_hires AS (
   WHERE simulation_year = {{ simulation_year }}
 ),
 
+-- Scheduled weekly hours: census employees and simulation-generated part-time hires.
+-- NULL (no row) means full-time; downstream COALESCE assumes 40 hrs/wk.
+scheduled_hours AS (
+  SELECT employee_id, MAX(scheduled_hours_per_week) AS scheduled_hours_per_week
+  FROM (
+    SELECT employee_id, scheduled_hours_per_week
+    FROM {{ ref('stg_census_data') }}
+    WHERE scheduled_hours_per_week IS NOT NULL
+
+    UNION ALL
+
+    SELECT employee_id, scheduled_hours_per_week
+    FROM {{ ref('int_hiring_events') }}
+    WHERE scheduled_hours_per_week IS NOT NULL
+
+    UNION ALL
+
+    -- Prior-year carry-forward for simulation-generated hires from earlier years
+    SELECT employee_id, scheduled_hours_per_week
+    FROM {{ ref('int_active_employees_prev_year_snapshot') }}
+    WHERE scheduled_hours_per_week IS NOT NULL
+  )
+  GROUP BY employee_id
+),
+
 -- Enriched employee data with termination status and date boundaries
 employee_base AS (
   SELECT
@@ -94,6 +119,9 @@ employee_base AS (
 
     -- Termination date for hours proration (NULL if still active)
     tnr.termination_date,
+
+    -- Scheduled weekly hours (NULL = full-time, 40 hrs/wk assumed)
+    sh.scheduled_hours_per_week,
 
     -- IECP boundary: hire_date + 12 months
     (ae.hire_date + INTERVAL '1 year')::DATE AS hire_date_anniversary,
@@ -130,6 +158,7 @@ employee_base AS (
 
   FROM all_employees ae
   LEFT JOIN terminated_new_hires tnr ON ae.employee_id = tnr.employee_id
+  LEFT JOIN scheduled_hours sh ON ae.employee_id = sh.employee_id
 ),
 
 -- Compute IECP records
@@ -193,7 +222,7 @@ computation_periods AS (
         GREATEST(0.0,
           DATEDIFF('day', eb.hire_date,
             COALESCE(LEAST(eb.termination_date, eb.plan_year_end), eb.plan_year_end))
-          / 365.0 * 2080.0
+          / 365.0 * (COALESCE(eb.scheduled_hours_per_week, 40.0) * 52.0)
         )
       -- IECP completion year: retroactively compute Year 1 from hire plan year
       -- Termination in the completion year does not alter prior-year hours
@@ -203,7 +232,7 @@ computation_periods AS (
         THEN
           GREATEST(0.0,
             DATEDIFF('day', eb.hire_date, eb.hire_plan_year_end)
-            / 365.0 * 2080.0
+            / 365.0 * (COALESCE(eb.scheduled_hours_per_week, 40.0) * 52.0)
           )
       ELSE 0.0
     END AS iecp_year1_hours,
@@ -218,7 +247,7 @@ computation_periods AS (
           GREATEST(0.0,
             DATEDIFF('day', eb.plan_year_start,
               COALESCE(LEAST(eb.termination_date, eb.hire_date_anniversary), eb.hire_date_anniversary))
-            / 365.0 * 2080.0
+            / 365.0 * (COALESCE(eb.scheduled_hours_per_week, 40.0) * 52.0)
           )
       ELSE 0.0
     END AS iecp_year2_hours,
@@ -230,7 +259,7 @@ computation_periods AS (
       WHEN NOT eb.is_hire_year
            AND eb.hire_date_anniversary <= eb.plan_year_start
            AND (eb.termination_date IS NULL OR eb.termination_date > eb.plan_year_end)
-        THEN 2080.0
+        THEN COALESCE(eb.scheduled_hours_per_week, 40.0) * 52.0
       -- Full plan year (terminated during plan year)
       WHEN NOT eb.is_hire_year
            AND eb.hire_date_anniversary <= eb.plan_year_start
@@ -239,7 +268,7 @@ computation_periods AS (
         THEN
           GREATEST(0.0,
             DATEDIFF('day', eb.plan_year_start, eb.termination_date)
-            / 365.0 * 2080.0
+            / 365.0 * (COALESCE(eb.scheduled_hours_per_week, 40.0) * 52.0)
           )
       -- Plan year portion after IECP completes (for overlap evaluation)
       WHEN NOT eb.is_hire_year
@@ -249,7 +278,7 @@ computation_periods AS (
           GREATEST(0.0,
             DATEDIFF('day', eb.hire_date_anniversary,
               COALESCE(LEAST(eb.termination_date, eb.plan_year_end), eb.plan_year_end))
-            / 365.0 * 2080.0
+            / 365.0 * (COALESCE(eb.scheduled_hours_per_week, 40.0) * 52.0)
           )
       ELSE 0.0
     END AS plan_year_hours

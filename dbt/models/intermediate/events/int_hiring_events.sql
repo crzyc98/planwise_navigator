@@ -130,7 +130,16 @@ new_hire_assignments AS (
     CAST('{{ simulation_year }}-01-01' AS DATE) + INTERVAL (hwa.hire_sequence_num % 365) DAY AS hire_date,
 
     -- Use compensation from workforce needs with small variance for realism
-    ROUND(hwa.new_hire_avg_compensation * (0.9 + (hwa.hire_sequence_num % 10) * 0.02), 2) AS compensation_amount
+    ROUND(hwa.new_hire_avg_compensation * (0.9 + (hwa.hire_sequence_num % 10) * 0.02), 2) AS compensation_amount,
+
+    -- Part-time assignment: deterministic hash selects part_time_new_hire_pct fraction
+    -- of each cohort for a 20 hrs/week schedule; NULL means full-time (40 hrs/wk)
+    CASE
+      WHEN ABS(MOD(HASH(CONCAT(CAST(hwa.hire_sequence_num AS VARCHAR), '_pt_', CAST({{ simulation_year }} AS VARCHAR)))::DOUBLE, 1000000.0)) / 1000000.0
+           < {{ var('part_time_new_hire_pct', 0.0) }}
+      THEN 20.0::DECIMAL(5,2)
+      ELSE NULL::DECIMAL(5,2)
+    END AS scheduled_hours_per_week
 
   FROM hire_with_age hwa
 )
@@ -153,6 +162,7 @@ SELECT
   {{ assign_age_band('nha.employee_age') }} AS age_band,
   {{ assign_tenure_band('0') }} AS tenure_band,
   1.0 AS event_probability,
-  'hire' AS event_category
+  'hire' AS event_category,
+  nha.scheduled_hours_per_week
 FROM new_hire_assignments nha
 ORDER BY nha.hire_sequence_num

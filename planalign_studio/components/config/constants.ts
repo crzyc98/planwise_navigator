@@ -112,6 +112,8 @@ export const DEFAULT_FORM_DATA: FormData = {
     { level: 5, adjustment: 0 },
   ],
 
+  partTimeNewHirePct: 0.0,
+
   // Turnover
   totalTerminationRate: 12.0,
   newHireTerminationRate: 25.0,

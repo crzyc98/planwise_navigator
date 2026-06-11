@@ -1,9 +1,9 @@
 import React, { useState } from 'react';
-import { Check, PieChart, DollarSign } from 'lucide-react';
+import { Check, PieChart, DollarSign, Clock } from 'lucide-react';
 import { useConfigContext } from './ConfigContext';
 import { CompensationInput } from './CompensationInput';
 import { PromotionHazardEditor } from './PromotionHazardEditor';
-import { analyzeAgeDistribution, analyzeCompensation, CompensationAnalysis } from '../../services/api';
+import { analyzeAgeDistribution, analyzeCompensation, analyzePartTimePct, CompensationAnalysis } from '../../services/api';
 
 const marketMultipliers: Record<string, { label: string; adjustment: number; description: string }> = {
   conservative: { label: 'Conservative', adjustment: -5, description: 'Below market (cost savings focus)' },
@@ -19,6 +19,11 @@ export function NewHireSection() {
   const [matchCensusLoading, setMatchCensusLoading] = useState(false);
   const [matchCensusError, setMatchCensusError] = useState<string | null>(null);
   const [matchCensusSuccess, setMatchCensusSuccess] = useState(false);
+
+  // 093: Match Census state (part-time percentage)
+  const [matchPartTimeLoading, setMatchPartTimeLoading] = useState(false);
+  const [matchPartTimeError, setMatchPartTimeError] = useState<string | null>(null);
+  const [matchPartTimeSuccess, setMatchPartTimeSuccess] = useState(false);
 
   // E082: Match Census state (compensation)
   const [matchCompLoading, setMatchCompLoading] = useState(false);
@@ -90,6 +95,36 @@ export function NewHireSection() {
       setMatchCensusError(error instanceof Error ? error.message : 'Failed to analyze census');
     } finally {
       setMatchCensusLoading(false);
+    }
+  };
+
+  const handleMatchPartTime = async () => {
+    if (!activeWorkspace?.id || !formData.censusDataPath) {
+      setMatchPartTimeError('Please upload a census file first');
+      return;
+    }
+    setMatchPartTimeLoading(true);
+    setMatchPartTimeError(null);
+    setMatchPartTimeSuccess(false);
+    try {
+      const result = await analyzePartTimePct(activeWorkspace.id, formData.censusDataPath);
+      if (!result.column_present) {
+        setMatchPartTimeError(
+          'Census file has no scheduled hours column (scheduled_hours_per_week, hours_per_week, scheduled_hours, or weekly_hours)'
+        );
+        return;
+      }
+      setFormData(prev => ({
+        ...prev,
+        partTimeNewHirePct: Math.round(result.part_time_pct * 1000) / 10,
+      }));
+      setMatchPartTimeSuccess(true);
+      setTimeout(() => setMatchPartTimeSuccess(false), 3000);
+    } catch (error) {
+      console.error('Failed to analyze part-time percentage:', error);
+      setMatchPartTimeError(error instanceof Error ? error.message : 'Failed to analyze census');
+    } finally {
+      setMatchPartTimeLoading(false);
     }
   };
 
@@ -260,6 +295,60 @@ export function NewHireSection() {
                 </tr>
               </tfoot>
             </table>
+          </div>
+        </div>
+
+        {/* 093: Part-Time New Hires Section */}
+        <div className="bg-gray-50 p-6 rounded-lg border border-gray-200 mt-6">
+          <div className="flex items-center justify-between mb-2">
+            <h3 className="text-sm font-semibold text-gray-900">Part-Time New Hires</h3>
+            <button
+              type="button"
+              onClick={handleMatchPartTime}
+              disabled={matchPartTimeLoading || !formData.censusDataPath || formData.censusDataStatus !== 'loaded'}
+              className={`inline-flex items-center px-3 py-1.5 border rounded-md text-xs font-medium transition-colors ${matchPartTimeSuccess ? 'bg-green-100 border-green-300 text-green-800' : (formData.censusDataPath && formData.censusDataStatus === 'loaded') ? 'bg-blue-50 border-blue-200 text-blue-700 hover:bg-blue-100' : 'bg-gray-100 border-gray-200 text-gray-400 cursor-not-allowed'}`}
+              title={formData.censusDataStatus !== 'loaded' ? 'Load a census file first' : 'Analyze census to match current part-time workforce percentage'}
+            >
+              {matchPartTimeLoading ? (
+                <>
+                  <svg className="animate-spin -ml-0.5 mr-1.5 h-3 w-3" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                  </svg>
+                  Analyzing...
+                </>
+              ) : matchPartTimeSuccess ? (
+                <><Check className="h-3 w-3 mr-1" /> Matched!</>
+              ) : (
+                <><Clock className="h-3 w-3 mr-1" /> Match Census</>
+              )}
+            </button>
+          </div>
+          <p className="text-xs text-gray-500 mb-4">
+            Fraction of new hires assigned a 20 hrs/week part-time schedule. Part-time employees accrue
+            fewer annual hours, which affects 1,000-hour eligibility requirements.
+            {formData.censusDataStatus === 'loaded' && (
+              <span className="text-blue-600 ml-1">Click "Match Census" to derive from your workforce's scheduled hours.</span>
+            )}
+          </p>
+          {matchPartTimeError && (
+            <div className="mb-4 p-2 bg-red-50 border border-red-200 rounded text-xs text-red-700">{matchPartTimeError}</div>
+          )}
+          <div className="flex items-center space-x-3">
+            <label htmlFor="part-time-new-hire-pct" className="text-sm font-medium text-gray-700">
+              Part-Time New Hire %
+            </label>
+            <input
+              id="part-time-new-hire-pct"
+              type="number"
+              step="0.1"
+              min="0"
+              max="100"
+              value={formData.partTimeNewHirePct}
+              onChange={(e) => setFormData(prev => ({ ...prev, partTimeNewHirePct: parseFloat(e.target.value) || 0 }))}
+              className="w-24 shadow-sm focus:ring-fidelity-green focus:border-fidelity-green sm:text-sm border-gray-300 rounded-md p-1.5 border text-right"
+            />
+            <span className="text-sm text-gray-500">%</span>
           </div>
         </div>
 

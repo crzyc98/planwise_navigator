@@ -865,6 +865,8 @@ See `/docs/VERSIONING_GUIDE.md` for detailed versioning workflow.
 - Filesystem (Parquet files per import session, no DuckDB state changes) (090-fix-import-str-type)
 - Python 3.11 + DuckDB 1.0.0 (in-process read test), FastAPI, Pydantic v2, concurrent.futures (stdlib timeout) (091-census-file-errors)
 - No persistent schema changes; `error_message` string content improved (091-census-file-errors)
+- Python 3.11, TypeScript (React 18 / Vite) + dbt-core 1.8.8, dbt-duckdb 1.8.1, DuckDB 1.0.0, FastAPI, Pydantic v2, React 18, Tailwind CSS v4 (093-part-time-scheduled-hours)
+- DuckDB (`dbt/simulation.duckdb`) — no schema migration needed (nullable column added) (093-part-time-scheduled-hours)
 
 ## Recent Changes
 - 063-1000-hr-eligibility: Added Python 3.11, SQL (dbt-core 1.8.8) + dbt-duckdb 1.8.1, DuckDB 1.0.0, Pydantic 2.7.4

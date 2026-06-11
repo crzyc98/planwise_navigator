@@ -14,6 +14,7 @@ from ..models.files import (
     FileValidationRequest,
     FileValidationResponse,
     LevelDistributionResponse,
+    PartTimePctResponse,
     SetCensusPathRequest,
     SetCensusPathResponse,
 )
@@ -265,6 +266,41 @@ async def analyze_age_distribution(
         )
     except Exception as e:
         logger.error(f"Failed to analyze age distribution: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to analyze census: {e}",
+        )
+
+
+@router.post(
+    "/{workspace_id}/analyze-part-time-pct",
+    summary="Analyze part-time percentage from census",
+    description=(
+        "Compute the fraction of census employees whose scheduled annual hours "
+        "(scheduled_hours_per_week * 52) fall below 1,000. Returns column_present=false "
+        "when the census file lacks a scheduled hours column."
+    ),
+)
+async def analyze_part_time_pct(
+    workspace_id: str,
+    request: FileValidationRequest,
+) -> PartTimePctResponse:
+    """Analyze part-time percentage from census data."""
+    service = get_file_service()
+
+    try:
+        result = service.analyze_part_time_pct(
+            workspace_id=workspace_id,
+            file_path=request.file_path,
+        )
+        return PartTimePctResponse(**result)
+    except ValueError as e:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail=str(e),
+        )
+    except Exception as e:
+        logger.error(f"Failed to analyze part-time percentage: {e}")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Failed to analyze census: {e}",

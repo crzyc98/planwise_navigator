@@ -98,6 +98,17 @@ models:
       - name: eligibility_entry_date
         description: "Optional override for plan eligibility entry date. NULL when not provided."
         data_type: date
+      - name: scheduled_hours_per_week
+        description: >
+          Employee's scheduled weekly hours from the census file. NULL means full-time
+          (40 hrs/wk assumed downstream). Used to prorate annual hours for eligibility
+          calculations (annual hours = scheduled_hours_per_week * 52).
+        data_type: decimal(5,2)
+        data_tests:
+          - dbt_utils.accepted_range:
+              min_value: 1
+              max_value: 40
+              where: "scheduled_hours_per_week IS NOT NULL"
       - name: employee_eligibility_date
         description: "Date when employee becomes eligible for DC plan participation (hire date + waiting period)."
         data_type: date
