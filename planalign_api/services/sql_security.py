@@ -201,7 +201,12 @@ def validate_file_path_for_sql(
     return path_str
 
 
-def validate_integer(value: int, min_val: Optional[int] = None, max_val: Optional[int] = None, context: str = "value") -> int:
+def validate_integer(
+    value: int,
+    min_val: Optional[int] = None,
+    max_val: Optional[int] = None,
+    context: str = "value",
+) -> int:
     """
     Validate an integer value for safe SQL interpolation.
 
@@ -218,13 +223,19 @@ def validate_integer(value: int, min_val: Optional[int] = None, max_val: Optiona
         SQLSecurityError: If the value is not a valid integer or out of range
     """
     if not isinstance(value, int) or isinstance(value, bool):
-        raise SQLSecurityError(f"Invalid {context}: must be an integer, got {type(value).__name__}")
+        raise SQLSecurityError(
+            f"Invalid {context}: must be an integer, got {type(value).__name__}"
+        )
 
     if min_val is not None and value < min_val:
-        raise SQLSecurityError(f"Invalid {context}: {value} is less than minimum {min_val}")
+        raise SQLSecurityError(
+            f"Invalid {context}: {value} is less than minimum {min_val}"
+        )
 
     if max_val is not None and value > max_val:
-        raise SQLSecurityError(f"Invalid {context}: {value} is greater than maximum {max_val}")
+        raise SQLSecurityError(
+            f"Invalid {context}: {value} is greater than maximum {max_val}"
+        )
 
     return value
 
@@ -244,10 +255,13 @@ def validate_numeric(value: float, context: str = "value") -> float:
         SQLSecurityError: If the value is not a valid number
     """
     if not isinstance(value, (int, float)) or isinstance(value, bool):
-        raise SQLSecurityError(f"Invalid {context}: must be numeric, got {type(value).__name__}")
+        raise SQLSecurityError(
+            f"Invalid {context}: must be numeric, got {type(value).__name__}"
+        )
 
     # Check for special float values that could cause issues
     import math
+
     if math.isnan(value) or math.isinf(value):
         raise SQLSecurityError(f"Invalid {context}: NaN and Infinity are not allowed")
 
@@ -255,52 +269,75 @@ def validate_numeric(value: float, context: str = "value") -> float:
 
 
 # Common column name allowlists for census data
-CENSUS_BIRTH_DATE_COLUMNS = frozenset({
-    "employee_birth_date",
-    "birth_date",
-    "birthdate",
-    "dob",
-})
+CENSUS_BIRTH_DATE_COLUMNS = frozenset(
+    {
+        "employee_birth_date",
+        "birth_date",
+        "birthdate",
+        "dob",
+    }
+)
 
-CENSUS_HIRE_DATE_COLUMNS = frozenset({
-    "employee_hire_date",
-    "hire_date",
-    "hiredate",
-    "start_date",
-})
+CENSUS_HIRE_DATE_COLUMNS = frozenset(
+    {
+        "employee_hire_date",
+        "hire_date",
+        "hiredate",
+        "start_date",
+    }
+)
 
-CENSUS_TERMINATION_DATE_COLUMNS = frozenset({
-    "employee_termination_date",
-    "termination_date",
-    "term_date",
-})
+CENSUS_TERMINATION_DATE_COLUMNS = frozenset(
+    {
+        "employee_termination_date",
+        "termination_date",
+        "term_date",
+    }
+)
 
-CENSUS_COMPENSATION_COLUMNS = frozenset({
-    "employee_gross_compensation",
-    "annual_salary",
-    "compensation",
-    "salary",
-    "base_salary",
-})
+CENSUS_COMPENSATION_COLUMNS = frozenset(
+    {
+        "employee_gross_compensation",
+        "annual_salary",
+        "compensation",
+        "salary",
+        "base_salary",
+    }
+)
 
-CENSUS_JOB_LEVEL_COLUMNS = frozenset({
-    "employee_job_level",
-    "job_level",
-    "level",
-    "grade",
-    "band",
-})
+CENSUS_JOB_LEVEL_COLUMNS = frozenset(
+    {
+        "employee_job_level",
+        "job_level",
+        "level",
+        "grade",
+        "band",
+    }
+)
 
-CENSUS_STATUS_COLUMNS = frozenset({
-    "active",
-    "status",
-    "employment_status",
-})
+CENSUS_STATUS_COLUMNS = frozenset(
+    {
+        "active",
+        "status",
+        "employment_status",
+    }
+)
 
-CENSUS_DEFERRAL_COLUMNS = frozenset({
-    "employee_deferral_rate",
-    "deferral_rate",
-})
+CENSUS_DEFERRAL_COLUMNS = frozenset(
+    {
+        "employee_deferral_rate",
+        "deferral_rate",
+    }
+)
+
+CENSUS_SCHEDULED_HOURS_COLUMNS = frozenset(
+    {
+        "scheduled_hours_per_week",
+        "hours_per_week",
+        "scheduled_hours",
+        "weekly_hours",
+    }
+)
 
 # All known safe census columns
 ALL_CENSUS_COLUMNS = (
@@ -311,5 +348,6 @@ ALL_CENSUS_COLUMNS = (
     | CENSUS_JOB_LEVEL_COLUMNS
     | CENSUS_STATUS_COLUMNS
     | CENSUS_DEFERRAL_COLUMNS
+    | CENSUS_SCHEDULED_HOURS_COLUMNS
     | frozenset({"employee_id", "department", "location"})
 )

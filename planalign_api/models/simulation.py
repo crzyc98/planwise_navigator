@@ -92,6 +92,117 @@ class SimulationTelemetry(BaseModel):
     timestamp: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
 
 
+class TelemetryMilestone(BaseModel):
+    """A timestamped record of a significant run occurrence (feature 094)."""
+
+    sequence: int = Field(..., ge=1, description="Monotonic per run; client ordering key")
+    timestamp: datetime = Field(..., description="When the milestone occurred (UTC)")
+    kind: Literal[
+        "run_started",
+        "stage_started",
+        "stage_completed",
+        "year_completed",
+        "warning",
+        "error",
+        "terminal",
+    ] = Field(..., description="Milestone discriminator")
+    severity: Literal["info", "warning", "error"] = Field(
+        "info", description="Drives activity feed styling"
+    )
+    year: Optional[int] = Field(None, description="Simulation year, when applicable")
+    stage: Optional[str] = Field(None, description="Workflow stage, when applicable")
+    message: str = Field(..., description="Human-readable feed text")
+    detail: Optional[Dict[str, Any]] = Field(
+        None, description="Structured payload (e.g. year counts + duration)"
+    )
+
+
+class EventTypeCounts(BaseModel):
+    """Cumulative and per-year event counts; exact at year boundaries only."""
+
+    by_type: Dict[str, int] = Field(default_factory=dict)
+    by_year: Dict[int, Dict[str, int]] = Field(default_factory=dict)
+    total: int = Field(0, ge=0)
+    as_of_year: Optional[int] = Field(
+        None, description="Last fully counted simulation year"
+    )
+
+
+class PerformanceSample(BaseModel):
+    """One trend-chart data point."""
+
+    timestamp: datetime
+    elapsed_seconds: float = Field(0.0, ge=0)
+    events_per_second: float = Field(0.0, ge=0)
+    memory_mb: float = Field(0.0, ge=0)
+
+
+class RunTelemetrySnapshot(BaseModel):
+    """Full restorable run state — WS `snapshot` body and REST telemetry response."""
+
+    run_id: str
+    scenario_id: str = ""
+    status: Literal["pending", "running", "completed", "failed", "cancelled"] = "running"
+    progress: int = Field(0, ge=0, le=100)
+    current_stage: str = "INITIALIZATION"
+    current_year: int = 0
+    total_years: int = 0
+    start_year: int = 0
+    performance_metrics: PerformanceMetrics
+    event_counts: EventTypeCounts = Field(default_factory=EventTypeCounts)
+    milestones: List[TelemetryMilestone] = Field(default_factory=list)
+    performance_samples: List[PerformanceSample] = Field(default_factory=list)
+    last_update_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
+
+
+class SnapshotMessage(BaseModel):
+    """WS envelope: full state, sent once per (re)connect before any delta."""
+
+    type: Literal["snapshot"] = "snapshot"
+    data: RunTelemetrySnapshot
+
+
+class RunTelemetryUpdate(BaseModel):
+    """Incremental live state: snapshot fields minus history lists."""
+
+    run_id: str
+    scenario_id: str = ""
+    status: Literal["pending", "running", "completed", "failed", "cancelled"] = "running"
+    progress: int = Field(0, ge=0, le=100)
+    current_stage: str = "INITIALIZATION"
+    current_year: int = 0
+    total_years: int = 0
+    start_year: int = 0
+    performance_metrics: PerformanceMetrics
+    event_counts: EventTypeCounts = Field(default_factory=EventTypeCounts)
+    last_update_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
+
+
+class UpdateMessage(BaseModel):
+    """WS envelope: incremental live state (throttled to >=1s)."""
+
+    type: Literal["update"] = "update"
+    data: RunTelemetryUpdate
+
+
+class MilestoneMessage(BaseModel):
+    """WS envelope: one appended activity-feed entry."""
+
+    type: Literal["milestone"] = "milestone"
+    data: TelemetryMilestone
+
+
+class RunTelemetryResponse(BaseModel):
+    """REST snapshot endpoint response (contracts/rest-telemetry-snapshot.md)."""
+
+    run: Dict[str, Any] = Field(
+        ..., description="run_id / status / error_message summary"
+    )
+    telemetry: Optional[RunTelemetrySnapshot] = Field(
+        None, description="Null when no in-memory state exists"
+    )
+
+
 class SimulationResults(BaseModel):
     """Full simulation results."""
 

@@ -31,7 +31,8 @@ WITH schema_scaffold AS (
       NULL::DECIMAL(12,2) AS after_tax_contribution,
       NULL::DECIMAL(12,2) AS employer_core_contribution,
       NULL::DECIMAL(12,2) AS employer_match_contribution,
-      NULL::DATE AS eligibility_entry_date
+      NULL::DATE AS eligibility_entry_date,
+      NULL::DECIMAL(5,2) AS scheduled_hours_per_week
   WHERE false
 ),
 
@@ -66,6 +67,9 @@ raw_data AS (
       CAST(employer_core_contribution AS DECIMAL(12,2)) AS employer_core_contribution,
       CAST(employer_match_contribution AS DECIMAL(12,2)) AS employer_match_contribution,
       TRY_CAST(eligibility_entry_date AS DATE) AS eligibility_entry_date,
+
+      -- Scheduled weekly hours: NULL means full-time (40 hrs/wk assumed downstream)
+      TRY_CAST(scheduled_hours_per_week AS DECIMAL(5,2)) AS scheduled_hours_per_week,
 
       -- **FIX**: Add row_number for deduplication - prefer most recent hire_date
       ROW_NUMBER() OVER (
@@ -167,6 +171,7 @@ SELECT
     employer_core_contribution,
     employer_match_contribution,
     eligibility_entry_date,
+    scheduled_hours_per_week,
     employee_eligibility_date,
     waiting_period_days,
     current_eligibility_status,

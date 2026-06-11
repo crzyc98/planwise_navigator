@@ -58,27 +58,88 @@ export interface SimulationRun {
   error_message: string | null;
 }
 
-export interface SimulationTelemetry {
+export interface PerformanceMetrics {
+  memory_mb: number;
+  memory_pressure: 'low' | 'moderate' | 'high' | 'critical';
+  elapsed_seconds: number;
+  events_generated: number;
+  events_per_second: number;
+}
+
+// Feature 094: live run dashboard telemetry types
+
+export interface TelemetryMilestone {
+  sequence: number;
+  timestamp: string;
+  kind:
+    | 'run_started'
+    | 'stage_started'
+    | 'stage_completed'
+    | 'year_completed'
+    | 'warning'
+    | 'error'
+    | 'terminal';
+  severity: 'info' | 'warning' | 'error';
+  year: number | null;
+  stage: string | null;
+  message: string;
+  detail: Record<string, any> | null;
+}
+
+export interface EventTypeCounts {
+  by_type: Record<string, number>;
+  by_year: Record<string, Record<string, number>>;
+  total: number;
+  as_of_year: number | null;
+}
+
+export interface PerformanceSample {
+  timestamp: string;
+  elapsed_seconds: number;
+  events_per_second: number;
+  memory_mb: number;
+}
+
+export interface RunTelemetrySnapshot {
   run_id: string;
+  scenario_id: string;
+  status: 'pending' | 'running' | 'completed' | 'failed' | 'cancelled';
   progress: number;
   current_stage: string;
   current_year: number;
   total_years: number;
-  performance_metrics: {
-    memory_mb: number;
-    memory_pressure: 'low' | 'moderate' | 'high' | 'critical';
-    elapsed_seconds: number;
-    events_generated: number;
-    events_per_second: number;
+  start_year: number;
+  performance_metrics: PerformanceMetrics;
+  event_counts: EventTypeCounts;
+  milestones: TelemetryMilestone[];
+  performance_samples: PerformanceSample[];
+  last_update_at: string;
+}
+
+export type RunTelemetryUpdate = Omit<
+  RunTelemetrySnapshot,
+  'milestones' | 'performance_samples'
+>;
+
+export type TelemetryWsMessage =
+  | { type: 'snapshot'; data: RunTelemetrySnapshot }
+  | { type: 'update'; data: RunTelemetryUpdate }
+  | { type: 'milestone'; data: TelemetryMilestone }
+  | { type: 'heartbeat' };
+
+export interface RunTelemetryResponse {
+  run: {
+    run_id: string | null;
+    status:
+      | 'pending'
+      | 'running'
+      | 'completed'
+      | 'failed'
+      | 'cancelled'
+      | 'not_run';
+    error_message: string | null;
   };
-  recent_events: Array<{
-    event_type: string;
-    employee_id: string;
-    timestamp: string;
-    details: string | null;
-  }>;
-  recent_log_lines: SimulationLogLine[];
-  timestamp: string;
+  telemetry: RunTelemetrySnapshot | null;
 }
 
 export interface SimulationResults {
@@ -414,6 +475,14 @@ export async function startSimulation(
 export async function getSimulationStatus(scenarioId: string): Promise<SimulationRun> {
   const response = await fetch(`${API_BASE}/api/scenarios/${scenarioId}/run/status`);
   return handleResponse<SimulationRun>(response);
+}
+
+// Feature 094: full telemetry snapshot for refresh restore / polling fallback
+export async function fetchRunTelemetrySnapshot(
+  scenarioId: string
+): Promise<RunTelemetryResponse> {
+  const response = await fetch(`${API_BASE}/api/scenarios/${scenarioId}/run/telemetry`);
+  return handleResponse<RunTelemetryResponse>(response);
 }
 
 export async function cancelSimulation(scenarioId: string): Promise<{ success: boolean }> {
@@ -759,6 +828,29 @@ export async function analyzeAgeDistribution(
     }
   );
   return handleResponse<AgeDistributionAnalysis>(response);
+}
+
+// 093: Analyze part-time percentage from census data
+export interface PartTimePctAnalysis {
+  column_present: boolean;
+  headcount: number;
+  part_time_count: number;
+  part_time_pct: number;
+}
+
+export async function analyzePartTimePct(
+  workspaceId: string,
+  filePath: string
+): Promise<PartTimePctAnalysis> {
+  const response = await fetch(
+    `${API_BASE}/api/workspaces/${workspaceId}/analyze-part-time-pct`,
+    {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ file_path: filePath }),
+    }
+  );
+  return handleResponse<PartTimePctAnalysis>(response);
 }
 
 // E082: Analyze compensation distribution from census data

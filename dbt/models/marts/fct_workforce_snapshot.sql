@@ -843,7 +843,9 @@ final_workforce_with_contributions AS (
         COALESCE(match_calc.employer_match_amount, 0.0) +
         COALESCE(core_contrib.employer_core_amount, 0.0) AS total_employer_contributions,
         -- Add annual hours worked for audit visibility
-        COALESCE(eligibility.annual_hours_worked, 0) AS annual_hours_worked
+        COALESCE(eligibility.annual_hours_worked, 0) AS annual_hours_worked,
+        -- Scheduled weekly hours (NULL = full-time, 40 hrs/wk assumed)
+        eligibility.scheduled_hours_per_week
     FROM final_workforce fw
     LEFT JOIN {{ ref('int_employee_contributions') }} contributions
         ON fw.employee_id = contributions.employee_id
@@ -955,6 +957,7 @@ final_output AS (
         total_employer_contributions,
         -- Add hours worked for audit visibility
         annual_hours_worked,
+        scheduled_hours_per_week,
 
         -- **E066 ENHANCED QUALITY FLAGS** - Intelligent monitoring with annualization context
         CASE
@@ -1055,6 +1058,7 @@ SELECT
     employer_core_amount,
     total_employer_contributions,
     annual_hours_worked,
+    scheduled_hours_per_week,
     snapshot_created_at
 FROM final_deduped
 WHERE rn = 1

@@ -1,9 +1,16 @@
 import React, { useState, useEffect } from 'react';
 import { useOutletContext, useNavigate, useSearchParams } from 'react-router-dom';
-import { Play, Square, Activity, Cpu, Server, Clock, Database, AlertCircle, History, CheckCircle, XCircle, CircleDot, ExternalLink, RefreshCw, Loader2 } from 'lucide-react';
-import { useSimulationSocket } from '../services/websocket';
+import { Play, Square, Activity, Cpu, Server, Clock, AlertCircle, History, CheckCircle, XCircle, CircleDot, ExternalLink, RefreshCw, Loader2, BarChart3 } from 'lucide-react';
+import { useRunTelemetry } from '../services/websocket';
 import { listScenarios, startSimulation, cancelSimulation, resetSimulation, Scenario } from '../services/api';
 import { LayoutContextType } from './Layout';
+import LiveStatsPanel from './simulation/LiveStatsPanel';
+import ActivityFeed from './simulation/ActivityFeed';
+import PerformanceTrendChart from './simulation/PerformanceTrendChart';
+import ConnectionStatusBadge from './simulation/ConnectionStatusBadge';
+
+const STAGE_LABELS = ['INIT', 'FOUNDATION', 'EVENT GEN', 'STATE ACC', 'VALIDATION', 'REPORTING'];
+const STAGE_NAMES = ['INITIALIZATION', 'FOUNDATION', 'EVENT_GENERATION', 'STATE_ACCUMULATION', 'VALIDATION', 'REPORTING'];
 
 export default function SimulationControl() {
   const {
@@ -26,8 +33,11 @@ export default function SimulationControl() {
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  // Real WebSocket connection for telemetry
-  const { telemetry, recentEvents } = useSimulationSocket(activeRunId);
+  // Feature 094: reliable run telemetry (snapshot resync, polling fallback)
+  const { connectionState, snapshot, secondsSinceUpdate } = useRunTelemetry(
+    activeRunId,
+    runningScenarioId
+  );
 
   // Load scenarios when workspace changes
   useEffect(() => {
@@ -71,48 +81,34 @@ export default function SimulationControl() {
     if (!runningScenarioId) return;
     try {
       await cancelSimulation(runningScenarioId);
-      clearSimulationRunning();
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to stop simulation');
     }
   };
 
-  // Detect completion and navigate to detail page
-  useEffect(() => {
-    if (telemetry?.current_stage === 'COMPLETED' || telemetry?.progress === 100) {
-      // Give a moment to show 100% completion, then navigate to detail page
-      const timer = setTimeout(() => {
-        const completedScenarioId = runningScenarioId; // Use the scenario that was actually started
-        clearSimulationRunning();
-        // Navigate to the simulation detail page to see results
-        if (completedScenarioId) {
-          // Store completed scenario for Analytics page context
-          setLastRunScenarioId(completedScenarioId);
-          navigate(`/simulate/${completedScenarioId}`);
-        }
-      }, 2000);
-      return () => clearTimeout(timer);
-    }
-  }, [telemetry?.current_stage, telemetry?.progress, runningScenarioId, navigate, setLastRunScenarioId, clearSimulationRunning]);
+  // Terminal-state handling driven by authoritative run status (FR-010/FR-015)
+  const terminalStatus =
+    snapshot && ['completed', 'failed', 'cancelled'].includes(snapshot.status)
+      ? snapshot.status
+      : null;
 
-  // Map telemetry to legacy status format for compatibility
-  const isCompleted = telemetry?.current_stage === 'COMPLETED' || telemetry?.progress === 100;
-  const status = telemetry ? {
-    simulation_id: telemetry.run_id,
-    status: isCompleted ? 'completed' as const : 'running' as const,
-    current_year: telemetry.current_year,
-    total_years: telemetry.total_years,
-    current_stage: telemetry.current_stage as any,
-    progress_percent: telemetry.progress,
-    elapsed_seconds: telemetry.performance_metrics.elapsed_seconds,
-    events_generated: telemetry.performance_metrics.events_generated,
-    performance_metrics: {
-      events_per_second: telemetry.performance_metrics.events_per_second,
-      memory_usage_mb: telemetry.performance_metrics.memory_mb,
-      memory_pressure: telemetry.performance_metrics.memory_pressure,
-      cpu_percent: 0, // Not provided by backend yet
-    },
-  } : null;
+  useEffect(() => {
+    if (!terminalStatus || !activeRunId) return;
+    // Show the final state briefly, then release the run slot
+    const timer = setTimeout(() => {
+      const finishedScenarioId = runningScenarioId;
+      clearSimulationRunning();
+      if (!finishedScenarioId) return;
+      if (terminalStatus === 'completed') {
+        setLastRunScenarioId(finishedScenarioId);
+        navigate(`/simulate/${finishedScenarioId}`);
+      } else if (terminalStatus === 'failed') {
+        // Detail page shows the failure banner and the run's simulation.log
+        navigate(`/simulate/${finishedScenarioId}`);
+      }
+    }, 2000);
+    return () => clearTimeout(timer);
+  }, [terminalStatus, activeRunId, runningScenarioId, navigate, setLastRunScenarioId, clearSimulationRunning]);
 
   const formatTime = (seconds: number) => {
     const mins = Math.floor(seconds / 60);
@@ -140,10 +136,17 @@ export default function SimulationControl() {
 
   // Feature 045: Update heartbeat timestamp when telemetry is received
   useEffect(() => {
-    if (telemetry && isSimulationRunning) {
+    if (snapshot && isSimulationRunning) {
       lastHeartbeatRef.current = Date.now();
     }
-  }, [telemetry, isSimulationRunning, lastHeartbeatRef]);
+  }, [snapshot, isSimulationRunning, lastHeartbeatRef]);
+
+  const lastRunScenario = scenarios.find(s => s.last_run_at) ?
+    [...scenarios].sort((a, b) =>
+      new Date(b.last_run_at ?? 0).getTime() - new Date(a.last_run_at ?? 0).getTime()
+    )[0] : null;
+
+  const metrics = snapshot?.performance_metrics;
 
   return (
     <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
@@ -158,34 +161,38 @@ export default function SimulationControl() {
                <h2 className="text-xl font-bold text-gray-900">Simulation Control Center</h2>
                <p className="text-sm text-gray-500">Workspace: <span className="font-semibold text-gray-700">{activeWorkspace.name}</span></p>
             </div>
-            {!activeRunId ? (
-              <button
-                onClick={handleStart}
-                disabled={!selectedScenarioId || isLoading || isSimulationRunning}
-                className={`flex items-center px-6 py-2 text-white rounded-lg transition-all shadow-md font-medium ${!selectedScenarioId || isLoading || isSimulationRunning ? 'bg-gray-300 cursor-not-allowed' : 'bg-fidelity-green hover:bg-fidelity-dark'}`}
-              >
-                {isSimulationRunning ? (
-                  <>
-                    <Loader2 size={20} className="mr-2 animate-spin" />
-                    Running...
-                  </>
-                ) : (
-                  <>
-                    <Play size={20} className="mr-2" />
-                    Start Simulation
-                  </>
-                )}
-              </button>
-            ) : (
-              <div className="flex space-x-2">
-                 <button
-                   onClick={handleStop}
-                   className="flex items-center px-4 py-2 bg-red-100 text-red-700 rounded-lg hover:bg-red-200 font-medium"
-                 >
-                   <Square size={18} className="mr-2" /> Stop
-                 </button>
-              </div>
-            )}
+            <div className="flex items-center space-x-3">
+              {activeRunId && (
+                <ConnectionStatusBadge state={connectionState} secondsSinceUpdate={secondsSinceUpdate} />
+              )}
+              {!activeRunId ? (
+                <button
+                  onClick={handleStart}
+                  disabled={!selectedScenarioId || isLoading || isSimulationRunning}
+                  className={`flex items-center px-6 py-2 text-white rounded-lg transition-all shadow-md font-medium ${!selectedScenarioId || isLoading || isSimulationRunning ? 'bg-gray-300 cursor-not-allowed' : 'bg-fidelity-green hover:bg-fidelity-dark'}`}
+                >
+                  {isSimulationRunning ? (
+                    <>
+                      <Loader2 size={20} className="mr-2 animate-spin" />
+                      Running...
+                    </>
+                  ) : (
+                    <>
+                      <Play size={20} className="mr-2" />
+                      Start Simulation
+                    </>
+                  )}
+                </button>
+              ) : (
+                <button
+                  onClick={handleStop}
+                  disabled={!!terminalStatus}
+                  className="flex items-center px-4 py-2 bg-red-100 text-red-700 rounded-lg hover:bg-red-200 font-medium disabled:opacity-50"
+                >
+                  <Square size={18} className="mr-2" /> Stop
+                </button>
+              )}
+            </div>
           </div>
 
           {!activeRunId ? (
@@ -222,24 +229,27 @@ export default function SimulationControl() {
                {/* Main Progress Bar */}
                <div>
                  <div className="flex justify-between text-sm font-medium text-gray-700 mb-2">
-                   <span>Overall Progress (Year {status?.current_year})</span>
-                   <span>{status ? Math.round(status.progress_percent) : 0}%</span>
+                   <span>
+                     {terminalStatus
+                       ? `Run ${terminalStatus.toUpperCase()}`
+                       : `Overall Progress (Year ${snapshot?.current_year ?? '…'})`}
+                   </span>
+                   <span>{snapshot ? Math.round(snapshot.progress) : 0}%</span>
                  </div>
                  <div className="w-full bg-gray-200 rounded-full h-4 overflow-hidden">
                    <div
-                     className="bg-fidelity-green h-4 rounded-full transition-all duration-500 ease-out"
-                     style={{ width: `${status?.progress_percent}%` }}
+                     className={`h-4 rounded-full transition-all duration-500 ease-out ${terminalStatus === 'failed' ? 'bg-red-500' : terminalStatus === 'cancelled' ? 'bg-gray-400' : 'bg-fidelity-green'}`}
+                     style={{ width: `${snapshot?.progress ?? 0}%` }}
                    ></div>
                  </div>
                </div>
 
                {/* Stage Indicators */}
                <div className="grid grid-cols-6 gap-2">
-                 {['INIT', 'FOUNDATION', 'EVENT GEN', 'STATE ACC', 'VALIDATION', 'REPORTING'].map((stage, idx) => {
-                    const stages = ['INITIALIZATION', 'FOUNDATION', 'EVENT_GENERATION', 'STATE_ACCUMULATION', 'VALIDATION', 'REPORTING'];
-                    const currentIdx = stages.indexOf(status?.current_stage || '');
+                 {STAGE_LABELS.map((stage, idx) => {
+                    const currentIdx = STAGE_NAMES.indexOf(snapshot?.current_stage || '');
                     let colorClass = 'bg-gray-100 text-gray-400';
-                    if (status?.status === 'completed') colorClass = 'bg-green-100 text-green-700 border-green-200';
+                    if (snapshot?.status === 'completed') colorClass = 'bg-green-100 text-green-700 border-green-200';
                     else if (idx < currentIdx) colorClass = 'bg-green-100 text-green-700 border-green-200';
                     else if (idx === currentIdx) colorClass = 'bg-blue-100 text-blue-700 border-blue-200 ring-2 ring-blue-400';
 
@@ -254,83 +264,93 @@ export default function SimulationControl() {
           )}
         </div>
 
-        {/* Real-time Metrics Charts (Mock) */}
+        {/* Live Run Dashboard (feature 094) */}
         <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6 flex-1">
-          <h3 className="text-lg font-semibold text-gray-800 mb-4">Performance Telemetry</h3>
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
-             <div className="p-3 bg-gray-50 rounded-lg border border-gray-100">
-                <div className="flex items-center mb-1">
-                  <Activity className="text-blue-500 mr-2" size={16} />
-                  <p className="text-xs text-gray-500">Throughput</p>
-                </div>
-                <p className="text-lg font-bold text-gray-900">{(status?.performance_metrics.events_per_second || 0).toFixed(1)}</p>
-                <p className="text-[10px] text-gray-400">events/sec</p>
-             </div>
+          <h3 className="text-lg font-semibold text-gray-800 mb-4">Live Run Dashboard</h3>
 
-             <div className="p-3 bg-gray-50 rounded-lg border border-gray-100">
-                <div className="flex items-center mb-1">
-                  <Server className="text-purple-500 mr-2" size={16} />
-                  <p className="text-xs text-gray-500">Memory</p>
-                </div>
-                <p className="text-lg font-bold text-gray-900">{Math.round(status?.performance_metrics.memory_usage_mb || 0)}</p>
-                <p className="text-[10px] text-gray-400">MB Used</p>
-             </div>
+          {activeRunId && snapshot ? (
+            <div className="space-y-6">
+              {/* Event statistics + per-year progress */}
+              <LiveStatsPanel snapshot={snapshot} />
 
-             <div className={`p-3 rounded-lg border ${getPressureColor(status?.performance_metrics.memory_pressure || 'low')}`}>
-                <div className="flex items-center mb-1">
-                  <Cpu className="mr-2" size={16} />
-                  <p className="text-xs opacity-75">Pressure</p>
-                </div>
-                <p className="text-lg font-bold uppercase">{status?.performance_metrics.memory_pressure || 'LOW'}</p>
-                <p className="text-[10px] opacity-75">System Load</p>
-             </div>
+              {/* Performance tiles */}
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                 <div className="p-3 bg-gray-50 rounded-lg border border-gray-100">
+                    <div className="flex items-center mb-1">
+                      <Activity className="text-blue-500 mr-2" size={16} />
+                      <p className="text-xs text-gray-500">Throughput</p>
+                    </div>
+                    <p className="text-lg font-bold text-gray-900">{(metrics?.events_per_second || 0).toFixed(1)}</p>
+                    <p className="text-[10px] text-gray-400">events/sec</p>
+                 </div>
 
-             <div className="p-3 bg-gray-50 rounded-lg border border-gray-100">
-                <div className="flex items-center mb-1">
-                  <Clock className="text-orange-500 mr-2" size={16} />
-                  <p className="text-xs text-gray-500">Elapsed</p>
-                </div>
-                <p className="text-lg font-bold text-gray-900">{formatTime(status?.elapsed_seconds || 0)}</p>
-                <p className="text-[10px] text-gray-400">mm:ss</p>
-             </div>
-          </div>
-          {/* Placeholder for a line chart */}
-          <div className="h-40 bg-gray-50 rounded-lg border border-gray-200 flex items-center justify-center text-gray-400 text-sm">
-             [Real-time Performance Graph Placeholder]
-          </div>
+                 <div className="p-3 bg-gray-50 rounded-lg border border-gray-100">
+                    <div className="flex items-center mb-1">
+                      <Server className="text-purple-500 mr-2" size={16} />
+                      <p className="text-xs text-gray-500">Memory</p>
+                    </div>
+                    <p className="text-lg font-bold text-gray-900">{Math.round(metrics?.memory_mb || 0)}</p>
+                    <p className="text-[10px] text-gray-400">MB Used</p>
+                 </div>
+
+                 <div className={`p-3 rounded-lg border ${getPressureColor(metrics?.memory_pressure || 'low')}`}>
+                    <div className="flex items-center mb-1">
+                      <Cpu className="mr-2" size={16} />
+                      <p className="text-xs opacity-75">Pressure</p>
+                    </div>
+                    <p className="text-lg font-bold uppercase">{metrics?.memory_pressure || 'LOW'}</p>
+                    <p className="text-[10px] opacity-75">System Load</p>
+                 </div>
+
+                 <div className="p-3 bg-gray-50 rounded-lg border border-gray-100">
+                    <div className="flex items-center mb-1">
+                      <Clock className="text-orange-500 mr-2" size={16} />
+                      <p className="text-xs text-gray-500">Elapsed</p>
+                    </div>
+                    <p className="text-lg font-bold text-gray-900">{formatTime(metrics?.elapsed_seconds || 0)}</p>
+                    <p className="text-[10px] text-gray-400">mm:ss</p>
+                 </div>
+              </div>
+
+              {/* Performance trend (replaces the old placeholder) */}
+              <PerformanceTrendChart samples={snapshot.performance_samples} />
+            </div>
+          ) : (
+            /* Idle state (FR-007): meaningful summary instead of placeholders */
+            <div className="flex flex-col items-center justify-center py-10 text-center">
+              <BarChart3 size={40} className="text-gray-300 mb-3" />
+              {lastRunScenario ? (
+                <>
+                  <p className="text-gray-600 font-medium">
+                    Last run: <span className="text-gray-900">{lastRunScenario.name}</span>
+                    {' — '}
+                    <span className={lastRunScenario.status === 'completed' ? 'text-fidelity-green' : 'text-red-600'}>
+                      {lastRunScenario.status.toUpperCase()}
+                    </span>
+                  </p>
+                  <p className="text-sm text-gray-400 mt-1">
+                    {lastRunScenario.last_run_at ? new Date(lastRunScenario.last_run_at).toLocaleString() : ''}
+                  </p>
+                  <button
+                    onClick={() => navigate(`/simulate/${lastRunScenario.id}`)}
+                    className="mt-4 text-sm text-fidelity-green hover:text-fidelity-dark font-medium"
+                  >
+                    View results →
+                  </button>
+                </>
+              ) : (
+                <p className="text-gray-500">
+                  Start a simulation to see live event counts, per-year progress, and performance trends here.
+                </p>
+              )}
+            </div>
+          )}
         </div>
       </div>
 
-      {/* Right Column: Event Log */}
+      {/* Right Column: Run Activity feed (replaces raw event stream — FR-003) */}
       <div className="bg-white rounded-xl shadow-sm border border-gray-200 flex flex-col overflow-hidden max-h-[600px]">
-         <div className="p-4 border-b border-gray-200 bg-gray-50 flex justify-between items-center">
-            <h3 className="font-semibold text-gray-800 flex items-center">
-              <Database size={16} className="mr-2 text-gray-500" />
-              Event Stream
-            </h3>
-            <span className="bg-gray-200 text-gray-600 px-2 py-0.5 rounded text-xs">
-              Live
-            </span>
-         </div>
-         <div className="flex-1 overflow-y-auto p-0 font-mono text-sm bg-gray-900 text-gray-300">
-            {recentEvents.length === 0 ? (
-               <div className="p-4 text-gray-500 italic">Waiting for simulation to start...</div>
-            ) : (
-               <ul className="divide-y divide-gray-800">
-                 {recentEvents.map((event, idx) => (
-                   <li key={event.employee_id + '-' + idx} className="p-3 hover:bg-gray-800 transition-colors border-l-4 border-transparent hover:border-fidelity-green">
-                     <div className="flex justify-between items-start mb-1">
-                        <span className={`text-xs font-bold px-1.5 rounded ${({ HIRE: 'bg-green-900 text-green-300', TERMINATION: 'bg-red-900 text-red-300', PROMOTION: 'bg-blue-900 text-blue-300', STAGE: 'bg-purple-900 text-purple-300', INFO: 'bg-cyan-900 text-cyan-300' } as Record<string, string>)[event.event_type] ?? 'bg-yellow-900 text-yellow-300'}`}>
-                          {event.event_type}
-                        </span>
-                        <span className="text-xs text-gray-500">{new Date(event.timestamp).toLocaleTimeString()}</span>
-                     </div>
-                     <p className="text-gray-400 text-xs">{event.details || event.employee_id}</p>
-                   </li>
-                 ))}
-               </ul>
-            )}
-         </div>
+        <ActivityFeed milestones={snapshot?.milestones ?? []} />
       </div>
 
       {/* Bottom Row: Simulation History */}

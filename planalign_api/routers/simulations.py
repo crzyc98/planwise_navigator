@@ -17,10 +17,12 @@ from ..models.simulation import (
     RunDetails,
     RunRequest,
     RunSummary,
+    RunTelemetryResponse,
     SimulationLogLine,
     SimulationResults,
     SimulationRun,
 )
+from ..services.telemetry_service import get_telemetry_service
 from ..storage.workspace_storage import WorkspaceStorage
 from ..models.scenario import Scenario
 from ..models.workspace import Workspace
@@ -163,14 +165,74 @@ async def get_run_status(
     if scenario.last_run_id and scenario.last_run_id in _active_runs:
         return _active_runs[scenario.last_run_id]
 
-    # Return a completed/failed status based on scenario status
+    # Feature 094 (T020): report the persisted scenario status faithfully —
+    # never fabricate completed/100% for scenarios that failed or never ran.
+    persisted = scenario.status if scenario.status in (
+        "running", "completed", "failed", "cancelled"
+    ) else "pending"
     return SimulationRun(
         id=scenario.last_run_id or "unknown",
         scenario_id=scenario_id,
-        status="completed" if scenario.status == "completed" else "not_run",
-        progress=100 if scenario.status == "completed" else 0,
+        status=persisted,
+        progress=100 if persisted == "completed" else 0,
         started_at=scenario.last_run_at or datetime.now(timezone.utc),
-        completed_at=scenario.last_run_at,
+        completed_at=scenario.last_run_at if persisted in (
+            "completed", "failed", "cancelled"
+        ) else None,
+    )
+
+
+@router.get("/{scenario_id}/run/telemetry", response_model=RunTelemetryResponse)
+async def get_run_telemetry(
+    scenario_id: str,
+    storage: WorkspaceStorage = Depends(get_storage),
+) -> RunTelemetryResponse:
+    """Full run telemetry snapshot (feature 094).
+
+    Canonical state for page-refresh restore and the degraded polling
+    fallback. Reads only in-memory state — never touches the scenario
+    DuckDB, so it is always safe to call during a run.
+    """
+    _, scenario = _find_scenario_and_workspace(storage, scenario_id)
+    if not scenario:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Scenario {scenario_id} not found",
+        )
+
+    telemetry = get_telemetry_service()
+    snapshot = telemetry.get_snapshot_for_scenario(scenario_id)
+    if snapshot is not None:
+        registry_run = _active_runs.get(snapshot.run_id)
+        return RunTelemetryResponse(
+            run={
+                "run_id": snapshot.run_id,
+                "status": snapshot.status,
+                "error_message": registry_run.error_message if registry_run else None,
+            },
+            telemetry=snapshot,
+        )
+
+    # No in-memory state (no run since API start, or API restarted mid-run):
+    # report status from the run registry / persisted scenario, telemetry null.
+    run_id = scenario.last_run_id
+    if run_id and run_id in _active_runs:
+        run = _active_runs[run_id]
+        return RunTelemetryResponse(
+            run={
+                "run_id": run_id,
+                "status": run.status,
+                "error_message": run.error_message,
+            },
+            telemetry=None,
+        )
+
+    persisted = scenario.status if scenario.status in (
+        "pending", "running", "completed", "failed", "cancelled"
+    ) else "not_run"
+    return RunTelemetryResponse(
+        run={"run_id": run_id, "status": persisted, "error_message": None},
+        telemetry=None,
     )
 
 

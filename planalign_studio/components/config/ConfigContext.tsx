@@ -92,6 +92,9 @@ function mapSimulationFields(cfg: any, prev: FormData): Partial<FormData> {
     newHireTerminationRate: cfg.workforce?.new_hire_termination_rate != null
       ? cfg.workforce.new_hire_termination_rate * 100
       : prev.newHireTerminationRate,
+    partTimeNewHirePct: cfg.workforce?.part_time_new_hire_pct != null
+      ? cfg.workforce.part_time_new_hire_pct * 100
+      : prev.partTimeNewHirePct,
     // Canonical location is setup.census_parquet_path (used by the upload flow and
     // simulation engine); fall back to legacy data_sources for older scenarios.
     censusDataPath: extractCensusPath(cfg) || prev.censusDataPath,

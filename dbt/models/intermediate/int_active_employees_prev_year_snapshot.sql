@@ -67,6 +67,7 @@ enriched_snapshot as (
     'active' as employment_status, -- Employees from previous year are active at start of new year
     null::date as termination_date, -- Reset termination date for the new year
     employee_enrollment_date, -- Preserve enrollment status from previous year
+    scheduled_hours_per_week, -- Preserve part-time schedule from previous year
 
     -- Recalculate age and tenure bands for the new, incremented values using centralized macros
     {{ assign_age_band('current_age + 1') }} as age_band,
@@ -121,6 +122,7 @@ select
     null::varchar as age_band,
     null::varchar as tenure_band,
     null::date as employee_enrollment_date,
+    null::decimal(5,2) as scheduled_hours_per_week,
     false as is_enrolled_flag,
     {{ simulation_year }} as simulation_year,
     'no_previous_year' as data_source,

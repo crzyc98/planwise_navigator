@@ -13,6 +13,7 @@ from .sql_security import (
     CENSUS_COMPENSATION_COLUMNS,
     CENSUS_HIRE_DATE_COLUMNS,
     CENSUS_JOB_LEVEL_COLUMNS,
+    CENSUS_SCHEDULED_HOURS_COLUMNS,
     CENSUS_STATUS_COLUMNS,
     CENSUS_TERMINATION_DATE_COLUMNS,
     SQLSecurityError,
@@ -49,6 +50,7 @@ class FileService:
         "employee_gross_compensation": CENSUS_COMPENSATION_COLUMNS,
         "employee_job_level": CENSUS_JOB_LEVEL_COLUMNS,
         "active": CENSUS_STATUS_COLUMNS,
+        "scheduled_hours_per_week": CENSUS_SCHEDULED_HOURS_COLUMNS,
     }
 
     # Flattened alias -> canonical map (excludes canonical names themselves)
@@ -184,14 +186,16 @@ class FileService:
         for rename in column_renames:
             field_info = self.FIELD_IMPACT_DESCRIPTIONS.get(rename["canonical"])
             if field_info:
-                metadata["structured_warnings"].append({
-                    "field_name": rename["canonical"],
-                    "severity": "info",
-                    "warning_type": "auto_mapped",
-                    "impact_description": field_info["impact"],
-                    "detected_alias": rename["original"],
-                    "suggested_action": f"Column '{rename['original']}' was auto-renamed to '{rename['canonical']}'",
-                })
+                metadata["structured_warnings"].append(
+                    {
+                        "field_name": rename["canonical"],
+                        "severity": "info",
+                        "warning_type": "auto_mapped",
+                        "impact_description": field_info["impact"],
+                        "detected_alias": rename["original"],
+                        "suggested_action": f"Column '{rename['original']}' was auto-renamed to '{rename['canonical']}'",
+                    }
+                )
 
         # Return canonical path
         relative_path = "data/census.parquet"
@@ -240,9 +244,13 @@ class FileService:
 
                 # Read into DuckDB
                 if suffix == ".parquet":
-                    conn.execute(f"CREATE TABLE census AS SELECT * FROM read_parquet('{safe_temp_path}')")
+                    conn.execute(
+                        f"CREATE TABLE census AS SELECT * FROM read_parquet('{safe_temp_path}')"
+                    )
                 elif suffix == ".csv":
-                    conn.execute(f"CREATE TABLE census AS SELECT * FROM read_csv('{safe_temp_path}', header=true, auto_detect=true)")
+                    conn.execute(
+                        f"CREATE TABLE census AS SELECT * FROM read_csv('{safe_temp_path}', header=true, auto_detect=true)"
+                    )
                 else:
                     raise ValueError(f"Unsupported file type: {suffix}")
 
@@ -262,7 +270,9 @@ class FileService:
                         safe_canonical = validate_column_name_from_set(
                             canonical, ALL_CENSUS_COLUMNS, "census canonical column"
                         )
-                        conn.execute(f'ALTER TABLE census RENAME COLUMN "{safe_alias}" TO "{safe_canonical}"')
+                        conn.execute(
+                            f'ALTER TABLE census RENAME COLUMN "{safe_alias}" TO "{safe_canonical}"'
+                        )
                         renames.append({"original": alias, "canonical": canonical})
                         logger.info(f"Auto-renamed column '{alias}' to '{canonical}'")
 
@@ -311,14 +321,20 @@ class FileService:
 
         try:
             if suffix == ".parquet":
-                conn.execute(f"CREATE TABLE census AS SELECT * FROM read_parquet('{safe_path}')")
+                conn.execute(
+                    f"CREATE TABLE census AS SELECT * FROM read_parquet('{safe_path}')"
+                )
             elif suffix == ".csv":
-                conn.execute(f"CREATE TABLE census AS SELECT * FROM read_csv('{safe_path}', header=true, auto_detect=true)")
+                conn.execute(
+                    f"CREATE TABLE census AS SELECT * FROM read_csv('{safe_path}', header=true, auto_detect=true)"
+                )
             else:
                 raise ValueError(f"Unsupported file type: {suffix}")
 
             # Get column names
-            columns_result = conn.execute("SELECT column_name FROM information_schema.columns WHERE table_name = 'census'").fetchall()
+            columns_result = conn.execute(
+                "SELECT column_name FROM information_schema.columns WHERE table_name = 'census'"
+            ).fetchall()
             columns = [row[0] for row in columns_result]
             warnings: List[str] = []
 
@@ -326,7 +342,9 @@ class FileService:
             row_count = conn.execute("SELECT COUNT(*) FROM census").fetchone()[0]
 
             # Check required columns
-            missing_required = [col for col in self.REQUIRED_COLUMNS if col not in columns]
+            missing_required = [
+                col for col in self.REQUIRED_COLUMNS if col not in columns
+            ]
             if missing_required:
                 raise ValueError(
                     f"Missing required column(s): {', '.join(missing_required)}. "
@@ -352,28 +370,34 @@ class FileService:
                             f"Column '{alias_found}' found - consider renaming to '{col}' for consistency"
                         )
                         if field_info:
-                            structured_warnings.append({
-                                "field_name": col,
-                                "severity": field_info["severity"],
-                                "warning_type": "alias_found",
-                                "impact_description": field_info["impact"],
-                                "detected_alias": alias_found,
-                                "suggested_action": f"Rename column '{alias_found}' to '{col}' for full compatibility",
-                            })
+                            structured_warnings.append(
+                                {
+                                    "field_name": col,
+                                    "severity": field_info["severity"],
+                                    "warning_type": "alias_found",
+                                    "impact_description": field_info["impact"],
+                                    "detected_alias": alias_found,
+                                    "suggested_action": f"Rename column '{alias_found}' to '{col}' for full compatibility",
+                                }
+                            )
                     else:
                         warnings.append(f"Recommended column missing: {col}")
                         if field_info:
-                            structured_warnings.append({
-                                "field_name": col,
-                                "severity": field_info["severity"],
-                                "warning_type": "missing",
-                                "impact_description": field_info["impact"],
-                                "detected_alias": None,
-                                "suggested_action": field_info["action"],
-                            })
+                            structured_warnings.append(
+                                {
+                                    "field_name": col,
+                                    "severity": field_info["severity"],
+                                    "warning_type": "missing",
+                                    "impact_description": field_info["impact"],
+                                    "detected_alias": None,
+                                    "suggested_action": field_info["action"],
+                                }
+                            )
 
             # Run row-level data quality checks
-            data_quality_warnings = self._run_data_quality_checks(conn, columns, row_count)
+            data_quality_warnings = self._run_data_quality_checks(
+                conn, columns, row_count
+            )
 
             return {
                 "row_count": row_count,
@@ -422,45 +446,52 @@ class FileService:
 
             try:
                 # Get count of affected rows
-                count_result = conn.execute(f"""
+                count_result = conn.execute(
+                    f"""
                     SELECT COUNT(*) FROM (
                         SELECT CAST("{col}" AS VARCHAR) AS val FROM census
                     ) WHERE val IS NULL OR TRIM(val) = ''
-                """).fetchone()
+                """
+                ).fetchone()
 
                 affected_count = count_result[0]
                 if affected_count == 0:
                     continue
 
                 # Get up to 5 sample rows
-                sample_rows = conn.execute(f"""
+                sample_rows = conn.execute(
+                    f"""
                     SELECT rn, val FROM (
                         SELECT ROW_NUMBER() OVER () AS rn, CAST("{col}" AS VARCHAR) AS val
                         FROM census
                     ) WHERE val IS NULL OR TRIM(val) = ''
                     ORDER BY rn
                     LIMIT 5
-                """).fetchall()
+                """
+                ).fetchall()
 
                 samples = [
-                    {"row_number": row[0], "value": row[1]}
-                    for row in sample_rows
+                    {"row_number": row[0], "value": row[1]} for row in sample_rows
                 ]
 
-                severity = "error" if col in self.DATA_QUALITY_CRITICAL_FIELDS else "warning"
+                severity = (
+                    "error" if col in self.DATA_QUALITY_CRITICAL_FIELDS else "warning"
+                )
                 pct = round((affected_count / row_count) * 100, 1)
 
-                warnings.append({
-                    "field_name": col,
-                    "check_type": "null_or_empty",
-                    "severity": severity,
-                    "affected_count": affected_count,
-                    "total_count": row_count,
-                    "affected_percentage": pct,
-                    "message": f"{affected_count} of {row_count} rows ({pct}%) have null or empty {col}",
-                    "samples": samples,
-                    "suggested_action": f"Review and fill in missing {col} values in your census file",
-                })
+                warnings.append(
+                    {
+                        "field_name": col,
+                        "check_type": "null_or_empty",
+                        "severity": severity,
+                        "affected_count": affected_count,
+                        "total_count": row_count,
+                        "affected_percentage": pct,
+                        "message": f"{affected_count} of {row_count} rows ({pct}%) have null or empty {col}",
+                        "samples": samples,
+                        "suggested_action": f"Review and fill in missing {col} values in your census file",
+                    }
+                )
             except Exception as e:
                 logger.debug(f"Null check failed for column {col}: {e}")
 
@@ -478,19 +509,22 @@ class FileService:
 
             try:
                 # Check for values that are non-null strings but fail date parsing
-                count_result = conn.execute(f"""
+                count_result = conn.execute(
+                    f"""
                     SELECT COUNT(*) FROM (
                         SELECT CAST("{col}" AS VARCHAR) AS val FROM census
                     ) WHERE val IS NOT NULL AND TRIM(val) != ''
                       AND TRY_CAST(val AS DATE) IS NULL
-                """).fetchone()
+                """
+                ).fetchone()
 
                 affected_count = count_result[0]
                 if affected_count == 0:
                     continue
 
                 # Get up to 5 samples
-                sample_rows = conn.execute(f"""
+                sample_rows = conn.execute(
+                    f"""
                     SELECT rn, val FROM (
                         SELECT ROW_NUMBER() OVER () AS rn, CAST("{col}" AS VARCHAR) AS val
                         FROM census
@@ -498,26 +532,28 @@ class FileService:
                       AND TRY_CAST(val AS DATE) IS NULL
                     ORDER BY rn
                     LIMIT 5
-                """).fetchall()
+                """
+                ).fetchall()
 
                 samples = [
-                    {"row_number": row[0], "value": row[1]}
-                    for row in sample_rows
+                    {"row_number": row[0], "value": row[1]} for row in sample_rows
                 ]
 
                 pct = round((affected_count / row_count) * 100, 1)
 
-                warnings.append({
-                    "field_name": col,
-                    "check_type": "unparseable_date",
-                    "severity": "error",
-                    "affected_count": affected_count,
-                    "total_count": row_count,
-                    "affected_percentage": pct,
-                    "message": f"{affected_count} of {row_count} rows ({pct}%) have unparseable dates in {col}",
-                    "samples": samples,
-                    "suggested_action": f"Use a consistent date format (YYYY-MM-DD recommended) for {col}",
-                })
+                warnings.append(
+                    {
+                        "field_name": col,
+                        "check_type": "unparseable_date",
+                        "severity": "error",
+                        "affected_count": affected_count,
+                        "total_count": row_count,
+                        "affected_percentage": pct,
+                        "message": f"{affected_count} of {row_count} rows ({pct}%) have unparseable dates in {col}",
+                        "samples": samples,
+                        "suggested_action": f"Use a consistent date format (YYYY-MM-DD recommended) for {col}",
+                    }
+                )
             except Exception as e:
                 logger.debug(f"Date quality check failed for column {col}: {e}")
 
@@ -534,18 +570,21 @@ class FileService:
                 continue
 
             try:
-                count_result = conn.execute(f"""
+                count_result = conn.execute(
+                    f"""
                     SELECT COUNT(*) FROM (
                         SELECT TRY_CAST("{col}" AS DOUBLE) AS num_val FROM census
                     ) WHERE num_val IS NOT NULL AND num_val <= 0
-                """).fetchone()
+                """
+                ).fetchone()
 
                 affected_count = count_result[0]
                 if affected_count == 0:
                     continue
 
                 # Get up to 5 samples
-                sample_rows = conn.execute(f"""
+                sample_rows = conn.execute(
+                    f"""
                     SELECT rn, val FROM (
                         SELECT ROW_NUMBER() OVER () AS rn,
                                CAST("{col}" AS VARCHAR) AS val,
@@ -554,34 +593,34 @@ class FileService:
                     ) WHERE num_val IS NOT NULL AND num_val <= 0
                     ORDER BY rn
                     LIMIT 5
-                """).fetchall()
+                """
+                ).fetchall()
 
                 samples = [
-                    {"row_number": row[0], "value": row[1]}
-                    for row in sample_rows
+                    {"row_number": row[0], "value": row[1]} for row in sample_rows
                 ]
 
                 pct = round((affected_count / row_count) * 100, 1)
 
-                warnings.append({
-                    "field_name": col,
-                    "check_type": "negative_value",
-                    "severity": "warning",
-                    "affected_count": affected_count,
-                    "total_count": row_count,
-                    "affected_percentage": pct,
-                    "message": f"{affected_count} of {row_count} rows ({pct}%) have zero or negative {col}",
-                    "samples": samples,
-                    "suggested_action": f"Verify that {col} values are positive annual compensation amounts",
-                })
+                warnings.append(
+                    {
+                        "field_name": col,
+                        "check_type": "negative_value",
+                        "severity": "warning",
+                        "affected_count": affected_count,
+                        "total_count": row_count,
+                        "affected_percentage": pct,
+                        "message": f"{affected_count} of {row_count} rows ({pct}%) have zero or negative {col}",
+                        "samples": samples,
+                        "suggested_action": f"Verify that {col} values are positive annual compensation amounts",
+                    }
+                )
             except Exception as e:
                 logger.debug(f"Numeric quality check failed for column {col}: {e}")
 
         return warnings
 
-    def validate_path(
-        self, workspace_id: str, file_path: str
-    ) -> Dict:
+    def validate_path(self, workspace_id: str, file_path: str) -> Dict:
         """
         Validate a file path and return metadata.
 
@@ -673,23 +712,26 @@ class FileService:
 
         files = []
         for file_path in data_dir.iterdir():
-            if file_path.is_file() and file_path.suffix.lower() in self.SUPPORTED_EXTENSIONS:
+            if (
+                file_path.is_file()
+                and file_path.suffix.lower() in self.SUPPORTED_EXTENSIONS
+            ):
                 try:
                     stat = file_path.stat()
-                    files.append({
-                        "name": file_path.name,
-                        "path": f"data/{file_path.name}",
-                        "size_bytes": stat.st_size,
-                        "modified_at": datetime.fromtimestamp(stat.st_mtime),
-                    })
+                    files.append(
+                        {
+                            "name": file_path.name,
+                            "path": f"data/{file_path.name}",
+                            "size_bytes": stat.st_size,
+                            "modified_at": datetime.fromtimestamp(stat.st_mtime),
+                        }
+                    )
                 except Exception as e:
                     logger.warning(f"Failed to stat file {file_path}: {e}")
 
         return sorted(files, key=lambda f: f["name"])
 
-    def analyze_age_distribution(
-        self, workspace_id: str, file_path: str
-    ) -> Dict:
+    def analyze_age_distribution(self, workspace_id: str, file_path: str) -> Dict:
         """
         Analyze age distribution from census data, focusing on recent hires.
 
@@ -726,14 +768,20 @@ class FileService:
 
         try:
             if suffix == ".parquet":
-                conn.execute(f"CREATE TABLE census AS SELECT * FROM read_parquet('{safe_path}')")
+                conn.execute(
+                    f"CREATE TABLE census AS SELECT * FROM read_parquet('{safe_path}')"
+                )
             elif suffix == ".csv":
-                conn.execute(f"CREATE TABLE census AS SELECT * FROM read_csv('{safe_path}', header=true, auto_detect=true)")
+                conn.execute(
+                    f"CREATE TABLE census AS SELECT * FROM read_csv('{safe_path}', header=true, auto_detect=true)"
+                )
             else:
                 raise ValueError(f"Unsupported file type: {suffix}")
 
             # Get column names
-            columns_result = conn.execute("SELECT column_name FROM information_schema.columns WHERE table_name = 'census'").fetchall()
+            columns_result = conn.execute(
+                "SELECT column_name FROM information_schema.columns WHERE table_name = 'census'"
+            ).fetchall()
             columns = [row[0] for row in columns_result]
 
             # Find birth date column (validate against allowlist)
@@ -779,20 +827,24 @@ class FileService:
                 max_hire_date_result = conn.execute(
                     f"SELECT MAX(CAST({hire_date_col} AS DATE)) FROM census"
                 ).fetchone()
-                max_hire_date = max_hire_date_result[0] if max_hire_date_result else None
+                max_hire_date = (
+                    max_hire_date_result[0] if max_hire_date_result else None
+                )
 
                 if max_hire_date:
-                    recent_year = validate_integer(max_hire_date.year, min_val=1900, max_val=2100, context="year")
+                    recent_year = validate_integer(
+                        max_hire_date.year, min_val=1900, max_val=2100, context="year"
+                    )
                     # Check if we have enough recent hires using parameterized query
                     recent_count = conn.execute(
                         f"SELECT COUNT(*) FROM census WHERE YEAR(CAST({hire_date_col} AS DATE)) = ?",
-                        [recent_year]
+                        [recent_year],
                     ).fetchone()[0]
 
                     if recent_count >= 10:
                         conn.execute(
                             f"DELETE FROM census WHERE YEAR(CAST({hire_date_col} AS DATE)) != ?",
-                            [recent_year]
+                            [recent_year],
                         )
                         recent_hires_only = True
 
@@ -800,11 +852,13 @@ class FileService:
             conn.execute("ALTER TABLE census ADD COLUMN _age INTEGER")
             if recent_hires_only and hire_date_col:
                 # Age at time of hire
-                conn.execute(f"""
+                conn.execute(
+                    f"""
                     UPDATE census SET _age = FLOOR(
                         DATEDIFF('day', CAST({birth_date_col} AS DATE), CAST({hire_date_col} AS DATE)) / 365.25
                     )
-                """)
+                """
+                )
             else:
                 # Current age using parameterized date
                 conn.execute(
@@ -813,7 +867,7 @@ class FileService:
                         DATEDIFF('day', CAST({birth_date_col} AS DATE), ?::DATE) / 365.25
                     )
                     """,
-                    [today_str]
+                    [today_str],
                 )
 
             # Define age buckets matching our seed structure
@@ -840,16 +894,18 @@ class FileService:
                 # Use parameterized query for age range
                 count = conn.execute(
                     "SELECT COUNT(*) FROM census WHERE _age >= ? AND _age < ?",
-                    [min_age, max_age]
+                    [min_age, max_age],
                 ).fetchone()[0]
                 weight = round(count / total_count, 4) if total_count > 0 else 0
 
-                distribution.append({
-                    "age": target_age,
-                    "weight": weight,
-                    "description": description,
-                    "count": count,
-                })
+                distribution.append(
+                    {
+                        "age": target_age,
+                        "weight": weight,
+                        "description": description,
+                        "count": count,
+                    }
+                )
 
             # Normalize weights to sum to 1.0
             total_weight = sum(d["weight"] for d in distribution)
@@ -860,9 +916,109 @@ class FileService:
             return {
                 "total_employees": total_count,
                 "recent_hires_only": recent_hires_only,
-                "analysis_type": f"New hires from {recent_year}" if recent_hires_only else "All employees (no recent hire data)",
+                "analysis_type": f"New hires from {recent_year}"
+                if recent_hires_only
+                else "All employees (no recent hire data)",
                 "distribution": distribution,
                 "source_file": str(file_path),
+            }
+        finally:
+            conn.close()
+
+    def analyze_part_time_pct(self, workspace_id: str, file_path: str) -> Dict:
+        """
+        Analyze the part-time percentage of a census file.
+
+        Part-time is defined as employees whose scheduled annual hours
+        (scheduled_hours_per_week * 52) fall below 1,000 — they can never
+        satisfy a 1,000-hour annual eligibility requirement.
+
+        Args:
+            workspace_id: The workspace ID
+            file_path: File path (relative to workspace or absolute)
+
+        Returns:
+            Dict with column_present, headcount, part_time_count, part_time_pct
+        """
+        # Resolve path
+        if file_path.startswith("/"):
+            resolved = Path(file_path)
+        else:
+            resolved = self.workspaces_root / workspace_id / file_path
+
+        if not resolved.exists():
+            raise ValueError(f"File not found: {file_path}")
+
+        # Validate file path for SQL safety
+        try:
+            safe_path = validate_file_path_for_sql(
+                resolved, [self.workspaces_root], context="census file"
+            )
+        except SQLSecurityError as e:
+            raise ValueError(str(e))
+
+        suffix = resolved.suffix.lower()
+        conn = duckdb.connect(":memory:")
+
+        try:
+            if suffix == ".parquet":
+                conn.execute(
+                    f"CREATE TABLE census AS SELECT * FROM read_parquet('{safe_path}')"
+                )
+            elif suffix == ".csv":
+                conn.execute(
+                    f"CREATE TABLE census AS SELECT * FROM read_csv('{safe_path}', header=true, auto_detect=true)"
+                )
+            else:
+                raise ValueError(f"Unsupported file type: {suffix}")
+
+            columns_result = conn.execute(
+                "SELECT column_name FROM information_schema.columns WHERE table_name = 'census'"
+            ).fetchall()
+            columns = [row[0] for row in columns_result]
+
+            # Filter to active employees if status column exists
+            if "active" in columns:
+                conn.execute("DELETE FROM census WHERE active != true")
+            elif "status" in columns:
+                conn.execute("DELETE FROM census WHERE LOWER(status) != 'active'")
+
+            headcount = conn.execute("SELECT COUNT(*) FROM census").fetchone()[0]
+
+            # Find scheduled hours column (validate against allowlist)
+            hours_col = None
+            for col_name in CENSUS_SCHEDULED_HOURS_COLUMNS:
+                if col_name in columns:
+                    hours_col = validate_column_name_from_set(
+                        col_name,
+                        CENSUS_SCHEDULED_HOURS_COLUMNS,
+                        "scheduled hours column",
+                    )
+                    break
+
+            if not hours_col:
+                return {
+                    "column_present": False,
+                    "headcount": headcount,
+                    "part_time_count": 0,
+                    "part_time_pct": 0.0,
+                }
+
+            part_time_count = conn.execute(
+                f"""
+                SELECT COUNT(*) FROM census
+                WHERE {hours_col} IS NOT NULL
+                  AND CAST({hours_col} AS DOUBLE) * 52 < 1000
+                """
+            ).fetchone()[0]
+
+            part_time_pct = round(part_time_count / headcount, 4) if headcount else 0.0
+
+            return {
+                "column_present": True,
+                "headcount": headcount,
+                "part_time_count": part_time_count,
+                "part_time_pct": part_time_pct,
             }
         finally:
             conn.close()
@@ -889,7 +1045,9 @@ class FileService:
             Dict with compensation statistics (by level if available)
         """
         # Validate lookback_years
-        lookback_years = validate_integer(lookback_years, min_val=0, max_val=50, context="lookback_years")
+        lookback_years = validate_integer(
+            lookback_years, min_val=0, max_val=50, context="lookback_years"
+        )
 
         # Resolve path
         if file_path.startswith("/"):
@@ -914,14 +1072,20 @@ class FileService:
 
         try:
             if suffix == ".parquet":
-                conn.execute(f"CREATE TABLE census AS SELECT * FROM read_parquet('{safe_path}')")
+                conn.execute(
+                    f"CREATE TABLE census AS SELECT * FROM read_parquet('{safe_path}')"
+                )
             elif suffix == ".csv":
-                conn.execute(f"CREATE TABLE census AS SELECT * FROM read_csv('{safe_path}', header=true, auto_detect=true)")
+                conn.execute(
+                    f"CREATE TABLE census AS SELECT * FROM read_csv('{safe_path}', header=true, auto_detect=true)"
+                )
             else:
                 raise ValueError(f"Unsupported file type: {suffix}")
 
             # Get column names
-            columns_result = conn.execute("SELECT column_name FROM information_schema.columns WHERE table_name = 'census'").fetchall()
+            columns_result = conn.execute(
+                "SELECT column_name FROM information_schema.columns WHERE table_name = 'census'"
+            ).fetchall()
             columns = [row[0] for row in columns_result]
 
             # Find compensation column (validate against allowlist)
@@ -959,7 +1123,9 @@ class FileService:
 
             # Add working columns for compensation using validated column names
             conn.execute("ALTER TABLE census ADD COLUMN _compensation DOUBLE")
-            conn.execute(f"UPDATE census SET _compensation = CAST({comp_col} AS DOUBLE)")
+            conn.execute(
+                f"UPDATE census SET _compensation = CAST({comp_col} AS DOUBLE)"
+            )
             if level_col:
                 conn.execute("ALTER TABLE census ADD COLUMN _level INTEGER")
                 conn.execute(f"UPDATE census SET _level = CAST({level_col} AS INTEGER)")
@@ -978,20 +1144,33 @@ class FileService:
             if hire_date_col:
                 try:
                     conn.execute("ALTER TABLE census ADD COLUMN _hire_date DATE")
-                    conn.execute(f"UPDATE census SET _hire_date = CAST({hire_date_col} AS DATE)")
+                    conn.execute(
+                        f"UPDATE census SET _hire_date = CAST({hire_date_col} AS DATE)"
+                    )
 
                     # Find the "census date" - assume it's the max hire date or end of that year
-                    max_hire_date_result = conn.execute("SELECT MAX(_hire_date) FROM census").fetchone()
-                    max_hire_date = max_hire_date_result[0] if max_hire_date_result else None
+                    max_hire_date_result = conn.execute(
+                        "SELECT MAX(_hire_date) FROM census"
+                    ).fetchone()
+                    max_hire_date = (
+                        max_hire_date_result[0] if max_hire_date_result else None
+                    )
 
                     if max_hire_date:
                         # Assume census is from end of the year of the most recent hire
-                        census_year = validate_integer(max_hire_date.year, min_val=1900, max_val=2100, context="year")
+                        census_year = validate_integer(
+                            max_hire_date.year,
+                            min_val=1900,
+                            max_val=2100,
+                            context="year",
+                        )
                         census_date = date(census_year, 12, 31)
                         census_date_str = census_date.isoformat()
 
                         # Calculate days worked and annualize compensation using parameterized queries
-                        conn.execute("ALTER TABLE census ADD COLUMN _days_worked INTEGER")
+                        conn.execute(
+                            "ALTER TABLE census ADD COLUMN _days_worked INTEGER"
+                        )
                         conn.execute(
                             """
                             UPDATE census SET _days_worked = CASE
@@ -1000,31 +1179,35 @@ class FileService:
                                 ELSE 365
                             END
                             """,
-                            [census_year, census_date_str]
+                            [census_year, census_date_str],
                         )
 
-                        conn.execute("""
+                        conn.execute(
+                            """
                             UPDATE census SET _compensation = CASE
                                 WHEN _days_worked < 365 THEN _compensation * 365.0 / _days_worked
                                 ELSE _compensation
                             END
-                        """)
+                        """
+                        )
                         annualized = True
 
                         # Now filter to recent hires if requested
                         if lookback_years > 0:
-                            cutoff_date = max_hire_date - timedelta(days=lookback_years * 365)
+                            cutoff_date = max_hire_date - timedelta(
+                                days=lookback_years * 365
+                            )
                             cutoff_date_str = cutoff_date.isoformat()
                             recent_count = conn.execute(
                                 "SELECT COUNT(*) FROM census WHERE _hire_date >= ?",
-                                [cutoff_date_str]
+                                [cutoff_date_str],
                             ).fetchone()[0]
 
                             # Need enough data for meaningful analysis (at least 20 employees)
                             if recent_count >= 20:
                                 conn.execute(
                                     "DELETE FROM census WHERE _hire_date < ?",
-                                    [cutoff_date_str]
+                                    [cutoff_date_str],
                                 )
                                 recent_hires_only = True
                                 lookback_description = f"Hires from last {lookback_years} years ({recent_count} employees, annualized)"
@@ -1037,7 +1220,9 @@ class FileService:
                     pass
 
             # Filter out invalid compensation (after annualization)
-            conn.execute("DELETE FROM census WHERE _compensation <= 0 OR _compensation >= 2000000")
+            conn.execute(
+                "DELETE FROM census WHERE _compensation <= 0 OR _compensation >= 2000000"
+            )
 
             total_count = conn.execute("SELECT COUNT(*) FROM census").fetchone()[0]
             if total_count == 0:
@@ -1045,7 +1230,8 @@ class FileService:
 
             # If we have level data, calculate by level
             if level_col:
-                level_stats = conn.execute("""
+                level_stats = conn.execute(
+                    """
                     SELECT
                         _level,
                         MIN(_compensation) as min_comp,
@@ -1059,35 +1245,46 @@ class FileService:
                     WHERE _level IS NOT NULL
                     GROUP BY _level
                     ORDER BY _level
-                """).fetchall()
+                """
+                ).fetchall()
 
                 levels = []
-                level_names = {1: "Staff", 2: "Manager", 3: "Sr Manager", 4: "Director", 5: "VP"}
+                level_names = {
+                    1: "Staff",
+                    2: "Manager",
+                    3: "Sr Manager",
+                    4: "Director",
+                    5: "VP",
+                }
 
                 for row in level_stats:
                     level_id = row[0]
                     # Use P25-P75 as the recommended hiring range (more robust than min/max)
                     recommended_min = row[4]  # p25_comp
                     recommended_max = row[5]  # p75_comp
-                    levels.append({
-                        "level": level_id,
-                        "name": level_names.get(level_id, f"Level {level_id}"),
-                        "employee_count": row[7],
-                        # Raw min/max for reference
-                        "raw_min_compensation": round(row[1], 2),
-                        "raw_max_compensation": round(row[2], 2),
-                        # Recommended range (P25-P75) for new hire targeting
-                        "min_compensation": round(recommended_min, 2),
-                        "max_compensation": round(recommended_max, 2),
-                        "median_compensation": round(row[3], 2),
-                        "p25_compensation": round(row[4], 2),
-                        "p75_compensation": round(row[5], 2),
-                        "avg_compensation": round(row[6], 2),
-                    })
+                    levels.append(
+                        {
+                            "level": level_id,
+                            "name": level_names.get(level_id, f"Level {level_id}"),
+                            "employee_count": row[7],
+                            # Raw min/max for reference
+                            "raw_min_compensation": round(row[1], 2),
+                            "raw_max_compensation": round(row[2], 2),
+                            # Recommended range (P25-P75) for new hire targeting
+                            "min_compensation": round(recommended_min, 2),
+                            "max_compensation": round(recommended_max, 2),
+                            "median_compensation": round(row[3], 2),
+                            "p25_compensation": round(row[4], 2),
+                            "p75_compensation": round(row[5], 2),
+                            "avg_compensation": round(row[6], 2),
+                        }
+                    )
 
                 analysis_desc = lookback_description or "All employees"
                 if annualized and "annualized" not in analysis_desc.lower():
-                    analysis_desc += " (compensation annualized for partial-year employees)"
+                    analysis_desc += (
+                        " (compensation annualized for partial-year employees)"
+                    )
 
                 return {
                     "total_employees": total_count,
@@ -1101,7 +1298,8 @@ class FileService:
                 }
             else:
                 # No level data - provide overall distribution with suggested bands
-                overall_stats = conn.execute("""
+                overall_stats = conn.execute(
+                    """
                     SELECT
                         MIN(_compensation) as min_comp,
                         MAX(_compensation) as max_comp,
@@ -1116,7 +1314,8 @@ class FileService:
                         QUANTILE_CONT(_compensation, 0.97) as p97_comp,
                         AVG(_compensation) as avg_comp
                     FROM census
-                """).fetchone()
+                """
+                ).fetchone()
 
                 # Create suggested level ranges based on percentiles
                 suggested_levels = [
@@ -1159,7 +1358,9 @@ class FileService:
 
                 analysis_desc = lookback_description or "All employees"
                 if annualized and "annualized" not in analysis_desc.lower():
-                    analysis_desc += " (compensation annualized for partial-year employees)"
+                    analysis_desc += (
+                        " (compensation annualized for partial-year employees)"
+                    )
 
                 return {
                     "total_employees": total_count,
@@ -1168,7 +1369,9 @@ class FileService:
                     "has_level_data": False,
                     "analysis_type": analysis_desc,
                     "compensation_annualized": annualized,
-                    "message": "Census does not have job level data. Showing overall compensation distribution with suggested level ranges based on percentiles of recent hires." if recent_hires_only else "Census does not have job level data. Showing overall compensation distribution with suggested level ranges based on percentiles.",
+                    "message": "Census does not have job level data. Showing overall compensation distribution with suggested level ranges based on percentiles of recent hires."
+                    if recent_hires_only
+                    else "Census does not have job level data. Showing overall compensation distribution with suggested level ranges based on percentiles.",
                     "overall_stats": {
                         "min_compensation": round(overall_stats[0], 2),
                         "max_compensation": round(overall_stats[1], 2),

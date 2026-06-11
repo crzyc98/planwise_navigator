@@ -4,17 +4,15 @@ import asyncio
 import logging
 import os
 import shutil
-from collections import deque
-from datetime import datetime, timezone
+from datetime import datetime
 from pathlib import Path
-from typing import Any, Deque, Dict, List, Optional
+from typing import Any, Dict, List, Optional
 
 import psutil
 import yaml
 
 from ...models.simulation import (
     PerformanceMetrics,
-    SimulationLogLine,
     SimulationResults,
     SimulationTelemetry,
 )
@@ -26,7 +24,7 @@ from .db_cleanup import cleanup_years_outside_range
 from .log_writer import SimulationLogWriter
 from .output_parser import SimulationOutputParser
 from .results_reader import read_results
-from .run_archiver import archive_run, prune_old_runs
+from .run_archiver import archive_failed_run, archive_run, prune_old_runs
 from .subprocess_utils import create_subprocess, wait_subprocess
 
 from config.constants import (
@@ -89,10 +87,23 @@ class SimulationService:
             f"scenario={scenario_id}, run={run_id}"
         )
 
-        # Defaults for error-handler fallback (overwritten below on success)
-        start_year = 2025
-        total_years = 3
         log_writer: Optional[SimulationLogWriter] = None
+        run_dir: Optional[Path] = None
+        run_start_time = datetime.now()
+
+        # Feature 094: create telemetry state before any preparation work so
+        # failures during config/census validation still reach the dashboard
+        # as a terminal status instead of leaving it stuck on "running".
+        sim_config = config.get("simulation", {})
+        start_year = int(sim_config.get("start_year", 2025))
+        end_year = int(sim_config.get("end_year", 2027))
+        total_years = end_year - start_year + 1
+        get_telemetry_service().start_run(
+            run_id,
+            scenario_id=scenario_id,
+            start_year=start_year,
+            total_years=total_years,
+        )
 
         try:
             # Mark as running
@@ -146,9 +157,12 @@ class SimulationService:
                 workspace_id,
                 scenario_id,
                 run_id,
-                start_year,
-                total_years,
                 update_run_status,
+                config=config,
+                run_dir=run_dir,
+                start_time=run_start_time,
+                start_year=start_year,
+                end_year=end_year,
             )
         finally:
             if log_writer is not None:
@@ -218,12 +232,16 @@ class SimulationService:
         )
         self._active_processes[run_id] = process
 
-        # Set up telemetry and output parsing
+        # Telemetry state was created at execute_simulation start (feature 094)
         start_time = datetime.now()
         telemetry_service = get_telemetry_service()
         await self._wait_for_ws_listener(telemetry_service, run_id)
-        self._send_initial_telemetry(
-            telemetry_service, run_id, start_year, end_year, total_years
+        telemetry_service.apply_update(
+            run_id,
+            progress=1,
+            current_stage="INITIALIZATION",
+            current_year=start_year,
+            memory_mb=_get_memory_mb(),
         )
 
         parser = SimulationOutputParser(start_year, total_years)
@@ -279,23 +297,22 @@ class SimulationService:
             workspace_id, scenario_id, STATUS_COMPLETED, run_id
         )
 
-        # Final telemetry
+        # Final telemetry (feature 094: terminal state is retained in memory)
         telemetry_service = get_telemetry_service()
         events_per_second = (
             parser.events_generated / final_elapsed if final_elapsed > 0 else 0
         )
-        telemetry_service.update_telemetry(
-            run_id=run_id,
+        telemetry_service.apply_update(
+            run_id,
             progress=100,
             current_stage="COMPLETED",
             current_year=end_year,
-            total_years=total_years,
             memory_mb=_get_memory_mb(),
             events_generated=parser.events_generated,
             elapsed_seconds=final_elapsed,
             events_per_second=events_per_second,
-            recent_events=parser.recent_events,
         )
+        telemetry_service.set_terminal(run_id, "completed")
 
         logger.info(
             f"Simulation {run_id} completed successfully in {final_elapsed:.1f}s"
@@ -331,32 +348,64 @@ class SimulationService:
         workspace_id: str,
         scenario_id: str,
         run_id: str,
-        start_year: int,
-        total_years: int,
         update_run_status,
+        *,
+        config: Optional[Dict[str, Any]] = None,
+        run_dir: Optional[Path] = None,
+        start_time: Optional[datetime] = None,
+        start_year: Optional[int] = None,
+        end_year: Optional[int] = None,
     ) -> None:
-        """Log failure, update status, and send failure telemetry."""
-        logger.exception(f"Simulation {run_id} failed")
+        """Log failure (or cancellation), update status, send terminal telemetry,
+        and archive run metadata so the run (and its logs) appear in run history."""
+        was_cancelled = run_id in self._cancelled_runs
+        terminal_status = "cancelled" if was_cancelled else STATUS_FAILED
+        error_message = None if was_cancelled else str(error)
+        if was_cancelled:
+            logger.info(f"Simulation {run_id} cancelled by user")
+        else:
+            logger.exception(f"Simulation {run_id} failed")
         update_run_status(
             run_id,
-            status=STATUS_FAILED,
-            error_message=str(error),
+            status=terminal_status,
+            error_message=error_message,
             completed_at=datetime.now(),
         )
         self.storage.update_scenario_status(
-            workspace_id, scenario_id, STATUS_FAILED, run_id
+            workspace_id, scenario_id, terminal_status, run_id
         )
+        # Feature 094: guaranteed terminal telemetry; progress is preserved so
+        # the dashboard freezes at last-known values instead of resetting to 0.
         try:
             ts = get_telemetry_service()
-            ts.update_telemetry(
-                run_id=run_id,
-                progress=0,
-                current_stage="FAILED",
-                current_year=start_year,
-                total_years=total_years,
+            ts.set_terminal(
+                run_id,
+                terminal_status,
+                message=error_message[:500] if error_message else None,
             )
-        except Exception:
-            pass
+        except Exception as e:
+            logger.warning(f"Failed to send terminal telemetry for {run_id}: {e}")
+
+        # Persist run metadata so failed/cancelled runs show up in run history
+        # with their error message and simulation.log (feature 094).
+        try:
+            scenario = self.storage.get_scenario(workspace_id, scenario_id)
+            archive_failed_run(
+                scenario_path=self.storage._scenario_path(workspace_id, scenario_id),
+                run_id=run_id,
+                scenario_id=scenario_id,
+                scenario_name=scenario.name if scenario else scenario_id,
+                workspace_id=workspace_id,
+                config=config or {},
+                start_time=start_time or datetime.now(),
+                start_year=start_year,
+                end_year=end_year,
+                run_status=terminal_status,
+                error_message=error_message,
+                run_dir=run_dir,
+            )
+        except Exception as e:
+            logger.warning(f"Failed to archive failed run {run_id}: {e}")
 
     # ------------------------------------------------------------------
     # Cancel / Results / Telemetry
@@ -402,44 +451,6 @@ class SimulationService:
             ),
             recent_events=[],
         )
-
-    # ------------------------------------------------------------------
-    # Dev helper
-    # ------------------------------------------------------------------
-
-    async def _simulate_progress(
-        self,
-        run_id: str,
-        start_year: int,
-        end_year: int,
-        total_years: int,
-        update_run_status,
-    ) -> None:
-        """Simulate progress for development when orchestrator is unavailable."""
-        stages = [
-            "INITIALIZATION",
-            "FOUNDATION",
-            "EVENT_GENERATION",
-            "STATE_ACCUMULATION",
-            "VALIDATION",
-            "REPORTING",
-        ]
-        for year_idx, year in enumerate(range(start_year, end_year + 1)):
-            if run_id in self._cancelled_runs:
-                return
-            for stage_idx, stage in enumerate(stages):
-                if run_id in self._cancelled_runs:
-                    return
-                year_progress = year_idx / total_years
-                stage_progress = stage_idx / len(stages) / total_years
-                total_progress = int((year_progress + stage_progress) * 100)
-                update_run_status(
-                    run_id,
-                    progress=total_progress,
-                    current_year=year,
-                    current_stage=stage,
-                )
-                await asyncio.sleep(0.3)
 
     # ------------------------------------------------------------------
     # Private helpers (config prep / subprocess orchestration)
@@ -599,6 +610,8 @@ class SimulationService:
             **os.environ,
             "PYTHONPATH": str(project_root),
             "PYTHONIOENCODING": "utf-8",
+            # Feature 094: deterministic stage/year/count telemetry on stdout
+            "PLANALIGN_STRUCTURED_TELEMETRY": "1",
             "TERM": "dumb",
             "NO_COLOR": "1",
             "FORCE_COLOR": "0",
@@ -610,10 +623,7 @@ class SimulationService:
         logger.info(f"Waiting for WebSocket listener for run {run_id}")
         max_wait, interval, waited = 5.0, 0.1, 0.0
         while waited < max_wait:
-            if (
-                run_id in telemetry_service._listeners
-                and telemetry_service._listeners[run_id]
-            ):
+            if telemetry_service.has_listeners(run_id):
                 logger.info(
                     f"WebSocket listener connected for run {run_id} after {waited:.1f}s"
                 )
@@ -623,35 +633,6 @@ class SimulationService:
         logger.warning(
             f"No WebSocket listener connected for run {run_id} after {max_wait}s, "
             "proceeding anyway"
-        )
-
-    @staticmethod
-    def _send_initial_telemetry(
-        telemetry_service,
-        run_id: str,
-        start_year: int,
-        end_year: int,
-        total_years: int,
-    ) -> None:
-        logger.info(f"Sending initial telemetry for run {run_id}")
-        telemetry_service.update_telemetry(
-            run_id=run_id,
-            progress=1,
-            current_stage="INITIALIZATION",
-            current_year=start_year,
-            total_years=total_years,
-            memory_mb=0.0,
-            events_generated=0,
-            elapsed_seconds=0.0,
-            events_per_second=0.0,
-            recent_events=[
-                {
-                    "event_type": "INFO",
-                    "employee_id": "System",
-                    "timestamp": datetime.now().isoformat(),
-                    "details": f"Simulation started for years {start_year}-{end_year}",
-                }
-            ],
         )
 
     async def _stream_output(
@@ -672,8 +653,6 @@ class SimulationService:
         """
         output_buffer: List[str] = []
         MAX_OUTPUT_BUFFER = 50
-        log_line_window: Deque[SimulationLogLine] = deque(maxlen=50)
-        sequence = 0
 
         async for line in line_iterator:
             if run_id in self._cancelled_runs:
@@ -690,23 +669,12 @@ class SimulationService:
             if len(output_buffer) > MAX_OUTPUT_BUFFER:
                 output_buffer.pop(0)
 
-            # Classify severity once; reuse for log writer and telemetry
+            # Classify severity once for the persisted log
             severity = SimulationOutputParser.classify_line(line_text)
 
             # Persist line to simulation.log
             if log_writer is not None:
                 log_writer.write_line(severity, line_text)
-
-            # Add to rolling window for WebSocket telemetry
-            sequence += 1
-            log_line_window.append(
-                SimulationLogLine(
-                    sequence=sequence,
-                    timestamp=datetime.now(timezone.utc),
-                    severity=severity.upper() if severity != "debug" else "INFO",
-                    message=line_text,
-                )
-            )
 
             self._process_output_line(
                 line_text,
@@ -716,7 +684,6 @@ class SimulationService:
                 start_time,
                 telemetry_service,
                 update_run_status,
-                list(log_line_window),
             )
 
         return output_buffer
@@ -730,7 +697,6 @@ class SimulationService:
         start_time: datetime,
         telemetry_service,
         update_run_status,
-        recent_log_lines: Optional[List["SimulationLogLine"]] = None,
     ) -> None:
         """Classify, parse, and broadcast a single output line."""
         # Route to appropriate log level
@@ -742,10 +708,16 @@ class SimulationService:
         else:
             logger.debug(f"Simulation output: {line_text}")
 
-        # Parse progress from line
-        parser.parse_line(line_text)
-        progress = parser.calculate_progress()
+        # Parse progress from line (structured sentinel records take precedence)
+        changes = parser.parse_line(line_text)
+        if changes.get("structured_record"):
+            telemetry_service.apply_structured_record(
+                run_id, changes["structured_record"]
+            )
+        elif level in ("warning", "error"):
+            telemetry_service.add_log_milestone(run_id, level, line_text)
 
+        progress = parser.calculate_progress()
         elapsed_seconds = (datetime.now() - start_time).total_seconds()
         events_per_second = (
             parser.events_generated / elapsed_seconds if elapsed_seconds > 0 else 0
@@ -758,18 +730,15 @@ class SimulationService:
             current_stage=parser.current_stage,
         )
 
-        telemetry_service.update_telemetry(
-            run_id=run_id,
+        telemetry_service.apply_update(
+            run_id,
             progress=progress,
             current_stage=parser.current_stage,
             current_year=parser.current_year,
-            total_years=total_years,
             memory_mb=_get_memory_mb(),
             events_generated=parser.events_generated,
             elapsed_seconds=elapsed_seconds,
             events_per_second=events_per_second,
-            recent_events=parser.recent_events,
-            recent_log_lines=recent_log_lines or [],
         )
 
     @staticmethod
