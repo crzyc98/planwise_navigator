@@ -95,15 +95,20 @@ class TestSimulationOutputParser:
         assert len(parser.recent_events) == 20  # MAX_RECENT_EVENTS
 
     def test_calculate_progress(self):
-        """Should return progress based on current year position."""
+        """Should return progress based on year and stage position (feature 094)."""
         parser = SimulationOutputParser(start_year=2025, total_years=3)
-        assert parser.calculate_progress() == 10  # 0/3 * 100 + 10
+        assert parser.calculate_progress() == 1  # year 0, INITIALIZATION → floor of 1
+
+        parser.current_stage = "STATE_ACCUMULATION"  # stage 3 of 6 within year 0
+        assert parser.calculate_progress() == 16  # (0 + 3/6) / 3 * 100
 
         parser.current_year = 2026
-        assert parser.calculate_progress() == 43  # 1/3 * 100 + 10 ≈ 43
+        parser.current_stage = "INITIALIZATION"
+        assert parser.calculate_progress() == 33  # (1 + 0) / 3 * 100
 
         parser.current_year = 2027
-        assert parser.calculate_progress() == 76  # 2/3 * 100 + 10 ≈ 76
+        parser.current_stage = "REPORTING"  # stage 5 of 6 within final year
+        assert parser.calculate_progress() == 94  # (2 + 5/6) / 3 * 100
 
     def test_progress_never_exceeds_99(self):
         """Progress should cap at 99 during execution."""

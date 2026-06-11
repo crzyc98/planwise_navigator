@@ -21,27 +21,17 @@ async def simulation_websocket(
     """
     Handle WebSocket connection for simulation telemetry.
 
-    Streams real-time progress updates to connected clients.
+    Feature 094 envelope protocol (contracts/websocket-messages.md):
+    every message is JSON discriminated by ``type``:
 
-    Message format (JSON):
-    {
-        "run_id": "uuid",
-        "progress": 45,
-        "current_stage": "EVENT_GENERATION",
-        "current_year": 2025,
-        "total_years": 3,
-        "performance_metrics": {
-            "memory_mb": 512.0,
-            "memory_pressure": "low",
-            "elapsed_seconds": 30.5,
-            "events_generated": 1500,
-            "events_per_second": 50.0
-        },
-        "recent_events": [
-            {"event_type": "HIRE", "employee_id": "EMP_001", "timestamp": "..."}
-        ],
-        "timestamp": "2025-01-15T10:30:00Z"
-    }
+    - ``snapshot``  — full RunTelemetrySnapshot, sent once per (re)connect
+                      (replayed by TelemetryService.subscribe) before deltas
+    - ``update``    — incremental progress/stats (throttled server-side)
+    - ``milestone`` — one appended activity-feed entry
+    - ``heartbeat`` — keepalive; counts as liveness for client staleness checks
+
+    The heartbeat interval must stay below the client's 15s staleness
+    threshold so quiet stretches (long dbt model builds) don't flag stale.
     """
     if manager is None:
         manager = get_connection_manager()
@@ -50,7 +40,7 @@ async def simulation_websocket(
 
     await manager.connect(websocket, run_id)
 
-    # Subscribe to telemetry updates
+    # Subscribe to telemetry updates (replays a full snapshot first)
     queue = telemetry.subscribe(run_id)
 
     try:
@@ -58,7 +48,7 @@ async def simulation_websocket(
         while True:
             try:
                 # Wait for telemetry message with timeout
-                message = await asyncio.wait_for(queue.get(), timeout=30.0)
+                message = await asyncio.wait_for(queue.get(), timeout=10.0)
                 await websocket.send_text(message)
             except asyncio.TimeoutError:
                 # Send heartbeat

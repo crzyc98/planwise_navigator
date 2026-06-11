@@ -157,3 +157,56 @@ class TestPruneOldRuns:
         mock_storage.cleanup_old_runs.side_effect = RuntimeError("disk full")
 
         prune_old_runs(mock_storage, "ws-1", "sc-1", {})
+
+
+@pytest.mark.fast
+class TestArchiveFailedRun:
+    """Failed/cancelled runs must persist metadata so run history shows
+    the error message and simulation.log (feature 094)."""
+
+    def _archive(self, scenario_path, **overrides):
+        from planalign_api.services.simulation.run_archiver import archive_failed_run
+
+        kwargs = dict(
+            scenario_path=scenario_path,
+            run_id="run-fail-1",
+            scenario_id="sc-1",
+            scenario_name="Test Scenario",
+            workspace_id="ws-1",
+            config={"simulation": {"start_year": 2025, "seed": 42}},
+            start_time=datetime(2026, 6, 11, 8, 0, 0),
+            run_status="failed",
+            error_message="census file not found",
+            start_year=2025,
+            end_year=2027,
+        )
+        kwargs.update(overrides)
+        archive_failed_run(**kwargs)
+        return scenario_path / "runs" / kwargs["run_id"] / "run_metadata.json"
+
+    def test_writes_metadata_with_failed_status_and_error(self, tmp_path):
+        metadata_path = self._archive(tmp_path)
+        assert metadata_path.exists()
+        metadata = json.loads(metadata_path.read_text())
+        assert metadata["status"] == "failed"
+        assert metadata["error_message"] == "census file not found"
+        assert metadata["start_year"] == 2025
+        assert metadata["run_id"] == "run-fail-1"
+
+    def test_creates_run_dir_when_missing(self, tmp_path):
+        """Preparation failures happen before the run dir exists."""
+        metadata_path = self._archive(tmp_path, run_dir=None)
+        assert metadata_path.parent.exists()
+
+    def test_cancelled_status_without_error(self, tmp_path):
+        metadata_path = self._archive(
+            tmp_path, run_status="cancelled", error_message=None
+        )
+        metadata = json.loads(metadata_path.read_text())
+        assert metadata["status"] == "cancelled"
+        assert metadata["error_message"] is None
+
+    def test_no_database_copy_or_excel(self, tmp_path):
+        metadata_path = self._archive(tmp_path)
+        files = {f.name for f in metadata_path.parent.iterdir()}
+        assert files == {"run_metadata.json", "config.yaml"}

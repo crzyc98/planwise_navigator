@@ -69,9 +69,38 @@ Fidelity PlanAlign Engine follows **Semantic Versioning 2.0.0** (MAJOR.MINOR.PAT
 ## [Unreleased]
 
 ### Added
+- **Feature 094 — Live Simulation Run Dashboard**: structured telemetry protocol
+  (`PLANALIGN_TELEMETRY|{json}` stdout records from orchestrator hooks with exact
+  per-event-type counts at year boundaries), per-run telemetry state with milestone
+  history and snapshot-on-connect WebSocket resync, REST snapshot endpoint
+  (`GET /api/scenarios/{id}/run/telemetry`) for refresh restore and polling fallback,
+  and new Studio run-screen components (LiveStatsPanel, ActivityFeed,
+  PerformanceTrendChart, ConnectionStatusBadge)
+
 ### Changed
+- Simulation run screen replaces the raw per-employee event stream with a milestone
+  activity feed and replaces the performance graph placeholder with a live trend chart
+- Pipeline year/stage hooks (`PRE_YEAR`/`POST_YEAR`/`PRE_STAGE`/`POST_STAGE`/
+  `POST_SIMULATION`) now fire during `execute_multi_year_simulation`
+- Run progress is computed from year + workflow-stage position instead of year alone
+
 ### Fixed
+- WebSocket telemetry reliability: reconnect backoff used stale state (retries never
+  escalated), missed updates were lost on reconnect, and the UI could stay stuck on
+  "running" after a disconnect; cancelled runs are now reported as cancelled (not failed),
+  and `GET .../run/status` no longer fabricates completed/100% for failed or never-run scenarios
+- Failed and cancelled runs now persist `run_metadata.json` (status + error message),
+  so they appear in run history with their `simulation.log` available; the run screen
+  navigates to the scenario detail page on failure (error banner + logs) instead of
+  staying on the live view, and telemetry state is created before config/census
+  validation so early failures reach the dashboard as a terminal status
+- End-of-simulation cleanup no longer calls nonexistent methods
+  (`ParallelExecutionEngine.shutdown` / `ResourceManager.cleanup`), which surfaced as
+  error milestones in the run activity feed; resource monitoring is now stopped via
+  `ResourceManager.stop_monitoring()`
+
 ### Removed
+- Dead frontend mock telemetry service and unused `_simulate_progress` dev helper
 
 ---
 

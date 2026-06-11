@@ -45,6 +45,7 @@ from .pipeline.workflow import WorkflowBuilder, WorkflowStage, StageDefinition, 
 from .pipeline.state_manager import StateManager
 from .pipeline.data_cleanup import DataCleanupManager
 from .pipeline.hooks import HookManager, HookType
+from .pipeline.telemetry_emitter import TelemetryEmitter
 from .pipeline.year_executor import YearExecutor
 from .pipeline.event_generation_executor import EventGenerationExecutor
 from .pipeline.stage_validator import StageValidator
@@ -170,6 +171,11 @@ class PipelineOrchestrator:
         self.cleanup_manager = DataCleanupManager(db_manager=db_manager, verbose=verbose)
         self.hook_manager = HookManager(verbose=verbose)
 
+        # Feature 094: structured telemetry for PlanAlign Studio (env-gated)
+        self.telemetry_emitter = TelemetryEmitter(db_manager=db_manager)
+        if self.telemetry_emitter.enabled:
+            self.telemetry_emitter.register(self.hook_manager)
+
         # Initialize stage validator (Story S034 - Orchestrator Modularization Phase 2)
         self.stage_validator = StageValidator(
             db_manager=db_manager,
@@ -214,13 +220,8 @@ class PipelineOrchestrator:
                 except Exception as e:
                     logger.warning("Error closing database connection pool: %s", e)
 
-            # Cleanup parallel execution engine
-            if hasattr(self, 'parallel_execution_engine') and self.parallel_execution_engine:
-                try:
-                    self.parallel_execution_engine.shutdown()
-                    logger.info("Parallel execution engine shutdown complete")
-                except Exception as e:
-                    logger.warning("Error during parallel execution engine shutdown: %s", e)
+            # The parallel execution engine needs no teardown: its thread pools
+            # are context-managed per stage and already closed by this point.
 
             # Cleanup resource manager
             if hasattr(self, 'resource_manager') and self.resource_manager:
@@ -231,8 +232,8 @@ class PipelineOrchestrator:
                                 final_stats['memory']['usage_mb'],
                                 final_stats['cpu']['current_percent'])
 
-                    self.resource_manager.cleanup()
-                    logger.info("Resource manager cleanup complete")
+                    self.resource_manager.stop_monitoring()
+                    logger.info("Resource manager monitoring stopped")
                 except Exception as e:
                     logger.warning("Error during resource manager cleanup: %s", e)
 
@@ -277,13 +278,20 @@ class PipelineOrchestrator:
                 self.state_manager.maybe_full_reset()
                 self._initialize_registries(start)
                 completed_years: List[int] = []
+                simulation_start_time = time.time()
 
                 try:
                     for year in range(start, end + 1):
+                        year_start_time = time.time()
+                        self.hook_manager.execute_hooks(HookType.PRE_YEAR, {"year": year})
                         self._execute_year_with_monitoring(
                             year, fail_on_validation_error=fail_on_validation_error, dry_run=dry_run
                         )
                         completed_years.append(year)
+                        self.hook_manager.execute_hooks(
+                            HookType.POST_YEAR,
+                            {"year": year, "duration_seconds": time.time() - year_start_time},
+                        )
 
                 except Exception as e:
                     if self.memory_manager:
@@ -294,6 +302,14 @@ class PipelineOrchestrator:
 
                 finally:
                     self._finalize_monitoring()
+
+        self.hook_manager.execute_hooks(
+            HookType.POST_SIMULATION,
+            {
+                "completed_years": completed_years,
+                "duration_seconds": time.time() - simulation_start_time,
+            },
+        )
 
         summary = self._build_multi_year_summary(completed_years)
         return self._finalize_simulation(summary, completed_years)
@@ -497,19 +513,30 @@ class PipelineOrchestrator:
 
         for stage in workflow:
             logger.info("Executing stage: %s", stage.name.value)
+            stage_start_time = time.time()
+            self.hook_manager.execute_hooks(
+                HookType.PRE_STAGE, {"year": year, "stage": stage.name}
+            )
             self._record_performance_checkpoint(stage.name.value, year, "start")
 
             # Specialized stage handlers that skip generic execution
-            if self._execute_specialized_stage(stage, year):
-                continue
+            if not self._execute_specialized_stage(stage, year):
+                # Generic stage execution with resource/memory management
+                self._execute_stage_with_monitoring(stage, year)
 
-            # Generic stage execution with resource/memory management
-            self._execute_stage_with_monitoring(stage, year)
+                self._record_performance_checkpoint(stage.name.value, year, "complete")
 
-            self._record_performance_checkpoint(stage.name.value, year, "complete")
+                if not dry_run:
+                    self.stage_validator.validate_stage(stage, year, fail_on_validation_error)
 
-            if not dry_run:
-                self.stage_validator.validate_stage(stage, year, fail_on_validation_error)
+            self.hook_manager.execute_hooks(
+                HookType.POST_STAGE,
+                {
+                    "year": year,
+                    "stage": stage.name,
+                    "duration_seconds": time.time() - stage_start_time,
+                },
+            )
 
     def _ensure_hazard_caches_current(self) -> None:
         """E068D: Ensure hazard caches are current before workflow execution."""

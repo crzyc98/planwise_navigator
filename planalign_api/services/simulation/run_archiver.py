@@ -96,6 +96,50 @@ def archive_run(
     return excel_path
 
 
+def archive_failed_run(
+    *,
+    scenario_path: Path,
+    run_id: str,
+    scenario_id: str,
+    scenario_name: str,
+    workspace_id: str,
+    config: Dict[str, Any],
+    start_time: datetime,
+    run_status: str,
+    error_message: Optional[str] = None,
+    start_year: Optional[int] = None,
+    end_year: Optional[int] = None,
+    run_dir: Optional[Path] = None,
+) -> None:
+    """Persist metadata for a failed/cancelled run (feature 094).
+
+    Without metadata the run directory is invisible to the run-history
+    endpoints, which hides the simulation.log and the failure reason.
+    No database copy or Excel export is attempted — results are not valid.
+    """
+    if run_dir is None:
+        run_dir = scenario_path / "runs" / run_id
+    run_dir.mkdir(parents=True, exist_ok=True)
+
+    _save_config(run_dir, config)
+    _save_metadata(
+        run_dir,
+        run_id=run_id,
+        scenario_id=scenario_id,
+        scenario_name=scenario_name,
+        workspace_id=workspace_id,
+        start_time=start_time,
+        elapsed_seconds=(datetime.now() - start_time).total_seconds(),
+        start_year=start_year,
+        end_year=end_year,
+        events_generated=0,
+        seed=config.get("simulation", {}).get("seed"),
+        run_status=run_status,
+        error_message=error_message,
+    )
+    logger.info(f"Archived {run_status} run metadata for {run_id}")
+
+
 def prune_old_runs(
     storage: WorkspaceStorage,
     workspace_id: str,
@@ -150,10 +194,12 @@ def _save_metadata(
     workspace_id: str,
     start_time: datetime,
     elapsed_seconds: float,
-    start_year: int,
-    end_year: int,
+    start_year: Optional[int],
+    end_year: Optional[int],
     events_generated: int,
-    seed: int,
+    seed: Optional[int],
+    run_status: str = STATUS_COMPLETED,
+    error_message: Optional[str] = None,
 ) -> None:
     run_metadata = {
         "run_id": run_id,
@@ -167,7 +213,8 @@ def _save_metadata(
         "end_year": end_year,
         "events_generated": events_generated,
         "seed": seed,
-        "status": STATUS_COMPLETED,
+        "status": run_status,
+        "error_message": error_message,
     }
     try:
         metadata_path = run_dir / "run_metadata.json"
