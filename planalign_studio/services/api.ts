@@ -1027,6 +1027,7 @@ export interface ContributionYearSummary {
   total_employer_core: number;
   total_all_contributions: number;
   participant_count: number;
+  total_eligible_count: number;
   // E104: New fields for cost comparison
   average_deferral_rate: number;
   participation_rate: number;
