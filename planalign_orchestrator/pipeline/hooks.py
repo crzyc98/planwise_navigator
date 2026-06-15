@@ -33,6 +33,7 @@ class HookType(Enum):
     - PRE_STAGE: Before executing each workflow stage
     - POST_STAGE: After completing each workflow stage
     """
+
     PRE_SIMULATION = "pre_simulation"
     POST_SIMULATION = "post_simulation"
     PRE_YEAR = "pre_year"
@@ -56,6 +57,7 @@ class Hook:
         - Callbacks should handle their own errors to avoid breaking pipeline
         - stage_filter is only used for PRE_STAGE/POST_STAGE hooks
     """
+
     hook_type: HookType
     callback: Callable[[Dict[str, Any]], None]
     stage_filter: WorkflowStage | None = None
@@ -118,14 +120,17 @@ class HookManager:
         """
         self._hooks[hook.hook_type].append(hook)
         if self.verbose:
-            stage_info = " [stage=%s]" % hook.stage_filter.value if hook.stage_filter else ""
-            logger.debug("Registered hook: %s (%s)%s", hook.name, hook.hook_type.value, stage_info)
+            stage_info = (
+                " [stage=%s]" % hook.stage_filter.value if hook.stage_filter else ""
+            )
+            logger.debug(
+                "Registered hook: %s (%s)%s",
+                hook.name,
+                hook.hook_type.value,
+                stage_info,
+            )
 
-    def execute_hooks(
-        self,
-        hook_type: HookType,
-        context: Dict[str, Any]
-    ) -> None:
+    def execute_hooks(self, hook_type: HookType, context: Dict[str, Any]) -> None:
         """Execute all hooks of a given type with error isolation.
 
         Args:
@@ -145,7 +150,8 @@ class HookManager:
         # Filter hooks by stage if applicable
         current_stage = context.get("stage")
         applicable_hooks = [
-            h for h in hooks
+            h
+            for h in hooks
             if h.stage_filter is None or h.stage_filter == current_stage
         ]
 
@@ -154,7 +160,12 @@ class HookManager:
 
         if self.verbose:
             stage_info = " [stage=%s]" % current_stage.value if current_stage else ""
-            logger.debug("Executing %d hook(s): %s%s", len(applicable_hooks), hook_type.value, stage_info)
+            logger.debug(
+                "Executing %d hook(s): %s%s",
+                len(applicable_hooks),
+                hook_type.value,
+                stage_info,
+            )
 
         for hook in applicable_hooks:
             try:

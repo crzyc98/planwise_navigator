@@ -28,7 +28,7 @@ class ProductionSafetySettings(BaseModel):
     # Database configuration
     db_path: str = Field(
         default_factory=lambda: str(get_database_path()),
-        description="Path to simulation database"
+        description="Path to simulation database",
     )
 
     # Backup configuration
@@ -71,14 +71,23 @@ class OrchestrationConfig(BaseModel):
     workforce: WorkforceSettings = Field(default_factory=WorkforceSettings)
     enrollment: EnrollmentSettings = Field(default_factory=EnrollmentSettings)
     eligibility: EligibilitySettings = Field(default_factory=EligibilitySettings)
-    plan_eligibility: PlanEligibilitySettings = Field(default_factory=PlanEligibilitySettings)
-    employer_match: Optional[EmployerMatchSettings] = Field(default=None, description="Employer match configuration")
+    plan_eligibility: PlanEligibilitySettings = Field(
+        default_factory=PlanEligibilitySettings
+    )
+    employer_match: Optional[EmployerMatchSettings] = Field(
+        default=None, description="Employer match configuration"
+    )
 
     # Performance optimization configuration
-    optimization: OptimizationSettings = Field(default_factory=OptimizationSettings, description="Performance optimization settings")
+    optimization: OptimizationSettings = Field(
+        default_factory=OptimizationSettings,
+        description="Performance optimization settings",
+    )
 
     # Production safety configuration
-    production_safety: ProductionSafetySettings = Field(default_factory=ProductionSafetySettings)
+    production_safety: ProductionSafetySettings = Field(
+        default_factory=ProductionSafetySettings
+    )
 
     # Enterprise identifiers
     scenario_id: Optional[str] = None

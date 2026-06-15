@@ -45,7 +45,9 @@ async def run_all_scenarios(
     logger.info(f"  workspace_id: {workspace_id}")
     logger.info(f"  data.name: {data.name}")
     logger.info(f"  data.scenario_ids: {data.scenario_ids}")
-    logger.info(f"  data.parallel: {data.parallel} (type: {type(data.parallel).__name__})")
+    logger.info(
+        f"  data.parallel: {data.parallel} (type: {type(data.parallel).__name__})"
+    )
     logger.info(f"  data.export_format: {data.export_format}")
 
     # Verify workspace exists
@@ -78,7 +80,9 @@ async def run_all_scenarios(
 
     # Create batch job
     batch_id = str(uuid.uuid4())
-    batch_name = data.name or f"Batch {datetime.now(timezone.utc).strftime('%Y-%m-%d %H:%M')}"
+    batch_name = (
+        data.name or f"Batch {datetime.now(timezone.utc).strftime('%Y-%m-%d %H:%M')}"
+    )
 
     batch_scenarios = [
         BatchScenario(
@@ -175,7 +179,9 @@ async def _execute_batch(
         """Run a single scenario and update batch status."""
         run_id = str(uuid.uuid4())
         start_time = datetime.now(timezone.utc)
-        logger.info(f"  [{start_time.strftime('%H:%M:%S.%f')}] [Scenario {index}] STARTED: {scenario.name}")
+        logger.info(
+            f"  [{start_time.strftime('%H:%M:%S.%f')}] [Scenario {index}] STARTED: {scenario.name}"
+        )
         batch_job.scenarios[index].status = "running"
 
         # Update scenario status in storage to "running"
@@ -198,14 +204,20 @@ async def _execute_batch(
             duration = (end_time - start_time).total_seconds()
             batch_job.scenarios[index].status = "completed"
             batch_job.scenarios[index].progress = 100
-            logger.info(f"  [{end_time.strftime('%H:%M:%S.%f')}] [Scenario {index}] COMPLETED: {scenario.name} (took {duration:.1f}s)")
+            logger.info(
+                f"  [{end_time.strftime('%H:%M:%S.%f')}] [Scenario {index}] COMPLETED: {scenario.name} (took {duration:.1f}s)"
+            )
 
             # Update scenario status in storage to "completed"
-            storage.update_scenario_status(workspace_id, scenario.id, "completed", run_id)
+            storage.update_scenario_status(
+                workspace_id, scenario.id, "completed", run_id
+            )
 
         except Exception as e:
             end_time = datetime.now(timezone.utc)
-            logger.error(f"  [{end_time.strftime('%H:%M:%S.%f')}] [Scenario {index}] FAILED: {scenario.name} - {e}")
+            logger.error(
+                f"  [{end_time.strftime('%H:%M:%S.%f')}] [Scenario {index}] FAILED: {scenario.name} - {e}"
+            )
             batch_job.scenarios[index].status = "failed"
             batch_job.scenarios[index].error_message = str(e)
             # Update scenario status in storage to "failed"
@@ -217,10 +229,7 @@ async def _execute_batch(
             # Run all scenarios in parallel
             logger.info("=== EXECUTING IN PARALLEL MODE ===")
             logger.info(f"  Creating {len(scenarios)} concurrent tasks...")
-            tasks = [
-                run_scenario(i, scenario)
-                for i, scenario in enumerate(scenarios)
-            ]
+            tasks = [run_scenario(i, scenario) for i, scenario in enumerate(scenarios)]
             logger.info("  Launching asyncio.gather for all tasks...")
             await asyncio.gather(*tasks, return_exceptions=True)
             logger.info("  All parallel tasks completed")
@@ -228,9 +237,13 @@ async def _execute_batch(
             # Run sequentially
             logger.info("=== EXECUTING IN SEQUENTIAL MODE ===")
             for i, scenario in enumerate(scenarios):
-                logger.info(f"  Starting scenario {i+1}/{len(scenarios)}: {scenario.name}")
+                logger.info(
+                    f"  Starting scenario {i+1}/{len(scenarios)}: {scenario.name}"
+                )
                 await run_scenario(i, scenario)
-                logger.info(f"  Completed scenario {i+1}/{len(scenarios)}: {scenario.name}")
+                logger.info(
+                    f"  Completed scenario {i+1}/{len(scenarios)}: {scenario.name}"
+                )
 
         # Check if all completed successfully
         all_completed = all(s.status == "completed" for s in batch_job.scenarios)

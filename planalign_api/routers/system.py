@@ -18,6 +18,7 @@ def get_active_simulation_count() -> int:
     """Get count of currently running simulations."""
     # Import here to avoid circular imports
     from .simulations import _active_runs
+
     return sum(1 for run in _active_runs.values() if run.status == "running")
 
 
@@ -95,7 +96,9 @@ async def system_status(settings: APISettings = Depends(get_settings)) -> System
         settings.workspaces_root
     )
     storage_limit_mb = settings.storage_limit_gb * 1024
-    storage_percent = (storage_mb / storage_limit_mb * 100) if storage_limit_mb > 0 else 0
+    storage_percent = (
+        (storage_mb / storage_limit_mb * 100) if storage_limit_mb > 0 else 0
+    )
 
     recommendations = []
     if storage_percent > 80:

@@ -42,6 +42,7 @@ class InitializationState(str, Enum):
         FAILED → IN_PROGRESS (on retry)
         COMPLETED → NOT_STARTED (if tables manually dropped)
     """
+
     NOT_STARTED = "not_started"
     IN_PROGRESS = "in_progress"
     COMPLETED = "completed"
@@ -59,6 +60,7 @@ class TableTier(str, Enum):
         1. All SEED tier tables are loaded first
         2. All FOUNDATION tier tables are built after seeds complete
     """
+
     SEED = "seed"
     FOUNDATION = "foundation"
 
@@ -78,6 +80,7 @@ class RequiredTable(BaseModel):
         ...     dbt_selector="config_age_bands"
         ... )
     """
+
     model_config = ConfigDict(frozen=True)
 
     name: str = Field(..., description="Table name in database")
@@ -90,41 +93,33 @@ class RequiredTable(BaseModel):
 REQUIRED_TABLES: List[RequiredTable] = [
     # Tier 1: Seeds (dbt seed)
     RequiredTable(
-        name="config_age_bands",
-        tier=TableTier.SEED,
-        dbt_selector="config_age_bands"
+        name="config_age_bands", tier=TableTier.SEED, dbt_selector="config_age_bands"
     ),
     RequiredTable(
         name="config_tenure_bands",
         tier=TableTier.SEED,
-        dbt_selector="config_tenure_bands"
+        dbt_selector="config_tenure_bands",
     ),
     RequiredTable(
-        name="config_job_levels",
-        tier=TableTier.SEED,
-        dbt_selector="config_job_levels"
+        name="config_job_levels", tier=TableTier.SEED, dbt_selector="config_job_levels"
     ),
-    RequiredTable(
-        name="comp_levers",
-        tier=TableTier.SEED,
-        dbt_selector="comp_levers"
-    ),
+    RequiredTable(name="comp_levers", tier=TableTier.SEED, dbt_selector="comp_levers"),
     RequiredTable(
         name="irs_contribution_limits",
         tier=TableTier.SEED,
-        dbt_selector="irs_contribution_limits"
+        dbt_selector="irs_contribution_limits",
     ),
     # Tier 2: Foundation models (dbt run --select tag:FOUNDATION)
     # These models already have tags=['FOUNDATION'] in their config
     RequiredTable(
         name="int_baseline_workforce",
         tier=TableTier.FOUNDATION,
-        dbt_selector="int_baseline_workforce"
+        dbt_selector="int_baseline_workforce",
     ),
     RequiredTable(
         name="int_employee_compensation_by_year",
         tier=TableTier.FOUNDATION,
-        dbt_selector="int_employee_compensation_by_year"
+        dbt_selector="int_employee_compensation_by_year",
     ),
 ]
 
@@ -152,6 +147,7 @@ class InitializationStep(BaseModel):
         >>> step.status
         'pending'
     """
+
     model_config = ConfigDict(validate_assignment=True)
 
     name: str = Field(..., description="Step identifier")
@@ -198,21 +194,13 @@ def create_standard_steps() -> List[InitializationStep]:
     """
     return [
         InitializationStep(
-            name="check_tables",
-            display_name="Checking database tables"
+            name="check_tables", display_name="Checking database tables"
         ),
+        InitializationStep(name="load_seeds", display_name="Loading seed data"),
         InitializationStep(
-            name="load_seeds",
-            display_name="Loading seed data"
+            name="build_foundation", display_name="Building foundation models"
         ),
-        InitializationStep(
-            name="build_foundation",
-            display_name="Building foundation models"
-        ),
-        InitializationStep(
-            name="verify",
-            display_name="Verifying initialization"
-        ),
+        InitializationStep(name="verify", display_name="Verifying initialization"),
     ]
 
 
@@ -241,6 +229,7 @@ class InitializationResult(BaseModel):
         >>> result.success
         True
     """
+
     state: InitializationState
     started_at: datetime
     completed_at: Optional[datetime] = None

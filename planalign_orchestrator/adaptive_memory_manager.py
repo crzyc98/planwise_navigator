@@ -37,6 +37,7 @@ from .logger import ProductionLogger
 
 class MemoryPressureLevel(Enum):
     """Memory pressure levels for adaptive management"""
+
     LOW = "low"
     MODERATE = "moderate"
     HIGH = "high"
@@ -45,6 +46,7 @@ class MemoryPressureLevel(Enum):
 
 class OptimizationLevel(Enum):
     """Optimization levels for memory management"""
+
     LOW = "low"
     MEDIUM = "medium"
     HIGH = "high"
@@ -54,6 +56,7 @@ class OptimizationLevel(Enum):
 @dataclass
 class MemorySnapshot:
     """Point-in-time memory usage snapshot"""
+
     timestamp: datetime
     rss_mb: float
     vms_mb: float
@@ -68,6 +71,7 @@ class MemorySnapshot:
 @dataclass
 class BatchSizeConfig:
     """Batch size configuration for different optimization levels"""
+
     low: int = 250
     medium: int = 500
     high: int = 1000
@@ -79,15 +83,16 @@ class BatchSizeConfig:
             OptimizationLevel.LOW: self.low,
             OptimizationLevel.MEDIUM: self.medium,
             OptimizationLevel.HIGH: self.high,
-            OptimizationLevel.FALLBACK: self.fallback
+            OptimizationLevel.FALLBACK: self.fallback,
         }[level]
 
 
 @dataclass
 class MemoryThresholds:
     """Memory pressure thresholds in MB"""
+
     moderate_mb: float = 2000.0  # 2GB
-    high_mb: float = 3000.0      # 3GB
+    high_mb: float = 3000.0  # 3GB
     critical_mb: float = 3500.0  # 3.5GB
     gc_trigger_mb: float = 2500.0  # 2.5GB
     fallback_trigger_mb: float = 3200.0  # 3.2GB
@@ -96,6 +101,7 @@ class MemoryThresholds:
 @dataclass
 class AdaptiveConfig:
     """Configuration for adaptive memory management"""
+
     enabled: bool = True
     monitoring_interval_seconds: float = 1.0
     history_size: int = 100
@@ -111,7 +117,9 @@ class AdaptiveConfig:
 
     # Memory leak detection
     leak_detection_enabled: bool = True
-    leak_threshold_mb: float = 800.0  # 800MB growth threshold (tuned for simulation workloads)
+    leak_threshold_mb: float = (
+        800.0  # 800MB growth threshold (tuned for simulation workloads)
+    )
     leak_window_minutes: int = 15
 
 
@@ -125,7 +133,7 @@ class MemoryRecommendation:
         action: str,
         priority: str = "medium",
         estimated_savings_mb: Optional[float] = None,
-        confidence: float = 0.7
+        confidence: float = 0.7,
     ):
         self.type = recommendation_type
         self.description = description
@@ -143,7 +151,7 @@ class MemoryRecommendation:
             "priority": self.priority,
             "estimated_savings_mb": self.estimated_savings_mb,
             "confidence": self.confidence,
-            "timestamp": self.timestamp.isoformat()
+            "timestamp": self.timestamp.isoformat(),
         }
 
 
@@ -160,7 +168,7 @@ class AdaptiveMemoryManager:
         config: AdaptiveConfig,
         logger: ProductionLogger,
         *,
-        reports_dir: Path = Path("reports/memory")
+        reports_dir: Path = Path("reports/memory"),
     ):
         self.config = config
         self.logger = logger
@@ -175,7 +183,9 @@ class AdaptiveMemoryManager:
 
         # Adaptive state
         self._current_optimization_level = OptimizationLevel.MEDIUM
-        self._current_batch_size = config.batch_sizes.get_size(self._current_optimization_level)
+        self._current_batch_size = config.batch_sizes.get_size(
+            self._current_optimization_level
+        )
         self._fallback_active = False
         self._gc_count = 0
 
@@ -192,7 +202,7 @@ class AdaptiveMemoryManager:
             "automatic_fallbacks": 0,
             "batch_size_adjustments": 0,
             "memory_warnings": 0,
-            "critical_events": 0
+            "critical_events": 0,
         }
 
         self.logger.info(
@@ -208,9 +218,7 @@ class AdaptiveMemoryManager:
 
         self._monitoring_active = True
         self._monitoring_thread = threading.Thread(
-            target=self._monitoring_loop,
-            daemon=True,
-            name="AdaptiveMemoryMonitor"
+            target=self._monitoring_loop, daemon=True, name="AdaptiveMemoryMonitor"
         )
         self._monitoring_thread.start()
         self.logger.info("Started adaptive memory monitoring")
@@ -251,7 +259,9 @@ class AdaptiveMemoryManager:
             pressure_level = self._calculate_pressure_level(rss_mb, available_mb)
 
             # GC stats
-            gc_collections = sum(gc.get_stats()[i]['collections'] for i in range(len(gc.get_stats())))
+            gc_collections = sum(
+                gc.get_stats()[i]["collections"] for i in range(len(gc.get_stats()))
+            )
 
             snapshot = MemorySnapshot(
                 timestamp=datetime.now(timezone.utc),
@@ -262,7 +272,7 @@ class AdaptiveMemoryManager:
                 pressure_level=pressure_level,
                 gc_collections=gc_collections,
                 batch_size=self._current_batch_size,
-                operation=operation
+                operation=operation,
             )
 
             self._history.append(snapshot)
@@ -280,18 +290,26 @@ class AdaptiveMemoryManager:
                 pressure_level=MemoryPressureLevel.LOW,
                 gc_collections=0,
                 batch_size=self._current_batch_size,
-                operation=operation
+                operation=operation,
             )
 
-    def _calculate_pressure_level(self, rss_mb: float, available_mb: float) -> MemoryPressureLevel:
+    def _calculate_pressure_level(
+        self, rss_mb: float, available_mb: float
+    ) -> MemoryPressureLevel:
         """Calculate memory pressure level"""
         thresholds = self.config.thresholds
 
-        if rss_mb >= thresholds.critical_mb or available_mb < 500:  # Less than 500MB available
+        if (
+            rss_mb >= thresholds.critical_mb or available_mb < 500
+        ):  # Less than 500MB available
             return MemoryPressureLevel.CRITICAL
-        elif rss_mb >= thresholds.high_mb or available_mb < 1000:  # Less than 1GB available
+        elif (
+            rss_mb >= thresholds.high_mb or available_mb < 1000
+        ):  # Less than 1GB available
             return MemoryPressureLevel.HIGH
-        elif rss_mb >= thresholds.moderate_mb or available_mb < 2000:  # Less than 2GB available
+        elif (
+            rss_mb >= thresholds.moderate_mb or available_mb < 2000
+        ):  # Less than 2GB available
             return MemoryPressureLevel.MODERATE
         else:
             return MemoryPressureLevel.LOW
@@ -299,8 +317,10 @@ class AdaptiveMemoryManager:
     def _process_snapshot(self, snapshot: MemorySnapshot) -> None:
         """Process a memory snapshot and take adaptive actions"""
         # Trigger garbage collection if needed
-        if (self.config.auto_gc_enabled and
-            snapshot.rss_mb >= self.config.thresholds.gc_trigger_mb):
+        if (
+            self.config.auto_gc_enabled
+            and snapshot.rss_mb >= self.config.thresholds.gc_trigger_mb
+        ):
             self._trigger_garbage_collection(snapshot)
 
         # Adjust batch size based on pressure
@@ -322,7 +342,10 @@ class AdaptiveMemoryManager:
         self._update_recommendations(snapshot)
 
         # Log warnings for high pressure
-        if snapshot.pressure_level in (MemoryPressureLevel.HIGH, MemoryPressureLevel.CRITICAL):
+        if snapshot.pressure_level in (
+            MemoryPressureLevel.HIGH,
+            MemoryPressureLevel.CRITICAL,
+        ):
             self._log_memory_warning(snapshot)
 
     def _trigger_garbage_collection(self, snapshot: MemorySnapshot) -> None:
@@ -344,7 +367,7 @@ class AdaptiveMemoryManager:
             post_gc_memory_mb=round(post_snapshot.rss_mb, 1),
             memory_freed_mb=round(memory_freed, 1),
             objects_collected=collected,
-            pressure_level=snapshot.pressure_level.value
+            pressure_level=snapshot.pressure_level.value,
         )
 
     def _adjust_batch_size(self, snapshot: MemorySnapshot) -> None:
@@ -354,7 +377,10 @@ class AdaptiveMemoryManager:
 
         # Determine optimal optimization level
         if snapshot.pressure_level == MemoryPressureLevel.CRITICAL:
-            if self.config.fallback_enabled and snapshot.rss_mb >= self.config.thresholds.fallback_trigger_mb:
+            if (
+                self.config.fallback_enabled
+                and snapshot.rss_mb >= self.config.thresholds.fallback_trigger_mb
+            ):
                 new_level = OptimizationLevel.FALLBACK
                 if not self._fallback_active:
                     self._fallback_active = True
@@ -385,7 +411,7 @@ class AdaptiveMemoryManager:
                 new_batch_size=self._current_batch_size,
                 memory_mb=round(snapshot.rss_mb, 1),
                 pressure_level=snapshot.pressure_level.value,
-                fallback_active=self._fallback_active
+                fallback_active=self._fallback_active,
             )
 
     def _check_memory_leaks(self, snapshot: MemorySnapshot) -> None:
@@ -398,8 +424,7 @@ class AdaptiveMemoryManager:
         cutoff_time = datetime.now(timezone.utc).timestamp() - (window_minutes * 60)
 
         recent_snapshots = [
-            s for s in self._history
-            if s.timestamp.timestamp() >= cutoff_time
+            s for s in self._history if s.timestamp.timestamp() >= cutoff_time
         ]
 
         if len(recent_snapshots) < 10:
@@ -412,7 +437,7 @@ class AdaptiveMemoryManager:
 
         # More sophisticated leak detection
         # 1. Check if growth is consistently increasing (not just temporary spikes)
-        midpoint_memory = recent_snapshots[len(recent_snapshots)//2].rss_mb
+        midpoint_memory = recent_snapshots[len(recent_snapshots) // 2].rss_mb
         early_growth = midpoint_memory - start_memory
         late_growth = current_memory - midpoint_memory
 
@@ -422,24 +447,27 @@ class AdaptiveMemoryManager:
 
         # 3. Don't report during active processing (when batch size adjustments are happening)
         recent_pressure_levels = [s.pressure_level for s in recent_snapshots[-5:]]
-        is_under_pressure = any(level != MemoryPressureLevel.LOW for level in recent_pressure_levels)
+        is_under_pressure = any(
+            level != MemoryPressureLevel.LOW for level in recent_pressure_levels
+        )
 
         # Only report leak if all conditions are met and not under active memory pressure
         if is_substantial_growth and is_consistent_growth and not is_under_pressure:
             # Additional check: has a recommendation been made recently?
             recent_leak_recommendations = [
-                r for r in self._recommendations[-5:]
-                if r.type == "memory_leak"
+                r for r in self._recommendations[-5:] if r.type == "memory_leak"
             ]
 
-            if not recent_leak_recommendations:  # Only report if no recent leak warnings
+            if (
+                not recent_leak_recommendations
+            ):  # Only report if no recent leak warnings
                 recommendation = MemoryRecommendation(
                     "memory_leak",
                     f"Sustained memory growth detected: {growth:.1f}MB over {window_minutes} minutes",
                     "Consider memory profiling and garbage collection optimization",
                     priority="medium",  # Reduced priority since it's smarter detection
                     estimated_savings_mb=growth * 0.5,
-                    confidence=0.7
+                    confidence=0.7,
                 )
                 self._recommendations.append(recommendation)
 
@@ -465,7 +493,9 @@ class AdaptiveMemoryManager:
     def _update_recommendations(self, snapshot: MemorySnapshot) -> None:
         """Update optimization recommendations based on patterns"""
         # Only generate recommendations periodically
-        time_since_last = (datetime.now(timezone.utc) - self._last_recommendation_time).total_seconds()
+        time_since_last = (
+            datetime.now(timezone.utc) - self._last_recommendation_time
+        ).total_seconds()
         if time_since_last < self.config.recommendation_window_minutes * 60:
             return
 
@@ -473,35 +503,49 @@ class AdaptiveMemoryManager:
             return
 
         # Analyze recent memory patterns
-        recent_snapshots = list(self._history)[-self.config.min_samples_for_recommendation:]
+        recent_snapshots = list(self._history)[
+            -self.config.min_samples_for_recommendation :
+        ]
 
         # Calculate statistics
         avg_memory = sum(s.rss_mb for s in recent_snapshots) / len(recent_snapshots)
         max_memory = max(s.rss_mb for s in recent_snapshots)
         pressure_counts = {}
         for s in recent_snapshots:
-            pressure_counts[s.pressure_level] = pressure_counts.get(s.pressure_level, 0) + 1
+            pressure_counts[s.pressure_level] = (
+                pressure_counts.get(s.pressure_level, 0) + 1
+            )
 
         # Generate recommendations
         recommendations = []
 
         # High memory usage pattern
         if avg_memory > self.config.thresholds.moderate_mb:
-            if pressure_counts.get(MemoryPressureLevel.HIGH, 0) > len(recent_snapshots) * 0.3:
+            if (
+                pressure_counts.get(MemoryPressureLevel.HIGH, 0)
+                > len(recent_snapshots) * 0.3
+            ):
                 recommendations.append(
                     MemoryRecommendation(
                         "high_memory_pattern",
                         f"Consistent high memory usage detected (avg: {avg_memory:.1f}MB)",
                         "Consider reducing batch sizes permanently or optimizing data processing",
                         priority="high",
-                        estimated_savings_mb=(avg_memory - self.config.thresholds.moderate_mb) * 0.5,
-                        confidence=0.85
+                        estimated_savings_mb=(
+                            avg_memory - self.config.thresholds.moderate_mb
+                        )
+                        * 0.5,
+                        confidence=0.85,
                     )
                 )
 
         # Frequent garbage collection
-        gc_frequency = sum(1 for s in recent_snapshots[1:]
-                          if s.gc_collections > recent_snapshots[recent_snapshots.index(s)-1].gc_collections)
+        gc_frequency = sum(
+            1
+            for s in recent_snapshots[1:]
+            if s.gc_collections
+            > recent_snapshots[recent_snapshots.index(s) - 1].gc_collections
+        )
         if gc_frequency > len(recent_snapshots) * 0.5:
             recommendations.append(
                 MemoryRecommendation(
@@ -510,7 +554,7 @@ class AdaptiveMemoryManager:
                     "Consider optimizing object lifecycle management and reducing temporary allocations",
                     priority="medium",
                     estimated_savings_mb=200.0,
-                    confidence=0.7
+                    confidence=0.7,
                 )
             )
 
@@ -522,8 +566,9 @@ class AdaptiveMemoryManager:
                     f"Peak memory usage reached {max_memory:.1f}MB",
                     "Consider enabling permanent fallback mode for this workload",
                     priority="medium",
-                    estimated_savings_mb=max_memory - self.config.batch_sizes.fallback * 2,
-                    confidence=0.6
+                    estimated_savings_mb=max_memory
+                    - self.config.batch_sizes.fallback * 2,
+                    confidence=0.6,
                 )
             )
 
@@ -534,8 +579,7 @@ class AdaptiveMemoryManager:
 
             for rec in recommendations:
                 self.logger.info(
-                    f"Memory optimization recommendation: {rec.type}",
-                    **rec.to_dict()
+                    f"Memory optimization recommendation: {rec.type}", **rec.to_dict()
                 )
 
     def get_current_batch_size(self) -> int:
@@ -562,7 +606,11 @@ class AdaptiveMemoryManager:
         current_snapshot = self._take_memory_snapshot("statistics")
 
         # Calculate trends from history
-        recent_history = list(self._history)[-20:] if len(self._history) >= 20 else list(self._history)
+        recent_history = (
+            list(self._history)[-20:]
+            if len(self._history) >= 20
+            else list(self._history)
+        )
 
         if len(recent_history) >= 2:
             memory_trend = recent_history[-1].rss_mb - recent_history[0].rss_mb
@@ -580,17 +628,17 @@ class AdaptiveMemoryManager:
                 "pressure_level": current_snapshot.pressure_level.value,
                 "batch_size": current_snapshot.batch_size,
                 "optimization_level": self._current_optimization_level.value,
-                "fallback_active": self._fallback_active
+                "fallback_active": self._fallback_active,
             },
             "trends": {
                 "avg_memory_mb": round(avg_memory, 1),
                 "peak_memory_mb": round(peak_memory, 1),
                 "memory_trend_mb": round(memory_trend, 1),
-                "samples_count": len(self._history)
+                "samples_count": len(self._history),
             },
             "stats": self._stats.copy(),
             "recommendations_count": len(self._recommendations),
-            "monitoring_active": self._monitoring_active
+            "monitoring_active": self._monitoring_active,
         }
 
     def get_recommendations(self, *, recent_only: bool = True) -> List[Dict[str, Any]]:
@@ -599,8 +647,7 @@ class AdaptiveMemoryManager:
             # Only return recommendations from last hour
             cutoff = datetime.now(timezone.utc).timestamp() - 3600
             recommendations = [
-                r for r in self._recommendations
-                if r.timestamp.timestamp() >= cutoff
+                r for r in self._recommendations if r.timestamp.timestamp() >= cutoff
             ]
         else:
             recommendations = self._recommendations
@@ -610,7 +657,7 @@ class AdaptiveMemoryManager:
     def export_memory_profile(self, filepath: Optional[Path] = None) -> Path:
         """Export detailed memory profile for analysis"""
         if filepath is None:
-            timestamp = datetime.now(timezone.utc).strftime('%Y%m%d_%H%M%S')
+            timestamp = datetime.now(timezone.utc).strftime("%Y%m%d_%H%M%S")
             filepath = self.reports_dir / f"memory_profile_{timestamp}.json"
 
         profile_data = {
@@ -620,17 +667,17 @@ class AdaptiveMemoryManager:
                     "thresholds_mb": {
                         "moderate": self.config.thresholds.moderate_mb,
                         "high": self.config.thresholds.high_mb,
-                        "critical": self.config.thresholds.critical_mb
+                        "critical": self.config.thresholds.critical_mb,
                     },
                     "batch_sizes": {
                         "low": self.config.batch_sizes.low,
                         "medium": self.config.batch_sizes.medium,
                         "high": self.config.batch_sizes.high,
-                        "fallback": self.config.batch_sizes.fallback
+                        "fallback": self.config.batch_sizes.fallback,
                     },
                     "monitoring_interval_seconds": self.config.monitoring_interval_seconds,
-                    "history_size": self.config.history_size
-                }
+                    "history_size": self.config.history_size,
+                },
             },
             "statistics": self.get_memory_statistics(),
             "history": [
@@ -643,14 +690,14 @@ class AdaptiveMemoryManager:
                     "pressure_level": s.pressure_level.value,
                     "gc_collections": s.gc_collections,
                     "batch_size": s.batch_size,
-                    "operation": s.operation
+                    "operation": s.operation,
                 }
                 for s in self._history
             ],
-            "recommendations": self.get_recommendations(recent_only=False)
+            "recommendations": self.get_recommendations(recent_only=False),
         }
 
-        with open(filepath, 'w') as f:
+        with open(filepath, "w") as f:
             json.dump(profile_data, f, indent=2)
 
         self.logger.info(f"Memory profile exported to {filepath}")
@@ -663,7 +710,7 @@ class AdaptiveMemoryManager:
             "automatic_fallbacks": 0,
             "batch_size_adjustments": 0,
             "memory_warnings": 0,
-            "critical_events": 0
+            "critical_events": 0,
         }
         self._recommendations.clear()
         self.logger.info("Memory management statistics reset")
@@ -682,7 +729,7 @@ def create_adaptive_memory_manager(
     optimization_level: OptimizationLevel = OptimizationLevel.MEDIUM,
     memory_limit_gb: Optional[float] = None,
     logger: Optional[ProductionLogger] = None,
-    **config_overrides
+    **config_overrides,
 ) -> AdaptiveMemoryManager:
     """
     Factory function to create configured AdaptiveMemoryManager
@@ -699,8 +746,8 @@ def create_adaptive_memory_manager(
     # Calculate thresholds based on memory limit
     if memory_limit_gb:
         moderate_mb = memory_limit_gb * 1024 * 0.5  # 50% of limit
-        high_mb = memory_limit_gb * 1024 * 0.75     # 75% of limit
-        critical_mb = memory_limit_gb * 1024 * 0.9   # 90% of limit
+        high_mb = memory_limit_gb * 1024 * 0.75  # 75% of limit
+        critical_mb = memory_limit_gb * 1024 * 0.9  # 90% of limit
         gc_trigger_mb = memory_limit_gb * 1024 * 0.6  # 60% of limit
         fallback_trigger_mb = memory_limit_gb * 1024 * 0.8  # 80% of limit
     else:
@@ -718,14 +765,15 @@ def create_adaptive_memory_manager(
             high_mb=high_mb,
             critical_mb=critical_mb,
             gc_trigger_mb=gc_trigger_mb,
-            fallback_trigger_mb=fallback_trigger_mb
+            fallback_trigger_mb=fallback_trigger_mb,
         ),
-        **config_overrides
+        **config_overrides,
     )
 
     # Create logger if not provided
     if logger is None:
         from .logger import ProductionLogger
+
         logger = ProductionLogger("AdaptiveMemoryManager")
 
     return AdaptiveMemoryManager(config, logger)

@@ -43,9 +43,7 @@ def cleanup_years_outside_range(
     try:
         conn = duckdb.connect(str(db_path))
 
-        existing_tables = {
-            row[0] for row in conn.execute("SHOW TABLES").fetchall()
-        }
+        existing_tables = {row[0] for row in conn.execute("SHOW TABLES").fetchall()}
 
         for table in TABLES_WITH_YEAR:
             if table not in existing_tables:

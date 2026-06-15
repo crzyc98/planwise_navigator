@@ -59,9 +59,11 @@ def assert_json_parseable(json_str: str, error_msg: str = "") -> Dict[str, Any]:
         raise AssertionError(msg) from e
 
 
-def assert_decimal_in_dict_converted(original_dict: Dict[str, Any],
-                                    converted_dict: Dict[str, Any],
-                                    decimal_keys: List[str]) -> None:
+def assert_decimal_in_dict_converted(
+    original_dict: Dict[str, Any],
+    converted_dict: Dict[str, Any],
+    decimal_keys: List[str],
+) -> None:
     """
     Assert that Decimal values in specified keys have been converted to floats.
 
@@ -94,8 +96,9 @@ def assert_decimal_in_dict_converted(original_dict: Dict[str, Any],
                 )
 
 
-def validate_decimal_to_float_conversion(original: Decimal,
-                                        converted: Union[float, int]) -> None:
+def validate_decimal_to_float_conversion(
+    original: Decimal, converted: Union[float, int]
+) -> None:
     """
     Validate that a Decimal was properly converted to float.
 
@@ -112,9 +115,7 @@ def validate_decimal_to_float_conversion(original: Decimal,
         >>> validate_decimal_to_float_conversion(Decimal("100.50"), 100.5)
     """
     if not isinstance(converted, (float, int)):
-        raise AssertionError(
-            f"Expected float or int, got {type(converted).__name__}"
-        )
+        raise AssertionError(f"Expected float or int, got {type(converted).__name__}")
 
     # Allow for floating-point precision differences
     original_float = float(original)

@@ -55,7 +55,11 @@ class TelemetryEmitter:
             (HookType.PRE_STAGE, self.on_stage_started, "telemetry_stage_started"),
             (HookType.POST_STAGE, self.on_stage_completed, "telemetry_stage_completed"),
             (HookType.POST_YEAR, self.on_year_completed, "telemetry_year_completed"),
-            (HookType.POST_SIMULATION, self.on_run_completed, "telemetry_run_completed"),
+            (
+                HookType.POST_SIMULATION,
+                self.on_run_completed,
+                "telemetry_run_completed",
+            ),
         ]
         for hook_type, callback, name in callbacks:
             hook_manager.register_hook(
@@ -174,7 +178,9 @@ class TelemetryEmitter:
         try:
             line = SENTINEL + json.dumps(record, separators=(",", ":"), default=str)
             if len(line.encode("utf-8")) > _MAX_RECORD_BYTES:
-                logger.warning("Telemetry record exceeds %d bytes; dropped", _MAX_RECORD_BYTES)
+                logger.warning(
+                    "Telemetry record exceeds %d bytes; dropped", _MAX_RECORD_BYTES
+                )
                 return
             self.stream.write(line + "\n")
             self.stream.flush()

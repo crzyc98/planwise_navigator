@@ -26,53 +26,21 @@ logger = logging.getLogger(__name__)
 
 # Pre-defined vesting schedules (T014)
 VESTING_SCHEDULES: dict[VestingScheduleType, dict[int, float]] = {
-    VestingScheduleType.IMMEDIATE: {
-        0: 1.0
-    },
-    VestingScheduleType.CLIFF_2_YEAR: {
-        0: 0.0,
-        1: 0.0,
-        2: 1.0
-    },
-    VestingScheduleType.CLIFF_3_YEAR: {
-        0: 0.0,
-        1: 0.0,
-        2: 0.0,
-        3: 1.0
-    },
-    VestingScheduleType.CLIFF_4_YEAR: {
-        0: 0.0,
-        1: 0.0,
-        2: 0.0,
-        3: 0.0,
-        4: 1.0
-    },
-    VestingScheduleType.QACA_2_YEAR: {
-        0: 0.0,
-        1: 0.0,
-        2: 1.0
-    },
-    VestingScheduleType.GRADED_3_YEAR: {
-        0: 0.0,
-        1: 0.3333,
-        2: 0.6667,
-        3: 1.0
-    },
-    VestingScheduleType.GRADED_4_YEAR: {
-        0: 0.0,
-        1: 0.25,
-        2: 0.50,
-        3: 0.75,
-        4: 1.0
-    },
+    VestingScheduleType.IMMEDIATE: {0: 1.0},
+    VestingScheduleType.CLIFF_2_YEAR: {0: 0.0, 1: 0.0, 2: 1.0},
+    VestingScheduleType.CLIFF_3_YEAR: {0: 0.0, 1: 0.0, 2: 0.0, 3: 1.0},
+    VestingScheduleType.CLIFF_4_YEAR: {0: 0.0, 1: 0.0, 2: 0.0, 3: 0.0, 4: 1.0},
+    VestingScheduleType.QACA_2_YEAR: {0: 0.0, 1: 0.0, 2: 1.0},
+    VestingScheduleType.GRADED_3_YEAR: {0: 0.0, 1: 0.3333, 2: 0.6667, 3: 1.0},
+    VestingScheduleType.GRADED_4_YEAR: {0: 0.0, 1: 0.25, 2: 0.50, 3: 0.75, 4: 1.0},
     VestingScheduleType.GRADED_5_YEAR: {
         0: 0.0,
         1: 0.20,
         2: 0.40,
         3: 0.60,
         4: 0.80,
-        5: 1.0
-    }
+        5: 1.0,
+    },
 }
 
 
@@ -82,50 +50,50 @@ SCHEDULE_INFO: dict[VestingScheduleType, VestingScheduleInfo] = {
         schedule_type=VestingScheduleType.IMMEDIATE,
         name="Immediate",
         description="100% vested from day one",
-        percentages={0: 1.0}
+        percentages={0: 1.0},
     ),
     VestingScheduleType.CLIFF_2_YEAR: VestingScheduleInfo(
         schedule_type=VestingScheduleType.CLIFF_2_YEAR,
         name="2-Year Cliff",
         description="0% until 2 years, then 100%",
-        percentages={0: 0.0, 1: 0.0, 2: 1.0}
+        percentages={0: 0.0, 1: 0.0, 2: 1.0},
     ),
     VestingScheduleType.CLIFF_3_YEAR: VestingScheduleInfo(
         schedule_type=VestingScheduleType.CLIFF_3_YEAR,
         name="3-Year Cliff",
         description="0% until 3 years, then 100%",
-        percentages={0: 0.0, 1: 0.0, 2: 0.0, 3: 1.0}
+        percentages={0: 0.0, 1: 0.0, 2: 0.0, 3: 1.0},
     ),
     VestingScheduleType.CLIFF_4_YEAR: VestingScheduleInfo(
         schedule_type=VestingScheduleType.CLIFF_4_YEAR,
         name="4-Year Cliff",
         description="0% until 4 years, then 100%",
-        percentages={0: 0.0, 1: 0.0, 2: 0.0, 3: 0.0, 4: 1.0}
+        percentages={0: 0.0, 1: 0.0, 2: 0.0, 3: 0.0, 4: 1.0},
     ),
     VestingScheduleType.QACA_2_YEAR: VestingScheduleInfo(
         schedule_type=VestingScheduleType.QACA_2_YEAR,
         name="QACA 2-Year",
         description="0% until 2 years, then 100%",
-        percentages={0: 0.0, 1: 0.0, 2: 1.0}
+        percentages={0: 0.0, 1: 0.0, 2: 1.0},
     ),
     VestingScheduleType.GRADED_3_YEAR: VestingScheduleInfo(
         schedule_type=VestingScheduleType.GRADED_3_YEAR,
         name="3-Year Graded",
         description="33.33% per year from year 1-3",
-        percentages={0: 0.0, 1: 0.3333, 2: 0.6667, 3: 1.0}
+        percentages={0: 0.0, 1: 0.3333, 2: 0.6667, 3: 1.0},
     ),
     VestingScheduleType.GRADED_4_YEAR: VestingScheduleInfo(
         schedule_type=VestingScheduleType.GRADED_4_YEAR,
         name="4-Year Graded",
         description="25% per year from year 1-4",
-        percentages={0: 0.0, 1: 0.25, 2: 0.50, 3: 0.75, 4: 1.0}
+        percentages={0: 0.0, 1: 0.25, 2: 0.50, 3: 0.75, 4: 1.0},
     ),
     VestingScheduleType.GRADED_5_YEAR: VestingScheduleInfo(
         schedule_type=VestingScheduleType.GRADED_5_YEAR,
         name="5-Year Graded",
         description="20% per year from year 1-5",
-        percentages={0: 0.0, 1: 0.20, 2: 0.40, 3: 0.60, 4: 0.80, 5: 1.0}
-    )
+        percentages={0: 0.0, 1: 0.20, 2: 0.40, 3: 0.60, 4: 0.80, 5: 1.0},
+    ),
 }
 
 
@@ -134,7 +102,7 @@ def get_vesting_percentage(
     tenure_years: float,
     annual_hours: Optional[int] = None,
     require_hours: bool = False,
-    hours_threshold: int = 1000
+    hours_threshold: int = 1000,
 ) -> Decimal:
     """
     Calculate vesting percentage for a given schedule and tenure (T016).
@@ -166,10 +134,7 @@ def get_vesting_percentage(
     return Decimal(str(schedule.get(effective_tenure, schedule[max_year])))
 
 
-def calculate_forfeiture(
-    total_contributions: Decimal,
-    vesting_pct: Decimal
-) -> Decimal:
+def calculate_forfeiture(total_contributions: Decimal, vesting_pct: Decimal) -> Decimal:
     """Calculate forfeiture amount (T017)."""
     unvested = Decimal("1.0") - vesting_pct
     return (total_contributions * unvested).quantize(Decimal("0.01"))
@@ -177,9 +142,7 @@ def calculate_forfeiture(
 
 def get_schedule_list() -> VestingScheduleListResponse:
     """Return list of all available vesting schedules (T018)."""
-    return VestingScheduleListResponse(
-        schedules=list(SCHEDULE_INFO.values())
-    )
+    return VestingScheduleListResponse(schedules=list(SCHEDULE_INFO.values()))
 
 
 class VestingService:
@@ -271,9 +234,13 @@ class VestingService:
         """
         result = conn.execute(query, [year, year]).fetchall()
         columns = [
-            'employee_id', 'employee_hire_date', 'termination_date',
-            'current_tenure', 'tenure_band', 'total_employer_contributions',
-            'annual_hours_worked'
+            "employee_id",
+            "employee_hire_date",
+            "termination_date",
+            "current_tenure",
+            "tenure_band",
+            "total_employer_contributions",
+            "annual_hours_worked",
         ]
         return [dict(zip(columns, row)) for row in result]
 
@@ -281,14 +248,14 @@ class VestingService:
         self,
         employees: List[dict],
         current_schedule: VestingScheduleConfig,
-        proposed_schedule: VestingScheduleConfig
+        proposed_schedule: VestingScheduleConfig,
     ) -> List[EmployeeVestingDetail]:
         """Calculate vesting details for each employee (T026)."""
         details = []
         for emp in employees:
-            tenure = emp['current_tenure'] or 0
-            contributions = Decimal(str(emp['total_employer_contributions']))
-            hours = emp['annual_hours_worked'] or 0
+            tenure = emp["current_tenure"] or 0
+            contributions = Decimal(str(emp["total_employer_contributions"]))
+            hours = emp["annual_hours_worked"] or 0
 
             # Calculate current schedule vesting
             current_pct = get_vesting_percentage(
@@ -296,7 +263,7 @@ class VestingService:
                 tenure,
                 hours,
                 current_schedule.require_hours_credit,
-                current_schedule.hours_threshold
+                current_schedule.hours_threshold,
             )
             current_vested = (contributions * current_pct).quantize(Decimal("0.01"))
             current_forfeiture = calculate_forfeiture(contributions, current_pct)
@@ -307,7 +274,7 @@ class VestingService:
                 tenure,
                 hours,
                 proposed_schedule.require_hours_credit,
-                proposed_schedule.hours_threshold
+                proposed_schedule.hours_threshold,
             )
             proposed_vested = (contributions * proposed_pct).quantize(Decimal("0.01"))
             proposed_forfeiture = calculate_forfeiture(contributions, proposed_pct)
@@ -316,11 +283,15 @@ class VestingService:
             variance = proposed_forfeiture - current_forfeiture
 
             detail = EmployeeVestingDetail(
-                employee_id=emp['employee_id'],
-                hire_date=emp['employee_hire_date'].date() if hasattr(emp['employee_hire_date'], 'date') else emp['employee_hire_date'],
-                termination_date=emp['termination_date'].date() if hasattr(emp['termination_date'], 'date') else emp['termination_date'],
+                employee_id=emp["employee_id"],
+                hire_date=emp["employee_hire_date"].date()
+                if hasattr(emp["employee_hire_date"], "date")
+                else emp["employee_hire_date"],
+                termination_date=emp["termination_date"].date()
+                if hasattr(emp["termination_date"], "date")
+                else emp["termination_date"],
                 tenure_years=int(tenure),
-                tenure_band=emp['tenure_band'] or 'Unknown',
+                tenure_band=emp["tenure_band"] or "Unknown",
                 annual_hours_worked=hours,
                 total_employer_contributions=contributions,
                 current_vesting_pct=current_pct,
@@ -329,16 +300,14 @@ class VestingService:
                 proposed_vesting_pct=proposed_pct,
                 proposed_vested_amount=proposed_vested,
                 proposed_forfeiture=proposed_forfeiture,
-                forfeiture_variance=variance
+                forfeiture_variance=variance,
             )
             details.append(detail)
 
         return details
 
     def _build_summary(
-        self,
-        details: List[EmployeeVestingDetail],
-        year: int
+        self, details: List[EmployeeVestingDetail], year: int
     ) -> VestingAnalysisSummary:
         """Build summary statistics from employee details (T027)."""
         if not details:
@@ -351,7 +320,7 @@ class VestingService:
                 proposed_total_vested=Decimal("0"),
                 proposed_total_forfeited=Decimal("0"),
                 forfeiture_variance=Decimal("0"),
-                forfeiture_variance_pct=Decimal("0")
+                forfeiture_variance_pct=Decimal("0"),
             )
 
         total_contributions = sum(d.total_employer_contributions for d in details)
@@ -363,7 +332,9 @@ class VestingService:
 
         # Calculate percentage change
         if current_forfeited > 0:
-            variance_pct = (variance / current_forfeited * 100).quantize(Decimal("0.01"))
+            variance_pct = (variance / current_forfeited * 100).quantize(
+                Decimal("0.01")
+            )
         else:
             variance_pct = Decimal("0") if variance == 0 else Decimal("100")
 
@@ -376,7 +347,7 @@ class VestingService:
             proposed_total_vested=proposed_vested,
             proposed_total_forfeited=proposed_forfeited,
             forfeiture_variance=variance,
-            forfeiture_variance_pct=variance_pct
+            forfeiture_variance_pct=variance_pct,
         )
 
     def _tenure_band_sort_key(self, band: str) -> int:
@@ -385,18 +356,18 @@ class VestingService:
         Handles formats like: '<2', '2-4', '5-9', '10-19', '20+'
         """
         import re
+
         # Extract first number from the band string
-        match = re.search(r'\d+', band)
+        match = re.search(r"\d+", band)
         if match:
             return int(match.group())
         # '<2' or similar - sort first
-        if '<' in band:
+        if "<" in band:
             return 0
         return 999  # Unknown format goes last
 
     def _aggregate_by_tenure_band(
-        self,
-        details: List[EmployeeVestingDetail]
+        self, details: List[EmployeeVestingDetail]
     ) -> List[TenureBandSummary]:
         """Aggregate forfeitures by tenure band (T028)."""
         bands: dict[str, dict] = {}
@@ -404,26 +375,29 @@ class VestingService:
             band = d.tenure_band
             if band not in bands:
                 bands[band] = {
-                    'employee_count': 0,
-                    'total_contributions': Decimal("0"),
-                    'current_forfeitures': Decimal("0"),
-                    'proposed_forfeitures': Decimal("0")
+                    "employee_count": 0,
+                    "total_contributions": Decimal("0"),
+                    "current_forfeitures": Decimal("0"),
+                    "proposed_forfeitures": Decimal("0"),
                 }
-            bands[band]['employee_count'] += 1
-            bands[band]['total_contributions'] += d.total_employer_contributions
-            bands[band]['current_forfeitures'] += d.current_forfeiture
-            bands[band]['proposed_forfeitures'] += d.proposed_forfeiture
+            bands[band]["employee_count"] += 1
+            bands[band]["total_contributions"] += d.total_employer_contributions
+            bands[band]["current_forfeitures"] += d.current_forfeiture
+            bands[band]["proposed_forfeitures"] += d.proposed_forfeiture
 
         return [
             TenureBandSummary(
                 tenure_band=band,
-                employee_count=data['employee_count'],
-                total_contributions=data['total_contributions'],
-                current_forfeitures=data['current_forfeitures'],
-                proposed_forfeitures=data['proposed_forfeitures'],
-                forfeiture_variance=data['proposed_forfeitures'] - data['current_forfeitures']
+                employee_count=data["employee_count"],
+                total_contributions=data["total_contributions"],
+                current_forfeitures=data["current_forfeitures"],
+                proposed_forfeitures=data["proposed_forfeitures"],
+                forfeiture_variance=data["proposed_forfeitures"]
+                - data["current_forfeitures"],
             )
-            for band, data in sorted(bands.items(), key=lambda x: self._tenure_band_sort_key(x[0]))
+            for band, data in sorted(
+                bands.items(), key=lambda x: self._tenure_band_sort_key(x[0])
+            )
         ]
 
     def analyze_vesting(
@@ -431,7 +405,7 @@ class VestingService:
         workspace_id: str,
         scenario_id: str,
         scenario_name: str,
-        request: VestingAnalysisRequest
+        request: VestingAnalysisRequest,
     ) -> Optional[VestingAnalysisResponse]:
         """Run vesting analysis comparing two schedules (T029)."""
         import duckdb
@@ -459,7 +433,7 @@ class VestingService:
                     proposed_schedule=request.proposed_schedule,
                     summary=self._build_summary([], year),
                     by_tenure_band=[],
-                    employee_details=[]
+                    employee_details=[],
                 )
 
             # Calculate vesting for each employee
@@ -478,7 +452,7 @@ class VestingService:
                 proposed_schedule=request.proposed_schedule,
                 summary=summary,
                 by_tenure_band=by_tenure_band,
-                employee_details=details
+                employee_details=details,
             )
         finally:
             conn.close()

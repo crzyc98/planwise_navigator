@@ -28,11 +28,11 @@ def sample_employees() -> List[Dict]:
     return [
         {
             "employee_id": f"EMP{i:05d}",
-            "hire_date": date(2020, 1, 1) + timedelta(days=i*10),
+            "hire_date": date(2020, 1, 1) + timedelta(days=i * 10),
             "base_salary": 50000 + (i * 500),
             "job_band": f"L{(i % 5) + 1}",
             "department": ["Engineering", "Sales", "Operations"][i % 3],
-            "is_active": True
+            "is_active": True,
         }
         for i in range(100)
     ]
@@ -77,10 +77,10 @@ def sample_yearly_events() -> List[Dict]:
             "event_id": f"EVT{i:05d}",
             "employee_id": f"EMP{i:05d}",
             "event_type": ["hire", "termination", "promotion"][i % 3],
-            "event_date": date(2025, 1, 1) + timedelta(days=i*7),
+            "event_date": date(2025, 1, 1) + timedelta(days=i * 7),
             "simulation_year": 2025,
             "scenario_id": "baseline",
-            "plan_design_id": "standard"
+            "plan_design_id": "standard",
         }
         for i in range(50)
     ]
@@ -120,29 +120,33 @@ def sample_census_data() -> List[Dict]:
     # Create 95 active employees
     for i in range(95):
         hire_date = date(2020, 1, 1) + timedelta(days=i * 10)
-        census_data.append({
-            "employee_id": f"EMP{i:05d}",
-            "employment_status": "ACTIVE",
-            "hire_date": hire_date,
-            "termination_date": None,
-            "annual_salary": 50000 + (i * 500),
-            "age": 25 + (i % 40),
-            "tenure_months": (today - hire_date).days / 30,
-        })
+        census_data.append(
+            {
+                "employee_id": f"EMP{i:05d}",
+                "employment_status": "ACTIVE",
+                "hire_date": hire_date,
+                "termination_date": None,
+                "annual_salary": 50000 + (i * 500),
+                "age": 25 + (i % 40),
+                "tenure_months": (today - hire_date).days / 30,
+            }
+        )
 
     # Create 5 terminated employees
     for i in range(95, 100):
         hire_date = date(2020, 1, 1) + timedelta(days=i * 10)
-        term_date = date(2025, 6, 15) + timedelta(days=(i-95) * 30)
-        census_data.append({
-            "employee_id": f"EMP{i:05d}",
-            "employment_status": "TERMINATED",
-            "hire_date": hire_date,
-            "termination_date": term_date,
-            "annual_salary": 50000 + (i * 500),
-            "age": 25 + (i % 40),
-            "tenure_months": (term_date - hire_date).days / 30,
-        })
+        term_date = date(2025, 6, 15) + timedelta(days=(i - 95) * 30)
+        census_data.append(
+            {
+                "employee_id": f"EMP{i:05d}",
+                "employment_status": "TERMINATED",
+                "hire_date": hire_date,
+                "termination_date": term_date,
+                "annual_salary": 50000 + (i * 500),
+                "age": 25 + (i % 40),
+                "tenure_months": (term_date - hire_date).days / 30,
+            }
+        )
 
     return census_data
 
@@ -171,9 +175,8 @@ def edge_case_census_data() -> Dict[str, List[Dict]]:
     today = date.today()
 
     return {
-        'zero_active': [],  # No employees
-
-        'single_employee': [
+        "zero_active": [],  # No employees
+        "single_employee": [
             {
                 "employee_id": "EMP00001",
                 "employment_status": "ACTIVE",
@@ -184,8 +187,7 @@ def edge_case_census_data() -> Dict[str, List[Dict]]:
                 "tenure_months": (today - date(2023, 1, 1)).days / 30,
             }
         ],
-
-        'no_terminations': [
+        "no_terminations": [
             {
                 "employee_id": f"EMP{i:05d}",
                 "employment_status": "ACTIVE",
@@ -193,12 +195,14 @@ def edge_case_census_data() -> Dict[str, List[Dict]]:
                 "termination_date": None,
                 "annual_salary": 50000 + (i * 500),
                 "age": 25 + (i % 40),
-                "tenure_months": (today - (date(2020, 1, 1) + timedelta(days=i * 10))).days / 30,
+                "tenure_months": (
+                    today - (date(2020, 1, 1) + timedelta(days=i * 10))
+                ).days
+                / 30,
             }
             for i in range(100)
         ],
-
-        'all_terminated': [
+        "all_terminated": [
             {
                 "employee_id": f"EMP{i:05d}",
                 "employment_status": "TERMINATED",
@@ -206,12 +210,14 @@ def edge_case_census_data() -> Dict[str, List[Dict]]:
                 "termination_date": date(2024, 12, 31),
                 "annual_salary": 50000 + (i * 500),
                 "age": 25 + (i % 40),
-                "tenure_months": (date(2024, 12, 31) - (date(2020, 1, 1) + timedelta(days=i * 10))).days / 30,
+                "tenure_months": (
+                    date(2024, 12, 31) - (date(2020, 1, 1) + timedelta(days=i * 10))
+                ).days
+                / 30,
             }
             for i in range(5)
         ],
-
-        'mixed_population': [
+        "mixed_population": [
             {
                 "employee_id": f"EMP{i:05d}",
                 "employment_status": "ACTIVE" if i < 50 else "TERMINATED",
@@ -219,7 +225,12 @@ def edge_case_census_data() -> Dict[str, List[Dict]]:
                 "termination_date": None if i < 50 else date(2025, 3, 1),
                 "annual_salary": 50000 + (i * 500),
                 "age": 25 + (i % 40),
-                "tenure_months": (date(2025, 3, 1) - (date(2020, 1, 1) + timedelta(days=i * 10))).days / 30 if i >= 50 else (today - (date(2020, 1, 1) + timedelta(days=i * 10))).days / 30,
+                "tenure_months": (
+                    date(2025, 3, 1) - (date(2020, 1, 1) + timedelta(days=i * 10))
+                ).days
+                / 30
+                if i >= 50
+                else (today - (date(2020, 1, 1) + timedelta(days=i * 10))).days / 30,
             }
             for i in range(100)
         ],
@@ -268,7 +279,11 @@ def assert_valid_termination_rate(response_dict: Dict) -> None:
 
     # Confidence checks
     if confidence is not None:
-        assert confidence in ["HIGH", "MEDIUM", "LOW"], f"Invalid confidence: {confidence}"
+        assert confidence in [
+            "HIGH",
+            "MEDIUM",
+            "LOW",
+        ], f"Invalid confidence: {confidence}"
 
     # Sample size checks
     assert isinstance(sample_size, int), "sample_size must be an integer"

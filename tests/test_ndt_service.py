@@ -20,7 +20,8 @@ from planalign_api.services.database_path_resolver import (
 def _create_test_db(conn: duckdb.DuckDBPyConnection, year: int = 2025):
     """Populate an in-memory DuckDB connection with test tables."""
     # IRS limits seed
-    conn.execute("""
+    conn.execute(
+        """
         CREATE TABLE IF NOT EXISTS config_irs_limits (
             limit_year INTEGER,
             base_limit INTEGER,
@@ -29,16 +30,20 @@ def _create_test_db(conn: duckdb.DuckDBPyConnection, year: int = 2025):
             compensation_limit INTEGER,
             hce_compensation_threshold INTEGER
         )
-    """)
-    conn.execute("""
+    """
+    )
+    conn.execute(
+        """
         INSERT INTO config_irs_limits VALUES
         (2024, 23000, 30500, 50, 345000, 155000),
         (2025, 23500, 31000, 50, 350000, 160000),
         (2026, 24000, 32000, 50, 360000, 165000)
-    """)
+    """
+    )
 
     # Workforce snapshot
-    conn.execute("""
+    conn.execute(
+        """
         CREATE TABLE IF NOT EXISTS fct_workforce_snapshot (
             employee_id VARCHAR,
             simulation_year INTEGER,
@@ -49,7 +54,8 @@ def _create_test_db(conn: duckdb.DuckDBPyConnection, year: int = 2025):
             is_enrolled_flag BOOLEAN,
             employment_status VARCHAR
         )
-    """)
+    """
+    )
 
 
 def _insert_employee(
@@ -65,7 +71,16 @@ def _insert_employee(
 ):
     conn.execute(
         """INSERT INTO fct_workforce_snapshot VALUES (?, ?, ?, ?, ?, ?, ?, ?)""",
-        [employee_id, year, compensation, prorated_comp, match_amount, eligibility, enrolled, status],
+        [
+            employee_id,
+            year,
+            compensation,
+            prorated_comp,
+            match_amount,
+            eligibility,
+            enrolled,
+            status,
+        ],
     )
 
 
@@ -121,7 +136,9 @@ class TestHCEClassification:
         _insert_employee(conn, "EMP002", 2024, 80000.0, 80000.0, 0.0)
         _insert_employee(conn, "EMP002", 2025, 85000.0, 85000.0, 2550.0)
 
-        mock_resolver.resolve.return_value = ResolvedDatabasePath(path=Path(":memory:"), source="scenario")
+        mock_resolver.resolve.return_value = ResolvedDatabasePath(
+            path=Path(":memory:"), source="scenario"
+        )
 
         with patch("duckdb.connect", return_value=conn):
             result = service.run_acp_test("ws1", "sc1", "Test Scenario", 2025)
@@ -139,7 +156,9 @@ class TestHCEClassification:
         _insert_employee(conn, "EMP002", 2024, 100000.0, 100000.0, 0.0)
         _insert_employee(conn, "EMP002", 2025, 105000.0, 105000.0, 5250.0)
 
-        mock_resolver.resolve.return_value = ResolvedDatabasePath(path=Path(":memory:"), source="scenario")
+        mock_resolver.resolve.return_value = ResolvedDatabasePath(
+            path=Path(":memory:"), source="scenario"
+        )
 
         with patch("duckdb.connect", return_value=conn):
             result = service.run_acp_test("ws1", "sc1", "Test", 2025)
@@ -156,7 +175,9 @@ class TestHCEClassification:
         _insert_employee(conn, "EMP001", 2025, 200000.0, 200000.0, 10000.0)
         _insert_employee(conn, "EMP002", 2025, 80000.0, 80000.0, 4000.0)
 
-        mock_resolver.resolve.return_value = ResolvedDatabasePath(path=Path(":memory:"), source="scenario")
+        mock_resolver.resolve.return_value = ResolvedDatabasePath(
+            path=Path(":memory:"), source="scenario"
+        )
 
         with patch("duckdb.connect", return_value=conn):
             result = service.run_acp_test("ws1", "sc1", "Test", 2025)
@@ -185,10 +206,14 @@ class TestACPCalculation:
         _insert_employee(conn, "NHCE1", 2024, 80000.0, 80000.0, 0.0)
         _insert_employee(conn, "NHCE1", 2025, 85000.0, 85000.0, 2550.0)
 
-        mock_resolver.resolve.return_value = ResolvedDatabasePath(path=Path(":memory:"), source="scenario")
+        mock_resolver.resolve.return_value = ResolvedDatabasePath(
+            path=Path(":memory:"), source="scenario"
+        )
 
         with patch("duckdb.connect", return_value=conn):
-            result = service.run_acp_test("ws1", "sc1", "Test", 2025, include_employees=True)
+            result = service.run_acp_test(
+                "ws1", "sc1", "Test", 2025, include_employees=True
+            )
 
         assert result.employees is not None
         hce_emp = next(e for e in result.employees if e.employee_id == "HCE1")
@@ -206,10 +231,14 @@ class TestACPCalculation:
         _insert_employee(conn, "NHCE1", 2024, 80000.0, 80000.0, 0.0)
         _insert_employee(conn, "NHCE1", 2025, 85000.0, 85000.0, 0.0, enrolled=False)
 
-        mock_resolver.resolve.return_value = ResolvedDatabasePath(path=Path(":memory:"), source="scenario")
+        mock_resolver.resolve.return_value = ResolvedDatabasePath(
+            path=Path(":memory:"), source="scenario"
+        )
 
         with patch("duckdb.connect", return_value=conn):
-            result = service.run_acp_test("ws1", "sc1", "Test", 2025, include_employees=True)
+            result = service.run_acp_test(
+                "ws1", "sc1", "Test", 2025, include_employees=True
+            )
 
         nhce_emp = next(e for e in result.employees if e.employee_id == "NHCE1")
         assert nhce_emp.individual_acp == 0.0
@@ -240,7 +269,9 @@ class TestGroupAverages:
         _insert_employee(conn, "NHCE2", 2024, 70000.0, 70000.0, 0.0)
         _insert_employee(conn, "NHCE2", 2025, 100000.0, 100000.0, 1000.0)
 
-        mock_resolver.resolve.return_value = ResolvedDatabasePath(path=Path(":memory:"), source="scenario")
+        mock_resolver.resolve.return_value = ResolvedDatabasePath(
+            path=Path(":memory:"), source="scenario"
+        )
 
         with patch("duckdb.connect", return_value=conn):
             result = service.run_acp_test("ws1", "sc1", "Test", 2025)
@@ -267,7 +298,9 @@ class TestIRSThresholds:
         _insert_employee(conn, "NHCE1", 2024, 80000.0, 80000.0, 0.0)
         _insert_employee(conn, "NHCE1", 2025, 100000.0, 100000.0, 4000.0)
 
-        mock_resolver.resolve.return_value = ResolvedDatabasePath(path=Path(":memory:"), source="scenario")
+        mock_resolver.resolve.return_value = ResolvedDatabasePath(
+            path=Path(":memory:"), source="scenario"
+        )
 
         with patch("duckdb.connect", return_value=conn):
             result = service.run_acp_test("ws1", "sc1", "Test", 2025)
@@ -285,7 +318,9 @@ class TestIRSThresholds:
         _insert_employee(conn, "NHCE1", 2024, 80000.0, 80000.0, 0.0)
         _insert_employee(conn, "NHCE1", 2025, 100000.0, 100000.0, 4000.0)
 
-        mock_resolver.resolve.return_value = ResolvedDatabasePath(path=Path(":memory:"), source="scenario")
+        mock_resolver.resolve.return_value = ResolvedDatabasePath(
+            path=Path(":memory:"), source="scenario"
+        )
 
         with patch("duckdb.connect", return_value=conn):
             result = service.run_acp_test("ws1", "sc1", "Test", 2025)
@@ -303,7 +338,9 @@ class TestIRSThresholds:
         _insert_employee(conn, "NHCE1", 2024, 80000.0, 80000.0, 0.0)
         _insert_employee(conn, "NHCE1", 2025, 100000.0, 100000.0, 4000.0)
 
-        mock_resolver.resolve.return_value = ResolvedDatabasePath(path=Path(":memory:"), source="scenario")
+        mock_resolver.resolve.return_value = ResolvedDatabasePath(
+            path=Path(":memory:"), source="scenario"
+        )
 
         with patch("duckdb.connect", return_value=conn):
             result = service.run_acp_test("ws1", "sc1", "Test", 2025)
@@ -324,7 +361,9 @@ class TestIRSThresholds:
         _insert_employee(conn, "NHCE1", 2024, 80000.0, 80000.0, 0.0)
         _insert_employee(conn, "NHCE1", 2025, 100000.0, 100000.0, 10000.0)
 
-        mock_resolver.resolve.return_value = ResolvedDatabasePath(path=Path(":memory:"), source="scenario")
+        mock_resolver.resolve.return_value = ResolvedDatabasePath(
+            path=Path(":memory:"), source="scenario"
+        )
 
         with patch("duckdb.connect", return_value=conn):
             result = service.run_acp_test("ws1", "sc1", "Test", 2025)
@@ -352,7 +391,9 @@ class TestEdgeCases:
         _insert_employee(conn, "HCE2", 2024, 250000.0, 250000.0, 0.0)
         _insert_employee(conn, "HCE2", 2025, 260000.0, 260000.0, 13000.0)
 
-        mock_resolver.resolve.return_value = ResolvedDatabasePath(path=Path(":memory:"), source="scenario")
+        mock_resolver.resolve.return_value = ResolvedDatabasePath(
+            path=Path(":memory:"), source="scenario"
+        )
 
         with patch("duckdb.connect", return_value=conn):
             result = service.run_acp_test("ws1", "sc1", "Test", 2025)
@@ -370,7 +411,9 @@ class TestEdgeCases:
         _insert_employee(conn, "NHCE2", 2024, 70000.0, 70000.0, 0.0)
         _insert_employee(conn, "NHCE2", 2025, 75000.0, 75000.0, 3750.0)
 
-        mock_resolver.resolve.return_value = ResolvedDatabasePath(path=Path(":memory:"), source="scenario")
+        mock_resolver.resolve.return_value = ResolvedDatabasePath(
+            path=Path(":memory:"), source="scenario"
+        )
 
         with patch("duckdb.connect", return_value=conn):
             result = service.run_acp_test("ws1", "sc1", "Test", 2025)
@@ -384,9 +427,13 @@ class TestEdgeCases:
         service, conn, mock_resolver = service_with_db
 
         # Employees with pending eligibility
-        _insert_employee(conn, "EMP1", 2025, 100000.0, 100000.0, 5000.0, eligibility="pending")
+        _insert_employee(
+            conn, "EMP1", 2025, 100000.0, 100000.0, 5000.0, eligibility="pending"
+        )
 
-        mock_resolver.resolve.return_value = ResolvedDatabasePath(path=Path(":memory:"), source="scenario")
+        mock_resolver.resolve.return_value = ResolvedDatabasePath(
+            path=Path(":memory:"), source="scenario"
+        )
 
         with patch("duckdb.connect", return_value=conn):
             result = service.run_acp_test("ws1", "sc1", "Test", 2025)
@@ -403,7 +450,9 @@ class TestEdgeCases:
 
         _insert_employee(conn, "EMP1", 2025, 100000.0, 100000.0, 5000.0)
 
-        mock_resolver.resolve.return_value = ResolvedDatabasePath(path=Path(":memory:"), source="scenario")
+        mock_resolver.resolve.return_value = ResolvedDatabasePath(
+            path=Path(":memory:"), source="scenario"
+        )
 
         with patch("duckdb.connect", return_value=conn):
             result = service.run_acp_test("ws1", "sc1", "Test", 2025)
@@ -415,7 +464,9 @@ class TestEdgeCases:
         """Non-existent database should return an error."""
         service, conn, mock_resolver = service_with_db
 
-        mock_resolver.resolve.return_value = ResolvedDatabasePath(path=None, source=None)
+        mock_resolver.resolve.return_value = ResolvedDatabasePath(
+            path=None, source=None
+        )
 
         result = service.run_acp_test("ws1", "sc1", "Test", 2025)
 
@@ -438,7 +489,9 @@ class TestAvailableYears:
         _insert_employee(conn, "EMP1", 2025, 100000.0, 100000.0, 5000.0)
         _insert_employee(conn, "EMP1", 2026, 100000.0, 100000.0, 5000.0)
 
-        mock_resolver.resolve.return_value = ResolvedDatabasePath(path=Path(":memory:"), source="scenario")
+        mock_resolver.resolve.return_value = ResolvedDatabasePath(
+            path=Path(":memory:"), source="scenario"
+        )
 
         with patch("duckdb.connect", return_value=conn):
             result = service.get_available_years("ws1", "sc1")
@@ -449,7 +502,9 @@ class TestAvailableYears:
     def test_no_data_returns_empty(self, service_with_db):
         service, conn, mock_resolver = service_with_db
 
-        mock_resolver.resolve.return_value = ResolvedDatabasePath(path=None, source=None)
+        mock_resolver.resolve.return_value = ResolvedDatabasePath(
+            path=None, source=None
+        )
 
         result = service.get_available_years("ws1", "sc1")
 

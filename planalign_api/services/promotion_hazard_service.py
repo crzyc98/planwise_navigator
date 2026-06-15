@@ -34,7 +34,9 @@ class PromotionHazardService:
         csv_path = self.dbt_seeds_dir / "config_promotion_hazard_base.csv"
 
         if not csv_path.exists():
-            raise FileNotFoundError(f"Promotion hazard base config not found: {csv_path}")
+            raise FileNotFoundError(
+                f"Promotion hazard base config not found: {csv_path}"
+            )
 
         try:
             with open(csv_path, "r", newline="") as f:
@@ -108,22 +110,33 @@ class PromotionHazardService:
         # Validate base parameters
         if config.base.base_rate < 0 or config.base.base_rate > 1:
             errors.append("base_rate must be between 0 and 1")
-        if config.base.level_dampener_factor < 0 or config.base.level_dampener_factor > 1:
+        if (
+            config.base.level_dampener_factor < 0
+            or config.base.level_dampener_factor > 1
+        ):
             errors.append("level_dampener_factor must be between 0 and 1")
 
         # Validate age multipliers
         if len(config.age_multipliers) != 6:
-            errors.append(f"Expected 6 age multipliers, got {len(config.age_multipliers)}")
+            errors.append(
+                f"Expected 6 age multipliers, got {len(config.age_multipliers)}"
+            )
         for m in config.age_multipliers:
             if m.multiplier < 0:
-                errors.append(f"Age multiplier for band '{m.age_band}' must be non-negative")
+                errors.append(
+                    f"Age multiplier for band '{m.age_band}' must be non-negative"
+                )
 
         # Validate tenure multipliers
         if len(config.tenure_multipliers) != 5:
-            errors.append(f"Expected 5 tenure multipliers, got {len(config.tenure_multipliers)}")
+            errors.append(
+                f"Expected 5 tenure multipliers, got {len(config.tenure_multipliers)}"
+            )
         for m in config.tenure_multipliers:
             if m.multiplier < 0:
-                errors.append(f"Tenure multiplier for band '{m.tenure_band}' must be non-negative")
+                errors.append(
+                    f"Tenure multiplier for band '{m.tenure_band}' must be non-negative"
+                )
 
         return errors
 
@@ -141,7 +154,9 @@ class PromotionHazardService:
             # Write base config
             base_path = self.dbt_seeds_dir / "config_promotion_hazard_base.csv"
             with open(base_path, "w", newline="") as f:
-                writer = csv.DictWriter(f, fieldnames=["base_rate", "level_dampener_factor"])
+                writer = csv.DictWriter(
+                    f, fieldnames=["base_rate", "level_dampener_factor"]
+                )
                 writer.writeheader()
                 writer.writerow(
                     {
@@ -151,20 +166,28 @@ class PromotionHazardService:
                 )
 
             # Write age multipliers
-            age_path = self.dbt_seeds_dir / "config_promotion_hazard_age_multipliers.csv"
+            age_path = (
+                self.dbt_seeds_dir / "config_promotion_hazard_age_multipliers.csv"
+            )
             with open(age_path, "w", newline="") as f:
                 writer = csv.DictWriter(f, fieldnames=["age_band", "multiplier"])
                 writer.writeheader()
                 for m in config.age_multipliers:
-                    writer.writerow({"age_band": m.age_band, "multiplier": m.multiplier})
+                    writer.writerow(
+                        {"age_band": m.age_band, "multiplier": m.multiplier}
+                    )
 
             # Write tenure multipliers
-            tenure_path = self.dbt_seeds_dir / "config_promotion_hazard_tenure_multipliers.csv"
+            tenure_path = (
+                self.dbt_seeds_dir / "config_promotion_hazard_tenure_multipliers.csv"
+            )
             with open(tenure_path, "w", newline="") as f:
                 writer = csv.DictWriter(f, fieldnames=["tenure_band", "multiplier"])
                 writer.writeheader()
                 for m in config.tenure_multipliers:
-                    writer.writerow({"tenure_band": m.tenure_band, "multiplier": m.multiplier})
+                    writer.writerow(
+                        {"tenure_band": m.tenure_band, "multiplier": m.multiplier}
+                    )
 
             logger.info("Successfully saved promotion hazard configurations")
             return PromotionHazardSaveResponse(

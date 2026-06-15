@@ -284,7 +284,9 @@ class TelemetryService:
         year = record.get("year")
         stage = record.get("stage") or ""
         duration = record.get("duration_seconds")
-        duration_text = f" ({duration:.1f}s)" if isinstance(duration, (int, float)) else ""
+        duration_text = (
+            f" ({duration:.1f}s)" if isinstance(duration, (int, float)) else ""
+        )
         self._append_milestone(
             state,
             kind="stage_completed",
@@ -317,7 +319,9 @@ class TelemetryService:
         state.event_counts.total = sum(state.event_counts.by_type.values())
 
         duration = record.get("duration_seconds")
-        duration_text = f" ({duration:.1f}s)" if isinstance(duration, (int, float)) else ""
+        duration_text = (
+            f" ({duration:.1f}s)" if isinstance(duration, (int, float)) else ""
+        )
         self._append_milestone(
             state,
             kind="year_completed",
@@ -385,7 +389,10 @@ class TelemetryService:
 
     def _broadcast_update(self, state: RunTelemetryState, *, force: bool) -> None:
         now = time.monotonic()
-        if not force and (now - state._last_update_broadcast) < self._min_update_interval:
+        if (
+            not force
+            and (now - state._last_update_broadcast) < self._min_update_interval
+        ):
             return
         state._last_update_broadcast = now
         self._send_to_listeners(

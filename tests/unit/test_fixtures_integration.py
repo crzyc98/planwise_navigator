@@ -80,8 +80,8 @@ def test_single_threaded_config_fixture(single_threaded_config):
     assert single_threaded_config.scenario_id == "test_scenario"
     assert single_threaded_config.plan_design_id == "test_plan"
     # Verify it's a valid configuration object
-    assert hasattr(single_threaded_config, 'simulation')
-    assert hasattr(single_threaded_config, 'compensation')
+    assert hasattr(single_threaded_config, "simulation")
+    assert hasattr(single_threaded_config, "compensation")
 
 
 @pytest.mark.fast
@@ -126,5 +126,9 @@ def test_baseline_workforce_df_fixture(baseline_workforce_df):
     assert "department" in baseline_workforce_df.columns
 
     # Verify data types (allow both object and StringDtype for pandas compatibility)
-    assert str(baseline_workforce_df["employee_id"].dtype) in ["object", "str", "string"]
+    assert str(baseline_workforce_df["employee_id"].dtype) in [
+        "object",
+        "str",
+        "string",
+    ]
     assert baseline_workforce_df["base_salary"].dtype in [int, float]

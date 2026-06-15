@@ -29,6 +29,7 @@ try:
     from .model_dependency_analyzer import ModelDependencyAnalyzer
     from .resource_manager import ResourceManager
     from .logger import ProductionLogger
+
     MODEL_PARALLELIZATION_AVAILABLE = True
     RESOURCE_MANAGEMENT_AVAILABLE = True
 except ImportError:
@@ -44,9 +45,7 @@ logger = logging.getLogger(__name__)
 
 
 def setup_memory_manager(
-    config: "SimulationConfig",
-    reports_dir: Path,
-    verbose: bool = False
+    config: "SimulationConfig", reports_dir: Path, verbose: bool = False
 ) -> Optional["AdaptiveMemoryManager"]:
     """
     Setup adaptive memory management system.
@@ -75,9 +74,9 @@ def setup_memory_manager(
         )
 
         # Extract optimization config from simulation config
-        optimization_config = getattr(config, 'optimization', None)
+        optimization_config = getattr(config, "optimization", None)
 
-        if optimization_config and hasattr(optimization_config, 'adaptive_memory'):
+        if optimization_config and hasattr(optimization_config, "adaptive_memory"):
             adaptive_config = optimization_config.adaptive_memory
 
             # Build adaptive config from simulation config
@@ -90,13 +89,13 @@ def setup_memory_manager(
                     high_mb=adaptive_config.thresholds.high_mb,
                     critical_mb=adaptive_config.thresholds.critical_mb,
                     gc_trigger_mb=adaptive_config.thresholds.gc_trigger_mb,
-                    fallback_trigger_mb=adaptive_config.thresholds.fallback_trigger_mb
+                    fallback_trigger_mb=adaptive_config.thresholds.fallback_trigger_mb,
                 ),
                 batch_sizes=BatchSizeConfig(
                     low=adaptive_config.batch_sizes.low,
                     medium=adaptive_config.batch_sizes.medium,
                     high=adaptive_config.batch_sizes.high,
-                    fallback=adaptive_config.batch_sizes.fallback
+                    fallback=adaptive_config.batch_sizes.fallback,
                 ),
                 auto_gc_enabled=adaptive_config.auto_gc_enabled,
                 fallback_enabled=adaptive_config.fallback_enabled,
@@ -105,36 +104,37 @@ def setup_memory_manager(
                 min_samples_for_recommendation=adaptive_config.min_samples_for_recommendation,
                 leak_detection_enabled=adaptive_config.leak_detection_enabled,
                 leak_threshold_mb=adaptive_config.leak_threshold_mb,
-                leak_window_minutes=adaptive_config.leak_window_minutes
+                leak_window_minutes=adaptive_config.leak_window_minutes,
             )
 
             # Local name so the module-level logger isn't shadowed (which would
             # raise UnboundLocalError in the else/except paths below)
             from .logger import ProductionLogger
+
             amm_logger = ProductionLogger("AdaptiveMemoryManager")
 
             memory_manager = AdaptiveMemoryManager(
-                amm_config,
-                amm_logger,
-                reports_dir=reports_dir / "memory"
+                amm_config, amm_logger, reports_dir=reports_dir / "memory"
             )
 
-            logger.debug("Adaptive Memory Manager initialized: Thresholds=%sMB/%sMB/%sMB, "
-                         "Batch=%s-%s, Auto-GC=%s, Fallback=%s",
-                         adaptive_config.thresholds.moderate_mb,
-                         adaptive_config.thresholds.high_mb,
-                         adaptive_config.thresholds.critical_mb,
-                         adaptive_config.batch_sizes.fallback,
-                         adaptive_config.batch_sizes.high,
-                         adaptive_config.auto_gc_enabled,
-                         adaptive_config.fallback_enabled)
+            logger.debug(
+                "Adaptive Memory Manager initialized: Thresholds=%sMB/%sMB/%sMB, "
+                "Batch=%s-%s, Auto-GC=%s, Fallback=%s",
+                adaptive_config.thresholds.moderate_mb,
+                adaptive_config.thresholds.high_mb,
+                adaptive_config.thresholds.critical_mb,
+                adaptive_config.batch_sizes.fallback,
+                adaptive_config.batch_sizes.high,
+                adaptive_config.auto_gc_enabled,
+                adaptive_config.fallback_enabled,
+            )
 
             return memory_manager
         else:
             # Create default adaptive memory manager for backward compatibility
             memory_manager = create_adaptive_memory_manager(
                 optimization_level=OptimizationLevel.MEDIUM,
-                memory_limit_gb=4.0  # Default for work laptops
+                memory_limit_gb=4.0,  # Default for work laptops
             )
             logger.debug("Adaptive Memory Manager initialized (default configuration)")
 
@@ -148,9 +148,7 @@ def setup_memory_manager(
 
 
 def setup_parallelization(
-    config: "SimulationConfig",
-    dbt_runner: "DbtRunner",
-    verbose: bool = False
+    config: "SimulationConfig", dbt_runner: "DbtRunner", verbose: bool = False
 ) -> tuple[Optional[Any], Optional[Any], Optional[Any], Optional[Any], bool]:
     """
     Setup model-level parallelization system with advanced resource management.
@@ -173,25 +171,29 @@ def setup_parallelization(
     """
     try:
         # Check if model parallelization is enabled in config
-        threading_config = getattr(config, 'orchestrator', None)
-        if threading_config and hasattr(threading_config, 'threading'):
+        threading_config = getattr(config, "orchestrator", None)
+        if threading_config and hasattr(threading_config, "threading"):
             parallelization_config = threading_config.threading.parallelization
             resource_mgmt_config = threading_config.threading.resource_management
         else:
             # Fallback: check if enabled via optimization config
-            optimization_config = getattr(config, 'optimization', None)
+            optimization_config = getattr(config, "optimization", None)
             parallelization_config = None
             resource_mgmt_config = None
-            if optimization_config and hasattr(optimization_config, 'model_parallelization'):
+            if optimization_config and hasattr(
+                optimization_config, "model_parallelization"
+            ):
                 parallelization_config = optimization_config.model_parallelization
 
-        if (parallelization_config and
-            parallelization_config.enabled and
-            MODEL_PARALLELIZATION_AVAILABLE):
-
+        if (
+            parallelization_config
+            and parallelization_config.enabled
+            and MODEL_PARALLELIZATION_AVAILABLE
+        ):
             # Local name so the module-level logger isn't shadowed (which would
             # raise UnboundLocalError in the except fallback below)
             from .logger import ProductionLogger
+
             mp_logger = ProductionLogger("ModelParallelization")
 
             manifest_path = Path("dbt/target/manifest.json")
@@ -205,7 +207,9 @@ def setup_parallelization(
 
             # Initialize resource manager if available
             if resource_mgmt_config and RESOURCE_MANAGEMENT_AVAILABLE:
-                resource_manager = _create_resource_manager(resource_mgmt_config, verbose)
+                resource_manager = _create_resource_manager(
+                    resource_mgmt_config, verbose
+                )
             else:
                 resource_manager = None
 
@@ -215,16 +219,24 @@ def setup_parallelization(
                 dependency_analyzer=dependency_analyzer,
                 max_workers=parallelization_config.max_workers,
                 logger=mp_logger,
-                resource_manager=resource_manager
+                resource_manager=resource_manager,
             )
 
-            mp_logger.debug("Model-level parallelization enabled: max_workers=%d, "
-                         "deterministic=%s, advanced_rm=%s",
-                         parallelization_config.max_workers,
-                         parallelization_config.deterministic_execution,
-                         'enabled' if resource_manager else 'disabled')
+            mp_logger.debug(
+                "Model-level parallelization enabled: max_workers=%d, "
+                "deterministic=%s, advanced_rm=%s",
+                parallelization_config.max_workers,
+                parallelization_config.deterministic_execution,
+                "enabled" if resource_manager else "disabled",
+            )
 
-            return parallel_execution_engine, parallelization_config, resource_manager, dependency_analyzer, True
+            return (
+                parallel_execution_engine,
+                parallelization_config,
+                resource_manager,
+                dependency_analyzer,
+                True,
+            )
         else:
             return None, None, None, None, False
 
@@ -253,6 +265,7 @@ def _create_resource_manager(config: Any, verbose: bool = False) -> Optional[Any
         # Local name so the module-level logger isn't shadowed (which would
         # raise UnboundLocalError in the except fallback below)
         from .logger import ProductionLogger
+
         rm_logger = ProductionLogger("ResourceManager")
 
         resource_config = {
@@ -279,12 +292,15 @@ def _create_resource_manager(config: Any, verbose: bool = False) -> Optional[Any
         }
         resource_manager = ResourceManager(config=resource_config, logger=rm_logger)
 
-        rm_logger.info("Resource Manager initialized: cleanup_threshold=%.0fMB, "
-                    "cpu_high=%.0f%%, adaptive_scaling=%s, threads=%d-%d",
-                    config.cleanup_threshold_mb,
-                    config.cpu_monitoring.thresholds.high_percent,
-                    config.adaptive_scaling_enabled,
-                    config.min_threads, config.max_threads)
+        rm_logger.info(
+            "Resource Manager initialized: cleanup_threshold=%.0fMB, "
+            "cpu_high=%.0f%%, adaptive_scaling=%s, threads=%d-%d",
+            config.cleanup_threshold_mb,
+            config.cpu_monitoring.thresholds.high_percent,
+            config.adaptive_scaling_enabled,
+            config.min_threads,
+            config.max_threads,
+        )
 
         return resource_manager
 
@@ -294,9 +310,7 @@ def _create_resource_manager(config: Any, verbose: bool = False) -> Optional[Any
 
 
 def setup_hazard_cache(
-    config: "SimulationConfig",
-    dbt_runner: "DbtRunner",
-    verbose: bool = False
+    config: "SimulationConfig", dbt_runner: "DbtRunner", verbose: bool = False
 ) -> Optional[Any]:
     """
     Initialize hazard cache manager for automatic change detection.
@@ -322,7 +336,9 @@ def setup_hazard_cache(
             dbt_runner=dbt_runner,
         )
 
-        logger.debug("E068D Hazard Cache Manager initialized: SHA256 fingerprinting, auto-invalidation")
+        logger.debug(
+            "E068D Hazard Cache Manager initialized: SHA256 fingerprinting, auto-invalidation"
+        )
 
         return hazard_cache_manager
 
@@ -339,9 +355,7 @@ def setup_hazard_cache(
 
 
 def setup_performance_monitor(
-    db_manager: "DatabaseConnectionManager",
-    reports_dir: Path,
-    verbose: bool = False
+    db_manager: "DatabaseConnectionManager", reports_dir: Path, verbose: bool = False
 ) -> Optional[Any]:
     """
     Initialize DuckDB performance monitoring system.
@@ -365,16 +379,20 @@ def setup_performance_monitor(
         duckdb_performance_monitor = DuckDBPerformanceMonitor(
             db_manager=db_manager,
             reports_dir=reports_dir / "duckdb_performance",
-            verbose=verbose
+            verbose=verbose,
         )
 
-        logger.debug("E068E DuckDB Performance Monitor initialized: reports=%s",
-                     reports_dir / 'duckdb_performance')
+        logger.debug(
+            "E068E DuckDB Performance Monitor initialized: reports=%s",
+            reports_dir / "duckdb_performance",
+        )
 
         return duckdb_performance_monitor
 
     except ImportError:
-        logger.debug("E068E DuckDB Performance Monitor not available (module not found)")
+        logger.debug(
+            "E068E DuckDB Performance Monitor not available (module not found)"
+        )
         return None
     except Exception as e:
         logger.warning("Failed to initialize DuckDB Performance Monitor: %s", e)

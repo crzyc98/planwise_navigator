@@ -61,11 +61,7 @@ class DataCleanupManager:
     # Table prefixes to preserve (seeds and staging data)
     PRESERVE_PATTERNS = ["seed_", "stg_"]
 
-    def __init__(
-        self,
-        db_manager: DatabaseConnectionManager,
-        verbose: bool = False
-    ):
+    def __init__(self, db_manager: DatabaseConnectionManager, verbose: bool = False):
         """Initialize DataCleanupManager with database connection manager.
 
         Args:
@@ -91,16 +87,16 @@ class DataCleanupManager:
             - Uses transactional execution with retry logic
             - Essential for deterministic re-runs of event generation
         """
+
         def _run(conn):
             cleared_count = 0
             for table in self.FACT_TABLES:
                 try:
                     result = conn.execute(
-                        f"DELETE FROM {table} WHERE simulation_year = ?",
-                        [year]
+                        f"DELETE FROM {table} WHERE simulation_year = ?", [year]
                     )
                     # Get row count if available
-                    if hasattr(result, 'fetchone'):
+                    if hasattr(result, "fetchone"):
                         row_count = result.fetchone()
                         if row_count and self.verbose:
                             logger.info("Cleared %s rows from %s", row_count[0], table)
@@ -120,9 +116,7 @@ class DataCleanupManager:
                 logger.warning("Error clearing year %d fact rows: %s", year, e)
 
     def clear_year_data(
-        self,
-        year: int,
-        table_patterns: List[str] | None = None
+        self, year: int, table_patterns: List[str] | None = None
     ) -> None:
         """Clear all data for a specific year from matching tables.
 
@@ -176,8 +170,7 @@ class DataCleanupManager:
 
                 if has_year_col:
                     rows_deleted = conn.execute(
-                        f"DELETE FROM {table} WHERE simulation_year = ?",
-                        [year]
+                        f"DELETE FROM {table} WHERE simulation_year = ?", [year]
                     ).fetchone()
                     cleared += 1
                     if self.verbose and rows_deleted:
@@ -189,13 +182,12 @@ class DataCleanupManager:
         if cleared and self.verbose:
             logger.info(
                 "Cleared year %d data from %d table(s) matching patterns: %s",
-                year, cleared, patterns
+                year,
+                cleared,
+                patterns,
             )
 
-    def full_reset(
-        self,
-        table_patterns: List[str] | None = None
-    ) -> None:
+    def full_reset(self, table_patterns: List[str] | None = None) -> None:
         """Clear all rows from matching tables for complete database reset.
 
         Performs a comprehensive reset by removing all data from tables matching
@@ -237,7 +229,7 @@ class DataCleanupManager:
                 try:
                     result = conn.execute(f"DELETE FROM {table}")
                     # Get row count if available
-                    if hasattr(result, 'fetchone'):
+                    if hasattr(result, "fetchone"):
                         row_count = result.fetchone()
                         if row_count and self.verbose:
                             logger.info("Cleared all rows from %s", table)
@@ -253,13 +245,12 @@ class DataCleanupManager:
         if cleared and self.verbose:
             logger.info(
                 "Full reset: cleared all rows from %d table(s) matching patterns: %s",
-                cleared, patterns
+                cleared,
+                patterns,
             )
 
     def should_clear_table(
-        self,
-        table_name: str,
-        patterns: List[str] | None = None
+        self, table_name: str, patterns: List[str] | None = None
     ) -> bool:
         """Determine if a table should be cleared based on name patterns.
 
@@ -293,10 +284,7 @@ class DataCleanupManager:
 
         return False
 
-    def get_clearable_tables(
-        self,
-        patterns: List[str] | None = None
-    ) -> List[str]:
+    def get_clearable_tables(self, patterns: List[str] | None = None) -> List[str]:
         """Get list of tables that would be cleared by cleanup operations.
 
         Useful for previewing cleanup operations before execution or for
@@ -337,7 +325,7 @@ class DataCleanupManager:
             Set of column names, or None if the file could not be read.
         """
         try:
-            with open(csv_path, 'r', encoding='utf-8', newline='') as f:
+            with open(csv_path, "r", encoding="utf-8", newline="") as f:
                 reader = csv.reader(f)
                 return set(next(reader))
         except Exception as e:
@@ -359,7 +347,7 @@ class DataCleanupManager:
                     FROM information_schema.columns
                     WHERE table_schema = 'main' AND table_name = ?
                     """,
-                    [table_name]
+                    [table_name],
                 ).fetchall()
             }
         except Exception as e:
@@ -393,7 +381,8 @@ class DataCleanupManager:
         if self.verbose:
             logger.debug(
                 "Dropping %s - schema mismatch (missing: %s)",
-                table_name, ", ".join(sorted(missing_columns))
+                table_name,
+                ", ".join(sorted(missing_columns)),
             )
 
         try:
@@ -404,8 +393,7 @@ class DataCleanupManager:
             return False
 
     def drop_seed_tables_with_schema_mismatch(
-        self,
-        seeds_dir: Path | None = None
+        self, seeds_dir: Path | None = None
     ) -> List[str]:
         """Drop seed tables whose schema doesn't match the CSV headers.
 
@@ -462,7 +450,8 @@ class DataCleanupManager:
         if dropped_tables and self.verbose:
             logger.info(
                 "Dropped %d seed table(s) with schema mismatch: %s",
-                len(dropped_tables), ", ".join(dropped_tables)
+                len(dropped_tables),
+                ", ".join(dropped_tables),
             )
 
         return dropped_tables

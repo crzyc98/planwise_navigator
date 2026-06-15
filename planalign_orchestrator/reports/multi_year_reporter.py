@@ -78,9 +78,7 @@ class MultiYearReporter:
         except Exception as e:
             logger.error("Error generating multi-year summary: %s", e, exc_info=True)
 
-    def _display_workforce_progression(
-        self, conn, completed_years: List[int]
-    ) -> None:
+    def _display_workforce_progression(self, conn, completed_years: List[int]) -> None:
         """Display workforce progression across years."""
         progression_query = """
         SELECT
@@ -121,9 +119,7 @@ class MultiYearReporter:
                 )
             logger.info("\n".join(lines))
 
-    def _display_participation_analysis(
-        self, conn, completed_years: List[int]
-    ) -> None:
+    def _display_participation_analysis(self, conn, completed_years: List[int]) -> None:
         """Display active employee deferral participation analysis."""
         participation_query = """
         SELECT
@@ -152,7 +148,12 @@ class MultiYearReporter:
                 )
                 lines.append(
                     "   %d | %10s | %13s | %14.1f%%"
-                    % (year, f"{active_count:,}", f"{participating:,}", participation_pct)
+                    % (
+                        year,
+                        f"{active_count:,}",
+                        f"{participating:,}",
+                        participation_pct,
+                    )
                 )
             logger.info("\n".join(lines))
 

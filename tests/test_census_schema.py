@@ -87,7 +87,9 @@ def test_all_fields_are_frozen():
 def test_data_types_are_valid():
     valid_types = {"string", "date", "decimal", "boolean"}
     for f in FIELDS:
-        assert f.data_type in valid_types, f"{f.field_name} has invalid data_type {f.data_type!r}"
+        assert (
+            f.data_type in valid_types
+        ), f"{f.field_name} has invalid data_type {f.data_type!r}"
 
 
 def test_required_fields_have_date_and_decimal_and_boolean_and_string():

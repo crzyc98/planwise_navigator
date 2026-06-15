@@ -369,9 +369,7 @@ class TestMockBasedResolution:
         (tmp_path / "empty_scenario").mkdir()
         (tmp_path / "empty_workspace").mkdir()
 
-        resolver = DatabasePathResolver(
-            storage=mock_storage, project_root=custom_root
-        )
+        resolver = DatabasePathResolver(storage=mock_storage, project_root=custom_root)
         result = resolver.resolve("ws1", "sc1")
 
         assert result.path == project_db

@@ -32,12 +32,16 @@ def write_promotion_hazard_csvs(config: dict[str, Any], seeds_dir: Path) -> None
     _, tmp_path = tempfile.mkstemp(dir=seeds_dir, suffix=".csv.tmp")
     try:
         with os.fdopen(_, "w", newline="") as f:
-            writer = csv.DictWriter(f, fieldnames=["base_rate", "level_dampener_factor"])
+            writer = csv.DictWriter(
+                f, fieldnames=["base_rate", "level_dampener_factor"]
+            )
             writer.writeheader()
-            writer.writerow({
-                "base_rate": config["base_rate"],
-                "level_dampener_factor": config["level_dampener_factor"]
-            })
+            writer.writerow(
+                {
+                    "base_rate": config["base_rate"],
+                    "level_dampener_factor": config["level_dampener_factor"],
+                }
+            )
         os.replace(tmp_path, str(base_file))
     except Exception:
         if os.path.exists(tmp_path):
@@ -53,10 +57,9 @@ def write_promotion_hazard_csvs(config: dict[str, Any], seeds_dir: Path) -> None
             writer = csv.DictWriter(f, fieldnames=["age_band", "multiplier"])
             writer.writeheader()
             for entry in config["age_multipliers"]:
-                writer.writerow({
-                    "age_band": entry["age_band"],
-                    "multiplier": entry["multiplier"]
-                })
+                writer.writerow(
+                    {"age_band": entry["age_band"], "multiplier": entry["multiplier"]}
+                )
         os.replace(tmp_path, str(age_file))
     except Exception:
         if os.path.exists(tmp_path):
@@ -72,16 +75,20 @@ def write_promotion_hazard_csvs(config: dict[str, Any], seeds_dir: Path) -> None
             writer = csv.DictWriter(f, fieldnames=["tenure_band", "multiplier"])
             writer.writeheader()
             for entry in config["tenure_multipliers"]:
-                writer.writerow({
-                    "tenure_band": entry["tenure_band"],
-                    "multiplier": entry["multiplier"]
-                })
+                writer.writerow(
+                    {
+                        "tenure_band": entry["tenure_band"],
+                        "multiplier": entry["multiplier"],
+                    }
+                )
         os.replace(tmp_path, str(tenure_file))
     except Exception:
         if os.path.exists(tmp_path):
             os.unlink(tmp_path)
         raise
-    logger.info(f"Wrote {len(config['tenure_multipliers'])} tenure multipliers to {tenure_file}")
+    logger.info(
+        f"Wrote {len(config['tenure_multipliers'])} tenure multipliers to {tenure_file}"
+    )
 
 
 def write_band_csvs(config: dict[str, Any], seeds_dir: Path) -> None:
@@ -105,13 +112,15 @@ def write_band_csvs(config: dict[str, Any], seeds_dir: Path) -> None:
                 writer = csv.DictWriter(f, fieldnames=fieldnames)
                 writer.writeheader()
                 for band in config["age_bands"]:
-                    writer.writerow({
-                        "band_id": band["band_id"],
-                        "band_label": band["band_label"],
-                        "min_value": band["min_value"],
-                        "max_value": band["max_value"],
-                        "display_order": band["display_order"]
-                    })
+                    writer.writerow(
+                        {
+                            "band_id": band["band_id"],
+                            "band_label": band["band_label"],
+                            "min_value": band["min_value"],
+                            "max_value": band["max_value"],
+                            "display_order": band["display_order"],
+                        }
+                    )
             os.replace(tmp_path, str(age_file))
         except Exception:
             if os.path.exists(tmp_path):
@@ -128,22 +137,28 @@ def write_band_csvs(config: dict[str, Any], seeds_dir: Path) -> None:
                 writer = csv.DictWriter(f, fieldnames=fieldnames)
                 writer.writeheader()
                 for band in config["tenure_bands"]:
-                    writer.writerow({
-                        "band_id": band["band_id"],
-                        "band_label": band["band_label"],
-                        "min_value": band["min_value"],
-                        "max_value": band["max_value"],
-                        "display_order": band["display_order"]
-                    })
+                    writer.writerow(
+                        {
+                            "band_id": band["band_id"],
+                            "band_label": band["band_label"],
+                            "min_value": band["min_value"],
+                            "max_value": band["max_value"],
+                            "display_order": band["display_order"],
+                        }
+                    )
             os.replace(tmp_path, str(tenure_file))
         except Exception:
             if os.path.exists(tmp_path):
                 os.unlink(tmp_path)
             raise
-        logger.info(f"Wrote {len(config['tenure_bands'])} tenure bands to {tenure_file}")
+        logger.info(
+            f"Wrote {len(config['tenure_bands'])} tenure bands to {tenure_file}"
+        )
 
 
-def write_all_seed_csvs(merged_config: dict[str, Any], seeds_dir: Path) -> dict[str, bool]:
+def write_all_seed_csvs(
+    merged_config: dict[str, Any], seeds_dir: Path
+) -> dict[str, bool]:
     """
     Write all configuration sections to CSV seed files based on merged config.
 
@@ -160,7 +175,7 @@ def write_all_seed_csvs(merged_config: dict[str, Any], seeds_dir: Path) -> dict[
     written_sections = {
         "promotion_hazard": False,
         "age_bands": False,
-        "tenure_bands": False
+        "tenure_bands": False,
     }
 
     # Write promotion hazard configuration
@@ -186,6 +201,8 @@ def write_all_seed_csvs(merged_config: dict[str, Any], seeds_dir: Path) -> dict[
     if written:
         logger.info(f"Seed CSV write complete. Sections written: {', '.join(written)}")
     else:
-        logger.info("No seed CSV sections written (no matching configuration keys found)")
+        logger.info(
+            "No seed CSV sections written (no matching configuration keys found)"
+        )
 
     return written_sections

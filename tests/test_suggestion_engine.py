@@ -16,7 +16,9 @@ from planalign_api.services.suggestion_engine import SuggestionEngine
 pytestmark = pytest.mark.fast
 
 
-def _col(name: str, samples: list[str] | None = None, null_count: int = 0) -> DetectedColumn:
+def _col(
+    name: str, samples: list[str] | None = None, null_count: int = 0
+) -> DetectedColumn:
     return DetectedColumn(
         name=name,
         inferred_type="string",
@@ -131,6 +133,7 @@ def test_fingerprint_order_independent():
 def test_us_date_format_detected():
     col = _col("Hire Date", samples=["03/15/2018", "07/22/2019", "01/08/2021"])
     from planalign_api.services.census_schema import get_field
+
     field_def = get_field("employee_hire_date")
     result = engine.detect_format(col, field_def)
     assert result is not None
@@ -142,6 +145,7 @@ def test_us_date_format_detected():
 def test_iso_date_format_detected():
     col = _col("Hire Date", samples=["2018-03-15", "2019-07-22"])
     from planalign_api.services.census_schema import get_field
+
     field_def = get_field("employee_hire_date")
     result = engine.detect_format(col, field_def)
     assert result is not None
@@ -152,6 +156,7 @@ def test_ambiguous_date_returns_is_ambiguous():
     # "01/05/2024" is ambiguous between %m/%d/%Y and %d/%m/%Y
     col = _col("Hire Date", samples=["01/05/2024", "02/03/2024", "03/01/2024"])
     from planalign_api.services.census_schema import get_field
+
     field_def = get_field("employee_hire_date")
     result = engine.detect_format(col, field_def)
     assert result is not None
@@ -163,6 +168,7 @@ def test_ambiguous_date_returns_is_ambiguous():
 def test_no_date_format_for_garbage_values():
     col = _col("Hire Date", samples=["not a date", "also not", "nope"])
     from planalign_api.services.census_schema import get_field
+
     field_def = get_field("employee_hire_date")
     result = engine.detect_format(col, field_def)
     assert result is None
@@ -176,6 +182,7 @@ def test_no_date_format_for_garbage_values():
 def test_currency_string_detected():
     col = _col("Salary", samples=["$95,000.00", "$72,500.00", "$110,000.00"])
     from planalign_api.services.census_schema import get_field
+
     field_def = get_field("employee_gross_compensation")
     result = engine.detect_format(col, field_def)
     assert result is not None
@@ -186,6 +193,7 @@ def test_currency_string_detected():
 def test_parenthetical_negative_stripped():
     col = _col("Salary", samples=["(1500.00)"])
     from planalign_api.services.census_schema import get_field
+
     field_def = get_field("employee_gross_compensation")
     result = engine.detect_format(col, field_def)
     assert result is not None
@@ -195,6 +203,7 @@ def test_parenthetical_negative_stripped():
 def test_plain_decimal_no_currency_detection():
     col = _col("Salary", samples=["95000.00", "72500.00"])
     from planalign_api.services.census_schema import get_field
+
     field_def = get_field("employee_gross_compensation")
     result = engine.detect_format(col, field_def)
     assert result is None
@@ -208,6 +217,7 @@ def test_plain_decimal_no_currency_detection():
 def test_yn_boolean_detected():
     col = _col("Active", samples=["Y", "N", "Y", "Y", "N"])
     from planalign_api.services.census_schema import get_field
+
     field_def = get_field("active")
     result = engine.detect_format(col, field_def)
     assert result is not None
@@ -219,6 +229,7 @@ def test_yn_boolean_detected():
 def test_active_terminated_boolean_detected():
     col = _col("Status", samples=["Active", "Terminated", "Active"])
     from planalign_api.services.census_schema import get_field
+
     field_def = get_field("active")
     result = engine.detect_format(col, field_def)
     assert result is not None
@@ -228,6 +239,7 @@ def test_active_terminated_boolean_detected():
 def test_mixed_unrecognized_boolean_returns_none():
     col = _col("Status", samples=["Employed", "OnLeave", "Contractor"])
     from planalign_api.services.census_schema import get_field
+
     field_def = get_field("active")
     result = engine.detect_format(col, field_def)
     assert result is None
@@ -271,7 +283,7 @@ def test_compensation_outlier_detected():
     cols = [_col("Salary")]
     preview = [
         {"Salary": "95000"},
-        {"Salary": "500"},   # outlier — too low
+        {"Salary": "500"},  # outlier — too low
         {"Salary": "72000"},
     ]
     sess = _session(cols, preview_rows=preview, row_count=3)
@@ -281,9 +293,22 @@ def test_compensation_outlier_detected():
 
 
 def test_no_issues_returns_zeros():
-    cols = [_col("EmpID"), _col("DOB"), _col("Hire Date"), _col("Salary"), _col("Active")]
-    preview = [{"EmpID": "E001", "DOB": "1980-01-01", "Hire Date": "2020-01-01",
-                "Salary": "80000", "Active": "Y"}]
+    cols = [
+        _col("EmpID"),
+        _col("DOB"),
+        _col("Hire Date"),
+        _col("Salary"),
+        _col("Active"),
+    ]
+    preview = [
+        {
+            "EmpID": "E001",
+            "DOB": "1980-01-01",
+            "Hire Date": "2020-01-01",
+            "Salary": "80000",
+            "Active": "Y",
+        }
+    ]
     sess = _session(cols, preview_rows=preview, row_count=1)
     suggestions = engine.suggest(cols)
     dq = engine.scan_data_quality(sess, suggestions)

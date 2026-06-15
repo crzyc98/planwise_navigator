@@ -188,20 +188,22 @@ class ErrorCatalog:
         ]
 
         for defn in pattern_definitions:
-            self.patterns.append(ErrorPattern(
-                pattern=re.compile(defn["regex"], re.IGNORECASE),
-                category=defn["category"],
-                title=defn["title"],
-                description=defn["description"],
-                resolution_hints=[
-                    ResolutionHint(
-                        title=defn["hint_title"],
-                        description=defn["hint_description"],
-                        steps=defn["steps"],
-                        estimated_resolution_time=defn["time"],
-                    )
-                ],
-            ))
+            self.patterns.append(
+                ErrorPattern(
+                    pattern=re.compile(defn["regex"], re.IGNORECASE),
+                    category=defn["category"],
+                    title=defn["title"],
+                    description=defn["description"],
+                    resolution_hints=[
+                        ResolutionHint(
+                            title=defn["hint_title"],
+                            description=defn["hint_description"],
+                            steps=defn["steps"],
+                            estimated_resolution_time=defn["time"],
+                        )
+                    ],
+                )
+            )
 
     def find_resolution_hints(self, error_message: str) -> List[ResolutionHint]:
         """
@@ -211,7 +213,7 @@ class ErrorCatalog:
         Updates frequency counter for matched patterns.
         """
         # Truncate to prevent ReDoS on adversarial input
-        error_message = error_message[:self._MAX_MESSAGE_LENGTH]
+        error_message = error_message[: self._MAX_MESSAGE_LENGTH]
         hints = []
         for pattern in self.patterns:
             if pattern.matches(error_message):
@@ -223,7 +225,9 @@ class ErrorCatalog:
         """Get error pattern frequency statistics"""
         return {
             pattern.title: pattern.frequency
-            for pattern in sorted(self.patterns, key=lambda p: p.frequency, reverse=True)
+            for pattern in sorted(
+                self.patterns, key=lambda p: p.frequency, reverse=True
+            )
         }
 
     def add_pattern(self, pattern: ErrorPattern) -> None:

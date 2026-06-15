@@ -72,7 +72,15 @@ def test_cli_run_dry_run(tmp_path: Path, caplog):
     _seed_minimal(dbp)
     with caplog.at_level(logging.INFO, logger="planalign_orchestrator.cli"):
         rc = main(
-            ["run", "--config", str(cfg), "--database", str(dbp), "--dry-run", "--verbose"]
+            [
+                "run",
+                "--config",
+                str(cfg),
+                "--database",
+                str(dbp),
+                "--dry-run",
+                "--verbose",
+            ]
         )
     assert rc == 0
     assert "Simulation completed" in caplog.text

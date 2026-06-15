@@ -121,7 +121,8 @@ class StateManager:
         if cleared:
             logger.info(
                 "Cleared year %d rows in %d table(s) per setup.clear_table_patterns",
-                year, cleared
+                year,
+                cleared,
             )
 
     def maybe_full_reset(self) -> None:
@@ -176,7 +177,7 @@ class StateManager:
         if cleared:
             logger.info(
                 "Full reset: cleared all rows in %d table(s) per setup.clear_table_patterns",
-                cleared
+                cleared,
             )
 
     def clear_year_fact_rows(self, year: int) -> None:
@@ -257,12 +258,14 @@ class StateManager:
         if snap_count == 0 and event_count > 0:
             # Attempt targeted rebuild of snapshot once
             try:
+
                 def _clear(conn):
                     conn.execute(
                         f"DELETE FROM {TABLE_FCT_WORKFORCE_SNAPSHOT} WHERE simulation_year = ?",
                         [year],
                     )
                     return True
+
                 self.db_manager.execute_with_retry(_clear)
             except Exception:
                 pass
@@ -273,11 +276,16 @@ class StateManager:
                 stream_output=True,
             )
             if not res.success:
-                logger.warning("Retry build of %s failed for %d", TABLE_FCT_WORKFORCE_SNAPSHOT, year)
+                logger.warning(
+                    "Retry build of %s failed for %d",
+                    TABLE_FCT_WORKFORCE_SNAPSHOT,
+                    year,
+                )
             else:
                 snap_count, _ = self.db_manager.execute_with_retry(_counts)
         if snap_count == 0:
             logger.warning(
                 "%s has 0 rows for %d; verify upstream models and vars",
-                TABLE_FCT_WORKFORCE_SNAPSHOT, year
+                TABLE_FCT_WORKFORCE_SNAPSHOT,
+                year,
             )

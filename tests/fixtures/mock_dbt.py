@@ -21,7 +21,7 @@ def mock_dbt_result() -> DbtResult:
         stdout="Completed successfully\n1 of 1 OK created",
         stderr="",
         execution_time=0.5,
-        command=["run", "--select", "test_model"]
+        command=["run", "--select", "test_model"],
     )
 
 
@@ -48,7 +48,7 @@ def mock_dbt_runner() -> Mock:
         stdout="Completed successfully",
         stderr="",
         execution_time=0.5,
-        command=["run"]
+        command=["run"],
     )
     return runner
 
@@ -75,6 +75,6 @@ def failing_dbt_runner() -> Mock:
         stdout="",
         stderr="Database locked: could not acquire lock",
         execution_time=0.1,
-        command=["run"]
+        command=["run"],
     )
     return runner

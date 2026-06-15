@@ -10,7 +10,9 @@ class ScenarioCreate(BaseModel):
     """Request model for creating a scenario."""
 
     name: str = Field(..., min_length=1, max_length=100, description="Scenario name")
-    description: Optional[str] = Field(None, max_length=500, description="Scenario description")
+    description: Optional[str] = Field(
+        None, max_length=500, description="Scenario description"
+    )
     config_overrides: Dict[str, Any] = Field(
         default_factory=dict,
         description="Configuration overrides (merged with workspace base config)",
@@ -65,7 +67,9 @@ class WorkforceParamsApplyRequest(BaseModel):
     """Request model for applying workforce parameters to target scenarios."""
 
     target_scenario_ids: List[str] = Field(
-        ..., min_length=1, description="IDs of scenarios to receive workforce parameters"
+        ...,
+        min_length=1,
+        description="IDs of scenarios to receive workforce parameters",
     )
 
 

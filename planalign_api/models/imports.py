@@ -61,12 +61,19 @@ ImportStatusLiteral = Literal[
     "uploaded", "mapping_in_progress", "generating", "completed", "failed", "cancelled"
 ]
 
-InferredType = Literal["string", "integer", "decimal", "boolean", "date", "timestamp", "unknown"]
+InferredType = Literal[
+    "string", "integer", "decimal", "boolean", "date", "timestamp", "unknown"
+]
 
 OutputType = Literal["string", "integer", "decimal", "boolean", "date", "timestamp"]
 
 TransformType = Literal[
-    "rename", "string_case", "date_parse", "null_replace", "null_drop", "calculated_field"
+    "rename",
+    "string_case",
+    "date_parse",
+    "null_replace",
+    "null_drop",
+    "calculated_field",
 ]
 
 

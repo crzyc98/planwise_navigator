@@ -341,6 +341,7 @@ async def validate_import(
         if result.valid:
             # Generate a temp ID for this upload
             import uuid
+
             upload_id = str(uuid.uuid4())
             _temp_upload_files[upload_id] = temp_path
             # Add upload_id to response for import reference
@@ -392,7 +393,7 @@ async def import_workspace(
                 raise HTTPException(
                     status_code=status.HTTP_400_BAD_REQUEST,
                     detail=f"Invalid conflict_resolution: {conflict_resolution}. "
-                           f"Valid values: rename, replace, skip",
+                    f"Valid values: rename, replace, skip",
                 )
 
         # Import workspace
@@ -459,6 +460,7 @@ async def start_bulk_import(
         except Exception as e:
             # Record failed import
             from ..models.export import ImportStatus
+
             status_obj.results.append(
                 ImportResponse(
                     workspace_id="",
@@ -477,6 +479,7 @@ async def start_bulk_import(
 
     # Update final status
     from ..models.export import BulkOperationStatus
+
     status_obj.current_file = None
     status_obj.status = BulkOperationStatus.COMPLETED
 

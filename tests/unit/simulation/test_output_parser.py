@@ -63,9 +63,9 @@ class TestSimulationOutputParser:
             # Reset to a different stage so we detect the change
             parser.current_stage = "NONE"
             parser.parse_line(line)
-            assert parser.current_stage == expected_stage, (
-                f"Expected {expected_stage} for '{line}', got {parser.current_stage}"
-            )
+            assert (
+                parser.current_stage == expected_stage
+            ), f"Expected {expected_stage} for '{line}', got {parser.current_stage}"
 
     def test_parses_event_count(self):
         """Should extract event counts from output."""
@@ -124,12 +124,17 @@ class TestClassifyLine:
 
     def test_error_lines(self):
         assert SimulationOutputParser.classify_line("ERROR: something broke") == "error"
-        assert SimulationOutputParser.classify_line("Traceback (most recent)") == "error"
+        assert (
+            SimulationOutputParser.classify_line("Traceback (most recent)") == "error"
+        )
         assert SimulationOutputParser.classify_line("dbt run failed") == "error"
 
     def test_warning_lines(self):
         assert SimulationOutputParser.classify_line("WARNING: low memory") == "warning"
 
     def test_debug_lines(self):
-        assert SimulationOutputParser.classify_line("Running model int_hire_events") == "debug"
+        assert (
+            SimulationOutputParser.classify_line("Running model int_hire_events")
+            == "debug"
+        )
         assert SimulationOutputParser.classify_line("") == "debug"

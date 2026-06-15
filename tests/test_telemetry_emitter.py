@@ -51,7 +51,7 @@ def records(stream):
     out = []
     for line in stream.getvalue().splitlines():
         assert line.startswith(SENTINEL), f"non-sentinel line emitted: {line!r}"
-        out.append(json.loads(line[len(SENTINEL):]))
+        out.append(json.loads(line[len(SENTINEL) :]))
     return out
 
 
@@ -83,7 +83,9 @@ class TestRecordShapes:
     def test_stage_started_uses_uppercase_stage_name(self, emitter, stream):
         from planalign_orchestrator.pipeline.workflow import WorkflowStage
 
-        emitter.on_stage_started({"year": 2025, "stage": WorkflowStage.EVENT_GENERATION})
+        emitter.on_stage_started(
+            {"year": 2025, "stage": WorkflowStage.EVENT_GENERATION}
+        )
         (rec,) = records(stream)
         assert rec["record"] == "stage_started"
         assert rec["year"] == 2025

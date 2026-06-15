@@ -21,8 +21,7 @@ from .pipeline_orchestrator import PipelineOrchestrator
 from .registries import RegistryManager
 from .scenario_batch_runner import ScenarioBatchRunner
 from .utils import DatabaseConnectionManager
-from .validation import (DataValidator, EventSequenceRule,
-                         HireTerminationRatioRule)
+from .validation import DataValidator, EventSequenceRule, HireTerminationRatioRule
 
 
 def _parse_years(s: str) -> tuple[int, int]:
@@ -108,9 +107,13 @@ def cmd_validate(args: argparse.Namespace) -> int:
 
 def cmd_batch(args: argparse.Namespace) -> int:
     """Execute batch scenario processing with Excel export."""
-    scenarios_dir = Path(args.scenarios_dir) if args.scenarios_dir else Path("scenarios")
+    scenarios_dir = (
+        Path(args.scenarios_dir) if args.scenarios_dir else Path("scenarios")
+    )
     output_dir = Path(args.output_dir) if args.output_dir else Path("outputs")
-    base_config_path = Path(args.config) if args.config else Path("config/simulation_config.yaml")
+    base_config_path = (
+        Path(args.config) if args.config else Path("config/simulation_config.yaml")
+    )
 
     if not scenarios_dir.exists():
         logger.error("Scenarios directory not found: %s", scenarios_dir)
@@ -127,7 +130,7 @@ def cmd_batch(args: argparse.Namespace) -> int:
         export_format=args.export_format,
         threads=args.threads,
         optimization=args.optimization,
-        clean_databases=args.clean
+        clean_databases=args.clean,
     )
 
     if not results:
@@ -135,8 +138,12 @@ def cmd_batch(args: argparse.Namespace) -> int:
         return 1
 
     # Report results
-    successful = [name for name, result in results.items() if result.get("status") == "completed"]
-    failed = [name for name, result in results.items() if result.get("status") == "failed"]
+    successful = [
+        name for name, result in results.items() if result.get("status") == "completed"
+    ]
+    failed = [
+        name for name, result in results.items() if result.get("status") == "failed"
+    ]
 
     logger.info("Batch execution completed:")
     logger.info("  Successful: %d scenarios", len(successful))
@@ -180,15 +187,49 @@ def build_parser() -> argparse.ArgumentParser:
 
     # batch
     pb = sub.add_parser("batch", help="Run multiple scenarios with Excel export")
-    pb.add_argument("--config", "-c", help="Base configuration file (default: config/simulation_config.yaml)")
-    pb.add_argument("--scenarios-dir", help="Directory containing scenario YAML files (default: scenarios/)")
-    pb.add_argument("--output-dir", help="Output directory for batch results (default: outputs/)")
-    pb.add_argument("--scenarios", nargs="*", help="Specific scenario names to run (default: all)")
-    pb.add_argument("--export-format", choices=["excel", "csv"], default="excel", help="Export format")
-    pb.add_argument("--split-by-year", action="store_true", help="Split Workforce Snapshot into per-year sheets/files")
-    pb.add_argument("--threads", type=int, default=1, help="Number of dbt threads for parallel execution (default: 1)")
-    pb.add_argument("--optimization", choices=["low", "medium", "high"], default="medium", help="Optimization level (default: medium)")
-    pb.add_argument("--clean", action="store_true", help="Delete DuckDB databases before running for a clean start")
+    pb.add_argument(
+        "--config",
+        "-c",
+        help="Base configuration file (default: config/simulation_config.yaml)",
+    )
+    pb.add_argument(
+        "--scenarios-dir",
+        help="Directory containing scenario YAML files (default: scenarios/)",
+    )
+    pb.add_argument(
+        "--output-dir", help="Output directory for batch results (default: outputs/)"
+    )
+    pb.add_argument(
+        "--scenarios", nargs="*", help="Specific scenario names to run (default: all)"
+    )
+    pb.add_argument(
+        "--export-format",
+        choices=["excel", "csv"],
+        default="excel",
+        help="Export format",
+    )
+    pb.add_argument(
+        "--split-by-year",
+        action="store_true",
+        help="Split Workforce Snapshot into per-year sheets/files",
+    )
+    pb.add_argument(
+        "--threads",
+        type=int,
+        default=1,
+        help="Number of dbt threads for parallel execution (default: 1)",
+    )
+    pb.add_argument(
+        "--optimization",
+        choices=["low", "medium", "high"],
+        default="medium",
+        help="Optimization level (default: medium)",
+    )
+    pb.add_argument(
+        "--clean",
+        action="store_true",
+        help="Delete DuckDB databases before running for a clean start",
+    )
     pb.set_defaults(func=cmd_batch)
 
     return p

@@ -17,6 +17,7 @@ pytestmark = pytest.mark.fast
 # App fixture
 # ---------------------------------------------------------------------------
 
+
 @pytest.fixture()
 def tmp_workspaces(tmp_path: Path):
     """Temporary workspaces root with a pre-created workspace."""
@@ -25,12 +26,14 @@ def tmp_workspaces(tmp_path: Path):
     ws_dir = ws_root / "ws-test"
     ws_dir.mkdir()
     (ws_dir / "workspace.json").write_text(
-        json.dumps({
-            "id": "ws-test",
-            "name": "Test",
-            "created_at": "2026-01-01T00:00:00",
-            "updated_at": "2026-01-01T00:00:00",
-        })
+        json.dumps(
+            {
+                "id": "ws-test",
+                "name": "Test",
+                "created_at": "2026-01-01T00:00:00",
+                "updated_at": "2026-01-01T00:00:00",
+            }
+        )
     )
     return ws_root
 
@@ -56,7 +59,9 @@ def client(tmp_workspaces: Path):
     app.dependency_overrides.clear()
 
 
-def _upload_csv(client: TestClient, csv_content: str, filename: str = "test.csv") -> dict:
+def _upload_csv(
+    client: TestClient, csv_content: str, filename: str = "test.csv"
+) -> dict:
     """Helper to upload a CSV and return the session JSON."""
     response = client.post(
         "/api/workspaces/ws-test/imports/upload",
@@ -72,7 +77,9 @@ def _upload_csv(client: TestClient, csv_content: str, filename: str = "test.csv"
 
 
 def test_suggestions_returns_200_with_suggestions(client: TestClient):
-    csv = "EmpID,DOB,Hire Date,Annual Salary,Active\nE001,1980-01-01,2020-03-15,95000,Y\n"
+    csv = (
+        "EmpID,DOB,Hire Date,Annual Salary,Active\nE001,1980-01-01,2020-03-15,95000,Y\n"
+    )
     session = _upload_csv(client, csv)
     import_id = session["import_id"]
 
@@ -85,7 +92,9 @@ def test_suggestions_returns_200_with_suggestions(client: TestClient):
 
 
 def test_suggestions_auto_maps_empid_to_employee_id(client: TestClient):
-    csv = "EmpID,DOB,Hire Date,Annual Salary,Active\nE001,1980-01-01,2020-03-15,95000,Y\n"
+    csv = (
+        "EmpID,DOB,Hire Date,Annual Salary,Active\nE001,1980-01-01,2020-03-15,95000,Y\n"
+    )
     session = _upload_csv(client, csv)
     import_id = session["import_id"]
 
@@ -118,7 +127,9 @@ def test_suggestions_includes_format_detection_for_date_column(client: TestClien
 def test_suggestions_data_quality_has_expected_keys(client: TestClient):
     csv = "EmpID,Hire Date,DOB,Salary,Active\nE001,2020-01-01,1980-01-01,95000,Y\n"
     session = _upload_csv(client, csv)
-    resp = client.get(f"/api/workspaces/ws-test/imports/{session['import_id']}/suggestions")
+    resp = client.get(
+        f"/api/workspaces/ws-test/imports/{session['import_id']}/suggestions"
+    )
     data = resp.json()
     dq = data["data_quality"]
     assert "duplicate_employee_id_count" in dq
@@ -136,18 +147,45 @@ def test_save_mapping_with_canonical_field_returns_200(client: TestClient):
     session = _upload_csv(client, csv)
     import_id = session["import_id"]
 
-    mapping_payload = {"field_mappings": [
-        {"input_column": "EmpID", "output_column": "employee_id", "output_type": "string",
-         "is_excluded": False, "transformations": []},
-        {"input_column": "DOB", "output_column": "employee_birth_date", "output_type": "date",
-         "is_excluded": False, "transformations": []},
-        {"input_column": "Hire Date", "output_column": "employee_hire_date", "output_type": "date",
-         "is_excluded": False, "transformations": []},
-        {"input_column": "Salary", "output_column": "employee_gross_compensation",
-         "output_type": "decimal", "is_excluded": False, "transformations": []},
-        {"input_column": "Active", "output_column": "active", "output_type": "boolean",
-         "is_excluded": False, "transformations": []},
-    ]}
+    mapping_payload = {
+        "field_mappings": [
+            {
+                "input_column": "EmpID",
+                "output_column": "employee_id",
+                "output_type": "string",
+                "is_excluded": False,
+                "transformations": [],
+            },
+            {
+                "input_column": "DOB",
+                "output_column": "employee_birth_date",
+                "output_type": "date",
+                "is_excluded": False,
+                "transformations": [],
+            },
+            {
+                "input_column": "Hire Date",
+                "output_column": "employee_hire_date",
+                "output_type": "date",
+                "is_excluded": False,
+                "transformations": [],
+            },
+            {
+                "input_column": "Salary",
+                "output_column": "employee_gross_compensation",
+                "output_type": "decimal",
+                "is_excluded": False,
+                "transformations": [],
+            },
+            {
+                "input_column": "Active",
+                "output_column": "active",
+                "output_type": "boolean",
+                "is_excluded": False,
+                "transformations": [],
+            },
+        ]
+    }
     resp = client.put(
         f"/api/workspaces/ws-test/imports/{import_id}/mapping",
         json=mapping_payload,
@@ -161,10 +199,17 @@ def test_save_mapping_with_free_form_name_returns_422(client: TestClient):
     session = _upload_csv(client, csv)
     import_id = session["import_id"]
 
-    mapping_payload = {"field_mappings": [
-        {"input_column": "EmpID", "output_column": "my_custom_field", "output_type": "string",
-         "is_excluded": False, "transformations": []},
-    ]}
+    mapping_payload = {
+        "field_mappings": [
+            {
+                "input_column": "EmpID",
+                "output_column": "my_custom_field",
+                "output_type": "string",
+                "is_excluded": False,
+                "transformations": [],
+            },
+        ]
+    }
     resp = client.put(
         f"/api/workspaces/ws-test/imports/{import_id}/mapping",
         json=mapping_payload,
@@ -182,11 +227,20 @@ def test_generate_without_required_fields_returns_422(client: TestClient):
     import_id = session["import_id"]
 
     # Save a mapping with only one field (missing required fields)
-    mapping_payload = {"field_mappings": [
-        {"input_column": "EmpID", "output_column": "employee_id", "output_type": "string",
-         "is_excluded": False, "transformations": []},
-    ]}
-    client.put(f"/api/workspaces/ws-test/imports/{import_id}/mapping", json=mapping_payload)
+    mapping_payload = {
+        "field_mappings": [
+            {
+                "input_column": "EmpID",
+                "output_column": "employee_id",
+                "output_type": "string",
+                "is_excluded": False,
+                "transformations": [],
+            },
+        ]
+    }
+    client.put(
+        f"/api/workspaces/ws-test/imports/{import_id}/mapping", json=mapping_payload
+    )
 
     resp = client.post(f"/api/workspaces/ws-test/imports/{import_id}/generate")
     assert resp.status_code == 422
@@ -198,7 +252,9 @@ def test_generate_without_required_fields_returns_422(client: TestClient):
 # ---------------------------------------------------------------------------
 
 
-def test_fingerprint_file_saved_after_successful_generation(client: TestClient, tmp_workspaces: Path):
+def test_fingerprint_file_saved_after_successful_generation(
+    client: TestClient, tmp_workspaces: Path
+):
     csv = (
         "EmpID,DOB,Hire Date,Salary,Active\n"
         "E001,1980-01-01,2020-01-01,95000,Y\n"
@@ -207,54 +263,129 @@ def test_fingerprint_file_saved_after_successful_generation(client: TestClient, 
     session = _upload_csv(client, csv)
     import_id = session["import_id"]
 
-    mapping_payload = {"field_mappings": [
-        {"input_column": "EmpID", "output_column": "employee_id", "output_type": "string",
-         "is_excluded": False, "transformations": []},
-        {"input_column": "DOB", "output_column": "employee_birth_date", "output_type": "date",
-         "is_excluded": False, "transformations": [{"transform_type": "date_parse", "params": {"format": "%Y-%m-%d"}}]},
-        {"input_column": "Hire Date", "output_column": "employee_hire_date", "output_type": "date",
-         "is_excluded": False, "transformations": [{"transform_type": "date_parse", "params": {"format": "%Y-%m-%d"}}]},
-        {"input_column": "Salary", "output_column": "employee_gross_compensation",
-         "output_type": "decimal", "is_excluded": False, "transformations": []},
-        {"input_column": "Active", "output_column": "active", "output_type": "boolean",
-         "is_excluded": False, "transformations": []},
-    ]}
-    client.put(f"/api/workspaces/ws-test/imports/{import_id}/mapping", json=mapping_payload)
+    mapping_payload = {
+        "field_mappings": [
+            {
+                "input_column": "EmpID",
+                "output_column": "employee_id",
+                "output_type": "string",
+                "is_excluded": False,
+                "transformations": [],
+            },
+            {
+                "input_column": "DOB",
+                "output_column": "employee_birth_date",
+                "output_type": "date",
+                "is_excluded": False,
+                "transformations": [
+                    {"transform_type": "date_parse", "params": {"format": "%Y-%m-%d"}}
+                ],
+            },
+            {
+                "input_column": "Hire Date",
+                "output_column": "employee_hire_date",
+                "output_type": "date",
+                "is_excluded": False,
+                "transformations": [
+                    {"transform_type": "date_parse", "params": {"format": "%Y-%m-%d"}}
+                ],
+            },
+            {
+                "input_column": "Salary",
+                "output_column": "employee_gross_compensation",
+                "output_type": "decimal",
+                "is_excluded": False,
+                "transformations": [],
+            },
+            {
+                "input_column": "Active",
+                "output_column": "active",
+                "output_type": "boolean",
+                "is_excluded": False,
+                "transformations": [],
+            },
+        ]
+    }
+    client.put(
+        f"/api/workspaces/ws-test/imports/{import_id}/mapping", json=mapping_payload
+    )
     resp = client.post(f"/api/workspaces/ws-test/imports/{import_id}/generate")
     assert resp.status_code == 202
 
     from planalign_api.services.suggestion_engine import SuggestionEngine
-    fp = SuggestionEngine.get_auto_fingerprint(["EmpID", "DOB", "Hire Date", "Salary", "Active"])
-    auto_path = tmp_workspaces / "ws-test" / "templates" / "imports" / f"_auto_{fp}.json"
+
+    fp = SuggestionEngine.get_auto_fingerprint(
+        ["EmpID", "DOB", "Hire Date", "Salary", "Active"]
+    )
+    auto_path = (
+        tmp_workspaces / "ws-test" / "templates" / "imports" / f"_auto_{fp}.json"
+    )
     assert auto_path.exists(), f"Fingerprint file not found at {auto_path}"
 
 
-def test_second_upload_same_headers_gets_prior_mapping_reason(client: TestClient, tmp_workspaces: Path):
-    csv = (
-        "EmpID,DOB,Hire Date,Salary,Active\n"
-        "E001,1980-01-01,2020-01-01,95000,Y\n"
-    )
+def test_second_upload_same_headers_gets_prior_mapping_reason(
+    client: TestClient, tmp_workspaces: Path
+):
+    csv = "EmpID,DOB,Hire Date,Salary,Active\n" "E001,1980-01-01,2020-01-01,95000,Y\n"
     # First import — generate to create fingerprint
     session1 = _upload_csv(client, csv)
-    mapping_payload = {"field_mappings": [
-        {"input_column": "EmpID", "output_column": "employee_id", "output_type": "string",
-         "is_excluded": False, "transformations": []},
-        {"input_column": "DOB", "output_column": "employee_birth_date", "output_type": "date",
-         "is_excluded": False, "transformations": [{"transform_type": "date_parse", "params": {"format": "%Y-%m-%d"}}]},
-        {"input_column": "Hire Date", "output_column": "employee_hire_date", "output_type": "date",
-         "is_excluded": False, "transformations": [{"transform_type": "date_parse", "params": {"format": "%Y-%m-%d"}}]},
-        {"input_column": "Salary", "output_column": "employee_gross_compensation",
-         "output_type": "decimal", "is_excluded": False, "transformations": []},
-        {"input_column": "Active", "output_column": "active", "output_type": "boolean",
-         "is_excluded": False, "transformations": []},
-    ]}
-    client.put(f"/api/workspaces/ws-test/imports/{session1['import_id']}/mapping", json=mapping_payload)
+    mapping_payload = {
+        "field_mappings": [
+            {
+                "input_column": "EmpID",
+                "output_column": "employee_id",
+                "output_type": "string",
+                "is_excluded": False,
+                "transformations": [],
+            },
+            {
+                "input_column": "DOB",
+                "output_column": "employee_birth_date",
+                "output_type": "date",
+                "is_excluded": False,
+                "transformations": [
+                    {"transform_type": "date_parse", "params": {"format": "%Y-%m-%d"}}
+                ],
+            },
+            {
+                "input_column": "Hire Date",
+                "output_column": "employee_hire_date",
+                "output_type": "date",
+                "is_excluded": False,
+                "transformations": [
+                    {"transform_type": "date_parse", "params": {"format": "%Y-%m-%d"}}
+                ],
+            },
+            {
+                "input_column": "Salary",
+                "output_column": "employee_gross_compensation",
+                "output_type": "decimal",
+                "is_excluded": False,
+                "transformations": [],
+            },
+            {
+                "input_column": "Active",
+                "output_column": "active",
+                "output_type": "boolean",
+                "is_excluded": False,
+                "transformations": [],
+            },
+        ]
+    }
+    client.put(
+        f"/api/workspaces/ws-test/imports/{session1['import_id']}/mapping",
+        json=mapping_payload,
+    )
     client.post(f"/api/workspaces/ws-test/imports/{session1['import_id']}/generate")
 
     # Second import — same headers
     session2 = _upload_csv(client, csv)
-    resp = client.get(f"/api/workspaces/ws-test/imports/{session2['import_id']}/suggestions")
+    resp = client.get(
+        f"/api/workspaces/ws-test/imports/{session2['import_id']}/suggestions"
+    )
     assert resp.status_code == 200
     data = resp.json()
     prior_mapped = [s for s in data["suggestions"] if s["reason"] == "prior_mapping"]
-    assert len(prior_mapped) == 5, f"Expected 5 prior_mapping suggestions, got {prior_mapped}"
+    assert (
+        len(prior_mapped) == 5
+    ), f"Expected 5 prior_mapping suggestions, got {prior_mapped}"

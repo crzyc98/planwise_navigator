@@ -102,6 +102,7 @@ class PipelineStageError(RuntimeError):
     This exception is raised when event generation, validation, or other
     pipeline stages encounter unrecoverable errors.
     """
+
     pass
 
 
@@ -171,9 +172,7 @@ class EventGenerationExecutor:
         self.event_shards = event_shards
         self.verbose = verbose
 
-    def execute_hybrid_event_generation(
-        self, years: List[int]
-    ) -> Dict[str, Any]:
+    def execute_hybrid_event_generation(self, years: List[int]) -> Dict[str, Any]:
         """Execute event generation using SQL-based dbt models.
 
         Args:
@@ -243,7 +242,7 @@ class EventGenerationExecutor:
                     dependencies=[WorkflowStage.FOUNDATION],
                     models=self._get_event_generation_models(year),
                     validation_rules=["hire_termination_ratio", "event_sequence"],
-                    parallel_safe=False
+                    parallel_safe=False,
                 )
 
                 # Execute the stage using existing logic
@@ -256,22 +255,29 @@ class EventGenerationExecutor:
                     # - int_employee_contributions: depends on int_deferral_rate_state_accumulator
                     # - int_employee_match_calculations: depends on int_employee_contributions
                     result = self.dbt_runner.execute_command(
-                        ["run", "--select", "tag:EVENT_GENERATION",
-                         "--exclude", "int_employee_contributions",
-                         "--exclude", "int_employee_match_calculations"],
+                        [
+                            "run",
+                            "--select",
+                            "tag:EVENT_GENERATION",
+                            "--exclude",
+                            "int_employee_contributions",
+                            "--exclude",
+                            "int_employee_match_calculations",
+                        ],
                         simulation_year=year,
                         dbt_vars=self.dbt_vars,
-                        stream_output=True
+                        stream_output=True,
                     )
                     results = [result]
 
                 if all(r.success for r in results):
                     successful_years.append(year)
+
                     # Count events from database
                     def _count_events(conn, year=year):
                         return conn.execute(
                             f"SELECT COUNT(*) FROM {TABLE_FCT_YEARLY_EVENTS} WHERE simulation_year = ?",
-                            [year]
+                            [year],
                         ).fetchone()[0]
 
                     year_events = self.db_manager.execute_with_retry(_count_events)
@@ -282,22 +288,30 @@ class EventGenerationExecutor:
                     )
 
             except Exception as e:
-                raise PipelineStageError(f"SQL event generation failed for year {year}: {e}")
+                raise PipelineStageError(
+                    f"SQL event generation failed for year {year}: {e}"
+                )
 
         sql_duration = time.time() - start_time
 
         if self.verbose:
             logger.info("SQL event generation completed in %.1fs", sql_duration)
-            logger.info("Generated %s events across %d years", f"{total_events:,}", len(successful_years))
+            logger.info(
+                "Generated %s events across %d years",
+                f"{total_events:,}",
+                len(successful_years),
+            )
             if sql_duration > 0:
-                logger.info("Performance: %.0f events/second", total_events / sql_duration)
+                logger.info(
+                    "Performance: %.0f events/second", total_events / sql_duration
+                )
 
         return {
-            'mode': 'sql',
-            'success': len(successful_years) == len(years),
-            'execution_time': sql_duration,
-            'total_events': total_events,
-            'successful_years': successful_years,
+            "mode": "sql",
+            "success": len(successful_years) == len(years),
+            "execution_time": sql_duration,
+            "total_events": total_events,
+            "successful_years": successful_years,
         }
 
     def _execute_sharded_event_generation(self, year: int) -> List[DbtResult]:
@@ -333,16 +347,13 @@ class EventGenerationExecutor:
         # Execute sharded event generation in parallel
         for shard_id in range(self.event_shards):
             shard_vars = self.dbt_vars.copy()
-            shard_vars.update({
-                "shard_id": shard_id,
-                "total_shards": self.event_shards
-            })
+            shard_vars.update({"shard_id": shard_id, "total_shards": self.event_shards})
 
             result = self.dbt_runner.execute_command(
                 ["run", "--select", f"events_y{year}_shard{shard_id}"],
                 simulation_year=year,
                 dbt_vars=shard_vars,
-                stream_output=True
+                stream_output=True,
             )
             results.append(result)
 
@@ -356,7 +367,7 @@ class EventGenerationExecutor:
             ["run", "--select", MODEL_FCT_YEARLY_EVENTS],
             simulation_year=year,
             dbt_vars=self.dbt_vars,
-            stream_output=True
+            stream_output=True,
         )
         results.append(union_result)
 
@@ -392,9 +403,11 @@ class EventGenerationExecutor:
         """
         models = [
             # E049: Ensure synthetic baseline enrollment events are built in the first year
-            *([
-                "int_synthetic_baseline_enrollment_events"
-            ] if year == self.config.simulation.start_year else []),
+            *(
+                ["int_synthetic_baseline_enrollment_events"]
+                if year == self.config.simulation.start_year
+                else []
+            ),
             MODEL_INT_TERMINATION_EVENTS,
             "int_hiring_events",
             "int_new_hire_termination_events",

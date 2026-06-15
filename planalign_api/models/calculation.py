@@ -11,7 +11,9 @@ from pydantic import BaseModel, Field, field_validator
 class TerminationRateCalculation(BaseModel):
     """Intermediate calculation state for deriving termination rate suggestion."""
 
-    calculation_id: UUID = Field(..., description="Unique identifier for this calculation")
+    calculation_id: UUID = Field(
+        ..., description="Unique identifier for this calculation"
+    )
     scenario_id: str = Field(..., description="Scenario context")
     plan_design_id: str = Field(..., description="Benefit plan identifier")
     snapshot_date: str = Field(..., description="Census snapshot date (YYYY-MM-DD)")
@@ -26,7 +28,9 @@ class TerminationRateCalculation(BaseModel):
     )
 
     calculation_numerator: Decimal = Field(..., ge=0, description="Termination count")
-    calculation_denominator: Decimal = Field(..., ge=0, description="Active employee count")
+    calculation_denominator: Decimal = Field(
+        ..., ge=0, description="Active employee count"
+    )
 
     # Result
     calculated_rate: Optional[Decimal] = Field(
@@ -34,14 +38,16 @@ class TerminationRateCalculation(BaseModel):
     )
 
     # Error Handling
-    calculation_status: Literal["SUCCESS", "INSUFFICIENT_DATA", "DIVISION_BY_ZERO"] = Field(
-        ..., description="Status of calculation"
-    )
+    calculation_status: Literal[
+        "SUCCESS", "INSUFFICIENT_DATA", "DIVISION_BY_ZERO"
+    ] = Field(..., description="Status of calculation")
     error_message: Optional[str] = Field(
         None, description="Error message if calculation failed"
     )
 
-    calculated_at: datetime = Field(default_factory=datetime.utcnow, description="Timestamp of calculation")
+    calculated_at: datetime = Field(
+        default_factory=datetime.utcnow, description="Timestamp of calculation"
+    )
 
     class Config:
         """Pydantic configuration."""

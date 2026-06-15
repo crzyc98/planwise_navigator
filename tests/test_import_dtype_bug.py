@@ -59,9 +59,9 @@ def test_duckdb_register_after_read_parquet(tmp_path):
     df2 = conn.execute(f"SELECT * FROM read_parquet('{source_path}')").df()
     conn.close()
 
-    assert any(isinstance(df2[c].dtype, pd.StringDtype) for c in df2.columns), (
-        "Precondition: read_parquet must return StringDtype columns for this test to be meaningful"
-    )
+    assert any(
+        isinstance(df2[c].dtype, pd.StringDtype) for c in df2.columns
+    ), "Precondition: read_parquet must return StringDtype columns for this test to be meaningful"
 
     df2 = _normalize_dtypes_for_duckdb(df2)
 

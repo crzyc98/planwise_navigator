@@ -37,14 +37,14 @@ from .utils import DatabaseConnectionManager
 logger = logging.getLogger(__name__)
 
 # Regex for validating SQL identifiers (table names) that can't be parameterized
-_VALID_IDENTIFIER_RE = re.compile(r'^[a-zA-Z_]\w*$')
+_VALID_IDENTIFIER_RE = re.compile(r"^[a-zA-Z_]\w*$")
 
 # Characters that are invalid in filenames on Windows/macOS/Linux, plus control chars
 _UNSAFE_FILENAME_CHARS_RE = re.compile(r'[<>:"/\\|?*\x00-\x1f]')
 
 
 def _safe_filename_component(
-    name: str, *, fallback: str = 'scenario', max_length: int = 100
+    name: str, *, fallback: str = "scenario", max_length: int = 100
 ) -> str:
     """Sanitize an arbitrary string for safe use as a filename component.
 
@@ -57,17 +57,19 @@ def _safe_filename_component(
     """
     if name is None:
         return fallback
-    sanitized = _UNSAFE_FILENAME_CHARS_RE.sub('_', str(name))
-    sanitized = sanitized.strip().strip('. ').strip()
+    sanitized = _UNSAFE_FILENAME_CHARS_RE.sub("_", str(name))
+    sanitized = sanitized.strip().strip(". ").strip()
     if len(sanitized) > max_length:
-        sanitized = sanitized[:max_length].rstrip('. ')
+        sanitized = sanitized[:max_length].rstrip(". ")
     return sanitized or fallback
 
 
 class ExcelExporter:
     """Export simulation results to analyst-friendly Excel workbooks with metadata and splitting options."""
 
-    def __init__(self, db_manager: DatabaseConnectionManager, *, split_threshold: int = 750_000):
+    def __init__(
+        self, db_manager: DatabaseConnectionManager, *, split_threshold: int = 750_000
+    ):
         """Initialize Excel exporter with database connection manager.
 
         Args:
@@ -110,20 +112,32 @@ class ExcelExporter:
             # Check if workforce snapshot table exists
             table_exists = self._check_table_exists(conn, TABLE_FCT_WORKFORCE_SNAPSHOT)
             if not table_exists:
-                logger.warning("fct_workforce_snapshot table not found, creating minimal export")
-                return self._create_minimal_export(scenario_name, output_dir, export_format)
+                logger.warning(
+                    "fct_workforce_snapshot table not found, creating minimal export"
+                )
+                return self._create_minimal_export(
+                    scenario_name, output_dir, export_format
+                )
 
             # Determine total rows and whether to split by year
             total_rows = self._query_to_df(
                 conn,
                 f"SELECT COUNT(*) AS cnt FROM {TABLE_FCT_WORKFORCE_SNAPSHOT}",
             )["cnt"].iloc[0]
-            split = split_by_year if split_by_year is not None else total_rows > self.split_threshold
+            split = (
+                split_by_year
+                if split_by_year is not None
+                else total_rows > self.split_threshold
+            )
 
             if export_format.lower() == "csv":
-                return self._export_csv(scenario_name, output_dir, conn, config, seed, split)
+                return self._export_csv(
+                    scenario_name, output_dir, conn, config, seed, split
+                )
             else:
-                return self._export_excel(scenario_name, output_dir, conn, config, seed, split, total_rows)
+                return self._export_excel(
+                    scenario_name, output_dir, conn, config, seed, split, total_rows
+                )
 
     def _check_table_exists(self, conn, table_name: str) -> bool:
         """Check if a table exists in the database.
@@ -171,7 +185,9 @@ class ExcelExporter:
             return conn.execute(query).df()
         return conn.execute(query, params).df()
 
-    def _create_minimal_export(self, scenario_name: str, output_dir: Path, export_format: str) -> Path:
+    def _create_minimal_export(
+        self, scenario_name: str, output_dir: Path, export_format: str
+    ) -> Path:
         """Create minimal export when main tables are not available.
 
         Args:
@@ -184,19 +200,27 @@ class ExcelExporter:
         """
         if export_format.lower() == "csv":
             minimal_path = output_dir / f"{scenario_name}_minimal_export.csv"
-            pd.DataFrame({"message": ["Simulation completed but no data tables found"]}).to_csv(
-                minimal_path, index=False
-            )
+            pd.DataFrame(
+                {"message": ["Simulation completed but no data tables found"]}
+            ).to_csv(minimal_path, index=False)
             return minimal_path
         else:
             minimal_path = output_dir / f"{scenario_name}_minimal_export.xlsx"
             with pd.ExcelWriter(minimal_path, engine="openpyxl") as writer:
-                pd.DataFrame({"message": ["Simulation completed but no data tables found"]}).to_excel(
-                    writer, sheet_name="Status", index=False
-                )
+                pd.DataFrame(
+                    {"message": ["Simulation completed but no data tables found"]}
+                ).to_excel(writer, sheet_name="Status", index=False)
             return minimal_path
 
-    def _export_csv(self, scenario_name: str, output_dir: Path, conn, config: Any, seed: int, split: bool) -> Path:
+    def _export_csv(
+        self,
+        scenario_name: str,
+        output_dir: Path,
+        conn,
+        config: Any,
+        seed: int,
+        split: bool,
+    ) -> Path:
         """Export scenario results to CSV files.
 
         Args:
@@ -224,18 +248,24 @@ class ExcelExporter:
                     f"SELECT * FROM {TABLE_FCT_WORKFORCE_SNAPSHOT} WHERE {COL_SIMULATION_YEAR} = ? ORDER BY {COL_EMPLOYEE_ID}",
                     params=[year],
                 )
-                df_year.to_csv(output_dir / f"{scenario_name}_workforce_{year}.csv", index=False)
+                df_year.to_csv(
+                    output_dir / f"{scenario_name}_workforce_{year}.csv", index=False
+                )
         else:
             # Single workforce snapshot CSV
             df_workforce = self._query_to_df(
                 conn,
                 f"SELECT * FROM {TABLE_FCT_WORKFORCE_SNAPSHOT} ORDER BY {COL_SIMULATION_YEAR}, {COL_EMPLOYEE_ID}",
             )
-            df_workforce.to_csv(output_dir / f"{scenario_name}_workforce_snapshot.csv", index=False)
+            df_workforce.to_csv(
+                output_dir / f"{scenario_name}_workforce_snapshot.csv", index=False
+            )
 
         # Export summary metrics
         df_summary = self._calculate_summary_metrics(conn)
-        df_summary.to_csv(output_dir / f"{scenario_name}_summary_metrics.csv", index=False)
+        df_summary.to_csv(
+            output_dir / f"{scenario_name}_summary_metrics.csv", index=False
+        )
 
         # Export events if table exists
         if self._check_table_exists(conn, TABLE_FCT_YEARLY_EVENTS):
@@ -244,11 +274,15 @@ class ExcelExporter:
                 conn,
                 f"SELECT * FROM {TABLE_FCT_YEARLY_EVENTS} ORDER BY {COL_SIMULATION_YEAR}, {COL_EMPLOYEE_ID}, {COL_EVENT_TYPE}",
             )
-            df_events_detail.to_csv(output_dir / f"{scenario_name}_events_detail.csv", index=False)
+            df_events_detail.to_csv(
+                output_dir / f"{scenario_name}_events_detail.csv", index=False
+            )
 
             # Aggregated summary
             df_events = self._calculate_events_summary(conn)
-            df_events.to_csv(output_dir / f"{scenario_name}_events_summary.csv", index=False)
+            df_events.to_csv(
+                output_dir / f"{scenario_name}_events_summary.csv", index=False
+            )
 
         # Export metadata
         df_metadata = self._build_metadata_dataframe(config, seed, conn, split=split)
@@ -256,7 +290,16 @@ class ExcelExporter:
 
         return output_dir
 
-    def _export_excel(self, scenario_name: str, output_dir: Path, conn, config: Any, seed: int, split: bool, total_rows: int) -> Path:
+    def _export_excel(
+        self,
+        scenario_name: str,
+        output_dir: Path,
+        conn,
+        config: Any,
+        seed: int,
+        split: bool,
+        total_rows: int,
+    ) -> Path:
         """Export scenario results to Excel workbook.
 
         Args:
@@ -295,7 +338,9 @@ class ExcelExporter:
                 self._format_worksheet(writer.book["Events_Summary"])
 
             # Metadata sheet
-            df_metadata = self._build_metadata_dataframe(config, seed, conn, total_rows, split)
+            df_metadata = self._build_metadata_dataframe(
+                config, seed, conn, total_rows, split
+            )
             df_metadata = self._sanitize_for_excel(df_metadata)
             df_metadata.to_excel(writer, sheet_name="Metadata", index=False)
             self._format_worksheet(writer.book["Metadata"])
@@ -376,7 +421,9 @@ class ExcelExporter:
             # Object columns may contain Timestamp objects with tz
             elif ser.dtype == object:
                 try:
-                    if ser.apply(lambda x: isinstance(x, pd.Timestamp) and x.tz is not None).any():
+                    if ser.apply(
+                        lambda x: isinstance(x, pd.Timestamp) and x.tz is not None
+                    ).any():
                         out[col] = ser.apply(
                             lambda x: (
                                 x.tz_convert("UTC").tz_localize(None)
@@ -405,7 +452,9 @@ class ExcelExporter:
         if "employment_status" in cols:
             status_expr = "COUNT(CASE WHEN employment_status = 'active' THEN 1 END) AS active_employees"
         elif "status" in cols:
-            status_expr = "COUNT(CASE WHEN status = 'active' THEN 1 END) AS active_employees"
+            status_expr = (
+                "COUNT(CASE WHEN status = 'active' THEN 1 END) AS active_employees"
+            )
         else:
             status_expr = "CAST(NULL AS BIGINT) AS active_employees"
 
@@ -416,9 +465,13 @@ class ExcelExporter:
         )
 
         salary_col_fallback = "salary" if "salary" in cols else None
-        salary_col = "current_salary" if "current_salary" in cols else salary_col_fallback
+        salary_col = (
+            "current_salary" if "current_salary" in cols else salary_col_fallback
+        )
         avg_salary_expr = (
-            f"ROUND(AVG({salary_col}), 2) AS avg_salary" if salary_col else "CAST(NULL AS DOUBLE) AS avg_salary"
+            f"ROUND(AVG({salary_col}), 2) AS avg_salary"
+            if salary_col
+            else "CAST(NULL AS DOUBLE) AS avg_salary"
         )
 
         ee_contrib_expr = (
@@ -487,7 +540,14 @@ class ExcelExporter:
             """,
         )
 
-    def _build_metadata_dataframe(self, config: Any, seed: int, conn, total_rows: Optional[int] = None, split: bool = False) -> pd.DataFrame:
+    def _build_metadata_dataframe(
+        self,
+        config: Any,
+        seed: int,
+        conn,
+        total_rows: Optional[int] = None,
+        split: bool = False,
+    ) -> pd.DataFrame:
         """Build metadata dataframe with scenario information.
 
         Args:
@@ -509,8 +569,16 @@ class ExcelExporter:
                 conn,
                 f"SELECT MIN({COL_SIMULATION_YEAR}) AS min_y, MAX({COL_SIMULATION_YEAR}) AS max_y FROM {TABLE_FCT_WORKFORCE_SNAPSHOT}",
             ).iloc[0]
-            start_year = int(years["min_y"]) if not pd.isna(years["min_y"]) else config.simulation.start_year
-            end_year = int(years["max_y"]) if not pd.isna(years["max_y"]) else config.simulation.end_year
+            start_year = (
+                int(years["min_y"])
+                if not pd.isna(years["min_y"])
+                else config.simulation.start_year
+            )
+            end_year = (
+                int(years["max_y"])
+                if not pd.isna(years["max_y"])
+                else config.simulation.end_year
+            )
         except Exception:
             start_year = config.simulation.start_year
             end_year = config.simulation.end_year
@@ -527,7 +595,7 @@ class ExcelExporter:
 
         # Convert config to JSON-serializable dictionary
         try:
-            config_dict = config.model_dump() if hasattr(config, 'model_dump') else {}
+            config_dict = config.model_dump() if hasattr(config, "model_dump") else {}
         except Exception:
             config_dict = {}
 
@@ -544,7 +612,7 @@ class ExcelExporter:
             "target_growth_rate": config.simulation.target_growth_rate,
             "cola_rate": config.compensation.cola_rate,
             "merit_budget": config.compensation.merit_budget,
-            "config_json": json.dumps(config_dict, default=str, indent=2)
+            "config_json": json.dumps(config_dict, default=str, indent=2),
         }
 
         # Convert to single-row DataFrame with transposed layout for readability
@@ -553,12 +621,11 @@ class ExcelExporter:
             if key == "config_json":
                 # Split config JSON into multiple rows for readability
                 try:
-                    config_lines = str(value).split('\n')
+                    config_lines = str(value).split("\n")
                     for i, line in enumerate(config_lines):
-                        metadata_items.append({
-                            "Parameter": f"config_json_line_{i+1:03d}",
-                            "Value": line
-                        })
+                        metadata_items.append(
+                            {"Parameter": f"config_json_line_{i+1:03d}", "Value": line}
+                        )
                 except Exception:
                     metadata_items.append({"Parameter": key, "Value": str(value)})
             else:
@@ -580,8 +647,8 @@ class ExcelExporter:
                 ["git", "rev-parse", "HEAD"],
                 capture_output=True,
                 text=True,
-                encoding='utf-8',
-                check=True
+                encoding="utf-8",
+                check=True,
             )
             metadata["git_sha"] = result.stdout.strip()
         except Exception:
@@ -593,8 +660,8 @@ class ExcelExporter:
                 ["git", "rev-parse", "--abbrev-ref", "HEAD"],
                 capture_output=True,
                 text=True,
-                encoding='utf-8',
-                check=True
+                encoding="utf-8",
+                check=True,
             )
             metadata["git_branch"] = result.stdout.strip()
         except Exception:
@@ -606,8 +673,8 @@ class ExcelExporter:
                 ["git", "status", "--porcelain"],
                 capture_output=True,
                 text=True,
-                encoding='utf-8',
-                check=True
+                encoding="utf-8",
+                check=True,
             )
             metadata["git_clean"] = len(result.stdout.strip()) == 0
         except Exception:
@@ -655,7 +722,9 @@ class ExcelExporter:
 
             # Header formatting
             header_font = Font(bold=True)
-            header_fill = PatternFill(start_color="E6E6FA", end_color="E6E6FA", fill_type="solid")
+            header_fill = PatternFill(
+                start_color="E6E6FA", end_color="E6E6FA", fill_type="solid"
+            )
 
             # Format header row
             for cell in worksheet[1]:
@@ -680,7 +749,9 @@ class ExcelExporter:
             # Formatting failed, continue without formatting
             pass
 
-    def create_comparison_workbook(self, scenario_results: Dict[str, Any], output_path: Path) -> None:
+    def create_comparison_workbook(
+        self, scenario_results: Dict[str, Any], output_path: Path
+    ) -> None:
         """Create comparison workbook across multiple successful scenarios.
 
         Args:
@@ -709,11 +780,15 @@ class ExcelExporter:
                             "active_employees": row["active_employees"],
                             "enrolled_employees": row["enrolled_employees"],
                             "avg_salary": row["avg_salary"],
-                            "total_employee_contributions": row["total_employee_contributions"],
+                            "total_employee_contributions": row[
+                                "total_employee_contributions"
+                            ],
                             "total_employer_match": row["total_employer_match"],
                             "avg_deferral_rate": row["avg_deferral_rate"],
-                            "execution_time_seconds": result.get("execution_time_seconds", 0),
-                            "seed": result.get("seed", 0)
+                            "execution_time_seconds": result.get(
+                                "execution_time_seconds", 0
+                            ),
+                            "seed": result.get("seed", 0),
                         }
                         comparison_data.append(comparison_record)
 
@@ -724,7 +799,9 @@ class ExcelExporter:
                 with pd.ExcelWriter(output_path, engine="openpyxl") as writer:
                     # Main comparison sheet
                     comparison_df = self._sanitize_for_excel(comparison_df)
-                    comparison_df.to_excel(writer, sheet_name="Scenario_Comparison", index=False)
+                    comparison_df.to_excel(
+                        writer, sheet_name="Scenario_Comparison", index=False
+                    )
                     self._format_worksheet(writer.book["Scenario_Comparison"])
 
                     # Pivot table by scenario and year
@@ -732,22 +809,31 @@ class ExcelExporter:
                         index=["simulation_year"],
                         columns=["scenario"],
                         values=["total_employees", "avg_salary", "avg_deferral_rate"],
-                        aggfunc="first"
+                        aggfunc="first",
                     )
                     pivot_df = self._sanitize_for_excel(pivot_df)
                     pivot_df.to_excel(writer, sheet_name="Year_by_Scenario_Pivot")
 
                     # Summary statistics
-                    summary_stats = comparison_df.groupby("scenario").agg({
-                        "total_employees": ["min", "max", "mean"],
-                        "avg_salary": ["min", "max", "mean"],
-                        "avg_deferral_rate": ["min", "max", "mean"],
-                        "execution_time_seconds": "first"
-                    }).round(2)
+                    summary_stats = (
+                        comparison_df.groupby("scenario")
+                        .agg(
+                            {
+                                "total_employees": ["min", "max", "mean"],
+                                "avg_salary": ["min", "max", "mean"],
+                                "avg_deferral_rate": ["min", "max", "mean"],
+                                "execution_time_seconds": "first",
+                            }
+                        )
+                        .round(2)
+                    )
                     summary_stats = self._sanitize_for_excel(summary_stats)
                     summary_stats.to_excel(writer, sheet_name="Scenario_Summary")
 
-                logger.info("Comparison workbook created with %d data points", len(comparison_data))
+                logger.info(
+                    "Comparison workbook created with %d data points",
+                    len(comparison_data),
+                )
             else:
                 logger.warning("No comparison data found for scenarios")
 

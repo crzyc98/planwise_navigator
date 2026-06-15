@@ -18,15 +18,29 @@ import time
 import logging
 from dataclasses import dataclass
 from pathlib import Path
-from typing import (Any, Callable, Dict, Generator, Iterable, List, Optional,
-                    Sequence, Tuple)
+from typing import (
+    Any,
+    Callable,
+    Dict,
+    Generator,
+    Iterable,
+    List,
+    Optional,
+    Sequence,
+    Tuple,
+)
 
 logger = logging.getLogger(__name__)
 
 # Import parallel execution components (lazy import to avoid circular dependencies)
 try:
-    from .parallel_execution_engine import ParallelExecutionEngine, ExecutionContext, ExecutionResult
+    from .parallel_execution_engine import (
+        ParallelExecutionEngine,
+        ExecutionContext,
+        ExecutionResult,
+    )
     from .model_dependency_analyzer import ModelDependencyAnalyzer
+
     PARALLEL_EXECUTION_AVAILABLE = True
 except ImportError:
     PARALLEL_EXECUTION_AVAILABLE = False
@@ -125,7 +139,9 @@ class DbtRunner:
         # Model-level parallelization settings
         self.enable_model_parallelization = enable_model_parallelization
         self.model_parallelization_max_workers = model_parallelization_max_workers
-        self.model_parallelization_memory_limit_mb = model_parallelization_memory_limit_mb
+        self.model_parallelization_memory_limit_mb = (
+            model_parallelization_memory_limit_mb
+        )
 
         # Initialize parallel execution engine if enabled and available
         self._parallel_engine: Optional[ParallelExecutionEngine] = None
@@ -139,12 +155,15 @@ class DbtRunner:
                     dependency_analyzer=self._dependency_analyzer,
                     max_workers=model_parallelization_max_workers,
                     memory_limit_mb=model_parallelization_memory_limit_mb,
-                    verbose=verbose
+                    verbose=verbose,
                 )
                 logger.debug("Model-level parallelization engine initialized")
             except Exception as e:
-                logger.warning("Failed to initialize parallel execution engine: %s. "
-                               "Falling back to standard dbt threading", e)
+                logger.warning(
+                    "Failed to initialize parallel execution engine: %s. "
+                    "Falling back to standard dbt threading",
+                    e,
+                )
                 self._parallel_engine = None
                 self._dependency_analyzer = None
 
@@ -153,13 +172,20 @@ class DbtRunner:
 
         threading_status = "enabled" if threading_enabled else "disabled"
         parallel_status = "enabled" if self._parallel_engine else "disabled"
-        logger.debug("DbtRunner initialized: dbt threads=%d (%s, mode=%s), "
-                     "model parallelization=%s",
-                     threads, threading_status, threading_mode, parallel_status)
+        logger.debug(
+            "DbtRunner initialized: dbt threads=%d (%s, mode=%s), "
+            "model parallelization=%s",
+            threads,
+            threading_status,
+            threading_mode,
+            parallel_status,
+        )
         if self._parallel_engine:
-            logger.debug("Parallel engine config: max_workers=%d, memory_limit=%sMB",
-                         model_parallelization_max_workers,
-                         model_parallelization_memory_limit_mb)
+            logger.debug(
+                "Parallel engine config: max_workers=%d, memory_limit=%sMB",
+                model_parallelization_max_workers,
+                model_parallelization_memory_limit_mb,
+            )
 
     def _validate_thread_count(self, thread_count: int) -> None:
         """Validate thread count with appropriate error messages"""
@@ -170,11 +196,17 @@ class DbtRunner:
 
         # Log performance guidance
         if thread_count > 8:
-            logger.warning("High thread count (%d): Monitor memory usage and consider "
-                           "reducing if experiencing stability issues", thread_count)
+            logger.warning(
+                "High thread count (%d): Monitor memory usage and consider "
+                "reducing if experiencing stability issues",
+                thread_count,
+            )
         elif thread_count > 4:
-            logger.debug("Multi-threading enabled (%d threads): Expected 20-30%% "
-                         "performance improvement", thread_count)
+            logger.debug(
+                "Multi-threading enabled (%d threads): Expected 20-30%% "
+                "performance improvement",
+                thread_count,
+            )
 
     def update_thread_count(self, new_thread_count: int) -> None:
         """Update thread count dynamically with validation"""
@@ -190,7 +222,7 @@ class DbtRunner:
             "thread_count": self.threads,
             "threading_enabled": self.threading_enabled,
             "threading_mode": self.threading_mode,
-            "single_threaded_fallback": self.threads == 1
+            "single_threaded_fallback": self.threads == 1,
         }
 
     def _build_command(
@@ -228,7 +260,9 @@ class DbtRunner:
             ]
             if any(c in command_args for c in threads_supported_commands):
                 # Use provided threads parameter or instance default
-                effective_threads = threads or (self.threads if self.threading_enabled else 1)
+                effective_threads = threads or (
+                    self.threads if self.threading_enabled else 1
+                )
                 cmd.extend(["--threads", str(effective_threads)])
 
         return cmd
@@ -260,7 +294,9 @@ class DbtRunner:
                 on_line=on_line,
             )
 
-        return self._execute_with_retry(_run_once, retry=retry, max_attempts=max_attempts)
+        return self._execute_with_retry(
+            _run_once, retry=retry, max_attempts=max_attempts
+        )
 
     def _execute_with_retry(
         self,
@@ -307,7 +343,10 @@ class DbtRunner:
             try:
                 self.db_manager.close_all()
             except Exception as e:
-                logger.warning("Non-fatal: failed to close DB connections before dbt subprocess: %s", e)
+                logger.warning(
+                    "Non-fatal: failed to close DB connections before dbt subprocess: %s",
+                    e,
+                )
 
         if stream_output:
             return self._execute_with_streaming(cmd, on_line=on_line, start_ts=start)
@@ -331,34 +370,35 @@ class DbtRunner:
             abs_working_dir = self.working_dir.absolute()
             try:
                 relative_path = abs_db_path.relative_to(abs_working_dir)
-                env['DATABASE_PATH'] = str(relative_path)
+                env["DATABASE_PATH"] = str(relative_path)
             except ValueError:
                 # Fallback to absolute path if relative calculation fails
-                env['DATABASE_PATH'] = str(abs_db_path)
+                env["DATABASE_PATH"] = str(abs_db_path)
 
         # Add corporate network environment variables if available
         try:
             from .network_utils import load_network_config
+
             config = load_network_config()
             if env is None:
                 env = os.environ.copy()
 
             # Add proxy settings to environment
             if config.proxy.http_proxy:
-                env['HTTP_PROXY'] = config.proxy.http_proxy
-                env['http_proxy'] = config.proxy.http_proxy
+                env["HTTP_PROXY"] = config.proxy.http_proxy
+                env["http_proxy"] = config.proxy.http_proxy
             if config.proxy.https_proxy:
-                env['HTTPS_PROXY'] = config.proxy.https_proxy
-                env['https_proxy'] = config.proxy.https_proxy
+                env["HTTPS_PROXY"] = config.proxy.https_proxy
+                env["https_proxy"] = config.proxy.https_proxy
             if config.proxy.no_proxy:
-                env['NO_PROXY'] = ','.join(config.proxy.no_proxy)
-                env['no_proxy'] = ','.join(config.proxy.no_proxy)
+                env["NO_PROXY"] = ",".join(config.proxy.no_proxy)
+                env["no_proxy"] = ",".join(config.proxy.no_proxy)
 
             # Add certificate settings
             if config.certificates.ca_bundle_path:
-                env['REQUESTS_CA_BUNDLE'] = config.certificates.ca_bundle_path
-                env['SSL_CERT_FILE'] = config.certificates.ca_bundle_path
-                env['CURL_CA_BUNDLE'] = config.certificates.ca_bundle_path
+                env["REQUESTS_CA_BUNDLE"] = config.certificates.ca_bundle_path
+                env["SSL_CERT_FILE"] = config.certificates.ca_bundle_path
+                env["CURL_CA_BUNDLE"] = config.certificates.ca_bundle_path
 
         except ImportError:
             # Corporate network support not available, continue with standard env
@@ -374,6 +414,7 @@ class DbtRunner:
             # Use corporate network-aware subprocess if available
             try:
                 from .network_utils import test_subprocess_with_proxy
+
                 res = test_subprocess_with_proxy(
                     cmd,
                     env=env,
@@ -388,7 +429,7 @@ class DbtRunner:
                     check=False,
                     capture_output=True,
                     text=True,
-                    encoding='utf-8',
+                    encoding="utf-8",
                     env=env,
                 )
 
@@ -423,7 +464,7 @@ class DbtRunner:
                 text=True,
                 bufsize=1,
                 universal_newlines=True,
-                encoding='utf-8',
+                encoding="utf-8",
                 env=env,
             )
         except Exception as e:
@@ -507,26 +548,30 @@ class DbtRunner:
         try:
             self._dependency_analyzer.analyze_dependencies(refresh_cache=False)
         except Exception as e:
-            logger.warning("Failed to analyze dependencies: %s. "
-                           "Falling back to sequential execution", e)
+            logger.warning(
+                "Failed to analyze dependencies: %s. "
+                "Falling back to sequential execution",
+                e,
+            )
             return self._run_models_sequential_fallback(
                 models, stage_name, simulation_year, dbt_vars or {}
             )
 
         # Create execution context
         import uuid
+
         context = ExecutionContext(
             simulation_year=simulation_year,
             dbt_vars=dbt_vars or {},
             stage_name=stage_name,
-            execution_id=execution_id or str(uuid.uuid4())[:8]
+            execution_id=execution_id or str(uuid.uuid4())[:8],
         )
 
         # Execute with parallelization
         return self._parallel_engine.execute_stage_with_parallelization(
             models,
             context,
-            enable_conditional_parallelization=enable_conditional_parallelization
+            enable_conditional_parallelization=enable_conditional_parallelization,
         )
 
     def _run_models_sequential_fallback(
@@ -534,7 +579,7 @@ class DbtRunner:
         models: List[str],
         stage_name: str,
         simulation_year: int,
-        dbt_vars: Dict[str, Any]
+        dbt_vars: Dict[str, Any],
     ) -> "ExecutionResult | Dict[str, Any]":
         """Fallback to sequential execution when parallelization is unavailable."""
 
@@ -550,12 +595,14 @@ class DbtRunner:
                     ["run", "--select", model],
                     simulation_year=simulation_year,
                     dbt_vars=dbt_vars,
-                    stream_output=True
+                    stream_output=True,
                 )
                 model_results[model] = result
 
                 if not result.success:
-                    errors.append(f"Model {model} failed with code {result.return_code}")
+                    errors.append(
+                        f"Model {model} failed with code {result.return_code}"
+                    )
                     break  # Stop on first failure
 
             except Exception as e:
@@ -572,7 +619,7 @@ class DbtRunner:
                 execution_time=execution_time,
                 parallelism_achieved=1,
                 resource_usage={},
-                errors=errors
+                errors=errors,
             )
         else:
             # Fallback dict structure if ExecutionResult not available
@@ -582,7 +629,7 @@ class DbtRunner:
                 "execution_time": execution_time,
                 "parallelism_achieved": 1,
                 "resource_usage": {},
-                "errors": errors
+                "errors": errors,
             }
 
     def get_parallelization_info(self) -> Dict[str, Any]:
@@ -592,7 +639,7 @@ class DbtRunner:
             return {
                 "available": False,
                 "reason": "Parallel execution engine not initialized",
-                "fallback_mode": "sequential"
+                "fallback_mode": "sequential",
             }
 
         try:
@@ -604,42 +651,41 @@ class DbtRunner:
                     "max_workers": self.model_parallelization_max_workers,
                     "memory_limit_mb": self.model_parallelization_memory_limit_mb,
                     "threading_mode": self.threading_mode,
-                    "dbt_threads": self.threads
-                }
+                    "dbt_threads": self.threads,
+                },
             }
         except Exception as e:
             return {
                 "available": False,
                 "reason": f"Error accessing parallelization engine: {e}",
-                "fallback_mode": "sequential"
+                "fallback_mode": "sequential",
             }
 
-    def validate_stage_for_parallelization(self, stage_models: List[str]) -> Dict[str, Any]:
+    def validate_stage_for_parallelization(
+        self, stage_models: List[str]
+    ) -> Dict[str, Any]:
         """Validate whether a stage can benefit from parallelization."""
 
         if not self._parallel_engine:
             return {
                 "parallelizable": False,
-                "reason": "Parallel execution engine not available"
+                "reason": "Parallel execution engine not available",
             }
 
         try:
             return self._parallel_engine.validate_stage_parallelization(stage_models)
         except Exception as e:
-            return {
-                "parallelizable": False,
-                "reason": f"Validation error: {e}"
-            }
+            return {"parallelizable": False, "reason": f"Validation error: {e}"}
 
     def enable_parallelization(
-        self,
-        max_workers: Optional[int] = None,
-        memory_limit_mb: Optional[float] = None
+        self, max_workers: Optional[int] = None, memory_limit_mb: Optional[float] = None
     ) -> bool:
         """Enable model-level parallelization with optional parameter updates."""
 
         if not PARALLEL_EXECUTION_AVAILABLE:
-            logger.warning("Cannot enable parallelization: parallel execution components not available")
+            logger.warning(
+                "Cannot enable parallelization: parallel execution components not available"
+            )
             return False
 
         # Update parameters if provided
@@ -658,14 +704,16 @@ class DbtRunner:
                 dependency_analyzer=self._dependency_analyzer,
                 max_workers=self.model_parallelization_max_workers,
                 memory_limit_mb=self.model_parallelization_memory_limit_mb,
-                verbose=self.verbose
+                verbose=self.verbose,
             )
 
             self.enable_model_parallelization = True
 
-            logger.info("Model-level parallelization enabled: max_workers=%d, memory_limit=%sMB",
-                        self.model_parallelization_max_workers,
-                        self.model_parallelization_memory_limit_mb)
+            logger.info(
+                "Model-level parallelization enabled: max_workers=%d, memory_limit=%sMB",
+                self.model_parallelization_max_workers,
+                self.model_parallelization_memory_limit_mb,
+            )
 
             return True
 
@@ -680,12 +728,8 @@ class DbtRunner:
 
         logger.debug("Model-level parallelization disabled")
 
-
     def execute_command_with_threads(
-        self,
-        command_args: Sequence[str],
-        threads: int,
-        **kwargs: Any
+        self, command_args: Sequence[str], threads: int, **kwargs: Any
     ) -> DbtResult:
         """Execute dbt command with explicit thread count (E068C)."""
         # Temporarily override thread count
@@ -718,13 +762,15 @@ class DbtRunner:
         """
         effective_threads = threads or self.threads
 
-        logger.debug("Running models with tag '%s' for year %d (threads=%d)",
-                     tag, simulation_year, effective_threads)
+        logger.debug(
+            "Running models with tag '%s' for year %d (threads=%d)",
+            tag,
+            simulation_year,
+            effective_threads,
+        )
 
         return self.execute_command(
-            ["run", "--select", f"tag:{tag}"],
-            simulation_year=simulation_year,
-            **kwargs
+            ["run", "--select", f"tag:{tag}"], simulation_year=simulation_year, **kwargs
         )
 
     def run_stage_models(
@@ -748,13 +794,24 @@ class DbtRunner:
         results = []
         effective_threads = threads or self.threads
 
-        logger.debug("Running stage '%s' for year %d (threads=%d)",
-                     stage, simulation_year, effective_threads)
+        logger.debug(
+            "Running stage '%s' for year %d (threads=%d)",
+            stage,
+            simulation_year,
+            effective_threads,
+        )
 
         # Map stage names to their execution strategy
-        if stage in ["EVENT_GENERATION", "STATE_ACCUMULATION", "VALIDATION", "FOUNDATION"]:
+        if stage in [
+            "EVENT_GENERATION",
+            "STATE_ACCUMULATION",
+            "VALIDATION",
+            "FOUNDATION",
+        ]:
             # Single parallel call for optimized stages
-            result = self.run_models_by_tag(stage, simulation_year, threads=effective_threads, **kwargs)
+            result = self.run_models_by_tag(
+                stage, simulation_year, threads=effective_threads, **kwargs
+            )
             results.append(result)
 
         elif stage == "INITIALIZATION":
@@ -762,7 +819,7 @@ class DbtRunner:
             result = self.execute_command(
                 ["run", "--select", "staging.*"],
                 simulation_year=simulation_year,
-                **kwargs
+                **kwargs,
             )
             results.append(result)
 
@@ -771,14 +828,16 @@ class DbtRunner:
             result = self.execute_command(
                 ["run", "--select", "tag:REPORTING"],
                 simulation_year=simulation_year,
-                **kwargs
+                **kwargs,
             )
             results.append(result)
 
         else:
             # Legacy support: if stage is not recognized, try as tag
             logger.warning("Unknown stage '%s', attempting as tag", stage)
-            result = self.run_models_by_tag(stage, simulation_year, threads=effective_threads, **kwargs)
+            result = self.run_models_by_tag(
+                stage, simulation_year, threads=effective_threads, **kwargs
+            )
             results.append(result)
 
         return results

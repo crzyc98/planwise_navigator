@@ -36,7 +36,9 @@ class TestYearPattern:
         assert match.group(1) == "2025"
 
     def test_matches_year_with_surrounding_text(self):
-        match = _YEAR_PATTERN.search("INFO \U0001f504 Starting simulation year 2027 ...")
+        match = _YEAR_PATTERN.search(
+            "INFO \U0001f504 Starting simulation year 2027 ..."
+        )
         assert match is not None
         assert match.group(1) == "2027"
 
@@ -99,19 +101,25 @@ class TestCompletedStagePattern:
     """Tests for _COMPLETED_STAGE_PATTERN regex."""
 
     def test_matches_completed_line(self):
-        match = _COMPLETED_STAGE_PATTERN.search("\u2705 Completed initialization in 5.20s")
+        match = _COMPLETED_STAGE_PATTERN.search(
+            "\u2705 Completed initialization in 5.20s"
+        )
         assert match is not None
         assert match.group(1) == "initialization"
         assert match.group(2) == "5.20"
 
     def test_matches_long_duration(self):
-        match = _COMPLETED_STAGE_PATTERN.search("\u2705 Completed event_generation in 123.45s")
+        match = _COMPLETED_STAGE_PATTERN.search(
+            "\u2705 Completed event_generation in 123.45s"
+        )
         assert match is not None
         assert match.group(1) == "event_generation"
         assert match.group(2) == "123.45"
 
     def test_no_match_without_emoji(self):
-        assert _COMPLETED_STAGE_PATTERN.search("Completed initialization in 5.20s") is None
+        assert (
+            _COMPLETED_STAGE_PATTERN.search("Completed initialization in 5.20s") is None
+        )
 
     def test_no_match_on_unrelated_line(self):
         assert _COMPLETED_STAGE_PATTERN.search("step finished") is None
@@ -129,9 +137,12 @@ class TestFoundationValidationPattern:
         assert match.group(1) == "2025"
 
     def test_no_match_without_emoji(self):
-        assert _FOUNDATION_VALIDATION_PATTERN.search(
-            "Foundation model validation for year 2025:"
-        ) is None
+        assert (
+            _FOUNDATION_VALIDATION_PATTERN.search(
+                "Foundation model validation for year 2025:"
+            )
+            is None
+        )
 
     def test_no_match_on_unrelated_line(self):
         assert _FOUNDATION_VALIDATION_PATTERN.search("validation passed") is None
@@ -170,8 +181,7 @@ class TestProgressMonitorWrite:
     def test_processes_multiple_lines_in_one_write(self):
         monitor, cb, _ = _make_monitor()
         monitor.write(
-            "\U0001f4cb Starting initialization\n"
-            "\U0001f4cb Starting foundation\n"
+            "\U0001f4cb Starting initialization\n" "\U0001f4cb Starting foundation\n"
         )
         assert cb.update_stage.call_count == 2
         cb.update_stage.assert_any_call("initialization")
@@ -234,9 +244,7 @@ class TestProgressMonitorProcessLine:
 
     def test_foundation_validation_detection(self):
         monitor, cb, _ = _make_monitor()
-        monitor._process_line(
-            "\U0001f4ca Foundation model validation for year 2026:"
-        )
+        monitor._process_line("\U0001f4ca Foundation model validation for year 2026:")
         cb.year_validation.assert_called_once_with(2026)
 
     def test_unrelated_line_triggers_no_callbacks(self):

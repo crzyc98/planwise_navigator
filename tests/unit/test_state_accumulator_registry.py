@@ -53,7 +53,9 @@ class TestStateAccumulatorRegistryBasicOperations:
         assert clean_registry.is_registered("int_test_accumulator")
         assert clean_registry.count() == 1
 
-    def test_register_multiple_contracts(self, clean_registry, sample_contract, another_contract):
+    def test_register_multiple_contracts(
+        self, clean_registry, sample_contract, another_contract
+    ):
         """Test registering multiple contracts."""
         clean_registry.register(sample_contract)
         clean_registry.register(another_contract)
@@ -71,7 +73,9 @@ class TestStateAccumulatorRegistryBasicOperations:
         assert retrieved == sample_contract
         assert retrieved.table_name == "int_test_accumulator"
 
-    def test_list_all_returns_sorted_names(self, clean_registry, sample_contract, another_contract):
+    def test_list_all_returns_sorted_names(
+        self, clean_registry, sample_contract, another_contract
+    ):
         """Test that list_all returns sorted model names."""
         # Register in reverse alphabetical order
         clean_registry.register(sample_contract)  # int_test_accumulator
@@ -81,7 +85,9 @@ class TestStateAccumulatorRegistryBasicOperations:
 
         assert names == ["int_another_accumulator", "int_test_accumulator"]
 
-    def test_get_registered_tables(self, clean_registry, sample_contract, another_contract):
+    def test_get_registered_tables(
+        self, clean_registry, sample_contract, another_contract
+    ):
         """Test getting all registered table names."""
         clean_registry.register(sample_contract)
         clean_registry.register(another_contract)
@@ -137,7 +143,9 @@ class TestStateAccumulatorRegistryErrorHandling:
         assert "not registered" in error_message
         assert "int_nonexistent" in error_message
 
-    def test_get_unregistered_shows_available_models(self, clean_registry, sample_contract):
+    def test_get_unregistered_shows_available_models(
+        self, clean_registry, sample_contract
+    ):
         """Test that KeyError message includes available models."""
         clean_registry.register(sample_contract)
 
@@ -166,7 +174,9 @@ class TestStateAccumulatorRegistryHelperMethods:
         """Test count returns 0 for empty registry."""
         assert clean_registry.count() == 0
 
-    def test_count_with_contracts(self, clean_registry, sample_contract, another_contract):
+    def test_count_with_contracts(
+        self, clean_registry, sample_contract, another_contract
+    ):
         """Test count returns correct number."""
         clean_registry.register(sample_contract)
         assert clean_registry.count() == 1
@@ -179,7 +189,9 @@ class TestStateAccumulatorRegistryHelperMethods:
         summary = clean_registry.summary()
         assert "No accumulators registered" in summary
 
-    def test_summary_with_contracts(self, clean_registry, sample_contract, another_contract):
+    def test_summary_with_contracts(
+        self, clean_registry, sample_contract, another_contract
+    ):
         """Test summary with registered contracts."""
         clean_registry.register(sample_contract)
         clean_registry.register(another_contract)

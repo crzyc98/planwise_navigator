@@ -154,8 +154,7 @@ class ResourceManager:
 
         # System is unhealthy if either resource is at critical pressure
         return (
-            memory_pressure.memory_pressure != "critical"
-            and cpu_pressure != "critical"
+            memory_pressure.memory_pressure != "critical" and cpu_pressure != "critical"
         )
 
     def trigger_resource_cleanup(self) -> Dict[str, Any]:

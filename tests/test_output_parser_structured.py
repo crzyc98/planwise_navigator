@@ -28,8 +28,13 @@ class TestSentinelFastPath:
     def test_stage_started_updates_stage_and_year(self, parser):
         changes = parser.parse_line(
             sentinel_line(
-                {"v": 1, "record": "stage_started", "ts": "2026-06-10T00:00:00Z",
-                 "year": 2026, "stage": "STATE_ACCUMULATION"}
+                {
+                    "v": 1,
+                    "record": "stage_started",
+                    "ts": "2026-06-10T00:00:00Z",
+                    "year": 2026,
+                    "stage": "STATE_ACCUMULATION",
+                }
             )
         )
         assert changes["structured_record"]["record"] == "stage_started"
@@ -41,10 +46,15 @@ class TestSentinelFastPath:
     def test_year_completed_exposes_counts(self, parser):
         changes = parser.parse_line(
             sentinel_line(
-                {"v": 1, "record": "year_completed", "ts": "t", "year": 2025,
-                 "duration_seconds": 48.2,
-                 "event_counts": {"HIRE": 142, "TERMINATION": 98},
-                 "cumulative_counts": {"HIRE": 142, "TERMINATION": 98}}
+                {
+                    "v": 1,
+                    "record": "year_completed",
+                    "ts": "t",
+                    "year": 2025,
+                    "duration_seconds": 48.2,
+                    "event_counts": {"HIRE": 142, "TERMINATION": 98},
+                    "cumulative_counts": {"HIRE": 142, "TERMINATION": 98},
+                }
             )
         )
         rec = changes["structured_record"]
@@ -70,8 +80,15 @@ class TestRegexSuppression:
 
     def test_regex_stage_suppressed_after_structured_record(self, parser):
         parser.parse_line(
-            sentinel_line({"v": 1, "record": "stage_started", "ts": "t",
-                           "year": 2025, "stage": "FOUNDATION"})
+            sentinel_line(
+                {
+                    "v": 1,
+                    "record": "stage_started",
+                    "ts": "t",
+                    "year": 2025,
+                    "stage": "FOUNDATION",
+                }
+            )
         )
         # A noisy log line that the old regex would misread as a stage change
         parser.parse_line("dbt completed model int_validation_rules")
@@ -80,9 +97,15 @@ class TestRegexSuppression:
     def test_regex_event_count_suppressed_after_structured_record(self, parser):
         parser.parse_line(
             sentinel_line(
-                {"v": 1, "record": "year_completed", "ts": "t", "year": 2025,
-                 "duration_seconds": 1.0, "event_counts": {"HIRE": 10},
-                 "cumulative_counts": {"HIRE": 10}}
+                {
+                    "v": 1,
+                    "record": "year_completed",
+                    "ts": "t",
+                    "year": 2025,
+                    "duration_seconds": 1.0,
+                    "event_counts": {"HIRE": 10},
+                    "cumulative_counts": {"HIRE": 10},
+                }
             )
         )
         parser.parse_line("processed 99999 events in batch")

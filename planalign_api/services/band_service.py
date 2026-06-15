@@ -121,7 +121,13 @@ class BandService:
             with open(csv_path, "w", newline="") as f:
                 writer = csv.DictWriter(
                     f,
-                    fieldnames=["band_id", "band_label", "min_value", "max_value", "display_order"],
+                    fieldnames=[
+                        "band_id",
+                        "band_label",
+                        "min_value",
+                        "max_value",
+                        "display_order",
+                    ],
                 )
                 writer.writeheader()
                 for band in sorted_bands:
@@ -143,7 +149,9 @@ class BandService:
     # Band Validation Logic (T004)
     # -------------------------------------------------------------------------
 
-    def validate_bands(self, bands: List[Band], band_type: str) -> List[BandValidationError]:
+    def validate_bands(
+        self, bands: List[Band], band_type: str
+    ) -> List[BandValidationError]:
         """
         Validate a list of bands for gaps, overlaps, and coverage.
 
@@ -325,15 +333,21 @@ class BandService:
 
         try:
             if suffix == ".parquet":
-                conn.execute(f"CREATE TABLE census AS SELECT * FROM read_parquet('{safe_path}')")
+                conn.execute(
+                    f"CREATE TABLE census AS SELECT * FROM read_parquet('{safe_path}')"
+                )
             elif suffix == ".csv":
-                conn.execute(f"CREATE TABLE census AS SELECT * FROM read_csv('{safe_path}', header=true, auto_detect=true)")
+                conn.execute(
+                    f"CREATE TABLE census AS SELECT * FROM read_csv('{safe_path}', header=true, auto_detect=true)"
+                )
             else:
                 conn.close()
                 raise ValueError(f"Unsupported file type: {suffix}")
 
             # Get column names
-            columns_result = conn.execute("SELECT column_name FROM information_schema.columns WHERE table_name = 'census'").fetchall()
+            columns_result = conn.execute(
+                "SELECT column_name FROM information_schema.columns WHERE table_name = 'census'"
+            ).fetchall()
             columns = [row[0] for row in columns_result]
 
             # Find birth date column (validate against allowlist)
@@ -381,20 +395,27 @@ class BandService:
                     max_hire_date_result = conn.execute(
                         f"SELECT MAX(CAST({hire_date_col} AS DATE)) FROM census"
                     ).fetchone()
-                    max_hire_date = max_hire_date_result[0] if max_hire_date_result else None
+                    max_hire_date = (
+                        max_hire_date_result[0] if max_hire_date_result else None
+                    )
 
                     if max_hire_date:
-                        recent_year = validate_integer(max_hire_date.year, min_val=1900, max_val=2100, context="year")
+                        recent_year = validate_integer(
+                            max_hire_date.year,
+                            min_val=1900,
+                            max_val=2100,
+                            context="year",
+                        )
                         # Use parameterized query for the year value
                         recent_count = conn.execute(
                             f"SELECT COUNT(*) FROM census WHERE YEAR(CAST({hire_date_col} AS DATE)) = ?",
-                            [recent_year]
+                            [recent_year],
                         ).fetchone()[0]
 
                         if recent_count >= 10:
                             conn.execute(
                                 f"DELETE FROM census WHERE YEAR(CAST({hire_date_col} AS DATE)) != ?",
-                                [recent_year]
+                                [recent_year],
                             )
                             recent_hires_only = True
                 except SQLSecurityError:
@@ -405,11 +426,13 @@ class BandService:
             # Calculate age using validated column names
             conn.execute("ALTER TABLE census ADD COLUMN _age INTEGER")
             if recent_hires_only and hire_date_col:
-                conn.execute(f"""
+                conn.execute(
+                    f"""
                     UPDATE census SET _age = FLOOR(
                         DATEDIFF('day', CAST({birth_date_col} AS DATE), CAST({hire_date_col} AS DATE)) / 365.25
                     )
-                """)
+                """
+                )
             else:
                 conn.execute(
                     f"""
@@ -417,7 +440,7 @@ class BandService:
                         DATEDIFF('day', CAST({birth_date_col} AS DATE), ?::DATE) / 365.25
                     )
                     """,
-                    [today_str]
+                    [today_str],
                 )
 
             # Filter out invalid ages
@@ -429,7 +452,8 @@ class BandService:
                 raise ValueError("No employees with valid age data found")
 
             # Calculate distribution statistics
-            stats = conn.execute("""
+            stats = conn.execute(
+                """
                 SELECT
                     COUNT(_age) as total,
                     MIN(_age) as min_age,
@@ -442,7 +466,8 @@ class BandService:
                     QUANTILE_CONT(_age, 0.75) as p75,
                     QUANTILE_CONT(_age, 0.90) as p90
                 FROM census
-            """).fetchone()
+            """
+            ).fetchone()
 
             # Generate suggested bands using percentile-based boundaries
             suggested_bands = self._generate_age_bands_from_percentiles_duckdb(
@@ -450,7 +475,11 @@ class BandService:
                 num_bands=num_bands,
             )
 
-            analysis_type = f"Recent hires from {recent_year}" if recent_hires_only else "All employees"
+            analysis_type = (
+                f"Recent hires from {recent_year}"
+                if recent_hires_only
+                else "All employees"
+            )
 
             return BandAnalysisResult(
                 suggested_bands=suggested_bands,
@@ -474,10 +503,14 @@ class BandService:
         finally:
             conn.close()
 
-    def _generate_age_bands_from_percentiles_duckdb(self, conn: duckdb.DuckDBPyConnection, num_bands: int) -> List[Band]:
+    def _generate_age_bands_from_percentiles_duckdb(
+        self, conn: duckdb.DuckDBPyConnection, num_bands: int
+    ) -> List[Band]:
         """Generate age bands based on data percentiles using DuckDB."""
         # Validate num_bands
-        num_bands = validate_integer(num_bands, min_val=2, max_val=20, context="num_bands")
+        num_bands = validate_integer(
+            num_bands, min_val=2, max_val=20, context="num_bands"
+        )
 
         # Define percentile boundaries for different band counts
         if num_bands == 6:
@@ -499,8 +532,7 @@ class BandService:
                 # Validate percentile value before use
                 p_decimal = validate_numeric(p / 100, context="percentile")
                 val = conn.execute(
-                    "SELECT QUANTILE_CONT(_age, ?) FROM census",
-                    [p_decimal]
+                    "SELECT QUANTILE_CONT(_age, ?) FROM census", [p_decimal]
                 ).fetchone()[0]
                 boundaries.append(int(val))
 
@@ -579,15 +611,21 @@ class BandService:
 
         try:
             if suffix == ".parquet":
-                conn.execute(f"CREATE TABLE census AS SELECT * FROM read_parquet('{safe_path}')")
+                conn.execute(
+                    f"CREATE TABLE census AS SELECT * FROM read_parquet('{safe_path}')"
+                )
             elif suffix == ".csv":
-                conn.execute(f"CREATE TABLE census AS SELECT * FROM read_csv('{safe_path}', header=true, auto_detect=true)")
+                conn.execute(
+                    f"CREATE TABLE census AS SELECT * FROM read_csv('{safe_path}', header=true, auto_detect=true)"
+                )
             else:
                 conn.close()
                 raise ValueError(f"Unsupported file type: {suffix}")
 
             # Get column names
-            columns_result = conn.execute("SELECT column_name FROM information_schema.columns WHERE table_name = 'census'").fetchall()
+            columns_result = conn.execute(
+                "SELECT column_name FROM information_schema.columns WHERE table_name = 'census'"
+            ).fetchall()
             columns = [row[0] for row in columns_result]
 
             # Find hire date column (validate against allowlist)
@@ -624,7 +662,7 @@ class BandService:
                     DATEDIFF('day', CAST({hire_date_col} AS DATE), ?::DATE) / 365.25
                 )
                 """,
-                [today_str]
+                [today_str],
             )
 
             # Filter out invalid tenure (negative or very high)
@@ -636,7 +674,8 @@ class BandService:
                 raise ValueError("No employees with valid tenure data found")
 
             # Calculate distribution statistics
-            stats = conn.execute("""
+            stats = conn.execute(
+                """
                 SELECT
                     COUNT(_tenure) as total,
                     MIN(_tenure) as min_tenure,
@@ -649,7 +688,8 @@ class BandService:
                     QUANTILE_CONT(_tenure, 0.75) as p75,
                     QUANTILE_CONT(_tenure, 0.90) as p90
                 FROM census
-            """).fetchone()
+            """
+            ).fetchone()
 
             # Generate suggested bands using percentile-based boundaries
             suggested_bands = self._generate_tenure_bands_from_percentiles_duckdb(
@@ -679,10 +719,14 @@ class BandService:
         finally:
             conn.close()
 
-    def _generate_tenure_bands_from_percentiles_duckdb(self, conn: duckdb.DuckDBPyConnection, num_bands: int) -> List[Band]:
+    def _generate_tenure_bands_from_percentiles_duckdb(
+        self, conn: duckdb.DuckDBPyConnection, num_bands: int
+    ) -> List[Band]:
         """Generate tenure bands based on data percentiles using DuckDB."""
         # Validate num_bands
-        num_bands = validate_integer(num_bands, min_val=2, max_val=20, context="num_bands")
+        num_bands = validate_integer(
+            num_bands, min_val=2, max_val=20, context="num_bands"
+        )
 
         # For tenure, use even percentile distribution
         percentiles = [int(100 * i / num_bands) for i in range(num_bands + 1)]
@@ -698,8 +742,7 @@ class BandService:
                 # Validate percentile value before use
                 p_decimal = validate_numeric(p / 100, context="percentile")
                 val = conn.execute(
-                    "SELECT QUANTILE_CONT(_tenure, ?) FROM census",
-                    [p_decimal]
+                    "SELECT QUANTILE_CONT(_tenure, ?) FROM census", [p_decimal]
                 ).fetchone()[0]
                 boundaries.append(int(val))
 

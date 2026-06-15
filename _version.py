@@ -25,13 +25,16 @@ __release_name__ = "Studio & Compliance"
 __git_sha__ = None
 __git_branch__ = None
 
+
 def get_version() -> str:
     """Get the current version string."""
     return __version__
 
+
 def get_version_info() -> tuple[int, int, int]:
     """Get version as a tuple of integers (major, minor, patch)."""
     return __version_info__
+
 
 def get_full_version() -> str:
     """Get full version string including git info if available."""
@@ -39,6 +42,7 @@ def get_full_version() -> str:
     if __git_sha__:
         version += f"+{__git_sha__[:7]}"
     return version
+
 
 def get_version_dict() -> dict[str, str | tuple[int, int, int] | None]:
     """Get version information as a dictionary."""

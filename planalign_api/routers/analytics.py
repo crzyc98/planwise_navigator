@@ -34,7 +34,10 @@ def get_analytics_service(
 async def get_dc_plan_analytics(
     workspace_id: str,
     scenario_id: str,
-    active_only: bool = Query(False, description="If true, include only active employees in participation metrics"),
+    active_only: bool = Query(
+        False,
+        description="If true, include only active employees in participation metrics",
+    ),
     storage: WorkspaceStorage = Depends(get_storage),
     analytics_service: AnalyticsService = Depends(get_analytics_service),
 ) -> DCPlanAnalytics:
@@ -86,8 +89,13 @@ async def get_dc_plan_analytics(
 )
 async def compare_dc_plan_analytics(
     workspace_id: str,
-    scenarios: str = Query(..., description=f"Comma-separated scenario IDs (max {MAX_SCENARIO_COMPARISON})"),
-    active_only: bool = Query(False, description="If true, include only active employees in participation metrics"),
+    scenarios: str = Query(
+        ..., description=f"Comma-separated scenario IDs (max {MAX_SCENARIO_COMPARISON})"
+    ),
+    active_only: bool = Query(
+        False,
+        description="If true, include only active employees in participation metrics",
+    ),
     storage: WorkspaceStorage = Depends(get_storage),
     analytics_service: AnalyticsService = Depends(get_analytics_service),
 ) -> DCPlanComparisonResponse:
@@ -139,7 +147,9 @@ async def compare_dc_plan_analytics(
     analytics_list: List[DCPlanAnalytics] = []
     for scenario_id in scenario_ids:
         analytics = analytics_service.get_dc_plan_analytics(
-            workspace_id, scenario_id, scenario_names[scenario_id],
+            workspace_id,
+            scenario_id,
+            scenario_names[scenario_id],
             active_only=active_only,
         )
         if analytics:

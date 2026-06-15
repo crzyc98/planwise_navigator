@@ -31,11 +31,13 @@ class TestSubprocessUtilsFunctions:
     def test_create_subprocess_is_async(self):
         """create_subprocess should be an async function."""
         import asyncio
+
         assert asyncio.iscoroutinefunction(create_subprocess)
 
     def test_wait_subprocess_is_async(self):
         """wait_subprocess should be an async function."""
         import asyncio
+
         assert asyncio.iscoroutinefunction(wait_subprocess)
 
 

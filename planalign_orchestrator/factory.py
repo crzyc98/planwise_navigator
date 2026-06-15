@@ -18,8 +18,12 @@ from .registries import RegistryManager
 from .reports.multi_year_reporter import MultiYearReporter
 from .self_healing import AutoInitializer
 from .utils import DatabaseConnectionManager
-from .validation import (DataValidator, EventSequenceRule,
-                         HireTerminationRatioRule, ValidationRule)
+from .validation import (
+    DataValidator,
+    EventSequenceRule,
+    HireTerminationRatioRule,
+    ValidationRule,
+)
 
 
 class OrchestratorBuilder:
@@ -61,28 +65,34 @@ class OrchestratorBuilder:
             self._db = DatabaseConnectionManager()
 
         # Extract E068C threading configuration
-        performance_config = getattr(self._config, 'performance', None)
+        performance_config = getattr(self._config, "performance", None)
         thread_count = 6  # Default
         event_shards = 1
         max_parallel_years = 1
 
         if performance_config:
-            thread_count = getattr(performance_config, 'dbt_threads', 6)
-            event_sharding_config = getattr(performance_config, 'event_sharding', None)
-            if event_sharding_config and getattr(event_sharding_config, 'enabled', False):
-                event_shards = getattr(event_sharding_config, 'shard_count', 1)
-            max_parallel_years = getattr(performance_config, 'max_parallel_years', 1)
+            thread_count = getattr(performance_config, "dbt_threads", 6)
+            event_sharding_config = getattr(performance_config, "event_sharding", None)
+            if event_sharding_config and getattr(
+                event_sharding_config, "enabled", False
+            ):
+                event_shards = getattr(event_sharding_config, "shard_count", 1)
+            max_parallel_years = getattr(performance_config, "max_parallel_years", 1)
 
         # Legacy orchestrator threading settings (for backward compatibility)
         threading_enabled = True
         threading_mode = "selective"
 
-        if hasattr(self._config, 'orchestrator') and self._config.orchestrator and hasattr(self._config.orchestrator, 'threading'):
+        if (
+            hasattr(self._config, "orchestrator")
+            and self._config.orchestrator
+            and hasattr(self._config.orchestrator, "threading")
+        ):
             threading_enabled = self._config.orchestrator.threading.enabled
             threading_mode = self._config.orchestrator.threading.mode
 
         # Override with builder settings if explicitly provided
-        if hasattr(self, '_threads') and self._threads != 1:
+        if hasattr(self, "_threads") and self._threads != 1:
             thread_count = self._threads
 
         # Default rules if none provided
@@ -152,8 +162,9 @@ def create_orchestrator(
         builder.with_database(db_path)
 
     orchestrator = (
-        builder
-        .with_dbt_threads(threads)  # Will be overridden by E068C config if present
+        builder.with_dbt_threads(
+            threads
+        )  # Will be overridden by E068C config if present
         .with_dbt_executable(dbt_executable)
         .build()
     )
@@ -174,6 +185,7 @@ def create_orchestrator(
             result = auto_initializer.ensure_initialized()
             if not result.success:
                 from planalign_orchestrator.exceptions import InitializationError
+
                 raise InitializationError(
                     f"Database initialization failed: {result.error}",
                     step="pre_simulation",

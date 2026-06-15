@@ -27,27 +27,39 @@ class TestTenureMatchTier:
     """Validate TenureMatchTier field-level constraints."""
 
     def test_valid_tier(self):
-        tier = TenureMatchTier(min_years=0, max_years=5, match_rate=50, max_deferral_pct=6)
+        tier = TenureMatchTier(
+            min_years=0, max_years=5, match_rate=50, max_deferral_pct=6
+        )
         assert tier.min_years == 0
         assert tier.max_years == 5
         assert tier.match_rate == 50
         assert tier.max_deferral_pct == 6
 
     def test_unbounded_last_tier(self):
-        tier = TenureMatchTier(min_years=10, max_years=None, match_rate=100, max_deferral_pct=6)
+        tier = TenureMatchTier(
+            min_years=10, max_years=None, match_rate=100, max_deferral_pct=6
+        )
         assert tier.max_years is None
 
     def test_invalid_range_max_le_min(self):
-        with pytest.raises(ValidationError, match="max_years.*must be greater than min_years"):
+        with pytest.raises(
+            ValidationError, match="max_years.*must be greater than min_years"
+        ):
             TenureMatchTier(min_years=5, max_years=5, match_rate=50, max_deferral_pct=6)
 
     def test_invalid_range_max_lt_min(self):
-        with pytest.raises(ValidationError, match="max_years.*must be greater than min_years"):
-            TenureMatchTier(min_years=10, max_years=5, match_rate=50, max_deferral_pct=6)
+        with pytest.raises(
+            ValidationError, match="max_years.*must be greater than min_years"
+        ):
+            TenureMatchTier(
+                min_years=10, max_years=5, match_rate=50, max_deferral_pct=6
+            )
 
     def test_negative_min_years(self):
         with pytest.raises(ValidationError):
-            TenureMatchTier(min_years=-1, max_years=5, match_rate=50, max_deferral_pct=6)
+            TenureMatchTier(
+                min_years=-1, max_years=5, match_rate=50, max_deferral_pct=6
+            )
 
     def test_match_rate_bounds(self):
         # Valid bounds
@@ -57,15 +69,21 @@ class TestTenureMatchTier:
         with pytest.raises(ValidationError):
             TenureMatchTier(min_years=0, max_years=5, match_rate=-1, max_deferral_pct=6)
         with pytest.raises(ValidationError):
-            TenureMatchTier(min_years=0, max_years=5, match_rate=201, max_deferral_pct=6)
+            TenureMatchTier(
+                min_years=0, max_years=5, match_rate=201, max_deferral_pct=6
+            )
 
     def test_max_deferral_pct_bounds(self):
         TenureMatchTier(min_years=0, max_years=5, match_rate=50, max_deferral_pct=0)
         TenureMatchTier(min_years=0, max_years=5, match_rate=50, max_deferral_pct=100)
         with pytest.raises(ValidationError):
-            TenureMatchTier(min_years=0, max_years=5, match_rate=50, max_deferral_pct=-1)
+            TenureMatchTier(
+                min_years=0, max_years=5, match_rate=50, max_deferral_pct=-1
+            )
         with pytest.raises(ValidationError):
-            TenureMatchTier(min_years=0, max_years=5, match_rate=50, max_deferral_pct=101)
+            TenureMatchTier(
+                min_years=0, max_years=5, match_rate=50, max_deferral_pct=101
+            )
 
 
 # =============================================================================
@@ -77,32 +95,50 @@ class TestPointsMatchTier:
     """Validate PointsMatchTier field-level constraints."""
 
     def test_valid_tier(self):
-        tier = PointsMatchTier(min_points=0, max_points=40, match_rate=25, max_deferral_pct=6)
+        tier = PointsMatchTier(
+            min_points=0, max_points=40, match_rate=25, max_deferral_pct=6
+        )
         assert tier.min_points == 0
         assert tier.max_points == 40
 
     def test_unbounded_last_tier(self):
-        tier = PointsMatchTier(min_points=80, max_points=None, match_rate=100, max_deferral_pct=6)
+        tier = PointsMatchTier(
+            min_points=80, max_points=None, match_rate=100, max_deferral_pct=6
+        )
         assert tier.max_points is None
 
     def test_invalid_range_max_le_min(self):
-        with pytest.raises(ValidationError, match="max_points.*must be greater than min_points"):
-            PointsMatchTier(min_points=40, max_points=40, match_rate=50, max_deferral_pct=6)
+        with pytest.raises(
+            ValidationError, match="max_points.*must be greater than min_points"
+        ):
+            PointsMatchTier(
+                min_points=40, max_points=40, match_rate=50, max_deferral_pct=6
+            )
 
     def test_invalid_range_max_lt_min(self):
-        with pytest.raises(ValidationError, match="max_points.*must be greater than min_points"):
-            PointsMatchTier(min_points=60, max_points=40, match_rate=50, max_deferral_pct=6)
+        with pytest.raises(
+            ValidationError, match="max_points.*must be greater than min_points"
+        ):
+            PointsMatchTier(
+                min_points=60, max_points=40, match_rate=50, max_deferral_pct=6
+            )
 
     def test_negative_min_points(self):
         with pytest.raises(ValidationError):
-            PointsMatchTier(min_points=-1, max_points=40, match_rate=25, max_deferral_pct=6)
+            PointsMatchTier(
+                min_points=-1, max_points=40, match_rate=25, max_deferral_pct=6
+            )
 
     def test_boundary_value_points_40(self):
         """Points=40 with tiers [0,40) and [40,60) — 40 falls in [40,60) per [min,max) convention."""
         # This tests the tier ASSIGNMENT logic, not just the model.
         # The tier model itself just validates bounds; assignment happens in SQL.
-        tier_low = PointsMatchTier(min_points=0, max_points=40, match_rate=25, max_deferral_pct=6)
-        tier_high = PointsMatchTier(min_points=40, max_points=60, match_rate=50, max_deferral_pct=6)
+        tier_low = PointsMatchTier(
+            min_points=0, max_points=40, match_rate=25, max_deferral_pct=6
+        )
+        tier_high = PointsMatchTier(
+            min_points=40, max_points=60, match_rate=50, max_deferral_pct=6
+        )
         assert tier_low.min_points == 0
         assert tier_low.max_points == 40
         assert tier_high.min_points == 40
@@ -131,7 +167,9 @@ class TestValidateTierContiguity:
             {"min": 7, "max": 10},  # gap: 5 to 7
         ]
         with pytest.raises(ValueError, match="[Gg]ap"):
-            validate_tier_contiguity(tiers, min_key="min", max_key="max", label="tenure")
+            validate_tier_contiguity(
+                tiers, min_key="min", max_key="max", label="tenure"
+            )
 
     def test_overlap_detected(self):
         tiers = [
@@ -139,7 +177,9 @@ class TestValidateTierContiguity:
             {"min": 5, "max": 15},  # overlap: 5-10
         ]
         with pytest.raises(ValueError, match="[Oo]verlap"):
-            validate_tier_contiguity(tiers, min_key="min", max_key="max", label="tenure")
+            validate_tier_contiguity(
+                tiers, min_key="min", max_key="max", label="tenure"
+            )
 
     def test_missing_start_at_zero(self):
         tiers = [
@@ -147,7 +187,9 @@ class TestValidateTierContiguity:
             {"min": 5, "max": None},
         ]
         with pytest.raises(ValueError, match="start at 0"):
-            validate_tier_contiguity(tiers, min_key="min", max_key="max", label="tenure")
+            validate_tier_contiguity(
+                tiers, min_key="min", max_key="max", label="tenure"
+            )
 
     def test_empty_list(self):
         # Empty tier list is OK — only invalid if mode requires it
@@ -188,9 +230,15 @@ class TestEmployerMatchSettings:
         settings = EmployerMatchSettings(
             employer_match_status="tenure_based",
             tenure_match_tiers=[
-                TenureMatchTier(min_years=0, max_years=2, match_rate=25, max_deferral_pct=6),
-                TenureMatchTier(min_years=2, max_years=5, match_rate=50, max_deferral_pct=6),
-                TenureMatchTier(min_years=5, max_years=None, match_rate=100, max_deferral_pct=6),
+                TenureMatchTier(
+                    min_years=0, max_years=2, match_rate=25, max_deferral_pct=6
+                ),
+                TenureMatchTier(
+                    min_years=2, max_years=5, match_rate=50, max_deferral_pct=6
+                ),
+                TenureMatchTier(
+                    min_years=5, max_years=None, match_rate=100, max_deferral_pct=6
+                ),
             ],
         )
         assert settings.employer_match_status == "tenure_based"
@@ -200,10 +248,18 @@ class TestEmployerMatchSettings:
         settings = EmployerMatchSettings(
             employer_match_status="points_based",
             points_match_tiers=[
-                PointsMatchTier(min_points=0, max_points=40, match_rate=25, max_deferral_pct=6),
-                PointsMatchTier(min_points=40, max_points=60, match_rate=50, max_deferral_pct=6),
-                PointsMatchTier(min_points=60, max_points=80, match_rate=75, max_deferral_pct=6),
-                PointsMatchTier(min_points=80, max_points=None, match_rate=100, max_deferral_pct=6),
+                PointsMatchTier(
+                    min_points=0, max_points=40, match_rate=25, max_deferral_pct=6
+                ),
+                PointsMatchTier(
+                    min_points=40, max_points=60, match_rate=50, max_deferral_pct=6
+                ),
+                PointsMatchTier(
+                    min_points=60, max_points=80, match_rate=75, max_deferral_pct=6
+                ),
+                PointsMatchTier(
+                    min_points=80, max_points=None, match_rate=100, max_deferral_pct=6
+                ),
             ],
         )
         assert settings.employer_match_status == "points_based"
@@ -232,8 +288,12 @@ class TestEmployerMatchSettings:
             EmployerMatchSettings(
                 employer_match_status="tenure_based",
                 tenure_match_tiers=[
-                    TenureMatchTier(min_years=0, max_years=2, match_rate=25, max_deferral_pct=6),
-                    TenureMatchTier(min_years=5, max_years=None, match_rate=50, max_deferral_pct=6),
+                    TenureMatchTier(
+                        min_years=0, max_years=2, match_rate=25, max_deferral_pct=6
+                    ),
+                    TenureMatchTier(
+                        min_years=5, max_years=None, match_rate=50, max_deferral_pct=6
+                    ),
                 ],
             )
 
@@ -242,8 +302,15 @@ class TestEmployerMatchSettings:
             EmployerMatchSettings(
                 employer_match_status="points_based",
                 points_match_tiers=[
-                    PointsMatchTier(min_points=0, max_points=50, match_rate=25, max_deferral_pct=6),
-                    PointsMatchTier(min_points=40, max_points=None, match_rate=50, max_deferral_pct=6),
+                    PointsMatchTier(
+                        min_points=0, max_points=50, match_rate=25, max_deferral_pct=6
+                    ),
+                    PointsMatchTier(
+                        min_points=40,
+                        max_points=None,
+                        match_rate=50,
+                        max_deferral_pct=6,
+                    ),
                 ],
             )
 
@@ -252,8 +319,12 @@ class TestEmployerMatchSettings:
             EmployerMatchSettings(
                 employer_match_status="tenure_based",
                 tenure_match_tiers=[
-                    TenureMatchTier(min_years=0, max_years=3, match_rate=25, max_deferral_pct=6),
-                    TenureMatchTier(min_years=5, max_years=None, match_rate=50, max_deferral_pct=6),
+                    TenureMatchTier(
+                        min_years=0, max_years=3, match_rate=25, max_deferral_pct=6
+                    ),
+                    TenureMatchTier(
+                        min_years=5, max_years=None, match_rate=50, max_deferral_pct=6
+                    ),
                 ],
             )
         error_str = str(exc_info.value)
@@ -264,7 +335,9 @@ class TestEmployerMatchSettings:
         settings = EmployerMatchSettings(
             employer_match_status="tenure_based",
             tenure_match_tiers=[
-                TenureMatchTier(min_years=0, max_years=None, match_rate=50, max_deferral_pct=0),
+                TenureMatchTier(
+                    min_years=0, max_years=None, match_rate=50, max_deferral_pct=0
+                ),
             ],
         )
         assert settings.tenure_match_tiers[0].max_deferral_pct == 0
@@ -274,8 +347,12 @@ class TestEmployerMatchSettings:
         settings = EmployerMatchSettings(
             employer_match_status="tenure_based",
             tenure_match_tiers=[
-                TenureMatchTier(min_years=0, max_years=2, match_rate=25, max_deferral_pct=6),
-                TenureMatchTier(min_years=2, max_years=None, match_rate=100, max_deferral_pct=6),
+                TenureMatchTier(
+                    min_years=0, max_years=2, match_rate=25, max_deferral_pct=6
+                ),
+                TenureMatchTier(
+                    min_years=2, max_years=None, match_rate=100, max_deferral_pct=6
+                ),
             ],
         )
         assert settings.tenure_match_tiers[0].min_years == 0
@@ -286,7 +363,9 @@ class TestEmployerMatchSettings:
         settings = EmployerMatchSettings(
             employer_match_status="points_based",
             points_match_tiers=[
-                PointsMatchTier(min_points=0, max_points=None, match_rate=100, max_deferral_pct=6),
+                PointsMatchTier(
+                    min_points=0, max_points=None, match_rate=100, max_deferral_pct=6
+                ),
             ],
         )
         assert len(settings.points_match_tiers) == 1
@@ -319,8 +398,12 @@ class TestExportTenureMatchVars:
         cfg = _make_config_mock(
             employer_match_status="tenure_based",
             tenure_match_tiers=[
-                TenureMatchTier(min_years=0, max_years=5, match_rate=25, max_deferral_pct=6),
-                TenureMatchTier(min_years=5, max_years=None, match_rate=100, max_deferral_pct=6),
+                TenureMatchTier(
+                    min_years=0, max_years=5, match_rate=25, max_deferral_pct=6
+                ),
+                TenureMatchTier(
+                    min_years=5, max_years=None, match_rate=100, max_deferral_pct=6
+                ),
             ],
         )
         dbt_vars = _export_employer_match_vars(cfg)
@@ -353,10 +436,18 @@ class TestExportPointsMatchVars:
         cfg = _make_config_mock(
             employer_match_status="points_based",
             points_match_tiers=[
-                PointsMatchTier(min_points=0, max_points=40, match_rate=25, max_deferral_pct=6),
-                PointsMatchTier(min_points=40, max_points=60, match_rate=50, max_deferral_pct=6),
-                PointsMatchTier(min_points=60, max_points=80, match_rate=75, max_deferral_pct=6),
-                PointsMatchTier(min_points=80, max_points=None, match_rate=100, max_deferral_pct=6),
+                PointsMatchTier(
+                    min_points=0, max_points=40, match_rate=25, max_deferral_pct=6
+                ),
+                PointsMatchTier(
+                    min_points=40, max_points=60, match_rate=50, max_deferral_pct=6
+                ),
+                PointsMatchTier(
+                    min_points=60, max_points=80, match_rate=75, max_deferral_pct=6
+                ),
+                PointsMatchTier(
+                    min_points=80, max_points=None, match_rate=100, max_deferral_pct=6
+                ),
             ],
         )
         dbt_vars = _export_employer_match_vars(cfg)
@@ -391,8 +482,18 @@ class TestExportDcPlanTenureTiers:
             dc_plan={
                 "match_status": "tenure_based",
                 "tenure_match_tiers": [
-                    {"min_years": 0, "max_years": 5, "match_rate": 0.25, "max_deferral_pct": 0.06},
-                    {"min_years": 5, "max_years": None, "match_rate": 1.0, "max_deferral_pct": 0.06},
+                    {
+                        "min_years": 0,
+                        "max_years": 5,
+                        "match_rate": 0.25,
+                        "max_deferral_pct": 0.06,
+                    },
+                    {
+                        "min_years": 5,
+                        "max_years": None,
+                        "match_rate": 1.0,
+                        "max_deferral_pct": 0.06,
+                    },
                 ],
             },
         )
@@ -413,8 +514,18 @@ class TestExportDcPlanTenureTiers:
             dc_plan={
                 "match_status": "points_based",
                 "points_match_tiers": [
-                    {"min_points": 0, "max_points": 40, "match_rate": 0.25, "max_deferral_pct": 0.06},
-                    {"min_points": 40, "max_points": None, "match_rate": 0.75, "max_deferral_pct": 0.06},
+                    {
+                        "min_points": 0,
+                        "max_points": 40,
+                        "match_rate": 0.25,
+                        "max_deferral_pct": 0.06,
+                    },
+                    {
+                        "min_points": 40,
+                        "max_points": None,
+                        "match_rate": 0.75,
+                        "max_deferral_pct": 0.06,
+                    },
                 ],
             },
         )
@@ -444,7 +555,9 @@ class TestIRSCapAndEligibilityNewModes:
 
     def test_tenure_based_with_eligibility_settings(self):
         """Eligibility settings should be accepted alongside tenure_based mode."""
-        from planalign_orchestrator.config.workforce import EmployerMatchEligibilitySettings
+        from planalign_orchestrator.config.workforce import (
+            EmployerMatchEligibilitySettings,
+        )
 
         settings = EmployerMatchSettings(
             employer_match_status="tenure_based",
@@ -455,7 +568,9 @@ class TestIRSCapAndEligibilityNewModes:
                 minimum_hours_annual=1000,
             ),
             tenure_match_tiers=[
-                TenureMatchTier(min_years=0, max_years=None, match_rate=50, max_deferral_pct=6),
+                TenureMatchTier(
+                    min_years=0, max_years=None, match_rate=50, max_deferral_pct=6
+                ),
             ],
         )
         assert settings.apply_eligibility is True
@@ -463,7 +578,9 @@ class TestIRSCapAndEligibilityNewModes:
 
     def test_points_based_with_eligibility_settings(self):
         """Eligibility settings should be accepted alongside points_based mode."""
-        from planalign_orchestrator.config.workforce import EmployerMatchEligibilitySettings
+        from planalign_orchestrator.config.workforce import (
+            EmployerMatchEligibilitySettings,
+        )
 
         settings = EmployerMatchSettings(
             employer_match_status="points_based",
@@ -473,7 +590,9 @@ class TestIRSCapAndEligibilityNewModes:
                 require_active_at_year_end=True,
             ),
             points_match_tiers=[
-                PointsMatchTier(min_points=0, max_points=None, match_rate=100, max_deferral_pct=6),
+                PointsMatchTier(
+                    min_points=0, max_points=None, match_rate=100, max_deferral_pct=6
+                ),
             ],
         )
         assert settings.apply_eligibility is True
@@ -484,7 +603,9 @@ class TestIRSCapAndEligibilityNewModes:
             employer_match_status="tenure_based",
             apply_eligibility=True,
             tenure_match_tiers=[
-                TenureMatchTier(min_years=0, max_years=None, match_rate=50, max_deferral_pct=6),
+                TenureMatchTier(
+                    min_years=0, max_years=None, match_rate=50, max_deferral_pct=6
+                ),
             ],
         )
         dbt_vars = _export_employer_match_vars(cfg)
@@ -499,7 +620,9 @@ class TestIRSCapAndEligibilityNewModes:
             employer_match_status="points_based",
             apply_eligibility=True,
             points_match_tiers=[
-                PointsMatchTier(min_points=0, max_points=None, match_rate=100, max_deferral_pct=6),
+                PointsMatchTier(
+                    min_points=0, max_points=None, match_rate=100, max_deferral_pct=6
+                ),
             ],
         )
         dbt_vars = _export_employer_match_vars(cfg)
@@ -520,7 +643,9 @@ class TestIRSCapAndEligibilityNewModes:
             employer_match_status="points_based",
             apply_eligibility=True,
             points_match_tiers=[
-                PointsMatchTier(min_points=0, max_points=None, match_rate=100, max_deferral_pct=6),
+                PointsMatchTier(
+                    min_points=0, max_points=None, match_rate=100, max_deferral_pct=6
+                ),
             ],
         )
         assert settings.apply_eligibility is True
@@ -607,9 +732,15 @@ class TestMultiYearPointsBased:
     def test_points_tiers_consistent_across_years(self):
         """Same config should export identical tier structures for each sim year."""
         tiers = [
-            PointsMatchTier(min_points=0, max_points=40, match_rate=25, max_deferral_pct=6),
-            PointsMatchTier(min_points=40, max_points=60, match_rate=50, max_deferral_pct=6),
-            PointsMatchTier(min_points=60, max_points=None, match_rate=100, max_deferral_pct=6),
+            PointsMatchTier(
+                min_points=0, max_points=40, match_rate=25, max_deferral_pct=6
+            ),
+            PointsMatchTier(
+                min_points=40, max_points=60, match_rate=50, max_deferral_pct=6
+            ),
+            PointsMatchTier(
+                min_points=60, max_points=None, match_rate=100, max_deferral_pct=6
+            ),
         ]
         for year in [2025, 2026, 2027]:
             cfg = _make_config_mock(
@@ -632,9 +763,15 @@ class TestMultiYearPointsBased:
         This is purely config-level — the SQL CASE handles runtime values.
         """
         tiers = [
-            PointsMatchTier(min_points=0, max_points=40, match_rate=25, max_deferral_pct=6),
-            PointsMatchTier(min_points=40, max_points=60, match_rate=50, max_deferral_pct=6),
-            PointsMatchTier(min_points=60, max_points=None, match_rate=100, max_deferral_pct=6),
+            PointsMatchTier(
+                min_points=0, max_points=40, match_rate=25, max_deferral_pct=6
+            ),
+            PointsMatchTier(
+                min_points=40, max_points=60, match_rate=50, max_deferral_pct=6
+            ),
+            PointsMatchTier(
+                min_points=60, max_points=None, match_rate=100, max_deferral_pct=6
+            ),
         ]
         # The tier at index 1 covers [40, 60) — inclusive 40, exclusive 60
         assert tiers[1].min_points == 40
@@ -648,12 +785,22 @@ class TestMultiYearPointsBased:
     def test_points_based_four_tier_export_field_mapping(self):
         """Verify all 4 quickstart tiers export with correct field mappings."""
         tiers = [
-            PointsMatchTier(min_points=0, max_points=40, match_rate=25, max_deferral_pct=6),
-            PointsMatchTier(min_points=40, max_points=60, match_rate=50, max_deferral_pct=6),
-            PointsMatchTier(min_points=60, max_points=80, match_rate=75, max_deferral_pct=6),
-            PointsMatchTier(min_points=80, max_points=None, match_rate=100, max_deferral_pct=6),
+            PointsMatchTier(
+                min_points=0, max_points=40, match_rate=25, max_deferral_pct=6
+            ),
+            PointsMatchTier(
+                min_points=40, max_points=60, match_rate=50, max_deferral_pct=6
+            ),
+            PointsMatchTier(
+                min_points=60, max_points=80, match_rate=75, max_deferral_pct=6
+            ),
+            PointsMatchTier(
+                min_points=80, max_points=None, match_rate=100, max_deferral_pct=6
+            ),
         ]
-        cfg = _make_config_mock(employer_match_status="points_based", points_match_tiers=tiers)
+        cfg = _make_config_mock(
+            employer_match_status="points_based", points_match_tiers=tiers
+        )
         dbt_vars = _export_employer_match_vars(cfg)
 
         exported = dbt_vars["points_match_tiers"]
@@ -670,9 +817,15 @@ class TestMultiYearTenureBased:
     def test_tenure_tiers_consistent_across_years(self):
         """Same config should export identical tier structures for each sim year."""
         tiers = [
-            TenureMatchTier(min_years=0, max_years=2, match_rate=25, max_deferral_pct=6),
-            TenureMatchTier(min_years=2, max_years=5, match_rate=50, max_deferral_pct=6),
-            TenureMatchTier(min_years=5, max_years=None, match_rate=100, max_deferral_pct=6),
+            TenureMatchTier(
+                min_years=0, max_years=2, match_rate=25, max_deferral_pct=6
+            ),
+            TenureMatchTier(
+                min_years=2, max_years=5, match_rate=50, max_deferral_pct=6
+            ),
+            TenureMatchTier(
+                min_years=5, max_years=None, match_rate=100, max_deferral_pct=6
+            ),
         ]
         for year in [2025, 2026, 2027]:
             cfg = _make_config_mock(
@@ -693,9 +846,15 @@ class TestMultiYearTenureBased:
         Next year with tenure >= 2, they cross into [2, 5) tier (rate=50%).
         """
         tiers = [
-            TenureMatchTier(min_years=0, max_years=2, match_rate=25, max_deferral_pct=6),
-            TenureMatchTier(min_years=2, max_years=5, match_rate=50, max_deferral_pct=6),
-            TenureMatchTier(min_years=5, max_years=None, match_rate=100, max_deferral_pct=6),
+            TenureMatchTier(
+                min_years=0, max_years=2, match_rate=25, max_deferral_pct=6
+            ),
+            TenureMatchTier(
+                min_years=2, max_years=5, match_rate=50, max_deferral_pct=6
+            ),
+            TenureMatchTier(
+                min_years=5, max_years=None, match_rate=100, max_deferral_pct=6
+            ),
         ]
         # [0, 2) tier
         assert tiers[0].min_years == 0
@@ -709,12 +868,22 @@ class TestMultiYearTenureBased:
     def test_tenure_based_four_tier_export_field_mapping(self):
         """Verify quickstart 4-tier tenure config exports correctly."""
         tiers = [
-            TenureMatchTier(min_years=0, max_years=2, match_rate=25, max_deferral_pct=6),
-            TenureMatchTier(min_years=2, max_years=5, match_rate=50, max_deferral_pct=6),
-            TenureMatchTier(min_years=5, max_years=10, match_rate=75, max_deferral_pct=6),
-            TenureMatchTier(min_years=10, max_years=None, match_rate=100, max_deferral_pct=6),
+            TenureMatchTier(
+                min_years=0, max_years=2, match_rate=25, max_deferral_pct=6
+            ),
+            TenureMatchTier(
+                min_years=2, max_years=5, match_rate=50, max_deferral_pct=6
+            ),
+            TenureMatchTier(
+                min_years=5, max_years=10, match_rate=75, max_deferral_pct=6
+            ),
+            TenureMatchTier(
+                min_years=10, max_years=None, match_rate=100, max_deferral_pct=6
+            ),
         ]
-        cfg = _make_config_mock(employer_match_status="tenure_based", tenure_match_tiers=tiers)
+        cfg = _make_config_mock(
+            employer_match_status="tenure_based", tenure_match_tiers=tiers
+        )
         dbt_vars = _export_employer_match_vars(cfg)
 
         exported = dbt_vars["tenure_match_tiers"]
@@ -741,21 +910,27 @@ class TestAllowNewHiresConditionalDefault:
 
     def test_tenure_gt_zero_defaults_allow_new_hires_false(self):
         """T009: minimum_tenure_years=2 without explicit allow_new_hires → False."""
-        from planalign_orchestrator.config.workforce import EmployerMatchEligibilitySettings
+        from planalign_orchestrator.config.workforce import (
+            EmployerMatchEligibilitySettings,
+        )
 
         settings = EmployerMatchEligibilitySettings(minimum_tenure_years=2)
         assert settings.allow_new_hires is False
 
     def test_tenure_zero_defaults_allow_new_hires_true(self):
         """T010: minimum_tenure_years=0 without explicit allow_new_hires → True (backward compat)."""
-        from planalign_orchestrator.config.workforce import EmployerMatchEligibilitySettings
+        from planalign_orchestrator.config.workforce import (
+            EmployerMatchEligibilitySettings,
+        )
 
         settings = EmployerMatchEligibilitySettings(minimum_tenure_years=0)
         assert settings.allow_new_hires is True
 
     def test_default_eligibility_preserves_backward_compat(self):
         """T010b: Default EmployerMatchEligibilitySettings() → allow_new_hires=True."""
-        from planalign_orchestrator.config.workforce import EmployerMatchEligibilitySettings
+        from planalign_orchestrator.config.workforce import (
+            EmployerMatchEligibilitySettings,
+        )
 
         settings = EmployerMatchEligibilitySettings()
         assert settings.minimum_tenure_years == 0
@@ -763,7 +938,9 @@ class TestAllowNewHiresConditionalDefault:
 
     def test_explicit_true_preserved_with_tenure(self):
         """T011: Explicit allow_new_hires=True is not overridden by conditional logic."""
-        from planalign_orchestrator.config.workforce import EmployerMatchEligibilitySettings
+        from planalign_orchestrator.config.workforce import (
+            EmployerMatchEligibilitySettings,
+        )
 
         settings = EmployerMatchEligibilitySettings(
             minimum_tenure_years=2, allow_new_hires=True
@@ -772,7 +949,9 @@ class TestAllowNewHiresConditionalDefault:
 
     def test_explicit_false_preserved_with_zero_tenure(self):
         """Explicit allow_new_hires=False is preserved even with tenure=0."""
-        from planalign_orchestrator.config.workforce import EmployerMatchEligibilitySettings
+        from planalign_orchestrator.config.workforce import (
+            EmployerMatchEligibilitySettings,
+        )
 
         settings = EmployerMatchEligibilitySettings(
             minimum_tenure_years=0, allow_new_hires=False
@@ -781,7 +960,9 @@ class TestAllowNewHiresConditionalDefault:
 
     def test_export_produces_false_when_tenure_gt_zero(self):
         """T012: Config export with tenure > 0 and no explicit allow_new_hires → false."""
-        from planalign_orchestrator.config.workforce import EmployerMatchEligibilitySettings
+        from planalign_orchestrator.config.workforce import (
+            EmployerMatchEligibilitySettings,
+        )
 
         cfg = _make_config_mock(
             apply_eligibility=True,
@@ -793,7 +974,9 @@ class TestAllowNewHiresConditionalDefault:
 
     def test_export_produces_true_when_tenure_zero(self):
         """T012b: Config export with tenure=0 and no explicit allow_new_hires → true."""
-        from planalign_orchestrator.config.workforce import EmployerMatchEligibilitySettings
+        from planalign_orchestrator.config.workforce import (
+            EmployerMatchEligibilitySettings,
+        )
 
         cfg = _make_config_mock(
             apply_eligibility=True,
@@ -837,7 +1020,9 @@ class TestContradictoryConfigWarnings:
 
     def test_contradictory_settings_emit_warning(self):
         """T019: allow_new_hires=True + minimum_tenure_years=2 → warning emitted."""
-        from planalign_orchestrator.config.workforce import EmployerMatchEligibilitySettings
+        from planalign_orchestrator.config.workforce import (
+            EmployerMatchEligibilitySettings,
+        )
 
         with pytest.warns(UserWarning, match="Contradictory eligibility"):
             EmployerMatchEligibilitySettings(
@@ -846,10 +1031,13 @@ class TestContradictoryConfigWarnings:
 
     def test_non_contradictory_no_warning(self):
         """T020: allow_new_hires=True + minimum_tenure_years=0 → no warning."""
-        from planalign_orchestrator.config.workforce import EmployerMatchEligibilitySettings
+        from planalign_orchestrator.config.workforce import (
+            EmployerMatchEligibilitySettings,
+        )
 
         # Should NOT emit any warning
         import warnings
+
         with warnings.catch_warnings():
             warnings.simplefilter("error")
             EmployerMatchEligibilitySettings(
@@ -858,9 +1046,12 @@ class TestContradictoryConfigWarnings:
 
     def test_no_warning_when_allow_false_with_tenure(self):
         """No warning when allow_new_hires=False + minimum_tenure_years>0 (consistent)."""
-        from planalign_orchestrator.config.workforce import EmployerMatchEligibilitySettings
+        from planalign_orchestrator.config.workforce import (
+            EmployerMatchEligibilitySettings,
+        )
 
         import warnings
+
         with warnings.catch_warnings():
             warnings.simplefilter("error")
             EmployerMatchEligibilitySettings(
@@ -869,9 +1060,12 @@ class TestContradictoryConfigWarnings:
 
     def test_no_warning_when_default_resolves(self):
         """No warning when allow_new_hires is defaulted (not explicitly set)."""
-        from planalign_orchestrator.config.workforce import EmployerMatchEligibilitySettings
+        from planalign_orchestrator.config.workforce import (
+            EmployerMatchEligibilitySettings,
+        )
 
         import warnings
+
         with warnings.catch_warnings():
             warnings.simplefilter("error")
             EmployerMatchEligibilitySettings(minimum_tenure_years=2)
@@ -886,10 +1080,18 @@ class TestQuickstartSmokeTests:
         settings = EmployerMatchSettings(
             employer_match_status="tenure_based",
             tenure_match_tiers=[
-                TenureMatchTier(min_years=0, max_years=2, match_rate=25, max_deferral_pct=6),
-                TenureMatchTier(min_years=2, max_years=5, match_rate=50, max_deferral_pct=6),
-                TenureMatchTier(min_years=5, max_years=10, match_rate=75, max_deferral_pct=6),
-                TenureMatchTier(min_years=10, max_years=None, match_rate=100, max_deferral_pct=6),
+                TenureMatchTier(
+                    min_years=0, max_years=2, match_rate=25, max_deferral_pct=6
+                ),
+                TenureMatchTier(
+                    min_years=2, max_years=5, match_rate=50, max_deferral_pct=6
+                ),
+                TenureMatchTier(
+                    min_years=5, max_years=10, match_rate=75, max_deferral_pct=6
+                ),
+                TenureMatchTier(
+                    min_years=10, max_years=None, match_rate=100, max_deferral_pct=6
+                ),
             ],
         )
         assert settings.employer_match_status == "tenure_based"
@@ -906,10 +1108,18 @@ class TestQuickstartSmokeTests:
         settings = EmployerMatchSettings(
             employer_match_status="points_based",
             points_match_tiers=[
-                PointsMatchTier(min_points=0, max_points=40, match_rate=25, max_deferral_pct=6),
-                PointsMatchTier(min_points=40, max_points=60, match_rate=50, max_deferral_pct=6),
-                PointsMatchTier(min_points=60, max_points=80, match_rate=75, max_deferral_pct=6),
-                PointsMatchTier(min_points=80, max_points=None, match_rate=100, max_deferral_pct=6),
+                PointsMatchTier(
+                    min_points=0, max_points=40, match_rate=25, max_deferral_pct=6
+                ),
+                PointsMatchTier(
+                    min_points=40, max_points=60, match_rate=50, max_deferral_pct=6
+                ),
+                PointsMatchTier(
+                    min_points=60, max_points=80, match_rate=75, max_deferral_pct=6
+                ),
+                PointsMatchTier(
+                    min_points=80, max_points=None, match_rate=100, max_deferral_pct=6
+                ),
             ],
         )
         assert settings.employer_match_status == "points_based"
@@ -923,16 +1133,25 @@ class TestQuickstartSmokeTests:
 
     def test_all_four_modes_are_valid(self):
         """Verify all four match modes from quickstart are valid."""
-        valid_modes = ["deferral_based", "graded_by_service", "tenure_based", "points_based"]
+        valid_modes = [
+            "deferral_based",
+            "graded_by_service",
+            "tenure_based",
+            "points_based",
+        ]
         for mode in valid_modes:
             kwargs = {"employer_match_status": mode}
             if mode == "tenure_based":
                 kwargs["tenure_match_tiers"] = [
-                    TenureMatchTier(min_years=0, max_years=None, match_rate=50, max_deferral_pct=6),
+                    TenureMatchTier(
+                        min_years=0, max_years=None, match_rate=50, max_deferral_pct=6
+                    ),
                 ]
             elif mode == "points_based":
                 kwargs["points_match_tiers"] = [
-                    PointsMatchTier(min_points=0, max_points=None, match_rate=50, max_deferral_pct=6),
+                    PointsMatchTier(
+                        min_points=0, max_points=None, match_rate=50, max_deferral_pct=6
+                    ),
                 ]
             settings = EmployerMatchSettings(**kwargs)
             assert settings.employer_match_status == mode
