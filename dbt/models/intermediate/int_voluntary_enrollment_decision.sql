@@ -54,8 +54,10 @@
   - Event-ready data for int_enrollment_events integration
 */
 
-WITH active_workforce AS (
-  -- Active employees with current demographics
+WITH active_workforce_base AS (
+  -- Active continuing employees with current demographics
+  -- NOTE: int_employee_compensation_by_year does NOT include a new hire in their hire year
+  -- (new hires first appear here the following year), so hire-year new hires are added below.
   SELECT DISTINCT
     employee_id,
     employee_ssn,
@@ -70,6 +72,37 @@ WITH active_workforce AS (
   WHERE simulation_year = {{ var('simulation_year') }}
     AND employment_status = 'active'
     AND employee_id IS NOT NULL
+),
+
+new_hires_current_year AS (
+  -- Feature 096: Include current-year new hires so they can voluntarily enroll in their HIRE year.
+  -- Sourced from int_hiring_events (the canonical current-year new-hire source for ALL years,
+  -- unlike int_new_hire_compensation_staging which only emits rows in the start year).
+  -- Eligibility gate: only include new hires whose eligibility date falls within the current year
+  -- (FR-006/FR-007); not-yet-eligible hires are first evaluated the year they become eligible.
+  SELECT DISTINCT
+    he.employee_id,
+    he.employee_ssn,
+    he.effective_date::DATE AS employee_hire_date,
+    {{ var('simulation_year') }} as simulation_year,
+    he.employee_age AS current_age,
+    0 AS current_tenure,
+    he.level_id,
+    he.compensation_amount AS employee_compensation,
+    'active' AS employment_status
+  FROM {{ ref('int_hiring_events') }} he
+  WHERE he.simulation_year = {{ var('simulation_year') }}
+    AND he.employee_id IS NOT NULL
+    AND EXTRACT(YEAR FROM (he.effective_date::DATE
+        + INTERVAL '{{ var("eligibility_waiting_days", 0) }}' DAY)) <= {{ var('simulation_year') }}
+),
+
+active_workforce AS (
+  -- Continuing employees plus hire-year new hires (deduplicated, continuing row preferred)
+  SELECT * FROM active_workforce_base
+  UNION
+  SELECT * FROM new_hires_current_year nh
+  WHERE nh.employee_id NOT IN (SELECT employee_id FROM active_workforce_base)
 ),
 
 current_enrollment_status AS (
@@ -265,7 +298,9 @@ enrollment_decisions AS (
     'voluntary_enrollment' as event_category,
     CASE
       WHEN EXTRACT(YEAR FROM employee_hire_date) = simulation_year
-        THEN CAST(employee_hire_date + INTERVAL '{{ var("auto_enrollment_window_days", 45) }}' DAY AS TIMESTAMP)
+        -- Feature 096: hire-year new hires enroll effective their eligibility date
+        -- (hire date + waiting period), which drives correct hire-year proration.
+        THEN CAST(employee_hire_date + INTERVAL '{{ var("eligibility_waiting_days", 0) }}' DAY AS TIMESTAMP)
       ELSE CAST((simulation_year || '-01-15 10:00:00') AS TIMESTAMP)
     END as proposed_effective_date,
 
