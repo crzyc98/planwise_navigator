@@ -18,7 +18,10 @@ from unittest.mock import MagicMock, call, patch
 import pandas as pd
 import pytest
 
-from planalign_orchestrator.excel_exporter import ExcelExporter
+from planalign_orchestrator.excel_exporter import (
+    ExcelExporter,
+    _safe_filename_component,
+)
 
 
 # ---------------------------------------------------------------------------
@@ -967,3 +970,73 @@ class TestQueryToDf:
         exporter = ExcelExporter(_make_db_manager(conn))
         result = exporter._query_to_df(conn, "SELECT ? AS a", params=[1])
         conn.execute.assert_called_once_with("SELECT ? AS a", [1])
+
+
+# ---------------------------------------------------------------------------
+# Filename sanitization (regression: odd characters in scenario name)
+# ---------------------------------------------------------------------------
+
+class TestSafeFilenameComponent:
+    """_safe_filename_component must never produce a filesystem-invalid name."""
+
+    @pytest.mark.fast
+    def test_plain_name_unchanged(self):
+        assert _safe_filename_component("Baseline 2025") == "Baseline 2025"
+
+    @pytest.mark.fast
+    @pytest.mark.parametrize(
+        "raw, expected",
+        [
+            ("High/Low Growth", "High_Low Growth"),
+            ("Q1:Q2*test?", "Q1_Q2_test_"),
+            ('sce<na>me|"x"', "sce_na_me__x_"),
+            ("a\\b/c", "a_b_c"),
+        ],
+    )
+    def test_illegal_chars_replaced(self, raw, expected):
+        assert _safe_filename_component(raw) == expected
+
+    @pytest.mark.fast
+    def test_control_chars_replaced(self):
+        assert _safe_filename_component("tab\tnewline\nname") == "tab_newline_name"
+
+    @pytest.mark.fast
+    def test_trailing_dots_and_spaces_trimmed(self):
+        # Windows rejects trailing dots/spaces
+        assert _safe_filename_component("  ..trim.. ") == "trim"
+
+    @pytest.mark.fast
+    @pytest.mark.parametrize("raw", ["", "   ", ". .", None])
+    def test_empty_or_unusable_falls_back(self, raw):
+        assert _safe_filename_component(raw) == "scenario"
+
+    @pytest.mark.fast
+    def test_length_is_capped(self):
+        assert len(_safe_filename_component("a" * 250)) == 100
+
+    @pytest.mark.fast
+    def test_result_has_no_illegal_chars(self):
+        result = _safe_filename_component('a/b\\c:d*e?f"g<h>i|j')
+        assert not any(ch in result for ch in '<>:"/\\|?*')
+
+
+class TestExportScenarioNameSanitized:
+    """export_scenario_results must build a valid path even for odd scenario names."""
+
+    @pytest.mark.fast
+    def test_odd_scenario_name_produces_valid_file(self):
+        conn = MagicMock()
+        # workforce snapshot table "missing" -> minimal export path (no DB data needed)
+        conn.execute.return_value.fetchone.return_value = [0]
+        exporter = ExcelExporter(_make_db_manager(conn))
+
+        with tempfile.TemporaryDirectory() as tmp:
+            out = exporter.export_scenario_results(
+                scenario_name="High/Low: Q1*?",
+                output_dir=Path(tmp),
+                config=MagicMock(),
+                seed=42,
+                export_format="csv",
+            )
+            assert out.exists()
+            assert not any(ch in out.name for ch in '<>:"/\\|?*')
