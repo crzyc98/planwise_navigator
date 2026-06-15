@@ -871,6 +871,8 @@ See `/docs/VERSIONING_GUIDE.md` for detailed versioning workflow.
 - In-memory per-run telemetry state in the API process (per clarification, no persistence); DuckDB read only *in-process by the orchestrator* (its own connection) for year-boundary event counts — the API never opens the scenario DB mid-run (094-live-run-dashboard)
 - SQL (dbt-core 1.8.8, dbt-duckdb 1.8.1), Python 3.11 (orchestrator + tests) + DuckDB 1.0.0, dbt-duckdb 1.8.1; existing temporal-accumulator pattern (E023) (095-fix-enrollment-snapshot)
 - DuckDB (`dbt/simulation.duckdb`) — no schema migration; incremental accumulator model, fix is logic-only (095-fix-enrollment-snapshot)
+- SQL (dbt-core 1.8.8, dbt-duckdb 1.8.1), Python 3.11 (tests) + DuckDB 1.0.0; existing temporal-accumulator pattern (E023) and feature-095 (096-newhire-voluntary-enroll)
+- DuckDB (`dbt/simulation.duckdb`) — no schema migration; logic-only change to existing (096-newhire-voluntary-enroll)
 
 ## Recent Changes
 - 063-1000-hr-eligibility: Added Python 3.11, SQL (dbt-core 1.8.8) + dbt-duckdb 1.8.1, DuckDB 1.0.0, Pydantic 2.7.4

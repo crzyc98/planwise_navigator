@@ -1,0 +1,22 @@
+=== BASELINE (pre-fix) Mon Jun 15 12:06:00 EDT 2026 ===
+--- New hires absent from comp_by_year in start year ---
+┌─────────────────┬───────────┐
+│ simulation_year │ new_hires │
+│      int32      │   int64   │
+├─────────────────┼───────────┤
+│            2025 │         0 │
+│            2026 │         4 │
+│            2027 │         8 │
+│            2028 │        12 │
+│            2029 │        15 │
+└─────────────────┴───────────┘
+--- First enrollment year per NH cohort (all post-hire-year) ---
+┌─────────┬─────────────────┬───────┐
+│ cohort  │ first_enroll_yr │   n   │
+│ varchar │      int32      │ int64 │
+├─────────┼─────────────────┼───────┤
+│ NH_2025 │            2026 │     4 │
+│ NH_2026 │            2027 │     3 │
+│ NH_2027 │            2029 │     3 │
+│ NH_2028 │            2029 │     3 │
+└─────────┴─────────────────┴───────┘
